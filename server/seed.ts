@@ -119,6 +119,7 @@ async function seed() {
       gameId: "game-1-today",
       homeTeam: "LAL",
       awayTeam: "GSW",
+      date: new Date(startOfDayET.getTime() - (etOffset * 60 * 60 * 1000)),
       startTime: new Date(game1StartET.getTime() - (etOffset * 60 * 60 * 1000)), // Convert to UTC
       status: "scheduled" as const,
     },
@@ -126,6 +127,7 @@ async function seed() {
       gameId: "game-2-today",
       homeTeam: "MIL",
       awayTeam: "PHX",
+      date: new Date(startOfDayET.getTime() - (etOffset * 60 * 60 * 1000)),
       startTime: new Date(game2StartET.getTime() - (etOffset * 60 * 60 * 1000)), // Convert to UTC
       status: "scheduled" as const,
     },

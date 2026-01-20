@@ -10,7 +10,7 @@ import { Zap, Trophy, TrendingUp, AlertTriangle, History, Info, Crown, Globe, Fl
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import type { Player } from "@shared/schema";
+import type { Player, CommunityBoost, User } from "@shared/schema";
 import { PlayerName } from "@/components/player-name";
 import { format } from "date-fns";
 
@@ -733,6 +733,5 @@ export default function DailyBoosts() {
                 </DialogContent>
             </Dialog>
         </div>
-    </div >
     );
 }

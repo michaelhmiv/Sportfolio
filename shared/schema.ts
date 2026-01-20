@@ -868,11 +868,7 @@ export const insertContestSchema = createInsertSchema(contests).omit({
   id: true,
   createdAt: true,
   entryCount: true,
-  totalSharesEntered: true,
-  totalPrizePool: true,
-  week: true, // Optional/computed
-  gameDay: true, // Optional
-  endsAt: true // Optional/computed
+  totalSharesEntered: true
 });
 
 export const insertContestEntrySchema = createInsertSchema(contestEntries).omit({
@@ -983,8 +979,6 @@ export type InsertScoutDistribution = z.infer<typeof insertScoutDistributionSche
 
 export type ScoutHistory = typeof scoutHistory.$inferSelect;
 export type InsertScoutHistory = z.infer<typeof insertScoutHistorySchema>;
-
-export type Holding = typeof holdings.$inferSelect;
 
 
 export type DailyGame = typeof dailyGames.$inferSelect;

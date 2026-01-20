@@ -5,9 +5,9 @@ import { performance } from "node:perf_hooks";
 import { storage } from "./storage";
 import { db } from "./db";
 import { fetchActivePlayers, calculateFantasyPoints } from "./mysportsfeeds";
-import type { InsertPlayer, Player, User, Holding } from "@shared/schema";
-import { contestLineups, contestEntries, contests, holdings, marketSnapshots, premiumCheckoutSessions, tweetSettings, tweetHistory, users, scoutAssignments } from "@shared/schema";
-import { sql, eq, desc, and, gte, lte } from "drizzle-orm";
+import type { InsertPlayer, Player, User, Holding, CommunityBoost } from "@shared/schema";
+import { contestLineups, contestEntries, contests, holdings, marketSnapshots, premiumCheckoutSessions, tweetSettings, tweetHistory, users, scoutAssignments, dailyGames } from "@shared/schema";
+import { sql, eq, desc, and, gte, lte, inArray } from "drizzle-orm";
 import { jobScheduler } from "./jobs/scheduler";
 import { addClient, removeClient, broadcast } from "./websocket";
 import { calculateAccrualUpdate } from "@shared/vesting-utils";
@@ -25,8 +25,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Scout Status Endpoint (Placed early to avoid shadowing)
   app.get("/api/scouts/status", isAuthenticated, async (req, res) => {
     try {
-      if (!req.user) return res.sendStatus(401);
-      const status = await storage.getScoutStatus(req.user.id);
+      const userId = getUserId(req);
+      const status = await storage.getScoutStatus(userId);
       res.json(status);
     } catch (err: any) {
       console.error("[Scout API] Error getting status:", err.message);
@@ -5810,8 +5810,8 @@ ${posts.map(post => `  <url>
   // Scout Status Endpoint
   app.get("/api/scouts/status", isAuthenticated, async (req, res) => {
     try {
-      if (!req.user) return res.sendStatus(401);
-      const status = await storage.getScoutStatus(req.user.id);
+      const userId = getUserId(req);
+      const status = await storage.getScoutStatus(userId);
       res.json(status);
     } catch (err: any) {
       console.error("[Scout API] Error getting status:", err.message);
@@ -6349,7 +6349,7 @@ ${posts.map(post => `  <url>
 
       res.json({
         sport,
-        date: today.toISOString().split('T')[0],
+        date: targetDate.toISOString().split('T')[0],
         boosts: enrichedBoosts,
         slotsRemaining: 4 - boosts.length,
         availableSlots: [5, 4, 3, 2].filter(tier => !boosts.some(b => b.slotTier === tier)),
@@ -6648,9 +6648,9 @@ ${posts.map(post => `  <url>
     try {
       const userId = getUserId(req);
       const sport = req.params.sport.toUpperCase();
-      const today = new Date();
+      const targetDate = new Date();
 
-      const boosts = await storage.getDailyBoosts(userId, sport, today);
+      const boosts = await storage.getDailyBoosts(userId, sport, targetDate);
 
       // Get player and game stats for each boost
       const enrichedBoosts = await Promise.all(boosts.map(async (boost) => {
@@ -6690,7 +6690,7 @@ ${posts.map(post => `  <url>
 
       res.json({
         sport,
-        date: today.toISOString().split('T')[0],
+        date: targetDate.toISOString().split('T')[0],
         boosts: enrichedBoosts,
         totalEstimatedEarnings: totalEstimated.toFixed(2),
       });

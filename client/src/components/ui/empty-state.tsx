@@ -79,7 +79,7 @@ export function EmptyState({
         sizes.container,
         className
       )}
-      {...props}
+      {...(props as any)}
     >
       <motion.div
         animate={{

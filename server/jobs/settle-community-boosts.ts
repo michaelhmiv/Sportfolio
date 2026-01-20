@@ -129,16 +129,15 @@ export async function settleCommunityBoosts(progressCallback?: ProgressCallback)
         }
 
         const result = {
-            success: true,
+            requestCount: activeBoosts.length,
             recordsProcessed: boostsSettled,
             errorCount,
-            message: `Settled ${boostsSettled} community boosts, total payout $${totalPayout.toFixed(2)}`
         };
 
         progressCallback?.({
-            type: result.errorCount > 0 ? 'warning' : 'success',
+            type: result.errorCount > 0 ? 'warning' : 'complete',
             timestamp: new Date().toISOString(),
-            message: result.message,
+            message: `Settled ${boostsSettled} community boosts, total payout $${totalPayout.toFixed(2)}`,
         });
 
         return result;
@@ -146,10 +145,9 @@ export async function settleCommunityBoosts(progressCallback?: ProgressCallback)
     } catch (error: any) {
         console.error("[settle_community_boosts] Fatal error:", error);
         return {
-            success: false,
+            requestCount: 0,
             recordsProcessed: boostsSettled,
             errorCount: errorCount + 1,
-            message: `Fatal error: ${error.message}`
         };
     }
 }

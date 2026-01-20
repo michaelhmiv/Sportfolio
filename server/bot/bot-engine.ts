@@ -20,7 +20,7 @@ export interface BotProfile {
   maxDailyOrders: number;
   maxDailyVolume: number;
   vestingClaimThreshold: string;
-  maxPlayersToMine: number;
+  maxPlayersToVest: number;
   maxContestEntriesPerDay: number;
   contestEntryBudget: number;
   minActionCooldownMs: number;

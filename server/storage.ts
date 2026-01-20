@@ -1129,7 +1129,7 @@ export class DatabaseStorage implements IStorage {
     sport?: string;
     limit?: number;
     offset?: number;
-    sortBy?: 'price' | 'volume' | 'change' | 'bid' | 'ask' | 'marketCap' | 'sentiment' | 'undervalued' | 'fantasyPoints';
+    sortBy?: 'price' | 'volume' | 'change' | 'bid' | 'ask' | 'marketCap' | 'sentiment' | 'undervalued' | 'fantasyPoints' | 'name' | 'team';
     sortOrder?: 'asc' | 'desc';
     hasBuyOrders?: boolean;
     hasSellOrders?: boolean;
@@ -1998,7 +1998,7 @@ export class DatabaseStorage implements IStorage {
         orderType: orders.orderType,
         quantity: orders.quantity,
         price: sql<string>`NULL`.as('price'),
-        limitPrice: orders.limitPrice,
+        limitPrice: sql<string>`${orders.limitPrice}`.as('limitPrice'),
         timestamp: sql<Date>`${orders.createdAt}`.as('timestamp'),
       })
       .from(orders)
@@ -2713,7 +2713,7 @@ export class DatabaseStorage implements IStorage {
         homeScore,
         awayScore,
         status,
-        lastUpdated: new Date()
+        lastFetchedAt: new Date()
       })
       .where(eq(dailyGames.gameId, gameId));
   }

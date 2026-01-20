@@ -144,17 +144,29 @@ function parseMultiStoryResponse(content: string): ParsedStory[] {
  */
 export async function fetchNews(progressCallback?: ProgressCallback): Promise<NewsResult> {
     try {
-        progressCallback?.({ message: 'Checking Perplexity service status...', type: 'info' });
+        progressCallback?.({
+            message: 'Checking Perplexity service status...', 
+            type: 'info',
+            timestamp: new Date().toISOString()
+        });
 
         if (!perplexityService.isReady()) {
             const error = 'Perplexity service not configured. Skipping news fetch.';
             console.log(`[News] ${error}`);
-            progressCallback?.({ message: error, type: 'warning' });
+            progressCallback?.({
+                message: error,
+                type: 'warning',
+                timestamp: new Date().toISOString()
+            });
             return { success: false, storiesProcessed: 0, stories: [], error };
         }
 
         // Get recent headlines for context
-        progressCallback?.({ message: 'Loading recent news for context...', type: 'info' });
+        progressCallback?.({
+            message: 'Loading recent news for context...', 
+            type: 'info',
+            timestamp: new Date().toISOString()
+        });
         const recentHeadlines = await getRecentHeadlines();
         console.log(`[News] Loaded ${recentHeadlines.length} recent headlines for context`);
         if (recentHeadlines.length > 0) {
@@ -166,7 +178,11 @@ export async function fetchNews(progressCallback?: ProgressCallback): Promise<Ne
         const prompt = buildPrompt(recentHeadlines);
         console.log(`[News] Full prompt length: ${prompt.length} characters`);
 
-        progressCallback?.({ message: 'Fetching breaking news from Perplexity...', type: 'info' });
+        progressCallback?.({
+            message: 'Fetching breaking news from Perplexity...', 
+            type: 'info',
+            timestamp: new Date().toISOString()
+        });
         console.log('[News] Fetching breaking news with context...');
 
         // Call Perplexity
@@ -175,7 +191,11 @@ export async function fetchNews(progressCallback?: ProgressCallback): Promise<Ne
         if (!response.success || !response.content) {
             const error = response.error || 'No content received';
             console.error('[News] Perplexity failed:', error);
-            progressCallback?.({ message: `Failed to fetch news: ${error}`, type: 'error' });
+            progressCallback?.({
+                message: `Failed to fetch news: ${error}`, 
+                type: 'error',
+                timestamp: new Date().toISOString()
+            });
             return { success: false, storiesProcessed: 0, stories: [], error };
         }
 
@@ -186,7 +206,11 @@ export async function fetchNews(progressCallback?: ProgressCallback): Promise<Ne
 
         if (parsedStories.length === 0) {
             console.log('[News] No significant news to report');
-            progressCallback?.({ message: 'No significant news at this time', type: 'info' });
+            progressCallback?.({
+                message: 'No significant news at this time', 
+                type: 'info',
+                timestamp: new Date().toISOString()
+            });
             return { success: true, storiesProcessed: 0, stories: [] };
         }
 
@@ -221,13 +245,10 @@ export async function fetchNews(progressCallback?: ProgressCallback): Promise<Ne
             });
 
             console.log(`[News] Stored ${story.type} ${story.sport} news: "${story.headline}"`);
-            progressCallback?.({ message: `Stored: "${story.headline.substring(0, 40)}..."`, type: 'success' });
-
-            processedStories.push({
-                headline: story.headline,
-                briefing: story.briefing,
-                sport: story.sport,
-                type: story.type,
+            progressCallback?.({
+                message: `Stored: "${story.headline.substring(0, 40)}..."`, 
+                type: 'complete',
+                timestamp: new Date().toISOString()
             });
         }
 
@@ -250,7 +271,11 @@ export async function fetchNews(progressCallback?: ProgressCallback): Promise<Ne
         };
     } catch (error: any) {
         console.error('[News] Fetch failed:', error.message);
-        progressCallback?.({ message: `Error: ${error.message}`, type: 'error' });
+        progressCallback?.({
+            message: `Error: ${error.message}`, 
+            type: 'error',
+            timestamp: new Date().toISOString()
+        });
         return { success: false, storiesProcessed: 0, stories: [], error: error.message };
     }
 }

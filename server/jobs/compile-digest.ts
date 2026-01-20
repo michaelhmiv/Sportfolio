@@ -285,7 +285,11 @@ export async function compileAllDigests(progressCallback?: ProgressCallback): Pr
     errors: number;
 }> {
     try {
-        progressCallback?.({ message: 'Starting daily digest compilation...', type: 'info' });
+        progressCallback?.({ 
+            message: 'Starting daily digest compilation...', 
+            type: 'info',
+            timestamp: new Date().toISOString()
+        });
         console.log('[Digest] Starting daily digest compilation...');
 
         // Get all users with notifications enabled
@@ -298,7 +302,11 @@ export async function compileAllDigests(progressCallback?: ProgressCallback): Pr
             ));
 
         console.log(`[Digest] Compiling digests for ${activeUsers.length} users`);
-        progressCallback?.({ message: `Processing ${activeUsers.length} users...`, type: 'info' });
+        progressCallback?.({ 
+            message: `Processing ${activeUsers.length} users...`, 
+            type: 'info',
+            timestamp: new Date().toISOString()
+        });
 
         let processed = 0;
         let errors = 0;
@@ -314,12 +322,20 @@ export async function compileAllDigests(progressCallback?: ProgressCallback): Pr
         }
 
         console.log(`[Digest] Completed: ${processed} users, ${errors} errors`);
-        progressCallback?.({ message: `Completed: ${processed} users processed, ${errors} errors`, type: 'success' });
+        progressCallback?.({ 
+            message: `Completed: ${processed} users processed, ${errors} errors`, 
+            type: 'complete',
+            timestamp: new Date().toISOString()
+        });
 
         return { success: true, usersProcessed: processed, errors };
     } catch (error: any) {
         console.error('[Digest] Compilation failed:', error.message);
-        progressCallback?.({ message: `Error: ${error.message}`, type: 'error' });
+        progressCallback?.({ 
+            message: `Error: ${error.message}`, 
+            type: 'error',
+            timestamp: new Date().toISOString()
+        });
         return { success: false, usersProcessed: 0, errors: 1 };
     }
 }

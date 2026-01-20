@@ -198,7 +198,7 @@ export function ScoutDashboardModal() {
 
     // Listen for real-time scout updates
     useEffect(() => {
-        const unsubscribe = subscribe((message: any) => {
+        const unsubscribe = subscribe('scout_update', (message: any) => {
             if (message.type === 'scout_update') {
                 // Refresh relevant queries when any user updates scouts
                 const { playerId } = message.data;
