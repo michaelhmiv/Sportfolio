@@ -1,4 +1,4 @@
-import { Home, TrendingUp, Trophy, User, Settings, BarChart3, Crown, Newspaper } from "lucide-react";
+import { Home, TrendingUp, Zap, User, Settings, BarChart3, Crown, Newspaper } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -33,9 +33,9 @@ const menuItems = [
     icon: BarChart3,
   },
   {
-    title: "Contests",
-    url: "/contests",
-    icon: Trophy,
+    title: "Daily Boosts",
+    url: "/boosts",
+    icon: Zap,
   },
   {
     title: "Portfolio",

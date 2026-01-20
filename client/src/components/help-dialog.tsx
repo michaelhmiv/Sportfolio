@@ -43,20 +43,20 @@ export function HelpDialog() {
 
               <div className="space-y-4">
                 <div>
-                  <h4 className="font-semibold mb-2">1. Accumulate Shares (Vesting Pool)</h4>
+                  <h4 className="font-semibold mb-2">1. Scout Players (Earn Shares)</h4>
                   <ul className="list-disc pl-6 space-y-1">
-                    <li><strong>What it is:</strong> Vesting is the <em>only</em> way to create new shares in the game.</li>
-                    <li><strong>How it works:</strong> Your account automatically generates shares into a pool over time at a set rate of 100 shares per hour (200 for premium users). These shares are not tied to any specific player yet.</li>
-                    <li><strong>The Cap:</strong> Your vesting pool has a maximum capacity (2,400 shares for free users, 4,800 for premium). Once full, vesting stops until you redeem shares.</li>
+                    <li><strong>What it is:</strong> Scouting is the <em>primary</em> way to create new shares in the game for free.</li>
+                    <li><strong>How it works:</strong> You have a limited number of "Scouts" (5 for free users, 10 for premium). Assign these scouts to real-life players you like.</li>
+                    <li><strong>The Reward:</strong> Every hour, your scouts work to find shares. You earn free shares of the players you've scouted, distributed based on a "Scout-Minute" formula. The more scouts you assign to a player, the more shares you earn.</li>
                   </ul>
                 </div>
 
                 <div>
-                  <h4 className="font-semibold mb-2">2. Redeem Shares to Players</h4>
+                  <h4 className="font-semibold mb-2">2. Manage Your Roster</h4>
                   <ul className="list-disc pl-6 space-y-1">
-                    <li><strong>What it is:</strong> Once you've accumulated shares in your vesting pool, you can redeem them to specific players.</li>
-                    <li><strong>How it works:</strong> Open the Redemption modal and distribute your pooled shares across any active players you choose. You can create presets to save your preferred distribution strategies.</li>
-                    <li><strong>The Strategy:</strong> You must decide <em>when</em> and <em>to which players</em> to redeem your shares. Do you vest a superstar, or an underrated rookie you think will break out?</li>
+                    <li><strong>Flexibility:</strong> You can move your scouts at any time. If a player gets injured or you lose faith in them, reassign your scout to someone else.</li>
+                    <li><strong>Strategy:</strong> Do you stack all your scouts on one superstar to maximize specific share earnings, or spread them out to diversify?</li>
+                    <li><strong>Activity:</strong> To keep earning, you must log in at least once every 24 hours. Inactive scouts stop producing shares.</li>
                   </ul>
                 </div>
 
@@ -99,12 +99,12 @@ export function HelpDialog() {
               <ul className="list-disc pl-6 space-y-2">
                 <li><strong>It's a Virtual Economy:</strong> Sportfolio is a game based on virtual currency. There are <strong>no cash-out options</strong>.</li>
                 <li><strong>Persistence is Key:</strong> Unlike seasonal fantasy, you don't have to redraft your players every year. If you vest a player and they become a star, you can benefit from that investment for their <em>entire career</em>.</li>
-                <li><strong>You Control the Market:</strong> A player's vesting rate is the same for everyone (100 shares/hour total). Their value is only determined by what other users are willing to pay for them on the Exchange, based on their contest performance or hype.</li>
+                <li><strong>You Control the Market:</strong> A player's share supply is determined by how many users scout them. The more popular a player is, the more shares enter the economy. Their value is determined by the Exchange and contest utility.</li>
               </ul>
             </div>
 
             <p className="text-center font-medium pt-4">
-              In short, your goal is to <strong>Accumulate</strong> shares through vesting, <strong>Redeem</strong> them to players you believe in, and then decide whether to <strong>Trade</strong> them for profit or <strong>Compete</strong> with them in contests to win prizes.
+              In short, your goal is to <strong>Accumulate</strong> shares through scouting, <strong>Trade</strong> them for profit, or <strong>Compete</strong> with them in contests to win prizes.
             </p>
           </div>
         </DialogContent>

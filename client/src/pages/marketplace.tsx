@@ -71,6 +71,12 @@ export default function Marketplace() {
     const sortOrder = searchParams.get("sortOrder") as SortOrder;
     if (sortBy && ["price", "volume", "change", "bid", "ask", "marketCap", "sentiment", "undervalued"].includes(sortBy)) {
       setSortField(sortBy);
+      // Auto-enable order filters when sorting by bid/ask via URL
+      if (sortBy === 'bid') {
+        setFilterHasBuyOrders(true);
+      } else if (sortBy === 'ask') {
+        setFilterHasSellOrders(true);
+      }
     }
     if (sortOrder && ["asc", "desc"].includes(sortOrder)) {
       setSortOrder(sortOrder);
@@ -338,6 +344,14 @@ export default function Marketplace() {
       } else {
         setSortOrder("desc"); // Usually want highest volume/cap/sentiment/change first
       }
+    }
+
+    // Auto-enable appropriate order filter when sorting by bid/ask
+    // This prevents empty screens from players with no active orders
+    if (field === 'bid') {
+      setFilterHasBuyOrders(true);
+    } else if (field === 'ask') {
+      setFilterHasSellOrders(true);
     }
   };
 

@@ -8,8 +8,8 @@ const faqs = [
     answer: "NBA players on Sportfolio are represented as tradable shares, similar to stocks. Each player has a market price that changes based on trading activity. You can place market orders to buy or sell immediately, or use limit orders to specify exact prices."
   },
   {
-    question: "What is the vesting system and how do I earn free shares?",
-    answer: "Vesting rewards active users with free player shares. By selecting players to vest, you accumulate shares over time at a rate of 100 shares per hour distributed across your selections. Check the vesting widget on your dashboard to claim shares."
+    question: "What is the Scout System and how do I earn free shares?",
+    answer: "Scouts are your agents who earn you free shares every hour. Assign scouts to your favorite players, and they'll earn shares for you based on the Scout-Minute formula. The more scouts you have on a player, the larger your share of that player's hourly distribution. Check the scout widget to manage your assignments."
   },
   {
     question: "How do fantasy contests work?",
@@ -34,7 +34,7 @@ export default function HowItWorks() {
         <p className="text-lg text-muted-foreground mb-12">
           Learn how to trade NBA player shares and compete in fantasy contests
         </p>
-        
+
         <div className="space-y-6">
           <Card>
             <CardHeader>
@@ -57,15 +57,15 @@ export default function HowItWorks() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Clock className="w-5 h-5 text-primary" />
-                2. Vesting Free Shares
+                2. Scouting Free Shares
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-muted-foreground">
-                Sportfolio features a vesting system that rewards active users with free player shares. By selecting players to vest, you accumulate shares over time - up to 100 shares per hour distributed across your selected players (maximum 10).
+                Sportfolio features a Scout System that rewards active users with free player shares. Assign up to 5 scouts (10 for premium users) to players you believe in. Each hour, shares are distributed to scouts based on the Scout-Minute formula.
               </p>
               <p className="text-muted-foreground">
-                Check the vesting widget on your dashboard to see your current accumulation and claim shares when available. Vesting is a great way to build your portfolio without spending virtual currency.
+                Click the scout widget in the navbar to see your assigned scouts and estimated hourly earnings. The more scouts you assign to a player, the larger your portion of that player's hourly share pool. Scouting is a great way to build your portfolio passively!
               </p>
             </CardContent>
           </Card>

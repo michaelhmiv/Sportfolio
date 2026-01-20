@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
-import { useVesting } from "@/lib/vesting-context";
+import { ScoutSelector } from "@/components/scout-selector";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface PlayerModalProps {
@@ -102,7 +102,6 @@ interface RecentGame {
 export function PlayerModal({ playerId, open, onOpenChange }: PlayerModalProps) {
   const [gamesToShow, setGamesToShow] = useState(5);
   const { isAuthenticated } = useAuth();
-  const { openRedemptionModal } = useVesting();
 
   // Fetch all player data
   const { data: statsData, isLoading: statsLoading } = useQuery<any>({
@@ -184,20 +183,6 @@ export function PlayerModal({ playerId, open, onOpenChange }: PlayerModalProps) 
               )}
             </DialogTitle>
             <div className="flex items-center gap-2">
-              {playerId && isAuthenticated && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    openRedemptionModal([playerId]);
-                    onOpenChange(false);
-                  }}
-                  data-testid="button-vest-player"
-                >
-                  <Gift className="w-4 h-4 mr-1" />
-                  Vest
-                </Button>
-              )}
               {playerId && (
                 <Link href={`/player/${playerId}`} onClick={() => onOpenChange(false)}>
                   <Button size="sm" data-testid="button-trade-player">
@@ -339,6 +324,11 @@ export function PlayerModal({ playerId, open, onOpenChange }: PlayerModalProps) 
               <div className="text-center text-xs text-muted-foreground py-2">No data</div>
             )}
           </div>
+
+          {/* Scout Assignment - Only for authenticated users */}
+          {isAuthenticated && playerId && (
+            <ScoutSelector playerId={playerId} />
+          )}
 
           {/* Season Stats - Compact List */}
           <div className="border rounded-md p-2">

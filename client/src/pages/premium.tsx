@@ -35,7 +35,7 @@ interface CheckoutSession {
 const PRICE_PER_SHARE = 5;
 
 const premiumBenefits = [
-  { icon: Zap, title: "Double Vesting Power", description: "Earn shares 2x faster during daily vesting sessions" },
+  { icon: Zap, title: "Double Scout Capacity", description: "Assign up to 10 scouts instead of 5 for faster share earnings" },
   { icon: Crown, title: "Ad-Free Experience", description: "Browse and trade without any advertisements" },
 ];
 
@@ -76,7 +76,7 @@ export default function Premium() {
       });
     },
   });
-  
+
   const syncWhopMutation = useMutation({
     mutationFn: async () => {
       const res = await apiRequest("POST", "/api/whop/sync");
@@ -91,7 +91,7 @@ export default function Premium() {
       } else {
         toast({
           title: "Sync Complete",
-          description: data.synced > 0 
+          description: data.synced > 0
             ? `Checked ${data.synced} payment${data.synced > 1 ? 's' : ''} from Whop. No new shares to credit.`
             : "No Whop payments found for your email.",
         });
@@ -115,12 +115,12 @@ export default function Premium() {
       const session = await res.json();
       setCheckoutSession(session);
       setShowCheckout(true);
-      
+
       // Open Whop checkout in a new tab using the purchaseUrl from API
       const checkoutUrl = session.purchaseUrl;
       if (checkoutUrl) {
         window.open(checkoutUrl, "_blank");
-        
+
         toast({
           title: "Checkout Opened",
           description: "Complete your purchase in the new tab. Your shares will be credited automatically.",
@@ -215,7 +215,7 @@ export default function Premium() {
                   Worth ${((premiumStatus?.premiumShares || 0) * PRICE_PER_SHARE).toFixed(2)}
                 </div>
               </div>
-              
+
               <div className="bg-card border rounded-lg p-4">
                 <div className="text-sm text-muted-foreground mb-1">Premium Status</div>
                 {premiumStatus?.isPremium ? (
@@ -282,14 +282,14 @@ export default function Premium() {
             >
               <Minus className="h-4 w-4" />
             </Button>
-            
+
             <div className="text-center min-w-[120px]">
               <div className="text-4xl font-bold" data-testid="text-quantity">
                 {quantity}
               </div>
               <div className="text-sm text-muted-foreground">shares</div>
             </div>
-            
+
             <Button
               variant="outline"
               size="icon"

@@ -1,4 +1,4 @@
-import { Home, TrendingUp, Trophy, Briefcase, Newspaper } from "lucide-react";
+import { Home, TrendingUp, Zap, Briefcase, Newspaper } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -31,9 +31,9 @@ const navItems = [
     icon: TrendingUp,
   },
   {
-    title: "Contests",
-    url: "/contests",
-    icon: Trophy,
+    title: "Boosts",
+    url: "/boosts",
+    icon: Zap,
   },
   {
     title: "Portfolio",

@@ -43,15 +43,16 @@ import News from "@/pages/news";
 import Premium from "@/pages/premium";
 import PremiumTrade from "@/pages/premium-trade";
 import Watchlists from "@/pages/watchlists";
+import DailyBoosts from "@/pages/daily-boosts";
 import Login from "@/pages/Login";
 import AuthCallback from "@/pages/AuthCallback";
 import logoUrl from "@assets/Sportfolio png_1763227952318.png";
 import { LogOut, User } from "lucide-react";
 import { SiDiscord } from "react-icons/si";
 import { SchemaOrg, schemas } from "@/components/schema-org";
-import { VestingWidget } from "@/components/vesting-widget";
-import { RedemptionModal } from "@/components/redemption-modal";
-import { VestingProvider, useVesting } from "@/lib/vesting-context";
+import { ScoutWidget } from "@/components/scout-widget";
+import { ScoutDashboardModal } from "@/components/scout-dashboard-modal";
+import { ScoutProvider, useScout } from "@/lib/scout-context";
 import { SportProvider } from "@/lib/sport-context";
 import { NewsNotificationProvider } from "@/lib/news-notification-context";
 
@@ -227,6 +228,11 @@ function Router() {
           <Route path="/analytics" component={Analytics} />
           <Route path="/news" component={News} />
 
+          {/* Daily Boosts - requires authentication */}
+          <Route path="/boosts">
+            {isAuthenticated ? <DailyBoosts /> : <Dashboard />}
+          </Route>
+
           {/* Protected routes - require authentication, redirect to dashboard if not logged in */}
           <Route path="/player/:id">
             {isAuthenticated ? <PlayerPage /> : <Dashboard />}
@@ -266,7 +272,7 @@ function Router() {
   );
 }
 
-function Header({ onVestShares }: { onVestShares: () => void }) {
+function Header() {
   const { user, isAuthenticated, logout } = useAuth();
   const [location, navigate] = useLocation();
   const { subscribe } = useWebSocket();
@@ -306,8 +312,8 @@ function Header({ onVestShares }: { onVestShares: () => void }) {
           <img src={logoUrl} alt="Sportfolio" className="w-10 h-10" />
           {isAuthenticated ? (
             <>
-              <VestingWidget onVestShares={onVestShares} className="hidden sm:flex" />
-              <VestingWidget onVestShares={onVestShares} compact className="flex sm:hidden" />
+              <ScoutWidget className="hidden sm:flex" />
+              <ScoutWidget compact className="flex sm:hidden" />
             </>
           ) : (
             <span className="text-xl font-extrabold tracking-tight text-primary">
@@ -389,7 +395,7 @@ function AppContent() {
     "--sidebar-width-icon": "3rem",
   };
 
-  const { openRedemptionModal, redemptionModalOpen, setRedemptionModalOpen, preselectedPlayerIds } = useVesting();
+  // Scout context - managed via ScoutDashboardModal
 
   return (
     <SidebarProvider style={style as React.CSSProperties}>
@@ -398,7 +404,7 @@ function AppContent() {
           <AppSidebar />
         </div>
         <div className="flex flex-col flex-1 overflow-x-hidden">
-          <Header onVestShares={() => openRedemptionModal()} />
+          <Header />
           <main className="flex-1 overflow-y-auto overflow-x-hidden pb-0 sm:pb-0 flex flex-col">
             <div className="pb-20 sm:pb-0 flex-1">
               <Router />
@@ -409,11 +415,7 @@ function AppContent() {
       </div>
       <BottomNav />
       <OnboardingCheck />
-      <RedemptionModal
-        open={redemptionModalOpen}
-        onOpenChange={setRedemptionModalOpen}
-        preselectedPlayerIds={preselectedPlayerIds}
-      />
+      <ScoutDashboardModal />
     </SidebarProvider>
   );
 }
@@ -427,14 +429,14 @@ function App() {
           <ConnectionStatus />
           <NotificationProvider>
             <TooltipProvider>
-              <VestingProvider>
+              <ScoutProvider>
                 <SportProvider>
                   <NewsNotificationProvider>
                     <AppContent />
                   </NewsNotificationProvider>
                 </SportProvider>
                 <Toaster />
-              </VestingProvider>
+              </ScoutProvider>
             </TooltipProvider>
           </NotificationProvider>
         </WebSocketProvider>

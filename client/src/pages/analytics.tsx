@@ -306,7 +306,7 @@ export default function Analytics() {
               <div className="flex flex-col gap-1">
                 <div className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1">
                   <Activity className="w-3 h-3 text-primary" />
-                  Shares Vested
+                  Shares Scouted
                 </div>
                 <div className="text-xl sm:text-2xl font-mono font-bold">
                   {formatNumber(mh?.sharesMined || 0)}
@@ -370,7 +370,7 @@ export default function Analytics() {
               {selectedMetric === 'marketCap' && <><BarChart3 className="w-4 h-4" /> Market Cap Over Time</>}
               {selectedMetric === 'transactions' && <><Activity className="w-4 h-4" /> Transactions Over Time</>}
               {selectedMetric === 'volume' && <><DollarSign className="w-4 h-4" /> Volume Over Time</>}
-              {selectedMetric === 'sharesMined' && <><Activity className="w-4 h-4 text-primary" /> Shares Vested Over Time</>}
+              {selectedMetric === 'sharesMined' && <><Activity className="w-4 h-4 text-primary" /> Shares Scouted Over Time</>}
               {selectedMetric === 'sharesBurned' && <><Flame className="w-4 h-4" /> Shares Burned Over Time</>}
               {selectedMetric === 'totalShares' && <><Coins className="w-4 h-4" /> Total Shares Over Time</>}
             </CardTitle>
@@ -413,7 +413,7 @@ export default function Analytics() {
                       }
                       return [value.toLocaleString(),
                       selectedMetric === 'transactions' ? 'Transactions' :
-                        selectedMetric === 'sharesMined' ? 'Shares Vested' :
+                        selectedMetric === 'sharesMined' ? 'Shares Scouted' :
                           selectedMetric === 'sharesBurned' ? 'Shares Burned' : 'Total Shares'
                       ];
                     }}
@@ -462,7 +462,7 @@ export default function Analytics() {
 
           {/* Overview Tab - All-Encompassing Chart */}
           <TabsContent value="overview" className="space-y-4">
-            {/* Share Economy Chart - Shows vesting and burning activity */}
+            {/* Share Economy Chart - Shows scouting and burning activity */}
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -499,7 +499,7 @@ export default function Analytics() {
                       <Bar
                         dataKey="sharesMined"
                         fill="hsl(142 76% 36%)"
-                        name="Shares Vested"
+                        name="Shares Scouted"
                         radius={[4, 4, 0, 0]}
                         isAnimationActive={true}
                         animationDuration={800}
@@ -519,7 +519,7 @@ export default function Analytics() {
                   </ResponsiveContainer>
                 ) : (
                   <div className="flex items-center justify-center h-[250px] text-muted-foreground text-sm">
-                    No vesting or contest activity in selected time period
+                    No scouting or contest activity in selected time period
                   </div>
                 )}
               </CardContent>

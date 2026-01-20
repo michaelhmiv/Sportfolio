@@ -289,7 +289,7 @@ export default function NewsPage() {
                                                 <CardTitle className="text-md flex items-center gap-2">
                                                     {section.title === 'Contest Results' && <Trophy className="w-4 h-4 text-yellow-500" />}
                                                     {section.title === 'Portfolio Health' && <DollarSign className="w-4 h-4 text-green-500" />}
-                                                    {section.title === 'Vesting Activity' && <BarChart3 className="w-4 h-4 text-purple-500" />}
+                                                    {section.title === 'Scout Activity' && <BarChart3 className="w-4 h-4 text-purple-500" />}
                                                     {section.title === 'Market Movers' && <TrendingUp className="w-4 h-4 text-blue-500" />}
                                                     {section.title}
                                                 </CardTitle>

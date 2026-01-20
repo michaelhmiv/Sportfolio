@@ -18,6 +18,7 @@ export interface PlayerValuation {
   playerName: string;
   team: string;
   position: string;
+  sport: string; // Added for sport-aware bot trading
   // Price data
   lastTradePrice: number | null;
   fairValue: number;
@@ -133,13 +134,18 @@ function calculateTier(zScore: number): { tier: number; tierLabel: string } {
 
 /**
  * Get valuations for all active players with stats
+ * @param sport - Optional sport filter (e.g., 'NBA', 'NFL'). If not provided, returns all sports.
  */
-export async function getAllPlayerValuations(): Promise<ValuationSummary> {
-  // Get all active players
+export async function getAllPlayerValuations(sport?: string): Promise<ValuationSummary> {
+  // Get all active players, optionally filtered by sport
+  const whereClause = sport
+    ? and(eq(players.isActive, true), sql`UPPER(${players.sport}) = ${sport.toUpperCase()}`)
+    : eq(players.isActive, true);
+
   const allPlayers = await db
     .select()
     .from(players)
-    .where(eq(players.isActive, true));
+    .where(whereClause);
 
   // Calculate fair values for all players
   const valuationsRaw: Array<{
@@ -199,6 +205,7 @@ export async function getAllPlayerValuations(): Promise<ValuationSummary> {
       playerId: v.player.id,
       playerName: `${v.player.firstName} ${v.player.lastName}`,
       team: v.player.team,
+      sport: v.player.sport,
       position: v.player.position,
       lastTradePrice,
       fairValue: parseFloat(v.fairValue.toFixed(2)),
@@ -349,6 +356,7 @@ async function getPlayersWithNoOrders(): Promise<Set<string>> {
 /**
  * Get players suitable for market making (have some trading history)
  * Prioritizes players without any order book presence to bootstrap liquidity
+ * NEW: Processes each sport separately to ensure fair distribution across NBA/NFL
  * @param limit - Maximum number of players to return
  * @param targetTiers - Optional specific tiers to target (1-5), defaults to all tiers
  */
@@ -356,29 +364,46 @@ export async function getMarketMakingCandidates(
   limit: number = 30,
   targetTiers?: number[]
 ): Promise<PlayerValuation[]> {
-  const allCandidates = await getPlayersForTrading({
-    tier: targetTiers || [1, 2, 3, 4, 5], // Include ALL tiers for full market coverage
-    minGamesPlayed: 1, // Lower threshold to include newer players
-    // limit: removed to allow selecting from ALL players
-  });
+  // SPORT-AWARE DISTRIBUTION: Process each sport separately
+  // This ensures NFL players get fair representation instead of being drowned out by NBA's larger player pool
+  const sports = ['NBA', 'NFL'];
+  const perSportLimit = Math.ceil(limit / sports.length);
 
-  // Get players that have no orders (need liquidity bootstrapping)
+  // Get players that have no orders (need liquidity bootstrapping) - shared across all sports
   const coldPlayers = await getPlayersWithNoOrders();
 
-  // Separate cold players (priority) from players with existing orders
-  const coldCandidates = allCandidates.filter(c => coldPlayers.has(c.playerId));
-  const warmCandidates = allCandidates.filter(c => !coldPlayers.has(c.playerId));
+  const allCandidates: PlayerValuation[] = [];
 
-  // Prioritize cold players (70% of results) to bootstrap liquidity for neglected players
-  const coldLimit = Math.floor(limit * 0.7);
-  const warmLimit = limit - Math.min(coldCandidates.length, coldLimit);
+  for (const sport of sports) {
+    // Get candidates for this specific sport
+    const sportSummary = await getAllPlayerValuations(sport);
+    let sportCandidates = sportSummary.valuations;
 
-  // Shuffle both groups for variety
-  const shuffledCold = coldCandidates.sort(() => Math.random() - 0.5).slice(0, coldLimit);
-  const shuffledWarm = warmCandidates.sort(() => Math.random() - 0.5).slice(0, warmLimit);
+    // Apply tier filter
+    const tiers = targetTiers || [1, 2, 3, 4, 5];
+    sportCandidates = sportCandidates.filter(v => tiers.includes(v.tier));
 
-  // Combine: cold first, then warm
-  return [...shuffledCold, ...shuffledWarm];
+    // Apply minimum games filter
+    sportCandidates = sportCandidates.filter(v => v.gamesPlayed >= 1);
+
+    // Separate cold players (priority) from players with existing orders
+    const coldCandidates = sportCandidates.filter(c => coldPlayers.has(c.playerId));
+    const warmCandidates = sportCandidates.filter(c => !coldPlayers.has(c.playerId));
+
+    // Prioritize cold players (70% of results for this sport) to bootstrap liquidity
+    const coldLimit = Math.floor(perSportLimit * 0.7);
+    const warmLimit = perSportLimit - Math.min(coldCandidates.length, coldLimit);
+
+    // Shuffle both groups for variety
+    const shuffledCold = coldCandidates.sort(() => Math.random() - 0.5).slice(0, coldLimit);
+    const shuffledWarm = warmCandidates.sort(() => Math.random() - 0.5).slice(0, warmLimit);
+
+    // Add this sport's candidates to the pool
+    allCandidates.push(...shuffledCold, ...shuffledWarm);
+  }
+
+  // Final shuffle to mix NBA and NFL players together
+  return allCandidates.sort(() => Math.random() - 0.5);
 }
 
 /**

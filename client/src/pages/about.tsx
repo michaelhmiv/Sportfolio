@@ -9,7 +9,7 @@ export default function About() {
         <p className="text-lg text-muted-foreground mb-12">
           Where fantasy sports meets stock market trading
         </p>
-        
+
         <div className="space-y-6">
           <Card>
             <CardHeader>
@@ -57,7 +57,7 @@ export default function About() {
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-primary mt-1">•</span>
-                  <span><strong>Share Vesting:</strong> Earn free player shares over time by selecting players to vest</span>
+                  <span><strong>Scout Rewards:</strong> Assign scouts to players to earn free shares hourly</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-primary mt-1">•</span>

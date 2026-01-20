@@ -16,7 +16,8 @@ import { syncPlayerGameLogs } from "./sync-player-game-logs";
 import { settleContests } from "./settle-contests";
 import { createContests } from "./create-contests";
 import { updateContestStatuses } from "./update-contest-statuses";
-import { accrueVestingForAllUsers } from "./vesting-accrual";
+
+import { distributeScoutShares } from "./scout-distribution";
 import { dailySnapshot } from "./daily-snapshot";
 import { backfillContestStats } from "./backfill-contest-stats";
 import { generateWeeklyRoundup } from "./weekly-roundup";
@@ -27,6 +28,9 @@ import { syncNFLStats } from "./sync-nfl-stats";
 import { syncNFLRoster } from "./sync-nfl-roster";
 import { fetchNews } from "./fetch-news";
 import { compileAllDigests } from "./compile-digest";
+import { lockBoostShares } from "./lock-boost-shares";
+import { settleBoosts } from "./settle-boosts";
+import { settleCommunityBoosts } from "./settle-community-boosts";
 import type { ProgressCallback } from "../lib/admin-stream";
 
 export interface JobResult {
@@ -139,11 +143,12 @@ export class JobScheduler {
           };
         },
       },
+
       {
-        name: "vesting_accrual",
-        schedule: "4-59/5 * * * *", // Every 5 minutes (offset 4m) - accrue vesting shares for all users
+        name: "scout_distribution",
+        schedule: "30 * * * *", // Every hour at :30 - distribute scout shares based on Scout-Minute ratio
         enabled: true,
-        handler: accrueVestingForAllUsers,
+        handler: distributeScoutShares,
       },
       {
         name: "news_fetch",
@@ -170,6 +175,24 @@ export class JobScheduler {
             errorCount: result.errors,
           };
         },
+      },
+      {
+        name: "lock_boost_shares",
+        schedule: "*/5 * * * *", // Every 5 minutes - lock shares when games start
+        enabled: true,
+        handler: lockBoostShares,
+      },
+      {
+        name: "settle_boosts",
+        schedule: "*/10 * * * *", // Every 10 minutes - settle completed boosts
+        enabled: true,
+        handler: settleBoosts,
+      },
+      {
+        name: "settle_community_boosts",
+        schedule: "*/10 * * * *", // Every 10 minutes - settle community boosts
+        enabled: true,
+        handler: settleCommunityBoosts,
       },
     ];
 
@@ -346,6 +369,9 @@ export class JobScheduler {
           errorCount: result.errors,
         };
       },
+      scout_distribution: async () => {
+        return await distributeScoutShares();
+      },
       news_fetch: async (callback) => {
         const result = await fetchNews(callback);
         return {
@@ -365,6 +391,9 @@ export class JobScheduler {
           errorCount: result.errors,
         };
       },
+      lock_boost_shares: (callback) => lockBoostShares(callback),
+      settle_boosts: (callback) => settleBoosts(callback),
+      settle_community_boosts: (callback) => settleCommunityBoosts(callback),
     };
 
     const handler = jobConfigs[jobName];

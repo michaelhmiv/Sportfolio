@@ -430,11 +430,7 @@
   }
 }
 
-/* 7. VESTING & INDICATORS - Clean Standard */
-.vesting-indicator {
-  @apply border-2 border-primary/50;
-  box-shadow: 0 0 4px rgba(0, 153, 129, 0.2);
-}
+
 
 .first-time-indicator {
   position: relative;

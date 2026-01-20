@@ -13,15 +13,13 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { TrendingUp, TrendingDown, Trophy, Clock, DollarSign, Calendar, Search, ChevronDown, BarChart3, ChevronLeft, ChevronRight, ExternalLink, ArrowUpDown, LogIn, Activity } from "lucide-react";
 import { Link, useLocation } from "wouter";
-import type { Player, Vesting, Contest, Trade, DailyGame } from "@shared/schema";
+import type { Player, Contest, Trade, DailyGame } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { formatBalance } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { invalidatePortfolioQueries } from "@/lib/cache-invalidation";
-import { calculateVestingShares } from "@shared/vesting-utils";
 import { DashboardScanners } from "@/components/marketplace-scanners";
-import { useVesting } from "@/lib/vesting-context";
 import { PlayerName } from "@/components/player-name";
 import { WhopAd } from "@/components/whop-ad";
 import { Shimmer, ShimmerCard, ScrollReveal, AnimatedButton, SwipeHint } from "@/components/ui/animations";
@@ -40,13 +38,6 @@ interface DashboardData {
     cashRankChange: number | null;
     portfolioRankChange: number | null;
   } | null; // Null for non-authenticated users
-  hotPlayers: Player[];
-  vesting: (Vesting & {
-    player?: Player;
-    players?: Array<{ player: Player | undefined; sharesPerHour: number }>;
-    capLimit: number;
-    sharesPerHour: number;
-  }) | null; // Null for non-authenticated users
   contests: Contest[];
   recentTrades: (Trade & { player: Player })[];
   portfolioHistory: { date: string; value: number }[];
@@ -87,7 +78,6 @@ export default function Dashboard() {
   const { toast } = useToast();
   const { isAuthenticated, user } = useAuth();
   const isPremiumUser = user?.isPremium || false;
-  const { openRedemptionModal } = useVesting();
   const [, setLocation] = useLocation();
   const [flippedGameId, setFlippedGameId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
@@ -127,56 +117,6 @@ export default function Dashboard() {
     refetchInterval: 10000,
   });
 
-  // Real-time vesting share projection
-  const [projectedShares, setProjectedShares] = useState(0);
-
-  useEffect(() => {
-    if (!data?.vesting) {
-      setProjectedShares(0);
-      return;
-    }
-
-    const calculateProjectedShares = () => {
-      const vesting = data.vesting;
-      if (!vesting) {
-        setProjectedShares(0);
-        return;
-      }
-
-      // Pool-based vesting: shares always accrue to pool regardless of player selection
-      const sharesPerHour = vesting.sharesPerHour || (isPremiumUser ? 200 : 100);
-
-      // Guard against missing required fields
-      if (!vesting.lastAccruedAt) {
-        setProjectedShares(vesting.sharesAccumulated || 0);
-        return;
-      }
-
-      // Use shared utility to ensure frontend matches backend calculation exactly
-      const result = calculateVestingShares({
-        sharesAccumulated: vesting.sharesAccumulated || 0,
-        residualMs: vesting.residualMs || 0,
-        lastAccruedAt: vesting.lastAccruedAt,
-        sharesPerHour: sharesPerHour,
-        capLimit: vesting.capLimit || (isPremiumUser ? 4800 : 2400),
-      });
-
-      setProjectedShares(result.projectedShares);
-    };
-
-    // Calculate immediately and then every second
-    calculateProjectedShares();
-    const interval = setInterval(calculateProjectedShares, 1000);
-
-    return () => clearInterval(interval);
-  }, [
-    data?.vesting?.lastAccruedAt,
-    data?.vesting?.residualMs,
-    data?.vesting?.sharesAccumulated,
-    data?.vesting?.sharesPerHour,
-    data?.vesting?.capLimit,
-    isPremiumUser,
-  ]);
 
   // Handle Escape key and click-outside to close flipped card
   useEffect(() => {
@@ -327,7 +267,7 @@ export default function Dashboard() {
               <div className="flex items-center gap-2 text-sm sm:text-base">
                 <LogIn className="w-4 h-4 flex-shrink-0" />
                 <span className="font-medium">
-                  See live NBA trading in action. <span className="hidden sm:inline">Sign in to start trading, vesting, and competing.</span>
+                  See live NBA trading in action. <span className="hidden sm:inline">Sign in to start trading, scouting, and competing.</span>
                 </span>
               </div>
               <Button

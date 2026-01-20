@@ -48,18 +48,18 @@ export default function PremiumTradePage() {
   // Read URL query parameters to pre-fill order form
   useEffect(() => {
     if (hasAppliedUrlParams) return;
-    
+
     const params = new URLSearchParams(searchString);
     const actionParam = params.get("action");
     const priceParam = params.get("price");
-    
+
     if (actionParam && priceParam) {
       if (actionParam === "buy" || actionParam === "sell") {
         setSide(actionParam);
         setOrderType("limit");
         setLimitPrice(priceParam);
         setHasAppliedUrlParams(true);
-        
+
         toast({
           title: "Order form pre-filled",
           description: `Set to ${actionParam.toUpperCase()} at $${priceParam}. Enter quantity to complete.`,
@@ -121,16 +121,16 @@ export default function PremiumTradePage() {
   const balance = parseFloat(data?.userBalance || "0");
   const holding = data?.premiumShares || 0;
   const orderValue = parseFloat(quantity || "0") * parseFloat(limitPrice || DEFAULT_PRICE_SUGGESTION.toString());
-  
+
   // Get last trade price from recent trades (market price is determined by actual trades)
-  const lastTradePrice = data?.recentTrades && data.recentTrades.length > 0 
-    ? parseFloat(data.recentTrades[0].price) 
+  const lastTradePrice = data?.recentTrades && data.recentTrades.length > 0
+    ? parseFloat(data.recentTrades[0].price)
     : null;
 
   // Validation
   const canBuy = side === "buy" && balance >= orderValue && parseInt(quantity) > 0;
   const canSell = side === "sell" && holding >= parseInt(quantity || "0") && parseInt(quantity) > 0;
-  const canSubmit = orderType === "market" 
+  const canSubmit = orderType === "market"
     ? (side === "buy" ? canBuy : canSell)
     : (side === "buy" ? canBuy : canSell);
 
@@ -190,7 +190,7 @@ export default function PremiumTradePage() {
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardContent className="p-4">
             <div className="text-sm text-muted-foreground">Your Holdings</div>
@@ -199,7 +199,7 @@ export default function PremiumTradePage() {
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardContent className="p-4">
             <div className="text-sm text-muted-foreground">Cash Balance</div>
@@ -212,8 +212,8 @@ export default function PremiumTradePage() {
 
       {/* Disclaimer */}
       <div className="bg-muted/50 border border-muted rounded-lg p-3 text-sm text-muted-foreground">
-        Premium shares are <span className="font-medium text-foreground">in-game consumable items</span>. 
-        They can be redeemed for premium access or traded with other users for in-game currency. 
+        Premium shares are <span className="font-medium text-foreground">in-game consumable items</span>.
+        They can be redeemed for premium access or traded with other users for in-game currency.
         Premium shares have no cash value and <span className="font-medium text-foreground">cannot be withdrawn for real money</span>.
       </div>
 
@@ -230,15 +230,15 @@ export default function PremiumTradePage() {
             {/* Buy/Sell Toggle */}
             <Tabs value={side} onValueChange={(v) => setSide(v as "buy" | "sell")}>
               <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger 
-                  value="buy" 
+                <TabsTrigger
+                  value="buy"
                   className="data-[state=active]:bg-green-500 data-[state=active]:text-white"
                   data-testid="tab-buy"
                 >
                   <TrendingUp className="h-4 w-4 mr-1" />
                   Buy
                 </TabsTrigger>
-                <TabsTrigger 
+                <TabsTrigger
                   value="sell"
                   className="data-[state=active]:bg-red-500 data-[state=active]:text-white"
                   data-testid="tab-sell"
@@ -324,11 +324,10 @@ export default function PremiumTradePage() {
 
             {/* Submit Button */}
             <Button
-              className={`w-full ${
-                side === "buy" 
-                  ? "bg-green-500 hover:bg-green-600" 
+              className={`w-full ${side === "buy"
+                  ? "bg-green-500 hover:bg-green-600"
                   : "bg-red-500 hover:bg-red-600"
-              }`}
+                }`}
               disabled={!canSubmit || orderMutation.isPending}
               onClick={handleSubmit}
               data-testid="button-submit-order"
@@ -362,8 +361,8 @@ export default function PremiumTradePage() {
                 {data?.orderBook?.asks && data.orderBook.asks.length > 0 ? (
                   <div className="space-y-1">
                     {data.orderBook.asks.slice(0, 5).map((ask, i) => (
-                      <div 
-                        key={i} 
+                      <div
+                        key={i}
                         className="flex justify-between text-sm bg-red-500/10 px-2 py-1 rounded cursor-pointer hover:bg-red-500/20"
                         onClick={() => {
                           setSide("buy");
@@ -399,8 +398,8 @@ export default function PremiumTradePage() {
                 {data?.orderBook?.bids && data.orderBook.bids.length > 0 ? (
                   <div className="space-y-1">
                     {data.orderBook.bids.slice(0, 5).map((bid, i) => (
-                      <div 
-                        key={i} 
+                      <div
+                        key={i}
                         className="flex justify-between text-sm bg-green-500/10 px-2 py-1 rounded cursor-pointer hover:bg-green-500/20"
                         onClick={() => {
                           setSide("sell");
@@ -434,18 +433,18 @@ export default function PremiumTradePage() {
               <div className="flex items-start gap-3">
                 <Crown className="h-5 w-5 text-yellow-500 mt-0.5" />
                 <div>
-                  <div className="font-medium">Double Vesting Rate</div>
+                  <div className="font-medium">Double Scout Capacity</div>
                   <div className="text-sm text-muted-foreground">
-                    200 shares/hour (vs 100 for free users)
+                    10 scouts total (vs 5 for free users)
                   </div>
                 </div>
               </div>
               <div className="flex items-start gap-3">
                 <Crown className="h-5 w-5 text-yellow-500 mt-0.5" />
                 <div>
-                  <div className="font-medium">Higher Vesting Cap</div>
+                  <div className="font-medium">Faster Share Earnings</div>
                   <div className="text-sm text-muted-foreground">
-                    4,800 shares/day (vs 2,400 for free users)
+                    More scouts = more shares from hourly distributions
                   </div>
                 </div>
               </div>
@@ -462,7 +461,7 @@ export default function PremiumTradePage() {
 
             {holding > 0 && (
               <Link href="/premium">
-                <Button 
+                <Button
                   className="w-full bg-yellow-500 hover:bg-yellow-600 text-black"
                   data-testid="button-redeem-share"
                 >

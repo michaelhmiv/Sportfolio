@@ -10,6 +10,9 @@ import {
   vestingSplits,
   vestingClaims,
   vestingPresets,
+  scoutAssignments,
+  scoutDistributions,
+  scoutHistory,
   contests,
   contestEntries,
   contestLineups,
@@ -25,6 +28,9 @@ import {
   whopPayments,
   watchlists,
   watchList,
+  dailyBoosts,
+  boostPayouts,
+  communityBoosts,
   type User,
   type InsertUser,
   type UpsertUser,
@@ -43,6 +49,8 @@ import {
   type InsertVestingClaim,
   type VestingPreset,
   type InsertVestingPreset,
+  type ScoutAssignment,
+  type InsertScoutAssignment,
   type Contest,
   type InsertContest,
   type ContestEntry,
@@ -64,9 +72,15 @@ import {
   type PremiumTrade,
   type WhopPayment,
   type InsertWhopPayment,
+  type DailyBoost,
+  type InsertDailyBoost,
+  type BoostPayout,
+  type InsertBoostPayout,
+  type CommunityBoost,
+  type InsertCommunityBoost,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, asc, sql, inArray, or, gte, lte, isNotNull, count, gt } from "drizzle-orm";
+import { eq, and, desc, asc, sql, inArray, or, gte, lte, isNotNull, count, gt, lt, isNull, ne } from "drizzle-orm";
 import { alias, unionAll } from "drizzle-orm/pg-core";
 import { randomUUID } from "crypto";
 
@@ -102,7 +116,10 @@ function getCurrentCompetitiveSeasons(): string[] {
     `${seasonStartYear}-${seasonEndYear}-regular`,
     `${seasonStartYear}-${seasonEndYear}-playoff`,
     // Explicitly include 2025-2026-regular for NFL compatibility during transition
-    "2025-2026-regular"
+    "2025-2026-regular",
+    // Fallback for data tagged with previous season (e.g. 2024-2025 data extending into 2026)
+    "2024-2025-regular",
+    "2024-2025-playoff"
   ];
 }
 
@@ -151,7 +168,7 @@ export interface IStorage {
     sport?: string;
     limit?: number;
     offset?: number;
-    sortBy?: 'price' | 'volume' | 'change' | 'bid' | 'ask' | 'marketCap' | 'sentiment' | 'undervalued';
+    sortBy?: 'price' | 'volume' | 'change' | 'bid' | 'ask' | 'marketCap' | 'sentiment' | 'undervalued' | 'fantasyPoints' | 'name' | 'team';
     sortOrder?: 'asc' | 'desc';
     hasBuyOrders?: boolean;
     hasSellOrders?: boolean;
@@ -239,6 +256,26 @@ export interface IStorage {
   getVestingSplits(userId: string): Promise<VestingSplit[]>;
   setVestingSplits(userId: string, splits: InsertVestingSplit[]): Promise<void>;
   createVestingClaim(claim: InsertVestingClaim): Promise<VestingClaim>;
+
+  // Scout Engine methods
+  assignScouts(userId: string, playerId: string, count: number): Promise<void>;
+  getUserScoutAssignments(userId: string): Promise<(ScoutAssignment & { player: Player | null })[]>;
+  getTotalScoutsForUser(userId: string): Promise<number>;
+  getActiveScouts(playerId: string): Promise<Array<{ userId: string; scoutCount: number }>>;
+  getBatchActiveScoutCounts(playerIds: string[]): Promise<Map<string, number>>;
+  updateLastActive(userId: string): Promise<void>;
+  // Scout Distribution Engine methods
+  getPlayersWithActiveScouts(): Promise<string[]>;
+  createScoutDistribution(distribution: {
+    hourTimestamp: Date;
+    playerId: string;
+    userId: string;
+    userScoutMinutes: number;
+    globalScoutMinutes: number;
+    sharesEarned: string;
+  }): Promise<void>;
+  creditScoutShares(userId: string, playerId: string, shares: number): Promise<void>;
+  getScoutRoster(playerId: string): Promise<Array<{ user: { id: string; username: string | null; avatarUrl: string | null } | null; scoutCount: number }>>;
 
   // Activity methods
   getUserActivity(userId: string, filters?: { types?: string[]; limit?: number; offset?: number }): Promise<any[]>;
@@ -381,6 +418,31 @@ export interface IStorage {
     momentum: { player: Player, metrics: PlayerFinancialMetrics }[];
     premium: { player: Player, metrics: PlayerFinancialMetrics }[];
   }>;
+
+  // Daily Boosts methods
+  getDailyBoosts(userId: string, sport: string, date: Date): Promise<DailyBoost[]>;
+  getDailyBoostsByStatus(status: string): Promise<DailyBoost[]>;
+  getEligiblePlayersForBoost(userId: string, sport: string, date: Date): Promise<(Holding & { player: Player; availableShares: number; powerLevel: string; gameId: string | null; gameStartTime: Date | null })[]>;
+  createDailyBoost(boost: InsertDailyBoost): Promise<DailyBoost>;
+  updateDailyBoost(boostId: string, updates: Partial<DailyBoost>): Promise<void>;
+  deleteDailyBoost(boostId: string): Promise<void>;
+  getBoostPayoutHistory(userId: string, limit?: number): Promise<BoostPayout[]>;
+  createBoostPayout(payout: InsertBoostPayout): Promise<BoostPayout>;
+  lockBoostShares(boostId: string): Promise<void>;
+  unlockBoostShares(boostId: string): Promise<void>;
+  getPlayerGameForDate(playerId: string, sport: string, date: Date): Promise<DailyGame | undefined>;
+
+  // Community Boosts methods
+  getCommunityBoostsForDate(sport: string, date: Date): Promise<(CommunityBoost & { creator: User; player: Player })[]>;
+  createCommunityBoost(boost: InsertCommunityBoost): Promise<CommunityBoost>;
+  getCommunityBoostBeneficiaries(playerId: string): Promise<(Holding & { user: User })[]>;
+  updateCommunityBoost(boostId: string, updates: Partial<CommunityBoost>): Promise<void>;
+  getCommunityBoostsByStatus(status: string): Promise<CommunityBoost[]>;
+  getScoutStatus(userId: string): Promise<{ earnedMinutes: number; nextDistribution: Date; perPlayer?: Record<string, number> }>;
+
+  // Power Level / Condense methods
+  condenseShares(userId: string, playerId: string, rawShareCount: number): Promise<{ newPowerLevel: string; sharesCondensed: number }>;
+  getHoldingWithPowerLevel(userId: string, playerId: string): Promise<{ quantity: number; powerLevel: string; availableShares: number } | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -405,22 +467,7 @@ export class DatabaseStorage implements IStorage {
     return user || undefined;
   }
 
-  async getAllUsersForRanking(): Promise<Array<{ userId: string; balance: string; portfolioValue: number }>> {
-    // Optimized single query to get all users and their net worth
-    // Joins holdings and players to calculate market value in one pass
-    const results = await db
-      .select({
-        userId: users.id,
-        balance: users.balance,
-        portfolioValue: sql<number>`COALESCE(SUM(${holdings.quantity} * COALESCE(${players.lastTradePrice}, ${players.currentPrice}, '0')::numeric), 0)`,
-      })
-      .from(users)
-      .leftJoin(holdings, eq(users.id, holdings.userId))
-      .leftJoin(players, and(eq(holdings.assetId, players.id), eq(holdings.assetType, 'player')))
-      .groupBy(users.id);
 
-    return results;
-  }
 
   async createUser(insertUser: InsertUser): Promise<User> {
     const [user] = await db
@@ -730,6 +777,260 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
 
+  // Scout Engine methods
+  async assignScouts(userId: string, playerId: string, count: number): Promise<void> {
+    // Use transaction to ensure atomic check-and-update
+    await db.transaction(async (tx) => {
+      // Get user to check premium status
+      const [user] = await tx.select().from(users).where(eq(users.id, userId));
+      if (!user) {
+        throw new Error("User not found");
+      }
+
+      const maxScouts = user.isPremium ? 10 : 5;
+
+      // Get current total scouts for user (excluding current player if exists)
+      const currentAssignments = await tx
+        .select({ totalScouts: sql<number>`COALESCE(SUM(${scoutAssignments.scoutCount}), 0)` })
+        .from(scoutAssignments)
+        .where(and(
+          eq(scoutAssignments.userId, userId),
+          sql`${scoutAssignments.playerId} != ${playerId}`
+        ));
+
+      const currentTotal = Number(currentAssignments[0]?.totalScouts || 0);
+      const newTotal = currentTotal + count;
+
+      // Validate scout limit
+      if (newTotal > maxScouts) {
+        throw new Error(`Scout limit exceeded. Maximum: ${maxScouts}, Current: ${currentTotal}, Requested: ${count}`);
+      }
+
+      if (count === 0) {
+        // Delete assignment if count is 0
+        await tx
+          .delete(scoutAssignments)
+          .where(and(
+            eq(scoutAssignments.userId, userId),
+            eq(scoutAssignments.playerId, playerId)
+          ));
+      } else {
+        // Upsert: insert or update
+        await tx
+          .insert(scoutAssignments)
+          .values({
+            userId,
+            playerId,
+            scoutCount: count,
+          })
+          .onConflictDoUpdate({
+            target: [scoutAssignments.userId, scoutAssignments.playerId],
+            set: {
+              scoutCount: count,
+              updatedAt: new Date(),
+            },
+          });
+      }
+
+      // HISTORY LOGGING (Time-Weighted Scouts)
+      // 1. Close any currently active history for this user/player
+      await tx
+        .update(scoutHistory)
+        .set({ endedAt: new Date() })
+        .where(and(
+          eq(scoutHistory.userId, userId),
+          eq(scoutHistory.playerId, playerId),
+          sql`${scoutHistory.endedAt} IS NULL`
+        ));
+
+      // 2. Open new history record if count > 0
+      if (count > 0) {
+        await tx.insert(scoutHistory).values({
+          userId,
+          playerId,
+          scoutCount: count,
+          startedAt: new Date() // Defaults to NOW(), explicit for clarity
+        });
+      }
+    });
+  }
+
+  async getUserScoutAssignments(userId: string): Promise<(ScoutAssignment & { player: Player | null })[]> {
+    const results = await db
+      .select({
+        assignment: scoutAssignments,
+        player: players,
+      })
+      .from(scoutAssignments)
+      .leftJoin(players, eq(scoutAssignments.playerId, players.id))
+      .where(eq(scoutAssignments.userId, userId));
+
+    return results.map(r => ({
+      ...r.assignment,
+      player: r.player
+    }));
+  }
+
+  async getTotalScoutsForUser(userId: string): Promise<number> {
+    const result = await db
+      .select({ total: sql<number>`COALESCE(SUM(${scoutAssignments.scoutCount}), 0)` })
+      .from(scoutAssignments)
+      .where(eq(scoutAssignments.userId, userId));
+    return Number(result[0]?.total || 0);
+  }
+
+  async getActiveScouts(playerId: string): Promise<Array<{ userId: string; scoutCount: number }>> {
+    // Get scout assignments for this player, filtered by users active within 24 hours
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+    const results = await db
+      .select({
+        userId: scoutAssignments.userId,
+        scoutCount: scoutAssignments.scoutCount,
+      })
+      .from(scoutAssignments)
+      .innerJoin(users, eq(scoutAssignments.userId, users.id))
+      .where(and(
+        eq(scoutAssignments.playerId, playerId),
+        gte(users.lastActiveAt, twentyFourHoursAgo)
+      ));
+
+    return results.map(r => ({ userId: r.userId, scoutCount: r.scoutCount }));
+  }
+
+  async updateLastActive(userId: string): Promise<void> {
+    await db
+      .update(users)
+      .set({ lastActiveAt: new Date() })
+      .where(eq(users.id, userId));
+  }
+
+  // Scout Distribution Engine methods
+  async getPlayersWithActiveScouts(): Promise<string[]> {
+    // Get all distinct player IDs that have at least one scout from an active user
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+    const results = await db
+      .selectDistinct({ playerId: scoutAssignments.playerId })
+      .from(scoutAssignments)
+      .innerJoin(users, eq(scoutAssignments.userId, users.id))
+      .where(gte(users.lastActiveAt, twentyFourHoursAgo));
+
+    return results.map(r => r.playerId);
+  }
+
+  async createScoutDistribution(distribution: {
+    hourTimestamp: Date;
+    playerId: string;
+    userId: string;
+    userScoutMinutes: number;
+    globalScoutMinutes: number;
+    sharesEarned: string;
+  }): Promise<void> {
+    await db.insert(scoutDistributions).values({
+      hourTimestamp: distribution.hourTimestamp,
+      playerId: distribution.playerId,
+      userId: distribution.userId,
+      userScoutMinutes: distribution.userScoutMinutes,
+      globalScoutMinutes: distribution.globalScoutMinutes,
+      sharesEarned: distribution.sharesEarned,
+    });
+  }
+
+  async creditScoutShares(userId: string, playerId: string, shares: number): Promise<void> {
+    // Credit shares to user's holdings with $0 cost basis (minted, not purchased)
+    const existing = await this.getHolding(userId, 'player', playerId);
+
+    if (existing) {
+      // Add to existing holding - keep existing cost basis for purchased shares
+      // New shares have $0 cost, so weighted average shifts down
+      const newQuantity = existing.quantity + shares;
+      const existingCost = parseFloat(existing.totalCostBasis || '0');
+      // New shares are free, so total cost stays the same
+      const newAvgCost = newQuantity > 0 ? (existingCost / newQuantity).toFixed(4) : '0.0000';
+
+      await db
+        .update(holdings)
+        .set({
+          quantity: newQuantity,
+          avgCostBasis: newAvgCost,
+          // totalCostBasis stays the same since new shares are free
+          lastUpdated: new Date(),
+        })
+        .where(
+          and(
+            eq(holdings.userId, userId),
+            eq(holdings.assetType, 'player'),
+            eq(holdings.assetId, playerId)
+          )
+        );
+    } else {
+      // Create new holding with $0 cost basis
+      await db.insert(holdings).values({
+        userId,
+        assetType: 'player',
+        assetId: playerId,
+        quantity: shares,
+        avgCostBasis: '0.0000',
+        totalCostBasis: '0.00',
+      });
+    }
+
+    // Update player's total shares count
+    await db
+      .update(players)
+      .set({
+        totalShares: sql`${players.totalShares} + ${shares}`,
+        lastUpdated: new Date(),
+      })
+      .where(eq(players.id, playerId));
+  }
+
+  async getScoutRoster(playerId: string): Promise<Array<{ user: { id: string; username: string | null; avatarUrl: string | null } | null; scoutCount: number }>> {
+    console.log(`[Storage] Fetching scout roster for ${playerId}`);
+
+    // Attempt 1: Full Join (Standard)
+    const results = await db
+      .select({
+        user: {
+          id: users.id,
+          username: users.username,
+          avatarUrl: users.profileImageUrl,
+        },
+        scoutCount: scoutAssignments.scoutCount,
+      })
+      .from(scoutAssignments)
+      .leftJoin(users, eq(scoutAssignments.userId, users.id))
+      .where(and(eq(scoutAssignments.playerId, playerId), gt(scoutAssignments.scoutCount, 0)))
+      .orderBy(desc(scoutAssignments.scoutCount))
+      .limit(50);
+
+    if (results.length > 0) {
+      return results;
+    }
+
+    // Attempt 2: Fallback (Raw Assignments) - If Join filtered everything out (unlikely with leftJoin, but possible if RLS on Users table hides rows completely)
+    console.log(`[Storage] Join returned 0 rows. Attempting fallback raw fetch for ${playerId}`);
+    const rawResults = await db
+      .select({
+        userId: scoutAssignments.userId,
+        scoutCount: scoutAssignments.scoutCount
+      })
+      .from(scoutAssignments)
+      .where(eq(scoutAssignments.playerId, playerId))
+      .orderBy(desc(scoutAssignments.scoutCount))
+      .limit(50);
+
+    return rawResults.map(r => ({
+      user: {
+        id: r.userId,
+        username: `User ${r.userId.substring(0, 8)}...`, // Anonymized fallback
+        avatarUrl: null
+      },
+      scoutCount: r.scoutCount
+    }));
+  }
+
   async addUserBalance(userId: string, delta: number): Promise<User | undefined> {
     // Atomically increment the balance in the database
     // Drizzle handles numeric values correctly when passed directly
@@ -828,7 +1129,7 @@ export class DatabaseStorage implements IStorage {
     sport?: string;
     limit?: number;
     offset?: number;
-    sortBy?: 'price' | 'volume' | 'change' | 'bid' | 'ask' | 'marketCap' | 'sentiment' | 'undervalued';
+    sortBy?: 'price' | 'volume' | 'change' | 'bid' | 'ask' | 'marketCap' | 'sentiment' | 'undervalued' | 'fantasyPoints';
     sortOrder?: 'asc' | 'desc';
     hasBuyOrders?: boolean;
     hasSellOrders?: boolean;
@@ -893,73 +1194,42 @@ export class DatabaseStorage implements IStorage {
 
     // Subquery for Order Metrics (Bid/Ask/Sentiment)
     // Only fetch if sortBy requires it to keep the base query light
-    const needsOrders = ['bid', 'ask', 'sentiment'].includes(sortBy);
-    const orderMetrics = db
-      .select({
-        playerId: orders.playerId,
-        bestBid: sql<number>`MAX(CASE WHEN ${orders.side} = 'buy' AND ${orders.status} IN ('open', 'partial') THEN ${orders.limitPrice} END)`,
-        bestAsk: sql<number>`MIN(CASE WHEN ${orders.side} = 'sell' AND ${orders.status} IN ('open', 'partial') THEN ${orders.limitPrice} END)`,
-        sentimentPercent: sql<number>`(SUM(CASE WHEN ${orders.side} = 'buy' AND ${orders.createdAt} >= NOW() - INTERVAL '24 hours' THEN ${orders.quantity} ELSE 0 END)::numeric / NULLIF(SUM(CASE WHEN ${orders.createdAt} >= NOW() - INTERVAL '24 hours' THEN ${orders.quantity} ELSE 0 END), 0)::numeric) * 100`,
-        totalVol24h: sql<number>`SUM(CASE WHEN ${orders.createdAt} >= NOW() - INTERVAL '24 hours' THEN ${orders.quantity} ELSE 0 END)`,
-      })
-      .from(orders)
-      .groupBy(orders.playerId)
-      .as('order_metrics');
+    const avgFantasySql = sql`(SELECT AVG(${playerGameStats.fantasyPoints}::numeric) FROM ${playerGameStats} WHERE ${playerGameStats.playerId} = ${players.id})`;
+    const bestBidSql = sql`(SELECT MAX(${orders.limitPrice}) FROM ${orders} WHERE ${orders.playerId} = ${players.id} AND ${orders.side} = 'buy' AND ${orders.status} IN ('open', 'partial'))`;
+    const bestAskSql = sql`(SELECT MIN(${orders.limitPrice}) FROM ${orders} WHERE ${orders.playerId} = ${players.id} AND ${orders.side} = 'sell' AND ${orders.status} IN ('open', 'partial'))`;
+    const sentimentSql = sql`(SELECT (SUM(CASE WHEN ${orders.side} = 'buy' AND ${orders.createdAt} >= NOW() - INTERVAL '24 hours' THEN ${orders.quantity} ELSE 0 END)::numeric / NULLIF(SUM(CASE WHEN ${orders.createdAt} >= NOW() - INTERVAL '24 hours' THEN ${orders.quantity} ELSE 0 END), 0)::numeric) * 100 FROM ${orders} WHERE ${orders.playerId} = ${players.id})`;
+    const sentimentVolSql = sql`(SELECT SUM(CASE WHEN ${orders.createdAt} >= NOW() - INTERVAL '24 hours' THEN ${orders.quantity} ELSE 0 END) FROM ${orders} WHERE ${orders.playerId} = ${players.id})`;
 
-    // Subquery for Fantasy Stats (Undervalued)
-    const fantasyMetrics = db
-      .select({
-        playerId: playerGameStats.playerId,
-        avgFantasy: sql<number>`AVG(${playerGameStats.fantasyPoints}::numeric)`,
-      })
-      .from(playerGameStats)
-      .groupBy(playerGameStats.playerId)
-      .as('fantasy_metrics');
-
-    // Build the main data query dynamically based on what columns/joins are needed
-    // This prevents SQL errors from referencing non-existent joined tables
+    // Build the main data query dynamically
     let dataQuery: any;
 
-    if (needsOrders && sortBy === 'undervalued') {
-      // Need both order metrics and fantasy metrics
-      dataQuery = db
-        .select({
-          player: players,
-          bestBid: sql`order_metrics.best_bid`,
-          bestAsk: sql`order_metrics.best_ask`,
-          sentiment: sql`order_metrics.sentiment_percent`,
-          avgFantasy: sql`fantasy_metrics.avg_fantasy`,
-        })
-        .from(players)
-        .leftJoin(orderMetrics, eq(players.id, orderMetrics.playerId))
-        .leftJoin(fantasyMetrics, eq(players.id, fantasyMetrics.playerId));
+    const needsOrders = ['bid', 'ask', 'sentiment', 'undervalued'].includes(sortBy);
+    const needsFantasy = ['undervalued', 'fantasyPoints'].includes(sortBy);
+
+    if (needsOrders && needsFantasy) {
+      dataQuery = db.select({
+        player: players,
+        bestBid: bestBidSql,
+        bestAsk: bestAskSql,
+        sentiment: sentimentSql,
+        avg_fantasy: avgFantasySql,
+      }).from(players);
     } else if (needsOrders) {
-      // Need only order metrics
-      dataQuery = db
-        .select({
-          player: players,
-          bestBid: sql`order_metrics.best_bid`,
-          bestAsk: sql`order_metrics.best_ask`,
-          sentiment: sql`order_metrics.sentiment_percent`,
-        })
-        .from(players)
-        .leftJoin(orderMetrics, eq(players.id, orderMetrics.playerId));
-    } else if (sortBy === 'undervalued') {
-      // Need only fantasy metrics
-      dataQuery = db
-        .select({
-          player: players,
-          avgFantasy: sql`fantasy_metrics.avg_fantasy`,
-        })
-        .from(players)
-        .leftJoin(fantasyMetrics, eq(players.id, fantasyMetrics.playerId));
+      dataQuery = db.select({
+        player: players,
+        bestBid: bestBidSql,
+        bestAsk: bestAskSql,
+        sentiment: sentimentSql,
+      }).from(players);
+    } else if (needsFantasy) {
+      dataQuery = db.select({
+        player: players,
+        avg_fantasy: avgFantasySql,
+      }).from(players);
     } else {
-      // No extra joins needed - just select players
-      dataQuery = db
-        .select({
-          player: players,
-        })
-        .from(players);
+      dataQuery = db.select({
+        player: players,
+      }).from(players);
     }
 
     if (baseConditions.length > 0) {
@@ -968,7 +1238,7 @@ export class DatabaseStorage implements IStorage {
 
     // Additional condition for sentiment sorting (quality filter)
     if (sortBy === 'sentiment') {
-      dataQuery = dataQuery.where(sql`order_metrics.total_vol_24h > 10`) as any;
+      dataQuery = dataQuery.where(sql`${sentimentVolSql} > 10`) as any;
     }
 
     // Set up ORDER BY
@@ -982,19 +1252,29 @@ export class DatabaseStorage implements IStorage {
     } else if (sortBy === 'change') {
       orderByClause = sortOrder === 'asc' ? asc(players.priceChange24h) : desc(players.priceChange24h);
     } else if (sortBy === 'bid') {
-      orderByClause = sortOrder === 'asc' ? sql`order_metrics.best_bid ASC NULLS LAST` : sql`order_metrics.best_bid DESC NULLS LAST`;
+      orderByClause = sortOrder === 'asc' ? sql`${bestBidSql} ASC NULLS LAST` : sql`${bestBidSql} DESC NULLS LAST`;
     } else if (sortBy === 'ask') {
-      orderByClause = sortOrder === 'asc' ? sql`order_metrics.best_ask ASC NULLS LAST` : sql`order_metrics.best_ask DESC NULLS LAST`;
+      orderByClause = sortOrder === 'asc' ? sql`${bestAskSql} ASC NULLS LAST` : sql`${bestAskSql} DESC NULLS LAST`;
     } else if (sortBy === 'sentiment') {
       orderByClause = sortOrder === 'asc'
-        ? sql`order_metrics.sentiment_percent ASC NULLS LAST, ${players.volume24h} ASC`
-        : sql`order_metrics.sentiment_percent DESC NULLS LAST, ${players.volume24h} DESC`;
+        ? sql`${sentimentSql} ASC NULLS LAST, ${players.volume24h} ASC`
+        : sql`${sentimentSql} DESC NULLS LAST, ${players.volume24h} DESC`;
     } else if (sortBy === 'undervalued') {
       const LEAGUE_AVG_PE = 0.43;
-      const peScore = sql`( ( ${players.lastTradePrice}::numeric / NULLIF(fantasy_metrics.avg_fantasy, 0) ) / ${LEAGUE_AVG_PE} ) * 100`;
+      const peScore = sql`( ( ${players.lastTradePrice}::numeric / NULLIF(${avgFantasySql}, 0) ) / ${LEAGUE_AVG_PE} ) * 100`;
       orderByClause = sortOrder === 'asc'
         ? sql`CASE WHEN ${peScore} > 0 THEN ${peScore} ELSE 999 END ASC`
         : sql`${peScore} DESC NULLS LAST`;
+    } else if (sortBy === 'fantasyPoints') {
+      orderByClause = sortOrder === 'asc'
+        ? sql`${avgFantasySql} ASC NULLS LAST`
+        : sql`${avgFantasySql} DESC NULLS LAST`;
+    } else if (sortBy === 'name') {
+      orderByClause = sortOrder === 'asc'
+        ? sql`${players.lastName} ASC, ${players.firstName} ASC`
+        : sql`${players.lastName} DESC, ${players.firstName} DESC`;
+    } else if (sortBy === 'team') {
+      orderByClause = sortOrder === 'asc' ? asc(players.team) : desc(players.team);
     } else {
       orderByClause = desc(players.volume24h);
     }
@@ -3938,6 +4218,34 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
+  async getBatchActiveScoutCounts(playerIds: string[]): Promise<Map<string, number>> {
+    if (playerIds.length === 0) {
+      return new Map();
+    }
+
+    // Only count scouts from users active in the last 24h (matching distribution logic)
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+    const results = await db
+      .select({
+        playerId: scoutAssignments.playerId,
+        count: sql<string>`COALESCE(SUM(${scoutAssignments.scoutCount}), 0)`.as('total_scouts'),
+      })
+      .from(scoutAssignments)
+      .innerJoin(users, eq(scoutAssignments.userId, users.id))
+      .where(and(
+        inArray(scoutAssignments.playerId, playerIds),
+        gte(users.lastActiveAt, twentyFourHoursAgo)
+      ))
+      .groupBy(scoutAssignments.playerId);
+
+    const counts = new Map<string, number>();
+    for (const row of results) {
+      counts.set(row.playerId, parseInt(row.count) || 0);
+    }
+    return counts;
+  }
+
   // --- Financial Market Scanners (P/E, Value Index) ---
   // Calculates metrics for active players and returns sorted lists
   async getFinancialMarketScanners(sport: string = "ALL") {
@@ -4143,6 +4451,491 @@ export class DatabaseStorage implements IStorage {
     const results = await db.select({ watchlistId: watchList.watchlistId }).from(watchList)
       .where(and(eq(watchList.userId, userId), eq(watchList.playerId, playerId)));
     return results.map(r => r.watchlistId).filter((id): id is string => id !== null);
+  }
+
+  // Daily Boosts methods
+  async getDailyBoosts(userId: string, sport: string, date: Date): Promise<DailyBoost[]> {
+    const startOfDay = new Date(date);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(date);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    return await db.select().from(dailyBoosts)
+      .where(and(
+        eq(dailyBoosts.userId, userId),
+        eq(dailyBoosts.sport, sport),
+        gte(dailyBoosts.boostDate, startOfDay),
+        lte(dailyBoosts.boostDate, endOfDay)
+      ))
+      .orderBy(desc(dailyBoosts.slotTier));
+  }
+
+  async getDailyBoostsByStatus(status: string): Promise<DailyBoost[]> {
+    return await db.select().from(dailyBoosts)
+      .where(eq(dailyBoosts.status, status));
+  }
+
+  async getEligiblePlayersForBoost(userId: string, sport: string, date: Date): Promise<(Holding & { player: Player; availableShares: number; powerLevel: string; gameId: string | null; gameStartTime: Date | null })[]> {
+    // Get holdings for players in the specified sport with games today
+    const startOfDay = new Date(date);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(date);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    // Get user's player holdings with player info
+    const userHoldings = await db.select()
+      .from(holdings)
+      .innerJoin(players, eq(holdings.assetId, players.id))
+      .where(and(
+        eq(holdings.userId, userId),
+        eq(holdings.assetType, "player"),
+        eq(players.sport, sport)
+      ));
+
+    // Get games today for this sport
+    const todaysGames = await db.select()
+      .from(dailyGames)
+      .where(and(
+        eq(dailyGames.sport, sport),
+        gte(dailyGames.startTime, startOfDay),
+        lte(dailyGames.startTime, endOfDay)
+      ));
+
+    // Build a map of team -> game info
+    const teamGameMap = new Map<string, { gameId: string; startTime: Date }>();
+    for (const game of todaysGames) {
+      teamGameMap.set(game.homeTeam, { gameId: game.gameId, startTime: new Date(game.startTime) });
+      teamGameMap.set(game.awayTeam, { gameId: game.gameId, startTime: new Date(game.startTime) });
+    }
+
+    // For each holding, check if player's team has a game today and calculate available shares
+    const result: (Holding & { player: Player; availableShares: number; powerLevel: string; gameId: string | null; gameStartTime: Date | null })[] = [];
+
+    for (const h of userHoldings) {
+      const holding = h.holdings;
+      const player = h.players;
+      const teamGame = teamGameMap.get(player.team);
+
+      if (!teamGame) continue; // Player's team doesn't have a game today
+
+      // Calculate available shares (total - locked)
+      const totalLocked = await this.getTotalLockedQuantity(userId, "player", player.id);
+      const availableShares = holding.quantity - totalLocked;
+
+      // Get Power Level for this holding (Power Level shares are eligible for boosts)
+      const powerLevel = holding.powerLevel || "0.00";
+
+      // Player is eligible if they have either available raw shares OR Power Level
+      const hasPowerLevel = parseFloat(powerLevel) > 0;
+      if (availableShares <= 0 && !hasPowerLevel) continue; // No shares or Power Level available
+
+      result.push({
+        ...holding,
+        player,
+        availableShares,
+        powerLevel,
+        gameId: teamGame.gameId,
+        gameStartTime: teamGame.startTime,
+      });
+    }
+
+    return result;
+  }
+
+  async createDailyBoost(boost: InsertDailyBoost): Promise<DailyBoost> {
+    const [created] = await db.insert(dailyBoosts).values(boost).returning();
+    return created;
+  }
+
+  async updateDailyBoost(boostId: string, updates: Partial<DailyBoost>): Promise<void> {
+    await db.update(dailyBoosts)
+      .set(updates)
+      .where(eq(dailyBoosts.id, boostId));
+  }
+
+  async deleteDailyBoost(boostId: string): Promise<void> {
+    // First release any locked shares
+    await this.unlockBoostShares(boostId);
+    // Then delete the boost
+    await db.delete(dailyBoosts).where(eq(dailyBoosts.id, boostId));
+  }
+
+  async getBoostPayoutHistory(userId: string, limit: number = 50): Promise<BoostPayout[]> {
+    return await db.select().from(boostPayouts)
+      .where(eq(boostPayouts.userId, userId))
+      .orderBy(desc(boostPayouts.createdAt))
+      .limit(limit);
+  }
+
+  async createBoostPayout(payout: InsertBoostPayout): Promise<BoostPayout> {
+    const [created] = await db.insert(boostPayouts).values(payout).returning();
+    return created;
+  }
+
+  async lockBoostShares(boostId: string): Promise<void> {
+    // Get the boost
+    const [boost] = await db.select().from(dailyBoosts).where(eq(dailyBoosts.id, boostId));
+    if (!boost) throw new Error(`Boost ${boostId} not found`);
+
+    // BURN the shares from user's holdings (not just lock them)
+    // This is a core mechanic: boosted shares are consumed for the chance at multiplied payouts
+    const holding = await this.getHolding(boost.userId, "player", boost.playerId);
+    if (!holding) throw new Error(`No holding found for user ${boost.userId} player ${boost.playerId}`);
+
+    const newQuantity = holding.quantity - boost.sharesEntered;
+    if (newQuantity < 0) throw new Error(`Cannot burn ${boost.sharesEntered} shares - only ${holding.quantity} available`);
+
+    // Reduce the holding quantity (burn the shares)
+    await this.updateHolding(
+      boost.userId,
+      "player",
+      boost.playerId,
+      newQuantity,
+      holding.avgCostBasis // Keep the same cost basis
+    );
+
+    console.log(`[BOOST] Burned ${boost.sharesEntered} shares of player ${boost.playerId} from user ${boost.userId} (${holding.quantity} -> ${newQuantity})`);
+
+    // Update boost status to locked
+    await this.updateDailyBoost(boostId, { status: "locked" });
+  }
+
+  async unlockBoostShares(boostId: string): Promise<void> {
+    // Release the lock by reference ID
+    await this.releaseSharesByReference(boostId);
+  }
+
+  async getPlayerGameForDate(playerId: string, sport: string, date: Date): Promise<DailyGame | undefined> {
+    // Get the player's team
+    const [player] = await db.select().from(players).where(eq(players.id, playerId));
+    if (!player) return undefined;
+
+    const startOfDay = new Date(date);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(date);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    // Find game where player's team is home or away
+    const [game] = await db.select().from(dailyGames)
+      .where(and(
+        eq(dailyGames.sport, sport),
+        gte(dailyGames.startTime, startOfDay),
+        lte(dailyGames.startTime, endOfDay),
+        or(
+          eq(dailyGames.homeTeam, player.team),
+          eq(dailyGames.awayTeam, player.team)
+        )
+      ));
+
+    return game;
+  }
+  async getCommunityBoostsForDate(sport: string, date: Date): Promise<(CommunityBoost & { creator: User; player: Player })[]> {
+    const startOfDay = new Date(date);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(date);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const boosts = await db.select({
+      boost: communityBoosts,
+      creator: users,
+      player: players
+    })
+      .from(communityBoosts)
+      .innerJoin(users, eq(communityBoosts.creatorId, users.id))
+      .innerJoin(players, eq(communityBoosts.playerId, players.id))
+      .where(and(
+        eq(communityBoosts.sport, sport),
+        gte(communityBoosts.boostDate, startOfDay),
+        lte(communityBoosts.boostDate, endOfDay),
+        ne(communityBoosts.status, "cancelled")
+      ));
+
+    return boosts.map(b => ({
+      ...b.boost,
+      creator: b.creator,
+      player: b.player
+    }));
+  }
+
+  async createCommunityBoost(boost: InsertCommunityBoost): Promise<CommunityBoost> {
+    // 1. Get user's premium holdings
+    const [premiumHolding] = await db.select()
+      .from(holdings)
+      .where(and(
+        eq(holdings.userId, boost.creatorId),
+        eq(holdings.assetType, "premium")
+      ));
+
+    if (!premiumHolding || premiumHolding.quantity < 1) {
+      throw new Error("Insufficient premium shares to create community boost");
+    }
+
+    // 2. Transact: Deduct share and create boost
+    return await db.transaction(async (tx) => {
+      // Deduct 1 premium share
+      await tx.update(holdings)
+        .set({
+          quantity: sql`${holdings.quantity} - 1`,
+          lastUpdated: new Date()
+        })
+        .where(
+          and(
+            eq(holdings.userId, boost.creatorId),
+            eq(holdings.assetType, "premium")
+          )
+        );
+
+      // Create boost
+      const [newBoost] = await tx.insert(communityBoosts)
+        .values(boost)
+        .returning();
+
+      return newBoost;
+    });
+  }
+
+  async getCommunityBoostBeneficiaries(playerId: string): Promise<(Holding & { user: User })[]> {
+    // Find all users who hold shares of this player
+    const beneficiaries = await db.select({
+      holding: holdings,
+      user: users
+    })
+      .from(holdings)
+      .innerJoin(users, eq(holdings.userId, users.id))
+      .where(and(
+        eq(holdings.assetType, "player"),
+        eq(holdings.assetId, playerId),
+        gt(holdings.quantity, 0)
+      ));
+
+    return beneficiaries.map(b => ({
+      ...b.holding,
+      user: b.user
+    }));
+  }
+
+  async updateCommunityBoost(boostId: string, updates: Partial<CommunityBoost>): Promise<void> {
+    await db.update(communityBoosts)
+      .set(updates)
+      .where(eq(communityBoosts.id, boostId));
+  }
+
+  async getCommunityBoostsByStatus(status: string): Promise<CommunityBoost[]> {
+    return await db.select()
+      .from(communityBoosts)
+      .where(eq(communityBoosts.status, status));
+  }
+  // Scout Status
+  async getScoutStatus(userId: string): Promise<{ earnedMinutes: number; nextDistribution: Date; perPlayer: Record<string, number> }> {
+    const now = new Date();
+    // Calculate last distribution time (Top of Hour XX:00)
+    let lastDist = new Date(now);
+    lastDist.setMinutes(0);
+    lastDist.setSeconds(0);
+    lastDist.setMilliseconds(0);
+
+    const nextDistribution = new Date(lastDist);
+    nextDistribution.setHours(nextDistribution.getHours() + 1);
+
+    console.log(`[getScoutStatus] User: ${userId}, Window: ${lastDist.toISOString()} to ${now.toISOString()}`);
+
+    try {
+      // Calculate earned minutes since last distribution, grouped by player
+      // Fetch raw history rows that overlap with the window to calculate in JS (avoids Timezone/SQL calc issues)
+      const [history, activeAssignments] = await Promise.all([
+        db.select()
+          .from(scoutHistory)
+          .where(
+            and(
+              eq(scoutHistory.userId, userId),
+              or(isNull(scoutHistory.endedAt), gt(scoutHistory.endedAt, lastDist)),
+              lt(scoutHistory.startedAt, now)
+            )
+          ),
+        db.select()
+          .from(scoutAssignments)
+          .where(eq(scoutAssignments.userId, userId))
+      ]);
+
+      const perPlayer: Record<string, number> = {};
+      let totalEarnedMinutes = 0;
+
+      // SELF-HEALING: Check for active assignments that don't have an open history record
+      // This handles legacy data or cases where history failed to write
+      const openHistoryMap = new Set(history.filter(h => !h.endedAt).map(h => h.playerId));
+
+      for (const assignment of activeAssignments) {
+        if (assignment.scoutCount > 0 && !openHistoryMap.has(assignment.playerId)) {
+          console.log(`[getScoutStatus] Found ghost assignment for player ${assignment.playerId} (Count: ${assignment.scoutCount}). Backfilling...`);
+          // Treat as a history row that started at assignment.updatedAt (or lastDist if older)
+          // We push it to the history array so the loop below processes it naturally
+          // We construct a mock history object compatible with the loop
+          history.push({
+            id: "ghost",
+            userId: assignment.userId,
+            playerId: assignment.playerId,
+            scoutCount: assignment.scoutCount,
+            startedAt: assignment.updatedAt || lastDist, // If Attr missing, assume window start
+            endedAt: null
+          });
+        }
+      }
+
+      for (const row of history) {
+        // Active window overlap calculation
+        // Ensure dates are Date objects to prevent runtime errors if driver returns strings
+        let rowStart = new Date(row.startedAt);
+        if (isNaN(rowStart.getTime())) rowStart = lastDist; // Fallback
+
+        const start = rowStart < lastDist ? lastDist : rowStart;
+
+        // If endedAt is null, it's still active -> use NOW. If endedAt > NOW (future?), use NOW.
+        let rowEnd = row.endedAt ? new Date(row.endedAt) : now;
+        if (rowEnd > now) rowEnd = now;
+
+        const end = rowEnd;
+
+        // Ensure both are valid Dates before math
+        const durationMs = end.getTime() - start.getTime();
+
+        if (durationMs > 0) {
+          // Minutes = Duration in minutes * Scout Count
+          const minutes = (durationMs / 1000.0 / 60.0) * row.scoutCount;
+          const rounded = Math.floor(minutes * 100) / 100;
+
+          if (rounded > 0) {
+            perPlayer[row.playerId] = (perPlayer[row.playerId] || 0) + rounded;
+            totalEarnedMinutes += rounded;
+          }
+        }
+      }
+
+      // Final rounding pass to ensure clean 2 decimal places
+      Object.keys(perPlayer).forEach(k => {
+        perPlayer[k] = Math.floor(perPlayer[k] * 100) / 100;
+      });
+      totalEarnedMinutes = Math.floor(totalEarnedMinutes * 100) / 100;
+
+      // Log for debugging
+      console.log(`[getScoutStatus] Calculated ${totalEarnedMinutes} min for user ${userId} across ${history.length} history rows.`);
+
+      return {
+        earnedMinutes: Math.floor(totalEarnedMinutes * 100) / 100,
+        perPlayer, // Return the breakdown
+        nextDistribution
+      };
+    } catch (err: any) {
+      console.error("[getScoutStatus] Query failed:", err.message);
+      throw err;
+    }
+  }
+
+  // Power Level / Condense methods
+  // Condenses raw shares into Power Level at 5:1 ratio
+  // Power Level shares are used for Daily Boosts and do NOT earn scout dividends
+  async condenseShares(userId: string, playerId: string, rawShareCount: number): Promise<{ newPowerLevel: string; sharesCondensed: number }> {
+    // Validate input
+    if (rawShareCount < 5) {
+      throw new Error("Minimum 5 shares required to condense");
+    }
+    if (rawShareCount % 5 !== 0) {
+      throw new Error("Share count must be divisible by 5");
+    }
+
+    return await db.transaction(async (tx) => {
+      // Get current holding
+      const [holding] = await tx
+        .select()
+        .from(holdings)
+        .where(
+          and(
+            eq(holdings.userId, userId),
+            eq(holdings.assetType, "player"),
+            eq(holdings.assetId, playerId)
+          )
+        )
+        .for("update");
+
+      if (!holding) {
+        throw new Error("No holding found for this player");
+      }
+
+      // Check available shares (quantity minus locked)
+      const [lockedResult] = await tx
+        .select({ total: sql<number>`COALESCE(SUM(${holdingsLocks.lockedQuantity}), 0)` })
+        .from(holdingsLocks)
+        .where(
+          and(
+            eq(holdingsLocks.userId, userId),
+            eq(holdingsLocks.assetType, "player"),
+            eq(holdingsLocks.assetId, playerId)
+          )
+        );
+      const lockedShares = Number(lockedResult?.total || 0);
+      const availableShares = holding.quantity - lockedShares;
+
+      if (availableShares < rawShareCount) {
+        throw new Error(`Only ${availableShares} shares available (${lockedShares} locked)`);
+      }
+
+      // Calculate new values
+      const powerLevelGain = rawShareCount / 5;
+      const currentPowerLevel = parseFloat(holding.powerLevel || "0");
+      const newPowerLevel = currentPowerLevel + powerLevelGain;
+      const newQuantity = holding.quantity - rawShareCount;
+
+      // Update holding
+      await tx
+        .update(holdings)
+        .set({
+          quantity: newQuantity,
+          powerLevel: newPowerLevel.toFixed(2),
+          lastUpdated: new Date(),
+        })
+        .where(eq(holdings.id, holding.id));
+
+      console.log(`[condenseShares] User ${userId} condensed ${rawShareCount} shares of ${playerId} into ${powerLevelGain} Power Level (total now: ${newPowerLevel})`);
+
+      return {
+        newPowerLevel: newPowerLevel.toFixed(2),
+        sharesCondensed: rawShareCount,
+      };
+    });
+  }
+
+  // Get holding with power level information for a specific player
+  async getHoldingWithPowerLevel(userId: string, playerId: string): Promise<{ quantity: number; powerLevel: string; availableShares: number } | undefined> {
+    const [holding] = await db
+      .select()
+      .from(holdings)
+      .where(
+        and(
+          eq(holdings.userId, userId),
+          eq(holdings.assetType, "player"),
+          eq(holdings.assetId, playerId)
+        )
+      );
+
+    if (!holding) return undefined;
+
+    // Calculate available shares (quantity minus locked)
+    const [lockedResult] = await db
+      .select({ total: sql<number>`COALESCE(SUM(${holdingsLocks.lockedQuantity}), 0)` })
+      .from(holdingsLocks)
+      .where(
+        and(
+          eq(holdingsLocks.userId, userId),
+          eq(holdingsLocks.assetType, "player"),
+          eq(holdingsLocks.assetId, playerId)
+        )
+      );
+    const lockedShares = Number(lockedResult?.total || 0);
+
+    return {
+      quantity: holding.quantity,
+      powerLevel: holding.powerLevel || "0.00",
+      availableShares: holding.quantity - lockedShares,
+    };
   }
 }
 

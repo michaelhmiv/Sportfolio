@@ -1,5 +1,5 @@
 import { sql, relations } from "drizzle-orm";
-import { pgTable, text, varchar, decimal, integer, timestamp, boolean, index, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, decimal, integer, timestamp, boolean, index, uniqueIndex, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -39,6 +39,8 @@ export const users = pgTable("users", {
   // News Hub fields
   lastNewsViewedAt: timestamp("last_news_viewed_at"), // Track when user last viewed news
   newsNotificationsEnabled: boolean("news_notifications_enabled").notNull().default(true), // Opt-out of news notifications
+  // Scout Engine fields
+  lastActiveAt: timestamp("last_active_at"), // Scout Engine: activity tracking for 24h kill-switch
 });
 
 // Players table - players from all sports (NBA, NFL, etc.)
@@ -81,6 +83,7 @@ export const holdings = pgTable("holdings", {
   assetType: text("asset_type").notNull(), // "player" or "premium"
   assetId: text("asset_id").notNull(), // player ID or "premium"
   quantity: integer("quantity").notNull().default(0),
+  powerLevel: decimal("power_level", { precision: 10, scale: 2 }).notNull().default("0.00"), // Condensed shares (5:1 ratio) for Daily Boosts
   avgCostBasis: decimal("avg_cost_basis", { precision: 10, scale: 4 }).notNull().default("0.0000"), // Average cost per share
   totalCostBasis: decimal("total_cost_basis", { precision: 20, scale: 2 }).notNull().default("0.00"), // Total invested
   lastUpdated: timestamp("last_updated").notNull().defaultNow(),
@@ -198,6 +201,50 @@ export const vestingPresets = pgTable("vesting_presets", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => ({
   userIdx: index("vesting_presets_user_idx").on(table.userId),
+}));
+
+// Scout Engine: Scout assignments - tracks which players each user is scouting
+// Users can stack multiple scouts (up to 5 standard, 10 premium) on players
+export const scoutAssignments = pgTable("scout_assignments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  playerId: varchar("player_id").notNull().references(() => players.id, { onDelete: "cascade" }),
+  scoutCount: integer("scout_count").notNull().default(1), // Number of scouts stacked on this player
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  userPlayerUniqueIdx: uniqueIndex("scout_user_player_unique_idx").on(table.userId, table.playerId),
+  playerIdx: index("scout_player_idx").on(table.playerId),
+}));
+
+// Scout Engine: Scout distributions - immutable ledger of hourly share distributions
+// Formula: (60 Shares) * (User's Scout-Minutes / Total Global Scout-Minutes)
+export const scoutDistributions = pgTable("scout_distributions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  hourTimestamp: timestamp("hour_timestamp").notNull(), // Hour bucket (truncated to hour)
+  playerId: varchar("player_id").notNull().references(() => players.id),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  userScoutMinutes: integer("user_scout_minutes").notNull(), // User's scout-minutes for this hour
+  globalScoutMinutes: integer("global_scout_minutes").notNull(), // Total scout-minutes for this player
+  sharesEarned: decimal("shares_earned", { precision: 10, scale: 2 }).notNull(), // Rounded to .01
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  hourPlayerIdx: index("scout_dist_hour_player_idx").on(table.hourTimestamp, table.playerId),
+  userHourIdx: index("scout_dist_user_hour_idx").on(table.userId, table.hourTimestamp),
+}));
+
+// Scout Engine: Scout History - Tracks duration of assignments for minute-level precision
+// Used to calculate "Scout-Minutes" when users change scouts mid-hour.
+export const scoutHistory = pgTable("scout_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  playerId: varchar("player_id").notNull().references(() => players.id, { onDelete: "cascade" }),
+  scoutCount: integer("scout_count").notNull(),
+  startedAt: timestamp("started_at").notNull().defaultNow(),
+  endedAt: timestamp("ended_at"), // Null if currently active
+}, (table) => ({
+  userTimeIdx: index("scout_history_user_time_idx").on(table.userId, table.startedAt, table.endedAt),
+  playerTimeIdx: index("scout_history_player_time_idx").on(table.playerId, table.startedAt, table.endedAt),
 }));
 
 // Contests table
@@ -590,6 +637,71 @@ export const newsFeed = pgTable("news_feed", {
   sportIdx: index("news_feed_sport_idx").on(table.sport),
 }));
 
+// Daily Boosts table - replaces contests with daily multiplier-based payouts
+// Users select 4 players from their holdings each day for performance multipliers
+export const dailyBoosts = pgTable("daily_boosts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  playerId: varchar("player_id").notNull().references(() => players.id),
+  sport: text("sport").notNull(), // "NBA" or "NFL"
+  slotTier: integer("slot_tier").notNull(), // 2, 3, 4, or 5 (multiplier value)
+  boostDate: timestamp("boost_date").notNull(), // The date this boost applies to
+  sharesEntered: integer("shares_entered").notNull(), // Shares used for calculation
+  gameId: text("game_id"), // API game ID for the player's game
+  status: text("status").notNull().default("active"), // "active", "locked", "processed", "cancelled"
+  fantasyPoints: decimal("fantasy_points", { precision: 10, scale: 2 }), // Final normalized FP after game
+  payout: decimal("payout", { precision: 20, scale: 2 }), // Calculated payout
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  processedAt: timestamp("processed_at"), // When payout was credited
+}, (table) => ({
+  userDateIdx: index("boost_user_date_idx").on(table.userId, table.boostDate),
+  userSportDateIdx: index("boost_user_sport_date_idx").on(table.userId, table.sport, table.boostDate),
+  statusIdx: index("boost_status_idx").on(table.status),
+  playerIdx: index("boost_player_idx").on(table.playerId),
+  gameIdx: index("boost_game_idx").on(table.gameId),
+}));
+
+// Boost payouts table - immutable ledger for audit trail
+// Records every payout calculation for transparency
+export const boostPayouts = pgTable("boost_payouts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  boostId: varchar("boost_id").notNull().references(() => dailyBoosts.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  playerId: varchar("player_id").notNull().references(() => players.id),
+  sharesUsed: integer("shares_used").notNull(),
+  fantasyPoints: decimal("fantasy_points", { precision: 10, scale: 2 }).notNull(),
+  multiplier: integer("multiplier").notNull(), // 2, 3, 4, or 5
+  payoutAmount: decimal("payout_amount", { precision: 20, scale: 2 }).notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  userIdx: index("boost_payout_user_idx").on(table.userId),
+  boostIdx: index("boost_payout_boost_idx").on(table.boostId),
+  createdAtIdx: index("boost_payout_created_idx").on(table.createdAt),
+}));
+
+// Community Boosts table - global 5x boosts created by premium share redemption
+// When a user redeems a premium share, ALL users holding that player benefit from 5x
+export const communityBoosts = pgTable("community_boosts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  creatorId: varchar("creator_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  playerId: varchar("player_id").notNull().references(() => players.id),
+  sport: text("sport").notNull(), // "NBA" or "NFL"
+  boostDate: timestamp("boost_date").notNull(), // The date this boost applies to
+  gameId: text("game_id"), // API game ID for the player's game
+  status: text("status").notNull().default("active"), // "active", "locked", "processed", "cancelled"
+  fantasyPoints: decimal("fantasy_points", { precision: 10, scale: 2 }), // Final normalized FP after game
+  totalPayout: decimal("total_payout", { precision: 20, scale: 2 }), // Sum of all beneficiary payouts
+  beneficiaryCount: integer("beneficiary_count"), // Number of users who benefited
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  processedAt: timestamp("processed_at"), // When payouts were credited
+}, (table) => ({
+  creatorDateIdx: index("community_boost_creator_date_idx").on(table.creatorId, table.boostDate),
+  sportDateIdx: index("community_boost_sport_date_idx").on(table.sport, table.boostDate),
+  statusIdx: index("community_boost_status_idx").on(table.status),
+  playerIdx: index("community_boost_player_idx").on(table.playerId),
+  gameIdx: index("community_boost_game_idx").on(table.gameId),
+}));
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   holdings: many(holdings),
@@ -602,6 +714,9 @@ export const usersRelations = relations(users, ({ many }) => ({
   vestingClaims: many(vestingClaims),
   watchlists: many(watchlists),
   watchList: many(watchList),
+  dailyBoosts: many(dailyBoosts),
+  boostPayouts: many(boostPayouts),
+  communityBoosts: many(communityBoosts),
 }));
 
 export const watchlistsRelations = relations(watchlists, ({ one, many }) => ({
@@ -690,6 +805,32 @@ export const contestLineupsRelations = relations(contestLineups, ({ one }) => ({
   }),
   player: one(players, {
     fields: [contestLineups.playerId],
+    references: [players.id],
+  }),
+}));
+
+export const dailyBoostsRelations = relations(dailyBoosts, ({ one }) => ({
+  user: one(users, {
+    fields: [dailyBoosts.userId],
+    references: [users.id],
+  }),
+  player: one(players, {
+    fields: [dailyBoosts.playerId],
+    references: [players.id],
+  }),
+}));
+
+export const boostPayoutsRelations = relations(boostPayouts, ({ one }) => ({
+  boost: one(dailyBoosts, {
+    fields: [boostPayouts.boostId],
+    references: [dailyBoosts.id],
+  }),
+  user: one(users, {
+    fields: [boostPayouts.userId],
+    references: [users.id],
+  }),
+  player: one(players, {
+    fields: [boostPayouts.playerId],
     references: [players.id],
   }),
 }));
@@ -783,6 +924,23 @@ export const insertVestingPresetSchema = createInsertSchema(vestingPresets).omit
   updatedAt: true,
 });
 
+// Scout Engine insert schemas
+export const insertScoutAssignmentSchema = createInsertSchema(scoutAssignments).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertScoutDistributionSchema = createInsertSchema(scoutDistributions).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertScoutHistorySchema = createInsertSchema(scoutHistory).omit({
+  id: true,
+  startedAt: true,
+});
+
 // Select types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -815,6 +973,19 @@ export type InsertVestingClaim = z.infer<typeof insertVestingClaimSchema>;
 
 export type VestingPreset = typeof vestingPresets.$inferSelect;
 export type InsertVestingPreset = z.infer<typeof insertVestingPresetSchema>;
+
+// Scout Engine types
+export type ScoutAssignment = typeof scoutAssignments.$inferSelect;
+export type InsertScoutAssignment = z.infer<typeof insertScoutAssignmentSchema>;
+
+export type ScoutDistribution = typeof scoutDistributions.$inferSelect;
+export type InsertScoutDistribution = z.infer<typeof insertScoutDistributionSchema>;
+
+export type ScoutHistory = typeof scoutHistory.$inferSelect;
+export type InsertScoutHistory = z.infer<typeof insertScoutHistorySchema>;
+
+export type Holding = typeof holdings.$inferSelect;
+
 
 export type DailyGame = typeof dailyGames.$inferSelect;
 export type InsertDailyGame = z.infer<typeof insertDailyGameSchema>;
@@ -948,3 +1119,39 @@ export type InsertTweetHistory = z.infer<typeof insertTweetHistorySchema>;
 
 // News feed types
 export type NewsFeed = typeof newsFeed.$inferSelect;
+
+// Daily boosts schemas and types
+export const insertDailyBoostSchema = createInsertSchema(dailyBoosts).omit({
+  id: true,
+  status: true,
+  fantasyPoints: true,
+  payout: true,
+  createdAt: true,
+  processedAt: true,
+});
+
+export type DailyBoost = typeof dailyBoosts.$inferSelect;
+export type InsertDailyBoost = z.infer<typeof insertDailyBoostSchema>;
+
+// Boost payouts schemas and types
+export const insertBoostPayoutSchema = createInsertSchema(boostPayouts).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type BoostPayout = typeof boostPayouts.$inferSelect;
+export type InsertBoostPayout = z.infer<typeof insertBoostPayoutSchema>;
+
+// Community boosts schemas and types
+export const insertCommunityBoostSchema = createInsertSchema(communityBoosts).omit({
+  id: true,
+  status: true,
+  fantasyPoints: true,
+  totalPayout: true,
+  beneficiaryCount: true,
+  createdAt: true,
+  processedAt: true,
+});
+
+export type CommunityBoost = typeof communityBoosts.$inferSelect;
+export type InsertCommunityBoost = z.infer<typeof insertCommunityBoostSchema>;

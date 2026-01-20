@@ -122,16 +122,32 @@ async function maybeResetDailyCounters(profile: BotProfile): Promise<BotProfile>
 }
 
 /**
- * Update bot's last action timestamp
+ * Update bot's last action timestamp and user activity
  */
 async function updateLastActionTime(profileId: string): Promise<void> {
-  await db
-    .update(botProfiles)
-    .set({
-      lastActionAt: new Date(),
-      updatedAt: new Date(),
-    })
-    .where(eq(botProfiles.id, profileId));
+  const now = new Date();
+  
+  await db.transaction(async (tx) => {
+    // Update bot profile
+    await tx
+        .update(botProfiles)
+        .set({
+        lastActionAt: now,
+        updatedAt: now,
+        })
+        .where(eq(botProfiles.id, profileId));
+
+    // Update user activity (Keep-Alive for Scout Engine)
+    // We need to find the userId. Since we are in a transaction, let's just fetch it quickly.
+    const profile = await tx.select({ userId: botProfiles.userId }).from(botProfiles).where(eq(botProfiles.id, profileId)).limit(1);
+    
+    if (profile.length > 0) {
+        await tx
+            .update(users)
+            .set({ lastActiveAt: now })
+            .where(eq(users.id, profile[0].userId));
+    }
+  });
 }
 
 /**
@@ -232,18 +248,21 @@ async function executeBotStrategies(
   const { executeContestStrategy } = await import("./contest-strategy");
   const { executeTakerStrategy } = await import("./taker-strategy");
   const { executeMarketSeederStrategy } = await import("./market-seeder-strategy");
+  const { executeScoutStrategy } = await import("./scout-strategy");
 
   const strategiesExecuted: string[] = [];
 
   try {
-    // 1. VESTING - All bots vest to accumulate shares
-    // Uses: maxPlayersToVest, vestingClaimThreshold
+    // 1. SCOUTING - All bots scout to accumulate shares and compete for pools
+    // Uses: maxScouts (enforced in strategy)
     try {
-      await withTimeout(executeVestingStrategy(profile), STRATEGY_TIMEOUT_MS, 'vesting');
-      strategiesExecuted.push("vesting");
+      await withTimeout(executeScoutStrategy(profile), STRATEGY_TIMEOUT_MS, 'scouting');
+      strategiesExecuted.push("scouting");
     } catch (e: any) {
-      console.warn(`[BotEngine] ${profile.botName} vesting failed: ${e.message}`);
+      console.warn(`[BotEngine] ${profile.botName} scouting failed: ${e.message}`);
     }
+
+    // 1.1 VESTING - Legacy vesting (minimized/deprecated)
 
     // 1.5. SEEDING - Bots with "cold" or "seeder" in name bootstrap cold markets
     // This runs before regular trading to establish prices on untraded players

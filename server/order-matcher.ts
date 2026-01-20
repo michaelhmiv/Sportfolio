@@ -1,15 +1,20 @@
 import { storage } from "./storage";
 import { broadcast } from "./websocket";
 
+// Configurable market fee percentage (as decimal, 0.05 = 5%)
+// This fee is deducted from seller proceeds and burned (pure economic sink)
+const MARKET_FEE_PERCENT = parseFloat(process.env.MARKET_FEE_PERCENT || "0.05");
+
 export async function matchOrders(playerId: string): Promise<number> {
   const orderBook = await storage.getOrderBook(playerId);
   const player = await storage.getPlayer(playerId);
-  
+
   if (!player) return 0;
 
   let totalMatches = 0;
   let lastTradePrice = 0;
   let totalVolume = 0;
+  let totalFeesBurned = 0; // Track total fees removed from economy
 
   for (const buyOrder of orderBook.bids) {
     if (buyOrder.filledQuantity >= buyOrder.quantity) continue;
@@ -23,7 +28,7 @@ export async function matchOrders(playerId: string): Promise<number> {
 
       const buyPrice = parseFloat(buyOrder.limitPrice);
       const sellPrice = parseFloat(sellOrder.limitPrice);
-      
+
       if (buyPrice >= sellPrice) {
         const remainingBuy = buyOrder.quantity - buyOrder.filledQuantity;
         const remainingSell = sellOrder.quantity - sellOrder.filledQuantity;
@@ -62,7 +67,7 @@ export async function matchOrders(playerId: string): Promise<number> {
 
         const remainingSellLocked = sellOrder.quantity - newSellFilled;
         await storage.adjustLockQuantity(sellOrder.id, remainingSellLocked);
-        
+
         const remainingBuyQuantity = buyOrder.quantity - newBuyFilled;
         const buyLimitPrice = parseFloat(buyOrder.limitPrice || "0");
         const remainingBuyLocked = (remainingBuyQuantity * buyLimitPrice).toFixed(2);
@@ -86,11 +91,18 @@ export async function matchOrders(playerId: string): Promise<number> {
 
         const buyer = await storage.getUser(buyOrder.userId);
         const seller = await storage.getUser(sellOrder.userId);
-        
+
         if (buyer && seller) {
           const tradeCost = tradeQuantity * tradePrice;
+
+          // Calculate market fee (burned from seller proceeds - pure economic sink)
+          const marketFee = tradeCost * MARKET_FEE_PERCENT;
+          const sellerProceeds = tradeCost - marketFee;
+          totalFeesBurned += marketFee;
+
+          // Buyer pays full price, seller receives proceeds after fee (fee is burned/deleted)
           await storage.updateUserBalance(buyOrder.userId, (parseFloat(buyer.balance) - tradeCost).toFixed(2));
-          await storage.updateUserBalance(sellOrder.userId, (parseFloat(seller.balance) + tradeCost).toFixed(2));
+          await storage.updateUserBalance(sellOrder.userId, (parseFloat(seller.balance) + sellerProceeds).toFixed(2));
 
           broadcast({
             type: "trade",
@@ -124,17 +136,17 @@ export async function matchOrders(playerId: string): Promise<number> {
     // Calculate totalShares and marketCap
     const totalShares = await storage.getTotalSharesForPlayer(playerId);
     const marketCap = totalShares * lastTradePrice;
-    
+
     // Calculate priceChange24h by comparing to price 24h ago
     const price24hAgo = await storage.getPrice24hAgo(playerId);
     let priceChange24h = 0;
     if (price24hAgo !== null && price24hAgo > 0) {
       priceChange24h = lastTradePrice - price24hAgo;
     }
-    
+
     // Record price history for charts and analytics
     await storage.createPriceHistoryRecord(playerId, lastTradePrice.toFixed(2), totalVolume);
-    
+
     await storage.upsertPlayer({
       ...player,
       currentPrice: lastTradePrice.toFixed(2),
@@ -147,6 +159,11 @@ export async function matchOrders(playerId: string): Promise<number> {
 
     broadcast({ type: "orderBook", playerId });
     broadcast({ type: "marketActivity" });
+
+    // Log fees burned for analytics (fee is pure economic sink)
+    if (totalFeesBurned > 0) {
+      console.log(`[OrderMatcher] Player ${playerId}: ${totalMatches} trades, $${totalFeesBurned.toFixed(2)} fees burned (${(MARKET_FEE_PERCENT * 100).toFixed(1)}% rate)`);
+    }
   }
 
   return totalMatches;

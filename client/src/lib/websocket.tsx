@@ -1,11 +1,11 @@
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { queryClient } from "@/lib/queryClient";
-import { 
+import {
   debouncedInvalidatePortfolio,
-  debouncedInvalidateVesting,
-  debouncedInvalidatePlayer, 
+  debouncedInvalidateScouts,
+  debouncedInvalidatePlayer,
   debouncedInvalidateMarketActivity,
-  debouncedInvalidateContests 
+  debouncedInvalidateContests
 } from "@/lib/cache-invalidation";
 
 function debugLog(stage: string, message: string, data?: any) {
@@ -35,10 +35,10 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.host;
     const wsUrl = `${protocol}//${host}/ws`;
-    
+
     debugLog('CONNECT', `Attempting to connect to ${wsUrl}`, { attempt: reconnectAttemptsRef.current + 1 });
     setConnectionState('connecting');
-    
+
     try {
       const ws = new WebSocket(wsUrl);
 
@@ -64,8 +64,8 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
               debouncedInvalidatePortfolio();
               break;
 
-            case 'vesting':
-              debouncedInvalidateVesting();
+            case 'scouts':
+              debouncedInvalidateScouts();
               break;
 
             case 'trade':
@@ -99,10 +99,10 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
       };
 
       ws.onclose = (event) => {
-        debugLog('CLOSE', 'WebSocket disconnected', { 
-          code: event.code, 
+        debugLog('CLOSE', 'WebSocket disconnected', {
+          code: event.code,
           reason: event.reason,
-          wasClean: event.wasClean 
+          wasClean: event.wasClean
         });
         setIsConnected(false);
         setConnectionState('disconnected');
@@ -110,10 +110,10 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
 
         reconnectAttemptsRef.current++;
         setReconnectAttempts(reconnectAttemptsRef.current);
-        
+
         const delay = Math.min(3000 * Math.pow(1.5, reconnectAttemptsRef.current - 1), 30000);
         debugLog('RECONNECT', `Will attempt reconnect in ${delay}ms`, { attempt: reconnectAttemptsRef.current });
-        
+
         reconnectTimeoutRef.current = setTimeout(() => {
           debugLog('RECONNECT', 'Attempting to reconnect...');
           connect();
@@ -124,7 +124,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       debugLog('CONNECT_ERROR', 'Failed to create WebSocket', { error: (error as Error).message });
       setConnectionState('error');
-      
+
       const delay = Math.min(3000 * Math.pow(1.5, reconnectAttemptsRef.current), 30000);
       reconnectTimeoutRef.current = setTimeout(() => {
         reconnectAttemptsRef.current++;

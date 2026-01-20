@@ -27,30 +27,30 @@ export default function Leaderboards() {
   const [, setLocation] = useLocation();
   const { user } = useAuth();
   const { subscribe } = useWebSocket();
-  
+
   // Get initial category from URL hash
   const getHashCategory = () => {
     const hash = window.location.hash.replace("#", "") || "netWorth";
     return ["netWorth", "cashBalance", "portfolioValue", "sharesMined", "marketOrders"].includes(hash) ? hash : "netWorth";
   };
-  
+
   // Track active category in state
   const [category, setCategory] = useState(getHashCategory());
-  
+
   // Listen for hash changes
   useEffect(() => {
     const handleHashChange = () => {
       setCategory(getHashCategory());
     };
-    
+
     window.addEventListener("hashchange", handleHashChange);
     return () => window.removeEventListener("hashchange", handleHashChange);
   }, []);
 
   // Subscribe to WebSocket events for real-time leaderboard updates
   useEffect(() => {
-    // Vesting events → update shares vested leaderboard
-    const unsubVesting = subscribe('vesting', () => {
+    // Scout events → update shares vested leaderboard
+    const unsubScouts = subscribe('scouts', () => {
       queryClient.invalidateQueries({ queryKey: ["/api/leaderboards?category=sharesMined"] });
     });
 
@@ -70,7 +70,7 @@ export default function Leaderboards() {
     });
 
     return () => {
-      unsubVesting();
+      unsubScouts();
       unsubPortfolio();
       unsubTrade();
     };
@@ -139,8 +139,8 @@ export default function Leaderboards() {
             const displayName = entry.username;
 
             return (
-              <Card 
-                key={entry.userId} 
+              <Card
+                key={entry.userId}
                 className={`hover-elevate ${isCurrentUser ? 'border-primary border-2' : ''}`}
                 data-testid={`card-leaderboard-${entry.rank}`}
               >
@@ -155,18 +155,18 @@ export default function Leaderboards() {
                           <Trophy className={`w-3 h-3 ${entry.rank === 1 ? 'text-yellow-500' : 'text-muted-foreground'}`} />
                         )}
                       </div>
-                      
+
                       <Avatar className="w-7 h-7 flex-shrink-0">
                         <AvatarImage src={entry.profileImageUrl || undefined} />
                         <AvatarFallback className="text-xs">{entry.username[0].toUpperCase()}</AvatarFallback>
                       </Avatar>
-                      
+
                       <div className="flex-1 min-w-0">
                         <div className={`font-semibold text-xs truncate ${isCurrentUser ? 'text-primary' : ''}`}>
                           @{entry.username}
                         </div>
                       </div>
-                      
+
                       <div className="text-right flex-shrink-0">
                         <div className="font-mono font-bold text-sm">
                           {valueFormatter(entry.value)}

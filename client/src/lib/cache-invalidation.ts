@@ -70,13 +70,13 @@ export function debouncedInvalidatePortfolio(): void {
 }
 
 /**
- * Throttled vesting invalidation - includes vesting-specific queries.
+ * Throttled scout invalidation - includes scout-specific queries.
  */
-export function debouncedInvalidateVesting(): void {
-  throttledExecute("vesting", () => {
+export function debouncedInvalidateScouts(): void {
+  throttledExecute("scouts", () => {
     queryClient.invalidateQueries({ queryKey: ["/api/portfolio"] });
     queryClient.invalidateQueries({ queryKey: ["/api/dashboard"] });
-    queryClient.invalidateQueries({ queryKey: ["/api/vesting"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/scouts"] });
     queryClient.invalidateQueries({ queryKey: ["/api/activity"] });
   });
 }
@@ -136,7 +136,7 @@ export async function invalidatePortfolioQueries(): Promise<void> {
     queryClient.invalidateQueries({ queryKey: ["/api/portfolio"] }),
     queryClient.invalidateQueries({ queryKey: ["/api/dashboard"] }),
     queryClient.invalidateQueries({ queryKey: ["/api/activity"] }),
-    queryClient.invalidateQueries({ queryKey: ["/api/vesting"] }),
+    queryClient.invalidateQueries({ queryKey: ["/api/scouts"] }),
     queryClient.invalidateQueries({ queryKey: ["/api/players"] }),
     queryClient.invalidateQueries({ queryKey: ["/api/player"] }),
     queryClient.invalidateQueries({ queryKey: ["/api/contests"] }),

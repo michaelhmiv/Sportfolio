@@ -6,7 +6,7 @@ import { storage } from "./storage";
 import { db } from "./db";
 import { fetchActivePlayers, calculateFantasyPoints } from "./mysportsfeeds";
 import type { InsertPlayer, Player, User, Holding } from "@shared/schema";
-import { contestLineups, contestEntries, contests, holdings, marketSnapshots, premiumCheckoutSessions, tweetSettings, tweetHistory, users } from "@shared/schema";
+import { contestLineups, contestEntries, contests, holdings, marketSnapshots, premiumCheckoutSessions, tweetSettings, tweetHistory, users, scoutAssignments } from "@shared/schema";
 import { sql, eq, desc, and, gte, lte } from "drizzle-orm";
 import { jobScheduler } from "./jobs/scheduler";
 import { addClient, removeClient, broadcast } from "./websocket";
@@ -21,6 +21,18 @@ import { getOrCompute } from "./cache";
 export async function registerRoutes(app: Express): Promise<Server> {
   // Setup authentication middleware
   await setupAuth(app);
+
+  // Scout Status Endpoint (Placed early to avoid shadowing)
+  app.get("/api/scouts/status", isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user) return res.sendStatus(401);
+      const status = await storage.getScoutStatus(req.user.id);
+      res.json(status);
+    } catch (err: any) {
+      console.error("[Scout API] Error getting status:", err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });
 
   app.get("/api/market/scanners", async (req, res) => {
     try {
@@ -465,6 +477,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Fire-and-forget: Trigger vesting accrual in background on login
       if (user) {
         accrueVestingShares(userId).catch(err => console.error('[Vesting] Login accrual error:', err));
+        // Scout Engine: Update activity timestamp for 24h kill-switch
+        storage.updateLastActive(userId).catch(err => console.error('[Scout] Activity update error:', err));
       }
 
       // Fire-and-forget: Trigger Whop sync in background if user has email and sync is requested
@@ -1207,9 +1221,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const safeOffset = isNaN(parsedOffset) ? 0 : Math.max(0, parsedOffset);
 
       // Parse sorting and filter params
-      const validSortBy = ['price', 'volume', 'change', 'bid', 'ask', 'marketCap', 'sentiment', 'undervalued'];
+      const validSortBy = ['price', 'volume', 'change', 'bid', 'ask', 'marketCap', 'sentiment', 'undervalued', 'fantasyPoints', 'name', 'team'];
       const safeSortBy = sortBy && validSortBy.includes(sortBy as string)
-        ? sortBy as 'price' | 'volume' | 'change' | 'bid' | 'ask' | 'marketCap' | 'sentiment' | 'undervalued'
+        ? sortBy as 'price' | 'volume' | 'change' | 'bid' | 'ask' | 'marketCap' | 'sentiment' | 'undervalued' | 'fantasyPoints' | 'name' | 'team'
         : 'volume';
       const safeSortOrder = sortOrder === 'asc' ? 'asc' : 'desc';
       const safeHasBuyOrders = hasBuyOrders === 'true';
@@ -1265,11 +1279,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // - 50 players × 2 order book queries = 100 queries → 1 query
       // - 50 players × 1 season stats query = 50 queries → 1 query
       const playerIds = playersRaw.map(p => p.id);
-      const [orderBooksMap, seasonStatsMap, sentimentMap, avgFantasyPointsMap] = await Promise.all([
+      const [orderBooksMap, seasonStatsMap, sentimentMap, avgFantasyPointsMap, globalScoutMap] = await Promise.all([
         storage.getBatchOrderBooks(playerIds),
         storage.getBatchPlayerSeasonStatsFromLogs(playerIds),
         storage.getBatchSentiment(playerIds),
         storage.getBatchAllTimeAvgFantasyPoints(playerIds), // Same calculation as scanner cards
+        storage.getBatchActiveScoutCounts(playerIds),
       ]);
 
       // Enrich with market values, order book data, and fantasy points average (only for paginated results)
@@ -1318,6 +1333,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           avgFantasyPointsPerGame: seasonStats.avgFantasyPointsPerGame,
           buyPressure: sentimentData.buyPressure,
           valueIndex: valueIndex,
+          globalScoutCount: globalScoutMap.get(player.id) || 0,
         };
       });
 
@@ -2288,9 +2304,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const playerHoldingIds = holdingsWithData
         .filter((item: any) => item.holding.assetType === "player" && item.player)
         .map((item: any) => item.player.id.toString());
-      const orderBooksMap = playerHoldingIds.length > 0
-        ? await storage.getBatchOrderBooks(playerHoldingIds)
-        : new Map();
+      const [orderBooksMap, globalScoutMap] = playerHoldingIds.length > 0
+        ? await Promise.all([
+          storage.getBatchOrderBooks(playerHoldingIds),
+          storage.getBatchActiveScoutCounts(playerHoldingIds)
+        ])
+        : [new Map(), new Map()];
 
       const enrichedHoldings = holdingsWithData.map((item: any) => {
         const holding = item.holding;
@@ -2315,6 +2334,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const orderBookData = orderBooksMap.get(player.id.toString());
           const bestBid = orderBookData?.bestBid || null;
           const bestAsk = orderBookData?.bestAsk || null;
+          const globalScoutCount = globalScoutMap.get(player.id.toString()) || 0;
           const bidSize = orderBookData?.bidSize || 0;
           const askSize = orderBookData?.askSize || 0;
 
@@ -2329,7 +2349,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             bestBid,
             bestAsk,
             bidSize,
-            askSize
+            askSize,
+            globalScoutCount,
           };
         }
         return holding;
@@ -3041,7 +3062,160 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get user's contest entries
+  // =====================
+  // Scout Engine API Routes
+  // =====================
+
+  // Get user's scout assignments and capacity
+  app.get("/api/scouts", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const user = await storage.getUser(userId);
+
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      // Keep-Alive: Update activity timestamp to ensure user remains eligible for payouts
+      await storage.updateLastActive(userId);
+
+      const [assignments, totalScouts] = await Promise.all([
+        storage.getUserScoutAssignments(userId),
+        storage.getTotalScoutsForUser(userId),
+      ]);
+
+      const maxScouts = user.isPremium ? 10 : 5;
+
+      // Enrich assignments with player data
+      const playerIds = assignments.map(a => a.playerId);
+      const [players, globalScoutCounts, seasonStatsMap] = playerIds.length > 0
+        ? await Promise.all([
+          storage.getPlayersByIds(playerIds),
+          storage.getBatchActiveScoutCounts(playerIds),
+          storage.getBatchPlayerSeasonStatsFromLogs(playerIds),
+        ])
+        : [[], new Map<string, number>(), new Map<string, any>()];
+
+      const playerMap = new Map(players.map(p => [p.id, p]));
+
+      const enrichedAssignments = assignments.map(a => {
+        const player = playerMap.get(a.playerId);
+        const seasonStats = seasonStatsMap.get(a.playerId) || { avgFantasyPointsPerGame: "0.0" };
+
+        return {
+          ...a,
+          player: player ? {
+            ...player,
+            avgFantasyPointsPerGame: seasonStats.avgFantasyPointsPerGame,
+          } : null,
+          globalScoutCount: globalScoutCounts.get(a.playerId) || 0,
+        };
+      });
+
+      res.json({
+        assignments: enrichedAssignments,
+        totalScouts,
+        maxScouts,
+        remaining: maxScouts - totalScouts,
+        isPremium: user.isPremium,
+      });
+    } catch (error: any) {
+      console.error("[Scout API] Error fetching scouts:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Assign scouts to a player
+  app.post("/api/scouts/assign", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const { playerId, count } = req.body;
+
+      if (!playerId || typeof playerId !== "string") {
+        return res.status(400).json({ error: "playerId is required" });
+      }
+
+      const parsedCount = parseInt(count, 10);
+      if (isNaN(parsedCount) || parsedCount < 0) {
+        return res.status(400).json({ error: "count must be a non-negative integer" });
+      }
+
+      // Verify player exists
+      const player = await storage.getPlayer(playerId);
+      if (!player) {
+        return res.status(404).json({ error: "Player not found" });
+      }
+
+      // assignScouts throws if limit exceeded
+      await storage.assignScouts(userId, playerId, parsedCount);
+
+      // Return updated scout data
+      const [assignments, totalScouts] = await Promise.all([
+        storage.getUserScoutAssignments(userId),
+        storage.getTotalScoutsForUser(userId),
+      ]);
+
+      const user = await storage.getUser(userId);
+      const maxScouts = user?.isPremium ? 10 : 5;
+
+      console.log(`[Scout API] User ${userId} assigned ${parsedCount} scouts to player ${playerId}`);
+
+      // Broadcast real-time update to all clients
+      broadcast({
+        type: "scout_update",
+        data: {
+          playerId,
+          count: parsedCount,
+          userId // Optional: helps client ignore self-echo if optimistically updated
+        }
+      });
+
+      res.json({
+        success: true,
+        assignments,
+        totalScouts,
+        maxScouts,
+        remaining: maxScouts - totalScouts,
+      });
+    } catch (error: any) {
+      console.error("[Scout API] Error assigning scouts:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get scout roster for a specific player (Leaderboard)
+  app.get("/api/scouts/roster/:playerId", isAuthenticated, async (req, res) => {
+    try {
+      const { playerId } = req.params;
+      const roster = await storage.getScoutRoster(playerId);
+      res.json(roster);
+    } catch (error: any) {
+      console.error("[Scout API] Error fetching roster:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // DEBUG: DB Connection Check
+  app.get("/api/debug/db-check", async (req, res) => {
+    try {
+      const count = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(scoutAssignments)
+        .where(eq(scoutAssignments.playerId, 'nba_31030'));
+
+      res.json({
+        host: 'masked',
+        database: 'masked',
+        scoutAssignmentsCount: count[0].count
+      });
+    } catch (err: any) {
+      console.error("Debug check failed:", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // =====================
+  // Watchlist Routes
   app.get("/api/contests/entries", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
@@ -5633,6 +5807,18 @@ ${posts.map(post => `  <url>
     }
   });
 
+  // Scout Status Endpoint
+  app.get("/api/scouts/status", isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user) return res.sendStatus(401);
+      const status = await storage.getScoutStatus(req.user.id);
+      res.json(status);
+    } catch (err: any) {
+      console.error("[Scout API] Error getting status:", err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // Get lightweight player name lookup (for auto-hyperlinking player names)
   app.get("/api/players/lookup", async (req, res) => {
     try {
@@ -6042,6 +6228,560 @@ ${posts.map(post => `  <url>
       res.json(correlations.slice(0, 20));
     } catch (error: any) {
       console.error("[analytics/correlations] Error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ============================================
+  // POWER LEVEL / CONDENSE ROUTES
+  // ============================================
+
+  // Condense raw shares into Power Level (5:1 ratio)
+  // Power Level shares can be used in Daily Boost slots but don't earn scout dividends
+  app.post("/api/holdings/condense", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { playerId, sharesToCondense } = req.body;
+
+      // Validate input
+      if (!playerId) {
+        return res.status(400).json({ error: "playerId is required" });
+      }
+
+      const shares = parseInt(sharesToCondense);
+      if (isNaN(shares) || shares < 5) {
+        return res.status(400).json({ error: "Minimum 5 shares required to condense" });
+      }
+
+      if (shares % 5 !== 0) {
+        return res.status(400).json({ error: "Share count must be divisible by 5" });
+      }
+
+      // Perform the condense operation
+      const result = await storage.condenseShares(userId, playerId, shares);
+
+      // Get updated holding info
+      const holdingInfo = await storage.getHoldingWithPowerLevel(userId, playerId);
+      const player = await storage.getPlayer(playerId);
+
+      res.json({
+        success: true,
+        newPowerLevel: result.newPowerLevel,
+        sharesCondensed: result.sharesCondensed,
+        powerLevelGained: (shares / 5).toFixed(2),
+        holding: holdingInfo,
+        player: player ? {
+          id: player.id,
+          firstName: player.firstName,
+          lastName: player.lastName,
+          team: player.team,
+        } : null,
+        message: `Successfully condensed ${shares} shares into ${(shares / 5).toFixed(1)} Power Level for ${player?.firstName} ${player?.lastName}`
+      });
+    } catch (error: any) {
+      console.error("[holdings/condense] Error:", error);
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Get holding with power level info for a specific player
+  app.get("/api/holdings/:playerId/power-level", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { playerId } = req.params;
+
+      const holdingInfo = await storage.getHoldingWithPowerLevel(userId, playerId);
+
+      if (!holdingInfo) {
+        return res.json({
+          hasHolding: false,
+          quantity: 0,
+          powerLevel: "0.00",
+          availableShares: 0,
+          canCondense: false,
+        });
+      }
+
+      const canCondense = holdingInfo.availableShares >= 5;
+
+      res.json({
+        hasHolding: true,
+        ...holdingInfo,
+        canCondense,
+        maxCondensable: Math.floor(holdingInfo.availableShares / 5) * 5,
+      });
+    } catch (error: any) {
+      console.error("[holdings/power-level] Error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ============================================
+  // DAILY BOOSTS ROUTES
+  // ============================================
+
+  // Get daily boosts state
+  app.get("/api/daily-boosts/:sport", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const sport = req.params.sport.toUpperCase();
+
+      // Parse date query param (YYYY-MM-DD), default to today
+      let targetDate = new Date();
+      if (req.query.date && typeof req.query.date === 'string') {
+        const parsed = new Date(req.query.date);
+        if (!isNaN(parsed.getTime())) {
+          targetDate = parsed;
+        }
+      }
+
+      const boosts = await storage.getDailyBoosts(userId, sport, targetDate);
+
+      // Enrich with player data
+      const playerIds = boosts.map(b => b.playerId);
+      const players = await storage.getPlayersByIds(playerIds);
+      const playerMap = new Map(players.map(p => [p.id, p]));
+
+      const enrichedBoosts = boosts.map(boost => ({
+        ...boost,
+        player: playerMap.get(boost.playerId),
+      }));
+
+      res.json({
+        sport,
+        date: today.toISOString().split('T')[0],
+        boosts: enrichedBoosts,
+        slotsRemaining: 4 - boosts.length,
+        availableSlots: [5, 4, 3, 2].filter(tier => !boosts.some(b => b.slotTier === tier)),
+      });
+    } catch (error: any) {
+      console.error("[daily-boosts] Error fetching boosts:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get eligible players for boosting (holdings with games today)
+  app.get("/api/daily-boosts/eligible/:sport", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const sport = req.params.sport.toUpperCase();
+
+      // Parse date query param (YYYY-MM-DD), default to today
+      let targetDate = new Date();
+      if (req.query.date && typeof req.query.date === 'string') {
+        const parsed = new Date(req.query.date);
+        if (!isNaN(parsed.getTime())) {
+          targetDate = parsed;
+        }
+      }
+
+      const eligiblePlayers = await storage.getEligiblePlayersForBoost(userId, sport, targetDate);
+
+      // Also get current boosts to show which players are already boosted
+      const currentBoosts = await storage.getDailyBoosts(userId, sport, targetDate);
+      const boostedPlayerIds = new Set(currentBoosts.map(b => b.playerId));
+
+      const result = eligiblePlayers.map(ep => ({
+        playerId: ep.player.id,
+        player: ep.player,
+        availableShares: ep.availableShares,
+        powerLevel: ep.powerLevel,
+        totalShares: ep.quantity,
+        gameId: ep.gameId,
+        gameStartTime: ep.gameStartTime,
+        isAlreadyBoosted: boostedPlayerIds.has(ep.player.id),
+        gameStarted: ep.gameStartTime ? new Date(ep.gameStartTime) <= new Date() : false,
+      }));
+
+      res.json({
+        sport,
+        date: targetDate.toISOString().split('T')[0], // Use targetDate
+        eligiblePlayers: result,
+        totalEligible: result.length,
+      });
+    } catch (error: any) {
+      console.error("[daily-boosts/eligible] Error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Assign a player to a boost slot
+  app.post("/api/daily-boosts/assign", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { playerId, slotTier, sharesEntered, sport, date } = req.body;
+
+      // Validate input
+      if (!playerId || !slotTier || !sharesEntered || !sport) {
+        return res.status(400).json({ error: "playerId, slotTier, sharesEntered, and sport are required" });
+      }
+
+      const tierNum = parseInt(slotTier);
+      if (![2, 3, 4, 5].includes(tierNum)) {
+        return res.status(400).json({ error: "slotTier must be 2, 3, 4, or 5" });
+      }
+
+      const shares = parseInt(sharesEntered);
+      if (shares <= 0) {
+        return res.status(400).json({ error: "sharesEntered must be positive" });
+      }
+
+      const sportUpper = sport.toUpperCase();
+      const today = new Date();
+
+      // Check if slot is already taken
+      const currentBoosts = await storage.getDailyBoosts(userId, sportUpper, today);
+      if (currentBoosts.some(b => b.slotTier === tierNum)) {
+        return res.status(400).json({ error: `Slot ${tierNum}x is already occupied` });
+      }
+
+      // Check if player is already boosted
+      if (currentBoosts.some(b => b.playerId === playerId)) {
+        return res.status(400).json({ error: "This player is already in a boost slot" });
+      }
+
+      // Check max 4 boosts
+      if (currentBoosts.length >= 4) {
+        return res.status(400).json({ error: "All 4 boost slots are already filled" });
+      }
+
+      // Verify player has game today and get game info
+      const game = await storage.getPlayerGameForDate(playerId, sportUpper, today);
+      if (!game) {
+        return res.status(400).json({ error: "This player doesn't have a game today" });
+      }
+
+      // Check if game has already started
+      if (new Date(game.startTime) <= new Date()) {
+        return res.status(400).json({ error: "Cannot add boost - player's game has already started" });
+      }
+
+      // Verify user has enough available shares
+      const availableShares = await storage.getAvailableShares(userId, "player", playerId);
+      if (availableShares < shares) {
+        return res.status(400).json({
+          error: `Not enough available shares. You have ${availableShares} available.`
+        });
+      }
+
+      // Create the boost
+      // Use provided date or default to today (ensure date is object)
+      const boostDate = date ? new Date(date) : new Date(today);
+      boostDate.setHours(0, 0, 0, 0);
+
+      const boost = await storage.createDailyBoost({
+        userId,
+        playerId,
+        sport: sportUpper,
+        slotTier: tierNum,
+        boostDate,
+        sharesEntered: shares,
+        gameId: game.gameId,
+      });
+
+      // Get player info for response
+      const player = await storage.getPlayer(playerId);
+
+      res.json({
+        success: true,
+        boost: {
+          ...boost,
+          player,
+        },
+        estimatedPayout: `Estimated based on season average`,
+      });
+    } catch (error: any) {
+      console.error("[daily-boosts/assign] Error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Remove a player from boost slot (only if game hasn't started)
+  app.delete("/api/daily-boosts/:boostId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const boostId = req.params.boostId;
+
+      // Get the boost and verify ownership
+      const boosts = await storage.getDailyBoostsByStatus("active");
+      const boost = boosts.find(b => b.id === boostId && b.userId === userId);
+
+      if (!boost) {
+        return res.status(404).json({ error: "Boost not found or not owned by you" });
+      }
+
+      // Check if boost is still active (not locked)
+      if (boost.status !== "active") {
+        return res.status(400).json({
+          error: `Cannot remove boost - status is ${boost.status}. Boosts are locked when the game starts.`
+        });
+      }
+
+      // Double-check game hasn't started
+      if (boost.gameId) {
+        const game = await storage.getDailyGameByGameId(boost.gameId);
+        if (game && new Date(game.startTime) <= new Date()) {
+          return res.status(400).json({ error: "Cannot remove boost - game has already started" });
+        }
+      }
+
+      // Delete the boost
+      await storage.deleteDailyBoost(boostId);
+
+      res.json({ success: true, message: "Boost removed successfully" });
+    } catch (error: any) {
+      console.error("[daily-boosts/delete] Error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get live updates for boosts
+  app.get("/api/daily-boosts/live/:sport", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const sport = req.params.sport.toUpperCase();
+
+      let targetDate = new Date();
+      if (req.query.date && typeof req.query.date === 'string') {
+        const parsed = new Date(req.query.date + "T12:00:00");
+        if (!isNaN(parsed.getTime())) {
+          targetDate = parsed;
+        }
+      }
+
+      const boosts = await storage.getDailyBoosts(userId, sport, targetDate);
+
+      // Get all relevant games for these players to fetch live stats
+      const gameIds = boosts.map(b => b.gameId).filter(id => !!id) as string[];
+
+      // We need to fetch the dailyGames again to get fresh fantasyPoints data if available
+      const games = await db.select().from(dailyGames)
+        .where(and(
+          inArray(dailyGames.gameId, gameIds.length > 0 ? gameIds : ["PLACEHOLDER"]),
+          eq(dailyGames.sport, sport)
+        ));
+
+      const gameMap = new Map(games.map(g => [g.gameId, g]));
+
+      const liveBoosts = boosts.map(boost => {
+        const game = boost.gameId ? gameMap.get(boost.gameId) : null;
+
+        let liveFantasyPoints = 0;
+        let gameStatus = "scheduled"; // scheduled, live, finished
+
+        if (game) {
+          const now = new Date();
+          const startTime = new Date(game.startTime);
+
+          if (now < startTime) {
+            gameStatus = "scheduled";
+          } else {
+            gameStatus = "live";
+
+            // Use fantasyPoints from boost if settled, OR from game record if available
+            if (boost.fantasyPoints) {
+              liveFantasyPoints = parseFloat(boost.fantasyPoints);
+              gameStatus = "finished";
+            }
+            // If we had a live feed updating dailyGames, we'd check game.homeScore etc, 
+            // but for specific player fantasy points we need a player_stats table or similar.
+            // For now, allow reading from boost which is our settlement record.
+          }
+        }
+
+        const estimatedPayout = (boost.sharesEntered * liveFantasyPoints * boost.slotTier).toFixed(2);
+
+        return {
+          ...boost,
+          liveFantasyPoints,
+          estimatedPayout,
+          gameStatus
+        };
+      });
+
+      const totalEstimatedEarnings = liveBoosts.reduce((sum, b) => sum + parseFloat(b.estimatedPayout), 0).toFixed(2);
+
+      res.json({
+        boosts: liveBoosts,
+        totalEstimatedEarnings
+      });
+    } catch (error: any) {
+      console.error("[daily-boosts/live] Error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get boost payout history
+  app.get("/api/daily-boosts/history", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const limit = parseInt(req.query.limit as string) || 50;
+
+      const payouts = await storage.getBoostPayoutHistory(userId, limit);
+
+      // Enrich with player data
+      const playerIds = [...new Set(payouts.map(p => p.playerId))];
+      const players = await storage.getPlayersByIds(playerIds);
+      const playerMap = new Map(players.map(p => [p.id, p]));
+
+      const enrichedPayouts = payouts.map(payout => ({
+        ...payout,
+        player: playerMap.get(payout.playerId),
+      }));
+
+      // Calculate totals
+      const totalEarned = payouts.reduce((sum, p) => sum + parseFloat(p.payoutAmount), 0);
+
+      res.json({
+        payouts: enrichedPayouts,
+        totalEarned: totalEarned.toFixed(2),
+        totalBoosts: payouts.length,
+      });
+    } catch (error: any) {
+      console.error("[daily-boosts/history] Error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get live boost progress (for real-time updates during games)
+  app.get("/api/daily-boosts/live/:sport", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const sport = req.params.sport.toUpperCase();
+      const today = new Date();
+
+      const boosts = await storage.getDailyBoosts(userId, sport, today);
+
+      // Get player and game stats for each boost
+      const enrichedBoosts = await Promise.all(boosts.map(async (boost) => {
+        const player = await storage.getPlayer(boost.playerId);
+        let liveFantasyPoints = 0;
+        let gameStatus = "scheduled";
+
+        if (boost.gameId) {
+          const game = await storage.getDailyGameByGameId(boost.gameId);
+          if (game) {
+            gameStatus = game.status;
+
+            // Get live stats if game is in progress or completed
+            if (game.status === "inprogress" || game.status === "completed") {
+              const stats = await storage.getPlayerGameStats(boost.playerId, boost.gameId);
+              if (stats) {
+                liveFantasyPoints = parseFloat(stats.fantasyPoints);
+              }
+            }
+          }
+        }
+
+        // Calculate estimated payout
+        const estimatedPayout = boost.sharesEntered * liveFantasyPoints * boost.slotTier;
+
+        return {
+          ...boost,
+          player,
+          gameStatus,
+          liveFantasyPoints,
+          estimatedPayout: estimatedPayout.toFixed(2),
+        };
+      }));
+
+      // Calculate total estimated earnings
+      const totalEstimated = enrichedBoosts.reduce((sum, b) => sum + parseFloat(b.estimatedPayout), 0);
+
+      res.json({
+        sport,
+        date: today.toISOString().split('T')[0],
+        boosts: enrichedBoosts,
+        totalEstimatedEarnings: totalEstimated.toFixed(2),
+      });
+    } catch (error: any) {
+      console.error("[daily-boosts/live] Error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Community Boosts API
+  // Get active community boosts for a sport
+  app.get("/api/community-boosts/:sport", isAuthenticated, async (req: any, res) => {
+    try {
+      const sport = req.params.sport.toUpperCase();
+      const today = new Date();
+
+      const boosts = await storage.getCommunityBoostsForDate(sport, today);
+
+      res.json(boosts);
+    } catch (error: any) {
+      console.error("[community-boosts/list] Error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Create a new community boost (requires premium share)
+  app.post("/api/community-boosts/create", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { playerId, sport } = req.body;
+
+      if (!playerId || !sport) {
+        return res.status(400).json({ error: "playerId and sport are required" });
+      }
+
+      // 1. Verify player has a game today that hasn't started
+      const today = new Date();
+      const sportUpper = sport.toUpperCase();
+      const game = await storage.getPlayerGameForDate(playerId, sportUpper, today);
+
+      if (!game) {
+        return res.status(400).json({ error: "This player does not have a game today" });
+      }
+
+      if (new Date(game.startTime) <= new Date()) {
+        return res.status(400).json({ error: "Cannot boost - game has already started" });
+      }
+
+      // 2. Check if player already has an active community boost
+      const existingBoosts = await storage.getCommunityBoostsForDate(sportUpper, today);
+      if (existingBoosts.some(b => b.playerId === playerId)) {
+        return res.status(400).json({ error: "This player already has a Community Boost!" });
+      }
+
+      // 3. Create boost (storage method handles premium share deduction)
+      const boostDate = new Date(today);
+      boostDate.setHours(0, 0, 0, 0);
+
+      const boost = await storage.createCommunityBoost({
+        creatorId: userId,
+        playerId,
+        sport: sportUpper,
+        boostDate,
+        gameId: game.gameId,
+      });
+
+      res.json({
+        success: true,
+        boost,
+        message: "Community Boost activated! 1 Premium Share redeemed."
+      });
+    } catch (error: any) {
+      console.error("[community-boosts/create] Error:", error);
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Get user's community boost history (created by them)
+  app.get("/api/community-boosts/history", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const today = new Date();
+      // Simple fetch for now - in future could add dedicated history method
+      // For now, filter active ones or we need a specific history query
+      // Let's implement a simple query in route or add to storage later if needed.
+      // Re-using specific status fetch isn't efficient for user history.
+      // Let's rely on frontend to show current active ones, and maybe later add full history.
+      // For MVP, returning empty or todo. Actually, let's skip history endpoint for MVP
+      // and just show active boosts on the dashboard.
+      res.json([]);
+    } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });

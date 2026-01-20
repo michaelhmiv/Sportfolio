@@ -15,11 +15,11 @@ interface OnboardingModalProps {
 
 const slides = [
   {
-    id: "vesting",
+    id: "scouting",
     icon: Clock,
-    title: "VEST SHARES",
-    subtitle: "Earn player shares automatically",
-    description: "Shares accumulate in your pool automatically - up to 2,400 per day. Click the vesting widget in the nav bar to redeem them to any players you want. The widget will glow green until you vest for the first time!",
+    title: "SCOUT SHARES",
+    subtitle: "Earn player shares via scouting",
+    description: "Assign scouts to players to earn free shares hourly. You get 5 scout slots (10 for premium), and scouted shares are yours to keep! Manage assignments in your dashboard.",
     color: "text-yellow-500",
   },
   {
@@ -91,8 +91,8 @@ export function OnboardingModal({ open, onComplete }: OnboardingModalProps) {
   const isLastSlide = current === slides.length - 1;
 
   return (
-    <Dialog open={open} onOpenChange={() => {}}>
-      <DialogContent 
+    <Dialog open={open} onOpenChange={() => { }}>
+      <DialogContent
         className="w-[90vw] max-w-[400px] sm:max-w-[420px] p-0 gap-0 border-2 border-border overflow-hidden rounded-none"
         onPointerDownOutside={(e) => e.preventDefault()}
         onEscapeKeyDown={(e) => e.preventDefault()}
@@ -129,9 +129,9 @@ export function OnboardingModal({ open, onComplete }: OnboardingModalProps) {
                           className="mt-5 gap-2 border-[#5865F2] text-[#5865F2] hover:bg-[#5865F2] hover:text-white"
                           asChild
                         >
-                          <a 
-                            href="https://discord.gg/r8MsduNvXG" 
-                            target="_blank" 
+                          <a
+                            href="https://discord.gg/r8MsduNvXG"
+                            target="_blank"
                             rel="noopener noreferrer"
                             data-testid="link-discord"
                           >
@@ -154,25 +154,24 @@ export function OnboardingModal({ open, onComplete }: OnboardingModalProps) {
               <button
                 key={index}
                 onClick={() => api?.scrollTo(index)}
-                className={`w-2.5 h-2.5 rounded-full transition-colors ${
-                  index === current ? "bg-primary" : "bg-muted-foreground/30"
-                }`}
+                className={`w-2.5 h-2.5 rounded-full transition-colors ${index === current ? "bg-primary" : "bg-muted-foreground/30"
+                  }`}
                 aria-label={`Go to slide ${index + 1}`}
                 data-testid={`dot-slide-${index}`}
               />
             ))}
           </div>
           <div className="flex items-center justify-between gap-2">
-            <Button 
-              variant="ghost" 
-              size="sm" 
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={handleSkip}
               className="text-muted-foreground"
               data-testid="button-skip-onboarding"
             >
               Skip
             </Button>
-            <Button 
+            <Button
               size="sm"
               onClick={handleNext}
               disabled={completeOnboarding.isPending}

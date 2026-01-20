@@ -33,6 +33,7 @@ interface PortfolioData {
     currentValue: string;
     pnl: string;
     pnlPercent: string;
+    powerLevel?: string;
     bestBid?: string | null;
     bestAsk?: string | null;
     bidSize?: number;
@@ -47,7 +48,7 @@ interface PortfolioData {
 interface UserActivity {
   id: string;
   timestamp: string;
-  category: 'vesting' | 'market' | 'contest';
+  category: 'scout' | 'market' | 'contest';
   type: string;
   description: string;
   cashDelta?: string;
@@ -180,6 +181,23 @@ export default function Portfolio() {
     },
     onError: (error: Error) => {
       toast({ title: "Redemption failed", description: error.message, variant: "destructive" });
+    },
+  });
+
+  // Condense shares into Power Level (5:1 ratio)
+  const condenseSharesMutation = useMutation({
+    mutationFn: async ({ playerId, sharesToCondense }: { playerId: string; sharesToCondense: number }) => {
+      return await apiRequest("POST", "/api/holdings/condense", { playerId, sharesToCondense });
+    },
+    onSuccess: async (data: any) => {
+      await invalidatePortfolioQueries();
+      toast({
+        title: "Shares Condensed! ⚡",
+        description: data.message || `Condensed ${data.sharesCondensed} shares into ${data.powerLevelGained} Power Level`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Condense failed", description: error.message, variant: "destructive" });
     },
   });
 
@@ -567,6 +585,13 @@ export default function Portfolio() {
                             <span className="flex items-center justify-end">Qty<SortIcon field="quantity" /></span>
                           </th>
                           <th
+                            className="text-right px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-purple-400 hidden lg:table-cell"
+                            title="Power Level - Condensed shares for Daily Boosts"
+                            data-testid="th-power-level"
+                          >
+                            <span className="flex items-center justify-end gap-1">⚡ PL</span>
+                          </th>
+                          <th
                             className="text-right px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground cursor-pointer hover:text-foreground select-none"
                             onClick={() => handleSort('avgCost')}
                             data-testid="th-sort-avgcost"
@@ -807,6 +832,32 @@ export default function Portfolio() {
                               </div>
                             </td>
                             <td className="px-2 py-1.5 text-right font-mono text-sm hidden sm:table-cell">{holding.quantity}</td>
+                            {/* Power Level cell with Condense button */}
+                            <td className="px-2 py-1.5 text-right hidden lg:table-cell">
+                              <div className="flex items-center justify-end gap-1">
+                                <span className="font-mono text-sm text-purple-400" title="Power Level">
+                                  {parseFloat(holding.powerLevel || "0") > 0 ? holding.powerLevel : "-"}
+                                </span>
+                                {holding.quantity >= 5 && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-5 px-1.5 text-xs text-purple-400 hover:bg-purple-500/10 hover:text-purple-300"
+                                    onClick={() => {
+                                      const sharesToCondense = Math.floor(holding.quantity / 5) * 5;
+                                      if (sharesToCondense >= 5 && holding.player) {
+                                        condenseSharesMutation.mutate({ playerId: holding.player.id, sharesToCondense });
+                                      }
+                                    }}
+                                    disabled={condenseSharesMutation.isPending}
+                                    title={`Condense ${Math.floor(holding.quantity / 5) * 5} shares into Power Level`}
+                                    data-testid={`button-condense-${holding.player?.id}`}
+                                  >
+                                    ⚡
+                                  </Button>
+                                )}
+                              </div>
+                            </td>
                             <td className="px-2 py-1.5 text-right font-mono text-sm hidden sm:table-cell">${holding.avgCostBasis}</td>
                             <td className="px-2 py-1.5 text-right hidden md:table-cell">
                               {holding.player?.lastTradePrice ? (
@@ -999,7 +1050,7 @@ function ActivityFeed() {
           <EmptyState
             icon="inbox"
             title="No activity yet"
-            description="Start trading, vesting, or entering contests to see your activity here."
+            description="Start trading, scouting, or entering contests to see your activity here."
             size="sm"
             className="py-8"
             data-testid="empty-activity"
@@ -1010,14 +1061,14 @@ function ActivityFeed() {
   }
 
   const getActivityIcon = (category: string, type: string) => {
-    if (category === 'vesting') return <Clock className="w-4 h-4" />;
+    if (category === 'scout') return <Clock className="w-4 h-4" />;
     if (category === 'market') return <ShoppingCart className="w-4 h-4" />;
     if (category === 'contest') return <Trophy className="w-4 h-4" />;
     return null;
   };
 
   const getCategoryColor = (category: string) => {
-    if (category === 'vesting') return 'text-yellow-500';
+    if (category === 'scout') return 'text-yellow-500';
     if (category === 'market') return 'text-blue-500';
     if (category === 'contest') return 'text-purple-500';
     return 'text-muted-foreground';
@@ -1069,7 +1120,7 @@ function ActivityFeed() {
                     <span>•</span>
                     <span>{formatDistanceToNow(new Date(activity.timestamp), { addSuffix: true })}</span>
 
-                    {/* Show shares for vesting */}
+                    {/* Show shares for scout */}
                     {activity.shareDelta && activity.shareDelta > 0 && (
                       <>
                         <span>•</span>

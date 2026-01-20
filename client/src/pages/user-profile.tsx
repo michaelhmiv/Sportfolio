@@ -94,8 +94,8 @@ export default function UserProfile() {
       }
     });
 
-    // Subscribe to vesting events
-    const unsubVesting = subscribe('vesting', (data) => {
+    // Subscribe to scout events
+    const unsubScouts = subscribe('scouts', (data) => {
       if (data.userId === userId) {
         queryClient.invalidateQueries({ queryKey: [`/api/user/${userId}/profile`] });
       }
@@ -108,7 +108,7 @@ export default function UserProfile() {
 
     return () => {
       unsubPortfolio();
-      unsubVesting();
+      unsubScouts();
       unsubTrade();
     };
   }, [userId, subscribe]);
