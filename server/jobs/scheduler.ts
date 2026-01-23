@@ -1,12 +1,19 @@
 /**
  * Cron Job Scheduler
- * 
+ *
  * Manages automated sync jobs for MySportsFeeds data ingestion.
  * Jobs run on staggered schedules to avoid overwhelming the API.
+ *
+ * OPTIMIZATION: Uses throttled logging to reduce disk I/O from verbose output.
  */
 
 import * as cron from "node-cron";
 import { storage } from "../storage";
+import { info, warn, error, createThrottledLogger } from "../lib/log-utility";
+
+// Throttled logger for job events - reduces I/O
+const logJobEvent = createThrottledLogger();
+
 import { syncRoster } from "./sync-roster";
 import { syncSchedule } from "./sync-schedule";
 import { syncStats } from "./sync-stats";
@@ -31,6 +38,8 @@ import { compileAllDigests } from "./compile-digest";
 import { lockBoostShares } from "./lock-boost-shares";
 import { settleBoosts } from "./settle-boosts";
 import { settleCommunityBoosts } from "./settle-community-boosts";
+import { cleanupJobLogs } from "./cleanup-job-logs";
+import { prunePriceHistory } from "./prune-price-history";
 import type { ProgressCallback } from "../lib/admin-stream";
 
 export interface JobResult {
@@ -57,14 +66,14 @@ export class JobScheduler {
    */
   private scheduleJob(jobConfig: JobConfig) {
     if (!jobConfig.enabled) {
-      console.log(`Job ${jobConfig.name} is disabled, skipping...`);
+      info(`Job ${jobConfig.name} is disabled, skipping...`);
       return;
     }
 
     const task = cron.schedule(
       jobConfig.schedule,
       async () => {
-        console.log(`[${jobConfig.name}] Starting scheduled run...`);
+        logJobEvent(`[${jobConfig.name}] Starting scheduled run...`);
 
         const jobLog = await storage.createJobLog({
           jobName: jobConfig.name,
@@ -87,16 +96,16 @@ export class JobScheduler {
           });
 
           if (status === "degraded") {
-            console.warn(`[${jobConfig.name}] Completed with errors - ${result.recordsProcessed} records processed, ${result.errorCount} failed, ${result.requestCount} requests`);
+            warn(`[${jobConfig.name}] Completed with errors - ${result.recordsProcessed} records processed, ${result.errorCount} failed, ${result.requestCount} requests`);
           } else {
-            console.log(`[${jobConfig.name}] Completed successfully - ${result.recordsProcessed} records, ${result.requestCount} requests`);
+            logJobEvent(`[${jobConfig.name}] Completed successfully - ${result.recordsProcessed} records, ${result.requestCount} requests`);
           }
-        } catch (error: any) {
-          console.error(`[${jobConfig.name}] Failed:`, error.message);
+        } catch (err: any) {
+          error(`[${jobConfig.name}] Failed:`, err.message);
 
           await storage.updateJobLog(jobLog.id, {
             status: "failed",
-            errorMessage: error.message,
+            errorMessage: err.message,
             finishedAt: new Date(),
           });
         }
@@ -107,14 +116,14 @@ export class JobScheduler {
     );
 
     this.jobs.set(jobConfig.name, task);
-    console.log(`Job ${jobConfig.name} scheduled: ${jobConfig.schedule}`);
+    info(`Job ${jobConfig.name} scheduled: ${jobConfig.schedule}`);
   }
 
   /**
    * Initialize contest-related jobs (database-only, no API required)
    */
   async initializeContestJobs() {
-    console.log("Initializing contest jobs...");
+    info("Initializing contest jobs...");
 
     const contestJobs: JobConfig[] = [
       {
@@ -146,7 +155,7 @@ export class JobScheduler {
 
       {
         name: "scout_distribution",
-        schedule: "30 * * * *", // Every hour at :30 - distribute scout shares based on Scout-Minute ratio
+        schedule: "0 * * * *", // Every hour at :00 - distribute scout shares based on Scout-Minute ratio
         enabled: true,
         handler: distributeScoutShares,
       },
@@ -194,20 +203,33 @@ export class JobScheduler {
         enabled: true,
         handler: settleCommunityBoosts,
       },
+      // Maintenance jobs (lower frequency)
+      {
+        name: "cleanup_job_logs",
+        schedule: "0 2 * * 0", // Weekly on Sunday at 2 AM - clean up old job execution logs
+        enabled: true,
+        handler: cleanupJobLogs,
+      },
+      {
+        name: "prune_price_history",
+        schedule: "0 3 * * 0", // Weekly on Sunday at 3 AM - prune old price history
+        enabled: true,
+        handler: prunePriceHistory,
+      },
     ];
 
     for (const jobConfig of contestJobs) {
       this.scheduleJob(jobConfig);
     }
 
-    console.log("Contest jobs initialized successfully");
+    info("Contest jobs initialized successfully");
   }
 
   /**
    * Initialize API-dependent jobs (requires MYSPORTSFEEDS_API_KEY)
    */
   async initializeApiJobs() {
-    console.log("Initializing API-dependent jobs...");
+    info("Initializing API-dependent jobs...");
 
     const apiJobs: JobConfig[] = [
       {
@@ -295,7 +317,7 @@ export class JobScheduler {
       this.scheduleJob(jobConfig);
     }
 
-    console.log("API-dependent jobs initialized successfully");
+    info("API-dependent jobs initialized successfully");
   }
 
   /**
@@ -303,17 +325,17 @@ export class JobScheduler {
    */
   async initialize() {
     if (this.isInitialized) {
-      console.log("Job scheduler already initialized");
+      info("Job scheduler already initialized");
       return;
     }
 
-    console.log("Initializing job scheduler...");
+    info("Initializing job scheduler...");
 
     await this.initializeContestJobs();
     await this.initializeApiJobs();
 
     this.isInitialized = true;
-    console.log("Job scheduler initialized successfully");
+    info("Job scheduler initialized successfully");
   }
 
   /**
@@ -321,14 +343,14 @@ export class JobScheduler {
    */
   start() {
     if (this.jobs.size === 0) {
-      console.log("No jobs to start - initialize jobs first");
+      info("No jobs to start - initialize jobs first");
       return;
     }
 
-    console.log("Starting all cron jobs...");
+    info("Starting all cron jobs...");
     Array.from(this.jobs.entries()).forEach(([name, task]) => {
       task.start();
-      console.log(`Job ${name} started`);
+      info(`Job ${name} started`);
     });
   }
 
@@ -336,10 +358,10 @@ export class JobScheduler {
    * Stop all scheduled jobs
    */
   stop() {
-    console.log("Stopping all cron jobs...");
+    info("Stopping all cron jobs...");
     Array.from(this.jobs.entries()).forEach(([name, task]) => {
       task.stop();
-      console.log(`Job ${name} stopped`);
+      info(`Job ${name} stopped`);
     });
   }
 
@@ -394,6 +416,8 @@ export class JobScheduler {
       lock_boost_shares: (callback) => lockBoostShares(callback),
       settle_boosts: (callback) => settleBoosts(callback),
       settle_community_boosts: (callback) => settleCommunityBoosts(callback),
+      cleanup_job_logs: (callback) => cleanupJobLogs(callback),
+      prune_price_history: (callback) => prunePriceHistory(callback),
     };
 
     const handler = jobConfigs[jobName];
@@ -401,7 +425,7 @@ export class JobScheduler {
       throw new Error(`Unknown job: ${jobName}`);
     }
 
-    console.log(`[${jobName}] Manual trigger started${progressCallback ? ' with live logging' : ''}...`);
+    info(`[${jobName}] Manual trigger started${progressCallback ? ' with live logging' : ''}...`);
 
     const jobLog = await storage.createJobLog({
       jobName,
@@ -424,21 +448,21 @@ export class JobScheduler {
       });
 
       if (status === "degraded") {
-        console.warn(`[${jobName}] Manual trigger completed with errors - ${result.recordsProcessed} records processed, ${result.errorCount} failed, ${result.requestCount} requests`);
+        warn(`[${jobName}] Manual trigger completed with errors - ${result.recordsProcessed} records processed, ${result.errorCount} failed, ${result.requestCount} requests`);
       } else {
-        console.log(`[${jobName}] Manual trigger completed - ${result.recordsProcessed} records, ${result.requestCount} requests`);
+        logJobEvent(`[${jobName}] Manual trigger completed - ${result.recordsProcessed} records, ${result.requestCount} requests`);
       }
       return result;
-    } catch (error: any) {
-      console.error(`[${jobName}] Manual trigger failed:`, error.message);
+    } catch (err: any) {
+      error(`[${jobName}] Manual trigger failed:`, err.message);
 
       await storage.updateJobLog(jobLog.id, {
         status: "failed",
-        errorMessage: error.message,
+        errorMessage: err.message,
         finishedAt: new Date(),
       });
 
-      throw error;
+      throw err;
     }
   }
 

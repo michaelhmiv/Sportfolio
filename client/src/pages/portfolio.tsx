@@ -7,8 +7,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { TrendingUp, TrendingDown, DollarSign, Crown, Clock, ShoppingCart, Trophy, ArrowUpRight, ArrowDownRight, ArrowUpDown, ChevronUp, ChevronDown, Plus, BarChart3 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { TrendingUp, TrendingDown, DollarSign, Crown, Clock, ShoppingCart, Trophy, ArrowUpRight, ArrowDownRight, ArrowUpDown, ChevronUp, ChevronDown, Plus, BarChart3, Zap, ChevronRight } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { Link } from "wouter";
 import { formatDistanceToNow } from "date-fns";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
@@ -33,7 +43,10 @@ interface PortfolioData {
     currentValue: string;
     pnl: string;
     pnlPercent: string;
+    power?: number;
     powerLevel?: string;
+    totalPlayerPower?: string;
+    isPowered?: boolean;
     bestBid?: string | null;
     bestAsk?: string | null;
     bidSize?: number;
@@ -92,6 +105,30 @@ const SORT_OPTIONS: { value: SortField; label: string }[] = [
   { value: 'pnl', label: 'P&L' },
 ];
 
+// Helper function to calculate P&L
+function calculatePnL(quantity: number, avgCost: string, lastTradePrice: string | null | undefined) {
+  if (!lastTradePrice) {
+    return {
+      currentValue: null,
+      pnl: null,
+      pnlPercent: null,
+    };
+  }
+
+  const cost = parseFloat(avgCost);
+  const price = parseFloat(lastTradePrice);
+  const totalValue = quantity * price;
+  const totalCost = quantity * cost;
+  const pnl = totalValue - totalCost;
+  const pnlPercent = totalCost > 0 ? (pnl / totalCost) * 100 : 0;
+
+  return {
+    currentValue: totalValue.toFixed(2),
+    pnl: pnl.toFixed(2),
+    pnlPercent: pnlPercent.toFixed(2),
+  };
+}
+
 export default function Portfolio() {
   const { toast } = useToast();
   const { subscribe } = useWebSocket();
@@ -101,6 +138,16 @@ export default function Portfolio() {
   const [sortField, setSortField] = useState<SortField>('value');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const { sport } = useSport();
+
+  // Condense dialog state
+  const [condenseDialogOpen, setCondenseDialogOpen] = useState(false);
+  const [selectedPlayerForCondense, setSelectedPlayerForCondense] = useState<{ id: string; name: string } | null>(null);
+  const [sharesToCondenseInput, setSharesToCondenseInput] = useState<string>("");
+
+  // Expanded share table state (per player)
+  const [expandedShareSortField, setExpandedShareSortField] = useState<'quantity' | 'power'>('quantity');
+  const [expandedShareSortDir, setExpandedShareSortDir] = useState<'asc' | 'desc'>('desc');
+  const [selectedHoldingIds, setSelectedHoldingIds] = useState<Set<string>>(new Set());
 
   const { data, isLoading } = useQuery<PortfolioData>({
     queryKey: ["/api/portfolio"],
@@ -191,15 +238,42 @@ export default function Portfolio() {
     },
     onSuccess: async (data: any) => {
       await invalidatePortfolioQueries();
+      setCondenseDialogOpen(false);
+      setSelectedPlayerForCondense(null);
+      setSharesToCondenseInput("");
       toast({
-        title: "Shares Condensed! ⚡",
-        description: data.message || `Condensed ${data.sharesCondensed} shares into ${data.powerLevelGained} Power Level`,
+        title: "Shares Powered Up! ⚡",
+        description: data.message || `Powered up ${data.sharesCondensed} shares into ${data.powerLevelGained} Power Level`,
       });
     },
     onError: (error: Error) => {
-      toast({ title: "Condense failed", description: error.message, variant: "destructive" });
+      toast({ title: "Power Up failed", description: error.message, variant: "destructive" });
     },
   });
+
+  // Open condense dialog
+  const openCondenseDialog = (playerId: string, playerName: string, availableShares: number) => {
+    setSelectedPlayerForCondense({ id: playerId, name: playerName });
+    // Default to the maximum condensable shares (rounded down to nearest multiple of 5)
+    const maxCondensable = Math.floor(availableShares / 5) * 5;
+    setSharesToCondenseInput(maxCondensable.toString());
+    setCondenseDialogOpen(true);
+  };
+
+  // Handle condense from dialog
+  const handleCondenseFromDialog = () => {
+    if (!selectedPlayerForCondense) return;
+    const shares = parseInt(sharesToCondenseInput);
+    if (isNaN(shares) || shares < 5 || shares % 5 !== 0) {
+      toast({
+        title: "Invalid selection",
+        description: "Please enter a valid number of shares (minimum 5, must be divisible by 5)",
+        variant: "destructive",
+      });
+      return;
+    }
+    condenseSharesMutation.mutate({ playerId: selectedPlayerForCondense.id, sharesToCondense: shares });
+  };
 
   // Toggle sort direction or change sort field
   const handleSort = (field: SortField) => {
@@ -210,6 +284,49 @@ export default function Portfolio() {
       // Name sorts A-Z (asc) by default, numeric fields sort high-to-low (desc)
       setSortDirection(field === 'name' ? 'asc' : 'desc');
     }
+  };
+
+  // Toggle holding selection
+  const toggleHoldingSelection = (holdingId: string) => {
+    setSelectedHoldingIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(holdingId)) {
+        newSet.delete(holdingId);
+      } else {
+        newSet.add(holdingId);
+      }
+      return newSet;
+    });
+  };
+
+  // Select all holdings
+  const selectAllHoldings = (holdingIds: string[]) => {
+    setSelectedHoldingIds(new Set(holdingIds));
+  };
+
+  // Clear selection
+  const clearSelection = () => {
+    setSelectedHoldingIds(new Set());
+  };
+
+  // Handle expanded share table sort
+  const handleExpandedShareSort = (field: 'quantity' | 'power') => {
+    if (expandedShareSortField === field) {
+      setExpandedShareSortDir(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setExpandedShareSortField(field);
+      setExpandedShareSortDir('desc');
+    }
+  };
+
+  // Open condense dialog with selected holdings
+  const openCondenseFromExpanded = (playerId: string, playerName: string, regularQuantity: number) => {
+    clearSelection();
+    setSelectedPlayerForCondense({ id: playerId, name: playerName });
+    // Default to the maximum condensable shares (rounded down to nearest multiple of 5)
+    const maxCondensable = Math.floor(regularQuantity / 5) * 5;
+    setSharesToCondenseInput(maxCondensable.toString());
+    setCondenseDialogOpen(true);
   };
 
   // Parse currency string to number (strips $, commas, etc.)
@@ -244,21 +361,147 @@ export default function Portfolio() {
     }
   };
 
-  // Sort player holdings and filter by selected sport
-  const sortedHoldings = (data?.holdings.filter(h => h.assetType === "player") || [])
-    .filter(h => !sport || sport === 'ALL' || h.player?.sport === sport)
-    .slice()
-    .sort((a, b) => {
-      const aVal = getSortValue(a, sortField);
-      const bVal = getSortValue(b, sortField);
+  // Transform holdings: group regular shares and powered shares per player
+  // Returns one entry per player with a breakdown array
+  interface ShareBreakdown {
+    quantity: number;
+    power: number;
+    powerLevel: string;
+    avgCostBasis: string;
+    id?: string;
+  }
 
-      if (typeof aVal === 'string' && typeof bVal === 'string') {
-        return sortDirection === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+  interface PlayerGroup {
+    player: Player;
+    regular: ShareBreakdown | null;
+    powered: ShareBreakdown[];
+    totalShares: number;
+    totalPower: string;
+    currentValue: string;
+    pnl: string;
+    pnlPercent: string;
+    avgCostBasis: string;
+    bestBid: string | null;
+    bestAsk: string | null;
+    bidSize: number;
+    askSize: number;
+  }
+
+  const playerHoldings: PlayerGroup[] = (() => {
+    const playerMap = new Map<string, PlayerGroup>();
+
+    // First pass: group by player
+    data?.holdings.filter(h => h.assetType === "player" && h.player).forEach((holding) => {
+      const playerId = holding.player!.id;
+      const player = holding.player!;
+
+      if (!playerMap.has(playerId)) {
+        // Calculate PnL from the first holding for this player
+        const { currentValue, pnl, pnlPercent } = calculatePnL(
+          holding.quantity,
+          holding.avgCostBasis,
+          player.lastTradePrice
+        );
+
+        playerMap.set(playerId, {
+          player,
+          regular: null,
+          powered: [],
+          totalShares: 0,
+          totalPower: "0.00",
+          currentValue: currentValue || "0.00",
+          pnl: pnl || "0.00",
+          pnlPercent: pnlPercent || "0.00",
+          avgCostBasis: holding.avgCostBasis,
+          bestBid: holding.bestBid || null,
+          bestAsk: holding.bestAsk || null,
+          bidSize: holding.bidSize || 0,
+          askSize: holding.askSize || 0,
+        });
       }
 
-      const aNum = typeof aVal === 'number' ? aVal : 0;
-      const bNum = typeof bVal === 'number' ? bVal : 0;
-      return sortDirection === 'asc' ? aNum - bNum : bNum - aNum;
+      const group = playerMap.get(playerId)!;
+
+      const shareBreakdown: ShareBreakdown = {
+        quantity: holding.quantity,
+        power: holding.power || 1,
+        powerLevel: holding.powerLevel || holding.quantity.toFixed(2),
+        avgCostBasis: holding.avgCostBasis,
+        id: holding.id,
+      };
+
+      if ((holding.power || 1) === 1) {
+        // Regular share - combine quantities and average cost
+        if (group.regular) {
+          const totalCost = parseFloat(group.regular.avgCostBasis || "0") * group.regular.quantity +
+                            parseFloat(holding.avgCostBasis || "0") * holding.quantity;
+          const totalQty = group.regular.quantity + holding.quantity;
+          const newAvgCost = totalQty > 0 ? (totalCost / totalQty).toFixed(4) : "0.0000";
+          group.regular = {
+            ...group.regular,
+            quantity: totalQty,
+            avgCostBasis: newAvgCost,
+            powerLevel: totalQty.toFixed(2),
+          };
+        } else {
+          group.regular = shareBreakdown;
+        }
+      } else {
+        // Powered share
+        group.powered.push(shareBreakdown);
+      }
+
+      // Update totals
+      group.totalShares = (group.regular?.quantity || 0) + group.powered.reduce((sum, p) => sum + p.quantity, 0);
+      const regularPower = group.regular?.quantity || 0;
+      const poweredPower = group.powered.reduce((sum, p) => sum + (p.power * p.quantity), 0);
+      group.totalPower = (regularPower + poweredPower).toFixed(2);
+    });
+
+    return Array.from(playerMap.values());
+  })();
+
+  // Sort player holdings and filter by selected sport
+  // Include holdings with regular shares OR power level (power level is an attribute of shares)
+  const sortedHoldings = playerHoldings
+    .filter(h => (h.totalShares > 0 || parseFloat(h.regular?.powerLevel || "0") > 0) && (!sport || sport === 'ALL' || h.player.sport === sport))
+    .slice()
+    .sort((a, b) => {
+      const aName = `${a.player.lastName} ${a.player.firstName}`.toLowerCase();
+      const bName = `${b.player.lastName} ${b.player.firstName}`.toLowerCase();
+
+      switch (sortField) {
+        case 'name':
+          return sortDirection === 'asc' ? aName.localeCompare(bName) : bName.localeCompare(aName);
+        case 'quantity':
+          return sortDirection === 'asc' ? a.totalShares - b.totalShares : b.totalShares - a.totalShares;
+        case 'avgCost':
+          return sortDirection === 'asc'
+            ? parseCurrency(a.avgCostBasis) - parseCurrency(b.avgCostBasis)
+            : parseCurrency(b.avgCostBasis) - parseCurrency(a.avgCostBasis);
+        case 'price':
+          return sortDirection === 'asc'
+            ? parseCurrency(a.player.lastTradePrice) - parseCurrency(b.player.lastTradePrice)
+            : parseCurrency(b.player.lastTradePrice) - parseCurrency(a.player.lastTradePrice);
+        case 'bid':
+          return sortDirection === 'asc'
+            ? parseCurrency(a.bestBid) - parseCurrency(b.bestBid)
+            : parseCurrency(b.bestBid) - parseCurrency(a.bestBid);
+        case 'ask':
+          return sortDirection === 'asc'
+            ? parseCurrency(a.bestAsk) - parseCurrency(b.bestAsk)
+            : parseCurrency(b.bestAsk) - parseCurrency(a.bestAsk);
+        case 'value':
+          return sortDirection === 'asc'
+            ? parseCurrency(a.currentValue) - parseCurrency(b.currentValue)
+            : parseCurrency(b.currentValue) - parseCurrency(a.currentValue);
+        case 'pnl':
+          return sortDirection === 'asc'
+            ? parseCurrency(a.pnl) - parseCurrency(b.pnl)
+            : parseCurrency(b.pnl) - parseCurrency(a.pnl);
+        default:
+          return 0;
+      }
     });
 
   // Render sort icon for column header
@@ -585,13 +828,6 @@ export default function Portfolio() {
                             <span className="flex items-center justify-end">Qty<SortIcon field="quantity" /></span>
                           </th>
                           <th
-                            className="text-right px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-purple-400 hidden lg:table-cell"
-                            title="Power Level - Condensed shares for Daily Boosts"
-                            data-testid="th-power-level"
-                          >
-                            <span className="flex items-center justify-end gap-1">⚡ PL</span>
-                          </th>
-                          <th
                             className="text-right px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground cursor-pointer hover:text-foreground select-none"
                             onClick={() => handleSort('avgCost')}
                             data-testid="th-sort-avgcost"
@@ -626,20 +862,13 @@ export default function Portfolio() {
                           >
                             <span className="flex items-center justify-end">Value<SortIcon field="value" /></span>
                           </th>
-                          <th
-                            className="text-right px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground cursor-pointer hover:text-foreground select-none"
-                            onClick={() => handleSort('pnl')}
-                            data-testid="th-sort-pnl"
-                          >
-                            <span className="flex items-center justify-end">P&L<SortIcon field="pnl" /></span>
-                          </th>
                         </tr>
                       </thead>
                       <tbody>
                         {(data?.premiumShares ?? 0) > 0 && data && (
                           <tr className="border-b hover-elevate bg-gradient-to-r from-yellow-500/5 to-amber-500/5" data-testid="row-premium-shares">
                             {/* Mobile layout */}
-                            <td className="px-2 py-2 sm:hidden" colSpan={8}>
+                            <td className="px-2 py-2 sm:hidden" colSpan={7}>
                               <div className="flex items-center justify-between gap-2">
                                 <div className="flex items-center gap-2 min-w-0 flex-1">
                                   <div className="w-8 h-8 rounded-full bg-yellow-500/20 flex items-center justify-center flex-shrink-0">
@@ -693,11 +922,6 @@ export default function Portfolio() {
                               </div>
                             </td>
                             <td className="px-2 py-1.5 text-right font-mono hidden sm:table-cell text-yellow-500 font-bold">{data.premiumShares}</td>
-                            <td className="px-2 py-1.5 text-right font-mono hidden sm:table-cell text-yellow-500">
-                              {premiumMarketData?.lastTradePrice !== null && premiumMarketData?.lastTradePrice !== undefined
-                                ? `$${premiumMarketData.lastTradePrice.toFixed(2)}`
-                                : "-"}
-                            </td>
                             <td className="px-2 py-1.5 text-right font-mono hidden md:table-cell text-yellow-500">
                               {premiumMarketData?.lastTradePrice !== null && premiumMarketData?.lastTradePrice !== undefined
                                 ? `$${premiumMarketData.lastTradePrice.toFixed(2)}`
@@ -738,189 +962,386 @@ export default function Portfolio() {
                             </td>
                           </tr>
                         )}
-                        {sortedHoldings.map((holding) => (
-                          <tr key={holding.id} className="border-b last:border-0 hover-elevate" data-testid={`row-holding-${holding.player?.id}`}>
-                            {/* Mobile layout - stacked info matching marketplace */}
-                            <td className="px-2 py-2 sm:hidden" colSpan={8}>
-                              <div className="flex items-center justify-between gap-2">
-                                <div className="flex items-center gap-2 min-w-0 flex-1">
-                                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                                    <span className="font-bold text-xs">{holding.player?.firstName[0]}{holding.player?.lastName[0]}</span>
-                                  </div>
-                                  <div className="min-w-0 flex-1">
-                                    <div className="font-medium text-sm">
-                                      {holding.player && (
-                                        <PlayerName
-                                          playerId={holding.player.id}
-                                          firstName={holding.player.firstName}
-                                          lastName={holding.player.lastName}
-                                          className="text-sm"
-                                        />
-                                      )}
-                                    </div>
-                                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground flex-wrap">
-                                      <span>{holding.player?.team}</span>
-                                      <span>•</span>
-                                      <span>{holding.player?.position}</span>
-                                      <span>•</span>
-                                      <span className="font-mono">Qty: {holding.quantity}</span>
-                                    </div>
-                                    <div className="flex items-center gap-1.5 text-xs mt-0.5">
-                                      <span className="text-muted-foreground">Avg: ${holding.avgCostBasis}</span>
-                                      <span className="text-muted-foreground">•</span>
-                                      {holding.player?.lastTradePrice ? (
-                                        <AnimatedPrice
-                                          value={parseFloat(holding.player.lastTradePrice)}
-                                          size="sm"
-                                          className="font-mono font-bold"
-                                        />
-                                      ) : (
-                                        <span className="text-muted-foreground">-</span>
-                                      )}
-                                      {holding.pnl !== null && (
-                                        <>
-                                          <span className="text-muted-foreground">•</span>
-                                          <span className={parseFloat(holding.pnl) >= 0 ? 'text-positive' : 'text-negative'}>
-                                            {parseFloat(holding.pnl) >= 0 ? '+' : ''}${holding.pnl} ({parseFloat(holding.pnlPercent) >= 0 ? '+' : ''}{holding.pnlPercent}%)
-                                          </span>
-                                        </>
-                                      )}
-                                    </div>
-                                    {/* Mobile bid/ask row */}
-                                    <div className="flex items-center gap-2 text-xs mt-1">
-                                      {holding.bestBid && (
-                                        <Link href={`/player/${holding.player?.id}?action=sell&price=${holding.bestBid}`}>
-                                          <span className="text-positive hover:underline cursor-pointer font-mono" data-testid={`link-bid-mobile-${holding.player?.id}`}>
-                                            Bid: ${holding.bestBid}
-                                          </span>
-                                        </Link>
-                                      )}
-                                      {holding.bestBid && holding.bestAsk && <span className="text-muted-foreground">|</span>}
-                                      {holding.bestAsk && (
-                                        <Link href={`/player/${holding.player?.id}?action=buy&price=${holding.bestAsk}`}>
-                                          <span className="text-negative hover:underline cursor-pointer font-mono" data-testid={`link-ask-mobile-${holding.player?.id}`}>
-                                            Ask: ${holding.bestAsk}
-                                          </span>
-                                        </Link>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                            </td>
+                        {sortedHoldings.map((group) => {
+                          const hasPoweredShares = group.powered.length > 0;
+                          const hasRegularShares = group.regular !== null;
 
-                            {/* Desktop layout - table cells */}
-                            <td className="px-2 py-1.5 hidden sm:table-cell">
-                              <div className="flex items-center gap-2">
-                                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                                  <span className="font-bold text-xs">{holding.player?.firstName[0]}{holding.player?.lastName[0]}</span>
-                                </div>
-                                <div>
-                                  <div className="font-medium text-sm">
-                                    {holding.player && (
-                                      <PlayerName
-                                        playerId={holding.player.id}
-                                        firstName={holding.player.firstName}
-                                        lastName={holding.player.lastName}
-                                        className="text-sm"
-                                      />
+                          return (
+                            <Collapsible key={group.player.id} asChild>
+                              <>
+                                {/* Main row - always visible */}
+                                <tr className="border-b last:border-0 hover-elevate" data-testid={`row-holding-${group.player.id}`}>
+                                  {/* Mobile layout */}
+                                  <td className="px-2 py-2 sm:hidden" colSpan={7}>
+                                    <div className="flex items-center justify-between gap-2">
+                                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                                          <span className="font-bold text-xs">{group.player.firstName[0]}{group.player.lastName[0]}</span>
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                          <div className="font-medium text-sm flex items-center gap-1">
+                                            <PlayerName
+                                              playerId={group.player.id}
+                                              firstName={group.player.firstName}
+                                              lastName={group.player.lastName}
+                                              className="text-sm"
+                                            />
+                                            {parseFloat(group.totalPower) > 0 && (
+                                              <Badge variant="outline" className="text-[10px] h-4 px-1 border-purple-500/50 text-purple-400 bg-purple-500/10">
+                                                ⚡ {group.totalPower}
+                                              </Badge>
+                                            )}
+                                          </div>
+                                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground flex-wrap">
+                                            <span>{group.player.team}</span>
+                                            <span>•</span>
+                                            <span>{group.player.position}</span>
+                                            <span>•</span>
+                                            <span className="font-mono">Qty: {group.totalShares}</span>
+                                          </div>
+                                          <div className="flex items-center gap-1.5 text-xs mt-0.5">
+                                            <span className="text-muted-foreground">Avg: ${group.avgCostBasis}</span>
+                                            <span className="text-muted-foreground">•</span>
+                                            <AnimatedPrice
+                                              value={parseFloat(group.player.lastTradePrice || "0")}
+                                              size="sm"
+                                              className="font-mono font-bold"
+                                            />
+                                            <span className="text-muted-foreground">•</span>
+                                            <button
+                                              className={`font-mono font-medium hover:underline ${
+                                                parseFloat(group.pnl || "0") >= 0 ? 'text-positive hover:text-green-400' : 'text-negative hover:text-red-400'
+                                              }`}
+                                              title="Click to manage Power Level"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                if (hasRegularShares && group.regular!.quantity >= 5) {
+                                                  openCondenseDialog(
+                                                    group.player.id,
+                                                    `${group.player.firstName} ${group.player.lastName}`,
+                                                    group.regular!.quantity
+                                                  );
+                                                }
+                                              }}
+                                            >
+                                              {parseFloat(group.pnl || "0") >= 0 ? '+' : ''}${group.pnl}
+                                            </button>
+                                          </div>
+                                        </div>
+                                      </div>
+                                      <CollapsibleTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="flex-shrink-0"
+                                          data-testid={`button-expand-${group.player.id}`}
+                                        >
+                                          <ChevronRight className="w-4 h-4 transition-transform data-[state=open]:rotate-90" />
+                                        </Button>
+                                      </CollapsibleTrigger>
+                                    </div>
+                                  </td>
+
+                                  {/* Desktop layout */}
+                                  <td className="px-2 py-1.5 hidden sm:table-cell">
+                                    <div className="flex items-center gap-2">
+                                      <CollapsibleTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="p-0 hover:bg-transparent"
+                                          data-testid={`button-expand-${group.player.id}`}
+                                        >
+                                          <ChevronRight className="w-4 h-4 mr-1 transition-transform data-[state=open]:rotate-90" />
+                                        </Button>
+                                      </CollapsibleTrigger>
+                                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                                        <span className="font-bold text-xs">{group.player.firstName[0]}{group.player.lastName[0]}</span>
+                                      </div>
+                                      <div>
+                                        <div className="font-medium text-sm flex items-center gap-1">
+                                          <PlayerName
+                                            playerId={group.player.id}
+                                            firstName={group.player.firstName}
+                                            lastName={group.player.lastName}
+                                            className="text-sm"
+                                          />
+                                          {parseFloat(group.totalPower) > 0 && (
+                                            <Badge variant="outline" className="text-[10px] h-4 px-1 border-purple-500/50 text-purple-400 bg-purple-500/10">
+                                              ⚡ {group.totalPower}
+                                            </Badge>
+                                          )}
+                                        </div>
+                                        <div className="text-xs text-muted-foreground hidden md:inline">{group.player.team} • {group.player.position}</div>
+                                        <div className="text-xs text-muted-foreground md:hidden">{group.player.team} • {group.player.position}</div>
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td className="px-2 py-1.5 text-right font-mono text-sm hidden sm:table-cell">
+                                    <div className="flex flex-col items-end gap-0.5">
+                                      <span title="Total shares">{group.totalShares}</span>
+                                      {parseFloat(group.totalPower) > 0 && group.regular && (
+                                        <button
+                                          className="text-xs text-purple-400 hover:text-purple-300 hover:underline cursor-pointer text-right"
+                                          title="Click to power up shares"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            openCondenseDialog(
+                                              group.player.id,
+                                              `${group.player.firstName} ${group.player.lastName}`,
+                                              group.regular!.quantity
+                                            );
+                                          }}
+                                          data-testid={`button-pnl-${group.player.id}`}
+                                        >
+                                          ⚡ {group.totalPower}
+                                        </button>
+                                      )}
+                                      {/* P&L - clickable to open power up dialog */}
+                                      <button
+                                        className={`text-xs font-medium hover:underline cursor-pointer text-right ${
+                                          parseFloat(group.pnl) >= 0 ? 'text-positive hover:text-green-400' : 'text-negative hover:text-red-400'
+                                        }`}
+                                        title="Click to manage Power Level"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          if (hasRegularShares && group.regular!.quantity >= 5) {
+                                            openCondenseDialog(
+                                              group.player.id,
+                                              `${group.player.firstName} ${group.player.lastName}`,
+                                              group.regular!.quantity
+                                            );
+                                          }
+                                        }}
+                                        data-testid={`button-pl-${group.player.id}`}
+                                      >
+                                        {parseFloat(group.pnl) >= 0 ? '+' : ''}${group.pnl}
+                                        <span className="ml-1 opacity-70">({parseFloat(group.pnlPercent) >= 0 ? '+' : ''}{group.pnlPercent}%)</span>
+                                      </button>
+                                    </div>
+                                  </td>
+                                  <td className="px-2 py-1.5 text-right font-mono text-sm hidden sm:table-cell">${group.avgCostBasis}</td>
+                                  <td className="px-2 py-1.5 text-right hidden md:table-cell">
+                                    <AnimatedPrice
+                                      value={parseFloat(group.player.lastTradePrice || "0")}
+                                      size="sm"
+                                      className="font-mono font-bold justify-end"
+                                    />
+                                  </td>
+                                  {/* Bid */}
+                                  <td className="px-2 py-1.5 text-right hidden sm:table-cell">
+                                    {group.bestBid ? (
+                                      <Link href={`/player/${group.player.id}?action=sell&price=${group.bestBid!}`}>
+                                        <span
+                                          className="font-mono text-sm text-positive hover:underline cursor-pointer"
+                                          data-testid={`link-bid-${group.player.id}`}
+                                          title={`Sell at $${group.bestBid} (${group.bidSize} shares)`}
+                                        >
+                                          ${group.bestBid}
+                                        </span>
+                                      </Link>
+                                    ) : (
+                                      <span className="text-muted-foreground text-xs">-</span>
                                     )}
-                                  </div>
-                                  <div className="text-xs text-muted-foreground md:hidden">{holding.player?.team} • {holding.player?.position}</div>
-                                  <div className="text-xs text-muted-foreground hidden md:inline">{holding.player?.team} • {holding.player?.position}</div>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="px-2 py-1.5 text-right font-mono text-sm hidden sm:table-cell">{holding.quantity}</td>
-                            {/* Power Level cell with Condense button */}
-                            <td className="px-2 py-1.5 text-right hidden lg:table-cell">
-                              <div className="flex items-center justify-end gap-1">
-                                <span className="font-mono text-sm text-purple-400" title="Power Level">
-                                  {parseFloat(holding.powerLevel || "0") > 0 ? holding.powerLevel : "-"}
-                                </span>
-                                {holding.quantity >= 5 && (
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="h-5 px-1.5 text-xs text-purple-400 hover:bg-purple-500/10 hover:text-purple-300"
-                                    onClick={() => {
-                                      const sharesToCondense = Math.floor(holding.quantity / 5) * 5;
-                                      if (sharesToCondense >= 5 && holding.player) {
-                                        condenseSharesMutation.mutate({ playerId: holding.player.id, sharesToCondense });
-                                      }
-                                    }}
-                                    disabled={condenseSharesMutation.isPending}
-                                    title={`Condense ${Math.floor(holding.quantity / 5) * 5} shares into Power Level`}
-                                    data-testid={`button-condense-${holding.player?.id}`}
-                                  >
-                                    ⚡
-                                  </Button>
-                                )}
-                              </div>
-                            </td>
-                            <td className="px-2 py-1.5 text-right font-mono text-sm hidden sm:table-cell">${holding.avgCostBasis}</td>
-                            <td className="px-2 py-1.5 text-right hidden md:table-cell">
-                              {holding.player?.lastTradePrice ? (
-                                <AnimatedPrice
-                                  value={parseFloat(holding.player.lastTradePrice)}
-                                  size="sm"
-                                  className="font-mono font-bold justify-end"
-                                />
-                              ) : (
-                                <span className="text-muted-foreground text-xs">-</span>
-                              )}
-                            </td>
-                            {/* Bid - clicking sells at this price */}
-                            <td className="px-2 py-1.5 text-right hidden sm:table-cell">
-                              {holding.bestBid ? (
-                                <Link href={`/player/${holding.player?.id}?action=sell&price=${holding.bestBid}`}>
-                                  <span
-                                    className="font-mono text-sm text-positive hover:underline cursor-pointer"
-                                    data-testid={`link-bid-${holding.player?.id}`}
-                                    title={`Sell at $${holding.bestBid} (${holding.bidSize} shares)`}
-                                  >
-                                    ${holding.bestBid}
-                                  </span>
-                                </Link>
-                              ) : (
-                                <span className="text-muted-foreground text-xs">-</span>
-                              )}
-                            </td>
-                            {/* Ask - clicking buys at this price */}
-                            <td className="px-2 py-1.5 text-right hidden sm:table-cell">
-                              {holding.bestAsk ? (
-                                <Link href={`/player/${holding.player?.id}?action=buy&price=${holding.bestAsk}`}>
-                                  <span
-                                    className="font-mono text-sm text-negative hover:underline cursor-pointer"
-                                    data-testid={`link-ask-${holding.player?.id}`}
-                                    title={`Buy at $${holding.bestAsk} (${holding.askSize} shares)`}
-                                  >
-                                    ${holding.bestAsk}
-                                  </span>
-                                </Link>
-                              ) : (
-                                <span className="text-muted-foreground text-xs">-</span>
-                              )}
-                            </td>
-                            <td className="px-2 py-1.5 text-right font-mono font-bold text-sm hidden xl:table-cell">
-                              {holding.currentValue !== null ? `$${holding.currentValue}` : <span className="text-muted-foreground text-xs">-</span>}
-                            </td>
-                            <td className="px-2 py-1.5 text-right hidden sm:table-cell">
-                              {holding.pnl !== null ? (
-                                <div className={parseFloat(holding.pnl) >= 0 ? 'text-positive' : 'text-negative'}>
-                                  <div className="font-mono font-medium text-sm">
-                                    {parseFloat(holding.pnl) >= 0 ? '+' : ''}${holding.pnl}
-                                  </div>
-                                  <div className="text-xs">
-                                    ({parseFloat(holding.pnlPercent) >= 0 ? '+' : ''}{holding.pnlPercent}%)
-                                  </div>
-                                </div>
-                              ) : (
-                                <span className="text-muted-foreground text-xs">-</span>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
+                                  </td>
+                                  {/* Ask */}
+                                  <td className="px-2 py-1.5 text-right hidden sm:table-cell">
+                                    {group.bestAsk ? (
+                                      <Link href={`/player/${group.player.id}?action=buy&price=${group.bestAsk!}`}>
+                                        <span
+                                          className="font-mono text-sm text-negative hover:underline cursor-pointer"
+                                          data-testid={`link-ask-${group.player.id}`}
+                                          title={`Buy at $${group.bestAsk} (${group.askSize} shares)`}
+                                        >
+                                          ${group.bestAsk}
+                                        </span>
+                                      </Link>
+                                    ) : (
+                                      <span className="text-muted-foreground text-xs">-</span>
+                                    )}
+                                  </td>
+                                  <td className="px-2 py-1.5 text-right font-mono font-bold text-sm hidden xl:table-cell">
+                                    ${group.currentValue}
+                                  </td>
+                                </tr>
+
+                                {/* Expanded detail rows - Share Holdings Table */}
+                                <CollapsibleContent asChild>
+                                  <tr className="bg-muted/30">
+                                    <td colSpan={7} className="px-0">
+                                      {(() => {
+                                        // Build share holdings list with types
+                                        const shareHoldings: Array<{
+                                          id: string | undefined;
+                                          type: 'regular' | 'powered';
+                                          quantity: number;
+                                          power: number;
+                                          powerLevel: string;
+                                        }> = [];
+
+                                        if (hasRegularShares) {
+                                          shareHoldings.push({
+                                            id: group.regular!.id,
+                                            type: 'regular',
+                                            quantity: group.regular!.quantity,
+                                            power: 1,
+                                            powerLevel: group.regular!.quantity.toFixed(2),
+                                          });
+                                        }
+
+                                        group.powered.forEach((share, idx) => {
+                                          shareHoldings.push({
+                                            id: share.id,
+                                            type: 'powered',
+                                            quantity: share.quantity,
+                                            power: share.power,
+                                            powerLevel: share.powerLevel,
+                                          });
+                                        });
+
+                                        // Sort the holdings
+                                        const sortedHoldings = [...shareHoldings].sort((a, b) => {
+                                          const sortValA = expandedShareSortField === 'quantity' ? a.quantity : parseFloat(a.powerLevel);
+                                          const sortValB = expandedShareSortField === 'quantity' ? b.quantity : parseFloat(b.powerLevel);
+                                          return expandedShareSortDir === 'asc' ? sortValA - sortValB : sortValB - sortValA;
+                                        });
+
+                                        const allHoldingIds = sortedHoldings.map(h => h.id).filter((id): id is string => !!id);
+                                        const allSelected = allHoldingIds.every(id => selectedHoldingIds.has(id));
+
+                                        return (
+                                          <div className="p-3">
+                                            <table className="w-full text-xs">
+                                              <thead>
+                                                <tr className="text-muted-foreground border-b border-border/50">
+                                                  <th className="text-left pb-2 pl-1">
+                                                    <input
+                                                      type="checkbox"
+                                                      checked={allSelected && allHoldingIds.length > 0}
+                                                      onChange={(e) => {
+                                                        if (e.target.checked) {
+                                                          selectAllHoldings(allHoldingIds);
+                                                        } else {
+                                                          clearSelection();
+                                                        }
+                                                      }}
+                                                      className="rounded border-input"
+                                                    />
+                                                  </th>
+                                                  <th
+                                                    className="text-left pb-2 cursor-pointer hover:text-foreground"
+                                                    onClick={() => handleExpandedShareSort('quantity')}
+                                                  >
+                                                    <span className="flex items-center gap-1">
+                                                      Qty
+                                                      {expandedShareSortField === 'quantity' && (
+                                                        expandedShareSortDir === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
+                                                      )}
+                                                    </span>
+                                                  </th>
+                                                  <th
+                                                    className="text-left pb-2 cursor-pointer hover:text-foreground"
+                                                    onClick={() => handleExpandedShareSort('power')}
+                                                  >
+                                                    <span className="flex items-center gap-1">
+                                                      Power
+                                                      {expandedShareSortField === 'power' && (
+                                                        expandedShareSortDir === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
+                                                      )}
+                                                    </span>
+                                                  </th>
+                                                  <th className="text-right pb-2 pr-1">Action</th>
+                                                </tr>
+                                              </thead>
+                                              <tbody className="divide-y divide-border/30">
+                                                {sortedHoldings.map((share, idx) => {
+                                                  const holdingId = share.id || `temp-${idx}`;
+                                                  const isSelected = selectedHoldingIds.has(holdingId);
+                                                  const isRegular = share.type === 'regular';
+                                                  const canPowerUp = isRegular ? share.quantity >= 5 : true;
+
+                                                  return (
+                                                    <tr key={holdingId} className={`${isRegular ? 'bg-green-500/5' : 'bg-purple-500/5'} hover:bg-muted/50 transition-colors`}>
+                                                      <td className="py-2 pl-1">
+                                                        <input
+                                                          type="checkbox"
+                                                          checked={isSelected}
+                                                          onChange={() => toggleHoldingSelection(holdingId)}
+                                                          className="rounded border-input"
+                                                        />
+                                                      </td>
+                                                      <td className="py-2">
+                                                        <span className="font-mono">{share.quantity}</span>
+                                                        <span className={`ml-1 text-[10px] ${isRegular ? 'text-muted-foreground' : 'text-purple-400'}`}>
+                                                          @ {share.power}x
+                                                        </span>
+                                                      </td>
+                                                      <td className="py-2">
+                                                        <span className={`font-mono font-medium ${isRegular ? 'text-muted-foreground' : 'text-purple-400'}`}>
+                                                          {share.powerLevel}
+                                                        </span>
+                                                      </td>
+                                                      <td className="py-2 pr-1 text-right">
+                                                        {isRegular ? (
+                                                          <Button
+                                                            size="sm"
+                                                            variant="ghost"
+                                                            className="h-6 px-2 text-xs bg-green-500/10 hover:bg-green-500/20 text-green-600"
+                                                            onClick={() => openCondenseFromExpanded(
+                                                              group.player.id,
+                                                              `${group.player.firstName} ${group.player.lastName}`,
+                                                              share.quantity
+                                                            )}
+                                                            disabled={!canPowerUp}
+                                                          >
+                                                            Power Up
+                                                          </Button>
+                                                        ) : (
+                                                          <Button
+                                                            size="sm"
+                                                            variant="ghost"
+                                                            className="h-6 px-2 text-xs bg-purple-500/10 hover:bg-purple-500/20 text-purple-600"
+                                                            disabled
+                                                          >
+                                                            Powered
+                                                          </Button>
+                                                        )}
+                                                      </td>
+                                                    </tr>
+                                                  );
+                                                })}
+                                              </tbody>
+                                            </table>
+
+                                            {/* Selection summary */}
+                                            {selectedHoldingIds.size > 0 && (
+                                              <div className="mt-3 flex items-center justify-between bg-muted/50 rounded p-2">
+                                                <span className="text-xs text-muted-foreground">
+                                                  {selectedHoldingIds.size} lot{selectedHoldingIds.size > 1 ? 's' : ''} selected
+                                                </span>
+                                                <Button
+                                                  size="sm"
+                                                  className="h-7 bg-purple-500 hover:bg-purple-600 text-xs"
+                                                  onClick={() => openCondenseFromExpanded(
+                                                    group.player.id,
+                                                    `${group.player.firstName} ${group.player.lastName}`,
+                                                    group.regular?.quantity || 0
+                                                  )}
+                                                >
+                                                  Power Up Selected
+                                                </Button>
+                                              </div>
+                                            )}
+                                          </div>
+                                        );
+                                      })()}
+                                    </td>
+                                  </tr>
+                                </CollapsibleContent>
+                              </>
+                            </Collapsible>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -1011,6 +1432,105 @@ export default function Portfolio() {
             <ActivityFeed />
           </TabsContent>
         </Tabs>
+
+        {/* Power Up Dialog */}
+        <Dialog open={condenseDialogOpen} onOpenChange={setCondenseDialogOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Zap className="w-5 h-5 text-purple-400" />
+                Power Up Shares
+              </DialogTitle>
+              <DialogDescription>
+                Convert regular shares into Power Level at a 5:1 ratio.
+                Power Level shares are used exclusively for Daily Boosts.
+              </DialogDescription>
+            </DialogHeader>
+            {selectedPlayerForCondense && data?.holdings && (
+              <div className="space-y-4 py-4">
+                {/* Player info */}
+                <div className="p-3 bg-muted/50 rounded-lg">
+                  <div className="font-medium">{selectedPlayerForCondense.name}</div>
+                  {(() => {
+                    const holding = data.holdings.find(h => h.player?.id === selectedPlayerForCondense.id);
+                    if (!holding) return null;
+                    return (
+                      <div className="text-sm text-muted-foreground mt-1 space-y-1">
+                        <div className="flex justify-between">
+                          <span>Regular Shares:</span>
+                          <span className="font-mono">{holding.quantity}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Current Power Level:</span>
+                          <span className="font-mono text-purple-400">{parseFloat(holding.powerLevel || "0") > 0 ? holding.powerLevel : "0.00"}</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                {/* Share input */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Shares to Power Up</label>
+                  <Input
+                    type="number"
+                    value={sharesToCondenseInput}
+                    onChange={(e) => setSharesToCondenseInput(e.target.value)}
+                    placeholder="Enter shares to power up"
+                    min={5}
+                    step={5}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Must be at least 5 and divisible by 5. Each 5 shares = 1 Power Level.
+                  </p>
+                </div>
+
+                {/* Preview */}
+                {(() => {
+                  const shares = parseInt(sharesToCondenseInput);
+                  const isValid = !isNaN(shares) && shares >= 5 && shares % 5 === 0;
+                  if (!isValid) return null;
+
+                  const holding = data.holdings.find(h => h.player?.id === selectedPlayerForCondense?.id);
+                  if (!holding) return null;
+
+                  const powerCreated = shares / 5;
+                  const remainingShares = holding.quantity - shares;
+
+                  return (
+                    <div className="p-3 bg-purple-500/10 border border-purple-500/20 rounded-lg space-y-2">
+                      <div className="text-sm font-medium text-purple-400">Conversion Result</div>
+                      <div className="flex justify-between text-sm">
+                        <span>Regular shares consumed:</span>
+                        <span className="font-mono">-{shares}</span>
+                      </div>
+                      <div className="flex justify-between text-sm font-medium">
+                        <span>Powered share created:</span>
+                        <span className="font-mono text-purple-400">1 share @ {powerCreated.toFixed(2)} power</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span>Regular shares remaining:</span>
+                        <span className="font-mono">{remainingShares}</span>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setCondenseDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleCondenseFromDialog}
+                disabled={condenseSharesMutation.isPending}
+                className="bg-purple-500 hover:bg-purple-600"
+              >
+                {condenseSharesMutation.isPending ? "Powering Up..." : "Power Up Shares"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

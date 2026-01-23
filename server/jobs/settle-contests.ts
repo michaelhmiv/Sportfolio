@@ -1,12 +1,14 @@
 /**
  * Contest Settlement Job
- * 
+ *
  * Automatically settles contests after they end:
  * - First backfills any missing player stats for games in pending contests
  * - Calculates final rankings with proportional scoring
  * - Determines winners (top 50% for 50/50 contests)
  * - Distributes prize pool
  * - Updates user balances
+ *
+ * OPTIMIZATION: Uses batch queries for game status checks and reduced logging.
  */
 
 import { storage } from "../storage";
@@ -17,33 +19,37 @@ import type { ProgressCallback } from "../lib/admin-stream";
 import { getGameDay, getETDayBoundaries } from "../lib/time";
 import { backfillContestStats } from "./backfill-contest-stats";
 import { updateContestStatuses } from "./update-contest-statuses";
+import { info, warn, createThrottledLogger } from "../lib/log-utility";
+
+// Throttled logger for this job
+const log = createThrottledLogger();
 
 export async function settleContests(progressCallback?: ProgressCallback): Promise<JobResult> {
-  console.log("[settle_contests] Starting contest settlement...");
-  
+  info("[settle_contests] Starting contest settlement...");
+
   progressCallback?.({
     type: 'info',
     timestamp: new Date().toISOString(),
     message: 'Starting contest settlement job',
   });
-  
+
   let contestsProcessed = 0;
   let errorCount = 0;
   let requestCount = 0;
 
   try {
     // Step 0: First update contest statuses (open → live) before settling
-    console.log("[settle_contests] Step 0: Updating contest statuses...");
+    info("[settle_contests] Step 0: Updating contest statuses...");
     progressCallback?.({
       type: 'info',
       timestamp: new Date().toISOString(),
       message: 'Updating contest statuses (open → live)...',
     });
-    
+
     try {
       const statusResult = await updateContestStatuses(progressCallback);
       if (statusResult.recordsProcessed > 0) {
-        console.log(`[settle_contests] Transitioned ${statusResult.recordsProcessed} contests to live`);
+        info(`[settle_contests] Transitioned ${statusResult.recordsProcessed} contests to live`);
         progressCallback?.({
           type: 'info',
           timestamp: new Date().toISOString(),
@@ -51,24 +57,24 @@ export async function settleContests(progressCallback?: ProgressCallback): Promi
         });
       }
     } catch (statusError: any) {
-      console.warn(`[settle_contests] Status update warning: ${statusError.message}`);
+      warn(`[settle_contests] Status update warning: ${statusError.message}`);
       // Continue with settlement even if status update fails
     }
 
     // Step 1: First backfill any missing stats for games in live contests
-    console.log("[settle_contests] Step 1: Checking for missing player stats...");
+    info("[settle_contests] Step 1: Checking for missing player stats...");
     progressCallback?.({
       type: 'info',
       timestamp: new Date().toISOString(),
       message: 'Checking for missing player stats in pending contests...',
     });
-    
+
     try {
       const backfillResult = await backfillContestStats(progressCallback);
       requestCount += backfillResult.requestCount;
-      
+
       if (backfillResult.recordsProcessed > 0) {
-        console.log(`[settle_contests] Backfilled ${backfillResult.recordsProcessed} player stats`);
+        info(`[settle_contests] Backfilled ${backfillResult.recordsProcessed} player stats`);
         progressCallback?.({
           type: 'info',
           timestamp: new Date().toISOString(),
@@ -76,17 +82,17 @@ export async function settleContests(progressCallback?: ProgressCallback): Promi
         });
       }
     } catch (backfillError: any) {
-      console.warn(`[settle_contests] Stats backfill warning: ${backfillError.message}`);
+      warn(`[settle_contests] Stats backfill warning: ${backfillError.message}`);
       // Continue with settlement even if backfill fails - stats may already exist
     }
-    
-    console.log("[settle_contests] Step 2: Finding contests to settle...");
+
+    info("[settle_contests] Step 2: Finding contests to settle...");
     // Find all "live" contests that might be ready to settle
     const allContests = await storage.getContests("live");
     const now = new Date();
-    
-    console.log(`[settle_contests] Found ${allContests.length} live contests to check`);
-    
+
+    info(`[settle_contests] Found ${allContests.length} live contests to check`);
+
     progressCallback?.({
       type: 'info',
       timestamp: new Date().toISOString(),
@@ -95,14 +101,14 @@ export async function settleContests(progressCallback?: ProgressCallback): Promi
     });
 
     if (allContests.length === 0) {
-      console.log("[settle_contests] No live contests to check for settlement");
+      info("[settle_contests] No live contests to check for settlement");
       progressCallback?.({
         type: 'complete',
         timestamp: new Date().toISOString(),
         message: 'No live contests to settle',
         data: {
           success: true,
-          summary: {
+ summary: {
             contestsSettled: 0,
             errors: 0,
           },
@@ -111,15 +117,34 @@ export async function settleContests(progressCallback?: ProgressCallback): Promi
       return { requestCount: 0, recordsProcessed: 0, errorCount: 0 };
     }
 
+    // OPTIMIZATION: Batch game status queries by date
+    // Group contests by their game date to fetch games once per date
+    const contestsByDate = new Map<string, typeof allContests>();
+    for (const contest of allContests) {
+      const dateStr = new Date(contest.gameDate).toISOString().split('T')[0];
+      if (!contestsByDate.has(dateStr)) {
+        contestsByDate.set(dateStr, []);
+      }
+      contestsByDate.get(dateStr)!.push(contest);
+    }
+
+    // Fetch all games for all contest dates in one batch per date
+    const gamesByDate = new Map<string, Awaited<ReturnType<typeof storage.getDailyGames>>>();
+    for (const dateStr of contestsByDate.keys()) {
+      const { startOfDay, endOfDay } = getETDayBoundaries(dateStr);
+      const games = await storage.getDailyGames(startOfDay, endOfDay);
+      gamesByDate.set(dateStr, games);
+    }
+
     // For each live contest, check if it's ready to settle
     const contestsToSettle = [];
     let contestsChecked = 0;
-    
+
     for (const contest of allContests) {
       contestsChecked++;
-      
-      // Progress update every 5 contests checked
-      if (contestsChecked % 5 === 0) {
+
+      // Progress update every 10 contests checked (reduced frequency)
+      if (contestsChecked % 10 === 0) {
         progressCallback?.({
           type: 'progress',
           timestamp: new Date().toISOString(),
@@ -131,55 +156,32 @@ export async function settleContests(progressCallback?: ProgressCallback): Promi
           },
         });
       }
-      console.log(`[settle_contests] Checking contest ${contest.id} (${contest.name})`);
-      console.log(`[settle_contests]   - gameDate: ${contest.gameDate}`);
-      console.log(`[settle_contests]   - endsAt: ${contest.endsAt}`);
-      console.log(`[settle_contests]   - Current time: ${now.toISOString()}`);
-      
-      // PRIMARY CHECK: Are all games for this contest date completed?
-      // This is the main criteria - if all games have final scores, we can settle
-      // Query games by start_time using Eastern Time day boundaries
+
+      // Get games for this contest's date from cache
       const contestDate = new Date(contest.gameDate);
-      const dateStr = contestDate.toISOString().split('T')[0]; // YYYY-MM-DD
-      
-      const { startOfDay, endOfDay } = getETDayBoundaries(dateStr);
-      const games = await storage.getDailyGames(startOfDay, endOfDay);
-      
-      console.log(`[settle_contests]   - Found ${games.length} games for contest date (${dateStr})`);
-      
+      const dateStr = contestDate.toISOString().split('T')[0];
+      const games = gamesByDate.get(dateStr) || [];
+
       if (games.length === 0) {
-        console.log(`[settle_contests]   ✗ No games found for contest date, cannot settle`);
+        // No games found for this date, cannot settle
         continue;
       }
-      
+
       // Check if all games are completed (have final scores)
       const incompleteGames = games.filter(g => g.status !== "completed");
-      
+
       if (incompleteGames.length > 0) {
-        console.log(`[settle_contests]   ✗ ${incompleteGames.length} games are not yet completed:`);
-        incompleteGames.forEach(g => {
-          console.log(`[settle_contests]     - Game ${g.gameId}: ${g.awayTeam} @ ${g.homeTeam} - Status: ${g.status}`);
-        });
+        // Games not complete yet, skip this contest
         continue;
       }
-      
-      console.log(`[settle_contests]   ✓ All ${games.length} games are completed with final scores`);
-      
-      // Note: We no longer wait for endsAt - if all games are done, we settle immediately
-      // The endsAt time is just informational now
-      if (contest.endsAt) {
-        const endsAt = new Date(contest.endsAt);
-        if (now < endsAt) {
-          console.log(`[settle_contests]   ℹ Note: Settling early (endsAt was ${endsAt.toISOString()}, but all games are finished)`);
-        }
-      }
-      
-      console.log(`[settle_contests]   ✓ Contest ${contest.id} is ready to settle!`);
+
+      // All games are complete, this contest is ready to settle
+      log(`[settle_contests] Contest ${contest.id} is ready to settle!`);
       contestsToSettle.push(contest);
     }
 
     if (contestsToSettle.length === 0) {
-      console.log("[settle_contests] No contests ready for settlement (waiting for games to complete)");
+      info("[settle_contests] No contests ready for settlement (waiting for games to complete)");
       progressCallback?.({
         type: 'complete',
         timestamp: new Date().toISOString(),
@@ -196,8 +198,8 @@ export async function settleContests(progressCallback?: ProgressCallback): Promi
       return { requestCount: 0, recordsProcessed: 0, errorCount: 0 };
     }
 
-    console.log(`[settle_contests] Settling ${contestsToSettle.length} contests...`);
-    
+    info(`[settle_contests] Settling ${contestsToSettle.length} contests...`);
+
     progressCallback?.({
       type: 'info',
       timestamp: new Date().toISOString(),
@@ -207,22 +209,22 @@ export async function settleContests(progressCallback?: ProgressCallback): Promi
 
     for (const contest of contestsToSettle) {
       try {
-        console.log(`[settle_contests] Settling contest ${contest.id} (${contest.name})...`);
-        
+        log(`[settle_contests] Settling contest ${contest.id} (${contest.name})...`);
+
         progressCallback?.({
           type: 'info',
           timestamp: new Date().toISOString(),
           message: `Settling contest: ${contest.name} (${contest.id})`,
           data: { contestId: contest.id, contestName: contest.name },
         });
-        
+
         await settleContest(contest.id);
         contestsProcessed++;
-        console.log(`[settle_contests] ✓ Contest ${contest.id} settled successfully`);
-        
+        log(`[settle_contests] Contest ${contest.id} settled successfully`);
+
         // Broadcast settlement notification to all connected users
         broadcast({ type: "contestSettled", contestId: contest.id });
-        
+
         progressCallback?.({
           type: 'info',
           timestamp: new Date().toISOString(),
@@ -242,25 +244,25 @@ export async function settleContests(progressCallback?: ProgressCallback): Promi
             stats: { settled: contestsProcessed, errors: errorCount },
           },
         });
-      } catch (error: any) {
-        console.error(`[settle_contests] Failed to settle contest ${contest.id}:`, error.message);
+      } catch (err: any) {
+        warn(`[settle_contests] Failed to settle contest ${contest.id}:`, err.message);
         errorCount++;
-        
+
         progressCallback?.({
           type: 'error',
           timestamp: new Date().toISOString(),
-          message: `Failed to settle contest ${contest.name}: ${error.message}`,
-          data: { contestId: contest.id, error: error.message },
+          message: `Failed to settle contest ${contest.name}: ${err.message}`,
+          data: { contestId: contest.id, error: err.message },
         });
       }
     }
 
-    console.log(`[settle_contests] Settled ${contestsProcessed} contests, ${errorCount} errors`);
-    
+    info(`[settle_contests] Settled ${contestsProcessed} contests, ${errorCount} errors`);
+
     progressCallback?.({
       type: 'complete',
       timestamp: new Date().toISOString(),
-      message: errorCount > 0 
+      message: errorCount > 0
         ? `Settlement completed with ${errorCount} errors: ${contestsProcessed}/${contestsToSettle.length} contests settled`
         : `Settlement completed successfully: ${contestsProcessed} contests settled`,
       data: {
@@ -272,36 +274,36 @@ export async function settleContests(progressCallback?: ProgressCallback): Promi
         },
       },
     });
-    
-    return { 
-      requestCount, 
-      recordsProcessed: contestsProcessed, 
-      errorCount 
+
+    return {
+      requestCount,
+      recordsProcessed: contestsProcessed,
+      errorCount
     };
-  } catch (error: any) {
-    console.error("[settle_contests] Failed:", error.message);
-    
+  } catch (err: any) {
+    warn("[settle_contests] Failed:", err.message);
+
     progressCallback?.({
       type: 'error',
       timestamp: new Date().toISOString(),
-      message: `Contest settlement failed: ${error.message}`,
-      data: { error: error.message, stack: error.stack },
+      message: `Contest settlement failed: ${err.message}`,
+      data: { error: err.message, stack: err.stack },
     });
-    
+
     progressCallback?.({
       type: 'complete',
       timestamp: new Date().toISOString(),
-      message: `Contest settlement failed: ${error.message}`,
+      message: `Contest settlement failed: ${err.message}`,
       data: {
         success: false,
         summary: {
-          error: error.message,
+          error: err.message,
           contestsSettled: contestsProcessed,
           errors: errorCount + 1,
         },
       },
     });
-    
+
     return { requestCount, recordsProcessed: contestsProcessed, errorCount: errorCount + 1 };
   }
 }

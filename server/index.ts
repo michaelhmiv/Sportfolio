@@ -133,8 +133,8 @@ app.use((req, res, next) => {
       console.error("Failed to initialize contest jobs:", error.message);
     }
 
-    // Initialize API-dependent jobs only if API key is available
-    if (process.env.MYSPORTSFEEDS_API_KEY) {
+    // Initialize API-dependent jobs if either sports API key is available
+    if (process.env.MYSPORTSFEEDS_API_KEY || process.env.BALLDONTLIE_API_KEY) {
       try {
         await jobScheduler.initializeApiJobs();
         log("API-dependent jobs initialized and started");

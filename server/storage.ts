@@ -31,6 +31,7 @@ import {
   dailyBoosts,
   boostPayouts,
   communityBoosts,
+  communityCheckoutSessions,
   type User,
   type InsertUser,
   type UpsertUser,
@@ -78,11 +79,13 @@ import {
   type InsertBoostPayout,
   type CommunityBoost,
   type InsertCommunityBoost,
+  type CommunityCheckoutSession,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, asc, sql, inArray, or, gte, lte, isNotNull, count, gt, lt, isNull, ne } from "drizzle-orm";
 import { alias, unionAll } from "drizzle-orm/pg-core";
 import { randomUUID } from "crypto";
+import { getETDayBoundaries, getGameDay } from "./lib/time";
 
 // Season helper: Get current competitive season patterns (regular + playoffs, exclude preseason)
 // Returns array of season strings to include in queries
@@ -187,9 +190,13 @@ export interface IStorage {
 
   // Holdings methods
   getHolding(userId: string, assetType: string, assetId: string): Promise<Holding | undefined>;
+  getRegularHolding(userId: string, assetType: string, assetId: string): Promise<Holding | undefined>;
   getUserHoldings(userId: string): Promise<Holding[]>;
   getUserHoldingsWithPlayers(userId: string): Promise<any[]>;
   updateHolding(userId: string, assetType: string, assetId: string, quantity: number, avgCost: string): Promise<void>;
+  updateHoldingWithPower(userId: string, assetType: string, assetId: string, power: number, quantity: number, avgCost: string, powerLevel: string): Promise<void>;
+  getHoldingsWithPowerBreakdown(userId: string, playerId: string): Promise<{ regular: Holding | null; powered: Holding[] }>;
+  getTotalPowerLevel(userId: string, playerId: string): Promise<number>;
 
   // Batch sentiment logic
   getBatchSentiment(playerIds: string[]): Promise<Map<string, { buyPressure: number; totalVolume24h: number }>>;
@@ -316,6 +323,7 @@ export interface IStorage {
   getPlayerGameStats(playerId: string, gameId: string): Promise<PlayerGameStats | undefined>;
   getAllPlayerGameStats(playerId: string): Promise<PlayerGameStats[]>;
   getGameStatsByGameId(gameId: string): Promise<PlayerGameStats[]>;
+  getPlayerGameStatsByGameAndHomeAway(gameId: string, homeAway: "home" | "away"): Promise<PlayerGameStats[]>;
   getGameLogsCountForDate(dateStr: string, season: string): Promise<number>;
   getPlayerSeasonStatsFromLogs(playerId: string): Promise<{
     gamesPlayed: number;
@@ -400,6 +408,14 @@ export interface IStorage {
   getUserPremiumCheckoutSessions(userId: string): Promise<PremiumCheckoutSession[]>;
   getPendingPremiumCheckoutSessions(): Promise<PremiumCheckoutSession[]>;
 
+  // Community checkout session methods
+  createCommunityCheckoutSession(session: { userId: string; planId: string; quantity: number; amountCents: number; whopSessionId?: string }): Promise<CommunityCheckoutSession>;
+  getCommunityCheckoutSession(id: string): Promise<CommunityCheckoutSession | undefined>;
+  getCommunityCheckoutSessionByReceipt(receiptId: string): Promise<CommunityCheckoutSession | undefined>;
+  completeCommunityCheckoutSession(id: string, receiptId: string): Promise<CommunityCheckoutSession | undefined>;
+  getUserCommunityCheckoutSessions(userId: string): Promise<CommunityCheckoutSession[]>;
+  getPendingCommunityCheckoutSessions(): Promise<CommunityCheckoutSession[]>;
+
   // Whop payment sync methods
   getWhopPaymentByPaymentId(paymentId: string): Promise<WhopPayment | undefined>;
   getWhopPaymentsByEmail(email: string): Promise<WhopPayment[]>;
@@ -421,8 +437,10 @@ export interface IStorage {
 
   // Daily Boosts methods
   getDailyBoosts(userId: string, sport: string, date: Date): Promise<DailyBoost[]>;
+  getDailyBoostsAllSports(userId: string, date: Date): Promise<DailyBoost[]>;
   getDailyBoostsByStatus(status: string): Promise<DailyBoost[]>;
   getEligiblePlayersForBoost(userId: string, sport: string, date: Date): Promise<(Holding & { player: Player; availableShares: number; powerLevel: string; gameId: string | null; gameStartTime: Date | null })[]>;
+  getAllHoldingsWithPlayers(userId: string): Promise<(Holding & { player: Player })[]>;
   createDailyBoost(boost: InsertDailyBoost): Promise<DailyBoost>;
   updateDailyBoost(boostId: string, updates: Partial<DailyBoost>): Promise<void>;
   deleteDailyBoost(boostId: string): Promise<void>;
@@ -430,10 +448,12 @@ export interface IStorage {
   createBoostPayout(payout: InsertBoostPayout): Promise<BoostPayout>;
   lockBoostShares(boostId: string): Promise<void>;
   unlockBoostShares(boostId: string): Promise<void>;
+  ensureHoldingConsistency(holdingId: string): Promise<void>;
   getPlayerGameForDate(playerId: string, sport: string, date: Date): Promise<DailyGame | undefined>;
 
   // Community Boosts methods
   getCommunityBoostsForDate(sport: string, date: Date): Promise<(CommunityBoost & { creator: User; player: Player })[]>;
+  getCommunityBoostsAllSports(date: Date): Promise<(CommunityBoost & { creator: User; player: Player })[]>;
   createCommunityBoost(boost: InsertCommunityBoost): Promise<CommunityBoost>;
   getCommunityBoostBeneficiaries(playerId: string): Promise<(Holding & { user: User })[]>;
   updateCommunityBoost(boostId: string, updates: Partial<CommunityBoost>): Promise<void>;
@@ -852,6 +872,13 @@ export class DatabaseStorage implements IStorage {
           startedAt: new Date() // Defaults to NOW(), explicit for clarity
         });
       }
+
+      // Update user's lastActiveAt to prevent 24h cleanup kill-switch
+      // This ensures users who assign scouts stay eligible for distributions
+      await tx
+        .update(users)
+        .set({ lastActiveAt: new Date() })
+        .where(eq(users.id, userId));
     });
   }
 
@@ -938,52 +965,65 @@ export class DatabaseStorage implements IStorage {
   }
 
   async creditScoutShares(userId: string, playerId: string, shares: number): Promise<void> {
-    // Credit shares to user's holdings with $0 cost basis (minted, not purchased)
-    const existing = await this.getHolding(userId, 'player', playerId);
+    // Use transaction to prevent race conditions during concurrent distributions
+    await db.transaction(async (tx) => {
+      // Lock the player row to prevent concurrent totalShares updates
+      const [player] = await tx
+        .select()
+        .from(players)
+        .where(eq(players.id, playerId))
+        .for('update');
 
-    if (existing) {
-      // Add to existing holding - keep existing cost basis for purchased shares
-      // New shares have $0 cost, so weighted average shifts down
-      const newQuantity = existing.quantity + shares;
-      const existingCost = parseFloat(existing.totalCostBasis || '0');
-      // New shares are free, so total cost stays the same
-      const newAvgCost = newQuantity > 0 ? (existingCost / newQuantity).toFixed(4) : '0.0000';
+      if (!player) {
+        throw new Error(`Player ${playerId} not found`);
+      }
 
-      await db
-        .update(holdings)
+      // Credit shares to user's regular holdings (power=1) with $0 cost basis (minted, not purchased)
+      const existing = await this.getRegularHolding(userId, 'player', playerId);
+
+      if (existing) {
+        // Add to existing regular holding - keep existing cost basis for purchased shares
+        // New shares have $0 cost, so weighted average shifts down
+        const newQuantity = existing.quantity + shares;
+        const existingCost = parseFloat(existing.totalCostBasis || '0');
+        // New shares are free, so total cost stays the same
+        const newAvgCost = newQuantity > 0 ? (existingCost / newQuantity).toFixed(4) : '0.0000';
+        const newPowerLevel = newQuantity; // power=1 means powerLevel = quantity
+
+        await tx
+          .update(holdings)
+          .set({
+            quantity: newQuantity,
+            avgCostBasis: newAvgCost,
+            powerLevel: newPowerLevel.toFixed(2),
+            // totalCostBasis stays the same since new shares are free
+            lastUpdated: new Date(),
+          })
+          .where(eq(holdings.id, existing.id));
+      } else {
+        // Create new regular holding with $0 cost basis
+        await tx.insert(holdings).values({
+          userId,
+          assetType: 'player',
+          assetId: playerId,
+          quantity: shares,
+          power: 1,
+          powerLevel: shares.toFixed(2),
+          avgCostBasis: '0.0000',
+          totalCostBasis: '0.00',
+          lastUpdated: new Date(),
+        });
+      }
+
+      // Update player's total shares count (within transaction, with row locked)
+      await tx
+        .update(players)
         .set({
-          quantity: newQuantity,
-          avgCostBasis: newAvgCost,
-          // totalCostBasis stays the same since new shares are free
+          totalShares: sql`${players.totalShares} + ${shares}`,
           lastUpdated: new Date(),
         })
-        .where(
-          and(
-            eq(holdings.userId, userId),
-            eq(holdings.assetType, 'player'),
-            eq(holdings.assetId, playerId)
-          )
-        );
-    } else {
-      // Create new holding with $0 cost basis
-      await db.insert(holdings).values({
-        userId,
-        assetType: 'player',
-        assetId: playerId,
-        quantity: shares,
-        avgCostBasis: '0.0000',
-        totalCostBasis: '0.00',
-      });
-    }
-
-    // Update player's total shares count
-    await db
-      .update(players)
-      .set({
-        totalShares: sql`${players.totalShares} + ${shares}`,
-        lastUpdated: new Date(),
-      })
-      .where(eq(players.id, playerId));
+        .where(eq(players.id, playerId));
+    });
   }
 
   async getScoutRoster(playerId: string): Promise<Array<{ user: { id: string; username: string | null; avatarUrl: string | null } | null; scoutCount: number }>> {
@@ -1388,6 +1428,81 @@ export class DatabaseStorage implements IStorage {
     return holding || undefined;
   }
 
+  // Get regular holding (power=1) for a specific asset
+  async getRegularHolding(userId: string, assetType: string, assetId: string): Promise<Holding | undefined> {
+    const [holding] = await db
+      .select()
+      .from(holdings)
+      .where(
+        and(
+          eq(holdings.userId, userId),
+          eq(holdings.assetType, assetType),
+          eq(holdings.assetId, assetId),
+          eq(holdings.power, 1)
+        )
+      );
+    return holding || undefined;
+  }
+
+  // Update holding with specific power level
+  async updateHoldingWithPower(userId: string, assetType: string, assetId: string, power: number, quantity: number, avgCost: string, powerLevel: string): Promise<void> {
+    const existing = await db
+      .select()
+      .from(holdings)
+      .where(
+        and(
+          eq(holdings.userId, userId),
+          eq(holdings.assetType, assetType),
+          eq(holdings.assetId, assetId),
+          eq(holdings.power, power)
+        )
+      );
+
+    if (existing.length > 0) {
+      if (quantity <= 0) {
+        // Remove holding
+        await db
+          .delete(holdings)
+          .where(eq(holdings.id, existing[0].id));
+      } else {
+        // Update existing holding
+        const avgCostParsed = parseFloat(avgCost);
+        const avgCostNormalized = isNaN(avgCostParsed) ? "0.0000" : avgCostParsed.toFixed(4);
+        const totalCost = (parseFloat(avgCostNormalized) * quantity).toFixed(2);
+
+        await db
+          .update(holdings)
+          .set({
+            quantity,
+            avgCostBasis: avgCostNormalized,
+            totalCostBasis: totalCost,
+            powerLevel,
+            lastUpdated: new Date(),
+          })
+          .where(eq(holdings.id, existing[0].id));
+      }
+    } else if (quantity > 0) {
+      // Create new holding
+      const avgCostParsed = parseFloat(avgCost);
+      const avgCostNormalized = isNaN(avgCostParsed) ? "0.0000" : avgCostParsed.toFixed(4);
+      const totalCost = (parseFloat(avgCostNormalized) * quantity).toFixed(2);
+
+      await db
+        .insert(holdings)
+        .values({
+          userId,
+          assetType,
+          assetId,
+          quantity,
+          power,
+          powerLevel,
+          avgCostBasis: avgCostNormalized,
+          totalCostBasis: totalCost,
+          lastUpdated: new Date(),
+        });
+    }
+  }
+
   async getUserHoldings(userId: string): Promise<Holding[]> {
     return await db
       .select()
@@ -1462,11 +1577,14 @@ export class DatabaseStorage implements IStorage {
         const avgCostParsed = parseFloat(avgCost);
         const avgCostNormalized = isNaN(avgCostParsed) ? "0.0000" : avgCostParsed.toFixed(4);
         const totalCost = (parseFloat(avgCostNormalized) * quantity).toFixed(2);
+        // Calculate powerLevel = quantity * power (power stays the same)
+        const powerLevel = (quantity * existing.power).toFixed(2);
 
         await db
           .update(holdings)
           .set({
             quantity,
+            powerLevel,
             avgCostBasis: avgCostNormalized,
             totalCostBasis: totalCost,
             lastUpdated: new Date(),
@@ -2144,7 +2262,7 @@ export class DatabaseStorage implements IStorage {
   async getUserActivity(userId: string, filters?: { types?: string[]; limit?: number; offset?: number }): Promise<any[]> {
     const limit = filters?.limit || 50;
     const offset = filters?.offset || 0;
-    const types = filters?.types || ['vesting', 'market', 'contest'];
+    const types = filters?.types || ['vesting', 'market', 'contest', 'scout'];
 
     const activities: any[] = [];
 
@@ -2370,6 +2488,43 @@ export class DatabaseStorage implements IStorage {
       });
     }
 
+    // 5. Scout distributions (hourly share earnings)
+    if (types.includes('scout')) {
+      const distributions = await db
+        .select({
+          id: scoutDistributions.id,
+          occurredAt: scoutDistributions.hourTimestamp,
+          playerId: scoutDistributions.playerId,
+          playerFirstName: players.firstName,
+          playerLastName: players.lastName,
+          playerTeam: players.team,
+          sharesEarned: scoutDistributions.sharesEarned,
+        })
+        .from(scoutDistributions)
+        .leftJoin(players, eq(scoutDistributions.playerId, players.id))
+        .where(eq(scoutDistributions.userId, userId))
+        .orderBy(desc(scoutDistributions.hourTimestamp))
+        .limit(limit);
+
+      distributions.forEach(dist => {
+        activities.push({
+          id: `scout-dist-${dist.id}`,
+          userId,
+          occurredAt: dist.occurredAt,
+          category: 'scout',
+          subtype: 'distribution',
+          cashDelta: '0.00',
+          sharesDelta: parseFloat(dist.sharesEarned?.toString() || '0'),
+          metadata: {
+            playerId: dist.playerId,
+            playerName: dist.playerId ? `${dist.playerFirstName} ${dist.playerLastName}` : 'Unknown Player',
+            playerTeam: dist.playerTeam,
+            sharesEarned: dist.sharesEarned,
+          },
+        });
+      });
+    }
+
     // Sort all activities by timestamp (most recent first) and apply pagination
     const sorted = activities.sort((a, b) =>
       new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime()
@@ -2415,6 +2570,8 @@ export class DatabaseStorage implements IStorage {
         } else if (activity.subtype === 'contest_payout') {
           description = `${meta.contestName} - Rank ${meta.rank} Payout`;
         }
+      } else if (activity.category === 'scout') {
+        description = `Scouting reward: ${meta.sharesEarned} shares of ${meta.playerName}`;
       }
 
       return {
@@ -2882,6 +3039,21 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(playerGameStats)
       .where(eq(playerGameStats.gameId, gameId));
+  }
+
+  async getPlayerGameStatsByGameAndHomeAway(
+    gameId: string,
+    homeAway: "home" | "away"
+  ): Promise<PlayerGameStats[]> {
+    return await db
+      .select()
+      .from(playerGameStats)
+      .where(
+        and(
+          eq(playerGameStats.gameId, gameId),
+          eq(playerGameStats.homeAway, homeAway)
+        )
+      );
   }
 
   async getGameLogsCountForDate(dateStr: string, season: string): Promise<number> {
@@ -3813,6 +3985,66 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(premiumCheckoutSessions.createdAt));
   }
 
+  // Community checkout session methods
+  async createCommunityCheckoutSession(session: { userId: string; planId: string; quantity: number; amountCents: number; whopSessionId?: string }): Promise<CommunityCheckoutSession> {
+    const [created] = await db
+      .insert(communityCheckoutSessions)
+      .values({
+        userId: session.userId,
+        planId: session.planId,
+        quantity: session.quantity,
+        amountCents: session.amountCents,
+        whopSessionId: session.whopSessionId,
+      })
+      .returning();
+    return created;
+  }
+
+  async getCommunityCheckoutSession(id: string): Promise<CommunityCheckoutSession | undefined> {
+    const [session] = await db
+      .select()
+      .from(communityCheckoutSessions)
+      .where(eq(communityCheckoutSessions.id, id));
+    return session || undefined;
+  }
+
+  async getCommunityCheckoutSessionByReceipt(receiptId: string): Promise<CommunityCheckoutSession | undefined> {
+    const [session] = await db
+      .select()
+      .from(communityCheckoutSessions)
+      .where(eq(communityCheckoutSessions.receiptId, receiptId));
+    return session || undefined;
+  }
+
+  async completeCommunityCheckoutSession(id: string, receiptId: string): Promise<CommunityCheckoutSession | undefined> {
+    const [updated] = await db
+      .update(communityCheckoutSessions)
+      .set({
+        status: "completed",
+        receiptId,
+        completedAt: new Date(),
+      })
+      .where(eq(communityCheckoutSessions.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async getUserCommunityCheckoutSessions(userId: string): Promise<CommunityCheckoutSession[]> {
+    return await db
+      .select()
+      .from(communityCheckoutSessions)
+      .where(eq(communityCheckoutSessions.userId, userId))
+      .orderBy(desc(communityCheckoutSessions.createdAt));
+  }
+
+  async getPendingCommunityCheckoutSessions(): Promise<CommunityCheckoutSession[]> {
+    return await db
+      .select()
+      .from(communityCheckoutSessions)
+      .where(eq(communityCheckoutSessions.status, "pending"))
+      .orderBy(desc(communityCheckoutSessions.createdAt));
+  }
+
   // Premium trading methods - database-backed for persistence
   async getPremiumOrderBook(): Promise<{
     bids: { price: string; quantity: number; userId: string; orderId: string }[];
@@ -4470,17 +4702,47 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(dailyBoosts.slotTier));
   }
 
+  async getDailyBoostsAllSports(userId: string, date: Date): Promise<DailyBoost[]> {
+    const startOfDay = new Date(date);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(date);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    return await db.select().from(dailyBoosts)
+      .where(and(
+        eq(dailyBoosts.userId, userId),
+        gte(dailyBoosts.boostDate, startOfDay),
+        lte(dailyBoosts.boostDate, endOfDay)
+      ))
+      .orderBy(desc(dailyBoosts.slotTier));
+  }
+
   async getDailyBoostsByStatus(status: string): Promise<DailyBoost[]> {
     return await db.select().from(dailyBoosts)
       .where(eq(dailyBoosts.status, status));
   }
 
+  async getAllHoldingsWithPlayers(userId: string): Promise<(Holding & { player: Player })[]> {
+    // Get all player holdings for user with player info
+    const userHoldings = await db.select()
+      .from(holdings)
+      .innerJoin(players, eq(holdings.assetId, players.id))
+      .where(and(
+        eq(holdings.userId, userId),
+        eq(holdings.assetType, "player")
+      ));
+
+    return userHoldings.map(h => ({
+      ...h.holdings,
+      player: h.players,
+    }));
+  }
+
   async getEligiblePlayersForBoost(userId: string, sport: string, date: Date): Promise<(Holding & { player: Player; availableShares: number; powerLevel: string; gameId: string | null; gameStartTime: Date | null })[]> {
     // Get holdings for players in the specified sport with games today
-    const startOfDay = new Date(date);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(date);
-    endOfDay.setHours(23, 59, 59, 999);
+    // Use Eastern Time boundaries for consistent game day matching (same as dashboard)
+    const dateStr = getGameDay(date);
+    const { startOfDay, endOfDay } = getETDayBoundaries(dateStr);
 
     // Get user's player holdings with player info
     const userHoldings = await db.select()
@@ -4492,13 +4754,15 @@ export class DatabaseStorage implements IStorage {
         eq(players.sport, sport)
       ));
 
-    // Get games today for this sport
+    // Get games today for this sport using the date field (which stores the ET game date)
+    // This correctly handles games that start before midnight EST but have UTC timestamps on the next day
+    // The date field stores midnight UTC of the ET game day
     const todaysGames = await db.select()
       .from(dailyGames)
       .where(and(
         eq(dailyGames.sport, sport),
-        gte(dailyGames.startTime, startOfDay),
-        lte(dailyGames.startTime, endOfDay)
+        gte(dailyGames.date, startOfDay),
+        lt(dailyGames.date, endOfDay)
       ));
 
     // Build a map of team -> game info
@@ -4510,6 +4774,13 @@ export class DatabaseStorage implements IStorage {
 
     // For each holding, check if player's team has a game today and calculate available shares
     const result: (Holding & { player: Player; availableShares: number; powerLevel: string; gameId: string | null; gameStartTime: Date | null })[] = [];
+
+
+    // Get active boosts for this user/sport/date to ensure they show up even if shares are 0
+    // Get active boosts for this user/sport/date to ensure they show up even if shares are 0
+    const currentBoosts = await this.getDailyBoosts(userId, sport, date);
+
+    const boostedPlayerIds = new Set(currentBoosts.map(b => b.playerId));
 
     for (const h of userHoldings) {
       const holding = h.holdings;
@@ -4525,9 +4796,16 @@ export class DatabaseStorage implements IStorage {
       // Get Power Level for this holding (Power Level shares are eligible for boosts)
       const powerLevel = holding.powerLevel || "0.00";
 
-      // Player is eligible if they have either available raw shares OR Power Level
+      // Check if player is already boosted today
+      const isBoosted = boostedPlayerIds.has(player.id);
+
+      // Player is eligible if they have either:
+      // 1. Available raw shares
+      // 2. Power Level
+      // 3. An active boost for today (so we can show the "Boosted" / "Game Started" status)
       const hasPowerLevel = parseFloat(powerLevel) > 0;
-      if (availableShares <= 0 && !hasPowerLevel) continue; // No shares or Power Level available
+
+      if (availableShares <= 0 && !hasPowerLevel && !isBoosted) continue;
 
       result.push({
         ...holding,
@@ -4586,15 +4864,49 @@ export class DatabaseStorage implements IStorage {
     if (newQuantity < 0) throw new Error(`Cannot burn ${boost.sharesEntered} shares - only ${holding.quantity} available`);
 
     // Reduce the holding quantity (burn the shares)
-    await this.updateHolding(
-      boost.userId,
-      "player",
-      boost.playerId,
-      newQuantity,
-      holding.avgCostBasis // Keep the same cost basis
-    );
+    // Also reduce powerLevel proportionally since power is tied to shares
+    const avgCostParsed = parseFloat(holding.avgCostBasis);
+    const avgCostNormalized = isNaN(avgCostParsed) ? "0.0000" : avgCostParsed.toFixed(4);
+    const totalCost = (parseFloat(avgCostNormalized) * newQuantity).toFixed(2);
 
-    console.log(`[BOOST] Burned ${boost.sharesEntered} shares of player ${boost.playerId} from user ${boost.userId} (${holding.quantity} -> ${newQuantity})`);
+    // Calculate power level reduction proportionally
+    // powerLevel = quantity * power (per-share power), so reduce both
+    const currentPowerLevel = parseFloat(holding.powerLevel || "0");
+    const powerPerShare = holding.quantity > 0 ? currentPowerLevel / holding.quantity : 0;
+    const newPowerLevel = powerPerShare * newQuantity;
+
+    if (newQuantity <= 0) {
+      // Remove holding completely if no shares left
+      await db
+        .delete(holdings)
+        .where(
+          and(
+            eq(holdings.userId, boost.userId),
+            eq(holdings.assetType, "player"),
+            eq(holdings.assetId, boost.playerId)
+          )
+        );
+    } else {
+      // Update holding with reduced quantity and powerLevel
+      await db
+        .update(holdings)
+        .set({
+          quantity: newQuantity,
+          powerLevel: newPowerLevel.toFixed(2),
+          avgCostBasis: avgCostNormalized,
+          totalCostBasis: totalCost,
+          lastUpdated: new Date(),
+        })
+        .where(
+          and(
+            eq(holdings.userId, boost.userId),
+            eq(holdings.assetType, "player"),
+            eq(holdings.assetId, boost.playerId)
+          )
+        );
+    }
+
+    console.log(`[BOOST] Burned ${boost.sharesEntered} shares of player ${boost.playerId} from user ${boost.userId} (${holding.quantity} -> ${newQuantity}, powerLevel: ${holding.powerLevel} -> ${newPowerLevel.toFixed(2)})`);
 
     // Update boost status to locked
     await this.updateDailyBoost(boostId, { status: "locked" });
@@ -4605,22 +4917,51 @@ export class DatabaseStorage implements IStorage {
     await this.releaseSharesByReference(boostId);
   }
 
+  /**
+   * Ensures a holding has consistent powerLevel = quantity * power.
+   * This prevents data drift from operations that modify quantity without updating powerLevel.
+   * Also cleans up junk holdings (0 shares but non-zero powerLevel).
+   */
+  async ensureHoldingConsistency(holdingId: string): Promise<void> {
+    const [holding] = await db.select().from(holdings).where(eq(holdings.id, holdingId));
+    if (!holding) return;
+
+    // Calculate expected powerLevel
+    const expectedPowerLevel = (holding.quantity * holding.power).toFixed(2);
+    const actualPowerLevel = parseFloat(holding.powerLevel || "0").toFixed(2);
+
+    // If holding has 0 shares but non-zero powerLevel, remove it (junk data)
+    if (holding.quantity === 0 && parseFloat(actualPowerLevel) !== 0) {
+      await db.delete(holdings).where(eq(holdings.id, holdingId));
+      console.log(`[CONSISTENCY] Removed junk holding ${holdingId} (0 shares, powerLevel: ${actualPowerLevel})`);
+      return;
+    }
+
+    // If inconsistent and holding has shares, fix it
+    if (expectedPowerLevel !== actualPowerLevel && holding.quantity > 0) {
+      await db.update(holdings).set({
+        powerLevel: expectedPowerLevel,
+        lastUpdated: new Date(),
+      }).where(eq(holdings.id, holdingId));
+      console.log(`[CONSISTENCY] Fixed holding ${holdingId}: ${actualPowerLevel} -> ${expectedPowerLevel} (qty: ${holding.quantity}, power: ${holding.power})`);
+    }
+  }
+
   async getPlayerGameForDate(playerId: string, sport: string, date: Date): Promise<DailyGame | undefined> {
     // Get the player's team
     const [player] = await db.select().from(players).where(eq(players.id, playerId));
     if (!player) return undefined;
 
-    const startOfDay = new Date(date);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(date);
-    endOfDay.setHours(23, 59, 59, 999);
+    // Use ET boundaries for consistent game day matching (same as getEligiblePlayersForBoost)
+    const dateStr = getGameDay(date);
+    const { startOfDay, endOfDay } = getETDayBoundaries(dateStr);
 
-    // Find game where player's team is home or away
+    // Find game where player's team is home or away, matching the ET game date
     const [game] = await db.select().from(dailyGames)
       .where(and(
         eq(dailyGames.sport, sport),
-        gte(dailyGames.startTime, startOfDay),
-        lte(dailyGames.startTime, endOfDay),
+        gte(dailyGames.date, startOfDay),
+        lt(dailyGames.date, endOfDay),
         or(
           eq(dailyGames.homeTeam, player.team),
           eq(dailyGames.awayTeam, player.team)
@@ -4657,22 +4998,49 @@ export class DatabaseStorage implements IStorage {
     }));
   }
 
+  async getCommunityBoostsAllSports(date: Date): Promise<(CommunityBoost & { creator: User; player: Player })[]> {
+    const startOfDay = new Date(date);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(date);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const boosts = await db.select({
+      boost: communityBoosts,
+      creator: users,
+      player: players
+    })
+      .from(communityBoosts)
+      .innerJoin(users, eq(communityBoosts.creatorId, users.id))
+      .innerJoin(players, eq(communityBoosts.playerId, players.id))
+      .where(and(
+        gte(communityBoosts.boostDate, startOfDay),
+        lte(communityBoosts.boostDate, endOfDay),
+        ne(communityBoosts.status, "cancelled")
+      ));
+
+    return boosts.map(b => ({
+      ...b.boost,
+      creator: b.creator,
+      player: b.player
+    }));
+  }
+
   async createCommunityBoost(boost: InsertCommunityBoost): Promise<CommunityBoost> {
-    // 1. Get user's premium holdings
-    const [premiumHolding] = await db.select()
+    // 1. Get user's community holdings
+    const [communityHolding] = await db.select()
       .from(holdings)
       .where(and(
         eq(holdings.userId, boost.creatorId),
-        eq(holdings.assetType, "premium")
+        eq(holdings.assetType, "community")
       ));
 
-    if (!premiumHolding || premiumHolding.quantity < 1) {
-      throw new Error("Insufficient premium shares to create community boost");
+    if (!communityHolding || communityHolding.quantity < 1) {
+      throw new Error("Insufficient community shares to create community boost");
     }
 
     // 2. Transact: Deduct share and create boost
     return await db.transaction(async (tx) => {
-      // Deduct 1 premium share
+      // Deduct 1 community share
       await tx.update(holdings)
         .set({
           quantity: sql`${holdings.quantity} - 1`,
@@ -4681,7 +5049,7 @@ export class DatabaseStorage implements IStorage {
         .where(
           and(
             eq(holdings.userId, boost.creatorId),
-            eq(holdings.assetType, "premium")
+            eq(holdings.assetType, "community")
           )
         );
 
@@ -4695,7 +5063,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getCommunityBoostBeneficiaries(playerId: string): Promise<(Holding & { user: User })[]> {
-    // Find all users who hold shares of this player
+    // Find all users who hold shares of this player (including power-only holders)
     const beneficiaries = await db.select({
       holding: holdings,
       user: users
@@ -4705,7 +5073,10 @@ export class DatabaseStorage implements IStorage {
       .where(and(
         eq(holdings.assetType, "player"),
         eq(holdings.assetId, playerId),
-        gt(holdings.quantity, 0)
+        or(
+          gt(holdings.quantity, 0),
+          gt(holdings.powerLevel, "0")
+        )
       ));
 
     return beneficiaries.map(b => ({
@@ -4833,7 +5204,8 @@ export class DatabaseStorage implements IStorage {
   // Power Level / Condense methods
   // Condenses raw shares into Power Level at 5:1 ratio
   // Power Level shares are used for Daily Boosts and do NOT earn scout dividends
-  async condenseShares(userId: string, playerId: string, rawShareCount: number): Promise<{ newPowerLevel: string; sharesCondensed: number }> {
+  // Creates a separate holding row for powered shares (power=5)
+  async condenseShares(userId: string, playerId: string, rawShareCount: number): Promise<{ newPowerLevel: string; sharesCondensed: number; poweredSharesCreated: number }> {
     // Validate input
     if (rawShareCount < 5) {
       throw new Error("Minimum 5 shares required to condense");
@@ -4842,22 +5214,26 @@ export class DatabaseStorage implements IStorage {
       throw new Error("Share count must be divisible by 5");
     }
 
+    // Calculate power gained (5:1 ratio)
+    const powerGained = rawShareCount / 5;
+
     return await db.transaction(async (tx) => {
-      // Get current holding
-      const [holding] = await tx
+      // Get regular holding (power=1)
+      const [regularHolding] = await tx
         .select()
         .from(holdings)
         .where(
           and(
             eq(holdings.userId, userId),
             eq(holdings.assetType, "player"),
-            eq(holdings.assetId, playerId)
+            eq(holdings.assetId, playerId),
+            eq(holdings.power, 1)
           )
         )
         .for("update");
 
-      if (!holding) {
-        throw new Error("No holding found for this player");
+      if (!regularHolding) {
+        throw new Error("No regular shares found to condense");
       }
 
       // Check available shares (quantity minus locked)
@@ -4872,35 +5248,118 @@ export class DatabaseStorage implements IStorage {
           )
         );
       const lockedShares = Number(lockedResult?.total || 0);
-      const availableShares = holding.quantity - lockedShares;
+      const availableShares = regularHolding.quantity - lockedShares;
 
       if (availableShares < rawShareCount) {
         throw new Error(`Only ${availableShares} shares available (${lockedShares} locked)`);
       }
 
-      // Calculate new values
-      const powerLevelGain = rawShareCount / 5;
-      const currentPowerLevel = parseFloat(holding.powerLevel || "0");
-      const newPowerLevel = currentPowerLevel + powerLevelGain;
-      const newQuantity = holding.quantity - rawShareCount;
+      // Calculate new regular quantity
+      const newRegularQuantity = regularHolding.quantity - rawShareCount;
 
-      // Update holding
-      await tx
-        .update(holdings)
-        .set({
-          quantity: newQuantity,
-          powerLevel: newPowerLevel.toFixed(2),
-          lastUpdated: new Date(),
-        })
-        .where(eq(holdings.id, holding.id));
+      // Update or remove regular holding
+      if (newRegularQuantity <= 0) {
+        await tx
+          .delete(holdings)
+          .where(eq(holdings.id, regularHolding.id));
+      } else {
+        await tx
+          .update(holdings)
+          .set({
+            quantity: newRegularQuantity,
+            // powerLevel = quantity * power = newRegularQuantity * 1 = newRegularQuantity
+            powerLevel: newRegularQuantity.toFixed(2),
+            lastUpdated: new Date(),
+          })
+          .where(eq(holdings.id, regularHolding.id));
+      }
 
-      console.log(`[condenseShares] User ${userId} condensed ${rawShareCount} shares of ${playerId} into ${powerLevelGain} Power Level (total now: ${newPowerLevel})`);
+      // Find existing powered holding (power > 1)
+      const poweredHoldings = await tx
+        .select()
+        .from(holdings)
+        .where(
+          and(
+            eq(holdings.userId, userId),
+            eq(holdings.assetType, "player"),
+            eq(holdings.assetId, playerId),
+            sql`${holdings.power} > 1`
+          )
+        );
+
+      if (poweredHoldings.length > 0) {
+        // Add power to existing powered holding
+        const existingPowered = poweredHoldings[0];
+        const newPower = parseFloat(existingPowered.powerLevel || "0") + powerGained;
+        await tx
+          .update(holdings)
+          .set({
+            powerLevel: newPower.toFixed(2),
+            lastUpdated: new Date(),
+          })
+          .where(eq(holdings.id, existingPowered.id));
+      } else {
+        // Create new powered holding with single share at gained power
+        await tx
+          .insert(holdings)
+          .values({
+            userId,
+            assetType: "player",
+            assetId: playerId,
+            quantity: 1,
+            power: powerGained, // The single share has power = rawShareCount / 5
+            powerLevel: powerGained.toFixed(2), // powerLevel = power * quantity = powerGained * 1
+            avgCostBasis: regularHolding.avgCostBasis,
+            totalCostBasis: (powerGained * parseFloat(regularHolding.avgCostBasis)).toFixed(2),
+            lastUpdated: new Date(),
+          });
+      }
+
+      console.log(`[condenseShares] User ${userId} condensed ${rawShareCount} shares of ${playerId} into 1 powered share with ${powerGained.toFixed(2)} power`);
 
       return {
-        newPowerLevel: newPowerLevel.toFixed(2),
+        newPowerLevel: powerGained.toFixed(2),
         sharesCondensed: rawShareCount,
+        poweredSharesCreated: 1,
       };
     });
+  }
+
+  // Get all holdings for a player with power level breakdown
+  async getHoldingsWithPowerBreakdown(userId: string, playerId: string): Promise<{
+    regular: typeof holdings.$inferSelect | null;
+    powered: typeof holdings.$inferSelect[];
+  }> {
+    const allHoldings = await db
+      .select()
+      .from(holdings)
+      .where(
+        and(
+          eq(holdings.userId, userId),
+          eq(holdings.assetType, "player"),
+          eq(holdings.assetId, playerId)
+        )
+      );
+
+    const regular = allHoldings.find(h => h.power === 1) || null;
+    const powered = allHoldings.filter(h => h.power > 1);
+
+    return { regular, powered };
+  }
+
+  // Get total power level for a player (sum of all powered shares)
+  async getTotalPowerLevel(userId: string, playerId: string): Promise<number> {
+    const [result] = await db
+      .select({ total: sql<number>`COALESCE(SUM(${holdings.quantity} * ${holdings.power}), 0)` })
+      .from(holdings)
+      .where(
+        and(
+          eq(holdings.userId, userId),
+          eq(holdings.assetType, "player"),
+          eq(holdings.assetId, playerId)
+        )
+      );
+    return Number(result?.total || 0);
   }
 
   // Get holding with power level information for a specific player

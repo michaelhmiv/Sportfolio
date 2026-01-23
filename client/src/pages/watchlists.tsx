@@ -494,7 +494,7 @@ export default function Watchlists() {
                                                 </div>
                                                 <div>
                                                     <div className="text-sm font-medium">
-                                                        {player.firstName} {player.lastName}
+                                                        <PlayerName playerId={player.id} firstName={player.firstName} lastName={player.lastName} className="text-sm" />
                                                     </div>
                                                     <div className="text-xs text-muted-foreground">
                                                         {player.team} • {player.position} • {player.sport}

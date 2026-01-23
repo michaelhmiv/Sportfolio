@@ -43,7 +43,7 @@ import News from "@/pages/news";
 import Premium from "@/pages/premium";
 import PremiumTrade from "@/pages/premium-trade";
 import Watchlists from "@/pages/watchlists";
-import DailyBoosts from "@/pages/daily-boosts";
+import Power from "@/pages/power";
 import Login from "@/pages/Login";
 import AuthCallback from "@/pages/AuthCallback";
 import logoUrl from "@assets/Sportfolio png_1763227952318.png";
@@ -228,9 +228,14 @@ function Router() {
           <Route path="/analytics" component={Analytics} />
           <Route path="/news" component={News} />
 
-          {/* Daily Boosts - requires authentication */}
+          {/* Power / Boosts - requires authentication */}
+          <Route path="/power">
+            {isAuthenticated ? <Power /> : <Dashboard />}
+          </Route>
+
+          {/* Legacy route for backwards compatibility */}
           <Route path="/boosts">
-            {isAuthenticated ? <DailyBoosts /> : <Dashboard />}
+            {isAuthenticated ? <Power /> : <Dashboard />}
           </Route>
 
           {/* Protected routes - require authentication, redirect to dashboard if not logged in */}

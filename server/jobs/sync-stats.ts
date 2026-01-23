@@ -1,13 +1,13 @@
 /**
  * Stats Sync Job
  * 
- * Fetches player game statistics from MySportsFeeds for completed games.
+ * Fetches player game statistics from BallDontLie API for completed games.
  * Used for contest scoring and performance tracking.
  */
 
 import { storage } from "../storage";
-import { fetchPlayerGameStats, calculateFantasyPoints } from "../mysportsfeeds";
-import { mysportsfeedsRateLimiter } from "./rate-limiter";
+import { fetchPlayerGameStats, calculateFantasyPoints, createNBAPlayerId, getCurrentNBASeasonString, convertToGameStats } from "../balldontlie-nba";
+import { balldontlieRateLimiter } from "./rate-limiter";
 import type { JobResult } from "./scheduler";
 import type { ProgressCallback } from "../lib/admin-stream";
 
@@ -51,12 +51,6 @@ export async function syncStats(progressCallback?: ProgressCallback): Promise<Jo
     for (let i = 0; i < relevantGames.length; i++) {
       const game = relevantGames[i];
 
-      // MySportsFeeds requires 5-second backoff between Daily Player Gamelogs requests
-      if (i > 0) {
-        console.log(`[stats_sync] Waiting 5 seconds before next request (backoff)...`);
-        await new Promise(resolve => setTimeout(resolve, 5000));
-      }
-
       try {
         progressCallback?.({
           type: 'info',
@@ -69,33 +63,27 @@ export async function syncStats(progressCallback?: ProgressCallback): Promise<Jo
           },
         });
 
-        const gamelogs = await mysportsfeedsRateLimiter.executeWithRetry(async () => {
+        const stats = await balldontlieRateLimiter.executeWithRetry(async () => {
           requestCount++;
-          return await fetchPlayerGameStats(game.gameId, new Date(game.date));
+          return await fetchPlayerGameStats(game.gameId);
         });
 
-        if (!gamelogs || !gamelogs.gamelogs) {
-          console.log(`[stats_sync] No gamelog data for game ${game.gameId}`);
+        if (!stats || stats.length === 0) {
+          console.log(`[stats_sync] No stats data for game ${game.gameId}`);
           continue;
         }
 
-        // Process player stats from gamelogs
-        const players = gamelogs.gamelogs;
-
-        for (const gamelog of players) {
+        // Process player stats from BallDontLie response
+        for (const stat of stats) {
           try {
-            const offense = gamelog.stats?.offense;
-            const rebounds_stats = gamelog.stats?.rebounds;
-            const defense = gamelog.stats?.defense;
-            const fieldGoals = gamelog.stats?.fieldGoals;
-            const freeThrows = gamelog.stats?.freeThrows;
-            if (!offense) continue;
-
-            const points = offense.pts || 0;
-            const rebounds = rebounds_stats ? (rebounds_stats.offReb || 0) + (rebounds_stats.defReb || 0) : 0;
-            const assists = offense.ast || 0;
-            const steals = defense?.stl || 0;
-            const blocks = defense?.blk || 0;
+            // BDL stats are flat - directly accessible
+            const points = stat.pts || 0;
+            const rebounds = stat.reb || 0;
+            const assists = stat.ast || 0;
+            const steals = stat.stl || 0;
+            const blocks = stat.blk || 0;
+            const turnovers = stat.turnover || 0;
+            const threePointersMade = stat.fg3m || 0;
 
             // Calculate double-double and triple-double
             const categories = [points, rebounds, assists, steals, blocks];
@@ -103,37 +91,32 @@ export async function syncStats(progressCallback?: ProgressCallback): Promise<Jo
             const isDoubleDouble = doubleDigitCategories >= 2;
             const isTripleDouble = doubleDigitCategories >= 3;
 
-            const fantasyPoints = calculateFantasyPoints({
-              points,
-              threePointersMade: fieldGoals?.fg3PtMade || 0,
-              rebounds,
-              assists,
-              steals,
-              blocks,
-              turnovers: offense.tov || 0,
-            });
+            const fantasyPoints = calculateFantasyPoints(convertToGameStats(stat));
+
+            // Parse minutes from string format (e.g., "38")
+            const minutes = stat.min ? parseInt(stat.min) : 0;
 
             await storage.upsertPlayerGameStats({
-              playerId: `nba_${gamelog.player.id}`, // Prefix with sport for multi-sport support
+              playerId: createNBAPlayerId(stat.player.id), // Prefix with sport for multi-sport support
               gameId: game.gameId,
               sport: "NBA",
               gameDate: game.date,
-              season: "2024-2025-regular",
-              opponentTeam: gamelog.team.abbreviation === game.homeTeam ? game.awayTeam : game.homeTeam,
-              homeAway: gamelog.team.abbreviation === game.homeTeam ? "home" : "away",
-              minutes: offense.minSeconds ? Math.floor(offense.minSeconds / 60) : 0,
+              season: getCurrentNBASeasonString(),
+              opponentTeam: stat.team.abbreviation === game.homeTeam ? game.awayTeam : game.homeTeam,
+              homeAway: stat.team.abbreviation === game.homeTeam ? "home" : "away",
+              minutes,
               points,
-              fieldGoalsMade: fieldGoals?.fgMade || 0,
-              fieldGoalsAttempted: fieldGoals?.fgAtt || 0,
-              threePointersMade: fieldGoals?.fg3PtMade || 0,
-              threePointersAttempted: fieldGoals?.fg3PtAtt || 0,
-              freeThrowsMade: freeThrows?.ftMade || 0,
-              freeThrowsAttempted: freeThrows?.ftAtt || 0,
+              fieldGoalsMade: stat.fgm || 0,
+              fieldGoalsAttempted: stat.fga || 0,
+              threePointersMade,
+              threePointersAttempted: stat.fg3a || 0,
+              freeThrowsMade: stat.ftm || 0,
+              freeThrowsAttempted: stat.fta || 0,
               rebounds,
               assists,
               steals,
               blocks,
-              turnovers: offense.tov || 0,
+              turnovers,
               isDoubleDouble,
               isTripleDouble,
               fantasyPoints: fantasyPoints.toString(),

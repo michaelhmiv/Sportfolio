@@ -73,20 +73,25 @@ export async function matchOrders(playerId: string): Promise<number> {
         const remainingBuyLocked = (remainingBuyQuantity * buyLimitPrice).toFixed(2);
         await storage.adjustLockAmount(buyOrder.id, remainingBuyLocked);
 
-        const buyerHolding = await storage.getHolding(buyOrder.userId, "player", playerId);
+        // Buyer always gets regular shares (power=1) when buying from market
+        const buyerHolding = await storage.getRegularHolding(buyOrder.userId, "player", playerId);
         if (buyerHolding) {
           const newQuantity = buyerHolding.quantity + tradeQuantity;
           const newTotalCost = parseFloat(buyerHolding.totalCostBasis) + (tradeQuantity * tradePrice);
           const newAvgCost = newTotalCost / newQuantity;
-          await storage.updateHolding(buyOrder.userId, "player", playerId, newQuantity, newAvgCost.toFixed(4));
+          const newPowerLevel = newQuantity; // power=1 means powerLevel = quantity
+          await storage.updateHoldingWithPower(buyOrder.userId, "player", playerId, 1, newQuantity, newAvgCost.toFixed(4), newPowerLevel.toFixed(2));
         } else {
-          await storage.updateHolding(buyOrder.userId, "player", playerId, tradeQuantity, tradePrice.toFixed(4));
+          await storage.updateHoldingWithPower(buyOrder.userId, "player", playerId, 1, tradeQuantity, tradePrice.toFixed(4), tradeQuantity.toFixed(2));
         }
 
-        const sellerHolding = await storage.getHolding(sellOrder.userId, "player", playerId);
+        // Seller - for now, sell from regular shares (power=1)
+        // TODO: Allow selling from powered shares via marketplace
+        const sellerHolding = await storage.getRegularHolding(sellOrder.userId, "player", playerId);
         if (sellerHolding) {
           const newQuantity = sellerHolding.quantity - tradeQuantity;
-          await storage.updateHolding(sellOrder.userId, "player", playerId, newQuantity, sellerHolding.avgCostBasis);
+          const newPowerLevel = newQuantity; // power=1 means powerLevel = quantity
+          await storage.updateHoldingWithPower(sellOrder.userId, "player", playerId, 1, newQuantity, sellerHolding.avgCostBasis, newPowerLevel.toFixed(2));
         }
 
         const buyer = await storage.getUser(buyOrder.userId);

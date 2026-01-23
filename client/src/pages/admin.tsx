@@ -394,6 +394,35 @@ export default function Admin() {
     grantPremiumMutation.mutate({ username: grantUsername.trim(), quantity: qty });
   };
 
+  // Duplicate game cleanup mutation
+  const cleanupDuplicatesMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/admin/games/cleanup-duplicates", {});
+      return await res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/games"] });
+      toast({
+        title: data.success ? "Cleanup complete" : "Cleanup failed",
+        description: data.message,
+        variant: data.success ? undefined : "destructive",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Cleanup failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleCleanupDuplicates = () => {
+    if (confirm("This will delete legacy MySportsFeeds game records that have BallDontLie equivalents. Continue?")) {
+      cleanupDuplicatesMutation.mutate();
+    }
+  };
+
   // Blog mutations
   const createBlogPostMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -679,6 +708,59 @@ export default function Admin() {
                   </>
                 )}
               </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Game Data Migration */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Database className="w-5 h-5" />
+              Game Data Migration
+            </CardTitle>
+            <CardDescription>
+              Clean up legacy MySportsFeeds game records after migrating to BallDontLie API.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="p-4 rounded-lg border bg-muted/30">
+                <h4 className="font-semibold mb-2">What this does:</h4>
+                <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
+                  <li>Finds legacy game records (gameId starting with 18447)</li>
+                  <li>Checks if a BallDontLie equivalent exists for the same teams/time</li>
+                  <li>Deletes the legacy record if a BDL equivalent exists</li>
+                  <li>Keeps the legacy record if it's the only available data</li>
+                </ul>
+              </div>
+              <Button
+                onClick={handleCleanupDuplicates}
+                disabled={cleanupDuplicatesMutation.isPending}
+                variant="outline"
+                className="gap-2"
+              >
+                {cleanupDuplicatesMutation.isPending ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    Cleaning up...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    Clean Up Duplicate Games
+                  </>
+                )}
+              </Button>
+              {cleanupDuplicatesMutation.isSuccess && cleanupDuplicatesMutation.data && (
+                <div className="p-3 rounded-lg border bg-positive/10 text-positive">
+                  <div className="font-semibold">Cleanup Results:</div>
+                  <div className="text-sm">{cleanupDuplicatesMutation.data.message}</div>
+                  <div className="text-xs mt-1">
+                    {cleanupDuplicatesMutation.data.deletedCount} deleted, {cleanupDuplicatesMutation.data.keptCount} kept
+                  </div>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

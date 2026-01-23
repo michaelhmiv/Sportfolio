@@ -75,8 +75,10 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
 
             case 'liveStats':
               if (message.gameId) {
-                queryClient.invalidateQueries({ queryKey: ['/api/games'] });
+                queryClient.invalidateQueries({ queryKey: ['/api/games/today'] });
                 queryClient.invalidateQueries({ queryKey: ['/api/game', message.gameId] });
+                // Also invalidate boosts to update live fantasy points
+                queryClient.invalidateQueries({ queryKey: ['/api/daily-boosts/all'] });
               }
               break;
 

@@ -22,12 +22,13 @@ import { invalidatePortfolioQueries } from "@/lib/cache-invalidation";
 import { DashboardScanners } from "@/components/marketplace-scanners";
 import { PlayerName } from "@/components/player-name";
 import { WhopAd } from "@/components/whop-ad";
-import { Shimmer, ShimmerCard, ScrollReveal, AnimatedButton, SwipeHint } from "@/components/ui/animations";
+import { Shimmer, ShimmerCard, ScrollReveal, AnimatedButton } from "@/components/ui/animations";
 import { AnimatedPrice } from "@/components/ui/animated-price";
 import { useSport } from "@/lib/sport-context";
 import { SportSelector } from "@/components/sport-selector";
 import { OnboardingMissions } from "@/components/onboarding-missions";
 import { MarketTicker } from "@/components/market-ticker";
+import { GameStatsModal } from "@/components/game-stats-modal";
 
 interface DashboardData {
   user: {
@@ -79,10 +80,10 @@ export default function Dashboard() {
   const { isAuthenticated, user } = useAuth();
   const isPremiumUser = user?.isPremium || false;
   const [, setLocation] = useLocation();
-  const [flippedGameId, setFlippedGameId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const { sport } = useSport();
+  const [flippedGameId, setFlippedGameId] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery<DashboardData>({
     queryKey: ["/api/dashboard"],
@@ -116,34 +117,6 @@ export default function Dashboard() {
     },
     refetchInterval: 10000,
   });
-
-
-  // Handle Escape key and click-outside to close flipped card
-  useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && flippedGameId) {
-        setFlippedGameId(null);
-      }
-    };
-
-    const handleClickOutside = (e: MouseEvent) => {
-      if (flippedGameId) {
-        const target = e.target as HTMLElement;
-        // Don't close if clicking on the flipped card or its children
-        if (!target.closest('[data-game-card-id="' + flippedGameId + '"]')) {
-          setFlippedGameId(null);
-        }
-      }
-    };
-
-    document.addEventListener('keydown', handleEscape);
-    document.addEventListener('mousedown', handleClickOutside);
-
-    return () => {
-      document.removeEventListener('keydown', handleEscape);
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [flippedGameId]);
 
   // Format date as YYYY-MM-DD
   const formatDateForAPI = (date: Date) => {
@@ -189,7 +162,9 @@ export default function Dashboard() {
   const formattedDate = formatDateForAPI(selectedDate);
 
   const { data: todayGames } = useQuery<DailyGame[]>({
-    queryKey: ['/api/games', formattedDate, sport],
+    queryKey: isToday(selectedDate)
+      ? ['/api/games/today', sport]
+      : ['/api/games/date', formattedDate, sport],
     queryFn: async () => {
       const endpoint = isToday(selectedDate)
         ? `/api/games/today?sport=${sport}`
@@ -454,108 +429,52 @@ export default function Dashboard() {
                       <div className="grid grid-rows-2 grid-flow-col auto-cols-[minmax(140px,1fr)] gap-2">
                         {todayGames.map((game) => {
                           const effectiveStatus = getEffectiveGameStatus(game);
-                          const isFlipped = flippedGameId === game.id;
                           const plainTextSportsUrl = getPlainTextSportsUrl(game);
 
                           return (
                             <div
-                              key={game.id}
-                              data-game-card-id={game.id}
-                              className="relative cursor-pointer"
-                              style={{
-                                perspective: '1000px',
-                                minHeight: '80px'
-                              }}
+                              key={game.gameId}
+                              data-game-card-id={game.gameId}
+                              className="relative"
                               data-testid={`game-${game.gameId}`}
                             >
-                              {/* Flip Container */}
+                              {/* Game Score Card - click to open stats modal */}
                               <div
-                                className="relative w-full h-full transition-transform duration-500"
-                                style={{
-                                  transformStyle: 'preserve-3d',
-                                  transform: isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
+                                className="p-2 rounded-md bg-muted hover:bg-secondary cursor-pointer"
+                                onClick={() => {
+                                  if (effectiveStatus === 'inprogress' || effectiveStatus === 'completed') {
+                                    setFlippedGameId(game.gameId);
+                                  }
                                 }}
                               >
-                                {/* Front Face */}
-                                <div
-                                  className="absolute inset-0 p-2 rounded-md bg-muted hover:bg-secondary"
-                                  style={{
-                                    backfaceVisibility: 'hidden',
-                                    WebkitBackfaceVisibility: 'hidden',
-                                  }}
-                                  onClick={() => setFlippedGameId(game.id)}
-                                >
-                                  <div className="flex flex-col gap-1">
-                                    <div className="flex items-center justify-between">
-                                      <span className="font-medium text-xs">{game.awayTeam}</span>
-                                      {(effectiveStatus === 'completed' || effectiveStatus === 'inprogress') && game.awayScore != null && (
-                                        <span className="font-mono font-bold text-xs">{game.awayScore}</span>
-                                      )}
-                                    </div>
-                                    <div className="flex items-center justify-between">
-                                      <span className="font-medium text-xs">{game.homeTeam}</span>
-                                      {(effectiveStatus === 'completed' || effectiveStatus === 'inprogress') && game.homeScore != null && (
-                                        <span className="font-mono font-bold text-xs">{game.homeScore}</span>
-                                      )}
-                                    </div>
-                                    <div className="flex items-center justify-between text-xs mt-0.5">
-                                      <span className="text-muted-foreground text-[10px]">
-                                        {effectiveStatus === 'scheduled'
-                                          ? new Date(game.startTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
-                                          : effectiveStatus === 'completed'
-                                            ? 'Final'
-                                            : 'Live'
-                                        }
-                                      </span>
-                                      <Badge
-                                        variant={effectiveStatus === 'inprogress' ? 'default' : effectiveStatus === 'completed' ? 'secondary' : 'outline'}
-                                        className="text-[10px] h-4 px-1"
-                                      >
-                                        {effectiveStatus === 'inprogress' ? 'LIVE' : effectiveStatus === 'completed' ? 'Final' : new Date(game.startTime).toLocaleDateString([], { month: 'short', day: 'numeric' })}
-                                      </Badge>
-                                    </div>
+                                <div className="flex flex-col gap-1">
+                                  <div className="flex items-center justify-between">
+                                    <span className="font-medium text-xs">{game.awayTeam}</span>
+                                    {(effectiveStatus === 'completed' || effectiveStatus === 'inprogress') && game.awayScore != null && (
+                                      <span className="font-mono font-bold text-xs">{game.awayScore}</span>
+                                    )}
                                   </div>
-                                </div>
-
-                                {/* Back Face */}
-                                <div
-                                  className="absolute inset-0 p-2 rounded-md bg-muted"
-                                  style={{
-                                    backfaceVisibility: 'hidden',
-                                    WebkitBackfaceVisibility: 'hidden',
-                                    transform: 'rotateY(180deg)',
-                                  }}
-                                >
-                                  <div className="flex flex-col gap-2 h-full justify-center">
-                                    <div className="text-center">
-                                      <div className="text-xs font-semibold mb-1">
-                                        {game.awayTeam} @ {game.homeTeam}
-                                      </div>
-                                      <div className="text-[10px] text-muted-foreground mb-2">
-                                        {new Date(game.startTime).toLocaleDateString([], {
-                                          month: 'short',
-                                          day: 'numeric'
-                                        })}
-                                      </div>
-                                    </div>
-                                    <Button
-                                      variant="default"
-                                      size="sm"
-                                      className="text-[10px] h-7 px-2"
-                                      asChild
-                                      data-testid={`button-live-stats-${game.gameId}`}
+                                  <div className="flex items-center justify-between">
+                                    <span className="font-medium text-xs">{game.homeTeam}</span>
+                                    {(effectiveStatus === 'completed' || effectiveStatus === 'inprogress') && game.homeScore != null && (
+                                      <span className="font-mono font-bold text-xs">{game.homeScore}</span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center justify-between text-xs mt-0.5">
+                                    <span className="text-muted-foreground text-[10px]">
+                                      {effectiveStatus === 'scheduled'
+                                        ? new Date(game.startTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+                                        : effectiveStatus === 'completed'
+                                          ? 'Final'
+                                          : 'Live'
+                                      }
+                                    </span>
+                                    <Badge
+                                      variant={effectiveStatus === 'inprogress' ? 'default' : effectiveStatus === 'completed' ? 'secondary' : 'outline'}
+                                      className="text-[10px] h-4 px-1"
                                     >
-                                      <a
-                                        href={plainTextSportsUrl}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="flex items-center gap-1"
-                                        onClick={(e) => e.stopPropagation()}
-                                      >
-                                        <ExternalLink className="w-3 h-3" />
-                                        Live Game Stats
-                                      </a>
-                                    </Button>
+                                      {effectiveStatus === 'inprogress' ? 'LIVE' : effectiveStatus === 'completed' ? 'Final' : new Date(game.startTime).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                                    </Badge>
                                   </div>
                                 </div>
                               </div>
@@ -563,12 +482,6 @@ export default function Dashboard() {
                           );
                         })}
                       </div>
-                      {/* Mobile swipe hint */}
-                      <SwipeHint
-                        direction="both"
-                        className="mt-2 sm:hidden"
-                        show={todayGames.length > 3}
-                      />
                     </div>
                   ) : (
                     <div className="text-center py-8 text-sm text-muted-foreground">
@@ -673,6 +586,15 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* Game Stats Modal */}
+      {flippedGameId && (
+        <GameStatsModal
+          gameId={flippedGameId}
+          sport={sport}
+          onClose={() => setFlippedGameId(null)}
+        />
+      )}
 
     </>
   );

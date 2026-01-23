@@ -1,13 +1,13 @@
 /**
  * Roster Sync Job
  * 
- * Fetches NBA player rosters from MySportsFeeds and updates database.
- * Updates: active status, team assignments, injury status, and vesting eligibility.
+ * Fetches NBA player rosters from BallDontLie API and updates database.
+ * Updates: active status, team assignments, and vesting eligibility.
  */
 
 import { storage } from "../storage";
-import { fetchActivePlayers } from "../mysportsfeeds";
-import { mysportsfeedsRateLimiter } from "./rate-limiter";
+import { fetchActivePlayers, createNBAPlayerId } from "../balldontlie-nba";
+import { balldontlieRateLimiter } from "./rate-limiter";
 import type { JobResult } from "./scheduler";
 import type { ProgressCallback } from "../lib/admin-stream";
 
@@ -29,15 +29,15 @@ export async function syncRoster(progressCallback?: ProgressCallback): Promise<J
     progressCallback?.({
       type: 'info',
       timestamp: new Date().toISOString(),
-      message: 'Fetching active players from MySportsFeeds API',
+      message: 'Fetching active players from BallDontLie API',
     });
 
-    const players = await mysportsfeedsRateLimiter.executeWithRetry(async () => {
+    const players = await balldontlieRateLimiter.executeWithRetry(async () => {
       requestCount++;
       return await fetchActivePlayers();
     });
 
-    console.log(`[roster_sync] Fetched ${players.length} players from MySportsFeeds`);
+    console.log(`[roster_sync] Fetched ${players.length} players from BallDontLie`);
 
     progressCallback?.({
       type: 'info',
@@ -49,17 +49,19 @@ export async function syncRoster(progressCallback?: ProgressCallback): Promise<J
     // Update players in database
     for (const player of players) {
       try {
-        const isActive = player.currentRosterStatus === "ROSTER";
-        const isEligibleForVesting = isActive && player.currentRosterStatus !== "INJURED";
+        // BallDontLie /players/active endpoint returns only active players
+        // All players from this endpoint are on active rosters
+        const isActive = true;
+        const isEligibleForVesting = isActive;
 
         await storage.upsertPlayer({
-          id: `nba_${player.id}`, // Prefix with sport for multi-sport support
+          id: createNBAPlayerId(player.id), // Prefix with sport for multi-sport support
           sport: "NBA",
-          firstName: player.firstName,
-          lastName: player.lastName,
-          team: player.currentTeam?.abbreviation || "UNK",
-          position: player.primaryPosition || "G",
-          jerseyNumber: player.jerseyNumber || "",
+          firstName: player.first_name,
+          lastName: player.last_name,
+          team: player.team?.abbreviation || "UNK",
+          position: player.position || "G",
+          jerseyNumber: player.jersey_number || "",
           isActive,
           isEligibleForVesting,
           currentPrice: "10.00", // Keep existing price
@@ -91,7 +93,7 @@ export async function syncRoster(progressCallback?: ProgressCallback): Promise<J
           progressCallback?.({
             type: 'warning',
             timestamp: new Date().toISOString(),
-            message: `Failed to update player ${player.firstName} ${player.lastName}: ${error.message}`,
+            message: `Failed to update player ${player.first_name} ${player.last_name}: ${error.message}`,
           });
         }
       }

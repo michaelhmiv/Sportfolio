@@ -33,8 +33,8 @@ const menuItems = [
     icon: BarChart3,
   },
   {
-    title: "Daily Boosts",
-    url: "/boosts",
+    title: "Power",
+    url: "/power",
     icon: Zap,
   },
   {

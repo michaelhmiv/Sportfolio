@@ -112,18 +112,24 @@ export async function dailySnapshot(progressCallback?: ProgressCallback): Promis
       netWorthRankMap.set(user.userId, index + 1);
     });
 
-    // Step 3: Insert snapshots for all users
-    console.log("[daily_snapshot] Inserting snapshots into database...");
-    
+    // Step 3: Insert snapshots for all users (OPTIMIZED: bulk insert)
+    console.log("[daily_snapshot] Inserting snapshots into database (bulk)...");
+
     progressCallback?.({
       type: 'info',
       timestamp: new Date().toISOString(),
       message: 'Inserting snapshots into database',
     });
 
-    for (const userData of userPortfolioData) {
+    // Batch size for bulk inserts to avoid overwhelming the database
+    const BATCH_SIZE = 500;
+    let processedCount = 0;
+
+    for (let i = 0; i < userPortfolioData.length; i += BATCH_SIZE) {
+      const batch = userPortfolioData.slice(i, i + BATCH_SIZE);
+
       try {
-        await db.insert(portfolioSnapshots).values({
+        const snapshotValues = batch.map(userData => ({
           userId: userData.userId,
           snapshotDate,
           cashBalance: userData.cashBalance,
@@ -132,12 +138,20 @@ export async function dailySnapshot(progressCallback?: ProgressCallback): Promis
           cashRank: cashRankMap.get(userData.userId) || null,
           portfolioRank: portfolioRankMap.get(userData.userId) || null,
           netWorthRank: netWorthRankMap.get(userData.userId) || null,
+        }));
+
+        await db.insert(portfolioSnapshots).values(snapshotValues);
+        snapshotsCreated += batch.length;
+        processedCount += batch.length;
+
+        progressCallback?.({
+          type: 'info',
+          timestamp: new Date().toISOString(),
+          message: `Inserted ${processedCount}/${userPortfolioData.length} snapshots`,
         });
-        
-        snapshotsCreated++;
       } catch (error: any) {
-        console.error(`[daily_snapshot] Failed to insert snapshot for user ${userData.userId}:`, error.message);
-        errorCount++;
+        console.error(`[daily_snapshot] Failed to insert batch starting at ${i}:`, error.message);
+        errorCount += batch.length;
       }
     }
 

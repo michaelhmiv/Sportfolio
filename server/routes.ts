@@ -4,17 +4,17 @@ import { WebSocketServer } from "ws";
 import { performance } from "node:perf_hooks";
 import { storage } from "./storage";
 import { db } from "./db";
-import { fetchActivePlayers, calculateFantasyPoints } from "./mysportsfeeds";
+import { fetchActivePlayers, calculateFantasyPoints } from "./balldontlie-nba";
 import type { InsertPlayer, Player, User, Holding, CommunityBoost } from "@shared/schema";
-import { contestLineups, contestEntries, contests, holdings, marketSnapshots, premiumCheckoutSessions, tweetSettings, tweetHistory, users, scoutAssignments, dailyGames } from "@shared/schema";
-import { sql, eq, desc, and, gte, lte, inArray } from "drizzle-orm";
+import { contestLineups, contestEntries, contests, holdings, marketSnapshots, premiumCheckoutSessions, tweetSettings, tweetHistory, users, scoutAssignments, dailyGames, players, communityCheckoutSessions } from "@shared/schema";
+import { sql, eq, desc, and, gte, lte, inArray, lt } from "drizzle-orm";
 import { jobScheduler } from "./jobs/scheduler";
 import { addClient, removeClient, broadcast } from "./websocket";
 import { calculateAccrualUpdate } from "@shared/vesting-utils";
 import { createContests } from "./jobs/create-contests";
 import { calculateContestLeaderboard } from "./contest-scoring";
 import { setupAuth, isAuthenticated, optionalAuth } from "./supabaseAuth";
-import { getGameDay, getETDayBoundaries, getTodayETBoundaries } from "./lib/time";
+import { getGameDay, getETDayBoundaries, getTodayETBoundaries, getTodayET } from "./lib/time";
 import { matchOrders } from "./order-matcher";
 import { getOrCompute } from "./cache";
 
@@ -991,6 +991,178 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Live game stats - fetches real-time player stats from Ball Don't Lie API
+  app.get("/api/games/:gameId/live-stats", async (req, res) => {
+    try {
+      const { gameId } = req.params;
+      const gameIdNum = parseInt(gameId);
+
+      if (isNaN(gameIdNum)) {
+        return res.status(400).json({ error: "Invalid game ID" });
+      }
+
+      // Get the game from our database to determine sport
+      const game = await storage.getDailyGameByGameId(gameId);
+      if (!game) {
+        return res.status(404).json({ error: "Game not found" });
+      }
+
+      // Import here to avoid circular dependency issues
+      const { fetchPlayerGameStats } = await import("./balldontlie-nba");
+      const { fetchGameStats } = await import("./balldontlie-nfl");
+
+      if (game.sport === "NBA") {
+        console.log(`[live-stats] Fetching NBA player stats for game ${gameId}`);
+
+        // Fetch player stats for this specific game using /stats endpoint with game_ids[]
+        const playerStats = await fetchPlayerGameStats(gameIdNum);
+        console.log(`[live-stats] Found ${playerStats.length} NBA player stats`);
+
+        if (playerStats.length > 0) {
+          // Group stats by team
+          const homeStats = playerStats.filter(s => s.team.abbreviation === game.homeTeam);
+          const awayStats = playerStats.filter(s => s.team.abbreviation === game.awayTeam);
+
+          // Get top 3 scorers for each team
+          const getTopPerformers = (stats: typeof playerStats) => {
+            return [...stats]
+              .sort((a, b) => (b.pts || 0) - (a.pts || 0))
+              .slice(0, 3)
+              .map(s => ({
+                name: `${s.player.first_name.charAt(0)}. ${s.player.last_name}`,
+                team: s.team.abbreviation,
+                pts: s.pts || 0,
+                reb: s.reb || 0,
+                ast: s.ast || 0,
+                min: s.min || "0",
+              }));
+          };
+
+          return res.json({
+            gameId,
+            status: game.status,
+            homeTeam: game.homeTeam,
+            homeScore: game.homeScore,
+            awayTeam: game.awayTeam,
+            awayScore: game.awayScore,
+            homePlayers: homeStats.map(s => ({
+              id: s.player.id,
+              name: `${s.player.first_name} ${s.player.last_name}`,
+              position: s.player.position,
+              min: s.min,
+              pts: s.pts,
+              reb: s.reb,
+              ast: s.ast,
+              stl: s.stl,
+              blk: s.blk,
+              fg_pct: s.fg_pct,
+            })),
+            awayPlayers: awayStats.map(s => ({
+              id: s.player.id,
+              name: `${s.player.first_name} ${s.player.last_name}`,
+              position: s.player.position,
+              min: s.min,
+              pts: s.pts,
+              reb: s.reb,
+              ast: s.ast,
+              stl: s.stl,
+              blk: s.blk,
+              fg_pct: s.fg_pct,
+            })),
+            homeTopPerformers: getTopPerformers(homeStats),
+            awayTopPerformers: getTopPerformers(awayStats),
+          });
+        }
+
+        console.log(`[live-stats] No NBA player stats available for ${gameId}`);
+
+        // Return cached scores if no player stats available
+        return res.json({
+          gameId,
+          status: game.status,
+          homeTeam: game.homeTeam,
+          homeScore: game.homeScore,
+          awayTeam: game.awayTeam,
+          awayScore: game.awayScore,
+          homePlayers: [],
+          awayPlayers: [],
+          homeTopPerformers: [],
+          awayTopPerformers: [],
+          message: "No live stats available yet"
+        });
+      } else if (game.sport === "NFL") {
+        console.log(`[live-stats] Fetching NFL stats for game ${gameId}`);
+
+        // Fetch NFL player stats
+        const nflStats = await fetchGameStats([gameIdNum]);
+        console.log(`[live-stats] Found ${nflStats.length} NFL player stats`);
+
+        if (nflStats.length > 0) {
+          // Group by team
+          const homeStats = nflStats.filter(s => s.team.abbreviation === game.homeTeam);
+          const awayStats = nflStats.filter(s => s.team.abbreviation === game.awayTeam);
+
+          return res.json({
+            gameId,
+            status: game.status,
+            homeTeam: game.homeTeam,
+            homeScore: game.homeScore,
+            awayTeam: game.awayTeam,
+            awayScore: game.awayScore,
+            homePlayers: homeStats.map(s => ({
+              id: s.player.id,
+              name: `${s.player.first_name} ${s.player.last_name}`,
+              position: s.player.position,
+              passingYards: s.passing_yards,
+              passingTDs: s.passing_touchdowns,
+              rushingYards: s.rushing_yards,
+              rushingTDs: s.rushing_touchdowns,
+              receivingYards: s.receiving_yards,
+              receivingTDs: s.receiving_touchdowns,
+              receptions: s.receiving_receptions,
+            })),
+            awayPlayers: awayStats.map(s => ({
+              id: s.player.id,
+              name: `${s.player.first_name} ${s.player.last_name}`,
+              position: s.player.position,
+              passingYards: s.passing_yards,
+              passingTDs: s.passing_touchdowns,
+              rushingYards: s.rushing_yards,
+              rushingTDs: s.rushing_touchdowns,
+              receivingYards: s.receiving_yards,
+              receivingTDs: s.receiving_touchdowns,
+              receptions: s.receiving_receptions,
+            })),
+            homeTopPerformers: [],
+            awayTopPerformers: [],
+          });
+        }
+
+        console.log(`[live-stats] No NFL live stats available for ${gameId}`);
+
+        // Return cached scores if no player stats available
+        return res.json({
+          gameId,
+          status: game.status,
+          homeTeam: game.homeTeam,
+          homeScore: game.homeScore,
+          awayTeam: game.awayTeam,
+          awayScore: game.awayScore,
+          homePlayers: [],
+          awayPlayers: [],
+          homeTopPerformers: [],
+          awayTopPerformers: [],
+          message: "No live stats available yet"
+        });
+      }
+
+      return res.status(400).json({ error: "Unsupported sport" });
+    } catch (error: any) {
+      console.error("[live-stats] Error fetching live stats:", error.message);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Add cash to user balance ($1) - DEVELOPMENT ONLY
   // This endpoint is disabled in production to prevent abuse
   app.post("/api/user/add-cash", isAuthenticated, async (req, res) => {
@@ -1092,6 +1264,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.markOnboardingComplete(userId);
       res.json({ success: true });
     } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Admin endpoint to clean up duplicate game records (legacy MySportsFeeds data)
+  app.post("/api/admin/games/cleanup-duplicates", isAuthenticated, async (req: any, res) => {
+    try {
+      // Check if user is admin
+      const currentUser = await storage.getUser(req.user?.claims?.sub);
+      if (!currentUser?.isAdmin) {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+
+      console.log("[ADMIN] Starting duplicate game cleanup...");
+
+      // Find all legacy MySportsFeeds records (gameId starting with 18447)
+      const legacyRecords = await db
+        .select({ id: dailyGames.id, gameId: dailyGames.gameId, awayTeam: dailyGames.awayTeam, homeTeam: dailyGames.homeTeam, startTime: dailyGames.startTime })
+        .from(dailyGames)
+        .where(sql`${dailyGames.gameId} LIKE '18447%' AND ${dailyGames.sport} = 'NBA'`)
+        .limit(500);
+
+      let deletedCount = 0;
+      let keptCount = 0;
+      const details: { deleted: string[]; kept: string[] } = { deleted: [], kept: [] };
+
+      for (const legacy of legacyRecords) {
+        // Check if there's a BallDontLie equivalent for the same teams at the same time
+        const startTime = new Date(legacy.startTime);
+        const minTime = new Date(startTime.getTime() - 5 * 60 * 1000);
+        const maxTime = new Date(startTime.getTime() + 5 * 60 * 1000);
+
+        const [match] = await db
+          .select()
+          .from(dailyGames)
+          .where(and(
+            eq(dailyGames.sport, 'NBA'),
+            sql`${dailyGames.gameId} NOT LIKE '18447%'`,
+            sql`${dailyGames.awayTeam} = ${legacy.awayTeam}`,
+            sql`${dailyGames.homeTeam} = ${legacy.homeTeam}`,
+            sql`${dailyGames.startTime} >= ${minTime}`,
+            sql`${dailyGames.startTime} <= ${maxTime}`
+          ))
+          .limit(1);
+
+        if (match) {
+          // Delete the legacy record
+          await db.delete(dailyGames).where(eq(dailyGames.id, legacy.id));
+          deletedCount++;
+          details.deleted.push(`${legacy.gameId} (${legacy.awayTeam}@${legacy.homeTeam})`);
+        } else {
+          // No equivalent - keep this record
+          keptCount++;
+          details.kept.push(`${legacy.gameId} (${legacy.awayTeam}@${legacy.homeTeam})`);
+        }
+      }
+
+      const result = {
+        success: true,
+        message: `Cleanup complete: ${deletedCount} duplicates deleted, ${keptCount} records kept (no BDL equivalent)`,
+        deletedCount,
+        keptCount,
+        details: {
+          deleted: details.deleted.slice(0, 50), // Limit response size
+          kept: details.kept.slice(0, 10),
+        },
+      };
+
+      console.log(`[ADMIN] Duplicate cleanup: ${deletedCount} deleted, ${keptCount} kept`);
+      res.json(result);
+    } catch (error: any) {
+      console.error("[ADMIN] Error cleaning up duplicates:", error);
       res.status(500).json({ error: error.message });
     }
   });
@@ -2311,6 +2555,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ])
         : [new Map(), new Map()];
 
+      // Group holdings by player to calculate total power
+      const playerPowerMap = new Map<string, number>();
+      holdingsWithData
+        .filter((item: any) => item.holding.assetType === "player")
+        .forEach((item: any) => {
+          const playerId = item.holding.assetId;
+          const currentPower = playerPowerMap.get(playerId) || 0;
+          const holdingPower = parseFloat(item.holding.powerLevel || "0");
+          playerPowerMap.set(playerId, currentPower + holdingPower);
+        });
+
       const enrichedHoldings = holdingsWithData.map((item: any) => {
         const holding = item.holding;
         const player = item.player;
@@ -2337,6 +2592,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const globalScoutCount = globalScoutMap.get(player.id.toString()) || 0;
           const bidSize = orderBookData?.bidSize || 0;
           const askSize = orderBookData?.askSize || 0;
+          const totalPlayerPower = playerPowerMap.get(player.id) || 0;
 
           return {
             ...holding,
@@ -2346,6 +2602,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
             pnlPercent,
             lockedQuantity,
             availableQuantity: Math.max(0, holding.quantity - lockedQuantity),
+            // Power fields
+            power: holding.power ?? 1,
+            powerLevel: holding.powerLevel ?? "0.00",
+            totalPlayerPower: totalPlayerPower.toFixed(2),
             bestBid,
             bestAsk,
             bidSize,
@@ -2388,7 +2648,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Parse types filter (comma-separated string to array)
       let typesArray: string[] | undefined;
       if (types && typeof types === 'string') {
-        typesArray = types.split(',').filter(t => ['vesting', 'market', 'contest'].includes(t));
+        typesArray = types.split(',').filter(t => ['vesting', 'market', 'contest', 'scout'].includes(t));
       }
 
       const filters = {
@@ -3144,6 +3404,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const player = await storage.getPlayer(playerId);
       if (!player) {
         return res.status(404).json({ error: "Player not found" });
+      }
+
+      // Verify player has a game today and check game start time
+      // This prevents adding scouts after the game has started
+      const today = new Date();
+      const game = await storage.getPlayerGameForDate(playerId, player.sport.toUpperCase(), today);
+      if (!game) {
+        return res.status(400).json({ error: "This player doesn't have a game today" });
+      }
+      if (new Date(game.startTime) <= new Date()) {
+        return res.status(400).json({ error: "Cannot adjust scouts - player's game has already started" });
       }
 
       // assignScouts throws if limit exceeded
@@ -4245,7 +4516,25 @@ ${posts.map(post => `  <url>
   // Public user profile (anyone can view)
   app.get("/api/user/:userId/profile", async (req, res) => {
     try {
-      const user = await storage.getUser(req.params.userId);
+      const requestedUserId = req.params.userId;
+
+      // Dev mode bypass: create dev user if requesting the mock user and it doesn't exist
+      const isDev = process.env.NODE_ENV === 'development';
+      if (isDev && requestedUserId === 'dev-user-12345678') {
+        const existingUser = await storage.getUser(requestedUserId);
+        if (!existingUser) {
+          await storage.upsertUser({
+            id: requestedUserId,
+            email: 'dev@example.com',
+            firstName: 'Dev',
+            lastName: 'User',
+            username: 'dev_user',
+          });
+          console.log('[DEV_BYPASS] Auto-created dev user for profile fetch');
+        }
+      }
+
+      const user = await storage.getUser(requestedUserId);
       if (!user) {
         return res.status(404).json({ error: "User not found" });
       }
@@ -4422,6 +4711,53 @@ ${posts.map(post => `  <url>
       });
     } catch (error: any) {
       console.error("[WHOP] Error creating checkout session:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Community shares checkout - create a checkout session and redirect to Whop
+  // Community shares are used to create community boosts (+1x multiplier for all holders)
+  app.post("/api/community/checkout-session", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const { quantity = 1 } = req.body;
+      const planId = process.env.WHOP_COMMUNITY_PLAN_ID;
+
+      if (!planId) {
+        return res.status(500).json({ error: "Whop community plan ID not configured" });
+      }
+
+      const PRICE_PER_SHARE_CENTS = 100; // $1.00 per community share
+      const amountCents = quantity * PRICE_PER_SHARE_CENTS;
+
+      // Create a local checkout session record to track this purchase
+      const localSession = await storage.createCommunityCheckoutSession({
+        userId: user.id,
+        planId,
+        quantity,
+        amountCents,
+      });
+
+      console.log(`[COMMUNITY] Created checkout session ${localSession.id} for user ${userId}, qty: ${quantity}`);
+
+      // Use direct checkout URL
+      const directUrl = `https://whop.com/checkout/${planId}/?d2c=true`;
+
+      res.json({
+        sessionId: localSession.id,
+        purchaseUrl: directUrl,
+        planId,
+        quantity,
+        amountCents,
+        email: user.email,
+      });
+    } catch (error: any) {
+      console.error("[COMMUNITY] Error creating checkout session:", error);
       res.status(500).json({ error: error.message });
     }
   });
@@ -4867,6 +5203,10 @@ ${posts.map(post => `  <url>
         const planId = payment.plan_id;
         const finalAmount = payment.final_amount;
 
+        // Determine if this is a community purchase
+        const communityPlanId = process.env.WHOP_COMMUNITY_PLAN_ID;
+        const isCommunityPurchase = communityPlanId && planId === communityPlanId;
+
         console.log("[WHOP WEBHOOK] === USER IDENTIFICATION ===");
         console.log("[WHOP WEBHOOK] metadata.sessionId:", sessionId);
         console.log("[WHOP WEBHOOK] metadata.userId:", metadataUserId);
@@ -4874,6 +5214,7 @@ ${posts.map(post => `  <url>
         console.log("[WHOP WEBHOOK] payment.user_id:", whopUserId);
         console.log("[WHOP WEBHOOK] payment.plan_id:", planId);
         console.log("[WHOP WEBHOOK] payment.final_amount:", finalAmount);
+        console.log("[WHOP WEBHOOK] isCommunityPurchase:", isCommunityPurchase);
 
         let userId: string | null = null;
         let quantity = 1;
@@ -4882,12 +5223,23 @@ ${posts.map(post => `  <url>
         // Method 1: Try to find user by our session ID from metadata
         if (sessionId) {
           console.log("[WHOP WEBHOOK] Method 1: Trying session ID lookup:", sessionId);
-          const session = await storage.getPremiumCheckoutSession(sessionId);
-          if (session && session.status === "pending") {
-            matchedSession = session;
-            userId = session.userId;
-            quantity = session.quantity;
-            console.log("[WHOP WEBHOOK] Method 1 SUCCESS: Found user via sessionId:", userId);
+
+          // Check premium sessions first
+          const premiumSession = await storage.getPremiumCheckoutSession(sessionId);
+          if (premiumSession && premiumSession.status === "pending") {
+            matchedSession = { ...premiumSession, type: 'premium' };
+            userId = premiumSession.userId;
+            quantity = premiumSession.quantity;
+            console.log("[WHOP WEBHOOK] Method 1 SUCCESS: Found premium session, user:", userId);
+          } else {
+            // Check community sessions
+            const communitySession = await storage.getCommunityCheckoutSession(sessionId);
+            if (communitySession && communitySession.status === "pending") {
+              matchedSession = { ...communitySession, type: 'community' };
+              userId = communitySession.userId;
+              quantity = communitySession.quantity;
+              console.log("[WHOP WEBHOOK] Method 1 SUCCESS: Found community session, user:", userId);
+            }
           }
         }
 
@@ -4895,8 +5247,19 @@ ${posts.map(post => `  <url>
         // This is the primary fallback when using direct checkout URL
         if (!userId) {
           console.log("[WHOP WEBHOOK] Method 2: Trying pending session lookup...");
-          const pendingSessions = await storage.getPendingPremiumCheckoutSessions();
-          console.log("[WHOP WEBHOOK] Found", pendingSessions.length, "pending sessions");
+
+          // Get pending sessions based on purchase type
+          let pendingSessions: any[] = [];
+
+          if (isCommunityPurchase) {
+            // For community purchases, look for community sessions
+            pendingSessions = await storage.getPendingCommunityCheckoutSessions();
+            console.log("[WHOP WEBHOOK] Found", pendingSessions.length, "pending community sessions");
+          } else {
+            // For premium purchases, look for premium sessions
+            pendingSessions = await storage.getPendingPremiumCheckoutSessions();
+            console.log("[WHOP WEBHOOK] Found", pendingSessions.length, "pending premium sessions");
+          }
 
           // Sort by createdAt descending (most recent first)
           const sortedSessions = pendingSessions.sort((a, b) =>
@@ -4926,7 +5289,7 @@ ${posts.map(post => `  <url>
           }
 
           if (matchingSession) {
-            matchedSession = matchingSession;
+            matchedSession = { ...matchingSession, type: isCommunityPurchase ? 'community' : 'premium' };
             userId = matchingSession.userId;
             quantity = matchingSession.quantity;
             console.log("[WHOP WEBHOOK] Method 2 SUCCESS: Found user via pending session:", userId, "qty:", quantity);
@@ -4935,8 +5298,10 @@ ${posts.map(post => `  <url>
 
         // Method 3: Calculate quantity from amount as fallback
         if (!quantity || quantity < 1) {
-          if (finalAmount && finalAmount >= 500) {
-            quantity = Math.floor(finalAmount / 500);
+          if (finalAmount && finalAmount >= 100) {
+            // $1 per community share, $5 per premium share
+            const pricePerShare = isCommunityPurchase ? 100 : 500;
+            quantity = Math.floor(finalAmount / pricePerShare);
             console.log("[WHOP WEBHOOK] Method 3: Inferred quantity from amount:", quantity);
           } else {
             quantity = 1; // Default to 1
@@ -4981,21 +5346,41 @@ ${posts.map(post => `  <url>
 
         // Mark the matched session as completed
         if (matchedSession) {
-          await storage.completePremiumCheckoutSession(matchedSession.id, receiptId);
+          if (matchedSession.type === 'community') {
+            await storage.completeCommunityCheckoutSession(matchedSession.id, receiptId);
+          } else {
+            await storage.completePremiumCheckoutSession(matchedSession.id, receiptId);
+          }
           console.log("[WHOP WEBHOOK] Marked session", matchedSession.id, "as completed");
         }
 
-        // Credit premium shares to user - only happens if we won the atomic credit race
-        const existingHolding = await storage.getHolding(userId, "premium", "premium");
-        const currentQuantity = existingHolding?.quantity || 0;
-        const newQuantity = currentQuantity + quantity;
+        // Credit shares to user based on purchase type - only happens if we won the atomic credit race
+        let newQuantity = 0;
+        if (isCommunityPurchase) {
+          // Credit community shares
+          const existingHolding = await storage.getHolding(userId, "community", "community");
+          const currentQuantity = existingHolding?.quantity || 0;
+          newQuantity = currentQuantity + quantity;
 
-        // Update holding with new quantity (avgCost is $5 per share)
-        await storage.updateHolding(userId, "premium", "premium", newQuantity, "5.0000");
+          // Update holding with new quantity (avgCost is $1 per share)
+          await storage.updateHolding(userId, "community", "community", newQuantity, "1.0000");
 
-        console.log(`[WHOP WEBHOOK] === SUCCESS ===`);
-        console.log(`[WHOP WEBHOOK] Credited ${quantity} premium shares to user ${userId}`);
-        console.log(`[WHOP WEBHOOK] Previous balance: ${currentQuantity}, New balance: ${newQuantity}`);
+          console.log(`[WHOP WEBHOOK] === SUCCESS ===`);
+          console.log(`[WHOP WEBHOOK] Credited ${quantity} community shares to user ${userId}`);
+          console.log(`[WHOP WEBHOOK] Previous balance: ${currentQuantity}, New balance: ${newQuantity}`);
+        } else {
+          // Credit premium shares
+          const existingHolding = await storage.getHolding(userId, "premium", "premium");
+          const currentQuantity = existingHolding?.quantity || 0;
+          newQuantity = currentQuantity + quantity;
+
+          // Update holding with new quantity (avgCost is $5 per share)
+          await storage.updateHolding(userId, "premium", "premium", newQuantity, "5.0000");
+
+          console.log(`[WHOP WEBHOOK] === SUCCESS ===`);
+          console.log(`[WHOP WEBHOOK] Credited ${quantity} premium shares to user ${userId}`);
+          console.log(`[WHOP WEBHOOK] Previous balance: ${currentQuantity}, New balance: ${newQuantity}`);
+        }
 
         // Broadcast portfolio update via WebSocket
         broadcast({ type: "portfolio" });
@@ -5807,18 +6192,6 @@ ${posts.map(post => `  <url>
     }
   });
 
-  // Scout Status Endpoint
-  app.get("/api/scouts/status", isAuthenticated, async (req, res) => {
-    try {
-      const userId = getUserId(req);
-      const status = await storage.getScoutStatus(userId);
-      res.json(status);
-    } catch (err: any) {
-      console.error("[Scout API] Error getting status:", err.message);
-      res.status(500).json({ error: err.message });
-    }
-  });
-
   // Get lightweight player name lookup (for auto-hyperlinking player names)
   app.get("/api/players/lookup", async (req, res) => {
     try {
@@ -6320,11 +6693,10 @@ ${posts.map(post => `  <url>
   // DAILY BOOSTS ROUTES
   // ============================================
 
-  // Get daily boosts state
-  app.get("/api/daily-boosts/:sport", isAuthenticated, async (req: any, res) => {
+  // Get all daily boosts across all sports (sport-agnostic)
+  app.get("/api/daily-boosts/all", isAuthenticated, async (req: any, res) => {
     try {
       const userId = getUserId(req);
-      const sport = req.params.sport.toUpperCase();
 
       // Parse date query param (YYYY-MM-DD), default to today
       let targetDate = new Date();
@@ -6335,28 +6707,304 @@ ${posts.map(post => `  <url>
         }
       }
 
-      const boosts = await storage.getDailyBoosts(userId, sport, targetDate);
+      const boosts = await storage.getDailyBoostsAllSports(userId, targetDate);
 
-      // Enrich with player data
+      // Enrich with player data (powerLevel is now stored on the boost)
       const playerIds = boosts.map(b => b.playerId);
       const players = await storage.getPlayersByIds(playerIds);
       const playerMap = new Map(players.map(p => [p.id, p]));
 
-      const enrichedBoosts = boosts.map(boost => ({
-        ...boost,
-        player: playerMap.get(boost.playerId),
+      // Get all community boosts across all sports
+      const communityBoosts = await storage.getCommunityBoostsAllSports(targetDate);
+      const communityBoostMap = new Map<string, number>();
+      communityBoosts.forEach(cb => {
+        const current = communityBoostMap.get(cb.playerId) || 0;
+        communityBoostMap.set(cb.playerId, current + 1);
+      });
+
+      // Fetch live player game stats for each boost (for live fantasy points display)
+      const enrichedBoosts = await Promise.all(boosts.map(async (boost) => {
+        let liveFantasyPoints: number | null = null;
+        let liveGameStats: any = null;
+
+        // Only fetch live stats if the boost has a gameId
+        if (boost.gameId) {
+          try {
+            // First try direct playerId lookup
+            let gameStats = await storage.getPlayerGameStats(boost.playerId, boost.gameId);
+
+            // If not found, try fallback by home/away (handles mismatched player IDs)
+            if (!gameStats || !gameStats.fantasyPoints) {
+              const player = playerMap.get(boost.playerId);
+              if (player?.team) {
+                // Get the game to determine home/away
+                const game = await storage.getDailyGameByGameId(boost.gameId);
+                if (game) {
+                  const isHome = player.team === game.homeTeam;
+                  const homeAway = isHome ? "home" : "away";
+
+                  // Get all stats for this game and home/away
+                  const teamStats = await storage.getPlayerGameStatsByGameAndHomeAway(boost.gameId, homeAway);
+
+                  // Find stats for this player by looking at their team
+                  // (The stats playerId might differ from our DB playerId, so we match by team)
+                  gameStats = teamStats.find(s => s.points > 0 || s.rebounds > 0 || s.assists > 0) || undefined;
+                }
+              }
+            }
+
+            if (gameStats && gameStats.fantasyPoints) {
+              liveFantasyPoints = parseFloat(gameStats.fantasyPoints);
+              liveGameStats = {
+                points: gameStats.points,
+                rebounds: gameStats.rebounds,
+                assists: gameStats.assists,
+                threePointersMade: gameStats.threePointersMade,
+                minutes: gameStats.minutes,
+              };
+            }
+          } catch (err) {
+            // Stats might not exist yet for in-progress games
+            console.debug(`[daily-boosts/all] No live stats for player ${boost.playerId} game ${boost.gameId}`);
+          }
+        }
+
+        return {
+          ...boost,
+          player: playerMap.get(boost.playerId),
+          communityBoostCount: communityBoostMap.get(boost.playerId) || 0,
+          liveFantasyPoints,
+          liveGameStats,
+        };
       }));
 
       res.json({
-        sport,
         date: targetDate.toISOString().split('T')[0],
         boosts: enrichedBoosts,
         slotsRemaining: 4 - boosts.length,
         availableSlots: [5, 4, 3, 2].filter(tier => !boosts.some(b => b.slotTier === tier)),
       });
     } catch (error: any) {
-      console.error("[daily-boosts] Error fetching boosts:", error);
+      console.error("[daily-boosts/all] Error fetching boosts:", error);
       res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get community boosts across all sports (for the community list)
+  app.get("/api/community-boosts/all", isAuthenticated, async (req: any, res) => {
+    try {
+      // Parse date query param (YYYY-MM-DD), default to today
+      let targetDate = new Date();
+      if (req.query.date && typeof req.query.date === 'string') {
+        const parsed = new Date(req.query.date);
+        if (!isNaN(parsed.getTime())) {
+          targetDate = parsed;
+        }
+      }
+
+      const communityBoosts = await storage.getCommunityBoostsAllSports(targetDate);
+
+      // Group by player to count how many community boosts each player has
+      const playerBoostCounts = new Map<string, { count: number; players: typeof communityBoosts }>();
+      communityBoosts.forEach(cb => {
+        const existing = playerBoostCounts.get(cb.playerId);
+        if (existing) {
+          existing.count += 1;
+          existing.players.push(cb);
+        } else {
+          playerBoostCounts.set(cb.playerId, { count: 1, players: [cb] });
+        }
+      });
+
+      const result = Array.from(playerBoostCounts.entries()).map(([playerId, data]) => ({
+        playerId,
+        player: data.players[0].player,
+        communityBoostCount: data.count,
+        creators: data.players.map(p => p.creator),
+        sport: data.players[0].sport,
+        boostDate: data.players[0].boostDate,
+      }));
+
+      res.json({
+        date: targetDate.toISOString().split('T')[0],
+        communityBoosts: result,
+      });
+    } catch (error: any) {
+      console.error("[community-boosts/all] Error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Debug endpoint to test storage
+  app.get("/api/daily-boosts/debug", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      console.log("[DEBUG] userId:", userId);
+
+      const allUsers = await storage.getUsers();
+      console.log("[DEBUG] total users:", allUsers.length);
+
+      if (allUsers.length === 0) {
+        res.json({ error: "No users found" });
+        return;
+      }
+
+      const holdings = await storage.getAllHoldingsWithPlayers(userId);
+      console.log("[DEBUG] holdings count:", holdings.length);
+
+      res.json({
+        userId,
+        userCount: allUsers.length,
+        holdingsCount: holdings.length,
+        holdings: holdings.slice(0, 5).map(h => ({
+          playerId: h.player.id,
+          name: `${h.player.firstName} ${h.player.lastName}`,
+          team: h.player.team,
+          sport: h.player.sport,
+          quantity: h.quantity,
+          powerLevel: h.powerLevel
+        }))
+      });
+    } catch (error: any) {
+      console.error("[DEBUG] Error:", error);
+      res.status(500).json({ error: error.message, stack: error.stack });
+    }
+  });
+
+  // Get all holdings with players (for boost selector) - shows all held players regardless of game status
+  app.get("/api/daily-boosts/eligible-all", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+
+      // Parse date query param (YYYY-MM-DD), default to today in ET
+      const todayET = getTodayET();
+      let dateStr = todayET;
+      if (req.query.date && typeof req.query.date === 'string') {
+        if (/^\d{4}-\d{2}-\d{2}$/.test(req.query.date)) {
+          dateStr = req.query.date;
+        }
+      }
+
+      const { startOfDay, endOfDay } = getETDayBoundaries(dateStr);
+      const targetDate = new Date(startOfDay.getTime() + 12 * 60 * 60 * 1000);
+
+      // Get all holdings with players
+      const allHoldings = await storage.getAllHoldingsWithPlayers(userId);
+
+      // Get all games today for all sports
+      const todaysGames = await db.select().from(dailyGames)
+        .where(and(
+          gte(dailyGames.date, startOfDay),
+          lt(dailyGames.date, endOfDay)
+        ));
+
+      // Build a map of team -> game info (include status)
+      const teamGameMap = new Map<string, { gameId: string; startTime: Date; sport: string; status: string }>();
+      for (const game of todaysGames) {
+        teamGameMap.set(game.homeTeam, { gameId: game.gameId, startTime: new Date(game.startTime), sport: game.sport, status: game.status });
+        teamGameMap.set(game.awayTeam, { gameId: game.gameId, startTime: new Date(game.startTime), sport: game.sport, status: game.status });
+      }
+
+      const now = new Date();
+
+      // Get current boosts to show which players are already boosted
+      const currentBoosts = await storage.getDailyBoostsAllSports(userId, targetDate);
+      const boostedPlayerIds = new Set(currentBoosts.map(b => b.playerId));
+
+      // Get community boosts for this sport/date (add +1 to multiplier for each)
+      const communityBoosts = await storage.getCommunityBoostsAllSports(targetDate);
+      const communityBoostMap = new Map<string, number>();
+      communityBoosts.forEach(cb => {
+        const current = communityBoostMap.get(cb.playerId) || 0;
+        communityBoostMap.set(cb.playerId, current + 1);
+      });
+
+      // Get user's premium shares for community boost option
+      const userHoldings = await storage.getUserHoldings(userId);
+      const premiumHolding = userHoldings.find((h: Holding) => h.assetType === "premium");
+      const userPremiumShares = premiumHolding?.quantity || 0;
+
+      // Pre-fetch all locked quantities to avoid await inside map
+      const lockedQuantities = new Map<string, number>();
+      for (const holding of allHoldings) {
+        try {
+          const totalLocked = await storage.getTotalLockedQuantity(userId, "player", holding.player.id);
+          lockedQuantities.set(holding.player.id, totalLocked);
+        } catch (e: unknown) {
+          const errMsg = e instanceof Error ? e.message : String(e);
+          console.error(`[eligible-all] Error getting locked qty for ${holding.player.id}:`, errMsg);
+          lockedQuantities.set(holding.player.id, 0);
+        }
+      }
+
+      const result = allHoldings.map(holding => {
+        if (!holding.player) {
+          console.error(`[eligible-all] Holding ${holding.id} has no player!`);
+        }
+        const teamGame = teamGameMap.get(holding.player?.team);
+        const totalLocked = lockedQuantities.get(holding.player?.id) || 0;
+        const availableShares = holding.quantity - totalLocked;
+        const powerLevel = holding.powerLevel || "0.00";
+        const hasPowerLevel = parseFloat(powerLevel) > 0;
+
+        const gameStartTime = teamGame?.startTime;
+        const gameStarted = gameStartTime ? gameStartTime <= now : false;
+        const hasGameToday = !!teamGame;
+        const gameDbStatus = teamGame?.status || 'scheduled';
+
+        // Game status: 'none' | 'upcoming' | 'live' | 'ended'
+        // Trust DB status from BallDon'tLie API - see https://docs.balldontlie.io/#games
+        // Status values: 'scheduled', 'inprogress', 'completed', 'ended', 'postponed', 'cancelled'
+        // Time-based fallback only used when status is 'scheduled' and sync may be delayed (>3hrs since start)
+        let gameStatus: 'none' | 'upcoming' | 'live' | 'ended' = 'none';
+        if (teamGame) {
+          if (gameDbStatus === 'completed' || gameDbStatus === 'ended') {
+            gameStatus = 'ended';
+          } else if (gameDbStatus === 'inprogress') {
+            gameStatus = 'live';  // Trust API: inprogress = live
+          } else if (gameStartTime) {
+            // scheduled or unknown - check time
+            const timeSinceStart = now.getTime() - gameStartTime.getTime();
+            const threeHoursInMs = 3 * 60 * 60 * 1000;
+            if (timeSinceStart >= threeHoursInMs) {
+              gameStatus = 'ended'; // Likely ended but sync hasn't caught up
+            } else {
+              gameStatus = 'upcoming';
+            }
+          } else {
+            gameStatus = 'upcoming';
+          }
+        }
+
+        return {
+          holdingId: holding.id,
+          playerId: holding.player.id,
+          player: holding.player,
+          sport: holding.player.sport,
+          availableShares,
+          powerLevel,
+          totalShares: holding.quantity,
+          gameId: teamGame?.gameId || null,
+          gameStartTime: gameStartTime || null,
+          hasGameToday,
+          gameStatus,
+          gameDbStatus,
+          isAlreadyBoosted: boostedPlayerIds.has(holding.player.id),
+          communityBoostCount: communityBoostMap.get(holding.player.id) || 0,
+          hasCommunityBoost: communityBoostMap.has(holding.player.id),
+          userPremiumShares,
+        };
+      });
+
+      res.json({
+        date: targetDate.toISOString().split('T')[0],
+        eligiblePlayers: result,
+        totalEligible: result.filter((_, i, arr) => arr.findIndex(a => a.playerId === _.playerId) === i).length, // Unique players count
+      });
+    } catch (error: any) {
+      console.error("[daily-boosts/eligible-all] Error:", error.message);
+      console.error("[daily-boosts/eligible-all] Stack:", error.stack);
+      res.status(500).json({ error: error.message, stack: error.stack });
     }
   });
 
@@ -6366,20 +7014,39 @@ ${posts.map(post => `  <url>
       const userId = getUserId(req);
       const sport = req.params.sport.toUpperCase();
 
-      // Parse date query param (YYYY-MM-DD), default to today
-      let targetDate = new Date();
+      // Parse date query param (YYYY-MM-DD), default to today in ET
+      // Use getETDayBoundaries to get proper UTC boundaries for the ET date
+      const todayET = getTodayET();
+      let dateStr = todayET;
       if (req.query.date && typeof req.query.date === 'string') {
-        const parsed = new Date(req.query.date);
-        if (!isNaN(parsed.getTime())) {
-          targetDate = parsed;
+        // Validate format YYYY-MM-DD
+        if (/^\d{4}-\d{2}-\d{2}$/.test(req.query.date)) {
+          dateStr = req.query.date;
         }
       }
 
+      // Create a Date object in the middle of the ET day (noon) to avoid timezone edge cases
+      const { startOfDay } = getETDayBoundaries(dateStr);
+      const targetDate = new Date(startOfDay.getTime() + 12 * 60 * 60 * 1000); // Noon on the ET day
+
       const eligiblePlayers = await storage.getEligiblePlayersForBoost(userId, sport, targetDate);
 
-      // Also get current boosts to show which players are already boosted
+      // Get current boosts to show which players are already boosted
       const currentBoosts = await storage.getDailyBoosts(userId, sport, targetDate);
       const boostedPlayerIds = new Set(currentBoosts.map(b => b.playerId));
+
+      // Get community boosts for this sport/date (add +1 to multiplier for each)
+      const communityBoosts = await storage.getCommunityBoostsForDate(sport, targetDate);
+      const communityBoostMap = new Map<string, number>();
+      communityBoosts.forEach(cb => {
+        const current = communityBoostMap.get(cb.playerId) || 0;
+        communityBoostMap.set(cb.playerId, current + 1);
+      });
+
+      // Get user's premium shares for community boost option
+      const userHoldings = await storage.getUserHoldings(userId);
+      const premiumHolding = userHoldings.find((h: Holding) => h.assetType === "premium");
+      const userPremiumShares = premiumHolding?.quantity || 0;
 
       const result = eligiblePlayers.map(ep => ({
         playerId: ep.player.id,
@@ -6391,6 +7058,9 @@ ${posts.map(post => `  <url>
         gameStartTime: ep.gameStartTime,
         isAlreadyBoosted: boostedPlayerIds.has(ep.player.id),
         gameStarted: ep.gameStartTime ? new Date(ep.gameStartTime) <= new Date() : false,
+        communityBoostCount: communityBoostMap.get(ep.player.id) || 0,
+        hasCommunityBoost: communityBoostMap.has(ep.player.id),
+        userPremiumShares,
       }));
 
       res.json({
@@ -6464,6 +7134,10 @@ ${posts.map(post => `  <url>
         });
       }
 
+      // Get the holding to capture powerLevel before boost is created
+      const holding = await storage.getHolding(userId, "player", playerId);
+      const powerLevel = holding?.powerLevel || "0.00";
+
       // Create the boost
       // Use provided date or default to today (ensure date is object)
       const boostDate = date ? new Date(date) : new Date(today);
@@ -6476,6 +7150,7 @@ ${posts.map(post => `  <url>
         slotTier: tierNum,
         boostDate,
         sharesEntered: shares,
+        powerLevel,
         gameId: game.gameId,
       });
 
@@ -6700,6 +7375,55 @@ ${posts.map(post => `  <url>
     }
   });
 
+  // Get daily boosts state (generic :sport route - MUST be last)
+  app.get("/api/daily-boosts/:sport", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const sport = req.params.sport.toUpperCase();
+
+      // Parse date query param (YYYY-MM-DD), default to today
+      let targetDate = new Date();
+      if (req.query.date && typeof req.query.date === 'string') {
+        const parsed = new Date(req.query.date);
+        if (!isNaN(parsed.getTime())) {
+          targetDate = parsed;
+        }
+      }
+
+      const boosts = await storage.getDailyBoosts(userId, sport, targetDate);
+
+      // Enrich with player data (powerLevel is now stored on the boost)
+      const playerIds = boosts.map(b => b.playerId);
+      const players = await storage.getPlayersByIds(playerIds);
+      const playerMap = new Map(players.map(p => [p.id, p]));
+
+      // Get community boosts for this sport/date (each adds +1 to multiplier)
+      const communityBoosts = await storage.getCommunityBoostsForDate(sport, targetDate);
+      const communityBoostMap = new Map<string, number>();
+      communityBoosts.forEach(cb => {
+        const current = communityBoostMap.get(cb.playerId) || 0;
+        communityBoostMap.set(cb.playerId, current + 1);
+      });
+
+      const enrichedBoosts = boosts.map(boost => ({
+        ...boost,
+        player: playerMap.get(boost.playerId),
+        communityBoostCount: communityBoostMap.get(boost.playerId) || 0,
+      }));
+
+      res.json({
+        sport,
+        date: targetDate.toISOString().split('T')[0],
+        boosts: enrichedBoosts,
+        slotsRemaining: 4 - boosts.length,
+        availableSlots: [5, 4, 3, 2].filter(tier => !boosts.some(b => b.slotTier === tier)),
+      });
+    } catch (error: any) {
+      console.error("[daily-boosts] Error fetching boosts:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Community Boosts API
   // Get active community boosts for a sport
   app.get("/api/community-boosts/:sport", isAuthenticated, async (req: any, res) => {
@@ -6760,7 +7484,7 @@ ${posts.map(post => `  <url>
       res.json({
         success: true,
         boost,
-        message: "Community Boost activated! 1 Premium Share redeemed."
+        message: "Community Boost activated! 1 Community Share redeemed."
       });
     } catch (error: any) {
       console.error("[community-boosts/create] Error:", error);
@@ -6786,13 +7510,136 @@ ${posts.map(post => `  <url>
     }
   });
 
+  // Get all players eligible for community boost (all players with games today, regardless of ownership)
+  app.get("/api/community-boosts/eligible-players", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+
+      // Parse date query param (YYYY-MM-DD), default to today in ET
+      const todayET = getTodayET();
+      let dateStr = todayET;
+      if (req.query.date && typeof req.query.date === 'string') {
+        if (/^\d{4}-\d{2}-\d{2}$/.test(req.query.date)) {
+          dateStr = req.query.date;
+        }
+      }
+
+      const { startOfDay, endOfDay } = getETDayBoundaries(dateStr);
+      const targetDate = new Date(startOfDay.getTime() + 12 * 60 * 60 * 1000);
+
+      // Get all games today for all sports
+      const todaysGames = await db.select().from(dailyGames)
+        .where(and(
+          gte(dailyGames.date, startOfDay),
+          lt(dailyGames.date, endOfDay)
+        ));
+
+      // Get all active community boosts for today
+      const communityBoosts = await storage.getCommunityBoostsAllSports(targetDate);
+      const communityBoostMap = new Map<string, number>();
+      communityBoosts.forEach(cb => {
+        const current = communityBoostMap.get(cb.playerId) || 0;
+        communityBoostMap.set(cb.playerId, current + 1);
+      });
+
+      // Get user's community boosts for today (to show which ones they already created)
+      const userCommunityBoosts = communityBoosts.filter(cb => cb.creatorId === userId);
+      const userBoostedPlayerIds = new Set(userCommunityBoosts.map(cb => cb.playerId));
+
+      // Get user's community shares (used for community boosts)
+      const userHoldings = await storage.getUserHoldings(userId);
+      const communityHolding = userHoldings.find((h: Holding) => h.assetType === "community");
+      const userCommunityShares = communityHolding?.quantity || 0;
+
+      // Build team -> game map
+      const teamGameMap = new Map<string, { gameId: string; startTime: Date; sport: string; homeTeam: string; awayTeam: string; status: string }>();
+      for (const game of todaysGames) {
+        teamGameMap.set(game.homeTeam, { gameId: game.gameId, startTime: new Date(game.startTime), sport: game.sport, homeTeam: game.homeTeam, awayTeam: game.awayTeam, status: game.status });
+        teamGameMap.set(game.awayTeam, { gameId: game.gameId, startTime: new Date(game.startTime), sport: game.sport, homeTeam: game.homeTeam, awayTeam: game.awayTeam, status: game.status });
+      }
+
+      // Get all players whose teams have games today
+      const teamsWithGames = new Set([...todaysGames.map(g => g.homeTeam), ...todaysGames.map(g => g.awayTeam)]);
+      const playersWithGames = await db.select().from(players)
+        .where(inArray(players.team, Array.from(teamsWithGames)));
+
+      const now = new Date();
+
+      const result = playersWithGames.map(player => {
+        const teamGame = teamGameMap.get(player.team);
+        const gameStartTime = teamGame?.startTime;
+        const gameStarted = gameStartTime ? gameStartTime <= now : false;
+        const hasGameToday = !!teamGame;
+        const communityBoostCount = communityBoostMap.get(player.id) || 0;
+        const alreadyBoostedByUser = userBoostedPlayerIds.has(player.id);
+
+        // Game status
+        let gameStatus: 'upcoming' | 'live' | 'ended' = 'upcoming';
+        if (teamGame) {
+          const dbStatus = teamGame.status;
+          if (dbStatus === 'completed' || dbStatus === 'ended') {
+            gameStatus = 'ended';
+          } else if (dbStatus === 'inprogress') {
+            gameStatus = 'live';
+          } else if (gameStartTime) {
+            // scheduled - check if should have started
+            const timeSinceStart = now.getTime() - gameStartTime.getTime();
+            const threeHoursInMs = 3 * 60 * 60 * 1000;
+            if (timeSinceStart >= threeHoursInMs) {
+              gameStatus = 'ended';
+            }
+          }
+        }
+
+        return {
+          playerId: player.id,
+          player: {
+            id: player.id,
+            firstName: player.firstName,
+            lastName: player.lastName,
+            team: player.team,
+            sport: player.sport,
+          },
+          sport: player.sport,
+          gameId: teamGame?.gameId || null,
+          gameStartTime: gameStartTime || null,
+          gameStatus,
+          hasGameToday,
+          communityBoostCount,
+          alreadyBoostedByUser,
+          opponent: teamGame ? (teamGame.homeTeam === player.team ? `vs ${teamGame.awayTeam}` : `@ ${teamGame.homeTeam}`) : null,
+        };
+      });
+
+      // Sort by community boost count descending, then by name
+      result.sort((a, b) => {
+        if (b.communityBoostCount !== a.communityBoostCount) {
+          return b.communityBoostCount - a.communityBoostCount;
+        }
+        const nameA = `${a.player.firstName} ${a.player.lastName}`;
+        const nameB = `${b.player.firstName} ${b.player.lastName}`;
+        return nameA.localeCompare(nameB);
+      });
+
+      res.json({
+        date: targetDate.toISOString().split('T')[0],
+        players: result,
+        userCommunityShares,
+        totalPlayers: result.length,
+      });
+    } catch (error: any) {
+      console.error("[community-boosts/eligible-players] Error:", error.message);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Initialize players on first run by triggering roster sync
   async function initializePlayers() {
     try {
       const existingPlayers = await storage.getPlayers();
 
       if (existingPlayers.length === 0) {
-        console.log("No players found. Triggering roster_sync to fetch real NBA data from MySportsFeeds...");
+        console.log("No players found. Triggering roster_sync to fetch real NBA data from BallDontLie...");
         const result = await jobScheduler.triggerJob("roster_sync");
         console.log(`Roster sync completed: ${result.recordsProcessed} players loaded, ${result.errorCount} errors`);
       }

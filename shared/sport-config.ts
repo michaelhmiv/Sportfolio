@@ -84,7 +84,7 @@ export const SPORT_CONFIGS: Record<Sport, SportConfig> = {
         },
         seasonType: "october-june",
         contestFrequency: "daily",
-        apiProvider: "mysportsfeeds",
+        apiProvider: "balldontlie",
         getApiSeason: getNBASeason,
         getSeasonYear: getNBASeasonYear,
     },

@@ -83,12 +83,15 @@ export const holdings = pgTable("holdings", {
   assetType: text("asset_type").notNull(), // "player" or "premium"
   assetId: text("asset_id").notNull(), // player ID or "premium"
   quantity: integer("quantity").notNull().default(0),
-  powerLevel: decimal("power_level", { precision: 10, scale: 2 }).notNull().default("0.00"), // Condensed shares (5:1 ratio) for Daily Boosts
+  power: integer("power").notNull().default(1), // Power level per share (1 = regular, 5 = condensed)
+  powerLevel: decimal("power_level", { precision: 10, scale: 2 }).notNull().default("0.00"), // Computed: quantity * power (for backwards compatibility)
   avgCostBasis: decimal("avg_cost_basis", { precision: 10, scale: 4 }).notNull().default("0.0000"), // Average cost per share
   totalCostBasis: decimal("total_cost_basis", { precision: 20, scale: 2 }).notNull().default("0.00"), // Total invested
   lastUpdated: timestamp("last_updated").notNull().defaultNow(),
 }, (table) => ({
   userAssetIdx: index("user_asset_idx").on(table.userId, table.assetType, table.assetId),
+  // Index for finding powered shares
+  powerIdx: index("holdings_power_idx").on(table.assetId, table.power),
 }));
 
 // Holdings locks table - tracks reserved/locked shares to prevent double-spending
@@ -545,6 +548,58 @@ export const premiumTrades = pgTable("premium_trades", {
   sellerIdx: index("premium_trades_seller_idx").on(table.sellerId),
 }));
 
+// Community checkout sessions table - tracks Whop checkout sessions for community share purchases
+// Community shares are used to create community boosts (+1x multiplier for all holders of a player)
+export const communityCheckoutSessions = pgTable("community_checkout_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  whopSessionId: varchar("whop_session_id").unique(), // Whop's session ID (if using session API)
+  planId: text("plan_id").notNull(), // Whop plan ID (should be WHOP_COMMUNITY_PLAN_ID)
+  quantity: integer("quantity").notNull().default(1), // Number of community shares to credit ($1 each)
+  amountCents: integer("amount_cents").notNull(), // Amount in cents (100 = $1 per share)
+  status: text("status").notNull().default("pending"), // "pending", "completed", "failed"
+  receiptId: varchar("receipt_id").unique(), // Whop receipt/payment ID for idempotency
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  userIdx: index("community_checkout_user_idx").on(table.userId),
+  statusIdx: index("community_checkout_status_idx").on(table.status),
+  receiptIdx: index("community_checkout_receipt_idx").on(table.receiptId),
+}));
+
+// Community orders table - limit and market orders for community share trading
+export const communityOrders = pgTable("community_orders", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  orderType: text("order_type").notNull(), // "limit" or "market"
+  side: text("side").notNull(), // "buy" or "sell"
+  quantity: integer("quantity").notNull(),
+  filledQuantity: integer("filled_quantity").notNull().default(0),
+  limitPrice: decimal("limit_price", { precision: 10, scale: 2 }), // null for market orders
+  status: text("status").notNull().default("open"), // "open", "filled", "cancelled", "partial"
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  sideStatusIdx: index("community_orders_side_status_idx").on(table.side, table.status),
+  userIdx: index("community_orders_user_idx").on(table.userId),
+  createdAtIdx: index("community_orders_created_idx").on(table.createdAt),
+}));
+
+// Community trades table - executed community share trade history
+export const communityTrades = pgTable("community_trades", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  buyerId: varchar("buyer_id").notNull().references(() => users.id),
+  sellerId: varchar("seller_id").notNull().references(() => users.id),
+  buyOrderId: varchar("buy_order_id").references(() => communityOrders.id),
+  sellOrderId: varchar("sell_order_id").references(() => communityOrders.id),
+  quantity: integer("quantity").notNull(),
+  price: decimal("price", { precision: 10, scale: 2 }).notNull(),
+  executedAt: timestamp("executed_at").notNull().defaultNow(),
+}, (table) => ({
+  executedIdx: index("community_trades_executed_idx").on(table.executedAt),
+  buyerIdx: index("community_trades_buyer_idx").on(table.buyerId),
+  sellerIdx: index("community_trades_seller_idx").on(table.sellerId),
+}));
+
 // Whop payments table - tracks Whop purchases for cross-platform crediting
 // Used to sync premium shares between Whop and Sportfolio
 export const whopPayments = pgTable("whop_payments", {
@@ -647,6 +702,7 @@ export const dailyBoosts = pgTable("daily_boosts", {
   slotTier: integer("slot_tier").notNull(), // 2, 3, 4, or 5 (multiplier value)
   boostDate: timestamp("boost_date").notNull(), // The date this boost applies to
   sharesEntered: integer("shares_entered").notNull(), // Shares used for calculation
+  powerLevel: decimal("power_level", { precision: 10, scale: 2 }).notNull().default("0.00"), // Power of shares at time of boost
   gameId: text("game_id"), // API game ID for the player's game
   status: text("status").notNull().default("active"), // "active", "locked", "processed", "cancelled"
   fantasyPoints: decimal("fantasy_points", { precision: 10, scale: 2 }), // Final normalized FP after game
@@ -1079,6 +1135,37 @@ export const insertPremiumTradeSchema = createInsertSchema(premiumTrades).omit({
 
 export type PremiumTrade = typeof premiumTrades.$inferSelect;
 export type InsertPremiumTrade = z.infer<typeof insertPremiumTradeSchema>;
+
+// Community checkout session schemas and types
+export const insertCommunityCheckoutSessionSchema = createInsertSchema(communityCheckoutSessions).omit({
+  id: true,
+  status: true,
+  completedAt: true,
+  createdAt: true,
+});
+
+export type CommunityCheckoutSession = typeof communityCheckoutSessions.$inferSelect;
+export type InsertCommunityCheckoutSession = z.infer<typeof insertCommunityCheckoutSessionSchema>;
+
+// Community order schemas and types
+export const insertCommunityOrderSchema = createInsertSchema(communityOrders).omit({
+  id: true,
+  filledQuantity: true,
+  status: true,
+  createdAt: true,
+});
+
+export type CommunityOrder = typeof communityOrders.$inferSelect;
+export type InsertCommunityOrder = z.infer<typeof insertCommunityOrderSchema>;
+
+// Community trade schemas and types
+export const insertCommunityTradeSchema = createInsertSchema(communityTrades).omit({
+  id: true,
+  executedAt: true,
+});
+
+export type CommunityTrade = typeof communityTrades.$inferSelect;
+export type InsertCommunityTrade = z.infer<typeof insertCommunityTradeSchema>;
 
 // Whop payment schemas and types
 export const insertWhopPaymentSchema = createInsertSchema(whopPayments).omit({

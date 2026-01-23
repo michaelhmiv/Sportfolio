@@ -125,6 +125,105 @@ export interface NFLSeasonStats {
     receiving_receptions: number;
 }
 
+/**
+ * Top performer data for NFL display
+ */
+export interface NFLTopPerformer {
+    name: string;
+    team: string;
+    position: string;
+    // Key stats based on position
+    passingYards?: number;
+    passingTDs?: number;
+    rushingYards?: number;
+    rushingTDs?: number;
+    receivingYards?: number;
+    receivingTDs?: number;
+    receptions?: number;
+}
+
+export interface NFLLiveGameStats {
+    gameId: string;
+    status: string;
+    homeTeam: string;
+    homeScore: number;
+    awayTeam: string;
+    awayScore: number;
+    homeTopPerformers: NFLTopPerformer[];
+    awayTopPerformers: NFLTopPerformer[];
+}
+
+/**
+ * Transform NFL game stats to simplified format for frontend display
+ */
+export function transformNFLStatsToLiveStats(
+    gameId: string,
+    game: NFLGame,
+    stats: NFLGameStats[]
+): NFLLiveGameStats {
+    // Group stats by team
+    const homeStats = stats.filter(s => s.team.abbreviation === game.home_team.abbreviation);
+    const awayStats = stats.filter(s => s.team.abbreviation === game.visitor_team.abbreviation);
+
+    const getTopPerformers = (teamStats: NFLGameStats[]): NFLTopPerformer[] => {
+        // Get top performers based on position
+        const qbs = teamStats.filter(s => s.player.position === "QB")
+            .sort((a, b) => (b.passing_yards || 0) - (a.passing_yards || 0)).slice(0, 1);
+        const rbs = teamStats.filter(s => s.player.position === "RB")
+            .sort((a, b) => (b.rushing_yards || 0) - (a.rushing_yards || 0)).slice(0, 1);
+        const wrs = teamStats.filter(s => s.player.position === "WR")
+            .sort((a, b) => (b.receiving_yards || 0) - (a.receiving_yards || 0)).slice(0, 1);
+        const tes = teamStats.filter(s => s.player.position === "TE")
+            .sort((a, b) => (b.receiving_yards || 0) - (a.receiving_yards || 0)).slice(0, 1);
+
+        const performers: NFLTopPerformer[] = [];
+
+        qbs.forEach(p => {
+            performers.push({
+                name: `${p.player.first_name.charAt(0)}. ${p.player.last_name}`,
+                team: p.team.abbreviation,
+                position: "QB",
+                passingYards: p.passing_yards || 0,
+                passingTDs: p.passing_touchdowns || 0,
+            });
+        });
+
+        rbs.forEach(p => {
+            performers.push({
+                name: `${p.player.first_name.charAt(0)}. ${p.player.last_name}`,
+                team: p.team.abbreviation,
+                position: "RB",
+                rushingYards: p.rushing_yards || 0,
+                rushingTDs: p.rushing_touchdowns || 0,
+            });
+        });
+
+        wrs.concat(tes).slice(0, 1).forEach(p => {
+            performers.push({
+                name: `${p.player.first_name.charAt(0)}. ${p.player.last_name}`,
+                team: p.team.abbreviation,
+                position: p.player.position,
+                receivingYards: p.receiving_yards || 0,
+                receivingTDs: p.receiving_touchdowns || 0,
+                receptions: p.receiving_receptions || 0,
+            });
+        });
+
+        return performers;
+    };
+
+    return {
+        gameId,
+        status: game.status,
+        homeTeam: game.home_team.abbreviation,
+        homeScore: game.home_team_score || 0,
+        awayTeam: game.visitor_team.abbreviation,
+        awayScore: game.visitor_team_score || 0,
+        homeTopPerformers: getTopPerformers(homeStats),
+        awayTopPerformers: getTopPerformers(awayStats),
+    };
+}
+
 export interface NFLInjury {
     id: number;
     player: NFLPlayer;

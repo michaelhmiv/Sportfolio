@@ -62,6 +62,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { format } from "date-fns";
 import type { Player } from "@shared/schema";
 
 // --- Types ---
@@ -90,6 +91,20 @@ interface Holding {
 interface PlayerWithStats extends Player {
     avgFantasyPointsPerGame?: string;
     globalScoutCount: number;
+    gameStatus?: 'none' | 'upcoming' | 'live' | 'ended';
+    gameStartTime?: string | null;
+    isGameLocked?: boolean;
+}
+
+interface PlayerWithScoutData extends PlayerWithStats {
+    scoutCount: number;
+    sharesOwned: number;
+    fpts: number;
+    price: number;
+    change: number;
+    volume: number;
+    mcap: number;
+    yield: number;
 }
 
 interface ScoutRosterEntry {
@@ -235,6 +250,7 @@ export function ScoutDashboardModal() {
     const [searchQuery, setSearchQuery] = useState("");
     const [sportFilter, setSportFilter] = useState<string>("all");
     const [positionFilter, setPositionFilter] = useState<string>('ALL');
+    const [gameStatusFilter, setGameStatusFilter] = useState<string>("all"); // Filter by game status
     const [sortField, setSortField] = useState<SortField>('volume');
     const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
     const [limit, setLimit] = useState(50); // Server-side paging limit
@@ -246,7 +262,7 @@ export function ScoutDashboardModal() {
     // Reset pagination when filters change
     useEffect(() => {
         setLimit(50);
-    }, [searchQuery, sportFilter, positionFilter, sortField, sortDirection]);
+    }, [searchQuery, sportFilter, positionFilter, gameStatusFilter, sortField, sortDirection]);
 
     // 1. Fetch Scout Data
     const { data: scoutData, isLoading: isLoadingScouts } = useQuery<ScoutData>({
@@ -259,6 +275,22 @@ export function ScoutDashboardModal() {
         queryKey: ["/api/scouts/status"],
         enabled: isScoutDashboardOpen,
         refetchInterval: 30000,
+    });
+
+    // 1c. Fetch today's games for all sports (for game status)
+    const { data: todaysGames } = useQuery<Array<{ gameId: string; homeTeam: string; awayTeam: string; startTime: string; status: string; sport: string }>>({
+        queryKey: ["/api/games/today"],
+        queryFn: async () => {
+            // Fetch games for both NBA and NFL
+            const [nbaRes, nflRes] = await Promise.all([
+                fetch("/api/games/today?sport=NBA"),
+                fetch("/api/games/today?sport=NFL"),
+            ]);
+            const [nbaGames, nflGames] = await Promise.all([nbaRes.json(), nflRes.json()]);
+            return [...(nbaGames || []), ...(nflGames || [])];
+        },
+        enabled: isScoutDashboardOpen,
+        refetchInterval: 60000, // Refresh every minute
     });
 
     const [timeLeft, setTimeLeft] = useState("");
@@ -390,7 +422,41 @@ export function ScoutDashboardModal() {
         return acc + (curr.scoutCount / curr.globalScoutCount) * 60;
     }, 0).toFixed(1);
 
-    // Compute List for Display
+    // Helper to compute game status for a player
+    const getGameStatusForPlayer = (playerTeam: string, playerSport: string): { status: 'none' | 'upcoming' | 'live' | 'ended', startTime: string | null } => {
+        if (!todaysGames) return { status: 'none', startTime: null };
+
+        const game = todaysGames.find(g =>
+            g.homeTeam === playerTeam || g.awayTeam === playerTeam
+        );
+
+        if (!game) return { status: 'none', startTime: null };
+
+        const now = new Date();
+        const gameStartTime = new Date(game.startTime);
+        const gameDbStatus = game.status;
+
+        // Determine game status
+        let gameStatus: 'none' | 'upcoming' | 'live' | 'ended' = 'none';
+        if (gameDbStatus === 'completed' || gameDbStatus === 'ended') {
+            gameStatus = 'ended';
+        } else if (gameDbStatus === 'inprogress') {
+            gameStatus = 'live';
+        } else {
+            // scheduled or unknown - check time
+            const timeSinceStart = now.getTime() - gameStartTime.getTime();
+            const threeHoursInMs = 3 * 60 * 60 * 1000;
+            if (timeSinceStart >= threeHoursInMs) {
+                gameStatus = 'ended'; // Likely ended but sync hasn't caught up
+            } else {
+                gameStatus = 'upcoming';
+            }
+        }
+
+        return { status: gameStatus, startTime: game.startTime };
+    };
+
+    // Compute List for Display with game status
     const displayedPlayers = useMemo(() => {
         const assignmentMap = new Map(assignments.map(a => [a.playerId, a.scoutCount]));
         const globalScoutMap = new Map(assignments.map(a => [a.playerId, a.globalScoutCount]));
@@ -473,17 +539,31 @@ export function ScoutDashboardModal() {
             }
         }
 
-        return rawList.map(p => ({
-            ...p,
-            fpts: parseFloat(p.avgFantasyPointsPerGame || '0'),
-            price: parseFloat(p.currentPrice || '0'),
-            change: parseFloat(p.priceChange24h || '0'),
-            volume: p.volume24h || 0,
-            mcap: parseFloat(p.marketCap || '0'),
-            yield: p.globalScoutCount > 0 ? (p.scoutCount / p.globalScoutCount) * 60 : 0,
-        }));
+        // Add game status to each player first
+        const playersWithGameStatus = rawList.map((p): PlayerWithScoutData => {
+            const gameInfo = getGameStatusForPlayer(p.team, p.sport);
+            return {
+                ...p,
+                fpts: parseFloat(p.avgFantasyPointsPerGame || '0'),
+                price: parseFloat(p.currentPrice || '0'),
+                change: parseFloat(p.priceChange24h || '0'),
+                volume: p.volume24h || 0,
+                mcap: parseFloat(p.marketCap || '0'),
+                yield: p.globalScoutCount > 0 ? (p.scoutCount / p.globalScoutCount) * 60 : 0,
+                gameStatus: gameInfo.status,
+                gameStartTime: gameInfo.startTime,
+                isGameLocked: gameInfo.status === 'live' || gameInfo.status === 'ended',
+            };
+        });
 
-    }, [playersData?.players, assignments, portfolioData, sortField, sortDirection, activeTab, searchQuery, sportFilter, positionFilter]);
+        // Then filter by game status if not "all"
+        if (gameStatusFilter !== 'all') {
+            return playersWithGameStatus.filter(p => p.gameStatus === gameStatusFilter);
+        }
+
+        return playersWithGameStatus;
+
+    }, [playersData?.players, assignments, portfolioData, todaysGames, sortField, sortDirection, activeTab, searchQuery, sportFilter, positionFilter, gameStatusFilter]);
 
     const handleSort = (field: SortField) => {
         if (sortField === field) {
@@ -494,7 +574,16 @@ export function ScoutDashboardModal() {
         }
     };
 
-    const handleAdjustScout = (playerId: string, currentCount: number, delta: number) => {
+    const handleAdjustScout = (playerId: string, currentCount: number, delta: number, gameStatus?: string) => {
+        // Prevent changes if game has started
+        if (gameStatus === 'live' || gameStatus === 'ended') {
+            toast({
+                title: "Game Started",
+                description: "Cannot adjust scouts after the game has started",
+                variant: "destructive"
+            });
+            return;
+        }
         if (delta > 0 && remaining === 0) {
             toast({
                 title: "Capacity Reached",
@@ -612,6 +701,18 @@ export function ScoutDashboardModal() {
                                     <SelectItem value="NFL">NFL</SelectItem>
                                 </SelectContent>
                             </Select>
+
+                            <Select value={gameStatusFilter} onValueChange={setGameStatusFilter}>
+                                <SelectTrigger className="w-[100px] h-8 text-xs">
+                                    <SelectValue placeholder="Status" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">All Games</SelectItem>
+                                    <SelectItem value="upcoming">Upcoming</SelectItem>
+                                    <SelectItem value="live">Live Now</SelectItem>
+                                    <SelectItem value="ended">Completed</SelectItem>
+                                </SelectContent>
+                            </Select>
                         </div>
                     </div>
                 </div>
@@ -646,6 +747,7 @@ export function ScoutDashboardModal() {
 
                             <div className="w-20 text-right cursor-pointer hover:text-foreground hidden sm:block" onClick={() => handleSort('shares')}>Owned</div>
                             <div className="w-16 text-right cursor-pointer hover:text-foreground hidden sm:block">Earned</div>
+                            <div className="w-16 text-center">Status</div>
                             <div className="w-28 text-center cursor-pointer hover:text-foreground" onClick={() => handleSort('scouts')}>Scouts</div>
                         </div>
 
@@ -669,12 +771,18 @@ export function ScoutDashboardModal() {
                                     </div>
                                 </div>
                             ) : (
-                                displayedPlayers.map((player) => (
+                                displayedPlayers.map((player: PlayerWithScoutData) => (
                                     <div key={player.id} className="group flex flex-col transition-colors border-b last:border-0">
                                         <div
                                             className={cn(
-                                                "flex items-center px-2 py-1.5 hover:bg-muted/40 transition-colors text-sm",
-                                                player.scoutCount > 0 && "bg-amber-50/50 hover:bg-amber-100/50 dark:bg-amber-950/10 dark:hover:bg-amber-950/20"
+                                                "flex items-center px-2 py-1.5 transition-colors text-sm",
+                                                // Live/ended games get priority highlighting
+                                                player.gameStatus === 'live' && "bg-red-50 dark:bg-red-950/20 border-l-2 border-l-red-500",
+                                                player.gameStatus === 'ended' && "bg-muted/40 dark:bg-muted/20 border-l-2 border-l-muted-foreground",
+                                                // Scout highlighting (only for upcoming/no-game players)
+                                                player.gameStatus !== 'live' && player.gameStatus !== 'ended' && player.scoutCount > 0 && "bg-amber-50/50 dark:bg-amber-950/10 hover:bg-amber-100/50 dark:hover:bg-amber-950/20",
+                                                // Regular hover for non-scouted players
+                                                player.gameStatus !== 'live' && player.gameStatus !== 'ended' && player.scoutCount === 0 && "hover:bg-muted/40"
                                             )}
                                         >
                                             {/* Expand Toggle */}
@@ -698,7 +806,7 @@ export function ScoutDashboardModal() {
                                                     <div className="font-medium truncate leading-tight">
                                                         {player.firstName} {player.lastName}
                                                     </div>
-                                                    <div className="text-[10px] text-muted-foreground flex items-center gap-1.5">
+                                                    <div className="text-[10px] text-muted-foreground flex items-center gap-1.5 flex-wrap">
                                                         <Badge variant="secondary" className="text-[9px] px-0.5 h-3.5 min-w-[20px] justify-center rounded-[3px]">
                                                             {player.team}
                                                         </Badge>
@@ -738,21 +846,53 @@ export function ScoutDashboardModal() {
                                                 {scoutStatus?.perPlayer?.[player.id] ? `${scoutStatus.perPlayer[player.id].toFixed(0)}m` : '-'}
                                             </div>
 
+                                            {/* Game Status */}
+                                            <div className="w-16 text-center">
+                                                {player.gameStatus === 'upcoming' && player.gameStartTime && (
+                                                    <Badge variant="outline" className="text-[9px] px-1.5 h-5 border-blue-200 text-blue-600 bg-blue-50">
+                                                        {format(new Date(player.gameStartTime), "h:mm a")}
+                                                    </Badge>
+                                                )}
+                                                {player.gameStatus === 'upcoming' && !player.gameStartTime && (
+                                                    <Badge variant="outline" className="text-[9px] px-1.5 h-5">
+                                                        -
+                                                    </Badge>
+                                                )}
+                                                {player.gameStatus === 'live' && (
+                                                    <Badge variant="destructive" className="text-[9px] px-1.5 h-5 animate-pulse font-bold">
+                                                        LIVE
+                                                    </Badge>
+                                                )}
+                                                {player.gameStatus === 'ended' && (
+                                                    <Badge variant="secondary" className="text-[9px] px-1.5 h-5">
+                                                        FINAL
+                                                    </Badge>
+                                                )}
+                                                {player.gameStatus === 'none' && (
+                                                    <Badge variant="outline" className="text-[9px] px-1.5 h-5 text-muted-foreground">
+                                                        --
+                                                    </Badge>
+                                                )}
+                                            </div>
+
                                             {/* Scouts Control */}
                                             <div className="w-28 flex items-center justify-center gap-1 pl-2">
                                                 <Button
                                                     variant="outline"
                                                     size="icon"
-                                                    className="h-6 w-6"
-                                                    onClick={() => handleAdjustScout(player.id, player.scoutCount, -1)}
-                                                    disabled={player.scoutCount === 0 || assignMutation.isPending}
+                                                    className={cn("h-6 w-6", player.isGameLocked && "opacity-50")}
+                                                    onClick={() => handleAdjustScout(player.id, player.scoutCount, -1, player.gameStatus)}
+                                                    disabled={player.scoutCount === 0 || assignMutation.isPending || player.isGameLocked}
                                                 >
                                                     <Minus className="h-3 w-3" />
                                                 </Button>
                                                 <div
-                                                    className="flex flex-col items-center min-w-[32px] cursor-pointer hover:bg-muted/50 rounded p-0.5 transition-colors"
-                                                    onClick={() => setExpandedPlayerId(expandedPlayerId === player.id ? null : player.id)}
-                                                    title="Click to view all scouts"
+                                                    className={cn(
+                                                        "flex flex-col items-center min-w-[32px] rounded p-0.5 transition-colors",
+                                                        player.isGameLocked ? "" : "cursor-pointer hover:bg-muted/50"
+                                                    )}
+                                                    onClick={() => !player.isGameLocked && setExpandedPlayerId(expandedPlayerId === player.id ? null : player.id)}
+                                                    title={player.isGameLocked ? "Game has started - scouts locked" : "Click to view all scouts"}
                                                 >
                                                     <div className={cn(
                                                         "text-center font-bold text-xs leading-none",
@@ -767,9 +907,9 @@ export function ScoutDashboardModal() {
                                                 <Button
                                                     variant="outline"
                                                     size="icon"
-                                                    className="h-6 w-6"
-                                                    onClick={() => handleAdjustScout(player.id, player.scoutCount, 1)}
-                                                    disabled={remaining === 0 || assignMutation.isPending}
+                                                    className={cn("h-6 w-6", player.isGameLocked && "opacity-50")}
+                                                    onClick={() => handleAdjustScout(player.id, player.scoutCount, 1, player.gameStatus)}
+                                                    disabled={remaining === 0 || assignMutation.isPending || player.isGameLocked}
                                                 >
                                                     <Plus className="h-3 w-3" />
                                                 </Button>

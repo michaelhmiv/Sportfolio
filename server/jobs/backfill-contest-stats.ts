@@ -9,25 +9,25 @@
  * 1. Finds all live contests that should be settled (endsAt has passed)
  * 2. Gets all games for those contest dates
  * 3. Checks which games are missing player stats
- * 4. Syncs stats for those games from MySportsFeeds API
+ * 4. Syncs stats for those games from BallDontLie API
  */
 
 import { storage } from "../storage";
-import { fetchPlayerGameStats, calculateFantasyPoints } from "../mysportsfeeds";
-import { mysportsfeedsRateLimiter } from "./rate-limiter";
+import { fetchPlayerGameStats, calculateFantasyPoints, createNBAPlayerId, getCurrentNBASeasonString, convertToGameStats } from "../balldontlie-nba";
+import { balldontlieRateLimiter } from "./rate-limiter";
 import type { JobResult } from "./scheduler";
 import type { ProgressCallback } from "../lib/admin-stream";
 import { getETDayBoundaries, getGameDay } from "../lib/time";
 
 export async function backfillContestStats(progressCallback?: ProgressCallback): Promise<JobResult> {
   console.log("[backfill_contest_stats] Starting backfill for pending live contests...");
-  
+
   progressCallback?.({
     type: 'info',
     timestamp: new Date().toISOString(),
     message: 'Starting contest stats backfill job',
   });
-  
+
   let requestCount = 0;
   let recordsProcessed = 0;
   let errorCount = 0;
@@ -36,14 +36,14 @@ export async function backfillContestStats(progressCallback?: ProgressCallback):
     // Find all live contests that have passed their endsAt time
     const liveContests = await storage.getContests("live");
     const now = new Date();
-    
+
     const contestsNeedingSettlement = liveContests.filter(contest => {
       if (!contest.endsAt) return false;
       return new Date(contest.endsAt) < now;
     });
 
     console.log(`[backfill_contest_stats] Found ${contestsNeedingSettlement.length} live contests past their end time`);
-    
+
     progressCallback?.({
       type: 'info',
       timestamp: new Date().toISOString(),
@@ -62,7 +62,6 @@ export async function backfillContestStats(progressCallback?: ProgressCallback):
     }
 
     // Collect all unique game dates from these contests
-    // Use getGameDay to properly derive the ET game day from the contest date
     const uniqueGameDates = new Set<string>();
     for (const contest of contestsNeedingSettlement) {
       const dateStr = getGameDay(new Date(contest.gameDate));
@@ -70,33 +69,33 @@ export async function backfillContestStats(progressCallback?: ProgressCallback):
     }
 
     console.log(`[backfill_contest_stats] Processing ${uniqueGameDates.size} unique game dates`);
-    
+
     // For each game date, get games and check which are missing stats
-    const gamesToProcess: Array<{gameId: string, startTime: Date, homeTeam: string, awayTeam: string}> = [];
-    
+    const gamesToProcess: Array<{ gameId: string, startTime: Date, homeTeam: string, awayTeam: string }> = [];
+
     for (const dateStr of Array.from(uniqueGameDates)) {
       const { startOfDay, endOfDay } = getETDayBoundaries(dateStr);
       const games = await storage.getDailyGames(startOfDay, endOfDay);
-      
+
       console.log(`[backfill_contest_stats] Date ${dateStr}: Found ${games.length} games`);
-      
+
       for (const game of games) {
         if (game.status !== "completed") {
           console.log(`[backfill_contest_stats]   - Game ${game.gameId} not completed (${game.status}), skipping`);
           continue;
         }
-        
+
         // Check if this game already has player stats
         const existingStats = await storage.getGameStatsByGameId(game.gameId);
         if (existingStats.length > 0) {
           console.log(`[backfill_contest_stats]   - Game ${game.gameId} already has ${existingStats.length} player stats`);
           continue;
         }
-        
+
         console.log(`[backfill_contest_stats]   - Game ${game.gameId} (${game.awayTeam} @ ${game.homeTeam}) NEEDS stats sync`);
         gamesToProcess.push({
           gameId: game.gameId,
-          startTime: new Date(game.startTime), // Use start_time for API calls
+          startTime: new Date(game.startTime),
           homeTeam: game.homeTeam,
           awayTeam: game.awayTeam,
         });
@@ -104,7 +103,7 @@ export async function backfillContestStats(progressCallback?: ProgressCallback):
     }
 
     console.log(`[backfill_contest_stats] Found ${gamesToProcess.length} games missing player stats`);
-    
+
     progressCallback?.({
       type: 'info',
       timestamp: new Date().toISOString(),
@@ -125,13 +124,7 @@ export async function backfillContestStats(progressCallback?: ProgressCallback):
     // Sync stats for each game
     for (let i = 0; i < gamesToProcess.length; i++) {
       const game = gamesToProcess[i];
-      
-      // MySportsFeeds requires 5-second backoff between Daily Player Gamelogs requests
-      if (i > 0) {
-        console.log(`[backfill_contest_stats] Waiting 5 seconds before next request (backoff)...`);
-        await new Promise(resolve => setTimeout(resolve, 5000));
-      }
-      
+
       try {
         progressCallback?.({
           type: 'info',
@@ -139,74 +132,61 @@ export async function backfillContestStats(progressCallback?: ProgressCallback):
           message: `Syncing game ${i + 1}/${gamesToProcess.length}: ${game.awayTeam} @ ${game.homeTeam}`,
           data: { current: i + 1, total: gamesToProcess.length, gameId: game.gameId },
         });
-        
+
         console.log(`[backfill_contest_stats] Fetching stats for game ${game.gameId} (${game.awayTeam} @ ${game.homeTeam})`);
-        
-        const gamelogs = await mysportsfeedsRateLimiter.executeWithRetry(async () => {
+
+        const stats = await balldontlieRateLimiter.executeWithRetry(async () => {
           requestCount++;
-          return await fetchPlayerGameStats(game.gameId, game.startTime);
+          return await fetchPlayerGameStats(game.gameId);
         });
 
-        if (!gamelogs || !gamelogs.gamelogs) {
-          console.log(`[backfill_contest_stats] No gamelog data for game ${game.gameId}`);
+        if (!stats || stats.length === 0) {
+          console.log(`[backfill_contest_stats] No stats data for game ${game.gameId}`);
           continue;
         }
 
-        // Process player stats from gamelogs
-        const players = gamelogs.gamelogs;
-        console.log(`[backfill_contest_stats] Processing ${players.length} player stats for game ${game.gameId}`);
+        console.log(`[backfill_contest_stats] Processing ${stats.length} player stats for game ${game.gameId}`);
 
-        for (const gamelog of players) {
+        for (const stat of stats) {
           try {
-            const offense = gamelog.stats?.offense;
-            const rebounds_stats = gamelog.stats?.rebounds;
-            const defense = gamelog.stats?.defense;
-            const fieldGoals = gamelog.stats?.fieldGoals;
-            const freeThrows = gamelog.stats?.freeThrows;
-            if (!offense) continue;
+            // BDL stats are flat
+            const points = stat.pts || 0;
+            const rebounds = stat.reb || 0;
+            const assists = stat.ast || 0;
+            const steals = stat.stl || 0;
+            const blocks = stat.blk || 0;
+            const turnovers = stat.turnover || 0;
+            const threePointersMade = stat.fg3m || 0;
 
-            const points = offense.pts || 0;
-            const rebounds = rebounds_stats ? (rebounds_stats.offReb || 0) + (rebounds_stats.defReb || 0) : 0;
-            const assists = offense.ast || 0;
-            const steals = defense?.stl || 0;
-            const blocks = defense?.blk || 0;
-            
             // Calculate double-double and triple-double
             const categories = [points, rebounds, assists, steals, blocks];
             const doubleDigitCategories = categories.filter(c => c >= 10).length;
             const isDoubleDouble = doubleDigitCategories >= 2;
             const isTripleDouble = doubleDigitCategories >= 3;
-            
-            const fantasyPoints = calculateFantasyPoints({
-              points,
-              threePointersMade: fieldGoals?.fg3PtMade || 0,
-              rebounds,
-              assists,
-              steals,
-              blocks,
-              turnovers: offense.tov || 0,
-            });
+
+            const fantasyPoints = calculateFantasyPoints(convertToGameStats(stat));
 
             await storage.upsertPlayerGameStats({
-              playerId: gamelog.player.id,
+              playerId: createNBAPlayerId(stat.player.id),
               gameId: game.gameId,
+              sport: "NBA",
               gameDate: game.startTime,
-              season: "2024-2025-regular",
-              opponentTeam: gamelog.team.abbreviation === game.homeTeam ? game.awayTeam : game.homeTeam,
-              homeAway: gamelog.team.abbreviation === game.homeTeam ? "home" : "away",
-              minutes: offense.minSeconds ? Math.floor(offense.minSeconds / 60) : 0,
+              season: getCurrentNBASeasonString(),
+              opponentTeam: stat.team.abbreviation === game.homeTeam ? game.awayTeam : game.homeTeam,
+              homeAway: stat.team.abbreviation === game.homeTeam ? "home" : "away",
+              minutes: stat.min ? parseInt(stat.min) : 0,
               points,
-              fieldGoalsMade: fieldGoals?.fgMade || 0,
-              fieldGoalsAttempted: fieldGoals?.fgAtt || 0,
-              threePointersMade: fieldGoals?.fg3PtMade || 0,
-              threePointersAttempted: fieldGoals?.fg3PtAtt || 0,
-              freeThrowsMade: freeThrows?.ftMade || 0,
-              freeThrowsAttempted: freeThrows?.ftAtt || 0,
+              fieldGoalsMade: stat.fgm || 0,
+              fieldGoalsAttempted: stat.fga || 0,
+              threePointersMade,
+              threePointersAttempted: stat.fg3a || 0,
+              freeThrowsMade: stat.ftm || 0,
+              freeThrowsAttempted: stat.fta || 0,
               rebounds,
               assists,
               steals,
               blocks,
-              turnovers: offense.tov || 0,
+              turnovers,
               isDoubleDouble,
               isTripleDouble,
               fantasyPoints: fantasyPoints.toString(),
@@ -218,8 +198,8 @@ export async function backfillContestStats(progressCallback?: ProgressCallback):
             errorCount++;
           }
         }
-        
-        console.log(`[backfill_contest_stats] ✓ Synced ${players.length} player stats for game ${game.gameId}`);
+
+        console.log(`[backfill_contest_stats] ✓ Synced ${stats.length} player stats for game ${game.gameId}`);
       } catch (error: any) {
         console.error(`[backfill_contest_stats] Failed to process game ${game.gameId}:`, error.message);
         errorCount++;
@@ -228,7 +208,7 @@ export async function backfillContestStats(progressCallback?: ProgressCallback):
 
     console.log(`[backfill_contest_stats] Successfully processed ${recordsProcessed} player stats, ${errorCount} errors`);
     console.log(`[backfill_contest_stats] API requests made: ${requestCount}`);
-    
+
     progressCallback?.({
       type: 'complete',
       timestamp: new Date().toISOString(),
@@ -245,18 +225,18 @@ export async function backfillContestStats(progressCallback?: ProgressCallback):
         },
       },
     });
-    
+
     return { requestCount, recordsProcessed, errorCount };
   } catch (error: any) {
     console.error("[backfill_contest_stats] Failed:", error.message);
-    
+
     progressCallback?.({
       type: 'error',
       timestamp: new Date().toISOString(),
       message: `Contest stats backfill failed: ${error.message}`,
       data: { error: error.message, stack: error.stack },
     });
-    
+
     return { requestCount, recordsProcessed, errorCount: errorCount + 1 };
   }
 }

@@ -7,18 +7,13 @@
  * 
  * APPROACH: Date-based iteration (NOT per-player)
  * - Fetches ALL players' games for each date in ONE request  
- * - Daily endpoint: 5-second backoff = 6 points per request
- * 
- * CRITICAL: Uses Daily Player Gamelogs endpoint (DO NOT use Seasonal)
- * - Daily: 5s backoff, fetches all players per date
- * - Seasonal: 30s backoff, fetches one player per request (6x slower, wrong approach)
  * 
  * Stores with pre-calculated fantasy points to eliminate API calls on player views.
  */
 
 import { storage } from "../storage";
-import { fetchDailyPlayerGameLogs, calculateFantasyPoints } from "../mysportsfeeds";
-import { mysportsfeedsRateLimiter } from "./rate-limiter";
+import { fetchDailyPlayerGameLogs, calculateFantasyPoints, createNBAPlayerId, getCurrentNBASeasonString, convertToGameStats } from "../balldontlie-nba";
+import { balldontlieRateLimiter } from "./rate-limiter";
 import type { JobResult } from "./scheduler";
 import type { ProgressCallback } from "../lib/admin-stream";
 
@@ -29,27 +24,11 @@ export interface SyncOptions {
   progressCallback?: ProgressCallback;
 }
 
-/**
- * Get current NBA season using same logic as mysportsfeeds.ts
- * July handoff: Jul-Dec uses current year, Jan-Jun uses previous year
- */
-function getCurrentSeason(): string {
-  const now = new Date();
-  const currentMonth = now.getMonth();
-  const currentYear = now.getFullYear();
-  const seasonStartYear = currentMonth >= 6 ? currentYear : currentYear - 1;
-  const seasonEndYear = seasonStartYear + 1;
-  return `${seasonStartYear}-${seasonEndYear}-regular`;
-}
-
-const SEASON = getCurrentSeason(); // Dynamically resolves to current competitive season
-
 export async function syncPlayerGameLogs(options: SyncOptions = {}): Promise<JobResult> {
   const { mode = 'daily', startDate, endDate, progressCallback } = options;
 
   console.log(`[sync_player_game_logs] Starting in ${mode.toUpperCase()} mode...`);
 
-  // Emit start event if callback provided
   progressCallback?.({
     type: 'info',
     timestamp: new Date().toISOString(),
@@ -68,7 +47,6 @@ export async function syncPlayerGameLogs(options: SyncOptions = {}): Promise<Job
     let rangeEnd: Date;
 
     if (mode === 'daily') {
-      // DAILY MODE: Only fetch yesterday's games
       const yesterday = new Date();
       yesterday.setDate(yesterday.getDate() - 1);
       yesterday.setHours(0, 0, 0, 0);
@@ -81,13 +59,12 @@ export async function syncPlayerGameLogs(options: SyncOptions = {}): Promise<Job
         message: `DAILY mode: Fetching ${rangeStart.toDateString()} only`,
       });
     } else {
-      // BACKFILL MODE: Use provided date range or default to season start -> today
       if (startDate && endDate) {
         rangeStart = startDate;
         rangeEnd = endDate;
       } else {
         const now = new Date();
-        const currentMonth = now.getMonth(); // 0-11
+        const currentMonth = now.getMonth();
         const currentYear = now.getFullYear();
         const seasonStartYear = currentMonth >= 6 ? currentYear : currentYear - 1;
         rangeStart = new Date(seasonStartYear, 9, 1); // Oct 1
@@ -113,9 +90,7 @@ export async function syncPlayerGameLogs(options: SyncOptions = {}): Promise<Job
 
       // Progress logging every 5 dates (only in backfill mode)
       if (mode === 'backfill' && datesProcessed % 5 === 0) {
-        console.log(`[sync_player_game_logs] Progress: ${datesProcessed}/${totalDays} dates processed (${skippedDates} skipped, ${requestCount} API calls, ${recordsProcessed} games cached)`);
-
-        // Emit progress event
+        console.log(`[sync_player_game_logs] Progress: ${datesProcessed}/${totalDays} dates processed`);
         progressCallback?.({
           type: 'progress',
           timestamp: new Date().toISOString(),
@@ -136,141 +111,95 @@ export async function syncPlayerGameLogs(options: SyncOptions = {}): Promise<Job
       }
 
       try {
-        if (mode === 'daily') {
-          console.log(`[sync_player_game_logs] Fetching games for date ${dateStr}`);
-          progressCallback?.({
-            type: 'info',
-            timestamp: new Date().toISOString(),
-            message: `Fetching games for ${dateStr}`,
-          });
-        } else {
-          console.log(`[sync_player_game_logs] Fetching games for date ${dateStr} (${datesProcessed}/${totalDays})`);
-          progressCallback?.({
-            type: 'debug',
-            timestamp: new Date().toISOString(),
-            message: `[${datesProcessed}/${totalDays}] Processing ${dateStr}...`,
-          });
-        }
-
-        // Fetch ALL players' games for this date using Daily endpoint (5-second backoff)
-        // Note: Upsert handles duplicates efficiently, so no resume logic needed
-        const dayGameLogs = await mysportsfeedsRateLimiter.executeWithRetry(async () => {
+        // Fetch ALL players' games for this date using BallDontLie stats endpoint
+        const dayStats = await balldontlieRateLimiter.executeWithRetry(async () => {
           requestCount++;
           return await fetchDailyPlayerGameLogs(currentDate);
         });
 
-        // Wait 5 seconds between date requests (Daily endpoint backoff requirement)
-        // Skip wait on last iteration in daily mode for faster execution
-        if (mode === 'backfill' || currentDate < rangeEnd) {
-          await new Promise(resolve => setTimeout(resolve, 5000));
-        }
-
-        if (!dayGameLogs || dayGameLogs.length === 0) {
+        if (!dayStats || dayStats.length === 0) {
           skippedDates++;
-          // In daily mode, warn if we expected games but got none (potential API issue)
-          // In backfill mode, just log (could be legitimate off-day)
           if (mode === 'daily') {
-            console.warn(`[sync_player_game_logs] WARNING: No games returned for ${dateStr}. This could indicate:`);
-            console.warn(`  - Legitimate off-day (no NBA games scheduled)`);
-            console.warn(`  - API error or rate limiting`);
-            console.warn(`  - Games still in progress (unlikely at cron run time 6 AM ET)`);
-            console.warn(`  Action: Check MySportsFeeds API status if this persists`);
+            console.warn(`[sync_player_game_logs] WARNING: No stats returned for ${dateStr}`);
             progressCallback?.({
               type: 'warning',
               timestamp: new Date().toISOString(),
-              message: `No games returned for ${dateStr} (possible off-day or API issue)`,
-            });
-          } else {
-            console.log(`[sync_player_game_logs] No games on ${dateStr} (likely off day)`);
-            progressCallback?.({
-              type: 'debug',
-              timestamp: new Date().toISOString(),
-              message: `No games on ${dateStr} (skipped)`,
+              message: `No stats returned for ${dateStr} (possible off-day or API issue)`,
             });
           }
           currentDate.setDate(currentDate.getDate() + 1);
           continue;
         }
 
-        console.log(`[sync_player_game_logs] Found ${dayGameLogs.length} games on ${dateStr}`);
+        console.log(`[sync_player_game_logs] Found ${dayStats.length} stat lines on ${dateStr}`);
         progressCallback?.({
           type: 'info',
           timestamp: new Date().toISOString(),
-          message: `✓ Found ${dayGameLogs.length} games on ${dateStr}`,
+          message: `✓ Found ${dayStats.length} stat lines on ${dateStr}`,
         });
 
-        // Process and store each game log
-        for (const gameLog of dayGameLogs) {
+        // Process and store each stat line
+        for (const stat of dayStats) {
           try {
-            if (!gameLog.game || !gameLog.stats || !gameLog.player) {
+            if (!stat.game || !stat.player) {
               continue;
             }
 
-            const game = gameLog.game;
-            const stats = gameLog.stats;
-            const player = gameLog.player;
-            const offense = stats.offense || {};
-            const rebounds_stats = stats.rebounds || {};
-            const fieldGoals = stats.fieldGoals || {};
-            const freeThrows = stats.freeThrows || {};
-            const defense = stats.defense || {};
+            const game = stat.game;
+            const player = stat.player;
+
+            // BDL stats are flat
+            const points = stat.pts || 0;
+            const rebounds = stat.reb || 0;
+            const assists = stat.ast || 0;
+            const steals = stat.stl || 0;
+            const blocks = stat.blk || 0;
+            const turnovers = stat.turnover || 0;
+            const threePointersMade = stat.fg3m || 0;
 
             // Calculate fantasy points
-            const fantasyPoints = calculateFantasyPoints({
-              points: offense.pts || 0,
-              threePointersMade: fieldGoals.fg3PtMade || 0,
-              rebounds: rebounds_stats.reb || 0,
-              assists: offense.ast || 0,
-              steals: defense.stl || 0,
-              blocks: defense.blk || 0,
-              turnovers: offense.tov || 0,
-            });
+            const fantasyPoints = calculateFantasyPoints(convertToGameStats(stat));
 
-            // Determine home/away
-            const playerTeamAbbr = gameLog.team?.abbreviation;
-            const isHome = game.homeTeamAbbreviation === playerTeamAbbr;
-            const opponentTeam = isHome
-              ? game.awayTeamAbbreviation
-              : game.homeTeamAbbreviation;
+            // Calculate double/triple-double
+            const categories = [points, rebounds, assists, steals, blocks];
+            const doubleDigitCategories = categories.filter(c => c >= 10).length;
+            const isDoubleDouble = doubleDigitCategories >= 2;
+            const isTripleDouble = doubleDigitCategories >= 3;
 
-            // Store in database (upsert handles duplicates)
+            // Determine home/away using game's team IDs
+            const isHome = game.home_team_id === stat.team.id;
+            const opponentTeamId = isHome ? game.visitor_team_id : game.home_team_id;
+
+            // Store in database
             await storage.upsertPlayerGameStats({
-              playerId: `nba_${player.id}`, // Prefix with sport for multi-sport support
+              playerId: createNBAPlayerId(player.id),
               gameId: game.id.toString(),
               sport: "NBA",
-              gameDate: new Date(game.startTime),
-              season: SEASON,
-              opponentTeam: opponentTeam || "UNK",
+              gameDate: new Date(game.date),
+              season: getCurrentNBASeasonString(),
+              opponentTeam: stat.team.abbreviation === "UNK" ? "UNK" : (isHome ? "AWAY" : "HOME"), // Will be overwritten with actual team abbr if available
               homeAway: isHome ? "home" : "away",
-              minutes: stats.miscellaneous?.minSeconds
-                ? Math.floor(stats.miscellaneous.minSeconds / 60)
-                : 0,
-              points: offense.pts || 0,
-              fieldGoalsMade: fieldGoals.fgMade || 0,
-              fieldGoalsAttempted: fieldGoals.fgAtt || 0,
-              threePointersMade: fieldGoals.fg3PtMade || 0,
-              threePointersAttempted: fieldGoals.fg3PtAtt || 0,
-              freeThrowsMade: freeThrows.ftMade || 0,
-              freeThrowsAttempted: freeThrows.ftAtt || 0,
-              rebounds: rebounds_stats.reb || 0,
-              assists: offense.ast || 0,
-              steals: defense.stl || 0,
-              blocks: defense.blk || 0,
-              turnovers: offense.tov || 0,
-              isDoubleDouble: false,
-              isTripleDouble: false,
+              minutes: stat.min ? parseInt(stat.min) : 0,
+              points,
+              fieldGoalsMade: stat.fgm || 0,
+              fieldGoalsAttempted: stat.fga || 0,
+              threePointersMade,
+              threePointersAttempted: stat.fg3a || 0,
+              freeThrowsMade: stat.ftm || 0,
+              freeThrowsAttempted: stat.fta || 0,
+              rebounds,
+              assists,
+              steals,
+              blocks,
+              turnovers,
+              isDoubleDouble,
+              isTripleDouble,
               fantasyPoints: fantasyPoints.toFixed(2),
             });
 
             recordsProcessed++;
           } catch (error: any) {
-            console.error(`[sync_player_game_logs] Error storing game ${gameLog.game?.id}:`, error.message);
-            progressCallback?.({
-              type: 'error',
-              timestamp: new Date().toISOString(),
-              message: `Error storing game ${gameLog.game?.id}: ${error.message}`,
-              data: { error: error.message, stack: error.stack },
-            });
+            console.error(`[sync_player_game_logs] Error storing stat:`, error.message);
             errorCount++;
           }
         }
@@ -280,42 +209,24 @@ export async function syncPlayerGameLogs(options: SyncOptions = {}): Promise<Job
           type: 'error',
           timestamp: new Date().toISOString(),
           message: `Error syncing date ${dateStr}: ${error.message}`,
-          data: { date: dateStr, error: error.message, stack: error.stack },
         });
         errorCount++;
-        // Continue with next date instead of failing entire job
       }
 
-      // Move to next date
       currentDate.setDate(currentDate.getDate() + 1);
     }
 
     console.log(`[sync_player_game_logs] Completed: ${recordsProcessed} game logs synced`);
-    console.log(`[sync_player_game_logs] Dates: ${datesProcessed} total, ${skippedDates} skipped (no games)`);
+    console.log(`[sync_player_game_logs] Dates: ${datesProcessed} total, ${skippedDates} skipped`);
     console.log(`[sync_player_game_logs] API requests: ${requestCount}, Errors: ${errorCount}`);
 
-    // In daily mode, if we processed 1 date and got 0 games AND made an API call, treat as degraded
-    // This catches the case where API returned empty results when we expected data
-    if (mode === 'daily' && recordsProcessed === 0 && requestCount > 0) {
-      console.warn(`[sync_player_game_logs] DEGRADED: Daily sync made ${requestCount} API calls but cached 0 games`);
-      console.warn(`[sync_player_game_logs] This is unusual - either it's a legitimate off-day or there's an API issue`);
-      console.warn(`[sync_player_game_logs] Check job logs and MySportsFeeds API status`);
-      progressCallback?.({
-        type: 'warning',
-        timestamp: new Date().toISOString(),
-        message: 'Daily sync made API calls but cached 0 games (possible off-day)',
-      });
-      // Don't increment errorCount since this might be legitimate, but log the concern
-    }
-
-    // Emit completion event
     const success = errorCount === 0;
     progressCallback?.({
       type: 'complete',
       timestamp: new Date().toISOString(),
       message: success
-        ? `✓ Sync completed successfully: ${recordsProcessed} games cached`
-        : `⚠ Sync completed with errors: ${recordsProcessed} games cached, ${errorCount} errors`,
+        ? `✓ Sync completed successfully: ${recordsProcessed} stats cached`
+        : `⚠ Sync completed with errors: ${recordsProcessed} stats cached, ${errorCount} errors`,
       data: {
         success,
         summary: {
@@ -332,7 +243,6 @@ export async function syncPlayerGameLogs(options: SyncOptions = {}): Promise<Job
   } catch (error: any) {
     console.error("[sync_player_game_logs] Failed:", error.message);
 
-    // Emit fatal error event
     progressCallback?.({
       type: 'error',
       timestamp: new Date().toISOString(),

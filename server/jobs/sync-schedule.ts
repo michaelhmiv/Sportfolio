@@ -1,14 +1,14 @@
 /**
  * Schedule Sync Job
  * 
- * Fetches daily NBA game schedules from MySportsFeeds.
+ * Fetches daily NBA game schedules from BallDontLie API.
  * Caches game data for contest eligibility checking.
  * Broadcasts updates when game scores change.
  */
 
 import { storage } from "../storage";
-import { fetchDailyGames, fetchGameStatus, normalizeGameStatus } from "../mysportsfeeds";
-import { mysportsfeedsRateLimiter } from "./rate-limiter";
+import { fetchDailyGames, normalizeGameStatus } from "../balldontlie-nba";
+import { balldontlieRateLimiter } from "./rate-limiter";
 import type { JobResult } from "./scheduler";
 import type { ProgressCallback } from "../lib/admin-stream";
 import { broadcast } from "../websocket";
@@ -51,7 +51,7 @@ export async function syncSchedule(progressCallback?: ProgressCallback): Promise
     for (let i = 0; i < dates.length; i++) {
       const date = dates[i];
       try {
-        const games = await mysportsfeedsRateLimiter.executeWithRetry(async () => {
+        const games = await balldontlieRateLimiter.executeWithRetry(async () => {
           requestCount++;
           return await fetchDailyGames(date);
         });
@@ -74,9 +74,9 @@ export async function syncSchedule(progressCallback?: ProgressCallback): Promise
         // Store games in database
         for (const game of games) {
           try {
-            const rawStatus = game.schedule.playedStatus || "scheduled";
-            const gameId = game.schedule.id.toString();
-            const startTime = new Date(game.schedule.startTime);
+            // BallDontLie uses different status values
+            const gameId = game.id.toString();
+            const startTime = new Date(game.datetime);
 
             // Calculate game day in Eastern Time for the date field
             // NOTE: All queries should use start_time, not this date field
@@ -84,19 +84,19 @@ export async function syncSchedule(progressCallback?: ProgressCallback): Promise
             const { startOfDay } = getETDayBoundaries(gameDay);
 
             // Extract scores for completed/in-progress games
-            const homeScore = game.score?.homeScoreTotal != null ? parseInt(game.score.homeScoreTotal) : null;
-            const awayScore = game.score?.awayScoreTotal != null ? parseInt(game.score.awayScoreTotal) : null;
+            const homeScore = game.home_team_score;
+            const awayScore = game.visitor_team_score;
 
-            // Normalize status based on what MySportsFeeds API returns
-            const normalizedStatus = normalizeGameStatus(rawStatus);
+            // Normalize status from BallDontLie format
+            const normalizedStatus = normalizeGameStatus(game.status);
 
             await storage.upsertDailyGame({
               gameId,
               sport: "NBA", // Multi-sport support
               date: startOfDay, // Store midnight UTC on the game's ET day (for auditing only)
-              homeTeam: game.schedule?.homeTeam?.abbreviation || "UNK",
-              awayTeam: game.schedule?.awayTeam?.abbreviation || "UNK",
-              venue: game.schedule?.venue?.name,
+              homeTeam: game.home_team?.abbreviation || "UNK",
+              awayTeam: game.visitor_team?.abbreviation || "UNK",
+              venue: undefined, // BDL doesn't include venue in games endpoint
               status: normalizedStatus,
               startTime, // SINGLE SOURCE OF TRUTH - use this for all queries
               homeScore,
@@ -110,7 +110,7 @@ export async function syncSchedule(progressCallback?: ProgressCallback): Promise
               gamesWithUpdates.add(gameId);
             }
           } catch (error: any) {
-            console.error(`[schedule_sync] Failed to store game ${game.schedule.id}:`, error.message);
+            console.error(`[schedule_sync] Failed to store game ${game.id}:`, error.message);
             errorCount++;
           }
         }
