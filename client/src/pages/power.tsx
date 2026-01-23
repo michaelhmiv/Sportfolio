@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Zap, TrendingUp, History, AlertTriangle, Flame, Search, X, Clock, ChevronLeft, ChevronRight, Users, Star, Trophy, Plus } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, getAuthHeaders } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import type { Player, DailyGame } from "@shared/schema";
@@ -232,7 +232,8 @@ export default function Power() {
     }>({
         queryKey: ["/api/daily-boosts/history"],
         queryFn: async () => {
-            const res = await fetch("/api/daily-boosts/history");
+            const headers = await getAuthHeaders();
+            const res = await fetch("/api/daily-boosts/history", { headers });
             if (!res.ok) throw new Error("Failed to fetch history");
             return res.json();
         },

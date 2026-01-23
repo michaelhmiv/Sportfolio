@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Star, Loader2, Search, Zap, Users, ChevronUp, ChevronDown, Plus } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, getAuthHeaders } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -70,7 +70,8 @@ export function CommunityBoostSelector({ open, onOpenChange, selectedDate }: Com
   const { data, isLoading, error } = useQuery<EligiblePlayersResponse>({
     queryKey: ["/api/community-boosts/eligible-players", dateStr],
     queryFn: async () => {
-      const res = await fetch(`/api/community-boosts/eligible-players?date=${dateStr}`);
+      const headers = await getAuthHeaders();
+      const res = await fetch(`/api/community-boosts/eligible-players?date=${dateStr}`, { headers });
       if (!res.ok) throw new Error("Failed to fetch eligible players");
       return res.json();
     },
