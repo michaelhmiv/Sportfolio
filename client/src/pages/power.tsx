@@ -156,7 +156,8 @@ export default function Power() {
         queryKey: ["/api/daily-boosts/all", formatDateET(selectedDate)],
         queryFn: async () => {
             const dateStr = formatDateET(selectedDate);
-            const res = await fetch(`/api/daily-boosts/all?date=${dateStr}`);
+            const headers = await getAuthHeaders();
+            const res = await fetch(`/api/daily-boosts/all?date=${dateStr}`, { headers });
             if (!res.ok) throw new Error("Failed to fetch boosts");
             return res.json();
         },
@@ -172,7 +173,8 @@ export default function Power() {
         queryFn: async () => {
             const dateStr = formatDateET(selectedDate);
             console.log("[Power] Fetching eligible players for date:", dateStr);
-            const res = await fetch(`/api/daily-boosts/eligible-all?date=${dateStr}`);
+            const headers = await getAuthHeaders();
+            const res = await fetch(`/api/daily-boosts/eligible-all?date=${dateStr}`, { headers });
             console.log("[Power] Response status:", res.status);
             if (!res.ok) {
                 const responseText = await res.text();
@@ -199,7 +201,8 @@ export default function Power() {
     const { data: debugData } = useQuery<any>({
         queryKey: ["/api/daily-boosts/debug"],
         queryFn: async () => {
-            const res = await fetch(`/api/daily-boosts/debug`);
+            const headers = await getAuthHeaders();
+            const res = await fetch(`/api/daily-boosts/debug`, { headers });
             if (!res.ok) throw new Error("Debug endpoint failed");
             return res.json();
         },
@@ -217,7 +220,8 @@ export default function Power() {
         queryKey: ["/api/community-boosts/all", formatDateET(selectedDate)],
         queryFn: async () => {
             const dateStr = formatDateET(selectedDate);
-            const res = await fetch(`/api/community-boosts/all?date=${dateStr}`);
+            const headers = await getAuthHeaders();
+            const res = await fetch(`/api/community-boosts/all?date=${dateStr}`, { headers });
             if (!res.ok) throw new Error("Failed to fetch community boosts");
             return res.json();
         },
