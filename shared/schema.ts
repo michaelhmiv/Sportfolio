@@ -41,7 +41,9 @@ export const users = pgTable("users", {
   newsNotificationsEnabled: boolean("news_notifications_enabled").notNull().default(true), // Opt-out of news notifications
   // Scout Engine fields
   lastActiveAt: timestamp("last_active_at"), // Scout Engine: activity tracking for 24h kill-switch
-});
+}, (table) => ({
+  lastActiveIdx: index("users_last_active_idx").on(table.lastActiveAt),
+}));
 
 // Players table - players from all sports (NBA, NFL, etc.)
 // Player IDs are prefixed with sport: nba_12345, nfl_67890
@@ -218,6 +220,7 @@ export const scoutAssignments = pgTable("scout_assignments", {
 }, (table) => ({
   userPlayerUniqueIdx: uniqueIndex("scout_user_player_unique_idx").on(table.userId, table.playerId),
   playerIdx: index("scout_player_idx").on(table.playerId),
+  userIdx: index("scout_user_idx").on(table.userId),
 }));
 
 // Scout Engine: Scout distributions - immutable ledger of hourly share distributions
