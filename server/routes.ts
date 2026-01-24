@@ -7524,6 +7524,8 @@ ${posts.map(post => `  <url>
         }
       }
 
+      console.log(`[community-boosts/eligible-players] User ${userId}, date: ${dateStr}`);
+
       const { startOfDay, endOfDay } = getETDayBoundaries(dateStr);
       const targetDate = new Date(startOfDay.getTime() + 12 * 60 * 60 * 1000);
 
@@ -7534,8 +7536,11 @@ ${posts.map(post => `  <url>
           lt(dailyGames.date, endOfDay)
         ));
 
+      console.log(`[community-boosts/eligible-players] Found ${todaysGames.length} games for date ${dateStr}`);
+
       // Get all active community boosts for today
       const communityBoosts = await storage.getCommunityBoostsAllSports(targetDate);
+      console.log(`[community-boosts/eligible-players] Found ${communityBoosts.length} community boosts`);
       const communityBoostMap = new Map<string, number>();
       communityBoosts.forEach(cb => {
         const current = communityBoostMap.get(cb.playerId) || 0;
@@ -7560,8 +7565,14 @@ ${posts.map(post => `  <url>
 
       // Get all players whose teams have games today
       const teamsWithGames = new Set([...todaysGames.map(g => g.homeTeam), ...todaysGames.map(g => g.awayTeam)]);
-      const playersWithGames = await db.select().from(players)
-        .where(inArray(players.team, Array.from(teamsWithGames)));
+      console.log(`[community-boosts/eligible-players] Teams with games: ${teamsWithGames.size}`);
+
+      let playersWithGames: typeof players.$inferSelect[] = [];
+      if (teamsWithGames.size > 0) {
+        playersWithGames = await db.select().from(players)
+          .where(inArray(players.team, Array.from(teamsWithGames)));
+      }
+      console.log(`[community-boosts/eligible-players] Found ${playersWithGames.length} players with games`);
 
       const now = new Date();
 
@@ -7621,6 +7632,7 @@ ${posts.map(post => `  <url>
         return nameA.localeCompare(nameB);
       });
 
+      console.log(`[community-boosts/eligible-players] Returning ${result.length} players, ${userCommunityShares} user shares`);
       res.json({
         date: targetDate.toISOString().split('T')[0],
         players: result,

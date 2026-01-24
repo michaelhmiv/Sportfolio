@@ -2900,11 +2900,29 @@ export class DatabaseStorage implements IStorage {
       conditions.push(sql`UPPER(${dailyGames.sport}) = ${sport.toUpperCase()}`);
     }
 
+    // Deduplicate by homeTeam, awayTeam, and startTime (within 5 min tolerance)
+    // This handles legacy MySportsFeeds records (gameId starting with 18447) coexisting
+    // with BallDontLie records (6-digit gameIds) for the same games
     return await db
       .select()
       .from(dailyGames)
       .where(and(...conditions))
-      .orderBy(asc(dailyGames.startTime));
+      .orderBy(asc(dailyGames.startTime), asc(dailyGames.gameId)) // Prefer shorter BDL gameIds
+      .then(games => {
+        const seen = new Map<string, DailyGame>();
+        for (const game of games) {
+          // Create a dedupe key using teams and startTime rounded to 5-min intervals
+          const gameTime = new Date(game.startTime);
+          const roundedTime = new Date(Math.round(gameTime.getTime() / (5 * 60 * 1000)) * (5 * 60 * 1000));
+          const key = `${game.homeTeam}-${game.awayTeam}-${roundedTime.toISOString()}`;
+          if (!seen.has(key)) {
+            seen.set(key, game);
+          }
+        }
+        return Array.from(seen.values()).sort((a, b) =>
+          new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+        );
+      });
   }
 
   async getDailyGameByGameId(gameId: string): Promise<DailyGame | undefined> {
@@ -4754,15 +4772,15 @@ export class DatabaseStorage implements IStorage {
         eq(players.sport, sport)
       ));
 
-    // Get games today for this sport using the date field (which stores the ET game date)
-    // This correctly handles games that start before midnight EST but have UTC timestamps on the next day
-    // The date field stores midnight UTC of the ET game day
+    // Get games today for this sport using startTime (consistent with dashboard)
+    // The date field stores midnight UTC of the ET game day, but startTime is the
+    // authoritative field for all queries (see sync-schedule.ts comment)
     const todaysGames = await db.select()
       .from(dailyGames)
       .where(and(
         eq(dailyGames.sport, sport),
-        gte(dailyGames.date, startOfDay),
-        lt(dailyGames.date, endOfDay)
+        gte(dailyGames.startTime, startOfDay),
+        lt(dailyGames.startTime, endOfDay)
       ));
 
     // Build a map of team -> game info
