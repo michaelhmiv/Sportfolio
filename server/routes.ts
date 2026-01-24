@@ -7134,9 +7134,20 @@ ${posts.map(post => `  <url>
         });
       }
 
+      // Verify only 1 share is entered per boost slot
+      // Power is added to the single share to increase its value
+      if (shares !== 1) {
+        return res.status(400).json({
+          error: `Only 1 share can be placed in a boost slot. You entered ${shares} shares. Use the Power feature to add more power to a single share.`
+        });
+      }
+
       // Get the holding to capture powerLevel before boost is created
       const holding = await storage.getHolding(userId, "player", playerId);
-      const powerLevel = holding?.powerLevel || "0.00";
+      if (!holding || holding.quantity < 1) {
+        return res.status(400).json({ error: "No shares available for this player" });
+      }
+      const powerLevel = holding.powerLevel || "0.00";
 
       // Create the boost
       // Use provided date or default to today (ensure date is object)

@@ -141,7 +141,6 @@ export default function Power() {
     // Initialize with Eastern Time date
     const [selectedDate, setSelectedDate] = useState<Date>(() => getTodayET());
     const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
-    const [sharesToEnter, setSharesToEnter] = useState(1);
     const [search, setSearch] = useState("");
     const [communitySportFilter, setCommunitySportFilter] = useState("All");
     const [playerSelectorOpen, setPlayerSelectorOpen] = useState(false);
@@ -252,11 +251,10 @@ export default function Power() {
             });
         },
         onSuccess: () => {
-            toast({ title: "Player boosted!", description: "Shares will be burned when the game starts." });
+            toast({ title: "Player boosted!", description: "Share will be burned when the game starts." });
             refetchBoosts();
             refetchEligible();
             setSelectedSlot(null);
-            setSharesToEnter(1);
             setPlayerSelectorOpen(false);
         },
         onError: (error: Error) => {
@@ -341,7 +339,7 @@ export default function Power() {
         assignBoostMutation.mutate({
             playerId,
             slotTier: selectedSlot,
-            sharesEntered: sharesToEnter,
+            sharesEntered: 1, // Only 1 share per boost slot - power is added to that share
             sport,
         });
     };
