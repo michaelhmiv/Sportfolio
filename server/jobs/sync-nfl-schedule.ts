@@ -106,23 +106,22 @@ export async function syncNFLSchedule(): Promise<SyncResult> {
 
     try {
         const season = getCurrentNFLSeason();
-        const currentWeek = getCurrentNFLWeek();
 
-        // Fetch current week + next week games
-        // This ensures we always have upcoming games in the database
-        const weeksToFetch: number[] = [];
-        if (currentWeek !== null) {
-            weeksToFetch.push(currentWeek);
-            if (currentWeek < 18) {
-                weeksToFetch.push(currentWeek + 1);
-            }
+        // Fetch games for the next 14 days using dates[] instead of weeks[]
+        // This fixes the playoff week numbering issue (playoffs use week 1-3, not 19-21)
+        const today = new Date();
+        const dates: string[] = [];
+        for (let i = 0; i <= 14; i++) {
+          const date = new Date(today);
+          date.setDate(today.getDate() + i);
+          dates.push(date.toISOString().split('T')[0]);
         }
 
-        console.log(`[NFL Schedule Sync] Fetching games for season ${season}, weeks: ${weeksToFetch.join(", ") || "all"}`);
+        console.log(`[NFL Schedule Sync] Fetching games for season ${season}, dates: ${dates[0]} to ${dates[dates.length - 1]}`);
 
         const apiGames = await fetchGames({
             seasons: [season],
-            weeks: weeksToFetch.length > 0 ? weeksToFetch : undefined,
+            dates: dates,  // Use dates[] instead of weeks[] - works for both regular season AND playoffs
         });
 
         console.log(`[NFL Schedule Sync] Fetched ${apiGames.length} games from API`);
