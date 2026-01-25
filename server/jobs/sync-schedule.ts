@@ -87,8 +87,11 @@ export async function syncSchedule(progressCallback?: ProgressCallback): Promise
             const homeScore = game.home_team_score;
             const awayScore = game.visitor_team_score;
 
-            // Normalize status from BallDontLie format
-            const normalizedStatus = normalizeGameStatus(game.status);
+            // Handle postponed games - BDL sets postponed=true and status=datetime string
+            let normalizedStatus = normalizeGameStatus(game.status);
+            if (game.postponed === true) {
+              normalizedStatus = "postponed";
+            }
 
             await storage.upsertDailyGame({
               gameId,

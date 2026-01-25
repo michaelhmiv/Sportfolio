@@ -365,7 +365,7 @@ export const dailyGames = pgTable("daily_games", {
   homeTeam: text("home_team").notNull(), // Team abbreviation
   awayTeam: text("away_team").notNull(), // Team abbreviation
   venue: text("venue"),
-  status: text("status").notNull().default("scheduled"), // "scheduled", "inprogress", "completed"
+  status: text("status").notNull().default("scheduled"), // "scheduled", "inprogress", "completed", "postponed"
   startTime: timestamp("start_time", { withTimezone: true }).notNull(),
   homeScore: integer("home_score"), // null for scheduled games
   awayScore: integer("away_score"), // null for scheduled games
