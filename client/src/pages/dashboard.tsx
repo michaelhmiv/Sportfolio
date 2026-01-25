@@ -52,6 +52,11 @@ const getEffectiveGameStatus = (game: DailyGame): string => {
   const timeSinceStart = now.getTime() - startTime.getTime();
   const threeHoursInMs = 3 * 60 * 60 * 1000;
 
+  // If DB says postponed, trust it
+  if (game.status === 'postponed') {
+    return 'postponed';
+  }
+
   // If DB says completed, trust it
   if (game.status === 'completed') {
     return 'completed';
@@ -462,18 +467,20 @@ export default function Dashboard() {
                                   </div>
                                   <div className="flex items-center justify-between text-xs mt-0.5">
                                     <span className="text-muted-foreground text-[10px]">
-                                      {effectiveStatus === 'scheduled'
-                                        ? new Date(game.startTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
-                                        : effectiveStatus === 'completed'
-                                          ? 'Final'
-                                          : 'Live'
+                                      {effectiveStatus === 'postponed'
+                                        ? 'Postponed'
+                                        : effectiveStatus === 'scheduled'
+                                          ? new Date(game.startTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+                                          : effectiveStatus === 'completed'
+                                            ? 'Final'
+                                            : 'Live'
                                       }
                                     </span>
                                     <Badge
-                                      variant={effectiveStatus === 'inprogress' ? 'default' : effectiveStatus === 'completed' ? 'secondary' : 'outline'}
+                                      variant={effectiveStatus === 'inprogress' ? 'default' : effectiveStatus === 'completed' ? 'secondary' : effectiveStatus === 'postponed' ? 'destructive' : 'outline'}
                                       className="text-[10px] h-4 px-1"
                                     >
-                                      {effectiveStatus === 'inprogress' ? 'LIVE' : effectiveStatus === 'completed' ? 'Final' : new Date(game.startTime).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                                      {effectiveStatus === 'inprogress' ? 'LIVE' : effectiveStatus === 'completed' ? 'Final' : effectiveStatus === 'postponed' ? 'PPD' : new Date(game.startTime).toLocaleDateString([], { month: 'short', day: 'numeric' })}
                                     </Badge>
                                   </div>
                                 </div>
