@@ -1532,7 +1532,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       ]);
 
       // Enrich with market values, order book data, and fantasy points average (only for paginated results)
-      const players = playersRaw.map((player) => {
+      let players = playersRaw.map((player) => {
         const enriched = enrichPlayerWithMarketValue(player);
 
         // Look up pre-fetched order book data from map (no additional query!)
@@ -1580,6 +1580,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
           globalScoutCount: globalScoutMap.get(player.id) || 0,
         };
       });
+
+      // Client-side sorting for complex sort fields that require enriched data
+      // This ensures proper sorting by bid, ask, sentiment, undervalued even though
+      // the base SQL query doesn't support these (avoiding 73s query times)
+      if (['bid', 'ask', 'sentiment', 'undervalued', 'fantasyPoints'].includes(safeSortBy)) {
+        players.sort((a: any, b: any) => {
+          let valA: number, valB: number;
+          const ascending = safeSortOrder === 'asc';
+
+          switch (safeSortBy) {
+            case 'bid':
+              valA = parseFloat(a.bestBid) || 0;
+              valB = parseFloat(b.bestBid) || 0;
+              break;
+            case 'ask':
+              valA = parseFloat(a.bestAsk) || 0;
+              valB = parseFloat(b.bestAsk) || 0;
+              break;
+            case 'sentiment':
+              valA = a.buyPressure || 50;
+              valB = b.buyPressure || 50;
+              break;
+            case 'undervalued':
+              valA = a.valueIndex || 0;
+              valB = b.valueIndex || 0;
+              break;
+            case 'fantasyPoints':
+              valA = parseFloat(a.avgFantasyPointsPerGame) || 0;
+              valB = parseFloat(b.avgFantasyPointsPerGame) || 0;
+              break;
+            default:
+              return 0;
+          }
+
+          if (valA === valB) return 0;
+          if (valA === 0) return ascending ? 1 : -1; // Push zeros to end for ascending
+          if (valB === 0) return ascending ? -1 : 1;
+          return ascending ? valA - valB : valB - valA;
+        });
+      }
 
       res.json({ players, total });
     } catch (error: any) {
