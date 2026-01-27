@@ -2,8 +2,7 @@
  * Community Boost Selector Component
  *
  * Allows users to create community boosts for any player with a game today.
- * Shows all players with games today, current community boost counts,
- * and allows sorting/searching. Costs 1 premium share per boost.
+ * Uses the same player list as the scout dashboard (/api/players and /api/games/today).
  */
 
 import { useState, useMemo } from "react";
@@ -25,58 +24,194 @@ interface CommunityBoostSelectorProps {
   selectedDate?: Date;
 }
 
-interface PlayerInfo {
-  playerId: string;
-  player: {
-    id: string;
-    firstName: string;
-    lastName: string;
-    team: string;
-    sport: string;
-  };
+interface Player {
+  id: string;
+  firstName: string;
+  lastName: string;
+  team: string;
   sport: string;
-  gameId: string | null;
-  gameStartTime: string | null;
-  gameStatus: 'upcoming' | 'live' | 'ended';
-  hasGameToday: boolean;
-  communityBoostCount: number;
-  alreadyBoostedByUser: boolean;
+  position?: string;
+  currentPrice?: number;
+}
+
+interface GameInfo {
+  gameId: string;
+  homeTeam: string;
+  awayTeam: string;
+  startTime: string;
+  status: string;
+  sport: string;
+}
+
+interface PlayerWithGame extends Player {
+  gameInfo?: GameInfo;
+  gameStatus: 'upcoming' | 'live' | 'ended' | 'none';
   opponent: string | null;
+  gameStartTime: string | null;
 }
-
-interface EligiblePlayersResponse {
-  date: string;
-  players: PlayerInfo[];
-  userCommunityShares: number;
-  totalPlayers: number;
-}
-
-type SortField = 'name' | 'team' | 'sport' | 'boosts' | 'opponent';
-type SortDirection = 'asc' | 'desc';
 
 export function CommunityBoostSelector({ open, onOpenChange, selectedDate }: CommunityBoostSelectorProps) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [search, setSearch] = useState("");
-  const [sortField, setSortField] = useState<SortField>('boosts');
-  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  const [sortField, setSortField] = useState<'name' | 'team' | 'sport' | 'opponent'>('name');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
-  // Format date for API
-  const dateStr = selectedDate
-    ? format(selectedDate, 'yyyy-MM-dd')
-    : format(new Date(), 'yyyy-MM-dd');
-
-  // Fetch eligible players
-  const { data, isLoading, error } = useQuery<EligiblePlayersResponse>({
-    queryKey: ["/api/community-boosts/eligible-players", dateStr],
+  // Fetch today's games for all sports
+  const { data: todaysGames } = useQuery<GameInfo[]>({
+    queryKey: ["/api/games/today"],
     queryFn: async () => {
-      const headers = await getAuthHeaders();
-      const res = await fetch(`/api/community-boosts/eligible-players?date=${dateStr}`, { headers });
-      if (!res.ok) throw new Error("Failed to fetch eligible players");
-      return res.json();
+      const [nbaRes, nflRes] = await Promise.all([
+        fetch("/api/games/today?sport=NBA"),
+        fetch("/api/games/today?sport=NFL"),
+      ]);
+      const [nbaGames, nflGames] = await Promise.all([nbaRes.json(), nflRes.json()]);
+      return [...(nbaGames || []), ...(nflGames || [])];
     },
     enabled: open,
+    refetchInterval: 60000,
   });
+
+  // Fetch all players from the market directory
+  const { data: playersData, isLoading: isLoadingPlayers } = useQuery<{ players: Player[] }>({
+    queryKey: ["/api/players?limit=500"],
+    enabled: open,
+  });
+
+  // Fetch user's community shares
+  const { data: holdingsData } = useQuery<{ holdings: Array<{ assetType: string; assetId: string; quantity: number }> }>({
+    queryKey: ["/api/portfolio"],
+    enabled: open,
+  });
+
+  // Fetch community boosts for today to show counts
+  const { data: communityBoostsData } = useQuery<{ communityBoosts: Array<{ playerId: string }> }>({
+    queryKey: ["/api/community-boosts/all", "all"],
+    enabled: open,
+  });
+
+  const userCommunityShares = holdingsData?.holdings.find(h => h.assetType === "community")?.quantity || 0;
+
+  // Build a map of playerId -> game info
+  const playerGameMap = useMemo(() => {
+    const map = new Map<string, GameInfo>();
+    if (!todaysGames) return map;
+
+    for (const game of todaysGames) {
+      map.set(game.homeTeam, game);
+      map.set(game.awayTeam, game);
+    }
+    return map;
+  }, [todaysGames]);
+
+  // Count boosts per player
+  const boostCountMap = useMemo(() => {
+    const map = new Map<string, number>();
+    if (!communityBoostsData?.communityBoosts) return map;
+
+    for (const boost of communityBoostsData.communityBoosts) {
+      const current = map.get(boost.playerId) || 0;
+      map.set(boost.playerId, current + 1);
+    }
+    return map;
+  }, [communityBoostsData]);
+
+  // Filter and enrich players with game info
+  const playersWithGames: PlayerWithGame[] = useMemo(() => {
+    if (!playersData?.players) return [];
+
+    const now = new Date();
+
+    return playersData.players
+      .filter(player => playerGameMap.has(player.team))
+      .map(player => {
+        const game = playerGameMap.get(player.team);
+        const gameStartTime = game?.startTime ? new Date(game.startTime) : null;
+        const gameStarted = gameStartTime ? gameStartTime <= now : false;
+
+        // Determine opponent
+        let opponent: string | null = null;
+        if (game) {
+          opponent = game.homeTeam === player.team ? game.awayTeam : game.homeTeam;
+        }
+
+        // Determine game status
+        let gameStatus: 'upcoming' | 'live' | 'ended' | 'none' = 'none';
+        if (game) {
+          if (game.status === 'completed' || game.status === 'ended') {
+            gameStatus = 'ended';
+          } else if (game.status === 'inprogress') {
+            gameStatus = 'live';
+          } else if (gameStartTime && gameStartTime > now) {
+            gameStatus = 'upcoming';
+          }
+        }
+
+        return {
+          ...player,
+          gameInfo: game,
+          gameStatus,
+          opponent,
+          gameStartTime: game?.startTime || null,
+        };
+      });
+  }, [playersData?.players, playerGameMap]);
+
+  // Sort players
+  const sortedPlayers = useMemo(() => {
+    const players = [...playersWithGames];
+
+    return players.sort((a, b) => {
+      let comparison = 0;
+
+      switch (sortField) {
+        case 'name':
+          comparison = `${a.firstName} ${a.lastName}`.localeCompare(
+            `${b.firstName} ${b.lastName}`
+          );
+          break;
+        case 'team':
+          comparison = a.team.localeCompare(b.team);
+          break;
+        case 'sport':
+          comparison = a.sport.localeCompare(b.sport);
+          break;
+        case 'opponent':
+          comparison = (a.opponent || '').localeCompare(b.opponent || '');
+          break;
+      }
+
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+  }, [playersWithGames, sortField, sortDirection]);
+
+  // Filter by search
+  const filteredPlayers = useMemo(() => {
+    if (!search.trim()) return sortedPlayers;
+
+    const searchLower = search.toLowerCase();
+    return sortedPlayers.filter(p =>
+      `${p.firstName} ${p.lastName}`.toLowerCase().includes(searchLower) ||
+      p.team.toLowerCase().includes(searchLower) ||
+      p.sport.toLowerCase().includes(searchLower)
+    );
+  }, [sortedPlayers, search]);
+
+  const handleSort = (field: typeof sortField) => {
+    if (sortField === field) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  const SortIcon = ({ field }: { field: typeof sortField }) => {
+    if (sortField !== field) return null;
+    return sortDirection === 'asc'
+      ? <ChevronUp className="h-3 w-3" />
+      : <ChevronDown className="h-3 w-3" />;
+  };
 
   // Buy community shares mutation
   const buyMutation = useMutation({
@@ -87,7 +222,6 @@ export function CommunityBoostSelector({ open, onOpenChange, selectedDate }: Com
       return res.json();
     },
     onSuccess: (data) => {
-      // Redirect to Whop checkout
       if (data.purchaseUrl) {
         window.location.href = data.purchaseUrl;
       }
@@ -108,15 +242,15 @@ export function CommunityBoostSelector({ open, onOpenChange, selectedDate }: Com
   // Create community boost mutation
   const createBoostMutation = useMutation({
     mutationFn: async (playerId: string) => {
-      const player = data?.players.find(p => p.playerId === playerId);
+      const player = playersWithGames.find(p => p.id === playerId);
       return apiRequest("POST", "/api/community-boosts/create", {
         playerId,
         sport: player?.sport || 'NBA',
       });
     },
     onSuccess: (_, playerId) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/community-boosts/eligible-players", dateStr] });
-      queryClient.invalidateQueries({ queryKey: ["/api/community-boosts/all", dateStr] });
+      queryClient.invalidateQueries({ queryKey: ["/api/community-boosts/all", "all"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/portfolio"] });
       toast({
         title: "Community Boost Created!",
         description: "1 Community Share redeemed. All holders of this player now get +1x multiplier.",
@@ -130,67 +264,6 @@ export function CommunityBoostSelector({ open, onOpenChange, selectedDate }: Com
       });
     },
   });
-
-  // Sorting logic
-  const sortedPlayers = useMemo(() => {
-    if (!data?.players) return [];
-
-    const players = [...data.players];
-
-    return players.sort((a, b) => {
-      let comparison = 0;
-
-      switch (sortField) {
-        case 'name':
-          comparison = `${a.player.firstName} ${a.player.lastName}`.localeCompare(
-            `${b.player.firstName} ${b.player.lastName}`
-          );
-          break;
-        case 'team':
-          comparison = a.player.team.localeCompare(b.player.team);
-          break;
-        case 'sport':
-          comparison = a.player.sport.localeCompare(b.player.sport);
-          break;
-        case 'boosts':
-          comparison = a.communityBoostCount - b.communityBoostCount;
-          break;
-        case 'opponent':
-          comparison = (a.opponent || '').localeCompare(b.opponent || '');
-          break;
-      }
-
-      return sortDirection === 'asc' ? comparison : -comparison;
-    });
-  }, [data?.players, sortField, sortDirection]);
-
-  // Filter by search
-  const filteredPlayers = useMemo(() => {
-    if (!search.trim()) return sortedPlayers;
-
-    const searchLower = search.toLowerCase();
-    return sortedPlayers.filter(p =>
-      `${p.player.firstName} ${p.player.lastName}`.toLowerCase().includes(searchLower) ||
-      p.player.team.toLowerCase().includes(searchLower) ||
-      p.player.sport.toLowerCase().includes(searchLower)
-    );
-  }, [sortedPlayers, search]);
-
-  const handleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortDirection('desc'); // Default to descending for new field
-    }
-  };
-
-  const SortIcon = ({ field }: { field: SortField }) => {
-    if (sortField !== field) return null;
-    return sortDirection === 'asc'
-      ? <ChevronUp className="h-3 w-3" />
-      : <ChevronDown className="h-3 w-3" />;
-  };
 
   const handleCreateBoost = (playerId: string) => {
     createBoostMutation.mutate(playerId);
@@ -211,10 +284,12 @@ export function CommunityBoostSelector({ open, onOpenChange, selectedDate }: Com
           <div className="flex items-center gap-2">
             <Star className="h-4 w-4 text-amber-500" />
             <span className="text-sm font-medium">Your Community Shares</span>
-            {(data?.userCommunityShares ?? 0) > 0 && (
+            {userCommunityShares > 0 ? (
               <Badge className="bg-amber-500/20 text-amber-600 border-amber-500/30 ml-2">
-                {data?.userCommunityShares} available
+                {userCommunityShares} available
               </Badge>
+            ) : (
+              <span className="text-xs text-muted-foreground ml-2">No shares</span>
             )}
           </div>
           <Button
@@ -263,14 +338,14 @@ export function CommunityBoostSelector({ open, onOpenChange, selectedDate }: Com
           <div className="col-span-2 flex items-center gap-1 cursor-pointer hover:text-foreground" onClick={() => handleSort('opponent')}>
             Opp <SortIcon field="opponent" />
           </div>
-          <div className="col-span-2 flex items-center justify-center gap-1 cursor-pointer hover:text-foreground" onClick={() => handleSort('boosts')}>
-            Boosts <SortIcon field="boosts" />
+          <div className="col-span-2 flex items-center justify-center gap-1">
+            Boosts
           </div>
         </div>
 
         {/* Player list */}
         <div className="flex-1 overflow-y-auto">
-          {isLoading ? (
+          {isLoadingPlayers ? (
             <div className="space-y-2 py-4">
               {[...Array(5)].map((_, i) => (
                 <div key={i} className="grid grid-cols-12 gap-2 px-2">
@@ -282,100 +357,88 @@ export function CommunityBoostSelector({ open, onOpenChange, selectedDate }: Com
                 </div>
               ))}
             </div>
-          ) : error ? (
-            <div className="py-8 text-center text-destructive text-sm">
-              <div className="font-medium mb-2">Error loading players</div>
-              <div className="text-xs">{error.message}</div>
-            </div>
           ) : filteredPlayers.length === 0 ? (
             <div className="py-8 text-center text-muted-foreground text-sm">
               {search ? `No players match "${search}"` : "No players with games today"}
             </div>
           ) : (
             <div className="divide-y">
-              {filteredPlayers.map((player) => (
-                <div
-                  key={player.playerId}
-                  className={cn(
-                    "grid grid-cols-12 gap-2 px-2 py-2 items-center hover:bg-accent/50",
-                    player.gameStatus === 'live' && "bg-yellow-500/5",
-                    player.gameStatus === 'ended' && "bg-muted/30"
-                  )}
-                >
-                  <div className="col-span-4 min-w-0">
-                    <div className="font-medium text-sm truncate">
-                      {player.player.firstName} {player.player.lastName}
-                    </div>
-                    <div className="text-xs text-muted-foreground flex items-center gap-1">
-                      {player.gameStatus === 'live' && (
-                        <Badge variant="destructive" className="text-[9px] px-1 h-4 animate-pulse">LIVE</Badge>
-                      )}
-                      {player.gameStatus === 'upcoming' && player.gameStartTime && (
-                        <span>{format(new Date(player.gameStartTime), 'h:mm a')}</span>
-                      )}
-                      {player.gameStatus === 'ended' && (
-                        <Badge variant="secondary" className="text-[9px] px-1 h-4">Ended</Badge>
-                      )}
-                    </div>
-                  </div>
-                  <div className="col-span-2">
-                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5">
-                      {player.sport}
-                    </Badge>
-                  </div>
-                  <div className="col-span-2 text-sm text-muted-foreground">
-                    {player.player.team}
-                  </div>
-                  <div className="col-span-2 text-sm text-muted-foreground truncate">
-                    {player.opponent || '-'}
-                  </div>
-                  <div className="col-span-2 flex items-center justify-center gap-1">
-                    <div className={cn(
-                      "flex items-center gap-1 px-2 py-1 rounded",
-                      player.communityBoostCount > 0
-                        ? "bg-amber-500/10 text-amber-600"
-                        : "bg-muted text-muted-foreground"
-                    )}>
-                      <Zap className="h-3 w-3" />
-                      <span className="text-sm font-medium">{player.communityBoostCount}</span>
-                    </div>
-                    {player.alreadyBoostedByUser && (
-                      <span className="text-[10px] text-green-600" title="You created this boost">✓</span>
+              {filteredPlayers.map((player) => {
+                const boostCount = boostCountMap.get(player.id) || 0;
+
+                return (
+                  <div
+                    key={player.id}
+                    className={cn(
+                      "grid grid-cols-12 gap-2 px-2 py-2 items-center hover:bg-accent/50",
+                      player.gameStatus === 'live' && "bg-yellow-500/5",
+                      player.gameStatus === 'ended' && "bg-muted/30"
                     )}
+                  >
+                    <div className="col-span-4 min-w-0">
+                      <div className="font-medium text-sm truncate">
+                        {player.firstName} {player.lastName}
+                      </div>
+                      <div className="text-xs text-muted-foreground flex items-center gap-1">
+                        {player.gameStatus === 'live' && (
+                          <Badge variant="destructive" className="text-[9px] px-1 h-4 animate-pulse">LIVE</Badge>
+                        )}
+                        {player.gameStatus === 'upcoming' && player.gameStartTime && (
+                          <span>{format(new Date(player.gameStartTime), 'h:mm a')}</span>
+                        )}
+                        {player.gameStatus === 'ended' && (
+                          <Badge variant="secondary" className="text-[9px] px-1 h-4">Ended</Badge>
+                        )}
+                      </div>
+                    </div>
+                    <div className="col-span-2">
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5">
+                        {player.sport}
+                      </Badge>
+                    </div>
+                    <div className="col-span-2 text-sm text-muted-foreground">
+                      {player.team}
+                    </div>
+                    <div className="col-span-2 text-sm text-muted-foreground truncate">
+                      {player.opponent || '-'}
+                    </div>
+                    <div className="col-span-2 flex items-center justify-center gap-1">
+                      <div className={cn(
+                        "flex items-center gap-1 px-2 py-1 rounded",
+                        boostCount > 0
+                          ? "bg-amber-500/10 text-amber-600"
+                          : "bg-muted text-muted-foreground"
+                      )}>
+                        <Zap className="h-3 w-3" />
+                        <span className="text-sm font-medium">{boostCount}</span>
+                      </div>
+                    </div>
+                    <div className="col-span-12 flex justify-end mt-1">
+                      <Button
+                        size="sm"
+                        variant="default"
+                        disabled={player.gameStatus !== 'upcoming' || createBoostMutation.isPending || userCommunityShares <= 0}
+                        onClick={() => handleCreateBoost(player.id)}
+                        className="h-7 text-xs bg-amber-600 hover:bg-amber-700"
+                      >
+                        {createBoostMutation.isPending ? (
+                          <>
+                            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                            Creating...
+                          </>
+                        ) : player.gameStatus !== 'upcoming' ? (
+                          player.gameStatus === 'live' ? 'Game Live' : 'Game Ended'
+                        ) : (
+                          <>
+                            <Star className="h-3 w-3 mr-1" />
+                            Boost (+1x)
+                          </>
+                        )}
+                      </Button>
+                    </div>
                   </div>
-                  <div className="col-span-12 flex justify-end mt-1">
-                    <Button
-                      size="sm"
-                      variant={player.alreadyBoostedByUser ? "outline" : "default"}
-                      disabled={player.gameStatus !== 'upcoming' || createBoostMutation.isPending || player.alreadyBoostedByUser || (data?.userCommunityShares ?? 0) <= 0}
-                      onClick={() => handleCreateBoost(player.playerId)}
-                      className={cn(
-                        "h-7 text-xs",
-                        !player.alreadyBoostedByUser && player.gameStatus === 'upcoming' && "bg-amber-600 hover:bg-amber-700"
-                      )}
-                    >
-                      {createBoostMutation.isPending ? (
-                        <>
-                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                          Creating...
-                        </>
-                      ) : player.alreadyBoostedByUser ? (
-                        <>
-                          <Zap className="h-3 w-3 mr-1" />
-                          Boosted
-                        </>
-                      ) : player.gameStatus !== 'upcoming' ? (
-                        player.gameStatus === 'live' ? 'Game Live' : 'Game Ended'
-                      ) : (
-                        <>
-                          <Star className="h-3 w-3 mr-1" />
-                          Boost (+1x)
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
