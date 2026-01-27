@@ -18,6 +18,84 @@ import { getGameDay, getETDayBoundaries, getTodayETBoundaries, getTodayET } from
 import { matchOrders } from "./order-matcher";
 import { getOrCompute } from "./cache";
 
+/**
+ * Get power/boosts data for the dashboard
+ */
+async function getDashboardPowerData(userId: string) {
+  try {
+    const { startOfDay } = getTodayETBoundaries();
+    const today = startOfDay;
+
+    // Fetch all boosts across sports for today
+    const boosts = await storage.getDailyBoostsAllSports(userId, today);
+
+    // Get community boosts count
+    const communityBoosts = await storage.getCommunityBoostsAllSports(today);
+    const communityBoostCount = communityBoosts.length;
+
+    // Get user community shares (for premium share count)
+    const userCommunityShares = await storage.getUserCommunityBoostShares(userId);
+
+    // Calculate totals
+    const activeBoosts = boosts.filter(b => b.status === "active").length;
+    const lockedBoosts = boosts.filter(b => b.status === "locked").length;
+    const processedBoosts = boosts.filter(b => b.status === "processed").length;
+
+    // Get total estimated payout for live boosts
+    let totalLivePayout = "0.00";
+    if (lockedBoosts > 0) {
+      for (const boost of boosts.filter(b => b.status === "locked")) {
+        if (boost.fantasyPoints && boost.payoutAmount) {
+          totalLivePayout = (parseFloat(totalLivePayout) + parseFloat(boost.payoutAmount)).toFixed(2);
+        }
+      }
+    }
+
+    // Get total processed payout
+    let totalProcessedPayout = "0.00";
+    if (processedBoosts > 0) {
+      for (const boost of boosts.filter(b => b.status === "processed")) {
+        if (boost.payoutAmount) {
+          totalProcessedPayout = (parseFloat(totalProcessedPayout) + parseFloat(boost.payoutAmount)).toFixed(2);
+        }
+      }
+    }
+
+    // Get slots info
+    const slotsRemaining = 4 - boosts.length;
+    const availableSlots = [5, 4, 3, 2].filter(tier => !boosts.some(b => b.slotTier === tier));
+
+    return {
+      activeBoosts,
+      lockedBoosts,
+      processedBoosts,
+      totalBoosts: boosts.length,
+      slotsRemaining,
+      availableSlots,
+      communityBoostCount,
+      userCommunityShares,
+      totalLivePayout,
+      totalProcessedPayout,
+      boosts: boosts.slice(0, 4), // Include top boosts for preview
+    };
+  } catch (error: any) {
+    console.error("[getDashboardPowerData] Error:", error.message);
+    return {
+      activeBoosts: 0,
+      lockedBoosts: 0,
+      processedBoosts: 0,
+      totalBoosts: 0,
+      slotsRemaining: 4,
+      availableSlots: [5, 4, 3, 2],
+      communityBoostCount: 0,
+      userCommunityShares: 0,
+      totalLivePayout: "0.00",
+      totalProcessedPayout: "0.00",
+      boosts: [],
+    };
+  }
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Setup authentication middleware
   await setupAuth(app);
@@ -265,19 +343,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
           continue;
         }
 
-        // Extract quantity from line_items first (preferred), fallback to total/5
+        // Detect if this is a community or premium purchase
+        // First check plan_id, then fall back to amount-based detection
+        const communityPlanId = process.env.WHOP_COMMUNITY_PLAN_ID;
+        const premiumPlanId = process.env.WHOP_PLAN_ID;
+        const planId = payment.plan_id;
+        const totalDollars = payment.total || 0;
+
+        let isCommunityPurchase = false;
+        if (communityPlanId && planId === communityPlanId) {
+          isCommunityPurchase = true;
+        } else if (premiumPlanId && planId === premiumPlanId) {
+          isCommunityPurchase = false;
+        } else if (totalDollars > 0) {
+          // Fallback: detect by amount - $1 (100 cents) = community, $5 (500 cents) = premium
+          // Allow for variations in pricing
+          isCommunityPurchase = totalDollars < 3; // Less than $3 is community
+          console.log(`[WHOP SYNC] Detected ${isCommunityPurchase ? 'community' : 'premium'} purchase by amount: $${totalDollars}`);
+        }
+
+        const assetType = isCommunityPurchase ? "community" : "premium";
+        const pricePerShare = isCommunityPurchase ? 1 : 5;
+
+        // Extract quantity from line_items first (preferred), fallback to total/price
         let quantity = 0;
         if (payment.line_items && Array.isArray(payment.line_items)) {
           quantity = payment.line_items.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0);
         }
-        // Fallback to total/5 if no line_items or zero quantity
-        if (quantity === 0) {
-          const totalDollars = payment.total || 0;
-          quantity = totalDollars >= 5 ? Math.floor(totalDollars / 5) : 0;
+        // Fallback to total/price if no line_items or zero quantity
+        if (quantity === 0 && totalDollars >= pricePerShare) {
+          quantity = Math.floor(totalDollars / pricePerShare);
         }
 
-        // v1 API returns `total` in dollars for amountCents calculation
-        const totalDollars = payment.total || 0;
         const amountCents = Math.round(totalDollars * 100);
 
         // Skip payments with no value (refunds, zero-dollar invoices)
@@ -312,17 +409,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           // Only update holdings if we successfully credited (won the race)
           if (creditedPayment) {
-            const existingHolding = await storage.getHolding(userId, "premium", "premium");
+            const existingHolding = await storage.getHolding(userId, assetType, assetType);
             const currentQuantity = existingHolding?.quantity || 0;
             const newQuantity = currentQuantity + quantity;
 
-            // Preserve existing avgCost or use $5 default for new holdings
-            const currentAvgCost = existingHolding?.avgCostBasis || "5.0000";
+            // Preserve existing avgCost or use appropriate default for new holdings
+            const currentAvgCost = existingHolding?.avgCostBasis || (isCommunityPurchase ? "1.0000" : "5.0000");
 
             // Update holding with new quantity preserving cost basis
-            await storage.updateHolding(userId, "premium", "premium", newQuantity, currentAvgCost);
+            await storage.updateHolding(userId, assetType, assetType, newQuantity, currentAvgCost);
             result.credited += quantity;
-            console.log(`[WHOP SYNC] Credited ${quantity} premium shares to user ${userId} from payment ${paymentId} (${currentQuantity} -> ${newQuantity})`);
+            console.log(`[WHOP SYNC] Credited ${quantity} ${assetType} shares to user ${userId} from payment ${paymentId} (${currentQuantity} -> ${newQuantity})`);
           } else {
             console.log(`[WHOP SYNC] Payment ${paymentId} already credited by another process, skipping`);
           }
@@ -332,25 +429,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if ((status === "refunded" || status === "disputed" || status === "chargedback") &&
           currentPayment && currentPayment.creditedAt && !currentPayment.revokedAt) {
           // Revoke the shares from holdings - preserve avgCost
-          const existingHolding = await storage.getHolding(userId, "premium", "premium");
+          const existingHolding = await storage.getHolding(userId, assetType, assetType);
           const currentShares = existingHolding?.quantity || 0;
-          const currentAvgCost = existingHolding?.avgCostBasis || "5.0000";
+          const currentAvgCost = existingHolding?.avgCostBasis || (isCommunityPurchase ? "1.0000" : "5.0000");
 
           if (currentShares >= quantity) {
             // User has enough shares to fully revoke
             const newQuantity = currentShares - quantity;
-            await storage.updateHolding(userId, "premium", "premium", newQuantity, currentAvgCost);
+            await storage.updateHolding(userId, assetType, assetType, newQuantity, currentAvgCost);
             await storage.revokeWhopPayment(paymentId, quantity, 0);
             result.revoked += quantity;
-            console.log(`[WHOP SYNC] Revoked ${quantity} premium shares from user ${userId} for payment ${paymentId} (${currentShares} -> ${newQuantity})`);
+            console.log(`[WHOP SYNC] Revoked ${quantity} ${assetType} shares from user ${userId} for payment ${paymentId} (${currentShares} -> ${newQuantity})`);
           } else {
             // User doesn't have enough shares - revoke what we can and create liability
             const toRevoke = currentShares;
             const liability = quantity - currentShares;
-            await storage.updateHolding(userId, "premium", "premium", 0, currentAvgCost);
+            await storage.updateHolding(userId, assetType, assetType, 0, currentAvgCost);
             await storage.revokeWhopPayment(paymentId, toRevoke, liability);
             result.revoked += toRevoke;
-            console.log(`[WHOP SYNC] Partially revoked ${toRevoke} shares, ${liability} liability for user ${userId}`);
+            console.log(`[WHOP SYNC] Partially revoked ${toRevoke} ${assetType} shares, ${liability} liability for user ${userId}`);
           }
         }
       }
@@ -660,8 +757,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Fetch public data (always available)
       const publicStart = performance.now();
-      const [allContests, recentTrades, hotPlayersRaw] = await Promise.all([
-        storage.getContests("open"),
+      const [recentTrades, hotPlayersRaw] = await Promise.all([
         storage.getRecentTrades(undefined, 10),
         storage.getTopPlayersByVolume(5), // Get top 5 players by 24h volume directly from DB
       ]);
@@ -689,13 +785,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           user: null, // No user data for anonymous visitors
           hotPlayers,
           vesting: null,
-          contests: allContests.slice(0, 5),
           recentTrades: recentTrades.map(trade => ({
             ...trade,
             player: playerMap.get(trade.playerId),
           })),
           topHoldings: [],
           portfolioHistory: [],
+          power: null, // Power/boosts require authentication
         });
       }
 
@@ -710,10 +806,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       accrueVestingShares(user.id).catch(err => console.error('[Vesting] Background accrual error:', err));
 
       // Fetch user-specific data in parallel
-      const [userHoldings, vestingData, vestingSplits] = await Promise.all([
+      const [userHoldings, vestingData, vestingSplits, powerData] = await Promise.all([
         storage.getUserHoldings(user.id),
         storage.getVesting(user.id),
         storage.getVestingSplits(user.id),
+        getDashboardPowerData(user.id), // Fetch power/boosts data
       ]);
 
       // Collect all unique player IDs we need to fetch
@@ -847,7 +944,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           capLimit: user.isPremium ? 4800 : 2400,
           sharesPerHour: user.isPremium ? 200 : 100,
         } : null,
-        contests: allContests.slice(0, 5),
+        power: powerData,
         recentTrades: recentTrades.map(trade => ({
           ...trade,
           player: playerMap.get(trade.playerId),
@@ -4738,8 +4835,8 @@ ${posts.map(post => `  <url>
       console.log(`[WHOP] Created checkout session ${localSession.id} for user ${userId}, qty: ${quantity}`);
 
       // Use direct checkout URL - Whop API requires permissions we don't have
-      // The webhook will match this session by userId + pending status + recent timestamp
-      const directUrl = `https://whop.com/checkout/${planId}/?d2c=true`;
+      // Include metadata so webhook can identify the user and session
+      const directUrl = `https://whop.com/checkout/${planId}/?d2c=true&metadata[sessionId]=${localSession.id}&metadata[userId]=${userId}&metadata[quantity]=${quantity}`;
 
       res.json({
         sessionId: localSession.id,
@@ -4785,8 +4882,8 @@ ${posts.map(post => `  <url>
 
       console.log(`[COMMUNITY] Created checkout session ${localSession.id} for user ${userId}, qty: ${quantity}`);
 
-      // Use direct checkout URL
-      const directUrl = `https://whop.com/checkout/${planId}/?d2c=true`;
+      // Include metadata so webhook can identify the user and session
+      const directUrl = `https://whop.com/checkout/${planId}/?d2c=true&metadata[sessionId]=${localSession.id}&metadata[userId]=${userId}&metadata[quantity]=${quantity}`;
 
       res.json({
         sessionId: localSession.id,
@@ -5244,8 +5341,23 @@ ${posts.map(post => `  <url>
         const finalAmount = payment.final_amount;
 
         // Determine if this is a community purchase
+        // First try plan_id matching, then fall back to amount-based detection
         const communityPlanId = process.env.WHOP_COMMUNITY_PLAN_ID;
-        const isCommunityPurchase = communityPlanId && planId === communityPlanId;
+        const premiumPlanId = process.env.WHOP_PLAN_ID;
+
+        // Detect purchase type: plan_id match takes precedence, then use amount
+        let isCommunityPurchase = false;
+        if (communityPlanId && planId === communityPlanId) {
+          isCommunityPurchase = true;
+        } else if (premiumPlanId && planId === premiumPlanId) {
+          isCommunityPurchase = false;
+        } else if (planId === undefined || planId === null || planId === "") {
+          // Fallback: detect by amount - $1 (100 cents) = community, $5 (500 cents) = premium
+          if (finalAmount && finalAmount >= 100) {
+            isCommunityPurchase = finalAmount < 500; // $1-$4.99 is community
+            console.log("[WHOP WEBHOOK] Detected purchase type by amount:", finalAmount, "cents, isCommunity:", isCommunityPurchase);
+          }
+        }
 
         console.log("[WHOP WEBHOOK] === USER IDENTIFICATION ===");
         console.log("[WHOP WEBHOOK] metadata.sessionId:", sessionId);
@@ -5292,13 +5404,27 @@ ${posts.map(post => `  <url>
           let pendingSessions: any[] = [];
 
           if (isCommunityPurchase) {
-            // For community purchases, look for community sessions
+            // For community purchases, look for community sessions first
             pendingSessions = await storage.getPendingCommunityCheckoutSessions();
             console.log("[WHOP WEBHOOK] Found", pendingSessions.length, "pending community sessions");
+
+            // Also check premium sessions as fallback (user might have mixed sessions)
+            if (pendingSessions.length === 0) {
+              const premiumSessions = await storage.getPendingPremiumCheckoutSessions();
+              console.log("[WHOP WEBHOOK] No community sessions, also checking", premiumSessions.length, "premium sessions");
+              pendingSessions = premiumSessions;
+            }
           } else {
-            // For premium purchases, look for premium sessions
+            // For premium purchases, look for premium sessions first
             pendingSessions = await storage.getPendingPremiumCheckoutSessions();
             console.log("[WHOP WEBHOOK] Found", pendingSessions.length, "pending premium sessions");
+
+            // Also check community sessions as fallback (user might have mixed sessions)
+            if (pendingSessions.length === 0) {
+              const communitySessions = await storage.getPendingCommunityCheckoutSessions();
+              console.log("[WHOP WEBHOOK] No premium sessions, also checking", communitySessions.length, "community sessions");
+              pendingSessions = communitySessions;
+            }
           }
 
           // Sort by createdAt descending (most recent first)
@@ -5314,11 +5440,14 @@ ${posts.map(post => `  <url>
           // Find most recent session within last 2 hours
           const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
 
-          // First try to match by planId if available
-          let matchingSession = sortedSessions.find(s =>
-            s.planId === planId &&
-            new Date(s.createdAt) > twoHoursAgo
-          );
+          // First try to match by planId if available (and planId is known)
+          let matchingSession: any = null;
+          if (planId) {
+            matchingSession = sortedSessions.find(s =>
+              s.planId === planId &&
+              new Date(s.createdAt) > twoHoursAgo
+            );
+          }
 
           // If no plan match, use the most recent pending session
           if (!matchingSession && sortedSessions.length > 0) {
@@ -5329,6 +5458,7 @@ ${posts.map(post => `  <url>
           }
 
           if (matchingSession) {
+            // Determine type from session table name (stored in matchedSession.type via storage lookup)
             matchedSession = { ...matchingSession, type: isCommunityPurchase ? 'community' : 'premium' };
             userId = matchingSession.userId;
             quantity = matchingSession.quantity;

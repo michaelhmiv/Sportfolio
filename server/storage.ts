@@ -197,6 +197,7 @@ export interface IStorage {
   updateHoldingWithPower(userId: string, assetType: string, assetId: string, power: number, quantity: number, avgCost: string, powerLevel: string): Promise<void>;
   getHoldingsWithPowerBreakdown(userId: string, playerId: string): Promise<{ regular: Holding | null; powered: Holding[] }>;
   getTotalPowerLevel(userId: string, playerId: string): Promise<number>;
+  getUserCommunityBoostShares(userId: string): Promise<number>;
 
   // Batch sentiment logic
   getBatchSentiment(playerIds: string[]): Promise<Map<string, { buyPressure: number; totalVolume24h: number }>>;
@@ -5324,6 +5325,21 @@ export class DatabaseStorage implements IStorage {
         )
       );
     return Number(result?.total || 0);
+  }
+
+  // Get user's community boost shares (from holdings table)
+  async getUserCommunityBoostShares(userId: string): Promise<number> {
+    const [holding] = await db
+      .select()
+      .from(holdings)
+      .where(
+        and(
+          eq(holdings.userId, userId),
+          eq(holdings.assetType, "community"),
+          eq(holdings.assetId, "community")
+        )
+      );
+    return holding?.quantity || 0;
   }
 
   // Get holding with power level information for a specific player
