@@ -260,10 +260,10 @@ export function ScoutDashboardModal() {
     // Expanded rows state (for Scout Roster)
     const [expandedPlayerId, setExpandedPlayerId] = useState<string | null>(null);
 
-    // Reset pagination when filters change
+    // Reset pagination when filters change (but preserve sortField on tab change to allow consistent sorting)
     useEffect(() => {
         setLimit(50);
-    }, [searchQuery, sportFilter, positionFilter, gameStatusFilter, sortField, sortDirection]);
+    }, [searchQuery, sportFilter, positionFilter, gameStatusFilter, sortDirection]);
 
     // 1. Fetch Scout Data
     const { data: scoutData, isLoading: isLoadingScouts } = useQuery<ScoutData>({
@@ -331,21 +331,14 @@ export function ScoutDashboardModal() {
         if (sportFilter !== 'all') params.set('sport', sportFilter);
         if (positionFilter !== 'ALL') params.set('position', positionFilter);
 
-        let backendSort = 'volume';
-        if (!isClientSort) {
-            switch (sortField) {
-                case 'priceChange': backendSort = 'change'; break;
-                default: backendSort = sortField;
-            }
-            params.set('sortBy', backendSort);
-            params.set('sortOrder', sortDirection);
-        } else {
-            params.set('sortBy', 'volume');
-            params.set('sortOrder', 'desc');
-        }
+        // Always pass user's sort preference to API for consistent behavior
+        let backendSort = sortField;
+        if (sortField === 'priceChange') backendSort = 'change';
+        params.set('sortBy', backendSort);
+        params.set('sortOrder', sortDirection);
 
         return `/api/players?${params.toString()}`;
-    }, [searchQuery, sportFilter, positionFilter, sortField, sortDirection, limit, isClientSort]);
+    }, [searchQuery, sportFilter, positionFilter, sortField, sortDirection, limit]);
 
     const { data: playersData, isLoading: isLoadingPlayers } = useQuery<{ players: PlayerWithStats[], total: number }>({
         queryKey: [playerQueryUrl],
@@ -493,6 +486,8 @@ export function ScoutDashboardModal() {
                 if (sortField === 'scouts') { valA = a.scoutCount; valB = b.scoutCount; }
                 else if (sortField === 'shares') { valA = a.sharesOwned; valB = b.sharesOwned; }
                 else if (sortField === 'price') { valA = parseFloat(a.currentPrice || '0'); valB = parseFloat(b.currentPrice || '0'); }
+                else if (sortField === 'marketCap') { valA = parseFloat(a.marketCap || '0'); valB = parseFloat(b.marketCap || '0'); }
+                else if (sortField === 'volume') { valA = a.volume24h || 0; valB = b.volume24h || 0; }
                 else if (sortField === 'fantasyPoints') { valA = parseFloat(a.avgFantasyPointsPerGame || '0'); valB = parseFloat(b.avgFantasyPointsPerGame || '0'); }
                 else if (sortField === 'name') { valA = a.firstName; valB = b.firstName; }
                 else { valA = a.volume24h || 0; valB = b.volume24h || 0; }
@@ -541,12 +536,15 @@ export function ScoutDashboardModal() {
         }
 
         // Add game status to each player first
+        // Use lastTradePrice for display (actual market price), fallback to currentPrice
         const playersWithGameStatus = rawList.map((p): PlayerWithScoutData => {
             const gameInfo = getGameStatusForPlayer(p.team, p.sport);
+            // Prefer lastTradePrice (actual trades) over currentPrice (placeholder/default)
+            const displayPrice = (p as any).lastTradePrice || p.currentPrice || '0';
             return {
                 ...p,
                 fpts: parseFloat(p.avgFantasyPointsPerGame || '0'),
-                price: parseFloat(p.currentPrice || '0'),
+                price: parseFloat(displayPrice),
                 change: parseFloat(p.priceChange24h || '0'),
                 volume: p.volume24h || 0,
                 mcap: parseFloat(p.marketCap || '0'),
@@ -667,7 +665,7 @@ export function ScoutDashboardModal() {
                         </div>
 
                         <Select value={sortField} onValueChange={(v) => setSortField(v as SortField)}>
-                            <SelectTrigger className="w-[110px] h-8 text-xs">
+                            <SelectTrigger className="w-[120px] h-8 text-xs">
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -738,18 +736,25 @@ export function ScoutDashboardModal() {
                             <div className="w-8"></div> {/* Expand Toggle Column */}
                             <div className="flex-1 pl-2 cursor-pointer hover:text-foreground" onClick={() => handleSort('name')}>Player</div>
 
-                            <div className="w-20 text-right cursor-pointer hover:text-foreground hidden sm:block" onClick={() => handleSort('fantasyPoints')}>FPTS/G</div>
-                            <div className="w-20 text-right cursor-pointer hover:text-foreground" onClick={() => handleSort('price')}>Price</div>
-
+                            {/* Dynamic Sort Column - shows the currently selected sort field */}
+                            <div
+                                className={cn(
+                                    "w-20 sm:w-24 text-right cursor-pointer hover:text-foreground",
+                                    sortField !== 'name' && "text-foreground font-semibold"
+                                )}
+                                onClick={() => handleSort(sortField === 'name' ? 'volume' : sortField)}
+                            >
+                                {sortField === 'volume' ? 'Vol' : sortField === 'marketCap' ? 'Mkt Cap' : sortField === 'price' ? 'Price' : sortField === 'priceChange' ? '24h %' : sortField === 'fantasyPoints' ? 'FPTS' : sortField === 'shares' ? 'Owned' : sortField === 'scouts' ? 'Scouts' : sortField === 'name' ? 'Name' : 'Value'}
+                            </div>
 
                             {activeTab === 'market' && (
-                                <div className="w-16 text-right cursor-pointer hover:text-foreground hidden sm:block" onClick={() => handleSort('priceChange')}>24h %</div>
+                                <div className="w-14 sm:w-16 text-right cursor-pointer hover:text-foreground hidden sm:block" onClick={() => handleSort('priceChange')}>24h %</div>
                             )}
 
-                            <div className="w-20 text-right cursor-pointer hover:text-foreground hidden sm:block" onClick={() => handleSort('shares')}>Owned</div>
-                            <div className="w-16 text-right cursor-pointer hover:text-foreground hidden sm:block">Earned</div>
-                            <div className="w-16 text-center">Status</div>
-                            <div className="w-28 text-center cursor-pointer hover:text-foreground" onClick={() => handleSort('scouts')}>Scouts</div>
+                            <div className="w-14 sm:w-16 text-right hidden sm:block">Owned</div>
+                            <div className="w-14 sm:w-16 text-right hidden sm:block">Earned</div>
+                            <div className="w-14 sm:w-16 text-center">Status</div>
+                            <div className="w-20 sm:w-28 text-center cursor-pointer hover:text-foreground" onClick={() => handleSort('scouts')}>Scouts</div>
                         </div>
 
                         {/* Table Body */}
@@ -800,15 +805,12 @@ export function ScoutDashboardModal() {
 
                                             {/* Player Info */}
                                             <div className="flex-1 flex items-center gap-2 min-w-0 pr-2">
-                                                <Avatar className="h-8 w-8 border">
-                                                    <AvatarFallback className="text-[10px] bg-muted">{player.firstName[0]}{player.lastName[0]}</AvatarFallback>
-                                                </Avatar>
                                                 <div className="min-w-0 flex-1">
                                                     <PlayerName
                                                         playerId={player.id}
                                                         firstName={player.firstName}
                                                         lastName={player.lastName}
-                                                        className="font-medium truncate leading-tight hover:underline"
+                                                        className="font-medium truncate leading-tight hover:underline text-sm sm:text-xs"
                                                     />
                                                     <div className="text-[10px] text-muted-foreground flex items-center gap-1.5 flex-wrap">
                                                         <Badge variant="secondary" className="text-[9px] px-0.5 h-3.5 min-w-[20px] justify-center rounded-[3px]">
@@ -819,25 +821,37 @@ export function ScoutDashboardModal() {
                                                 </div>
                                             </div>
 
-                                            {/* FPTS */}
-                                            <div className="w-20 text-right font-mono text-xs tabular-nums hidden sm:block">
-                                                {player.fpts.toFixed(1)}
-                                            </div>
-
-                                            {/* Price */}
-                                            <div className="w-20 text-right font-mono text-xs tabular-nums">
-                                                ${player.price.toFixed(2)}
+                                            {/* Dynamic Sort Column Value */}
+                                            <div className="w-20 sm:w-24 text-right font-mono text-xs tabular-nums">
+                                                {sortField === 'volume' && (player.volume > 0 ? player.volume.toLocaleString() : '-')}
+                                                {sortField === 'marketCap' && (
+                                                    player.mcap >= 1000000
+                                                        ? `$${(player.mcap / 1000000).toFixed(1)}M`
+                                                        : player.mcap >= 1000
+                                                            ? `$${(player.mcap / 1000).toFixed(0)}K`
+                                                            : `$${player.mcap.toFixed(0)}`
+                                                )}
+                                                {sortField === 'price' && `$${player.price.toFixed(2)}`}
+                                                {sortField === 'priceChange' && (
+                                                    <span className={getDeltaColor(player.change)}>
+                                                        {player.change > 0 ? '+' : ''}{player.change.toFixed(1)}%
+                                                    </span>
+                                                )}
+                                                {sortField === 'fantasyPoints' && player.fpts.toFixed(1)}
+                                                {sortField === 'shares' && (player.sharesOwned > 0 ? player.sharesOwned.toLocaleString() : '-')}
+                                                {sortField === 'scouts' && player.globalScoutCount}
+                                                {sortField === 'name' && player.team}
                                             </div>
 
                                             {activeTab === 'market' && (
                                                 /* Change */
-                                                <div className={cn("w-16 text-right font-mono text-xs tabular-nums hidden sm:block", getDeltaColor(player.change))}>
+                                                <div className={cn("w-14 sm:w-16 text-right font-mono text-xs tabular-nums hidden sm:block", getDeltaColor(player.change))}>
                                                     {player.change > 0 ? '+' : ''}{player.change.toFixed(1)}%
                                                 </div>
                                             )}
 
                                             {/* Owned */}
-                                            <div className="w-20 text-right font-mono text-xs tabular-nums hidden sm:block">
+                                            <div className="w-16 sm:w-20 text-right font-mono text-xs tabular-nums hidden sm:block">
                                                 {player.sharesOwned > 0 ? (
                                                     <span className="text-blue-600 dark:text-blue-400 font-bold">{player.sharesOwned.toLocaleString()}</span>
                                                 ) : (
@@ -846,41 +860,41 @@ export function ScoutDashboardModal() {
                                             </div>
 
                                             {/* Earned Minutes */}
-                                            <div className="w-16 text-right font-mono text-xs tabular-nums hidden sm:block text-amber-600 font-medium">
+                                            <div className="w-14 sm:w-16 text-right font-mono text-xs tabular-nums hidden sm:block text-amber-600 font-medium">
                                                 {scoutStatus?.perPlayer?.[player.id] ? `${scoutStatus.perPlayer[player.id].toFixed(0)}m` : '-'}
                                             </div>
 
                                             {/* Game Status */}
-                                            <div className="w-16 text-center">
+                                            <div className="w-14 sm:w-16 text-center">
                                                 {player.gameStatus === 'upcoming' && player.gameStartTime && (
-                                                    <Badge variant="outline" className="text-[9px] px-1.5 h-5 border-blue-200 text-blue-600 bg-blue-50">
+                                                    <Badge variant="outline" className="text-[9px] px-1 h-5 border-blue-200 text-blue-600 bg-blue-50">
                                                         {format(new Date(player.gameStartTime), "h:mm a")}
                                                     </Badge>
                                                 )}
                                                 {player.gameStatus === 'upcoming' && !player.gameStartTime && (
-                                                    <Badge variant="outline" className="text-[9px] px-1.5 h-5">
+                                                    <Badge variant="outline" className="text-[9px] px-1 h-5">
                                                         -
                                                     </Badge>
                                                 )}
                                                 {player.gameStatus === 'live' && (
-                                                    <Badge variant="destructive" className="text-[9px] px-1.5 h-5 animate-pulse font-bold">
+                                                    <Badge variant="destructive" className="text-[9px] px-1 h-5 animate-pulse font-bold">
                                                         LIVE
                                                     </Badge>
                                                 )}
                                                 {player.gameStatus === 'ended' && (
-                                                    <Badge variant="secondary" className="text-[9px] px-1.5 h-5">
+                                                    <Badge variant="secondary" className="text-[9px] px-1 h-5">
                                                         FINAL
                                                     </Badge>
                                                 )}
                                                 {player.gameStatus === 'none' && (
-                                                    <Badge variant="outline" className="text-[9px] px-1.5 h-5 text-muted-foreground">
+                                                    <Badge variant="outline" className="text-[9px] px-1 h-5 text-muted-foreground">
                                                         --
                                                     </Badge>
                                                 )}
                                             </div>
 
                                             {/* Scouts Control */}
-                                            <div className="w-28 flex items-center justify-center gap-1 pl-2">
+                                            <div className="w-20 sm:w-28 flex items-center justify-center gap-0.5 sm:gap-1 pl-1 sm:pl-2">
                                                 <Button
                                                     variant="outline"
                                                     size="icon"

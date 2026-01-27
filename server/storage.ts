@@ -885,17 +885,14 @@ export class DatabaseStorage implements IStorage {
 
   async getUserScoutAssignments(userId: string): Promise<(ScoutAssignment & { player: Player | null })[]> {
     const results = await db
-      .select({
-        assignment: scoutAssignments,
-        player: players,
-      })
+      .selectDistinct()
       .from(scoutAssignments)
       .leftJoin(players, eq(scoutAssignments.playerId, players.id))
       .where(eq(scoutAssignments.userId, userId));
 
     return results.map(r => ({
-      ...r.assignment,
-      player: r.player
+      ...r.scoutAssignments,
+      player: r.players
     }));
   }
 

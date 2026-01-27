@@ -2,21 +2,23 @@
  * Community Boost Selector Component
  *
  * Allows users to create community boosts for any player with a game today.
- * Uses the same player list as the scout dashboard (/api/players and /api/games/today).
+ * Uses the same player list and patterns as the scout dashboard.
  */
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Star, Loader2, Search, Zap, Users, ChevronUp, ChevronDown, Plus } from "lucide-react";
-import { apiRequest, getAuthHeaders } from "@/lib/queryClient";
+import { Star, Loader2, Search, Zap, Users, ChevronUp, ChevronDown, Plus, ArrowUpDown } from "lucide-react";
+import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PlayerName } from "@/components/player-name";
 
 interface CommunityBoostSelectorProps {
   open: boolean;
@@ -31,7 +33,12 @@ interface Player {
   team: string;
   sport: string;
   position?: string;
-  currentPrice?: number;
+  currentPrice?: string;
+  lastTradePrice?: string | null;
+  volume24h?: number;
+  marketCap?: string;
+  priceChange24h?: string;
+  avgFantasyPointsPerGame?: string;
 }
 
 interface GameInfo {
@@ -48,14 +55,35 @@ interface PlayerWithGame extends Player {
   gameStatus: 'upcoming' | 'live' | 'ended' | 'none';
   opponent: string | null;
   gameStartTime: string | null;
+  boostCount: number;
 }
+
+type SortField = 'name' | 'team' | 'sport' | 'price' | 'volume' | 'marketCap' | 'boosts';
+type SortDirection = 'asc' | 'desc';
 
 export function CommunityBoostSelector({ open, onOpenChange, selectedDate }: CommunityBoostSelectorProps) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+
+  // State
   const [search, setSearch] = useState("");
-  const [sortField, setSortField] = useState<'name' | 'team' | 'sport' | 'opponent'>('name');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [sportFilter, setSportFilter] = useState<string>("all");
+  const [sortField, setSortField] = useState<SortField>('name');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+  const [limit, setLimit] = useState(50);
+  const [gameStatusFilter, setGameStatusFilter] = useState<string>("all"); // Filter by game status
+
+  // Determine if we should use pagination
+  // Pagination ONLY when no filters applied (just browsing all players with today's games)
+  // When filters applied, fetch all matching players (no pagination)
+  const usePagination = useMemo(() => {
+    return sportFilter === 'all' && gameStatusFilter === 'all';
+  }, [sportFilter, gameStatusFilter]);
+
+  // Reset pagination when filters change
+  useEffect(() => {
+    setLimit(50);
+  }, [search, sportFilter, gameStatusFilter, sortField, sortDirection]);
 
   // Fetch today's games for all sports
   const { data: todaysGames } = useQuery<GameInfo[]>({
@@ -72,9 +100,32 @@ export function CommunityBoostSelector({ open, onOpenChange, selectedDate }: Com
     refetchInterval: 60000,
   });
 
-  // Fetch all players from the market directory
-  const { data: playersData, isLoading: isLoadingPlayers } = useQuery<{ players: Player[] }>({
-    queryKey: ["/api/players?limit=500"],
+  // Build game map
+  const playerGameMap = useMemo(() => {
+    const map = new Map<string, GameInfo>();
+    if (!todaysGames) return map;
+    for (const game of todaysGames) {
+      map.set(game.homeTeam, game);
+      map.set(game.awayTeam, game);
+    }
+    return map;
+  }, [todaysGames]);
+
+  // Fetch players from market directory
+  // When filters are active, fetch all (high limit). When no filters, use pagination.
+  const playerQueryUrl = useMemo(() => {
+    const params = new URLSearchParams();
+    // When filters applied, fetch all; otherwise paginate
+    params.set('limit', usePagination ? limit.toString() : '1000');
+    if (search.length > 0) params.set('search', search);
+    if (sportFilter !== 'all') params.set('sport', sportFilter);
+    params.set('sortBy', 'volume');
+    params.set('sortOrder', 'desc');
+    return `/api/players?${params.toString()}`;
+  }, [search, sportFilter, limit, usePagination]);
+
+  const { data: playersData, isLoading: isLoadingPlayers } = useQuery<{ players: Player[], total: number }>({
+    queryKey: [playerQueryUrl],
     enabled: open,
   });
 
@@ -92,23 +143,10 @@ export function CommunityBoostSelector({ open, onOpenChange, selectedDate }: Com
 
   const userCommunityShares = holdingsData?.holdings.find(h => h.assetType === "community")?.quantity || 0;
 
-  // Build a map of playerId -> game info
-  const playerGameMap = useMemo(() => {
-    const map = new Map<string, GameInfo>();
-    if (!todaysGames) return map;
-
-    for (const game of todaysGames) {
-      map.set(game.homeTeam, game);
-      map.set(game.awayTeam, game);
-    }
-    return map;
-  }, [todaysGames]);
-
-  // Count boosts per player
+  // Build boost count map
   const boostCountMap = useMemo(() => {
     const map = new Map<string, number>();
     if (!communityBoostsData?.communityBoosts) return map;
-
     for (const boost of communityBoostsData.communityBoosts) {
       const current = map.get(boost.playerId) || 0;
       map.set(boost.playerId, current + 1);
@@ -116,7 +154,7 @@ export function CommunityBoostSelector({ open, onOpenChange, selectedDate }: Com
     return map;
   }, [communityBoostsData]);
 
-  // Filter and enrich players with game info
+  // Build game status for each player
   const playersWithGames: PlayerWithGame[] = useMemo(() => {
     if (!playersData?.players) return [];
 
@@ -127,7 +165,6 @@ export function CommunityBoostSelector({ open, onOpenChange, selectedDate }: Com
       .map(player => {
         const game = playerGameMap.get(player.team);
         const gameStartTime = game?.startTime ? new Date(game.startTime) : null;
-        const gameStarted = gameStartTime ? gameStartTime <= now : false;
 
         // Determine opponent
         let opponent: string | null = null;
@@ -153,91 +190,98 @@ export function CommunityBoostSelector({ open, onOpenChange, selectedDate }: Com
           gameStatus,
           opponent,
           gameStartTime: game?.startTime || null,
+          boostCount: boostCountMap.get(player.id) || 0,
+          price: parseFloat((player as any).lastTradePrice || player.currentPrice || '0'),
+          change: parseFloat(player.priceChange24h || '0'),
+          volume: player.volume24h || 0,
+          mcap: parseFloat(player.marketCap || '0'),
+          fpts: parseFloat(player.avgFantasyPointsPerGame || '0'),
         };
       });
-  }, [playersData?.players, playerGameMap]);
+  }, [playersData?.players, playerGameMap, boostCountMap]);
 
-  // Sort players
-  const sortedPlayers = useMemo(() => {
-    const players = [...playersWithGames];
+  // Filter by game status
+  const filteredPlayers = useMemo(() => {
+    let result = playersWithGames;
 
-    return players.sort((a, b) => {
+    if (gameStatusFilter !== 'all') {
+      result = result.filter(p => p.gameStatus === gameStatusFilter);
+    }
+
+    // Sort
+    result = [...result].sort((a, b) => {
+      let valA: any = 0;
+      let valB: any = 0;
       let comparison = 0;
 
       switch (sortField) {
         case 'name':
-          comparison = `${a.firstName} ${a.lastName}`.localeCompare(
-            `${b.firstName} ${b.lastName}`
-          );
+          valA = `${a.firstName} ${a.lastName}`;
+          valB = `${b.firstName} ${b.lastName}`;
+          comparison = valA.localeCompare(valB);
           break;
         case 'team':
-          comparison = a.team.localeCompare(b.team);
+          valA = a.team;
+          valB = b.team;
+          comparison = valA.localeCompare(valB);
           break;
         case 'sport':
-          comparison = a.sport.localeCompare(b.sport);
+          valA = a.sport;
+          valB = b.sport;
+          comparison = valA.localeCompare(valB);
           break;
-        case 'opponent':
-          comparison = (a.opponent || '').localeCompare(b.opponent || '');
+        case 'price':
+          valA = a.price;
+          valB = b.price;
+          comparison = valA - valB;
+          break;
+        case 'volume':
+          valA = a.volume;
+          valB = b.volume;
+          comparison = valA - valB;
+          break;
+        case 'marketCap':
+          valA = a.mcap;
+          valB = b.mcap;
+          comparison = valA - valB;
+          break;
+        case 'boosts':
+          valA = a.boostCount;
+          valB = b.boostCount;
+          comparison = valA - valB;
           break;
       }
 
       return sortDirection === 'asc' ? comparison : -comparison;
     });
-  }, [playersWithGames, sortField, sortDirection]);
 
-  // Filter by search
-  const filteredPlayers = useMemo(() => {
-    if (!search.trim()) return sortedPlayers;
+    return result;
+  }, [playersWithGames, sortField, sortDirection, gameStatusFilter]);
 
-    const searchLower = search.toLowerCase();
-    return sortedPlayers.filter(p =>
-      `${p.firstName} ${p.lastName}`.toLowerCase().includes(searchLower) ||
-      p.team.toLowerCase().includes(searchLower) ||
-      p.sport.toLowerCase().includes(searchLower)
-    );
-  }, [sortedPlayers, search]);
-
-  const handleSort = (field: typeof sortField) => {
+  const handleSort = (field: SortField) => {
     if (sortField === field) {
       setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
     } else {
       setSortField(field);
-      setSortDirection('asc');
+      setSortDirection(['name', 'team', 'sport'].includes(field) ? 'asc' : 'desc');
     }
   };
 
-  const SortIcon = ({ field }: { field: typeof sortField }) => {
-    if (sortField !== field) return null;
-    return sortDirection === 'asc'
-      ? <ChevronUp className="h-3 w-3" />
-      : <ChevronDown className="h-3 w-3" />;
-  };
+  const getDeltaColor = (val: number) => val > 0 ? "text-green-500" : val < 0 ? "text-red-500" : "text-muted-foreground";
 
   // Buy community shares mutation
   const buyMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("POST", "/api/community/checkout-session", {
-        quantity: 1,
-      });
+      const res = await apiRequest("POST", "/api/community/checkout-session", { quantity: 1 });
       return res.json();
     },
     onSuccess: (data) => {
-      if (data.purchaseUrl) {
-        window.location.href = data.purchaseUrl;
-      }
+      if (data.purchaseUrl) window.location.href = data.purchaseUrl;
     },
     onError: (error: any) => {
-      toast({
-        title: "Failed to start checkout",
-        description: error.message || "Please try again",
-        variant: "destructive",
-      });
+      toast({ title: "Failed to start checkout", description: error.message || "Please try again", variant: "destructive" });
     },
   });
-
-  const handleBuyCommunityShares = () => {
-    buyMutation.mutate();
-  };
 
   // Create community boost mutation
   const createBoostMutation = useMutation({
@@ -257,11 +301,7 @@ export function CommunityBoostSelector({ open, onOpenChange, selectedDate }: Com
       });
     },
     onError: (error: any) => {
-      toast({
-        title: "Failed to create boost",
-        description: error.message || "Please try again",
-        variant: "destructive",
-      });
+      toast({ title: "Failed to create boost", description: error.message || "Please try again", variant: "destructive" });
     },
   });
 
@@ -271,173 +311,188 @@ export function CommunityBoostSelector({ open, onOpenChange, selectedDate }: Com
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[70vh] flex flex-col p-3" onClick={(e) => e.stopPropagation()}>
-        <DialogHeader className="p-0 pb-2">
-          <DialogTitle className="flex items-center gap-1.5 text-sm">
-            <Star className="h-4 w-4 text-amber-500" />
-            Community Boost
+      <DialogContent className="max-w-4xl p-0 gap-0 overflow-hidden h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <DialogHeader className="p-4 pb-2 border-b bg-muted/10 shrink-0">
+          <DialogTitle className="flex items-center gap-2 text-lg">
+            <Star className="h-5 w-5 text-amber-500" />
+            Community Boost Selector
           </DialogTitle>
         </DialogHeader>
 
-        {/* Community shares section - compact */}
-        <div className="flex items-center justify-between py-1.5 px-2 bg-amber-500/10 rounded-md border border-amber-500/20 mb-2">
-          <div className="flex items-center gap-2">
-            <Star className="h-3.5 w-3.5 text-amber-500" />
-            <span className="text-xs font-medium">Shares:</span>
-            {userCommunityShares > 0 ? (
-              <Badge className="bg-amber-500/20 text-amber-600 border-amber-500/30 text-xs py-0">
-                {userCommunityShares}
-              </Badge>
-            ) : (
-              <span className="text-xs text-muted-foreground">0</span>
-            )}
+        {/* Toolbar */}
+        <div className="p-3 border-b bg-muted/30 shrink-0">
+          {/* Community boost status */}
+          <div className="flex items-center justify-between mb-3 py-2 px-3 bg-amber-500/10 rounded-md border border-amber-500/20">
+            <div className="flex items-center gap-2">
+              <Zap className="h-4 w-4 text-amber-500" />
+              <span className="text-sm font-medium">Boosts Remaining:</span>
+              {userCommunityShares > 0 ? (
+                <Badge className="bg-amber-500/20 text-amber-600 border-amber-500/30">{userCommunityShares}</Badge>
+              ) : (
+                <span className="text-sm text-muted-foreground">0</span>
+              )}
+            </div>
+            <Button size="sm" variant="outline" className="border-amber-500/30 text-amber-600 hover:bg-amber-500/10" onClick={() => buyMutation.mutate()} disabled={buyMutation.isPending}>
+              {buyMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Plus className="h-3 w-3 mr-1" />}
+              Buy More
+            </Button>
           </div>
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-5 text-[10px] px-2 border-amber-500/30 text-amber-600 hover:bg-amber-500/10"
-            onClick={handleBuyCommunityShares}
-            disabled={buyMutation.isPending}
-          >
-            {buyMutation.isPending ? (
-              <Loader2 className="h-2.5 w-2.5 animate-spin mr-1" />
-            ) : (
-              <Plus className="h-2.5 w-2.5 mr-1" />
-            )}
-            Buy
-          </Button>
+
+          {/* Filters */}
+          <div className="flex flex-wrap gap-2 items-center">
+            <div className="relative flex-1 min-w-[140px]">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input placeholder="Search players..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-8 text-sm" />
+            </div>
+
+            <Select value={sortField} onValueChange={(v) => setSortField(v as SortField)}>
+              <SelectTrigger className="w-[120px] h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="name">Name</SelectItem>
+                <SelectItem value="team">Team</SelectItem>
+                <SelectItem value="sport">Sport</SelectItem>
+                <SelectItem value="price">Price</SelectItem>
+                <SelectItem value="volume">Volume</SelectItem>
+                <SelectItem value="marketCap">Mkt Cap</SelectItem>
+                <SelectItem value="boosts">Boosts</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Button size="icon" variant="ghost" onClick={() => setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')} className="h-8 w-8 shrink-0">
+              <ArrowUpDown className={cn("h-4 w-4", sortDirection === 'asc' && "rotate-180")} />
+            </Button>
+
+            <Select value={sportFilter} onValueChange={setSportFilter}>
+              <SelectTrigger className="w-[80px] h-8 text-xs">
+                <SelectValue placeholder="Sport" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="NBA">NBA</SelectItem>
+                <SelectItem value="NFL">NFL</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={gameStatusFilter} onValueChange={setGameStatusFilter}>
+              <SelectTrigger className="w-[120px] h-8 text-xs">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Games</SelectItem>
+                <SelectItem value="upcoming">Upcoming</SelectItem>
+                <SelectItem value="live">Live Now</SelectItem>
+                <SelectItem value="ended">Completed</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
-        {/* Search - compact */}
-        <div className="relative mb-2">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-          <Input
-            placeholder="Search players..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-8 h-7 text-xs"
-          />
-        </div>
+        {/* Player List */}
+        <div className="flex-1 overflow-auto bg-card">
+          <div className="w-full">
+            {/* Table Header */}
+            <div className="sticky top-0 z-20 bg-muted/80 backdrop-blur-sm border-b font-medium text-xs text-muted-foreground flex items-center px-2 py-2">
+              <div className="flex-1 pl-2 cursor-pointer hover:text-foreground" onClick={() => handleSort('name')}>Player</div>
+              <div className="w-16 sm:w-20 text-right cursor-pointer hover:text-foreground hidden sm:block" onClick={() => handleSort('sport')}>Sport</div>
+              <div className="w-16 sm:w-20 text-right cursor-pointer hover:text-foreground" onClick={() => handleSort('price')}>Price</div>
+              <div className="w-14 sm:w-16 text-right cursor-pointer hover:text-foreground hidden sm:block" onClick={() => handleSort('volume')}>Vol</div>
+              <div className="w-16 text-center">Status</div>
+              <div className="w-16 text-center cursor-pointer hover:text-foreground" onClick={() => handleSort('boosts')}>Boosts</div>
+              <div className="w-20 text-center">Action</div>
+            </div>
 
-        {/* Sortable header - compact */}
-        <div className="grid grid-cols-12 gap-1 px-2 py-1 text-[10px] font-medium text-muted-foreground border-b">
-          <div className="col-span-4 cursor-pointer hover:text-foreground" onClick={() => handleSort('name')}>
-            Player <SortIcon field="name" />
-          </div>
-          <div className="col-span-2 cursor-pointer hover:text-foreground" onClick={() => handleSort('team')}>
-            Team <SortIcon field="team" />
-          </div>
-          <div className="col-span-2 text-center cursor-pointer hover:text-foreground" onClick={() => handleSort('opponent')}>
-            Opp <SortIcon field="opponent" />
-          </div>
-          <div className="col-span-2 text-center">
-            #
-          </div>
-          <div className="col-span-2 text-right">
-            Action
-          </div>
-        </div>
-
-        {/* Player list */}
-        <div className="flex-1 overflow-y-auto -mx-2">
-          {isLoadingPlayers ? (
-            <div className="space-y-1 py-2 px-2">
-              {[...Array(5)].map((_, i) => (
-                <div key={i} className="grid grid-cols-12 gap-1 h-8">
-                  <Skeleton className="col-span-4 h-6" />
-                  <Skeleton className="col-span-2 h-6" />
-                  <Skeleton className="col-span-2 h-6" />
-                  <Skeleton className="col-span-2 h-6" />
-                  <Skeleton className="col-span-2 h-6" />
+            {/* Table Body */}
+            <div className="divide-y relative">
+              {isLoadingPlayers ? (
+                <div className="p-8 text-center text-muted-foreground text-sm flex flex-col items-center">
+                  <Loader2 className="h-6 w-6 animate-spin mb-2" />
+                  Loading players...
                 </div>
-              ))}
-            </div>
-          ) : filteredPlayers.length === 0 ? (
-            <div className="py-6 text-center text-xs text-muted-foreground">
-              {search ? `No players match "${search}"` : "No players with games today"}
-            </div>
-          ) : (
-            <div className="divide-y divide-border/50">
-              {filteredPlayers.map((player) => {
-                const boostCount = boostCountMap.get(player.id) || 0;
-                const canBoost = player.gameStatus === 'upcoming' && userCommunityShares > 0;
-
-                return (
-                  <div
-                    key={player.id}
-                    className={cn(
-                      "grid grid-cols-12 gap-1 px-2 py-1.5 items-center hover:bg-accent/50 text-xs",
-                      player.gameStatus === 'live' && "bg-yellow-500/5",
-                      player.gameStatus === 'ended' && "bg-muted/30"
-                    )}
-                  >
-                    <div className="col-span-4 min-w-0">
-                      <div className="font-medium truncate">
-                        {player.firstName} {player.lastName}
-                      </div>
-                      <div className="text-[9px] text-muted-foreground flex items-center gap-1">
-                        {player.gameStatus === 'live' && (
-                          <Badge variant="destructive" className="text-[8px] px-1 h-3 animate-pulse">LIVE</Badge>
-                        )}
-                        {player.gameStatus === 'upcoming' && player.gameStartTime && (
-                          <span>{format(new Date(player.gameStartTime), 'h:mm a')}</span>
-                        )}
-                        {player.gameStatus === 'ended' && (
-                          <Badge variant="secondary" className="text-[8px] px-1 h-3">Ended</Badge>
-                        )}
-                      </div>
-                    </div>
-                    <div className="col-span-2 text-muted-foreground truncate">
-                      {player.team}
-                    </div>
-                    <div className="col-span-2 text-muted-foreground truncate text-center">
-                      {player.opponent || '-'}
-                    </div>
-                    <div className="col-span-2 flex items-center justify-center">
-                      <div className={cn(
-                        "flex items-center gap-1 px-1.5 py-0.5 rounded text-xs",
-                        boostCount > 0
-                          ? "bg-amber-500/10 text-amber-600"
-                          : "bg-muted text-muted-foreground"
-                      )}>
-                        <Zap className="h-2.5 w-2.5" />
-                        <span className="font-medium">{boostCount}</span>
-                      </div>
-                    </div>
-                    <div className="col-span-2 flex justify-end">
-                      <Button
-                        size="sm"
-                        variant={canBoost ? "default" : "ghost"}
-                        disabled={!canBoost || createBoostMutation.isPending}
-                        onClick={() => handleCreateBoost(player.id)}
-                        className={cn(
-                          "h-6 text-[10px] px-2",
-                          canBoost && "bg-amber-600 hover:bg-amber-700"
-                        )}
-                      >
-                        {createBoostMutation.isPending ? (
-                          <Loader2 className="h-2.5 w-2.5 animate-spin" />
-                        ) : !canBoost ? (
-                          player.gameStatus === 'live' ? 'Live' : player.gameStatus === 'ended' ? 'End' : '-'
-                        ) : (
-                          <>
-                            <Star className="h-2.5 w-2.5 mr-1" />
-                            Boost
-                          </>
-                        )}
-                      </Button>
-                    </div>
+              ) : filteredPlayers.length === 0 ? (
+                <div className="py-20 text-center text-muted-foreground flex flex-col items-center gap-3 bg-muted/10 shrink-0 border-b">
+                  <Search className="h-5 w-5 opacity-40" />
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-foreground">No players found</p>
+                    <p className="text-[10px] opacity-70 px-4 max-w-[200px] mx-auto">
+                      {search ? `No players match "${search}"` : "No players with games today"}
+                    </p>
                   </div>
-                );
-              })}
+                </div>
+              ) : (
+                filteredPlayers.map((player) => {
+                  const canBoost = player.gameStatus === 'upcoming' && userCommunityShares > 0;
+                  return (
+                    <div key={player.id} className="group flex flex-col transition-colors border-b last:border-0">
+                      <div className={cn("flex items-center px-2 py-1.5 transition-colors text-sm", player.gameStatus === 'live' && "bg-red-50 dark:bg-red-950/20 border-l-2 border-l-red-500", player.gameStatus === 'ended' && "bg-muted/40 dark:bg-muted/20 border-l-2 border-l-muted-foreground")}>
+                        {/* Player Info */}
+                        <div className="flex-1 flex items-center gap-2 min-w-0 pr-2">
+                          <div className="min-w-0 flex-1">
+                            <PlayerName playerId={player.id} firstName={player.firstName} lastName={player.lastName} className="font-medium truncate leading-tight hover:underline text-sm sm:text-xs" />
+                            <div className="text-[10px] text-muted-foreground flex items-center gap-1.5 flex-wrap">
+                              <Badge variant="secondary" className="text-[9px] px-0.5 h-3.5 min-w-[20px] justify-center rounded-[3px]">{player.team}</Badge>
+                              <span className="font-mono">{player.position}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Sport */}
+                        <div className="w-16 sm:w-20 text-right text-muted-foreground text-xs hidden sm:block">{player.sport}</div>
+
+                        {/* Price */}
+                        <div className="w-16 sm:w-20 text-right font-mono text-xs tabular-nums">${player.price.toFixed(2)}</div>
+
+                        {/* Volume */}
+                        <div className="w-14 sm:w-16 text-right font-mono text-xs tabular-nums text-muted-foreground hidden sm:block">{player.volume > 0 ? player.volume.toLocaleString() : '-'}</div>
+
+                        {/* Game Status */}
+                        <div className="w-16 text-center">
+                          {player.gameStatus === 'upcoming' && player.gameStartTime && (
+                            <Badge variant="outline" className="text-[9px] px-1 h-5 border-blue-200 text-blue-600 bg-blue-50">{format(new Date(player.gameStartTime), "h:mm a")}</Badge>
+                          )}
+                          {player.gameStatus === 'upcoming' && !player.gameStartTime && <Badge variant="outline" className="text-[9px] px-1 h-5">-</Badge>}
+                          {player.gameStatus === 'live' && <Badge variant="destructive" className="text-[9px] px-1 h-5 animate-pulse font-bold">LIVE</Badge>}
+                          {player.gameStatus === 'ended' && <Badge variant="secondary" className="text-[9px] px-1 h-5">FINAL</Badge>}
+                          {player.gameStatus === 'none' && <Badge variant="outline" className="text-[9px] px-1 h-5 text-muted-foreground">--</Badge>}
+                        </div>
+
+                        {/* Boost Count */}
+                        <div className="w-16 text-center">
+                          <div className={cn("inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs", player.boostCount > 0 ? "bg-amber-500/10 text-amber-600" : "bg-muted text-muted-foreground")}>
+                            <Zap className="h-2.5 w-2.5" />
+                            <span className="font-medium">{player.boostCount}</span>
+                          </div>
+                        </div>
+
+                        {/* Action Button */}
+                        <div className="w-20 text-center">
+                          <Button size="sm" variant={canBoost ? "default" : "ghost"} disabled={!canBoost || createBoostMutation.isPending} onClick={() => handleCreateBoost(player.id)} className={cn("h-6 text-[10px] px-2", canBoost && "bg-amber-600 hover:bg-amber-700")}>
+                            {createBoostMutation.isPending ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : !canBoost ? (player.gameStatus === 'live' ? 'Live' : player.gameStatus === 'ended' ? 'End' : '-') : <><Zap className="h-2.5 w-2.5 mr-1" />Boost</>}
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+
+              {/* Load More - only show when pagination is active */}
+              {!isLoadingPlayers && usePagination && playersData && playersData.total > limit && (
+                <div className="p-2 text-center">
+                  <Button variant="ghost" size="sm" className="text-xs text-muted-foreground w-full" onClick={() => setLimit(prev => prev + 50)}>
+                    Show More ({Math.max(0, playersData.total - limit)} hidden)
+                  </Button>
+                </div>
+              )}
             </div>
-          )}
+          </div>
         </div>
 
-        {/* Footer info - compact */}
-        <div className="text-[10px] text-muted-foreground py-1.5 border-t flex items-center gap-2">
-          <Users className="h-2.5 w-2.5" />
-          <span>Your boost gives +1x to ALL holders</span>
+        {/* Footer */}
+        <div className="text-[10px] text-muted-foreground py-2 px-4 border-t bg-muted/10 flex items-center gap-2">
+          <Users className="h-3 w-3" />
+          <span>Each boost gives +1x multiplier to ALL holders of that player</span>
         </div>
       </DialogContent>
     </Dialog>
