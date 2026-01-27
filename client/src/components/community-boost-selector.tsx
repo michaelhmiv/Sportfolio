@@ -271,167 +271,158 @@ export function CommunityBoostSelector({ open, onOpenChange, selectedDate }: Com
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Star className="h-5 w-5 text-amber-500" />
-            Create Community Boost
+      <DialogContent className="max-w-lg max-h-[70vh] flex flex-col p-3" onClick={(e) => e.stopPropagation()}>
+        <DialogHeader className="p-0 pb-2">
+          <DialogTitle className="flex items-center gap-1.5 text-sm">
+            <Star className="h-4 w-4 text-amber-500" />
+            Community Boost
           </DialogTitle>
         </DialogHeader>
 
-        {/* Community shares section - always show buy button */}
-        <div className="flex items-center justify-between py-2 px-3 bg-amber-500/10 rounded-lg border border-amber-500/20 mb-2">
+        {/* Community shares section - compact */}
+        <div className="flex items-center justify-between py-1.5 px-2 bg-amber-500/10 rounded-md border border-amber-500/20 mb-2">
           <div className="flex items-center gap-2">
-            <Star className="h-4 w-4 text-amber-500" />
-            <span className="text-sm font-medium">Your Community Shares</span>
+            <Star className="h-3.5 w-3.5 text-amber-500" />
+            <span className="text-xs font-medium">Shares:</span>
             {userCommunityShares > 0 ? (
-              <Badge className="bg-amber-500/20 text-amber-600 border-amber-500/30 ml-2">
-                {userCommunityShares} available
+              <Badge className="bg-amber-500/20 text-amber-600 border-amber-500/30 text-xs py-0">
+                {userCommunityShares}
               </Badge>
             ) : (
-              <span className="text-xs text-muted-foreground ml-2">No shares</span>
+              <span className="text-xs text-muted-foreground">0</span>
             )}
           </div>
           <Button
             size="sm"
             variant="outline"
-            className="h-7 text-xs border-amber-500/30 text-amber-600 hover:bg-amber-500/10"
+            className="h-5 text-[10px] px-2 border-amber-500/30 text-amber-600 hover:bg-amber-500/10"
             onClick={handleBuyCommunityShares}
             disabled={buyMutation.isPending}
           >
             {buyMutation.isPending ? (
-              <>
-                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                Redirecting...
-              </>
+              <Loader2 className="h-2.5 w-2.5 animate-spin mr-1" />
             ) : (
-              <>
-                <Plus className="h-3 w-3 mr-1" />
-                Buy More
-              </>
+              <Plus className="h-2.5 w-2.5 mr-1" />
             )}
+            Buy
           </Button>
         </div>
 
-        {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        {/* Search - compact */}
+        <div className="relative mb-2">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <Input
             placeholder="Search players..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 h-9"
+            className="pl-8 h-7 text-xs"
           />
         </div>
 
-        {/* Sortable header */}
-        <div className="grid grid-cols-12 gap-2 px-2 py-1 text-xs font-medium text-muted-foreground border-b">
-          <div className="col-span-4 flex items-center gap-1 cursor-pointer hover:text-foreground" onClick={() => handleSort('name')}>
+        {/* Sortable header - compact */}
+        <div className="grid grid-cols-12 gap-1 px-2 py-1 text-[10px] font-medium text-muted-foreground border-b">
+          <div className="col-span-4 cursor-pointer hover:text-foreground" onClick={() => handleSort('name')}>
             Player <SortIcon field="name" />
           </div>
-          <div className="col-span-2 flex items-center gap-1 cursor-pointer hover:text-foreground" onClick={() => handleSort('sport')}>
-            Sport <SortIcon field="sport" />
-          </div>
-          <div className="col-span-2 flex items-center gap-1 cursor-pointer hover:text-foreground" onClick={() => handleSort('team')}>
+          <div className="col-span-2 cursor-pointer hover:text-foreground" onClick={() => handleSort('team')}>
             Team <SortIcon field="team" />
           </div>
-          <div className="col-span-2 flex items-center gap-1 cursor-pointer hover:text-foreground" onClick={() => handleSort('opponent')}>
+          <div className="col-span-2 text-center cursor-pointer hover:text-foreground" onClick={() => handleSort('opponent')}>
             Opp <SortIcon field="opponent" />
           </div>
-          <div className="col-span-2 flex items-center justify-center gap-1">
-            Boosts
+          <div className="col-span-2 text-center">
+            #
+          </div>
+          <div className="col-span-2 text-right">
+            Action
           </div>
         </div>
 
         {/* Player list */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto -mx-2">
           {isLoadingPlayers ? (
-            <div className="space-y-2 py-4">
+            <div className="space-y-1 py-2 px-2">
               {[...Array(5)].map((_, i) => (
-                <div key={i} className="grid grid-cols-12 gap-2 px-2">
-                  <Skeleton className="col-span-4 h-8" />
-                  <Skeleton className="col-span-2 h-8" />
-                  <Skeleton className="col-span-2 h-8" />
-                  <Skeleton className="col-span-2 h-8" />
-                  <Skeleton className="col-span-2 h-8" />
+                <div key={i} className="grid grid-cols-12 gap-1 h-8">
+                  <Skeleton className="col-span-4 h-6" />
+                  <Skeleton className="col-span-2 h-6" />
+                  <Skeleton className="col-span-2 h-6" />
+                  <Skeleton className="col-span-2 h-6" />
+                  <Skeleton className="col-span-2 h-6" />
                 </div>
               ))}
             </div>
           ) : filteredPlayers.length === 0 ? (
-            <div className="py-8 text-center text-muted-foreground text-sm">
+            <div className="py-6 text-center text-xs text-muted-foreground">
               {search ? `No players match "${search}"` : "No players with games today"}
             </div>
           ) : (
-            <div className="divide-y">
+            <div className="divide-y divide-border/50">
               {filteredPlayers.map((player) => {
                 const boostCount = boostCountMap.get(player.id) || 0;
+                const canBoost = player.gameStatus === 'upcoming' && userCommunityShares > 0;
 
                 return (
                   <div
                     key={player.id}
                     className={cn(
-                      "grid grid-cols-12 gap-2 px-2 py-2 items-center hover:bg-accent/50",
+                      "grid grid-cols-12 gap-1 px-2 py-1.5 items-center hover:bg-accent/50 text-xs",
                       player.gameStatus === 'live' && "bg-yellow-500/5",
                       player.gameStatus === 'ended' && "bg-muted/30"
                     )}
                   >
                     <div className="col-span-4 min-w-0">
-                      <div className="font-medium text-sm truncate">
+                      <div className="font-medium truncate">
                         {player.firstName} {player.lastName}
                       </div>
-                      <div className="text-xs text-muted-foreground flex items-center gap-1">
+                      <div className="text-[9px] text-muted-foreground flex items-center gap-1">
                         {player.gameStatus === 'live' && (
-                          <Badge variant="destructive" className="text-[9px] px-1 h-4 animate-pulse">LIVE</Badge>
+                          <Badge variant="destructive" className="text-[8px] px-1 h-3 animate-pulse">LIVE</Badge>
                         )}
                         {player.gameStatus === 'upcoming' && player.gameStartTime && (
                           <span>{format(new Date(player.gameStartTime), 'h:mm a')}</span>
                         )}
                         {player.gameStatus === 'ended' && (
-                          <Badge variant="secondary" className="text-[9px] px-1 h-4">Ended</Badge>
+                          <Badge variant="secondary" className="text-[8px] px-1 h-3">Ended</Badge>
                         )}
                       </div>
                     </div>
-                    <div className="col-span-2">
-                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5">
-                        {player.sport}
-                      </Badge>
-                    </div>
-                    <div className="col-span-2 text-sm text-muted-foreground">
+                    <div className="col-span-2 text-muted-foreground truncate">
                       {player.team}
                     </div>
-                    <div className="col-span-2 text-sm text-muted-foreground truncate">
+                    <div className="col-span-2 text-muted-foreground truncate text-center">
                       {player.opponent || '-'}
                     </div>
-                    <div className="col-span-2 flex items-center justify-center gap-1">
+                    <div className="col-span-2 flex items-center justify-center">
                       <div className={cn(
-                        "flex items-center gap-1 px-2 py-1 rounded",
+                        "flex items-center gap-1 px-1.5 py-0.5 rounded text-xs",
                         boostCount > 0
                           ? "bg-amber-500/10 text-amber-600"
                           : "bg-muted text-muted-foreground"
                       )}>
-                        <Zap className="h-3 w-3" />
-                        <span className="text-sm font-medium">{boostCount}</span>
+                        <Zap className="h-2.5 w-2.5" />
+                        <span className="font-medium">{boostCount}</span>
                       </div>
                     </div>
-                    <div className="col-span-12 flex justify-end mt-1">
+                    <div className="col-span-2 flex justify-end">
                       <Button
                         size="sm"
-                        variant="default"
-                        disabled={player.gameStatus !== 'upcoming' || createBoostMutation.isPending || userCommunityShares <= 0}
+                        variant={canBoost ? "default" : "ghost"}
+                        disabled={!canBoost || createBoostMutation.isPending}
                         onClick={() => handleCreateBoost(player.id)}
-                        className="h-7 text-xs bg-amber-600 hover:bg-amber-700"
+                        className={cn(
+                          "h-6 text-[10px] px-2",
+                          canBoost && "bg-amber-600 hover:bg-amber-700"
+                        )}
                       >
                         {createBoostMutation.isPending ? (
-                          <>
-                            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                            Creating...
-                          </>
-                        ) : player.gameStatus !== 'upcoming' ? (
-                          player.gameStatus === 'live' ? 'Game Live' : 'Game Ended'
+                          <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                        ) : !canBoost ? (
+                          player.gameStatus === 'live' ? 'Live' : player.gameStatus === 'ended' ? 'End' : '-'
                         ) : (
                           <>
-                            <Star className="h-3 w-3 mr-1" />
-                            Boost (+1x)
+                            <Star className="h-2.5 w-2.5 mr-1" />
+                            Boost
                           </>
                         )}
                       </Button>
@@ -443,10 +434,10 @@ export function CommunityBoostSelector({ open, onOpenChange, selectedDate }: Com
           )}
         </div>
 
-        {/* Footer info */}
-        <div className="text-xs text-muted-foreground py-2 border-t flex items-center gap-2">
-          <Users className="h-3 w-3" />
-          <span>Your boost gives +1x multiplier to ALL holders of this player</span>
+        {/* Footer info - compact */}
+        <div className="text-[10px] text-muted-foreground py-1.5 border-t flex items-center gap-2">
+          <Users className="h-2.5 w-2.5" />
+          <span>Your boost gives +1x to ALL holders</span>
         </div>
       </DialogContent>
     </Dialog>

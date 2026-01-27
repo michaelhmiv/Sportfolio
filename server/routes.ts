@@ -7312,12 +7312,14 @@ ${posts.map(post => `  <url>
         });
       }
 
-      // Get the holding to capture powerLevel before boost is created
+      // Get the holding to capture power (per-share power) before boost is created
       const holding = await storage.getHolding(userId, "player", playerId);
       if (!holding || holding.quantity < 1) {
         return res.status(400).json({ error: "No shares available for this player" });
       }
-      const powerLevel = holding.powerLevel || "0.00";
+      // Capture the per-share power (1 for base shares, 2+ for condensed)
+      // This is what determines the boost multiplier, NOT powerLevel (total power)
+      const power = holding.power.toString();
 
       // Create the boost
       // Use provided date or default to today (ensure date is object)
@@ -7331,7 +7333,7 @@ ${posts.map(post => `  <url>
         slotTier: tierNum,
         boostDate,
         sharesEntered: shares,
-        powerLevel,
+        powerLevel: power, // Use per-share power, not total power_level
         gameId: game.gameId,
       });
 
