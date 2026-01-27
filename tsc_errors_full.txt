@@ -1,0 +1,20 @@
+﻿client/src/components/game-stats-modal.tsx(119,57): error TS18048: 'liveStats' is possibly 'undefined'.
+client/src/components/game-stats-modal.tsx(120,65): error TS18048: 'liveStats' is possibly 'undefined'.
+client/src/components/game-stats-modal.tsx(124,57): error TS18048: 'liveStats' is possibly 'undefined'.
+client/src/components/game-stats-modal.tsx(125,65): error TS18048: 'liveStats' is possibly 'undefined'.
+client/src/components/game-stats-modal.tsx(130,50): error TS2345: Argument of type 'LiveStats | undefined' is not assignable to parameter of type 'LiveStats'.
+  Type 'undefined' is not assignable to type 'LiveStats'.
+client/src/components/game-stats-modal.tsx(135,50): error TS2345: Argument of type 'LiveStats | undefined' is not assignable to parameter of type 'LiveStats'.
+  Type 'undefined' is not assignable to type 'LiveStats'.
+client/src/components/live-game-stats.tsx(129,50): error TS2345: Argument of type 'LiveStats | undefined' is not assignable to parameter of type 'LiveStats'.
+  Type 'undefined' is not assignable to type 'LiveStats'.
+client/src/components/live-game-stats.tsx(134,50): error TS2345: Argument of type 'LiveStats | undefined' is not assignable to parameter of type 'LiveStats'.
+  Type 'undefined' is not assignable to type 'LiveStats'.
+client/src/main.tsx(2,17): error TS1149: File name 'C:/Users/micha/OneDrive/Documents/Antigravity/Sportfolio-Replit/client/src/App.tsx' differs from already included file name 'C:/Users/micha/OneDrive/Documents/Antigravity/Sportfolio-Replit/client/src/app.tsx' only in casing.
+  The file is in the program because:
+    Matched by include pattern 'client/src/**/*' in 'C:/Users/micha/OneDrive/Documents/Antigravity/Sportfolio-Replit/tsconfig.json'
+    Imported via "./App" from file 'C:/Users/micha/OneDrive/Documents/Antigravity/Sportfolio-Replit/client/src/main.tsx'
+client/src/pages/power.tsx(12,40): error TS2307: Cannot find module '@/shared/schema' or its corresponding type declarations.
+server/routes.ts(6884,94): error TS18046: 'e' is of type 'unknown'.
+server/routes.ts(6916,52): error TS18048: 'gameStartTime' is possibly 'undefined'.
+server/storage.ts(974,10): error TS2339: Property 'forUpdate' does not exist on type 'Omit<PgSelectBase<"players", { id: PgColumn<{ name: "id"; tableName: "players"; dataType: "string"; columnType: "PgVarchar"; data: string; driverParam: string; notNull: true; hasDefault: false; isPrimaryKey: true; ... 5 more ...; generated: undefined; }, {}, { ...; }>; ... 14 more ...; lastUpdated: PgColumn<...>; },...'.

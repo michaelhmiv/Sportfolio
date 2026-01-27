@@ -2,34 +2,32 @@
 import { Client } from 'pg';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as dotenv from 'dotenv';
 
-// Manual .env loading
-const envPath = path.resolve(process.cwd(), '.env');
-if (fs.existsSync(envPath)) {
-    const envContent = fs.readFileSync(envPath, 'utf8');
-    envContent.split('\n').forEach(line => {
-        const [key, ...valueParts] = line.split('=');
-        if (key && valueParts.length > 0) {
-            process.env[key.trim()] = valueParts.join('=').trim().replace(/^"(.*)"$/, '$1');
-        }
-    });
-}
+// Load .env
+dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
 const DATABASE_URL = process.env.DATABASE_URL;
+const ENV = process.env.NODE_ENV || 'development';
 
-if (!DATABASE_URL) {
-    console.error('DATABASE_URL not set');
+// Use DEV_DATABASE_URL for development, DATABASE_URL for production
+const targetDbUrl = ENV === 'development' ? process.env.DEV_DATABASE_URL : DATABASE_URL;
+
+if (!targetDbUrl) {
+    console.error(`${ENV}: DATABASE_URL not set`);
     process.exit(1);
 }
 
-const client = new Client({ connectionString: DATABASE_URL });
+console.log(`Running on ${ENV} database...`);
+
+const client = new Client({ connectionString: targetDbUrl });
 
 (async () => {
     try {
         await client.connect();
 
-        // Use process.cwd() to verify path, pointing to scripts directory
-        const sqlPath = path.resolve(process.cwd(), 'scripts', 'disable-rls.sql');
+        // Use fix-rls.sql which has all the policies including new tables
+        const sqlPath = path.resolve(process.cwd(), 'scripts', 'fix-rls.sql');
         console.log('SQL Path:', sqlPath);
 
         if (!fs.existsSync(sqlPath)) {
@@ -39,11 +37,10 @@ const client = new Client({ connectionString: DATABASE_URL });
         const sql = fs.readFileSync(sqlPath, 'utf8');
         console.log('Read SQL file, length:', sql.length);
 
-        console.log('Running RLS enable script...');
+        console.log('Running RLS fix script...');
         const result = await client.query(sql);
 
-        console.log('RLS enabled successfully!');
-        // Result might be an array if multiple statements
+        console.log('RLS policies applied successfully!');
         if (Array.isArray(result)) {
             const lastResult = result[result.length - 1];
             if (lastResult.rows) console.log(lastResult.rows);

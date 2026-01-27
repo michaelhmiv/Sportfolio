@@ -42,7 +42,11 @@
       "Bash(\"C:\\\\\\\\Program Files\\\\\\\\GitHub CLI\\\\\\\\gh.exe\" issue comments:*)",
       "Bash(\"C:\\\\Program Files\\\\GitHub CLI\\\\gh.exe\" issue view 1 --repo michaelhmiv/Sportfolio-Replit --comments)",
       "Bash(gh issue view:*)",
-      "Bash(\"C:\\\\Program Files\\\\GitHub CLI\\\\gh.exe\" issue view:*)"
+      "Bash(\"C:\\\\Program Files\\\\GitHub CLI\\\\gh.exe\" issue view:*)",
+      "Bash(npx:*)",
+      "Bash(git pull:*)",
+      "Bash(git stash)",
+      "Bash(git stash:*)"
     ]
   }
 }

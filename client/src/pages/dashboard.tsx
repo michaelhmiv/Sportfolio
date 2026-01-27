@@ -11,9 +11,9 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
-import { TrendingUp, TrendingDown, Trophy, Clock, DollarSign, Calendar, Search, ChevronDown, BarChart3, ChevronLeft, ChevronRight, ExternalLink, ArrowUpDown, LogIn, Activity } from "lucide-react";
+import { TrendingUp, TrendingDown, DollarSign, Calendar, Search, ChevronDown, BarChart3, ChevronLeft, ChevronRight, ExternalLink, ArrowUpDown, LogIn, Activity, Trophy, Clock } from "lucide-react";
 import { Link, useLocation } from "wouter";
-import type { Player, Contest, Trade, DailyGame } from "@shared/schema";
+import type { Player, Trade, DailyGame } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { formatBalance } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -29,6 +29,7 @@ import { SportSelector } from "@/components/sport-selector";
 import { OnboardingMissions } from "@/components/onboarding-missions";
 import { MarketTicker } from "@/components/market-ticker";
 import { GameStatsModal } from "@/components/game-stats-modal";
+import { Zap, Flame } from "lucide-react";
 
 interface DashboardData {
   user: {
@@ -39,10 +40,21 @@ interface DashboardData {
     cashRankChange: number | null;
     portfolioRankChange: number | null;
   } | null; // Null for non-authenticated users
-  contests: Contest[];
   recentTrades: (Trade & { player: Player })[];
   portfolioHistory: { date: string; value: number }[];
   topHoldings: { player: Player; quantity: number; value: string; pnl: string; pnlPercent: string }[];
+  power: {
+    activeBoosts: number;
+    lockedBoosts: number;
+    processedBoosts: number;
+    totalBoosts: number;
+    slotsRemaining: number;
+    availableSlots: number[];
+    communityBoostCount: number;
+    userCommunityShares: number;
+    totalLivePayout: string;
+    totalProcessedPayout: string;
+  } | null;
 }
 
 // Helper to determine effective game status based on current time
@@ -507,43 +519,94 @@ export default function Dashboard() {
 
           {/* Widgets Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 sm:gap-3">
-            {/* Contest Summary */}
+            {/* Power Summary */}
             <ScrollReveal delay={0.35}>
               <Card className="lg:col-span-1">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium uppercase tracking-wide">Contests</CardTitle>
-                  <Trophy className="w-4 h-4 text-muted-foreground" />
+                  <CardTitle className="text-sm font-medium uppercase tracking-wide">Power</CardTitle>
+                  <Zap className="w-4 h-4 text-yellow-500" />
                 </CardHeader>
                 <CardContent className="space-y-2 sm:space-y-3">
-                  {data?.contests?.slice(0, 3).map((contest) => (
-                    <div key={contest.id} className="p-2 border rounded-md hover-elevate">
-                      <div className="flex items-start justify-between gap-2 mb-1">
-                        <div className="min-w-0">
-                          <div className="font-medium text-xs truncate">{contest.name}</div>
-                          <Badge variant="outline" className="text-[10px] h-4 mt-0.5">{contest.sport}</Badge>
+                  {isAuthenticated && data?.power ? (
+                    <>
+                      {/* Active Boosts Stats */}
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="p-2 bg-primary/10 rounded-md">
+                          <div className="flex items-center gap-1 mb-1">
+                            <Flame className="w-3 h-3 text-orange-500" />
+                            <span className="text-xs text-muted-foreground">Active</span>
+                          </div>
+                          <div className="text-lg font-bold">{data.power.activeBoosts}/4</div>
                         </div>
-                        <div className="text-right flex-shrink-0">
-                          <div className="text-sm font-mono font-bold text-primary">${contest.totalPrizePool}</div>
-                          <div className="text-[10px] text-muted-foreground">{contest.entryCount} entries</div>
+                        <div className="p-2 bg-yellow-500/10 rounded-md">
+                          <div className="flex items-center gap-1 mb-1">
+                            <span className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" />
+                            <span className="text-xs text-muted-foreground">Live</span>
+                          </div>
+                          <div className="text-lg font-bold">{data.power.lockedBoosts}</div>
                         </div>
                       </div>
-                      <div className="text-[10px] text-muted-foreground">{contest.totalSharesEntered} shares entered</div>
-                    </div>
-                  ))}
-                  {!isAuthenticated ? (
-                    <Button className="w-full" asChild data-testid="button-login-contests">
-                      <Link href="/login" className="flex items-center justify-center gap-2">
-                        <LogIn className="w-4 h-4" />
-                        Sign In to Enter
-                      </Link>
-                    </Button>
+
+                      {/* Slots Remaining */}
+                      <div className="flex items-center gap-2 p-2 border rounded-md">
+                        <div className="flex-1">
+                          <div className="text-xs text-muted-foreground">Slots Available</div>
+                          <div className="flex gap-1 mt-1">
+                            {data.power.availableSlots.map(slot => (
+                              <Badge key={slot} variant="outline" className="text-xs">
+                                {slot}x
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                        {data.power.slotsRemaining > 0 && (
+                          <div className="text-sm text-muted-foreground">
+                            {data.power.slotsRemaining} open
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Community Boost Count */}
+                      {data.power.communityBoostCount > 0 && (
+                        <div className="flex items-center gap-2 p-2 bg-amber-500/10 rounded-md border border-amber-500/20">
+                          <div className="flex-1">
+                            <div className="text-xs text-muted-foreground">Community Boosts</div>
+                            <div className="text-sm font-medium">{data.power.communityBoostCount} active today</div>
+                          </div>
+                          <Badge className="bg-amber-500/20 text-amber-600 border-amber-500/30">
+                            +{data.power.communityBoostCount}x
+                          </Badge>
+                        </div>
+                      )}
+
+                      {/* Today's Payout */}
+                      {(data.power.totalLivePayout !== "0.00" || data.power.totalProcessedPayout !== "0.00") && (
+                        <div className="p-2 bg-green-500/10 rounded-md border border-green-500/20">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-muted-foreground">Today's Payout</span>
+                            <span className="text-lg font-bold text-green-500">
+                              ${(parseFloat(data.power.totalLivePayout) + parseFloat(data.power.totalProcessedPayout)).toFixed(2)}
+                            </span>
+                          </div>
+                          {data.power.totalLivePayout !== "0.00" && (
+                            <div className="text-xs text-muted-foreground mt-1">
+                              Est. ${data.power.totalLivePayout} live
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </>
                   ) : (
-                    <Link href="/contests">
-                      <Button variant="outline" className="w-full" data-testid="button-view-contests">
-                        View All Contests
-                      </Button>
-                    </Link>
+                    <div className="text-center py-4 text-sm text-muted-foreground">
+                      Sign in to use Power
+                    </div>
                   )}
+
+                  <Link href="/power">
+                    <Button variant="outline" className="w-full" data-testid="button-view-power">
+                      Open Power Tab
+                    </Button>
+                  </Link>
                 </CardContent>
               </Card>
             </ScrollReveal>

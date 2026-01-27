@@ -64,6 +64,7 @@ import {
 } from "@/components/ui/select";
 import { format } from "date-fns";
 import type { Player } from "@shared/schema";
+import { PlayerName } from "@/components/player-name";
 
 // --- Types ---
 interface ScoutAssignment {
@@ -737,7 +738,7 @@ export function ScoutDashboardModal() {
                             <div className="w-8"></div> {/* Expand Toggle Column */}
                             <div className="flex-1 pl-2 cursor-pointer hover:text-foreground" onClick={() => handleSort('name')}>Player</div>
 
-                            <div className="w-20 text-right cursor-pointer hover:text-foreground hidden sm:block" onClick={() => handleSort('fantasyPoints')}>FPTS</div>
+                            <div className="w-20 text-right cursor-pointer hover:text-foreground hidden sm:block" onClick={() => handleSort('fantasyPoints')}>FPTS/G</div>
                             <div className="w-20 text-right cursor-pointer hover:text-foreground" onClick={() => handleSort('price')}>Price</div>
 
 
@@ -803,9 +804,12 @@ export function ScoutDashboardModal() {
                                                     <AvatarFallback className="text-[10px] bg-muted">{player.firstName[0]}{player.lastName[0]}</AvatarFallback>
                                                 </Avatar>
                                                 <div className="min-w-0 flex-1">
-                                                    <div className="font-medium truncate leading-tight">
-                                                        {player.firstName} {player.lastName}
-                                                    </div>
+                                                    <PlayerName
+                                                        playerId={player.id}
+                                                        firstName={player.firstName}
+                                                        lastName={player.lastName}
+                                                        className="font-medium truncate leading-tight hover:underline"
+                                                    />
                                                     <div className="text-[10px] text-muted-foreground flex items-center gap-1.5 flex-wrap">
                                                         <Badge variant="secondary" className="text-[9px] px-0.5 h-3.5 min-w-[20px] justify-center rounded-[3px]">
                                                             {player.team}

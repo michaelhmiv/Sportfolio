@@ -59,3 +59,31 @@ To test the normal OAuth flow in production:
 1. The app is published at a `.replit.app` URL
 2. OAuth callback URLs must be registered in your Replit OAuth application settings
 3. Users log in with their real Replit accounts
+
+---
+
+## GitHub CLI Access for Private Repositories
+
+### Important: GitHub CLI is Per-Instance
+GitHub CLI (`gh`) is a **system-level tool** that must be installed separately for each:
+- Claude Code instance/environment
+- Development machine
+- CI/CD pipeline
+
+It is **not** automatically shared across different instances.
+
+### What Happens Without GitHub CLI
+Claude Code cannot:
+- View GitHub issues via CLI (`gh issue view`)
+- Access private repository content programmatically
+- Run GitHub API commands directly (`gh api`)
+
+### Installation
+Download GitHub CLI from: https://cli.github.com/
+- **Windows**: `winget install GitHub.cli` or download installer
+- **macOS**: `brew install gh`
+- **Linux**: `apt install gh` or your distro's package manager
+
+### Workarounds (Without GitHub CLI)
+1. **WebFetch**: Can access public GitHub URLs (but not private issues)
+2. **User Provides Details**: Share issue text/URLs directly with Claude Code

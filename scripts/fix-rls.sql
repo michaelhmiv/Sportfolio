@@ -35,6 +35,16 @@ ALTER TABLE tweet_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tweet_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE watchlists ENABLE ROW LEVEL SECURITY;
 ALTER TABLE watch_list ENABLE ROW LEVEL SECURITY;
+ALTER TABLE community_boosts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE daily_boosts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE boost_payouts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE scout_assignments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE scout_distributions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE scout_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE community_checkout_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE community_orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE community_trades ENABLE ROW LEVEL SECURITY;
+ALTER TABLE daily_games ENABLE ROW LEVEL SECURITY;
 
 -- 2. Drop existing policies to avoid conflicts
 -- Users
@@ -149,6 +159,44 @@ CREATE POLICY "Users can view own premium trades" ON premium_trades FOR SELECT U
 
 -- Whop Payments
 CREATE POLICY "Users can view own whop payments" ON whop_payments FOR SELECT USING (auth.uid()::text = user_id);
+
+-- ============================================
+-- NEW TABLES POLICIES (added 2025-01-22)
+-- ============================================
+
+-- Community Boosts (public read, auth users can create)
+CREATE POLICY "Public read access" ON community_boosts FOR SELECT USING (true);
+CREATE POLICY "Authenticated create" ON community_boosts FOR INSERT WITH CHECK (auth.uid()::text = creator_id);
+
+-- Daily Boosts (users see own)
+CREATE POLICY "Users can view own daily boosts" ON daily_boosts FOR SELECT USING (auth.uid()::text = user_id);
+CREATE POLICY "Users can create daily boosts" ON daily_boosts FOR INSERT WITH CHECK (auth.uid()::text = user_id);
+CREATE POLICY "Users can update own daily boosts" ON daily_boosts FOR UPDATE USING (auth.uid()::text = user_id);
+
+-- Boost Payouts (users see own)
+CREATE POLICY "Users can view own boost payouts" ON boost_payouts FOR SELECT USING (auth.uid()::text = user_id);
+
+-- Scout Assignments (users see own)
+CREATE POLICY "Users can view own scout assignments" ON scout_assignments FOR SELECT USING (auth.uid()::text = user_id);
+CREATE POLICY "Users can manage scout assignments" ON scout_assignments FOR ALL USING (auth.uid()::text = user_id);
+
+-- Scout Distributions (users see own)
+CREATE POLICY "Users can view own scout distributions" ON scout_distributions FOR SELECT USING (auth.uid()::text = user_id);
+
+-- Scout History (users see own)
+CREATE POLICY "Users can view own scout history" ON scout_history FOR SELECT USING (auth.uid()::text = user_id);
+CREATE POLICY "Users can manage scout history" ON scout_history FOR ALL USING (auth.uid()::text = user_id);
+
+-- Community Checkout Sessions (users see own)
+CREATE POLICY "Users can view own community checkout sessions" ON community_checkout_sessions FOR SELECT USING (auth.uid()::text = user_id);
+CREATE POLICY "Users can create community checkout sessions" ON community_checkout_sessions FOR INSERT WITH CHECK (auth.uid()::text = user_id);
+
+-- Community Orders (users see own)
+CREATE POLICY "Users can view own community orders" ON community_orders FOR SELECT USING (auth.uid()::text = user_id);
+CREATE POLICY "Users can create community orders" ON community_orders FOR INSERT WITH CHECK (auth.uid()::text = user_id);
+
+-- Community Trades (users see own)
+CREATE POLICY "Users can view own community trades" ON community_trades FOR SELECT USING (auth.uid()::text = buyer_id OR auth.uid()::text = seller_id);
 
 
 SELECT 'RLS policies applied successfully' AS status;
