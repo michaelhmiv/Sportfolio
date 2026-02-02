@@ -44,6 +44,43 @@ function generateContentHash(headline: string): string {
 }
 
 /**
+ * Check if a story is likely fresh (not retrospective/old news)
+ * Rejects stories that mention past events, "looking back", etc.
+ */
+function isStoryFresh(headline: string, briefing: string): boolean {
+    const combinedText = (headline + ' ' + briefing).toLowerCase();
+    
+    // Red flags that indicate old/retrospective content
+    const staleIndicators = [
+        'last season',
+        'yesterday',
+        'last week',
+        'last month',
+        'remember when',
+        'looking back',
+        'retrospective',
+        'on this day',
+        'anniversary',
+        'years ago',
+        'ago today',
+        'since last',
+        'earlier this season',
+        'previously announced',
+        'already been',
+        'was announced'
+    ];
+    
+    for (const indicator of staleIndicators) {
+        if (combinedText.includes(indicator)) {
+            console.log(`[News] Rejected stale content (contains "${indicator}"): "${headline.substring(0, 50)}..."`);
+            return false;
+        }
+    }
+    
+    return true;
+}
+
+/**
  * Get recent headlines from the database to use as context
  */
 async function getRecentHeadlines(): Promise<string[]> {
@@ -71,12 +108,21 @@ function buildPrompt(recentHeadlines: string[]): string {
     return `You are a breaking news reporter for NBA and NFL sports.
 
 ${headlinesContext}INSTRUCTIONS:
-1. Search for the most significant NBA and NFL news from TODAY
+1. Search for BREAKING NEWS from the LAST 12 HOURS only
 2. Report up to 3 stories maximum (only truly newsworthy items)
-3. CRITICAL: Do NOT report on any player who appears in the stories above, even with a different angle or update
-4. CRITICAL: Always use full player names (e.g., "LeBron James" instead of "LeBron") to ensure proper auto-linking
-5. Skip any story about players/teams we've already covered
-6. Prioritize: player injuries, trades, major performances, surprising results
+3. CRITICAL: Only report NEW announcements, injuries, trades, or game results from TODAY
+4. CRITICAL: Do NOT report retrospective articles, analysis pieces, or "looking back" content
+5. CRITICAL: Do NOT report on any player who appears in the stories above, even with a different angle
+6. CRITICAL: Always use full player names (e.g., "LeBron James" instead of "LeBron") to ensure proper auto-linking
+7. Skip any story about players/teams we've already covered
+8. Prioritize: breaking injuries, just-announced trades, games that ended within 12 hours
+
+STRICT FRESHNESS RULES:
+- ONLY news from the last 12 hours (since ${new Date().toISOString()})
+- NO "remember when" or "looking back at last season" content
+- NO injury timeline updates unless it's a NEW significant development
+- NO analysis of yesterday's games unless it's breaking news (e.g., major injury in game)
+- If the event happened yesterday or earlier AND it's not a new development, SKIP IT
 
 OUTPUT FORMAT (use this EXACT structure for each story):
 ---STORY---
@@ -88,7 +134,7 @@ SPORT: NBA
 ---END---
 
 IMPORTANT: Include the CITATIONS field showing which sources ([1], [2], etc.) this story used.
-IMPORTANT: If there is no significant NEW news about DIFFERENT players, respond with exactly: NO_NEWS`;
+IMPORTANT: If there is no significant BREAKING news from the last 12 hours, respond with exactly: NO_NEWS`;
 }
 
 /**
@@ -243,6 +289,12 @@ export async function fetchNews(progressCallback?: ProgressCallback): Promise<Ne
         const processedStories: NewsResult['stories'] = [];
 
         for (const story of parsedStories) {
+            // Check if story is fresh (not retrospective/old news)
+            if (!isStoryFresh(story.headline, story.briefing)) {
+                console.log(`[News] Skipping stale content: "${story.headline.substring(0, 50)}..."`);
+                continue;
+            }
+
             // Generate hash for backup deduplication check
             const contentHash = generateContentHash(story.headline);
 
