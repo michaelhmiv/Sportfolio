@@ -33,6 +33,7 @@ interface ParsedStory {
     headline: string;
     briefing: string;
     sport: 'NBA' | 'NFL';
+    sourceUrl: string | null;
 }
 
 /**
@@ -79,19 +80,22 @@ ${headlinesContext}INSTRUCTIONS:
 
 OUTPUT FORMAT (use this EXACT structure for each story):
 ---STORY---
+CITATIONS: [1], [2] (list citation numbers used in this story)
 TYPE: NEW
 HEADLINE: [Concise headline, max 80 characters]
 BRIEFING: [1-2 sentence summary for sports traders, focus on impact]
 SPORT: NBA
 ---END---
 
+IMPORTANT: Include the CITATIONS field showing which sources ([1], [2], etc.) this story used.
 IMPORTANT: If there is no significant NEW news about DIFFERENT players, respond with exactly: NO_NEWS`;
 }
 
 /**
  * Parse the multi-story response from Perplexity
+ * FIXED: Now accepts citations array and maps citation numbers to URLs
  */
-function parseMultiStoryResponse(content: string): ParsedStory[] {
+function parseMultiStoryResponse(content: string, citations?: string[]): ParsedStory[] {
     const stories: ParsedStory[] = [];
 
     // Handle NO_NEWS response
@@ -108,20 +112,38 @@ function parseMultiStoryResponse(content: string): ParsedStory[] {
             const endIdx = block.indexOf('---END---');
             const storyContent = endIdx > 0 ? block.substring(0, endIdx) : block;
 
-            // Parse each field
+            // Parse each field including CITATIONS
+            const citationsMatch = storyContent.match(/CITATIONS:\s*(.+?)(?=\n|TYPE:)/is);
             const typeMatch = storyContent.match(/TYPE:\s*(NEW|UPDATE)/i);
             const headlineMatch = storyContent.match(/HEADLINE:\s*(.+?)(?=\n|BRIEFING:)/is);
             const briefingMatch = storyContent.match(/BRIEFING:\s*(.+?)(?=\n|SPORT:)/is);
             const sportMatch = storyContent.match(/SPORT:\s*(NBA|NFL)/i);
 
             if (headlineMatch && briefingMatch) {
-                // Clean up citation numbers and formatting artifacts
+                // Extract citation numbers from CITATIONS field
+                const citationNumbers: number[] = [];
+                if (citationsMatch) {
+                    const matches = citationsMatch[1].match(/\[(\d+)\]/g);
+                    if (matches) {
+                        matches.forEach(m => {
+                            const num = parseInt(m.replace(/[\[\]]/g, ''));
+                            if (!isNaN(num) && num > 0) citationNumbers.push(num);
+                        });
+                    }
+                }
+
+                // Map citation [1] to citations[0], [2] to citations[1], etc.
+                let sourceUrl: string | null = null;
+                if (citationNumbers.length > 0 && citations && citations.length > 0) {
+                    const citationIndex = citationNumbers[0] - 1;
+                    if (citationIndex >= 0 && citationIndex < citations.length) {
+                        sourceUrl = citations[citationIndex];
+                    }
+                }
+
+                // Clean up text but keep it natural
                 const cleanText = (text: string): string => {
-                    return text
-                        .replace(/\[\d+\]/g, '') // Remove citation numbers like [1], [2]
-                        .replace(/[\[\]]/g, '')  // Remove stray brackets
-                        .replace(/\s+/g, ' ')    // Normalize whitespace
-                        .trim();
+                    return text.replace(/\s+/g, ' ').trim();
                 };
 
                 stories.push({
@@ -129,6 +151,7 @@ function parseMultiStoryResponse(content: string): ParsedStory[] {
                     headline: cleanText(headlineMatch[1]),
                     briefing: cleanText(briefingMatch[1]),
                     sport: (sportMatch?.[1]?.toUpperCase() as 'NBA' | 'NFL') || 'NBA',
+                    sourceUrl,
                 });
             }
         } catch (e) {
@@ -202,7 +225,7 @@ export async function fetchNews(progressCallback?: ProgressCallback): Promise<Ne
         console.log('[News] Raw response:', response.content.substring(0, 500));
 
         // Parse multi-story response
-        const parsedStories = parseMultiStoryResponse(response.content);
+        const parsedStories = parseMultiStoryResponse(response.content, response.citations);
 
         if (parsedStories.length === 0) {
             console.log('[News] No significant news to report');
@@ -239,7 +262,7 @@ export async function fetchNews(progressCallback?: ProgressCallback): Promise<Ne
             await db.insert(newsFeed).values({
                 headline: story.headline,
                 briefing: story.briefing,
-                sourceUrl: response.citations?.[0] || null,
+                sourceUrl: story.sourceUrl,
                 contentHash,
                 sport: story.sport,
             });
