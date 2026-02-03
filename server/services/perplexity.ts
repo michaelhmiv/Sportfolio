@@ -241,7 +241,7 @@ class PerplexityService {
           ],
           max_tokens: 400,
           temperature: 0.1, // Low temperature for factual news
-          search_recency_filter: "hour", // Focus on very recent news
+          search_recency_filter: "day", // Capture news from last 12-24 hours
           return_images: false,
           return_related_questions: false,
         }),
