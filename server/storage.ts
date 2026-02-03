@@ -32,6 +32,9 @@ import {
   boostPayouts,
   communityBoosts,
   communityCheckoutSessions,
+  playerPools,
+  lpPositions,
+  lpTransactions,
   type User,
   type InsertUser,
   type UpsertUser,
@@ -464,6 +467,15 @@ export interface IStorage {
   // Power Level / Condense methods
   condenseShares(userId: string, playerId: string, rawShareCount: number): Promise<{ newPowerLevel: string; sharesCondensed: number }>;
   getHoldingWithPowerLevel(userId: string, playerId: string): Promise<{ quantity: number; powerLevel: string; availableShares: number } | undefined>;
+
+  // AMM / LP methods
+  getPlayerPool(playerId: string): Promise<any>;
+  getLpPosition(playerId: string, userId: string): Promise<any>;
+  getUserLpPositions(userId: string): Promise<any[]>;
+  createLpPosition(position: any): Promise<any>;
+  updateLpPosition(id: string, updates: Partial<any>): Promise<void>;
+  deleteLpPosition(id: string): Promise<void>;
+  getLpTransactionHistory(userId: string, playerId?: string, limit?: number): Promise<any[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -5372,6 +5384,75 @@ export class DatabaseStorage implements IStorage {
       powerLevel: holding.powerLevel || "0.00",
       availableShares: holding.quantity - lockedShares,
     };
+  }
+
+  // AMM / LP Methods
+  async getPlayerPool(playerId: string) {
+    const [pool] = await db
+      .select()
+      .from(playerPools)
+      .where(eq(playerPools.playerId, playerId));
+    return pool;
+  }
+
+  async getLpPosition(playerId: string, userId: string) {
+    const [position] = await db
+      .select()
+      .from(lpPositions)
+      .where(and(
+        eq(lpPositions.userId, userId),
+        eq(lpPositions.playerId, playerId)
+      ));
+    return position;
+  }
+
+  async getUserLpPositions(userId: string) {
+    return await db
+      .select()
+      .from(lpPositions)
+      .where(eq(lpPositions.userId, userId));
+  }
+
+  async createLpPosition(position: any) {
+    const [newPosition] = await db
+      .insert(lpPositions)
+      .values(position)
+      .returning();
+    return newPosition;
+  }
+
+  async updateLpPosition(id: string, updates: Partial<any>) {
+    await db
+      .update(lpPositions)
+      .set(updates)
+      .where(eq(lpPositions.id, id));
+  }
+
+  async deleteLpPosition(id: string) {
+    await db
+      .delete(lpPositions)
+      .where(eq(lpPositions.id, id));
+  }
+
+  async getLpTransactionHistory(userId: string, playerId?: string, limit: number = 50) {
+    if (playerId) {
+      return await db
+        .select()
+        .from(lpTransactions)
+        .where(and(
+          eq(lpTransactions.userId, userId),
+          eq(lpTransactions.playerId, playerId)
+        ))
+        .orderBy(desc(lpTransactions.timestamp))
+        .limit(limit);
+    }
+
+    return await db
+      .select()
+      .from(lpTransactions)
+      .where(eq(lpTransactions.userId, userId))
+      .orderBy(desc(lpTransactions.timestamp))
+      .limit(limit);
   }
 }
 

@@ -140,15 +140,18 @@ export class JobScheduler {
       },
       {
         name: "bot_engine",
-        // Run every minute on dev for active testing, every 10 minutes on production
-        schedule: process.env.NODE_ENV === 'production' ? "3-59/10 * * * *" : "* * * * *",
-        enabled: true,
+        // DISABLED: AMM migration replaces order book with instant pools
+        // Bots no longer need to place limit orders
+        // schedule: process.env.NODE_ENV === 'production' ? "3-59/10 * * * *" : "* * * * *",
+        schedule: "0 0 1 1 *", // Run once a year (effectively disabled)
+        enabled: false,
         handler: async () => {
-          const result = await runBotEngineTick();
+          // Bot engine disabled - AMM provides instant liquidity
+          console.log("[BotEngine] Job disabled - using AMM instant trading");
           return {
             requestCount: 0,
-            recordsProcessed: result.botsProcessed,
-            errorCount: result.errors,
+            recordsProcessed: 0,
+            errorCount: 0,
           };
         },
       },

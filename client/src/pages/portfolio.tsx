@@ -25,7 +25,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { apiRequest, queryClient, authenticatedFetch } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { invalidatePortfolioQueries } from "@/lib/cache-invalidation";
-import type { Holding, Order, Player } from "@shared/schema";
+import type { Holding, Player } from "@shared/schema";
 import { PlayerName } from "@/components/player-name";
 import { Shimmer, ShimmerCard } from "@/components/ui/animations";
 import { AnimatedPrice } from "@/components/ui/animated-price";
@@ -47,12 +47,7 @@ interface PortfolioData {
     powerLevel?: string;
     totalPlayerPower?: string;
     isPowered?: boolean;
-    bestBid?: string | null;
-    bestAsk?: string | null;
-    bidSize?: number;
-    askSize?: number;
   })[];
-  openOrders: (Order & { player: Player })[];
   premiumShares: number;
   isPremium: boolean;
   premiumExpiresAt?: string;
@@ -153,11 +148,19 @@ export default function Portfolio() {
     queryKey: ["/api/portfolio"],
   });
 
+  // LP Positions data
+  const { data: lpPositions } = useQuery({
+    queryKey: ["/api/lp/positions"],
+    queryFn: async () => {
+      const res = await fetch('/api/lp/positions');
+      if (!res.ok) throw new Error('Failed to fetch LP positions');
+      return res.json();
+    },
+  });
+
   // Premium market data - CRITICAL: Only show real trade data, never fabricated prices
   type PremiumMarketData = {
     lastTradePrice: number | null;
-    bestBid: { price: number; quantity: number } | null;
-    bestAsk: { price: number; quantity: number } | null;
     circulation: number;
     totalTrades: number;
   };
@@ -199,24 +202,9 @@ export default function Portfolio() {
     });
 
     return () => {
-      unsubPortfolio();
       unsubTrade();
-      unsubOrderBook();
     };
   }, [subscribe]);
-
-  const cancelOrderMutation = useMutation({
-    mutationFn: async (orderId: string) => {
-      return await apiRequest("POST", `/api/orders/${orderId}/cancel`, {});
-    },
-    onSuccess: async () => {
-      await invalidatePortfolioQueries();
-      toast({ title: "Order cancelled" });
-    },
-    onError: (error: Error) => {
-      toast({ title: "Failed to cancel order", description: error.message, variant: "destructive" });
-    },
-  });
 
   const redeemPremiumMutation = useMutation({
     mutationFn: async () => {
@@ -348,10 +336,6 @@ export default function Portfolio() {
         return parseCurrency(holding.avgCostBasis);
       case 'price':
         return parseCurrency(holding.player?.lastTradePrice);
-      case 'bid':
-        return parseCurrency(holding.bestBid);
-      case 'ask':
-        return parseCurrency(holding.bestAsk);
       case 'value':
         return parseCurrency(holding.currentValue);
       case 'pnl':
@@ -381,10 +365,6 @@ export default function Portfolio() {
     pnl: string;
     pnlPercent: string;
     avgCostBasis: string;
-    bestBid: string | null;
-    bestAsk: string | null;
-    bidSize: number;
-    askSize: number;
   }
 
   const playerHoldings: PlayerGroup[] = (() => {
@@ -413,10 +393,6 @@ export default function Portfolio() {
           pnl: pnl || "0.00",
           pnlPercent: pnlPercent || "0.00",
           avgCostBasis: holding.avgCostBasis,
-          bestBid: holding.bestBid || null,
-          bestAsk: holding.bestAsk || null,
-          bidSize: holding.bidSize || 0,
-          askSize: holding.askSize || 0,
         });
       }
 
@@ -483,14 +459,6 @@ export default function Portfolio() {
           return sortDirection === 'asc'
             ? parseCurrency(a.player.lastTradePrice) - parseCurrency(b.player.lastTradePrice)
             : parseCurrency(b.player.lastTradePrice) - parseCurrency(a.player.lastTradePrice);
-        case 'bid':
-          return sortDirection === 'asc'
-            ? parseCurrency(a.bestBid) - parseCurrency(b.bestBid)
-            : parseCurrency(b.bestBid) - parseCurrency(a.bestBid);
-        case 'ask':
-          return sortDirection === 'asc'
-            ? parseCurrency(a.bestAsk) - parseCurrency(b.bestAsk)
-            : parseCurrency(b.bestAsk) - parseCurrency(a.bestAsk);
         case 'value':
           return sortDirection === 'asc'
             ? parseCurrency(a.currentValue) - parseCurrency(b.currentValue)
@@ -927,16 +895,6 @@ export default function Portfolio() {
                                 ? `$${premiumMarketData.lastTradePrice.toFixed(2)}`
                                 : "-"}
                             </td>
-                            <td className="px-2 py-1.5 text-right font-mono hidden sm:table-cell text-blue-500 dark:text-blue-400">
-                              {premiumMarketData?.bestBid
-                                ? `$${premiumMarketData.bestBid.price.toFixed(2)}`
-                                : "-"}
-                            </td>
-                            <td className="px-2 py-1.5 text-right font-mono hidden sm:table-cell text-red-500 dark:text-red-400">
-                              {premiumMarketData?.bestAsk
-                                ? `$${premiumMarketData.bestAsk.price.toFixed(2)}`
-                                : "-"}
-                            </td>
                             <td className="px-2 py-1.5 text-right font-mono hidden xl:table-cell text-yellow-500 font-bold">
                               {premiumMarketData?.lastTradePrice !== null && premiumMarketData?.lastTradePrice !== undefined
                                 ? `$${(data.premiumShares * premiumMarketData.lastTradePrice).toFixed(2)}`
@@ -997,7 +955,14 @@ export default function Portfolio() {
                                             <span>•</span>
                                             <span>{group.player.position}</span>
                                             <span>•</span>
-                                            <span className="font-mono">Qty: {group.totalShares}</span>
+                                            <span className="font-mono">
+                                              Qty: {group.totalShares}
+                                              {(() => {
+                                                const lpPos = lpPositions?.find((lp: any) => lp.playerId === group.player.id);
+                                                const lpShares = lpPos ? Math.round(lpPos.equivalentShares || 0) : 0;
+                                                return lpShares > 0 ? ` (${lpShares} in pool)` : null;
+                                              })()}
+                                            </span>
                                           </div>
                                           <div className="flex items-center gap-1.5 text-xs mt-0.5">
                                             <span className="text-muted-foreground">Avg: ${group.avgCostBasis}</span>
@@ -1079,7 +1044,16 @@ export default function Portfolio() {
                                   </td>
                                   <td className="px-2 py-1.5 text-right font-mono text-sm hidden sm:table-cell">
                                     <div className="flex flex-col items-end gap-0.5">
-                                      <span title="Total shares">{group.totalShares}</span>
+                                      <span title="Total shares">
+                                        {group.totalShares}
+                                        {(() => {
+                                          const lpPos = lpPositions?.find((lp: any) => lp.playerId === group.player.id);
+                                          const lpShares = lpPos ? Math.round(lpPos.equivalentShares || 0) : 0;
+                                          return lpShares > 0 ? (
+                                            <span className="text-xs text-blue-400 ml-1">({lpShares} pool)</span>
+                                          ) : null;
+                                        })()}
+                                      </span>
                                       {parseFloat(group.totalPower) > 0 && group.regular && (
                                         <button
                                           className="text-xs text-purple-400 hover:text-purple-300 hover:underline cursor-pointer text-right"
@@ -1127,38 +1101,6 @@ export default function Portfolio() {
                                       size="sm"
                                       className="font-mono font-bold justify-end"
                                     />
-                                  </td>
-                                  {/* Bid */}
-                                  <td className="px-2 py-1.5 text-right hidden sm:table-cell">
-                                    {group.bestBid ? (
-                                      <Link href={`/player/${group.player.id}?action=sell&price=${group.bestBid!}`}>
-                                        <span
-                                          className="font-mono text-sm text-positive hover:underline cursor-pointer"
-                                          data-testid={`link-bid-${group.player.id}`}
-                                          title={`Sell at $${group.bestBid} (${group.bidSize} shares)`}
-                                        >
-                                          ${group.bestBid}
-                                        </span>
-                                      </Link>
-                                    ) : (
-                                      <span className="text-muted-foreground text-xs">-</span>
-                                    )}
-                                  </td>
-                                  {/* Ask */}
-                                  <td className="px-2 py-1.5 text-right hidden sm:table-cell">
-                                    {group.bestAsk ? (
-                                      <Link href={`/player/${group.player.id}?action=buy&price=${group.bestAsk!}`}>
-                                        <span
-                                          className="font-mono text-sm text-negative hover:underline cursor-pointer"
-                                          data-testid={`link-ask-${group.player.id}`}
-                                          title={`Buy at $${group.bestAsk} (${group.askSize} shares)`}
-                                        >
-                                          ${group.bestAsk}
-                                        </span>
-                                      </Link>
-                                    ) : (
-                                      <span className="text-muted-foreground text-xs">-</span>
-                                    )}
                                   </td>
                                   <td className="px-2 py-1.5 text-right font-mono font-bold text-sm hidden xl:table-cell">
                                     ${group.currentValue}
@@ -1342,83 +1284,6 @@ export default function Portfolio() {
                             </Collapsible>
                           );
                         })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Open Orders */}
-          <TabsContent value="orders">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm font-medium uppercase tracking-wide">Open Orders</CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                {data?.openOrders.length === 0 ? (
-                  <EmptyState
-                    icon="cart"
-                    title="No open orders"
-                    description="Place limit orders to buy or sell players at your target price."
-                    size="sm"
-                    className="py-8"
-                    data-testid="empty-orders"
-                  />
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead className="border-b bg-muted/50">
-                        <tr>
-                          <th className="text-left p-2 sm:p-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Type</th>
-                          <th className="text-left p-2 sm:p-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Player</th>
-                          <th className="text-right p-2 sm:p-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Side</th>
-                          <th className="text-right p-2 sm:p-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Quantity</th>
-                          <th className="text-right p-2 sm:p-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Price</th>
-                          <th className="text-right p-2 sm:p-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Filled</th>
-                          <th className="p-2 sm:p-4"></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {data?.openOrders.map((order) => (
-                          <tr key={order.id} className="border-b hover-elevate" data-testid={`row-order-${order.id}`}>
-                            <td className="p-2 sm:p-4">
-                              <Badge variant="outline" className="capitalize">{order.orderType}</Badge>
-                            </td>
-                            <td className="p-2 sm:p-4">
-                              <div className="font-medium">
-                                <PlayerName
-                                  playerId={order.player.id}
-                                  firstName={order.player.firstName}
-                                  lastName={order.player.lastName}
-                                />
-                              </div>
-                              <div className="text-xs text-muted-foreground">{order.player.team}</div>
-                            </td>
-                            <td className="p-2 sm:p-4 text-right">
-                              <Badge className={order.side === "buy" ? "bg-positive" : "bg-negative"}>
-                                {order.side.toUpperCase()}
-                              </Badge>
-                            </td>
-                            <td className="p-2 sm:p-4 text-right font-mono">{order.quantity}</td>
-                            <td className="p-2 sm:p-4 text-right font-mono">
-                              {order.limitPrice ? `$${order.limitPrice}` : "Market"}
-                            </td>
-                            <td className="p-2 sm:p-4 text-right font-mono">{order.filledQuantity}</td>
-                            <td className="p-2 sm:p-4">
-                              <Button
-                                size="sm"
-                                variant="destructive"
-                                onClick={() => cancelOrderMutation.mutate(order.id)}
-                                disabled={cancelOrderMutation.isPending}
-                                data-testid={`button-cancel-${order.id}`}
-                              >
-                                Cancel
-                              </Button>
-                            </td>
-                          </tr>
-                        ))}
                       </tbody>
                     </table>
                   </div>

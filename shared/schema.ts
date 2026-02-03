@@ -161,6 +161,75 @@ export const trades = pgTable("trades", {
   executedIdx: index("executed_idx").on(table.executedAt),
 }));
 
+// Player Pools table - AMM constant product pools for instant trading
+// x * y = k where x=shares, y=play_money (Sportfolio Bucks)
+export const playerPools = pgTable("player_pools", {
+  playerId: varchar("player_id").primaryKey().references(() => players.id, { onDelete: "cascade" }),
+  shares: decimal("shares", { precision: 12, scale: 2 }).notNull().default("1000"),
+  playMoney: decimal("play_money", { precision: 12, scale: 2 }).notNull().default("10000"),
+  k: decimal("k", { precision: 24, scale: 2 }).notNull().default("10000000"),
+  lpSharesTotal: decimal("lp_shares_total", { precision: 24, scale: 2 }).notNull().default("1000"),
+  feesAccumulated: decimal("fees_accumulated", { precision: 12, scale: 2 }).notNull().default("0"),
+  totalVolume: decimal("total_volume", { precision: 12, scale: 2 }).notNull().default("0"),
+  totalTrades: integer("total_trades").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  updatedIdx: index("player_pools_updated_idx").on(table.updatedAt),
+}));
+
+// LP Positions table - Tracks user ownership of liquidity provider tokens
+export const lpPositions = pgTable("lp_positions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  playerId: varchar("player_id").notNull().references(() => players.id, { onDelete: "cascade" }),
+  lpShares: decimal("lp_shares", { precision: 24, scale: 2 }).notNull().default("0"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  userPlayerUniqueIdx: uniqueIndex("lp_user_player_unique_idx").on(table.userId, table.playerId),
+  userIdx: index("lp_user_idx").on(table.userId),
+  playerIdx: index("lp_player_idx").on(table.playerId),
+  sharesIdx: index("lp_shares_idx").on(table.lpShares),
+}));
+
+// LP Transactions table - Audit trail for liquidity additions/removals
+export const lpTransactions = pgTable("lp_transactions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  playerId: varchar("player_id").notNull().references(() => players.id, { onDelete: "cascade" }),
+  transactionType: varchar("transaction_type", { length: 10 }).notNull(), // 'add' or 'remove'
+  lpShares: decimal("lp_shares", { precision: 24, scale: 2 }).notNull(),
+  sharesAmount: decimal("shares_amount", { precision: 12, scale: 2 }).notNull(),
+  playMoneyAmount: decimal("play_money_amount", { precision: 12, scale: 2 }).notNull(),
+  poolSharesBefore: decimal("pool_shares_before", { precision: 12, scale: 2 }).notNull(),
+  poolPlayMoneyBefore: decimal("pool_play_money_before", { precision: 12, scale: 2 }).notNull(),
+  poolLpSharesTotalBefore: decimal("pool_lp_shares_total_before", { precision: 24, scale: 2 }).notNull(),
+  timestamp: timestamp("timestamp").notNull().defaultNow(),
+}, (table) => ({
+  userIdx: index("lp_tx_user_idx").on(table.userId),
+  playerIdx: index("lp_tx_player_idx").on(table.playerId),
+  timestampIdx: index("lp_tx_timestamp_idx").on(table.timestamp),
+}));
+
+// Insert schemas for AMM/LP tables
+export const insertPlayerPoolSchema = createInsertSchema(playerPools).omit({
+  k: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertLpPositionSchema = createInsertSchema(lpPositions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertLpTransactionSchema = createInsertSchema(lpTransactions).omit({
+  id: true,
+  timestamp: true,
+});
+
 // Vesting table - tracks user vesting state
 export const vesting = pgTable("vesting", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -1239,3 +1308,15 @@ export const insertCommunityBoostSchema = createInsertSchema(communityBoosts).om
 
 export type CommunityBoost = typeof communityBoosts.$inferSelect;
 export type InsertCommunityBoost = z.infer<typeof insertCommunityBoostSchema>;
+
+// AMM Pool types
+export type PlayerPool = typeof playerPools.$inferSelect;
+export type InsertPlayerPool = z.infer<typeof insertPlayerPoolSchema>;
+
+// LP types
+export type LpPosition = typeof lpPositions.$inferSelect;
+export type InsertLpPosition = z.infer<typeof insertLpPositionSchema>;
+
+export type LpTransaction = typeof lpTransactions.$inferSelect;
+export type InsertLpTransaction = z.infer<typeof insertLpTransactionSchema>;
+

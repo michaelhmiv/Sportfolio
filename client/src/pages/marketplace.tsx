@@ -1,40 +1,42 @@
 import { useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useWebSocket } from "@/lib/websocket";
-import { queryClient, authenticatedFetch } from "@/lib/queryClient";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { useToast } from "@/hooks/use-toast";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search, TrendingUp, TrendingDown, ArrowUpDown, Filter, Clock, Crown, ChevronDown, ChevronUp, BarChart3, Star, Eye } from "lucide-react";
-import { Link, useLocation, useSearch } from "wouter";
-import type { Player } from "@shared/schema";
-import { formatDistanceToNow } from "date-fns";
-import { PlayerName } from "@/components/player-name";
-import { WhopAd } from "@/components/whop-ad";
-import { Shimmer, ScrollReveal } from "@/components/ui/animations";
-import { AnimatedPrice } from "@/components/ui/animated-price";
-import { AnimatedList } from "@/components/ui/animated-list";
-import { EmptyState } from "@/components/ui/empty-state";
+import { useLocation, useSearch } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { useSport, useSportConfig } from "@/lib/sport-context";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { 
+  TrendingUp, 
+  TrendingDown, 
+  Search, 
+  Filter, 
+  ArrowUpDown,
+  ChevronLeft,
+  ChevronRight,
+  X,
+  Activity
+} from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { useWebSocket } from "@/lib/websocket";
+import { queryClient } from "@/lib/queryClient";
+import type { Player } from "@shared/schema";
+import { PlayerName } from "@/components/player-name";
 import { SportSelector } from "@/components/sport-selector";
+import { MarketActivityWidget } from "@/components/market-activity-widget";
+import { Link } from "wouter";
 import { MarketplaceScanners } from "@/components/marketplace-scanners";
+import { cn } from "@/lib/utils";
 
-type PlayerWithOrderBook = Player & {
-  bestBid: string | null;
-  bestAsk: string | null;
-  bidSize: number;
-  askSize: number;
+type PlayerWithPool = Player & {
+  poolLiquidity?: number;
   buyPressure?: number;
   valueIndex?: number;
 };
 
-type SortField = "price" | "volume" | "change" | "bid" | "ask" | "marketCap" | "sentiment" | "undervalued";
+type SortField = "price" | "volume" | "change" | "liquidity" | "marketCap" | "sentiment" | "undervalued";
 type SortOrder = "asc" | "desc";
 
 export default function Marketplace() {
@@ -52,11 +54,9 @@ export default function Marketplace() {
   const [positionFilter, setPositionFilter] = useState<string>("all");
   const [sortField, setSortField] = useState<SortField>((searchParams.get("sortBy") as SortField) || "volume");
   const [sortOrder, setSortOrder] = useState<SortOrder>((searchParams.get("sortOrder") as SortOrder) || "desc");
-  const [filterHasBuyOrders, setFilterHasBuyOrders] = useState(false);
-  const [filterHasSellOrders, setFilterHasSellOrders] = useState(false);
-  const [filterWatchlistId, setFilterWatchlistId] = useState<string>("none"); // "none", "all", or specific watchlist ID
+  const [filterWatchlistId, setFilterWatchlistId] = useState<string>("none");
   const [page, setPage] = useState(1);
-  const [showFilters, setShowFilters] = useState(false); // Collapsed by default
+  const [showFilters, setShowFilters] = useState(false);
   const ITEMS_PER_PAGE = 50;
   const { subscribe } = useWebSocket();
 
@@ -68,1068 +68,469 @@ export default function Marketplace() {
     }
 
     const sortBy = searchParams.get("sortBy") as SortField;
-    const sortOrder = searchParams.get("sortOrder") as SortOrder;
-    if (sortBy && ["price", "volume", "change", "bid", "ask", "marketCap", "sentiment", "undervalued"].includes(sortBy)) {
+    const sortOrderParam = searchParams.get("sortOrder") as SortOrder;
+    if (sortBy && ["price", "volume", "change", "liquidity", "marketCap", "sentiment", "undervalued"].includes(sortBy)) {
       setSortField(sortBy);
-      // Auto-enable order filters when sorting by bid/ask via URL
-      if (sortBy === 'bid') {
-        setFilterHasBuyOrders(true);
-      } else if (sortBy === 'ask') {
-        setFilterHasSellOrders(true);
-      }
     }
-    if (sortOrder && ["asc", "desc"].includes(sortOrder)) {
-      setSortOrder(sortOrder);
+    if (sortOrderParam && ["asc", "desc"].includes(sortOrderParam)) {
+      setSortOrder(sortOrderParam);
     }
   }, [searchParams]);
 
-  const handleTabChange = (value: string) => {
-    setActiveTab(value);
-    setLocation(value === "players" ? "/marketplace" : `/marketplace?tab=${value}`);
-  };
-
-  // Debounce search input (250ms delay)
+  // Debounce search input
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(search);
-    }, 250);
-
+      setPage(1);
+    }, 300);
     return () => clearTimeout(timer);
   }, [search]);
 
-  const { data: teams } = useQuery<string[]>({
-    queryKey: ["/api/teams", sport],
-    queryFn: async () => {
-      const res = await fetch(`/api/teams?sport=${sport}`);
-      if (!res.ok) throw new Error("Failed to fetch teams");
-      return res.json();
-    },
-  });
-
-  // Premium market data - CRITICAL: Only show real trade data, never fabricated prices
-  type PremiumMarketData = {
-    lastTradePrice: number | null;
-    bestBid: { price: number; quantity: number } | null;
-    bestAsk: { price: number; quantity: number } | null;
-    circulation: number;
-    totalTrades: number;
-  };
-
-  const { data: premiumMarketData } = useQuery<PremiumMarketData>({
-    queryKey: ["/api/premium/market-data"],
-  });
-
-  // Spotlight: Top risers (24h price change)
-  type SpotlightRiser = {
-    id: string;
-    firstName: string;
-    lastName: string;
-    team: string;
-    position: string;
-    price: number | null;
-    priceChange24h: number;
-  };
-
-  const { data: topRisers } = useQuery<SpotlightRiser[]>({
-    queryKey: ["/api/players/spotlight/top-risers", sport],
-    queryFn: async () => {
-      const res = await fetch(`/api/players/spotlight/top-risers?sport=${sport}`);
-      if (!res.ok) throw new Error("Failed to fetch top risers");
-      return res.json();
-    },
-  });
-
-  // Watch List Data
-  const { data: watchList, refetch: refetchWatchList } = useQuery<string[]>({
-    queryKey: ["/api/watchlist"],
-    enabled: !!user
-  });
-
-  // Fetch user's watchlists for filter dropdown
-  interface Watchlist {
-    id: string;
-    name: string;
-    isDefault: boolean;
-    itemCount: number;
-  }
-  const { data: userWatchlists } = useQuery<Watchlist[]>({
-    queryKey: ["/api/watchlists"],
-    enabled: !!user
-  });
-
-  // Fetch player IDs for selected watchlist
-  const { data: selectedWatchlistPlayerIds } = useQuery<string[]>({
-    queryKey: ["/api/watchlists", filterWatchlistId, "items"],
-    queryFn: async () => {
-      if (filterWatchlistId === "none") return [];
-      if (filterWatchlistId === "all") {
-        // Return all watchlist player IDs
-        return watchList || [];
-      }
-      // Fetch specific watchlist items
-      const res = await authenticatedFetch(`/api/watchlists/${filterWatchlistId}/items`);
-      if (!res.ok) return [];
-      return res.json();
-    },
-    enabled: filterWatchlistId !== "none" && !!user,
-  });
-
-  const toggleWatchList = async (playerId: string, e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    if (!user) {
-      toast({
-        title: "Authentication Required",
-        description: "Please sign in to create your watch list.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    const isWatching = watchList?.includes(playerId);
-    const method = isWatching ? "DELETE" : "POST";
-
-    try {
-      const res = await authenticatedFetch(`/api/watchlist/${playerId}`, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: method === 'POST' ? JSON.stringify({}) : undefined
-      });
-      if (!res.ok) throw new Error("Failed to update watchlist");
-
-      const data = await res.json();
-      await refetchWatchList();
-
-      if (isWatching) {
-        toast({
-          title: "Removed from Watch List",
-          description: "Player removed from your watch list.",
-        });
-      } else {
-        toast({
-          title: `Added to ${data.watchlistName || 'Favorites'}`,
-          description: (
-            <span>
-              Player added to your watch list.{" "}
-              <a
-                href="/watchlists"
-                className="underline font-medium text-primary hover:text-primary/80"
-                onClick={(e) => e.stopPropagation()}
-              >
-                Edit
-              </a>
-            </span>
-          ),
-        });
-      }
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to update watch list. Please try again.",
-        variant: "destructive"
-      });
-    }
-  };
-
-  // Spotlight: Top market cap players
-  type SpotlightMarketCap = {
-    id: string;
-    firstName: string;
-    lastName: string;
-    team: string;
-    position: string;
-    price: number | null;
-    marketCap: number;
-    totalShares: number;
-  };
-
-  const { data: topMarketCap } = useQuery<SpotlightMarketCap[]>({
-    queryKey: ["/api/players/spotlight/top-market-cap", sport],
-    queryFn: async () => {
-      const res = await fetch(`/api/players/spotlight/top-market-cap?sport=${sport}`);
-      if (!res.ok) throw new Error("Failed to fetch top market cap");
-      return res.json();
-    },
-  });
-
-  // WebSocket listener for real-time marketplace updates
+  // WebSocket subscriptions for real-time updates
   useEffect(() => {
-    // Subscribe to trade events (affects prices, volume, 24h change, market cap)
-    const unsubTrade = subscribe('trade', () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/players"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/players/spotlight/top-risers"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/players/spotlight/top-market-cap"] });
-    });
-
-    // Subscribe to order book events
-    const unsubOrderBook = subscribe('orderBook', () => {
+    const unsubTrade = subscribe('trade', (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/players"] });
     });
 
     return () => {
       unsubTrade();
-      unsubOrderBook();
     };
   }, [subscribe]);
 
-  const { data: playersData, isLoading } = useQuery<{ players: PlayerWithOrderBook[]; total: number }>({
-    queryKey: [
-      "/api/players",
+  // Fetch players with AMM pool data
+  const { data: playersData, isLoading } = useQuery<{ players: PlayerWithPool[]; total: number }>({
+    queryKey: ["/api/players", {
       sport,
-      debouncedSearch,
-      teamFilter,
-      positionFilter,
-      sortField,
+      search: debouncedSearch,
+      team: teamFilter,
+      position: positionFilter,
+      sortBy: sortField,
       sortOrder,
-      filterHasBuyOrders,
-      filterHasSellOrders,
-      filterWatchlistId,
-      page
-    ],
+      page,
+      limit: ITEMS_PER_PAGE,
+      watchlistId: filterWatchlistId !== "none" ? filterWatchlistId : undefined,
+    }],
     queryFn: async () => {
       const params = new URLSearchParams();
-      params.append("sport", sport);
+      if (sport && sport !== 'ALL') params.append("sport", sport);
       if (debouncedSearch) params.append("search", debouncedSearch);
-      if (teamFilter && teamFilter !== "all") params.append("team", teamFilter);
-      if (positionFilter && positionFilter !== "all") params.append("position", positionFilter);
-      params.append("sortBy", sortField);
-      params.append("sortOrder", sortOrder);
-      if (filterHasBuyOrders) params.append("hasBuyOrders", "true");
-      if (filterHasSellOrders) params.append("hasSellOrders", "true");
-      // Watchlist filtering is now done client-side
-      params.append("limit", String(ITEMS_PER_PAGE));
-      params.append("offset", String((page - 1) * ITEMS_PER_PAGE));
+      if (teamFilter !== "all") params.append("team", teamFilter);
+      if (positionFilter !== "all") params.append("position", positionFilter);
+      if (sortField) params.append("sortBy", sortField);
+      if (sortOrder) params.append("sortOrder", sortOrder);
+      params.append("page", page.toString());
+      params.append("limit", ITEMS_PER_PAGE.toString());
+      if (filterWatchlistId !== "none") params.append("watchlistId", filterWatchlistId);
 
-      const url = `/api/players?${params.toString()}`;
-      const res = await fetch(url);
+      const res = await fetch(`/api/players?${params.toString()}`, {
+        credentials: "include",
+      });
       if (!res.ok) throw new Error("Failed to fetch players");
-      const data = await res.json();
-      return data;
+      return res.json();
     },
   });
 
-  const rawPlayers = playersData?.players || [];
-  const totalCount = playersData?.total || 0;
-  const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
+  // Fetch watchlists for filter
+  const { data: watchlists } = useQuery<{ id: string; name: string }[]>({
+    queryKey: ["/api/watchlists"],
+    queryFn: async () => {
+      const res = await fetch("/api/watchlists", { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
 
-  // Client-side watchlist filtering
-  const players = useMemo(() => {
-    if (filterWatchlistId === "none" || !selectedWatchlistPlayerIds?.length) {
-      return rawPlayers;
-    }
-    return rawPlayers.filter(p => selectedWatchlistPlayerIds.includes(p.id));
-  }, [rawPlayers, filterWatchlistId, selectedWatchlistPlayerIds]);
+  // Extract unique teams and positions for filters
+  const { teams, positions } = useMemo(() => {
+    const allTeams = new Set<string>();
+    const allPositions = new Set<string>();
+    playersData?.players.forEach((player) => {
+      if (player.team) allTeams.add(player.team);
+      if (player.position) allPositions.add(player.position);
+    });
+    return {
+      teams: Array.from(allTeams).sort(),
+      positions: Array.from(allPositions).sort(),
+    };
+  }, [playersData?.players]);
 
-  // Reset to page 1 when any filter or sort changes
-  useEffect(() => {
-    setPage(1);
-  }, [debouncedSearch, teamFilter, positionFilter, sortField, sortOrder, filterHasBuyOrders, filterHasSellOrders, filterWatchlistId]);
+  const players = playersData?.players || [];
+  const totalPlayers = playersData?.total || 0;
+  const totalPages = Math.ceil(totalPlayers / ITEMS_PER_PAGE);
 
-  // Reset filters when sport changes (positions differ between sports)
-  useEffect(() => {
-    setTeamFilter("all");
-    setPositionFilter("all");
-    setPage(1);
-  }, [sport]);
-
+  // Toggle sort order or change sort field
   const toggleSort = (field: SortField) => {
     if (sortField === field) {
       setSortOrder(sortOrder === "asc" ? "desc" : "asc");
     } else {
       setSortField(field);
-      // Logic for sensible default sort order
-      if (field === 'price' || field === 'bid' || field === 'ask' || field === 'undervalued') {
-        setSortOrder("asc"); // Usually want cheapest/most undervalued first
-      } else {
-        setSortOrder("desc"); // Usually want highest volume/cap/sentiment/change first
-      }
+      setSortOrder("desc");
     }
+    setPage(1);
+  };
 
-    // Auto-enable appropriate order filter when sorting by bid/ask
-    // This prevents empty screens from players with no active orders
-    if (field === 'bid') {
-      setFilterHasBuyOrders(true);
-    } else if (field === 'ask') {
-      setFilterHasSellOrders(true);
+  // Update URL when filters change
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (activeTab !== "players") params.set("tab", activeTab);
+    if (sortField !== "volume") params.set("sortBy", sortField);
+    if (sortOrder !== "desc") params.set("sortOrder", sortOrder);
+    
+    const newSearch = params.toString();
+    const currentPath = window.location.pathname;
+    if (newSearch) {
+      setLocation(`${currentPath}?${newSearch}`, { replace: true });
     }
+  }, [activeTab, sortField, sortOrder, setLocation]);
+
+  const hasActiveFilters = teamFilter !== "all" || positionFilter !== "all" || filterWatchlistId !== "none" || search;
+
+  // Render sort icon for column header
+  const SortIcon = ({ field }: { field: SortField }) => {
+    if (sortField !== field) {
+      return <ArrowUpDown className="w-3 h-3 ml-1 opacity-40" />;
+    }
+    return sortOrder === "asc" ? (
+      <TrendingUp className="w-3 h-3 ml-1" />
+    ) : (
+      <TrendingDown className="w-3 h-3 ml-1" />
+    );
   };
 
   return (
-    <div className="min-h-screen bg-background p-2 sm:p-3">
-      <div className="max-w-7xl mx-auto">
-        <div className="mb-2">
-          <h1 className="hidden sm:block text-lg font-bold mb-0">Marketplace</h1>
+    <div className="min-h-screen bg-background p-3 sm:p-4">
+      <div className="max-w-7xl mx-auto space-y-4">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold">Marketplace</h1>
+            <p className="text-sm text-muted-foreground">
+              Trade player shares with AMM instant liquidity
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <SportSelector />
+          </div>
         </div>
 
-        <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-3">
-          <TabsList className="grid w-full max-w-xs grid-cols-2 h-8">
-            <TabsTrigger value="players" className="text-xs" data-testid="tab-players">Players</TabsTrigger>
-            <TabsTrigger value="activity" className="text-xs" data-testid="tab-activity">Activity</TabsTrigger>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+          <TabsList className="grid w-full sm:w-auto grid-cols-2 sm:inline-flex">
+            <TabsTrigger value="players" className="gap-2">
+              <Activity className="w-4 h-4" />
+              Players
+            </TabsTrigger>
+            <TabsTrigger value="activity" className="gap-2">
+              <TrendingUp className="w-4 h-4" />
+              Activity
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="players" className="space-y-4">
-            {/* Market Scanners */}
+            {/* Scanners */}
             <MarketplaceScanners />
 
-            {/* Collapsible Filters */}
-            <ScrollReveal>
-              <Card>
-                <CardContent className="p-3 sm:p-4">
-                  {/* Filter Toggle Header */}
-                  <button
-                    onClick={() => setShowFilters(!showFilters)}
-                    className="flex items-center justify-between w-full hover-elevate rounded p-1"
-                    data-testid="button-toggle-filters"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Filter className="w-4 h-4 text-muted-foreground" />
-                      <span className="text-sm font-medium">Search & Filters</span>
-                      {(teamFilter !== "all" || positionFilter !== "all" || filterHasBuyOrders || filterHasSellOrders || filterWatchlistId !== "none" || search) && (
-                        <Badge variant="secondary" className="text-xs">Active</Badge>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <SportSelector size="sm" />
-                      {showFilters ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                    </div>
-                  </button>
-
-                  {/* Expanded Filters */}
-                  {showFilters && (
-                    <div className="space-y-3 pt-3 border-t mt-3">
-                      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 sm:gap-4">
-                        <div className="relative md:col-span-2">
-                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                          <Input
-                            placeholder="Search players..."
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            className="pl-9"
-                            data-testid="input-search-players"
-                          />
-                        </div>
-
-                        <Select value={teamFilter} onValueChange={setTeamFilter}>
-                          <SelectTrigger data-testid="select-team-filter">
-                            <SelectValue placeholder="All Teams" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">All Teams</SelectItem>
-                            {teams?.map((team) => (
-                              <SelectItem key={team} value={team}>{team}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-
-                        <Select value={positionFilter} onValueChange={setPositionFilter}>
-                          <SelectTrigger data-testid="select-position-filter">
-                            <SelectValue placeholder="All Positions" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">All Positions</SelectItem>
-                            {sportConfig.positions.map((pos) => (
-                              <SelectItem key={pos} value={pos}>
-                                {sportConfig.positionLabels[pos] || pos}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      {/* Order Book Filters */}
-                      <div className="flex flex-wrap items-center gap-4 pt-1">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium">Show only:</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Checkbox
-                            id="filter-buy-orders"
-                            checked={filterHasBuyOrders}
-                            onCheckedChange={(checked) => setFilterHasBuyOrders(checked as boolean)}
-                            data-testid="checkbox-filter-buy-orders"
-                          />
-                          <label htmlFor="filter-buy-orders" className="text-sm cursor-pointer">
-                            Has Buy Orders
-                          </label>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Checkbox
-                            id="filter-sell-orders"
-                            checked={filterHasSellOrders}
-                            onCheckedChange={(checked) => setFilterHasSellOrders(checked as boolean)}
-                            data-testid="checkbox-filter-sell-orders"
-                          />
-                          <label htmlFor="filter-sell-orders" className="text-sm cursor-pointer">
-                            Has Sell Orders
-                          </label>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Star className="w-3.5 h-3.5 text-muted-foreground" />
-                          <Select value={filterWatchlistId} onValueChange={setFilterWatchlistId}>
-                            <SelectTrigger className="h-8 w-[160px]" data-testid="select-watchlist-filter">
-                              <SelectValue placeholder="Watchlist" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">No Filter</SelectItem>
-                              <SelectItem value="all">All Watchlists</SelectItem>
-                              {userWatchlists?.map((list) => (
-                                <SelectItem key={list.id} value={list.id}>
-                                  {list.name} ({list.itemCount})
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        {(filterHasBuyOrders || filterHasSellOrders || search || teamFilter !== "all" || positionFilter !== "all") && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => {
-                              setFilterHasBuyOrders(false);
-                              setFilterHasSellOrders(false);
-                              setFilterWatchlistId("none");
-                              setSearch("");
-                              setTeamFilter("all");
-                              setPositionFilter("all");
-                            }}
-                            className="text-xs"
-                            data-testid="button-clear-filters"
-                          >
-                            Clear All
-                          </Button>
-                        )}
-                      </div>
-                    </div>
+            {/* Search and Filters */}
+            <Card>
+              <CardContent className="p-3 space-y-3">
+                {/* Search */}
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search players..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="pl-9"
+                  />
+                  {search && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
+                      onClick={() => setSearch("")}
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
                   )}
-                </CardContent>
-              </Card>
-            </ScrollReveal>
-
-            {/* Player Table */}
-            <Card id="all-players">
-              <CardHeader className="p-3">
-                <div className="flex items-center justify-between gap-3">
-                  <CardTitle className="text-sm font-medium uppercase tracking-wide">All Players</CardTitle>
-                  {/* Mobile sort controls */}
-                  <div className="flex items-center gap-1 sm:hidden flex-wrap">
-                    <Button
-                      size="sm"
-                      variant={sortField === 'bid' ? 'default' : 'outline'}
-                      onClick={() => toggleSort("bid")}
-                      className="text-xs"
-                      data-testid="button-sort-bid-mobile"
-                    >
-                      Bid {sortField === 'bid' && <ArrowUpDown className="w-3 h-3 ml-1" />}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant={sortField === 'ask' ? 'default' : 'outline'}
-                      onClick={() => toggleSort("ask")}
-                      className="text-xs"
-                      data-testid="button-sort-ask-mobile"
-                    >
-                      Ask {sortField === 'ask' && <ArrowUpDown className="w-3 h-3 ml-1" />}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant={sortField === 'volume' ? 'default' : 'outline'}
-                      onClick={() => toggleSort("volume")}
-                      className="text-xs"
-                      data-testid="button-sort-volume-mobile"
-                    >
-                      Vol {sortField === 'volume' && <ArrowUpDown className="w-3 h-3 ml-1" />}
-                    </Button>
-                  </div>
                 </div>
-              </CardHeader>
-              <CardContent className="p-0">
-                {isLoading ? (
-                  <div className="p-2">
-                    {[75, 85, 65, 90, 70, 80, 60, 88].map((width, i) => (
-                      <div key={i} className="flex items-center gap-3 p-2 border-b last:border-0">
-                        <Shimmer width="32px" height="32px" className="rounded-full flex-shrink-0" />
-                        <div className="flex-1 space-y-2">
-                          <Shimmer height="16px" width={`${width}%`} />
-                          <Shimmer height="12px" width="100px" />
-                        </div>
-                        <div className="hidden sm:flex flex-col items-end gap-1">
-                          <Shimmer height="16px" width="60px" />
-                          <Shimmer height="12px" width="40px" />
-                        </div>
-                        <Shimmer height="32px" width="60px" className="rounded-md" />
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div>
-                    <div className="space-y-4">
-                      {/* Mobile View - Card List */}
-                      <div className="sm:hidden space-y-2">
-                        {/* Premium Share Card */}
-                        <div className="bg-sidebar border border-yellow-500/30 rounded-lg p-3">
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="flex items-center gap-2 min-w-0 flex-1">
-                              <div className="w-8 h-8 rounded-full bg-yellow-500/20 flex items-center justify-center flex-shrink-0">
-                                <Crown className="w-4 h-4 text-yellow-500" />
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <div className="font-bold text-sm text-yellow-500">Premium Share</div>
-                                <div className="flex items-center gap-1.5 text-xs flex-wrap">
-                                  <span className="text-muted-foreground">30 Days Access</span>
-                                </div>
-                                <div className="flex items-center gap-1.5 text-xs mt-0.5">
-                                  {premiumMarketData?.lastTradePrice !== null && premiumMarketData?.lastTradePrice !== undefined ? (
-                                    <span className="font-mono font-bold text-yellow-500">${premiumMarketData.lastTradePrice.toFixed(2)}</span>
-                                  ) : (
-                                    <span className="text-muted-foreground">No trades</span>
-                                  )}
-                                  <span className="text-muted-foreground">•</span>
-                                  {premiumMarketData?.bestBid ? (
-                                    <span className="text-blue-500 dark:text-blue-400 font-mono font-bold">${premiumMarketData.bestBid.price.toFixed(2)}</span>
-                                  ) : (
-                                    <span className="text-muted-foreground">-</span>
-                                  )}
-                                  <span className="text-muted-foreground">/</span>
-                                  {premiumMarketData?.bestAsk ? (
-                                    <span className="text-red-500 dark:text-red-400 font-mono font-bold">${premiumMarketData.bestAsk.price.toFixed(2)}</span>
-                                  ) : (
-                                    <span className="text-muted-foreground">-</span>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                            <Link href="/premium/trade">
-                              <Button size="sm" className="bg-yellow-500 hover:bg-yellow-600 text-black">Trade</Button>
-                            </Link>
-                          </div>
-                        </div>
 
-                        {/* Player Cards */}
-                        {players.map((player, index) => (
-                          <div key={`mobile-${player.id}`} className="space-y-2">
-                            <div className="bg-card border rounded-lg p-3">
-                              <div className="flex items-center justify-between gap-1">
-                                <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                                  <div className="flex-shrink-0 cursor-pointer -ml-1" onClick={(e) => toggleWatchList(player.id, e)}>
-                                    {watchList?.includes(player.id) ? (
-                                      <Star className="w-5 h-5 fill-yellow-500 text-yellow-500" />
-                                    ) : (
-                                      <Star className="w-5 h-5 text-muted-foreground/30" />
-                                    )}
-                                  </div>
-                                  <div className="min-w-0 flex-1">
-                                    <div className="font-medium text-sm">
-                                      <PlayerName
-                                        playerId={player.id}
-                                        firstName={player.firstName}
-                                        lastName={player.lastName}
-                                        className="text-sm"
-                                      />
-                                    </div>
-                                    <div className="flex items-center gap-1.5 text-xs flex-wrap">
-                                      <span className="text-muted-foreground">{player.team} • {player.position}</span>
-                                    </div>
+                {/* Filter Toggle */}
+                <div className="flex items-center justify-between">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowFilters(!showFilters)}
+                    className="gap-2"
+                  >
+                    <Filter className="w-4 h-4" />
+                    Filters
+                    {hasActiveFilters && (
+                      <Badge variant="secondary" className="ml-1">
+                        Active
+                      </Badge>
+                    )}
+                  </Button>
+                </div>
 
-                                    <div className="flex items-center gap-1.5 text-xs mt-0.5">
-                                      {player.lastTradePrice ? (
-                                        <AnimatedPrice
-                                          value={parseFloat(player.lastTradePrice)}
-                                          size="sm"
-                                          className="font-mono font-bold"
-                                        />
-                                      ) : (
-                                        <span className="text-muted-foreground">-</span>
-                                      )}
-                                      <span className="text-muted-foreground">•</span>
-                                      <span className="text-blue-500 dark:text-blue-400 font-mono font-bold">
-                                        {player.bestBid ? `$${player.bestBid}` : '-'}
-                                      </span>
-                                      <span className="text-muted-foreground">/</span>
-                                      <span className="text-red-500 dark:text-red-400 font-mono font-bold">
-                                        {player.bestAsk ? `$${player.bestAsk}` : '-'}
-                                      </span>
-                                      <span className="text-muted-foreground">•</span>
-                                      <span className="text-muted-foreground">Vol: {player.volume24h > 0 ? player.volume24h.toLocaleString() : '-'}</span>
-                                    </div>
-                                  </div>
-                                </div>
-                                <Link href={`/player/${player.id}`}>
-                                  <Button size="sm">Trade</Button>
-                                </Link>
-                              </div>
-                            </div>
-                            {(index + 1) % 10 === 0 && index < players.length - 1 && (
-                              <WhopAd isPremium={isPremiumUser} />
-                            )}
-                          </div>
+                {/* Expanded Filters */}
+                {showFilters && (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 border-t">
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium">Team</label>
+                      <select
+                        value={teamFilter}
+                        onChange={(e) => setTeamFilter(e.target.value)}
+                        className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                      >
+                        <option value="all">All Teams</option>
+                        {teams.map((team) => (
+                          <option key={team} value={team}>
+                            {team}
+                          </option>
                         ))}
-                      </div>
-
-                      {/* Desktop View - Clean Table */}
-                      <div className="hidden sm:block rounded-md border">
-                        <table className="w-full">
-                          <thead className="border-b bg-muted/50">
-                            <tr>
-                              <th className="w-16 px-1 py-1.5 text-center text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                                Watchlist
-                              </th>
-                              <th className="text-left px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground w-auto">Player</th>
-                              <th className="text-left px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground hidden md:table-cell w-16">Team</th>
-                              <th className="text-right px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground w-28">
-                                <button
-                                  onClick={() => toggleSort("price")}
-                                  className="flex items-center gap-1 ml-auto hover-elevate px-2 py-1 rounded text-xs"
-                                >
-                                  Market Value <ArrowUpDown className="w-3 h-3" />
-                                </button>
-                              </th>
-                              <th className="text-right px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground hidden lg:table-cell w-32">
-                                <div className="flex items-center gap-1 justify-end">
-                                  <button
-                                    onClick={() => toggleSort("bid")}
-                                    className="hover-elevate px-2 py-1 rounded text-xs text-blue-500 dark:text-blue-400 flex items-center gap-0.5"
-                                  >
-                                    Bid {sortField === 'bid' && <ArrowUpDown className="w-3 h-3" />}
-                                  </button>
-                                  <span className="text-muted-foreground">/</span>
-                                  <button
-                                    onClick={() => toggleSort("ask")}
-                                    className="hover-elevate px-2 py-1 rounded text-xs text-red-500 dark:text-red-400 flex items-center gap-0.5"
-                                  >
-                                    Ask {sortField === 'ask' && <ArrowUpDown className="w-3 h-3" />}
-                                  </button>
-                                </div>
-                              </th>
-                              <th className="text-right px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground hidden lg:table-cell w-20">
-                                <button
-                                  onClick={() => toggleSort("volume")}
-                                  className="flex items-center gap-1 ml-auto hover-elevate px-2 py-1 rounded text-xs"
-                                >
-                                  24h Vol <ArrowUpDown className="w-3 h-3" />
-                                </button>
-                              </th>
-                              <th className="text-right px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground hidden md:table-cell w-24">
-                                <button
-                                  onClick={() => toggleSort("change")}
-                                  className="flex items-center gap-1 ml-auto hover-elevate px-2 py-1 rounded text-xs"
-                                >
-                                  24h Change <ArrowUpDown className="w-3 h-3" />
-                                </button>
-                              </th>
-                              <th className="text-right px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground hidden md:table-cell w-24">
-                                <button
-                                  onClick={() => toggleSort(sortField === 'sentiment' ? 'sentiment' : sortField === 'undervalued' ? 'undervalued' : "marketCap")}
-                                  className="flex items-center gap-1 ml-auto hover-elevate px-2 py-1 rounded text-xs"
-                                >
-                                  {sortField === 'sentiment' ? 'Sentiment' : sortField === 'undervalued' ? 'Val Index' : 'Mkt Cap'}
-                                  <ArrowUpDown className="w-3 h-3" />
-                                </button>
-                              </th>
-                              <th className="px-2 py-1.5 w-16"></th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {/* Premium Share Row */}
-                            <tr className="border-b bg-sidebar hover:bg-sidebar/80">
-                              <td className="w-16 px-1 py-1.5 text-center"></td>
-                              <td className="px-2 py-1.5 text-left">
-                                <div className="flex items-center gap-2">
-                                  <div className="w-8 h-8 rounded-full bg-yellow-500/20 flex items-center justify-center flex-shrink-0">
-                                    <Crown className="w-4 h-4 text-yellow-500" />
-                                  </div>
-                                  <div className="font-medium text-sm text-yellow-500">Premium Share</div>
-                                </div>
-                              </td>
-                              <td className="px-2 py-1.5 hidden md:table-cell">
-                                <Badge variant="outline" className="text-xs text-yellow-500 border-yellow-500/50">PREMIUM</Badge>
-                              </td>
-                              <td className="px-2 py-1.5 text-right w-28">
-                                {premiumMarketData?.lastTradePrice !== null && premiumMarketData?.lastTradePrice !== undefined ? (
-                                  <span className="font-mono font-bold text-yellow-500">${premiumMarketData.lastTradePrice.toFixed(2)}</span>
-                                ) : (
-                                  <span className="text-muted-foreground text-xs">No trades</span>
-                                )}
-                              </td>
-                              <td className="px-2 py-1.5 text-right hidden lg:table-cell w-32">
-                                <div className="flex items-center justify-end gap-2 font-mono text-sm font-bold">
-                                  {premiumMarketData?.bestBid ? (
-                                    <span className="text-blue-500 dark:text-blue-400">${premiumMarketData.bestBid.price.toFixed(2)}</span>
-                                  ) : (
-                                    <span className="text-muted-foreground font-normal text-xs">-</span>
-                                  )}
-                                  <span className="text-muted-foreground font-normal">×</span>
-                                  {premiumMarketData?.bestAsk ? (
-                                    <span className="text-red-500 dark:text-red-400">${premiumMarketData.bestAsk.price.toFixed(2)}</span>
-                                  ) : (
-                                    <span className="text-muted-foreground font-normal text-xs">-</span>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="px-2 py-1.5 text-right hidden lg:table-cell w-20">
-                                <span className="text-xs text-muted-foreground">{premiumMarketData?.totalTrades || 0}</span>
-                              </td>
-                              <td className="px-2 py-1.5 text-right hidden md:table-cell w-24">
-                                <span className="font-medium text-xs text-muted-foreground">-</span>
-                              </td>
-                              <td className="px-2 py-1.5 text-right hidden md:table-cell w-24">
-                                <span className="text-xs font-mono font-bold text-muted-foreground">-</span>
-                              </td>
-                              <td className="px-2 py-1.5 w-16">
-                                <Link href="/premium/trade">
-                                  <Button size="sm" className="bg-yellow-500 hover:bg-yellow-600 text-black">Trade</Button>
-                                </Link>
-                              </td>
-                            </tr>
-
-                            {/* Player Rows */}
-                            {players.flatMap((player, index) => {
-                              const desktopRow = (
-                                <tr
-                                  key={`desktop-${player.id}`}
-                                  className="border-b last:border-0 hover-elevate"
-                                >
-                                  <td className="w-16 px-1 py-1.5 text-center">
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      className="h-8 w-8 p-0 hover:bg-transparent"
-                                      onClick={(e) => toggleWatchList(player.id, e)}
-                                    >
-                                      <Star className={`w-4 h-4 ${watchList?.includes(player.id) ? "fill-yellow-500 text-yellow-500" : "text-muted-foreground/30 hover:text-yellow-500"}`} />
-                                    </Button>
-                                  </td>
-                                  <td className="px-2 py-1.5 text-left">
-                                    <div className="flex items-center gap-2">
-                                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                                        <span className="font-bold text-xs">{player.firstName[0]}{player.lastName[0]}</span>
-                                      </div>
-                                      <div>
-                                        <div className="font-medium text-sm">
-                                          <PlayerName
-                                            playerId={player.id}
-                                            firstName={player.firstName}
-                                            lastName={player.lastName}
-                                            className="text-sm"
-                                          />
-                                        </div>
-                                      </div>
-                                    </div>
-                                  </td>
-                                  <td className="px-2 py-1.5 hidden md:table-cell">
-                                    <Badge variant="outline" className="text-xs">{player.team}</Badge>
-                                  </td>
-                                  <td className="px-2 py-1.5 text-right w-28">
-                                    {player.lastTradePrice ? (
-                                      <AnimatedPrice
-                                        value={parseFloat(player.lastTradePrice)}
-                                        size="sm"
-                                        className="font-mono font-bold justify-end"
-                                      />
-                                    ) : (
-                                      <span className="text-muted-foreground text-xs font-normal">-</span>
-                                    )}
-                                  </td>
-                                  <td className="px-2 py-1.5 text-right hidden lg:table-cell w-32">
-                                    <div className="flex items-center justify-end gap-2 font-mono text-sm font-bold">
-                                      <span className="text-blue-500 dark:text-blue-400">
-                                        {player.bestBid ? `$${player.bestBid}` : '-'}
-                                      </span>
-                                      <span className="text-muted-foreground font-normal">×</span>
-                                      <span className="text-red-500 dark:text-red-400">
-                                        {player.bestAsk ? `$${player.bestAsk}` : '-'}
-                                      </span>
-                                    </div>
-                                  </td>
-                                  <td className="px-2 py-1.5 text-right hidden lg:table-cell w-20">
-                                    <span className="text-xs text-muted-foreground">{player.volume24h > 0 ? player.volume24h.toLocaleString() : '-'}</span>
-                                  </td>
-                                  <td className="px-2 py-1.5 text-right hidden md:table-cell w-24">
-                                    <div className={`flex items-center justify-end gap-1 ${parseFloat(player.priceChange24h) >= 0 ? 'text-positive' : 'text-negative'}`}>
-                                      {parseFloat(player.priceChange24h) >= 0 ? (
-                                        <TrendingUp className="w-3 h-3" />
-                                      ) : (
-                                        <TrendingDown className="w-3 h-3" />
-                                      )}
-                                      <span className="font-medium text-xs">
-                                        {parseFloat(player.priceChange24h) >= 0 ? '+' : ''}{player.priceChange24h}%
-                                      </span>
-                                    </div>
-                                  </td>
-                                  <td className="px-2 py-1.5 text-right hidden md:table-cell w-24">
-                                    <span className="text-xs font-mono font-bold text-muted-foreground">
-                                      {sortField === 'sentiment' ? (
-                                        `${Math.round(player.buyPressure || 50)}%`
-                                      ) : sortField === 'undervalued' ? (
-                                        player.valueIndex?.toFixed(1) || '-'
-                                      ) : (
-                                        `$${(parseFloat(player.marketCap) / 1000000).toFixed(1)}M`
-                                      )}
-                                    </span>
-                                  </td>
-                                  <td className="px-2 py-1.5 w-16">
-                                    <Link href={`/player/${player.id}`}>
-                                      <Button size="sm">Trade</Button>
-                                    </Link>
-                                  </td>
-                                </tr>
-                              );
-
-                              if ((index + 1) % 10 === 0 && index < players.length - 1) {
-                                return [
-                                  desktopRow,
-                                  <tr key={`ad-${index}`} className="border-b">
-                                    <td colSpan={9} className="py-4">
-                                      <WhopAd isPremium={isPremiumUser} />
-                                    </td>
-                                  </tr>
-                                ];
-                              }
-                              return [desktopRow];
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
+                      </select>
                     </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium">Position</label>
+                      <select
+                        value={positionFilter}
+                        onChange={(e) => setPositionFilter(e.target.value)}
+                        className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                      >
+                        <option value="all">All Positions</option>
+                        {positions.map((pos) => (
+                          <option key={pos} value={pos}>
+                            {pos}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium">Watchlist</label>
+                      <select
+                        value={filterWatchlistId}
+                        onChange={(e) => setFilterWatchlistId(e.target.value)}
+                        className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                      >
+                        <option value="none">All Players</option>
+                        <option value="all">My Watchlists</option>
+                        {watchlists?.map((w) => (
+                          <option key={w.id} value={w.id}>
+                            {w.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {hasActiveFilters && (
+                      <div className="sm:col-span-3 flex justify-end">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setTeamFilter("all");
+                            setPositionFilter("all");
+                            setFilterWatchlistId("none");
+                            setSearch("");
+                          }}
+                        >
+                          Clear all filters
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 )}
+              </CardContent>
+            </Card>
 
-                {/* Pagination Controls */}
-                {!isLoading && players.length > 0 && totalPages > 1 && (
-                  <div className="mt-4 flex items-center justify-between px-2">
-                    <div className="text-sm text-muted-foreground">
-                      Showing {((page - 1) * ITEMS_PER_PAGE) + 1}-{Math.min(page * ITEMS_PER_PAGE, totalCount)} of {totalCount} players
-                    </div>
-                    <div className="flex items-center gap-2">
+            {/* Players Table */}
+            <Card>
+              <CardContent className="p-0">
+                {isLoading ? (
+                  <div className="p-8 text-center text-muted-foreground">Loading players...</div>
+                ) : players.length === 0 ? (
+                  <div className="p-8 text-center">
+                    <p className="text-muted-foreground">No players found</p>
+                    {hasActiveFilters && (
                       <Button
-                        size="sm"
                         variant="outline"
-                        onClick={() => setPage(p => Math.max(1, p - 1))}
-                        disabled={page === 1}
-                        data-testid="button-prev-page"
-                      >
-                        Previous
-                      </Button>
-                      <div className="text-sm text-muted-foreground">
-                        Page {page} of {totalPages}
-                      </div>
-                      <Button
                         size="sm"
-                        variant="outline"
-                        onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                        disabled={page === totalPages}
-                        data-testid="button-next-page"
+                        className="mt-2"
+                        onClick={() => {
+                          setTeamFilter("all");
+                          setPositionFilter("all");
+                          setFilterWatchlistId("none");
+                          setSearch("");
+                        }}
                       >
-                        Next
+                        Clear filters
                       </Button>
-                    </div>
+                    )}
                   </div>
+                ) : (
+                  <>
+                    {/* Desktop Table */}
+                    <div className="hidden md:block overflow-x-auto">
+                      <table className="w-full">
+                        <thead className="border-b bg-muted/50">
+                          <tr>
+                            <th className="text-left p-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Player</th>
+                            <th 
+                              className="text-right p-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground cursor-pointer hover:bg-muted/80"
+                              onClick={() => toggleSort("price")}
+                            >
+                              <div className="flex items-center justify-end">
+                                Price
+                                <SortIcon field="price" />
+                              </div>
+                            </th>
+                            <th 
+                              className="text-right p-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground cursor-pointer hover:bg-muted/80"
+                              onClick={() => toggleSort("volume")}
+                            >
+                              <div className="flex items-center justify-end">
+                                Volume
+                                <SortIcon field="volume" />
+                              </div>
+                            </th>
+                            <th 
+                              className="text-right p-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground cursor-pointer hover:bg-muted/80"
+                              onClick={() => toggleSort("change")}
+                            >
+                              <div className="flex items-center justify-end">
+                                24h Change
+                                <SortIcon field="change" />
+                              </div>
+                            </th>
+                            <th 
+                              className="text-right p-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground cursor-pointer hover:bg-muted/80 hidden lg:table-cell"
+                              onClick={() => toggleSort("liquidity")}
+                            >
+                              <div className="flex items-center justify-end">
+                                Liquidity
+                                <SortIcon field="liquidity" />
+                              </div>
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {players.map((player) => (
+                            <tr key={player.id} className="border-b hover:bg-muted/30">
+                              <td className="p-3">
+                                <Link href={`/player/${player.id}`}>
+                                  <div className="flex items-center gap-2 cursor-pointer">
+                                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                                      <span className="text-xs font-bold">{player.firstName[0]}{player.lastName[0]}</span>
+                                    </div>
+                                    <div>
+                                      <div className="font-medium text-sm">
+                                        <PlayerName
+                                          playerId={player.id}
+                                          firstName={player.firstName}
+                                          lastName={player.lastName}
+                                        />
+                                      </div>
+                                      <div className="text-xs text-muted-foreground">
+                                        {player.team} • {player.position}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </Link>
+                              </td>
+                              <td className="p-3 text-right">
+                                <div className="font-mono font-medium">
+                                  ${player.lastTradePrice || "0.00"}
+                                </div>
+                              </td>
+                              <td className="p-3 text-right text-sm text-muted-foreground">
+                                {player.volume24h?.toLocaleString() || 0}
+                              </td>
+                              <td className="p-3 text-right">
+                                <div className={cn(
+                                  "font-mono text-sm",
+                                  parseFloat(player.priceChange24h || "0") >= 0 ? "text-positive" : "text-negative"
+                                )}>
+                                  {parseFloat(player.priceChange24h || "0") >= 0 ? "+" : ""}
+                                  {parseFloat(player.priceChange24h || "0").toFixed(2)}%
+                                </div>
+                              </td>
+                              <td className="p-3 text-right text-sm text-muted-foreground hidden lg:table-cell">
+                                ${player.poolLiquidity?.toLocaleString() || "N/A"}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Mobile Cards */}
+                    <div className="md:hidden divide-y">
+                      {players.map((player) => (
+                        <Link key={player.id} href={`/player/${player.id}`}>
+                          <div className="p-3 flex items-center justify-between hover:bg-muted/30 cursor-pointer">
+                            <div className="flex items-center gap-2">
+                              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                                <span className="text-xs font-bold">{player.firstName[0]}{player.lastName[0]}</span>
+                              </div>
+                              <div>
+                                <div className="font-medium text-sm">
+                                  {player.firstName} {player.lastName}
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {player.team} • ${player.lastTradePrice || "0.00"}
+                                </div>
+                              </div>
+                            </div>
+                            <div className={cn(
+                              "font-mono text-sm",
+                              parseFloat(player.priceChange24h || "0") >= 0 ? "text-positive" : "text-negative"
+                            )}>
+                              {parseFloat(player.priceChange24h || "0") >= 0 ? "+" : ""}
+                              {parseFloat(player.priceChange24h || "0").toFixed(2)}%
+                            </div>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+
+                    {/* Pagination */}
+                    {totalPages > 1 && (
+                      <div className="p-3 border-t flex items-center justify-between">
+                        <div className="text-sm text-muted-foreground">
+                          Page {page} of {totalPages}
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setPage(page - 1)}
+                            disabled={page <= 1}
+                          >
+                            <ChevronLeft className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setPage(page + 1)}
+                            disabled={page >= totalPages}
+                          >
+                            <ChevronRight className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
               </CardContent>
             </Card>
           </TabsContent>
 
-          <TabsContent value="activity" className="space-y-4">
-            <MarketActivityFeed />
+          <TabsContent value="activity">
+            <MarketActivityWidget />
           </TabsContent>
         </Tabs>
       </div>
     </div>
-  );
-}
-
-interface MarketActivity {
-  activityType: "trade" | "order_placed" | "order_cancelled";
-  id: string;
-  playerId: string;
-  playerFirstName: string;
-  playerLastName: string;
-  playerTeam: string;
-  userId: string | null;
-  username: string | null;
-  buyerId: string | null;
-  buyerUsername: string | null;
-  sellerId: string | null;
-  sellerUsername: string | null;
-  side: "buy" | "sell" | null;
-  orderType: "limit" | "market" | null;
-  quantity: number;
-  price: string | null;
-  limitPrice: string | null;
-  timestamp: string;
-}
-
-function MarketActivityFeed() {
-  const { subscribe } = useWebSocket();
-  const [playerFilter, setPlayerFilter] = useState("");
-  const [debouncedPlayerFilter, setDebouncedPlayerFilter] = useState("");
-
-  // Debounce player filter
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedPlayerFilter(playerFilter);
-    }, 250);
-    return () => clearTimeout(timer);
-  }, [playerFilter]);
-
-  const { data: activity = [], isLoading } = useQuery<MarketActivity[]>({
-    queryKey: ["/api/market/activity", debouncedPlayerFilter],
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      params.append("limit", "150");
-      if (debouncedPlayerFilter) {
-        params.append("playerSearch", debouncedPlayerFilter);
-      }
-      const response = await fetch(`/api/market/activity?${params.toString()}`);
-      if (!response.ok) throw new Error("Failed to fetch market activity");
-      return response.json();
-    },
-  });
-
-  // Subscribe to WebSocket market activity events for real-time updates
-  useEffect(() => {
-    const unsubscribe = subscribe('marketActivity', () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/market/activity'] });
-    });
-    return unsubscribe;
-  }, [subscribe]);
-
-  const getActivityLabel = (item: MarketActivity) => {
-    if (item.activityType === "trade") {
-      return { type: "Trade", color: "text-foreground font-semibold" };
-    }
-    if (item.activityType === "order_cancelled") {
-      return { type: "Cancelled", color: "text-muted-foreground" };
-    }
-    // order_placed
-    const orderTypeLabel = item.orderType === "limit" ? "Limit" : "Market";
-    return {
-      type: orderTypeLabel,
-      color: item.side === "buy" ? "text-blue-500" : "text-red-500"
-    };
-  };
-
-  const getSideLabel = (item: MarketActivity) => {
-    if (item.activityType === "trade") {
-      return null; // No side label for trades
-    }
-    return item.side === "buy" ? "Buy" : "Sell";
-  };
-
-  const getUsername = (item: MarketActivity) => {
-    if (item.activityType === "trade") {
-      return (
-        <span className="text-xs">
-          <span className="text-blue-500">{item.buyerUsername}</span>
-          <span className="text-muted-foreground mx-1">←</span>
-          <span className="text-red-500">{item.sellerUsername}</span>
-        </span>
-      );
-    }
-    return <span className="text-xs">{item.username || "Unknown"}</span>;
-  };
-
-  if (isLoading) {
-    return (
-      <Card>
-        <CardContent className="p-6">
-          <div className="text-center text-muted-foreground">Loading activity...</div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  return (
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <CardTitle>Market Activity</CardTitle>
-            <Clock className="w-4 h-4 text-muted-foreground" />
-          </div>
-          <div className="relative w-full sm:w-64">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Filter by player..."
-              value={playerFilter}
-              onChange={(e) => setPlayerFilter(e.target.value)}
-              className="pl-8 h-9"
-              data-testid="input-filter-activity-player"
-            />
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="p-0">
-        {activity.length === 0 ? (
-          <EmptyState
-            icon="chart"
-            title={debouncedPlayerFilter ? "No activity for this player" : "No market activity yet"}
-            description={debouncedPlayerFilter ? "Try searching for a different player." : "Trades will appear here as they happen."}
-            size="sm"
-            className="py-6"
-            data-testid="empty-activity"
-          />
-        ) : (
-          <AnimatedList
-            items={activity}
-            keyExtractor={(item) => `${item.activityType}-${item.id}`}
-            animateDirection="right"
-            staggerDelay={0.02}
-            highlightNew={true}
-            className="divide-y"
-            renderItem={(item) => {
-              const label = getActivityLabel(item);
-              const sideLabel = getSideLabel(item);
-              return (
-                <div
-                  className="flex items-center gap-2 px-3 py-2 hover-elevate text-sm"
-                  data-testid={`activity-${item.activityType}-${item.id}`}
-                >
-                  {/* Time */}
-                  <div className="w-16 text-xs text-muted-foreground flex-shrink-0 hidden sm:block">
-                    {formatDistanceToNow(new Date(item.timestamp), { addSuffix: true }).replace("about ", "").replace(" ago", "")}
-                  </div>
-
-                  {/* Side and Order Type */}
-                  <div className="w-20 text-xs font-medium flex-shrink-0">
-                    {sideLabel && <span className={item.side === "buy" ? "text-blue-500" : "text-red-500"}>{sideLabel} </span>}
-                    <span className={label.color}>{label.type}</span>
-                  </div>
-
-                  {/* Player */}
-                  <div className="flex-1 min-w-0">
-                    <Link href={`/player/${item.playerId}`}>
-                      <span className="font-medium hover:underline truncate block">
-                        {item.playerFirstName} {item.playerLastName}
-                      </span>
-                    </Link>
-                  </div>
-
-                  {/* Team */}
-                  <div className="w-12 text-xs text-muted-foreground hidden md:block flex-shrink-0">
-                    {item.playerTeam}
-                  </div>
-
-                  {/* Price */}
-                  <div className="w-16 text-right font-mono text-xs flex-shrink-0">
-                    {item.price ? `$${item.price}` : item.limitPrice ? `$${item.limitPrice}` : "-"}
-                  </div>
-
-                  {/* Quantity */}
-                  <div className="w-14 text-right text-xs text-muted-foreground flex-shrink-0 hidden lg:block">
-                    {item.quantity}×
-                  </div>
-
-                  {/* User */}
-                  <div className="w-32 text-muted-foreground truncate hidden xl:block flex-shrink-0">
-                    {getUsername(item)}
-                  </div>
-                </div>
-              );
-            }}
-          />
-        )}
-      </CardContent>
-    </Card>
   );
 }

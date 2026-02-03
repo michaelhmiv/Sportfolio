@@ -17,6 +17,8 @@ import { setupAuth, isAuthenticated, optionalAuth } from "./supabaseAuth";
 import { getGameDay, getETDayBoundaries, getTodayETBoundaries, getTodayET } from "./lib/time";
 import { matchOrders } from "./order-matcher";
 import { getOrCompute } from "./cache";
+import { registerAmmRoutes } from "./routes/amm";
+import { registerLpRoutes } from "./routes/lp";
 
 /**
  * Get power/boosts data for the dashboard
@@ -7845,6 +7847,12 @@ ${posts.map(post => `  <url>
 
   // Initialize data
   await initializePlayers();
+
+  // Register AMM routes for instant trading
+  registerAmmRoutes(app);
+  
+  // Register LP routes for liquidity provider functionality
+  registerLpRoutes(app);
 
   return httpServer;
 }
