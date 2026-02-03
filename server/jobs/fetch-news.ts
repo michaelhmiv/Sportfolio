@@ -32,7 +32,7 @@ interface ParsedStory {
     type: 'NEW' | 'UPDATE';
     headline: string;
     briefing: string;
-    sport: 'NBA' | 'NFL';
+    sport: 'NBA' | 'NFL' | 'MLB';
     sourceUrl: string | null;
 }
 
@@ -105,23 +105,22 @@ function buildPrompt(recentHeadlines: string[]): string {
         ? `STORIES WE'VE ALREADY REPORTED (do not repeat unless there's a significant update):\n${recentHeadlines.join('\n')}\n\n`
         : 'We have no recent news history yet.\n\n';
 
-    return `You are a breaking news reporter for NBA and NFL sports.
+    return `You are a breaking news reporter for NBA, NFL, and MLB sports.
 
 ${headlinesContext}INSTRUCTIONS:
-1. Search for BREAKING NEWS from the LAST 12 HOURS only
-2. Report up to 3 stories maximum (only truly newsworthy items)
-3. CRITICAL: Only report NEW announcements, injuries, trades, or game results from TODAY
+1. Search for NEWS from the LAST 12 HOURS - include coaching hires, signings, trades, injuries, and roster moves
+2. Report up to 3 stories maximum (any significant team/personnel news qualifies)
+3. CRITICAL: Report NEW announcements, coaching hires, signings, trades, injuries from the last 12 hours
 4. CRITICAL: Do NOT report retrospective articles, analysis pieces, or "looking back" content
 5. CRITICAL: Do NOT report on any player who appears in the stories above, even with a different angle
 6. CRITICAL: Always use full player names (e.g., "LeBron James" instead of "LeBron") to ensure proper auto-linking
 7. Skip any story about players/teams we've already covered
-8. Prioritize: breaking injuries, just-announced trades, games that ended within 12 hours
+8. Prioritize: coaching hires, signings, trades, breaking injuries, roster moves
 
-STRICT FRESHNESS RULES:
-- ONLY news from the last 12 hours (since ${new Date().toISOString()})
+FRESHNESS RULES:
+- Include news from the last 12 hours (since ${new Date().toISOString()})
 - NO "remember when" or "looking back at last season" content
-- NO injury timeline updates unless it's a NEW significant development
-- NO analysis of yesterday's games unless it's breaking news (e.g., major injury in game)
+- Coaching hires and signings ARE newsworthy even if announced a few hours ago
 - If the event happened yesterday or earlier AND it's not a new development, SKIP IT
 
 OUTPUT FORMAT (use this EXACT structure for each story):
@@ -130,7 +129,7 @@ CITATIONS: [1], [2] (list citation numbers used in this story)
 TYPE: NEW
 HEADLINE: [Concise headline, max 80 characters]
 BRIEFING: [1-2 sentence summary for sports traders, focus on impact]
-SPORT: NBA
+SPORT: [NBA, NFL, or MLB]
 ---END---
 
 IMPORTANT: Include the CITATIONS field showing which sources ([1], [2], etc.) this story used.
@@ -163,7 +162,7 @@ function parseMultiStoryResponse(content: string, citations?: string[]): ParsedS
             const typeMatch = storyContent.match(/TYPE:\s*(NEW|UPDATE)/i);
             const headlineMatch = storyContent.match(/HEADLINE:\s*(.+?)(?=\n|BRIEFING:)/is);
             const briefingMatch = storyContent.match(/BRIEFING:\s*(.+?)(?=\n|SPORT:)/is);
-            const sportMatch = storyContent.match(/SPORT:\s*(NBA|NFL)/i);
+            const sportMatch = storyContent.match(/SPORT:\s*(NBA|NFL|MLB)/i);
 
             if (headlineMatch && briefingMatch) {
                 // Extract citation numbers from CITATIONS field

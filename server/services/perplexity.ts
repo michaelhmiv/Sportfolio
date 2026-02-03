@@ -232,7 +232,7 @@ class PerplexityService {
           messages: [
             {
               role: "system",
-              content: "You are a breaking news sports reporter for NBA and NFL. Provide factual, concise news updates about player injuries, trades, signings, and major performances. Format your response as: [Headline] - [Brief 1-2 sentence summary]."
+              content: "You are a breaking news sports reporter for NBA, NFL, and MLB. Provide factual, concise news updates about player injuries, trades, signings, coaching hires, and major performances. Format your response as: [Headline] - [Brief 1-2 sentence summary]."
             },
             {
               role: "user",
