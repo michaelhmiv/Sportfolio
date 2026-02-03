@@ -3,7 +3,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 const config: CapacitorConfig = {
   appId: 'sportfolio.market',
   appName: 'Sportfolio',
-  webDir: 'client/dist',
+  webDir: 'dist/public',
   ios: {
     path: 'mobile/ios'
   },
