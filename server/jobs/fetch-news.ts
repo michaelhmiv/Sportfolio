@@ -137,6 +137,36 @@ IMPORTANT: If there is no significant BREAKING news from the last 12 hours, resp
 }
 
 /**
+ * Validate that URL matches headline content
+ */
+function validateUrlMatchesHeadline(headline: string, url: string | null): boolean {
+    if (!url) return false;
+    
+    const urlLower = url.toLowerCase();
+    const headlineLower = headline.toLowerCase();
+    
+    // Extract key words from headline (3+ chars)
+    const headlineWords = headlineLower.match(/\b[a-z]{3,}\b/g) || [];
+    
+    // Count matches
+    const matches = headlineWords.filter(word => 
+        !['the', 'and', 'for', 'with', 'from', 'coach', 'head', 'head coach', 'general', 'manager'].includes(word) &&
+        urlLower.includes(word)
+    ).length;
+    
+    // Require at least 1 keyword match OR proper name match
+    if (matches >= 1) return true;
+    
+    // Check for proper names (capitalized words in headline)
+    const properNames = headline.match(/\b[A-Z][a-z]+\b/g) || [];
+    for (const name of properNames) {
+        if (urlLower.includes(name.toLowerCase())) return true;
+    }
+    
+    return false;
+}
+
+/**
  * Parse the multi-story response from Perplexity
  * FIXED: Now accepts citations array and maps citation numbers to URLs
  */
@@ -191,11 +221,20 @@ function parseMultiStoryResponse(content: string, citations?: string[]): ParsedS
                     return text.replace(/\s+/g, ' ').trim();
                 };
 
+                const headline = cleanText(headlineMatch[1]);
+                
+                // Validate URL matches headline - if not, don't use the URL
+                if (sourceUrl && !validateUrlMatchesHeadline(headline, sourceUrl)) {
+                    console.warn(`[News] URL mismatch for: "${headline.substring(0, 50)}..." - URL: ${sourceUrl.substring(0, 60)}...`);
+                    console.warn('[News] Skipping story due to URL/headline mismatch');
+                    continue; // Skip this story
+                }
+
                 stories.push({
                     type: (typeMatch?.[1]?.toUpperCase() as 'NEW' | 'UPDATE') || 'NEW',
-                    headline: cleanText(headlineMatch[1]),
+                    headline: headline,
                     briefing: cleanText(briefingMatch[1]),
-                    sport: (sportMatch?.[1]?.toUpperCase() as 'NBA' | 'NFL') || 'NBA',
+                    sport: (sportMatch?.[1]?.toUpperCase() as 'NBA' | 'NFL' | 'MLB') || 'NBA',
                     sourceUrl,
                 });
             }
