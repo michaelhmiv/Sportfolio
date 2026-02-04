@@ -6,14 +6,42 @@
  * within the previous hour window.
  * 
  * Also performs cleanup of inactive users (>24h inactive).
+ * 
+ * CEREMONY ENHANCEMENT:
+ * - Collects detailed ceremony data for each user
+ * - Broadcasts personalized ceremonies via WebSocket
+ * - Stores ceremony data in memory for 30 minutes
  */
 
 import { storage } from "../storage";
 import { db } from "../db";
 import { sql, eq, and, lte, inArray } from "drizzle-orm";
-import { users, scoutAssignments, scoutHistory } from "@shared/schema";
-import { broadcast } from "../websocket";
+import { users, scoutAssignments, scoutHistory, players } from "@shared/schema";
+import { broadcast, broadcastToUser } from "../websocket";
 import type { JobResult } from "./scheduler";
+
+// In-memory ceremony cache (30 minute TTL)
+const ceremonyCache = new Map<string, { data: any; expiresAt: number }>();
+
+// Cleanup old ceremony entries every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, value] of ceremonyCache.entries()) {
+    if (now > value.expiresAt) {
+      ceremonyCache.delete(key);
+    }
+  }
+}, 5 * 60 * 1000);
+
+export function getPendingCeremony(userId: string): any | null {
+  const key = `scout:${userId}`;
+  const cached = ceremonyCache.get(key);
+  if (cached && Date.now() < cached.expiresAt) {
+    ceremonyCache.delete(key); // Remove after retrieval
+    return cached.data;
+  }
+  return null;
+}
 
 export async function distributeScoutShares(): Promise<JobResult> {
     let recordsProcessed = 0;
@@ -162,6 +190,26 @@ export async function distributeScoutShares(): Promise<JobResult> {
         }
 
         const ledgerEntries = [];
+        
+        // CEREMONY DATA COLLECTION
+        // Group distributions by user for personalized ceremonies
+        const ceremonyDataByUser = new Map<string, any[]>();
+        
+        // Fetch all player details in one query for efficiency
+        const playerIds = [...new Set(results.map(r => r.playerId))];
+        const playerDetails = await db
+            .select({
+                id: players.id,
+                firstName: players.firstName,
+                lastName: players.lastName,
+                team: players.team,
+                position: players.position,
+                sport: players.sport
+            })
+            .from(players)
+            .where(inArray(players.id, playerIds));
+        
+        const playerMap = new Map(playerDetails.map(p => [p.id, p]));
 
         for (const row of results) {
             try {
@@ -178,6 +226,33 @@ export async function distributeScoutShares(): Promise<JobResult> {
                         globalScoutMinutes: Math.round(parseFloat(row.globalScoutMinutes)),
                         sharesEarned: row.sharesEarned.toString(),
                     });
+
+                    // Collect ceremony data
+                    const player = playerMap.get(row.playerId);
+                    if (player) {
+                        const userScoutMinutes = parseFloat(row.userScoutMinutes);
+                        const globalScoutMinutes = parseFloat(row.globalScoutMinutes);
+                        const efficiency = globalScoutMinutes > 0 
+                            ? (userScoutMinutes / globalScoutMinutes) * 100 
+                            : 0;
+                        
+                        const ceremonyEntry = {
+                            playerId: row.playerId,
+                            playerName: `${player.firstName} ${player.lastName}`,
+                            playerTeam: player.team,
+                            playerPosition: player.position,
+                            sport: player.sport,
+                            sharesEarned: sharesEarned,
+                            scoutMinutes: Math.round(userScoutMinutes),
+                            globalMinutes: Math.round(globalScoutMinutes),
+                            efficiency: Math.round(efficiency * 100) / 100, // 2 decimal places
+                        };
+                        
+                        if (!ceremonyDataByUser.has(row.userId)) {
+                            ceremonyDataByUser.set(row.userId, []);
+                        }
+                        ceremonyDataByUser.get(row.userId)!.push(ceremonyEntry);
+                    }
 
                     recordsProcessed++;
                 }
@@ -196,9 +271,42 @@ export async function distributeScoutShares(): Promise<JobResult> {
             }
         }
 
+        // CEREMONY BROADCAST
+        // Send personalized ceremonies to each user
+        for (const [userId, distributions] of ceremonyDataByUser) {
+            // Sort by shares earned (descending)
+            distributions.sort((a, b) => b.sharesEarned - a.sharesEarned);
+            
+            const totalShares = distributions.reduce((sum, d) => sum + d.sharesEarned, 0);
+            const highlight = distributions[0]; // Top earner
+            
+            const ceremonyData = {
+                distributions,
+                totalShares: Math.round(totalShares * 100) / 100,
+                totalPlayers: distributions.length,
+                highlight,
+                hourTimestamp: hourEnd.toISOString(),
+            };
+            
+            // Cache for 30 minutes (in case user is offline)
+            const cacheKey = `scout:${userId}`;
+            ceremonyCache.set(cacheKey, {
+                data: ceremonyData,
+                expiresAt: Date.now() + 30 * 60 * 1000 // 30 minutes
+            });
+            
+            // Broadcast to user's connected clients
+            broadcastToUser(userId, {
+                type: 'scout_ready',
+                data: ceremonyData
+            });
+            
+            console.log(`[scout_distribution] Ceremony ready for user ${userId}: ${distributions.length} players, ${totalShares} shares`);
+        }
+
         console.log(`[scout_distribution] Completed: ${recordsProcessed} distributions, ${errorCount} errors`);
 
-        // Notify clients to refresh portfolio
+        // Legacy notification for backwards compatibility
         if (recordsProcessed > 0) {
             broadcast({ type: "scout_payout", count: recordsProcessed });
         }

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useParams } from "wouter";
+import { useParams, useSearch } from "wouter";
 import { useWebSocket } from "@/lib/websocket";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -53,6 +53,8 @@ type TimeRange = "1D" | "1W" | "1M" | "1Y";
 
 export default function PlayerPage() {
   const { id } = useParams<{ id: string }>();
+  const searchParams = new URLSearchParams(useSearch());
+  const initialTradeType = searchParams.get("tab") === "buy" ? "buy" : undefined;
   const { toast } = useToast();
   const { subscribe } = useWebSocket();
   const { isAuthenticated, isLoading: authLoading, session } = useAuth();
@@ -78,23 +80,38 @@ export default function PlayerPage() {
     enabled: !!id && !authLoading,
   });
 
-  // Fetch AMM pool data
-  const { data: poolData } = useQuery<AmmPoolData>({
+  // Fetch AMM pool data with proper error handling
+  const { data: poolData, isLoading: isPoolLoading, error: poolError } = useQuery<AmmPoolData>({
     queryKey: ["/api/amm", id],
     queryFn: async () => {
-      const res = await fetch(`/api/amm/${id}`);
-      if (!res.ok) throw new Error("Failed to fetch pool data");
+      const res = await fetch(`/api/amm/${id}`, {
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(`Failed to fetch pool data: ${res.status} ${errorText}`);
+      }
       return res.json();
     },
     enabled: !!id,
     refetchInterval: 5000,
+    refetchIntervalInBackground: false, // Don't poll when tab is inactive
+    retry: 3,
+    retryDelay: 1000,
   });
 
   // Fetch user's LP position
   const { data: lpPosition } = useQuery<UserLpPosition>({
     queryKey: ["/api/lp", id, "position"],
     queryFn: async () => {
-      const res = await fetch(`/api/lp/${id}/position`);
+      const headers: HeadersInit = {};
+      if (session?.access_token) {
+        headers['Authorization'] = `Bearer ${session.access_token}`;
+      }
+      const res = await fetch(`/api/lp/${id}/position`, {
+        credentials: "include",
+        headers,
+      });
       if (!res.ok) throw new Error("Failed to fetch LP position");
       const data = await res.json();
       return data.position;
@@ -125,7 +142,7 @@ export default function PlayerPage() {
 
   const handleTradeSuccess = () => {
     setCelebrationKey(prev => prev + 1);
-    invalidatePortfolioQueries(queryClient);
+    invalidatePortfolioQueries();
     queryClient.invalidateQueries({ queryKey: ["/api/player", id, timeRange] });
     queryClient.invalidateQueries({ queryKey: ["/api/amm", id] });
     queryClient.invalidateQueries({ queryKey: ["/api/lp", id, "position"] });
@@ -293,7 +310,7 @@ export default function PlayerPage() {
                             return (
                               <div className="bg-background border rounded p-2 shadow-lg">
                                 <div className="font-mono font-bold">
-                                  ${typeof payload[0].value === 'string' ? parseFloat(payload[0].value).toFixed(2) : payload[0].value?.toFixed(2)}
+                                  ${typeof payload[0].value === 'number' ? payload[0].value.toFixed(2) : typeof payload[0].value === 'string' ? parseFloat(payload[0].value).toFixed(2) : '0.00'}
                                 </div>
                                 <div className="text-xs text-muted-foreground">
                                   {new Date(payload[0].payload.timestamp).toLocaleString()}
@@ -340,7 +357,25 @@ export default function PlayerPage() {
                   </div>
                 </CardHeader>
                 <CardContent className="p-3 space-y-3">
-                  {poolData ? (
+                  {isPoolLoading ? (
+                    <div className="text-center text-muted-foreground py-4">
+                      <div className="animate-pulse">Loading pool data...</div>
+                    </div>
+                  ) : poolError ? (
+                    <div className="text-center py-4">
+                      <div className="text-destructive text-sm mb-2">Failed to load pool data</div>
+                      <div className="text-xs text-muted-foreground mb-3 px-4">
+                        {poolError instanceof Error ? poolError.message : "Unknown error"}
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => queryClient.invalidateQueries({ queryKey: ["/api/amm", id] })}
+                      >
+                        Retry
+                      </Button>
+                    </div>
+                  ) : poolData ? (
                     <>
                       <div className="grid grid-cols-2 gap-2">
                         <div className="p-2 bg-muted/50 rounded">
@@ -352,7 +387,7 @@ export default function PlayerPage() {
                           <div className="font-mono font-bold text-sm">${poolData.playMoney.toLocaleString()}</div>
                         </div>
                       </div>
-                      
+
                       <div className="p-2 bg-muted/50 rounded">
                         <div className="text-[10px] text-muted-foreground uppercase">Total Volume</div>
                         <div className="font-mono font-bold">${poolData.totalVolume.toLocaleString()}</div>
@@ -377,7 +412,7 @@ export default function PlayerPage() {
                       )}
                     </>
                   ) : (
-                    <div className="text-center text-muted-foreground py-4">Loading pool data...</div>
+                    <div className="text-center text-muted-foreground py-4">No pool data available</div>
                   )}
                 </CardContent>
               </Card>
@@ -415,6 +450,7 @@ export default function PlayerPage() {
               userBalance={parseFloat(data.userBalance || "0")}
               userShares={data.userHolding?.quantity || 0}
               onTradeSuccess={handleTradeSuccess}
+              initialTradeType={initialTradeType}
             />
           </div>
         </div>

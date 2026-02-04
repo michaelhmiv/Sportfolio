@@ -56,6 +56,10 @@ interface PlayerWithGame extends Player {
   opponent: string | null;
   gameStartTime: string | null;
   boostCount: number;
+  // Computed properties for sorting
+  price: number;
+  volume: number;
+  mcap: number;
 }
 
 type SortField = 'name' | 'team' | 'sport' | 'price' | 'volume' | 'marketCap' | 'boosts';

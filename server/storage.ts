@@ -207,6 +207,9 @@ export interface IStorage {
 
   getBatchAllTimeAvgFantasyPoints(playerIds: string[]): Promise<Map<string, number>>;
 
+  // Batch pool data for AMM liquidity
+  getBatchPoolData(playerIds: string[]): Promise<Map<string, { shares: number; playMoney: number; totalVolume: number; totalTrades: number }>>;
+
   // Watch list methods
   getWatchList(userId: string): Promise<string[]>; // Returns array of player IDs (legacy/all lists)
   addToWatchList(userId: string, playerId: string, watchlistId?: string): Promise<void>;
@@ -903,7 +906,7 @@ export class DatabaseStorage implements IStorage {
       .where(eq(scoutAssignments.userId, userId));
 
     return results.map(r => ({
-      ...r.scoutAssignments,
+      ...r.scout_assignments,
       player: r.players
     }));
   }
@@ -5453,6 +5456,36 @@ export class DatabaseStorage implements IStorage {
       .where(eq(lpTransactions.userId, userId))
       .orderBy(desc(lpTransactions.timestamp))
       .limit(limit);
+  }
+
+  // Batch fetch pool data for multiple players (for marketplace performance)
+  async getBatchPoolData(playerIds: string[]): Promise<Map<string, { shares: number; playMoney: number; totalVolume: number; totalTrades: number }>> {
+    if (playerIds.length === 0) {
+      return new Map();
+    }
+
+    const pools = await db
+      .select({
+        playerId: playerPools.playerId,
+        shares: playerPools.shares,
+        playMoney: playerPools.playMoney,
+        totalVolume: playerPools.totalVolume,
+        totalTrades: playerPools.totalTrades,
+      })
+      .from(playerPools)
+      .where(inArray(playerPools.playerId, playerIds));
+
+    const poolMap = new Map<string, { shares: number; playMoney: number; totalVolume: number; totalTrades: number }>();
+    for (const pool of pools) {
+      poolMap.set(pool.playerId, {
+        shares: parseFloat(pool.shares as string),
+        playMoney: parseFloat(pool.playMoney as string),
+        totalVolume: parseFloat(pool.totalVolume as string),
+        totalTrades: pool.totalTrades,
+      });
+    }
+
+    return poolMap;
   }
 }
 

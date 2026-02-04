@@ -46,7 +46,12 @@
       "Bash(npx:*)",
       "Bash(git pull:*)",
       "Bash(git stash)",
-      "Bash(git stash:*)"
+      "Bash(git stash:*)",
+      "WebFetch(domain:polono.com)",
+      "Bash(pnputil /enum-devices)",
+      "Bash(findstr -i \"polono\\\\|d810\\\\|unknown\\\\|printing\")",
+      "Bash(wmic printer get name,status)",
+      "Bash(wmic printer where \"name=''D810''\" get drivername,portname,status,statusinfo)"
     ]
   }
 }

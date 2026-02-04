@@ -40,6 +40,8 @@ import { settleBoosts } from "./settle-boosts";
 import { settleCommunityBoosts } from "./settle-community-boosts";
 import { cleanupJobLogs } from "./cleanup-job-logs";
 import { prunePriceHistory } from "./prune-price-history";
+import { updateCollectionsJob } from "./update-collections";
+import { checkMilestonesJob } from "./check-milestones";
 import type { ProgressCallback } from "../lib/admin-stream";
 
 export interface JobResult {
@@ -218,6 +220,33 @@ export class JobScheduler {
         schedule: "0 3 * * 0", // Weekly on Sunday at 3 AM - prune old price history
         enabled: true,
         handler: prunePriceHistory,
+      },
+      // Collection and milestone jobs
+      {
+        name: "update_collections",
+        schedule: "*/15 * * * *", // Every 15 minutes - update user collection progress
+        enabled: true,
+        handler: async () => {
+          await updateCollectionsJob();
+          return {
+            requestCount: 0,
+            recordsProcessed: 0,
+            errorCount: 0,
+          };
+        },
+      },
+      {
+        name: "check_milestones",
+        schedule: "*/5 * * * *", // Every 5 minutes - check for milestone achievements
+        enabled: true,
+        handler: async () => {
+          await checkMilestonesJob();
+          return {
+            requestCount: 0,
+            recordsProcessed: 0,
+            errorCount: 0,
+          };
+        },
       },
     ];
 
@@ -421,6 +450,22 @@ export class JobScheduler {
       settle_community_boosts: (callback) => settleCommunityBoosts(callback),
       cleanup_job_logs: (callback) => cleanupJobLogs(callback),
       prune_price_history: (callback) => prunePriceHistory(callback),
+      update_collections: async () => {
+        await updateCollectionsJob();
+        return {
+          requestCount: 0,
+          recordsProcessed: 0,
+          errorCount: 0,
+        };
+      },
+      check_milestones: async () => {
+        await checkMilestonesJob();
+        return {
+          requestCount: 0,
+          recordsProcessed: 0,
+          errorCount: 0,
+        };
+      },
     };
 
     const handler = jobConfigs[jobName];

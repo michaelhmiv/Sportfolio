@@ -26,6 +26,10 @@ export type SubscriptionType =
   | 'COMMUNITY_BOOST_SETTLED' // Community boost settlement
   | 'vesting'            // Vesting notifications
   | 'scout_update'       // Scout update notifications
+  | 'scout_ready'        // Scout ceremony ready notification
+  | 'whale_alert'        // Large trade alerts
+  | 'scout_velocity_update' // Scout velocity updates
+  | 'trending_players_update' // Trending players updates
   | 'all';               // Receive all events
 
 interface ClientSubscription {
@@ -150,4 +154,34 @@ export function getConnectedClientsInfo(): Array<{ userId?: string; subscription
     userId: client.userId,
     subscriptions: Array.from(client.subscriptions),
   }));
+}
+
+/**
+ * Broadcast a message to all connected clients for a specific user
+ */
+export function broadcastToUser(userId: string, message: { type: SubscriptionType; [key: string]: unknown }) {
+  const payload = JSON.stringify(message);
+  let sent = 0;
+  const now = Date.now();
+
+  wsClients.forEach((client) => {
+    // Only send to clients belonging to this user
+    if (client.userId !== userId) return;
+
+    // Check subscription filter
+    if (!client.subscriptions.has('all') && !client.subscriptions.has(message.type)) {
+      return; // Client not subscribed to this event type
+    }
+
+    if (client.ws.readyState === WebSocket.OPEN) {
+      client.ws.send(payload);
+      sent++;
+    }
+  });
+
+  // Only log periodically to reduce I/O
+  if (sent > 0 && now - lastBroadcastLogTime > BROADCAST_LOG_INTERVAL) {
+    console.log(`[WebSocket] Broadcasted ${message.type} to user ${userId} (${sent} clients)`);
+    lastBroadcastLogTime = now;
+  }
 }

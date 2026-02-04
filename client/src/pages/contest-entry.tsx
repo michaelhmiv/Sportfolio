@@ -16,6 +16,7 @@ import { format } from "date-fns";
 import { PlayerName } from "@/components/player-name";
 import { AnimatedButton } from "@/components/ui/animations";
 import { Confetti } from "@/components/ui/confetti";
+import { EntryDraftAnimation } from "@/components/ceremonies/entry-draft-animation";
 
 interface ContestEntryData {
   contest: {
@@ -46,6 +47,8 @@ export default function ContestEntry() {
   const [showOnlyPlayingTeams, setShowOnlyPlayingTeams] = useState(false);
   const [isGamesOpen, setIsGamesOpen] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
+  const [showDraftAnimation, setShowDraftAnimation] = useState(false);
+  const [draftLineup, setDraftLineup] = useState<LineupEntry[]>([]);
   const isEditMode = !!entryId;
 
   const { data, isLoading } = useQuery<ContestEntryData>({
@@ -114,13 +117,18 @@ export default function ContestEntry() {
         invalidatePortfolioQueries(),
         invalidateContestQueries(),
       ]);
-      toast({ title: isEditMode ? "Contest entry updated!" : "Contest entry submitted!" });
 
-      // Trigger celebration and delay navigation
-      setShowConfetti(true);
-      setTimeout(() => {
-        navigate("/contests");
-      }, 2000);
+      if (!isEditMode) {
+        // Show draft animation for new entries
+        setDraftLineup(Array.from(lineup.values()));
+        setShowDraftAnimation(true);
+      } else {
+        toast({ title: "Contest entry updated!" });
+        setShowConfetti(true);
+        setTimeout(() => {
+          navigate("/contests");
+        }, 2000);
+      }
     },
     onError: (error: Error) => {
       toast({ title: isEditMode ? "Update failed" : "Entry failed", description: error.message, variant: "destructive" });
@@ -444,6 +452,21 @@ export default function ContestEntry() {
           </Card>
         </div>
       </div>
+      <Confetti active={showConfetti} />
+
+      {/* Entry Draft Animation */}
+      <EntryDraftAnimation
+        isOpen={showDraftAnimation}
+        lineup={draftLineup}
+        contestName={contestData?.name || "Contest"}
+        onClose={() => {
+          setShowDraftAnimation(false);
+          navigate("/contests");
+        }}
+        onComplete={() => {
+          setShowConfetti(true);
+        }}
+      />
     </div>
   );
 }

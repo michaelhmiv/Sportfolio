@@ -9,8 +9,9 @@
  */
 
 import { Express } from "express";
-import { getPool, getBuyQuote, getSellQuote, executeBuy, executeSell } from "../amm/pool";
+import { getPool, getOrCreatePool, getBuyQuote, getSellQuote, executeBuy, executeSell } from "../amm/pool";
 import { isAuthenticated } from "../supabaseAuth";
+import { storage } from "../storage";
 
 export function registerAmmRoutes(app: Express) {
   // Helper to get user ID from authenticated request
@@ -23,16 +24,25 @@ export function registerAmmRoutes(app: Express) {
 
   /**
    * GET /api/amm/:playerId
-   * Get pool state for a player
+   * Get pool state for a player (auto-creates pool if it doesn't exist)
    */
   app.get("/api/amm/:playerId", async (req, res) => {
     try {
       const { playerId } = req.params;
-      const pool = await getPool(playerId);
+      console.log(`[AMM API] Fetching pool for player: ${playerId}`);
 
-      if (!pool) {
-        return res.status(404).json({ error: "Pool not found for player" });
+      // First check if player exists
+      const player = await storage.getPlayer(playerId);
+      if (!player) {
+        console.error(`[AMM API] Player not found: ${playerId}`);
+        return res.status(404).json({
+          error: "Player not found",
+          playerId: playerId
+        });
       }
+
+      const pool = await getOrCreatePool(playerId);
+      console.log(`[AMM API] Pool found for ${playerId}:`, { shares: pool.shares, playMoney: pool.playMoney });
 
       res.json({
         playerId: pool.playerId,
@@ -45,7 +55,10 @@ export function registerAmmRoutes(app: Express) {
       });
     } catch (error: any) {
       console.error("[AMM API] Error getting pool:", error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({
+        error: error.message,
+        details: error.stack?.split('\n')[0] || 'No additional details'
+      });
     }
   });
 
@@ -74,10 +87,7 @@ export function registerAmmRoutes(app: Express) {
         return res.status(400).json({ error: "Invalid type. Must be 'buy' or 'sell'" });
       }
 
-      const pool = await getPool(playerId);
-      if (!pool) {
-        return res.status(404).json({ error: "Pool not found for player" });
-      }
+      const pool = await getOrCreatePool(playerId);
 
       if (tradeType === "buy") {
         const quote = await getBuyQuote(playerId, tradeAmount);
@@ -132,7 +142,8 @@ export function registerAmmRoutes(app: Express) {
       }
 
       const amount = parseFloat(sbAmount);
-      const maxSlippageDecimal = maxSlippage ? parseFloat(maxSlippage) / 100 : undefined;
+      // maxSlippage is already in decimal format from frontend (e.g., 0.02 for 2%)
+      const maxSlippageDecimal = maxSlippage ? parseFloat(maxSlippage) : undefined;
 
       const result = await executeBuy(playerId, userId, amount, maxSlippageDecimal);
 
@@ -165,12 +176,13 @@ export function registerAmmRoutes(app: Express) {
       const userId = getUserId(req);
       const { sharesAmount, maxSlippage } = req.body;
 
-      if (!sharesAmount || isNaN(parseInt(sharesAmount)) || parseInt(sharesAmount) <= 0) {
+      if (!sharesAmount || isNaN(parseFloat(sharesAmount)) || parseFloat(sharesAmount) <= 0) {
         return res.status(400).json({ error: "Invalid sharesAmount" });
       }
 
-      const amount = parseInt(sharesAmount);
-      const maxSlippageDecimal = maxSlippage ? parseFloat(maxSlippage) / 100 : undefined;
+      const amount = parseFloat(sharesAmount);
+      // maxSlippage is already in decimal format from frontend (e.g., 0.02 for 2%)
+      const maxSlippageDecimal = maxSlippage ? parseFloat(maxSlippage) : undefined;
 
       const result = await executeSell(playerId, userId, amount, maxSlippageDecimal);
 

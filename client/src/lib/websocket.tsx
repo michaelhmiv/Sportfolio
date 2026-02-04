@@ -89,6 +89,59 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
             case 'marketActivity':
               debouncedInvalidateMarketActivity();
               break;
+
+            case 'scout_ready':
+              // Trigger scout ceremony notification
+              window.dispatchEvent(new CustomEvent('scout-ceremony-ready', { 
+                detail: message.data 
+              }));
+              break;
+
+            case 'whale_alert':
+              // Trigger whale alert notification
+              window.dispatchEvent(new CustomEvent('whale-alert', { 
+                detail: message 
+              }));
+              break;
+
+            case 'boost_count_update':
+              // Update boost counters
+              queryClient.setQueryData(['boost-count', message.playerId, message.date], message.count);
+              break;
+
+            case 'scout_velocity_update':
+              // Update scout velocity data
+              queryClient.setQueryData(['scout-velocity', message.playerId], {
+                playerId: message.playerId,
+                velocity: message.velocity,
+                totalScouts: message.totalScouts,
+                isTrending: message.isTrending,
+              });
+              break;
+
+            case 'trending_players_update':
+              // Update trending players list
+              queryClient.setQueryData(['trending-players'], message.playerIds);
+              break;
+
+            case 'marketActivity':
+              // Handle collection and milestone events within marketActivity
+              if (message.data?.event === 'collection_completed') {
+                // Trigger collection ceremony
+                window.dispatchEvent(new CustomEvent('collection-completed', {
+                  detail: message.data
+                }));
+                // Invalidate collections cache
+                queryClient.invalidateQueries({ queryKey: ['/api/collections'] });
+              } else if (message.data?.event === 'milestone_achieved') {
+                // Trigger milestone ceremony
+                window.dispatchEvent(new CustomEvent('milestone-achieved', {
+                  detail: message.data
+                }));
+                // Invalidate milestones cache
+                queryClient.invalidateQueries({ queryKey: ['/api/milestones'] });
+              }
+              break;
           }
         } catch (error) {
           debugLog('MESSAGE_ERROR', 'Failed to parse message', { error: (error as Error).message });

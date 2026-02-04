@@ -84,7 +84,7 @@ export const holdings = pgTable("holdings", {
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   assetType: text("asset_type").notNull(), // "player" or "premium"
   assetId: text("asset_id").notNull(), // player ID or "premium"
-  quantity: integer("quantity").notNull().default(0),
+  quantity: decimal("quantity", { precision: 12, scale: 4 }).notNull().default("0"),
   power: integer("power").notNull().default(1), // Power level per share (1 = regular, 5 = condensed)
   powerLevel: decimal("power_level", { precision: 10, scale: 2 }).notNull().default("0.00"), // Computed: quantity * power (for backwards compatibility)
   avgCostBasis: decimal("avg_cost_basis", { precision: 10, scale: 4 }).notNull().default("0.0000"), // Average cost per share
@@ -153,7 +153,7 @@ export const trades = pgTable("trades", {
   sellerId: varchar("seller_id").notNull().references(() => users.id),
   buyOrderId: varchar("buy_order_id").references(() => orders.id),
   sellOrderId: varchar("sell_order_id").references(() => orders.id),
-  quantity: integer("quantity").notNull(),
+  quantity: decimal("quantity", { precision: 12, scale: 4 }).notNull(),
   price: decimal("price", { precision: 10, scale: 2 }).notNull(),
   executedAt: timestamp("executed_at").notNull().defaultNow(),
 }, (table) => ({
@@ -845,6 +845,8 @@ export const usersRelations = relations(users, ({ many }) => ({
   dailyBoosts: many(dailyBoosts),
   boostPayouts: many(boostPayouts),
   communityBoosts: many(communityBoosts),
+  collections: many(userCollections),
+  milestones: many(userMilestones),
 }));
 
 export const watchlistsRelations = relations(watchlists, ({ one, many }) => ({
@@ -1308,6 +1310,75 @@ export const insertCommunityBoostSchema = createInsertSchema(communityBoosts).om
 
 export type CommunityBoost = typeof communityBoosts.$inferSelect;
 export type InsertCommunityBoost = z.infer<typeof insertCommunityBoostSchema>;
+
+// User Collections table - tracks player collection progress (team, rookie, position, allstar)
+export const userCollections = pgTable("user_collections", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  collectionType: varchar("collection_type", { length: 50 }).notNull(), // 'team', 'rookie', 'position', 'allstar'
+  targetId: varchar("target_id").notNull(), // team abbreviation, position, etc.
+  progress: integer("progress").notNull().default(0),
+  total: integer("total").notNull(),
+  completed: boolean("completed").notNull().default(false),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  userTypeTargetIdx: uniqueIndex("user_collection_idx").on(table.userId, table.collectionType, table.targetId),
+  userIdx: index("user_collections_user_idx").on(table.userId),
+  completedIdx: index("user_collections_completed_idx").on(table.completed),
+}));
+
+// User Milestones table - tracks net worth and achievement milestones
+export const userMilestones = pgTable("user_milestones", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  milestoneType: varchar("milestone_type", { length: 50 }).notNull(), // 'netWorth', 'portfolioValue', 'totalTrades'
+  threshold: decimal("threshold", { precision: 20, scale: 2 }).notNull(),
+  achievedAt: timestamp("achieved_at").notNull().defaultNow(),
+  celebrated: boolean("celebrated").notNull().default(false),
+}, (table) => ({
+  userTypeThresholdIdx: uniqueIndex("user_milestone_idx").on(table.userId, table.milestoneType, table.threshold),
+  userIdx: index("user_milestones_user_idx").on(table.userId),
+  celebratedIdx: index("user_milestones_celebrated_idx").on(table.celebrated),
+}));
+
+// Relations for new tables
+export const userCollectionsRelations = relations(userCollections, ({ one }) => ({
+  user: one(users, {
+    fields: [userCollections.userId],
+    references: [users.id],
+  }),
+}));
+
+export const userMilestonesRelations = relations(userMilestones, ({ one }) => ({
+  user: one(users, {
+    fields: [userMilestones.userId],
+    references: [users.id],
+  }),
+}));
+
+// Insert schemas for new tables
+export const insertUserCollectionSchema = createInsertSchema(userCollections).omit({
+  id: true,
+  completed: true,
+  completedAt: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertUserMilestoneSchema = createInsertSchema(userMilestones).omit({
+  id: true,
+  achievedAt: true,
+  celebrated: true,
+});
+
+// Types for new tables
+export type UserCollection = typeof userCollections.$inferSelect;
+export type InsertUserCollection = z.infer<typeof insertUserCollectionSchema>;
+
+export type UserMilestone = typeof userMilestones.$inferSelect;
+export type InsertUserMilestone = z.infer<typeof insertUserMilestoneSchema>;
 
 // AMM Pool types
 export type PlayerPool = typeof playerPools.$inferSelect;

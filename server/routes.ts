@@ -6,7 +6,7 @@ import { storage } from "./storage";
 import { db } from "./db";
 import { fetchActivePlayers, calculateFantasyPoints } from "./balldontlie-nba";
 import type { InsertPlayer, Player, User, Holding, CommunityBoost } from "@shared/schema";
-import { contestLineups, contestEntries, contests, holdings, marketSnapshots, premiumCheckoutSessions, tweetSettings, tweetHistory, users, scoutAssignments, dailyGames, players, communityCheckoutSessions } from "@shared/schema";
+import { contestLineups, contestEntries, contests, holdings, marketSnapshots, premiumCheckoutSessions, tweetSettings, tweetHistory, users, scoutAssignments, scoutHistory, dailyGames, players, communityCheckoutSessions, userCollections, userMilestones, trades } from "@shared/schema";
 import { sql, eq, desc, and, gte, lte, inArray, lt } from "drizzle-orm";
 import { jobScheduler } from "./jobs/scheduler";
 import { addClient, removeClient, broadcast } from "./websocket";
@@ -47,8 +47,8 @@ async function getDashboardPowerData(userId: string) {
     let totalLivePayout = "0.00";
     if (lockedBoosts > 0) {
       for (const boost of boosts.filter(b => b.status === "locked")) {
-        if (boost.fantasyPoints && boost.payoutAmount) {
-          totalLivePayout = (parseFloat(totalLivePayout) + parseFloat(boost.payoutAmount)).toFixed(2);
+        if (boost.fantasyPoints && boost.payout) {
+          totalLivePayout = (parseFloat(totalLivePayout) + parseFloat(boost.payout)).toFixed(2);
         }
       }
     }
@@ -57,8 +57,8 @@ async function getDashboardPowerData(userId: string) {
     let totalProcessedPayout = "0.00";
     if (processedBoosts > 0) {
       for (const boost of boosts.filter(b => b.status === "processed")) {
-        if (boost.payoutAmount) {
-          totalProcessedPayout = (parseFloat(totalProcessedPayout) + parseFloat(boost.payoutAmount)).toFixed(2);
+        if (boost.payout) {
+          totalProcessedPayout = (parseFloat(totalProcessedPayout) + parseFloat(boost.payout)).toFixed(2);
         }
       }
     }
@@ -1622,12 +1622,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // - 50 players × 2 order book queries = 100 queries → 1 query
       // - 50 players × 1 season stats query = 50 queries → 1 query
       const playerIds = playersRaw.map(p => p.id);
-      const [orderBooksMap, seasonStatsMap, sentimentMap, avgFantasyPointsMap, globalScoutMap] = await Promise.all([
+      const [orderBooksMap, seasonStatsMap, sentimentMap, avgFantasyPointsMap, globalScoutMap, poolDataMap] = await Promise.all([
         storage.getBatchOrderBooks(playerIds),
         storage.getBatchPlayerSeasonStatsFromLogs(playerIds),
         storage.getBatchSentiment(playerIds),
         storage.getBatchAllTimeAvgFantasyPoints(playerIds), // Same calculation as scanner cards
         storage.getBatchActiveScoutCounts(playerIds),
+        storage.getBatchPoolData(playerIds), // AMM pool liquidity data
       ]);
 
       // Enrich with market values, order book data, and fantasy points average (only for paginated results)
@@ -1656,6 +1657,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           totalVolume24h: 0,
         };
 
+        // Look up pre-fetched AMM pool data
+        const poolData = poolDataMap.get(player.id);
+
         // Calculate Value Index using ALL-TIME average fantasy points (same as scanner cards)
         // This ensures the numbers match what users see in the carousel
         const LEAGUE_AVG_PE = 0.43;
@@ -1677,6 +1681,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           buyPressure: sentimentData.buyPressure,
           valueIndex: valueIndex,
           globalScoutCount: globalScoutMap.get(player.id) || 0,
+          poolLiquidity: poolData?.playMoney || 0,
+          poolShares: poolData?.shares || 0,
+          poolTotalTrades: poolData?.totalTrades || 0,
         };
       });
 
@@ -1757,6 +1764,158 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       res.json(enrichedActivity);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Market activity level endpoint for Market Pulse
+  app.get("/api/market/activity-level", async (req, res) => {
+    try {
+      // Calculate activity level based on trades in last 15 minutes
+      const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
+      
+      const recentTrades = await db
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(trades)
+        .where(gte(trades.executedAt, fifteenMinutesAgo));
+      
+      const tradeCount = recentTrades[0]?.count || 0;
+      
+      // Normalize to 0-100 scale (assume 100 trades = max activity)
+      const activityLevel = Math.min((tradeCount / 100) * 100, 100);
+      
+      res.json({
+        activityLevel,
+        tradeCount,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // User collections endpoint
+  app.get("/api/collections", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const collections = await db
+        .select()
+        .from(userCollections)
+        .where(eq(userCollections.userId, userId))
+        .orderBy(desc(userCollections.completed), desc(userCollections.updatedAt));
+      res.json(collections);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get specific collection details
+  app.get("/api/collections/:type/:targetId", isAuthenticated, async (req, res) => {
+    try {
+      const { type, targetId } = req.params;
+      const userId = getUserId(req);
+      
+      const collection = await db
+        .select()
+        .from(userCollections)
+        .where(
+          and(
+            eq(userCollections.userId, userId),
+            eq(userCollections.collectionType, type),
+            eq(userCollections.targetId, targetId)
+          )
+        )
+        .limit(1);
+
+      if (collection.length === 0) {
+        return res.status(404).json({ error: "Collection not found" });
+      }
+
+      // Get owned players in this collection
+      let ownedPlayers: any[] = [];
+      
+      if (type === "team") {
+        // Get all active players from this team that user owns
+        const teamPlayers = await db
+          .select({
+            playerId: players.id,
+            firstName: players.firstName,
+            lastName: players.lastName,
+            position: players.position,
+            team: players.team,
+            quantity: holdings.quantity,
+          })
+          .from(players)
+          .leftJoin(
+            holdings,
+            and(
+              eq(holdings.assetId, players.id),
+              eq(holdings.userId, userId),
+              eq(holdings.assetType, "player")
+            )
+          )
+          .where(
+            and(
+              eq(players.team, targetId),
+              eq(players.isActive, true)
+            )
+          );
+        
+        ownedPlayers = teamPlayers.filter(p => (p.quantity || 0) > 0);
+      }
+
+      res.json({
+        collection: collection[0],
+        ownedPlayers,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // User milestones endpoint
+  app.get("/api/milestones", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const milestones = await db
+        .select()
+        .from(userMilestones)
+        .where(eq(userMilestones.userId, userId))
+        .orderBy(desc(userMilestones.achievedAt));
+      res.json(milestones);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Mark milestone as celebrated
+  app.post("/api/milestones/:id/celebrate", isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const userId = getUserId(req);
+      
+      const milestone = await db
+        .select()
+        .from(userMilestones)
+        .where(
+          and(
+            eq(userMilestones.id, id),
+            eq(userMilestones.userId, userId)
+          )
+        )
+        .limit(1);
+
+      if (milestone.length === 0) {
+        return res.status(404).json({ error: "Milestone not found" });
+      }
+
+      await db
+        .update(userMilestones)
+        .set({ celebrated: true })
+        .where(eq(userMilestones.id, id));
+
+      res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -7844,6 +8003,103 @@ ${posts.map(post => `  <url>
       console.error("Failed to initialize players:", error.message);
     }
   }
+
+  // Scout Velocity Tracking Endpoints
+  // Get scout velocity for a specific player
+  app.get("/api/scouts/velocity/:playerId", async (req, res) => {
+    try {
+      const { playerId } = req.params;
+      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+      
+      // Get current scout count
+      const currentScouts = await db
+        .select({ total: sql<number>`COALESCE(SUM(${scoutAssignments.scoutCount}), 0)` })
+        .from(scoutAssignments)
+        .where(eq(scoutAssignments.playerId, playerId));
+      
+      const totalScouts = Number(currentScouts[0]?.total || 0);
+      
+      // Get scout count from 1 hour ago using scout history
+      const previousScouts = await db
+        .select({ 
+          total: sql<number>`COALESCE(SUM(${scoutHistory.scoutCount}), 0)`,
+          maxStartedAt: sql<Date>`MAX(${scoutHistory.startedAt})`
+        })
+        .from(scoutHistory)
+        .where(and(
+          eq(scoutHistory.playerId, playerId),
+          lt(scoutHistory.startedAt, oneHourAgo),
+          sql`${scoutHistory.endedAt} IS NULL OR ${scoutHistory.endedAt} > ${oneHourAgo}`
+        ));
+      
+      const previousTotal = Number(previousScouts[0]?.total || 0);
+      
+      // Calculate velocity (scouts per hour)
+      const velocity = totalScouts - previousTotal;
+      const isTrending = velocity >= 10;
+      
+      res.json({
+        playerId,
+        velocity,
+        totalScouts,
+        previousTotal,
+        isTrending,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error: any) {
+      console.error("[scouts/velocity] Error:", error.message);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get trending players (players with scout velocity >= 10/hour)
+  app.get("/api/scouts/trending", async (req, res) => {
+    try {
+      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+      
+      // Get all players with active scouts
+      const playersWithScouts = await db
+        .select({ 
+          playerId: scoutAssignments.playerId,
+          totalScouts: sql<number>`SUM(${scoutAssignments.scoutCount})`,
+        })
+        .from(scoutAssignments)
+        .groupBy(scoutAssignments.playerId);
+      
+      // Calculate velocity for each player
+      const trendingPlayers: string[] = [];
+      
+      for (const player of playersWithScouts) {
+        const previousScouts = await db
+          .select({ 
+            total: sql<number>`COALESCE(SUM(${scoutHistory.scoutCount}), 0)`
+          })
+          .from(scoutHistory)
+          .where(and(
+            eq(scoutHistory.playerId, player.playerId),
+            lt(scoutHistory.startedAt, oneHourAgo),
+            sql`${scoutHistory.endedAt} IS NULL OR ${scoutHistory.endedAt} > ${oneHourAgo}`
+          ));
+        
+        const previousTotal = Number(previousScouts[0]?.total || 0);
+        const currentTotal = Number(player.totalScouts || 0);
+        const velocity = currentTotal - previousTotal;
+        
+        if (velocity >= 10) {
+          trendingPlayers.push(player.playerId);
+        }
+      }
+      
+      res.json({
+        playerIds: trendingPlayers,
+        count: trendingPlayers.length,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error: any) {
+      console.error("[scouts/trending] Error:", error.message);
+      res.status(500).json({ error: error.message });
+    }
+  });
 
   // Initialize data
   await initializePlayers();

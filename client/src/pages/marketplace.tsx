@@ -8,16 +8,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
-  TrendingUp, 
-  TrendingDown, 
-  Search, 
-  Filter, 
+import {
+  TrendingUp,
+  TrendingDown,
+  Search,
+  Filter,
   ArrowUpDown,
   ChevronLeft,
   ChevronRight,
   X,
-  Activity
+  Activity,
+  ShoppingCart
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useWebSocket } from "@/lib/websocket";
@@ -32,6 +33,8 @@ import { cn } from "@/lib/utils";
 
 type PlayerWithPool = Player & {
   poolLiquidity?: number;
+  poolShares?: number;
+  poolTotalTrades?: number;
   buyPressure?: number;
   valueIndex?: number;
 };
@@ -403,7 +406,7 @@ export default function Marketplace() {
                                 <SortIcon field="change" />
                               </div>
                             </th>
-                            <th 
+                            <th
                               className="text-right p-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground cursor-pointer hover:bg-muted/80 hidden lg:table-cell"
                               onClick={() => toggleSort("liquidity")}
                             >
@@ -411,6 +414,9 @@ export default function Marketplace() {
                                 Liquidity
                                 <SortIcon field="liquidity" />
                               </div>
+                            </th>
+                            <th className="text-center p-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                              Action
                             </th>
                           </tr>
                         </thead>
@@ -458,6 +464,20 @@ export default function Marketplace() {
                               <td className="p-3 text-right text-sm text-muted-foreground hidden lg:table-cell">
                                 ${player.poolLiquidity?.toLocaleString() || "N/A"}
                               </td>
+                              <td className="p-3 text-center">
+                                <Button
+                                  size="sm"
+                                  variant="default"
+                                  className="h-8 px-3"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setLocation(`/player/${player.id}?tab=buy`);
+                                  }}
+                                >
+                                  <ShoppingCart className="w-3 h-3 mr-1" />
+                                  Buy
+                                </Button>
+                              </td>
                             </tr>
                           ))}
                         </tbody>
@@ -467,9 +487,9 @@ export default function Marketplace() {
                     {/* Mobile Cards */}
                     <div className="md:hidden divide-y">
                       {players.map((player) => (
-                        <Link key={player.id} href={`/player/${player.id}`}>
-                          <div className="p-3 flex items-center justify-between hover:bg-muted/30 cursor-pointer">
-                            <div className="flex items-center gap-2">
+                        <div key={player.id} className="p-3 flex items-center justify-between hover:bg-muted/30">
+                          <Link href={`/player/${player.id}`} className="flex-1">
+                            <div className="flex items-center gap-2 cursor-pointer">
                               <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                                 <span className="text-xs font-bold">{player.firstName[0]}{player.lastName[0]}</span>
                               </div>
@@ -482,6 +502,8 @@ export default function Marketplace() {
                                 </div>
                               </div>
                             </div>
+                          </Link>
+                          <div className="flex items-center gap-2">
                             <div className={cn(
                               "font-mono text-sm",
                               parseFloat(player.priceChange24h || "0") >= 0 ? "text-positive" : "text-negative"
@@ -489,8 +511,16 @@ export default function Marketplace() {
                               {parseFloat(player.priceChange24h || "0") >= 0 ? "+" : ""}
                               {parseFloat(player.priceChange24h || "0").toFixed(2)}%
                             </div>
+                            <Button
+                              size="sm"
+                              variant="default"
+                              className="h-7 px-2 text-xs"
+                              onClick={() => setLocation(`/player/${player.id}?tab=buy`)}
+                            >
+                              Buy
+                            </Button>
                           </div>
-                        </Link>
+                        </div>
                       ))}
                     </div>
 

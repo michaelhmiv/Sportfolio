@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,19 @@ import { format, addDays, subDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { CommunityBoostSelector } from "@/components/community-boost-selector";
+import { BoostCeremonyOverlay } from "@/components/ceremonies/boost-ceremony-overlay";
+import { BoostResultsPodium } from "@/components/ceremonies/boost-results-podium";
+import { LiveFantasyPoints, BoostThresholdWarning } from "@/components/boost/live-fantasy-points";
+import { useBoostNearMissDetector } from "@/components/boost/boost-near-miss";
+
+interface BoostCeremonyData {
+  playerName: string;
+  playerTeam: string;
+  slotTier: number;
+  powerLevel: string;
+  totalMultiplier: number;
+  sharesBurned: number;
+}
 
 // Helper to determine effective game status (same as dashboard)
 // Trust DB status from BallDon'tLie API - see https://docs.balldontlie.io/#games
@@ -145,6 +158,9 @@ export default function Power() {
     const [communitySportFilter, setCommunitySportFilter] = useState("All");
     const [playerSelectorOpen, setPlayerSelectorOpen] = useState(false);
     const [communityBoostSelectorOpen, setCommunityBoostSelectorOpen] = useState(false);
+    const [boostCeremonyOpen, setBoostCeremonyOpen] = useState(false);
+    const [boostCeremonyData, setBoostCeremonyData] = useState<BoostCeremonyData | null>(null);
+    const [resultsPodiumOpen, setResultsPodiumOpen] = useState(false);
 
     // Fetch all boosts across sports
     const { data: boostsData, isLoading: loadingBoosts, refetch: refetchBoosts } = useQuery<{
@@ -250,7 +266,27 @@ export default function Power() {
                 date: formatDateET(selectedDate)
             });
         },
-        onSuccess: () => {
+        onSuccess: (response, variables) => {
+            // Get player details for ceremony
+            const player = eligibleData?.eligiblePlayers?.find(
+                ep => ep.playerId === variables.playerId
+            );
+            
+            if (player) {
+                const communityBoostCount = player.communityBoostCount || 0;
+                const totalMultiplier = variables.slotTier + communityBoostCount;
+                
+                setBoostCeremonyData({
+                    playerName: `${player.player.firstName} ${player.player.lastName}`,
+                    playerTeam: player.player.team,
+                    slotTier: variables.slotTier,
+                    powerLevel: player.powerLevel,
+                    totalMultiplier: totalMultiplier,
+                    sharesBurned: variables.sharesEntered,
+                });
+                setBoostCeremonyOpen(true);
+            }
+            
             toast({ title: "Player boosted!", description: "Share will be burned when the game starts." });
             refetchBoosts();
             refetchEligible();
@@ -463,30 +499,38 @@ export default function Power() {
                                                         </Badge>
                                                     )}
                                                     {boost.status === "locked" && boost.liveFantasyPoints !== null && boost.liveFantasyPoints !== undefined && (
-                                                        <div className="space-y-1">
+                                                        <div className="space-y-2">
                                                             <Badge className="w-full justify-center text-xs bg-yellow-500/20 text-yellow-600 border-yellow-500/30 animate-pulse">
                                                                 <span className="animate-pulse">●</span> Live
                                                             </Badge>
-                                                            <div className="bg-yellow-500/10 rounded px-2 py-1 text-center">
-                                                                <div className="text-xs text-muted-foreground">Fantasy Pts</div>
-                                                                <div className="text-lg font-bold text-yellow-600 font-mono">
-                                                                    {boost.liveFantasyPoints.toFixed(1)}
+                                                            
+                                                            {/* Enhanced Live Fantasy Points Display */}
+                                                            <div className="flex justify-center">
+                                                                <LiveFantasyPoints
+                                                                    points={boost.liveFantasyPoints}
+                                                                    multiplier={tier + boost.communityBoostCount}
+                                                                    powerLevel={parseFloat(boost.powerLevel)}
+                                                                    className="w-full max-w-[180px]"
+                                                                />
+                                                            </div>
+                                                            
+                                                            {/* Near-threshold warning */}
+                                                            <BoostThresholdWarning
+                                                                currentPoints={boost.liveFantasyPoints}
+                                                                nextThreshold={Math.ceil(boost.liveFantasyPoints / 5) * 5}
+                                                                estimatedPayout={(Math.ceil(boost.liveFantasyPoints / 5) * 5 - boost.liveFantasyPoints) * (tier + boost.communityBoostCount) * parseFloat(boost.powerLevel)}
+                                                                className="w-full justify-center"
+                                                            />
+                                                            
+                                                            {boost.liveGameStats && (
+                                                                <div className="flex items-center justify-center gap-2 text-[10px] text-muted-foreground pt-1">
+                                                                    <span>{boost.liveGameStats.points} pts</span>
+                                                                    <span>•</span>
+                                                                    <span>{boost.liveGameStats.rebounds} reb</span>
+                                                                    <span>•</span>
+                                                                    <span>{boost.liveGameStats.assists} ast</span>
                                                                 </div>
-                                                                {boost.liveGameStats && (
-                                                                    <div className="flex items-center justify-center gap-2 text-[10px] text-muted-foreground mt-0.5">
-                                                                        <span>{boost.liveGameStats.points} pts</span>
-                                                                        <span>•</span>
-                                                                        <span>{boost.liveGameStats.rebounds} reb</span>
-                                                                        <span>•</span>
-                                                                        <span>{boost.liveGameStats.assists} ast</span>
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                            <div className="text-center text-xs text-muted-foreground">
-                                                                Est. Payout: <span className="font-mono font-bold text-green-500">
-                                                                    ${(boost.liveFantasyPoints * (tier + boost.communityBoostCount) * parseFloat(boost.powerLevel)).toFixed(2)}
-                                                                </span>
-                                                            </div>
+                                                            )}
                                                         </div>
                                                     )}
                                                     {boost.status === "locked" && (boost.liveFantasyPoints === null || boost.liveFantasyPoints === undefined) && (
@@ -747,6 +791,31 @@ export default function Power() {
                         open={communityBoostSelectorOpen}
                         onOpenChange={setCommunityBoostSelectorOpen}
                         selectedDate={selectedDate}
+                    />
+
+                    {/* Boost Ceremony Overlay */}
+                    <BoostCeremonyOverlay
+                        isOpen={boostCeremonyOpen}
+                        data={boostCeremonyData}
+                        onClose={() => setBoostCeremonyOpen(false)}
+                    />
+
+                    {/* Boost Results Podium */}
+                    <BoostResultsPodium
+                        isOpen={resultsPodiumOpen}
+                        results={boostsData?.boosts
+                            ?.filter(b => b.status === "processed")
+                            ?.map(b => ({
+                                slotTier: b.slotTier,
+                                playerName: b.player ? `${b.player.firstName} ${b.player.lastName}` : "Unknown",
+                                playerTeam: b.player?.team || "",
+                                fantasyPoints: parseFloat(b.fantasyPoints || "0"),
+                                multiplier: b.slotTier + b.communityBoostCount,
+                                powerLevel: parseFloat(b.powerLevel),
+                                payout: parseFloat(b.payout || "0"),
+                            })) || []}
+                        totalPayout={parseFloat(historyData?.totalEarned || "0")}
+                        onClose={() => setResultsPodiumOpen(false)}
                     />
 
                 </ErrorBoundary>

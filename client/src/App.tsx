@@ -55,6 +55,10 @@ import { ScoutDashboardModal } from "@/components/scout-dashboard-modal";
 import { ScoutProvider, useScout } from "@/lib/scout-context";
 import { SportProvider } from "@/lib/sport-context";
 import { NewsNotificationProvider } from "@/lib/news-notification-context";
+import { ScoutCeremonyOverlay } from "@/components/ceremonies/scout-ceremony-overlay";
+import { ScoutReadyBanner } from "@/components/ceremonies/scout-ready-banner";
+import { useScoutCeremony } from "@/hooks/use-scout-ceremony";
+import { WhaleAlertBanner } from "@/components/market/whale-alert-banner";
 
 function OnboardingCheck() {
   const { user, isAuthenticated } = useAuth();
@@ -394,6 +398,36 @@ function Header() {
   );
 }
 
+function ScoutCeremonyManager() {
+  const { isReady, isShowing, data, handleScoutReady, showCeremony, closeCeremony, dismissReady } = useScoutCeremony();
+
+  useEffect(() => {
+    const handleEvent = (event: CustomEvent) => {
+      handleScoutReady(event.detail);
+    };
+
+    window.addEventListener('scout-ceremony-ready', handleEvent as EventListener);
+    return () => window.removeEventListener('scout-ceremony-ready', handleEvent as EventListener);
+  }, [handleScoutReady]);
+
+  return (
+    <>
+      <ScoutReadyBanner
+        isVisible={isReady}
+        totalShares={data?.totalShares || 0}
+        playerCount={data?.totalPlayers || 0}
+        onView={showCeremony}
+        onDismiss={dismissReady}
+      />
+      <ScoutCeremonyOverlay
+        isOpen={isShowing}
+        data={data}
+        onClose={closeCeremony}
+      />
+    </>
+  );
+}
+
 function AppContent() {
   const style = {
     "--sidebar-width": "16rem",
@@ -421,6 +455,8 @@ function AppContent() {
       <BottomNav />
       <OnboardingCheck />
       <ScoutDashboardModal />
+      <ScoutCeremonyManager />
+      <WhaleAlertBanner />
     </SidebarProvider>
   );
 }

@@ -78,6 +78,7 @@ export interface NBAGame {
     datetime: string; // ISO datetime with timezone
     home_team: NBATeam;
     visitor_team: NBATeam;
+    postponed?: boolean; // Optional field for postponed games
 }
 
 export interface NBAGameStats {

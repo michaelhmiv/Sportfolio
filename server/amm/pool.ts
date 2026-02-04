@@ -32,6 +32,10 @@ const BURN_FEE_PERCENT = 0.01; // 1% burned
 const TOTAL_FEE_PERCENT = POOL_FEE_PERCENT + BURN_FEE_PERCENT; // 2% total
 const MAX_SLIPPAGE_PERCENT = 0.05; // 5% max slippage
 
+// Whale alert thresholds
+const WHALE_ALERT_MIN_VALUE = 5000; // $5,000 minimum
+const WHALE_ALERT_POOL_IMPACT_PERCENT = 5; // 5% of pool
+
 // LP Boost threshold (1% ownership required for boost bonus)
 const LP_BOOST_THRESHOLD = 0.01;
 
@@ -137,6 +141,71 @@ export async function getPool(playerId: string): Promise<Pool | null> {
 }
 
 /**
+ * Initialize a new pool for a player with default liquidity
+ * Creates pool with 1000 shares and 10000 play money ($10/share initial price)
+ */
+export async function initializePool(playerId: string): Promise<Pool> {
+  console.log(`[AMM] Initializing pool for player ${playerId}`);
+
+  try {
+    const [newPool] = await db
+      .insert(playerPools)
+      .values({
+        playerId,
+        shares: "1000",
+        playMoney: "10000",
+        lpSharesTotal: "1000",
+        feesAccumulated: "0",
+        totalVolume: "0",
+        totalTrades: 0,
+      })
+      .onConflictDoNothing()
+      .returning();
+
+    if (newPool) {
+      console.log(`[AMM] Pool created for player ${playerId}`);
+      return {
+        playerId: newPool.playerId,
+        shares: parseFloat(newPool.shares),
+        playMoney: parseFloat(newPool.playMoney),
+        k: parseFloat(newPool.k),
+        lpSharesTotal: parseFloat(newPool.lpSharesTotal),
+        feesAccumulated: parseFloat(newPool.feesAccumulated),
+        totalVolume: parseFloat(newPool.totalVolume),
+        totalTrades: newPool.totalTrades,
+        currentPrice: parseFloat(newPool.playMoney) / parseFloat(newPool.shares),
+      };
+    }
+
+    // If onConflictDoNothing triggered, try to fetch the existing pool
+    const existingPool = await getPool(playerId);
+    if (existingPool) {
+      return existingPool;
+    }
+
+    throw new Error(`Pool creation returned no data and pool does not exist for player ${playerId}`);
+  } catch (error: any) {
+    console.error(`[AMM] Failed to initialize pool for player ${playerId}:`, error.message);
+    // Check if it's a foreign key violation
+    if (error.message?.includes("foreign key") || error.message?.includes("violates foreign key")) {
+      throw new Error(`Player ${playerId} does not exist in database`);
+    }
+    throw error;
+  }
+}
+
+/**
+ * Get or create pool for a player
+ */
+export async function getOrCreatePool(playerId: string): Promise<Pool> {
+  const pool = await getPool(playerId);
+  if (pool) {
+    return pool;
+  }
+  return initializePool(playerId);
+}
+
+/**
  * Calculate buy shares for a given SB amount with new fee structure
  * Formula: 
  *   total_cost = sb_amount * (1 + total_fee)
@@ -148,23 +217,39 @@ export async function getPool(playerId: string): Promise<Pool | null> {
  */
 export function calculateBuyShares(pool: Pool, sbAmount: number): BuyQuote {
   const { shares: currentShares, playMoney: currentPlayMoney, k } = pool;
-  
+
+  // Validate inputs
+  if (!currentShares || currentShares <= 0 || !currentPlayMoney || currentPlayMoney <= 0 || !k || k <= 0) {
+    throw new Error("Invalid pool state: pool has zero or negative reserves");
+  }
+  if (!sbAmount || sbAmount <= 0) {
+    throw new Error("Invalid trade amount: must be greater than zero");
+  }
+  if (!isFinite(sbAmount) || isNaN(sbAmount)) {
+    throw new Error("Invalid trade amount: must be a valid number");
+  }
+
   // Calculate fees
   const poolFee = sbAmount * POOL_FEE_PERCENT;
   const burnFee = sbAmount * BURN_FEE_PERCENT;
   const totalCost = sbAmount + poolFee + burnFee;
   const poolReceives = sbAmount + poolFee; // User's SB + pool fee stays in pool
-  
+
   // Calculate new pool state after buy
   const newPlayMoney = currentPlayMoney + poolReceives;
   const newShares = k / newPlayMoney;
   const sharesOut = currentShares - newShares;
-  
+
+  // Validate output
+  if (sharesOut <= 0 || !isFinite(sharesOut)) {
+    throw new Error("Trade too large: would deplete pool shares");
+  }
+
   // Calculate effective price and slippage
   const effectivePrice = totalCost / sharesOut;
   const currentPrice = currentPlayMoney / currentShares;
   const slippagePercent = (effectivePrice - currentPrice) / currentPrice;
-  
+
   return {
     sharesOut,
     effectivePrice,
@@ -189,22 +274,43 @@ export function calculateBuyShares(pool: Pool, sbAmount: number): BuyQuote {
  */
 export function calculateSellShares(pool: Pool, sharesAmount: number): SellQuote {
   const { shares: currentShares, playMoney: currentPlayMoney, k } = pool;
-  
+
+  // Validate inputs
+  if (!currentShares || currentShares <= 0 || !currentPlayMoney || currentPlayMoney <= 0 || !k || k <= 0) {
+    throw new Error("Invalid pool state: pool has zero or negative reserves");
+  }
+  if (!sharesAmount || sharesAmount <= 0) {
+    throw new Error("Invalid trade amount: must be greater than zero");
+  }
+  if (!isFinite(sharesAmount) || isNaN(sharesAmount)) {
+    throw new Error("Invalid trade amount: must be a valid number");
+  }
+
   // Calculate new pool state after sell
   const newShares = currentShares + sharesAmount;
   const newPlayMoney = k / newShares;
   const sbOutBeforeFees = currentPlayMoney - newPlayMoney;
-  
+
+  // Validate output
+  if (sbOutBeforeFees <= 0 || !isFinite(sbOutBeforeFees)) {
+    throw new Error("Trade too large: would deplete pool liquidity");
+  }
+
   // Calculate fees
   const poolFee = sbOutBeforeFees * POOL_FEE_PERCENT;
   const burnFee = sbOutBeforeFees * BURN_FEE_PERCENT;
   const sellerReceives = sbOutBeforeFees - poolFee - burnFee;
-  
+
+  // Validate seller receives positive amount
+  if (sellerReceives <= 0) {
+    throw new Error("Trade too small: fees exceed proceeds");
+  }
+
   // Calculate effective price and slippage
   const effectivePrice = sellerReceives / sharesAmount;
   const currentPrice = currentPlayMoney / currentShares;
   const slippagePercent = (currentPrice - effectivePrice) / currentPrice;
-  
+
   return {
     sbOut: sbOutBeforeFees,
     effectivePrice,
@@ -266,7 +372,8 @@ export async function executeBuy(
       const [user] = await tx
         .select()
         .from(users)
-        .where(eq(users.id, userId));
+        .where(eq(users.id, userId))
+        .for("update");
 
       if (!user) {
         return { success: false, error: "User not found" };
@@ -274,9 +381,9 @@ export async function executeBuy(
 
       const userBalance = parseFloat(user.balance);
       if (userBalance < quote.totalCost) {
-        return { 
-          success: false, 
-          error: `Insufficient balance. Need $${quote.totalCost.toFixed(2)} (includes ${(TOTAL_FEE_PERCENT * 100).toFixed(0)}% fees)` 
+        return {
+          success: false,
+          error: `Insufficient balance. Need $${quote.totalCost.toFixed(2)} (includes ${(TOTAL_FEE_PERCENT * 100).toFixed(0)}% fees)`
         };
       }
 
@@ -285,12 +392,19 @@ export async function executeBuy(
       const newPlayMoney = poolData.playMoney + sbAmount + quote.poolFee; // User SB + pool fee
       const newTotalVolume = poolData.totalVolume + sbAmount;
       const newFeesAccumulated = poolData.feesAccumulated + quote.poolFee;
+      const newK = newShares * newPlayMoney; // Recalculate K to maintain invariant
+
+      // Validate pool state
+      if (newShares <= 0 || newPlayMoney <= 0) {
+        return { success: false, error: "Trade would deplete pool reserves" };
+      }
 
       await tx
         .update(playerPools)
         .set({
           shares: newShares.toFixed(2),
           playMoney: newPlayMoney.toFixed(2),
+          k: newK.toFixed(2),
           feesAccumulated: newFeesAccumulated.toFixed(2),
           totalVolume: newTotalVolume.toFixed(2),
           totalTrades: poolData.totalTrades + 1,
@@ -316,7 +430,8 @@ export async function executeBuy(
         ));
 
       if (existingHolding) {
-        const newQuantity = existingHolding.quantity + quote.sharesOut;
+        const currentQuantity = parseFloat(existingHolding.quantity);
+        const newQuantity = currentQuantity + quote.sharesOut;
         const currentTotalCost = parseFloat(existingHolding.totalCostBasis);
         const newTotalCost = currentTotalCost + quote.totalCost;
         const newAvgCost = newTotalCost / newQuantity;
@@ -324,7 +439,7 @@ export async function executeBuy(
         await tx
           .update(holdings)
           .set({
-            quantity: newQuantity,
+            quantity: newQuantity.toFixed(4),
             avgCostBasis: newAvgCost.toFixed(4),
             totalCostBasis: newTotalCost.toFixed(2),
             lastUpdated: new Date(),
@@ -335,7 +450,7 @@ export async function executeBuy(
           userId,
           assetType: "player",
           assetId: playerId,
-          quantity: quote.sharesOut,
+          quantity: quote.sharesOut.toFixed(4),
           avgCostBasis: quote.effectivePrice.toFixed(4),
           totalCostBasis: quote.totalCost.toFixed(2),
           lastUpdated: new Date(),
@@ -343,6 +458,7 @@ export async function executeBuy(
       }
 
       // 8. Record trade
+      console.log("[AMM] Inserting trade with sellerId='pool', playerId:", playerId, "buyerId:", userId);
       const [trade] = await tx
         .insert(trades)
         .values({
@@ -351,7 +467,7 @@ export async function executeBuy(
           sellerId: "pool",
           buyOrderId: null,
           sellOrderId: null,
-          quantity: Math.floor(quote.sharesOut),
+          quantity: quote.sharesOut.toFixed(4),
           price: quote.effectivePrice.toFixed(2),
           executedAt: new Date(),
         })
@@ -363,7 +479,7 @@ export async function executeBuy(
         .set({
           lastTradePrice: quote.newPoolPrice.toFixed(2),
           currentPrice: quote.newPoolPrice.toFixed(2),
-          volume24h: sql`${players.volume24h} + ${Math.floor(quote.sharesOut)}`,
+          volume24h: sql`${players.volume24h} + ${quote.sharesOut}`,
           lastUpdated: new Date(),
         })
         .where(eq(players.id, playerId));
@@ -373,7 +489,7 @@ export async function executeBuy(
         type: "trade",
         playerId,
         price: quote.newPoolPrice.toFixed(2),
-        quantity: Math.floor(quote.sharesOut),
+        quantity: quote.sharesOut,
         buyerId: userId,
         sellerId: "pool",
       });
@@ -387,6 +503,29 @@ export async function executeBuy(
       broadcast({
         type: "marketActivity",
       });
+
+      // Check for whale alert
+      const poolImpact = (quote.totalCost / poolData.playMoney) * 100;
+      if (quote.totalCost >= WHALE_ALERT_MIN_VALUE || poolImpact >= WHALE_ALERT_POOL_IMPACT_PERCENT) {
+        const [player] = await tx
+          .select({ firstName: players.firstName, lastName: players.lastName })
+          .from(players)
+          .where(eq(players.id, playerId));
+
+        const [trader] = await tx
+          .select({ username: users.username })
+          .from(users)
+          .where(eq(users.id, userId));
+
+        broadcast({
+          type: "whale_alert",
+          playerId,
+          playerName: player ? `${player.firstName} ${player.lastName}` : "Unknown",
+          traderUsername: trader?.username || "Unknown",
+          tradeValue: quote.totalCost,
+          tradeType: "buy",
+        });
+      }
 
       return {
         success: true,
@@ -461,7 +600,8 @@ export async function executeSell(
           eq(holdings.assetId, playerId)
         ));
 
-      if (!holding || holding.quantity < sharesAmount) {
+      const holdingQuantity = parseFloat(holding.quantity);
+      if (!holding || holdingQuantity < sharesAmount) {
         return { success: false, error: "Insufficient shares" };
       }
 
@@ -471,12 +611,19 @@ export async function executeSell(
       const newPlayMoney = poolData.playMoney - quote.sbOut + quote.poolFee;
       const newTotalVolume = poolData.totalVolume + quote.sbOut;
       const newFeesAccumulated = poolData.feesAccumulated + quote.poolFee;
+      const newK = newShares * newPlayMoney; // Recalculate K to maintain invariant
+
+      // Validate pool state
+      if (newShares <= 0 || newPlayMoney <= 0) {
+        return { success: false, error: "Trade would deplete pool reserves" };
+      }
 
       await tx
         .update(playerPools)
         .set({
           shares: newShares.toFixed(2),
           playMoney: newPlayMoney.toFixed(2),
+          k: newK.toFixed(2),
           feesAccumulated: newFeesAccumulated.toFixed(2),
           totalVolume: newTotalVolume.toFixed(2),
           totalTrades: poolData.totalTrades + 1,
@@ -485,12 +632,12 @@ export async function executeSell(
         .where(eq(playerPools.playerId, playerId));
 
       // 6. Deduct shares from user holdings
-      const newQuantity = holding.quantity - sharesAmount;
-      if (newQuantity > 0) {
+      const newQuantity = holdingQuantity - sharesAmount;
+      if (newQuantity > 0.0001) {
         await tx
           .update(holdings)
           .set({
-            quantity: newQuantity,
+            quantity: newQuantity.toFixed(4),
             lastUpdated: new Date(),
           })
           .where(eq(holdings.id, holding.id));
@@ -502,7 +649,8 @@ export async function executeSell(
       const [user] = await tx
         .select()
         .from(users)
-        .where(eq(users.id, userId));
+        .where(eq(users.id, userId))
+        .for("update");
 
       if (!user) {
         return { success: false, error: "User not found" };
@@ -560,6 +708,29 @@ export async function executeSell(
         type: "marketActivity",
       });
 
+      // Check for whale alert
+      const poolImpact = (quote.sbOut / poolData.playMoney) * 100;
+      if (quote.sbOut >= WHALE_ALERT_MIN_VALUE || poolImpact >= WHALE_ALERT_POOL_IMPACT_PERCENT) {
+        const [player] = await tx
+          .select({ firstName: players.firstName, lastName: players.lastName })
+          .from(players)
+          .where(eq(players.id, playerId));
+
+        const [trader] = await tx
+          .select({ username: users.username })
+          .from(users)
+          .where(eq(users.id, userId));
+
+        broadcast({
+          type: "whale_alert",
+          playerId,
+          playerName: player ? `${player.firstName} ${player.lastName}` : "Unknown",
+          traderUsername: trader?.username || "Unknown",
+          tradeValue: quote.sbOut,
+          tradeType: "sell",
+        });
+      }
+
       return {
         success: true,
         tradeId: trade.id,
@@ -615,7 +786,7 @@ export async function addLiquidity(
       // 2. Validate ratio matches current price
       const expectedPlayMoney = sharesToDeposit * poolData.currentPrice;
       const ratioDiff = Math.abs(playMoneyToDeposit - expectedPlayMoney) / expectedPlayMoney;
-      
+
       if (ratioDiff > 0.01) { // 1% tolerance
         return {
           success: false,
@@ -633,8 +804,9 @@ export async function addLiquidity(
           eq(holdings.assetId, playerId)
         ));
 
-      if (!userHolding || userHolding.quantity < sharesToDeposit) {
-        return { success: false, error: `Insufficient shares. Have ${userHolding?.quantity || 0}, need ${sharesToDeposit}` };
+      const userHoldingQuantity = parseFloat(userHolding?.quantity || "0");
+      if (!userHolding || userHoldingQuantity < sharesToDeposit) {
+        return { success: false, error: `Insufficient shares. Have ${userHoldingQuantity}, need ${sharesToDeposit}` };
       }
 
       // 4. Verify user has sufficient balance
@@ -660,24 +832,26 @@ export async function addLiquidity(
       // 6. Update pool
       const newPoolShares = poolData.shares + sharesToDeposit;
       const newPoolPlayMoney = poolData.playMoney + playMoneyToDeposit;
+      const newK = newPoolShares * newPoolPlayMoney; // Recalculate K to maintain invariant
 
       await tx
         .update(playerPools)
         .set({
           shares: newPoolShares.toFixed(2),
           playMoney: newPoolPlayMoney.toFixed(2),
+          k: newK.toFixed(2),
           lpSharesTotal: (poolData.lpSharesTotal + lpSharesToMint).toFixed(2),
           updatedAt: new Date(),
         })
         .where(eq(playerPools.playerId, playerId));
 
       // 7. Deduct shares from user holdings
-      const newQuantity = userHolding.quantity - sharesToDeposit;
-      if (newQuantity > 0) {
+      const newQuantity = userHoldingQuantity - sharesToDeposit;
+      if (newQuantity > 0.0001) {
         await tx
           .update(holdings)
           .set({
-            quantity: newQuantity,
+            quantity: newQuantity.toFixed(4),
             lastUpdated: new Date(),
           })
           .where(eq(holdings.id, userHolding.id));
@@ -805,12 +979,19 @@ export async function removeLiquidity(
       const newPoolShares = poolData.shares - sharesToReturn;
       const newPoolPlayMoney = poolData.playMoney - playMoneyToReturn;
       const newLpSharesTotal = poolData.lpSharesTotal - lpSharesToRemove;
+      const newK = newPoolShares * newPoolPlayMoney; // Recalculate K to maintain invariant
+
+      // Validate pool state after removal
+      if (newPoolShares <= 0 || newPoolPlayMoney <= 0) {
+        return { success: false, error: "Cannot remove liquidity: would deplete pool" };
+      }
 
       await tx
         .update(playerPools)
         .set({
           shares: newPoolShares.toFixed(2),
           playMoney: newPoolPlayMoney.toFixed(2),
+          k: newK.toFixed(2),
           lpSharesTotal: newLpSharesTotal.toFixed(2),
           updatedAt: new Date(),
         })
@@ -841,10 +1022,11 @@ export async function removeLiquidity(
         ));
 
       if (existingHolding) {
+        const existingQuantity = parseFloat(existingHolding.quantity);
         await tx
           .update(holdings)
           .set({
-            quantity: existingHolding.quantity + sharesToReturn,
+            quantity: (existingQuantity + sharesToReturn).toFixed(4),
             lastUpdated: new Date(),
           })
           .where(eq(holdings.id, existingHolding.id));
@@ -853,7 +1035,7 @@ export async function removeLiquidity(
           userId,
           assetType: "player",
           assetId: playerId,
-          quantity: sharesToReturn,
+          quantity: sharesToReturn.toFixed(4),
           avgCostBasis: poolData.currentPrice.toFixed(4),
           totalCostBasis: playMoneyToReturn.toFixed(2),
           lastUpdated: new Date(),
@@ -947,7 +1129,7 @@ export async function getUserLpPositions(userId: string): Promise<LpPositionData
     .where(eq(lpPositions.userId, userId));
 
   const results: LpPositionData[] = [];
-  
+
   for (const position of positions) {
     const pool = await getPool(position.playerId);
     if (!pool) continue;
@@ -977,7 +1159,7 @@ export async function getUserLpPositions(userId: string): Promise<LpPositionData
 export async function calculateLpBoost(userId: string, playerId: string): Promise<number> {
   const position = await getLpPosition(playerId, userId);
   if (!position) return 0;
-  
+
   return position.ownershipPercentage >= LP_BOOST_THRESHOLD ? 1 : 0;
 }
 

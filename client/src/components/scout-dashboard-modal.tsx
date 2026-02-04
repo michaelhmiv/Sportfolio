@@ -113,7 +113,7 @@ interface ScoutRosterEntry {
     scoutCount: number;
 }
 
-type SortField = 'name' | 'team' | 'price' | 'shares' | 'scouts' | 'fantasyPoints' | 'priceChange' | 'volume' | 'marketCap';
+type SortField = 'name' | 'team' | 'price' | 'shares' | 'scouts' | 'fantasyPoints' | 'change' | 'volume' | 'marketCap';
 type SortDirection = 'asc' | 'desc';
 
 // --- Sub-Component: Scout Roster ---
@@ -332,9 +332,7 @@ export function ScoutDashboardModal() {
         if (positionFilter !== 'ALL') params.set('position', positionFilter);
 
         // Always pass user's sort preference to API for consistent behavior
-        let backendSort = sortField;
-        if (sortField === 'priceChange') backendSort = 'change';
-        params.set('sortBy', backendSort);
+        params.set('sortBy', sortField);
         params.set('sortOrder', sortDirection);
 
         return `/api/players?${params.toString()}`;
@@ -672,7 +670,7 @@ export function ScoutDashboardModal() {
                                 <SelectItem value="volume">Volume</SelectItem>
                                 <SelectItem value="marketCap">Mkt Cap</SelectItem>
                                 <SelectItem value="price">Price</SelectItem>
-                                <SelectItem value="priceChange">24h Change</SelectItem>
+                                <SelectItem value="change">24h Change</SelectItem>
                                 <SelectItem value="fantasyPoints">Fantasy Pts</SelectItem>
                                 <SelectItem value="name">Name</SelectItem>
                                 <SelectItem value="shares">Owned</SelectItem>
@@ -744,11 +742,11 @@ export function ScoutDashboardModal() {
                                 )}
                                 onClick={() => handleSort(sortField === 'name' ? 'volume' : sortField)}
                             >
-                                {sortField === 'volume' ? 'Vol' : sortField === 'marketCap' ? 'Mkt Cap' : sortField === 'price' ? 'Price' : sortField === 'priceChange' ? '24h %' : sortField === 'fantasyPoints' ? 'FPTS' : sortField === 'shares' ? 'Owned' : sortField === 'scouts' ? 'Scouts' : sortField === 'name' ? 'Name' : 'Value'}
+                                {sortField === 'volume' ? 'Vol' : sortField === 'marketCap' ? 'Mkt Cap' : sortField === 'price' ? 'Price' : sortField === 'change' ? '24h %' : sortField === 'fantasyPoints' ? 'FPTS' : sortField === 'shares' ? 'Owned' : sortField === 'scouts' ? 'Scouts' : sortField === 'name' ? 'Name' : 'Value'}
                             </div>
 
                             {activeTab === 'market' && (
-                                <div className="w-14 sm:w-16 text-right cursor-pointer hover:text-foreground hidden sm:block" onClick={() => handleSort('priceChange')}>24h %</div>
+                                <div className="w-14 sm:w-16 text-right cursor-pointer hover:text-foreground hidden sm:block" onClick={() => handleSort('change')}>24h %</div>
                             )}
 
                             <div className="w-14 sm:w-16 text-right hidden sm:block">Owned</div>
@@ -832,7 +830,7 @@ export function ScoutDashboardModal() {
                                                             : `$${player.mcap.toFixed(0)}`
                                                 )}
                                                 {sortField === 'price' && `$${player.price.toFixed(2)}`}
-                                                {sortField === 'priceChange' && (
+                                                {sortField === 'change' && (
                                                     <span className={getDeltaColor(player.change)}>
                                                         {player.change > 0 ? '+' : ''}{player.change.toFixed(1)}%
                                                     </span>
