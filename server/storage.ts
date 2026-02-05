@@ -185,6 +185,7 @@ export interface IStorage {
   getPlayersByIds(ids: string[]): Promise<Player[]>;
   getPlayersBySport(sport: string): Promise<Player[]>;
   getTopPlayersByVolume(limit: number): Promise<Player[]>;
+  getPlayerPoolsByPlayerIds(playerIds: string[]): Promise<any[]>;
   upsertPlayer(player: InsertPlayer): Promise<Player>;
   updatePlayer(playerId: string, updates: Partial<InsertPlayer>): Promise<void>;
   getDistinctTeams(): Promise<string[]>;
@@ -1371,6 +1372,17 @@ export class DatabaseStorage implements IStorage {
         lastUpdated: new Date(),
       })
       .where(eq(players.id, playerId));
+  }
+
+  async getPlayerPoolsByPlayerIds(playerIds: string[]): Promise<any[]> {
+    if (playerIds.length === 0) return [];
+    
+    const pools = await db
+      .select()
+      .from(playerPools)
+      .where(inArray(playerPools.playerId, playerIds));
+    
+    return pools;
   }
 
   // Holdings methods
@@ -4466,10 +4478,9 @@ export class DatabaseStorage implements IStorage {
     // If sport is specific, filter by it. If "ALL", fetch all.
     const normalizedSport = sport.toUpperCase();
     const whereClause = normalizedSport === "ALL"
-      ? and(isNotNull(players.lastTradePrice), gt(players.lastTradePrice, "0"))
+      ? and(gt(sql`COALESCE(${players.lastTradePrice}, ${players.currentPrice})`, "0"))
       : and(
-        isNotNull(players.lastTradePrice),
-        gt(players.lastTradePrice, "0"),
+        gt(sql`COALESCE(${players.lastTradePrice}, ${players.currentPrice})`, "0"),
         sql`UPPER(${players.sport}) = ${normalizedSport}`
       );
 
@@ -4482,7 +4493,7 @@ export class DatabaseStorage implements IStorage {
         position: players.position,
         sport: players.sport,
         currentPrice: players.currentPrice,
-        lastTradePrice: players.lastTradePrice,
+        lastTradePrice: sql<string>`COALESCE(${players.lastTradePrice}, ${players.currentPrice})`,
         volume24h: players.volume24h,
         priceChange24h: players.priceChange24h,
         marketCap: players.marketCap,

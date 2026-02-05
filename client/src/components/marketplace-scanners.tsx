@@ -64,11 +64,21 @@ function useScannerData() {
         },
     });
 
+    const { data: topPools, isLoading: poolsLoading } = useQuery<any[]>({
+        queryKey: ["/api/players/spotlight/top-pools", sport, "limit-10"],
+        queryFn: async () => {
+            const res = await fetch(`/api/players/spotlight/top-pools?sport=${sport}&limit=10`);
+            if (!res.ok) throw new Error("Failed");
+            return res.json();
+        },
+    });
+
     return {
         scanData,
         topRisers,
         topMc,
-        isLoading: scanLoading || risersLoading || mcLoading
+        topPools,
+        isLoading: scanLoading || risersLoading || mcLoading || poolsLoading
     };
 }
 
@@ -101,7 +111,7 @@ export function MarketplaceScanners() {
 
 // --- Dashboard Component (Grid on Desktop, Carousel on Mobile) ---
 export function DashboardScanners() {
-    const { scanData, topRisers, topMc, isLoading } = useScannerData();
+    const { scanData, topRisers, topPools, isLoading } = useScannerData();
 
     if (isLoading) return <ScannerSkeleton />;
     if (!scanData) return null;
@@ -109,7 +119,7 @@ export function DashboardScanners() {
     const descriptions: Record<string, string> = {
         undervalued: "Players priced significantly below their calculated fair value based on recent performance.",
         risers: "Players with the highest percentage price increase over the last 24 hours.",
-        marketcap: "Top players ranked by total market capitalization (Price × Total Shares)."
+        pools: "Largest player pools ranked by total liquidity (shares × play money)."
     };
 
     const sections = [
@@ -128,11 +138,11 @@ export function DashboardScanners() {
             type: "risers"
         },
         {
-            title: "Market Cap Leaders",
+            title: "Player Pools",
             icon: <BarChart3 className="w-4 h-4 text-blue-500" />,
             color: { border: "border-blue-500/20", bg: "bg-blue-500/10", text: "text-blue-500" },
-            items: topMc,
-            type: "marketcap"
+            items: topPools,
+            type: "pools"
         }
     ];
 
@@ -181,10 +191,12 @@ export function DashboardScanners() {
                                 } else if (section.type === "risers") {
                                     value = `+$${item.priceChange24h?.toFixed(2)}`;
                                     label = "Change";
-                                } else if (section.type === "marketcap") {
-                                    const cap = item.marketCap || 0;
-                                    value = `$${cap < 1000000 ? (cap / 1000).toFixed(0) + 'k' : (cap / 1000000).toFixed(1) + 'M'}`;
-                                    label = "Cap";
+                                } else if (section.type === "pools") {
+                                    const poolSize = item.k || 0;
+                                    value = poolSize >= 1000000000 
+                                        ? `${(poolSize / 1000000000).toFixed(1)}B` 
+                                        : `${(poolSize / 1000000).toFixed(0)}M`;
+                                    label = "Pool Size";
                                 }
 
                                 return (
@@ -225,7 +237,7 @@ function ScannerCarousel({ scanData, topRisers, topMc, mode }: { scanData: Scann
     const descriptions: Record<string, string> = {
         undervalued: "Players priced significantly below their calculated fair value based on recent performance.",
         risers: "Players with the highest percentage price increase over the last 24 hours.",
-        marketcap: "Top players ranked by total market capitalization (Price × Total Shares).",
+        pools: "Largest player pools ranked by total liquidity (shares × play money).",
         sentiment: "Players with the strongest buying pressure (Buy Volume vs Sell Volume).",
         premium: "Exclusive premium shares that grant special platform benefits and rewards."
     };
@@ -269,10 +281,12 @@ function ScannerCarousel({ scanData, topRisers, topMc, mode }: { scanData: Scann
                             } else if (type === "risers") {
                                 value = `+$${item.priceChange24h?.toFixed(2)}`;
                                 label = "Change";
-                            } else if (type === "marketcap") {
-                                const cap = item.marketCap || 0;
-                                value = `$${cap < 1000000 ? (cap / 1000).toFixed(0) + 'k' : (cap / 1000000).toFixed(1) + 'M'}`;
-                                label = "Cap";
+                            } else if (type === "pools") {
+                                const poolSize = item.k || 0;
+                                value = poolSize >= 1000000000 
+                                    ? `${(poolSize / 1000000000).toFixed(1)}B` 
+                                    : `${(poolSize / 1000000).toFixed(0)}M`;
+                                label = "Pool Size";
                             } else if (type === "sentiment") {
                                 value = `${item.metrics?.sentiment?.buyPressure?.toFixed(0)}%`;
                                 label = "Buy Vol";
@@ -317,7 +331,7 @@ function ScannerCarousel({ scanData, topRisers, topMc, mode }: { scanData: Scann
                             onClick={() => {
                                 const url =
                                     type === "risers" ? "/marketplace?sortBy=change&sortOrder=desc" :
-                                        type === "marketcap" ? "/marketplace?sortBy=marketCap&sortOrder=desc" :
+                                        type === "pools" ? "/marketplace?sortBy=poolSize&sortOrder=desc" :
                                             type === "sentiment" ? "/marketplace?sortBy=sentiment&sortOrder=desc" :
                                                 type === "undervalued" ? "/marketplace?sortBy=undervalued&sortOrder=asc" :
                                                     "/marketplace";
@@ -355,11 +369,11 @@ function ScannerCarousel({ scanData, topRisers, topMc, mode }: { scanData: Scann
                     type="risers"
                 />
                 <Slide
-                    title="Market Cap Leaders"
+                    title="Player Pools"
                     icon={<BarChart3 className="w-4 h-4 text-blue-500" />}
                     color={{ border: "border-blue-500/20", bg: "bg-blue-500/10", text: "text-blue-500" }}
-                    items={topMc}
-                    type="marketcap"
+                    items={topPools}
+                    type="pools"
                 />
             </CarouselContent>
             {/* Show controls on Dashboard/Expanded mode only */}
