@@ -111,7 +111,7 @@ export function MarketplaceScanners() {
 
 // --- Dashboard Component (Grid on Desktop, Carousel on Mobile) ---
 export function DashboardScanners() {
-    const { scanData, topRisers, topPools, isLoading } = useScannerData();
+    const { scanData, topRisers, topMc, topPools, isLoading } = useScannerData();
 
     if (isLoading) return <ScannerSkeleton />;
     if (!scanData) return null;
