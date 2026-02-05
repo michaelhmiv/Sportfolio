@@ -185,6 +185,7 @@ export interface IStorage {
   getPlayersByIds(ids: string[]): Promise<Player[]>;
   getPlayersBySport(sport: string): Promise<Player[]>;
   getTopPlayersByVolume(limit: number): Promise<Player[]>;
+  getPlayerPoolsByPlayerIds(playerIds: string[]): Promise<any[]>;
   upsertPlayer(player: InsertPlayer): Promise<Player>;
   updatePlayer(playerId: string, updates: Partial<InsertPlayer>): Promise<void>;
   getDistinctTeams(): Promise<string[]>;
@@ -1371,6 +1372,17 @@ export class DatabaseStorage implements IStorage {
         lastUpdated: new Date(),
       })
       .where(eq(players.id, playerId));
+  }
+
+  async getPlayerPoolsByPlayerIds(playerIds: string[]): Promise<any[]> {
+    if (playerIds.length === 0) return [];
+    
+    const pools = await db
+      .select()
+      .from(playerPools)
+      .where(inArray(playerPools.playerId, playerIds));
+    
+    return pools;
   }
 
   // Holdings methods

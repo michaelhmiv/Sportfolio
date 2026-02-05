@@ -1521,6 +1521,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Top player pools by liquidity (k value)
+  app.get("/api/players/spotlight/top-pools", async (req, res) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 5;
+      const sport = (req.query.sport as string) || "NBA";
+      
+      // Get players for the sport first
+      const players = await storage.getPlayersBySport(sport);
+      const playerIds = players.map(p => p.id);
+      
+      // Get pools for these players, sorted by k value
+      const pools = await storage.getPlayerPoolsByPlayerIds(playerIds);
+      
+      // Sort by k value descending and take top N
+      const topPools = pools
+        .sort((a, b) => parseFloat(b.k) - parseFloat(a.k))
+        .slice(0, limit)
+        .map(pool => {
+          const player = players.find(p => p.id === pool.playerId);
+          return {
+            id: pool.playerId,
+            firstName: player?.firstName || "Unknown",
+            lastName: player?.lastName || "Unknown",
+            team: player?.team || "",
+            position: player?.position || "",
+            currentPrice: player?.currentPrice ? parseFloat(player.currentPrice) : null,
+            k: parseFloat(pool.k),
+            shares: parseFloat(pool.shares),
+            playMoney: parseFloat(pool.playMoney),
+          };
+        });
+
+      res.json(topPools);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Get distinct teams for a sport
   app.get("/api/teams", async (req, res) => {
     try {
