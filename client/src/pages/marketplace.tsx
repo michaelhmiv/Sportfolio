@@ -452,7 +452,7 @@ export default function Marketplace() {
                           </td>
                           <td className="p-3 text-right">
                             <div className="font-mono font-medium">
-                              ${player.lastTradePrice || "0.00"}
+                              ${player.currentPrice || "0.00"}
                             </div>
                           </td>
                               <td className="p-3 text-right text-sm text-muted-foreground">
@@ -504,7 +504,7 @@ export default function Marketplace() {
                                   {player.firstName} {player.lastName}
                                 </div>
                                 <div className="text-xs text-muted-foreground">
-                                  {player.team} • ${player.lastTradePrice || "0.00"}
+                                  {player.team} • ${player.currentPrice || "0.00"}
                                 </div>
                               </div>
                             </div>
