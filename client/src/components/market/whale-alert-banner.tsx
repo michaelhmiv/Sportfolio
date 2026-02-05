@@ -1,8 +1,10 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { Waves, TrendingUp, TrendingDown, X } from "lucide-react";
+import { Waves, TrendingUp, TrendingDown, X, ExternalLink } from "lucide-react";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useWebSocket } from "@/lib/websocket";
+import { Button } from "@/components/ui/button";
+import { useLocation } from "wouter";
 
 interface WhaleAlert {
   id: string;
@@ -27,6 +29,7 @@ export function WhaleAlertBanner({ className }: WhaleAlertBannerProps) {
   const [alerts, setAlerts] = useState<WhaleAlert[]>([]);
   const [currentAlert, setCurrentAlert] = useState<WhaleAlert | null>(null);
   const { subscribe } = useWebSocket();
+  const [, navigate] = useLocation();
 
   useEffect(() => {
     const unsubscribe = subscribe("whale_alert", (message) => {
@@ -36,7 +39,7 @@ export function WhaleAlertBanner({ className }: WhaleAlertBannerProps) {
         playerName: message.playerName,
         traderUsername: message.traderUsername,
         tradeValue: message.tradeValue,
-        type: message.type,
+        type: message.tradeType,
         timestamp: Date.now(),
       };
 
@@ -53,10 +56,10 @@ export function WhaleAlertBanner({ className }: WhaleAlertBannerProps) {
       setCurrentAlert(nextAlert);
       setAlerts((prev) => prev.slice(1));
 
-      // Auto-dismiss after 8 seconds
+      // Auto-dismiss after 5 seconds
       const timer = setTimeout(() => {
         setCurrentAlert(null);
-      }, 8000);
+      }, 5000);
 
       return () => clearTimeout(timer);
     }
@@ -64,6 +67,13 @@ export function WhaleAlertBanner({ className }: WhaleAlertBannerProps) {
 
   const dismissAlert = () => {
     setCurrentAlert(null);
+  };
+
+  const handleViewPlayer = () => {
+    if (currentAlert) {
+      navigate(`/player/${currentAlert.playerId}`);
+      dismissAlert();
+    }
   };
 
   if (!currentAlert) return null;
@@ -189,6 +199,29 @@ export function WhaleAlertBanner({ className }: WhaleAlertBannerProps) {
               </motion.div>
             </div>
 
+            {/* View Player Button */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.25 }}
+              className="shrink-0"
+            >
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleViewPlayer}
+                className={cn(
+                  "h-8 text-xs gap-1",
+                  isBuy
+                    ? "border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300"
+                    : "border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                )}
+              >
+                View
+                <ExternalLink className="w-3 h-3" />
+              </Button>
+            </motion.div>
+
             {/* Close button */}
             <motion.button
               initial={{ opacity: 0, scale: 0 }}
@@ -209,7 +242,7 @@ export function WhaleAlertBanner({ className }: WhaleAlertBannerProps) {
             )}
             initial={{ width: "100%" }}
             animate={{ width: "0%" }}
-            transition={{ duration: 8, ease: "linear" }}
+            transition={{ duration: 5, ease: "linear" }}
           />
         </div>
       </motion.div>
@@ -230,7 +263,7 @@ export function useWhaleAlerts() {
         playerName: message.playerName,
         traderUsername: message.traderUsername,
         tradeValue: message.tradeValue,
-        type: message.type,
+        type: message.tradeType,
         timestamp: Date.now(),
       };
 

@@ -56,7 +56,7 @@ async function getBotHoldings(userId: string): Promise<Map<string, number>> {
 
   const holdingsMap = new Map<string, number>();
   for (const holding of allHoldings) {
-    holdingsMap.set(holding.assetId, holding.quantity);
+    holdingsMap.set(holding.assetId, parseFloat(holding.quantity));
   }
 
   return holdingsMap;

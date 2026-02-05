@@ -198,7 +198,7 @@ export const lpTransactions = pgTable("lp_transactions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   playerId: varchar("player_id").notNull().references(() => players.id, { onDelete: "cascade" }),
-  transactionType: varchar("transaction_type", { length: 10 }).notNull(), // 'add' or 'remove'
+  transactionType: text("transaction_type").notNull(), // 'add' or 'remove'
   lpShares: decimal("lp_shares", { precision: 24, scale: 2 }).notNull(),
   sharesAmount: decimal("shares_amount", { precision: 12, scale: 2 }).notNull(),
   playMoneyAmount: decimal("play_money_amount", { precision: 12, scale: 2 }).notNull(),

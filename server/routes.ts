@@ -412,7 +412,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Only update holdings if we successfully credited (won the race)
           if (creditedPayment) {
             const existingHolding = await storage.getHolding(userId, assetType, assetType);
-            const currentQuantity = existingHolding?.quantity || 0;
+            const currentQuantity = parseFloat(existingHolding?.quantity || "0");
             const newQuantity = currentQuantity + quantity;
 
             // Preserve existing avgCost or use appropriate default for new holdings
@@ -432,7 +432,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           currentPayment && currentPayment.creditedAt && !currentPayment.revokedAt) {
           // Revoke the shares from holdings - preserve avgCost
           const existingHolding = await storage.getHolding(userId, assetType, assetType);
-          const currentShares = existingHolding?.quantity || 0;
+          const currentShares = parseFloat(existingHolding?.quantity || "0");
           const currentAvgCost = existingHolding?.avgCostBasis || (isCommunityPurchase ? "1.0000" : "5.0000");
 
           if (currentShares >= quantity) {
@@ -720,7 +720,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Get existing premium holding
       const existingHolding = await storage.getHolding(targetUser.id, "premium", "premium");
-      const currentQuantity = existingHolding?.quantity || 0;
+      const currentQuantity = parseFloat(existingHolding?.quantity || "0");
       const newQuantity = currentQuantity + parsedQuantity;
 
       // Preserve existing avgCost or use $5 default for new holdings
@@ -848,7 +848,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (holding.assetType === "player") {
           const player = playerMap.get(holding.assetId);
           if (player && player.lastTradePrice) {
-            portfolioValue += holding.quantity * parseFloat(player.lastTradePrice);
+            portfolioValue += parseFloat(holding.quantity) * parseFloat(player.lastTradePrice);
           }
         }
       }
@@ -864,7 +864,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (player) {
             const enrichedPlayer = enrichPlayerWithMarketValue(player);
             const { currentValue, pnl, pnlPercent } = calculatePnL(
-              holding.quantity,
+              parseFloat(holding.quantity),
               holding.avgCostBasis,
               enrichedPlayer.lastTradePrice
             );
@@ -1862,7 +1862,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             )
           );
         
-        ownedPlayers = teamPlayers.filter(p => (p.quantity || 0) > 0);
+        ownedPlayers = teamPlayers.filter(p => (parseFloat(p.quantity || "0")) > 0);
       }
 
       res.json({
@@ -2660,7 +2660,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (side === "buy") {
             const buyerHolding = await storage.getHolding(user.id, "player", req.params.playerId);
             if (buyerHolding) {
-              const newQuantity = buyerHolding.quantity + fillQty;
+              const newQuantity = parseFloat(buyerHolding.quantity) + fillQty;
               const newTotalCost = parseFloat(buyerHolding.totalCostBasis) + (fillQty * fillPrice);
               const newAvgCost = newTotalCost / newQuantity;
               await storage.updateHolding(user.id, "player", req.params.playerId, newQuantity, newAvgCost.toFixed(4));
@@ -2674,7 +2674,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 availableOrder.userId,
                 "player",
                 req.params.playerId,
-                sellerHolding.quantity - fillQty,
+                parseFloat(sellerHolding.quantity) - fillQty,
                 sellerHolding.avgCostBasis
               );
             }
@@ -2682,7 +2682,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // Sell order
             const buyerHolding = await storage.getHolding(availableOrder.userId, "player", req.params.playerId);
             if (buyerHolding) {
-              const newQuantity = buyerHolding.quantity + fillQty;
+              const newQuantity = parseFloat(buyerHolding.quantity) + fillQty;
               const newTotalCost = parseFloat(buyerHolding.totalCostBasis) + (fillQty * fillPrice);
               const newAvgCost = newTotalCost / newQuantity;
               await storage.updateHolding(
@@ -2698,7 +2698,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
             const sellerHolding = await storage.getHolding(user.id, "player", req.params.playerId);
             if (sellerHolding) {
-              await storage.updateHolding(user.id, "player", req.params.playerId, sellerHolding.quantity - fillQty, sellerHolding.avgCostBasis);
+              await storage.updateHolding(user.id, "player", req.params.playerId, parseFloat(sellerHolding.quantity) - fillQty, sellerHolding.avgCostBasis);
             }
           }
 
@@ -3098,7 +3098,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
             const holding = claimHoldings.get(dist.playerId);
             if (holding) {
-              const newQuantity = holding.quantity + dist.shares;
+              const newQuantity = parseFloat(holding.quantity) + dist.shares;
               const newTotalCost = parseFloat(holding.totalCostBasis);
               const newAvgCost = newTotalCost / newQuantity;
               await storage.updateHolding(user.id, "player", dist.playerId, newQuantity, newAvgCost.toFixed(4));
@@ -3134,7 +3134,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             if (player) {
               const holding = holdings.get(currentVesting.playerId);
               if (holding) {
-                const newQuantity = holding.quantity + currentVesting.sharesAccumulated;
+                const newQuantity = parseFloat(holding.quantity) + currentVesting.sharesAccumulated;
                 const newTotalCost = parseFloat(holding.totalCostBasis);
                 const newAvgCost = newTotalCost / newQuantity;
                 await storage.updateHolding(user.id, "player", currentVesting.playerId, newQuantity, newAvgCost.toFixed(4));
@@ -3241,7 +3241,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Add shares to holdings (cost basis $0)
         const holding = holdings.get(vestingData.playerId);
         if (holding) {
-          const newQuantity = holding.quantity + vestingData.sharesAccumulated;
+          const newQuantity = parseFloat(holding.quantity) + vestingData.sharesAccumulated;
           const newTotalCost = parseFloat(holding.totalCostBasis); // Vested shares have $0 cost
           const newAvgCost = newTotalCost / newQuantity;
           await storage.updateHolding(user.id, "player", vestingData.playerId, newQuantity, newAvgCost.toFixed(4));
@@ -3319,7 +3319,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         const holding = claimHoldings.get(dist.playerId);
         if (holding) {
-          const newQuantity = holding.quantity + dist.shares;
+          const newQuantity = parseFloat(holding.quantity) + dist.shares;
           const newTotalCost = parseFloat(holding.totalCostBasis); // Mined shares have $0 cost
           const newAvgCost = newTotalCost / newQuantity;
           await storage.updateHolding(user.id, "player", dist.playerId, newQuantity, newAvgCost.toFixed(4));
@@ -3433,7 +3433,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const holding = existingHoldings.get(dist.playerId);
 
         if (holding) {
-          const newQuantity = holding.quantity + dist.shares;
+          const newQuantity = parseFloat(holding.quantity) + dist.shares;
           const newTotalCost = parseFloat(holding.totalCostBasis); // Vested shares have $0 cost
           const newAvgCost = newQuantity > 0 ? newTotalCost / newQuantity : 0;
           await storage.updateHolding(user.id, "player", dist.playerId, newQuantity, newAvgCost.toFixed(4));
@@ -4042,7 +4042,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             user.id,
             "player",
             item.playerId,
-            holding.quantity - item.sharesEntered,
+            parseFloat(holding.quantity) - item.sharesEntered,
             holding.avgCostBasis
           );
         }
@@ -4250,7 +4250,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               user.id,
               "player",
               playerId,
-              holding.quantity + sharesToReturn,
+              parseFloat(holding.quantity) + sharesToReturn,
               holding.avgCostBasis
             );
           } else {
@@ -4269,7 +4269,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const holding = await storage.getHolding(user.id, "player", playerId);
 
           // CRITICAL: Validate user has enough shares AFTER returns
-          if (!holding || holding.quantity < sharesToBurn) {
+          if (!holding || parseFloat(holding.quantity) < sharesToBurn) {
             return res.status(400).json({
               error: `Insufficient shares for player ${playerId}. Required: ${sharesToBurn}, Available: ${holding?.quantity || 0}`
             });
@@ -4280,7 +4280,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             user.id,
             "player",
             playerId,
-            holding.quantity - sharesToBurn,
+            parseFloat(holding.quantity) - sharesToBurn,
             holding.avgCostBasis
           );
         }
@@ -4857,7 +4857,7 @@ ${posts.map(post => `  <url>
           const player = playersMap.get(holding.assetId);
           if (player) {
             const marketValue = player.lastTradePrice
-              ? (parseFloat(player.lastTradePrice) * holding.quantity).toFixed(2)
+              ? (parseFloat(player.lastTradePrice) * parseFloat(holding.quantity)).toFixed(2)
               : null;
             return {
               ...holding,
@@ -4923,7 +4923,7 @@ ${posts.map(post => `  <url>
           marketOrders: marketOrdersRank,
           netWorth: netWorthRank,
         },
-        holdings: enrichedHoldings.filter(h => h.assetType === "player" && h.quantity > 0),
+        holdings: enrichedHoldings.filter(h => h.assetType === "player" && parseFloat(h.quantity) > 0),
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -4940,12 +4940,12 @@ ${posts.map(post => `  <url>
       }
       const premiumHolding = await storage.getHolding(user.id, "premium", "premium");
 
-      if (!premiumHolding || premiumHolding.quantity < 1) {
+      if (!premiumHolding || parseFloat(premiumHolding.quantity) < 1) {
         return res.status(400).json({ error: "No premium shares to redeem" });
       }
 
       // Burn 1 premium share
-      await storage.updateHolding(user.id, "premium", "premium", premiumHolding.quantity - 1, "0.0000");
+      await storage.updateHolding(user.id, "premium", "premium", parseFloat(premiumHolding.quantity) - 1, "0.0000");
 
       // Grant premium access for 30 days
       const expiresAt = new Date();
@@ -4958,7 +4958,7 @@ ${posts.map(post => `  <url>
         success: true,
         isPremium: true,
         premiumExpiresAt: expiresAt.toISOString(),
-        remainingShares: premiumHolding.quantity - 1
+        remainingShares: parseFloat(premiumHolding.quantity) - 1
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -5274,7 +5274,7 @@ ${posts.map(post => `  <url>
         }
 
         // Lock shares
-        await storage.updateHolding(user.id, "premium", "premium", premiumHolding.quantity - quantity, "5.0000");
+        await storage.updateHolding(user.id, "premium", "premium", parseFloat(premiumHolding.quantity) - quantity, "5.0000");
 
         // Create sell order
         const order = await storage.createPremiumOrder({
@@ -5312,7 +5312,7 @@ ${posts.map(post => `  <url>
 
           // Execute trade - transfer shares to buyer
           const buyerHolding = await storage.getHolding(bid.userId, "premium", "premium");
-          const buyerQuantity = buyerHolding?.quantity || 0;
+          const buyerQuantity = parseFloat(buyerHolding?.quantity || "0");
           await storage.updateHolding(bid.userId, "premium", "premium", buyerQuantity + matchQuantity, "5.0000");
 
           // Give seller the cash
@@ -5690,7 +5690,7 @@ ${posts.map(post => `  <url>
         if (isCommunityPurchase) {
           // Credit community shares
           const existingHolding = await storage.getHolding(userId, "community", "community");
-          const currentQuantity = existingHolding?.quantity || 0;
+          const currentQuantity = parseFloat(existingHolding?.quantity || "0");
           newQuantity = currentQuantity + quantity;
 
           // Update holding with new quantity (avgCost is $1 per share)
@@ -5702,7 +5702,7 @@ ${posts.map(post => `  <url>
         } else {
           // Credit premium shares
           const existingHolding = await storage.getHolding(userId, "premium", "premium");
-          const currentQuantity = existingHolding?.quantity || 0;
+          const currentQuantity = parseFloat(existingHolding?.quantity || "0");
           newQuantity = currentQuantity + quantity;
 
           // Update holding with new quantity (avgCost is $5 per share)
@@ -6178,7 +6178,7 @@ ${posts.map(post => `  <url>
 
       // Get current premium holding
       const existingHolding = await storage.getHolding(userId, "premium", "premium");
-      const currentQuantity = existingHolding?.quantity || 0;
+      const currentQuantity = parseFloat(existingHolding?.quantity || "0");
       const newQuantity = currentQuantity + qty;
 
       // Credit the shares
@@ -7274,7 +7274,7 @@ ${posts.map(post => `  <url>
         }
         const teamGame = teamGameMap.get(holding.player?.team);
         const totalLocked = lockedQuantities.get(holding.player?.id) || 0;
-        const availableShares = holding.quantity - totalLocked;
+        const availableShares = parseFloat(holding.quantity) - totalLocked;
         const powerLevel = holding.powerLevel || "0.00";
         const hasPowerLevel = parseFloat(powerLevel) > 0;
 
@@ -7475,12 +7475,12 @@ ${posts.map(post => `  <url>
 
       // Get the holding to capture power (per-share power) before boost is created
       const holding = await storage.getHolding(userId, "player", playerId);
-      if (!holding || holding.quantity < 1) {
+      if (!holding || parseFloat(holding.quantity) < 1) {
         return res.status(400).json({ error: "No shares available for this player" });
       }
-      // Capture the per-share power (1 for base shares, 2+ for condensed)
-      // This is what determines the boost multiplier, NOT powerLevel (total power)
-      const power = holding.power.toString();
+      // Capture the total power level (quantity × per-share power) for the boost
+      // This represents the effective share power for payout calculations
+      const power = holding.powerLevel.toString();
 
       // Create the boost
       // Use provided date or default to today (ensure date is object)
@@ -7494,7 +7494,7 @@ ${posts.map(post => `  <url>
         slotTier: tierNum,
         boostDate,
         sharesEntered: shares,
-        powerLevel: power, // Use per-share power, not total power_level
+        powerLevel: power, // Use total power level for payout calculations
         gameId: game.gameId,
       });
 

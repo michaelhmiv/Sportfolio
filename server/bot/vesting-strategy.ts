@@ -130,7 +130,7 @@ async function claimVestingShares(
                 const existing = await storage.getHolding(userId, "player", dist.playerId);
                 if (existing) {
                     await db.update(holdings).set({
-                        quantity: existing.quantity + dist.shares,
+                        quantity: (parseFloat(existing.quantity) + dist.shares).toString(),
                         lastUpdated: new Date()
                     }).where(eq(holdings.id, existing.id));
                 } else {
@@ -138,7 +138,7 @@ async function claimVestingShares(
                         userId,
                         assetType: "player",
                         assetId: dist.playerId,
-                        quantity: dist.shares,
+                        quantity: dist.shares.toString(),
                         avgCostBasis: "0.0000",
                         totalCostBasis: "0.00",
                     });
@@ -150,7 +150,7 @@ async function claimVestingShares(
         const existing = await storage.getHolding(userId, "player", fallbackPlayerId);
         if (existing) {
             await db.update(holdings).set({
-                quantity: existing.quantity + totalSharesClaimed,
+                quantity: (parseFloat(existing.quantity) + totalSharesClaimed).toString(),
                 lastUpdated: new Date()
             }).where(eq(holdings.id, existing.id));
         } else {
@@ -158,7 +158,7 @@ async function claimVestingShares(
                 userId,
                 assetType: "player",
                 assetId: fallbackPlayerId,
-                quantity: totalSharesClaimed,
+                quantity: totalSharesClaimed.toString(),
                 avgCostBasis: "0.0000",
                 totalCostBasis: "0.00",
             });

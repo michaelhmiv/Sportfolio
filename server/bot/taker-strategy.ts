@@ -41,7 +41,7 @@ interface TakingOpportunity {
  */
 async function getBotHoldings(userId: string, playerId: string): Promise<number> {
   const holding = await storage.getHolding(userId, "player", playerId);
-  return holding?.quantity || 0;
+  return holding ? parseFloat(holding.quantity) : 0;
 }
 
 /**
@@ -63,7 +63,7 @@ async function getAvailableShares(userId: string, playerId: string): Promise<num
     );
   
   const locked = Number(lockedResult?.total || 0);
-  return Math.max(0, holding.quantity - locked);
+  return Math.max(0, parseFloat(holding.quantity) - locked);
 }
 
 /**
@@ -254,7 +254,7 @@ async function executeTakerTrade(
       
       const buyerHolding = await storage.getHolding(buyerId, "player", playerId);
       if (buyerHolding) {
-        const newQuantity = buyerHolding.quantity + fillQuantity;
+        const newQuantity = parseFloat(buyerHolding.quantity) + fillQuantity;
         const newTotalCost = parseFloat(buyerHolding.totalCostBasis) + totalCost;
         const newAvgCost = newTotalCost / newQuantity;
         await storage.updateHolding(buyerId, "player", playerId, newQuantity, newAvgCost.toFixed(4));
@@ -271,7 +271,7 @@ async function executeTakerTrade(
       
       const sellerHolding = await storage.getHolding(sellerId, "player", playerId);
       if (sellerHolding) {
-        const newQuantity = sellerHolding.quantity - fillQuantity;
+        const newQuantity = parseFloat(sellerHolding.quantity) - fillQuantity;
         await storage.updateHolding(sellerId, "player", playerId, newQuantity, sellerHolding.avgCostBasis);
       }
       

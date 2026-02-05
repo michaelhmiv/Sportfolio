@@ -997,7 +997,8 @@ export class DatabaseStorage implements IStorage {
       if (existing) {
         // Add to existing regular holding - keep existing cost basis for purchased shares
         // New shares have $0 cost, so weighted average shifts down
-        const newQuantity = existing.quantity + shares;
+        const existingQuantity = parseFloat(existing.quantity);
+        const newQuantity = existingQuantity + shares;
         const existingCost = parseFloat(existing.totalCostBasis || '0');
         // New shares are free, so total cost stays the same
         const newAvgCost = newQuantity > 0 ? (existingCost / newQuantity).toFixed(4) : '0.0000';
@@ -1006,7 +1007,7 @@ export class DatabaseStorage implements IStorage {
         await tx
           .update(holdings)
           .set({
-            quantity: newQuantity,
+            quantity: newQuantity.toString(),
             avgCostBasis: newAvgCost,
             powerLevel: newPowerLevel.toFixed(2),
             // totalCostBasis stays the same since new shares are free
@@ -1019,7 +1020,7 @@ export class DatabaseStorage implements IStorage {
           userId,
           assetType: 'player',
           assetId: playerId,
-          quantity: shares,
+          quantity: shares.toString(),
           power: 1,
           powerLevel: shares.toFixed(2),
           avgCostBasis: '0.0000',
@@ -1432,7 +1433,7 @@ export class DatabaseStorage implements IStorage {
         await db
           .update(holdings)
           .set({
-            quantity,
+            quantity: quantity.toString(),
             avgCostBasis: avgCostNormalized,
             totalCostBasis: totalCost,
             powerLevel,
@@ -1452,7 +1453,7 @@ export class DatabaseStorage implements IStorage {
           userId,
           assetType,
           assetId,
-          quantity,
+          quantity: quantity.toString(),
           power,
           powerLevel,
           avgCostBasis: avgCostNormalized,
@@ -1542,7 +1543,7 @@ export class DatabaseStorage implements IStorage {
         await db
           .update(holdings)
           .set({
-            quantity,
+            quantity: quantity.toString(),
             powerLevel,
             avgCostBasis: avgCostNormalized,
             totalCostBasis: totalCost,
@@ -1566,7 +1567,7 @@ export class DatabaseStorage implements IStorage {
         userId,
         assetType,
         assetId,
-        quantity,
+        quantity: quantity.toString(),
         avgCostBasis: avgCostNormalized,
         totalCostBasis: totalCost,
       });
@@ -1614,7 +1615,7 @@ export class DatabaseStorage implements IStorage {
         );
 
       const totalLocked = Number(lockedResult[0]?.total || 0);
-      const available = holding.quantity - totalLocked;
+      const available = parseFloat(holding.quantity) - totalLocked;
 
       // Step 3: Check if sufficient shares are available
       if (available < quantity) {
@@ -1655,7 +1656,7 @@ export class DatabaseStorage implements IStorage {
     if (!holding) return 0;
 
     const lockedQuantity = await this.getTotalLockedQuantity(userId, assetType, assetId);
-    return Math.max(0, holding.quantity - lockedQuantity);
+    return Math.max(0, parseFloat(holding.quantity) - lockedQuantity);
   }
 
   async getLockedShares(userId: string, assetType: string, assetId: string): Promise<HoldingsLock[]> {
@@ -2093,7 +2094,10 @@ export class DatabaseStorage implements IStorage {
     // Combine using UNION ALL and apply global order + limit
     const combinedQuery = db
       .select()
-      .from(unionAll(finalTradesQuery, finalOrdersQuery).as('activity'))
+      .from(unionAll(
+        finalTradesQuery as any,
+        finalOrdersQuery as any
+      ).as('activity'))
       .orderBy(sql`timestamp DESC`)
       .limit(limit);
 
@@ -2326,7 +2330,7 @@ export class DatabaseStorage implements IStorage {
         .limit(limit);
 
       userBuyTrades.forEach(trade => {
-        const totalCost = parseFloat(trade.price) * trade.quantity;
+        const totalCost = parseFloat(trade.price) * parseFloat(trade.quantity);
         activities.push({
           id: `trade-buy-${trade.id}`,
           userId,
@@ -2364,7 +2368,7 @@ export class DatabaseStorage implements IStorage {
         .limit(limit);
 
       userSellTrades.forEach(trade => {
-        const totalRevenue = parseFloat(trade.price) * trade.quantity;
+        const totalRevenue = parseFloat(trade.price) * parseFloat(trade.quantity);
         activities.push({
           id: `trade-sell-${trade.id}`,
           userId,
@@ -4768,7 +4772,7 @@ export class DatabaseStorage implements IStorage {
 
       // Calculate available shares (total - locked)
       const totalLocked = await this.getTotalLockedQuantity(userId, "player", player.id);
-      const availableShares = holding.quantity - totalLocked;
+      const availableShares = parseFloat(holding.quantity) - totalLocked;
 
       // Get Power Level for this holding (Power Level shares are eligible for boosts)
       const powerLevel = holding.powerLevel || "0.00";
@@ -4837,7 +4841,7 @@ export class DatabaseStorage implements IStorage {
     const holding = await this.getHolding(boost.userId, "player", boost.playerId);
     if (!holding) throw new Error(`No holding found for user ${boost.userId} player ${boost.playerId}`);
 
-    const newQuantity = holding.quantity - boost.sharesEntered;
+    const newQuantity = parseFloat(holding.quantity) - boost.sharesEntered;
     if (newQuantity < 0) throw new Error(`Cannot burn ${boost.sharesEntered} shares - only ${holding.quantity} available`);
 
     // Reduce the holding quantity (burn the shares)
@@ -4849,7 +4853,8 @@ export class DatabaseStorage implements IStorage {
     // Calculate power level reduction proportionally
     // powerLevel = quantity * power (per-share power), so reduce both
     const currentPowerLevel = parseFloat(holding.powerLevel || "0");
-    const powerPerShare = holding.quantity > 0 ? currentPowerLevel / holding.quantity : 0;
+    const holdingQuantity = parseFloat(holding.quantity);
+    const powerPerShare = holdingQuantity > 0 ? currentPowerLevel / holdingQuantity : 0;
     const newPowerLevel = powerPerShare * newQuantity;
 
     if (newQuantity <= 0) {
@@ -4868,7 +4873,7 @@ export class DatabaseStorage implements IStorage {
       await db
         .update(holdings)
         .set({
-          quantity: newQuantity,
+          quantity: newQuantity.toString(),
           powerLevel: newPowerLevel.toFixed(2),
           avgCostBasis: avgCostNormalized,
           totalCostBasis: totalCost,
@@ -4904,18 +4909,18 @@ export class DatabaseStorage implements IStorage {
     if (!holding) return;
 
     // Calculate expected powerLevel
-    const expectedPowerLevel = (holding.quantity * holding.power).toFixed(2);
+    const expectedPowerLevel = (parseFloat(holding.quantity) * holding.power).toFixed(2);
     const actualPowerLevel = parseFloat(holding.powerLevel || "0").toFixed(2);
 
     // If holding has 0 shares but non-zero powerLevel, remove it (junk data)
-    if (holding.quantity === 0 && parseFloat(actualPowerLevel) !== 0) {
+    if (parseFloat(holding.quantity) === 0 && parseFloat(actualPowerLevel) !== 0) {
       await db.delete(holdings).where(eq(holdings.id, holdingId));
       console.log(`[CONSISTENCY] Removed junk holding ${holdingId} (0 shares, powerLevel: ${actualPowerLevel})`);
       return;
     }
 
     // If inconsistent and holding has shares, fix it
-    if (expectedPowerLevel !== actualPowerLevel && holding.quantity > 0) {
+    if (expectedPowerLevel !== actualPowerLevel && parseFloat(holding.quantity) > 0) {
       await db.update(holdings).set({
         powerLevel: expectedPowerLevel,
         lastUpdated: new Date(),
@@ -5011,7 +5016,7 @@ export class DatabaseStorage implements IStorage {
         eq(holdings.assetType, "community")
       ));
 
-    if (!communityHolding || communityHolding.quantity < 1) {
+    if (!communityHolding || parseFloat(communityHolding.quantity) < 1) {
       throw new Error("Insufficient community shares to create community boost");
     }
 
@@ -5020,7 +5025,7 @@ export class DatabaseStorage implements IStorage {
       // Deduct 1 community share
       await tx.update(holdings)
         .set({
-          quantity: sql`${holdings.quantity} - 1`,
+          quantity: sql`${holdings.quantity} - '1'`,
           lastUpdated: new Date()
         })
         .where(
@@ -5051,7 +5056,7 @@ export class DatabaseStorage implements IStorage {
         eq(holdings.assetType, "player"),
         eq(holdings.assetId, playerId),
         or(
-          gt(holdings.quantity, 0),
+          gt(holdings.quantity, "0"),
           gt(holdings.powerLevel, "0")
         )
       ));
@@ -5225,14 +5230,14 @@ export class DatabaseStorage implements IStorage {
           )
         );
       const lockedShares = Number(lockedResult?.total || 0);
-      const availableShares = regularHolding.quantity - lockedShares;
+      const availableShares = parseFloat(regularHolding.quantity) - lockedShares;
 
       if (availableShares < rawShareCount) {
         throw new Error(`Only ${availableShares} shares available (${lockedShares} locked)`);
       }
 
       // Calculate new regular quantity
-      const newRegularQuantity = regularHolding.quantity - rawShareCount;
+      const newRegularQuantity = parseFloat(regularHolding.quantity) - rawShareCount;
 
       // Update or remove regular holding
       if (newRegularQuantity <= 0) {
@@ -5243,7 +5248,7 @@ export class DatabaseStorage implements IStorage {
         await tx
           .update(holdings)
           .set({
-            quantity: newRegularQuantity,
+            quantity: newRegularQuantity.toString(),
             // powerLevel = quantity * power = newRegularQuantity * 1 = newRegularQuantity
             powerLevel: newRegularQuantity.toFixed(2),
             lastUpdated: new Date(),
@@ -5283,8 +5288,8 @@ export class DatabaseStorage implements IStorage {
             userId,
             assetType: "player",
             assetId: playerId,
-            quantity: 1,
-            power: powerGained, // The single share has power = rawShareCount / 5
+            quantity: "1",
+            power: Math.round(powerGained), // The single share has power = rawShareCount / 5
             powerLevel: powerGained.toFixed(2), // powerLevel = power * quantity = powerGained * 1
             avgCostBasis: regularHolding.avgCostBasis,
             totalCostBasis: (powerGained * parseFloat(regularHolding.avgCostBasis)).toFixed(2),
@@ -5351,7 +5356,7 @@ export class DatabaseStorage implements IStorage {
           eq(holdings.assetId, "community")
         )
       );
-    return holding?.quantity || 0;
+    return holding ? parseFloat(holding.quantity) : 0;
   }
 
   // Get holding with power level information for a specific player
@@ -5383,9 +5388,9 @@ export class DatabaseStorage implements IStorage {
     const lockedShares = Number(lockedResult?.total || 0);
 
     return {
-      quantity: holding.quantity,
+      quantity: parseFloat(holding.quantity),
       powerLevel: holding.powerLevel || "0.00",
-      availableShares: holding.quantity - lockedShares,
+      availableShares: parseFloat(holding.quantity) - lockedShares,
     };
   }
 

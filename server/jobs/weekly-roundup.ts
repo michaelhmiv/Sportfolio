@@ -166,14 +166,14 @@ async function gatherWeeklyStats(startDate: Date, endDate: Date): Promise<Weekly
     .orderBy(desc(trades.executedAt));
   
   const totalVolume = recentTrades.reduce((sum: number, t: Trade) => 
-    sum + t.quantity * parseFloat(t.price), 0);
+    sum + parseFloat(t.quantity) * parseFloat(t.price), 0);
   const totalTrades = recentTrades.length;
   
   // Calculate player price changes and volume
   const playerStats = new Map<string, { volume: number; trades: number }>();
   recentTrades.forEach((trade: Trade) => {
     const stats = playerStats.get(trade.playerId) || { volume: 0, trades: 0 };
-    stats.volume += trade.quantity * parseFloat(trade.price);
+    stats.volume += parseFloat(trade.quantity) * parseFloat(trade.price);
     stats.trades += 1;
     playerStats.set(trade.playerId, stats);
   });

@@ -7,8 +7,9 @@
  * Features:
  * - Buy/Sell toggle
  * - Real-time price quotes
- * - Slippage warnings
- * - Instant trade execution
+ * - Slider-based amount input with quick select buttons
+ * - Fee breakdown display
+ * - Mobile-optimized interface
  */
 
 import { useState, useEffect, useCallback } from "react";
@@ -16,14 +17,14 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
+import { Slider } from "@/components/ui/slider";
 import {
   ArrowRightLeft,
   TrendingUp,
   TrendingDown,
-  AlertTriangle,
-  CheckCircle2,
-  Loader2
+  Loader2,
+  Flame,
+  Droplets
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
@@ -52,6 +53,11 @@ interface QuoteData {
   newPoolPrice: number;
 }
 
+// Fee constants
+const BURN_FEE_PERCENT = 1; // 1% burned
+const LP_FEE_PERCENT = 1; // 1% to LPs
+const TOTAL_FEE_PERCENT = BURN_FEE_PERCENT + LP_FEE_PERCENT; // 2% total
+
 export function AmmTradePanel({
   playerId,
   playerName,
@@ -67,9 +73,14 @@ export function AmmTradePanel({
 
   const [tradeType, setTradeType] = useState<TradeType>(initialTradeType || "buy");
   const [amount, setAmount] = useState<string>("");
-  const [maxSlippage, setMaxSlippage] = useState<number>(2); // 2% default - more reasonable for most trades
+  const [sliderValue, setSliderValue] = useState<number>(0);
+  const [maxSlippage, setMaxSlippage] = useState<number>(10); // 10% default - generous
+  const [showAdvanced, setShowAdvanced] = useState<boolean>(false);
   const [quote, setQuote] = useState<QuoteData | null>(null);
   const [isLoadingQuote, setIsLoadingQuote] = useState(false);
+
+  // Calculate max amount based on trade type
+  const maxAmount = tradeType === "buy" ? userBalance : userShares;
 
   // Fetch pool data
   const { data: poolData } = useQuery({
@@ -80,9 +91,53 @@ export function AmmTradePanel({
       return res.json();
     },
     enabled: !!playerId,
-    refetchInterval: 5000, // Refresh every 5 seconds
-    refetchIntervalInBackground: false, // Don't poll when tab is inactive
+    refetchInterval: 5000,
+    refetchIntervalInBackground: false,
   });
+
+  // Handle slider change
+  const handleSliderChange = useCallback((value: number[]) => {
+    const percentage = value[0];
+    setSliderValue(percentage);
+    
+    if (maxAmount > 0) {
+      const newAmount = (maxAmount * percentage) / 100;
+      // Format based on trade type
+      if (tradeType === "buy") {
+        setAmount(newAmount.toFixed(2));
+      } else {
+        setAmount(newAmount.toFixed(4));
+      }
+    }
+  }, [maxAmount, tradeType]);
+
+  // Handle quick select buttons
+  const handleQuickSelect = useCallback((percentage: number) => {
+    setSliderValue(percentage);
+    
+    if (maxAmount > 0) {
+      const newAmount = (maxAmount * percentage) / 100;
+      if (tradeType === "buy") {
+        setAmount(newAmount.toFixed(2));
+      } else {
+        setAmount(newAmount.toFixed(4));
+      }
+    }
+  }, [maxAmount, tradeType]);
+
+  // Handle manual input change
+  const handleManualInputChange = useCallback((value: string) => {
+    setAmount(value);
+    
+    // Update slider to match manual input
+    const numValue = parseFloat(value);
+    if (!isNaN(numValue) && maxAmount > 0) {
+      const percentage = Math.min((numValue / maxAmount) * 100, 100);
+      setSliderValue(percentage);
+    } else {
+      setSliderValue(0);
+    }
+  }, [maxAmount]);
 
   // Debounced quote fetch
   const fetchQuote = useCallback(async () => {
@@ -109,7 +164,6 @@ export function AmmTradePanel({
     } catch (error) {
       console.error("Error fetching quote:", error);
       setQuote(null);
-      // Only show error toast if it's not a network cancellation
       if (error instanceof Error && error.message !== "Failed to fetch quote") {
         toast({
           title: "Quote Error",
@@ -124,9 +178,16 @@ export function AmmTradePanel({
 
   // Fetch quote when amount or trade type changes
   useEffect(() => {
-    const timer = setTimeout(fetchQuote, 300); // Debounce 300ms
+    const timer = setTimeout(fetchQuote, 300);
     return () => clearTimeout(timer);
   }, [fetchQuote]);
+
+  // Reset amount when trade type changes
+  useEffect(() => {
+    setAmount("");
+    setSliderValue(0);
+    setQuote(null);
+  }, [tradeType]);
 
   // Execute buy mutation
   const buyMutation = useMutation({
@@ -153,12 +214,12 @@ export function AmmTradePanel({
         description: `Bought ${data.sharesReceived.toFixed(2)} shares at $${data.pricePerShare.toFixed(2)}`,
       });
 
-      // Invalidate relevant queries
       queryClient.invalidateQueries({ queryKey: ["/api/amm", playerId] });
       queryClient.invalidateQueries({ queryKey: ["/api/user"] });
       queryClient.invalidateQueries({ queryKey: ["/api/holdings"] });
 
       setAmount("");
+      setSliderValue(0);
       setQuote(null);
       onTradeSuccess?.();
     },
@@ -196,12 +257,12 @@ export function AmmTradePanel({
         description: `Sold ${data.sharesSold} shares at $${data.pricePerShare.toFixed(2)}`,
       });
 
-      // Invalidate relevant queries
       queryClient.invalidateQueries({ queryKey: ["/api/amm", playerId] });
       queryClient.invalidateQueries({ queryKey: ["/api/user"] });
       queryClient.invalidateQueries({ queryKey: ["/api/holdings"] });
 
       setAmount("");
+      setSliderValue(0);
       setQuote(null);
       onTradeSuccess?.();
     },
@@ -243,8 +304,24 @@ export function AmmTradePanel({
   };
 
   const isExecuting = buyMutation.isPending || sellMutation.isPending;
-  const showHighSlippage = quote && quote.slippagePercent > 5;
-  const showExtremeSlippage = quote && quote.slippagePercent > maxSlippage;
+
+  // Calculate fee amounts
+  const calculateFees = () => {
+    if (!amount || parseFloat(amount) <= 0) return null;
+    
+    const amountNum = parseFloat(amount);
+    const burnFee = amountNum * (BURN_FEE_PERCENT / 100);
+    const lpFee = amountNum * (LP_FEE_PERCENT / 100);
+    
+    return {
+      burnFee,
+      lpFee,
+      totalFee: burnFee + lpFee,
+      netAmount: amountNum - burnFee - lpFee
+    };
+  };
+
+  const fees = calculateFees();
 
   if (!isAuthenticated) {
     return (
@@ -263,11 +340,7 @@ export function AmmTradePanel({
         <Button
           variant={tradeType === "buy" ? "default" : "outline"}
           className="flex-1"
-          onClick={() => {
-            setTradeType("buy");
-            setAmount("");
-            setQuote(null);
-          }}
+          onClick={() => setTradeType("buy")}
         >
           <TrendingUp className="w-4 h-4 mr-2" />
           Buy
@@ -275,61 +348,82 @@ export function AmmTradePanel({
         <Button
           variant={tradeType === "sell" ? "default" : "outline"}
           className="flex-1"
-          onClick={() => {
-            setTradeType("sell");
-            setAmount("");
-            setQuote(null);
-          }}
+          onClick={() => setTradeType("sell")}
         >
           <TrendingDown className="w-4 h-4 mr-2" />
           Sell
         </Button>
       </div>
 
-      {/* Amount Input */}
-      <div className="space-y-2">
-        <Label htmlFor="amount">
-          {tradeType === "buy" ? "Amount to Spend (SB)" : "Shares to Sell"}
-        </Label>
-        <div className="flex gap-2">
+      {/* Amount Selection */}
+      <div className="space-y-4">
+        {/* Label with balance */}
+        <div className="flex justify-between items-center">
+          <Label>
+            {tradeType === "buy" ? "Amount to Spend" : "Shares to Sell"}
+          </Label>
+          <span className="text-xs text-muted-foreground">
+            {tradeType === "buy"
+              ? `Balance: $${userBalance.toFixed(2)}`
+              : `Owned: ${userShares.toFixed(4)} shares`}
+          </span>
+        </div>
+
+        {/* Slider */}
+        <div className="space-y-2">
+          <Slider
+            value={[sliderValue]}
+            onValueChange={handleSliderChange}
+            max={100}
+            step={0.1}
+            className="w-full"
+          />
+          <div className="flex justify-between text-xs text-muted-foreground">
+            <span>0%</span>
+            <span className="font-medium">{sliderValue.toFixed(1)}%</span>
+            <span>100%</span>
+          </div>
+        </div>
+
+        {/* Quick Select Buttons */}
+        <div className="grid grid-cols-4 gap-2">
+          {[25, 50, 75, 100].map((percent) => (
+            <Button
+              key={percent}
+              variant="outline"
+              size="sm"
+              onClick={() => handleQuickSelect(percent)}
+              className="text-xs"
+            >
+              {percent === 100 ? "Max" : `${percent}%`}
+            </Button>
+          ))}
+        </div>
+
+        {/* Manual Input */}
+        <div className="flex items-center gap-3">
+          <Label htmlFor="manual-amount" className="text-sm text-muted-foreground whitespace-nowrap">
+            Manual:
+          </Label>
           <Input
-            id="amount"
+            id="manual-amount"
             type="number"
             placeholder={tradeType === "buy" ? "100" : "10"}
             value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            min={tradeType === "buy" ? 1 : 1}
+            onChange={(e) => handleManualInputChange(e.target.value)}
+            min={0.01}
             step={tradeType === "buy" ? 0.01 : 0.0001}
+            className="flex-1"
           />
-          {tradeType === "buy" && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setAmount(userBalance.toFixed(2))}
-            >
-              Max
-            </Button>
-          )}
-          {tradeType === "sell" && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setAmount(userShares.toString())}
-            >
-              Max
-            </Button>
-          )}
+          <span className="text-sm text-muted-foreground whitespace-nowrap">
+            {tradeType === "buy" ? "SB" : "shares"}
+          </span>
         </div>
-        <p className="text-xs text-muted-foreground">
-          {tradeType === "buy"
-            ? `Balance: $${userBalance.toFixed(2)}`
-            : `Shares owned: ${userShares}`}
-        </p>
       </div>
 
       {/* Quote Display */}
       {quote && (
-        <div className="p-4 border rounded-lg bg-accent/5 space-y-3">
+        <div className="p-4 border rounded-lg bg-accent/5 space-y-4">
           {/* Primary Trade Info */}
           <div className="text-center pb-3 border-b border-border/50">
             <div className="text-3xl font-bold text-foreground">
@@ -342,43 +436,39 @@ export function AmmTradePanel({
             </div>
           </div>
 
-          {/* Slippage Indicator - PROMINENT */}
-          <div className="space-y-2">
-            <div className="flex justify-between items-center">
-              <span className="text-sm font-medium">Price Impact</span>
-              <div className="flex items-center gap-2">
-                <Badge
-                  variant={quote.slippagePercent > 5 ? "destructive" : quote.slippagePercent > 1 ? "outline" : "default"}
-                  className={`text-xs ${quote.slippagePercent > 5 ? '' : quote.slippagePercent > 1 ? 'border-amber-500 text-amber-600' : 'bg-green-100 text-green-700'}`}
-                >
-                  {quote.slippagePercent.toFixed(2)}%
-                </Badge>
-                {quote.slippagePercent > maxSlippage && (
-                  <span className="text-xs text-destructive font-medium">EXCEEDS LIMIT</span>
-                )}
+          {/* Fee Breakdown */}
+          {fees && (
+            <div className="space-y-2 pt-2 border-t border-border/50">
+              <div className="text-xs font-medium text-muted-foreground mb-2">Fee Breakdown</div>
+              
+              <div className="flex justify-between items-center text-sm">
+                <div className="flex items-center gap-2">
+                  <Flame className="w-4 h-4 text-orange-500" />
+                  <span>Burn Fee ({BURN_FEE_PERCENT}%)</span>
+                </div>
+                <span className="text-muted-foreground">
+                  {tradeType === "buy" ? `$${fees.burnFee.toFixed(2)}` : `${(fees.burnFee / quote.effectivePrice).toFixed(4)} shares`}
+                </span>
+              </div>
+              
+              <div className="flex justify-between items-center text-sm">
+                <div className="flex items-center gap-2">
+                  <Droplets className="w-4 h-4 text-blue-500" />
+                  <span>LP Fee ({LP_FEE_PERCENT}%)</span>
+                </div>
+                <span className="text-muted-foreground">
+                  {tradeType === "buy" ? `$${fees.lpFee.toFixed(2)}` : `${(fees.lpFee / quote.effectivePrice).toFixed(4)} shares`}
+                </span>
+              </div>
+
+              <div className="flex justify-between items-center text-sm font-medium pt-1 border-t border-dashed">
+                <span>Total Fees ({TOTAL_FEE_PERCENT}%)</span>
+                <span>
+                  {tradeType === "buy" ? `$${fees.totalFee.toFixed(2)}` : `${(fees.totalFee / quote.effectivePrice).toFixed(4)} shares`}
+                </span>
               </div>
             </div>
-
-            {/* Visual Slippage Bar */}
-            <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
-              <div
-                className={`h-full transition-all ${quote.slippagePercent > 5
-                    ? 'bg-destructive'
-                    : quote.slippagePercent > 1
-                      ? 'bg-amber-500'
-                      : 'bg-green-500'
-                  }`}
-                style={{ width: `${Math.min(quote.slippagePercent * 5, 100)}%` }}
-              />
-            </div>
-
-            {/* Slippage Context */}
-            <div className="text-xs text-muted-foreground flex justify-between">
-              <span>0%</span>
-              <span>Acceptable: &lt;1%</span>
-              <span>High: &gt;5%</span>
-            </div>
-          </div>
+          )}
 
           {/* Pool Context */}
           {poolData && (
@@ -393,77 +483,50 @@ export function AmmTradePanel({
                   <span className="font-medium">${poolData.playMoney?.toLocaleString() || 'N/A'}</span>
                   <div className="text-muted-foreground">Liquidity</div>
                 </div>
-                <div className="bg-muted px-2 py-1 rounded flex-1 text-center">
-                  <span className="font-medium">{poolData.totalTrades?.toLocaleString() || '0'}</span>
-                  <div className="text-muted-foreground">Trades</div>
-                </div>
               </div>
-            </div>
-          )}
-
-          {/* Detailed Breakdown */}
-          <div className="space-y-1.5 pt-2 border-t border-border/50">
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Current Market Price:</span>
-              <span>${quote.currentPrice.toFixed(2)}/share</span>
-            </div>
-
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Your Effective Price:</span>
-              <span className={quote.slippagePercent > 1 ? 'text-amber-600' : ''}>
-                ${quote.effectivePrice.toFixed(2)}/share
-              </span>
-            </div>
-
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Price After Trade:</span>
-              <span>${quote.newPoolPrice.toFixed(2)}/share</span>
-            </div>
-          </div>
-
-          {/* Warnings */}
-          {quote.slippagePercent > 1 && quote.slippagePercent <= 5 && (
-            <div className="flex items-start gap-2 text-xs text-amber-600 bg-amber-50 p-2 rounded">
-              <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-              <span>Your trade will move the price by {quote.slippagePercent.toFixed(2)}%. Consider a smaller trade for better pricing.</span>
-            </div>
-          )}
-
-          {quote.slippagePercent > 5 && (
-            <div className="flex items-start gap-2 text-xs text-destructive bg-destructive/10 p-2 rounded">
-              <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-              <span>
-                <strong>High price impact warning!</strong> This trade will move the price significantly ({quote.slippagePercent.toFixed(2)}%).
-                Consider reducing trade size or splitting into smaller trades.
-              </span>
-            </div>
-          )}
-
-          {quote.slippagePercent > maxSlippage && (
-            <div className="flex items-start gap-2 text-xs text-destructive bg-destructive/10 p-2 rounded">
-              <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-              <span>
-                Trade blocked: Slippage ({quote.slippagePercent.toFixed(2)}%) exceeds your maximum allowed ({maxSlippage}%).
-                Increase your slippage tolerance or reduce trade size.
-              </span>
             </div>
           )}
         </div>
       )}
 
-      {/* Max Slippage Setting */}
-      <div className="space-y-2">
-        <Label htmlFor="maxSlippage">Max Slippage (%)</Label>
-        <Input
-          id="maxSlippage"
-          type="number"
-          value={maxSlippage}
-          onChange={(e) => setMaxSlippage(parseFloat(e.target.value) || 5)}
-          min={0.1}
-          max={50}
-          step={0.5}
-        />
+      {/* Advanced Settings Toggle */}
+      <div className="pt-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setShowAdvanced(!showAdvanced)}
+          className="text-xs text-muted-foreground"
+        >
+          {showAdvanced ? "Hide Advanced" : "Show Advanced"}
+        </Button>
       </div>
+
+      {/* Advanced Settings */}
+      {showAdvanced && (
+        <div className="space-y-2 p-3 border rounded-lg bg-muted/30">
+          <Label htmlFor="maxSlippage" className="text-sm">
+            Max Slippage Tolerance (%)
+          </Label>
+          <Input
+            id="maxSlippage"
+            type="number"
+            value={maxSlippage}
+            onChange={(e) => {
+              const value = parseFloat(e.target.value);
+              if (!isNaN(value) && value >= 0.1 && value <= 50) {
+                setMaxSlippage(value);
+              }
+            }}
+            min={0.1}
+            max={50}
+            step={0.1}
+            className="text-sm"
+          />
+          <p className="text-xs text-muted-foreground">
+            Trades will fail if price moves more than this percentage. Default: 10%
+          </p>
+        </div>
+      )}
 
       {/* Execute Button */}
       <Button
@@ -473,7 +536,6 @@ export function AmmTradePanel({
           !quote ||
           isExecuting ||
           isLoadingQuote ||
-          showExtremeSlippage ||
           (tradeType === "buy" && parseFloat(amount) > userBalance) ||
           (tradeType === "sell" && parseFloat(amount) > userShares)
         }
@@ -491,24 +553,6 @@ export function AmmTradePanel({
           </>
         )}
       </Button>
-
-      {/* Pool Info */}
-      {poolData && (
-        <div className="pt-4 border-t text-xs text-muted-foreground space-y-1">
-          <div className="flex justify-between">
-            <span>Pool Shares:</span>
-            <span>{parseFloat(poolData.shares).toLocaleString()}</span>
-          </div>
-          <div className="flex justify-between">
-            <span>Pool Liquidity:</span>
-            <span>${parseFloat(poolData.playMoney).toLocaleString()}</span>
-          </div>
-          <div className="flex justify-between">
-            <span>Total Trades:</span>
-            <span>{poolData.totalTrades.toLocaleString()}</span>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

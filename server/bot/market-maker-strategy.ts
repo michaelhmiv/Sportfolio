@@ -31,7 +31,7 @@ interface MarketMakerConfig {
  */
 async function getBotHoldings(userId: string, playerId: string): Promise<number> {
   const holding = await storage.getHolding(userId, "player", playerId);
-  return holding?.quantity || 0;
+  return holding ? parseFloat(holding.quantity) : 0;
 }
 
 /**
