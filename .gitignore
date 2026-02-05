@@ -7,3 +7,17 @@ vite.config.ts.*
 .env
 .env.*
 !.env.example
+
+# Mobile build artifacts
+mobile/ios/App/build/
+mobile/ios/App/Pods/
+mobile/ios/App/Podfile.lock
+mobile/ios/App/App.xcworkspace/xcuserdata/
+mobile/ios/App/App.xcodeproj/xcuserdata/
+mobile/android/app/build/
+mobile/android/.gradle/
+mobile/android/local.properties
+mobile/android/*.iml
+mobile/android/.idea/
+*.apk
+*.ipa

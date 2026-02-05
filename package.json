@@ -11,9 +11,19 @@
     "db:push": "drizzle-kit push",
     "test": "vitest",
     "test:run": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "mobile:sync": "npm run build:client && npx cap sync",
+    "mobile:ios": "npx cap open ios",
+    "mobile:android": "npx cap open android",
+    "mobile:build:ios": "cd mobile/ios && xcodebuild -workspace App.xcworkspace -scheme App -configuration Release",
+    "mobile:build:android": "cd mobile/android && ./gradlew assembleRelease",
+    "build:client": "vite build"
   },
   "dependencies": {
+    "@capacitor/android": "^8.0.2",
+    "@capacitor/cli": "^8.0.2",
+    "@capacitor/core": "^8.0.2",
+    "@capacitor/ios": "^8.0.2",
     "@hookform/resolvers": "^3.10.0",
     "@jridgewell/trace-mapping": "^0.3.25",
     "@neondatabase/serverless": "^0.10.4",

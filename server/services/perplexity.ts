@@ -232,7 +232,7 @@ class PerplexityService {
           messages: [
             {
               role: "system",
-              content: "You are a breaking news sports reporter for NBA and NFL. Provide factual, concise news updates about player injuries, trades, signings, and major performances. Format your response as: [Headline] - [Brief 1-2 sentence summary]."
+              content: "You are a breaking news sports reporter for NBA, NFL, and MLB. Provide factual, concise news updates about player injuries, trades, signings, coaching hires, and major performances. Format your response as: [Headline] - [Brief 1-2 sentence summary]."
             },
             {
               role: "user",
@@ -241,7 +241,7 @@ class PerplexityService {
           ],
           max_tokens: 400,
           temperature: 0.1, // Low temperature for factual news
-          search_recency_filter: "hour", // Focus on very recent news
+          search_recency_filter: "day", // Capture news from last 12-24 hours
           return_images: false,
           return_related_questions: false,
         }),
