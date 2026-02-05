@@ -30,6 +30,7 @@ import { OnboardingMissions } from "@/components/onboarding-missions";
 import { MarketTicker } from "@/components/market-ticker";
 import { GameStatsModal } from "@/components/game-stats-modal";
 import { Zap, Flame } from "lucide-react";
+import { BackgroundPattern, CardAccent, TierBadge } from "@/components/ui/decorative-elements";
 
 interface DashboardData {
   user: {
@@ -293,14 +294,17 @@ export default function Dashboard() {
           {/* Balance Header - Only show for authenticated users */}
           {isAuthenticated && data?.user && (
             <div className="p-4 sm:p-6 rounded-lg bg-card border shadow-sm relative overflow-hidden group">
+              {/* Background Pattern */}
+              <BackgroundPattern variant="gradient-mesh" color="primary" opacity={0.05} />
+              
               {/* Labels row */}
-              <div className="flex justify-between gap-4 mb-4">
+              <div className="flex justify-between gap-4 mb-4 relative z-10">
                 <div className="text-xs text-muted-foreground uppercase tracking-wider font-sans">Cash Balance</div>
                 <div className="text-xs text-muted-foreground uppercase tracking-wider font-sans">Portfolio Value</div>
               </div>
 
               {/* Values row */}
-              <div className="flex justify-between gap-4 items-center">
+              <div className="flex justify-between gap-4 items-center relative z-10">
                 <div className="flex items-center gap-2 min-w-0 flex-1">
                   <div className="fintech-balance text-foreground truncate" data-testid="text-balance">
                     <AnimatedPrice
@@ -367,8 +371,10 @@ export default function Dashboard() {
           {/* Games */}
           {todayGames && (
             <ScrollReveal delay={0.1}>
-              <Card className="mb-3 sm:mb-6">
-                <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 space-y-0 pb-2">
+              <Card className="mb-3 sm:mb-6 relative overflow-hidden">
+                {/* Card Accent */}
+                <CardAccent variant="top" color="primary" intensity="medium" />
+                <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 space-y-0 pb-2 relative z-10">
                   <div className="flex items-center gap-2">
                     <CardTitle className="text-sm font-medium uppercase tracking-wide">
                       {isToday(selectedDate) ? "Today's Games" : "Games"}
@@ -457,13 +463,14 @@ export default function Dashboard() {
                             >
                               {/* Game Score Card - click to open stats modal */}
                               <div
-                                className="p-2 rounded-md bg-muted hover:bg-secondary cursor-pointer"
+                                className="p-2 rounded-md bg-muted hover:bg-secondary cursor-pointer relative overflow-hidden group"
                                 onClick={() => {
                                   if (effectiveStatus === 'inprogress' || effectiveStatus === 'completed') {
                                     setFlippedGameId(game.gameId);
                                   }
                                 }}
                               >
+                                {/* Status Indicator for Live Games */}
                                 <div className="flex flex-col gap-1">
                                   <div className="flex items-center justify-between">
                                     <span className="font-medium text-xs">{game.awayTeam}</span>
@@ -521,8 +528,10 @@ export default function Dashboard() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 sm:gap-3">
             {/* Power Summary */}
             <ScrollReveal delay={0.35}>
-              <Card className="lg:col-span-1">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <Card className="lg:col-span-1 relative overflow-hidden">
+                {/* Card Accent */}
+                <CardAccent variant="top" color="warning" intensity="medium" />
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative z-10">
                   <CardTitle className="text-sm font-medium uppercase tracking-wide">Power</CardTitle>
                   <Zap className="w-4 h-4 text-yellow-500" />
                 </CardHeader>
@@ -530,7 +539,7 @@ export default function Dashboard() {
                   {isAuthenticated && data?.power ? (
                     <>
                       {/* Active Boosts Stats */}
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-2 gap-2 relative z-10">
                         <div className="p-2 bg-primary/10 rounded-md">
                           <div className="flex items-center gap-1 mb-1">
                             <Flame className="w-3 h-3 text-orange-500" />
@@ -548,9 +557,9 @@ export default function Dashboard() {
                       </div>
 
                       {/* Slots Remaining */}
-                      <div className="flex items-center gap-2 p-2 border rounded-md">
+                      <div className="flex items-center gap-2 p-2 border rounded-md relative z-10">
                         <div className="flex-1">
-                          <div className="text-xs text-muted-foreground">Slots Available</div>
+                          <div className="text-xs text-muted-foreground mb-1">Slots Available</div>
                           <div className="flex gap-1 mt-1">
                             {data.power.availableSlots.map(slot => (
                               <Badge key={slot} variant="outline" className="text-xs">

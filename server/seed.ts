@@ -84,7 +84,7 @@ async function seed() {
         userId: user.id,
         assetType: "player",
         assetId: share.playerId,
-        quantity: share.quantity,
+        quantity: share.quantity.toString(),
         avgCostBasis: share.avgCost,
         totalCostBasis: (share.quantity * parseFloat(share.avgCost)).toFixed(2),
       })

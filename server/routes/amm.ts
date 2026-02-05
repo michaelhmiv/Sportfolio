@@ -13,6 +13,11 @@ import { getPool, getOrCreatePool, getBuyQuote, getSellQuote, executeBuy, execut
 import { isAuthenticated } from "../supabaseAuth";
 import { storage } from "../storage";
 
+// Slippage validation bounds
+const MIN_SLIPPAGE = 0.001;  // 0.1%
+const MAX_SLIPPAGE = 0.50;   // 50%
+const DEFAULT_SLIPPAGE = 0.05; // 5%
+
 export function registerAmmRoutes(app: Express) {
   // Helper to get user ID from authenticated request
   const getUserId = (req: any): string => {
@@ -142,8 +147,13 @@ export function registerAmmRoutes(app: Express) {
       }
 
       const amount = parseFloat(sbAmount);
-      // maxSlippage is already in decimal format from frontend (e.g., 0.02 for 2%)
-      const maxSlippageDecimal = maxSlippage ? parseFloat(maxSlippage) : undefined;
+      // Validate and clamp maxSlippage to safe bounds
+      let maxSlippageDecimal = maxSlippage !== undefined ? parseFloat(maxSlippage) : DEFAULT_SLIPPAGE;
+      if (isNaN(maxSlippageDecimal) || maxSlippageDecimal < MIN_SLIPPAGE) {
+        maxSlippageDecimal = MIN_SLIPPAGE;
+      } else if (maxSlippageDecimal > MAX_SLIPPAGE) {
+        maxSlippageDecimal = MAX_SLIPPAGE;
+      }
 
       const result = await executeBuy(playerId, userId, amount, maxSlippageDecimal);
 
@@ -181,8 +191,13 @@ export function registerAmmRoutes(app: Express) {
       }
 
       const amount = parseFloat(sharesAmount);
-      // maxSlippage is already in decimal format from frontend (e.g., 0.02 for 2%)
-      const maxSlippageDecimal = maxSlippage ? parseFloat(maxSlippage) : undefined;
+      // Validate and clamp maxSlippage to safe bounds
+      let maxSlippageDecimal = maxSlippage !== undefined ? parseFloat(maxSlippage) : DEFAULT_SLIPPAGE;
+      if (isNaN(maxSlippageDecimal) || maxSlippageDecimal < MIN_SLIPPAGE) {
+        maxSlippageDecimal = MIN_SLIPPAGE;
+      } else if (maxSlippageDecimal > MAX_SLIPPAGE) {
+        maxSlippageDecimal = MAX_SLIPPAGE;
+      }
 
       const result = await executeSell(playerId, userId, amount, maxSlippageDecimal);
 

@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
-import { Binoculars, X } from "lucide-react";
+import { Binoculars, X, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -10,6 +10,7 @@ interface ScoutReadyBannerProps {
   playerCount: number;
   onView: () => void;
   onDismiss: () => void;
+  onViewPortfolio?: () => void;
 }
 
 export function ScoutReadyBanner({
@@ -18,13 +19,14 @@ export function ScoutReadyBanner({
   playerCount,
   onView,
   onDismiss,
+  onViewPortfolio,
 }: ScoutReadyBannerProps) {
   const [progress, setProgress] = useState(100);
 
   useEffect(() => {
     if (isVisible) {
       setProgress(100);
-      const duration = 15000; // 15 seconds
+      const duration = 5000; // 5 seconds
       const interval = 100; // Update every 100ms
       const step = 100 / (duration / interval);
 
@@ -84,7 +86,7 @@ export function ScoutReadyBanner({
             </div>
 
             {/* Actions */}
-            <div className="flex items-center gap-2"
+            <div className="flex items-center gap-2 flex-wrap justify-end"
             >
               <Button
                 size="sm"
@@ -94,6 +96,17 @@ export function ScoutReadyBanner({
               >
                 View
               </Button>
+              {onViewPortfolio && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={onViewPortfolio}
+                  className="h-8 text-xs gap-1"
+                >
+                  <Wallet className="w-3 h-3" />
+                  Portfolio
+                </Button>
+              )}
               <button
                 onClick={onDismiss}
                 className="p-1 text-muted-foreground hover:text-foreground transition-colors"

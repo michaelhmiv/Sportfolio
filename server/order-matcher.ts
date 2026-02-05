@@ -76,7 +76,8 @@ export async function matchOrders(playerId: string): Promise<number> {
         // Buyer always gets regular shares (power=1) when buying from market
         const buyerHolding = await storage.getRegularHolding(buyOrder.userId, "player", playerId);
         if (buyerHolding) {
-          const newQuantity = buyerHolding.quantity + tradeQuantity;
+          const currentQty = parseFloat(buyerHolding.quantity);
+          const newQuantity = currentQty + tradeQuantity;
           const newTotalCost = parseFloat(buyerHolding.totalCostBasis) + (tradeQuantity * tradePrice);
           const newAvgCost = newTotalCost / newQuantity;
           const newPowerLevel = newQuantity; // power=1 means powerLevel = quantity
@@ -89,7 +90,8 @@ export async function matchOrders(playerId: string): Promise<number> {
         // TODO: Allow selling from powered shares via marketplace
         const sellerHolding = await storage.getRegularHolding(sellOrder.userId, "player", playerId);
         if (sellerHolding) {
-          const newQuantity = sellerHolding.quantity - tradeQuantity;
+          const currentQty = parseFloat(sellerHolding.quantity);
+          const newQuantity = currentQty - tradeQuantity;
           const newPowerLevel = newQuantity; // power=1 means powerLevel = quantity
           await storage.updateHoldingWithPower(sellOrder.userId, "player", playerId, 1, newQuantity, sellerHolding.avgCostBasis, newPowerLevel.toFixed(2));
         }

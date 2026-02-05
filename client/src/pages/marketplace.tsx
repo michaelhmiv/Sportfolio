@@ -30,6 +30,7 @@ import { MarketActivityWidget } from "@/components/market-activity-widget";
 import { Link } from "wouter";
 import { MarketplaceScanners } from "@/components/marketplace-scanners";
 import { cn } from "@/lib/utils";
+import { BackgroundPattern, CardAccent } from "@/components/ui/decorative-elements";
 
 type PlayerWithPool = Player & {
   poolLiquidity?: number;
@@ -203,16 +204,19 @@ export default function Marketplace() {
   return (
     <div className="min-h-screen bg-background p-3 sm:p-4">
       <div className="max-w-7xl mx-auto space-y-4">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold">Marketplace</h1>
-            <p className="text-sm text-muted-foreground">
-              Trade player shares with AMM instant liquidity
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <SportSelector />
+        {/* Header with Background Pattern */}
+        <div className="relative overflow-hidden rounded-xl bg-card border p-4 sm:p-6">
+          <BackgroundPattern variant="circuit" color="primary" opacity={0.04} />
+          <div className="relative z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <h1 className="text-xl sm:text-2xl font-bold">Marketplace</h1>
+              <p className="text-sm text-muted-foreground">
+                Trade player shares with AMM instant liquidity
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <SportSelector />
+            </div>
           </div>
         </div>
 
@@ -233,8 +237,9 @@ export default function Marketplace() {
             <MarketplaceScanners />
 
             {/* Search and Filters */}
-            <Card>
-              <CardContent className="p-3 space-y-3">
+            <Card className="relative overflow-hidden">
+              <CardAccent variant="left" color="primary" intensity="low" />
+              <CardContent className="p-3 space-y-3 relative z-10">
                 {/* Search */}
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -348,8 +353,9 @@ export default function Marketplace() {
             </Card>
 
             {/* Players Table */}
-            <Card>
-              <CardContent className="p-0">
+            <Card className="relative overflow-hidden">
+              <CardAccent variant="top" color="primary" intensity="low" />
+              <CardContent className="p-0 relative z-10">
                 {isLoading ? (
                   <div className="p-8 text-center text-muted-foreground">Loading players...</div>
                 ) : players.length === 0 ? (
@@ -423,61 +429,61 @@ export default function Marketplace() {
                         <tbody>
                           {players.map((player) => (
                             <tr key={player.id} className="border-b hover:bg-muted/30">
-                              <td className="p-3">
-                                <Link href={`/player/${player.id}`}>
-                                  <div className="flex items-center gap-2 cursor-pointer">
-                                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                                      <span className="text-xs font-bold">{player.firstName[0]}{player.lastName[0]}</span>
-                                    </div>
-                                    <div>
-                                      <div className="font-medium text-sm">
-                                        <PlayerName
-                                          playerId={player.id}
-                                          firstName={player.firstName}
-                                          lastName={player.lastName}
-                                        />
-                                      </div>
-                                      <div className="text-xs text-muted-foreground">
-                                        {player.team} • {player.position}
-                                      </div>
-                                    </div>
-                                  </div>
-                                </Link>
-                              </td>
-                              <td className="p-3 text-right">
-                                <div className="font-mono font-medium">
-                                  ${player.currentPrice || "0.00"}
+                          <td className="p-3">
+                            <Link href={`/player/${player.id}`}>
+                              <div className="flex items-center gap-2 cursor-pointer">
+                                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                                  <span className="text-xs font-bold">{player.firstName[0]}{player.lastName[0]}</span>
                                 </div>
-                              </td>
+                                <div>
+                                  <div className="font-medium text-sm">
+                                    <PlayerName
+                                      playerId={player.id}
+                                      firstName={player.firstName}
+                                      lastName={player.lastName}
+                                    />
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {player.team} • {player.position}
+                                  </div>
+                                </div>
+                              </div>
+                            </Link>
+                          </td>
+                          <td className="p-3 text-right">
+                            <div className="font-mono font-medium">
+                              ${player.lastTradePrice || "0.00"}
+                            </div>
+                          </td>
                               <td className="p-3 text-right text-sm text-muted-foreground">
                                 {player.volume24h?.toLocaleString() || 0}
                               </td>
-                              <td className="p-3 text-right">
-                                <div className={cn(
-                                  "font-mono text-sm",
-                                  parseFloat(player.priceChange24h || "0") >= 0 ? "text-positive" : "text-negative"
-                                )}>
-                                  {parseFloat(player.priceChange24h || "0") >= 0 ? "+" : ""}
-                                  {parseFloat(player.priceChange24h || "0").toFixed(2)}%
-                                </div>
-                              </td>
+                          <td className="p-3 text-right">
+                            <div className={cn(
+                              "font-mono text-sm",
+                              parseFloat(player.priceChange24h || "0") >= 0 ? "text-positive" : "text-negative"
+                            )}>
+                              {parseFloat(player.priceChange24h || "0") >= 0 ? "+" : ""}
+                              {parseFloat(player.priceChange24h || "0").toFixed(2)}%
+                            </div>
+                          </td>
                               <td className="p-3 text-right text-sm text-muted-foreground hidden lg:table-cell">
                                 ${player.poolLiquidity?.toLocaleString() || "N/A"}
                               </td>
-                              <td className="p-3 text-center">
-                                <Button
-                                  size="sm"
-                                  variant="default"
-                                  className="h-8 px-3"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setLocation(`/player/${player.id}?tab=buy`);
-                                  }}
-                                >
-                                  <ShoppingCart className="w-3 h-3 mr-1" />
-                                  Buy
-                                </Button>
-                              </td>
+                          <td className="p-3 text-center">
+                            <Button
+                              size="sm"
+                              variant="default"
+                              className="h-8 px-3"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setLocation(`/player/${player.id}?tab=buy`);
+                              }}
+                            >
+                              <ShoppingCart className="w-3 h-3 mr-1" />
+                              Buy
+                            </Button>
+                          </td>
                             </tr>
                           ))}
                         </tbody>
@@ -498,7 +504,7 @@ export default function Marketplace() {
                                   {player.firstName} {player.lastName}
                                 </div>
                                 <div className="text-xs text-muted-foreground">
-                                  {player.team} • ${player.currentPrice || "0.00"}
+                                  {player.team} • ${player.lastTradePrice || "0.00"}
                                 </div>
                               </div>
                             </div>

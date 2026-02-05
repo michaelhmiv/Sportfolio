@@ -39,9 +39,9 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     });
 
     // 2. Trade notifications - only for trades you participated in
-    // Check if you're the buyer or seller
-    const unsubTrade = subscribe('trade', (data: { buyerId?: string; sellerId?: string }) => {
-      if (user?.id && (data.buyerId === user.id || data.sellerId === user.id)) {
+    // Server sends userId for the trader who initiated the market order
+    const unsubTrade = subscribe('trade', (data: { userId?: string }) => {
+      if (user?.id && data.userId === user.id) {
         setUnreadCount(prev => prev + 1);
       }
     });

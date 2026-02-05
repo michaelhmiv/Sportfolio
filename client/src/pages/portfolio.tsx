@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { TrendingUp, TrendingDown, DollarSign, Crown, Clock, ShoppingCart, Trophy, ArrowUpRight, ArrowDownRight, ArrowUpDown, ChevronUp, ChevronDown, Plus, BarChart3, Zap, ChevronRight } from "lucide-react";
+import { TrendingUp, TrendingDown, DollarSign, Crown, Clock, ShoppingCart, Trophy, ArrowUpRight, ArrowDownRight, ArrowUpDown, ChevronUp, ChevronDown, Plus, BarChart3, Zap, ChevronRight, LayoutGrid, List, HelpCircle } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog,
@@ -32,6 +32,9 @@ import { AnimatedPrice } from "@/components/ui/animated-price";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useSport } from "@/lib/sport-context";
 import { SportSelector } from "@/components/sport-selector";
+import { PortfolioCardView } from "@/components/portfolio-card-view";
+import { PlayerModal } from "@/components/player-modal";
+import { CardAccent, BackgroundPattern } from "@/components/ui/decorative-elements";
 
 interface PortfolioData {
   balance: string;
@@ -133,11 +136,23 @@ export default function Portfolio() {
   const [sortField, setSortField] = useState<SortField>('value');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const { sport } = useSport();
+  
+  // View toggle state - persist in localStorage
+  const [viewMode, setViewMode] = useState<'card' | 'list'>(() => {
+    if (typeof window !== 'undefined') {
+      return (localStorage.getItem('portfolioViewMode') as 'card' | 'list') || 'list';
+    }
+    return 'list';
+  });
 
   // Condense dialog state
   const [condenseDialogOpen, setCondenseDialogOpen] = useState(false);
   const [selectedPlayerForCondense, setSelectedPlayerForCondense] = useState<{ id: string; name: string } | null>(null);
   const [sharesToCondenseInput, setSharesToCondenseInput] = useState<string>("");
+
+  // Player modal state
+  const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
+  const [playerModalOpen, setPlayerModalOpen] = useState(false);
 
   // Expanded share table state (per player)
   const [expandedShareSortField, setExpandedShareSortField] = useState<'quantity' | 'power'>('quantity');
@@ -297,6 +312,12 @@ export default function Portfolio() {
     setSelectedHoldingIds(new Set());
   };
 
+  // Handle view mode change
+  const handleViewModeChange = (mode: 'card' | 'list') => {
+    setViewMode(mode);
+    localStorage.setItem('portfolioViewMode', mode);
+  };
+
   // Handle expanded share table sort
   const handleExpandedShareSort = (field: 'quantity' | 'power') => {
     if (expandedShareSortField === field) {
@@ -378,7 +399,7 @@ export default function Portfolio() {
       if (!playerMap.has(playerId)) {
         // Calculate PnL from the first holding for this player
         const { currentValue, pnl, pnlPercent } = calculatePnL(
-          holding.quantity,
+          parseFloat(holding.quantity),
           holding.avgCostBasis,
           player.lastTradePrice
         );
@@ -399,9 +420,9 @@ export default function Portfolio() {
       const group = playerMap.get(playerId)!;
 
       const shareBreakdown: ShareBreakdown = {
-        quantity: holding.quantity,
+        quantity: parseFloat(holding.quantity),
         power: holding.power || 1,
-        powerLevel: holding.powerLevel || holding.quantity.toFixed(2),
+        powerLevel: holding.powerLevel || parseFloat(holding.quantity).toFixed(2),
         avgCostBasis: holding.avgCostBasis,
         id: holding.id,
       };
@@ -409,9 +430,10 @@ export default function Portfolio() {
       if ((holding.power || 1) === 1) {
         // Regular share - combine quantities and average cost
         if (group.regular) {
+          const holdingQty = parseFloat(holding.quantity);
           const totalCost = parseFloat(group.regular.avgCostBasis || "0") * group.regular.quantity +
-                            parseFloat(holding.avgCostBasis || "0") * holding.quantity;
-          const totalQty = group.regular.quantity + holding.quantity;
+                            parseFloat(holding.avgCostBasis || "0") * holdingQty;
+          const totalQty = group.regular.quantity + holdingQty;
           const newAvgCost = totalQty > 0 ? (totalCost / totalQty).toFixed(4) : "0.0000";
           group.regular = {
             ...group.regular,
@@ -627,8 +649,10 @@ export default function Portfolio() {
         </div>
 
         {/* Portfolio Value Chart */}
-        <Card className="mb-4 sm:mb-4">
-          <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+        <Card className="mb-4 sm:mb-4 relative overflow-hidden">
+          <CardAccent variant="top" color="primary" intensity="medium" />
+          <BackgroundPattern variant="grid" color="primary" opacity={0.02} />
+          <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2 relative z-10">
             <CardTitle className="text-sm font-medium uppercase tracking-wide">Portfolio Value</CardTitle>
             <div className="flex gap-1">
               {["1D", "7D", "1M", "1Y", "ALL"].map((range) => (
@@ -645,7 +669,7 @@ export default function Portfolio() {
               ))}
             </div>
           </CardHeader>
-          <CardContent className="pt-2">
+          <CardContent className="pt-2 relative z-10">
             {chartData && chartData.history.length > 0 ? (
               <ResponsiveContainer width="100%" height={200}>
                 <LineChart data={chartData.history}>
@@ -729,12 +753,35 @@ export default function Portfolio() {
                 </span>
               </TabsTrigger>
             </TabsList>
-            <Link href="/analytics">
-              <Button variant="outline" size="sm" className="gap-2 bg-primary/5 border-primary/30 hover:bg-primary/10" data-testid="button-analytics-portfolio">
-                <BarChart3 className="w-4 h-4" />
-                <span className="hidden sm:inline">Analytics</span>
-              </Button>
-            </Link>
+            <div className="flex items-center gap-2">
+              {/* View Toggle - Always visible */}
+              <div className="flex items-center bg-muted rounded-lg p-1">
+                <Button
+                  variant={viewMode === 'card' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  className="h-7 px-2"
+                  onClick={() => handleViewModeChange('card')}
+                  data-testid="button-view-card"
+                >
+                  <LayoutGrid className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant={viewMode === 'list' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  className="h-7 px-2"
+                  onClick={() => handleViewModeChange('list')}
+                  data-testid="button-view-list"
+                >
+                  <List className="w-4 h-4" />
+                </Button>
+              </div>
+              <Link href="/analytics">
+                <Button variant="outline" size="sm" className="gap-2 bg-primary/5 border-primary/30 hover:bg-primary/10" data-testid="button-analytics-portfolio">
+                  <BarChart3 className="w-4 h-4" />
+                  <span className="hidden sm:inline">Analytics</span>
+                </Button>
+              </Link>
+            </div>
           </div>
 
           {/* Holdings */}
@@ -775,6 +822,17 @@ export default function Portfolio() {
                     size="sm"
                     className="py-8"
                     data-testid="empty-holdings"
+                  />
+                ) : viewMode === 'card' ? (
+                  <PortfolioCardView
+                    holdings={sortedHoldings}
+                    lpPositions={lpPositions}
+                    onPowerUp={openCondenseDialog}
+                    onSelectPlayer={(playerId) => {
+                      setSelectedPlayerId(playerId);
+                      setPlayerModalOpen(true);
+                    }}
+                    sortField={sortField}
                   />
                 ) : (
                   <div>
@@ -1360,7 +1418,7 @@ export default function Portfolio() {
                   if (!holding) return null;
 
                   const powerCreated = shares / 5;
-                  const remainingShares = holding.quantity - shares;
+                  const remainingShares = parseFloat(holding.quantity) - shares;
 
                   return (
                     <div className="p-3 bg-purple-500/10 border border-purple-500/20 rounded-lg space-y-2">
@@ -1396,6 +1454,13 @@ export default function Portfolio() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Player Stats Modal */}
+        <PlayerModal
+          playerId={selectedPlayerId}
+          open={playerModalOpen}
+          onOpenChange={setPlayerModalOpen}
+        />
       </div>
     </div>
   );

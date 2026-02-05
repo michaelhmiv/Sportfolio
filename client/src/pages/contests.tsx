@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
-import { Trophy, Users, DollarSign, Clock, Calendar, ChevronLeft, ChevronRight } from "lucide-react";
+import { Trophy, Users, DollarSign, Clock, Calendar, ChevronLeft, ChevronRight, Lock, Unlock } from "lucide-react";
 import { Link } from "wouter";
 import { format } from "date-fns";
 import type { Contest, ContestEntry } from "@shared/schema";
@@ -16,6 +16,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useAuth } from "@/hooks/useAuth";
 import { useSport } from "@/lib/sport-context";
 import { SportSelector } from "@/components/sport-selector";
+import { BackgroundPattern, CardAccent } from "@/components/ui/decorative-elements";
 
 interface ContestsData {
   contests: Contest[];
@@ -82,72 +83,76 @@ export default function Contests() {
   return (
     <div className="min-h-screen bg-background p-3 sm:p-4">
       <div className="max-w-7xl mx-auto">
-        <div className="mb-4 sm:mb-4">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-3">
+        {/* Header with Background Pattern */}
+        <div className="relative overflow-hidden rounded-xl bg-card border p-4 sm:p-6 mb-4">
+          <BackgroundPattern variant="hexagons" color="primary" opacity={0.03} />
+          
+          <div className="relative z-10 flex items-center justify-between mb-2">
+            <div>
               <h1 className="hidden sm:block text-3xl font-bold">Contests</h1>
-              <SportSelector />
+              <p className="text-muted-foreground">Enter 50/50 contests and compete for prizes</p>
             </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={goToPrevDay}
-                data-testid="button-prev-day"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </Button>
-              <Popover open={showDatePicker} onOpenChange={setShowDatePicker}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 gap-2"
-                    data-testid="button-date-picker"
-                  >
-                    <Calendar className="w-4 h-4" />
-                    <span className="hidden sm:inline">
-                      {isToday(selectedDate) ? "Today" : format(selectedDate, "MMM d, yyyy")}
-                    </span>
-                    <span className="sm:hidden">
-                      {isToday(selectedDate) ? "Today" : format(selectedDate, "MMM d")}
-                    </span>
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="end">
-                  <CalendarComponent
-                    mode="single"
-                    selected={selectedDate}
-                    onSelect={(date) => {
-                      if (date) {
-                        setSelectedDate(date);
-                        setShowDatePicker(false);
-                      }
-                    }}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={goToNextDay}
-                data-testid="button-next-day"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setSelectedDate(new Date())}
-                disabled={isToday(selectedDate)}
-                data-testid="button-today"
-              >
-                Today
-              </Button>
-            </div>
+            <SportSelector />
           </div>
-          <p className="text-muted-foreground">Enter 50/50 contests and compete for prizes</p>
+          
+          <div className="relative z-10 flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={goToPrevDay}
+              data-testid="button-prev-day"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </Button>
+            <Popover open={showDatePicker} onOpenChange={setShowDatePicker}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-2"
+                  data-testid="button-date-picker"
+                >
+                  <Calendar className="w-4 h-4" />
+                  <span className="hidden sm:inline">
+                    {isToday(selectedDate) ? "Today" : format(selectedDate, "MMM d, yyyy")}
+                  </span>
+                  <span className="sm:hidden">
+                    {isToday(selectedDate) ? "Today" : format(selectedDate, "MMM d")}
+                  </span>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="end">
+                <CalendarComponent
+                  mode="single"
+                  selected={selectedDate}
+                  onSelect={(date) => {
+                    if (date) {
+                      setSelectedDate(date);
+                      setShowDatePicker(false);
+                    }
+                  }}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={goToNextDay}
+              data-testid="button-next-day"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSelectedDate(new Date())}
+              disabled={isToday(selectedDate)}
+              data-testid="button-today"
+            >
+              Today
+            </Button>
+          </div>
         </div>
 
         {isLoading ? (

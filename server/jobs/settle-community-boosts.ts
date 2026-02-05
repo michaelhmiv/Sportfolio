@@ -79,7 +79,7 @@ export async function settleCommunityBoosts(progressCallback?: ProgressCallback)
 
                 // Process payouts for each beneficiary
                 for (const beneficiary of beneficiaries) {
-                    const shares = beneficiary.quantity;
+                    const shares = parseFloat(beneficiary.quantity);
                     if (shares <= 0) continue;
 
                     const payout = shares * fantasyPoints * MULTIPLIER;

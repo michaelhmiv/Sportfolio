@@ -46,6 +46,7 @@ import Watchlists from "@/pages/watchlists";
 import Power from "@/pages/power";
 import Login from "@/pages/Login";
 import AuthCallback from "@/pages/AuthCallback";
+import CheckoutSuccess from "@/pages/checkout-success";
 import logoUrl from "@assets/Sportfolio png_1763227952318.png";
 import { LogOut, User } from "lucide-react";
 import { SiDiscord } from "react-icons/si";
@@ -212,6 +213,7 @@ function Router() {
           {/* Auth routes */}
           <Route path="/login" component={Login} />
           <Route path="/auth/callback" component={AuthCallback} />
+          <Route path="/checkout/success" component={CheckoutSuccess} />
 
           {/* Dashboard is now public - shows live data with login CTAs for non-authenticated users */}
           <Route path="/" component={Dashboard} />
@@ -400,6 +402,7 @@ function Header() {
 
 function ScoutCeremonyManager() {
   const { isReady, isShowing, data, handleScoutReady, showCeremony, closeCeremony, dismissReady } = useScoutCeremony();
+  const [, navigate] = useLocation();
 
   useEffect(() => {
     const handleEvent = (event: CustomEvent) => {
@@ -410,6 +413,11 @@ function ScoutCeremonyManager() {
     return () => window.removeEventListener('scout-ceremony-ready', handleEvent as EventListener);
   }, [handleScoutReady]);
 
+  const handleViewPortfolio = () => {
+    navigate('/portfolio');
+    dismissReady();
+  };
+
   return (
     <>
       <ScoutReadyBanner
@@ -418,6 +426,7 @@ function ScoutCeremonyManager() {
         playerCount={data?.totalPlayers || 0}
         onView={showCeremony}
         onDismiss={dismissReady}
+        onViewPortfolio={handleViewPortfolio}
       />
       <ScoutCeremonyOverlay
         isOpen={isShowing}
