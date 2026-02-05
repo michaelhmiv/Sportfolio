@@ -22,15 +22,15 @@ function getCachedConfig(): CachedConfig | null {
   try {
     const cached = localStorage.getItem(CONFIG_CACHE_KEY);
     if (!cached) return null;
-    
+
     const config: CachedConfig = JSON.parse(cached);
     const age = Date.now() - config.cachedAt;
-    
+
     if (age > CONFIG_CACHE_TTL_MS) {
       localStorage.removeItem(CONFIG_CACHE_KEY);
       return null;
     }
-    
+
     return config;
   } catch {
     return null;
@@ -48,7 +48,7 @@ function setCachedConfig(url: string, anonKey: string): void {
 
 async function initializeSupabase(): Promise<SupabaseClient> {
   debugLog('INIT', 'Starting Supabase initialization');
-  
+
   if (supabaseInstance) {
     debugLog('INIT', 'Returning cached Supabase instance');
     return supabaseInstance;
@@ -63,6 +63,8 @@ async function initializeSupabase(): Promise<SupabaseClient> {
         autoRefreshToken: true,
         persistSession: true,
         detectSessionInUrl: true,
+        storageKey: 'sportfolio-auth-token',
+        flowType: 'pkce',
       },
     });
     debugLog('CLIENT', 'Supabase client created from cache');
@@ -72,41 +74,43 @@ async function initializeSupabase(): Promise<SupabaseClient> {
   try {
     debugLog('CONFIG', 'Fetching /api/auth/config...');
     const startTime = performance.now();
-    
+
     const controller = new AbortController();
     const timeoutId = setTimeout(() => {
       debugLog('CONFIG', 'TIMEOUT - Aborting after 5 seconds');
       controller.abort();
     }, 5000);
-    
+
     const response = await fetch('/api/auth/config', {
       signal: controller.signal,
     });
     clearTimeout(timeoutId);
-    
+
     const elapsed = (performance.now() - startTime).toFixed(0);
     debugLog('CONFIG', `Response received in ${elapsed}ms, status: ${response.status}`);
-    
+
     if (!response.ok) {
       throw new Error(`Failed to fetch Supabase config: ${response.status}`);
     }
-    
+
     const config = await response.json();
     debugLog('CONFIG', 'Config parsed successfully', { url: config.url?.substring(0, 30) + '...' });
-    
+
     // Cache config for future visits
     setCachedConfig(config.url, config.anonKey);
-    
+
     debugLog('CLIENT', 'Creating Supabase client...');
     supabaseInstance = createClient(config.url, config.anonKey, {
       auth: {
         autoRefreshToken: true,
         persistSession: true,
         detectSessionInUrl: true,
+        storageKey: 'sportfolio-auth-token',
+        flowType: 'pkce',
       },
     });
     debugLog('CLIENT', 'Supabase client created successfully');
-    
+
     return supabaseInstance;
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
@@ -120,7 +124,7 @@ async function initializeSupabase(): Promise<SupabaseClient> {
 
 export function getSupabase(): Promise<SupabaseClient> {
   debugLog('GET', 'getSupabase() called', { hasPromise: !!initializationPromise });
-  
+
   if (!initializationPromise) {
     debugLog('GET', 'Creating new initialization promise');
     initializationPromise = initializeSupabase().catch((error) => {
