@@ -1541,12 +1541,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .map(pool => {
           const player = players.find(p => p.id === pool.playerId);
           return {
-            id: pool.playerId,
-            firstName: player?.firstName || "Unknown",
-            lastName: player?.lastName || "Unknown",
-            team: player?.team || "",
-            position: player?.position || "",
-            currentPrice: player?.currentPrice ? parseFloat(player.currentPrice) : null,
+            player: {
+              id: pool.playerId,
+              firstName: player?.firstName || "Unknown",
+              lastName: player?.lastName || "Unknown",
+              team: player?.team || "",
+              position: player?.position || "",
+              currentPrice: player?.currentPrice ? parseFloat(player.currentPrice) : null,
+            },
             k: parseFloat(pool.k),
             shares: parseFloat(pool.shares),
             playMoney: parseFloat(pool.playMoney),

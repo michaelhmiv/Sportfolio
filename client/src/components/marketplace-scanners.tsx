@@ -84,7 +84,7 @@ function useScannerData() {
 
 // --- Main Marketplace Component (Grid on Desktop, Carousel on Mobile) ---
 export function MarketplaceScanners() {
-    const { scanData, topRisers, topMc, isLoading } = useScannerData();
+    const { scanData, topRisers, topPools, isLoading } = useScannerData();
 
     if (isLoading) return <ScannerSkeleton />;
     if (!scanData) return null;
@@ -96,7 +96,7 @@ export function MarketplaceScanners() {
                 <ScannerCarousel
                     scanData={scanData}
                     topRisers={topRisers}
-                    topMc={topMc}
+                    topPools={topPools}
                     mode="compact"
                 />
             </div>
