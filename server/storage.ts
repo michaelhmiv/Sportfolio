@@ -4478,10 +4478,9 @@ export class DatabaseStorage implements IStorage {
     // If sport is specific, filter by it. If "ALL", fetch all.
     const normalizedSport = sport.toUpperCase();
     const whereClause = normalizedSport === "ALL"
-      ? and(isNotNull(players.lastTradePrice), gt(players.lastTradePrice, "0"))
+      ? and(gt(sql`COALESCE(${players.lastTradePrice}, ${players.currentPrice})`, "0"))
       : and(
-        isNotNull(players.lastTradePrice),
-        gt(players.lastTradePrice, "0"),
+        gt(sql`COALESCE(${players.lastTradePrice}, ${players.currentPrice})`, "0"),
         sql`UPPER(${players.sport}) = ${normalizedSport}`
       );
 
@@ -4494,7 +4493,7 @@ export class DatabaseStorage implements IStorage {
         position: players.position,
         sport: players.sport,
         currentPrice: players.currentPrice,
-        lastTradePrice: players.lastTradePrice,
+        lastTradePrice: sql<string>`COALESCE(${players.lastTradePrice}, ${players.currentPrice})`,
         volume24h: players.volume24h,
         priceChange24h: players.priceChange24h,
         marketCap: players.marketCap,
