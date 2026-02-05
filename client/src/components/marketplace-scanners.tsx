@@ -154,6 +154,7 @@ export function DashboardScanners() {
                     scanData={scanData}
                     topRisers={topRisers}
                     topMc={topMc}
+                    topPools={topPools}
                     mode="expanded"
                 />
             </div>
@@ -193,8 +194,8 @@ export function DashboardScanners() {
                                     label = "Change";
                                 } else if (section.type === "pools") {
                                     const poolSize = item.k || 0;
-                                    value = poolSize >= 1000000000 
-                                        ? `${(poolSize / 1000000000).toFixed(1)}B` 
+                                    value = poolSize >= 1000000000
+                                        ? `${(poolSize / 1000000000).toFixed(1)}B`
                                         : `${(poolSize / 1000000).toFixed(0)}M`;
                                     label = "Pool Size";
                                 }
@@ -232,7 +233,7 @@ export function DashboardScanners() {
 }
 
 // --- Shared Carousel Component ---
-function ScannerCarousel({ scanData, topRisers, topMc, mode }: { scanData: ScannerResponse, topRisers?: any[], topMc?: any[], mode: 'compact' | 'expanded' }) {
+function ScannerCarousel({ scanData, topRisers, topMc, topPools, mode }: { scanData: ScannerResponse, topRisers?: any[], topMc?: any[], topPools?: any[], mode: 'compact' | 'expanded' }) {
     const [, setLocation] = useLocation();
     const descriptions: Record<string, string> = {
         undervalued: "Players priced significantly below their calculated fair value based on recent performance.",
@@ -283,8 +284,8 @@ function ScannerCarousel({ scanData, topRisers, topMc, mode }: { scanData: Scann
                                 label = "Change";
                             } else if (type === "pools") {
                                 const poolSize = item.k || 0;
-                                value = poolSize >= 1000000000 
-                                    ? `${(poolSize / 1000000000).toFixed(1)}B` 
+                                value = poolSize >= 1000000000
+                                    ? `${(poolSize / 1000000000).toFixed(1)}B`
                                     : `${(poolSize / 1000000).toFixed(0)}M`;
                                 label = "Pool Size";
                             } else if (type === "sentiment") {
