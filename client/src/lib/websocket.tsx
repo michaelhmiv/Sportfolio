@@ -69,7 +69,6 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
               break;
 
             case 'trade':
-            case 'orderBook':
               debouncedInvalidatePlayer(message.playerId);
               break;
 
@@ -84,10 +83,6 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
 
             case 'contestUpdate':
               debouncedInvalidateContests(message.contestId);
-              break;
-
-            case 'marketActivity':
-              debouncedInvalidateMarketActivity();
               break;
 
             case 'scout_ready':
@@ -125,6 +120,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
               break;
 
             case 'marketActivity':
+              debouncedInvalidateMarketActivity();
               // Handle collection and milestone events within marketActivity
               if (message.data?.event === 'collection_completed') {
                 // Trigger collection ceremony
