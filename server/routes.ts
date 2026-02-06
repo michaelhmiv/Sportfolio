@@ -1685,9 +1685,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           totalVolume24h: 0,
         };
         const poolData = poolDataMap.get(player.id);
+        const ammSpotPrice = poolData && poolData.shares > 0 ? (poolData.playMoney / poolData.shares) : null;
 
         const LEAGUE_AVG_PE = 0.43;
-        const price = parseFloat(player.lastTradePrice || "0");
+        const price = parseFloat((isAmmOnlyMode && ammSpotPrice !== null ? ammSpotPrice.toFixed(2) : player.lastTradePrice) || "0");
         const avgFP = avgFantasyPointsMap.get(player.id) || 0;
         const peRatio = avgFP > 0 ? price / avgFP : 0;
         const derivedValueIndex = LEAGUE_AVG_PE > 0 ? (peRatio / LEAGUE_AVG_PE) * 100 : 0;
@@ -1698,6 +1699,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         return {
           ...enriched,
+          ...(isAmmOnlyMode && ammSpotPrice !== null ? {
+            lastTradePrice: ammSpotPrice.toFixed(2),
+            currentPrice: ammSpotPrice.toFixed(2),
+          } : {}),
           bestBid: null,
           bestAsk: null,
           bidSize: 0,
