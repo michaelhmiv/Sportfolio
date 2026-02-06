@@ -212,8 +212,10 @@ export default function Marketplace() {
     const params = new URLSearchParams();
     if (activeTab !== "players") params.set("tab", activeTab);
     if (sortField !== "volume") params.set("sortBy", sortField);
-    if (sortOrder !== "desc") params.set("sortOrder", sortOrder);
-    
+
+    const defaultOrderForField = getDefaultSortOrder(sortField);
+    if (sortOrder !== defaultOrderForField) params.set("sortOrder", sortOrder);
+
     const newSearch = params.toString();
     const currentPath = window.location.pathname;
     if (newSearch) {
