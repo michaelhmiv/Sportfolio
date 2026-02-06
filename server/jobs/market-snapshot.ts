@@ -13,8 +13,8 @@
  */
 
 import { db } from "../db";
-import { trades, vestingClaims, contestEntries, holdings, players, marketSnapshots } from "@shared/schema";
-import { sql, eq, gte, lte, and, sum } from "drizzle-orm";
+import { trades, vestingClaims, dailyBoosts, contestEntries, holdings, players, marketSnapshots } from "@shared/schema";
+import { sql, eq, gte, lte, and, inArray } from "drizzle-orm";
 import type { JobResult } from "./scheduler";
 import type { ProgressCallback } from "../lib/admin-stream";
 
@@ -63,8 +63,20 @@ async function calculateMetricsForDate(targetDate: Date): Promise<DailyMetrics> 
 
   const sharesVested = parseInt(vestedStats[0]?.total || "0");
 
-  // 3. Shares burned (entered in contests) that day
-  const burnedStats = await db
+  // 3. Shares burned that day (Daily Boosts in locked/processed states)
+  const burnedBoostStats = await db
+    .select({
+      total: sql<string>`COALESCE(SUM(${dailyBoosts.sharesEntered}), 0)`,
+    })
+    .from(dailyBoosts)
+    .where(and(
+      inArray(dailyBoosts.status, ["locked", "processed"]),
+      gte(dailyBoosts.boostDate, startOfDay),
+      lte(dailyBoosts.boostDate, endOfDay)
+    ));
+
+  // Legacy contest burn support during migration window
+  const burnedLegacyContestStats = await db
     .select({
       total: sql<string>`COALESCE(SUM(${contestEntries.totalSharesEntered}), 0)`,
     })
@@ -74,7 +86,9 @@ async function calculateMetricsForDate(targetDate: Date): Promise<DailyMetrics> 
       lte(contestEntries.createdAt, endOfDay)
     ));
 
-  const sharesBurned = parseInt(burnedStats[0]?.total || "0");
+  const sharesBurned =
+    parseInt(burnedBoostStats[0]?.total || "0") +
+    parseInt(burnedLegacyContestStats[0]?.total || "0");
 
   // 4. Total shares in economy (current snapshot from holdings)
   const totalSharesResult = await db

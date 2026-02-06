@@ -78,11 +78,17 @@ export function CommunityBoostSelector({ open, onOpenChange, selectedDate }: Com
   const [gameStatusFilter, setGameStatusFilter] = useState<string>("all"); // Filter by game status
 
   // Determine if we should use pagination
-  // Pagination ONLY when no filters applied (just browsing all players with today's games)
-  // When filters applied, fetch all matching players (no pagination)
+  // Pagination only for the default browse mode.
+  // Any custom sort/filter/search should fetch full set so client-side sort/filter is complete.
   const usePagination = useMemo(() => {
-    return sportFilter === 'all' && gameStatusFilter === 'all';
-  }, [sportFilter, gameStatusFilter]);
+    return (
+      sportFilter === 'all' &&
+      gameStatusFilter === 'all' &&
+      search.length === 0 &&
+      sortField === 'volume' &&
+      sortDirection === 'desc'
+    );
+  }, [sportFilter, gameStatusFilter, search, sortField, sortDirection]);
 
   // Reset pagination when filters change
   useEffect(() => {
@@ -119,8 +125,8 @@ export function CommunityBoostSelector({ open, onOpenChange, selectedDate }: Com
   // When filters are active, fetch all (high limit). When no filters, use pagination.
   const playerQueryUrl = useMemo(() => {
     const params = new URLSearchParams();
-    // When filters applied, fetch all; otherwise paginate
-    params.set('limit', usePagination ? limit.toString() : '1000');
+    // When custom sorting/filtering is active, fetch full set for accurate results.
+    params.set('limit', usePagination ? limit.toString() : '5000');
     if (search.length > 0) params.set('search', search);
     if (sportFilter !== 'all') params.set('sport', sportFilter);
     params.set('sortBy', 'volume');
@@ -139,9 +145,12 @@ export function CommunityBoostSelector({ open, onOpenChange, selectedDate }: Com
     enabled: open,
   });
 
+  const selectedDateStr = format(selectedDate || new Date(), 'yyyy-MM-dd');
+  const communityBoostsUrl = `/api/community-boosts/all?date=${selectedDateStr}`;
+
   // Fetch community boosts for today to show counts
   const { data: communityBoostsData } = useQuery<{ communityBoosts: Array<{ playerId: string }> }>({
-    queryKey: ["/api/community-boosts/all", "all"],
+    queryKey: [communityBoostsUrl],
     enabled: open,
   });
 
@@ -294,10 +303,11 @@ export function CommunityBoostSelector({ open, onOpenChange, selectedDate }: Com
       return apiRequest("POST", "/api/community-boosts/create", {
         playerId,
         sport: player?.sport || 'NBA',
+        date: selectedDateStr,
       });
     },
     onSuccess: (_, playerId) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/community-boosts/all", "all"] });
+      queryClient.invalidateQueries({ queryKey: [communityBoostsUrl] });
       queryClient.invalidateQueries({ queryKey: ["/api/portfolio"] });
       toast({
         title: "Community Boost Created!",

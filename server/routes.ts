@@ -6,7 +6,7 @@ import { storage } from "./storage";
 import { db } from "./db";
 import { fetchActivePlayers, calculateFantasyPoints } from "./balldontlie-nba";
 import type { InsertPlayer, Player, User, Holding, CommunityBoost } from "@shared/schema";
-import { contestLineups, contestEntries, contests, holdings, marketSnapshots, premiumCheckoutSessions, tweetSettings, tweetHistory, users, scoutAssignments, scoutHistory, dailyGames, players, communityCheckoutSessions, userCollections, userMilestones, trades } from "@shared/schema";
+import { contestLineups, contestEntries, contests, holdings, marketSnapshots, premiumCheckoutSessions, tweetSettings, tweetHistory, users, scoutAssignments, scoutHistory, dailyGames, dailyBoosts, players, communityCheckoutSessions, userCollections, userMilestones, trades } from "@shared/schema";
 import { sql, eq, desc, and, gte, lte, inArray, lt } from "drizzle-orm";
 import { jobScheduler } from "./jobs/scheduler";
 import { addClient, removeClient, broadcast } from "./websocket";
@@ -1578,12 +1578,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get all players with advanced filtering
   app.get("/api/players", async (req, res) => {
     try {
-      const { search, team, position, limit, offset, sortBy, sortOrder, hasBuyOrders, hasSellOrders, teamsPlayingOnDate, sport, isWatchlist } = req.query;
+      const { search, team, position, limit, offset, page, sortBy, sortOrder, hasBuyOrders, hasSellOrders, teamsPlayingOnDate, sport, isWatchlist, watchlistId } = req.query;
 
       // Handle watchlist filtering
-      // If isWatchlist=true, we need authentication
+      // If isWatchlist=true or a specific watchlistId is provided, we need authentication
       let watchlistUserId: string | undefined = undefined;
-      if (isWatchlist === 'true') {
+      let scopedWatchlistId: string | undefined = undefined;
+      if (isWatchlist === 'true' || typeof watchlistId === 'string') {
         // Support both Passport session user (req.user.id) and raw Auth0 profile (req.user.claims.sub)
         const user = req.user as any;
         const userId = user?.id || user?.claims?.sub;
@@ -1593,14 +1594,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.json({ players: [], total: 0 });
         }
         watchlistUserId = userId;
+        if (typeof watchlistId === 'string' && watchlistId !== 'all') {
+          scopedWatchlistId = watchlistId;
+        }
       }
 
       // Parse and validate pagination params
       const parsedLimit = limit ? parseInt(limit as string) : 50;
-      const parsedOffset = offset ? parseInt(offset as string) : 0;
-
-      // Guard against invalid numeric input (NaN) - allow up to 1000 for redemption modal
+      // Guard against invalid numeric input (NaN) - allow up to 5000 for high-volume list views
       const safeLimit = isNaN(parsedLimit) ? 50 : Math.max(1, Math.min(parsedLimit, 5000));
+
+      // Support both explicit offset and page-based pagination (offset takes precedence)
+      const parsedPage = page ? parseInt(page as string) : NaN;
+      const pageDerivedOffset = !isNaN(parsedPage) && parsedPage > 0 ? (parsedPage - 1) * safeLimit : 0;
+      const parsedOffset = offset ? parseInt(offset as string) : pageDerivedOffset;
       const safeOffset = isNaN(parsedOffset) ? 0 : Math.max(0, parsedOffset);
 
       // Parse sorting and filter params
@@ -1654,28 +1661,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         hasBuyOrders: safeHasBuyOrders,
         hasSellOrders: safeHasSellOrders,
         teamsPlayingOnDate: teamsPlayingFilter,
-        watchlistUserId: watchlistUserId
+        watchlistUserId: watchlistUserId,
+        watchlistId: scopedWatchlistId,
       });
 
-      // PERFORMANCE OPTIMIZATION: Batch fetch order books and season stats for ALL players in parallel
-      // This eliminates N+1 query problems:
-      // - 50 players × 2 order book queries = 100 queries → 1 query
-      // - 50 players × 1 season stats query = 50 queries → 1 query
+      // Enrich only the returned page to keep response latency bounded.
       const playerIds = playersRaw.map(p => p.id);
       const [orderBooksMap, seasonStatsMap, sentimentMap, avgFantasyPointsMap, globalScoutMap, poolDataMap] = await Promise.all([
         storage.getBatchOrderBooks(playerIds),
         storage.getBatchPlayerSeasonStatsFromLogs(playerIds),
         storage.getBatchSentiment(playerIds),
-        storage.getBatchAllTimeAvgFantasyPoints(playerIds), // Same calculation as scanner cards
+        storage.getBatchAllTimeAvgFantasyPoints(playerIds),
         storage.getBatchActiveScoutCounts(playerIds),
-        storage.getBatchPoolData(playerIds), // AMM pool liquidity data
+        storage.getBatchPoolData(playerIds),
       ]);
 
-      // Enrich with market values, order book data, and fantasy points average (only for paginated results)
-      let players = playersRaw.map((player) => {
+      const players = playersRaw.map((player) => {
         const enriched = enrichPlayerWithMarketValue(player);
-
-        // Look up pre-fetched order book data from map (no additional query!)
         const orderBookData = orderBooksMap.get(player.id) || {
           bids: [],
           asks: [],
@@ -1684,29 +1686,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           bidSize: 0,
           askSize: 0,
         };
-
-        // Look up pre-fetched season stats from map (no additional query!)
         const seasonStats = seasonStatsMap.get(player.id) || {
           gamesPlayed: 0,
           avgFantasyPointsPerGame: "0.0",
         };
-
-        // Look up pre-fetched sentiment from map
         const sentimentData = sentimentMap.get(player.id) || {
           buyPressure: 50,
           totalVolume24h: 0,
         };
-
-        // Look up pre-fetched AMM pool data
         const poolData = poolDataMap.get(player.id);
 
-        // Calculate Value Index using ALL-TIME average fantasy points (same as scanner cards)
-        // This ensures the numbers match what users see in the carousel
         const LEAGUE_AVG_PE = 0.43;
         const price = parseFloat(player.lastTradePrice || "0");
-
-        // Use all-time avg from a batch query (to be consistent with getFinancialMarketScanners)
-        // For now, we'll calculate it inline using the same logic as scanners
         const avgFP = avgFantasyPointsMap.get(player.id) || 0;
         const peRatio = avgFP > 0 ? price / avgFP : 0;
         const valueIndex = LEAGUE_AVG_PE > 0 ? (peRatio / LEAGUE_AVG_PE) * 100 : 0;
@@ -1726,46 +1717,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           poolTotalTrades: poolData?.totalTrades || 0,
         };
       });
-
-      // Client-side sorting for complex sort fields that require enriched data
-      // This ensures proper sorting by bid, ask, sentiment, undervalued even though
-      // the base SQL query doesn't support these (avoiding 73s query times)
-      if (['bid', 'ask', 'sentiment', 'undervalued', 'fantasyPoints'].includes(safeSortBy)) {
-        players.sort((a: any, b: any) => {
-          let valA: number, valB: number;
-          const ascending = safeSortOrder === 'asc';
-
-          switch (safeSortBy) {
-            case 'bid':
-              valA = parseFloat(a.bestBid) || 0;
-              valB = parseFloat(b.bestBid) || 0;
-              break;
-            case 'ask':
-              valA = parseFloat(a.bestAsk) || 0;
-              valB = parseFloat(b.bestAsk) || 0;
-              break;
-            case 'sentiment':
-              valA = a.buyPressure || 50;
-              valB = b.buyPressure || 50;
-              break;
-            case 'undervalued':
-              valA = a.valueIndex || 0;
-              valB = b.valueIndex || 0;
-              break;
-            case 'fantasyPoints':
-              valA = parseFloat(a.avgFantasyPointsPerGame) || 0;
-              valB = parseFloat(b.avgFantasyPointsPerGame) || 0;
-              break;
-            default:
-              return 0;
-          }
-
-          if (valA === valB) return 0;
-          if (valA === 0) return ascending ? 1 : -1; // Push zeros to end for ascending
-          if (valB === 0) return ascending ? -1 : 1;
-          return ascending ? valA - valB : valB - valA;
-        });
-      }
 
       res.json({ players, total });
     } catch (error: any) {
@@ -6782,13 +6733,19 @@ ${posts.map(post => `  <url>
           volumeChange,
           marketCap: marketHealth.totalMarketCap,
           marketCapChange,
+          sharesMined: shareEconomy.totalSharesVested,
           sharesVested: shareEconomy.totalSharesVested,
           sharesBurned: shareEconomy.totalSharesBurned,
           totalShares: shareEconomy.totalSharesInEconomy,
-          periodsharesVested: shareEconomy.periodsharesVested,
+          periodSharesMined: shareEconomy.periodSharesVested,
+          periodSharesVested: shareEconomy.periodSharesVested,
+          periodsharesVested: shareEconomy.periodSharesVested,
           periodSharesBurned: shareEconomy.periodSharesBurned,
           timeSeries,
-          shareEconomyTimeSeries,
+          shareEconomyTimeSeries: shareEconomyTimeSeries.map((point) => ({
+            ...point,
+            sharesMined: point.sharesVested,
+          })),
         },
         powerRankings,
         positionRankings,
@@ -6841,6 +6798,7 @@ ${posts.map(post => `  <url>
           marketCap: parseFloat(s.marketCap),
           transactions: s.transactionsCount,
           volume: parseFloat(s.volume),
+          sharesMined: s.sharesVested,
           sharesVested: s.sharesVested,
           sharesBurned: s.sharesBurned,
           totalShares: s.totalShares,
@@ -6870,15 +6828,92 @@ ${posts.map(post => `  <url>
         case "30D": startDate.setDate(now.getDate() - 30); break;
         case "3M": startDate.setMonth(now.getMonth() - 3); break;
         case "1Y": startDate.setFullYear(now.getFullYear() - 1); break;
+        case "All": startDate = new Date(2020, 0, 1); break;
         default: startDate.setDate(now.getDate() - 30);
       }
 
-      // Get all comparison data
-      const [sharesMap, contestUsageMap, priceHistoryMap] = await Promise.all([
+      // Get AMM-first comparison data
+      const [sharesMap, poolDataMap, totalBoostsResult, boostUsageRows, ammStatsRows, ammHistoryRows] = await Promise.all([
         storage.getPlayerSharesOutstanding(playerIds),
-        storage.getContestUsageStats(playerIds),
-        storage.getPriceHistoryRange(playerIds, startDate, now),
+        storage.getBatchPoolData(playerIds),
+        db
+          .select({ count: sql<number>`COUNT(*)` })
+          .from(dailyBoosts)
+          .where(and(
+            gte(dailyBoosts.boostDate, startDate),
+            lte(dailyBoosts.boostDate, now)
+          )),
+        db
+          .select({
+            playerId: dailyBoosts.playerId,
+            timesUsed: sql<number>`COUNT(*)`,
+          })
+          .from(dailyBoosts)
+          .where(and(
+            inArray(dailyBoosts.playerId, playerIds),
+            gte(dailyBoosts.boostDate, startDate),
+            lte(dailyBoosts.boostDate, now)
+          ))
+          .groupBy(dailyBoosts.playerId),
+        db
+          .select({
+            playerId: trades.playerId,
+            ammVolume: sql<string>`COALESCE(SUM(${trades.price} * ${trades.quantity}), 0)`,
+            ammTrades: sql<number>`COUNT(*)`,
+          })
+          .from(trades)
+          .where(and(
+            inArray(trades.playerId, playerIds),
+            gte(trades.executedAt, startDate),
+            lte(trades.executedAt, now),
+            sql`(${trades.buyerId} = 'pool' OR ${trades.sellerId} = 'pool')`
+          ))
+          .groupBy(trades.playerId),
+        db
+          .select({
+            playerId: trades.playerId,
+            date: sql<string>`DATE(${trades.executedAt})`.as("date"),
+            volume: sql<string>`COALESCE(SUM(${trades.price} * ${trades.quantity}), 0)`.as("volume"),
+          })
+          .from(trades)
+          .where(and(
+            inArray(trades.playerId, playerIds),
+            gte(trades.executedAt, startDate),
+            lte(trades.executedAt, now),
+            sql`(${trades.buyerId} = 'pool' OR ${trades.sellerId} = 'pool')`
+          ))
+          .groupBy(trades.playerId, sql`DATE(${trades.executedAt})`)
+          .orderBy(trades.playerId, sql`DATE(${trades.executedAt})`),
       ]);
+
+      const totalBoosts = totalBoostsResult[0]?.count || 0;
+      const boostUsageMap = new Map<string, { timesUsed: number; usagePercent: number }>();
+      for (const row of boostUsageRows) {
+        const timesUsed = row.timesUsed || 0;
+        boostUsageMap.set(row.playerId, {
+          timesUsed,
+          usagePercent: totalBoosts > 0 ? (timesUsed / totalBoosts) * 100 : 0,
+        });
+      }
+
+      const ammStatsMap = new Map<string, { ammVolume: number; ammTrades: number }>();
+      for (const row of ammStatsRows) {
+        ammStatsMap.set(row.playerId, {
+          ammVolume: parseFloat(row.ammVolume || "0"),
+          ammTrades: row.ammTrades || 0,
+        });
+      }
+
+      const ammHistoryMap = new Map<string, Array<{ timestamp: string; volume: number }>>();
+      for (const row of ammHistoryRows) {
+        if (!ammHistoryMap.has(row.playerId)) {
+          ammHistoryMap.set(row.playerId, []);
+        }
+        ammHistoryMap.get(row.playerId)!.push({
+          timestamp: `${row.date}T00:00:00.000Z`,
+          volume: parseFloat(row.volume || "0"),
+        });
+      }
 
       const playersData = await Promise.all(
         playerIds.slice(0, 5).map(async (id: string) => {
@@ -6888,8 +6923,10 @@ ${posts.map(post => `  <url>
           const shares = sharesMap.get(id) || 0;
           const price = parseFloat(player.lastTradePrice || player.currentPrice || "0");
           const marketCap = shares * price;
-          const contestUsage = contestUsageMap.get(id) || { timesUsed: 0, totalEntries: 0, usagePercent: 0 };
-          const priceHistory = priceHistoryMap.get(id) || [];
+          const boostUsage = boostUsageMap.get(id) || { timesUsed: 0, usagePercent: 0 };
+          const poolData = poolDataMap.get(id) || { shares: 0, playMoney: 0, totalVolume: 0, totalTrades: 0 };
+          const ammStats = ammStatsMap.get(id) || { ammVolume: 0, ammTrades: 0 };
+          const ammVolumeHistory = ammHistoryMap.get(id) || [];
 
           return {
             id: player.id,
@@ -6901,12 +6938,13 @@ ${posts.map(post => `  <url>
             price,
             volume: player.volume24h || 0,
             priceChange24h: parseFloat(player.priceChange24h || "0"),
-            contestUsagePercent: contestUsage.usagePercent,
-            timesUsedInContests: contestUsage.timesUsed,
-            priceHistory: priceHistory.map((ph) => ({
-              timestamp: ph.timestamp,
-              price: ph.price,
-            })),
+            boostUsagePercent: boostUsage.usagePercent,
+            timesUsedInBoosts: boostUsage.timesUsed,
+            ammVolume: ammStats.ammVolume,
+            ammTrades: ammStats.ammTrades,
+            poolLiquidity: poolData.playMoney,
+            poolShares: poolData.shares,
+            ammVolumeHistory,
           };
         })
       );
@@ -7069,14 +7107,14 @@ ${posts.map(post => `  <url>
     try {
       const userId = getUserId(req);
 
-      // Parse date query param (YYYY-MM-DD), default to today
-      let targetDate = new Date();
-      if (req.query.date && typeof req.query.date === 'string') {
-        const parsed = new Date(req.query.date);
-        if (!isNaN(parsed.getTime())) {
-          targetDate = parsed;
-        }
+      const todayET = getTodayET();
+      let dateStr = todayET;
+      if (req.query.date && typeof req.query.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(req.query.date)) {
+        dateStr = req.query.date;
       }
+
+      const { startOfDay } = getETDayBoundaries(dateStr);
+      const targetDate = new Date(startOfDay.getTime() + 12 * 60 * 60 * 1000);
 
       const boosts = await storage.getDailyBoostsAllSports(userId, targetDate);
 
@@ -7150,7 +7188,7 @@ ${posts.map(post => `  <url>
       }));
 
       res.json({
-        date: targetDate.toISOString().split('T')[0],
+        date: dateStr,
         boosts: enrichedBoosts,
         slotsRemaining: 4 - boosts.length,
         availableSlots: [5, 4, 3, 2].filter(tier => !boosts.some(b => b.slotTier === tier)),
@@ -7164,14 +7202,14 @@ ${posts.map(post => `  <url>
   // Get community boosts across all sports (for the community list)
   app.get("/api/community-boosts/all", isAuthenticated, async (req: any, res) => {
     try {
-      // Parse date query param (YYYY-MM-DD), default to today
-      let targetDate = new Date();
-      if (req.query.date && typeof req.query.date === 'string') {
-        const parsed = new Date(req.query.date);
-        if (!isNaN(parsed.getTime())) {
-          targetDate = parsed;
-        }
+      const todayET = getTodayET();
+      let dateStr = todayET;
+      if (req.query.date && typeof req.query.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(req.query.date)) {
+        dateStr = req.query.date;
       }
+
+      const { startOfDay } = getETDayBoundaries(dateStr);
+      const targetDate = new Date(startOfDay.getTime() + 12 * 60 * 60 * 1000);
 
       const communityBoosts = await storage.getCommunityBoostsAllSports(targetDate);
 
@@ -7197,7 +7235,7 @@ ${posts.map(post => `  <url>
       }));
 
       res.json({
-        date: targetDate.toISOString().split('T')[0],
+        date: dateStr,
         communityBoosts: result,
       });
     } catch (error: any) {
@@ -7368,7 +7406,7 @@ ${posts.map(post => `  <url>
       });
 
       res.json({
-        date: targetDate.toISOString().split('T')[0],
+        date: dateStr,
         eligiblePlayers: result,
         totalEligible: result.filter((_, i, arr) => arr.findIndex(a => a.playerId === _.playerId) === i).length, // Unique players count
       });
@@ -7436,7 +7474,7 @@ ${posts.map(post => `  <url>
 
       res.json({
         sport,
-        date: targetDate.toISOString().split('T')[0], // Use targetDate
+        date: dateStr,
         eligiblePlayers: result,
         totalEligible: result.length,
       });
@@ -7468,10 +7506,17 @@ ${posts.map(post => `  <url>
       }
 
       const sportUpper = sport.toUpperCase();
-      const today = new Date();
+
+      const todayET = getTodayET();
+      let dateStr = todayET;
+      if (typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        dateStr = date;
+      }
+      const { startOfDay } = getETDayBoundaries(dateStr);
+      const targetDate = new Date(startOfDay.getTime() + 12 * 60 * 60 * 1000);
 
       // Check if slot is already taken
-      const currentBoosts = await storage.getDailyBoosts(userId, sportUpper, today);
+      const currentBoosts = await storage.getDailyBoosts(userId, sportUpper, targetDate);
       if (currentBoosts.some(b => b.slotTier === tierNum)) {
         return res.status(400).json({ error: `Slot ${tierNum}x is already occupied` });
       }
@@ -7487,7 +7532,7 @@ ${posts.map(post => `  <url>
       }
 
       // Verify player has game today and get game info
-      const game = await storage.getPlayerGameForDate(playerId, sportUpper, today);
+      const game = await storage.getPlayerGameForDate(playerId, sportUpper, targetDate);
       if (!game) {
         return res.status(400).json({ error: "This player doesn't have a game today" });
       }
@@ -7522,10 +7567,8 @@ ${posts.map(post => `  <url>
       // This represents the effective share power for payout calculations
       const power = holding.powerLevel.toString();
 
-      // Create the boost
-      // Use provided date or default to today (ensure date is object)
-      const boostDate = date ? new Date(date) : new Date(today);
-      boostDate.setHours(0, 0, 0, 0);
+      // Create the boost on ET game day
+      const boostDate = startOfDay;
 
       const boost = await storage.createDailyBoost({
         userId,
@@ -7600,13 +7643,13 @@ ${posts.map(post => `  <url>
       const userId = getUserId(req);
       const sport = req.params.sport.toUpperCase();
 
-      let targetDate = new Date();
-      if (req.query.date && typeof req.query.date === 'string') {
-        const parsed = new Date(req.query.date + "T12:00:00");
-        if (!isNaN(parsed.getTime())) {
-          targetDate = parsed;
-        }
+      const todayET = getTodayET();
+      let dateStr = todayET;
+      if (req.query.date && typeof req.query.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(req.query.date)) {
+        dateStr = req.query.date;
       }
+      const { startOfDay } = getETDayBoundaries(dateStr);
+      const targetDate = new Date(startOfDay.getTime() + 12 * 60 * 60 * 1000);
 
       const boosts = await storage.getDailyBoosts(userId, sport, targetDate);
 
@@ -7702,77 +7745,19 @@ ${posts.map(post => `  <url>
     }
   });
 
-  // Get live boost progress (for real-time updates during games)
-  app.get("/api/daily-boosts/live/:sport", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = getUserId(req);
-      const sport = req.params.sport.toUpperCase();
-      const targetDate = new Date();
-
-      const boosts = await storage.getDailyBoosts(userId, sport, targetDate);
-
-      // Get player and game stats for each boost
-      const enrichedBoosts = await Promise.all(boosts.map(async (boost) => {
-        const player = await storage.getPlayer(boost.playerId);
-        let liveFantasyPoints = 0;
-        let gameStatus = "scheduled";
-
-        if (boost.gameId) {
-          const game = await storage.getDailyGameByGameId(boost.gameId);
-          if (game) {
-            gameStatus = game.status;
-
-            // Get live stats if game is in progress or completed
-            if (game.status === "inprogress" || game.status === "completed") {
-              const stats = await storage.getPlayerGameStats(boost.playerId, boost.gameId);
-              if (stats) {
-                liveFantasyPoints = parseFloat(stats.fantasyPoints);
-              }
-            }
-          }
-        }
-
-        // Calculate estimated payout
-        const estimatedPayout = boost.sharesEntered * liveFantasyPoints * boost.slotTier;
-
-        return {
-          ...boost,
-          player,
-          gameStatus,
-          liveFantasyPoints,
-          estimatedPayout: estimatedPayout.toFixed(2),
-        };
-      }));
-
-      // Calculate total estimated earnings
-      const totalEstimated = enrichedBoosts.reduce((sum, b) => sum + parseFloat(b.estimatedPayout), 0);
-
-      res.json({
-        sport,
-        date: targetDate.toISOString().split('T')[0],
-        boosts: enrichedBoosts,
-        totalEstimatedEarnings: totalEstimated.toFixed(2),
-      });
-    } catch (error: any) {
-      console.error("[daily-boosts/live] Error:", error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
   // Get daily boosts state (generic :sport route - MUST be last)
   app.get("/api/daily-boosts/:sport", isAuthenticated, async (req: any, res) => {
     try {
       const userId = getUserId(req);
       const sport = req.params.sport.toUpperCase();
 
-      // Parse date query param (YYYY-MM-DD), default to today
-      let targetDate = new Date();
-      if (req.query.date && typeof req.query.date === 'string') {
-        const parsed = new Date(req.query.date);
-        if (!isNaN(parsed.getTime())) {
-          targetDate = parsed;
-        }
+      const todayET = getTodayET();
+      let dateStr = todayET;
+      if (req.query.date && typeof req.query.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(req.query.date)) {
+        dateStr = req.query.date;
       }
+      const { startOfDay } = getETDayBoundaries(dateStr);
+      const targetDate = new Date(startOfDay.getTime() + 12 * 60 * 60 * 1000);
 
       const boosts = await storage.getDailyBoosts(userId, sport, targetDate);
 
@@ -7797,7 +7782,7 @@ ${posts.map(post => `  <url>
 
       res.json({
         sport,
-        date: targetDate.toISOString().split('T')[0],
+        date: dateStr,
         boosts: enrichedBoosts,
         slotsRemaining: 4 - boosts.length,
         availableSlots: [5, 4, 3, 2].filter(tier => !boosts.some(b => b.slotTier === tier)),
@@ -7810,12 +7795,23 @@ ${posts.map(post => `  <url>
 
   // Community Boosts API
   // Get active community boosts for a sport
-  app.get("/api/community-boosts/:sport", isAuthenticated, async (req: any, res) => {
+  app.get("/api/community-boosts/:sport", isAuthenticated, async (req: any, res, next) => {
     try {
-      const sport = req.params.sport.toUpperCase();
-      const today = new Date();
+      const rawSport = String(req.params.sport || "").toLowerCase();
+      if (rawSport === "history" || rawSport === "eligible-players" || rawSport === "all") {
+        return next();
+      }
 
-      const boosts = await storage.getCommunityBoostsForDate(sport, today);
+      const sport = req.params.sport.toUpperCase();
+      const todayET = getTodayET();
+      let dateStr = todayET;
+      if (req.query.date && typeof req.query.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(req.query.date)) {
+        dateStr = req.query.date;
+      }
+      const { startOfDay } = getETDayBoundaries(dateStr);
+      const targetDate = new Date(startOfDay.getTime() + 12 * 60 * 60 * 1000);
+
+      const boosts = await storage.getCommunityBoostsForDate(sport, targetDate);
 
       res.json(boosts);
     } catch (error: any) {
@@ -7828,16 +7824,23 @@ ${posts.map(post => `  <url>
   app.post("/api/community-boosts/create", isAuthenticated, async (req: any, res) => {
     try {
       const userId = getUserId(req);
-      const { playerId, sport } = req.body;
+      const { playerId, sport, date } = req.body;
 
       if (!playerId || !sport) {
         return res.status(400).json({ error: "playerId and sport are required" });
       }
 
       // 1. Verify player has a game today that hasn't started
-      const today = new Date();
       const sportUpper = sport.toUpperCase();
-      const game = await storage.getPlayerGameForDate(playerId, sportUpper, today);
+      const todayET = getTodayET();
+      let dateStr = todayET;
+      if (typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        dateStr = date;
+      }
+      const { startOfDay } = getETDayBoundaries(dateStr);
+      const targetDate = new Date(startOfDay.getTime() + 12 * 60 * 60 * 1000);
+
+      const game = await storage.getPlayerGameForDate(playerId, sportUpper, targetDate);
 
       if (!game) {
         return res.status(400).json({ error: "This player does not have a game today" });
@@ -7848,14 +7851,13 @@ ${posts.map(post => `  <url>
       }
 
       // 2. Check if player already has an active community boost
-      const existingBoosts = await storage.getCommunityBoostsForDate(sportUpper, today);
+      const existingBoosts = await storage.getCommunityBoostsForDate(sportUpper, targetDate);
       if (existingBoosts.some(b => b.playerId === playerId)) {
         return res.status(400).json({ error: "This player already has a Community Boost!" });
       }
 
       // 3. Create boost (storage method handles premium share deduction)
-      const boostDate = new Date(today);
-      boostDate.setHours(0, 0, 0, 0);
+      const boostDate = startOfDay;
 
       const boost = await storage.createCommunityBoost({
         creatorId: userId,
@@ -8018,7 +8020,7 @@ ${posts.map(post => `  <url>
 
       console.log(`[community-boosts/eligible-players] Returning ${result.length} players, ${userCommunityShares} user shares`);
       res.json({
-        date: targetDate.toISOString().split('T')[0],
+        date: dateStr,
         players: result,
         userCommunityShares,
         totalPlayers: result.length,
@@ -8152,3 +8154,4 @@ ${posts.map(post => `  <url>
 
   return httpServer;
 }
+

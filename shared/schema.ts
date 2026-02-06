@@ -78,6 +78,27 @@ export const players = pgTable("players", {
   marketCapIdx: index("market_cap_idx").on(table.marketCap),
 }));
 
+// Player market metrics table - precomputed sortable metrics for high-scale player lists
+export const playerMarketMetrics = pgTable("player_market_metrics", {
+  playerId: varchar("player_id").primaryKey().references(() => players.id, { onDelete: "cascade" }),
+  avgFantasyPoints: decimal("avg_fantasy_points", { precision: 10, scale: 2 }).notNull().default("0.00"),
+  buyPressure: decimal("buy_pressure", { precision: 5, scale: 2 }).notNull().default("50.00"),
+  totalOrderVolume24h: integer("total_order_volume_24h").notNull().default(0),
+  valueIndex: decimal("value_index", { precision: 10, scale: 2 }).notNull().default("0.00"),
+  bestBid: decimal("best_bid", { precision: 10, scale: 2 }).notNull().default("0.00"),
+  bestAsk: decimal("best_ask", { precision: 10, scale: 2 }).notNull().default("0.00"),
+  bidSize: integer("bid_size").notNull().default(0),
+  askSize: integer("ask_size").notNull().default(0),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  avgFantasyPointsIdx: index("pmm_avg_fantasy_points_idx").on(table.avgFantasyPoints),
+  buyPressureIdx: index("pmm_buy_pressure_idx").on(table.buyPressure),
+  valueIndexIdx: index("pmm_value_index_idx").on(table.valueIndex),
+  bestBidIdx: index("pmm_best_bid_idx").on(table.bestBid),
+  bestAskIdx: index("pmm_best_ask_idx").on(table.bestAsk),
+  updatedAtIdx: index("pmm_updated_at_idx").on(table.updatedAt),
+}));
+
 // Holdings table - user ownership of player shares and premium shares
 export const holdings = pgTable("holdings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -747,6 +768,7 @@ export const watchList = pgTable("watch_list", {
 }, (table) => ({
   userPlayerIdx: index("watch_user_player_idx").on(table.userId, table.playerId),
   watchlistIdx: index("watch_watchlist_idx").on(table.watchlistId),
+  userWatchlistPlayerIdx: index("watch_user_watchlist_player_idx").on(table.userId, table.watchlistId, table.playerId),
 }));
 
 // News feed table - AI-generated sports news for the News Hub
@@ -974,6 +996,10 @@ export const insertPlayerSchema = createInsertSchema(players).omit({
   lastUpdated: true,
 });
 
+export const insertPlayerMarketMetricsSchema = createInsertSchema(playerMarketMetrics).omit({
+  updatedAt: true,
+});
+
 export const insertHoldingSchema = createInsertSchema(holdings).omit({
   id: true,
   lastUpdated: true,
@@ -1074,6 +1100,9 @@ export type UpsertUser = typeof users.$inferInsert; // For Replit Auth upsert op
 
 export type Player = typeof players.$inferSelect;
 export type InsertPlayer = z.infer<typeof insertPlayerSchema>;
+
+export type PlayerMarketMetrics = typeof playerMarketMetrics.$inferSelect;
+export type InsertPlayerMarketMetrics = z.infer<typeof insertPlayerMarketMetricsSchema>;
 
 export type Holding = typeof holdings.$inferSelect;
 export type InsertHolding = z.infer<typeof insertHoldingSchema>;

@@ -285,7 +285,7 @@ export function PortfolioCardView({
                   onClick={() => {
                     onPowerUp(
                       selectedPlayer.player.id,
-                      `${selectedPlayer.player.firstName} ${selectedPlayer.lastName}`,
+                      `${selectedPlayer.player.firstName} ${selectedPlayer.player.lastName}`,
                       selectedPlayer.regular!.quantity
                     );
                     setSelectedPlayer(null);

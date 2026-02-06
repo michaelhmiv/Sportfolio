@@ -42,6 +42,7 @@ import { cleanupJobLogs } from "./cleanup-job-logs";
 import { prunePriceHistory } from "./prune-price-history";
 import { updateCollectionsJob } from "./update-collections";
 import { checkMilestonesJob } from "./check-milestones";
+import { refreshPlayerMarketMetricsJob } from "./refresh-player-metrics";
 import type { ProgressCallback } from "../lib/admin-stream";
 
 export interface JobResult {
@@ -142,18 +143,16 @@ export class JobScheduler {
       },
       {
         name: "bot_engine",
-        // DISABLED: AMM migration replaces order book with instant pools
-        // Bots no longer need to place limit orders
-        // schedule: process.env.NODE_ENV === 'production' ? "3-59/10 * * * *" : "* * * * *",
-        schedule: "0 0 1 1 *", // Run once a year (effectively disabled)
-        enabled: false,
+        // Re-enabled: bots drive scouting, order-book activity, and contest participation.
+        // Use a 10-minute cadence to avoid overlapping runs while clearing stale-order backlogs.
+        schedule: "3-59/10 * * * *",
+        enabled: true,
         handler: async () => {
-          // Bot engine disabled - AMM provides instant liquidity
-          console.log("[BotEngine] Job disabled - using AMM instant trading");
+          const result = await runBotEngineTick();
           return {
             requestCount: 0,
-            recordsProcessed: 0,
-            errorCount: 0,
+            recordsProcessed: result.botsProcessed,
+            errorCount: result.errors,
           };
         },
       },
@@ -248,11 +247,22 @@ export class JobScheduler {
           };
         },
       },
+      {
+        name: "refresh_player_metrics",
+        schedule: "*/15 * * * *", // Every 15 minutes - keep list-sort metrics fresh at scale
+        enabled: true,
+        handler: () => refreshPlayerMarketMetricsJob(),
+      },
     ];
 
     for (const jobConfig of contestJobs) {
       this.scheduleJob(jobConfig);
     }
+
+    // Warm complex-sort metrics at startup so first requests are accurate.
+    refreshPlayerMarketMetricsJob().catch((err: any) => {
+      warn("[refresh_player_metrics] Startup warm-up failed:", err?.message || err);
+    });
 
     info("Contest jobs initialized successfully");
   }
@@ -466,6 +476,7 @@ export class JobScheduler {
           errorCount: 0,
         };
       },
+      refresh_player_metrics: (callback) => refreshPlayerMarketMetricsJob(callback),
     };
 
     const handler = jobConfigs[jobName];
