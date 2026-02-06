@@ -5,7 +5,7 @@ import { SchemaOrg, schemas } from "@/components/schema-org";
 const faqs = [
   {
     question: "How does trading player shares work on Sportfolio?",
-    answer: "NBA players on Sportfolio are represented as tradable shares, similar to stocks. Each player has a market price that changes based on trading activity. You can place market orders to buy or sell immediately, or use limit orders to specify exact prices."
+    answer: "NBA players on Sportfolio are represented as tradable shares, similar to stocks. Each player has a market price that changes based on trading activity in the AMM pool. You can buy or sell instantly against the pool with live quote previews."
   },
   {
     question: "What is the Scout System and how do I earn free shares?",
@@ -48,7 +48,7 @@ export default function HowItWorks() {
                 NBA players on Sportfolio are represented as tradable shares, similar to stocks. Each player has a market price that changes based on trading activity - when more users want to buy a player, the price goes up; when more want to sell, it goes down.
               </p>
               <p className="text-muted-foreground">
-                You can browse the marketplace to find players to trade. Place market orders to buy or sell immediately at current prices, or use limit orders to specify the exact price you're willing to trade at. Your portfolio value changes as player prices fluctuate.
+                You can browse the marketplace to find players to trade. Execute instant buys and sells directly against each player’s AMM pool with quote previews and slippage protection. Your portfolio value changes as player prices fluctuate.
               </p>
             </CardContent>
           </Card>
@@ -113,7 +113,7 @@ export default function HowItWorks() {
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-muted-foreground">
-                Track your performance against other Sportfolio users on global leaderboards. Rankings are available for portfolio net worth, total shares vested, and market orders placed. See where you stand and compete for bragging rights in the community.
+                Track your performance against other Sportfolio users on global leaderboards. Rankings are available for portfolio net worth, total shares vested, and trading activity. See where you stand and compete for bragging rights in the community.
               </p>
             </CardContent>
           </Card>

@@ -29,7 +29,6 @@ import { dailySnapshot } from "./daily-snapshot";
 import { backfillContestStats } from "./backfill-contest-stats";
 import { generateWeeklyRoundup } from "./weekly-roundup";
 import { backfillMarketSnapshots } from "./market-snapshot";
-import { runBotEngineTick } from "../bot/bot-engine";
 import { syncNFLSchedule } from "./sync-nfl-schedule";
 import { syncNFLStats } from "./sync-nfl-stats";
 import { syncNFLRoster } from "./sync-nfl-roster";
@@ -141,22 +140,6 @@ export class JobScheduler {
         enabled: true,
         handler: settleContests,
       },
-      {
-        name: "bot_engine",
-        // Re-enabled: bots drive scouting, order-book activity, and contest participation.
-        // Use a 10-minute cadence to avoid overlapping runs while clearing stale-order backlogs.
-        schedule: "3-59/10 * * * *",
-        enabled: true,
-        handler: async () => {
-          const result = await runBotEngineTick();
-          return {
-            requestCount: 0,
-            recordsProcessed: result.botsProcessed,
-            errorCount: result.errors,
-          };
-        },
-      },
-
       {
         name: "scout_distribution",
         schedule: "0 * * * *", // Every hour at :00 - distribute scout shares based on Scout-Minute ratio
@@ -425,14 +408,6 @@ export class JobScheduler {
       backfill_contest_stats: (callback) => backfillContestStats(callback),
       weekly_roundup: (callback) => generateWeeklyRoundup(callback),
       backfill_market_snapshots: (callback) => backfillMarketSnapshots(callback),
-      bot_engine: async () => {
-        const result = await runBotEngineTick();
-        return {
-          requestCount: 0,
-          recordsProcessed: result.botsProcessed,
-          errorCount: result.errors,
-        };
-      },
       scout_distribution: async () => {
         return await distributeScoutShares();
       },

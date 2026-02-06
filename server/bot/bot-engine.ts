@@ -235,7 +235,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, name: string): Promise<
 const STRATEGY_TIMEOUT_MS = 30000; // 30 seconds max per strategy
 
 /**
- * Execute ALL strategies for every bot - vesting, trading, and contests
+ * Execute bot strategies that remain active in AMM-only mode (scouting + contests)
  * Each bot's individual settings (aggressiveness, limits, budgets) determine their behavior
  * The bot_role field now acts as a "persona" hint but doesn't gate any strategies
  */
@@ -243,17 +243,14 @@ async function executeBotStrategies(
   profile: BotProfile & { user: typeof users.$inferSelect }
 ): Promise<void> {
   // Lazy imports to avoid circular dependency issues
-  const { executeMarketMakerStrategy } = await import("./market-maker-strategy");
-  const { executeVestingStrategy } = await import("./vesting-strategy");
+  // Vesting strategy archived for marketplace automation retirement.
   const { executeContestStrategy } = await import("./contest-strategy");
-  const { executeTakerStrategy } = await import("./taker-strategy");
-  const { executeMarketSeederStrategy } = await import("./market-seeder-strategy");
   const { executeScoutStrategy } = await import("./scout-strategy");
 
   const strategiesExecuted: string[] = [];
 
   try {
-    // 1. SCOUTING - All bots scout to accumulate shares and compete for pools
+    // 1. SCOUTING - Active in AMM-only mode
     // Uses: maxScouts (enforced in strategy)
     try {
       await withTimeout(executeScoutStrategy(profile), STRATEGY_TIMEOUT_MS, 'scouting');
@@ -264,45 +261,7 @@ async function executeBotStrategies(
 
     // 1.1 VESTING - Legacy vesting (minimized/deprecated)
 
-    // 1.5. SEEDING - Bots with "cold" or "seeder" in name bootstrap cold markets
-    // This runs before regular trading to establish prices on untraded players
-    const isColdMarketBot = profile.botName.toLowerCase().includes('cold') ||
-      profile.botName.toLowerCase().includes('seeder') ||
-      profile.botRole === 'market_maker'; // All market makers can seed
-    if (isColdMarketBot && profile.ordersToday < profile.maxDailyOrders) {
-      try {
-        await withTimeout(executeMarketSeederStrategy(profile), STRATEGY_TIMEOUT_MS, 'seeding');
-        strategiesExecuted.push("seeding");
-      } catch (e: any) {
-        console.warn(`[BotEngine] ${profile.botName} seeding failed: ${e.message}`);
-      }
-    }
-
-    // 2. TRADING - All bots can place orders in the marketplace
-    // Uses: maxDailyOrders, maxDailyVolume, maxOrderSize, minOrderSize, spreadPercent, aggressiveness
-    // Check if bot has trading budget remaining
-    if (profile.ordersToday < profile.maxDailyOrders) {
-      try {
-        await withTimeout(executeMarketMakerStrategy(profile), STRATEGY_TIMEOUT_MS, 'trading');
-        strategiesExecuted.push("trading");
-      } catch (e: any) {
-        console.warn(`[BotEngine] ${profile.botName} trading failed: ${e.message}`);
-      }
-    }
-
-    // 3. TAKER - Aggressive market orders to actually execute trades
-    // Run taker strategy on EVERY tick for active markets - this is what creates trades
-    // Aggressiveness determines HOW aggressive, not WHETHER to run
-    if (profile.ordersToday < profile.maxDailyOrders) {
-      try {
-        await withTimeout(executeTakerStrategy(profile), STRATEGY_TIMEOUT_MS, 'taker');
-        strategiesExecuted.push("taker");
-      } catch (e: any) {
-        console.warn(`[BotEngine] ${profile.botName} taker failed: ${e.message}`);
-      }
-    }
-
-    // 4. CONTESTS - All bots can enter contests
+    // 2. CONTESTS - All bots can enter contests
     // Uses: maxContestEntriesPerDay, contestEntryBudget, aggressiveness
     // Check if bot has contest entries remaining
     if (profile.contestEntriesToday < profile.maxContestEntriesPerDay) {

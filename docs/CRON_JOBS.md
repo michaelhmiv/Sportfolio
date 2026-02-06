@@ -10,7 +10,7 @@ Jobs run in Eastern Time (ET). The scheduler is initialized in `server/jobs/sche
 |----------|----------|---------|
 | `update_contest_statuses` | Every 5 min (`:01`) | Updates contest statuses based on game times |
 | `settle_contests` | Every 5 min (`:02`) | Settles completed contests and pays winners |
-| `bot_engine` | Every 1-10 min | Simulates market activity via bot trades |
+| `bot_engine` | Archived | Legacy player order-book bot automation retired in AMM-only mode |
 | `vesting_accrual` | Every 5 min (`:04`) | Accrues vesting shares for users |
 | `news_fetch` | Every hour (`:00`) | Fetches sports news from Perplexity |
 | `roster_sync` | Daily 5:30 AM | Syncs NBA player roster from MySportsFeeds |

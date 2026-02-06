@@ -27,7 +27,7 @@ const slides = [
     icon: TrendingUp,
     title: "TRADE SHARES",
     subtitle: "Buy and sell like stocks",
-    description: "Place market orders for instant execution or set limit orders at your target price. Watch the order book and build your portfolio.",
+    description: "Trade instantly against the AMM pool with transparent pricing and real-time quotes. Build your portfolio as prices move with pool activity.",
     color: "text-green-500",
   },
   {

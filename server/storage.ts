@@ -175,10 +175,8 @@ export interface IStorage {
     sport?: string;
     limit?: number;
     offset?: number;
-    sortBy?: 'price' | 'volume' | 'change' | 'bid' | 'ask' | 'marketCap' | 'sentiment' | 'undervalued' | 'fantasyPoints' | 'name' | 'team';
+    sortBy?: 'price' | 'volume' | 'change' | 'marketCap' | 'sentiment' | 'undervalued' | 'fantasyPoints' | 'name' | 'team';
     sortOrder?: 'asc' | 'desc';
-    hasBuyOrders?: boolean;
-    hasSellOrders?: boolean;
     teamsPlayingOnDate?: string[];
     watchlistUserId?: string;
     watchlistId?: string;
@@ -1188,10 +1186,8 @@ export class DatabaseStorage implements IStorage {
     sport?: string;
     limit?: number;
     offset?: number;
-    sortBy?: 'price' | 'volume' | 'change' | 'bid' | 'ask' | 'marketCap' | 'sentiment' | 'undervalued' | 'fantasyPoints' | 'name' | 'team';
+    sortBy?: 'price' | 'volume' | 'change' | 'marketCap' | 'sentiment' | 'undervalued' | 'fantasyPoints' | 'name' | 'team';
     sortOrder?: 'asc' | 'desc';
-    hasBuyOrders?: boolean;
-    hasSellOrders?: boolean;
     teamsPlayingOnDate?: string[];
     watchlistUserId?: string;
     watchlistId?: string;
@@ -1201,8 +1197,6 @@ export class DatabaseStorage implements IStorage {
       limit = 50, offset = 0,
       sortBy = 'volume',
       sortOrder = 'desc',
-      hasBuyOrders,
-      hasSellOrders,
       teamsPlayingOnDate,
       watchlistUserId,
       watchlistId
@@ -1225,34 +1219,10 @@ export class DatabaseStorage implements IStorage {
 
     if (teamsPlayingOnDate && teamsPlayingOnDate.length > 0) {
       conditions.push(inArray(players.team, teamsPlayingOnDate));
-    }
-
-    if (hasBuyOrders) {
-      conditions.push(
-        sql`EXISTS (
-          SELECT 1 FROM ${orders}
-          WHERE ${orders.playerId} = ${players.id}
-          AND ${orders.side} = 'buy'
-          AND ${orders.status} IN ('open', 'partial')
-        )`
-      );
-    }
-
-    if (hasSellOrders) {
-      conditions.push(
-        sql`EXISTS (
-          SELECT 1 FROM ${orders}
-          WHERE ${orders.playerId} = ${players.id}
-          AND ${orders.side} = 'sell'
-          AND ${orders.status} IN ('open', 'partial')
-        )`
-      );
-    }
-
-    // Always filter by is_active
+    }    // Always filter by is_active
     conditions.push(eq(players.isActive, true));
 
-    const isComplexSort = ['bid', 'ask', 'sentiment', 'undervalued', 'fantasyPoints'].includes(sortBy);
+    const isComplexSort = ['sentiment', 'undervalued', 'fantasyPoints'].includes(sortBy);
 
     // Build ORDER BY clause
     let orderByClause: any;
@@ -1276,16 +1246,6 @@ export class DatabaseStorage implements IStorage {
         break;
       case 'team':
         orderByClause = sortOrder === 'asc' ? asc(players.team) : desc(players.team);
-        break;
-      case 'bid':
-        orderByClause = sortOrder === 'asc'
-          ? asc(sql`COALESCE(${playerMarketMetrics.bestBid}, 0)`)
-          : desc(sql`COALESCE(${playerMarketMetrics.bestBid}, 0)`);
-        break;
-      case 'ask':
-        orderByClause = sortOrder === 'asc'
-          ? asc(sql`COALESCE(NULLIF(${playerMarketMetrics.bestAsk}, 0), 999999999)`)
-          : desc(sql`COALESCE(${playerMarketMetrics.bestAsk}, 0)`);
         break;
       case 'sentiment':
         orderByClause = sortOrder === 'asc'
@@ -1316,8 +1276,6 @@ export class DatabaseStorage implements IStorage {
       ? db
         .select({
           player: players,
-          metricBestBid: sql<string>`COALESCE(${playerMarketMetrics.bestBid}, '0')`,
-          metricBestAsk: sql<string>`COALESCE(${playerMarketMetrics.bestAsk}, '0')`,
           metricBuyPressure: sql<string>`COALESCE(${playerMarketMetrics.buyPressure}, '50')`,
           metricValueIndex: sql<string>`COALESCE(${playerMarketMetrics.valueIndex}, '0')`,
           metricAvgFantasyPoints: sql<string>`COALESCE(${playerMarketMetrics.avgFantasyPoints}, '0')`,
@@ -1343,16 +1301,12 @@ export class DatabaseStorage implements IStorage {
 
     const mappedPlayers = playerRows.map((r: any) => {
       const player = r.player as Player & {
-        _metricBestBid?: string;
-        _metricBestAsk?: string;
         _metricBuyPressure?: string;
         _metricValueIndex?: string;
         _metricAvgFantasyPoints?: string;
       };
 
       if (isComplexSort) {
-        player._metricBestBid = r.metricBestBid;
-        player._metricBestAsk = r.metricBestAsk;
         player._metricBuyPressure = r.metricBuyPressure;
         player._metricValueIndex = r.metricValueIndex;
         player._metricAvgFantasyPoints = r.metricAvgFantasyPoints;
@@ -2052,7 +2006,7 @@ export class DatabaseStorage implements IStorage {
     targetPlayerIds = Array.from(new Set(targetPlayerIds));
     if (targetPlayerIds.length === 0) return 0;
 
-    const [playerRows, orderBooksMap, sentimentMap, seasonStatsMap, allTimeAvgMap] = await Promise.all([
+    const [playerRows, sentimentMap, seasonStatsMap, allTimeAvgMap] = await Promise.all([
       db
         .select({
           id: players.id,
@@ -2061,7 +2015,6 @@ export class DatabaseStorage implements IStorage {
         })
         .from(players)
         .where(inArray(players.id, targetPlayerIds)),
-      this.getBatchOrderBooks(targetPlayerIds),
       this.getBatchSentiment(targetPlayerIds),
       this.getBatchPlayerSeasonStatsFromLogs(targetPlayerIds),
       this.getBatchAllTimeAvgFantasyPoints(targetPlayerIds),
@@ -2077,7 +2030,6 @@ export class DatabaseStorage implements IStorage {
     const LEAGUE_AVG_PE = 0.43;
     const now = new Date();
     const rows = targetPlayerIds.map((playerId) => {
-      const orderBook = orderBooksMap.get(playerId);
       const sentiment = sentimentMap.get(playerId) || { buyPressure: 50, totalVolume24h: 0 };
       const seasonStats = seasonStatsMap.get(playerId) || { gamesPlayed: 0, avgFantasyPointsPerGame: "0.0" };
       const allTimeAvgFp = allTimeAvgMap.get(playerId) || 0;
@@ -2091,10 +2043,10 @@ export class DatabaseStorage implements IStorage {
         buyPressure: (sentiment.buyPressure || 50).toFixed(2),
         totalOrderVolume24h: Math.round(sentiment.totalVolume24h || 0),
         valueIndex: (valueIndex || 0).toFixed(2),
-        bestBid: (parseFloat(orderBook?.bestBid || "0") || 0).toFixed(2),
-        bestAsk: (parseFloat(orderBook?.bestAsk || "0") || 0).toFixed(2),
-        bidSize: Math.round(orderBook?.bidSize || 0),
-        askSize: Math.round(orderBook?.askSize || 0),
+        bestBid: "0.00",
+        bestAsk: "0.00",
+        bidSize: 0,
+        askSize: 0,
         updatedAt: now,
       };
     });
