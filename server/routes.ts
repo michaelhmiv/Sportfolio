@@ -2078,7 +2078,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Get trades within time range for chart (more trades for longer ranges)
       const tradesLimit = range === "1Y" ? 500 : range === "1M" ? 200 : range === "1W" ? 100 : 50;
-      const allTrades = await storage.getRecentTrades(player.id, tradesLimit);
+      const recentTradesRaw = await storage.getRecentTrades(player.id, tradesLimit);
+
+      // In AMM-only mode, only chart/list AMM-executed trades (pool is one side of the trade).
+      const allTrades = isAmmOnlyMode
+        ? recentTradesRaw.filter((t: any) => t.buyerId === "pool" || t.sellerId === "pool")
+        : recentTradesRaw;
 
       // Filter trades within time range
       const tradesInRange = allTrades.filter(t => new Date(t.executedAt) >= cutoffDate);
