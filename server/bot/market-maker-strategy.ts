@@ -4,13 +4,14 @@
 
 import { db } from "../db";
 import { orders, holdings, balanceLocks } from "@shared/schema";
-import { eq, and, sql, lt } from "drizzle-orm";
+import { eq, and, sql, lt, asc } from "drizzle-orm";
 import { storage } from "../storage";
 import { getMarketMakingCandidates, getEffectivePrice, type PlayerValuation } from "./player-valuation";
 import { logBotAction, updateBotCounters, type BotProfile } from "./bot-engine";
 import { placeBotLimitOrder } from "../order-matcher";
 
 const STALE_ORDER_THRESHOLD_MS = 15 * 60 * 1000; // 15 minutes
+const MAX_STALE_CANCELLATIONS_PER_TICK = 25; // Prevent timeout when clearing large backlogs
 
 interface MarketMakerConfig {
   userId: string;
@@ -71,7 +72,9 @@ async function cancelStaleOrders(userId: string, botName: string): Promise<numbe
       eq(orders.userId, userId),
       eq(orders.status, "open"),
       lt(orders.createdAt, staleThreshold)
-    ));
+    ))
+    .orderBy(asc(orders.createdAt))
+    .limit(MAX_STALE_CANCELLATIONS_PER_TICK);
 
   if (staleOrders.length === 0) return 0;
 
@@ -93,6 +96,10 @@ async function cancelStaleOrders(userId: string, botName: string): Promise<numbe
       triggerReason: "Periodic order refresh - cancelling stale orders",
       success: true,
     });
+  }
+
+  if (staleOrders.length === MAX_STALE_CANCELLATIONS_PER_TICK) {
+    console.log(`[MarketMaker] ${botName} stale order cleanup capped at ${MAX_STALE_CANCELLATIONS_PER_TICK} this tick`);
   }
 
   return cancelledCount;

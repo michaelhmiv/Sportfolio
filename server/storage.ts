@@ -1,6 +1,7 @@
 import {
   users,
   players,
+  playerMarketMetrics,
   holdings,
   holdingsLocks,
   balanceLocks,
@@ -180,7 +181,9 @@ export interface IStorage {
     hasSellOrders?: boolean;
     teamsPlayingOnDate?: string[];
     watchlistUserId?: string;
+    watchlistId?: string;
   }): Promise<{ players: Player[]; total: number }>;
+  refreshPlayerMarketMetrics(playerIds?: string[]): Promise<number>;
   getPlayer(id: string): Promise<Player | undefined>;
   getPlayersByIds(ids: string[]): Promise<Player[]>;
   getPlayersBySport(sport: string): Promise<Player[]>;
@@ -378,8 +381,6 @@ export interface IStorage {
     marketCap: number;
   }>>;
   getPlayerSharesOutstanding(playerIds?: string[]): Promise<Map<string, number>>;
-  getContestUsageStats(playerIds?: string[]): Promise<Map<string, { timesUsed: number; totalEntries: number; usagePercent: number }>>;
-  getPriceHistoryRange(playerIds: string[], startDate: Date, endDate: Date): Promise<Map<string, Array<{ timestamp: Date; price: number }>>>;
   getHotColdPlayers(limit: number): Promise<{ hot: Player[]; cold: Player[] }>;
   getHeatmapData(): Promise<Array<{ team: string; position: string; avgPriceChange: number; playerCount: number; topPlayer: string }>>;
   getPowerRankings(limit?: number): Promise<Array<{
@@ -397,6 +398,7 @@ export interface IStorage {
     totalSharesVested: number;
     totalSharesBurned: number;
     totalSharesInEconomy: number;
+    periodSharesVested: number;
     periodsharesVested: number;
     periodSharesBurned: number;
   }>;
@@ -1192,6 +1194,7 @@ export class DatabaseStorage implements IStorage {
     hasSellOrders?: boolean;
     teamsPlayingOnDate?: string[];
     watchlistUserId?: string;
+    watchlistId?: string;
   }): Promise<{ players: Player[]; total: number }> {
     const {
       search, team, position, sport,
@@ -1201,7 +1204,8 @@ export class DatabaseStorage implements IStorage {
       hasBuyOrders,
       hasSellOrders,
       teamsPlayingOnDate,
-      watchlistUserId
+      watchlistUserId,
+      watchlistId
     } = filters || {};
 
     // Build conditions using the helper
@@ -1214,6 +1218,7 @@ export class DatabaseStorage implements IStorage {
           SELECT 1 FROM ${watchList}
           WHERE ${watchList.playerId} = ${players.id}
           AND ${watchList.userId} = ${watchlistUserId}
+          ${watchlistId ? sql`AND ${watchList.watchlistId} = ${watchlistId}` : sql``}
         )`
       );
     }
@@ -1247,8 +1252,10 @@ export class DatabaseStorage implements IStorage {
     // Always filter by is_active
     conditions.push(eq(players.isActive, true));
 
-    // Build ORDER BY clause - simple sorts only (complex sorts handled client-side in route)
-    let orderByClause;
+    const isComplexSort = ['bid', 'ask', 'sentiment', 'undervalued', 'fantasyPoints'].includes(sortBy);
+
+    // Build ORDER BY clause
+    let orderByClause: any;
     switch (sortBy) {
       case 'price':
         orderByClause = sortOrder === 'asc' ? asc(players.lastTradePrice) : desc(players.lastTradePrice);
@@ -1270,9 +1277,32 @@ export class DatabaseStorage implements IStorage {
       case 'team':
         orderByClause = sortOrder === 'asc' ? asc(players.team) : desc(players.team);
         break;
+      case 'bid':
+        orderByClause = sortOrder === 'asc'
+          ? asc(sql`COALESCE(${playerMarketMetrics.bestBid}, 0)`)
+          : desc(sql`COALESCE(${playerMarketMetrics.bestBid}, 0)`);
+        break;
+      case 'ask':
+        orderByClause = sortOrder === 'asc'
+          ? asc(sql`COALESCE(NULLIF(${playerMarketMetrics.bestAsk}, 0), 999999999)`)
+          : desc(sql`COALESCE(${playerMarketMetrics.bestAsk}, 0)`);
+        break;
+      case 'sentiment':
+        orderByClause = sortOrder === 'asc'
+          ? asc(sql`COALESCE(${playerMarketMetrics.buyPressure}, 50)`)
+          : desc(sql`COALESCE(${playerMarketMetrics.buyPressure}, 50)`);
+        break;
+      case 'undervalued':
+        orderByClause = sortOrder === 'asc'
+          ? asc(sql`COALESCE(NULLIF(${playerMarketMetrics.valueIndex}, 0), 999999999)`)
+          : desc(sql`COALESCE(${playerMarketMetrics.valueIndex}, 0)`);
+        break;
+      case 'fantasyPoints':
+        orderByClause = sortOrder === 'asc'
+          ? asc(sql`COALESCE(${playerMarketMetrics.avgFantasyPoints}, 0)`)
+          : desc(sql`COALESCE(${playerMarketMetrics.avgFantasyPoints}, 0)`);
+        break;
       default:
-        // For bid, ask, sentiment, undervalued, fantasyPoints - sort by volume as base
-        // Actual sorting by these fields happens client-side in route handler
         orderByClause = desc(players.volume24h);
     }
 
@@ -1282,20 +1312,56 @@ export class DatabaseStorage implements IStorage {
       .from(players)
       .where(and(...conditions));
 
-    const dataQuery = db
-      .select()
-      .from(players)
-      .where(and(...conditions))
-      .orderBy(orderByClause)
-      .limit(limit)
-      .offset(offset);
+    const dataQuery = isComplexSort
+      ? db
+        .select({
+          player: players,
+          metricBestBid: sql<string>`COALESCE(${playerMarketMetrics.bestBid}, '0')`,
+          metricBestAsk: sql<string>`COALESCE(${playerMarketMetrics.bestAsk}, '0')`,
+          metricBuyPressure: sql<string>`COALESCE(${playerMarketMetrics.buyPressure}, '50')`,
+          metricValueIndex: sql<string>`COALESCE(${playerMarketMetrics.valueIndex}, '0')`,
+          metricAvgFantasyPoints: sql<string>`COALESCE(${playerMarketMetrics.avgFantasyPoints}, '0')`,
+        })
+        .from(players)
+        .leftJoin(playerMarketMetrics, eq(playerMarketMetrics.playerId, players.id))
+        .where(and(...conditions))
+        .orderBy(orderByClause)
+        .limit(limit)
+        .offset(offset)
+      : db
+        .select({ player: players })
+        .from(players)
+        .where(and(...conditions))
+        .orderBy(orderByClause)
+        .limit(limit)
+        .offset(offset);
 
-    const [countResult, playersData] = await Promise.all([
+    const [countResult, playerRows] = await Promise.all([
       countQuery,
       dataQuery
     ]);
 
-    return { players: playersData, total: countResult[0].count };
+    const mappedPlayers = playerRows.map((r: any) => {
+      const player = r.player as Player & {
+        _metricBestBid?: string;
+        _metricBestAsk?: string;
+        _metricBuyPressure?: string;
+        _metricValueIndex?: string;
+        _metricAvgFantasyPoints?: string;
+      };
+
+      if (isComplexSort) {
+        player._metricBestBid = r.metricBestBid;
+        player._metricBestAsk = r.metricBestAsk;
+        player._metricBuyPressure = r.metricBuyPressure;
+        player._metricValueIndex = r.metricValueIndex;
+        player._metricAvgFantasyPoints = r.metricAvgFantasyPoints;
+      }
+
+      return player as Player;
+    });
+
+    return { players: mappedPlayers, total: countResult[0].count };
   }
 
   async getPlayer(id: string): Promise<Player | undefined> {
@@ -1970,6 +2036,88 @@ export class DatabaseStorage implements IStorage {
     }
 
     return avgMap;
+  }
+
+  async refreshPlayerMarketMetrics(playerIds?: string[]): Promise<number> {
+    let targetPlayerIds = (playerIds || []).filter(Boolean);
+
+    if (targetPlayerIds.length === 0) {
+      const activePlayers = await db
+        .select({ id: players.id })
+        .from(players)
+        .where(eq(players.isActive, true));
+      targetPlayerIds = activePlayers.map((p) => p.id);
+    }
+
+    targetPlayerIds = Array.from(new Set(targetPlayerIds));
+    if (targetPlayerIds.length === 0) return 0;
+
+    const [playerRows, orderBooksMap, sentimentMap, seasonStatsMap, allTimeAvgMap] = await Promise.all([
+      db
+        .select({
+          id: players.id,
+          lastTradePrice: players.lastTradePrice,
+          currentPrice: players.currentPrice,
+        })
+        .from(players)
+        .where(inArray(players.id, targetPlayerIds)),
+      this.getBatchOrderBooks(targetPlayerIds),
+      this.getBatchSentiment(targetPlayerIds),
+      this.getBatchPlayerSeasonStatsFromLogs(targetPlayerIds),
+      this.getBatchAllTimeAvgFantasyPoints(targetPlayerIds),
+    ]);
+
+    const playerPriceMap = new Map(
+      playerRows.map((p) => [
+        p.id,
+        parseFloat(p.lastTradePrice || p.currentPrice || "0"),
+      ]),
+    );
+
+    const LEAGUE_AVG_PE = 0.43;
+    const now = new Date();
+    const rows = targetPlayerIds.map((playerId) => {
+      const orderBook = orderBooksMap.get(playerId);
+      const sentiment = sentimentMap.get(playerId) || { buyPressure: 50, totalVolume24h: 0 };
+      const seasonStats = seasonStatsMap.get(playerId) || { gamesPlayed: 0, avgFantasyPointsPerGame: "0.0" };
+      const allTimeAvgFp = allTimeAvgMap.get(playerId) || 0;
+      const price = playerPriceMap.get(playerId) || 0;
+      const peRatio = allTimeAvgFp > 0 ? price / allTimeAvgFp : 0;
+      const valueIndex = LEAGUE_AVG_PE > 0 ? (peRatio / LEAGUE_AVG_PE) * 100 : 0;
+
+      return {
+        playerId,
+        avgFantasyPoints: (parseFloat(seasonStats.avgFantasyPointsPerGame || "0") || 0).toFixed(2),
+        buyPressure: (sentiment.buyPressure || 50).toFixed(2),
+        totalOrderVolume24h: Math.round(sentiment.totalVolume24h || 0),
+        valueIndex: (valueIndex || 0).toFixed(2),
+        bestBid: (parseFloat(orderBook?.bestBid || "0") || 0).toFixed(2),
+        bestAsk: (parseFloat(orderBook?.bestAsk || "0") || 0).toFixed(2),
+        bidSize: Math.round(orderBook?.bidSize || 0),
+        askSize: Math.round(orderBook?.askSize || 0),
+        updatedAt: now,
+      };
+    });
+
+    await db
+      .insert(playerMarketMetrics)
+      .values(rows)
+      .onConflictDoUpdate({
+        target: playerMarketMetrics.playerId,
+        set: {
+          avgFantasyPoints: sql`excluded.avg_fantasy_points`,
+          buyPressure: sql`excluded.buy_pressure`,
+          totalOrderVolume24h: sql`excluded.total_order_volume_24h`,
+          valueIndex: sql`excluded.value_index`,
+          bestBid: sql`excluded.best_bid`,
+          bestAsk: sql`excluded.best_ask`,
+          bidSize: sql`excluded.bid_size`,
+          askSize: sql`excluded.ask_size`,
+          updatedAt: sql`excluded.updated_at`,
+        },
+      });
+
+    return rows.length;
   }
 
   async updateOrder(orderId: string, updates: Partial<Order>): Promise<void> {
@@ -3581,80 +3729,6 @@ export class DatabaseStorage implements IStorage {
     return sharesMap;
   }
 
-  async getContestUsageStats(playerIds?: string[]): Promise<Map<string, { timesUsed: number; totalEntries: number; usagePercent: number }>> {
-    // Get total contest entries
-    const totalEntriesResult = await db
-      .select({ count: count() })
-      .from(contestEntries);
-    const totalEntries = totalEntriesResult[0]?.count || 0;
-
-    // Get player usage counts
-    const usageQuery = playerIds && playerIds.length > 0
-      ? db
-        .select({
-          playerId: contestLineups.playerId,
-          timesUsed: count(),
-        })
-        .from(contestLineups)
-        .where(inArray(contestLineups.playerId, playerIds))
-        .groupBy(contestLineups.playerId)
-      : db
-        .select({
-          playerId: contestLineups.playerId,
-          timesUsed: count(),
-        })
-        .from(contestLineups)
-        .groupBy(contestLineups.playerId);
-
-    const usageResults = await usageQuery;
-    const usageMap = new Map<string, { timesUsed: number; totalEntries: number; usagePercent: number }>();
-
-    for (const row of usageResults) {
-      const usagePercent = totalEntries > 0 ? (row.timesUsed / totalEntries) * 100 : 0;
-      usageMap.set(row.playerId, {
-        timesUsed: row.timesUsed,
-        totalEntries,
-        usagePercent,
-      });
-    }
-
-    return usageMap;
-  }
-
-  async getPriceHistoryRange(playerIds: string[], startDate: Date, endDate: Date): Promise<Map<string, Array<{ timestamp: Date; price: number }>>> {
-    if (playerIds.length === 0) {
-      return new Map();
-    }
-
-    const history = await db
-      .select({
-        playerId: priceHistory.playerId,
-        timestamp: priceHistory.timestamp,
-        price: priceHistory.price,
-      })
-      .from(priceHistory)
-      .where(and(
-        inArray(priceHistory.playerId, playerIds),
-        gte(priceHistory.timestamp, startDate),
-        lte(priceHistory.timestamp, endDate)
-      ))
-      .orderBy(priceHistory.playerId, priceHistory.timestamp);
-
-    const historyMap = new Map<string, Array<{ timestamp: Date; price: number }>>();
-
-    for (const row of history) {
-      if (!historyMap.has(row.playerId)) {
-        historyMap.set(row.playerId, []);
-      }
-      historyMap.get(row.playerId)!.push({
-        timestamp: row.timestamp,
-        price: parseFloat(row.price),
-      });
-    }
-
-    return historyMap;
-  }
-
   async getHotColdPlayers(limit: number): Promise<{ hot: Player[]; cold: Player[] }> {
     // Hot players: biggest positive price change
     const hotPlayers = await db
@@ -3786,6 +3860,7 @@ export class DatabaseStorage implements IStorage {
     totalSharesVested: number;
     totalSharesBurned: number;
     totalSharesInEconomy: number;
+    periodSharesVested: number;
     periodsharesVested: number;
     periodSharesBurned: number;
   }> {
@@ -3806,19 +3881,28 @@ export class DatabaseStorage implements IStorage {
       .where(eq(holdings.assetType, 'player'));
     const totalSharesInEconomy = parseInt(totalHoldingsResult[0]?.total || "0");
 
-    // Total shares burned = shares used in contest entries where contest has started (live or completed)
-    // Shares are only "burned" when the contest actually begins, not when entered
-    const totalBurnedResult = await db
+    // Total shares burned = shares used in Daily Boosts that have started processing
+    // Include locked+processed boosts (current system) plus legacy contest burns during transition.
+    const totalBurnedBoostsResult = await db
+      .select({
+        total: sql<string>`COALESCE(SUM(${dailyBoosts.sharesEntered}), 0)`.as('total'),
+      })
+      .from(dailyBoosts)
+      .where(inArray(dailyBoosts.status, ["locked", "processed"]));
+
+    const totalBurnedLegacyContestsResult = await db
       .select({
         total: sql<string>`COALESCE(SUM(${contestEntries.totalSharesEntered}), 0)`.as('total'),
       })
       .from(contestEntries)
       .innerJoin(contests, eq(contestEntries.contestId, contests.id))
       .where(sql`${contests.status} IN ('live', 'completed')`);
-    const totalSharesBurned = parseInt(totalBurnedResult[0]?.total || "0");
+    const totalSharesBurned =
+      parseInt(totalBurnedBoostsResult[0]?.total || "0") +
+      parseInt(totalBurnedLegacyContestsResult[0]?.total || "0");
 
     // Period stats (if dates provided)
-    let periodsharesVested = 0;
+    let periodSharesVested = 0;
     let periodSharesBurned = 0;
 
     if (startDate && endDate) {
@@ -3831,9 +3915,20 @@ export class DatabaseStorage implements IStorage {
           gte(vestingClaims.claimedAt, startDate),
           lte(vestingClaims.claimedAt, endDate)
         ));
-      periodsharesVested = parseInt(periodVestedResult[0]?.total || "0");
+      periodSharesVested = parseInt(periodVestedResult[0]?.total || "0");
 
-      const periodBurnedResult = await db
+      const periodBurnedBoostsResult = await db
+        .select({
+          total: sql<string>`COALESCE(SUM(${dailyBoosts.sharesEntered}), 0)`.as('total'),
+        })
+        .from(dailyBoosts)
+        .where(and(
+          inArray(dailyBoosts.status, ["locked", "processed"]),
+          gte(dailyBoosts.boostDate, startDate),
+          lte(dailyBoosts.boostDate, endDate)
+        ));
+
+      const periodBurnedLegacyContestsResult = await db
         .select({
           total: sql<string>`COALESCE(SUM(${contestEntries.totalSharesEntered}), 0)`.as('total'),
         })
@@ -3843,14 +3938,17 @@ export class DatabaseStorage implements IStorage {
           gte(contests.startsAt, startDate),
           lte(contests.startsAt, endDate)
         ));
-      periodSharesBurned = parseInt(periodBurnedResult[0]?.total || "0");
+      periodSharesBurned =
+        parseInt(periodBurnedBoostsResult[0]?.total || "0") +
+        parseInt(periodBurnedLegacyContestsResult[0]?.total || "0");
     }
 
     return {
       totalSharesVested,
       totalSharesBurned,
       totalSharesInEconomy,
-      periodsharesVested,
+      periodSharesVested,
+      periodsharesVested: periodSharesVested,
       periodSharesBurned,
     };
   }
@@ -3874,9 +3972,23 @@ export class DatabaseStorage implements IStorage {
       .groupBy(sql`DATE(${vestingClaims.claimedAt})`)
       .orderBy(sql`DATE(${vestingClaims.claimedAt})`);
 
-    // Get shares burned by contest game_date (shares are burned when contest starts, not when entry created)
-    // Only count entries from contests that have started (live or completed status)
+    // Get shares burned by Daily Boost date in current system (locked/processed only)
     const burnedByDate = await db
+      .select({
+        date: sql<string>`DATE(${dailyBoosts.boostDate})`.as('date'),
+        shares: sql<string>`COALESCE(SUM(${dailyBoosts.sharesEntered}), 0)`.as('shares'),
+      })
+      .from(dailyBoosts)
+      .where(and(
+        inArray(dailyBoosts.status, ["locked", "processed"]),
+        gte(dailyBoosts.boostDate, startDate),
+        lte(dailyBoosts.boostDate, endDate)
+      ))
+      .groupBy(sql`DATE(${dailyBoosts.boostDate})`)
+      .orderBy(sql`DATE(${dailyBoosts.boostDate})`);
+
+    // Legacy contest burn series (transition support)
+    const legacyBurnedByDate = await db
       .select({
         date: sql<string>`DATE(${contests.gameDate})`.as('date'),
         shares: sql<string>`COALESCE(SUM(${contestEntries.totalSharesEntered}), 0)`.as('shares'),
@@ -3905,7 +4017,15 @@ export class DatabaseStorage implements IStorage {
     for (const row of burnedByDate) {
       const dateStr = row.date;
       const existing = dateMap.get(dateStr) || { sharesVested: 0, sharesBurned: 0 };
-      existing.sharesBurned = parseInt(row.shares || "0");
+      existing.sharesBurned += parseInt(row.shares || "0");
+      dateMap.set(dateStr, existing);
+    }
+
+    // Add/merge legacy burned dates
+    for (const row of legacyBurnedByDate) {
+      const dateStr = row.date;
+      const existing = dateMap.get(dateStr) || { sharesVested: 0, sharesBurned: 0 };
+      existing.sharesBurned += parseInt(row.shares || "0");
       dateMap.set(dateStr, existing);
     }
 
@@ -4679,10 +4799,8 @@ export class DatabaseStorage implements IStorage {
 
   // Daily Boosts methods
   async getDailyBoosts(userId: string, sport: string, date: Date): Promise<DailyBoost[]> {
-    const startOfDay = new Date(date);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(date);
-    endOfDay.setHours(23, 59, 59, 999);
+    const dateStr = getGameDay(date);
+    const { startOfDay, endOfDay } = getETDayBoundaries(dateStr);
 
     return await db.select().from(dailyBoosts)
       .where(and(
@@ -4695,10 +4813,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getDailyBoostsAllSports(userId: string, date: Date): Promise<DailyBoost[]> {
-    const startOfDay = new Date(date);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(date);
-    endOfDay.setHours(23, 59, 59, 999);
+    const dateStr = getGameDay(date);
+    const { startOfDay, endOfDay } = getETDayBoundaries(dateStr);
 
     return await db.select().from(dailyBoosts)
       .where(and(
@@ -4964,10 +5080,8 @@ export class DatabaseStorage implements IStorage {
     return game;
   }
   async getCommunityBoostsForDate(sport: string, date: Date): Promise<(CommunityBoost & { creator: User; player: Player })[]> {
-    const startOfDay = new Date(date);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(date);
-    endOfDay.setHours(23, 59, 59, 999);
+    const dateStr = getGameDay(date);
+    const { startOfDay, endOfDay } = getETDayBoundaries(dateStr);
 
     const boosts = await db.select({
       boost: communityBoosts,
@@ -4992,10 +5106,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getCommunityBoostsAllSports(date: Date): Promise<(CommunityBoost & { creator: User; player: Player })[]> {
-    const startOfDay = new Date(date);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(date);
-    endOfDay.setHours(23, 59, 59, 999);
+    const dateStr = getGameDay(date);
+    const { startOfDay, endOfDay } = getETDayBoundaries(dateStr);
 
     const boosts = await db.select({
       boost: communityBoosts,

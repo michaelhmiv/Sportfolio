@@ -1,12 +1,11 @@
 /**
  * Community Boost Settlement Job
  * 
- * Runs after games complete to settle community boosts.
+ * Runs after games complete to finalize community boosts.
  * For each active community boost where the game is completed:
- * - Finds all users who hold shares of the boosted player
- * - Calculates payout: shares × fantasy points × 5 (multiplier)
- * - Credits each user's balance
  * - Marks community boost as processed
+ * - Stores final fantasy points for audit/history
+ * - Daily boost payout multiplier impact is handled in settle-boosts job
  */
 
 import { storage } from "../storage";
@@ -67,34 +66,10 @@ export async function settleCommunityBoosts(progressCallback?: ProgressCallback)
                 const stats = await storage.getPlayerGameStats(boost.playerId, boost.gameId);
                 const fantasyPoints = stats ? parseFloat(stats.fantasyPoints) : 0;
 
-                // Multiplier is fixed at 5x for community boosts
-                const MULTIPLIER = 5;
-
-                // Find all beneficiaries (users who own the player)
-                const beneficiaries = await storage.getCommunityBoostBeneficiaries(boost.playerId);
-                console.log(`[settle_community_boosts] Found ${beneficiaries.length} beneficiaries for player ${boost.playerId}`);
-
-                let boostTotalPayout = 0;
-                let beneficiaryCount = 0;
-
-                // Process payouts for each beneficiary
-                for (const beneficiary of beneficiaries) {
-                    const shares = parseFloat(beneficiary.quantity);
-                    if (shares <= 0) continue;
-
-                    const payout = shares * fantasyPoints * MULTIPLIER;
-                    boostTotalPayout += payout;
-                    beneficiaryCount++;
-
-                    // Credit user balance
-                    const user = await storage.getUser(beneficiary.userId);
-                    if (user) {
-                        const newBalance = parseFloat(user.balance) + payout;
-                        await storage.updateUserBalance(user.id, newBalance.toFixed(2));
-
-                        console.log(`[settle_community_boosts] Paid user ${user.username}: ${shares} shares × ${fantasyPoints} FP × 5x = $${payout.toFixed(2)}`);
-                    }
-                }
+                // Community boosts now modify Daily Boost multipliers (+1x each) and are settled there.
+                // This job only finalizes boost lifecycle state to avoid duplicate/legacy payouts.
+                const boostTotalPayout = 0;
+                const beneficiaryCount = 0;
 
                 // Update community boost status
                 await storage.updateCommunityBoost(boost.id, {
@@ -105,7 +80,7 @@ export async function settleCommunityBoosts(progressCallback?: ProgressCallback)
                     processedAt: new Date(),
                 });
 
-                console.log(`[settle_community_boosts] Processed boost ${boost.id}: ${beneficiaryCount} users paid total $${boostTotalPayout.toFixed(2)}`);
+                console.log(`[settle_community_boosts] Processed boost ${boost.id}: payout handled by daily boost settlement`);
 
                 // Notify via websocket
                 broadcast({

@@ -322,10 +322,12 @@ export function ScoutDashboardModal() {
 
     // 3. Fetch Market Directory
     const isClientSort = ['scouts', 'shares'].includes(sortField) || activeTab === 'scouts';
+    const needsFullMarketSet = activeTab === 'market' && gameStatusFilter !== 'all';
 
     const playerQueryUrl = useMemo(() => {
         const params = new URLSearchParams();
-        params.set('limit', limit.toString());
+        // Game status is filtered client-side, so fetch full set to avoid subset-only results.
+        params.set('limit', needsFullMarketSet ? '5000' : limit.toString());
 
         if (searchQuery.length > 0) params.set('search', searchQuery);
         if (sportFilter !== 'all') params.set('sport', sportFilter);
@@ -336,7 +338,7 @@ export function ScoutDashboardModal() {
         params.set('sortOrder', sortDirection);
 
         return `/api/players?${params.toString()}`;
-    }, [searchQuery, sportFilter, positionFilter, sortField, sortDirection, limit]);
+    }, [searchQuery, sportFilter, positionFilter, sortField, sortDirection, limit, needsFullMarketSet]);
 
     const { data: playersData, isLoading: isLoadingPlayers } = useQuery<{ players: PlayerWithStats[], total: number }>({
         queryKey: [playerQueryUrl],
@@ -969,7 +971,7 @@ export function ScoutDashboardModal() {
                             )}
 
                             {/* "Load More" trigger */}
-                            {!isClientSort && (playersData?.total || 0) > limit && (
+                            {!isClientSort && !needsFullMarketSet && (playersData?.total || 0) > limit && (
                                 <div className="p-2 text-center">
                                     <Button
                                         variant="ghost"

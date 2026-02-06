@@ -80,9 +80,13 @@ interface ComparisonPlayer {
   price: number;
   volume: number;
   priceChange24h: number;
-  contestUsagePercent: number;
-  timesUsedInContests: number;
-  priceHistory: { timestamp: string; price: number }[];
+  boostUsagePercent: number;
+  timesUsedInBoosts: number;
+  ammVolume: number;
+  ammTrades: number;
+  poolLiquidity: number;
+  poolShares: number;
+  ammVolumeHistory: { timestamp: string; volume: number }[];
 }
 
 interface AnalyticsData {
@@ -519,7 +523,7 @@ export default function Analytics() {
                   </ResponsiveContainer>
                 ) : (
                   <div className="flex items-center justify-center h-[250px] text-muted-foreground text-sm">
-                    No scouting or contest activity in selected time period
+                    No scouting or boost activity in selected time period
                   </div>
                 )}
               </CardContent>
@@ -761,8 +765,10 @@ export default function Analytics() {
                             <th className="text-right py-2 px-2 font-medium text-muted-foreground">Shares</th>
                             <th className="text-right py-2 px-2 font-medium text-muted-foreground">Market Cap</th>
                             <th className="text-right py-2 px-2 font-medium text-muted-foreground">Price</th>
-                            <th className="text-right py-2 px-2 font-medium text-muted-foreground">Volume</th>
-                            <th className="text-right py-2 px-2 font-medium text-muted-foreground">Contest %</th>
+                            <th className="text-right py-2 px-2 font-medium text-muted-foreground">AMM Vol</th>
+                            <th className="text-right py-2 px-2 font-medium text-muted-foreground">AMM Trades</th>
+                            <th className="text-right py-2 px-2 font-medium text-muted-foreground">Pool Liquidity</th>
+                            <th className="text-right py-2 px-2 font-medium text-muted-foreground">Boost %</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -780,17 +786,19 @@ export default function Analytics() {
                               <td className="py-2 px-2 text-right font-mono">{player.shares.toLocaleString()}</td>
                               <td className="py-2 px-2 text-right font-mono">{formatLargeNumber(player.marketCap)}</td>
                               <td className="py-2 px-2 text-right font-mono">${player.price.toFixed(2)}</td>
-                              <td className="py-2 px-2 text-right font-mono">{player.volume}</td>
-                              <td className="py-2 px-2 text-right font-mono">{player.contestUsagePercent.toFixed(1)}%</td>
+                              <td className="py-2 px-2 text-right font-mono">{formatLargeNumber(player.ammVolume)}</td>
+                              <td className="py-2 px-2 text-right font-mono">{player.ammTrades.toLocaleString()}</td>
+                              <td className="py-2 px-2 text-right font-mono">{formatLargeNumber(player.poolLiquidity)}</td>
+                              <td className="py-2 px-2 text-right font-mono">{player.boostUsagePercent.toFixed(1)}%</td>
                             </tr>
                           ))}
                         </tbody>
                       </table>
                     </div>
 
-                    {comparisonData.players.some(p => p.priceHistory.length > 0) && (
+                    {comparisonData.players.some(p => p.ammVolumeHistory.length > 0) && (
                       <div className="mt-4">
-                        <h4 className="text-sm font-medium mb-2">Price History</h4>
+                        <h4 className="text-sm font-medium mb-2">AMM Volume Trend</h4>
                         <ResponsiveContainer width="100%" height={200}>
                           <LineChart>
                             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
@@ -808,15 +816,16 @@ export default function Analytics() {
                                 borderRadius: '6px',
                                 fontSize: '12px'
                               }}
+                              formatter={(value: number) => [`$${value.toLocaleString()}`, 'AMM Volume']}
                             />
                             <Legend />
                             {comparisonData.players.map((player, idx) => (
-                              player.priceHistory.length > 0 && (
+                              player.ammVolumeHistory.length > 0 && (
                                 <Line
                                   key={player.id}
                                   type="monotone"
-                                  data={player.priceHistory}
-                                  dataKey="price"
+                                  data={player.ammVolumeHistory}
+                                  dataKey="volume"
                                   stroke={chartColors[idx]}
                                   name={player.name}
                                   strokeWidth={2}

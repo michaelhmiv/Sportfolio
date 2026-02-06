@@ -63,6 +63,7 @@ export default function Marketplace() {
   const [showFilters, setShowFilters] = useState(false);
   const ITEMS_PER_PAGE = 50;
   const { subscribe } = useWebSocket();
+  const offset = (page - 1) * ITEMS_PER_PAGE;
 
   // Sync active tab and sort with URL query parameters
   useEffect(() => {
@@ -90,6 +91,11 @@ export default function Marketplace() {
     return () => clearTimeout(timer);
   }, [search]);
 
+  // Reset to first page when non-search filters change
+  useEffect(() => {
+    setPage(1);
+  }, [teamFilter, positionFilter, filterWatchlistId, sport]);
+
   // WebSocket subscriptions for real-time updates
   useEffect(() => {
     const unsubTrade = subscribe('trade', (data) => {
@@ -111,6 +117,7 @@ export default function Marketplace() {
       sortBy: sortField,
       sortOrder,
       page,
+      offset,
       limit: ITEMS_PER_PAGE,
       watchlistId: filterWatchlistId !== "none" ? filterWatchlistId : undefined,
     }],
@@ -122,9 +129,14 @@ export default function Marketplace() {
       if (positionFilter !== "all") params.append("position", positionFilter);
       if (sortField) params.append("sortBy", sortField);
       if (sortOrder) params.append("sortOrder", sortOrder);
-      params.append("page", page.toString());
+      params.append("offset", offset.toString());
       params.append("limit", ITEMS_PER_PAGE.toString());
-      if (filterWatchlistId !== "none") params.append("watchlistId", filterWatchlistId);
+      if (filterWatchlistId !== "none") {
+        params.append("isWatchlist", "true");
+        if (filterWatchlistId !== "all") {
+          params.append("watchlistId", filterWatchlistId);
+        }
+      }
 
       const res = await fetch(`/api/players?${params.toString()}`, {
         credentials: "include",

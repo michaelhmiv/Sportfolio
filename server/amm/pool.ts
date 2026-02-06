@@ -524,22 +524,27 @@ export async function executeBuy(
         const currentTotalCost = parseFloat(existingHolding.totalCostBasis);
         const newTotalCost = currentTotalCost + quote.totalCost;
         const newAvgCost = newTotalCost / newQuantity;
+        const holdingPower = existingHolding.power || 1;
 
         await tx
           .update(holdings)
           .set({
-            quantity: Math.round(newQuantity).toString(),
+            quantity: newQuantity.toFixed(4),
+            powerLevel: (newQuantity * holdingPower).toFixed(2),
             avgCostBasis: newAvgCost.toFixed(4),
             totalCostBasis: newTotalCost.toFixed(2),
             lastUpdated: new Date(),
           })
           .where(eq(holdings.id, existingHolding.id));
       } else {
+        const newQuantity = quote.sharesOut;
         await tx.insert(holdings).values({
           userId,
           assetType: "player",
           assetId: playerId,
-          quantity: Math.round(quote.sharesOut).toString(),
+          quantity: newQuantity.toFixed(4),
+          power: 1,
+          powerLevel: newQuantity.toFixed(2),
           avgCostBasis: quote.effectivePrice.toFixed(4),
           totalCostBasis: quote.totalCost.toFixed(2),
           lastUpdated: new Date(),
@@ -688,8 +693,12 @@ export async function executeSell(
           eq(holdings.assetId, playerId)
         ));
 
+      if (!holding) {
+        return { success: false, error: "Insufficient shares" };
+      }
+
       const holdingQuantity = parseFloat(holding.quantity);
-      if (!holding || holdingQuantity < sharesAmount) {
+      if (holdingQuantity < sharesAmount) {
         return { success: false, error: "Insufficient shares" };
       }
 
@@ -722,10 +731,12 @@ export async function executeSell(
       // 6. Deduct shares from user holdings
       const newQuantity = holdingQuantity - sharesAmount;
       if (newQuantity > MIN_HOLDING_THRESHOLD) {
+        const holdingPower = holding.power || 1;
         await tx
           .update(holdings)
           .set({
-            quantity: Math.round(newQuantity).toString(),
+            quantity: newQuantity.toFixed(4),
+            powerLevel: (newQuantity * holdingPower).toFixed(2),
             lastUpdated: new Date(),
           })
           .where(eq(holdings.id, holding.id));
@@ -936,10 +947,12 @@ export async function addLiquidity(
       // 7. Deduct shares from user holdings
       const newQuantity = userHoldingQuantity - sharesToDeposit;
       if (newQuantity > MIN_HOLDING_THRESHOLD) {
+        const holdingPower = userHolding.power || 1;
         await tx
           .update(holdings)
           .set({
-            quantity: Math.round(newQuantity).toString(),
+            quantity: newQuantity.toFixed(4),
+            powerLevel: (newQuantity * holdingPower).toFixed(2),
             lastUpdated: new Date(),
           })
           .where(eq(holdings.id, userHolding.id));
@@ -1115,10 +1128,13 @@ export async function removeLiquidity(
 
       if (existingHolding) {
         const existingQuantity = parseFloat(existingHolding.quantity);
+        const newQuantity = existingQuantity + sharesToReturn;
+        const holdingPower = existingHolding.power || 1;
         await tx
           .update(holdings)
           .set({
-            quantity: Math.round(existingQuantity + sharesToReturn).toString(),
+            quantity: newQuantity.toFixed(4),
+            powerLevel: (newQuantity * holdingPower).toFixed(2),
             lastUpdated: new Date(),
           })
           .where(eq(holdings.id, existingHolding.id));
@@ -1127,7 +1143,9 @@ export async function removeLiquidity(
           userId,
           assetType: "player",
           assetId: playerId,
-          quantity: Math.round(sharesToReturn).toString(),
+          quantity: sharesToReturn.toFixed(4),
+          power: 1,
+          powerLevel: sharesToReturn.toFixed(2),
           avgCostBasis: poolData.currentPrice.toFixed(4),
           totalCostBasis: playMoneyToReturn.toFixed(2),
           lastUpdated: new Date(),

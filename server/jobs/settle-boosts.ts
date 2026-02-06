@@ -30,6 +30,7 @@ export async function settleBoosts(progressCallback?: ProgressCallback): Promise
     try {
         // Get all locked boosts ready for settlement
         const lockedBoosts = await storage.getDailyBoostsByStatus("locked");
+        const communityCountCache = new Map<string, number>();
 
         console.log(`[settle_boosts] Found ${lockedBoosts.length} locked boosts to check`);
 
@@ -64,14 +65,24 @@ export async function settleBoosts(progressCallback?: ProgressCallback): Promise
                 const stats = await storage.getPlayerGameStats(boost.playerId, boost.gameId);
                 const fantasyPoints = stats ? parseFloat(stats.fantasyPoints) : 0;
 
+                const dateKey = boost.boostDate ? new Date(boost.boostDate).toISOString().split("T")[0] : "unknown";
+                const cacheKey = `${boost.sport}:${dateKey}:${boost.playerId}`;
+                let communityBoostCount = communityCountCache.get(cacheKey);
+                if (communityBoostCount === undefined) {
+                    const communityBoosts = await storage.getCommunityBoostsForDate(boost.sport, new Date(boost.boostDate));
+                    communityBoostCount = communityBoosts.filter(cb => cb.playerId === boost.playerId).length;
+                    communityCountCache.set(cacheKey, communityBoostCount);
+                }
+
                 // Calculate payout: use powerLevel if available, otherwise fall back to sharesEntered
                 // Power Level represents condensed shares' effective power
                 const effectivePower = boost.powerLevel ? parseFloat(boost.powerLevel.toString()) : boost.sharesEntered;
+                const effectiveMultiplier = boost.slotTier + communityBoostCount;
                 // Floor payout at 0 to prevent negative balances from poor player performance
-                const rawPayout = effectivePower * fantasyPoints * boost.slotTier;
+                const rawPayout = effectivePower * fantasyPoints * effectiveMultiplier;
                 const payout = Math.max(0, rawPayout);
 
-                console.log(`[settle_boosts] Boost ${boost.id}: ${effectivePower} power × ${fantasyPoints} FP × ${boost.slotTier}x = $${payout.toFixed(2)}`);
+                console.log(`[settle_boosts] Boost ${boost.id}: ${effectivePower} power × ${fantasyPoints} FP × ${effectiveMultiplier}x (${boost.slotTier}+${communityBoostCount}) = $${payout.toFixed(2)}`);
 
                 // Credit user balance
                 const user = await storage.getUser(boost.userId);
@@ -87,7 +98,7 @@ export async function settleBoosts(progressCallback?: ProgressCallback): Promise
                     playerId: boost.playerId,
                     sharesUsed: boost.sharesEntered,
                     fantasyPoints: fantasyPoints.toFixed(2),
-                    multiplier: boost.slotTier,
+                    multiplier: effectiveMultiplier,
                     payoutAmount: payout.toFixed(2),
                 });
 
@@ -119,7 +130,7 @@ export async function settleBoosts(progressCallback?: ProgressCallback): Promise
                     boostId: boost.id,
                     payout: payout.toFixed(2),
                     fantasyPoints,
-                    multiplier: boost.slotTier,
+                    multiplier: effectiveMultiplier,
                 });
 
             } catch (boostError: any) {
