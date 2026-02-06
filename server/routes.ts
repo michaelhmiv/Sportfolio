@@ -445,6 +445,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }
 
 
+  function extractWhopPaymentFields(payment: any): { planId: string | null; amountCents: number; metadata: any; email: string | null; status: string } {
+    const planId = payment?.plan_id || payment?.plan?.id || null;
+
+    const amountFromFinal = typeof payment?.final_amount === "number" ? payment.final_amount : null;
+    const amountFromTotalDollars = typeof payment?.total === "number" ? Math.round(payment.total * 100) : null;
+    const amountFromUsdTotal = typeof payment?.usd_total === "number" ? Math.round(payment.usd_total * 100) : null;
+    const amountCents = amountFromFinal ?? amountFromTotalDollars ?? amountFromUsdTotal ?? 0;
+
+    const metadata = payment?.metadata || {};
+    const email = payment?.user?.email || null;
+    const status = payment?.status || "unknown";
+
+    return { planId, amountCents, metadata, email, status };
+  }
+
+
   function classifyWhopPurchase(planId: string | null | undefined, amountCents: number | null | undefined): { assetType: "community" | "premium" | null; reason: string } {
     const communityPlanId = process.env.WHOP_COMMUNITY_PLAN_ID;
     const premiumPlanId = process.env.WHOP_PLAN_ID;
@@ -518,7 +534,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   }
 
-  async function findDeterministicSessionMatch(assetType: "community" | "premium", metadata: any, receiptId?: string) {
+  async function findDeterministicSessionMatch(
+    assetType: "community" | "premium",
+    metadata: any,
+    receiptId?: string,
+    userEmail?: string | null,
+    planId?: string | null,
+  ) {
     const sessionId = metadata?.sessionId;
     if (sessionId) {
       if (assetType === "community") {
@@ -537,6 +559,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else {
         const session = await storage.getPremiumCheckoutSessionByReceipt(receiptId);
         if (session) return { type: "premium" as const, session };
+      }
+    }
+
+    // Strict fallback only when metadata is missing: match by email + plan + recent pending session.
+    if (userEmail) {
+      const lookback = new Date(Date.now() - 30 * 60 * 1000);
+      const pending = assetType === "community"
+        ? await storage.getPendingCommunityCheckoutSessions()
+        : await storage.getPendingPremiumCheckoutSessions();
+
+      const matchedByEmail = [] as any[];
+      for (const s of pending) {
+        if (new Date(s.createdAt) < lookback) continue;
+        if (planId && s.planId !== planId) continue;
+        const u = await storage.getUser(s.userId);
+        if (u?.email?.toLowerCase() === userEmail.toLowerCase()) {
+          matchedByEmail.push(s);
+        }
+      }
+
+      if (matchedByEmail.length === 1) {
+        return { type: assetType, session: matchedByEmail[0] };
       }
     }
 
@@ -4728,13 +4772,20 @@ ${posts.map(post => `  <url>
       }
 
       const raw: any = payment.rawPayload || {};
-      const metadata = raw.metadata || {};
-      const classification = classifyWhopPurchase(raw.plan_id, payment.amountCents);
+      const extracted = extractWhopPaymentFields(raw);
+      const metadata = extracted.metadata || {};
+      const classification = classifyWhopPurchase(extracted.planId, payment.amountCents || extracted.amountCents);
       if (!classification.assetType) {
         return res.status(202).json({ success: false, state: "unresolved", reason: classification.reason });
       }
 
-      const matched = await findDeterministicSessionMatch(classification.assetType, metadata, receiptId);
+      const matched = await findDeterministicSessionMatch(
+        classification.assetType,
+        metadata,
+        receiptId,
+        payment.email,
+        extracted.planId,
+      );
       if (!matched || matched.session.userId !== userId) {
         return res.status(202).json({ success: false, state: "unresolved", reason: "deterministic_mapping_missing" });
       }
@@ -5194,25 +5245,26 @@ ${posts.map(post => `  <url>
           return res.json({ success: true, message: "Already credited" });
         }
 
-        const metadata = payment.metadata || {};
-        const planId = payment.plan_id;
-        const finalAmount = payment.final_amount;
+        const extracted = extractWhopPaymentFields(payment);
+        const metadata = extracted.metadata || {};
+        const planId = extracted.planId;
+        const amountCents = extracted.amountCents;
 
-        const classification = classifyWhopPurchase(planId, finalAmount);
+        const classification = classifyWhopPurchase(planId, amountCents);
         if (!classification.assetType) {
           console.error("[WHOP WEBHOOK] Unclassified purchase type; marked unresolved", {
             receiptId,
             planId,
-            finalAmount,
+            amountCents,
             reason: classification.reason,
           });
 
           await storage.upsertWhopPayment({
             paymentId: receiptId,
-            email: (payment.user?.email || "unknown@webhook.local").toLowerCase(),
+            email: (extracted.email || "unknown@webhook.local").toLowerCase(),
             userId: null,
             quantity: Number(metadata.quantity) || 1,
-            amountCents: finalAmount || 0,
+            amountCents: amountCents || 0,
             currency: payment.currency || "usd",
             whopStatus: "paid",
             rawPayload: payment,
@@ -5222,15 +5274,21 @@ ${posts.map(post => `  <url>
         }
 
         const assetType = classification.assetType;
-        const matched = await findDeterministicSessionMatch(assetType, metadata, receiptId);
+        const matched = await findDeterministicSessionMatch(
+          assetType,
+          metadata,
+          receiptId,
+          extracted.email,
+          planId,
+        );
         if (!matched) {
           console.error("[WHOP WEBHOOK] Deterministic mapping failed; marking unresolved", { receiptId, assetType });
           await storage.upsertWhopPayment({
             paymentId: receiptId,
-            email: (payment.user?.email || "unknown@webhook.local").toLowerCase(),
+            email: (extracted.email || "unknown@webhook.local").toLowerCase(),
             userId: null,
             quantity: Number(metadata.quantity) || 1,
-            amountCents: finalAmount || 0,
+            amountCents: amountCents || 0,
             currency: payment.currency || "usd",
             whopStatus: "paid",
             rawPayload: payment,
@@ -5249,7 +5307,7 @@ ${posts.map(post => `  <url>
           email: userEmail,
           userId: null,
           quantity,
-          amountCents: finalAmount || (quantity * (assetType === "community" ? 100 : 500)),
+          amountCents: amountCents || (quantity * (assetType === "community" ? 100 : 500)),
           currency: payment.currency || "usd",
           whopStatus: "paid",
           rawPayload: payment,
