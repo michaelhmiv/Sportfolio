@@ -1,18 +1,16 @@
-# AMM-Only Mode (Legacy Order-Book Archived)
+# AMM-Only Mode (Legacy Player Order-Book Archived)
 
-Sportfolio now defaults to **AMM-only trading** for player markets.
+Sportfolio player trading is **AMM-only**.
 
-## What is archived
+## Archived player-market endpoints
 
-The legacy player order-book endpoints are disabled by default:
+The legacy player order-book endpoints are retired and return `410 Gone`:
 
 - `GET /api/orders/:playerId/preview`
 - `POST /api/orders/:playerId`
 - `POST /api/orders/:orderId/cancel`
 
-These endpoints now return `410 Gone` in AMM-only mode.
-
-## Active trading endpoints
+## Active player trading endpoints
 
 Use AMM endpoints only:
 
@@ -23,12 +21,6 @@ Use AMM endpoints only:
 
 ## Bot engine status
 
-Legacy order-book bot engine is disabled in scheduler and admin trigger paths.
+Legacy player order-book bot strategies, scheduler wiring, and manual trigger script are archived for AMM-only player markets.
 
-## Optional override (not recommended)
-
-To temporarily re-enable legacy order-book routes, set:
-
-- `MARKET_MODE=orderbook`
-
-Default behavior without this env var is AMM-only.
+> Note: Premium/community order books remain separate where explicitly implemented.

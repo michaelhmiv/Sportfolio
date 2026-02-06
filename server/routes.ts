@@ -101,8 +101,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Setup authentication middleware
   await setupAuth(app);
 
-  // Market mode: AMM-only by default. Set MARKET_MODE=orderbook to re-enable legacy order-book endpoints.
-  const isAmmOnlyMode = (process.env.MARKET_MODE ?? "amm").toLowerCase() !== "orderbook";
+  // Legacy player order-book mode is archived; player trading is AMM-only.
+  const isAmmOnlyMode = true;
 
   // Scout Status Endpoint (Placed early to avoid shadowing)
   app.get("/api/scouts/status", isAuthenticated, async (req, res) => {
@@ -2080,9 +2080,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }))
         .reverse(); // Oldest first for proper chart display
 
-      const orderBook = isAmmOnlyMode
-        ? { bids: [], asks: [] }
-        : await storage.getOrderBook(player.id);
+      const orderBook = { bids: [], asks: [] };
       const recentTrades = allTrades.slice(0, 20); // Always show 20 most recent trades in the list
       const userHolding = await storage.getHolding(user.id, "player", player.id);
 
@@ -2093,11 +2091,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         player,
         priceHistory,
         orderBook: {
-          bids: orderBook.bids.slice(0, 10).map(o => ({
+          bids: orderBook.bids.slice(0, 10).map((o: any) => ({
             price: o.limitPrice,
             quantity: o.quantity - o.filledQuantity,
           })),
-          asks: orderBook.asks.slice(0, 10).map(o => ({
+          asks: orderBook.asks.slice(0, 10).map((o: any) => ({
             price: o.limitPrice,
             quantity: o.quantity - o.filledQuantity,
           })),
@@ -5681,56 +5679,17 @@ ${posts.map(post => `  <url>
   });
 
   // Admin endpoint: Bot statistics and recent actions
-  app.get("/api/admin/bots", adminAuth, async (req, res) => {
-    if (isAmmOnlyMode) {
-      return res.status(410).json({
-        error: "Bot order-book engine is archived in AMM-only mode.",
-      });
-    }
-
-    try {
-      const { getBotStats } = await import('./bot/bot-engine');
-      const { botActionsLog } = await import('@shared/schema');
-
-      const stats = await getBotStats();
-
-      // Get recent actions
-      const recentActions = await db
-        .select()
-        .from(botActionsLog)
-        .orderBy(desc(botActionsLog.createdAt))
-        .limit(50);
-
-      res.json({
-        stats,
-        recentActions,
-      });
-    } catch (error: any) {
-      console.error('[ADMIN] Failed to get bot stats:', error.message);
-      res.status(500).json({ error: error.message });
-    }
+  app.get("/api/admin/bots", adminAuth, async (_req, res) => {
+    return res.status(410).json({
+      error: "Bot order-book engine is archived. AMM player market has no bot trigger endpoint.",
+    });
   });
 
-  // Admin endpoint: Manually trigger bot engine
-  app.post("/api/admin/bots/trigger", adminAuth, async (req, res) => {
-    if (isAmmOnlyMode) {
-      return res.status(410).json({
-        error: "Bot order-book engine is archived in AMM-only mode.",
-      });
-    }
-
-    try {
-      const { runBotEngineTick } = await import('./bot/bot-engine');
-      const result = await runBotEngineTick();
-
-      res.json({
-        success: true,
-        ...result,
-      });
-    } catch (error: any) {
-      console.error('[ADMIN] Failed to trigger bot engine:', error.message);
-      res.status(500).json({ error: error.message });
-    }
+  // Admin endpoint: Manually trigger bot engine (archived)
+  app.post("/api/admin/bots/trigger", adminAuth, async (_req, res) => {
+    return res.status(410).json({
+      error: "Bot order-book engine trigger is archived in AMM-only mode.",
+    });
   });
 
   // Admin endpoint: Manually credit premium shares (for failed Whop purchases)
