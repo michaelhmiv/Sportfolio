@@ -18,6 +18,7 @@ import { getGameDay, getETDayBoundaries, getTodayETBoundaries, getTodayET } from
 import { getOrCompute } from "./cache";
 import { registerAmmRoutes } from "./routes/amm";
 import { registerLpRoutes } from "./routes/lp";
+import { getOrCreatePool } from "./amm/pool";
 
 /**
  * Get power/boosts data for the dashboard
@@ -2048,6 +2049,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Enrich with market value
       const player = await enrichPlayerWithMarketValue(playerRaw);
+
+      // AMM-only parity: player page price should match pool spot price
+      if (isAmmOnlyMode) {
+        const pool = await getOrCreatePool(player.id);
+        player.lastTradePrice = pool.currentPrice.toFixed(2);
+      }
 
       // Parse time range for chart data (1D, 1W, 1M, 1Y)
       const range = (req.query.range as string) || "1D";
