@@ -573,16 +573,7 @@ export function ScoutDashboardModal() {
         }
     };
 
-    const handleAdjustScout = (playerId: string, currentCount: number, delta: number, gameStatus?: string) => {
-        // Prevent changes if game has started
-        if (gameStatus === 'live' || gameStatus === 'ended') {
-            toast({
-                title: "Game Started",
-                description: "Cannot adjust scouts after the game has started",
-                variant: "destructive"
-            });
-            return;
-        }
+    const handleAdjustScout = (playerId: string, currentCount: number, delta: number) => {
         if (delta > 0 && remaining === 0) {
             toast({
                 title: "Capacity Reached",
@@ -898,19 +889,16 @@ export function ScoutDashboardModal() {
                                                 <Button
                                                     variant="outline"
                                                     size="icon"
-                                                    className={cn("h-6 w-6", player.isGameLocked && "opacity-50")}
-                                                    onClick={() => handleAdjustScout(player.id, player.scoutCount, -1, player.gameStatus)}
-                                                    disabled={player.scoutCount === 0 || assignMutation.isPending || player.isGameLocked}
+                                                    className="h-6 w-6"
+                                                    onClick={() => handleAdjustScout(player.id, player.scoutCount, -1)}
+                                                    disabled={player.scoutCount === 0 || assignMutation.isPending}
                                                 >
                                                     <Minus className="h-3 w-3" />
                                                 </Button>
                                                 <div
-                                                    className={cn(
-                                                        "flex flex-col items-center min-w-[32px] rounded p-0.5 transition-colors",
-                                                        player.isGameLocked ? "" : "cursor-pointer hover:bg-muted/50"
-                                                    )}
-                                                    onClick={() => !player.isGameLocked && setExpandedPlayerId(expandedPlayerId === player.id ? null : player.id)}
-                                                    title={player.isGameLocked ? "Game has started - scouts locked" : "Click to view all scouts"}
+                                                    className="flex flex-col items-center min-w-[32px] rounded p-0.5 transition-colors cursor-pointer hover:bg-muted/50"
+                                                    onClick={() => setExpandedPlayerId(expandedPlayerId === player.id ? null : player.id)}
+                                                    title="Click to view all scouts"
                                                 >
                                                     <div className={cn(
                                                         "text-center font-bold text-xs leading-none",
@@ -925,9 +913,9 @@ export function ScoutDashboardModal() {
                                                 <Button
                                                     variant="outline"
                                                     size="icon"
-                                                    className={cn("h-6 w-6", player.isGameLocked && "opacity-50")}
-                                                    onClick={() => handleAdjustScout(player.id, player.scoutCount, 1, player.gameStatus)}
-                                                    disabled={remaining === 0 || assignMutation.isPending || player.isGameLocked}
+                                                    className="h-6 w-6"
+                                                    onClick={() => handleAdjustScout(player.id, player.scoutCount, 1)}
+                                                    disabled={remaining === 0 || assignMutation.isPending}
                                                 >
                                                     <Plus className="h-3 w-3" />
                                                 </Button>
