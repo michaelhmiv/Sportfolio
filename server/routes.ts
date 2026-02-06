@@ -6,7 +6,7 @@ import { storage } from "./storage";
 import { db } from "./db";
 import { fetchActivePlayers, calculateFantasyPoints } from "./balldontlie-nba";
 import type { InsertPlayer, Player, User, Holding, CommunityBoost } from "@shared/schema";
-import { contestLineups, contestEntries, contests, holdings, marketSnapshots, premiumCheckoutSessions, tweetSettings, tweetHistory, users, scoutAssignments, scoutHistory, dailyGames, dailyBoosts, players, communityCheckoutSessions, userCollections, userMilestones, trades } from "@shared/schema";
+import { contestLineups, contestEntries, contests, holdings, marketSnapshots, premiumCheckoutSessions, tweetSettings, tweetHistory, users, scoutAssignments, scoutHistory, dailyGames, dailyBoosts, players, communityCheckoutSessions, userCollections, userMilestones, trades, whopPayments } from "@shared/schema";
 import { sql, eq, desc, and, gte, lte, inArray, lt } from "drizzle-orm";
 import { jobScheduler } from "./jobs/scheduler";
 import { addClient, removeClient, broadcast } from "./websocket";
@@ -349,26 +349,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         // Detect if this is a community or premium purchase
-        // First check plan_id, then fall back to amount-based detection
-        const communityPlanId = process.env.WHOP_COMMUNITY_PLAN_ID;
-        const premiumPlanId = process.env.WHOP_PLAN_ID;
         const planId = payment.plan_id;
         const totalDollars = payment.total || 0;
 
-        let isCommunityPurchase = false;
-        if (communityPlanId && planId === communityPlanId) {
-          isCommunityPurchase = true;
-        } else if (premiumPlanId && planId === premiumPlanId) {
-          isCommunityPurchase = false;
-        } else if (totalDollars > 0) {
-          // Fallback: detect by amount - $1 (100 cents) = community, $5 (500 cents) = premium
-          // Allow for variations in pricing
-          isCommunityPurchase = totalDollars < 3; // Less than $3 is community
-          console.log(`[WHOP SYNC] Detected ${isCommunityPurchase ? 'community' : 'premium'} purchase by amount: $${totalDollars}`);
+        const amountCents = Math.round(totalDollars * 100);
+        const classification = classifyWhopPurchase(planId, amountCents);
+        if (!classification.assetType) {
+          console.warn(`[WHOP SYNC] Skipping payment ${paymentId}: unclassified purchase (${classification.reason})`);
+          continue;
         }
 
-        const assetType = isCommunityPurchase ? "community" : "premium";
-        const pricePerShare = isCommunityPurchase ? 1 : 5;
+        const assetType = classification.assetType;
+        const pricePerShare = assetType === "community" ? 1 : 5;
 
         // Extract quantity from line_items first (preferred), fallback to total/price
         let quantity = 0;
@@ -379,8 +371,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (quantity === 0 && totalDollars >= pricePerShare) {
           quantity = Math.floor(totalDollars / pricePerShare);
         }
-
-        const amountCents = Math.round(totalDollars * 100);
 
         // Skip payments with no value (refunds, zero-dollar invoices)
         if (quantity === 0 && status === "paid") {
@@ -409,22 +399,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (status === "paid" && quantity > 0 && currentPayment &&
           !currentPayment.creditedAt && !currentPayment.revokedAt) {
 
-          // ATOMIC: Credit the payment FIRST - this returns undefined if already credited (race protection)
-          const creditedPayment = await storage.creditWhopPayment(paymentId, userId);
+          const avgCost = assetType === "community" ? "1.0000" : "5.0000";
+          const creditResult = await creditPaymentAndHoldingAtomic(paymentId, userId, assetType, quantity, avgCost);
 
-          // Only update holdings if we successfully credited (won the race)
-          if (creditedPayment) {
-            const existingHolding = await storage.getHolding(userId, assetType, assetType);
-            const currentQuantity = parseFloat(existingHolding?.quantity || "0");
-            const newQuantity = currentQuantity + quantity;
-
-            // Preserve existing avgCost or use appropriate default for new holdings
-            const currentAvgCost = existingHolding?.avgCostBasis || (isCommunityPurchase ? "1.0000" : "5.0000");
-
-            // Update holding with new quantity preserving cost basis
-            await storage.updateHolding(userId, assetType, assetType, newQuantity, currentAvgCost);
+          if (creditResult) {
             result.credited += quantity;
-            console.log(`[WHOP SYNC] Credited ${quantity} ${assetType} shares to user ${userId} from payment ${paymentId} (${currentQuantity} -> ${newQuantity})`);
+            console.log(`[WHOP SYNC] Credited ${quantity} ${assetType} shares to user ${userId} from payment ${paymentId} (${creditResult.previousQuantity} -> ${creditResult.newQuantity})`);
           } else {
             console.log(`[WHOP SYNC] Payment ${paymentId} already credited by another process, skipping`);
           }
@@ -436,7 +416,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Revoke the shares from holdings - preserve avgCost
           const existingHolding = await storage.getHolding(userId, assetType, assetType);
           const currentShares = parseFloat(existingHolding?.quantity || "0");
-          const currentAvgCost = existingHolding?.avgCostBasis || (isCommunityPurchase ? "1.0000" : "5.0000");
+          const currentAvgCost = existingHolding?.avgCostBasis || (assetType === "community" ? "1.0000" : "5.0000");
 
           if (currentShares >= quantity) {
             // User has enough shares to fully revoke
@@ -462,6 +442,105 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("[WHOP SYNC] Error syncing payments:", err.message);
       return result;
     }
+  }
+
+
+  function classifyWhopPurchase(planId: string | null | undefined, amountCents: number | null | undefined): { assetType: "community" | "premium" | null; reason: string } {
+    const communityPlanId = process.env.WHOP_COMMUNITY_PLAN_ID;
+    const premiumPlanId = process.env.WHOP_PLAN_ID;
+
+    if (planId) {
+      if (communityPlanId && planId === communityPlanId) return { assetType: "community", reason: "plan_id:community" };
+      if (premiumPlanId && planId === premiumPlanId) return { assetType: "premium", reason: "plan_id:premium" };
+      return { assetType: null, reason: "plan_id:unknown" };
+    }
+
+    if (amountCents && amountCents >= 100) {
+      return { assetType: amountCents < 500 ? "community" : "premium", reason: "amount_fallback" };
+    }
+
+    return { assetType: null, reason: "insufficient_data" };
+  }
+
+  async function creditPaymentAndHoldingAtomic(paymentId: string, userId: string, assetType: "community" | "premium", quantity: number, avgCost: string) {
+    return await db.transaction(async (tx) => {
+      const [creditedPayment] = await tx
+        .update(whopPayments)
+        .set({ userId, creditedAt: new Date() })
+        .where(and(
+          eq(whopPayments.paymentId, paymentId),
+          sql`${whopPayments.creditedAt} IS NULL`
+        ))
+        .returning();
+
+      if (!creditedPayment) return null;
+
+      const [existingHolding] = await tx
+        .select()
+        .from(holdings)
+        .where(and(
+          eq(holdings.userId, userId),
+          eq(holdings.assetType, assetType),
+          eq(holdings.assetId, assetType)
+        ));
+
+      const currentQty = parseFloat(existingHolding?.quantity || "0");
+      const newQty = currentQty + quantity;
+      const resolvedAvgCost = existingHolding?.avgCostBasis || avgCost;
+      const totalCostBasis = (parseFloat(resolvedAvgCost) * newQty).toFixed(2);
+
+      if (existingHolding) {
+        await tx
+          .update(holdings)
+          .set({
+            quantity: newQty.toString(),
+            powerLevel: (newQty * (existingHolding.power || 1)).toFixed(2),
+            avgCostBasis: resolvedAvgCost,
+            totalCostBasis,
+            lastUpdated: new Date(),
+          })
+          .where(eq(holdings.id, existingHolding.id));
+      } else {
+        await tx.insert(holdings).values({
+          userId,
+          assetType,
+          assetId: assetType,
+          quantity: newQty.toString(),
+          power: 1,
+          powerLevel: newQty.toFixed(2),
+          avgCostBasis: resolvedAvgCost,
+          totalCostBasis,
+          lastUpdated: new Date(),
+        });
+      }
+
+      return { creditedPayment, previousQuantity: currentQty, newQuantity: newQty };
+    });
+  }
+
+  async function findDeterministicSessionMatch(assetType: "community" | "premium", metadata: any, receiptId?: string) {
+    const sessionId = metadata?.sessionId;
+    if (sessionId) {
+      if (assetType === "community") {
+        const session = await storage.getCommunityCheckoutSession(sessionId);
+        if (session) return { type: "community" as const, session };
+      } else {
+        const session = await storage.getPremiumCheckoutSession(sessionId);
+        if (session) return { type: "premium" as const, session };
+      }
+    }
+
+    if (receiptId) {
+      if (assetType === "community") {
+        const session = await storage.getCommunityCheckoutSessionByReceipt(receiptId);
+        if (session) return { type: "community" as const, session };
+      } else {
+        const session = await storage.getPremiumCheckoutSessionByReceipt(receiptId);
+        if (session) return { type: "premium" as const, session };
+      }
+    }
+
+    return null;
   }
 
   // Ezoic ads.txt redirect
@@ -4626,6 +4705,63 @@ ${posts.map(post => `  <url>
     }
   });
 
+  // Checkout success finalization - deterministic/idempotent reconciliation for authenticated user
+  app.post("/api/checkout/finalize", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const receiptId = req.body?.receipt_id || req.body?.payment_id;
+
+      if (!receiptId || typeof receiptId !== "string") {
+        return res.status(400).json({ error: "receipt_id (or payment_id) is required" });
+      }
+
+      const payment = await storage.getWhopPaymentByPaymentId(receiptId);
+      if (!payment) {
+        return res.status(202).json({ success: false, state: "pending", reason: "payment_not_synced" });
+      }
+
+      if (payment.creditedAt) {
+        if (payment.userId && payment.userId !== userId) {
+          return res.status(409).json({ success: false, state: "error", reason: "credited_to_other_user" });
+        }
+        return res.json({ success: true, state: "credited", alreadyCredited: true, quantity: payment.quantity });
+      }
+
+      const raw: any = payment.rawPayload || {};
+      const metadata = raw.metadata || {};
+      const classification = classifyWhopPurchase(raw.plan_id, payment.amountCents);
+      if (!classification.assetType) {
+        return res.status(202).json({ success: false, state: "unresolved", reason: classification.reason });
+      }
+
+      const matched = await findDeterministicSessionMatch(classification.assetType, metadata, receiptId);
+      if (!matched || matched.session.userId !== userId) {
+        return res.status(202).json({ success: false, state: "unresolved", reason: "deterministic_mapping_missing" });
+      }
+
+      const quantity = matched.session.quantity || payment.quantity || Number(metadata.quantity) || 1;
+      const avgCost = classification.assetType === "community" ? "1.0000" : "5.0000";
+      const creditResult = await creditPaymentAndHoldingAtomic(receiptId, userId, classification.assetType, quantity, avgCost);
+
+      if (!creditResult) {
+        return res.json({ success: true, state: "credited", alreadyCredited: true, quantity });
+      }
+
+      if (matched.type === "community" && matched.session.status !== "completed") {
+        await storage.completeCommunityCheckoutSession(matched.session.id, receiptId);
+      }
+      if (matched.type === "premium" && matched.session.status !== "completed") {
+        await storage.completePremiumCheckoutSession(matched.session.id, receiptId);
+      }
+
+      broadcast({ type: "portfolio" });
+      return res.json({ success: true, state: "credited", quantity, newBalance: creditResult.newQuantity });
+    } catch (error: any) {
+      console.error("[CHECKOUT FINALIZE] Error:", error);
+      return res.status(500).json({ error: error.message });
+    }
+  });
+
   // Dev endpoint to grant premium shares for testing (only in development)
   app.post("/api/dev/grant-premium-shares", async (req, res) => {
     const isDev = process.env.NODE_ENV === 'development';
@@ -5058,226 +5194,84 @@ ${posts.map(post => `  <url>
           return res.json({ success: true, message: "Already credited" });
         }
 
-        // Get all available identifiers from webhook payload
         const metadata = payment.metadata || {};
-        const sessionId = metadata.sessionId;
-        const metadataUserId = metadata.userId;
-        const checkoutId = payment.checkout_id;
-        const whopUserId = payment.user_id;
         const planId = payment.plan_id;
         const finalAmount = payment.final_amount;
 
-        // Determine if this is a community purchase
-        // First try plan_id matching, then fall back to amount-based detection
-        const communityPlanId = process.env.WHOP_COMMUNITY_PLAN_ID;
-        const premiumPlanId = process.env.WHOP_PLAN_ID;
+        const classification = classifyWhopPurchase(planId, finalAmount);
+        if (!classification.assetType) {
+          console.error("[WHOP WEBHOOK] Unclassified purchase type; marked unresolved", {
+            receiptId,
+            planId,
+            finalAmount,
+            reason: classification.reason,
+          });
 
-        // Detect purchase type: plan_id match takes precedence, then use amount
-        let isCommunityPurchase = false;
-        if (communityPlanId && planId === communityPlanId) {
-          isCommunityPurchase = true;
-        } else if (premiumPlanId && planId === premiumPlanId) {
-          isCommunityPurchase = false;
-        } else if (planId === undefined || planId === null || planId === "") {
-          // Fallback: detect by amount - $1 (100 cents) = community, $5 (500 cents) = premium
-          if (finalAmount && finalAmount >= 100) {
-            isCommunityPurchase = finalAmount < 500; // $1-$4.99 is community
-            console.log("[WHOP WEBHOOK] Detected purchase type by amount:", finalAmount, "cents, isCommunity:", isCommunityPurchase);
-          }
+          await storage.upsertWhopPayment({
+            paymentId: receiptId,
+            email: (payment.user?.email || "unknown@webhook.local").toLowerCase(),
+            userId: null,
+            quantity: Number(metadata.quantity) || 1,
+            amountCents: finalAmount || 0,
+            currency: payment.currency || "usd",
+            whopStatus: "paid",
+            rawPayload: payment,
+          });
+
+          return res.status(200).json({ success: false, state: "unresolved", reason: classification.reason });
         }
 
-        console.log("[WHOP WEBHOOK] === USER IDENTIFICATION ===");
-        console.log("[WHOP WEBHOOK] metadata.sessionId:", sessionId);
-        console.log("[WHOP WEBHOOK] metadata.userId:", metadataUserId);
-        console.log("[WHOP WEBHOOK] payment.checkout_id:", checkoutId);
-        console.log("[WHOP WEBHOOK] payment.user_id:", whopUserId);
-        console.log("[WHOP WEBHOOK] payment.plan_id:", planId);
-        console.log("[WHOP WEBHOOK] payment.final_amount:", finalAmount);
-        console.log("[WHOP WEBHOOK] isCommunityPurchase:", isCommunityPurchase);
-
-        let userId: string | null = null;
-        let quantity = 1;
-        let matchedSession: any = null;
-
-        // Method 1: Try to find user by our session ID from metadata
-        if (sessionId) {
-          console.log("[WHOP WEBHOOK] Method 1: Trying session ID lookup:", sessionId);
-
-          // Check premium sessions first
-          const premiumSession = await storage.getPremiumCheckoutSession(sessionId);
-          if (premiumSession && premiumSession.status === "pending") {
-            matchedSession = { ...premiumSession, type: 'premium' };
-            userId = premiumSession.userId;
-            quantity = premiumSession.quantity;
-            console.log("[WHOP WEBHOOK] Method 1 SUCCESS: Found premium session, user:", userId);
-          } else {
-            // Check community sessions
-            const communitySession = await storage.getCommunityCheckoutSession(sessionId);
-            if (communitySession && communitySession.status === "pending") {
-              matchedSession = { ...communitySession, type: 'community' };
-              userId = communitySession.userId;
-              quantity = communitySession.quantity;
-              console.log("[WHOP WEBHOOK] Method 1 SUCCESS: Found community session, user:", userId);
-            }
-          }
+        const assetType = classification.assetType;
+        const matched = await findDeterministicSessionMatch(assetType, metadata, receiptId);
+        if (!matched) {
+          console.error("[WHOP WEBHOOK] Deterministic mapping failed; marking unresolved", { receiptId, assetType });
+          await storage.upsertWhopPayment({
+            paymentId: receiptId,
+            email: (payment.user?.email || "unknown@webhook.local").toLowerCase(),
+            userId: null,
+            quantity: Number(metadata.quantity) || 1,
+            amountCents: finalAmount || 0,
+            currency: payment.currency || "usd",
+            whopStatus: "paid",
+            rawPayload: payment,
+          });
+          return res.status(200).json({ success: false, state: "unresolved", reason: "deterministic_mapping_missing" });
         }
 
-        // Method 2: Find most recent pending checkout session (any plan, within last 2 hours)
-        // This is the primary fallback when using direct checkout URL
-        if (!userId) {
-          console.log("[WHOP WEBHOOK] Method 2: Trying pending session lookup...");
+        const userId = matched.session.userId;
+        const quantity = matched.session.quantity || Number(metadata.quantity) || 1;
 
-          // Get pending sessions based on purchase type
-          let pendingSessions: any[] = [];
-
-          if (isCommunityPurchase) {
-            // For community purchases, look for community sessions first
-            pendingSessions = await storage.getPendingCommunityCheckoutSessions();
-            console.log("[WHOP WEBHOOK] Found", pendingSessions.length, "pending community sessions");
-
-            // Also check premium sessions as fallback (user might have mixed sessions)
-            if (pendingSessions.length === 0) {
-              const premiumSessions = await storage.getPendingPremiumCheckoutSessions();
-              console.log("[WHOP WEBHOOK] No community sessions, also checking", premiumSessions.length, "premium sessions");
-              pendingSessions = premiumSessions;
-            }
-          } else {
-            // For premium purchases, look for premium sessions first
-            pendingSessions = await storage.getPendingPremiumCheckoutSessions();
-            console.log("[WHOP WEBHOOK] Found", pendingSessions.length, "pending premium sessions");
-
-            // Also check community sessions as fallback (user might have mixed sessions)
-            if (pendingSessions.length === 0) {
-              const communitySessions = await storage.getPendingCommunityCheckoutSessions();
-              console.log("[WHOP WEBHOOK] No premium sessions, also checking", communitySessions.length, "community sessions");
-              pendingSessions = communitySessions;
-            }
-          }
-
-          // Sort by createdAt descending (most recent first)
-          const sortedSessions = pendingSessions.sort((a, b) =>
-            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-          );
-
-          // Log all pending sessions for debugging
-          for (const s of sortedSessions.slice(0, 5)) {
-            console.log(`[WHOP WEBHOOK]   - Session ${s.id}: user=${s.userId}, plan=${s.planId}, qty=${s.quantity}, created=${s.createdAt}`);
-          }
-
-          // Find most recent session within last 2 hours
-          const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
-
-          // First try to match by planId if available (and planId is known)
-          let matchingSession: any = null;
-          if (planId) {
-            matchingSession = sortedSessions.find(s =>
-              s.planId === planId &&
-              new Date(s.createdAt) > twoHoursAgo
-            );
-          }
-
-          // If no plan match, use the most recent pending session
-          if (!matchingSession && sortedSessions.length > 0) {
-            matchingSession = sortedSessions.find(s => new Date(s.createdAt) > twoHoursAgo);
-            if (matchingSession) {
-              console.log("[WHOP WEBHOOK] Method 2: No plan match, using most recent pending session");
-            }
-          }
-
-          if (matchingSession) {
-            // Determine type from session table name (stored in matchedSession.type via storage lookup)
-            matchedSession = { ...matchingSession, type: isCommunityPurchase ? 'community' : 'premium' };
-            userId = matchingSession.userId;
-            quantity = matchingSession.quantity;
-            console.log("[WHOP WEBHOOK] Method 2 SUCCESS: Found user via pending session:", userId, "qty:", quantity);
-          }
-        }
-
-        // Method 3: Calculate quantity from amount as fallback
-        if (!quantity || quantity < 1) {
-          if (finalAmount && finalAmount >= 100) {
-            // $1 per community share, $5 per premium share
-            const pricePerShare = isCommunityPurchase ? 100 : 500;
-            quantity = Math.floor(finalAmount / pricePerShare);
-            console.log("[WHOP WEBHOOK] Method 3: Inferred quantity from amount:", quantity);
-          } else {
-            quantity = 1; // Default to 1
-          }
-        }
-
-        if (!userId) {
-          console.error("[WHOP WEBHOOK] === USER IDENTIFICATION FAILED ===");
-          console.error("[WHOP WEBHOOK] Could not identify user for payment:", receiptId);
-          console.error("[WHOP WEBHOOK] Full payment data:", JSON.stringify(payment, null, 2));
-          // Still return 200 to acknowledge receipt (Whop will retry otherwise)
-          return res.status(200).json({ success: false, message: "User not found" });
-        }
-
-        // Get user's email for whop_payments record
         const user = await storage.getUser(userId);
         const userEmail = user?.email || payment.user?.email || "unknown@webhook.local";
 
-        // ATOMIC APPROACH: First record payment to whop_payments table
-        // This ensures both webhook AND sync use the same atomic crediting system
-        console.log("[WHOP WEBHOOK] Recording payment to whop_payments table...");
         await storage.upsertWhopPayment({
           paymentId: receiptId,
           email: userEmail,
-          userId: null, // Will be set by creditWhopPayment
-          quantity: quantity,
-          amountCents: finalAmount || (quantity * 500),
-          currency: "usd",
+          userId: null,
+          quantity,
+          amountCents: finalAmount || (quantity * (assetType === "community" ? 100 : 500)),
+          currency: payment.currency || "usd",
           whopStatus: "paid",
           rawPayload: payment,
         });
 
-        // ATOMIC CREDIT: Use creditWhopPayment which has WHERE creditedAt IS NULL
-        // This prevents double-crediting even if webhook and sync race
-        const creditedPayment = await storage.creditWhopPayment(receiptId, userId);
+        const avgCost = assetType === "community" ? "1.0000" : "5.0000";
+        const creditResult = await creditPaymentAndHoldingAtomic(receiptId, userId, assetType, quantity, avgCost);
 
-        if (!creditedPayment) {
-          // Payment already credited by another process (sync or duplicate webhook)
+        if (!creditResult) {
           console.log("[WHOP WEBHOOK] Payment already credited by another process, skipping:", receiptId);
           return res.json({ success: true, message: "Already credited" });
         }
 
-        // Mark the matched session as completed
-        if (matchedSession) {
-          if (matchedSession.type === 'community') {
-            await storage.completeCommunityCheckoutSession(matchedSession.id, receiptId);
-          } else {
-            await storage.completePremiumCheckoutSession(matchedSession.id, receiptId);
-          }
-          console.log("[WHOP WEBHOOK] Marked session", matchedSession.id, "as completed");
+        if (matched.type === "community" && matched.session.status !== "completed") {
+          await storage.completeCommunityCheckoutSession(matched.session.id, receiptId);
+        }
+        if (matched.type === "premium" && matched.session.status !== "completed") {
+          await storage.completePremiumCheckoutSession(matched.session.id, receiptId);
         }
 
-        // Credit shares to user based on purchase type - only happens if we won the atomic credit race
-        let newQuantity = 0;
-        if (isCommunityPurchase) {
-          // Credit community shares
-          const existingHolding = await storage.getHolding(userId, "community", "community");
-          const currentQuantity = parseFloat(existingHolding?.quantity || "0");
-          newQuantity = currentQuantity + quantity;
-
-          // Update holding with new quantity (avgCost is $1 per share)
-          await storage.updateHolding(userId, "community", "community", newQuantity, "1.0000");
-
-          console.log(`[WHOP WEBHOOK] === SUCCESS ===`);
-          console.log(`[WHOP WEBHOOK] Credited ${quantity} community shares to user ${userId}`);
-          console.log(`[WHOP WEBHOOK] Previous balance: ${currentQuantity}, New balance: ${newQuantity}`);
-        } else {
-          // Credit premium shares
-          const existingHolding = await storage.getHolding(userId, "premium", "premium");
-          const currentQuantity = parseFloat(existingHolding?.quantity || "0");
-          newQuantity = currentQuantity + quantity;
-
-          // Update holding with new quantity (avgCost is $5 per share)
-          await storage.updateHolding(userId, "premium", "premium", newQuantity, "5.0000");
-
-          console.log(`[WHOP WEBHOOK] === SUCCESS ===`);
-          console.log(`[WHOP WEBHOOK] Credited ${quantity} premium shares to user ${userId}`);
-          console.log(`[WHOP WEBHOOK] Previous balance: ${currentQuantity}, New balance: ${newQuantity}`);
-        }
+        const newQuantity = creditResult.newQuantity;
+        console.log(`[WHOP WEBHOOK] Credited ${quantity} ${assetType} shares to user ${userId} (${creditResult.previousQuantity} -> ${newQuantity})`);
 
         // Broadcast portfolio update via WebSocket
         broadcast({ type: "portfolio" });
