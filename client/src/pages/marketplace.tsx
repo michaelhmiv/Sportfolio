@@ -324,6 +324,9 @@ export default function Marketplace() {
                       <option value="marketCap">Mkt Cap</option>
                       <option value="price">Price</option>
                       <option value="change">24h Change</option>
+                      <option value="liquidity">Liquidity</option>
+                      <option value="sentiment">Sentiment</option>
+                      <option value="undervalued">Undervalued</option>
                       <option value="fantasyPoints">Fantasy Pts</option>
                       <option value="name">Name</option>
                       <option value="team">Team</option>
