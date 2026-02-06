@@ -142,7 +142,7 @@ app.use((req, res, next) => {
         console.error("Failed to initialize API jobs:", error.message);
       }
     } else {
-      log("Skipping API-dependent jobs - MYSPORTSFEEDS_API_KEY not set");
+      log("Skipping API-dependent jobs - no sports API key set (BALLDONTLIE_API_KEY or MYSPORTSFEEDS_API_KEY)");
       log("Contest jobs will still process data from the database when available");
     }
 

@@ -1676,7 +1676,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         storage.getBatchPoolData(playerIds),
       ]);
 
-      const players = playersRaw.map((player) => {
+      const players = playersRaw.map((player: any) => {
         const enriched = enrichPlayerWithMarketValue(player);
         const orderBookData = orderBooksMap.get(player.id) || {
           bids: [],
@@ -1700,17 +1700,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const price = parseFloat(player.lastTradePrice || "0");
         const avgFP = avgFantasyPointsMap.get(player.id) || 0;
         const peRatio = avgFP > 0 ? price / avgFP : 0;
-        const valueIndex = LEAGUE_AVG_PE > 0 ? (peRatio / LEAGUE_AVG_PE) * 100 : 0;
+        const derivedValueIndex = LEAGUE_AVG_PE > 0 ? (peRatio / LEAGUE_AVG_PE) * 100 : 0;
+
+        const metricBestBid = player._metricBestBid != null ? parseFloat(player._metricBestBid) : null;
+        const metricBestAsk = player._metricBestAsk != null ? parseFloat(player._metricBestAsk) : null;
+        const metricBuyPressure = player._metricBuyPressure != null ? parseFloat(player._metricBuyPressure) : null;
+        const metricValueIndex = player._metricValueIndex != null ? parseFloat(player._metricValueIndex) : null;
+        const metricAvgFantasyPoints = player._metricAvgFantasyPoints != null ? parseFloat(player._metricAvgFantasyPoints) : null;
 
         return {
           ...enriched,
-          bestBid: orderBookData.bestBid,
-          bestAsk: orderBookData.bestAsk,
+          bestBid: metricBestBid ?? orderBookData.bestBid,
+          bestAsk: metricBestAsk ?? orderBookData.bestAsk,
           bidSize: orderBookData.bidSize,
           askSize: orderBookData.askSize,
-          avgFantasyPointsPerGame: seasonStats.avgFantasyPointsPerGame,
-          buyPressure: sentimentData.buyPressure,
-          valueIndex: valueIndex,
+          avgFantasyPointsPerGame: (metricAvgFantasyPoints ?? parseFloat(seasonStats.avgFantasyPointsPerGame || "0")).toFixed(1),
+          buyPressure: metricBuyPressure ?? sentimentData.buyPressure,
+          valueIndex: metricValueIndex ?? derivedValueIndex,
           globalScoutCount: globalScoutMap.get(player.id) || 0,
           poolLiquidity: poolData?.playMoney || 0,
           poolShares: poolData?.shares || 0,
@@ -5880,7 +5886,7 @@ ${posts.map(post => `  <url>
         return res.status(400).json({ error: 'jobName required' });
       }
 
-      const validJobs = ['roster_sync', 'sync_player_game_logs', 'schedule_sync', 'stats_sync', 'create_contests', 'settle_contests', 'daily_snapshot', 'backfill_market_snapshots', 'bot_engine'];
+      const validJobs = ['roster_sync', 'sync_player_game_logs', 'schedule_sync', 'stats_sync', 'create_contests', 'settle_contests', 'daily_snapshot', 'backfill_market_snapshots', 'bot_engine', 'refresh_player_metrics'];
       if (!validJobs.includes(jobName)) {
         return res.status(400).json({ error: `Invalid jobName. Must be one of: ${validJobs.join(', ')}` });
       }

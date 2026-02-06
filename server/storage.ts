@@ -1314,7 +1314,14 @@ export class DatabaseStorage implements IStorage {
 
     const dataQuery = isComplexSort
       ? db
-        .select({ player: players })
+        .select({
+          player: players,
+          metricBestBid: sql<string>`COALESCE(${playerMarketMetrics.bestBid}, '0')`,
+          metricBestAsk: sql<string>`COALESCE(${playerMarketMetrics.bestAsk}, '0')`,
+          metricBuyPressure: sql<string>`COALESCE(${playerMarketMetrics.buyPressure}, '50')`,
+          metricValueIndex: sql<string>`COALESCE(${playerMarketMetrics.valueIndex}, '0')`,
+          metricAvgFantasyPoints: sql<string>`COALESCE(${playerMarketMetrics.avgFantasyPoints}, '0')`,
+        })
         .from(players)
         .leftJoin(playerMarketMetrics, eq(playerMarketMetrics.playerId, players.id))
         .where(and(...conditions))
@@ -1334,7 +1341,27 @@ export class DatabaseStorage implements IStorage {
       dataQuery
     ]);
 
-    return { players: playerRows.map((r: any) => r.player as Player), total: countResult[0].count };
+    const mappedPlayers = playerRows.map((r: any) => {
+      const player = r.player as Player & {
+        _metricBestBid?: string;
+        _metricBestAsk?: string;
+        _metricBuyPressure?: string;
+        _metricValueIndex?: string;
+        _metricAvgFantasyPoints?: string;
+      };
+
+      if (isComplexSort) {
+        player._metricBestBid = r.metricBestBid;
+        player._metricBestAsk = r.metricBestAsk;
+        player._metricBuyPressure = r.metricBuyPressure;
+        player._metricValueIndex = r.metricValueIndex;
+        player._metricAvgFantasyPoints = r.metricAvgFantasyPoints;
+      }
+
+      return player as Player;
+    });
+
+    return { players: mappedPlayers, total: countResult[0].count };
   }
 
   async getPlayer(id: string): Promise<Player | undefined> {
