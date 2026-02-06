@@ -40,8 +40,12 @@ type PlayerWithPool = Player & {
   valueIndex?: number;
 };
 
-type SortField = "price" | "volume" | "change" | "liquidity" | "marketCap" | "sentiment" | "undervalued";
+type SortField = "price" | "volume" | "change" | "liquidity" | "marketCap" | "sentiment" | "undervalued" | "fantasyPoints" | "name" | "team";
 type SortOrder = "asc" | "desc";
+
+const getDefaultSortOrder = (field: SortField): SortOrder => (
+  ["name", "team"].includes(field) ? "asc" : "desc"
+);
 
 export default function Marketplace() {
   const { user } = useAuth();
@@ -56,8 +60,12 @@ export default function Marketplace() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [teamFilter, setTeamFilter] = useState<string>("all");
   const [positionFilter, setPositionFilter] = useState<string>("all");
-  const [sortField, setSortField] = useState<SortField>((searchParams.get("sortBy") as SortField) || "volume");
-  const [sortOrder, setSortOrder] = useState<SortOrder>((searchParams.get("sortOrder") as SortOrder) || "desc");
+  const initialSortField = (searchParams.get("sortBy") as SortField) || "volume";
+  const initialSortOrderParam = searchParams.get("sortOrder") as SortOrder | null;
+  const [sortField, setSortField] = useState<SortField>(initialSortField);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(initialSortOrderParam && ["asc", "desc"].includes(initialSortOrderParam)
+    ? initialSortOrderParam
+    : getDefaultSortOrder(initialSortField));
   const [filterWatchlistId, setFilterWatchlistId] = useState<string>("none");
   const [page, setPage] = useState(1);
   const [showFilters, setShowFilters] = useState(false);
@@ -74,10 +82,18 @@ export default function Marketplace() {
 
     const sortBy = searchParams.get("sortBy") as SortField;
     const sortOrderParam = searchParams.get("sortOrder") as SortOrder;
-    if (sortBy && ["price", "volume", "change", "liquidity", "marketCap", "sentiment", "undervalued"].includes(sortBy)) {
-      setSortField(sortBy);
-    }
-    if (sortOrderParam && ["asc", "desc"].includes(sortOrderParam)) {
+    const validSortBy = sortBy && ["price", "volume", "change", "liquidity", "marketCap", "sentiment", "undervalued", "fantasyPoints", "name", "team"].includes(sortBy)
+      ? sortBy
+      : undefined;
+
+    if (validSortBy) {
+      setSortField(validSortBy);
+      if (sortOrderParam && ["asc", "desc"].includes(sortOrderParam)) {
+        setSortOrder(sortOrderParam);
+      } else {
+        setSortOrder(getDefaultSortOrder(validSortBy));
+      }
+    } else if (sortOrderParam && ["asc", "desc"].includes(sortOrderParam)) {
       setSortOrder(sortOrderParam);
     }
   }, [searchParams]);
@@ -180,8 +196,14 @@ export default function Marketplace() {
       setSortOrder(sortOrder === "asc" ? "desc" : "asc");
     } else {
       setSortField(field);
-      setSortOrder("desc");
+      setSortOrder(["name", "team"].includes(field) ? "asc" : "desc");
     }
+    setPage(1);
+  };
+
+  const setSortFieldFromSelector = (field: SortField) => {
+    setSortField(field);
+    setSortOrder(["name", "team"].includes(field) ? "asc" : "desc");
     setPage(1);
   };
 
@@ -190,8 +212,10 @@ export default function Marketplace() {
     const params = new URLSearchParams();
     if (activeTab !== "players") params.set("tab", activeTab);
     if (sortField !== "volume") params.set("sortBy", sortField);
-    if (sortOrder !== "desc") params.set("sortOrder", sortOrder);
-    
+
+    const defaultOrderForField = getDefaultSortOrder(sortField);
+    if (sortOrder !== defaultOrderForField) params.set("sortOrder", sortOrder);
+
     const newSearch = params.toString();
     const currentPath = window.location.pathname;
     if (newSearch) {
@@ -273,8 +297,8 @@ export default function Marketplace() {
                   )}
                 </div>
 
-                {/* Filter Toggle */}
-                <div className="flex items-center justify-between">
+                {/* Filter + Sort Controls */}
+                <div className="flex items-center justify-between gap-2 flex-wrap">
                   <Button
                     variant="outline"
                     size="sm"
@@ -289,6 +313,35 @@ export default function Marketplace() {
                       </Badge>
                     )}
                   </Button>
+
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={sortField}
+                      onChange={(e) => setSortFieldFromSelector(e.target.value as SortField)}
+                      className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                    >
+                      <option value="volume">Volume</option>
+                      <option value="marketCap">Mkt Cap</option>
+                      <option value="price">Price</option>
+                      <option value="change">24h Change</option>
+                      <option value="liquidity">Liquidity</option>
+                      <option value="sentiment">Sentiment</option>
+                      <option value="undervalued">Undervalued</option>
+                      <option value="fantasyPoints">Fantasy Pts</option>
+                      <option value="name">Name</option>
+                      <option value="team">Team</option>
+                    </select>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
+                      className="gap-2"
+                    >
+                      <ArrowUpDown className="w-4 h-4" />
+                      {sortOrder === "asc" ? "Asc" : "Desc"}
+                    </Button>
+                  </div>
                 </div>
 
                 {/* Expanded Filters */}
