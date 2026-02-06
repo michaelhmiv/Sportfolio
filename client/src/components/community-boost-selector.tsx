@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Star, Loader2, Search, Zap, Users, ChevronUp, ChevronDown, Plus, ArrowUpDown } from "lucide-react";
+import { Star, Loader2, Search, Zap, Users, ChevronUp, ChevronDown, Plus, Minus, ArrowUpDown } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -76,6 +76,7 @@ export function CommunityBoostSelector({ open, onOpenChange, selectedDate }: Com
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [limit, setLimit] = useState(50);
   const [gameStatusFilter, setGameStatusFilter] = useState<string>("all"); // Filter by game status
+  const [buyQuantity, setBuyQuantity] = useState(1);
 
   // Determine if we should use pagination
   // Pagination only for the default browse mode.
@@ -285,7 +286,7 @@ export function CommunityBoostSelector({ open, onOpenChange, selectedDate }: Com
   // Buy community shares mutation
   const buyMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("POST", "/api/community/checkout-session", { quantity: 1 });
+      const res = await apiRequest("POST", "/api/community/checkout-session", { quantity: buyQuantity });
       return res.json();
     },
     onSuccess: (data) => {
@@ -346,10 +347,31 @@ export function CommunityBoostSelector({ open, onOpenChange, selectedDate }: Com
                 <span className="text-sm text-muted-foreground">0</span>
               )}
             </div>
-            <Button size="sm" variant="outline" className="border-amber-500/30 text-amber-600 hover:bg-amber-500/10" onClick={() => buyMutation.mutate()} disabled={buyMutation.isPending}>
-              {buyMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Plus className="h-3 w-3 mr-1" />}
-              Buy More
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                size="icon"
+                variant="outline"
+                className="h-7 w-7 border-amber-500/30 text-amber-600 hover:bg-amber-500/10"
+                onClick={() => setBuyQuantity(q => Math.max(1, q - 1))}
+                disabled={buyMutation.isPending || buyQuantity <= 1}
+              >
+                <Minus className="h-3 w-3" />
+              </Button>
+              <Badge variant="outline" className="min-w-8 justify-center border-amber-500/30 text-amber-600">{buyQuantity}</Badge>
+              <Button
+                size="icon"
+                variant="outline"
+                className="h-7 w-7 border-amber-500/30 text-amber-600 hover:bg-amber-500/10"
+                onClick={() => setBuyQuantity(q => Math.min(25, q + 1))}
+                disabled={buyMutation.isPending}
+              >
+                <Plus className="h-3 w-3" />
+              </Button>
+              <Button size="sm" variant="outline" className="border-amber-500/30 text-amber-600 hover:bg-amber-500/10" onClick={() => buyMutation.mutate()} disabled={buyMutation.isPending}>
+                {buyMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Plus className="h-3 w-3 mr-1" />}
+                Buy {buyQuantity}
+              </Button>
+            </div>
           </div>
 
           {/* Filters */}
