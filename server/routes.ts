@@ -15,7 +15,6 @@ import { createContests } from "./jobs/create-contests";
 import { calculateContestLeaderboard } from "./contest-scoring";
 import { setupAuth, isAuthenticated, optionalAuth } from "./supabaseAuth";
 import { getGameDay, getETDayBoundaries, getTodayETBoundaries, getTodayET } from "./lib/time";
-import { matchOrders } from "./order-matcher";
 import { getOrCompute } from "./cache";
 import { registerAmmRoutes } from "./routes/amm";
 import { registerLpRoutes } from "./routes/lp";
@@ -1581,7 +1580,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get all players with advanced filtering
   app.get("/api/players", async (req, res) => {
     try {
-      const { search, team, position, limit, offset, page, sortBy, sortOrder, hasBuyOrders, hasSellOrders, teamsPlayingOnDate, sport, isWatchlist, watchlistId } = req.query;
+      const { search, team, position, limit, offset, page, sortBy, sortOrder, teamsPlayingOnDate, sport, isWatchlist, watchlistId } = req.query;
 
       // Handle watchlist filtering
       // If isWatchlist=true or a specific watchlistId is provided, we need authentication
@@ -1614,13 +1613,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const safeOffset = isNaN(parsedOffset) ? 0 : Math.max(0, parsedOffset);
 
       // Parse sorting and filter params
-      const validSortBy = ['price', 'volume', 'change', 'bid', 'ask', 'marketCap', 'sentiment', 'undervalued', 'fantasyPoints', 'name', 'team'];
+      const validSortBy = ['price', 'volume', 'change', 'marketCap', 'sentiment', 'undervalued', 'fantasyPoints', 'name', 'team'];
       const safeSortBy = sortBy && validSortBy.includes(sortBy as string)
-        ? sortBy as 'price' | 'volume' | 'change' | 'bid' | 'ask' | 'marketCap' | 'sentiment' | 'undervalued' | 'fantasyPoints' | 'name' | 'team'
+        ? sortBy as 'price' | 'volume' | 'change' | 'marketCap' | 'sentiment' | 'undervalued' | 'fantasyPoints' | 'name' | 'team'
         : 'volume';
       const safeSortOrder = sortOrder === 'asc' ? 'asc' : 'desc';
-      const safeHasBuyOrders = hasBuyOrders === 'true';
-      const safeHasSellOrders = hasSellOrders === 'true';
 
       // Handle teams playing on date filter
       let teamsPlayingFilter: string[] | undefined = undefined;
@@ -1661,8 +1658,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         offset: safeOffset,
         sortBy: safeSortBy,
         sortOrder: safeSortOrder,
-        hasBuyOrders: safeHasBuyOrders,
-        hasSellOrders: safeHasSellOrders,
         teamsPlayingOnDate: teamsPlayingFilter,
         watchlistUserId: watchlistUserId,
         watchlistId: scopedWatchlistId,
@@ -1670,8 +1665,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Enrich only the returned page to keep response latency bounded.
       const playerIds = playersRaw.map(p => p.id);
-      const [orderBooksMap, seasonStatsMap, sentimentMap, avgFantasyPointsMap, globalScoutMap, poolDataMap] = await Promise.all([
-        storage.getBatchOrderBooks(playerIds),
+      const [seasonStatsMap, sentimentMap, avgFantasyPointsMap, globalScoutMap, poolDataMap] = await Promise.all([
         storage.getBatchPlayerSeasonStatsFromLogs(playerIds),
         storage.getBatchSentiment(playerIds),
         storage.getBatchAllTimeAvgFantasyPoints(playerIds),
@@ -1681,14 +1675,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const players = playersRaw.map((player: any) => {
         const enriched = enrichPlayerWithMarketValue(player);
-        const orderBookData = orderBooksMap.get(player.id) || {
-          bids: [],
-          asks: [],
-          bestBid: null,
-          bestAsk: null,
-          bidSize: 0,
-          askSize: 0,
-        };
         const seasonStats = seasonStatsMap.get(player.id) || {
           gamesPlayed: 0,
           avgFantasyPointsPerGame: "0.0",
@@ -1705,18 +1691,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const peRatio = avgFP > 0 ? price / avgFP : 0;
         const derivedValueIndex = LEAGUE_AVG_PE > 0 ? (peRatio / LEAGUE_AVG_PE) * 100 : 0;
 
-        const metricBestBid = player._metricBestBid != null ? parseFloat(player._metricBestBid) : null;
-        const metricBestAsk = player._metricBestAsk != null ? parseFloat(player._metricBestAsk) : null;
         const metricBuyPressure = player._metricBuyPressure != null ? parseFloat(player._metricBuyPressure) : null;
         const metricValueIndex = player._metricValueIndex != null ? parseFloat(player._metricValueIndex) : null;
         const metricAvgFantasyPoints = player._metricAvgFantasyPoints != null ? parseFloat(player._metricAvgFantasyPoints) : null;
 
         return {
           ...enriched,
-          bestBid: metricBestBid ?? orderBookData.bestBid,
-          bestAsk: metricBestAsk ?? orderBookData.bestAsk,
-          bidSize: orderBookData.bidSize,
-          askSize: orderBookData.askSize,
+          bestBid: null,
+          bestAsk: null,
+          bidSize: 0,
+          askSize: 0,
           avgFantasyPointsPerGame: (metricAvgFantasyPoints ?? parseFloat(seasonStats.avgFantasyPointsPerGame || "0")).toFixed(1),
           buyPressure: metricBuyPressure ?? sentimentData.buyPressure,
           valueIndex: metricValueIndex ?? derivedValueIndex,
@@ -2096,7 +2080,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }))
         .reverse(); // Oldest first for proper chart display
 
-      const orderBook = await storage.getOrderBook(player.id);
+      const orderBook = isAmmOnlyMode
+        ? { bids: [], asks: [] }
+        : await storage.getOrderBook(player.id);
       const recentTrades = allTrades.slice(0, 20); // Always show 20 most recent trades in the list
       const userHolding = await storage.getHolding(user.id, "player", player.id);
 
@@ -2386,462 +2372,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Market order preview - simulates matching without executing
+  // Legacy player order-book endpoints (archived)
   app.get("/api/orders/:playerId/preview", optionalAuth, async (req, res) => {
-    try {
-      if (isAmmOnlyMode) {
-        return res.status(410).json({
-          error: "Legacy order-book preview endpoint is archived. Use AMM quote endpoint instead.",
-          ammQuoteEndpoint: `/api/amm/${req.params.playerId}/quote?type=buy|sell&amount=...`,
-        });
-      }
-
-      const { side, quantity: quantityStr } = req.query;
-      const quantity = parseInt(quantityStr as string);
-
-      if (!side || (side !== "buy" && side !== "sell")) {
-        return res.status(400).json({ error: "Invalid side - must be 'buy' or 'sell'" });
-      }
-
-      if (!quantity || quantity <= 0 || isNaN(quantity)) {
-        return res.status(400).json({ error: "Invalid quantity" });
-      }
-
-      const player = await storage.getPlayer(req.params.playerId);
-      if (!player) {
-        return res.status(404).json({ error: "Player not found" });
-      }
-
-      const orderBook = await storage.getOrderBook(req.params.playerId);
-      const availableOrders = side === "buy" ? orderBook.asks : orderBook.bids;
-
-      // Sort by price: asks ascending (best first), bids descending (best first)
-      const sortedOrders = [...availableOrders]
-        .filter(o => o.limitPrice && parseFloat(o.limitPrice) > 0 && (o.quantity - o.filledQuantity) > 0)
-        .sort((a, b) => {
-          const priceA = parseFloat(a.limitPrice!);
-          const priceB = parseFloat(b.limitPrice!);
-          return side === "buy" ? priceA - priceB : priceB - priceA;
-        });
-
-      if (sortedOrders.length === 0) {
-        return res.json({
-          canFill: false,
-          fillableQuantity: 0,
-          requestedQuantity: quantity,
-          fills: [],
-          avgPrice: null,
-          totalCost: null,
-          message: "No liquidity available"
-        });
-      }
-
-      // Simulate walking through the book
-      let remainingQuantity = quantity;
-      const fills: { price: string; quantity: number; total: string }[] = [];
-      let totalCost = 0;
-      let totalFilled = 0;
-
-      for (const order of sortedOrders) {
-        if (remainingQuantity <= 0) break;
-
-        const orderPrice = parseFloat(order.limitPrice!);
-        const orderAvailable = order.quantity - order.filledQuantity;
-        const fillQuantity = Math.min(remainingQuantity, orderAvailable);
-        const fillCost = fillQuantity * orderPrice;
-
-        fills.push({
-          price: orderPrice.toFixed(2),
-          quantity: fillQuantity,
-          total: fillCost.toFixed(2)
-        });
-
-        totalCost += fillCost;
-        totalFilled += fillQuantity;
-        remainingQuantity -= fillQuantity;
-      }
-
-      const avgPrice = totalFilled > 0 ? totalCost / totalFilled : 0;
-      const bestPrice = sortedOrders.length > 0 ? parseFloat(sortedOrders[0].limitPrice!) : 0;
-      const worstFillPrice = fills.length > 0 ? parseFloat(fills[fills.length - 1].price) : 0;
-
-      // Calculate slippage as percentage from best price
-      const slippage = bestPrice > 0 && worstFillPrice > 0
-        ? Math.abs((worstFillPrice - bestPrice) / bestPrice * 100)
-        : 0;
-
-      res.json({
-        canFill: totalFilled >= quantity,
-        fillableQuantity: totalFilled,
-        requestedQuantity: quantity,
-        fills,
-        avgPrice: avgPrice.toFixed(2),
-        totalCost: totalCost.toFixed(2),
-        bestPrice: bestPrice.toFixed(2),
-        worstFillPrice: worstFillPrice.toFixed(2),
-        slippage: slippage.toFixed(2),
-        side,
-        message: totalFilled < quantity
-          ? `Only ${totalFilled} of ${quantity} shares available`
-          : `Full fill available at avg $${avgPrice.toFixed(2)}`
-      });
-    } catch (error: any) {
-      console.error("[API] Error generating order preview:", error.message);
-      res.status(500).json({ error: error.message });
-    }
+    return res.status(410).json({
+      error: "Legacy player order-book preview is archived. Use AMM quote endpoint.",
+      ammQuoteEndpoint: `/api/amm/${req.params.playerId}/quote?type=buy|sell&amount=...`,
+    });
   });
 
-  // Place order
   app.post("/api/orders/:playerId", isAuthenticated, async (req, res) => {
-    try {
-      if (isAmmOnlyMode) {
-        return res.status(410).json({
-          error: "Legacy order-book trading endpoint is archived. Use AMM buy/sell endpoints.",
-          ammBuyEndpoint: `/api/amm/${req.params.playerId}/buy`,
-          ammSellEndpoint: `/api/amm/${req.params.playerId}/sell`,
-        });
-      }
-
-      const userId = getUserId(req);
-      const user = await storage.getUser(userId);
-      if (!user) {
-        return res.status(404).json({ error: "User not found" });
-      }
-      const player = await storage.getPlayer(req.params.playerId);
-
-      if (!player) {
-        return res.status(404).json({ error: "Player not found" });
-      }
-
-      const { orderType, side, quantity, limitPrice } = req.body;
-
-      // Validation
-      if (!quantity || quantity <= 0) {
-        return res.status(400).json({ error: "Invalid quantity" });
-      }
-
-      if (orderType === "limit" && (!limitPrice || parseFloat(limitPrice) <= 0)) {
-        return res.status(400).json({ error: "Invalid limit price" });
-      }
-
-      // Check available balance for buy orders (total - locked)
-      if (side === "buy") {
-        let price: number;
-
-        if (orderType === "limit") {
-          price = parseFloat(limitPrice);
-        } else {
-          // For market orders, get price from best ask (use worst-case for balance check)
-          const orderBook = await storage.getOrderBook(req.params.playerId);
-          const validAsks = orderBook.asks.filter(o =>
-            o.limitPrice &&
-            parseFloat(o.limitPrice) > 0 &&
-            (o.quantity - o.filledQuantity) > 0
-          );
-
-          if (validAsks.length === 0) {
-            return res.status(400).json({ error: "No market liquidity available" });
-          }
-
-          // Use highest ask price for balance check (worst case)
-          price = Math.max(...validAsks.map(o => parseFloat(o.limitPrice!)));
-        }
-
-        const cost = quantity * price;
-        const availableBalance = await storage.getAvailableBalance(user.id);
-
-        if (availableBalance < cost) {
-          return res.status(400).json({ error: `Insufficient available balance. Available: $${availableBalance.toFixed(2)}, Required: $${cost.toFixed(2)}` });
-        }
-      }
-
-      // Check holdings for sell orders - verify available (unlocked) shares
-      if (side === "sell") {
-        const availableShares = await storage.getAvailableShares(user.id, "player", req.params.playerId);
-        if (availableShares < quantity) {
-          return res.status(400).json({ error: "Insufficient available shares (some may be locked in orders or contests)" });
-        }
-      }
-
-      // For market orders, validate liquidity BEFORE creating the order
-      if (orderType === "market") {
-        const orderBook = await storage.getOrderBook(req.params.playerId);
-        const availableOrders = side === "buy" ? orderBook.asks : orderBook.bids;
-
-        // Check if there are any valid counter-side orders with valid prices
-        const validOrders = availableOrders.filter(o =>
-          o.limitPrice &&
-          parseFloat(o.limitPrice) > 0 &&
-          (o.quantity - o.filledQuantity) > 0
-        );
-
-        if (validOrders.length === 0) {
-          return res.status(400).json({ error: "No liquidity available for market order at valid prices" });
-        }
-      }
-
-      // Create order
-      const order = await storage.createOrder({
-        userId: user.id,
-        playerId: req.params.playerId,
-        orderType,
-        side,
-        quantity,
-        limitPrice: orderType === "limit" ? limitPrice : null,
-      });
-
-      // Lock resources to prevent double-spending
-      if (side === "sell") {
-        // Lock shares for sell orders
-        await storage.reserveShares(
-          user.id,
-          "player",
-          req.params.playerId,
-          "order",
-          order.id,
-          quantity
-        );
-      } else if (side === "buy") {
-        // Lock cash for buy orders
-        const lockPrice = orderType === "limit" ? parseFloat(limitPrice) : await (async () => {
-          const orderBook = await storage.getOrderBook(req.params.playerId);
-          const validAsks = orderBook.asks.filter(o =>
-            o.limitPrice &&
-            parseFloat(o.limitPrice) > 0 &&
-            (o.quantity - o.filledQuantity) > 0
-          );
-          return Math.max(...validAsks.map(o => parseFloat(o.limitPrice!)));
-        })();
-
-        const lockAmount = (quantity * lockPrice).toFixed(2);
-        await storage.reserveCash(user.id, "order", order.id, lockAmount);
-      }
-
-      // Broadcast order placed
-      broadcast({ type: "marketActivity" });
-
-      // For market orders, match immediately
-      if (orderType === "market") {
-        const orderBook = await storage.getOrderBook(req.params.playerId);
-        const availableOrders = side === "buy" ? orderBook.asks : orderBook.bids;
-
-        let remainingQty = quantity;
-        let totalCost = 0;
-        let lastFillPrice = 0; // Track last fill price for broadcast
-
-        for (const availableOrder of availableOrders) {
-          if (remainingQty <= 0) break;
-
-          // Ensure the counterparty order has a valid limit price
-          if (!availableOrder.limitPrice || parseFloat(availableOrder.limitPrice) <= 0) {
-            continue; // Skip invalid orders
-          }
-
-          const availableQty = availableOrder.quantity - availableOrder.filledQuantity;
-          const fillQty = Math.min(remainingQty, availableQty);
-          const fillPrice = parseFloat(availableOrder.limitPrice);
-          lastFillPrice = fillPrice; // Track for broadcast
-
-          // Execute trade
-          await storage.createTrade({
-            playerId: req.params.playerId,
-            buyerId: side === "buy" ? user.id : availableOrder.userId,
-            sellerId: side === "sell" ? user.id : availableOrder.userId,
-            buyOrderId: side === "buy" ? order.id : availableOrder.id,
-            sellOrderId: side === "sell" ? order.id : availableOrder.id,
-            quantity: fillQty,
-            price: fillPrice.toFixed(2),
-          });
-
-          remainingQty -= fillQty;
-          totalCost += fillQty * fillPrice;
-
-          // Update matched order
-          const newFilled = availableOrder.filledQuantity + fillQty;
-          await storage.updateOrder(availableOrder.id, {
-            filledQuantity: newFilled,
-            status: newFilled >= availableOrder.quantity ? "filled" : "partial",
-          });
-
-          // Adjust locked resources for the matched order
-          if (availableOrder.side === "sell") {
-            // Adjust locked shares for sell orders
-            const remainingLocked = availableOrder.quantity - newFilled;
-            await storage.adjustLockQuantity(availableOrder.id, remainingLocked);
-          } else {
-            // Adjust locked cash for buy orders
-            const remainingLocked = availableOrder.quantity - newFilled;
-            const orderPrice = parseFloat(availableOrder.limitPrice || "0");
-            const remainingCashLocked = (remainingLocked * orderPrice).toFixed(2);
-            await storage.adjustLockAmount(availableOrder.id, remainingCashLocked);
-          }
-
-          // Update holdings
-          if (side === "buy") {
-            const buyerHolding = await storage.getHolding(user.id, "player", req.params.playerId);
-            if (buyerHolding) {
-              const newQuantity = parseFloat(buyerHolding.quantity) + fillQty;
-              const newTotalCost = parseFloat(buyerHolding.totalCostBasis) + (fillQty * fillPrice);
-              const newAvgCost = newTotalCost / newQuantity;
-              await storage.updateHolding(user.id, "player", req.params.playerId, newQuantity, newAvgCost.toFixed(4));
-            } else {
-              await storage.updateHolding(user.id, "player", req.params.playerId, fillQty, fillPrice.toFixed(4));
-            }
-
-            const sellerHolding = await storage.getHolding(availableOrder.userId, "player", req.params.playerId);
-            if (sellerHolding) {
-              await storage.updateHolding(
-                availableOrder.userId,
-                "player",
-                req.params.playerId,
-                parseFloat(sellerHolding.quantity) - fillQty,
-                sellerHolding.avgCostBasis
-              );
-            }
-          } else {
-            // Sell order
-            const buyerHolding = await storage.getHolding(availableOrder.userId, "player", req.params.playerId);
-            if (buyerHolding) {
-              const newQuantity = parseFloat(buyerHolding.quantity) + fillQty;
-              const newTotalCost = parseFloat(buyerHolding.totalCostBasis) + (fillQty * fillPrice);
-              const newAvgCost = newTotalCost / newQuantity;
-              await storage.updateHolding(
-                availableOrder.userId,
-                "player",
-                req.params.playerId,
-                newQuantity,
-                newAvgCost.toFixed(4)
-              );
-            } else {
-              await storage.updateHolding(availableOrder.userId, "player", req.params.playerId, fillQty, fillPrice.toFixed(4));
-            }
-
-            const sellerHolding = await storage.getHolding(user.id, "player", req.params.playerId);
-            if (sellerHolding) {
-              await storage.updateHolding(user.id, "player", req.params.playerId, parseFloat(sellerHolding.quantity) - fillQty, sellerHolding.avgCostBasis);
-            }
-          }
-
-          // Update balances
-          const seller = await storage.getUser(side === "sell" ? user.id : availableOrder.userId);
-          const buyer = await storage.getUser(side === "buy" ? user.id : availableOrder.userId);
-
-          if (buyer && seller) {
-            const tradeCost = fillQty * fillPrice;
-            await storage.updateUserBalance(buyer.id, (parseFloat(buyer.balance) - tradeCost).toFixed(2));
-            await storage.updateUserBalance(seller.id, (parseFloat(seller.balance) + tradeCost).toFixed(2));
-
-            // Broadcast portfolio updates for BOTH parties in each fill
-            const updatedBuyer = await storage.getUser(buyer.id);
-            const updatedSeller = await storage.getUser(seller.id);
-            if (updatedBuyer) {
-              broadcast({ type: "portfolio", userId: buyer.id, balance: updatedBuyer.balance });
-            }
-            if (updatedSeller) {
-              broadcast({ type: "portfolio", userId: seller.id, balance: updatedSeller.balance });
-            }
-          }
-        }
-
-        // Update market order status
-        const filledQty = quantity - remainingQty;
-
-        // Safety check: If no fills occurred despite passing pre-check, cancel the order
-        if (filledQty === 0) {
-          await storage.updateOrder(order.id, { status: "cancelled" });
-          // Release all locked resources
-          if (side === "sell") {
-            await storage.adjustLockQuantity(order.id, 0);
-          } else {
-            await storage.releaseCashByReference(order.id);
-          }
-          broadcast({ type: "orderBook", playerId: req.params.playerId });
-          return res.status(400).json({ error: "Market order could not be filled - order cancelled" });
-        }
-
-        // Market orders should always complete - mark as "filled" even if partial
-        // The unfilled portion is effectively cancelled (no more liquidity available)
-        await storage.updateOrder(order.id, {
-          filledQuantity: filledQty,
-          status: "filled", // Always "filled" - unfilled portion is cancelled
-        });
-
-        // Release ALL locked resources for market orders (filled portion already executed)
-        if (side === "sell") {
-          // Release any remaining locked shares (unfilled portion cancelled)
-          await storage.adjustLockQuantity(order.id, 0);
-        } else {
-          // Release locked cash (actual cost already deducted from balance)
-          await storage.releaseCashByReference(order.id);
-        }
-
-        // Log if there was unfilled quantity
-        if (remainingQty > 0) {
-          console.log(`[Market Order] Partial fill: ${filledQty}/${quantity} shares filled for order ${order.id}. Unfilled ${remainingQty} shares cancelled due to insufficient liquidity.`);
-        }
-
-        // Broadcast real-time updates for order book and trades
-        // Calculate VWAP (volume-weighted average price) for the market order
-        const vwap = filledQty > 0 ? (totalCost / filledQty).toFixed(2) : lastFillPrice.toFixed(2);
-
-        broadcast({ type: "orderBook", playerId: req.params.playerId });
-        broadcast({ type: "trade", playerId: req.params.playerId, quantity: filledQty, price: vwap, userId: user.id });
-        // Note: portfolio broadcasts already sent for each party in the fill loop above
-
-        // Return enhanced response for market orders with fill details
-        return res.json({
-          success: true,
-          order: { ...order, filledQuantity: filledQty, status: "filled" },
-          marketOrderDetails: {
-            requestedQuantity: quantity,
-            filledQuantity: filledQty,
-            cancelledQuantity: remainingQty,
-            avgFillPrice: vwap,
-            totalCost: totalCost.toFixed(2),
-            message: remainingQty > 0
-              ? `Filled ${filledQty} of ${quantity} shares at avg price $${vwap}. ${remainingQty} shares cancelled - insufficient liquidity.`
-              : `Filled ${filledQty} shares at avg price $${vwap}`
-          }
-        });
-      } else {
-        // Limit order - try to match
-        await matchOrders(req.params.playerId);
-        broadcast({ type: "orderBook", playerId: req.params.playerId });
-      }
-
-      res.json({ success: true, order });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
+    return res.status(410).json({
+      error: "Legacy player order-book trading is archived. Use AMM buy/sell endpoints.",
+      ammBuyEndpoint: `/api/amm/${req.params.playerId}/buy`,
+      ammSellEndpoint: `/api/amm/${req.params.playerId}/sell`,
+    });
   });
 
-  // Cancel order
-  app.post("/api/orders/:orderId/cancel", isAuthenticated, async (req, res) => {
-    try {
-      if (isAmmOnlyMode) {
-        return res.status(410).json({
-          error: "Legacy order-book cancel endpoint is archived in AMM-only mode.",
-        });
-      }
-
-      const userId = getUserId(req);
-
-      // SECURITY: Verify order belongs to authenticated user
-      const order = await storage.getOrder(req.params.orderId);
-      if (!order) {
-        return res.status(404).json({ error: "Order not found" });
-      }
-      if (order.userId !== userId) {
-        console.warn(`[SECURITY] User ${userId} attempted to cancel order ${req.params.orderId} owned by ${order.userId}`);
-        return res.status(403).json({ error: "Forbidden - cannot cancel another user's order" });
-      }
-
-      await storage.cancelOrder(req.params.orderId);
-      broadcast({ type: "marketActivity" });
-      res.json({ success: true });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
+  app.post("/api/orders/:orderId/cancel", isAuthenticated, async (_req, res) => {
+    return res.status(410).json({
+      error: "Legacy player order-book cancel endpoint is archived in AMM-only mode.",
+    });
   });
 
   // Portfolio
@@ -2868,16 +2418,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         : [];
       const orderPlayersMap = new Map(orderPlayers.map(p => [p.id, p]));
 
-      // Batch fetch bid/ask data for all player holdings
       const playerHoldingIds = holdingsWithData
         .filter((item: any) => item.holding.assetType === "player" && item.player)
         .map((item: any) => item.player.id.toString());
-      const [orderBooksMap, globalScoutMap] = playerHoldingIds.length > 0
-        ? await Promise.all([
-          storage.getBatchOrderBooks(playerHoldingIds),
-          storage.getBatchActiveScoutCounts(playerHoldingIds)
-        ])
-        : [new Map(), new Map()];
+      const globalScoutMap = playerHoldingIds.length > 0
+        ? await storage.getBatchActiveScoutCounts(playerHoldingIds)
+        : new Map();
 
       // Group holdings by player to calculate total power
       const playerPowerMap = new Map<string, number>();
@@ -2909,13 +2455,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             totalCost += parseFloat(holding.totalCostBasis);
           }
 
-          // Get bid/ask data for this player
-          const orderBookData = orderBooksMap.get(player.id.toString());
-          const bestBid = orderBookData?.bestBid || null;
-          const bestAsk = orderBookData?.bestAsk || null;
           const globalScoutCount = globalScoutMap.get(player.id.toString()) || 0;
-          const bidSize = orderBookData?.bidSize || 0;
-          const askSize = orderBookData?.askSize || 0;
           const totalPlayerPower = playerPowerMap.get(player.id) || 0;
 
           return {
@@ -2930,10 +2470,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
             power: holding.power ?? 1,
             powerLevel: holding.powerLevel ?? "0.00",
             totalPlayerPower: totalPlayerPower.toFixed(2),
-            bestBid,
-            bestAsk,
-            bidSize,
-            askSize,
+            bestBid: null,
+            bestAsk: null,
+            bidSize: 0,
+            askSize: 0,
             globalScoutCount,
           };
         }
@@ -5853,7 +5393,6 @@ ${posts.map(post => `  <url>
         'settle_contests',
         'daily_snapshot',
         'weekly_roundup',
-        'bot_engine',
       ];
 
       const [users, players, allContests, recentLogs, latestJobLogs] = await Promise.all([
@@ -6143,6 +5682,12 @@ ${posts.map(post => `  <url>
 
   // Admin endpoint: Bot statistics and recent actions
   app.get("/api/admin/bots", adminAuth, async (req, res) => {
+    if (isAmmOnlyMode) {
+      return res.status(410).json({
+        error: "Bot order-book engine is archived in AMM-only mode.",
+      });
+    }
+
     try {
       const { getBotStats } = await import('./bot/bot-engine');
       const { botActionsLog } = await import('@shared/schema');
