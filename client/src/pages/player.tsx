@@ -177,6 +177,14 @@ export default function PlayerPage() {
 
   const { player, priceHistory, recentTrades } = data;
   const playerName = `${player.firstName} ${player.lastName}`;
+
+  // AMM-first display price: prefer live pool spot price over cached player.lastTradePrice
+  const effectiveCurrentPrice = poolData?.currentPrice ?? (player.lastTradePrice ? parseFloat(player.lastTradePrice) : null);
+
+  // Only show change when we have at least two AMM chart points in range
+  const displayedPriceChange = priceHistory.length >= 2 && effectiveCurrentPrice !== null
+    ? effectiveCurrentPrice - (typeof priceHistory[0].price === "string" ? parseFloat(priceHistory[0].price) : priceHistory[0].price)
+    : null;
   
   // Calculate Y-axis domain with 5% padding for better chart visualization
   const chartDomain = (() => {
@@ -245,9 +253,9 @@ export default function PlayerPage() {
             </div>
             <div className="text-left sm:text-right flex items-center sm:block gap-2">
               <div className="font-mono font-bold" data-testid="text-current-price">
-                {player.lastTradePrice ? (
+                {effectiveCurrentPrice !== null ? (
                   <AnimatedPrice 
-                    value={parseFloat(player.lastTradePrice)} 
+                    value={effectiveCurrentPrice} 
                     size="sm" 
                     className="text-lg sm:text-xl justify-start sm:justify-end"
                   />
@@ -255,10 +263,10 @@ export default function PlayerPage() {
                   <span className="text-muted-foreground text-sm">No market value</span>
                 )}
               </div>
-              {player.lastTradePrice && (
-                <div className={`flex items-center gap-0.5 ${parseFloat(player.priceChange24h) >= 0 ? 'text-positive' : 'text-negative'}`}>
-                  {parseFloat(player.priceChange24h) >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                  <span className="text-xs font-mono">{parseFloat(player.priceChange24h) >= 0 ? '+' : ''}{parseFloat(player.priceChange24h).toFixed(2)}</span>
+              {displayedPriceChange !== null && (
+                <div className={`flex items-center gap-0.5 ${displayedPriceChange >= 0 ? 'text-positive' : 'text-negative'}`}>
+                  {displayedPriceChange >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                  <span className="text-xs font-mono">{displayedPriceChange >= 0 ? '+' : ''}{displayedPriceChange.toFixed(2)}</span>
                 </div>
               )}
             </div>
@@ -290,47 +298,58 @@ export default function PlayerPage() {
               </CardHeader>
               <CardContent>
                 <div className="h-[250px] sm:h-[300px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={priceHistory}>
-                      <XAxis 
-                        dataKey="timestamp" 
-                        tickFormatter={(value) => new Date(value).toLocaleDateString()}
-                        stroke="currentColor"
-                        fontSize={10}
-                      />
-                      <YAxis 
-                        stroke="currentColor"
-                        fontSize={10}
-                        tickFormatter={(value) => `$${value}`}
-                        domain={chartDomain}
-                      />
-                      <RechartsTooltip 
-                        content={({ active, payload }) => {
-                          if (active && payload && payload.length) {
-                            return (
-                              <div className="bg-background border rounded p-2 shadow-lg">
-                                <div className="font-mono font-bold">
-                                  ${typeof payload[0].value === 'number' ? payload[0].value.toFixed(2) : typeof payload[0].value === 'string' ? parseFloat(payload[0].value).toFixed(2) : '0.00'}
+                  {priceHistory.length === 0 ? (
+                    <div className="h-full flex items-center justify-center text-center px-4">
+                      <div>
+                        <div className="text-sm text-muted-foreground">No AMM trades yet</div>
+                        {effectiveCurrentPrice !== null && (
+                          <div className="text-xs text-muted-foreground mt-1">Current spot: ${effectiveCurrentPrice.toFixed(2)}</div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={priceHistory}>
+                        <XAxis 
+                          dataKey="timestamp" 
+                          tickFormatter={(value) => new Date(value).toLocaleDateString()}
+                          stroke="currentColor"
+                          fontSize={10}
+                        />
+                        <YAxis 
+                          stroke="currentColor"
+                          fontSize={10}
+                          tickFormatter={(value) => `$${value}`}
+                          domain={chartDomain}
+                        />
+                        <RechartsTooltip 
+                          content={({ active, payload }) => {
+                            if (active && payload && payload.length) {
+                              return (
+                                <div className="bg-background border rounded p-2 shadow-lg">
+                                  <div className="font-mono font-bold">
+                                    ${typeof payload[0].value === 'number' ? payload[0].value.toFixed(2) : typeof payload[0].value === 'string' ? parseFloat(payload[0].value).toFixed(2) : '0.00'}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {new Date(payload[0].payload.timestamp).toLocaleString()}
+                                  </div>
                                 </div>
-                                <div className="text-xs text-muted-foreground">
-                                  {new Date(payload[0].payload.timestamp).toLocaleString()}
-                                </div>
-                              </div>
-                            );
-                          }
-                          return null;
-                        }}
-                      />
-                      <Line 
-                        type="monotone" 
-                        dataKey="price" 
-                        stroke="hsl(var(--primary))" 
-                        strokeWidth={2}
-                        dot={false}
-                        activeDot={{ r: 4 }}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
+                              );
+                            }
+                            return null;
+                          }}
+                        />
+                        <Line 
+                          type="monotone" 
+                          dataKey="price" 
+                          stroke="hsl(var(--primary))" 
+                          strokeWidth={2}
+                          dot={false}
+                          activeDot={{ r: 4 }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -446,7 +465,7 @@ export default function PlayerPage() {
             <AmmTradePanel
               playerId={id}
               playerName={playerName}
-              currentPrice={player.lastTradePrice ? parseFloat(player.lastTradePrice) : null}
+              currentPrice={effectiveCurrentPrice}
               userBalance={parseFloat(data.userBalance || "0")}
               userShares={data.userHolding?.quantity || 0}
               onTradeSuccess={handleTradeSuccess}
