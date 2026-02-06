@@ -102,6 +102,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Setup authentication middleware
   await setupAuth(app);
 
+  // Market mode: AMM-only by default. Set MARKET_MODE=orderbook to re-enable legacy order-book endpoints.
+  const isAmmOnlyMode = (process.env.MARKET_MODE ?? "amm").toLowerCase() !== "orderbook";
+
   // Scout Status Endpoint (Placed early to avoid shadowing)
   app.get("/api/scouts/status", isAuthenticated, async (req, res) => {
     try {
@@ -2381,6 +2384,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Market order preview - simulates matching without executing
   app.get("/api/orders/:playerId/preview", optionalAuth, async (req, res) => {
     try {
+      if (isAmmOnlyMode) {
+        return res.status(410).json({
+          error: "Legacy order-book preview endpoint is archived. Use AMM quote endpoint instead.",
+          ammQuoteEndpoint: `/api/amm/${req.params.playerId}/quote?type=buy|sell&amount=...`,
+        });
+      }
+
       const { side, quantity: quantityStr } = req.query;
       const quantity = parseInt(quantityStr as string);
 
@@ -2479,6 +2489,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Place order
   app.post("/api/orders/:playerId", isAuthenticated, async (req, res) => {
     try {
+      if (isAmmOnlyMode) {
+        return res.status(410).json({
+          error: "Legacy order-book trading endpoint is archived. Use AMM buy/sell endpoints.",
+          ammBuyEndpoint: `/api/amm/${req.params.playerId}/buy`,
+          ammSellEndpoint: `/api/amm/${req.params.playerId}/sell`,
+        });
+      }
+
       const userId = getUserId(req);
       const user = await storage.getUser(userId);
       if (!user) {
@@ -2795,6 +2813,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Cancel order
   app.post("/api/orders/:orderId/cancel", isAuthenticated, async (req, res) => {
     try {
+      if (isAmmOnlyMode) {
+        return res.status(410).json({
+          error: "Legacy order-book cancel endpoint is archived in AMM-only mode.",
+        });
+      }
+
       const userId = getUserId(req);
 
       // SECURITY: Verify order belongs to authenticated user
@@ -5886,7 +5910,7 @@ ${posts.map(post => `  <url>
         return res.status(400).json({ error: 'jobName required' });
       }
 
-      const validJobs = ['roster_sync', 'sync_player_game_logs', 'schedule_sync', 'stats_sync', 'create_contests', 'settle_contests', 'daily_snapshot', 'backfill_market_snapshots', 'bot_engine', 'refresh_player_metrics'];
+      const validJobs = ['roster_sync', 'sync_player_game_logs', 'schedule_sync', 'stats_sync', 'create_contests', 'settle_contests', 'daily_snapshot', 'backfill_market_snapshots', 'refresh_player_metrics'];
       if (!validJobs.includes(jobName)) {
         return res.status(400).json({ error: `Invalid jobName. Must be one of: ${validJobs.join(', ')}` });
       }
@@ -6139,6 +6163,12 @@ ${posts.map(post => `  <url>
 
   // Admin endpoint: Manually trigger bot engine
   app.post("/api/admin/bots/trigger", adminAuth, async (req, res) => {
+    if (isAmmOnlyMode) {
+      return res.status(410).json({
+        error: "Bot order-book engine is archived in AMM-only mode.",
+      });
+    }
+
     try {
       const { runBotEngineTick } = await import('./bot/bot-engine');
       const result = await runBotEngineTick();

@@ -143,10 +143,10 @@ export class JobScheduler {
       },
       {
         name: "bot_engine",
-        // Re-enabled: bots drive scouting, order-book activity, and contest participation.
-        // Use a 10-minute cadence to avoid overlapping runs while clearing stale-order backlogs.
+        // Archived in AMM-only mode: legacy order-book bot engine is disabled.
+        // To re-enable for migration/testing, set MARKET_MODE=orderbook and adjust this job.
         schedule: "3-59/10 * * * *",
-        enabled: true,
+        enabled: false,
         handler: async () => {
           const result = await runBotEngineTick();
           return {
@@ -425,14 +425,7 @@ export class JobScheduler {
       backfill_contest_stats: (callback) => backfillContestStats(callback),
       weekly_roundup: (callback) => generateWeeklyRoundup(callback),
       backfill_market_snapshots: (callback) => backfillMarketSnapshots(callback),
-      bot_engine: async () => {
-        const result = await runBotEngineTick();
-        return {
-          requestCount: 0,
-          recordsProcessed: result.botsProcessed,
-          errorCount: result.errors,
-        };
-      },
+      // bot_engine archived in AMM-only mode (legacy order-book automation)
       scout_distribution: async () => {
         return await distributeScoutShares();
       },
