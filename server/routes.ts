@@ -3280,18 +3280,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Player not found" });
       }
 
-      // Verify player has a game today and check game start time
-      // This prevents adding scouts after the game has started
-      const today = new Date();
-      const game = await storage.getPlayerGameForDate(playerId, player.sport.toUpperCase(), today);
-      if (!game) {
-        return res.status(400).json({ error: "This player doesn't have a game today" });
-      }
-      if (new Date(game.startTime) <= new Date()) {
-        return res.status(400).json({ error: "Cannot adjust scouts - player's game has already started" });
-      }
-
-      // assignScouts throws if limit exceeded
+      // In AMM mode, scouting is allowed for any player at any time.
+      // assignScouts throws if limit exceeded.
       await storage.assignScouts(userId, playerId, parsedCount);
 
       // Return updated scout data
