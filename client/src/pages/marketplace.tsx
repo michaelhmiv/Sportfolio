@@ -43,6 +43,10 @@ type PlayerWithPool = Player & {
 type SortField = "price" | "volume" | "change" | "liquidity" | "marketCap" | "sentiment" | "undervalued" | "fantasyPoints" | "name" | "team";
 type SortOrder = "asc" | "desc";
 
+const getDefaultSortOrder = (field: SortField): SortOrder => (
+  ["name", "team"].includes(field) ? "asc" : "desc"
+);
+
 export default function Marketplace() {
   const { user } = useAuth();
   const isPremiumUser = user?.isPremium || false;
@@ -56,8 +60,12 @@ export default function Marketplace() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [teamFilter, setTeamFilter] = useState<string>("all");
   const [positionFilter, setPositionFilter] = useState<string>("all");
-  const [sortField, setSortField] = useState<SortField>((searchParams.get("sortBy") as SortField) || "volume");
-  const [sortOrder, setSortOrder] = useState<SortOrder>((searchParams.get("sortOrder") as SortOrder) || "desc");
+  const initialSortField = (searchParams.get("sortBy") as SortField) || "volume";
+  const initialSortOrderParam = searchParams.get("sortOrder") as SortOrder | null;
+  const [sortField, setSortField] = useState<SortField>(initialSortField);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(initialSortOrderParam && ["asc", "desc"].includes(initialSortOrderParam)
+    ? initialSortOrderParam
+    : getDefaultSortOrder(initialSortField));
   const [filterWatchlistId, setFilterWatchlistId] = useState<string>("none");
   const [page, setPage] = useState(1);
   const [showFilters, setShowFilters] = useState(false);
@@ -74,10 +82,18 @@ export default function Marketplace() {
 
     const sortBy = searchParams.get("sortBy") as SortField;
     const sortOrderParam = searchParams.get("sortOrder") as SortOrder;
-    if (sortBy && ["price", "volume", "change", "liquidity", "marketCap", "sentiment", "undervalued", "fantasyPoints", "name", "team"].includes(sortBy)) {
-      setSortField(sortBy);
-    }
-    if (sortOrderParam && ["asc", "desc"].includes(sortOrderParam)) {
+    const validSortBy = sortBy && ["price", "volume", "change", "liquidity", "marketCap", "sentiment", "undervalued", "fantasyPoints", "name", "team"].includes(sortBy)
+      ? sortBy
+      : undefined;
+
+    if (validSortBy) {
+      setSortField(validSortBy);
+      if (sortOrderParam && ["asc", "desc"].includes(sortOrderParam)) {
+        setSortOrder(sortOrderParam);
+      } else {
+        setSortOrder(getDefaultSortOrder(validSortBy));
+      }
+    } else if (sortOrderParam && ["asc", "desc"].includes(sortOrderParam)) {
       setSortOrder(sortOrderParam);
     }
   }, [searchParams]);
