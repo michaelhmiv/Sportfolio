@@ -448,10 +448,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   function extractWhopPaymentFields(payment: any): { planId: string | null; amountCents: number; metadata: any; email: string | null; status: string } {
     const planId = payment?.plan_id || payment?.plan?.id || null;
 
-    const amountFromFinal = typeof payment?.final_amount === "number" ? payment.final_amount : null;
-    const amountFromTotalDollars = typeof payment?.total === "number" ? Math.round(payment.total * 100) : null;
-    const amountFromUsdTotal = typeof payment?.usd_total === "number" ? Math.round(payment.usd_total * 100) : null;
-    const amountCents = amountFromFinal ?? amountFromTotalDollars ?? amountFromUsdTotal ?? 0;
+    const toNumber = (v: any): number | null => {
+      if (v === null || v === undefined) return null;
+      const n = typeof v === "number" ? v : Number(v);
+      return Number.isFinite(n) ? n : null;
+    };
+
+    const amountFromFinal = toNumber(payment?.final_amount);
+    const amountFromTotalDollars = toNumber(payment?.total);
+    const amountFromUsdTotal = toNumber(payment?.usd_total);
+    const amountCents = amountFromFinal ??
+      (amountFromTotalDollars !== null ? Math.round(amountFromTotalDollars * 100) : null) ??
+      (amountFromUsdTotal !== null ? Math.round(amountFromUsdTotal * 100) : null) ??
+      0;
 
     const metadata = payment?.metadata || {};
     const email = payment?.user?.email || null;
@@ -563,7 +572,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     // Strict fallback only when metadata is missing: match by email + plan + recent pending session.
-    if (userEmail) {
+    const metadataEmpty = !metadata || Object.keys(metadata).length === 0;
+    if (metadataEmpty && userEmail) {
       const lookback = new Date(Date.now() - 30 * 60 * 1000);
       const pending = assetType === "community"
         ? await storage.getPendingCommunityCheckoutSessions()
