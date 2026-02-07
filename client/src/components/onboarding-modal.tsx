@@ -43,7 +43,7 @@ const slides = [
     title: "ENTER CONTESTS",
     subtitle: "Compete in daily 50/50 contests",
     description:
-      "Use your player shares to enter contests and win Sportfolio cash! Build a lineup and score based on real player performance!",
+      "Enter contests using your Sportfolio cash and win prizes! Build a lineup from that day's games and score based on real player performance!",
     color: "text-blue-500",
   },
   {
