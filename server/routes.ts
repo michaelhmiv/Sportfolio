@@ -4678,7 +4678,8 @@ ${posts.map(post => `  <url>
   });
 
   // Premium checkout - create a checkout session and redirect to Whop
-  // Note: We use direct checkout URL since Whop API requires higher-tier permissions
+  // Prefer checkout configurations so we can attach redirect + metadata safely.
+  // For multi-quantity purchases we create an inline plan with the aggregated price.
   app.post("/api/premium/checkout-session", isAuthenticated, async (req, res) => {
     try {
       const userId = getUserId(req);
@@ -4689,33 +4690,93 @@ ${posts.map(post => `  <url>
 
       const { quantity = 1 } = req.body;
       const planId = process.env.WHOP_PLAN_ID;
+      const whopApiKey = process.env.WHOP_API_KEY;
+      const whopCompanyId = process.env.WHOP_COMPANY_ID;
 
       if (!planId) {
         return res.status(500).json({ error: "Whop plan ID not configured" });
       }
 
+      const parsedQuantity = Math.max(1, Math.min(100, Number(quantity) || 1));
+
       const PRICE_PER_SHARE_CENTS = 500; // $5.00 per premium share
-      const amountCents = quantity * PRICE_PER_SHARE_CENTS;
+      const amountCents = parsedQuantity * PRICE_PER_SHARE_CENTS;
 
       // Create a local checkout session record to track this purchase
       const localSession = await storage.createPremiumCheckoutSession({
         userId: user.id,
         planId,
-        quantity,
+        quantity: parsedQuantity,
         amountCents,
       });
 
-      console.log(`[WHOP] Created checkout session ${localSession.id} for user ${userId}, qty: ${quantity}`);
+      console.log(`[WHOP] Created premium checkout session ${localSession.id} for user ${userId}, qty: ${parsedQuantity}`);
 
-      // Use direct checkout URL - Whop API requires permissions we don't have
-      // Include metadata so webhook can identify the user and session
-      const directUrl = `https://whop.com/checkout/${planId}/?d2c=true&metadata[sessionId]=${localSession.id}&metadata[userId]=${userId}&metadata[quantity]=${quantity}`;
+      const buildReturnUrl = () => {
+        const forwardedProto = (req.headers["x-forwarded-proto"] as string) || "https";
+        const forwardedHost = (req.headers["x-forwarded-host"] as string) || req.headers.host;
+        const rawHost = Array.isArray(forwardedHost) ? forwardedHost[0] : forwardedHost;
+        const host = rawHost === "sportfolio.market" ? "www.sportfolio.market" : rawHost;
+        return `${forwardedProto}://${host}/checkout/success`;
+      };
+
+      const returnUrl = process.env.WHOP_RETURN_URL || buildReturnUrl();
+
+      let purchaseUrl: string;
+      if (whopApiKey) {
+        const { Whop } = await import("@whop/sdk");
+        const whopsdk = new Whop({ apiKey: whopApiKey });
+
+        if (parsedQuantity === 1) {
+          const cfg = await whopsdk.checkoutConfigurations.create({
+            plan_id: planId,
+            redirect_url: returnUrl,
+            metadata: {
+              sessionId: localSession.id,
+              userId,
+              quantity: parsedQuantity,
+            },
+          });
+          purchaseUrl = cfg.purchase_url;
+        } else {
+          const basePlan = await whopsdk.plans.retrieve(planId);
+          const companyId = whopCompanyId || basePlan.company?.id;
+          const productId = basePlan.product?.id;
+          const currency = (basePlan.currency || "usd") as any;
+
+          if (!companyId || !productId) {
+            throw new Error("Whop base plan is missing company/product; cannot build multi-quantity checkout");
+          }
+
+          const cfg = await whopsdk.checkoutConfigurations.create({
+            plan: {
+              company_id: companyId as string,
+              currency,
+              product_id: productId as string,
+              plan_type: "one_time",
+              initial_price: amountCents / 100,
+              title: `Premium Shares x${parsedQuantity}`,
+              visibility: "hidden",
+            },
+            redirect_url: returnUrl,
+            metadata: {
+              sessionId: localSession.id,
+              userId,
+              quantity: parsedQuantity,
+            },
+          });
+          purchaseUrl = cfg.purchase_url;
+        }
+      } else {
+        // Fallback: direct checkout URL (metadata-only). Note: hosted checkout links do not support variable pricing.
+        purchaseUrl = `https://whop.com/checkout/${planId}/?d2c=true&metadata[sessionId]=${localSession.id}&metadata[userId]=${userId}&metadata[quantity]=${parsedQuantity}`;
+      }
 
       res.json({
         sessionId: localSession.id,
-        purchaseUrl: directUrl,
+        purchaseUrl,
         planId,
-        quantity,
+        quantity: parsedQuantity,
         amountCents,
         email: user.email,
       });
@@ -4737,32 +4798,93 @@ ${posts.map(post => `  <url>
 
       const { quantity = 1 } = req.body;
       const planId = process.env.WHOP_COMMUNITY_PLAN_ID;
+      const whopApiKey = process.env.WHOP_API_KEY;
+      const whopCompanyId = process.env.WHOP_COMPANY_ID;
 
       if (!planId) {
         return res.status(500).json({ error: "Whop community plan ID not configured" });
       }
 
+      const parsedQuantity = Math.max(1, Math.min(100, Number(quantity) || 1));
+
       const PRICE_PER_SHARE_CENTS = 100; // $1.00 per community share
-      const amountCents = quantity * PRICE_PER_SHARE_CENTS;
+      const amountCents = parsedQuantity * PRICE_PER_SHARE_CENTS;
 
       // Create a local checkout session record to track this purchase
       const localSession = await storage.createCommunityCheckoutSession({
         userId: user.id,
         planId,
-        quantity,
+        quantity: parsedQuantity,
         amountCents,
       });
 
-      console.log(`[COMMUNITY] Created checkout session ${localSession.id} for user ${userId}, qty: ${quantity}`);
+      console.log(`[COMMUNITY] Created checkout session ${localSession.id} for user ${userId}, qty: ${parsedQuantity}`);
 
-      // Include metadata so webhook can identify the user and session
-      const directUrl = `https://whop.com/checkout/${planId}/?d2c=true&metadata[sessionId]=${localSession.id}&metadata[userId]=${userId}&metadata[quantity]=${quantity}`;
+      const buildReturnUrl = () => {
+        const forwardedProto = (req.headers["x-forwarded-proto"] as string) || "https";
+        const forwardedHost = (req.headers["x-forwarded-host"] as string) || req.headers.host;
+        const rawHost = Array.isArray(forwardedHost) ? forwardedHost[0] : forwardedHost;
+        const host = rawHost === "sportfolio.market" ? "www.sportfolio.market" : rawHost;
+        return `${forwardedProto}://${host}/checkout/success`;
+      };
+
+      const returnUrl = process.env.WHOP_RETURN_URL || buildReturnUrl();
+
+      let purchaseUrl: string;
+      if (whopApiKey) {
+        const { Whop } = await import("@whop/sdk");
+        const whopsdk = new Whop({ apiKey: whopApiKey });
+
+        if (parsedQuantity === 1) {
+          const cfg = await whopsdk.checkoutConfigurations.create({
+            plan_id: planId,
+            redirect_url: returnUrl,
+            metadata: {
+              sessionId: localSession.id,
+              userId,
+              quantity: parsedQuantity,
+            },
+          });
+          purchaseUrl = cfg.purchase_url;
+        } else {
+          const basePlan = await whopsdk.plans.retrieve(planId);
+          const companyId = whopCompanyId || basePlan.company?.id;
+          const productId = basePlan.product?.id;
+          const currency = (basePlan.currency || "usd") as any;
+
+          if (!companyId || !productId) {
+            throw new Error("Whop base plan is missing company/product; cannot build multi-quantity checkout");
+          }
+
+          const cfg = await whopsdk.checkoutConfigurations.create({
+            plan: {
+              company_id: companyId as string,
+              currency,
+              product_id: productId as string,
+              plan_type: "one_time",
+              initial_price: amountCents / 100,
+              title: `Community Shares x${parsedQuantity}`,
+              visibility: "hidden",
+            },
+            redirect_url: returnUrl,
+            metadata: {
+              sessionId: localSession.id,
+              userId,
+              quantity: parsedQuantity,
+            },
+          });
+          purchaseUrl = cfg.purchase_url;
+        }
+      } else {
+        // Fallback: direct checkout URL (metadata-only). Note: hosted checkout links do not support variable pricing.
+        purchaseUrl = `https://whop.com/checkout/${planId}/?d2c=true&metadata[sessionId]=${localSession.id}&metadata[userId]=${userId}&metadata[quantity]=${parsedQuantity}`;
+      }
 
       res.json({
         sessionId: localSession.id,
-        purchaseUrl: directUrl,
+        purchaseUrl,
         planId,
-        quantity,
+        quantity: parsedQuantity,
         amountCents,
         email: user.email,
       });
@@ -4811,6 +4933,28 @@ ${posts.map(post => `  <url>
       );
       if (!matched || matched.session.userId !== userId) {
         return res.status(202).json({ success: false, state: "unresolved", reason: "deterministic_mapping_missing" });
+      }
+
+      // Safety: ensure the paid amount matches the session we are about to fulfill.
+      const paidAmountCents = payment.amountCents || extracted.amountCents;
+      const expectedAmountCents = matched.session.amountCents;
+      // Allow paid > expected (taxes/fees). Block underpayment.
+      if (expectedAmountCents && paidAmountCents && paidAmountCents < expectedAmountCents) {
+        console.warn("[CHECKOUT FINALIZE] Amount mismatch", {
+          receiptId,
+          userId,
+          assetType: classification.assetType,
+          expectedAmountCents,
+          paidAmountCents,
+          sessionId: matched.session.id,
+        });
+        return res.status(409).json({
+          success: false,
+          state: "error",
+          reason: "underpaid",
+          expectedAmountCents,
+          paidAmountCents,
+        });
       }
 
       const quantity = matched.session.quantity || payment.quantity || Number(metadata.quantity) || 1;
@@ -5321,6 +5465,33 @@ ${posts.map(post => `  <url>
 
         const userId = matched.session.userId;
         const quantity = matched.session.quantity || Number(metadata.quantity) || 1;
+
+        // Safety: do not fulfill a session unless the paid amount matches the session amount.
+        // This prevents over-crediting if metadata quantity is manipulated or checkout pricing isn't variable.
+        const expectedAmountCents = matched.session.amountCents;
+        // Allow paid > expected (taxes/fees). Block underpayment.
+        if (expectedAmountCents && amountCents && amountCents < expectedAmountCents) {
+          console.error("[WHOP WEBHOOK] Amount mismatch; not crediting", {
+            receiptId,
+            assetType,
+            expectedAmountCents,
+            amountCents,
+            sessionId: matched.session.id,
+          });
+
+          await storage.upsertWhopPayment({
+            paymentId: receiptId,
+            email: (extracted.email || "unknown@webhook.local").toLowerCase(),
+            userId: null,
+            quantity,
+            amountCents: amountCents || 0,
+            currency: payment.currency || "usd",
+            whopStatus: "paid",
+            rawPayload: payment,
+          });
+
+          return res.status(200).json({ success: false, state: "unresolved", reason: "underpaid" });
+        }
 
         const user = await storage.getUser(userId);
         const userEmail = user?.email || payment.user?.email || "unknown@webhook.local";

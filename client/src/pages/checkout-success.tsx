@@ -47,6 +47,18 @@ export default function CheckoutSuccess() {
           return;
         }
 
+        if (response.status === 401) {
+          setState("error");
+          setMessage("You're not signed in. Please sign in again, then refresh this page to confirm your payment.");
+          return;
+        }
+
+        if (response.status === 409 && (data?.reason === "underpaid" || data?.reason === "amount_mismatch")) {
+          setState("error");
+          setMessage("We received a payment, but the paid amount didn't match the selected quantity. Please contact support or try the purchase again.");
+          return;
+        }
+
         setState("error");
         setMessage(data?.error || "We couldn't confirm this payment yet.");
       } catch {
