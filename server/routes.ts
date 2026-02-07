@@ -7294,7 +7294,6 @@ ${posts
           totalShares: shareEconomy.totalSharesInEconomy,
           periodSharesMined: shareEconomy.periodSharesScouted, // Changed from vested to scouted
           periodSharesVested: shareEconomy.periodSharesVested,
-          periodsharesVested: shareEconomy.periodSharesVested,
           periodSharesBurned: shareEconomy.periodSharesBurned,
           timeSeries,
           shareEconomyTimeSeries: shareEconomyTimeSeries.map((point) => ({

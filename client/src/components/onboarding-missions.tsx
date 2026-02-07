@@ -43,12 +43,12 @@ export function OnboardingMissions() {
 
   const missions = [
     {
-      id: "vest",
-      title: "Claim the Vault",
-      description: "Start your first vest and claim free shares.",
+      id: "scout",
+      title: "Start Scouting",
+      description: "Assign your first scout to earn free shares hourly.",
       icon: <Activity className="w-4 h-4" />,
       completed: (user?.totalSharesVested || 0) > 0,
-      link: "/#vault",
+      link: "/pools",
     },
     {
       id: "watchlist",
@@ -61,7 +61,7 @@ export function OnboardingMissions() {
     {
       id: "trade",
       title: "Make a Move",
-      description: "Buy your first shares on the exchange.",
+      description: "Buy your first shares from the AMM pool.",
       icon: <ShoppingCart className="w-4 h-4" />,
       completed: (trades?.filter((t: any) => t.activityType === "trade")?.length || 0) > 0,
       link: "/pools",
