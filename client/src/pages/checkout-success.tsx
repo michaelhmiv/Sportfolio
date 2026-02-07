@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle, Loader2, ArrowRight, Zap, AlertCircle, Clock3 } from "lucide-react";
+import { authenticatedFetch } from "@/lib/queryClient";
 
 export default function CheckoutSuccess() {
   const [, navigate] = useLocation();
@@ -27,14 +28,34 @@ export default function CheckoutSuccess() {
       }
 
       try {
-        const response = await fetch("/api/checkout/finalize", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ receipt_id: receipt }),
-        });
+        const retryDelaysMs = [300, 700, 1200];
 
-        const data = await response.json();
+        let response: Response | null = null;
+        for (let attempt = 0; attempt < retryDelaysMs.length; attempt++) {
+          response = await authenticatedFetch("/api/checkout/finalize", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ receipt_id: receipt }),
+          });
+
+          // Auth can still be initializing right after redirect.
+          if (response.status !== 401) break;
+
+          await new Promise((r) => setTimeout(r, retryDelaysMs[attempt]));
+        }
+
+        if (!response) {
+          setState("error");
+          setMessage("Network error while finalizing payment.");
+          return;
+        }
+
+        let data: any = null;
+        try {
+          data = await response.json();
+        } catch {
+          data = null;
+        }
         if (response.ok && data?.success && data?.state === "credited") {
           setState("credited");
           setMessage("Payment confirmed and shares credited to your account.");
