@@ -1,4 +1,4 @@
-﻿name: Pull Request CI
+name: Pull Request CI
 
 on:
   pull_request:
@@ -7,42 +7,33 @@ on:
       - master
 
 env:
-  NODE_VERSION: "20"
-
+  NODE_VERSION: '20'
 jobs:
   validate:
     name: Validate Code
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version: '${{ env.NODE_VERSION }}'
           cache: "npm"
-
       - name: Install dependencies
         run: npm ci
-
       - name: Type check
         run: npm run check
-
       - name: Lint
         run: npm run lint
-
       - name: Format check
         run: npm run format:check
-
       - name: Run tests
         run: npm run test:run
-
       - name: Upload coverage reports
         uses: codecov/codecov-action@v4
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}
+          token: '${{ secrets.CODECOV_TOKEN }}'
           files: ./coverage/coverage-final.json
           flags: pr
           name: codecov-umbrella
