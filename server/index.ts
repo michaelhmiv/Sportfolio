@@ -77,12 +77,21 @@ app.use((req, res, next) => {
   const server = await registerRoutes(app);
   startupLog('ROUTES', 'Routes registered');
 
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+  app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
 
-    res.status(status).json({ message });
-    throw err;
+    // Never crash the process on a request error.
+    // In production we still want a clean JSON error response.
+    try {
+      if (res.headersSent) return next(err);
+
+      res.status(status).json({ message });
+    } finally {
+      // Always log the underlying error for debugging.
+      // Avoid throwing here; crashes cause restart loops in prod.
+      console.error("[Express Error]", err);
+    }
   });
 
   // importantly only setup vite in development and after

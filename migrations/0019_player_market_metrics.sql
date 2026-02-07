@@ -43,3 +43,41 @@ CREATE INDEX IF NOT EXISTS players_active_name_idx ON players (is_active, last_n
 
 CREATE INDEX IF NOT EXISTS watch_user_watchlist_player_idx ON watch_list (user_id, watchlist_id, player_id);
 
+-- ---------------------------------------------------------------------------
+-- 3) User collections + milestones tables
+-- ---------------------------------------------------------------------------
+-- These tables back /api/collections and /api/milestones endpoints and
+-- scheduled jobs (update_collections, check_milestones).
+-- Some production environments were missing them after DB provider swaps.
+
+CREATE TABLE IF NOT EXISTS user_collections (
+  id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  collection_type VARCHAR(50) NOT NULL,
+  target_id VARCHAR NOT NULL,
+  progress INTEGER NOT NULL DEFAULT 0,
+  total INTEGER NOT NULL,
+  completed BOOLEAN NOT NULL DEFAULT FALSE,
+  completed_at TIMESTAMP,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS user_collection_idx
+  ON user_collections (user_id, collection_type, target_id);
+CREATE INDEX IF NOT EXISTS user_collections_user_idx ON user_collections (user_id);
+CREATE INDEX IF NOT EXISTS user_collections_completed_idx ON user_collections (completed);
+
+CREATE TABLE IF NOT EXISTS user_milestones (
+  id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  milestone_type VARCHAR(50) NOT NULL,
+  threshold NUMERIC(20,2) NOT NULL,
+  achieved_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  celebrated BOOLEAN NOT NULL DEFAULT FALSE
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS user_milestone_idx
+  ON user_milestones (user_id, milestone_type, threshold);
+CREATE INDEX IF NOT EXISTS user_milestones_user_idx ON user_milestones (user_id);
+CREATE INDEX IF NOT EXISTS user_milestones_celebrated_idx ON user_milestones (celebrated);

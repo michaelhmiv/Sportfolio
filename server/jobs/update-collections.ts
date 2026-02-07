@@ -272,6 +272,18 @@ export async function updateCollectionsJob(): Promise<void> {
   const startTime = Date.now();
 
   try {
+    // Guard: this job depends on the user_collections table.
+    // If the DB is behind migrations (common when swapping providers), skip instead of spamming logs.
+    try {
+      await db.select({ id: userCollections.id }).from(userCollections).limit(1);
+    } catch (err: any) {
+      if (err?.code === "42P01") {
+        console.warn("[Collections Job] Skipping: user_collections table does not exist (migrations not applied)");
+        return;
+      }
+      throw err;
+    }
+
     const users = await getActiveUsers();
     console.log(`[Collections Job] Updating collections for ${users.length} users...`);
 
