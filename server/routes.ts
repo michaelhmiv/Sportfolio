@@ -1929,6 +1929,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .orderBy(desc(userCollections.completed), desc(userCollections.updatedAt));
       res.json(collections);
     } catch (error: any) {
+      // If migrations haven't been applied yet, keep the app usable.
+      if (error?.code === "42P01") {
+        return res.json([]);
+      }
       res.status(500).json({ error: error.message });
     }
   });
@@ -1993,6 +1997,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ownedPlayers,
       });
     } catch (error: any) {
+      if (error?.code === "42P01") {
+        return res.status(404).json({ error: "Collection not found" });
+      }
       res.status(500).json({ error: error.message });
     }
   });
@@ -2008,6 +2015,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .orderBy(desc(userMilestones.achievedAt));
       res.json(milestones);
     } catch (error: any) {
+      if (error?.code === "42P01") {
+        return res.json([]);
+      }
       res.status(500).json({ error: error.message });
     }
   });
@@ -2040,6 +2050,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({ success: true });
     } catch (error: any) {
+      if (error?.code === "42P01") {
+        return res.status(503).json({ error: "Milestones unavailable - database migrations not applied" });
+      }
       res.status(500).json({ error: error.message });
     }
   });

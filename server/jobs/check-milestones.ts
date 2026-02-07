@@ -134,6 +134,18 @@ export async function checkMilestonesJob(): Promise<void> {
   const startTime = Date.now();
 
   try {
+    // Guard: this job depends on the user_milestones table.
+    // If the DB is behind migrations, skip instead of generating per-user errors.
+    try {
+      await db.select({ id: userMilestones.id }).from(userMilestones).limit(1);
+    } catch (err: any) {
+      if (err?.code === "42P01") {
+        console.warn("[Milestones Job] Skipping: user_milestones table does not exist (migrations not applied)");
+        return;
+      }
+      throw err;
+    }
+
     const usersList = await getAllUsers();
     console.log(`[Milestones Job] Checking milestones for ${usersList.length} users...`);
 

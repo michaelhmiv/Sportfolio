@@ -77,25 +77,36 @@ export class JobScheduler {
       async () => {
         logJobEvent(`[${jobConfig.name}] Starting scheduled run...`);
 
-        const jobLog = await storage.createJobLog({
-          jobName: jobConfig.name,
-          scheduledFor: new Date(),
-          status: "running",
-        });
+        // Best-effort job execution logging: job failures should never crash the server.
+        let jobLog: { id: string } | null = null;
+        try {
+          jobLog = await storage.createJobLog({
+            jobName: jobConfig.name,
+            scheduledFor: new Date(),
+            status: "running",
+          });
+        } catch (err: any) {
+          warn(`[${jobConfig.name}] Failed to create job log: ${err?.message || err}`);
+        }
 
         try {
           const result = await jobConfig.handler();
 
-          // Determine job status: degraded if some records failed, success if all succeeded
           const status = result.errorCount > 0 ? "degraded" : "success";
 
-          await storage.updateJobLog(jobLog.id, {
-            status,
-            finishedAt: new Date(),
-            requestCount: result.requestCount || 0,
-            recordsProcessed: result.recordsProcessed || 0,
-            errorCount: result.errorCount || 0,
-          });
+          if (jobLog) {
+            try {
+              await storage.updateJobLog(jobLog.id, {
+                status,
+                finishedAt: new Date(),
+                requestCount: result.requestCount || 0,
+                recordsProcessed: result.recordsProcessed || 0,
+                errorCount: result.errorCount || 0,
+              });
+            } catch (err: any) {
+              warn(`[${jobConfig.name}] Failed to update job log: ${err?.message || err}`);
+            }
+          }
 
           if (status === "degraded") {
             warn(`[${jobConfig.name}] Completed with errors - ${result.recordsProcessed} records processed, ${result.errorCount} failed, ${result.requestCount} requests`);
@@ -103,13 +114,19 @@ export class JobScheduler {
             logJobEvent(`[${jobConfig.name}] Completed successfully - ${result.recordsProcessed} records, ${result.requestCount} requests`);
           }
         } catch (err: any) {
-          error(`[${jobConfig.name}] Failed:`, err.message);
+          error(`[${jobConfig.name}] Failed:`, err?.message || err);
 
-          await storage.updateJobLog(jobLog.id, {
-            status: "failed",
-            errorMessage: err.message,
-            finishedAt: new Date(),
-          });
+          if (jobLog) {
+            try {
+              await storage.updateJobLog(jobLog.id, {
+                status: "failed",
+                errorMessage: err?.message || String(err),
+                finishedAt: new Date(),
+              });
+            } catch (logErr: any) {
+              warn(`[${jobConfig.name}] Failed to update failed job log: ${logErr?.message || logErr}`);
+            }
+          }
         }
       },
       {
@@ -461,11 +478,17 @@ export class JobScheduler {
 
     info(`[${jobName}] Manual trigger started${progressCallback ? ' with live logging' : ''}...`);
 
-    const jobLog = await storage.createJobLog({
-      jobName,
-      scheduledFor: new Date(),
-      status: "running",
-    });
+    // Best-effort job logging; manual triggers should still run if logs fail.
+    let jobLog: { id: string } | null = null;
+    try {
+      jobLog = await storage.createJobLog({
+        jobName,
+        scheduledFor: new Date(),
+        status: "running",
+      });
+    } catch (err: any) {
+      warn(`[${jobName}] Failed to create job log: ${err?.message || err}`);
+    }
 
     try {
       const result = await handler(progressCallback);
@@ -473,13 +496,19 @@ export class JobScheduler {
       // Determine job status: degraded if some records failed, success if all succeeded
       const status = result.errorCount > 0 ? "degraded" : "success";
 
-      await storage.updateJobLog(jobLog.id, {
-        status,
-        finishedAt: new Date(),
-        requestCount: result.requestCount,
-        recordsProcessed: result.recordsProcessed,
-        errorCount: result.errorCount,
-      });
+      if (jobLog) {
+        try {
+          await storage.updateJobLog(jobLog.id, {
+            status,
+            finishedAt: new Date(),
+            requestCount: result.requestCount,
+            recordsProcessed: result.recordsProcessed,
+            errorCount: result.errorCount,
+          });
+        } catch (err: any) {
+          warn(`[${jobName}] Failed to update job log: ${err?.message || err}`);
+        }
+      }
 
       if (status === "degraded") {
         warn(`[${jobName}] Manual trigger completed with errors - ${result.recordsProcessed} records processed, ${result.errorCount} failed, ${result.requestCount} requests`);
@@ -490,11 +519,17 @@ export class JobScheduler {
     } catch (err: any) {
       error(`[${jobName}] Manual trigger failed:`, err.message);
 
-      await storage.updateJobLog(jobLog.id, {
-        status: "failed",
-        errorMessage: err.message,
-        finishedAt: new Date(),
-      });
+      if (jobLog) {
+        try {
+          await storage.updateJobLog(jobLog.id, {
+            status: "failed",
+            errorMessage: err?.message || String(err),
+            finishedAt: new Date(),
+          });
+        } catch (logErr: any) {
+          warn(`[${jobName}] Failed to update failed job log: ${logErr?.message || logErr}`);
+        }
+      }
 
       throw err;
     }
