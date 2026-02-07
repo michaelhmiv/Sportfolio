@@ -20,7 +20,7 @@ import {
   Tooltip as RechartsTooltip,
   ResponsiveContainer,
 } from "recharts";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest, authenticatedFetch, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { invalidatePortfolioQueries } from "@/lib/cache-invalidation";
 import type { Player, Trade, PriceHistory } from "@shared/schema";
@@ -78,7 +78,7 @@ export default function PlayerPage() {
   const initialPanel = searchParams.get("panel");
   const { toast } = useToast();
   const { subscribe } = useWebSocket();
-  const { isAuthenticated, isLoading: authLoading, session } = useAuth();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
   const { shouldPoll, isMobile } = useAppState();
   const { getInjury } = useInjuries();
   const [timeRange, setTimeRange] = useState<TimeRange>("1D");
@@ -95,21 +95,20 @@ export default function PlayerPage() {
   const [removePercent, setRemovePercent] = useState(50);
 
   // Fetch player data
-  const { data, isLoading, isError } = useQuery<PlayerPageData>({
+  const { data, isLoading, isError, error: playerError } = useQuery<PlayerPageData>({
     queryKey: ["/api/player", id, timeRange],
     queryFn: async () => {
-      const headers: HeadersInit = {};
-      if (session?.access_token) {
-        headers["Authorization"] = `Bearer ${session.access_token}`;
+      const url = `/api/player/${encodeURIComponent(id)}?range=${timeRange}`;
+      const res = await authenticatedFetch(url);
+      if (!res.ok) {
+        const text = await res.text();
+        const err = new Error(text ? `Player API ${res.status}: ${text}` : `Player API ${res.status}: ${res.statusText}`);
+        (err as any).status = res.status;
+        throw err;
       }
-      const res = await fetch(`/api/player/${encodeURIComponent(id)}?range=${timeRange}`, {
-        credentials: "include",
-        headers,
-      });
-      if (!res.ok) throw new Error("Failed to fetch player data");
       return res.json();
     },
-    enabled: !!id && !authLoading,
+    enabled: !!id && !authLoading && isAuthenticated,
   });
 
   // Fetch AMM pool data with proper error handling
@@ -140,15 +139,14 @@ export default function PlayerPage() {
   const { data: lpPosition } = useQuery<UserLpPosition>({
     queryKey: ["/api/lp", id, "position"],
     queryFn: async () => {
-      const headers: HeadersInit = {};
-      if (session?.access_token) {
-        headers["Authorization"] = `Bearer ${session.access_token}`;
+      const url = `/api/lp/${encodeURIComponent(id)}/position`;
+      const res = await authenticatedFetch(url);
+      if (!res.ok) {
+        const text = await res.text();
+        const err = new Error(text ? `LP API ${res.status}: ${text}` : `LP API ${res.status}: ${res.statusText}`);
+        (err as any).status = res.status;
+        throw err;
       }
-      const res = await fetch(`/api/lp/${encodeURIComponent(id)}/position`, {
-        credentials: "include",
-        headers,
-      });
-      if (!res.ok) throw new Error("Failed to fetch LP position");
       const data = await res.json();
       return data.position;
     },
@@ -310,16 +308,49 @@ export default function PlayerPage() {
     });
   };
 
-  if (isError) {
+  if (!authLoading && !isAuthenticated) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Card className="w-full max-w-md">
           <CardContent className="pt-6 text-center">
-            <h2 className="text-xl font-bold mb-2">Player Not Found</h2>
-            <p className="text-muted-foreground mb-4">
-              The player you're looking for doesn't exist or has been removed.
-            </p>
-            <Button onClick={() => (window.location.href = "/")}>Back to Dashboard</Button>
+            <h2 className="text-xl font-bold mb-2">Sign In Required</h2>
+            <p className="text-muted-foreground mb-4">Please sign in to view player pages.</p>
+            <div className="flex items-center justify-center gap-2">
+              <Button variant="outline" onClick={() => window.location.reload()}>Refresh</Button>
+              <Button onClick={() => window.location.href = "/"}>Back</Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (isError) {
+    const status = (playerError as any)?.status ?? null;
+    const message = (playerError instanceof Error ? playerError.message : "Failed to load player");
+
+    const title = status === 401
+      ? "Sign In Required"
+      : status === 404
+        ? "Player Not Found"
+        : "Unable to Load Player";
+
+    const description = status === 401
+      ? "Your session expired or you are not signed in. Please refresh or sign in again."
+      : status === 404
+        ? "The player you're looking for doesn't exist or has been removed."
+        : message;
+
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Card className="w-full max-w-md">
+          <CardContent className="pt-6 text-center">
+            <h2 className="text-xl font-bold mb-2">{title}</h2>
+            <p className="text-muted-foreground mb-4">{description}</p>
+            <div className="flex items-center justify-center gap-2">
+              <Button variant="outline" onClick={() => window.location.reload()}>Refresh</Button>
+              <Button onClick={() => window.location.href = "/"}>Back</Button>
+            </div>
           </CardContent>
         </Card>
       </div>
