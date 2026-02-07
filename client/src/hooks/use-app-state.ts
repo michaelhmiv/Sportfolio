@@ -17,12 +17,17 @@ export interface AppState {
 }
 
 export function useAppState(): AppState {
-  const [isVisible, setIsVisible] = useState(!document.hidden);
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const hasDOM = typeof window !== "undefined" && typeof document !== "undefined";
+  const hasNavigator = typeof navigator !== "undefined";
+
+  const [isVisible, setIsVisible] = useState(() => (hasDOM ? !document.hidden : true));
+  const [isOnline, setIsOnline] = useState(() => (hasNavigator ? navigator.onLine : true));
   const [isMobile, setIsMobile] = useState(false);
   const [isPWA, setIsPWA] = useState(false);
 
   useEffect(() => {
+    if (!hasDOM || !hasNavigator) return;
+
     // Detect mobile
     const checkMobile = () => {
       const mobile = window.innerWidth < 768 || 

@@ -23,10 +23,10 @@ export async function syncPlayerInjuries(): Promise<{ synced: number; cleared: n
 
     try {
         // Fetch all injuries from API
-        const injuries = await fetchPlayerInjuries();
-        
-        if (injuries.length === 0) {
-            console.log("[SYNC INJURIES] No injuries returned (may need ALL-STAR tier)");
+        const { injuries, hasAccess } = await fetchPlayerInjuries();
+
+        if (!hasAccess) {
+            console.log("[SYNC INJURIES] Injuries endpoint unavailable (may need ALL-STAR tier), skipping");
             return { synced: 0, cleared: 0 };
         }
 
@@ -76,26 +76,30 @@ export async function syncPlayerInjuries(): Promise<{ synced: number; cleared: n
 
         // Clear injury status for NBA players no longer on injury report
         let cleared = 0;
-        if (injuredPlayerIds.length > 0) {
-            const clearResult = await db
-                .update(players)
-                .set({
-                    injuryStatus: null,
-                    injuryDescription: null,
-                    injuryReturnDate: null,
-                    injuryUpdatedAt: now,
-                })
-                .where(
-                    and(
-                        eq(players.sport, "NBA"),
-                        isNotNull(players.injuryStatus),
-                        notInArray(players.id, injuredPlayerIds)
-                    )
-                )
-                .returning({ id: players.id });
-            
-            cleared = clearResult.length;
-        }
+        // If the endpoint is accessible but returns an empty list (e.g., offseason), clear stale flags.
+        const clearWhere = injuredPlayerIds.length > 0
+            ? and(
+                eq(players.sport, "NBA"),
+                isNotNull(players.injuryStatus),
+                notInArray(players.id, injuredPlayerIds)
+            )
+            : and(
+                eq(players.sport, "NBA"),
+                isNotNull(players.injuryStatus)
+            );
+
+        const clearResult = await db
+            .update(players)
+            .set({
+                injuryStatus: null,
+                injuryDescription: null,
+                injuryReturnDate: null,
+                injuryUpdatedAt: now,
+            })
+            .where(clearWhere)
+            .returning({ id: players.id });
+
+        cleared = clearResult.length;
 
         console.log(`[SYNC INJURIES] Synced ${synced} injured players, cleared ${cleared}`);
         return { synced, cleared };

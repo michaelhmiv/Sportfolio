@@ -158,6 +158,11 @@ export interface NBAPlayerInjury {
     status: string; // "Out", "Doubtful", "Questionable", "Day-To-Day", etc.
 }
 
+export interface NBAPlayerInjuriesResult {
+    injuries: NBAPlayerInjury[];
+    hasAccess: boolean;
+}
+
 interface PaginatedResponse<T> {
     data: T[];
     meta: {
@@ -347,7 +352,7 @@ export async function fetchLiveBoxScores(): Promise<NBABoxScore[]> {
  * Fetch all player injuries
  * Requires ALL-STAR tier or higher
  */
-export async function fetchPlayerInjuries(): Promise<NBAPlayerInjury[]> {
+export async function fetchPlayerInjuries(): Promise<NBAPlayerInjuriesResult> {
     const allInjuries: NBAPlayerInjury[] = [];
     let cursor: number | null = null;
     let pageCount = 0;
@@ -372,7 +377,7 @@ export async function fetchPlayerInjuries(): Promise<NBAPlayerInjury[]> {
             // 401 means the tier doesn't have access - fail silently
             if (error.response?.status === 401) {
                 console.warn("[NBA API] Player injuries endpoint requires ALL-STAR tier or higher");
-                return [];
+                return { injuries: [], hasAccess: false };
             }
             console.error(`[NBA API] Error fetching injuries page ${pageCount + 1}:`, error.message);
             throw error;
@@ -380,7 +385,7 @@ export async function fetchPlayerInjuries(): Promise<NBAPlayerInjury[]> {
     } while (cursor);
 
     console.log(`[NBA API] Completed: ${allInjuries.length} player injuries fetched`);
-    return allInjuries;
+    return { injuries: allInjuries, hasAccess: true };
 }
 
 /**
