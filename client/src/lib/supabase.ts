@@ -108,6 +108,7 @@ async function initializeSupabase(): Promise<SupabaseClient> {
         autoRefreshToken: true,
         persistSession: true,
         detectSessionInUrl: true,
+        // Use default storage key for compatibility with Supabase session management.
         storageKey: AUTH_STORAGE_KEY,
         storage: customStorageAdapter,
         flowType: 'pkce',
@@ -151,6 +152,7 @@ async function initializeSupabase(): Promise<SupabaseClient> {
         autoRefreshToken: true,
         persistSession: true,
         detectSessionInUrl: true,
+        // Use default storage key for compatibility with Supabase session management.
         storageKey: AUTH_STORAGE_KEY,
         storage: customStorageAdapter,
         flowType: 'pkce',
