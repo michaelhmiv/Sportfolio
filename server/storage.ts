@@ -4656,10 +4656,13 @@ export class DatabaseStorage implements IStorage {
       await db
         .delete(holdings)
         .where(
+          // IMPORTANT: target the specific holding row we burned from.
+          // Users can have multiple holding rows for the same player (e.g., powered vs regular),
+          // so deleting by userId+assetType+assetId would wipe unrelated rows.
           and(
             eq(holdings.userId, boost.userId),
             eq(holdings.assetType, "player"),
-            eq(holdings.assetId, boost.playerId)
+            eq(holdings.id, holding.id)
           )
         );
     } else {
