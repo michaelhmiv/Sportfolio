@@ -63,14 +63,14 @@ export default function ContestLeaderboard() {
     if (!id) return;
 
     // Subscribe to contest update events
-    const unsubContestUpdate = subscribe('contestUpdate', (data) => {
+    const unsubContestUpdate = subscribe("contestUpdate", (data) => {
       if (data.contestId === id) {
         queryClient.invalidateQueries({ queryKey: ["/api/contest", id, "leaderboard"] });
       }
     });
 
     // Subscribe to live stats events (affects contest rankings)
-    const unsubLiveStats = subscribe('liveStats', () => {
+    const unsubLiveStats = subscribe("liveStats", () => {
       queryClient.invalidateQueries({ queryKey: ["/api/contest", id, "leaderboard"] });
     });
 
@@ -89,7 +89,8 @@ export default function ContestLeaderboard() {
   }
 
   const winningThreshold = Math.ceil(data.leaderboard.length / 2);
-  const totalSharesEntered = data.myEntry?.players.reduce((sum, p) => sum + p.sharesEntered, 0) || 0;
+  const totalSharesEntered =
+    data.myEntry?.players.reduce((sum, p) => sum + p.sharesEntered, 0) || 0;
 
   return (
     <div className="min-h-screen bg-background p-4 sm:p-6 lg:p-8">
@@ -101,7 +102,12 @@ export default function ContestLeaderboard() {
             <Badge className="capitalize">{data.contest.status}</Badge>
           </div>
           <div className="flex items-center gap-6 text-sm text-muted-foreground">
-            <span>Total Prize Pool: <span className="font-mono font-bold text-positive">${data.contest.totalPrizePool}</span></span>
+            <span>
+              Total Prize Pool:{" "}
+              <span className="font-mono font-bold text-positive">
+                ${data.contest.totalPrizePool}
+              </span>
+            </span>
             <span>Top {winningThreshold} win</span>
             <span>{data.leaderboard.length} entries</span>
           </div>
@@ -112,51 +118,83 @@ export default function ContestLeaderboard() {
           <Card className="mb-6 border-primary">
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-medium uppercase tracking-wide">Your Entry</CardTitle>
+                <CardTitle className="text-sm font-medium uppercase tracking-wide">
+                  Your Entry
+                </CardTitle>
                 <Badge variant="outline">Rank #{data.myEntry.rank || "-"}</Badge>
               </div>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
                 <div>
-                  <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Total Score</div>
-                  <div className="text-2xl font-mono font-bold">{data.myEntry.totalScore.toFixed(2)}</div>
+                  <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
+                    Total Score
+                  </div>
+                  <div className="text-2xl font-mono font-bold">
+                    {data.myEntry.totalScore.toFixed(2)}
+                  </div>
                 </div>
                 <div>
-                  <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Shares Entered</div>
+                  <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
+                    Shares Entered
+                  </div>
                   <div className="text-2xl font-bold">{totalSharesEntered}</div>
                 </div>
                 <div>
-                  <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Status</div>
-                  <Badge className={data.myEntry.rank && data.myEntry.rank <= winningThreshold ? 'bg-positive' : 'bg-muted'}>
-                    {data.myEntry.rank && data.myEntry.rank <= winningThreshold ? 'WINNING' : 'Not winning'}
+                  <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
+                    Status
+                  </div>
+                  <Badge
+                    className={
+                      data.myEntry.rank && data.myEntry.rank <= winningThreshold
+                        ? "bg-positive"
+                        : "bg-muted"
+                    }
+                  >
+                    {data.myEntry.rank && data.myEntry.rank <= winningThreshold
+                      ? "WINNING"
+                      : "Not winning"}
                   </Badge>
                 </div>
               </div>
 
               {/* Lineup Details */}
               <div className="space-y-2">
-                <div className="text-xs font-semibold uppercase tracking-wide mb-2">Your Lineup</div>
+                <div className="text-xs font-semibold uppercase tracking-wide mb-2">
+                  Your Lineup
+                </div>
                 {data.myEntry.players.map((player) => (
-                  <div key={player.playerId} className="flex items-center justify-between p-2 bg-muted rounded-md text-sm">
+                  <div
+                    key={player.playerId}
+                    className="flex items-center justify-between p-2 bg-muted rounded-md text-sm"
+                  >
                     <div className="flex items-center gap-2">
                       <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
                         <span className="text-xs font-bold">
-                          {player.playerName.split(' ').map(n => n[0]).join('')}
+                          {player.playerName
+                            .split(" ")
+                            .map((n) => n[0])
+                            .join("")}
                         </span>
                       </div>
                       <span className="font-medium">
-                        <PlayerName 
-                          playerId={player.playerId} 
-                          firstName={player.playerName.split(' ')[0]} 
-                          lastName={player.playerName.split(' ').slice(1).join(' ')}
+                        <PlayerName
+                          playerId={player.playerId}
+                          firstName={player.playerName.split(" ")[0]}
+                          lastName={player.playerName.split(" ").slice(1).join(" ")}
                         />
                       </span>
-                      <Badge variant="outline" className="text-xs">{player.sharesEntered} shares</Badge>
+                      <Badge variant="outline" className="text-xs">
+                        {player.sharesEntered} shares
+                      </Badge>
                     </div>
                     <div className="text-right">
-                      <div className="font-mono font-medium">{player.earnedScore.toFixed(2)} pts</div>
-                      <div className="text-xs text-muted-foreground">{player.fantasyPoints.toFixed(1)} FP</div>
+                      <div className="font-mono font-medium">
+                        {player.earnedScore.toFixed(2)} pts
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {player.fantasyPoints.toFixed(1)} FP
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -168,18 +206,30 @@ export default function ContestLeaderboard() {
         {/* Leaderboard */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm font-medium uppercase tracking-wide">Leaderboard</CardTitle>
+            <CardTitle className="text-sm font-medium uppercase tracking-wide">
+              Leaderboard
+            </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="border-b bg-muted/50">
                   <tr>
-                    <th className="text-left px-2 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Rank</th>
-                    <th className="text-left px-2 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">User</th>
-                    <th className="text-right px-2 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Score</th>
-                    <th className="text-right px-2 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Shares</th>
-                    <th className="text-right px-2 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Winnings</th>
+                    <th className="text-left px-2 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      Rank
+                    </th>
+                    <th className="text-left px-2 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      User
+                    </th>
+                    <th className="text-right px-2 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      Score
+                    </th>
+                    <th className="text-right px-2 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      Shares
+                    </th>
+                    <th className="text-right px-2 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      Winnings
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -188,28 +238,42 @@ export default function ContestLeaderboard() {
                     const isMyEntry = data.myEntry?.entryId === entry.entryId;
                     const entryShares = entry.players.reduce((sum, p) => sum + p.sharesEntered, 0);
                     const payout = parseFloat(entry.payout);
-                    const winnings = payout > 0 ? `$${payout.toFixed(2)}` : (data.contest.status === "completed" ? "$0.00" : "TBD");
-                    
+                    const winnings =
+                      payout > 0
+                        ? `$${payout.toFixed(2)}`
+                        : data.contest.status === "completed"
+                          ? "$0.00"
+                          : "TBD";
+
                     return (
                       <tr
                         key={entry.entryId}
-                        className={`border-b hover-elevate ${isMyEntry ? 'bg-primary/5' : ''}`}
+                        className={`border-b hover-elevate ${isMyEntry ? "bg-primary/5" : ""}`}
                         data-testid={`row-leaderboard-${idx}`}
                       >
                         <td className="px-2 py-2">
                           <div className="flex items-center gap-1">
-                            <span className="font-mono font-bold text-sm">
-                              #{entry.rank}
-                            </span>
+                            <span className="font-mono font-bold text-sm">#{entry.rank}</span>
                             {entry.rank <= 3 && (
-                              <Trophy className={`w-3 h-3 ${entry.rank === 1 ? 'text-yellow-500' : 'text-muted-foreground'}`} />
+                              <Trophy
+                                className={`w-3 h-3 ${entry.rank === 1 ? "text-yellow-500" : "text-muted-foreground"}`}
+                              />
                             )}
                           </div>
                         </td>
                         <td className="px-2 py-2">
                           <div className="flex items-center gap-1">
-                            <UserName userId={entry.userId} username={entry.username} className="text-sm font-medium" data-testid={`link-user-${entry.userId}`} />
-                            {isMyEntry && <Badge variant="outline" className="text-[10px] px-1">You</Badge>}
+                            <UserName
+                              userId={entry.userId}
+                              username={entry.username}
+                              className="text-sm font-medium"
+                              data-testid={`link-user-${entry.userId}`}
+                            />
+                            {isMyEntry && (
+                              <Badge variant="outline" className="text-[10px] px-1">
+                                You
+                              </Badge>
+                            )}
                           </div>
                         </td>
                         <td className="px-2 py-2 text-right">
@@ -226,7 +290,10 @@ export default function ContestLeaderboard() {
                         </td>
                         <td className="px-2 py-2 text-right font-mono text-sm">{entryShares}</td>
                         <td className="px-2 py-2 text-right">
-                          <span className={`text-sm font-mono font-semibold ${payout > 0 ? 'text-positive' : 'text-muted-foreground'}`} data-testid={`text-winnings-${entry.userId}`}>
+                          <span
+                            className={`text-sm font-mono font-semibold ${payout > 0 ? "text-positive" : "text-muted-foreground"}`}
+                            data-testid={`text-winnings-${entry.userId}`}
+                          >
                             {winnings}
                           </span>
                         </td>

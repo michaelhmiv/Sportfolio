@@ -12,16 +12,19 @@ interface AnimatedCardProps extends HTMLAttributes<HTMLDivElement> {
 }
 
 export const AnimatedCard = forwardRef<HTMLDivElement, AnimatedCardProps>(
-  ({ 
-    children, 
-    className, 
-    hoverLift = true, 
-    hoverGlow = false,
-    clickable = false,
-    glowColor = "primary",
-    delay = 0,
-    ...props 
-  }, ref) => {
+  (
+    {
+      children,
+      className,
+      hoverLift = true,
+      hoverGlow = false,
+      clickable = false,
+      glowColor = "primary",
+      delay = 0,
+      ...props
+    },
+    ref,
+  ) => {
     const glowColors = {
       primary: "hover:shadow-primary/20",
       success: "hover:shadow-emerald-500/20",
@@ -35,10 +38,14 @@ export const AnimatedCard = forwardRef<HTMLDivElement, AnimatedCardProps>(
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, delay, ease: "easeOut" }}
-        whileHover={hoverLift ? { 
-          y: -4, 
-          transition: { duration: 0.2, ease: "easeOut" } 
-        } : undefined}
+        whileHover={
+          hoverLift
+            ? {
+                y: -4,
+                transition: { duration: 0.2, ease: "easeOut" },
+              }
+            : undefined
+        }
         whileTap={clickable ? { scale: 0.98 } : undefined}
         className={cn(
           "transition-shadow duration-300",
@@ -52,7 +59,7 @@ export const AnimatedCard = forwardRef<HTMLDivElement, AnimatedCardProps>(
         </Card>
       </motion.div>
     );
-  }
+  },
 );
 
 AnimatedCard.displayName = "AnimatedCard";
@@ -64,12 +71,7 @@ interface FlipCardProps {
   flipOnHover?: boolean;
 }
 
-export function FlipCard({ 
-  front, 
-  back, 
-  className,
-  flipOnHover = true 
-}: FlipCardProps) {
+export function FlipCard({ front, back, className, flipOnHover = true }: FlipCardProps) {
   return (
     <motion.div
       className={cn("relative perspective-1000", className)}
@@ -93,7 +95,7 @@ export function FlipCard({
         </div>
         <div
           className="absolute w-full h-full backface-hidden"
-          style={{ 
+          style={{
             backfaceVisibility: "hidden",
             transform: "rotateY(180deg)",
           }}
@@ -121,28 +123,29 @@ export const GlowCard = forwardRef<HTMLDivElement, GlowCardProps>(
     return (
       <motion.div
         ref={ref}
-        animate={animated ? {
-          boxShadow: [
-            "0 20px 25px -5px rgba(var(--primary), 0.1)",
-            "0 20px 25px -5px rgba(var(--primary), 0.2)",
-            "0 20px 25px -5px rgba(var(--primary), 0.1)",
-          ],
-        } : undefined}
+        animate={
+          animated
+            ? {
+                boxShadow: [
+                  "0 20px 25px -5px rgba(var(--primary), 0.1)",
+                  "0 20px 25px -5px rgba(var(--primary), 0.2)",
+                  "0 20px 25px -5px rgba(var(--primary), 0.1)",
+                ],
+              }
+            : undefined
+        }
         transition={{
           duration: 3,
           repeat: Infinity,
           ease: "easeInOut",
         }}
       >
-        <Card 
-          className={cn(intensityClasses[glowIntensity], className)} 
-          {...props}
-        >
+        <Card className={cn(intensityClasses[glowIntensity], className)} {...props}>
           {children}
         </Card>
       </motion.div>
     );
-  }
+  },
 );
 
 GlowCard.displayName = "GlowCard";
@@ -166,7 +169,7 @@ export function ExpandableCard({
       className={cn(
         "cursor-pointer transition-all duration-300",
         isExpanded && "ring-2 ring-primary",
-        className
+        className,
       )}
       onClick={onToggle}
       {...props}

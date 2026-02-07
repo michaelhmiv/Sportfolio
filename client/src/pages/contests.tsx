@@ -5,7 +5,17 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
-import { Trophy, Users, DollarSign, Clock, Calendar, ChevronLeft, ChevronRight, Lock, Unlock } from "lucide-react";
+import {
+  Trophy,
+  Users,
+  DollarSign,
+  Clock,
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
+  Lock,
+  Unlock,
+} from "lucide-react";
 import { Link } from "wouter";
 import { format } from "date-fns";
 import type { Contest, ContestEntry } from "@shared/schema";
@@ -33,8 +43,8 @@ export default function Contests() {
   // Format date as YYYY-MM-DD for API
   const formatDateForAPI = (date: Date) => {
     const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
     return `${year}-${month}-${day}`;
   };
 
@@ -54,9 +64,9 @@ export default function Contests() {
   const contests = useMemo(() => {
     if (!data?.contests) return [];
     const seen = new Set<string>();
-    return data.contests.filter(contest => {
+    return data.contests.filter((contest) => {
       if (seen.has(contest.id)) {
-        console.warn('[contests] Duplicate contest filtered:', contest.id, contest.name);
+        console.warn("[contests] Duplicate contest filtered:", contest.id, contest.name);
         return false;
       }
       seen.add(contest.id);
@@ -65,7 +75,7 @@ export default function Contests() {
   }, [data?.contests]);
 
   const goToPrevDay = () => {
-    setSelectedDate(prev => {
+    setSelectedDate((prev) => {
       const newDate = new Date(prev);
       newDate.setDate(newDate.getDate() - 1);
       return newDate;
@@ -73,7 +83,7 @@ export default function Contests() {
   };
 
   const goToNextDay = () => {
-    setSelectedDate(prev => {
+    setSelectedDate((prev) => {
       const newDate = new Date(prev);
       newDate.setDate(newDate.getDate() + 1);
       return newDate;
@@ -86,7 +96,7 @@ export default function Contests() {
         {/* Header with Background Pattern */}
         <div className="relative overflow-hidden rounded-xl bg-card border p-4 sm:p-6 mb-4">
           <BackgroundPattern variant="hexagons" color="primary" opacity={0.03} />
-          
+
           <div className="relative z-10 flex items-center justify-between mb-2">
             <div>
               <h1 className="hidden sm:block text-3xl font-bold">Contests</h1>
@@ -94,14 +104,9 @@ export default function Contests() {
             </div>
             <SportSelector />
           </div>
-          
+
           <div className="relative z-10 flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={goToPrevDay}
-              data-testid="button-prev-day"
-            >
+            <Button variant="outline" size="sm" onClick={goToPrevDay} data-testid="button-prev-day">
               <ChevronLeft className="w-4 h-4" />
             </Button>
             <Popover open={showDatePicker} onOpenChange={setShowDatePicker}>
@@ -135,12 +140,7 @@ export default function Contests() {
                 />
               </PopoverContent>
             </Popover>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={goToNextDay}
-              data-testid="button-next-day"
-            >
+            <Button variant="outline" size="sm" onClick={goToNextDay} data-testid="button-next-day">
               <ChevronRight className="w-4 h-4" />
             </Button>
             <Button
@@ -167,7 +167,7 @@ export default function Contests() {
               <EmptyState
                 icon="trophy"
                 title="No contests available"
-                description={`No contests scheduled for ${format(selectedDate, 'MMM d, yyyy')}. Try another date or check back later.`}
+                description={`No contests scheduled for ${format(selectedDate, "MMM d, yyyy")}. Try another date or check back later.`}
                 size="md"
                 data-testid="empty-contests"
               />
@@ -213,7 +213,10 @@ export default function Contests() {
                           <div className="text-xs text-muted-foreground mb-1">Prize Pool</div>
                           <div className="flex items-center gap-1">
                             <DollarSign className="w-3 h-3 text-positive" />
-                            <span className="font-mono font-bold text-positive" data-testid={`text-prize-${contest.id}`}>
+                            <span
+                              className="font-mono font-bold text-positive"
+                              data-testid={`text-prize-${contest.id}`}
+                            >
                               ${contest.totalPrizePool}
                             </span>
                           </div>
@@ -233,10 +236,10 @@ export default function Contests() {
                             <Clock className="w-3 h-3" />
                             <span className="text-xs">
                               {new Date(contest.startsAt).toLocaleString([], {
-                                month: 'short',
-                                day: 'numeric',
-                                hour: 'numeric',
-                                minute: '2-digit'
+                                month: "short",
+                                day: "numeric",
+                                hour: "numeric",
+                                minute: "2-digit",
                               })}
                             </span>
                           </div>
@@ -245,7 +248,11 @@ export default function Contests() {
 
                       <div className="flex gap-2">
                         <Link href={`/contest/${contest.id}/leaderboard`} className="flex-1">
-                          <Button variant="outline" className="w-full" data-testid={`button-view-${contest.id}`}>
+                          <Button
+                            variant="outline"
+                            className="w-full"
+                            data-testid={`button-view-${contest.id}`}
+                          >
                             View Details
                           </Button>
                         </Link>
@@ -267,18 +274,32 @@ export default function Contests() {
             <div className="hidden sm:block overflow-x-auto">
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-sm font-medium uppercase tracking-wide">Available Contests</CardTitle>
+                  <CardTitle className="text-sm font-medium uppercase tracking-wide">
+                    Available Contests
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="p-0">
                   <table className="w-full">
                     <thead className="border-b bg-muted/50">
                       <tr>
-                        <th className="text-left p-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Contest</th>
-                        <th className="text-left p-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Sport</th>
-                        <th className="text-left p-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Status</th>
-                        <th className="text-right p-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Prize Pool</th>
-                        <th className="text-right p-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Entries</th>
-                        <th className="text-left p-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Starts</th>
+                        <th className="text-left p-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          Contest
+                        </th>
+                        <th className="text-left p-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          Sport
+                        </th>
+                        <th className="text-left p-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          Status
+                        </th>
+                        <th className="text-right p-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          Prize Pool
+                        </th>
+                        <th className="text-right p-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          Entries
+                        </th>
+                        <th className="text-left p-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          Starts
+                        </th>
                         <th className="p-4"></th>
                       </tr>
                     </thead>
@@ -307,17 +328,16 @@ export default function Contests() {
                                 <Badge variant="outline" className="capitalize">
                                   {contest.status}
                                 </Badge>
-                                {isLocked && (
-                                  <Badge variant="destructive">
-                                    Locked
-                                  </Badge>
-                                )}
+                                {isLocked && <Badge variant="destructive">Locked</Badge>}
                               </div>
                             </td>
                             <td className="p-4 text-right">
                               <div className="flex items-center justify-end gap-1">
                                 <DollarSign className="w-4 h-4 text-positive" />
-                                <span className="font-mono font-bold text-positive" data-testid={`text-prize-${contest.id}`}>
+                                <span
+                                  className="font-mono font-bold text-positive"
+                                  data-testid={`text-prize-${contest.id}`}
+                                >
                                   ${contest.totalPrizePool}
                                 </span>
                               </div>
@@ -333,10 +353,10 @@ export default function Contests() {
                                 <Clock className="w-4 h-4" />
                                 <span className="text-sm">
                                   {new Date(contest.startsAt).toLocaleString([], {
-                                    month: 'short',
-                                    day: 'numeric',
-                                    hour: 'numeric',
-                                    minute: '2-digit'
+                                    month: "short",
+                                    day: "numeric",
+                                    hour: "numeric",
+                                    minute: "2-digit",
                                   })}
                                 </span>
                               </div>
@@ -399,7 +419,9 @@ export default function Contests() {
 
                         <div>
                           <div className="text-xs text-muted-foreground mb-1">Score</div>
-                          <span className="text-sm font-mono font-semibold">{entry.totalScore}</span>
+                          <span className="text-sm font-mono font-semibold">
+                            {entry.totalScore}
+                          </span>
                         </div>
 
                         {entry.rank && (
@@ -411,7 +433,9 @@ export default function Contests() {
 
                         <div>
                           <div className="text-xs text-muted-foreground mb-1">Payout</div>
-                          <span className={`text-sm font-mono font-semibold ${parseFloat(entry.payout) > 0 ? 'text-positive' : ''}`}>
+                          <span
+                            className={`text-sm font-mono font-semibold ${parseFloat(entry.payout) > 0 ? "text-positive" : ""}`}
+                          >
                             ${entry.payout}
                           </span>
                         </div>
@@ -423,13 +447,18 @@ export default function Contests() {
                             View Lineup
                           </Button>
                         </Link>
-                        {entry.contest.status === "open" && new Date() < new Date(entry.contest.startsAt) && (
-                          <Link href={`/contest/${entry.contestId}/entry/${entry.id}`}>
-                            <Button variant="outline" className="w-full" data-testid={`button-edit-entry-${entry.id}`}>
-                              Edit Entry
-                            </Button>
-                          </Link>
-                        )}
+                        {entry.contest.status === "open" &&
+                          new Date() < new Date(entry.contest.startsAt) && (
+                            <Link href={`/contest/${entry.contestId}/entry/${entry.id}`}>
+                              <Button
+                                variant="outline"
+                                className="w-full"
+                                data-testid={`button-edit-entry-${entry.id}`}
+                              >
+                                Edit Entry
+                              </Button>
+                            </Link>
+                          )}
                       </div>
                     </CardContent>
                   </AnimatedCard>
@@ -440,18 +469,32 @@ export default function Contests() {
               <div className="hidden sm:block overflow-x-auto">
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-sm font-medium uppercase tracking-wide">My Contest Entries</CardTitle>
+                    <CardTitle className="text-sm font-medium uppercase tracking-wide">
+                      My Contest Entries
+                    </CardTitle>
                   </CardHeader>
                   <CardContent className="p-0">
                     <table className="w-full">
                       <thead className="border-b bg-muted/50">
                         <tr>
-                          <th className="text-left p-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Contest</th>
-                          <th className="text-left p-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Status</th>
-                          <th className="text-right p-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Your Shares</th>
-                          <th className="text-right p-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Score</th>
-                          <th className="text-right p-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Rank</th>
-                          <th className="text-right p-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Payout</th>
+                          <th className="text-left p-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                            Contest
+                          </th>
+                          <th className="text-left p-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                            Status
+                          </th>
+                          <th className="text-right p-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                            Your Shares
+                          </th>
+                          <th className="text-right p-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                            Score
+                          </th>
+                          <th className="text-right p-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                            Rank
+                          </th>
+                          <th className="text-right p-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                            Payout
+                          </th>
                           <th className="p-4"></th>
                         </tr>
                       </thead>
@@ -476,11 +519,13 @@ export default function Contests() {
                             </td>
                             <td className="p-4 text-right">
                               <span className="font-semibold">
-                                {entry.rank ? `#${entry.rank}` : '-'}
+                                {entry.rank ? `#${entry.rank}` : "-"}
                               </span>
                             </td>
                             <td className="p-4 text-right">
-                              <span className={`font-mono font-semibold ${parseFloat(entry.payout) > 0 ? 'text-positive' : ''}`}>
+                              <span
+                                className={`font-mono font-semibold ${parseFloat(entry.payout) > 0 ? "text-positive" : ""}`}
+                              >
                                 ${entry.payout}
                               </span>
                             </td>
@@ -491,13 +536,18 @@ export default function Contests() {
                                     View Lineup
                                   </Button>
                                 </Link>
-                                {entry.contest.status === "open" && new Date() < new Date(entry.contest.startsAt) && (
-                                  <Link href={`/contest/${entry.contestId}/entry/${entry.id}`}>
-                                    <Button variant="outline" size="sm" data-testid={`button-edit-entry-${entry.id}`}>
-                                      Edit Entry
-                                    </Button>
-                                  </Link>
-                                )}
+                                {entry.contest.status === "open" &&
+                                  new Date() < new Date(entry.contest.startsAt) && (
+                                    <Link href={`/contest/${entry.contestId}/entry/${entry.id}`}>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        data-testid={`button-edit-entry-${entry.id}`}
+                                      >
+                                        Edit Entry
+                                      </Button>
+                                    </Link>
+                                  )}
                               </div>
                             </td>
                           </tr>

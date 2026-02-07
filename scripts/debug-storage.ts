@@ -26,8 +26,10 @@ async function main() {
 
   if (holdings.length > 0) {
     console.log("\nFirst 3 holdings:");
-    holdings.slice(0, 3).forEach(h => {
-      console.log(`  - ${h.player.firstName} ${h.player.lastName} (${h.player.team}) - ${h.player.sport}`);
+    holdings.slice(0, 3).forEach((h) => {
+      console.log(
+        `  - ${h.player.firstName} ${h.player.lastName} (${h.player.team}) - ${h.player.sport}`,
+      );
       console.log(`    Quantity: ${h.quantity}, PowerLevel: ${h.powerLevel}`);
     });
   } else {
@@ -40,7 +42,7 @@ async function main() {
   const todayGames = await storage.getDailyGames(today);
   console.log(`Total games today: ${todayGames.length}`);
 
-  todayGames.forEach(g => {
+  todayGames.forEach((g) => {
     console.log(`  - ${g.homeTeam} vs ${g.awayTeam} (${g.sport})`);
   });
 
@@ -48,13 +50,15 @@ async function main() {
   if (holdings.length > 0 && todayGames.length > 0) {
     console.log("\n=== PLAYER TEAMS VS GAMES ===");
     const gameTeams = new Set([
-      ...todayGames.map(g => g.homeTeam),
-      ...todayGames.map(g => g.awayTeam)
+      ...todayGames.map((g) => g.homeTeam),
+      ...todayGames.map((g) => g.awayTeam),
     ]);
 
-    holdings.forEach(h => {
+    holdings.forEach((h) => {
       const hasGame = gameTeams.has(h.player.team);
-      console.log(`  - ${h.player.team}: ${h.player.firstName} ${h.player.lastName} - ${hasGame ? 'HAS GAME' : 'NO GAME'}`);
+      console.log(
+        `  - ${h.player.team}: ${h.player.firstName} ${h.player.lastName} - ${hasGame ? "HAS GAME" : "NO GAME"}`,
+      );
     });
   }
 }

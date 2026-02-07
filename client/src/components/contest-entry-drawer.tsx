@@ -80,15 +80,14 @@ export function ContestEntryDrawer({
           <SheetTitle data-testid="text-entry-username">
             {entryDetails && (
               <UserName userId={entryDetails.entry.userId} username={entryDetails.entry.username} />
-            )}'s Entry
+            )}
+            's Entry
           </SheetTitle>
           <SheetDescription>{entryDetails?.contest.name}</SheetDescription>
         </SheetHeader>
 
         {isLoading && (
-          <div className="py-12 text-center text-muted-foreground">
-            Loading entry details...
-          </div>
+          <div className="py-12 text-center text-muted-foreground">Loading entry details...</div>
         )}
 
         {!isLoading && entryDetails && (
@@ -139,8 +138,8 @@ export function ContestEntryDrawer({
                       isWinning
                         ? "text-positive"
                         : isBreakeven
-                        ? "text-muted-foreground"
-                        : "text-negative"
+                          ? "text-muted-foreground"
+                          : "text-negative"
                     }`}
                   >
                     {isWinning ? "+" : ""}${netWinnings.toFixed(2)}
@@ -155,20 +154,28 @@ export function ContestEntryDrawer({
             <div>
               <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
                 <Award className="w-4 h-4" />
-                Lineup ({entryDetails.lineup.length} Players, {entryDetails.entry.totalSharesEntered} Shares)
+                Lineup ({entryDetails.lineup.length} Players,{" "}
+                {entryDetails.entry.totalSharesEntered} Shares)
               </h3>
 
               <div className="space-y-2">
                 {entryDetails.lineup.map((player) => (
-                  <Card key={player.id} className="hover-elevate" data-testid={`card-lineup-player-${player.playerId}`}>
+                  <Card
+                    key={player.id}
+                    className="hover-elevate"
+                    data-testid={`card-lineup-player-${player.playerId}`}
+                  >
                     <CardContent className="p-4">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
-                            <span className="font-semibold" data-testid={`text-player-name-${player.playerId}`}>
-                              <PlayerName 
-                                playerId={player.playerId} 
-                                firstName={player.playerFirstName} 
+                            <span
+                              className="font-semibold"
+                              data-testid={`text-player-name-${player.playerId}`}
+                            >
+                              <PlayerName
+                                playerId={player.playerId}
+                                firstName={player.playerFirstName}
                                 lastName={player.playerLastName}
                               />
                             </span>
@@ -183,7 +190,10 @@ export function ContestEntryDrawer({
                             <span data-testid={`text-shares-${player.playerId}`}>
                               {player.sharesEntered} shares
                             </span>
-                            <span className="flex items-center gap-1" data-testid={`text-ownership-${player.playerId}`}>
+                            <span
+                              className="flex items-center gap-1"
+                              data-testid={`text-ownership-${player.playerId}`}
+                            >
                               <Percent className="w-3 h-3" />
                               {player.ownershipPercentage}% of contest
                             </span>
@@ -193,13 +203,19 @@ export function ContestEntryDrawer({
                         <div className="flex gap-3 sm:gap-8">
                           <div>
                             <div className="text-xs text-muted-foreground">Fantasy Pts</div>
-                            <div className="font-mono font-semibold" data-testid={`text-fantasy-points-${player.playerId}`}>
+                            <div
+                              className="font-mono font-semibold"
+                              data-testid={`text-fantasy-points-${player.playerId}`}
+                            >
                               {parseFloat(player.fantasyPoints).toFixed(1)}
                             </div>
                           </div>
                           <div>
                             <div className="text-xs text-muted-foreground">Earned Score</div>
-                            <div className="font-mono font-semibold text-primary" data-testid={`text-earned-score-${player.playerId}`}>
+                            <div
+                              className="font-mono font-semibold text-primary"
+                              data-testid={`text-earned-score-${player.playerId}`}
+                            >
                               {parseFloat(player.earnedScore).toFixed(2)}
                             </div>
                           </div>
@@ -216,11 +232,16 @@ export function ContestEntryDrawer({
             <div className="text-xs text-muted-foreground space-y-1">
               <div className="flex justify-between">
                 <span>Total Prize Pool:</span>
-                <span className="font-mono">${parseFloat(entryDetails.contest.totalPrizePool).toFixed(2)}</span>
+                <span className="font-mono">
+                  ${parseFloat(entryDetails.contest.totalPrizePool).toFixed(2)}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span>Status:</span>
-                <Badge variant={entryDetails.contest.status === "completed" ? "default" : "secondary"} className="text-xs">
+                <Badge
+                  variant={entryDetails.contest.status === "completed" ? "default" : "secondary"}
+                  className="text-xs"
+                >
                   {entryDetails.contest.status}
                 </Badge>
               </div>

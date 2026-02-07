@@ -1,14 +1,14 @@
-import 'dotenv/config';
-import { storage } from '../server/storage';
-import { getTodayET } from '../server/lib/time';
+import "dotenv/config";
+import { storage } from "../server/storage";
+import { getTodayET } from "../server/lib/time";
 
 async function test() {
   console.log("=== Testing fixed getEligiblePlayersForBoost ===\n");
 
-  const userId = 'dev-user-12345678'; // Dev user
-  const sport = 'NBA';
+  const userId = "dev-user-12345678"; // Dev user
+  const sport = "NBA";
   const todayET = getTodayET();
-  const targetDate = new Date(todayET + 'T12:00:00.000Z'); // Noon ET
+  const targetDate = new Date(todayET + "T12:00:00.000Z"); // Noon ET
 
   console.log(`Querying for user: ${userId}`);
   console.log(`Sport: ${sport}`);
@@ -26,8 +26,10 @@ async function test() {
       console.log(`  ${ep.player.firstName} ${ep.player.lastName} (${ep.player.team})`);
       console.log(`    - Available shares: ${ep.availableShares}`);
       console.log(`    - Power Level: ${ep.powerLevel}`);
-      console.log(`    - Game: ${ep.gameId || 'N/A'} at ${ep.gameStartTime || 'N/A'}`);
-      console.log(`    - Game started: ${ep.gameStartTime ? new Date(ep.gameStartTime) <= new Date() : 'N/A'}`);
+      console.log(`    - Game: ${ep.gameId || "N/A"} at ${ep.gameStartTime || "N/A"}`);
+      console.log(
+        `    - Game started: ${ep.gameStartTime ? new Date(ep.gameStartTime) <= new Date() : "N/A"}`,
+      );
       console.log();
     }
   }

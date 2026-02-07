@@ -67,7 +67,13 @@ interface GameStatsModalProps {
 }
 
 export function GameStatsModal({ gameId, sport, onClose }: GameStatsModalProps) {
-  const { data: liveStats, isLoading, error, refetch, isFetching } = useQuery<LiveStats>({
+  const {
+    data: liveStats,
+    isLoading,
+    error,
+    refetch,
+    isFetching,
+  } = useQuery<LiveStats>({
     queryKey: [`/api/games/${gameId}/live-stats`],
     queryFn: async () => {
       const res = await fetch(`/api/games/${gameId}/live-stats`);
@@ -158,7 +164,15 @@ export function GameStatsModal({ gameId, sport, onClose }: GameStatsModalProps) 
 
 // NBA Stats Table
 function NBAStatsTable({ liveStats }: { liveStats: NBALiveStats }) {
-  const PlayerTable = ({ players, teamName, isHome }: { players: NBAPlayerStats[]; teamName: string; isHome: boolean }) => (
+  const PlayerTable = ({
+    players,
+    teamName,
+    isHome,
+  }: {
+    players: NBAPlayerStats[];
+    teamName: string;
+    isHome: boolean;
+  }) => (
     <div>
       <h4 className="text-xs font-semibold text-muted-foreground mb-1">{teamName}</h4>
       <div className="border rounded-lg overflow-hidden">
@@ -173,16 +187,23 @@ function NBAStatsTable({ liveStats }: { liveStats: NBALiveStats }) {
         </div>
         {/* Rows */}
         {players.map((player) => (
-          <div key={player.id} className="grid grid-cols-8 gap-1 px-2 py-1.5 border-t text-xs hover:bg-muted/30">
+          <div
+            key={player.id}
+            className="grid grid-cols-8 gap-1 px-2 py-1.5 border-t text-xs hover:bg-muted/30"
+          >
             <div className="col-span-3 flex items-center gap-1 min-w-0">
-              <span className="text-[9px] bg-secondary px-1 rounded w-5 text-center flex-shrink-0">{player.position}</span>
+              <span className="text-[9px] bg-secondary px-1 rounded w-5 text-center flex-shrink-0">
+                {player.position}
+              </span>
               <span className="truncate">{player.name}</span>
             </div>
             <div className="text-center font-mono text-[10px]">{player.min}</div>
             <div className="text-center font-mono font-semibold">{player.pts}</div>
             <div className="text-center font-mono text-[10px]">{player.reb}</div>
             <div className="text-center font-mono text-[10px]">{player.ast}</div>
-            <div className="text-center font-mono text-[10px]">{player.fg_pct ? (player.fg_pct * 100).toFixed(0) + "%" : "-"}</div>
+            <div className="text-center font-mono text-[10px]">
+              {player.fg_pct ? (player.fg_pct * 100).toFixed(0) + "%" : "-"}
+            </div>
           </div>
         ))}
       </div>
@@ -217,9 +238,14 @@ function NFLStatsTable({ liveStats }: { liveStats: NFLLiveStats }) {
         </div>
         {/* Rows */}
         {players.map((player) => (
-          <div key={player.id} className="grid grid-cols-7 gap-1 px-2 py-1.5 border-t text-xs hover:bg-muted/30">
+          <div
+            key={player.id}
+            className="grid grid-cols-7 gap-1 px-2 py-1.5 border-t text-xs hover:bg-muted/30"
+          >
             <div className="col-span-2 flex items-center gap-1 min-w-0">
-              <span className="text-[9px] bg-secondary px-1 rounded w-5 text-center flex-shrink-0">{player.position}</span>
+              <span className="text-[9px] bg-secondary px-1 rounded w-5 text-center flex-shrink-0">
+                {player.position}
+              </span>
               <span className="truncate">{player.name}</span>
             </div>
             {/* Passing */}
@@ -273,7 +299,9 @@ function isNBALiveStats(stats: LiveStats): stats is NBALiveStats {
 }
 
 function isNFLLiveStats(stats: LiveStats): stats is NFLLiveStats {
-  return "homePlayers" in stats && stats.homePlayers.length > 0 && "passingYards" in stats.homePlayers[0];
+  return (
+    "homePlayers" in stats && stats.homePlayers.length > 0 && "passingYards" in stats.homePlayers[0]
+  );
 }
 
 export default GameStatsModal;

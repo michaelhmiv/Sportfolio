@@ -49,10 +49,7 @@ async function getBotHoldings(userId: string): Promise<Map<string, number>> {
   const allHoldings = await db
     .select()
     .from(holdings)
-    .where(and(
-      eq(holdings.userId, userId),
-      eq(holdings.assetType, "player")
-    ));
+    .where(and(eq(holdings.userId, userId), eq(holdings.assetType, "player")));
 
   const holdingsMap = new Map<string, number>();
   for (const holding of allHoldings) {
@@ -65,11 +62,11 @@ async function getBotHoldings(userId: string): Promise<Map<string, number>> {
 /**
  * Find open contests that need more entries
  */
-async function findContestsToEnter(): Promise<typeof contests.$inferSelect[]> {
+async function findContestsToEnter(): Promise<(typeof contests.$inferSelect)[]> {
   const openContests = await storage.getContests("open");
 
   // Filter to contests with low entry counts (more incentive for bots to join)
-  return openContests.filter(c => c.entryCount < 10);
+  return openContests.filter((c) => c.entryCount < 10);
 }
 
 /**
@@ -87,7 +84,7 @@ async function hasEnteredContest(userId: string, contestId: string): Promise<boo
 function buildLineup(
   candidates: PlayerValuation[],
   holdingsMap: Map<string, number>,
-  budget: number
+  budget: number,
 ): LineupPlayer[] {
   const lineup: LineupPlayer[] = [];
   const teamCounts = new Map<string, number>();
@@ -145,7 +142,7 @@ function buildLineup(
 async function enterContest(
   userId: string,
   contestId: string,
-  lineup: LineupPlayer[]
+  lineup: LineupPlayer[],
 ): Promise<boolean> {
   try {
     // Calculate total shares
@@ -153,7 +150,9 @@ async function enterContest(
 
     // Validate minimum shares to prevent zero-participation entries
     if (totalShares < MIN_TOTAL_SHARES) {
-      console.log(`[ContestBot] Entry rejected: totalShares=${totalShares} < min=${MIN_TOTAL_SHARES}`);
+      console.log(
+        `[ContestBot] Entry rejected: totalShares=${totalShares} < min=${MIN_TOTAL_SHARES}`,
+      );
       return false;
     }
 
@@ -200,7 +199,7 @@ async function enterContest(
  * Main entry point for contest strategy
  */
 export async function executeContestStrategy(
-  profile: BotProfile & { user: { id: string } }
+  profile: BotProfile & { user: { id: string } },
 ): Promise<void> {
   const config: ContestConfig = {
     userId: profile.userId,
@@ -258,7 +257,9 @@ export async function executeContestStrategy(
 
     // Need at least MIN_LINEUP_SIZE players for a valid lineup (relaxed to 1 for bot liquidity)
     if (lineup.length < MIN_LINEUP_SIZE) {
-      console.log(`[ContestBot] ${profile.botName} couldn't build valid lineup (need at least ${MIN_LINEUP_SIZE} players)`);
+      console.log(
+        `[ContestBot] ${profile.botName} couldn't build valid lineup (need at least ${MIN_LINEUP_SIZE} players)`,
+      );
       continue;
     }
 
@@ -272,7 +273,7 @@ export async function executeContestStrategy(
         contestName: contest.name,
         lineupSize: lineup.length,
         totalShares: lineup.reduce((sum, p) => sum + p.sharesEntered, 0),
-        players: lineup.map(p => ({ id: p.playerId, shares: p.sharesEntered })),
+        players: lineup.map((p) => ({ id: p.playerId, shares: p.sharesEntered })),
       },
       triggerReason: `Contest ${contest.name} has low entries (${contest.entryCount})`,
       success,

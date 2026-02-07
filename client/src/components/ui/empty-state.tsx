@@ -1,22 +1,32 @@
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { Button } from "./button";
-import { 
-  Inbox, 
-  Search, 
-  FileQuestion, 
-  ShoppingCart, 
+import {
+  Inbox,
+  Search,
+  FileQuestion,
+  ShoppingCart,
   TrendingUp,
   Users,
   Trophy,
   Wallet,
-  Droplets
+  Droplets,
 } from "lucide-react";
 
 interface EmptyStateProps extends React.HTMLAttributes<HTMLDivElement> {
   title: string;
   description?: string;
-  icon?: "inbox" | "search" | "file" | "cart" | "chart" | "users" | "trophy" | "wallet" | "droplets" | React.ReactNode;
+  icon?:
+    | "inbox"
+    | "search"
+    | "file"
+    | "cart"
+    | "chart"
+    | "users"
+    | "trophy"
+    | "wallet"
+    | "droplets"
+    | React.ReactNode;
   action?: {
     label: string;
     onClick: () => void;
@@ -66,9 +76,8 @@ export function EmptyState({
     },
   };
 
-  const IconComponent = typeof icon === "string" && icon in iconMap 
-    ? iconMap[icon as keyof typeof iconMap] 
-    : null;
+  const IconComponent =
+    typeof icon === "string" && icon in iconMap ? iconMap[icon as keyof typeof iconMap] : null;
   const sizes = sizeClasses[size];
 
   return (
@@ -79,7 +88,7 @@ export function EmptyState({
       className={cn(
         "flex flex-col items-center justify-center text-center",
         sizes.container,
-        className
+        className,
       )}
       {...(props as any)}
     >
@@ -108,16 +117,9 @@ export function EmptyState({
           className="absolute inset-0 bg-primary/10 rounded-full blur-xl"
         />
         {IconComponent ? (
-          <IconComponent 
-            className={cn(
-              "text-muted-foreground/50 relative z-10",
-              sizes.icon
-            )} 
-          />
+          <IconComponent className={cn("text-muted-foreground/50 relative z-10", sizes.icon)} />
         ) : (
-          <div className={cn("relative z-10", sizes.icon)}>
-            {icon}
-          </div>
+          <div className={cn("relative z-10", sizes.icon)}>{icon}</div>
         )}
       </motion.div>
 
@@ -135,10 +137,7 @@ export function EmptyState({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.2 }}
-          className={cn(
-            "text-muted-foreground max-w-sm mb-4",
-            sizes.description
-          )}
+          className={cn("text-muted-foreground max-w-sm mb-4", sizes.description)}
         >
           {description}
         </motion.p>

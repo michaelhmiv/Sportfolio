@@ -7,11 +7,7 @@ interface PageTransitionProps {
   mode?: "fade" | "slide" | "scale" | "slideUp";
 }
 
-export function PageTransition({ 
-  children, 
-  className,
-  mode = "fade" 
-}: PageTransitionProps) {
+export function PageTransition({ children, className, mode = "fade" }: PageTransitionProps) {
   const variants = {
     fade: {
       initial: { opacity: 0 },
@@ -56,11 +52,7 @@ interface AnimatedRouteProps {
   className?: string;
 }
 
-export function AnimatedRoute({ 
-  children, 
-  routeKey, 
-  className 
-}: AnimatedRouteProps) {
+export function AnimatedRoute({ children, routeKey, className }: AnimatedRouteProps) {
   return (
     <AnimatePresence mode="wait">
       <motion.div
@@ -94,18 +86,18 @@ export function SectionTransition({
     <AnimatePresence mode="wait">
       {show && (
         <motion.div
-          initial={{ 
-            opacity: 0, 
+          initial={{
+            opacity: 0,
             height: direction === "vertical" ? 0 : "auto",
             width: direction === "horizontal" ? 0 : "auto",
           }}
-          animate={{ 
-            opacity: 1, 
+          animate={{
+            opacity: 1,
             height: direction === "vertical" ? "auto" : "auto",
             width: direction === "horizontal" ? "auto" : "auto",
           }}
-          exit={{ 
-            opacity: 0, 
+          exit={{
+            opacity: 0,
             height: direction === "vertical" ? 0 : "auto",
             width: direction === "horizontal" ? 0 : "auto",
           }}

@@ -28,18 +28,8 @@ export function BackgroundPattern({
         style={{ opacity }}
       >
         <defs>
-          <pattern
-            id="grid"
-            width="40"
-            height="40"
-            patternUnits="userSpaceOnUse"
-          >
-            <path
-              d="M 40 0 L 0 0 0 40"
-              fill="none"
-              stroke={colorMap[color]}
-              strokeWidth="0.5"
-            />
+          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+            <path d="M 40 0 L 0 0 0 40" fill="none" stroke={colorMap[color]} strokeWidth="0.5" />
           </pattern>
         </defs>
         <rect width="100%" height="100%" fill="url(#grid)" />
@@ -52,12 +42,7 @@ export function BackgroundPattern({
         style={{ opacity: opacity * 2 }}
       >
         <defs>
-          <pattern
-            id="dots"
-            width="20"
-            height="20"
-            patternUnits="userSpaceOnUse"
-          >
+          <pattern id="dots" width="20" height="20" patternUnits="userSpaceOnUse">
             <circle cx="2" cy="2" r="1" fill={colorMap[color]} />
           </pattern>
         </defs>
@@ -71,12 +56,7 @@ export function BackgroundPattern({
         style={{ opacity }}
       >
         <defs>
-          <pattern
-            id="circuit"
-            width="60"
-            height="60"
-            patternUnits="userSpaceOnUse"
-          >
+          <pattern id="circuit" width="60" height="60" patternUnits="userSpaceOnUse">
             <path
               d="M0 30h20v-10h20v20h20"
               fill="none"
@@ -203,7 +183,8 @@ export function DecorativeIcon({
     success: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
     warning: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20",
     destructive: "bg-red-500/10 text-red-500 border-red-500/20",
-    premium: "bg-gradient-to-br from-yellow-400/20 to-amber-500/20 text-yellow-500 border-yellow-500/30",
+    premium:
+      "bg-gradient-to-br from-yellow-400/20 to-amber-500/20 text-yellow-500 border-yellow-500/30",
     muted: "bg-muted text-muted-foreground border-border",
   };
 
@@ -221,7 +202,7 @@ export function DecorativeIcon({
         colorMap[color],
         variantMap[variant],
         glow && "shadow-lg",
-        className
+        className,
       )}
     >
       <div className={variant === "diamond" ? "-rotate-45" : ""}>{icon}</div>
@@ -284,18 +265,12 @@ export function StatusIndicator({
         <div className={cn("rounded-full", color, sizeMap[size])} />
         {pulse && (
           <div
-            className={cn(
-              "absolute inset-0 rounded-full animate-ping",
-              color,
-              sizeMap[size]
-            )}
+            className={cn("absolute inset-0 rounded-full animate-ping", color, sizeMap[size])}
             style={{ opacity: 0.4 }}
           />
         )}
       </div>
-      {showLabel && (
-        <span className="text-xs font-medium text-muted-foreground">{label}</span>
-      )}
+      {showLabel && <span className="text-xs font-medium text-muted-foreground">{label}</span>}
     </div>
   );
 }
@@ -329,7 +304,7 @@ export function TierBadge({ tier, size = "md", className }: TierBadgeProps) {
         "inline-flex items-center gap-1 font-mono font-bold border rounded",
         sizeMap[size],
         color,
-        className
+        className,
       )}
     >
       {tier >= 4 && "⚡"}
@@ -365,7 +340,7 @@ export function Medal({ rank, size = "md", className }: MedalProps) {
         "flex items-center justify-center rounded-full font-bold shadow-lg",
         sizeMap[size],
         color,
-        className
+        className,
       )}
     >
       {icon}
@@ -405,7 +380,7 @@ export function GradientBorder({
         "rounded-lg bg-gradient-to-r",
         gradientMap[variant],
         intensityMap[intensity],
-        className
+        className,
       )}
     >
       <div className="h-full w-full rounded-lg bg-card">{children}</div>

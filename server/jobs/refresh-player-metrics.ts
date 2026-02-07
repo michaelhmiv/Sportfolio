@@ -12,7 +12,9 @@ import { storage } from "../storage";
 import type { JobResult } from "./scheduler";
 import type { ProgressCallback } from "../lib/admin-stream";
 
-export async function refreshPlayerMarketMetricsJob(progressCallback?: ProgressCallback): Promise<JobResult> {
+export async function refreshPlayerMarketMetricsJob(
+  progressCallback?: ProgressCallback,
+): Promise<JobResult> {
   progressCallback?.({
     type: "info",
     timestamp: new Date().toISOString(),
@@ -34,4 +36,3 @@ export async function refreshPlayerMarketMetricsJob(progressCallback?: ProgressC
     errorCount: 0,
   };
 }
-

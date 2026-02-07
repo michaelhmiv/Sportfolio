@@ -5,17 +5,17 @@ import {
   debouncedInvalidateScouts,
   debouncedInvalidatePlayer,
   debouncedInvalidateMarketActivity,
-  debouncedInvalidateContests
+  debouncedInvalidateContests,
 } from "@/lib/cache-invalidation";
 
 function debugLog(stage: string, message: string, data?: any) {
   const elapsed = performance.now().toFixed(0);
-  console.log(`[WS ${elapsed}ms] ${stage}: ${message}`, data || '');
+  console.log(`[WS ${elapsed}ms] ${stage}: ${message}`, data || "");
 }
 
 interface WebSocketContextValue {
   isConnected: boolean;
-  connectionState: 'connecting' | 'connected' | 'disconnected' | 'error';
+  connectionState: "connecting" | "connected" | "disconnected" | "error";
   reconnectAttempts: number;
   subscribe: (eventType: string, handler: (data: any) => void) => () => void;
 }
@@ -24,7 +24,9 @@ const WebSocketContext = createContext<WebSocketContextValue | null>(null);
 
 export function WebSocketProvider({ children }: { children: React.ReactNode }) {
   const [isConnected, setIsConnected] = useState(false);
-  const [connectionState, setConnectionState] = useState<'connecting' | 'connected' | 'disconnected' | 'error'>('connecting');
+  const [connectionState, setConnectionState] = useState<
+    "connecting" | "connected" | "disconnected" | "error"
+  >("connecting");
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
   const wsRef = useRef<WebSocket | null>(null);
   const handlersRef = useRef<Map<string, Set<(data: any) => void>>>(new Map());
@@ -32,20 +34,22 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
   const reconnectAttemptsRef = useRef(0);
 
   const connect = () => {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const host = window.location.host;
     const wsUrl = `${protocol}//${host}/ws`;
 
-    debugLog('CONNECT', `Attempting to connect to ${wsUrl}`, { attempt: reconnectAttemptsRef.current + 1 });
-    setConnectionState('connecting');
+    debugLog("CONNECT", `Attempting to connect to ${wsUrl}`, {
+      attempt: reconnectAttemptsRef.current + 1,
+    });
+    setConnectionState("connecting");
 
     try {
       const ws = new WebSocket(wsUrl);
 
       ws.onopen = () => {
-        debugLog('OPEN', 'WebSocket connected successfully');
+        debugLog("OPEN", "WebSocket connected successfully");
         setIsConnected(true);
-        setConnectionState('connected');
+        setConnectionState("connected");
         reconnectAttemptsRef.current = 0;
         setReconnectAttempts(0);
       };
@@ -56,57 +60,64 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
 
           const handlers = handlersRef.current.get(message.type);
           if (handlers) {
-            handlers.forEach(handler => handler(message));
+            handlers.forEach((handler) => handler(message));
           }
 
           switch (message.type) {
-            case 'portfolio':
+            case "portfolio":
               debouncedInvalidatePortfolio();
               break;
 
-            case 'scouts':
+            case "scouts":
               debouncedInvalidateScouts();
               break;
 
-            case 'trade':
+            case "trade":
               debouncedInvalidatePlayer(message.playerId);
               break;
 
-            case 'liveStats':
+            case "liveStats":
               if (message.gameId) {
-                queryClient.invalidateQueries({ queryKey: ['/api/games/today'] });
-                queryClient.invalidateQueries({ queryKey: ['/api/game', message.gameId] });
+                queryClient.invalidateQueries({ queryKey: ["/api/games/today"] });
+                queryClient.invalidateQueries({ queryKey: ["/api/game", message.gameId] });
                 // Also invalidate boosts to update live fantasy points
-                queryClient.invalidateQueries({ queryKey: ['/api/daily-boosts/all'] });
+                queryClient.invalidateQueries({ queryKey: ["/api/daily-boosts/all"] });
               }
               break;
 
-            case 'contestUpdate':
+            case "contestUpdate":
               debouncedInvalidateContests(message.contestId);
               break;
 
-            case 'scout_ready':
+            case "scout_ready":
               // Trigger scout ceremony notification
-              window.dispatchEvent(new CustomEvent('scout-ceremony-ready', { 
-                detail: message.data 
-              }));
+              window.dispatchEvent(
+                new CustomEvent("scout-ceremony-ready", {
+                  detail: message.data,
+                }),
+              );
               break;
 
-            case 'whale_alert':
+            case "whale_alert":
               // Trigger whale alert notification
-              window.dispatchEvent(new CustomEvent('whale-alert', { 
-                detail: message 
-              }));
+              window.dispatchEvent(
+                new CustomEvent("whale-alert", {
+                  detail: message,
+                }),
+              );
               break;
 
-            case 'boost_count_update':
+            case "boost_count_update":
               // Update boost counters
-              queryClient.setQueryData(['boost-count', message.playerId, message.date], message.count);
+              queryClient.setQueryData(
+                ["boost-count", message.playerId, message.date],
+                message.count,
+              );
               break;
 
-            case 'scout_velocity_update':
+            case "scout_velocity_update":
               // Update scout velocity data
-              queryClient.setQueryData(['scout-velocity', message.playerId], {
+              queryClient.setQueryData(["scout-velocity", message.playerId], {
                 playerId: message.playerId,
                 velocity: message.velocity,
                 totalScouts: message.totalScouts,
@@ -114,67 +125,73 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
               });
               break;
 
-            case 'trending_players_update':
+            case "trending_players_update":
               // Update trending players list
-              queryClient.setQueryData(['trending-players'], message.playerIds);
+              queryClient.setQueryData(["trending-players"], message.playerIds);
               break;
 
-            case 'marketActivity':
+            case "marketActivity":
               debouncedInvalidateMarketActivity();
               // Handle collection and milestone events within marketActivity
-              if (message.data?.event === 'collection_completed') {
+              if (message.data?.event === "collection_completed") {
                 // Trigger collection ceremony
-                window.dispatchEvent(new CustomEvent('collection-completed', {
-                  detail: message.data
-                }));
+                window.dispatchEvent(
+                  new CustomEvent("collection-completed", {
+                    detail: message.data,
+                  }),
+                );
                 // Invalidate collections cache
-                queryClient.invalidateQueries({ queryKey: ['/api/collections'] });
-              } else if (message.data?.event === 'milestone_achieved') {
+                queryClient.invalidateQueries({ queryKey: ["/api/collections"] });
+              } else if (message.data?.event === "milestone_achieved") {
                 // Trigger milestone ceremony
-                window.dispatchEvent(new CustomEvent('milestone-achieved', {
-                  detail: message.data
-                }));
+                window.dispatchEvent(
+                  new CustomEvent("milestone-achieved", {
+                    detail: message.data,
+                  }),
+                );
                 // Invalidate milestones cache
-                queryClient.invalidateQueries({ queryKey: ['/api/milestones'] });
+                queryClient.invalidateQueries({ queryKey: ["/api/milestones"] });
               }
               break;
           }
         } catch (error) {
-          debugLog('MESSAGE_ERROR', 'Failed to parse message', { error: (error as Error).message });
+          debugLog("MESSAGE_ERROR", "Failed to parse message", { error: (error as Error).message });
         }
       };
 
       ws.onerror = (error) => {
-        debugLog('ERROR', 'WebSocket error occurred', { error });
-        setConnectionState('error');
+        debugLog("ERROR", "WebSocket error occurred", { error });
+        setConnectionState("error");
       };
 
       ws.onclose = (event) => {
-        debugLog('CLOSE', 'WebSocket disconnected', {
+        debugLog("CLOSE", "WebSocket disconnected", {
           code: event.code,
           reason: event.reason,
-          wasClean: event.wasClean
+          wasClean: event.wasClean,
         });
         setIsConnected(false);
-        setConnectionState('disconnected');
+        setConnectionState("disconnected");
         wsRef.current = null;
 
         reconnectAttemptsRef.current++;
         setReconnectAttempts(reconnectAttemptsRef.current);
 
         const delay = Math.min(3000 * Math.pow(1.5, reconnectAttemptsRef.current - 1), 30000);
-        debugLog('RECONNECT', `Will attempt reconnect in ${delay}ms`, { attempt: reconnectAttemptsRef.current });
+        debugLog("RECONNECT", `Will attempt reconnect in ${delay}ms`, {
+          attempt: reconnectAttemptsRef.current,
+        });
 
         reconnectTimeoutRef.current = setTimeout(() => {
-          debugLog('RECONNECT', 'Attempting to reconnect...');
+          debugLog("RECONNECT", "Attempting to reconnect...");
           connect();
         }, delay);
       };
 
       wsRef.current = ws;
     } catch (error) {
-      debugLog('CONNECT_ERROR', 'Failed to create WebSocket', { error: (error as Error).message });
-      setConnectionState('error');
+      debugLog("CONNECT_ERROR", "Failed to create WebSocket", { error: (error as Error).message });
+      setConnectionState("error");
 
       const delay = Math.min(3000 * Math.pow(1.5, reconnectAttemptsRef.current), 30000);
       reconnectTimeoutRef.current = setTimeout(() => {
@@ -186,11 +203,11 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    debugLog('INIT', 'WebSocketProvider mounted, initiating connection');
+    debugLog("INIT", "WebSocketProvider mounted, initiating connection");
     connect();
 
     return () => {
-      debugLog('CLEANUP', 'WebSocketProvider unmounting');
+      debugLog("CLEANUP", "WebSocketProvider unmounting");
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
       }
@@ -218,7 +235,9 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <WebSocketContext.Provider value={{ isConnected, connectionState, reconnectAttempts, subscribe }}>
+    <WebSocketContext.Provider
+      value={{ isConnected, connectionState, reconnectAttempts, subscribe }}
+    >
       {children}
     </WebSocketContext.Provider>
   );
@@ -227,7 +246,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
 export function useWebSocket() {
   const context = useContext(WebSocketContext);
   if (!context) {
-    throw new Error('useWebSocket must be used within WebSocketProvider');
+    throw new Error("useWebSocket must be used within WebSocketProvider");
   }
   return context;
 }

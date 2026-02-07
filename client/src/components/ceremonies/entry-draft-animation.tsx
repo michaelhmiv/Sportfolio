@@ -38,9 +38,12 @@ function DraftCard({
 
   useEffect(() => {
     // Staggered flip timing
-    const flipTimer = setTimeout(() => {
-      setIsFlipped(true);
-    }, 600 + index * 150);
+    const flipTimer = setTimeout(
+      () => {
+        setIsFlipped(true);
+      },
+      600 + index * 150,
+    );
 
     return () => clearTimeout(flipTimer);
   }, [index]);
@@ -109,7 +112,7 @@ function DraftCard({
         className={cn(
           "absolute inset-0 rounded-xl border-2 bg-gradient-to-br from-slate-800 to-slate-900",
           "flex items-center justify-center backface-hidden",
-          "border-slate-700"
+          "border-slate-700",
         )}
         style={{
           backfaceVisibility: "hidden",
@@ -119,12 +122,13 @@ function DraftCard({
         <div className="text-center">
           <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center mx-auto mb-2">
             <span className="text-lg font-bold text-primary">
-              {entry.playerName.split(" ").map((n) => n[0]).join("")}
+              {entry.playerName
+                .split(" ")
+                .map((n) => n[0])
+                .join("")}
             </span>
           </div>
-          <p className="text-sm font-semibold text-white truncate px-2">
-            {entry.playerName}
-          </p>
+          <p className="text-sm font-semibold text-white truncate px-2">{entry.playerName}</p>
           <p className="text-xs text-slate-400">
             {entry.team} · {entry.position}
           </p>
@@ -140,7 +144,7 @@ function DraftCard({
         className={cn(
           "absolute inset-0 rounded-xl border-2",
           "bg-gradient-to-br from-violet-900/50 to-blue-900/50",
-          "border-violet-500/30 flex items-center justify-center backface-hidden"
+          "border-violet-500/30 flex items-center justify-center backface-hidden",
         )}
         style={{
           backfaceVisibility: "hidden",
@@ -181,10 +185,13 @@ export function EntryDraftAnimation({
       const skipTimer = setTimeout(() => setShowSkip(true), 1000);
 
       // Show complete state after animation finishes
-      const completeTimer = setTimeout(() => {
-        setShowComplete(true);
-        onComplete?.();
-      }, 2000 + lineup.length * 150);
+      const completeTimer = setTimeout(
+        () => {
+          setShowComplete(true);
+          onComplete?.();
+        },
+        2000 + lineup.length * 150,
+      );
 
       return () => {
         clearTimeout(skipTimer);
@@ -239,14 +246,10 @@ export function EntryDraftAnimation({
           >
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-violet-500/10 border border-violet-500/20 mb-4">
               <Trophy className="w-4 h-4 text-violet-500" />
-              <span className="text-sm font-medium text-violet-500">
-                Entry Submitted
-              </span>
+              <span className="text-sm font-medium text-violet-500">Entry Submitted</span>
             </div>
             <h2 className="text-2xl font-bold mb-1">{contestName}</h2>
-            <p className="text-muted-foreground">
-              Dealing your lineup...
-            </p>
+            <p className="text-muted-foreground">Dealing your lineup...</p>
           </motion.div>
 
           {/* Cards container */}
@@ -274,15 +277,10 @@ export function EntryDraftAnimation({
                   <p className="text-4xl font-bold text-emerald-500">
                     {lineup.reduce((sum, e) => sum + e.sharesEntered, 0)}
                   </p>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    {lineup.length} players
-                  </p>
+                  <p className="text-xs text-muted-foreground mt-2">{lineup.length} players</p>
                 </div>
 
-                <Button
-                  className="mt-6"
-                  onClick={handleSkip}
-                >
+                <Button className="mt-6" onClick={handleSkip}>
                   View My Entries
                 </Button>
               </motion.div>

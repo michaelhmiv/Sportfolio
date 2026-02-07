@@ -1,4 +1,4 @@
-import 'dotenv/config';
+import "dotenv/config";
 import { db } from "../server/db";
 import { holdings, dailyBoosts, players } from "../shared/schema";
 import { eq, and } from "drizzle-orm";
@@ -7,13 +7,14 @@ async function checkUserHoldingsAndBoosts() {
   console.log("=== Checking dev-user holdings and boosts ===\n");
 
   // Your user ID
-  const userId = 'dev-user-12345678';
+  const userId = "dev-user-12345678";
 
   // 1. Get all holdings for dev-user
   console.log("--- Holdings ---");
-  const userHoldings = await db.select({
-    holding: holdings,
-  })
+  const userHoldings = await db
+    .select({
+      holding: holdings,
+    })
     .from(holdings)
     .where(eq(holdings.userId, userId));
 
@@ -29,10 +30,11 @@ async function checkUserHoldingsAndBoosts() {
 
   // 2. Get all boosts (any date)
   console.log("--- All Boosts ---");
-  const allBoosts = await db.select({
-    boost: dailyBoosts,
-    player: players
-  })
+  const allBoosts = await db
+    .select({
+      boost: dailyBoosts,
+      player: players,
+    })
     .from(dailyBoosts)
     .innerJoin(players, eq(dailyBoosts.playerId, players.id))
     .where(eq(dailyBoosts.userId, userId))

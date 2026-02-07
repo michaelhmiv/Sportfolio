@@ -62,7 +62,7 @@ export function BottomNav() {
 
   // Haptic feedback helper
   const triggerHaptic = () => {
-    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+    if (typeof navigator !== "undefined" && navigator.vibrate) {
       navigator.vibrate(50);
     }
   };
@@ -87,17 +87,23 @@ export function BottomNav() {
 
   const getSportIcon = (s: Sport) => {
     switch (s) {
-      case "NBA": return "🏀";
-      case "NFL": return "🏈";
-      case "ALL": return "🌎";
+      case "NBA":
+        return "🏀";
+      case "NFL":
+        return "🏈";
+      case "ALL":
+        return "🌎";
     }
   };
 
   const getSportLabel = (s: Sport) => {
     switch (s) {
-      case "NBA": return "NBA";
-      case "NFL": return "NFL";
-      case "ALL": return "All Sports";
+      case "NBA":
+        return "NBA";
+      case "NFL":
+        return "NFL";
+      case "ALL":
+        return "All Sports";
     }
   };
 
@@ -134,19 +140,18 @@ export function BottomNav() {
         </DrawerContent>
       </Drawer>
 
-      <nav className={cn(
-        "fixed bottom-0 left-0 right-0 z-50 bg-sidebar border-t sm:hidden select-none",
-        isPremium && "border-t-yellow-500/30"
-      )}>
+      <nav
+        className={cn(
+          "fixed bottom-0 left-0 right-0 z-50 bg-sidebar border-t sm:hidden select-none",
+          isPremium && "border-t-yellow-500/30",
+        )}
+      >
         <div className="grid grid-cols-5 h-16 max-w-md mx-auto">
           {navItems.map((item) => {
             const isActive = location === item.url;
             const wasJustActivated = justActivated === item.url;
             return (
-              <div
-                key={item.title}
-                className="flex items-center justify-center"
-              >
+              <div key={item.title} className="flex items-center justify-center">
                 <Link
                   href={item.url}
                   className="flex items-center justify-center w-full h-full"
@@ -155,25 +160,31 @@ export function BottomNav() {
                   <motion.div
                     className={cn(
                       "flex flex-col items-center justify-center gap-1 py-1 rounded-none transition-colors w-full h-full relative",
-                      isActive
-                        ? "text-primary"
-                        : "text-muted-foreground"
+                      isActive ? "text-primary" : "text-muted-foreground",
                     )}
                     data-testid={`button - nav - ${item.title.toLowerCase()} `}
-                    animate={wasJustActivated ? {
-                      scale: [1, 1.15, 0.95, 1.05, 1],
-                      y: [0, -6, 0, -2, 0],
-                    } : {}}
+                    animate={
+                      wasJustActivated
+                        ? {
+                            scale: [1, 1.15, 0.95, 1.05, 1],
+                            y: [0, -6, 0, -2, 0],
+                          }
+                        : {}
+                    }
                     transition={{
                       duration: 0.4,
                       ease: "easeOut",
                     }}
                   >
                     <motion.div
-                      animate={wasJustActivated ? {
-                        scale: [1, 1.3, 1],
-                        rotate: [0, -10, 10, 0],
-                      } : {}}
+                      animate={
+                        wasJustActivated
+                          ? {
+                              scale: [1, 1.3, 1],
+                              rotate: [0, -10, 10, 0],
+                            }
+                          : {}
+                      }
                       transition={{ duration: 0.3 }}
                     >
                       <item.icon className="w-5 h-5" />

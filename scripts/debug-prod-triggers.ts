@@ -1,12 +1,12 @@
-import 'dotenv/config';
-import { Pool } from 'pg';
+import "dotenv/config";
+import { Pool } from "pg";
 
 async function checkTriggers() {
   console.log("=== Checking Holdings Table Triggers ===\n");
 
   const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false }
+    ssl: { rejectUnauthorized: false },
   });
 
   const client = await pool.connect();
@@ -61,7 +61,9 @@ async function checkTriggers() {
   `);
 
   for (const c of cols.rows) {
-    console.log(`${c.column_name}: ${c.data_type}, default=${c.column_default}, nullable=${c.is_nullable}`);
+    console.log(
+      `${c.column_name}: ${c.data_type}, default=${c.column_default}, nullable=${c.is_nullable}`,
+    );
   }
 
   // Check for generated columns

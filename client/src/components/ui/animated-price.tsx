@@ -55,9 +55,14 @@ export function AnimatedPrice({
     down: "bg-red-500/20 text-red-500",
   };
 
-  const direction = previousValue !== undefined
-    ? value > previousValue ? "up" : value < previousValue ? "down" : null
-    : null;
+  const direction =
+    previousValue !== undefined
+      ? value > previousValue
+        ? "up"
+        : value < previousValue
+          ? "down"
+          : null
+      : null;
 
   return (
     <motion.span
@@ -65,7 +70,7 @@ export function AnimatedPrice({
         "inline-flex items-center gap-1 px-1 rounded transition-colors duration-300",
         sizeClasses[size],
         showFlash && flash && flashClasses[flash],
-        className
+        className,
       )}
       animate={flash ? { scale: [1, 1.05, 1] } : {}}
       transition={{ duration: 0.2 }}
@@ -159,19 +164,17 @@ export function PriceChangeIndicator({
         "inline-flex items-center gap-0.5 font-medium",
         sizeClasses[size],
         isPositive ? "text-emerald-500" : "text-red-500",
-        className
+        className,
       )}
     >
-      <motion.span
-        animate={{ y: [0, isPositive ? -2 : 2, 0] }}
-        transition={{ duration: 0.3 }}
-      >
+      <motion.span animate={{ y: [0, isPositive ? -2 : 2, 0] }} transition={{ duration: 0.3 }}>
         {isPositive ? "▲" : "▼"}
       </motion.span>
       <span>${Math.abs(change).toFixed(2)}</span>
       {showPercent && changePercent !== undefined && (
         <span className="opacity-75">
-          ({isPositive ? "+" : ""}{changePercent.toFixed(1)}%)
+          ({isPositive ? "+" : ""}
+          {changePercent.toFixed(1)}%)
         </span>
       )}
     </motion.span>
@@ -203,12 +206,12 @@ export function LivePriceTicker({ prices, className }: LivePriceTickerProps) {
           ease: "linear",
         }}
         // Start from right side (not exactly possible with just x: -100 without initial offset)
-        // With x: -100%, we move the entire block left. 
+        // With x: -100%, we move the entire block left.
         // We need the content to start off-screen right?
         // Let's us CSS Marquee for better robustness with dynamic width
         style={{
           width: "max-content",
-          marginLeft: "100%" // Start pushed to the right
+          marginLeft: "100%", // Start pushed to the right
         }}
       >
         {prices.map((item, i) => (
@@ -219,20 +222,27 @@ export function LivePriceTicker({ prices, className }: LivePriceTickerProps) {
   );
 }
 
-function TickerItem({ item }: { item: { symbol: string; price: number; change: number; link?: string } }) {
+function TickerItem({
+  item,
+}: {
+  item: { symbol: string; price: number; change: number; link?: string };
+}) {
   const content = (
     <>
       <span className="font-medium text-foreground hover:underline">{item.symbol}</span>
       <span>${item.price.toFixed(2)}</span>
       {item.change !== 0 && (
-        <span>{item.change >= 0 ? "↑" : "↓"}{Math.abs(item.change).toFixed(1)}%</span>
+        <span>
+          {item.change >= 0 ? "↑" : "↓"}
+          {Math.abs(item.change).toFixed(1)}%
+        </span>
       )}
     </>
   );
 
   const containerClass = cn(
     "inline-flex items-center gap-2 text-sm",
-    item.change >= 0 ? "text-emerald-500" : "text-red-500"
+    item.change >= 0 ? "text-emerald-500" : "text-red-500",
   );
 
   if (item.link) {

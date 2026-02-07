@@ -14,12 +14,12 @@ export default function Login() {
   const [, navigate] = useLocation();
   const { login, signup, loginWithGoogle, isAuthenticated, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
-  
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  
+
   if (authLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen" data-testid="login-loading">
@@ -27,18 +27,18 @@ export default function Login() {
       </div>
     );
   }
-  
+
   if (isAuthenticated) {
     navigate("/");
     return null;
   }
-  
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    
+
     const result = await login(email, password);
-    
+
     if (result.success) {
       toast({
         title: "Welcome back!",
@@ -52,13 +52,13 @@ export default function Login() {
         variant: "destructive",
       });
     }
-    
+
     setIsLoading(false);
   };
-  
+
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (password !== confirmPassword) {
       toast({
         title: "Passwords don't match",
@@ -67,7 +67,7 @@ export default function Login() {
       });
       return;
     }
-    
+
     if (password.length < 6) {
       toast({
         title: "Password too short",
@@ -76,11 +76,11 @@ export default function Login() {
       });
       return;
     }
-    
+
     setIsLoading(true);
-    
+
     const result = await signup(email, password);
-    
+
     if (result.success) {
       toast({
         title: "Account created!",
@@ -93,14 +93,14 @@ export default function Login() {
         variant: "destructive",
       });
     }
-    
+
     setIsLoading(false);
   };
-  
+
   const handleGoogleLogin = async () => {
     setIsLoading(true);
     const result = await loginWithGoogle();
-    
+
     if (!result.success) {
       toast({
         title: "Login failed",
@@ -115,16 +115,22 @@ export default function Login() {
     <div className="flex items-center justify-center min-h-screen p-4" data-testid="login-page">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl" data-testid="login-title">Welcome</CardTitle>
+          <CardTitle className="text-2xl" data-testid="login-title">
+            Welcome
+          </CardTitle>
           <CardDescription>Sign in to your account or create a new one</CardDescription>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="login" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="login" data-testid="tab-login">Login</TabsTrigger>
-              <TabsTrigger value="signup" data-testid="tab-signup">Sign Up</TabsTrigger>
+              <TabsTrigger value="login" data-testid="tab-login">
+                Login
+              </TabsTrigger>
+              <TabsTrigger value="signup" data-testid="tab-signup">
+                Sign Up
+              </TabsTrigger>
             </TabsList>
-            
+
             <TabsContent value="login">
               <form onSubmit={handleLogin} className="space-y-4">
                 <div className="space-y-2">
@@ -167,7 +173,7 @@ export default function Login() {
                 </Button>
               </form>
             </TabsContent>
-            
+
             <TabsContent value="signup">
               <form onSubmit={handleSignup} className="space-y-4">
                 <div className="space-y-2">
@@ -222,7 +228,7 @@ export default function Login() {
               </form>
             </TabsContent>
           </Tabs>
-          
+
           <div className="relative my-6">
             <div className="absolute inset-0 flex items-center">
               <span className="w-full border-t" />
@@ -231,7 +237,7 @@ export default function Login() {
               <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
             </div>
           </div>
-          
+
           <Button
             type="button"
             variant="outline"

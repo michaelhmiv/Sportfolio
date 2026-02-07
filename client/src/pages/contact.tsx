@@ -7,11 +7,11 @@ export default function Contact() {
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-3xl mx-auto p-6 md:p-12">
-        <h1 className="text-4xl font-bold mb-4" data-testid="heading-contact">Contact Us</h1>
-        <p className="text-lg text-muted-foreground mb-12">
-          Get in touch with the Sportfolio team
-        </p>
-        
+        <h1 className="text-4xl font-bold mb-4" data-testid="heading-contact">
+          Contact Us
+        </h1>
+        <p className="text-lg text-muted-foreground mb-12">Get in touch with the Sportfolio team</p>
+
         <div className="space-y-6">
           <Card>
             <CardHeader>
@@ -22,10 +22,12 @@ export default function Contact() {
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-muted-foreground">
-                The fastest way to get support, ask questions, or connect with other Sportfolio users is through our Discord community. Our team and experienced community members are active daily to help answer questions and discuss the platform.
+                The fastest way to get support, ask questions, or connect with other Sportfolio
+                users is through our Discord community. Our team and experienced community members
+                are active daily to help answer questions and discuss the platform.
               </p>
-              <Button 
-                onClick={() => window.open('https://discord.gg/sportfolio', '_blank')}
+              <Button
+                onClick={() => window.open("https://discord.gg/sportfolio", "_blank")}
                 className="gap-2"
                 data-testid="button-join-discord"
               >
@@ -83,10 +85,13 @@ export default function Contact() {
                 <strong>Primary Support Channel:</strong> Discord Community Server
               </p>
               <p className="text-muted-foreground">
-                <strong>Email Inquiries:</strong> For business partnerships, press inquiries, or other formal communications, you may reach us via our Discord server where we can coordinate appropriate channels for your needs.
+                <strong>Email Inquiries:</strong> For business partnerships, press inquiries, or
+                other formal communications, you may reach us via our Discord server where we can
+                coordinate appropriate channels for your needs.
               </p>
               <p className="text-muted-foreground">
-                <strong>Service Location:</strong> Sportfolio is a digital platform operating online. All support and communication is conducted through our online channels.
+                <strong>Service Location:</strong> Sportfolio is a digital platform operating
+                online. All support and communication is conducted through our online channels.
               </p>
             </CardContent>
           </Card>
@@ -97,7 +102,10 @@ export default function Contact() {
             </CardHeader>
             <CardContent>
               <p className="text-muted-foreground">
-                We strive to respond to all inquiries within 24-48 hours. For urgent issues, Discord is your best option for the fastest response from our team and community. Our community managers and support team monitor Discord channels daily during business hours (Monday-Friday, 9 AM - 6 PM EST).
+                We strive to respond to all inquiries within 24-48 hours. For urgent issues, Discord
+                is your best option for the fastest response from our team and community. Our
+                community managers and support team monitor Discord channels daily during business
+                hours (Monday-Friday, 9 AM - 6 PM EST).
               </p>
             </CardContent>
           </Card>

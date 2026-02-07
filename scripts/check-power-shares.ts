@@ -28,7 +28,9 @@ async function checkHoldings() {
 
   console.log(`Found ${result.rows.length} powered holdings total:\n`);
   for (const row of result.rows) {
-    console.log(`  ${row.user_id} | ${row.asset_id}: quantity=${row.quantity}, power=${row.power}, power_level=${row.power_level}`);
+    console.log(
+      `  ${row.user_id} | ${row.asset_id}: quantity=${row.quantity}, power=${row.power}, power_level=${row.power_level}`,
+    );
   }
 
   // Check if there are any for dev_user specifically
@@ -40,7 +42,9 @@ async function checkHoldings() {
 
   console.log(`\nFor 'dev_user': ${devUserResult.rows.length} powered holdings`);
   for (const row of devUserResult.rows) {
-    console.log(`  ${row.asset_id}: quantity=${row.quantity}, power=${row.power}, power_level=${row.power_level}`);
+    console.log(
+      `  ${row.asset_id}: quantity=${row.quantity}, power=${row.power}, power_level=${row.power_level}`,
+    );
   }
 }
 

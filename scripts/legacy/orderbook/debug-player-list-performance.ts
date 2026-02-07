@@ -25,7 +25,7 @@ interface TimingResult {
 
 async function timing<T>(
   name: string,
-  queryFn: () => Promise<T>
+  queryFn: () => Promise<T>,
 ): Promise<{ result: T; timing: Omit<TimingResult, "query"> }> {
   const times: number[] = [];
 
@@ -46,11 +46,13 @@ async function timing<T>(
   const minMs = Math.min(...times);
   const maxMs = Math.max(...times);
 
-  console.log(`  ${name}: ${avgMs.toFixed(2)}ms (min: ${minMs.toFixed(2)}ms, max: ${maxMs.toFixed(2)}ms)`);
+  console.log(
+    `  ${name}: ${avgMs.toFixed(2)}ms (min: ${minMs.toFixed(2)}ms, max: ${maxMs.toFixed(2)}ms)`,
+  );
 
   return {
     result: undefined as T,
-    timing: { avgMs, minMs, maxMs, rows: 0 }
+    timing: { avgMs, minMs, maxMs, rows: 0 },
   };
 }
 
@@ -78,7 +80,10 @@ async function testCorrelatedSubqueries(): Promise<void> {
     const result = await db
       .select({
         player: players,
-        avgFantasy: sql`(SELECT AVG(${playerGameStats.fantasyPoints}::numeric) FROM ${playerGameStats} WHERE ${playerGameStats.playerId} = ${players.id})`.as("avg_fantasy"),
+        avgFantasy:
+          sql`(SELECT AVG(${playerGameStats.fantasyPoints}::numeric) FROM ${playerGameStats} WHERE ${playerGameStats.playerId} = ${players.id})`.as(
+            "avg_fantasy",
+          ),
       })
       .from(players)
       .limit(50);
@@ -89,7 +94,10 @@ async function testCorrelatedSubqueries(): Promise<void> {
     const result = await db
       .select({
         player: players,
-        bestBid: sql`(SELECT MAX(${orders.limitPrice}) FROM ${orders} WHERE ${orders.playerId} = ${players.id} AND ${orders.side} = 'buy' AND ${orders.status} IN ('open', 'partial'))`.as("best_bid"),
+        bestBid:
+          sql`(SELECT MAX(${orders.limitPrice}) FROM ${orders} WHERE ${orders.playerId} = ${players.id} AND ${orders.side} = 'buy' AND ${orders.status} IN ('open', 'partial'))`.as(
+            "best_bid",
+          ),
       })
       .from(players)
       .limit(50);
@@ -100,7 +108,10 @@ async function testCorrelatedSubqueries(): Promise<void> {
     const result = await db
       .select({
         player: players,
-        bestAsk: sql`(SELECT MIN(${orders.limitPrice}) FROM ${orders} WHERE ${orders.playerId} = ${players.id} AND ${orders.side} = 'sell' AND ${orders.status} IN ('open', 'partial'))`.as("best_ask"),
+        bestAsk:
+          sql`(SELECT MIN(${orders.limitPrice}) FROM ${orders} WHERE ${orders.playerId} = ${players.id} AND ${orders.side} = 'sell' AND ${orders.status} IN ('open', 'partial'))`.as(
+            "best_ask",
+          ),
       })
       .from(players)
       .limit(50);
@@ -111,7 +122,10 @@ async function testCorrelatedSubqueries(): Promise<void> {
     const result = await db
       .select({
         player: players,
-        sentiment: sql`(SELECT (SUM(CASE WHEN ${orders.side} = 'buy' AND ${orders.createdAt} >= NOW() - INTERVAL '24 hours' THEN ${orders.quantity} ELSE 0 END)::numeric / NULLIF(SUM(CASE WHEN ${orders.createdAt} >= NOW() - INTERVAL '24 hours' THEN ${orders.quantity} ELSE 0 END), 0)::numeric) * 100 FROM ${orders} WHERE ${orders.playerId} = ${players.id})`.as("sentiment"),
+        sentiment:
+          sql`(SELECT (SUM(CASE WHEN ${orders.side} = 'buy' AND ${orders.createdAt} >= NOW() - INTERVAL '24 hours' THEN ${orders.quantity} ELSE 0 END)::numeric / NULLIF(SUM(CASE WHEN ${orders.createdAt} >= NOW() - INTERVAL '24 hours' THEN ${orders.quantity} ELSE 0 END), 0)::numeric) * 100 FROM ${orders} WHERE ${orders.playerId} = ${players.id})`.as(
+            "sentiment",
+          ),
       })
       .from(players)
       .limit(50);
@@ -147,8 +161,16 @@ async function testOptimizedQueries(): Promise<void> {
     const result = await db
       .select({
         playerId: orders.playerId,
-        bestBid: sql<number | null>`MAX(CASE WHEN ${orders.side} = 'buy' AND ${orders.status} IN ('open', 'partial') THEN ${orders.limitPrice} END)`.as("best_bid"),
-        bestAsk: sql<number | null>`MIN(CASE WHEN ${orders.side} = 'sell' AND ${orders.status} IN ('open', 'partial') THEN ${orders.limitPrice} END)`.as("best_ask"),
+        bestBid: sql<
+          number | null
+        >`MAX(CASE WHEN ${orders.side} = 'buy' AND ${orders.status} IN ('open', 'partial') THEN ${orders.limitPrice} END)`.as(
+          "best_bid",
+        ),
+        bestAsk: sql<
+          number | null
+        >`MIN(CASE WHEN ${orders.side} = 'sell' AND ${orders.status} IN ('open', 'partial') THEN ${orders.limitPrice} END)`.as(
+          "best_ask",
+        ),
       })
       .from(orders)
       .where(sql`${orders.status} IN ('open', 'partial')`)
@@ -200,11 +222,13 @@ async function testWatchlistQuery(): Promise<void> {
         player: players,
       })
       .from(players)
-      .where(sql`EXISTS (
+      .where(
+        sql`EXISTS (
         SELECT 1 FROM ${watchList}
         WHERE ${watchList.playerId} = ${players.id}
         AND ${watchList.userId} = ${testUserId}
-      )`)
+      )`,
+      )
       .limit(50);
     return result;
   });
@@ -216,10 +240,10 @@ async function testWatchlistQuery(): Promise<void> {
         player: players,
       })
       .from(players)
-      .innerJoin(watchList, and(
-        eq(watchList.playerId, players.id),
-        eq(watchList.userId, testUserId)
-      ))
+      .innerJoin(
+        watchList,
+        and(eq(watchList.playerId, players.id), eq(watchList.userId, testUserId)),
+      )
       .limit(50);
     return result;
   });
@@ -234,12 +258,14 @@ async function testOrdersInFilter(): Promise<void> {
         player: players,
       })
       .from(players)
-      .where(sql`EXISTS (
+      .where(
+        sql`EXISTS (
         SELECT 1 FROM ${orders}
         WHERE ${orders.playerId} = ${players.id}
         AND ${orders.side} = 'buy'
         AND ${orders.status} IN ('open', 'partial')
-      )`)
+      )`,
+      )
       .limit(50);
     return result;
   });
@@ -277,16 +303,17 @@ Key Findings:
 
 4. Missing index: playerGameStats is missing (playerId, season) index
 `);
-
   } catch (error) {
     console.error("Test failed:", error);
   }
 }
 
-runAllTests().then(() => {
-  console.log("\nTests complete.");
-  process.exit(0);
-}).catch((error) => {
-  console.error("Fatal error:", error);
-  process.exit(1);
-});
+runAllTests()
+  .then(() => {
+    console.log("\nTests complete.");
+    process.exit(0);
+  })
+  .catch((error) => {
+    console.error("Fatal error:", error);
+    process.exit(1);
+  });

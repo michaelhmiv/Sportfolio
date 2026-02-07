@@ -1,6 +1,6 @@
 /**
  * Daily Tweet Job
- * 
+ *
  * Generates and posts a daily market summary tweet to X.
  * Uses real database data and Perplexity AI for player context.
  */
@@ -48,14 +48,11 @@ async function getTopRisers(limit: number): Promise<PlayerStat[]> {
       priceChange24h: players.priceChange24h,
     })
     .from(players)
-    .where(and(
-      eq(players.isActive, true),
-      sql`${players.priceChange24h} > 0`
-    ))
+    .where(and(eq(players.isActive, true), sql`${players.priceChange24h} > 0`))
     .orderBy(desc(players.priceChange24h))
     .limit(limit);
 
-  return result.map(p => ({
+  return result.map((p) => ({
     id: p.id,
     name: `${p.firstName} ${p.lastName}`,
     team: p.team,
@@ -69,7 +66,7 @@ async function getTopRisers(limit: number): Promise<PlayerStat[]> {
  */
 async function getTopVolume(limit: number): Promise<PlayerStat[]> {
   const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  
+
   const result = await db
     .select({
       id: players.id,
@@ -79,17 +76,14 @@ async function getTopVolume(limit: number): Promise<PlayerStat[]> {
       tradeCount: sql<number>`count(${trades.id})::int`,
     })
     .from(players)
-    .leftJoin(trades, and(
-      eq(trades.playerId, players.id),
-      gte(trades.executedAt, oneDayAgo)
-    ))
+    .leftJoin(trades, and(eq(trades.playerId, players.id), gte(trades.executedAt, oneDayAgo)))
     .where(eq(players.isActive, true))
     .groupBy(players.id, players.firstName, players.lastName, players.team)
     .having(sql`count(${trades.id}) > 0`)
     .orderBy(desc(sql`count(${trades.id})`))
     .limit(limit);
 
-  return result.map(p => ({
+  return result.map((p) => ({
     id: p.id,
     name: `${p.firstName} ${p.lastName}`,
     team: p.team,
@@ -111,14 +105,11 @@ async function getTopMarketCap(limit: number): Promise<PlayerStat[]> {
       marketCap: players.marketCap,
     })
     .from(players)
-    .where(and(
-      eq(players.isActive, true),
-      sql`${players.marketCap} > 0`
-    ))
+    .where(and(eq(players.isActive, true), sql`${players.marketCap} > 0`))
     .orderBy(desc(players.marketCap))
     .limit(limit);
 
-  return result.map(p => ({
+  return result.map((p) => ({
     id: p.id,
     name: `${p.firstName} ${p.lastName}`,
     team: p.team,
@@ -135,15 +126,15 @@ export async function getTopFantasyPerformers(limit: number = 5): Promise<Fantas
   // Get yesterday's date range in Eastern Time (last night's games)
   const now = new Date();
   const todayET = getGameDay(now);
-  
+
   // Calculate yesterday in ET
-  const [year, month, day] = todayET.split('-').map(Number);
+  const [year, month, day] = todayET.split("-").map(Number);
   const yesterdayDate = new Date(year, month - 1, day - 1);
   const yesterdayYear = yesterdayDate.getFullYear();
-  const yesterdayMonth = String(yesterdayDate.getMonth() + 1).padStart(2, '0');
-  const yesterdayDay = String(yesterdayDate.getDate()).padStart(2, '0');
+  const yesterdayMonth = String(yesterdayDate.getMonth() + 1).padStart(2, "0");
+  const yesterdayDay = String(yesterdayDate.getDate()).padStart(2, "0");
   const yesterdayET = `${yesterdayYear}-${yesterdayMonth}-${yesterdayDay}`;
-  
+
   // Get UTC boundaries for yesterday in ET
   const { startOfDay, endOfDay } = getETDayBoundaries(yesterdayET);
 
@@ -164,14 +155,11 @@ export async function getTopFantasyPerformers(limit: number = 5): Promise<Fantas
     })
     .from(playerGameStats)
     .innerJoin(players, eq(players.id, playerGameStats.playerId))
-    .where(and(
-      gte(playerGameStats.gameDate, startOfDay),
-      lt(playerGameStats.gameDate, endOfDay)
-    ))
+    .where(and(gte(playerGameStats.gameDate, startOfDay), lt(playerGameStats.gameDate, endOfDay)))
     .orderBy(desc(playerGameStats.fantasyPoints))
     .limit(limit);
 
-  return result.map(p => ({
+  return result.map((p) => ({
     id: p.playerId,
     name: `${p.firstName} ${p.lastName}`,
     team: p.team,
@@ -217,10 +205,10 @@ export async function draftCustomTweet(userPrompt: string): Promise<{
   try {
     // Get all market data
     const context = await getFullMarketContext();
-    
+
     // Build context string for Perplexity
     let contextString = "Here is the current Sportfolio market data:\n\n";
-    
+
     if (context.topFantasy.length > 0) {
       contextString += "TOP FANTASY PERFORMERS (Last Night's Games):\n";
       context.topFantasy.forEach((p, i) => {
@@ -230,7 +218,7 @@ export async function draftCustomTweet(userPrompt: string): Promise<{
       });
       contextString += "\n";
     }
-    
+
     if (context.topRisers.length > 0) {
       contextString += "TOP MARKET RISERS (24h Price Change):\n";
       context.topRisers.forEach((p, i) => {
@@ -238,7 +226,7 @@ export async function draftCustomTweet(userPrompt: string): Promise<{
       });
       contextString += "\n";
     }
-    
+
     if (context.topVolume.length > 0) {
       contextString += "MOST TRADED (24h Volume):\n";
       context.topVolume.forEach((p, i) => {
@@ -246,7 +234,7 @@ export async function draftCustomTweet(userPrompt: string): Promise<{
       });
       contextString += "\n";
     }
-    
+
     if (context.topMarketCap.length > 0) {
       contextString += "TOP MARKET CAP:\n";
       context.topMarketCap.forEach((p, i) => {
@@ -259,7 +247,7 @@ export async function draftCustomTweet(userPrompt: string): Promise<{
     const fullPrompt = `${contextString}\n\nBased on this data, ${userPrompt}\n\nRequirements:\n- Keep the tweet under 280 characters\n- Make it engaging and informative\n- Include relevant stats\n- End with "sportfolio.market" link\n- Use relevant emojis sparingly`;
 
     const result = await perplexityService.draftTweet(fullPrompt);
-    
+
     if (!result.success) {
       return { success: false, error: result.error };
     }
@@ -280,20 +268,24 @@ export async function draftCustomTweet(userPrompt: string): Promise<{
  */
 async function getSettings() {
   const settings = await db.select().from(tweetSettings).limit(1);
-  
+
   if (settings.length === 0) {
     // Create default settings
-    const [newSettings] = await db.insert(tweetSettings).values({
-      enabled: false,
-      promptTemplate: "Give a brief 1-sentence summary of recent NBA news or game performance for these players: {players}. Focus on their most recent game or any breaking news. Keep each summary under 60 characters.",
-      includeRisers: true,
-      includeVolume: true,
-      includeMarketCap: true,
-      maxPlayers: 3,
-    }).returning();
+    const [newSettings] = await db
+      .insert(tweetSettings)
+      .values({
+        enabled: false,
+        promptTemplate:
+          "Give a brief 1-sentence summary of recent NBA news or game performance for these players: {players}. Focus on their most recent game or any breaking news. Keep each summary under 60 characters.",
+        includeRisers: true,
+        includeVolume: true,
+        includeMarketCap: true,
+        maxPlayers: 3,
+      })
+      .returning();
     return newSettings;
   }
-  
+
   return settings[0];
 }
 
@@ -304,35 +296,35 @@ function formatTweet(
   risers: PlayerStat[],
   volume: PlayerStat[],
   marketCap: PlayerStat[],
-  aiSummary: string | null
+  aiSummary: string | null,
 ): string {
-  const date = new Date().toLocaleDateString('en-US', { 
-    month: 'short', 
-    day: 'numeric' 
+  const date = new Date().toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
   });
-  
+
   let tweet = `📈 Sportfolio Daily - ${date}\n\n`;
-  
+
   // Add stats (visible in feed, under 280 chars)
   if (risers.length > 0) {
     tweet += `🔥 Top Riser: ${risers[0].name} ${risers[0].formattedValue}\n`;
   }
-  
+
   if (volume.length > 0) {
     tweet += `📊 Most Traded: ${volume[0].name} (${volume[0].formattedValue})\n`;
   }
-  
+
   if (marketCap.length > 0) {
     tweet += `💎 Market Cap: ${marketCap[0].name} ${marketCap[0].formattedValue}\n`;
   }
-  
+
   tweet += `\n🔗 sportfolio.market`;
-  
+
   // Add AI summary in "Show more" section if available
   if (aiSummary) {
     tweet += `\n\n---\n${aiSummary}`;
   }
-  
+
   return tweet;
 }
 
@@ -346,32 +338,33 @@ export async function generateTweetPreview(): Promise<{
   settings: any;
 }> {
   const settings = await getSettings();
-  
+
   // Gather real data from database
   const risers = settings.includeRisers ? await getTopRisers(settings.maxPlayers) : [];
   const volume = settings.includeVolume ? await getTopVolume(settings.maxPlayers) : [];
   const marketCap = settings.includeMarketCap ? await getTopMarketCap(settings.maxPlayers) : [];
-  
+
   // Get unique player names for AI summary
   const allPlayers = [...risers, ...volume, ...marketCap];
-  const uniqueNames = Array.from(new Set(allPlayers.map(p => p.name))).slice(0, 3);
-  
+  const uniqueNames = Array.from(new Set(allPlayers.map((p) => p.name))).slice(0, 3);
+
   let aiSummary: string | null = null;
-  
+
   // Get AI summary if Perplexity is configured and we have players
   if (perplexityService.isReady() && uniqueNames.length > 0) {
-    const defaultPrompt = "Give a brief 1-sentence summary of recent NBA news or game performance for these players: {players}. Focus on their most recent game or any breaking news. Keep each summary under 60 characters.";
+    const defaultPrompt =
+      "Give a brief 1-sentence summary of recent NBA news or game performance for these players: {players}. Focus on their most recent game or any breaking news. Keep each summary under 60 characters.";
     const result = await perplexityService.getPlayerSummaries(
       uniqueNames,
-      settings.promptTemplate || defaultPrompt
+      settings.promptTemplate || defaultPrompt,
     );
     if (result.success && result.content) {
       aiSummary = result.content;
     }
   }
-  
+
   const content = formatTweet(risers, volume, marketCap, aiSummary);
-  
+
   return {
     content,
     playerData: { risers, volume, marketCap },
@@ -391,27 +384,27 @@ export async function postDailyTweet(): Promise<{
 }> {
   try {
     const settings = await getSettings();
-    
+
     if (!settings.enabled) {
       return {
         success: false,
         error: "Automated tweets are disabled in settings",
       };
     }
-    
+
     if (!twitterService.isReady()) {
       return {
         success: false,
         error: "Twitter service not configured",
       };
     }
-    
+
     // Generate the tweet
     const preview = await generateTweetPreview();
-    
+
     // Post to Twitter
     const result = await twitterService.postTweet(preview.content);
-    
+
     // Log to history
     await db.insert(tweetHistory).values({
       content: preview.content,
@@ -421,7 +414,7 @@ export async function postDailyTweet(): Promise<{
       playerData: preview.playerData,
       aiSummary: preview.aiSummary,
     });
-    
+
     return {
       success: result.success,
       tweetId: result.tweetId,
@@ -430,14 +423,14 @@ export async function postDailyTweet(): Promise<{
     };
   } catch (error: any) {
     console.error("[DailyTweet] Failed:", error.message);
-    
+
     // Log the failure
     await db.insert(tweetHistory).values({
       content: "Failed to generate tweet",
       status: "failed",
       errorMessage: error.message,
     });
-    
+
     return {
       success: false,
       error: error.message,
@@ -450,7 +443,7 @@ export async function postDailyTweet(): Promise<{
  */
 export async function dailyTweetJob(): Promise<JobResult> {
   const result = await postDailyTweet();
-  
+
   return {
     requestCount: 1,
     recordsProcessed: result.success ? 1 : 0,

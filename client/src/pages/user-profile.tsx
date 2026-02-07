@@ -7,8 +7,30 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Trophy, TrendingUp, Activity, Award, DollarSign, Clock, Edit2, Settings, Moon, Sun, Camera, Upload, Loader2 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Trophy,
+  TrendingUp,
+  Activity,
+  Award,
+  DollarSign,
+  Clock,
+  Edit2,
+  Settings,
+  Moon,
+  Sun,
+  Camera,
+  Upload,
+  Loader2,
+} from "lucide-react";
 import { Link } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -88,21 +110,21 @@ export default function UserProfile() {
     if (!userId) return;
 
     // Subscribe to portfolio events (trades, balance changes)
-    const unsubPortfolio = subscribe('portfolio', (data) => {
+    const unsubPortfolio = subscribe("portfolio", (data) => {
       if (data.userId === userId) {
         queryClient.invalidateQueries({ queryKey: [`/api/user/${userId}/profile`] });
       }
     });
 
     // Subscribe to scout events
-    const unsubScouts = subscribe('scouts', (data) => {
+    const unsubScouts = subscribe("scouts", (data) => {
       if (data.userId === userId) {
         queryClient.invalidateQueries({ queryKey: [`/api/user/${userId}/profile`] });
       }
     });
 
     // Subscribe to trade events (affects market orders count and net worth)
-    const unsubTrade = subscribe('trade', () => {
+    const unsubTrade = subscribe("trade", () => {
       queryClient.invalidateQueries({ queryKey: [`/api/user/${userId}/profile`] });
     });
 
@@ -180,7 +202,7 @@ export default function UserProfile() {
     }
 
     // Validate file type
-    if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.type)) {
+    if (!["image/jpeg", "image/png", "image/webp", "image/gif"].includes(file.type)) {
       toast({
         title: "Invalid file type",
         description: "Please select a JPEG, PNG, WebP, or GIF image.",
@@ -192,36 +214,36 @@ export default function UserProfile() {
     setIsUploading(true);
     try {
       const supabase = await getSupabase();
-      const ext = file.name.split('.').pop() || 'jpg';
+      const ext = file.name.split(".").pop() || "jpg";
       const fileName = `${currentUser?.id}/${Date.now()}.${ext}`;
 
-      const { data, error } = await supabase.storage
-        .from('avatars')
-        .upload(fileName, file, {
-          cacheControl: '3600',
-          upsert: true,
-        });
+      const { data, error } = await supabase.storage.from("avatars").upload(fileName, file, {
+        cacheControl: "3600",
+        upsert: true,
+      });
 
       if (error) throw error;
 
       // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(fileName);
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from("avatars").getPublicUrl(fileName);
 
       // Update database
       await updateProfileImageMutation.mutateAsync(publicUrl);
     } catch (error: any) {
       toast({
         title: "Upload failed",
-        description: error.message || "Failed to upload image. Make sure the 'avatars' bucket exists in Supabase.",
+        description:
+          error.message ||
+          "Failed to upload image. Make sure the 'avatars' bucket exists in Supabase.",
         variant: "destructive",
       });
     } finally {
       setIsUploading(false);
       // Reset file input
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      if (cameraInputRef.current) cameraInputRef.current.value = '';
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      if (cameraInputRef.current) cameraInputRef.current.value = "";
     }
   };
 
@@ -248,7 +270,10 @@ export default function UserProfile() {
   const { user, stats, rankings, holdings } = profile;
   const displayName = user.username;
   const initials = user.username.slice(0, 2).toUpperCase();
-  const memberSince = new Date(user.createdAt).toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  const memberSince = new Date(user.createdAt).toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+  });
   const isOwnProfile = currentUser?.id === user.id;
 
   return (
@@ -342,7 +367,9 @@ export default function UserProfile() {
 
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-2 flex-wrap">
-                  <h1 className="text-2xl sm:text-3xl font-bold" data-testid="text-username">@{displayName}</h1>
+                  <h1 className="text-2xl sm:text-3xl font-bold" data-testid="text-username">
+                    @{displayName}
+                  </h1>
                   {user.isPremium && (
                     <Badge variant="default" className="gap-1">
                       <Trophy className="w-3 h-3" />
@@ -353,7 +380,12 @@ export default function UserProfile() {
                     <>
                       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
                         <DialogTrigger asChild>
-                          <Button variant="outline" size="sm" className="gap-2" data-testid="button-edit-username">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-2"
+                            data-testid="button-edit-username"
+                          >
                             <Edit2 className="w-3 h-3" />
                             Edit Username
                           </Button>
@@ -362,7 +394,8 @@ export default function UserProfile() {
                           <DialogHeader>
                             <DialogTitle>Change Username</DialogTitle>
                             <DialogDescription>
-                              Choose a unique username (3-20 characters, letters, numbers, underscores, and hyphens only)
+                              Choose a unique username (3-20 characters, letters, numbers,
+                              underscores, and hyphens only)
                             </DialogDescription>
                           </DialogHeader>
                           <div className="py-4">
@@ -404,7 +437,12 @@ export default function UserProfile() {
                       </Button>
                       {profile.user.isAdmin && (
                         <Link href="/admin">
-                          <Button variant="outline" size="sm" className="gap-2" data-testid="button-admin">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-2"
+                            data-testid="button-admin"
+                          >
                             <Settings className="w-3 h-3" />
                             Admin
                           </Button>
@@ -431,7 +469,10 @@ export default function UserProfile() {
                   <DollarSign className="w-4 h-4 text-positive" />
                   <span className="text-xs sm:text-sm text-muted-foreground">Net Worth</span>
                 </div>
-                <div className="font-mono text-lg sm:text-2xl font-bold text-positive" data-testid="text-net-worth">
+                <div
+                  className="font-mono text-lg sm:text-2xl font-bold text-positive"
+                  data-testid="text-net-worth"
+                >
                   ${stats.netWorth}
                 </div>
                 <div className="text-xs text-muted-foreground mt-1">
@@ -514,7 +555,10 @@ export default function UserProfile() {
 
                   return (
                     <Link key={holding.id} href={`/player/${holding.assetId}`}>
-                      <div className="flex items-center justify-between p-3 rounded-lg hover-elevate border" data-testid={`holding-${holding.assetId}`}>
+                      <div
+                        className="flex items-center justify-between p-3 rounded-lg hover-elevate border"
+                        data-testid={`holding-${holding.assetId}`}
+                      >
                         <div className="flex items-center gap-3">
                           <div>
                             <div className="font-semibold">
@@ -531,7 +575,10 @@ export default function UserProfile() {
                         </div>
 
                         <div className="text-right">
-                          <div className="font-semibold" data-testid={`text-quantity-${holding.assetId}`}>
+                          <div
+                            className="font-semibold"
+                            data-testid={`text-quantity-${holding.assetId}`}
+                          >
                             {holding.quantity} shares
                           </div>
                           {holding.marketValue && (

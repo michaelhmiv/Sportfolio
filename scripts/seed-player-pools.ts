@@ -10,20 +10,20 @@ import { eq } from "drizzle-orm";
 
 async function seedPlayerPools() {
   console.log("[SEED] Starting player pool creation...");
-  
+
   try {
     // Get all active players without pools
     const activePlayers = await db
       .select({ id: players.id, firstName: players.firstName, lastName: players.lastName })
       .from(players)
       .where(eq(players.isActive, true));
-    
+
     console.log(`[SEED] Found ${activePlayers.length} active players`);
-    
+
     let createdCount = 0;
     let existingCount = 0;
     let errorCount = 0;
-    
+
     for (const player of activePlayers) {
       try {
         // Check if pool already exists
@@ -31,12 +31,12 @@ async function seedPlayerPools() {
           .select({ playerId: playerPools.playerId })
           .from(playerPools)
           .where(eq(playerPools.playerId, player.id));
-        
+
         if (existingPool) {
           existingCount++;
           continue;
         }
-        
+
         // Create pool for this player
         await db.insert(playerPools).values({
           playerId: player.id,
@@ -48,9 +48,9 @@ async function seedPlayerPools() {
           totalVolume: "0",
           totalTrades: 0,
         });
-        
+
         createdCount++;
-        
+
         if (createdCount % 100 === 0) {
           console.log(`[SEED] Created ${createdCount} pools...`);
         }
@@ -59,8 +59,10 @@ async function seedPlayerPools() {
         console.error(`[SEED] Error creating pool for ${player.id}:`, err.message);
       }
     }
-    
-    console.log(`[SEED] Complete! Created: ${createdCount}, Existing: ${existingCount}, Errors: ${errorCount}`);
+
+    console.log(
+      `[SEED] Complete! Created: ${createdCount}, Existing: ${existingCount}, Errors: ${errorCount}`,
+    );
     process.exit(0);
   } catch (error: any) {
     console.error("[SEED] Fatal error:", error.message);

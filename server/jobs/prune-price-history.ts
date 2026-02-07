@@ -29,9 +29,9 @@ export async function prunePriceHistory(progressCallback?: ProgressCallback): Pr
   log("[prune_price_history] Starting price history pruning...");
 
   progressCallback?.({
-    type: 'info',
+    type: "info",
     timestamp: new Date().toISOString(),
-    message: 'Starting price history pruning',
+    message: "Starting price history pruning",
   });
 
   try {
@@ -42,7 +42,7 @@ export async function prunePriceHistory(progressCallback?: ProgressCallback): Pr
     log(`[prune_price_history] Deleting price history older than ${cutoffDate.toISOString()}`);
 
     progressCallback?.({
-      type: 'info',
+      type: "info",
       timestamp: new Date().toISOString(),
       message: `Deleting price history older than ${cutoffDate.toISOString()}`,
     });
@@ -57,17 +57,19 @@ export async function prunePriceHistory(progressCallback?: ProgressCallback): Pr
         .where(
           and(
             lt(priceHistory.timestamp, cutoffDate),
-            sql`${priceHistory.id} IN (SELECT id FROM ${priceHistory} LIMIT ${MAX_DELETE_PER_RUN})`
-          )
+            sql`${priceHistory.id} IN (SELECT id FROM ${priceHistory} LIMIT ${MAX_DELETE_PER_RUN})`,
+          ),
         );
 
       deletedThisBatch = result.rowCount || 0;
       totalDeleted += deletedThisBatch;
 
-      log(`[prune_price_history] Deleted batch of ${deletedThisBatch} records (total: ${totalDeleted})`);
+      log(
+        `[prune_price_history] Deleted batch of ${deletedThisBatch} records (total: ${totalDeleted})`,
+      );
 
       progressCallback?.({
-        type: 'info',
+        type: "info",
         timestamp: new Date().toISOString(),
         message: `Deleted ${totalDeleted} old price history records`,
       });
@@ -76,7 +78,7 @@ export async function prunePriceHistory(progressCallback?: ProgressCallback): Pr
     log(`[prune_price_history] Pruned ${totalDeleted} old price history entries`);
 
     progressCallback?.({
-      type: 'complete',
+      type: "complete",
       timestamp: new Date().toISOString(),
       message: `Pruned ${totalDeleted} old price history entries`,
       data: {
@@ -95,7 +97,7 @@ export async function prunePriceHistory(progressCallback?: ProgressCallback): Pr
     warn(`[prune_price_history] Error: ${error.message}`);
 
     progressCallback?.({
-      type: 'error',
+      type: "error",
       timestamp: new Date().toISOString(),
       message: `Pruning error: ${error.message}`,
     });
@@ -117,9 +119,7 @@ export async function getPriceHistoryStats(): Promise<{
   newestRecordDate: Date | null;
   recordsOlderThan7Days: number;
 }> {
-  const [totalResult] = await db
-    .select({ count: sql<number>`COUNT(*)` })
-    .from(priceHistory);
+  const [totalResult] = await db.select({ count: sql<number>`COUNT(*)` }).from(priceHistory);
 
   const [oldestResult] = await db
     .select({ date: sql<Date>`MIN(${priceHistory.timestamp})` })
@@ -138,9 +138,9 @@ export async function getPriceHistoryStats(): Promise<{
     .where(lt(priceHistory.timestamp, sevenDaysAgo));
 
   return {
-    totalRecords: parseInt(totalResult?.count?.toString() || '0'),
+    totalRecords: parseInt(totalResult?.count?.toString() || "0"),
     oldestRecordDate: oldestResult?.date || null,
     newestRecordDate: newestResult?.date || null,
-    recordsOlderThan7Days: parseInt(oldCountResult?.count?.toString() || '0'),
+    recordsOlderThan7Days: parseInt(oldCountResult?.count?.toString() || "0"),
   };
 }

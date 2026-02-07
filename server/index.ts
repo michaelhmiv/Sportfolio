@@ -6,40 +6,58 @@ import { jobScheduler } from "./jobs/scheduler.js";
 import { db } from "./db";
 import { botProfiles } from "@shared/schema";
 import { sql } from "drizzle-orm";
+import pinoHttp from "pino-http";
+import { logger } from "./lib/logger";
 
 const serverStartTime = Date.now();
 let serverReady = false;
 
 function startupLog(stage: string, message: string) {
   const elapsed = Date.now() - serverStartTime;
-  console.log(`[STARTUP +${elapsed}ms] ${stage}: ${message}`);
+  logger.info({ stage, elapsedMs: elapsed }, message);
 }
 
-startupLog('INIT', 'Server starting...');
+startupLog("INIT", "Server starting...");
 
 const app = express();
 
+app.use(
+  pinoHttp({
+    logger,
+    autoLogging: {
+      ignore: (req) => req.url === "/api/health",
+    },
+    customLogLevel: (_req, res, err) => {
+      if (err || res.statusCode >= 500) return "error";
+      if (res.statusCode >= 400) return "warn";
+      return "info";
+    },
+  }),
+);
+
 // Health check endpoint - always available, even during startup
-app.get('/api/health', (_req, res) => {
+app.get("/api/health", (_req, res) => {
   const uptime = Date.now() - serverStartTime;
   res.json({
-    status: serverReady ? 'ready' : 'starting',
+    status: serverReady ? "ready" : "starting",
     uptime,
     uptimeSeconds: Math.floor(uptime / 1000),
     timestamp: new Date().toISOString(),
   });
 });
 
-declare module 'http' {
+declare module "http" {
   interface IncomingMessage {
-    rawBody: unknown
+    rawBody: unknown;
   }
 }
-app.use(express.json({
-  verify: (req, _res, buf) => {
-    req.rawBody = buf;
-  }
-}));
+app.use(
+  express.json({
+    verify: (req, _res, buf) => {
+      req.rawBody = buf;
+    },
+  }),
+);
 app.use(express.urlencoded({ extended: false }));
 
 app.use((req, res, next) => {
@@ -73,9 +91,9 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  startupLog('ROUTES', 'Registering routes...');
+  startupLog("ROUTES", "Registering routes...");
   const server = await registerRoutes(app);
-  startupLog('ROUTES', 'Routes registered');
+  startupLog("ROUTES", "Routes registered");
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
@@ -98,65 +116,68 @@ app.use((req, res, next) => {
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
   if (app.get("env") === "development") {
-    startupLog('VITE', 'Setting up Vite dev server...');
+    startupLog("VITE", "Setting up Vite dev server...");
     await setupVite(app, server);
-    startupLog('VITE', 'Vite dev server ready');
+    startupLog("VITE", "Vite dev server ready");
   } else {
-    startupLog('STATIC', 'Setting up static file serving');
+    startupLog("STATIC", "Setting up static file serving");
     serveStatic(app);
-    startupLog('STATIC', 'Static file serving ready');
+    startupLog("STATIC", "Static file serving ready");
   }
 
   // ALWAYS serve the app on the port specified in the environment variable PORT
   // Other ports are firewalled. Default to 5000 if not specified.
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
-  const port = parseInt(process.env.PORT || '5000', 10);
-  startupLog('LISTEN', `Starting server on port ${port}...`);
-  server.listen({
-    port,
-    host: "0.0.0.0",
-  }, async () => {
-    startupLog('LISTEN', `Server listening on port ${port}`);
-    log(`serving on port ${port}`);
+  const port = parseInt(process.env.PORT || "5000", 10);
+  startupLog("LISTEN", `Starting server on port ${port}...`);
+  server.listen(
+    {
+      port,
+      host: "0.0.0.0",
+    },
+    async () => {
+      startupLog("LISTEN", `Server listening on port ${port}`);
+      log(`serving on port ${port}`);
 
-    // Startup migration: Ensure all bot profiles have unlimited daily limits
-    try {
-      await db
-        .update(botProfiles)
-        .set({
+      // Startup migration: Ensure all bot profiles have unlimited daily limits
+      try {
+        await db.update(botProfiles).set({
           maxDailyOrders: 999999,
           maxDailyVolume: 999999,
         });
-      log("Bot profiles updated with unlimited daily limits");
-    } catch (error: any) {
-      console.error("Failed to update bot profiles:", error.message);
-    }
-
-    // Always initialize contest jobs (database-only, no API required)
-    try {
-      await jobScheduler.initializeContestJobs();
-      jobScheduler.start();
-      log("Contest jobs initialized and started");
-    } catch (error: any) {
-      console.error("Failed to initialize contest jobs:", error.message);
-    }
-
-    // Initialize API-dependent jobs if either sports API key is available
-    if (process.env.MYSPORTSFEEDS_API_KEY || process.env.BALLDONTLIE_API_KEY) {
-      try {
-        await jobScheduler.initializeApiJobs();
-        log("API-dependent jobs initialized and started");
+        log("Bot profiles updated with unlimited daily limits");
       } catch (error: any) {
-        console.error("Failed to initialize API jobs:", error.message);
+        console.error("Failed to update bot profiles:", error.message);
       }
-    } else {
-      log("Skipping API-dependent jobs - no sports API key set (BALLDONTLIE_API_KEY or MYSPORTSFEEDS_API_KEY)");
-      log("Contest jobs will still process data from the database when available");
-    }
 
-    // Mark server as fully ready
-    serverReady = true;
-    startupLog('READY', 'Server fully initialized and ready to serve requests');
-  });
+      // Always initialize contest jobs (database-only, no API required)
+      try {
+        await jobScheduler.initializeContestJobs();
+        jobScheduler.start();
+        log("Contest jobs initialized and started");
+      } catch (error: any) {
+        console.error("Failed to initialize contest jobs:", error.message);
+      }
+
+      // Initialize API-dependent jobs if either sports API key is available
+      if (process.env.MYSPORTSFEEDS_API_KEY || process.env.BALLDONTLIE_API_KEY) {
+        try {
+          await jobScheduler.initializeApiJobs();
+          log("API-dependent jobs initialized and started");
+        } catch (error: any) {
+          console.error("Failed to initialize API jobs:", error.message);
+        }
+      } else {
+        log(
+          "Skipping API-dependent jobs - no sports API key set (BALLDONTLIE_API_KEY or MYSPORTSFEEDS_API_KEY)",
+        );
+        log("Contest jobs will still process data from the database when available");
+      }
+
+      // Mark server as fully ready
+      serverReady = true;
+      startupLog("READY", "Server fully initialized and ready to serve requests");
+    },
+  );
 })();

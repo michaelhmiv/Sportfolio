@@ -1,9 +1,9 @@
 /**
  * Market Maker Setup Script
- * 
+ *
  * This script initializes the Sportfolio Market Maker account and sets up
  * LP positions for all existing players with the new 50K shares / $500K standard.
- * 
+ *
  * Run this script once when deploying the AMM system to production.
  */
 
@@ -32,13 +32,16 @@ async function setupMarketMaker() {
     // Step 1: Handle existing protocol_lp_owner user
     console.log("[Setup] Step 1: Checking for existing protocol_lp_owner...");
     const oldProtocolUser = await db.select().from(users).where(eq(users.id, OLD_PROTOCOL_ID));
-    
+
     if (oldProtocolUser.length > 0) {
       console.log(`[Setup] Found existing ${OLD_PROTOCOL_ID}, renaming to ${MARKET_MAKER_ID}...`);
-      
+
       // Check if market_maker already exists
-      const existingMarketMaker = await db.select().from(users).where(eq(users.id, MARKET_MAKER_ID));
-      
+      const existingMarketMaker = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, MARKET_MAKER_ID));
+
       if (existingMarketMaker.length > 0) {
         console.log("[Setup] Both users exist, deleting old protocol_lp_owner...");
         await db.delete(users).where(eq(users.id, OLD_PROTOCOL_ID));
@@ -72,8 +75,12 @@ async function setupMarketMaker() {
         isBot: true,
         isAdmin: false,
       });
-      console.log(`[Setup] Created market maker with $${MARKET_MAKER_STARTING_BALANCE.toLocaleString()} balance`);
-      migrationLog.push(`Created new market maker user with $${MARKET_MAKER_STARTING_BALANCE.toLocaleString()} balance`);
+      console.log(
+        `[Setup] Created market maker with $${MARKET_MAKER_STARTING_BALANCE.toLocaleString()} balance`,
+      );
+      migrationLog.push(
+        `Created new market maker user with $${MARKET_MAKER_STARTING_BALANCE.toLocaleString()} balance`,
+      );
     } else {
       // Reset balance and update details if user exists
       await db
@@ -85,16 +92,30 @@ async function setupMarketMaker() {
           isBot: true,
         })
         .where(eq(users.id, MARKET_MAKER_ID));
-      console.log(`[Setup] Updated market maker balance to $${MARKET_MAKER_STARTING_BALANCE.toLocaleString()}`);
-      migrationLog.push(`Updated market maker balance to $${MARKET_MAKER_STARTING_BALANCE.toLocaleString()}`);
+      console.log(
+        `[Setup] Updated market maker balance to $${MARKET_MAKER_STARTING_BALANCE.toLocaleString()}`,
+      );
+      migrationLog.push(
+        `Updated market maker balance to $${MARKET_MAKER_STARTING_BALANCE.toLocaleString()}`,
+      );
     }
 
     // Step 3: Clear existing market maker holdings and LP positions
     console.log("[Setup] Step 3: Clearing existing market maker data...");
-    const deletedHoldings = await db.delete(holdings).where(eq(holdings.userId, MARKET_MAKER_ID)).returning();
-    const deletedLpPositions = await db.delete(lpPositions).where(eq(lpPositions.userId, MARKET_MAKER_ID)).returning();
-    console.log(`[Setup] Cleared ${deletedHoldings.length} holdings and ${deletedLpPositions.length} LP positions`);
-    migrationLog.push(`Cleared ${deletedHoldings.length} holdings and ${deletedLpPositions.length} LP positions`);
+    const deletedHoldings = await db
+      .delete(holdings)
+      .where(eq(holdings.userId, MARKET_MAKER_ID))
+      .returning();
+    const deletedLpPositions = await db
+      .delete(lpPositions)
+      .where(eq(lpPositions.userId, MARKET_MAKER_ID))
+      .returning();
+    console.log(
+      `[Setup] Cleared ${deletedHoldings.length} holdings and ${deletedLpPositions.length} LP positions`,
+    );
+    migrationLog.push(
+      `Cleared ${deletedHoldings.length} holdings and ${deletedLpPositions.length} LP positions`,
+    );
 
     // Step 4: Get all players
     console.log("[Setup] Step 4: Fetching all players...");
@@ -226,7 +247,7 @@ async function setupMarketMaker() {
         playMoney: playerPools.playMoney,
       })
       .from(playerPools);
-    const incorrectPools = allPools.filter(pool => {
+    const incorrectPools = allPools.filter((pool) => {
       const shares = parseFloat(pool.shares);
       const playMoney = parseFloat(pool.playMoney);
       return shares !== INITIAL_POOL_SHARES || playMoney !== INITIAL_POOL_PLAY_MONEY;
@@ -236,7 +257,7 @@ async function setupMarketMaker() {
       console.log(`✓ All ${allPools.length} pools have correct values (50K shares / $500K)`);
     } else {
       console.log(`✗ Found ${incorrectPools.length} pools with incorrect values:`);
-      incorrectPools.forEach(pool => {
+      incorrectPools.forEach((pool) => {
         console.log(`  - ${pool.playerId}: ${pool.shares} shares / $${pool.playMoney}`);
       });
       verificationPassed = false;
@@ -252,7 +273,9 @@ async function setupMarketMaker() {
     if (marketMakerPositions.length === allPlayers.length) {
       console.log(`✓ Market maker has LP positions for all ${marketMakerPositions.length} players`);
     } else {
-      console.log(`✗ Market maker has ${marketMakerPositions.length} positions, expected ${allPlayers.length}`);
+      console.log(
+        `✗ Market maker has ${marketMakerPositions.length} positions, expected ${allPlayers.length}`,
+      );
       verificationPassed = false;
     }
 
@@ -266,7 +289,9 @@ async function setupMarketMaker() {
     if (marketMakerHoldings.length === allPlayers.length) {
       console.log(`✓ Market maker has holdings for all ${marketMakerHoldings.length} players`);
     } else {
-      console.log(`✗ Market maker has ${marketMakerHoldings.length} holdings, expected ${allPlayers.length}`);
+      console.log(
+        `✗ Market maker has ${marketMakerHoldings.length} holdings, expected ${allPlayers.length}`,
+      );
       verificationPassed = false;
     }
 
@@ -276,11 +301,15 @@ async function setupMarketMaker() {
     if (marketMaker.length > 0) {
       const currentBalance = parseFloat(marketMaker[0].balance);
       const expectedBalance = MARKET_MAKER_STARTING_BALANCE - totalPlayMoneyNeeded;
-      
+
       if (Math.abs(currentBalance - expectedBalance) < 1) {
-        console.log(`✓ Market maker balance: $${currentBalance.toLocaleString()} (expected: $${expectedBalance.toLocaleString()})`);
+        console.log(
+          `✓ Market maker balance: $${currentBalance.toLocaleString()} (expected: $${expectedBalance.toLocaleString()})`,
+        );
       } else {
-        console.log(`✗ Market maker balance: $${currentBalance.toLocaleString()} (expected: $${expectedBalance.toLocaleString()})`);
+        console.log(
+          `✗ Market maker balance: $${currentBalance.toLocaleString()} (expected: $${expectedBalance.toLocaleString()})`,
+        );
         verificationPassed = false;
       }
     } else {
@@ -298,7 +327,9 @@ async function setupMarketMaker() {
     if (orphanedPositions.length === 0) {
       console.log("✓ No orphaned LP positions found");
     } else {
-      console.log(`⚠ Found ${orphanedPositions.length} non-market-maker LP positions (this may be expected if users already added liquidity)`);
+      console.log(
+        `⚠ Found ${orphanedPositions.length} non-market-maker LP positions (this may be expected if users already added liquidity)`,
+      );
     }
 
     // Check 6: Verify LP transactions recorded
@@ -322,8 +353,10 @@ async function setupMarketMaker() {
     console.log(`Successfully Processed: ${processedCount}`);
     console.log(`Errors: ${errorCount}`);
     console.log(`Total Play Money Allocated: $${totalPlayMoneyNeeded.toLocaleString()}`);
-    console.log(`Remaining Market Maker Balance: $${(MARKET_MAKER_STARTING_BALANCE - totalPlayMoneyNeeded).toLocaleString()}`);
-    console.log(`\nVerification Status: ${verificationPassed ? '✅ PASSED' : '❌ FAILED'}`);
+    console.log(
+      `Remaining Market Maker Balance: $${(MARKET_MAKER_STARTING_BALANCE - totalPlayMoneyNeeded).toLocaleString()}`,
+    );
+    console.log(`\nVerification Status: ${verificationPassed ? "✅ PASSED" : "❌ FAILED"}`);
 
     if (!verificationPassed) {
       console.log("\n⚠️  WARNING: Verification failed! Please review the errors above.");
@@ -333,8 +366,7 @@ async function setupMarketMaker() {
 
     console.log("\n✅ Migration successful! Ready for frontend deployment.");
     console.log("\nMigration Log:");
-    migrationLog.forEach(log => console.log(`  - ${log}`));
-
+    migrationLog.forEach((log) => console.log(`  - ${log}`));
   } catch (error) {
     console.error("\n[Setup] Fatal error:", error);
     console.error("\n❌ Migration failed! Database may be in an inconsistent state.");
@@ -344,7 +376,7 @@ async function setupMarketMaker() {
 }
 
 // Run if called directly
-import { fileURLToPath } from 'url';
+import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 if (process.argv[1] === __filename) {
   setupMarketMaker()

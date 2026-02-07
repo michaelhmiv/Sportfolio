@@ -1,6 +1,6 @@
 /**
  * Vesting Accrual Job
- * 
+ *
  * Runs periodically to accrue vesting shares for all active users.
  * This ensures shares are calculated even when users don't visit the app.
  */
@@ -33,13 +33,16 @@ export async function accrueVestingForAllUsers(): Promise<JobResult> {
         // Skip if already at cap
         if (vestingData.sharesAccumulated >= capLimit) continue;
 
-        const update = calculateAccrualUpdate({
-          sharesAccumulated: vestingData.sharesAccumulated || 0,
-          residualMs: vestingData.residualMs || 0,
-          lastAccruedAt: vestingData.lastAccruedAt,
-          sharesPerHour,
-          capLimit,
-        }, now);
+        const update = calculateAccrualUpdate(
+          {
+            sharesAccumulated: vestingData.sharesAccumulated || 0,
+            residualMs: vestingData.residualMs || 0,
+            lastAccruedAt: vestingData.lastAccruedAt,
+            sharesPerHour,
+            capLimit,
+          },
+          now,
+        );
 
         const sharesEarned = update.sharesAccumulated - vestingData.sharesAccumulated;
         if (sharesEarned > 0) {
@@ -57,7 +60,9 @@ export async function accrueVestingForAllUsers(): Promise<JobResult> {
       }
     }
 
-    console.log(`[vesting_accrual] Completed: ${recordsProcessed} users updated, ${errorCount} errors`);
+    console.log(
+      `[vesting_accrual] Completed: ${recordsProcessed} users updated, ${errorCount} errors`,
+    );
   } catch (err: any) {
     console.error("[vesting_accrual] Job failed:", err.message);
     errorCount++;

@@ -1,11 +1,11 @@
-import 'dotenv/config';
+import "dotenv/config";
 import { db } from "../server/db";
 import { scoutDistributions } from "../shared/schema";
 import { sql } from "drizzle-orm";
 
 async function runManualDistribution() {
-  const windowStart = '2026-01-20T17:00:00Z';
-  const windowEnd = '2026-01-20T18:00:00Z';
+  const windowStart = "2026-01-20T17:00:00Z";
+  const windowEnd = "2026-01-20T18:00:00Z";
 
   console.log(`=== Running Manual Distribution for 17:00-18:00 Window ===\n`);
 
@@ -67,9 +67,9 @@ async function runManualDistribution() {
   console.log(`Calculated ${results.length} distributions\n`);
 
   // Check what the distribution should be for Cade (nba_31030)
-  console.log('Expected distributions:');
+  console.log("Expected distributions:");
   for (const row of results) {
-    if (row.playerId === 'nba_31030') {
+    if (row.playerId === "nba_31030") {
       console.log(`\n  Cade Cunningham (nba_31030):`);
       console.log(`    User: ${row.userId}`);
       console.log(`    User minutes: ${row.userScoutMinutes}`);
@@ -79,7 +79,7 @@ async function runManualDistribution() {
   }
 
   // Now insert the distributions
-  console.log('\n=== Inserting Distributions ===\n');
+  console.log("\n=== Inserting Distributions ===\n");
   for (const row of results) {
     const sharesEarned = parseFloat(row.sharesEarned);
     if (sharesEarned > 0) {
@@ -91,11 +91,13 @@ async function runManualDistribution() {
         globalScoutMinutes: Math.round(parseFloat(row.globalScoutMinutes)),
         sharesEarned: row.sharesEarned.toString(),
       });
-      console.log(`  Inserted: ${row.playerId} | ${row.userId.substring(0,8)}... | ${row.sharesEarned} shares`);
+      console.log(
+        `  Inserted: ${row.playerId} | ${row.userId.substring(0, 8)}... | ${row.sharesEarned} shares`,
+      );
     }
   }
 
-  console.log('\n=== Done ===');
+  console.log("\n=== Done ===");
 }
 
 runManualDistribution().catch(console.error);

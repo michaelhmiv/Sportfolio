@@ -8,7 +8,7 @@ interface UserNameProps {
 
 export function UserName({ userId, username, className = "" }: UserNameProps) {
   return (
-    <Link 
+    <Link
       href={`/user/${userId}`}
       className={`hover:underline hover:text-primary cursor-pointer transition-colors ${className}`}
       data-testid={`link-user-${userId}`}

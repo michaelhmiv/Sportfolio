@@ -4,20 +4,20 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { 
-  ChevronDown, 
-  ChevronUp, 
-  CheckCircle2, 
-  XCircle, 
-  AlertTriangle, 
-  Info, 
+import {
+  ChevronDown,
+  ChevronUp,
+  CheckCircle2,
+  XCircle,
+  AlertTriangle,
+  Info,
   Terminal,
-  RefreshCw 
+  RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface LogEvent {
-  type: 'info' | 'warning' | 'error' | 'progress' | 'complete' | 'debug';
+  type: "info" | "warning" | "error" | "progress" | "complete" | "debug";
   timestamp: string;
   message: string;
   data?: any;
@@ -31,16 +31,18 @@ interface LiveLogViewerProps {
   onComplete?: () => void;
 }
 
-export function LiveLogViewer({ 
-  operationId, 
-  title, 
+export function LiveLogViewer({
+  operationId,
+  title,
   description,
   autoOpen = true,
-  onComplete 
+  onComplete,
 }: LiveLogViewerProps) {
   const [isOpen, setIsOpen] = useState(autoOpen);
   const [logs, setLogs] = useState<LogEvent[]>([]);
-  const [status, setStatus] = useState<'connecting' | 'running' | 'success' | 'error' | 'disconnected'>('connecting');
+  const [status, setStatus] = useState<
+    "connecting" | "running" | "success" | "error" | "disconnected"
+  >("connecting");
   const [progress, setProgress] = useState({ current: 0, total: 0, percentage: 0 });
   const [stats, setStats] = useState<Record<string, number>>({});
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -50,36 +52,36 @@ export function LiveLogViewer({
   useEffect(() => {
     // Connect to SSE stream with credentials
     const eventSource = new EventSource(`/api/admin/stream/${operationId}`, {
-      withCredentials: true
+      withCredentials: true,
     });
     eventSourceRef.current = eventSource;
 
     eventSource.onopen = () => {
-      console.log('[LiveLogViewer] Connected to stream:', operationId);
-      setStatus('running');
+      console.log("[LiveLogViewer] Connected to stream:", operationId);
+      setStatus("running");
     };
 
     eventSource.onmessage = (event) => {
       try {
         const logEvent: LogEvent = JSON.parse(event.data);
-        
-        setLogs(prev => [...prev, logEvent]);
-        
+
+        setLogs((prev) => [...prev, logEvent]);
+
         // Update status based on event type
-        if (logEvent.type === 'complete') {
-          setStatus(logEvent.data?.success ? 'success' : 'error');
+        if (logEvent.type === "complete") {
+          setStatus(logEvent.data?.success ? "success" : "error");
           if (onComplete) {
             onComplete();
           }
           // Don't close the connection immediately - keep it for review
           setTimeout(() => {
             eventSource.close();
-            setStatus('disconnected');
+            setStatus("disconnected");
           }, 1000);
-        } else if (logEvent.type === 'error') {
+        } else if (logEvent.type === "error") {
           // Don't change status to error unless it's fatal
           // Individual errors might not mean the whole operation failed
-        } else if (logEvent.type === 'progress' && logEvent.data) {
+        } else if (logEvent.type === "progress" && logEvent.data) {
           setProgress({
             current: logEvent.data.current || 0,
             total: logEvent.data.total || 0,
@@ -90,13 +92,13 @@ export function LiveLogViewer({
           }
         }
       } catch (error) {
-        console.error('[LiveLogViewer] Error parsing event:', error);
+        console.error("[LiveLogViewer] Error parsing event:", error);
       }
     };
 
     eventSource.onerror = (error) => {
-      console.error('[LiveLogViewer] Connection error:', error);
-      setStatus('error');
+      console.error("[LiveLogViewer] Connection error:", error);
+      setStatus("error");
       eventSource.close();
     };
 
@@ -115,71 +117,97 @@ export function LiveLogViewer({
 
   const getStatusIcon = () => {
     switch (status) {
-      case 'connecting':
+      case "connecting":
         return <RefreshCw className="w-4 h-4 animate-spin text-blue-500" />;
-      case 'running':
+      case "running":
         return <RefreshCw className="w-4 h-4 animate-spin text-blue-500" />;
-      case 'success':
+      case "success":
         return <CheckCircle2 className="w-4 h-4 text-green-500" />;
-      case 'error':
+      case "error":
         return <XCircle className="w-4 h-4 text-destructive" />;
-      case 'disconnected':
+      case "disconnected":
         return <Info className="w-4 h-4 text-muted-foreground" />;
     }
   };
 
   const getStatusBadge = () => {
     switch (status) {
-      case 'connecting':
-        return <Badge variant="outline" className="gap-1">Connecting...</Badge>;
-      case 'running':
-        return <Badge variant="outline" className="gap-1 bg-blue-500/10 text-blue-600 dark:text-blue-400">Running</Badge>;
-      case 'success':
-        return <Badge variant="outline" className="gap-1 bg-green-500/10 text-green-600 dark:text-green-400">Completed</Badge>;
-      case 'error':
-        return <Badge variant="destructive" className="gap-1">Failed</Badge>;
-      case 'disconnected':
-        return <Badge variant="outline" className="gap-1">Disconnected</Badge>;
+      case "connecting":
+        return (
+          <Badge variant="outline" className="gap-1">
+            Connecting...
+          </Badge>
+        );
+      case "running":
+        return (
+          <Badge
+            variant="outline"
+            className="gap-1 bg-blue-500/10 text-blue-600 dark:text-blue-400"
+          >
+            Running
+          </Badge>
+        );
+      case "success":
+        return (
+          <Badge
+            variant="outline"
+            className="gap-1 bg-green-500/10 text-green-600 dark:text-green-400"
+          >
+            Completed
+          </Badge>
+        );
+      case "error":
+        return (
+          <Badge variant="destructive" className="gap-1">
+            Failed
+          </Badge>
+        );
+      case "disconnected":
+        return (
+          <Badge variant="outline" className="gap-1">
+            Disconnected
+          </Badge>
+        );
     }
   };
 
-  const getLogIcon = (type: LogEvent['type']) => {
+  const getLogIcon = (type: LogEvent["type"]) => {
     switch (type) {
-      case 'info':
+      case "info":
         return <Info className="w-3 h-3 text-blue-500 flex-shrink-0" />;
-      case 'warning':
+      case "warning":
         return <AlertTriangle className="w-3 h-3 text-yellow-500 flex-shrink-0" />;
-      case 'error':
+      case "error":
         return <XCircle className="w-3 h-3 text-destructive flex-shrink-0" />;
-      case 'progress':
+      case "progress":
         return <RefreshCw className="w-3 h-3 text-blue-500 flex-shrink-0" />;
-      case 'complete':
+      case "complete":
         return <CheckCircle2 className="w-3 h-3 text-green-500 flex-shrink-0" />;
-      case 'debug':
+      case "debug":
         return <Terminal className="w-3 h-3 text-muted-foreground flex-shrink-0" />;
     }
   };
 
-  const getLogTextColor = (type: LogEvent['type']) => {
+  const getLogTextColor = (type: LogEvent["type"]) => {
     switch (type) {
-      case 'info':
-        return 'text-foreground';
-      case 'warning':
-        return 'text-yellow-600 dark:text-yellow-400';
-      case 'error':
-        return 'text-destructive';
-      case 'progress':
-        return 'text-blue-600 dark:text-blue-400';
-      case 'complete':
-        return 'text-green-600 dark:text-green-400';
-      case 'debug':
-        return 'text-muted-foreground';
+      case "info":
+        return "text-foreground";
+      case "warning":
+        return "text-yellow-600 dark:text-yellow-400";
+      case "error":
+        return "text-destructive";
+      case "progress":
+        return "text-blue-600 dark:text-blue-400";
+      case "complete":
+        return "text-green-600 dark:text-green-400";
+      case "debug":
+        return "text-muted-foreground";
     }
   };
 
   const formatTimestamp = (timestamp: string) => {
     const date = new Date(timestamp);
-    return date.toLocaleTimeString('en-US', { hour12: false });
+    return date.toLocaleTimeString("en-US", { hour12: false });
   };
 
   return (
@@ -212,11 +240,13 @@ export function LiveLogViewer({
         {progress.total > 0 && isOpen && (
           <div className="space-y-2 mt-3">
             <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <span>Progress: {progress.current}/{progress.total}</span>
+              <span>
+                Progress: {progress.current}/{progress.total}
+              </span>
               <span>{progress.percentage}%</span>
             </div>
             <Progress value={progress.percentage} className="h-2" />
-            
+
             {/* Stats */}
             {Object.keys(stats).length > 0 && (
               <div className="flex flex-wrap gap-2 text-xs">
@@ -247,11 +277,11 @@ export function LiveLogViewer({
                 className="h-6 px-2 text-xs"
                 data-testid="button-toggle-autoscroll"
               >
-                Auto-scroll: {autoScroll ? 'ON' : 'OFF'}
+                Auto-scroll: {autoScroll ? "ON" : "OFF"}
               </Button>
             </div>
-            
-            <div 
+
+            <div
               ref={scrollRef}
               className="bg-muted/30 rounded-md p-3 font-mono text-xs space-y-1 max-h-96 overflow-y-auto"
               data-testid="log-container"
@@ -260,8 +290,8 @@ export function LiveLogViewer({
                 <div className="text-muted-foreground">Waiting for logs...</div>
               ) : (
                 logs.map((log, index) => (
-                  <div 
-                    key={index} 
+                  <div
+                    key={index}
                     className={cn("flex items-start gap-2 py-0.5", getLogTextColor(log.type))}
                     data-testid={`log-entry-${log.type}`}
                   >

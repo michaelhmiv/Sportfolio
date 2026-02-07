@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   postgres:
@@ -10,7 +10,7 @@ services:
       POSTGRES_PASSWORD: devpassword
       POSTGRES_DB: sportfolio_dev
     ports:
-      - "5433:5432"  # Use port 5433 to avoid conflicts with any local PostgreSQL
+      - "5433:5432" # Use port 5433 to avoid conflicts with any local PostgreSQL
     volumes:
       - sportfolio_dev_data:/var/lib/postgresql/data
     healthcheck:

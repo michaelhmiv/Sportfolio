@@ -12,16 +12,14 @@
  */
 
 export enum LogLevel {
-  DEBUG = 'debug',
-  INFO = 'info',
-  WARN = 'warn',
-  ERROR = 'error',
-  QUIET = 'quiet',
+  DEBUG = "debug",
+  INFO = "info",
+  WARN = "warn",
+  ERROR = "error",
+  QUIET = "quiet",
 }
 
-let currentLogLevel = process.env.NODE_ENV === 'production'
-  ? LogLevel.INFO
-  : LogLevel.DEBUG;
+let currentLogLevel = process.env.NODE_ENV === "production" ? LogLevel.INFO : LogLevel.DEBUG;
 
 export function setLogLevel(level: LogLevel): void {
   currentLogLevel = level;
@@ -68,11 +66,12 @@ export function error(message: string, ...args: unknown[]): void {
  */
 export function createThrottledLogger(level: LogLevel = LogLevel.INFO) {
   let lastLogTime = 0;
-  const interval = level === LogLevel.DEBUG
-    ? 10000  // 10 seconds
-    : level === LogLevel.INFO
-      ? 60000 // 1 minute
-      : 0;    // No throttling for WARN/ERROR
+  const interval =
+    level === LogLevel.DEBUG
+      ? 10000 // 10 seconds
+      : level === LogLevel.INFO
+        ? 60000 // 1 minute
+        : 0; // No throttling for WARN/ERROR
 
   return (message: string, ...args: unknown[]): void => {
     const now = Date.now();

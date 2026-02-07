@@ -1,0 +1,28 @@
+﻿version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 10
+    allow:
+      - dependency-type: "direct"
+    labels:
+      - "dependencies"
+    groups:
+      all-major-update:
+        pattern: "*"
+        update-types: ["major"]
+      all-minor-patch-update:
+        pattern: "*"
+        update-types: ["minor", "patch"]
+        exclude-paths:
+          - "node_modules/**"
+          - "dist/**"
+          - "mobile/**"
+          - "package/**"
+    ignore:
+      - dependency-name: "react"
+        versions: ["18.x"]

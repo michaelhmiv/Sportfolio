@@ -14,7 +14,9 @@ async function main() {
 
   if (!databaseUrl) {
     console.error("❌ ERROR: DATABASE_URL or DEV_DATABASE_URL must be set");
-    console.log("Example: DATABASE_URL='postgresql://user:pass@host:5432/db' npx tsx server/query-perf-test.ts");
+    console.log(
+      "Example: DATABASE_URL='postgresql://user:pass@host:5432/db' npx tsx server/query-perf-test.ts",
+    );
     process.exit(1);
   }
 
@@ -85,7 +87,9 @@ async function main() {
   console.log(`   ⏱️  Time: ${(t4End - t4Start).toFixed(2)}ms`);
 
   // Test 5: Sentiment calculation with correlated subquery
-  console.log("\n📊 Test 5: Sentiment calculation with correlated subquery (CURRENT SLOW APPROACH)");
+  console.log(
+    "\n📊 Test 5: Sentiment calculation with correlated subquery (CURRENT SLOW APPROACH)",
+  );
   const t5Start = performance.now();
   const withSentiment = await sql`
     SELECT p.id, p.first_name, p.last_name, p.team, p.sport, p.volume_24h,
@@ -184,7 +188,8 @@ async function main() {
   // Test 8: Order book count for context
   console.log("\n📊 Test 8: Order book size");
   const t8Start = performance.now();
-  const orderCount = await sql`SELECT COUNT(*) as count FROM orders WHERE status IN ('open', 'partial')`;
+  const orderCount =
+    await sql`SELECT COUNT(*) as count FROM orders WHERE status IN ('open', 'partial')`;
   const t8End = performance.now();
   console.log(`   Open/partial orders: ${orderCount[0].count}`);
   console.log(`   ⏱️  Time: ${(t8End - t8Start).toFixed(2)}ms`);
@@ -196,11 +201,13 @@ async function main() {
   console.log(`\nCurrent (correlated subqueries): ${(t6End - t6Start).toFixed(2)}ms`);
   console.log(`Optimized (LEFT JOINs):          ${(t7End - t7Start).toFixed(2)}ms`);
 
-  const improvement = ((t6End - t6Start) - (t7End - t7Start)) / (t6End - t6Start) * 100;
+  const improvement = ((t6End - t6Start - (t7End - t7Start)) / (t6End - t6Start)) * 100;
   if (improvement > 0) {
     console.log(`\n✅ Potential speedup: ${improvement.toFixed(1)}% faster`);
   } else {
-    console.log(`\n⚠️  JOIN approach was ${Math.abs(improvement).toFixed(1)}% slower (may need index tuning)`);
+    console.log(
+      `\n⚠️  JOIN approach was ${Math.abs(improvement).toFixed(1)}% slower (may need index tuning)`,
+    );
   }
 
   console.log("\n" + "=".repeat(60));

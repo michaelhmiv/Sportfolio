@@ -67,7 +67,7 @@ export function AnimatedCounter({
         "inline-block tabular-nums",
         isFlashing && isPositive && "text-emerald-500",
         isFlashing && isNegative && "text-red-500",
-        className
+        className,
       )}
       animate={isFlashing ? { scale: [1, 1.05, 1] } : {}}
       transition={{ duration: 0.3 }}

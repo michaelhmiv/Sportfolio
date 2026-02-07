@@ -1,6 +1,6 @@
 /**
  * MySportsFeeds Rate Limiter
- * 
+ *
  * Implements token bucket algorithm to enforce 200 requests per 5 minutes limit.
  * Provides exponential backoff retry logic for failed requests.
  */
@@ -19,7 +19,7 @@ export class MySportsFeedsRateLimiter {
 
   constructor(
     private maxRequests: number = 150,
-    private windowMs: number = 5 * 60 * 1000 // 5 minutes
+    private windowMs: number = 5 * 60 * 1000, // 5 minutes
   ) {
     this.bucket = {
       tokens: maxRequests,
@@ -72,10 +72,7 @@ export class MySportsFeedsRateLimiter {
     const timePassed = now - this.bucket.lastRefill;
     const tokensToAdd = timePassed * this.bucket.refillRate;
 
-    this.bucket.tokens = Math.min(
-      this.bucket.maxTokens,
-      this.bucket.tokens + tokensToAdd
-    );
+    this.bucket.tokens = Math.min(this.bucket.maxTokens, this.bucket.tokens + tokensToAdd);
     this.bucket.lastRefill = now;
   }
 
@@ -85,7 +82,7 @@ export class MySportsFeedsRateLimiter {
   async executeWithRetry<T>(
     fn: () => Promise<T>,
     maxAttempts: number = 3,
-    baseDelay: number = 5000
+    baseDelay: number = 5000,
   ): Promise<T> {
     let lastError: Error | undefined;
 
@@ -104,8 +101,8 @@ export class MySportsFeedsRateLimiter {
         const shouldRetry =
           error.response?.status === 429 || // Too Many Requests
           error.response?.status >= 500 || // Server errors
-          error.code === 'ECONNRESET' || // Connection issues
-          error.code === 'ETIMEDOUT';
+          error.code === "ECONNRESET" || // Connection issues
+          error.code === "ETIMEDOUT";
 
         if (!shouldRetry || attempt === maxAttempts) {
           throw error;
@@ -118,14 +115,14 @@ export class MySportsFeedsRateLimiter {
 
         console.warn(
           `MySportsFeeds request failed (attempt ${attempt}/${maxAttempts}), retrying in ${Math.round(totalDelay)}ms...`,
-          error.message
+          error.message,
         );
 
-        await new Promise(resolve => setTimeout(resolve, totalDelay));
+        await new Promise((resolve) => setTimeout(resolve, totalDelay));
       }
     }
 
-    throw lastError || new Error('Request failed after all retry attempts');
+    throw lastError || new Error("Request failed after all retry attempts");
   }
 
   /**
@@ -145,7 +142,7 @@ export const mysportsfeedsRateLimiter = new MySportsFeedsRateLimiter();
 
 /**
  * Ball Don't Lie Rate Limiter
- * 
+ *
  * Uses the same token bucket algorithm for the Ball Don't Lie NFL API.
  * Conservative defaults: 60 requests per minute (1 per second average)
  * Adjust based on your actual API tier limits.

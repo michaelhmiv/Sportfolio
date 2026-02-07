@@ -9,7 +9,13 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { formatDistanceToNow } from "date-fns";
 import { Link, useLocation } from "wouter";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 
 interface PremiumStatus {
   isPremium: boolean;
@@ -35,8 +41,16 @@ interface CheckoutSession {
 const PRICE_PER_SHARE = 5;
 
 const premiumBenefits = [
-  { icon: Zap, title: "Double Scout Capacity", description: "Assign up to 10 scouts instead of 5 for faster share earnings" },
-  { icon: Crown, title: "Ad-Free Experience", description: "Browse and trade without any advertisements" },
+  {
+    icon: Zap,
+    title: "Double Scout Capacity",
+    description: "Assign up to 10 scouts instead of 5 for faster share earnings",
+  },
+  {
+    icon: Crown,
+    title: "Ad-Free Experience",
+    description: "Browse and trade without any advertisements",
+  },
 ];
 
 export default function Premium() {
@@ -86,14 +100,15 @@ export default function Premium() {
       if (data.credited > 0) {
         toast({
           title: "Premium Shares Credited!",
-          description: `${data.credited} Premium Share${data.credited > 1 ? 's' : ''} from Whop ${data.credited > 1 ? 'have' : 'has'} been added to your account.`,
+          description: `${data.credited} Premium Share${data.credited > 1 ? "s" : ""} from Whop ${data.credited > 1 ? "have" : "has"} been added to your account.`,
         });
       } else {
         toast({
           title: "Sync Complete",
-          description: data.synced > 0
-            ? `Checked ${data.synced} payment${data.synced > 1 ? 's' : ''} from Whop. No new shares to credit.`
-            : "No Whop payments found for your email.",
+          description:
+            data.synced > 0
+              ? `Checked ${data.synced} payment${data.synced > 1 ? "s" : ""} from Whop. No new shares to credit.`
+              : "No Whop payments found for your email.",
         });
       }
       queryClient.invalidateQueries({ queryKey: ["/api/premium/status"] });
@@ -123,7 +138,8 @@ export default function Premium() {
 
         toast({
           title: "Checkout Opened",
-          description: "Complete your purchase in the new tab. Your shares will be credited automatically.",
+          description:
+            "Complete your purchase in the new tab. Your shares will be credited automatically.",
         });
       } else {
         toast({
@@ -164,9 +180,12 @@ export default function Premium() {
       {/* Header */}
       <div className="text-center mb-8">
         <Crown className="h-12 w-12 mx-auto mb-3 text-yellow-500" />
-        <h1 className="text-3xl font-bold mb-2" data-testid="text-premium-title">Premium Shares</h1>
+        <h1 className="text-3xl font-bold mb-2" data-testid="text-premium-title">
+          Premium Shares
+        </h1>
         <p className="text-muted-foreground max-w-xl mx-auto">
-          Purchase tradeable Premium Shares for $5 each. Redeem for 30 days of premium access or trade them on the marketplace.
+          Purchase tradeable Premium Shares for $5 each. Redeem for 30 days of premium access or
+          trade them on the marketplace.
         </p>
       </div>
 
@@ -175,7 +194,11 @@ export default function Premium() {
         <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
           <CardTitle className="text-lg">Your Premium Status</CardTitle>
           {premiumStatus?.isPremium && (
-            <Badge variant="default" className="bg-yellow-500 text-black" data-testid="badge-premium-active">
+            <Badge
+              variant="default"
+              className="bg-yellow-500 text-black"
+              data-testid="badge-premium-active"
+            >
               <Crown className="h-3 w-3 mr-1" />
               Active
             </Badge>
@@ -223,7 +246,10 @@ export default function Premium() {
                     <div className="text-lg font-semibold text-green-500">Active</div>
                     {premiumStatus.premiumExpiresAt && (
                       <div className="text-xs text-muted-foreground mt-1">
-                        Expires {formatDistanceToNow(new Date(premiumStatus.premiumExpiresAt), { addSuffix: true })}
+                        Expires{" "}
+                        {formatDistanceToNow(new Date(premiumStatus.premiumExpiresAt), {
+                          addSuffix: true,
+                        })}
                       </div>
                     )}
                   </>
@@ -374,11 +400,18 @@ export default function Premium() {
           <CardContent>
             <div className="space-y-2">
               {premiumStatus.recentPurchases.map((purchase) => (
-                <div key={purchase.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                <div
+                  key={purchase.id}
+                  className="flex items-center justify-between p-3 bg-muted/50 rounded-lg"
+                >
                   <div>
-                    <div className="font-medium">{purchase.quantity} Premium Share{purchase.quantity > 1 ? 's' : ''}</div>
+                    <div className="font-medium">
+                      {purchase.quantity} Premium Share{purchase.quantity > 1 ? "s" : ""}
+                    </div>
                     <div className="text-sm text-muted-foreground">
-                      {formatDistanceToNow(new Date(purchase.completedAt || purchase.createdAt), { addSuffix: true })}
+                      {formatDistanceToNow(new Date(purchase.completedAt || purchase.createdAt), {
+                        addSuffix: true,
+                      })}
                     </div>
                   </div>
                   <div className="text-right">
@@ -404,7 +437,7 @@ export default function Premium() {
               Purchase Complete!
             </DialogTitle>
             <DialogDescription className="text-center">
-              You now have {purchasedQuantity} new Premium Share{purchasedQuantity > 1 ? 's' : ''}.
+              You now have {purchasedQuantity} new Premium Share{purchasedQuantity > 1 ? "s" : ""}.
               What would you like to do?
             </DialogDescription>
           </DialogHeader>

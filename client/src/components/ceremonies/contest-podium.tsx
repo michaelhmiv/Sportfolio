@@ -30,11 +30,7 @@ function PodiumCard({
   const isFirst = position === "center";
   const height = isFirst ? "h-48" : "h-36";
   const rankColor =
-    winner.rank === 1
-      ? "bg-yellow-500"
-      : winner.rank === 2
-      ? "bg-gray-400"
-      : "bg-amber-700";
+    winner.rank === 1 ? "bg-yellow-500" : winner.rank === 2 ? "bg-gray-400" : "bg-amber-700";
 
   return (
     <motion.div
@@ -50,7 +46,7 @@ function PodiumCard({
         "flex flex-col items-center",
         position === "left" && "order-1",
         position === "center" && "order-2",
-        position === "right" && "order-3"
+        position === "right" && "order-3",
       )}
     >
       {/* Winner info */}
@@ -61,9 +57,7 @@ function PodiumCard({
         className="mb-4 text-center"
       >
         <div className="w-16 h-16 rounded-full bg-card border-2 border-border flex items-center justify-center mx-auto mb-2">
-          <span className="text-lg font-bold">
-            {winner.username.slice(0, 2).toUpperCase()}
-          </span>
+          <span className="text-lg font-bold">{winner.username.slice(0, 2).toUpperCase()}</span>
         </div>
         <p className="font-semibold text-sm truncate max-w-[100px]">{winner.username}</p>
         <p className="text-emerald-500 font-bold">${winner.prize.toFixed(2)}</p>
@@ -77,7 +71,7 @@ function PodiumCard({
         className={cn(
           "w-24 rounded-t-lg flex items-end justify-center pb-4 relative overflow-hidden",
           height,
-          rankColor
+          rankColor,
         )}
       >
         <motion.div
@@ -139,10 +133,7 @@ export function ContestPodium({
         className="fixed inset-0 z-50 flex items-center justify-center bg-background/95 backdrop-blur-sm"
         onClick={onClose}
       >
-        <div
-          className="w-full max-w-lg mx-4"
-          onClick={(e) => e.stopPropagation()}
-        >
+        <div className="w-full max-w-lg mx-4" onClick={(e) => e.stopPropagation()}>
           {/* Title */}
           <motion.div
             initial={{ opacity: 0, y: -20 }}
@@ -178,7 +169,7 @@ export function ContestPodium({
                   "p-4 rounded-lg border text-center",
                   userRank <= 3
                     ? "bg-emerald-500/10 border-emerald-500/30"
-                    : "bg-muted border-border"
+                    : "bg-muted border-border",
                 )}
               >
                 <p className="text-sm text-muted-foreground mb-1">Your Result</p>
