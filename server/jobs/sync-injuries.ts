@@ -110,16 +110,6 @@ export async function syncPlayerInjuries(): Promise<{ synced: number; cleared: n
     }
 }
 
-// Run directly if executed as script
-const isMainModule = import.meta.url === `file://${process.argv[1]?.replace(/\\/g, '/')}`;
-if (isMainModule) {
-    syncPlayerInjuries()
-        .then((result) => {
-            console.log("[SYNC INJURIES] Complete:", result);
-            process.exit(0);
-        })
-        .catch((err) => {
-            console.error("[SYNC INJURIES] Failed:", err);
-            process.exit(1);
-        });
-}
+// Note: Do not add a "run directly" block (process.exit) in this module.
+// This file is imported by the web server; when bundled, ESM main-module
+// detection becomes unreliable and can terminate the production server.
