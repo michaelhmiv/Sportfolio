@@ -57,10 +57,10 @@ export function Footer() {
               </li>
               <li>
                 <Link 
-                  href="/marketplace" 
+                  href="/pools" 
                   className="text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  Marketplace
+                  Player Pools
                 </Link>
               </li>
               <li>

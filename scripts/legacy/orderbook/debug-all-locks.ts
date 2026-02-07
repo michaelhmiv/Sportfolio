@@ -3,8 +3,8 @@
  */
 
 import 'dotenv/config';
-import { db } from "../server/db";
-import { holdingsLocks, orders, holdings } from "../shared/schema";
+import { db } from "../../../server/db";
+import { holdingsLocks, orders, holdings } from "../../../shared/schema";
 import { eq, and, desc } from "drizzle-orm";
 
 async function debug() {

@@ -27,40 +27,51 @@ import type { Player } from "@shared/schema";
 import { PlayerName } from "@/components/player-name";
 import { SportSelector } from "@/components/sport-selector";
 import { MarketActivityWidget } from "@/components/market-activity-widget";
-import { Link } from "wouter";
 import { MarketplaceScanners } from "@/components/marketplace-scanners";
 import { cn } from "@/lib/utils";
 import { BackgroundPattern, CardAccent } from "@/components/ui/decorative-elements";
+import { PlayerModal } from "@/components/player-modal";
 
 type PlayerWithPool = Player & {
   poolLiquidity?: number;
+  poolTvl?: number;
   poolShares?: number;
   poolTotalTrades?: number;
   buyPressure?: number;
   valueIndex?: number;
 };
 
-type SortField = "price" | "volume" | "change" | "liquidity" | "marketCap" | "sentiment" | "undervalued" | "fantasyPoints" | "name" | "team";
+type SortField = "price" | "volume" | "change" | "tvl" | "marketCap" | "sentiment" | "undervalued" | "fantasyPoints" | "name" | "team";
 type SortOrder = "asc" | "desc";
 
 const getDefaultSortOrder = (field: SortField): SortOrder => (
   ["name", "team"].includes(field) ? "asc" : "desc"
 );
 
-export default function Marketplace() {
+const normalizeSortField = (value: string | null): SortField | null => {
+  if (!value) return null;
+  if (value === "liquidity" || value === "poolSize") return "tvl";
+  if (["price", "volume", "change", "tvl", "marketCap", "sentiment", "undervalued", "fantasyPoints", "name", "team"].includes(value)) {
+    return value as SortField;
+  }
+  return null;
+};
+
+export default function PlayerPools() {
   const { user } = useAuth();
   const isPremiumUser = user?.isPremium || false;
   const { sport } = useSport();
   const sportConfig = useSportConfig();
   const { toast } = useToast();
-  const searchParams = new URLSearchParams(useSearch());
+  const searchString = useSearch();
+  const searchParams = useMemo(() => new URLSearchParams(searchString), [searchString]);
   const [, setLocation] = useLocation();
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "players");
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [teamFilter, setTeamFilter] = useState<string>("all");
   const [positionFilter, setPositionFilter] = useState<string>("all");
-  const initialSortField = (searchParams.get("sortBy") as SortField) || "volume";
+  const initialSortField = normalizeSortField(searchParams.get("sortBy")) || "volume";
   const initialSortOrderParam = searchParams.get("sortOrder") as SortOrder | null;
   const [sortField, setSortField] = useState<SortField>(initialSortField);
   const [sortOrder, setSortOrder] = useState<SortOrder>(initialSortOrderParam && ["asc", "desc"].includes(initialSortOrderParam)
@@ -69,6 +80,8 @@ export default function Marketplace() {
   const [filterWatchlistId, setFilterWatchlistId] = useState<string>("none");
   const [page, setPage] = useState(1);
   const [showFilters, setShowFilters] = useState(false);
+  const [playerModalOpen, setPlayerModalOpen] = useState(false);
+  const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const ITEMS_PER_PAGE = 50;
   const { subscribe } = useWebSocket();
   const offset = (page - 1) * ITEMS_PER_PAGE;
@@ -76,27 +89,19 @@ export default function Marketplace() {
   // Sync active tab and sort with URL query parameters
   useEffect(() => {
     const tab = searchParams.get("tab");
-    if (tab && (tab === "players" || tab === "activity")) {
-      setActiveTab(tab);
-    }
+    const nextTab = tab === "activity" ? "activity" : "players";
+    setActiveTab((prev) => (prev === nextTab ? prev : nextTab));
 
-    const sortBy = searchParams.get("sortBy") as SortField;
+    const sortByParam = normalizeSortField(searchParams.get("sortBy"));
+    const nextSortField = sortByParam || "volume";
+    setSortField((prev) => (prev === nextSortField ? prev : nextSortField));
+
     const sortOrderParam = searchParams.get("sortOrder") as SortOrder;
-    const validSortBy = sortBy && ["price", "volume", "change", "liquidity", "marketCap", "sentiment", "undervalued", "fantasyPoints", "name", "team"].includes(sortBy)
-      ? sortBy
-      : undefined;
-
-    if (validSortBy) {
-      setSortField(validSortBy);
-      if (sortOrderParam && ["asc", "desc"].includes(sortOrderParam)) {
-        setSortOrder(sortOrderParam);
-      } else {
-        setSortOrder(getDefaultSortOrder(validSortBy));
-      }
-    } else if (sortOrderParam && ["asc", "desc"].includes(sortOrderParam)) {
-      setSortOrder(sortOrderParam);
-    }
-  }, [searchParams]);
+    const nextSortOrder = (sortOrderParam && ["asc", "desc"].includes(sortOrderParam))
+      ? sortOrderParam
+      : getDefaultSortOrder(nextSortField);
+    setSortOrder((prev) => (prev === nextSortOrder ? prev : nextSortOrder));
+  }, [searchString]);
 
   // Debounce search input
   useEffect(() => {
@@ -218,8 +223,10 @@ export default function Marketplace() {
 
     const newSearch = params.toString();
     const currentPath = window.location.pathname;
-    if (newSearch) {
-      setLocation(`${currentPath}?${newSearch}`, { replace: true });
+    const targetUrl = newSearch ? `${currentPath}?${newSearch}` : currentPath;
+    const currentUrl = `${currentPath}${window.location.search || ""}`;
+    if (targetUrl !== currentUrl) {
+      setLocation(targetUrl, { replace: true });
     }
   }, [activeTab, sortField, sortOrder, setLocation]);
 
@@ -245,10 +252,8 @@ export default function Marketplace() {
           <BackgroundPattern variant="circuit" color="primary" opacity={0.04} />
           <div className="relative z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
-              <h1 className="text-xl sm:text-2xl font-bold">Marketplace</h1>
-              <p className="text-sm text-muted-foreground">
-                Trade player shares with AMM instant liquidity
-              </p>
+              <h1 className="text-xl sm:text-2xl font-bold">Player Pools</h1>
+              <p className="text-sm text-muted-foreground">Instant buy/sell</p>
             </div>
             <div className="flex items-center gap-2">
               <SportSelector />
@@ -324,7 +329,7 @@ export default function Marketplace() {
                       <option value="marketCap">Mkt Cap</option>
                       <option value="price">Price</option>
                       <option value="change">24h Change</option>
-                      <option value="liquidity">Liquidity</option>
+                      <option value="tvl">TVL</option>
                       <option value="sentiment">Sentiment</option>
                       <option value="undervalued">Undervalued</option>
                       <option value="fantasyPoints">Fantasy Pts</option>
@@ -479,11 +484,11 @@ export default function Marketplace() {
                             </th>
                             <th
                               className="text-right p-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground cursor-pointer hover:bg-muted/80 hidden lg:table-cell"
-                              onClick={() => toggleSort("liquidity")}
+                              onClick={() => toggleSort("tvl")}
                             >
                               <div className="flex items-center justify-end">
-                                Liquidity
-                                <SortIcon field="liquidity" />
+                                TVL
+                                <SortIcon field="tvl" />
                               </div>
                             </th>
                             <th className="text-center p-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -491,29 +496,30 @@ export default function Marketplace() {
                             </th>
                           </tr>
                         </thead>
-                        <tbody>
-                          {players.map((player) => (
-                            <tr key={player.id} className="border-b hover:bg-muted/30">
+                          <tbody>
+                            {players.map((player) => (
+                              <tr key={player.id} className="border-b hover:bg-muted/30">
                           <td className="p-3">
-                            <Link href={`/player/${player.id}`}>
-                              <div className="flex items-center gap-2 cursor-pointer">
+                              <button
+                                type="button"
+                                className="flex items-center gap-2 cursor-pointer text-left"
+                                onClick={() => {
+                                  setSelectedPlayerId(player.id);
+                                  setPlayerModalOpen(true);
+                                }}
+                              >
                                 <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                                   <span className="text-xs font-bold">{player.firstName[0]}{player.lastName[0]}</span>
                                 </div>
                                 <div>
                                   <div className="font-medium text-sm">
-                                    <PlayerName
-                                      playerId={player.id}
-                                      firstName={player.firstName}
-                                      lastName={player.lastName}
-                                    />
+                                    <PlayerName playerId={player.id} firstName={player.firstName} lastName={player.lastName} />
                                   </div>
                                   <div className="text-xs text-muted-foreground">
                                     {player.team} • {player.position}
                                   </div>
                                 </div>
-                              </div>
-                            </Link>
+                              </button>
                           </td>
                           <td className="p-3 text-right">
                             <div className="font-mono font-medium">
@@ -533,21 +539,34 @@ export default function Marketplace() {
                             </div>
                           </td>
                               <td className="p-3 text-right text-sm text-muted-foreground hidden lg:table-cell">
-                                ${player.poolLiquidity?.toLocaleString() || "N/A"}
+                                ${player.poolTvl?.toLocaleString() || "N/A"}
                               </td>
                           <td className="p-3 text-center">
-                            <Button
-                              size="sm"
-                              variant="default"
-                              className="h-8 px-3"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setLocation(`/player/${player.id}?tab=buy`);
-                              }}
-                            >
-                              <ShoppingCart className="w-3 h-3 mr-1" />
-                              Buy
-                            </Button>
+                            <div className="flex items-center justify-center gap-2">
+                              <Button
+                                size="sm"
+                                variant="default"
+                                className="h-8 px-3"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setLocation(`/player/${player.id}?tab=buy`);
+                                }}
+                              >
+                                <ShoppingCart className="w-3 h-3 mr-1" />
+                                Buy
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 px-3"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setLocation(`/player/${player.id}?tab=sell`);
+                                }}
+                              >
+                                Sell
+                              </Button>
+                            </div>
                           </td>
                             </tr>
                           ))}
@@ -559,36 +578,52 @@ export default function Marketplace() {
                     <div className="md:hidden divide-y">
                       {players.map((player) => (
                         <div key={player.id} className="p-3 flex items-center justify-between hover:bg-muted/30">
-                          <Link href={`/player/${player.id}`} className="flex-1">
-                            <div className="flex items-center gap-2 cursor-pointer">
+                          <button
+                            type="button"
+                            className="flex-1"
+                            onClick={() => {
+                              setSelectedPlayerId(player.id);
+                              setPlayerModalOpen(true);
+                            }}
+                          >
+                            <div className="flex items-center gap-2 cursor-pointer text-left">
                               <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                                 <span className="text-xs font-bold">{player.firstName[0]}{player.lastName[0]}</span>
                               </div>
                               <div>
                                 <div className="font-medium text-sm">
-                                  {player.firstName} {player.lastName}
+                                  <PlayerName playerId={player.id} firstName={player.firstName} lastName={player.lastName} />
                                 </div>
-                                <div className="text-xs text-muted-foreground">
-                                  {player.team} • ${player.currentPrice || "0.00"}
+                                <div className="text-xs text-muted-foreground flex items-center gap-1.5 flex-wrap">
+                                  <span>{player.team}</span>
+                                  <span>•</span>
+                                  <span className="font-mono">${player.currentPrice || "0.00"}</span>
+                                  <span>•</span>
+                                  <span
+                                    className={cn(
+                                      "font-mono",
+                                      parseFloat(player.priceChange24h || "0") >= 0 ? "text-positive" : "text-negative"
+                                    )}
+                                  >
+                                    {parseFloat(player.priceChange24h || "0") >= 0 ? "+" : ""}
+                                    {parseFloat(player.priceChange24h || "0").toFixed(2)}%
+                                  </span>
                                 </div>
                               </div>
                             </div>
-                          </Link>
-                          <div className="flex items-center gap-2">
-                            <div className={cn(
-                              "font-mono text-sm",
-                              parseFloat(player.priceChange24h || "0") >= 0 ? "text-positive" : "text-negative"
-                            )}>
-                              {parseFloat(player.priceChange24h || "0") >= 0 ? "+" : ""}
-                              {parseFloat(player.priceChange24h || "0").toFixed(2)}%
-                            </div>
+                          </button>
+                          <div className="flex items-center ml-2">
                             <Button
                               size="sm"
                               variant="default"
-                              className="h-7 px-2 text-xs"
-                              onClick={() => setLocation(`/player/${player.id}?tab=buy`)}
+                              className="h-7 px-3 text-xs"
+                              onClick={() => {
+                                const pid = String(player.id || "").trim();
+                                setSelectedPlayerId(pid);
+                                setPlayerModalOpen(true);
+                              }}
                             >
-                              Buy
+                              Trade
                             </Button>
                           </div>
                         </div>
@@ -631,6 +666,15 @@ export default function Marketplace() {
             <MarketActivityWidget />
           </TabsContent>
         </Tabs>
+
+        <PlayerModal
+          playerId={selectedPlayerId}
+          open={playerModalOpen}
+          onOpenChange={(open) => {
+            setPlayerModalOpen(open);
+            if (!open) setSelectedPlayerId(null);
+          }}
+        />
       </div>
     </div>
   );

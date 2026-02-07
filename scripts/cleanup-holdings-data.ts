@@ -1,114 +1,119 @@
 /**
- * Data cleanup script for holdings power level consistency
+ * Data cleanup script for holdings power level consistency.
  *
- * This script:
- * 1. Removes holdings with 0 shares and 0 power (truly empty)
- * 2. Removes holdings with 0 shares but non-zero power (leftover from burn bug)
- * 3. Ensures powerLevel = quantity * power for all remaining holdings
- * 4. Reports any anomalies found
+ * This script fixes the exact failure mode you reported:
+ * - holdings.quantity updated (e.g. vesting credit), but holdings.power_level not updated
+ *   -> UI can show huge share counts with tiny power.
+ *
+ * Actions:
+ * 1) Deletes zero-quantity player holdings (junk rows)
+ * 2) Updates holdings.power_level = ROUND(quantity * power, 2)
+ * 3) Cancels ACTIVE daily boosts where shares_entered != 1 (prevents burning a full position)
  */
 
 import 'dotenv/config';
-import { db } from "../server/db";
-import { holdings, users, players } from "../shared/schema";
-import { eq, and } from "drizzle-orm";
+import { Pool } from 'pg';
 
-async function cleanup() {
-    console.log("\n=== Holdings Data Cleanup ===\n");
+const databaseUrl = process.env.DEV_DATABASE_URL || process.env.DATABASE_URL;
 
-    // Get all holdings with player info
-    const allHoldings = await db.select({
-        holding: holdings,
-        player: players
-    })
-        .from(holdings)
-        .innerJoin(players, eq(holdings.assetId, players.id))
-        .where(eq(holdings.assetType, "player"));
-
-    console.log(`Found ${allHoldings.length} player holdings\n`);
-
-    let removedEmpty = 0;
-    let removedZeroShares = 0;
-    let fixedPowerLevel = 0;
-    let alreadyCorrect = 0;
-    let anomalies = [];
-
-    for (const h of allHoldings) {
-        const holding = h.holding;
-        const player = h.player;
-        const expectedPowerLevel = (holding.quantity * holding.power).toFixed(2);
-        const actualPowerLevel = parseFloat(holding.powerLevel || "0").toFixed(2);
-
-        // Case 1: Holding has 0 shares and 0 power - truly empty
-        if (holding.quantity === 0 && holding.power === 1 && actualPowerLevel === "0.00") {
-            await db.delete(holdings).where(eq(holdings.id, holding.id));
-            removedEmpty++;
-            console.log(`  🗑️  Removed empty: ${player.firstName} ${player.lastName} (0 shares, 0 power)`);
-            continue;
-        }
-
-        // Case 2: Holding has 0 shares but non-zero power - leftover from burn bug
-        if (holding.quantity === 0 && actualPowerLevel !== "0.00") {
-            await db.delete(holdings).where(eq(holdings.id, holding.id));
-            removedZeroShares++;
-            console.log(`  🗑️  Removed zero-share with power: ${player.firstName} ${player.lastName} (0 shares, power: ${actualPowerLevel})`);
-            continue;
-        }
-
-        // Case 3: Check if powerLevel needs fixing
-        if (expectedPowerLevel !== actualPowerLevel) {
-            // Only fix if this looks like a real inconsistency (not a deliberate partial share)
-            const difference = Math.abs(parseFloat(expectedPowerLevel) - parseFloat(actualPowerLevel));
-
-            if (difference > 1 && holding.quantity > 0) {
-                // This looks like the burn bug - fix it
-                await db
-                    .update(holdings)
-                    .set({
-                        powerLevel: expectedPowerLevel,
-                        lastUpdated: new Date(),
-                    })
-                    .where(eq(holdings.id, holding.id));
-
-                fixedPowerLevel++;
-                console.log(`  🔧 Fixed: ${player.firstName} ${player.lastName} (qty: ${holding.quantity}, was: ${actualPowerLevel}, now: ${expectedPowerLevel})`);
-            } else {
-                alreadyCorrect++;
-            }
-        } else {
-            alreadyCorrect++;
-        }
-    }
-
-    console.log("\n--- Summary ---");
-    console.log(`  Removed empty holdings: ${removedEmpty}`);
-    console.log(`  Removed zero-share with power: ${removedZeroShares}`);
-    console.log(`  Fixed powerLevel: ${fixedPowerLevel}`);
-    console.log(`  Already correct: ${alreadyCorrect}`);
-    console.log(`  Total processed: ${removedEmpty + removedZeroShares + fixedPowerLevel + alreadyCorrect}`);
-
-    // Verify no anomalies remain
-    console.log("\n--- Verifying fix ---");
-    const remainingHoldings = await db.select().from(holdings).where(eq(holdings.assetType, "player"));
-    let anomaliesCount = 0;
-
-    for (const h of remainingHoldings) {
-        const expected = (h.quantity * h.power).toFixed(2);
-        const actual = parseFloat(h.powerLevel || "0").toFixed(2);
-
-        if (h.quantity === 0 && parseFloat(actual) !== 0) {
-            console.log(`  ⚠️  Anomaly: ${h.assetId} has 0 shares but powerLevel ${actual}`);
-            anomaliesCount++;
-        }
-    }
-
-    if (anomaliesCount === 0) {
-        console.log("  ✅ No anomalies found - all holdings are consistent!");
-    } else {
-        console.log(`  ⚠️  Found ${anomaliesCount} anomalies remaining`);
-    }
-
-    console.log("\n=== Cleanup Complete ===\n");
+if (!databaseUrl) {
+    console.error('Missing DEV_DATABASE_URL or DATABASE_URL in environment');
+    process.exit(1);
 }
 
-cleanup().catch(console.error);
+const resolvedDatabaseUrl = databaseUrl;
+
+async function cleanup() {
+    console.log("\n=== Holdings Data Cleanup (SQL) ===\n");
+
+    const pool = new Pool({
+        connectionString: resolvedDatabaseUrl,
+        // Supabase/prod commonly requires SSL; local typically does not.
+        ssl: resolvedDatabaseUrl.includes('localhost') ? undefined : { rejectUnauthorized: false },
+    });
+
+    const client = await pool.connect();
+
+    try {
+        const [{ count: totalHoldings }] = (await client.query<{ count: string }>(
+            `SELECT COUNT(*)::text AS count FROM holdings WHERE asset_type = 'player'`
+        )).rows;
+
+        const [{ count: inconsistentBefore }] = (await client.query<{ count: string }>(
+            `
+            SELECT COUNT(*)::text AS count
+            FROM holdings
+            WHERE asset_type = 'player'
+              AND power_level <> ROUND((quantity * power)::numeric, 2)
+            `
+        )).rows;
+
+        const [{ count: zeroQtyBefore }] = (await client.query<{ count: string }>(
+            `SELECT COUNT(*)::text AS count FROM holdings WHERE asset_type = 'player' AND quantity = 0`
+        )).rows;
+
+        console.log(`Player holdings: ${totalHoldings}`);
+        console.log(`Inconsistent power_level rows: ${inconsistentBefore}`);
+        console.log(`Zero-quantity rows: ${zeroQtyBefore}`);
+
+        const deleted = await client.query(
+            `DELETE FROM holdings WHERE asset_type = 'player' AND quantity = 0`
+        );
+        console.log(`\nDeleted zero-quantity holdings: ${deleted.rowCount ?? 0}`);
+
+        const updated = await client.query(
+            `
+            UPDATE holdings
+            SET power_level = ROUND((quantity * power)::numeric, 2),
+                last_updated = NOW()
+            WHERE asset_type = 'player'
+              AND power_level <> ROUND((quantity * power)::numeric, 2)
+            `
+        );
+        console.log(`Updated holdings.power_level rows: ${updated.rowCount ?? 0}`);
+
+        const [{ count: badActiveBoosts }] = (await client.query<{ count: string }>(
+            `
+            SELECT COUNT(*)::text AS count
+            FROM daily_boosts
+            WHERE status = 'active'
+              AND shares_entered <> 1
+            `
+        )).rows;
+
+        if (Number(badActiveBoosts) > 0) {
+            console.log(`\nFound ACTIVE boosts with shares_entered != 1: ${badActiveBoosts}`);
+            const cancelled = await client.query(
+                `
+                UPDATE daily_boosts
+                SET status = 'cancelled'
+                WHERE status = 'active'
+                  AND shares_entered <> 1
+                `
+            );
+            console.log(`Cancelled boosts: ${cancelled.rowCount ?? 0}`);
+        } else {
+            console.log('\nNo ACTIVE boosts with shares_entered != 1 found.');
+        }
+
+        const [{ count: inconsistentAfter }] = (await client.query<{ count: string }>(
+            `
+            SELECT COUNT(*)::text AS count
+            FROM holdings
+            WHERE asset_type = 'player'
+              AND power_level <> ROUND((quantity * power)::numeric, 2)
+            `
+        )).rows;
+
+        console.log(`\nRemaining inconsistent holdings rows: ${inconsistentAfter}`);
+        console.log("\n=== Cleanup Complete ===\n");
+    } finally {
+        client.release();
+        await pool.end();
+    }
+}
+
+cleanup().catch((err) => {
+    console.error(err);
+    process.exit(1);
+});

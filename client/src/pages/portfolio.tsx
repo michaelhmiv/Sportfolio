@@ -1,14 +1,15 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useWebSocket } from "@/lib/websocket";
 import { useNotifications } from "@/lib/notification-context";
+import { useAuth } from "@/hooks/useAuth";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { TrendingUp, TrendingDown, DollarSign, Crown, Clock, ShoppingCart, Trophy, ArrowUpRight, ArrowDownRight, ArrowUpDown, ChevronUp, ChevronDown, Plus, BarChart3, Zap, ChevronRight, LayoutGrid, List, HelpCircle } from "lucide-react";
+import { TrendingUp, TrendingDown, DollarSign, Crown, Clock, ShoppingCart, Trophy, ArrowUpRight, ArrowDownRight, ArrowUpDown, ChevronUp, ChevronDown, Plus, BarChart3, Zap, Droplets, ChevronRight, LayoutGrid, List, HelpCircle, RefreshCw } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog,
@@ -89,7 +90,7 @@ interface ActivityResponse {
   offset: number;
 }
 
-type SortField = 'name' | 'quantity' | 'avgCost' | 'price' | 'bid' | 'ask' | 'value' | 'pnl';
+type SortField = 'name' | 'quantity' | 'avgCost' | 'price' | 'bid' | 'ask' | 'value' | 'pnl' | 'tvl';
 type SortDirection = 'asc' | 'desc';
 
 const SORT_OPTIONS: { value: SortField; label: string }[] = [
@@ -101,6 +102,7 @@ const SORT_OPTIONS: { value: SortField; label: string }[] = [
   { value: 'ask', label: 'Ask' },
   { value: 'value', label: 'Value' },
   { value: 'pnl', label: 'P&L' },
+  { value: 'tvl', label: 'Pool TVL' },
 ];
 
 // Helper function to calculate P&L
@@ -127,14 +129,20 @@ function calculatePnL(quantity: number, avgCost: string, lastTradePrice: string 
   };
 }
 
+// LP position sort options
+type LpSortField = 'player' | 'ownership' | 'fees' | 'value';
+
 export default function Portfolio() {
   const { toast } = useToast();
   const { subscribe } = useWebSocket();
   const { unreadCount, clearUnread } = useNotifications();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState("holdings");
   const [chartTimeRange, setChartTimeRange] = useState("1M");
   const [sortField, setSortField] = useState<SortField>('value');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  const [lpSortField, setLpSortField] = useState<LpSortField>('value');
+  const [lpSortDirection, setLpSortDirection] = useState<SortDirection>('desc');
   const { sport } = useSport();
   
   // View toggle state - persist in localStorage
@@ -164,14 +172,72 @@ export default function Portfolio() {
   });
 
   // LP Positions data
-  const { data: lpPositions } = useQuery({
+  const { data: lpPositions, isLoading: lpLoading, isError: lpError, refetch: lpRefetch } = useQuery({
     queryKey: ["/api/lp/positions"],
     queryFn: async () => {
-      const res = await fetch('/api/lp/positions');
+      const res = await authenticatedFetch('/api/lp/positions');
       if (!res.ok) throw new Error('Failed to fetch LP positions');
       return res.json();
     },
+    enabled: isAuthenticated,
+    retry: 2,
   });
+
+  // Compute LP aggregate totals and sorted positions
+  const lpAggregates = useMemo(() => {
+    if (!lpPositions || lpPositions.length === 0) {
+      return { totalValue: 0, totalFees: 0, sortedPositions: [] };
+    }
+    
+    let totalValue = 0;
+    let totalFees = 0;
+    
+    for (const pos of lpPositions) {
+      totalValue += Number(pos.positionValue || 0);
+      totalFees += Number(pos.feesEarnedToDate || 0);
+    }
+    
+    // Sort positions
+    const sortedPositions = [...lpPositions].sort((a: any, b: any) => {
+      let aVal: number = 0;
+      let bVal: number = 0;
+      
+      switch (lpSortField) {
+        case 'player':
+          const aName = (a.player?.name || a.playerId || '').toLowerCase();
+          const bName = (b.player?.name || b.playerId || '').toLowerCase();
+          return lpSortDirection === 'asc' 
+            ? aName.localeCompare(bName)
+            : bName.localeCompare(aName);
+        case 'ownership':
+          aVal = Number(a.ownershipPercentage || 0);
+          bVal = Number(b.ownershipPercentage || 0);
+          break;
+        case 'fees':
+          aVal = Number(a.feesEarnedToDate || 0);
+          bVal = Number(b.feesEarnedToDate || 0);
+          break;
+        case 'value':
+          aVal = Number(a.positionValue || 0);
+          bVal = Number(b.positionValue || 0);
+          break;
+      }
+      
+      return lpSortDirection === 'asc' ? aVal - bVal : bVal - aVal;
+    });
+    
+    return { totalValue, totalFees, sortedPositions };
+  }, [lpPositions, lpSortField, lpSortDirection]);
+
+  // LP sort handler
+  const handleLpSort = (field: LpSortField) => {
+    if (lpSortField === field) {
+      setLpSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setLpSortField(field);
+      setLpSortDirection(field === 'player' ? 'asc' : 'desc');
+    }
+  };
 
   // Premium market data - CRITICAL: Only show real trade data, never fabricated prices
   type PremiumMarketData = {
@@ -209,14 +275,11 @@ export default function Portfolio() {
     });
 
     const unsubTrade = subscribe('trade', () => {
-      // Trades affect holdings and orders
-    });
-
-    const unsubOrderBook = subscribe('orderBook', () => {
-      // Order book changes might affect pending orders
+      // Trades affect holdings
     });
 
     return () => {
+      unsubPortfolio();
       unsubTrade();
     };
   }, [subscribe]);
@@ -361,6 +424,8 @@ export default function Portfolio() {
         return parseCurrency(holding.currentValue);
       case 'pnl':
         return parseCurrency(holding.pnl);
+      case 'tvl':
+        return (holding.player as any)?.poolTvl || 0;
       default:
         return 0;
     }
@@ -489,6 +554,11 @@ export default function Portfolio() {
           return sortDirection === 'asc'
             ? parseCurrency(a.pnl) - parseCurrency(b.pnl)
             : parseCurrency(b.pnl) - parseCurrency(a.pnl);
+        case 'tvl': {
+          const aTvl = (a.player as any)?.poolTvl || 0;
+          const bTvl = (b.player as any)?.poolTvl || 0;
+          return sortDirection === 'asc' ? aTvl - bTvl : bTvl - aTvl;
+        }
         default:
           return 0;
       }
@@ -725,7 +795,7 @@ export default function Portfolio() {
           <div className="flex items-center justify-between gap-2">
             <TabsList>
               <TabsTrigger value="holdings" data-testid="tab-holdings">Holdings</TabsTrigger>
-              <TabsTrigger value="orders" data-testid="tab-open-orders">Open Orders</TabsTrigger>
+              <TabsTrigger value="liquidity" data-testid="tab-liquidity">Liquidity</TabsTrigger>
               <TabsTrigger
                 value="activity"
                 data-testid="tab-activity"
@@ -754,27 +824,29 @@ export default function Portfolio() {
               </TabsTrigger>
             </TabsList>
             <div className="flex items-center gap-2">
-              {/* View Toggle - Always visible */}
-              <div className="flex items-center bg-muted rounded-lg p-1">
-                <Button
-                  variant={viewMode === 'card' ? 'secondary' : 'ghost'}
-                  size="sm"
-                  className="h-7 px-2"
-                  onClick={() => handleViewModeChange('card')}
-                  data-testid="button-view-card"
-                >
-                  <LayoutGrid className="w-4 h-4" />
-                </Button>
-                <Button
-                  variant={viewMode === 'list' ? 'secondary' : 'ghost'}
-                  size="sm"
-                  className="h-7 px-2"
-                  onClick={() => handleViewModeChange('list')}
-                  data-testid="button-view-list"
-                >
-                  <List className="w-4 h-4" />
-                </Button>
-              </div>
+              {/* View Toggle - Holdings only */}
+              {activeTab === 'holdings' && (
+                <div className="flex items-center bg-muted rounded-lg p-1">
+                  <Button
+                    variant={viewMode === 'card' ? 'secondary' : 'ghost'}
+                    size="sm"
+                    className="h-7 px-2"
+                    onClick={() => handleViewModeChange('card')}
+                    data-testid="button-view-card"
+                  >
+                    <LayoutGrid className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant={viewMode === 'list' ? 'secondary' : 'ghost'}
+                    size="sm"
+                    className="h-7 px-2"
+                    onClick={() => handleViewModeChange('list')}
+                    data-testid="button-view-list"
+                  >
+                    <List className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
               <Link href="/analytics">
                 <Button variant="outline" size="sm" className="gap-2 bg-primary/5 border-primary/30 hover:bg-primary/10" data-testid="button-analytics-portfolio">
                   <BarChart3 className="w-4 h-4" />
@@ -817,8 +889,8 @@ export default function Portfolio() {
                   <EmptyState
                     icon="wallet"
                     title="Your portfolio is empty"
-                    description="Start trading to build your portfolio. Browse the marketplace to find players to invest in."
-                    action={{ label: "Browse Marketplace", onClick: () => window.location.href = "/marketplace" }}
+                    description="Start trading to build your portfolio. Browse player pools to find players to invest in."
+                    action={{ label: "Browse Player Pools", onClick: () => window.location.href = "/pools" }}
                     size="sm"
                     className="py-8"
                     data-testid="empty-holdings"
@@ -917,11 +989,7 @@ export default function Portfolio() {
                                   </div>
                                 </div>
                                 <div className="flex gap-1">
-                                  <Link href="/premium/trade">
-                                    <Button size="sm" variant="outline" className="border-yellow-500/50 text-yellow-500" data-testid="button-trade-premium">
-                                      Trade
-                                    </Button>
-                                  </Link>
+                                  {/* Premium share trading removed */}
                                   <Button
                                     size="sm"
                                     onClick={() => redeemPremiumMutation.mutate()}
@@ -960,11 +1028,7 @@ export default function Portfolio() {
                             </td>
                             <td className="px-2 py-1.5 text-right hidden sm:table-cell">
                               <div className="flex gap-1 justify-end">
-                                <Link href="/premium/trade">
-                                  <Button size="sm" variant="outline" className="border-yellow-500/50 text-yellow-500" data-testid="button-trade-premium-desktop">
-                                    Trade
-                                  </Button>
-                                </Link>
+                                {/* Premium share trading removed */}
                                 <Button
                                   size="sm"
                                   onClick={() => redeemPremiumMutation.mutate()}
@@ -1052,22 +1116,36 @@ export default function Portfolio() {
                                           </div>
                                         </div>
                                       </div>
-                                      <CollapsibleTrigger asChild>
-                                        <Button
-                                          variant="ghost"
-                                          size="sm"
-                                          className="flex-shrink-0"
-                                          data-testid={`button-expand-${group.player.id}`}
-                                        >
-                                          <ChevronRight className="w-4 h-4 transition-transform data-[state=open]:rotate-90" />
-                                        </Button>
-                                      </CollapsibleTrigger>
+                                      <div className="flex items-center gap-1 flex-shrink-0">
+                                        <Link href={`/player/${group.player.id}?panel=lp&lpTab=zap`}>
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="h-7 px-2 text-xs"
+                                            onClick={(e) => e.stopPropagation()}
+                                            data-testid={`button-pool-${group.player.id}`}
+                                          >
+                                            <Droplets className="w-3 h-3 mr-1" />
+                                            Pool
+                                          </Button>
+                                        </Link>
+                                        <CollapsibleTrigger asChild>
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="flex-shrink-0"
+                                            data-testid={`button-expand-${group.player.id}`}
+                                          >
+                                            <ChevronRight className="w-4 h-4 transition-transform data-[state=open]:rotate-90" />
+                                          </Button>
+                                        </CollapsibleTrigger>
+                                      </div>
                                     </div>
                                   </td>
 
                                   {/* Desktop layout */}
                                   <td className="px-2 py-1.5 hidden sm:table-cell">
-                                    <div className="flex items-center gap-2">
+                                      <div className="flex items-center gap-2">
                                       <CollapsibleTrigger asChild>
                                         <Button
                                           variant="ghost"
@@ -1097,6 +1175,18 @@ export default function Portfolio() {
                                         </div>
                                         <div className="text-xs text-muted-foreground hidden md:inline">{group.player.team} • {group.player.position}</div>
                                         <div className="text-xs text-muted-foreground md:hidden">{group.player.team} • {group.player.position}</div>
+                                        <Link href={`/player/${group.player.id}?panel=lp&lpTab=zap`}>
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="h-7 px-2 text-xs ml-2 hidden md:inline-flex"
+                                            onClick={(e) => e.stopPropagation()}
+                                            data-testid={`button-pool-desktop-${group.player.id}`}
+                                          >
+                                            <Droplets className="w-3 h-3 mr-1" />
+                                            Pool
+                                          </Button>
+                                        </Link>
                                       </div>
                                     </div>
                                   </td>
@@ -1345,6 +1435,143 @@ export default function Portfolio() {
                       </tbody>
                     </table>
                   </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Liquidity */}
+          <TabsContent value="liquidity">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
+                <CardTitle className="text-sm font-medium uppercase tracking-wide">Your Liquidity</CardTitle>
+                {/* Sort dropdown for mobile */}
+                {lpAggregates.sortedPositions.length > 1 && (
+                  <Select value={lpSortField} onValueChange={(val) => setLpSortField(val as LpSortField)}>
+                    <SelectTrigger className="h-8 text-xs w-[100px]" data-testid="select-lp-sort">
+                      <SelectValue placeholder="Sort by" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="player">Player</SelectItem>
+                      <SelectItem value="value">Value</SelectItem>
+                      <SelectItem value="fees">Fees</SelectItem>
+                      <SelectItem value="ownership">Pool %</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Auth check */}
+                {!isAuthenticated && !authLoading ? (
+                  <EmptyState
+                    icon="wallet"
+                    title="Sign in to view liquidity"
+                    description="Log in to see your liquidity positions across player pools."
+                    size="sm"
+                    className="py-8"
+                    data-testid="lp-auth-required"
+                  />
+                ) : lpLoading ? (
+                  /* Loading state */
+                  <div className="space-y-3">
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} className="flex items-center gap-3 p-3 rounded-md border">
+                        <Shimmer width="40px" height="40px" className="rounded-full flex-shrink-0" />
+                        <div className="flex-1 space-y-2">
+                          <Shimmer height="14px" width="60%" />
+                          <Shimmer height="12px" width="80%" />
+                        </div>
+                        <Shimmer height="32px" width="70px" className="rounded" />
+                      </div>
+                    ))}
+                  </div>
+                ) : lpError ? (
+                  /* Error state */
+                  <div className="text-center py-6">
+                    <div className="text-sm text-destructive mb-2">Failed to load liquidity positions</div>
+                    <Button size="sm" variant="outline" onClick={() => lpRefetch()} className="gap-2">
+                      <RefreshCw className="w-3 h-3" />
+                      Retry
+                    </Button>
+                  </div>
+                ) : lpAggregates.sortedPositions.length === 0 ? (
+                  /* Empty state */
+                  <EmptyState
+                    icon="droplets"
+                    title="No liquidity positions yet"
+                    description="Add liquidity to player pools to earn fees from trading activity."
+                    action={{ label: "Explore Player Pools", onClick: () => window.location.href = "/pools" }}
+                    size="sm"
+                    className="py-8"
+                    data-testid="empty-liquidity"
+                  />
+                ) : (
+                  <>
+                    {/* Aggregate totals */}
+                    <div className="grid grid-cols-2 gap-3 p-3 bg-muted/50 rounded-lg">
+                      <div>
+                        <div className="text-xs text-muted-foreground uppercase tracking-wide">Total Value</div>
+                        <div className="font-mono font-bold text-lg">${lpAggregates.totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground uppercase tracking-wide">Total Fees Earned</div>
+                        <div className="font-mono font-bold text-lg text-positive">${lpAggregates.totalFees.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                      </div>
+                    </div>
+
+                    {/* Position list - mobile-first card layout */}
+                    <div className="divide-y rounded-md border">
+                      {lpAggregates.sortedPositions.map((pos: any) => (
+                        <div key={pos.playerId} className="p-3 hover-elevate">
+                          {/* Mobile layout */}
+                          <div className="flex items-start justify-between gap-3">
+                            <button
+                              type="button"
+                              className="text-left flex-1 min-w-0"
+                              onClick={() => {
+                                if (pos.player?.id || pos.playerId) {
+                                  setSelectedPlayerId(String(pos.player?.id || pos.playerId));
+                                  setPlayerModalOpen(true);
+                                }
+                              }}
+                            >
+                              <div className="font-medium text-sm truncate">
+                                {pos.player?.name || pos.playerId}
+                              </div>
+                              {pos.player?.team && pos.player?.position && (
+                                <div className="text-xs text-muted-foreground mb-1">
+                                  {pos.player.team} • {pos.player.position}
+                                </div>
+                              )}
+                              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+                                <span className="font-mono">
+                                  {(Number(pos.ownershipPercentage || 0) * 100).toFixed(2)}% pool share
+                                </span>
+                                <span className="text-muted-foreground">•</span>
+                                <span className="font-mono text-positive">
+                                  Fees ${Number(pos.feesEarnedToDate || 0).toFixed(2)}
+                                </span>
+                              </div>
+                              {pos.positionValue != null && (
+                                <div className="text-xs text-muted-foreground mt-1">
+                                  Value: <span className="font-mono font-medium text-foreground">${Number(pos.positionValue).toFixed(2)}</span>
+                                  {pos.equivalentShares != null && (
+                                    <span className="ml-2">({Math.round(pos.equivalentShares)} shares)</span>
+                                  )}
+                                </div>
+                              )}
+                            </button>
+                            <Link href={`/player/${pos.playerId}?panel=lp`}>
+                              <Button size="sm" variant="outline" className="h-8 px-3 text-xs flex-shrink-0">
+                                <Droplets className="w-3 h-3 mr-1" />
+                                Pool
+                              </Button>
+                            </Link>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
                 )}
               </CardContent>
             </Card>

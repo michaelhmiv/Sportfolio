@@ -9,7 +9,7 @@ import type { InsertPlayer, Player, User, Holding, CommunityBoost } from "@share
 import { contestLineups, contestEntries, contests, holdings, marketSnapshots, premiumCheckoutSessions, tweetSettings, tweetHistory, users, scoutAssignments, scoutHistory, dailyGames, dailyBoosts, players, communityCheckoutSessions, userCollections, userMilestones, trades, whopPayments } from "@shared/schema";
 import { sql, eq, desc, and, gte, lte, inArray, lt } from "drizzle-orm";
 import { jobScheduler } from "./jobs/scheduler";
-import { addClient, removeClient, broadcast } from "./websocket";
+import { addClient, removeClient, broadcast, getWebSocketStats } from "./websocket";
 import { calculateAccrualUpdate } from "@shared/vesting-utils";
 import { createContests } from "./jobs/create-contests";
 import { calculateContestLeaderboard } from "./contest-scoring";
@@ -1600,6 +1600,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get all injured players (for showing injury indicators across the site)
+  app.get("/api/players/injuries", async (req, res) => {
+    try {
+      const sport = (req.query.sport as string) || "NBA";
+      const players = await storage.getPlayersBySport(sport);
+
+      // Filter to only injured players and return minimal data needed for UI indicators
+      const injuredPlayers = players
+        .filter(p => p.injuryStatus)
+        .map(p => ({
+          id: p.id,
+          injuryStatus: p.injuryStatus,
+          injuryDescription: p.injuryDescription,
+          injuryReturnDate: p.injuryReturnDate,
+        }));
+
+      res.json(injuredPlayers);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Top risers (24h) - players with highest priceChange24h
   app.get("/api/players/spotlight/top-risers", async (req, res) => {
     try {
@@ -1657,7 +1679,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Top player pools by liquidity (k value)
+  // Top player pools by TVL (total value locked)
   app.get("/api/players/spotlight/top-pools", async (req, res) => {
     try {
       const limit = parseInt(req.query.limit as string) || 5;
@@ -1667,15 +1689,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const players = await storage.getPlayersBySport(sport);
       const playerIds = players.map(p => p.id);
       
-      // Get pools for these players, sorted by k value
+      // Get pools for these players
       const pools = await storage.getPlayerPoolsByPlayerIds(playerIds);
       
-      // Sort by k value descending and take top N
+      // Sort by TVL descending and take top N
       const topPools = pools
-        .sort((a, b) => parseFloat(b.k) - parseFloat(a.k))
+        .sort((a, b) => {
+          const aPlayMoney = parseFloat(a.playMoney);
+          const bPlayMoney = parseFloat(b.playMoney);
+          const aTvl = aPlayMoney * 2;
+          const bTvl = bPlayMoney * 2;
+          return bTvl - aTvl;
+        })
         .slice(0, limit)
         .map(pool => {
           const player = players.find(p => p.id === pool.playerId);
+          const playMoney = parseFloat(pool.playMoney);
+          const shares = parseFloat(pool.shares);
+          const tvl = shares > 0 ? playMoney * 2 : playMoney;
           return {
             player: {
               id: pool.playerId,
@@ -1685,9 +1716,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
               position: player?.position || "",
               currentPrice: player?.currentPrice ? parseFloat(player.currentPrice) : null,
             },
-            k: parseFloat(pool.k),
-            shares: parseFloat(pool.shares),
-            playMoney: parseFloat(pool.playMoney),
+            tvl,
+            shares,
+            playMoney,
           };
         });
 
@@ -1747,9 +1778,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const safeOffset = isNaN(parsedOffset) ? 0 : Math.max(0, parsedOffset);
 
       // Parse sorting and filter params
-      const validSortBy = ['price', 'volume', 'change', 'marketCap', 'sentiment', 'undervalued', 'fantasyPoints', 'name', 'team'];
-      const safeSortBy = sortBy && validSortBy.includes(sortBy as string)
-        ? sortBy as 'price' | 'volume' | 'change' | 'marketCap' | 'sentiment' | 'undervalued' | 'fantasyPoints' | 'name' | 'team'
+      const validSortBy = ['price', 'volume', 'change', 'tvl', 'marketCap', 'sentiment', 'undervalued', 'fantasyPoints', 'name', 'team'];
+      const normalizedSortBy = (sortBy === 'liquidity' || sortBy === 'poolSize') ? 'tvl' : sortBy;
+      const safeSortBy = normalizedSortBy && validSortBy.includes(normalizedSortBy as string)
+        ? normalizedSortBy as 'price' | 'volume' | 'change' | 'tvl' | 'marketCap' | 'sentiment' | 'undervalued' | 'fantasyPoints' | 'name' | 'team'
         : 'volume';
       const safeSortOrder = sortOrder === 'asc' ? 'asc' : 'desc';
 
@@ -1830,8 +1862,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const metricValueIndex = player._metricValueIndex != null ? parseFloat(player._metricValueIndex) : null;
         const metricAvgFantasyPoints = player._metricAvgFantasyPoints != null ? parseFloat(player._metricAvgFantasyPoints) : null;
 
-        return {
-          ...enriched,
+          const poolTvl = poolData?.shares && poolData.shares > 0
+            ? (poolData.playMoney * 2)
+            : (poolData?.playMoney || 0);
+
+          return {
+            ...enriched,
           ...(isAmmOnlyMode && ammSpotPrice !== null ? {
             lastTradePrice: ammSpotPrice.toFixed(2),
             currentPrice: ammSpotPrice.toFixed(2),
@@ -1845,6 +1881,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           valueIndex: metricValueIndex ?? derivedValueIndex,
           globalScoutCount: globalScoutMap.get(player.id) || 0,
           poolLiquidity: poolData?.playMoney || 0,
+          poolTvl,
           poolShares: poolData?.shares || 0,
           poolTotalTrades: poolData?.totalTrades || 0,
         };
@@ -2528,28 +2565,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Legacy player order-book endpoints (archived)
-  app.get("/api/orders/:playerId/preview", optionalAuth, async (req, res) => {
-    return res.status(410).json({
-      error: "Legacy player order-book preview is archived. Use AMM quote endpoint.",
-      ammQuoteEndpoint: `/api/amm/${req.params.playerId}/quote?type=buy|sell&amount=...`,
-    });
-  });
-
-  app.post("/api/orders/:playerId", isAuthenticated, async (req, res) => {
-    return res.status(410).json({
-      error: "Legacy player order-book trading is archived. Use AMM buy/sell endpoints.",
-      ammBuyEndpoint: `/api/amm/${req.params.playerId}/buy`,
-      ammSellEndpoint: `/api/amm/${req.params.playerId}/sell`,
-    });
-  });
-
-  app.post("/api/orders/:orderId/cancel", isAuthenticated, async (_req, res) => {
-    return res.status(410).json({
-      error: "Legacy player order-book cancel endpoint is archived in AMM-only mode.",
-    });
-  });
-
   // Portfolio
   app.get("/api/portfolio", isAuthenticated, async (req, res) => {
     try {
@@ -2561,22 +2576,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Optimized: Single JOIN query to get holdings + players + locks
       const holdingsWithData = await storage.getUserHoldingsWithPlayers(user.id);
-      const openOrders = await storage.getUserOrders(user.id, "open");
 
       let totalValue = 0;
       let totalPnL = 0;
       let totalCost = 0;
 
-      // Batch fetch all players for orders in one query
-      const orderPlayerIds = openOrders.map(o => o.playerId);
-      const orderPlayers = orderPlayerIds.length > 0
-        ? await storage.getPlayersByIds(orderPlayerIds)
-        : [];
-      const orderPlayersMap = new Map(orderPlayers.map(p => [p.id, p]));
-
       const playerHoldingIds = holdingsWithData
         .filter((item: any) => item.holding.assetType === "player" && item.player)
         .map((item: any) => item.player.id.toString());
+
+      const poolDataMap = playerHoldingIds.length > 0
+        ? await storage.getBatchPoolData(playerHoldingIds)
+        : new Map();
       const globalScoutMap = playerHoldingIds.length > 0
         ? await storage.getBatchActiveScoutCounts(playerHoldingIds)
         : new Map();
@@ -2598,6 +2609,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const lockedQuantity = Number(item.totalLocked || 0);
 
         if (holding.assetType === "player" && player) {
+          const poolData = poolDataMap.get(player.id);
+          const poolTvl = poolData?.shares && poolData.shares > 0
+            ? (poolData.playMoney * 2)
+            : (poolData?.playMoney || 0);
+
           // Use real market price only - never fall back to placeholder currentPrice
           const { currentValue, pnl, pnlPercent } = calculatePnL(
             holding.quantity,
@@ -2616,7 +2632,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           return {
             ...holding,
-            player,
+            player: {
+              ...player,
+              poolLiquidity: poolData?.playMoney || 0,
+              poolTvl,
+              poolShares: poolData?.shares || 0,
+              poolTotalTrades: poolData?.totalTrades || 0,
+            },
             currentValue,
             pnl,
             pnlPercent,
@@ -2636,11 +2658,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return holding;
       });
 
-      const enrichedOrders = openOrders.map((order) => ({
-        ...order,
-        player: orderPlayersMap.get(order.playerId),
-      }));
-
       const premiumShares = holdingsWithData.find((item: any) => item.holding.assetType === "premium")?.holding.quantity || 0;
 
       res.json({
@@ -2649,7 +2666,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         totalPnL: totalPnL.toFixed(2),
         totalPnLPercent: totalCost > 0 ? ((totalPnL / totalCost) * 100).toFixed(2) : "0.00",
         holdings: enrichedHoldings,
-        openOrders: enrichedOrders,
         premiumShares,
         isPremium: user.isPremium,
         premiumExpiresAt: user.premiumExpiresAt,
@@ -5042,35 +5058,6 @@ ${posts.map(post => `  <url>
     }
   });
 
-  // Get premium trading data (order book, holdings, etc.)
-  app.get("/api/premium/trade", isAuthenticated, async (req, res) => {
-    try {
-      const userId = getUserId(req);
-      const user = await storage.getUser(userId);
-      if (!user) {
-        return res.status(404).json({ error: "User not found" });
-      }
-
-      const premiumHolding = await storage.getHolding(user.id, "premium", "premium");
-
-      // Get order book for premium shares
-      const orderBook = await storage.getPremiumOrderBook();
-
-      // Get recent premium trades
-      const recentTrades = await storage.getRecentPremiumTrades(10);
-
-      res.json({
-        premiumShares: premiumHolding?.quantity || 0,
-        userBalance: user.balance,
-        orderBook,
-        recentTrades,
-        isPremium: user.isPremium,
-      });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
   // Get premium share market data with price history and circulation
   // CRITICAL: Only returns actual trade data - never fabricates prices
   app.get("/api/premium/market-data", async (req, res) => {
@@ -5102,15 +5089,6 @@ ${posts.map(post => `  <url>
       // Get premium trades within the time range
       const trades = await storage.getPremiumTradesInRange(startDate, now);
 
-      // Get order book for current bid/ask (only show if orders exist)
-      const orderBook = await storage.getPremiumOrderBook();
-      const bestBid = orderBook.bids.length > 0
-        ? orderBook.bids.sort((a, b) => parseFloat(b.price) - parseFloat(a.price))[0]
-        : null;
-      const bestAsk = orderBook.asks.length > 0
-        ? orderBook.asks.sort((a, b) => parseFloat(a.price) - parseFloat(b.price))[0]
-        : null;
-
       // Get total circulation (sum of all premium holdings) - ensure it's a number
       const circulationRaw = await storage.getTotalPremiumCirculation();
       const circulation = typeof circulationRaw === 'string' ? parseInt(circulationRaw, 10) : (circulationRaw || 0);
@@ -5129,8 +5107,6 @@ ${posts.map(post => `  <url>
       res.json({
         // Only show prices that are based on actual data - all numbers, no strings
         lastTradePrice, // null if no trades, number otherwise
-        bestBid: bestBid ? { price: parseFloat(bestBid.price), quantity: bestBid.quantity } : null,
-        bestAsk: bestAsk ? { price: parseFloat(bestAsk.price), quantity: bestAsk.quantity } : null,
         circulation,
         priceHistory,
         totalTrades: trades.length,
@@ -5140,126 +5116,6 @@ ${posts.map(post => `  <url>
       res.status(500).json({ error: error.message });
     }
   });
-
-  // Place premium share order
-  app.post("/api/premium/orders", isAuthenticated, async (req, res) => {
-    try {
-      const userId = getUserId(req);
-      const user = await storage.getUser(userId);
-      if (!user) {
-        return res.status(404).json({ error: "User not found" });
-      }
-
-      const { side, quantity, orderType, limitPrice } = req.body;
-
-      if (!side || !quantity || !orderType) {
-        return res.status(400).json({ error: "Missing required fields" });
-      }
-
-      if (quantity <= 0) {
-        return res.status(400).json({ error: "Quantity must be positive" });
-      }
-
-      const price = orderType === "limit" ? parseFloat(limitPrice) : 5.00;
-      const orderValue = quantity * price;
-
-      if (side === "buy") {
-        // Check balance
-        if (parseFloat(user.balance) < orderValue) {
-          return res.status(400).json({ error: "Insufficient balance" });
-        }
-
-        // Lock funds
-        await storage.updateUserBalance(user.id, (parseFloat(user.balance) - orderValue).toFixed(2));
-
-        // Create buy order
-        const order = await storage.createPremiumOrder({
-          userId: user.id,
-          side: "buy",
-          quantity,
-          price: price.toFixed(4),
-          orderType,
-          status: "open",
-        });
-
-        // Try to match with existing sell orders
-        await matchPremiumOrders();
-
-        res.json({ success: true, order });
-      } else if (side === "sell") {
-        // Check holdings
-        const premiumHolding = await storage.getHolding(user.id, "premium", "premium");
-        if (!premiumHolding || premiumHolding.quantity < quantity) {
-          return res.status(400).json({ error: "Insufficient shares" });
-        }
-
-        // Lock shares
-        await storage.updateHolding(user.id, "premium", "premium", parseFloat(premiumHolding.quantity) - quantity, "5.0000");
-
-        // Create sell order
-        const order = await storage.createPremiumOrder({
-          userId: user.id,
-          side: "sell",
-          quantity,
-          price: price.toFixed(4),
-          orderType,
-          status: "open",
-        });
-
-        // Try to match with existing buy orders
-        await matchPremiumOrders();
-
-        res.json({ success: true, order });
-      } else {
-        return res.status(400).json({ error: "Invalid order side" });
-      }
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // Helper function to match premium orders
-  async function matchPremiumOrders() {
-    const orderBook = await storage.getPremiumOrderBook();
-
-    for (const bid of orderBook.bids) {
-      for (const ask of orderBook.asks) {
-        // Match if bid price >= ask price
-        if (parseFloat(bid.price) >= parseFloat(ask.price)) {
-          const matchQuantity = Math.min(bid.quantity, ask.quantity);
-          const matchPrice = ask.price; // Use ask price for execution
-          const matchValue = matchQuantity * parseFloat(matchPrice);
-
-          // Execute trade - transfer shares to buyer
-          const buyerHolding = await storage.getHolding(bid.userId, "premium", "premium");
-          const buyerQuantity = parseFloat(buyerHolding?.quantity || "0");
-          await storage.updateHolding(bid.userId, "premium", "premium", buyerQuantity + matchQuantity, "5.0000");
-
-          // Give seller the cash
-          const seller = await storage.getUser(ask.userId);
-          if (seller) {
-            await storage.updateUserBalance(seller.id, (parseFloat(seller.balance) + matchValue).toFixed(2));
-          }
-
-          // Update or remove orders
-          await storage.updatePremiumOrderQuantity(bid.orderId, bid.quantity - matchQuantity);
-          await storage.updatePremiumOrderQuantity(ask.orderId, ask.quantity - matchQuantity);
-
-          // Record trade with order IDs for full audit trail
-          await storage.createPremiumTrade({
-            buyerId: bid.userId,
-            sellerId: ask.userId,
-            buyOrderId: bid.orderId,
-            sellOrderId: ask.orderId,
-            quantity: matchQuantity,
-            price: matchPrice,
-          });
-
-          console.log(`[PREMIUM] Matched ${matchQuantity} shares at $${matchPrice}`);
-        }
-      }
-    }
-  }
 
   // Whop webhook handler - receives payment.succeeded events
   // Uses official @whop/sdk for signature verification
@@ -5545,8 +5401,18 @@ ${posts.map(post => `  <url>
     const token = req.headers.authorization?.replace('Bearer ', '');
     const expectedToken = process.env.ADMIN_API_TOKEN;
 
+    const setAdminContext = (method: 'token' | 'dev_bypass' | 'supabase_jwt' | 'session', ctx?: { userId?: string; email?: string }) => {
+      req.adminContext = {
+        method,
+        userId: ctx?.userId || null,
+        email: ctx?.email || null,
+        at: new Date().toISOString(),
+      };
+    };
+
     // Check 1: Token-based auth (for external cron jobs - using ADMIN_API_TOKEN)
     if (token && expectedToken && token === expectedToken) {
+      setAdminContext('token');
       return next();
     }
 
@@ -5556,6 +5422,7 @@ ${posts.map(post => `  <url>
 
     if (isDev && bypassAuth) {
       console.log(`[ADMIN] Dev bypass: ${req.method} ${req.path}`);
+      setAdminContext('dev_bypass');
       return next();
     }
 
@@ -5585,6 +5452,7 @@ ${posts.map(post => `  <url>
                   email: supabaseUser.email,
                 }
               };
+              setAdminContext('supabase_jwt', { userId: supabaseUser.id, email: supabaseUser.email || undefined });
               console.log(`[ADMIN] Admin access granted for user ${supabaseUser.email} (${supabaseUser.id})`);
               return next();
             } else {
@@ -5612,6 +5480,7 @@ ${posts.map(post => `  <url>
       if (userId) {
         const user = await storage.getUser(userId);
         if (user?.isAdmin) {
+          setAdminContext('session', { userId, email: user.email || undefined });
           return next();
         }
       }
@@ -5627,26 +5496,35 @@ ${posts.map(post => `  <url>
   // Admin endpoint: Get system statistics
   app.get("/api/admin/stats", adminAuth, async (req, res) => {
     try {
-      // All scheduled job types in the system
-      const jobTypes = [
-        'roster_sync',
-        'sync_player_game_logs',
-        'schedule_sync',
-        'stats_sync',
-        'stats_sync_live',
-        'create_contests',
-        'update_contest_statuses',
-        'settle_contests',
-        'daily_snapshot',
-        'weekly_roundup',
-      ];
+      // All scheduled job types in the system (from scheduler config)
+      const jobTypes = jobScheduler.getConfiguredJobNames();
+      const jobTypesSafe = jobTypes.length > 0
+        ? jobTypes
+        : [
+          'roster_sync',
+          'sync_player_game_logs',
+          'schedule_sync',
+          'stats_sync',
+          'stats_sync_live',
+          'create_contests',
+          'update_contest_statuses',
+          'settle_contests',
+          'daily_snapshot',
+          'weekly_roundup',
+          'refresh_player_metrics',
+          'refresh_player_volume_24h',
+          'update_collections',
+          'check_milestones',
+          'cleanup_job_logs',
+          'prune_price_history',
+        ];
 
       const [users, players, allContests, recentLogs, latestJobLogs] = await Promise.all([
         storage.getUsers(),
         storage.getPlayers(),
         storage.getContests(),
         storage.getRecentJobLogs(undefined, 200), // For today's API request count
-        storage.getLatestJobLogPerType(jobTypes),
+        storage.getLatestJobLogPerType(jobTypesSafe),
       ]);
       const openContests = allContests.filter((c: any) => c.status === 'open').length;
       const liveContests = allContests.filter((c: any) => c.status === 'live').length;
@@ -5663,7 +5541,7 @@ ${posts.map(post => `  <url>
       const apiRequestsToday = todayLogs.reduce((sum: number, log: any) => sum + (log.requestCount || 0), 0);
 
       // Build last job runs from the per-type query results
-      const lastJobRuns = jobTypes.map(jobName => {
+      const lastJobRuns = jobTypesSafe.map(jobName => {
         const lastLog = latestJobLogs.get(jobName);
         return {
           jobName,
@@ -5675,6 +5553,8 @@ ${posts.map(post => `  <url>
       });
 
       res.json({
+        ok: true,
+        adminContext: (req as any).adminContext || null,
         totalUsers: users.length,
         totalPlayers: players.length,
         totalContests: allContests.length,
@@ -5683,11 +5563,305 @@ ${posts.map(post => `  <url>
         completedContests,
         apiRequestsToday,
         lastJobRuns,
+        websocket: getWebSocketStats(),
+        server: {
+          now: new Date().toISOString(),
+          uptimeSec: Math.round(process.uptime()),
+        },
       });
     } catch (error: any) {
       console.error('[ADMIN] Failed to get stats:', error.message);
       res.status(500).json({ error: error.message });
     }
+  });
+
+  // Admin endpoint: Who am I / auth confirmation
+  app.get("/api/admin/whoami", adminAuth, async (req: any, res) => {
+    try {
+      const adminContext = req.adminContext || { method: 'unknown', userId: null, email: null };
+      const userId = req.user?.claims?.sub || adminContext.userId;
+      const user = userId ? await storage.getUser(userId) : null;
+
+      res.json({
+        ok: true,
+        adminContext,
+        user: user
+          ? {
+            id: user.id,
+            email: user.email,
+            username: user.username,
+            isAdmin: user.isAdmin,
+            isPremium: user.isPremium,
+            premiumExpiresAt: user.premiumExpiresAt || null,
+          }
+          : null,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Admin endpoint: Diagnostics snapshot (jobs, db, websocket, optional player volume check)
+  app.get("/api/admin/diagnostics", adminAuth, async (req: any, res) => {
+    const startedAt = Date.now();
+    try {
+      const deep = String(req.query.deep || "false") === "true";
+      const playerId = typeof req.query.playerId === "string" ? req.query.playerId : null;
+
+      // DB ping latency
+      const dbPingStart = Date.now();
+      await db.execute(sql`SELECT 1`);
+      const dbPingMs = Date.now() - dbPingStart;
+
+      // Jobs
+      const configuredJobs = jobScheduler.getConfiguredJobs();
+      const scheduledStatus = jobScheduler.getStatus();
+      const configuredJobNames = jobScheduler.getConfiguredJobNames();
+      const latestLogs = configuredJobNames.length > 0
+        ? await storage.getLatestJobLogPerType(configuredJobNames)
+        : new Map();
+
+      const jobs = configuredJobs
+        .map((j) => {
+          const live = scheduledStatus.find((s) => s.name === j.name);
+          const last = latestLogs.get(j.name);
+          return {
+            name: j.name,
+            schedule: j.schedule,
+            enabled: j.enabled,
+            running: live?.running || false,
+            lastRun: last
+              ? {
+                status: last.status,
+                scheduledFor: last.scheduledFor,
+                startedAt: last.startedAt,
+                finishedAt: last.finishedAt,
+                requestCount: last.requestCount,
+                recordsProcessed: last.recordsProcessed,
+                errorCount: last.errorCount,
+                errorMessage: last.errorMessage || null,
+              }
+              : null,
+          };
+        })
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+      // Optional volume diagnostic for a player
+      let volumeDiagnostic: any = null;
+      if (playerId) {
+        const [p] = await db
+          .select({ id: players.id, stored: players.volume24h })
+          .from(players)
+          .where(eq(players.id, playerId))
+          .limit(1);
+
+        const [tradeAgg] = await db
+          .select({
+            tradesCount24h: sql<number>`COUNT(*)::int`,
+            ammTradesCount24h: sql<number>`SUM(CASE WHEN ${trades.buyerId} = 'pool' OR ${trades.sellerId} = 'pool' THEN 1 ELSE 0 END)::int`,
+            shares24h: sql<number>`COALESCE(ROUND(SUM(${trades.quantity}))::int, 0)`,
+            lastTradeTs: sql<Date | null>`MAX(${trades.executedAt})`,
+          })
+          .from(trades)
+          .where(and(
+            eq(trades.playerId, playerId),
+            gte(trades.executedAt, sql`NOW() - INTERVAL '24 hours'`),
+          ));
+
+        volumeDiagnostic = {
+          playerId,
+          exists: !!p,
+          storedVolume24h: p ? Number(p.stored || 0) : null,
+          computedShares24h: Number(tradeAgg?.shares24h || 0),
+          tradesCount24h: Number(tradeAgg?.tradesCount24h || 0),
+          ammTradesCount24h: Number(tradeAgg?.ammTradesCount24h || 0),
+          lastTradeTs: tradeAgg?.lastTradeTs || null,
+        };
+      }
+
+      // Optional deeper counts (can be slow on huge DBs)
+      let deepCounts: any = null;
+      if (deep) {
+        const playersCount = await db.select({ count: sql<number>`COUNT(*)::int` }).from(players);
+        const tradesCount = await db.select({ count: sql<number>`COUNT(*)::int` }).from(trades);
+        const usersCount = await db.select({ count: sql<number>`COUNT(*)::int` }).from(users);
+        deepCounts = {
+          players: Number(playersCount?.[0]?.count || 0),
+          trades: Number(tradesCount?.[0]?.count || 0),
+          users: Number(usersCount?.[0]?.count || 0),
+        };
+      }
+
+      res.json({
+        ok: true,
+        adminContext: req.adminContext || null,
+        server: {
+          now: new Date().toISOString(),
+          node: process.version,
+          platform: process.platform,
+          pid: process.pid,
+          uptimeSec: Math.round(process.uptime()),
+          memory: process.memoryUsage(),
+          env: {
+            NODE_ENV: process.env.NODE_ENV || null,
+            hasAdminApiToken: !!process.env.ADMIN_API_TOKEN,
+            hasSupabaseUrl: !!process.env.SUPABASE_URL,
+            hasSupabaseServiceRoleKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+            hasPerplexityKey: !!process.env.PERPLEXITY_API_KEY,
+            hasTwitterKeys: !!process.env.TWITTER_API_KEY && !!process.env.TWITTER_API_SECRET,
+          },
+        },
+        db: {
+          ok: true,
+          pingMs: dbPingMs,
+        },
+        jobs: {
+          configuredCount: configuredJobs.length,
+          scheduledCount: scheduledStatus.length,
+          manualTriggerableJobs: jobScheduler.getAvailableManualJobNames(),
+          list: jobs,
+        },
+        websocket: getWebSocketStats(),
+        volume: volumeDiagnostic,
+        deepCounts,
+        timingMs: Date.now() - startedAt,
+      });
+    } catch (error: any) {
+      res.status(500).json({ ok: false, error: error.message, timingMs: Date.now() - startedAt });
+    }
+  });
+
+  // Admin endpoint: Route smoke test (self-fetch critical endpoints)
+  // Useful for production confirmation/debugging after deploys.
+  app.get("/api/admin/route-smoke", adminAuth, async (req: any, res) => {
+    const startedAt = Date.now();
+    const timeoutMs = Math.min(Math.max(parseInt(String(req.query.timeoutMs || "5000"), 10) || 5000, 500), 30000);
+    const includeHeavy = String(req.query.includeHeavy || "false") === "true";
+    const playerId = typeof req.query.playerId === "string" ? req.query.playerId : null;
+
+    const forwardedProto = (req.headers['x-forwarded-proto'] as string) || req.protocol;
+    const forwardedHost = (req.headers['x-forwarded-host'] as string) || req.get('host');
+    const baseUrl = (typeof req.query.baseUrl === 'string' && req.query.baseUrl)
+      ? req.query.baseUrl
+      : `${forwardedProto}://${forwardedHost}`;
+
+    const authHeader = req.headers.authorization;
+
+    type SmokeTarget = {
+      name: string;
+      method: 'GET' | 'POST';
+      path: string;
+      expectedStatus?: number;
+    };
+
+    const targets: SmokeTarget[] = [
+      { name: 'admin.whoami', method: 'GET', path: '/api/admin/whoami', expectedStatus: 200 },
+      { name: 'admin.stats', method: 'GET', path: '/api/admin/stats', expectedStatus: 200 },
+      ...(includeHeavy ? [{ name: 'admin.diagnostics', method: 'GET', path: '/api/admin/diagnostics', expectedStatus: 200 } as SmokeTarget] : []),
+
+      { name: 'market.scanners', method: 'GET', path: '/api/market/scanners?sport=NBA', expectedStatus: 200 },
+      { name: 'players.list', method: 'GET', path: '/api/players?sport=NBA&limit=1&offset=0&sortBy=volume&sortOrder=desc', expectedStatus: 200 },
+      { name: 'players.spotlight.risers', method: 'GET', path: '/api/players/spotlight/top-risers?sport=NBA', expectedStatus: 200 },
+      { name: 'players.spotlight.pools', method: 'GET', path: '/api/players/spotlight/top-pools?sport=NBA', expectedStatus: 200 },
+      { name: 'games.today', method: 'GET', path: '/api/games/today?sport=NBA', expectedStatus: 200 },
+      ...(includeHeavy ? [{ name: 'analytics.overview', method: 'GET', path: '/api/analytics?timeRange=24H', expectedStatus: 200 } as SmokeTarget] : []),
+    ];
+
+    if (playerId) {
+      targets.push(
+        { name: 'player.shares-info', method: 'GET', path: `/api/player/${encodeURIComponent(playerId)}/shares-info`, expectedStatus: 200 },
+        { name: 'amm.pool', method: 'GET', path: `/api/amm/${encodeURIComponent(playerId)}`, expectedStatus: 200 },
+        { name: 'amm.quote.buy', method: 'GET', path: `/api/amm/${encodeURIComponent(playerId)}/quote?type=buy&amount=10`, expectedStatus: 200 },
+        ...(includeHeavy ? [{ name: 'admin.diagnostics.player', method: 'GET', path: `/api/admin/diagnostics?playerId=${encodeURIComponent(playerId)}`, expectedStatus: 200 } as SmokeTarget] : []),
+      );
+    }
+
+    const fetchOne = async (t: SmokeTarget) => {
+      const url = `${baseUrl}${t.path}`;
+      const started = Date.now();
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const r = await fetch(url, {
+          method: t.method,
+          headers: {
+            ...(authHeader ? { authorization: authHeader } : {}),
+            'accept': 'application/json',
+          },
+          signal: controller.signal,
+        });
+
+        const ms = Date.now() - started;
+        const ct = r.headers.get('content-type') || '';
+        let bodySnippet: string | null = null;
+        try {
+          const text = await r.text();
+          bodySnippet = text ? text.slice(0, 400) : '';
+        } catch {
+          bodySnippet = null;
+        }
+
+        const ok = t.expectedStatus ? r.status === t.expectedStatus : r.ok;
+        return {
+          name: t.name,
+          method: t.method,
+          url,
+          status: r.status,
+          ok,
+          ms,
+          contentType: ct,
+          bodySnippet,
+        };
+      } catch (error: any) {
+        const ms = Date.now() - started;
+        return {
+          name: t.name,
+          method: t.method,
+          url,
+          status: null as any,
+          ok: false,
+          ms,
+          error: error?.name === 'AbortError' ? `timeout_after_${timeoutMs}ms` : (error?.message || String(error)),
+        };
+      } finally {
+        clearTimeout(timer);
+      }
+    };
+
+    // Run with limited concurrency to avoid self-DOS
+    const concurrency = 4;
+    const results: any[] = [];
+    let idx = 0;
+
+    const workers = Array.from({ length: Math.min(concurrency, targets.length) }).map(async () => {
+      while (true) {
+        const myIdx = idx;
+        idx += 1;
+        if (myIdx >= targets.length) break;
+        results[myIdx] = await fetchOne(targets[myIdx]);
+      }
+    });
+
+    await Promise.all(workers);
+
+    const passed = results.filter(r => r && r.ok).length;
+    const failed = results.filter(r => r && !r.ok).length;
+
+    res.json({
+      ok: failed === 0,
+      adminContext: req.adminContext || null,
+      baseUrl,
+      timeoutMs,
+      includeHeavy,
+      playerId,
+      summary: {
+        total: results.length,
+        passed,
+        failed,
+      },
+      results,
+      timingMs: Date.now() - startedAt,
+    });
   });
 
   // Admin endpoint: Manually trigger cron jobs
@@ -5700,7 +5874,7 @@ ${posts.map(post => `  <url>
         return res.status(400).json({ error: 'jobName required' });
       }
 
-      const validJobs = ['roster_sync', 'sync_player_game_logs', 'schedule_sync', 'stats_sync', 'create_contests', 'settle_contests', 'daily_snapshot', 'backfill_market_snapshots', 'refresh_player_metrics'];
+      const validJobs = jobScheduler.getAvailableManualJobNames();
       if (!validJobs.includes(jobName)) {
         return res.status(400).json({ error: `Invalid jobName. Must be one of: ${validJobs.join(', ')}` });
       }
@@ -7351,14 +7525,23 @@ ${posts.map(post => `  <url>
         });
       }
 
-      // Get the holding to capture power (per-share power) before boost is created
-      const holding = await storage.getHolding(userId, "player", playerId);
-      if (!holding || parseFloat(holding.quantity) < 1) {
+      // Select a deterministic holding row and capture PER-SHARE power.
+      // Boost slots always burn exactly 1 share; "powerLevel" on the boost represents
+      // the power of that single share for payout calculations.
+      const breakdown = await storage.getHoldingsWithPowerBreakdown(userId, playerId);
+      const candidates = [
+        ...(breakdown.powered || []).filter(h => parseFloat(h.quantity) >= 1),
+        ...(breakdown.regular && parseFloat(breakdown.regular.quantity) >= 1 ? [breakdown.regular] : []),
+      ];
+
+      if (candidates.length === 0) {
         return res.status(400).json({ error: "No shares available for this player" });
       }
-      // Capture the total power level (quantity × per-share power) for the boost
-      // This represents the effective share power for payout calculations
-      const power = holding.powerLevel.toString();
+
+      // Prefer powered share if it exists; otherwise regular. If multiple powered exist, use highest power.
+      const selectedHolding = candidates.sort((a: any, b: any) => (b.power || 1) - (a.power || 1))[0];
+      const powerPerShare = selectedHolding.power || 1;
+      const power = Number(powerPerShare).toFixed(2);
 
       // Create the boost on ET game day
       const boostDate = startOfDay;
@@ -7370,7 +7553,7 @@ ${posts.map(post => `  <url>
         slotTier: tierNum,
         boostDate,
         sharesEntered: shares,
-        powerLevel: power, // Use total power level for payout calculations
+        powerLevel: power, // Power of the single burned share
         gameId: game.gameId,
       });
 

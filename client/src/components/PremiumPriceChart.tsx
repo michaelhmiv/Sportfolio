@@ -18,8 +18,6 @@ interface PriceHistoryPoint {
 
 interface PremiumMarketData {
   lastTradePrice: number | null;
-  bestBid: { price: number; quantity: number } | null;
-  bestAsk: { price: number; quantity: number } | null;
   circulation: number;
   priceHistory: PriceHistoryPoint[];
   totalTrades: number;

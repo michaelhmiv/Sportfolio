@@ -12,6 +12,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { TrendingUp, TrendingDown, DollarSign, Calendar, Search, ChevronDown, BarChart3, ChevronLeft, ChevronRight, ExternalLink, ArrowUpDown, LogIn, Activity, Trophy, Clock } from "lucide-react";
+import { useAppState } from "@/hooks/use-app-state";
 import { Link, useLocation } from "wouter";
 import type { Player, Trade, DailyGame } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -102,6 +103,10 @@ export default function Dashboard() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const { sport } = useSport();
   const [flippedGameId, setFlippedGameId] = useState<string | null>(null);
+  const { shouldPoll, isMobile } = useAppState();
+
+  // Disable polling when app is backgrounded or offline; reduce frequency on mobile
+  const pollingInterval = shouldPoll ? (isMobile ? 20000 : 10000) : false;
 
   const { data, isLoading } = useQuery<DashboardData>({
     queryKey: ["/api/dashboard"],
@@ -133,7 +138,8 @@ export default function Dashboard() {
         throw err;
       }
     },
-    refetchInterval: 10000,
+    refetchInterval: pollingInterval,
+    refetchIntervalInBackground: false,
   });
 
   // Format date as YYYY-MM-DD
@@ -633,7 +639,7 @@ export default function Dashboard() {
                       <Link key={holding.player.id} href={`/player/${holding.player.id}`}>
                         <div className="p-2 rounded-md hover-elevate">
                           <div className="flex items-center justify-between mb-1">
-                            <span className="font-medium text-sm">{holding.player.firstName} {holding.player.lastName}</span>
+                            <PlayerName playerId={holding.player.id} firstName={holding.player.firstName} lastName={holding.player.lastName} className="font-medium text-sm" />
                             {holding.value !== null ? (
                               <span className="font-mono font-bold text-sm">${holding.value}</span>
                             ) : (

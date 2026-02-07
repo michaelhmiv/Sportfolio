@@ -9,13 +9,14 @@ import {
   TrendingUp,
   Users,
   Trophy,
-  Wallet
+  Wallet,
+  Droplets
 } from "lucide-react";
 
 interface EmptyStateProps extends React.HTMLAttributes<HTMLDivElement> {
   title: string;
   description?: string;
-  icon?: "inbox" | "search" | "file" | "cart" | "chart" | "users" | "trophy" | "wallet" | React.ReactNode;
+  icon?: "inbox" | "search" | "file" | "cart" | "chart" | "users" | "trophy" | "wallet" | "droplets" | React.ReactNode;
   action?: {
     label: string;
     onClick: () => void;
@@ -32,6 +33,7 @@ const iconMap = {
   users: Users,
   trophy: Trophy,
   wallet: Wallet,
+  droplets: Droplets,
 };
 
 export function EmptyState({
@@ -204,8 +206,8 @@ export function EmptyPortfolio({ onBrowse, className }: EmptyPortfolioProps) {
     <EmptyState
       icon="wallet"
       title="Your portfolio is empty"
-      description="Start trading to build your portfolio. Browse the marketplace to find players to invest in."
-      action={onBrowse ? { label: "Browse Marketplace", onClick: onBrowse } : undefined}
+      description="Start trading to build your portfolio. Browse player pools to find players to invest in."
+      action={onBrowse ? { label: "Browse Player Pools", onClick: onBrowse } : undefined}
       className={className}
     />
   );

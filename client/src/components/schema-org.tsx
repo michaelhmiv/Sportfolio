@@ -63,7 +63,7 @@ export const schemas = {
     "url": "https://sportfolio.replit.app",
     "potentialAction": {
       "@type": "SearchAction",
-      "target": "https://sportfolio.replit.app/marketplace?search={search_term_string}",
+      "target": "https://sportfolio.replit.app/pools?search={search_term_string}",
       "query-input": "required name=search_term_string"
     }
   },

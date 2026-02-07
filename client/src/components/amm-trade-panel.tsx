@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { apiRequest } from "@/lib/queryClient";
 
 interface AmmTradePanelProps {
   playerId: string;
@@ -192,20 +193,10 @@ export function AmmTradePanel({
   // Execute buy mutation
   const buyMutation = useMutation({
     mutationFn: async (sbAmount: number) => {
-      const res = await fetch(`/api/amm/${playerId}/buy`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sbAmount,
-          maxSlippage: maxSlippage / 100
-        }),
+      const res = await apiRequest("POST", `/api/amm/${playerId}/buy`, {
+        sbAmount,
+        maxSlippage: maxSlippage / 100,
       });
-
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.error || "Failed to execute buy");
-      }
-
       return res.json();
     },
     onSuccess: (data) => {
@@ -235,20 +226,10 @@ export function AmmTradePanel({
   // Execute sell mutation
   const sellMutation = useMutation({
     mutationFn: async (sharesAmount: number) => {
-      const res = await fetch(`/api/amm/${playerId}/sell`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sharesAmount,
-          maxSlippage: maxSlippage / 100
-        }),
+      const res = await apiRequest("POST", `/api/amm/${playerId}/sell`, {
+        sharesAmount,
+        maxSlippage: maxSlippage / 100,
       });
-
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.error || "Failed to execute sell");
-      }
-
       return res.json();
     },
     onSuccess: (data) => {

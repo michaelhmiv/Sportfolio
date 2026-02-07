@@ -1,7 +1,7 @@
 
-import { storage } from "../server/storage";
-import { db } from "../server/db";
-import { players, orders } from "@shared/schema";
+import { storage } from "../../../server/storage";
+import { db } from "../../../server/db";
+import { players, orders } from "../../../shared/schema";
 import { sql, gte, and, inArray } from "drizzle-orm";
 
 async function debugSentiment() {

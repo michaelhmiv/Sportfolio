@@ -4,11 +4,7 @@ Sportfolio player trading is **AMM-only**.
 
 ## Archived player-market endpoints
 
-The legacy player order-book endpoints are retired and return `410 Gone`:
-
-- `GET /api/orders/:playerId/preview`
-- `POST /api/orders/:playerId`
-- `POST /api/orders/:orderId/cancel`
+The legacy player order-book endpoints have been removed.
 
 ## Active player trading endpoints
 

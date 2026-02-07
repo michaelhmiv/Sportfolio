@@ -1,19 +1,25 @@
 import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useParams, useSearch } from "wouter";
 import { useWebSocket } from "@/lib/websocket";
 import { useAuth } from "@/hooks/useAuth";
+import { useAppState } from "@/hooks/use-app-state";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
 import { TrendingUp, TrendingDown, BarChart2, Droplets, Info } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { LineChart, Line, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer } from "recharts";
-import { queryClient } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { invalidatePortfolioQueries } from "@/lib/cache-invalidation";
 import type { Player, Trade, PriceHistory } from "@shared/schema";
 import { SchemaOrg, schemas } from "@/components/schema-org";
+import { InjuryIndicator } from "@/components/player-name";
+import { useInjuries } from "@/lib/injury-context";
 import { AnimatedPrice } from "@/components/ui/animated-price";
 import { Confetti, CelebrationBurst } from "@/components/ui/confetti";
 import { PlayerModal } from "@/components/player-modal";
@@ -47,20 +53,34 @@ interface UserLpPosition {
   equivalentShares: number;
   equivalentPlayMoney: number;
   positionValue: number;
+  feesEarnedToDate: number;
 }
 
 type TimeRange = "1D" | "1W" | "1M" | "1Y";
 
 export default function PlayerPage() {
-  const { id } = useParams<{ id: string }>();
+  const { id: rawId } = useParams<{ id: string }>();
+  const id = (rawId || "").split("?")[0].split("#")[0].trim();
   const searchParams = new URLSearchParams(useSearch());
-  const initialTradeType = searchParams.get("tab") === "buy" ? "buy" : undefined;
+  const initialTradeType = searchParams.get("tab") === "buy" ? "buy" : (searchParams.get("tab") === "sell" ? "sell" : undefined);
+  const initialPanel = searchParams.get("panel");
   const { toast } = useToast();
   const { subscribe } = useWebSocket();
   const { isAuthenticated, isLoading: authLoading, session } = useAuth();
+  const { shouldPoll, isMobile } = useAppState();
+  const { getInjury } = useInjuries();
   const [timeRange, setTimeRange] = useState<TimeRange>("1D");
   const [celebrationKey, setCelebrationKey] = useState(0);
   const [statsModalOpen, setStatsModalOpen] = useState(false);
+
+  // Liquidity UI (simple, no jargon)
+  const [addLiquidityOpen, setAddLiquidityOpen] = useState(false);
+  const [removeLiquidityOpen, setRemoveLiquidityOpen] = useState(false);
+  const [maxSharesToUse, setMaxSharesToUse] = useState(0);
+  const [maxPlayMoneyToUse, setMaxPlayMoneyToUse] = useState(0);
+  const [linkAmounts, setLinkAmounts] = useState(false);
+  const [lastEdited, setLastEdited] = useState<"shares" | "sb" | null>(null);
+  const [removePercent, setRemovePercent] = useState(50);
 
   // Fetch player data
   const { data, isLoading, isError } = useQuery<PlayerPageData>({
@@ -70,7 +90,7 @@ export default function PlayerPage() {
       if (session?.access_token) {
         headers['Authorization'] = `Bearer ${session.access_token}`;
       }
-      const res = await fetch(`/api/player/${id}?range=${timeRange}`, {
+      const res = await fetch(`/api/player/${encodeURIComponent(id)}?range=${timeRange}`, {
         credentials: "include",
         headers,
       });
@@ -84,7 +104,7 @@ export default function PlayerPage() {
   const { data: poolData, isLoading: isPoolLoading, error: poolError } = useQuery<AmmPoolData>({
     queryKey: ["/api/amm", id],
     queryFn: async () => {
-      const res = await fetch(`/api/amm/${id}`, {
+      const res = await fetch(`/api/amm/${encodeURIComponent(id)}`, {
         credentials: "include",
       });
       if (!res.ok) {
@@ -108,7 +128,7 @@ export default function PlayerPage() {
       if (session?.access_token) {
         headers['Authorization'] = `Bearer ${session.access_token}`;
       }
-      const res = await fetch(`/api/lp/${id}/position`, {
+      const res = await fetch(`/api/lp/${encodeURIComponent(id)}/position`, {
         credentials: "include",
         headers,
       });
@@ -117,6 +137,110 @@ export default function PlayerPage() {
       return data.position;
     },
     enabled: !!id && isAuthenticated,
+  });
+
+  const currentPoolPrice = poolData?.currentPrice ?? null;
+
+  const userSharesBalance = parseFloat(String(data?.userHolding?.quantity || 0));
+  const userPlayMoneyBalance = parseFloat(String(data?.userBalance || 0));
+
+  const estimatedSharesDeposited = currentPoolPrice
+    ? Math.min(maxSharesToUse, maxPlayMoneyToUse / currentPoolPrice)
+    : 0;
+  const estimatedPlayMoneyDeposited = currentPoolPrice
+    ? estimatedSharesDeposited * currentPoolPrice
+    : 0;
+  const estimatedTotalValue = estimatedPlayMoneyDeposited * 2;
+  const estimatedSharesUnused = Math.max(0, maxSharesToUse - estimatedSharesDeposited);
+  const estimatedPlayMoneyUnused = Math.max(0, maxPlayMoneyToUse - estimatedPlayMoneyDeposited);
+
+  const isLinkingConstrained = linkAmounts && currentPoolPrice ? (
+    (lastEdited === "shares" && (maxSharesToUse * currentPoolPrice) > userPlayMoneyBalance + 1e-9) ||
+    (lastEdited === "sb" && ((maxPlayMoneyToUse / currentPoolPrice) > userSharesBalance + 1e-9))
+  ) : false;
+
+  useEffect(() => {
+    if (initialPanel !== "lp") return;
+    setAddLiquidityOpen(true);
+  }, [initialPanel]);
+
+  useEffect(() => {
+    if (!linkAmounts) return;
+    if (!currentPoolPrice) return;
+
+    if (lastEdited === "shares") {
+      const requiredSb = maxSharesToUse * currentPoolPrice;
+      const nextSb = Math.min(userPlayMoneyBalance, requiredSb);
+      if (Math.abs(nextSb - maxPlayMoneyToUse) > 0.0001) {
+        setMaxPlayMoneyToUse(nextSb);
+      }
+    }
+
+    if (lastEdited === "sb") {
+      const requiredShares = maxPlayMoneyToUse / currentPoolPrice;
+      const nextShares = Math.min(userSharesBalance, requiredShares);
+      if (Math.abs(nextShares - maxSharesToUse) > 0.0001) {
+        setMaxSharesToUse(nextShares);
+      }
+    }
+  }, [linkAmounts, lastEdited, currentPoolPrice, maxSharesToUse, maxPlayMoneyToUse, userSharesBalance, userPlayMoneyBalance]);
+
+  const addLiquidityOptimalMutation = useMutation({
+    mutationFn: async () => {
+      if (!currentPoolPrice) throw new Error("Pool price unavailable");
+      if (maxSharesToUse <= 0 || maxPlayMoneyToUse <= 0) throw new Error("Select shares and SB to use");
+      const res = await apiRequest("POST", `/api/lp/${encodeURIComponent(id)}/add-optimal`, {
+        maxShares: maxSharesToUse,
+        maxPlayMoney: maxPlayMoneyToUse,
+      });
+      return res.json();
+    },
+    onSuccess: async (result: any) => {
+      toast({
+        title: "Liquidity Added",
+        description: `Used ${Number(result.sharesDeposited || 0).toFixed(4)} shares + $${Number(result.playMoneyDeposited || 0).toFixed(2)}`,
+      });
+      setAddLiquidityOpen(false);
+      setMaxSharesToUse(0);
+      setMaxPlayMoneyToUse(0);
+      setLinkAmounts(false);
+      setLastEdited(null);
+
+      invalidatePortfolioQueries();
+      queryClient.invalidateQueries({ queryKey: ["/api/amm", id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/lp", id, "position"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/lp/positions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/player", id, timeRange] });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Add Liquidity Failed", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const removeLiquidityMutation = useMutation({
+    mutationFn: async () => {
+      if (!lpPosition || lpPosition.lpShares <= 0) throw new Error("No LP position to remove");
+      const pct = Math.max(0, Math.min(100, removePercent));
+      const lpSharesToRemove = (lpPosition.lpShares * pct) / 100;
+      if (lpSharesToRemove <= 0) throw new Error("Select an amount to remove");
+      const res = await apiRequest("POST", `/api/lp/${encodeURIComponent(id)}/remove`, { lpShares: lpSharesToRemove });
+      return res.json();
+    },
+    onSuccess: async (result: any) => {
+      toast({
+        title: "Liquidity Removed",
+        description: `Received ${Number(result.sharesReceived || 0).toFixed(2)} shares + $${Number(result.playMoneyReceived || 0).toFixed(2)}`,
+      });
+      setRemoveLiquidityOpen(false);
+      invalidatePortfolioQueries();
+      queryClient.invalidateQueries({ queryKey: ["/api/amm", id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/lp", id, "position"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/lp/positions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/player", id, timeRange] });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Remove Liquidity Failed", description: error.message, variant: "destructive" });
+    },
   });
 
   // WebSocket subscriptions for real-time updates
@@ -233,7 +357,10 @@ export default function PlayerPage() {
                 <span className="text-sm sm:text-base font-bold">{player.firstName[0]}{player.lastName[0]}</span>
               </div>
               <div className="min-w-0">
-                <h1 className="text-base sm:text-lg font-bold">{player.firstName} {player.lastName}</h1>
+                <h1 className="text-base sm:text-lg font-bold inline-flex items-center gap-1.5">
+                  {player.firstName} {player.lastName}
+                  {getInjury(player.id) && <InjuryIndicator injury={getInjury(player.id)!} size="md" />}
+                </h1>
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <Badge className="text-xs">{player.team}</Badge>
                   <Badge variant="outline" className="text-xs">{player.position}</Badge>
@@ -368,8 +495,7 @@ export default function PlayerPage() {
                       </TooltipTrigger>
                       <TooltipContent>
                         <p className="max-w-xs text-xs">
-                          Constant Product AMM (x × y = k). Trade instantly against the pool. 
-                          1% fee benefits LPs, 1% burned.
+                          1% fee to LPs, 1% burned.
                         </p>
                       </TooltipContent>
                     </Tooltip>
@@ -402,8 +528,8 @@ export default function PlayerPage() {
                           <div className="font-mono font-bold text-sm">{poolData.shares.toLocaleString()}</div>
                         </div>
                         <div className="p-2 bg-muted/50 rounded">
-                          <div className="text-[10px] text-muted-foreground uppercase">Pool Liquidity</div>
-                          <div className="font-mono font-bold text-sm">${poolData.playMoney.toLocaleString()}</div>
+                          <div className="text-[10px] text-muted-foreground uppercase">Pool TVL</div>
+                          <div className="font-mono font-bold text-sm">${(poolData.playMoney + (poolData.shares * poolData.currentPrice)).toLocaleString()}</div>
                         </div>
                       </div>
 
@@ -424,11 +550,45 @@ export default function PlayerPage() {
                             <span className="text-sm text-muted-foreground">Value</span>
                             <span className="font-mono">${lpPosition.positionValue.toFixed(2)}</span>
                           </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-muted-foreground">Fees earned</span>
+                            <span className="font-mono">${lpPosition.feesEarnedToDate.toFixed(2)}</span>
+                          </div>
                           <div className="text-xs text-muted-foreground mt-1">
                             {Math.round(lpPosition.equivalentShares)} shares in pool
                           </div>
                         </div>
                       )}
+
+                      <div className={lpPosition && lpPosition.lpShares > 0 ? "grid grid-cols-2 gap-2" : "grid grid-cols-1 gap-2"}>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="w-full"
+                          onClick={() => {
+                            setAddLiquidityOpen(true);
+                            setMaxSharesToUse(0);
+                            setMaxPlayMoneyToUse(0);
+                            setLinkAmounts(false);
+                            setLastEdited(null);
+                          }}
+                        >
+                          Add Liquidity
+                        </Button>
+                        {lpPosition && lpPosition.lpShares > 0 && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="w-full"
+                            onClick={() => {
+                              setRemovePercent(50);
+                              setRemoveLiquidityOpen(true);
+                            }}
+                          >
+                            Remove Liquidity
+                          </Button>
+                        )}
+                      </div>
                     </>
                   ) : (
                     <div className="text-center text-muted-foreground py-4">No pool data available</div>
@@ -474,6 +634,169 @@ export default function PlayerPage() {
           </div>
         </div>
       </div>
+
+      <Dialog open={addLiquidityOpen} onOpenChange={setAddLiquidityOpen}>
+        <DialogContent className="max-w-md" data-testid="dialog-add-liquidity">
+          <DialogHeader>
+            <DialogTitle>Add Liquidity</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="text-xs text-muted-foreground">
+              Uses the latest pool price at execution. Final amounts may adjust slightly and any unused amount stays in your wallet.
+            </div>
+
+            <div className="rounded-md border bg-muted/30 p-3 text-xs space-y-1">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Current price</span>
+                <span className="font-mono">{currentPoolPrice ? `$${currentPoolPrice.toFixed(2)}` : "-"} / share</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Your balance</span>
+                <span className="font-mono">{userSharesBalance.toFixed(4)} shares, ${userPlayMoneyBalance.toFixed(2)} SB</span>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span>Max shares to use</span>
+                <span className="font-mono">{maxSharesToUse.toFixed(4)}</span>
+              </div>
+              <Slider
+                value={[maxSharesToUse]}
+                min={0}
+                max={Math.max(0, userSharesBalance)}
+                step={0.01}
+                onValueChange={(v) => {
+                  const next = v[0] ?? 0;
+                  setMaxSharesToUse(next);
+                  setLastEdited("shares");
+                }}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span>Max SB to use</span>
+                <span className="font-mono">${maxPlayMoneyToUse.toFixed(2)}</span>
+              </div>
+              <Slider
+                value={[maxPlayMoneyToUse]}
+                min={0}
+                max={Math.max(0, userPlayMoneyBalance)}
+                step={1}
+                onValueChange={(v) => {
+                  const next = v[0] ?? 0;
+                  setMaxPlayMoneyToUse(next);
+                  setLastEdited("sb");
+                }}
+              />
+            </div>
+
+            <div className="flex items-center justify-between rounded-md border p-3">
+              <div>
+                <div className="text-sm font-medium">Auto-balance amounts</div>
+                <div className="text-xs text-muted-foreground">When enabled, adjusting one side updates the other to match.</div>
+              </div>
+              <Switch
+                checked={linkAmounts}
+                onCheckedChange={(checked) => {
+                  setLinkAmounts(checked);
+                  if (checked && !lastEdited) setLastEdited("shares");
+                }}
+              />
+            </div>
+
+            {isLinkingConstrained && (
+              <div className="text-xs text-muted-foreground">
+                You don't have enough on the other side to fully match this selection. We'll only deposit what can be paired.
+              </div>
+            )}
+
+            <div className="rounded-md border bg-muted/30 p-3 text-xs space-y-1">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Est. deposit</span>
+                <span className="font-mono">{estimatedSharesDeposited.toFixed(4)} shares + ${estimatedPlayMoneyDeposited.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Est. unused</span>
+                <span className="font-mono">{estimatedSharesUnused.toFixed(4)} shares + ${estimatedPlayMoneyUnused.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Est. total value</span>
+                <span className="font-mono">${estimatedTotalValue.toFixed(2)}</span>
+              </div>
+            </div>
+
+            <Button
+              className="w-full"
+              onClick={() => addLiquidityOptimalMutation.mutate()}
+              disabled={addLiquidityOptimalMutation.isPending || estimatedSharesDeposited <= 0 || estimatedPlayMoneyDeposited <= 0}
+            >
+              {addLiquidityOptimalMutation.isPending ? "Adding..." : "Add Liquidity"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={removeLiquidityOpen} onOpenChange={setRemoveLiquidityOpen}>
+        <DialogContent className="max-w-md" data-testid="dialog-remove-liquidity">
+          <DialogHeader>
+            <DialogTitle>Remove Liquidity</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="text-xs text-muted-foreground">
+              Estimated returns may adjust slightly at execution.
+            </div>
+
+            <div className="rounded-md border bg-muted/30 p-3 text-xs space-y-1">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Your ownership</span>
+                <span className="font-mono">{lpPosition ? `${(lpPosition.ownershipPercentage * 100).toFixed(2)}%` : "-"}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Fees earned</span>
+                <span className="font-mono">${lpPosition ? lpPosition.feesEarnedToDate.toFixed(2) : "0.00"}</span>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span>Remove percent</span>
+                <span className="font-mono">{removePercent}%</span>
+              </div>
+              <Slider
+                value={[removePercent]}
+                min={0}
+                max={100}
+                step={1}
+                onValueChange={(v) => setRemovePercent(v[0] ?? 0)}
+              />
+            </div>
+
+            <div className="rounded-md border bg-muted/30 p-3 text-xs space-y-1">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Est. shares</span>
+                <span className="font-mono">{lpPosition ? (lpPosition.equivalentShares * (removePercent / 100)).toFixed(2) : "0.00"}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Est. SB</span>
+                <span className="font-mono">${lpPosition ? (lpPosition.equivalentPlayMoney * (removePercent / 100)).toFixed(2) : "0.00"}</span>
+              </div>
+            </div>
+
+            <Button
+              className="w-full"
+              variant="outline"
+              onClick={() => removeLiquidityMutation.mutate()}
+              disabled={removeLiquidityMutation.isPending || !lpPosition || lpPosition.lpShares <= 0 || removePercent <= 0}
+            >
+              {removeLiquidityMutation.isPending ? "Removing..." : "Remove Liquidity"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Player Stats Modal */}
       <PlayerModal

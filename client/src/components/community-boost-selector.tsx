@@ -207,7 +207,7 @@ export function CommunityBoostSelector({ open, onOpenChange, selectedDate }: Com
           boostCount: boostCountMap.get(player.id) || 0,
           price: parseFloat((player as any).lastTradePrice || player.currentPrice || '0'),
           change: parseFloat(player.priceChange24h || '0'),
-          volume: player.volume24h || 0,
+            volume: player.volume24h || 0,
           mcap: parseFloat(player.marketCap || '0'),
           fpts: parseFloat(player.avgFantasyPointsPerGame || '0'),
         };

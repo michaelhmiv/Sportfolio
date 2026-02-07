@@ -137,6 +137,27 @@ export interface NBABoxScore {
     };
 }
 
+export interface NBAPlayerInjury {
+    player: {
+        id: number;
+        first_name: string;
+        last_name: string;
+        position: string;
+        height: string;
+        weight: string;
+        jersey_number: string;
+        college: string;
+        country: string;
+        draft_year: number | null;
+        draft_round: number | null;
+        draft_number: number | null;
+        team_id: number;
+    };
+    return_date: string; // e.g., "Nov 17"
+    description: string; // Full injury description
+    status: string; // "Out", "Doubtful", "Questionable", "Day-To-Day", etc.
+}
+
 interface PaginatedResponse<T> {
     data: T[];
     meta: {
@@ -320,6 +341,46 @@ export async function fetchLiveBoxScores(): Promise<NBABoxScore[]> {
         console.error("[NBA API] Error fetching live box scores:", error.message);
         throw error;
     }
+}
+
+/**
+ * Fetch all player injuries
+ * Requires ALL-STAR tier or higher
+ */
+export async function fetchPlayerInjuries(): Promise<NBAPlayerInjury[]> {
+    const allInjuries: NBAPlayerInjury[] = [];
+    let cursor: number | null = null;
+    let pageCount = 0;
+
+    console.log("[NBA API] Fetching player injuries...");
+
+    do {
+        const params: Record<string, any> = { per_page: 100 };
+        if (cursor) params.cursor = cursor;
+
+        try {
+            const response = await balldontlieRateLimiter.executeWithRetry(
+                () => apiClient.get<PaginatedResponse<NBAPlayerInjury>>("/player_injuries", { params })
+            );
+            const injuries = response.data.data || [];
+            allInjuries.push(...injuries);
+            cursor = response.data.meta?.next_cursor || null;
+            pageCount++;
+
+            console.log(`[NBA API] Fetched page ${pageCount}: ${injuries.length} injuries (total: ${allInjuries.length})`);
+        } catch (error: any) {
+            // 401 means the tier doesn't have access - fail silently
+            if (error.response?.status === 401) {
+                console.warn("[NBA API] Player injuries endpoint requires ALL-STAR tier or higher");
+                return [];
+            }
+            console.error(`[NBA API] Error fetching injuries page ${pageCount + 1}:`, error.message);
+            throw error;
+        }
+    } while (cursor);
+
+    console.log(`[NBA API] Completed: ${allInjuries.length} player injuries fetched`);
+    return allInjuries;
 }
 
 /**

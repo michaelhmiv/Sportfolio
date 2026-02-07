@@ -5,12 +5,54 @@ let initializationPromise: Promise<SupabaseClient> | null = null;
 
 const CONFIG_CACHE_KEY = 'supabase_config';
 const CONFIG_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const AUTH_STORAGE_KEY = 'sportfolio-auth-token';
 
 interface CachedConfig {
   url: string;
   anonKey: string;
   cachedAt: number;
 }
+
+// Custom storage adapter that uses both localStorage and sessionStorage as fallback
+// This helps with PWA session persistence on Android
+const customStorageAdapter = {
+  getItem: (key: string): string | null => {
+    try {
+      // Try localStorage first
+      const value = localStorage.getItem(key);
+      if (value) return value;
+      
+      // Fallback to sessionStorage (for PWA edge cases)
+      return sessionStorage.getItem(key);
+    } catch (e) {
+      console.warn('[SUPABASE] Storage read failed:', e);
+      return null;
+    }
+  },
+  setItem: (key: string, value: string): void => {
+    try {
+      // Store in both for redundancy
+      localStorage.setItem(key, value);
+      sessionStorage.setItem(key, value);
+    } catch (e) {
+      console.warn('[SUPABASE] Storage write failed:', e);
+      // Try sessionStorage only as fallback
+      try {
+        sessionStorage.setItem(key, value);
+      } catch (e2) {
+        console.error('[SUPABASE] All storage failed:', e2);
+      }
+    }
+  },
+  removeItem: (key: string): void => {
+    try {
+      localStorage.removeItem(key);
+      sessionStorage.removeItem(key);
+    } catch (e) {
+      console.warn('[SUPABASE] Storage remove failed:', e);
+    }
+  },
+};
 
 function debugLog(stage: string, message: string, data?: any) {
   const timestamp = new Date().toISOString();
@@ -63,7 +105,8 @@ async function initializeSupabase(): Promise<SupabaseClient> {
         autoRefreshToken: true,
         persistSession: true,
         detectSessionInUrl: true,
-        storageKey: 'sportfolio-auth-token',
+        storageKey: AUTH_STORAGE_KEY,
+        storage: customStorageAdapter,
         flowType: 'pkce',
       },
     });
@@ -105,7 +148,8 @@ async function initializeSupabase(): Promise<SupabaseClient> {
         autoRefreshToken: true,
         persistSession: true,
         detectSessionInUrl: true,
-        storageKey: 'sportfolio-auth-token',
+        storageKey: AUTH_STORAGE_KEY,
+        storage: customStorageAdapter,
         flowType: 'pkce',
       },
     });

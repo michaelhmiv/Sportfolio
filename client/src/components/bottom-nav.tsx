@@ -26,8 +26,8 @@ const navItems = [
     icon: Home,
   },
   {
-    title: "Marketplace",
-    url: "/marketplace",
+    title: "Player Pools",
+    url: "/pools",
     icon: TrendingUp,
   },
   {

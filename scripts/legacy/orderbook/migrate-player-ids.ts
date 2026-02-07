@@ -5,8 +5,8 @@
  * 1. Updates 3 players found in API (LeBron, Paul George, Cameron Thomas)
  * 2. Deletes 6 players not in API (injured/not playing this season)
  */
-import { db } from '../db';
-import { players, holdings, orders, playerGameStats } from '../../shared/schema';
+import { db } from '../../../server/db';
+import { players, holdings, orders, playerGameStats } from '../../../shared/schema';
 import { eq } from 'drizzle-orm';
 
 async function main() {

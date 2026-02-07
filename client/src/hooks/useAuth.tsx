@@ -296,7 +296,6 @@ export function useAuth() {
             '/api/auth',
             '/api/dashboard',
             '/api/holdings',
-            '/api/orders',
             '/api/portfolio',
             '/api/mining',
             '/api/admin',

@@ -45,7 +45,7 @@ export function OnboardingMissions() {
             description: "Add a player to your watch list.",
             icon: <Search className="w-4 h-4" />,
             completed: (watchList?.length || 0) > 0,
-            link: "/marketplace"
+            link: "/pools"
         },
         {
             id: "trade",
@@ -53,7 +53,7 @@ export function OnboardingMissions() {
             description: "Buy your first shares on the exchange.",
             icon: <ShoppingCart className="w-4 h-4" />,
             completed: (trades?.filter((t: any) => t.activityType === 'trade')?.length || 0) > 0,
-            link: "/marketplace"
+            link: "/pools"
         },
         {
             id: "compete",
