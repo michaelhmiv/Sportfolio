@@ -5,7 +5,10 @@ let initializationPromise: Promise<SupabaseClient> | null = null;
 
 const CONFIG_CACHE_KEY = 'supabase_config';
 const CONFIG_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
-const AUTH_STORAGE_KEY = 'sportfolio-auth-token';
+// IMPORTANT: Supabase client defaults to a specific storage key; using a custom key can break
+// session persistence across contexts (e.g., installed PWA vs browser tab) and across upgrades.
+// Prefer the default key unless there's a strong reason to customize.
+const AUTH_STORAGE_KEY = 'sb-auth-token';
 
 interface CachedConfig {
   url: string;
@@ -105,6 +108,7 @@ async function initializeSupabase(): Promise<SupabaseClient> {
         autoRefreshToken: true,
         persistSession: true,
         detectSessionInUrl: true,
+        // Use default storage key for compatibility with Supabase session management.
         storageKey: AUTH_STORAGE_KEY,
         storage: customStorageAdapter,
         flowType: 'pkce',
@@ -148,6 +152,7 @@ async function initializeSupabase(): Promise<SupabaseClient> {
         autoRefreshToken: true,
         persistSession: true,
         detectSessionInUrl: true,
+        // Use default storage key for compatibility with Supabase session management.
         storageKey: AUTH_STORAGE_KEY,
         storage: customStorageAdapter,
         flowType: 'pkce',
