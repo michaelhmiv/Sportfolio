@@ -12,6 +12,7 @@ export default function CheckoutSuccess() {
   const [receiptId, setReceiptId] = useState<string | null>(null);
   const [state, setState] = useState<"processing" | "credited" | "pending" | "error">("processing");
   const [message, setMessage] = useState<string>("We're finalizing your payment...");
+  const [showManualCheck, setShowManualCheck] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -20,11 +21,15 @@ export default function CheckoutSuccess() {
     const receipt = params.get("receipt_id") || params.get("payment_id");
     setReceiptId(receipt);
 
-    const finalize = async () => {
+    let cancelled = false;
+    let timer: number | null = null;
+    const startedAt = Date.now();
+
+    const finalizeOnce = async (): Promise<{ terminal: boolean; pending: boolean }> => {
       if (!receipt) {
         setState("pending");
         setMessage("Missing receipt id. We could not verify this checkout yet.");
-        return;
+        return { terminal: true, pending: true };
       }
 
       try {
@@ -47,7 +52,7 @@ export default function CheckoutSuccess() {
         if (!response) {
           setState("error");
           setMessage("Network error while finalizing payment.");
-          return;
+          return { terminal: true, pending: false };
         }
 
         let data: any = null;
@@ -59,36 +64,62 @@ export default function CheckoutSuccess() {
         if (response.ok && data?.success && data?.state === "credited") {
           setState("credited");
           setMessage("Payment confirmed and shares credited to your account.");
-          return;
+          return { terminal: true, pending: false };
         }
 
         if (response.status === 202 || data?.state === "pending" || data?.state === "unresolved") {
           setState("pending");
-          setMessage("Payment received but still reconciling. Please refresh in a moment.");
-          return;
+          setMessage("Payment received. Confirming automatically...");
+          return { terminal: false, pending: true };
         }
 
         if (response.status === 401) {
           setState("error");
           setMessage("You're not signed in. Please sign in again, then refresh this page to confirm your payment.");
-          return;
+          return { terminal: true, pending: false };
         }
 
         if (response.status === 409 && (data?.reason === "underpaid" || data?.reason === "amount_mismatch")) {
           setState("error");
           setMessage("We received a payment, but the paid amount didn't match the selected quantity. Please contact support or try the purchase again.");
-          return;
+          return { terminal: true, pending: false };
         }
 
         setState("error");
         setMessage(data?.error || "We couldn't confirm this payment yet.");
+        return { terminal: true, pending: false };
       } catch {
         setState("error");
         setMessage("Network error while finalizing payment.");
+        return { terminal: true, pending: false };
       }
     };
 
-    finalize();
+    const poll = async () => {
+      if (cancelled) return;
+
+      const result = await finalizeOnce();
+      if (cancelled || result.terminal) return;
+
+      const elapsedMs = Date.now() - startedAt;
+      if (elapsedMs > 10_000) setShowManualCheck(true);
+
+      // Keep polling for a reasonable window; webhook confirmation can lag.
+      if (elapsedMs > 60_000) {
+        setMessage("Still reconciling. This can take a bit — try again in a moment.");
+        return;
+      }
+
+      const delay = elapsedMs < 10_000 ? 2000 : 5000;
+      timer = window.setTimeout(poll, delay);
+    };
+
+    poll();
+
+    return () => {
+      cancelled = true;
+      if (timer) window.clearTimeout(timer);
+    };
   }, []);
 
   const isCredited = state === "credited";
@@ -139,7 +170,11 @@ export default function CheckoutSuccess() {
               </>
             ) : (
               <div className="text-center">
-                <Button onClick={() => window.location.reload()} variant="outline">Try Again</Button>
+                {showManualCheck ? (
+                  <Button onClick={() => window.location.reload()} variant="outline">Check Again</Button>
+                ) : (
+                  <Button onClick={() => window.location.reload()} variant="outline">Try Again</Button>
+                )}
               </div>
             )}
 
