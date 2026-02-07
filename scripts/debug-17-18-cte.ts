@@ -1,13 +1,13 @@
-import 'dotenv/config';
+import "dotenv/config";
 import { db } from "../server/db";
 import { users, scoutHistory } from "../shared/schema";
 import { sql } from "drizzle-orm";
 
 async function check() {
-  const windowStart = '2026-01-20T17:00:00Z';
-  const windowEnd = '2026-01-20T18:00:00Z';
+  const windowStart = "2026-01-20T17:00:00Z";
+  const windowEnd = "2026-01-20T18:00:00Z";
 
-  console.log('=== Checking Active Users Filter ===\n');
+  console.log("=== Checking Active Users Filter ===\n");
 
   // Check which users are considered "active" for this window
   const activeCheck = await db.execute(sql`
@@ -23,13 +23,13 @@ async function check() {
     AND last_active_at > ${windowStart}::timestamp - INTERVAL '24 hours'
   `);
 
-  console.log('Users considered ACTIVE for Cade distribution:');
+  console.log("Users considered ACTIVE for Cade distribution:");
   activeCheck.rows.forEach((u: any) => {
     console.log(`  ${u.username}: lastActiveAt = ${u.last_active_at}`);
   });
 
   // Now check what the full CTE returns
-  console.log('\n=== Full Distribution CTE for Cade ===\n');
+  console.log("\n=== Full Distribution CTE for Cade ===\n");
 
   const fullResult = await db.execute(sql`
     WITH active_users AS (
@@ -92,14 +92,16 @@ async function check() {
     WHERE pt.global_scout_minutes > 0
   `);
 
-  console.log('Expected distributions for Cade (17:00-18:00):');
+  console.log("Expected distributions for Cade (17:00-18:00):");
   fullResult.rows.forEach((r: any) => {
-    console.log(`  ${r.userId.substring(0,8)}...: ${r.sharesEarned} shares`);
-    console.log(`    User min: ${parseFloat(r.userScoutMinutes).toFixed(1)}, Global: ${parseFloat(r.globalScoutMinutes).toFixed(1)}`);
+    console.log(`  ${r.userId.substring(0, 8)}...: ${r.sharesEarned} shares`);
+    console.log(
+      `    User min: ${parseFloat(r.userScoutMinutes).toFixed(1)}, Global: ${parseFloat(r.globalScoutMinutes).toFixed(1)}`,
+    );
   });
 
   if (fullResult.rows.length === 0) {
-    console.log('\n⚠️  No distributions calculated! This is the bug.');
+    console.log("\n⚠️  No distributions calculated! This is the bug.");
   }
 }
 

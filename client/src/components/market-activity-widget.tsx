@@ -29,7 +29,7 @@ interface MarketActivity {
 
 export function MarketActivityWidget() {
   const { subscribe } = useWebSocket();
-  
+
   const { data: activity = [], isLoading } = useQuery<MarketActivity[]>({
     queryKey: ["/api/market/activity"],
     queryFn: async () => {
@@ -41,8 +41,8 @@ export function MarketActivityWidget() {
 
   // Subscribe to WebSocket market activity events for real-time updates
   useEffect(() => {
-    const unsubscribe = subscribe('marketActivity', () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/market/activity'] });
+    const unsubscribe = subscribe("marketActivity", () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/market/activity"] });
     });
     return unsubscribe;
   }, [subscribe]);
@@ -53,21 +53,25 @@ export function MarketActivityWidget() {
 
   const getActivityText = (item: MarketActivity) => {
     return (
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-muted-foreground text-xs">Trade:</span>
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-muted-foreground text-xs">Trade:</span>
         {item.buyerId && item.buyerUsername && (
           <span className="font-medium text-xs">
-            {item.buyerId === "pool"
-              ? "Pool"
-              : <UserName userId={item.buyerId} username={item.buyerUsername} className="text-xs" />}
+            {item.buyerId === "pool" ? (
+              "Pool"
+            ) : (
+              <UserName userId={item.buyerId} username={item.buyerUsername} className="text-xs" />
+            )}
           </span>
         )}
-          <span className="text-muted-foreground text-xs">bought from</span>
+        <span className="text-muted-foreground text-xs">bought from</span>
         {item.sellerId && item.sellerUsername && (
           <span className="font-medium text-xs">
-            {item.sellerId === "pool"
-              ? "Pool"
-              : <UserName userId={item.sellerId} username={item.sellerUsername} className="text-xs" />}
+            {item.sellerId === "pool" ? (
+              "Pool"
+            ) : (
+              <UserName userId={item.sellerId} username={item.sellerUsername} className="text-xs" />
+            )}
           </span>
         )}
       </div>
@@ -78,7 +82,9 @@ export function MarketActivityWidget() {
     return (
       <Card className="lg:col-span-3">
         <CardHeader>
-          <CardTitle className="text-sm font-medium uppercase tracking-wide">Market Activity</CardTitle>
+          <CardTitle className="text-sm font-medium uppercase tracking-wide">
+            Market Activity
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="text-center py-4 text-muted-foreground text-sm">Loading...</div>
@@ -90,7 +96,9 @@ export function MarketActivityWidget() {
   return (
     <Card className="lg:col-span-3">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium uppercase tracking-wide">Market Activity</CardTitle>
+        <CardTitle className="text-sm font-medium uppercase tracking-wide">
+          Market Activity
+        </CardTitle>
         <Clock className="w-4 h-4 text-muted-foreground" />
       </CardHeader>
       <CardContent className="space-y-2">
@@ -113,14 +121,16 @@ export function MarketActivityWidget() {
                     <div className="flex-shrink-0">{getActivityIcon(item)}</div>
                     <div className="min-w-0 flex-1">
                       <div className="font-medium text-sm truncate">
-                        <PlayerName 
-                          playerId={item.playerId} 
-                          firstName={item.playerFirstName} 
+                        <PlayerName
+                          playerId={item.playerId}
+                          firstName={item.playerFirstName}
                           lastName={item.playerLastName}
                           className="text-sm"
                         />
                       </div>
-                      <div className="text-xs text-muted-foreground truncate">{item.playerTeam}</div>
+                      <div className="text-xs text-muted-foreground truncate">
+                        {item.playerTeam}
+                      </div>
                       {getActivityText(item)}
                     </div>
                   </div>
@@ -137,7 +147,11 @@ export function MarketActivityWidget() {
               )}
             />
             <Link href="/pools?tab=activity">
-              <Button variant="outline" className="w-full" data-testid="button-view-market-activity">
+              <Button
+                variant="outline"
+                className="w-full"
+                data-testid="button-view-market-activity"
+              >
                 View More Activity
               </Button>
             </Link>

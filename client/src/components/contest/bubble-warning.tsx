@@ -9,12 +9,7 @@ interface BubbleWarningProps {
   className?: string;
 }
 
-export function BubbleWarning({
-  isActive,
-  rank,
-  cutLine,
-  className,
-}: BubbleWarningProps) {
+export function BubbleWarning({ isActive, rank, cutLine, className }: BubbleWarningProps) {
   if (!isActive) return null;
 
   const positionsFromCut = cutLine - rank;
@@ -27,7 +22,7 @@ export function BubbleWarning({
         "inline-flex items-center gap-2 px-3 py-1.5 rounded-full",
         "bg-red-500/10 border border-red-500/30",
         "text-red-500 text-sm font-medium",
-        className
+        className,
       )}
     >
       <motion.div
@@ -70,15 +65,11 @@ export function RankDisplay({
         className={cn(
           "relative px-4 py-2 rounded-lg font-mono font-bold text-lg",
           "bg-card border-2 transition-all duration-300",
-          isOnBubble
-            ? "border-red-500/50 shadow-[0_0_15px_rgba(239,68,68,0.3)]"
-            : "border-border"
+          isOnBubble ? "border-red-500/50 shadow-[0_0_15px_rgba(239,68,68,0.3)]" : "border-border",
         )}
       >
         <span>#{rank}</span>
-        <span className="text-muted-foreground text-sm ml-1">
-          / {totalEntries}
-        </span>
+        <span className="text-muted-foreground text-sm ml-1">/ {totalEntries}</span>
 
         {/* Pulsing ring for bubble warning */}
         {isOnBubble && (

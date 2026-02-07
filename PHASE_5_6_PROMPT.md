@@ -1,6 +1,7 @@
 # COMPREHENSIVE PROMPT: PHASE 5 & 6 - COLLECTION, PROGRESSION & UI JUICE
 
 ## Context
+
 You are completing the gamification system for Sportfolio, a fantasy sports trading platform. Phases 3 and 4 have been successfully implemented. You must implement Phase 5 (Collection & Progression) and Phase 6 (UI Juice & Atmosphere) to complete the project.
 
 ## CRITICAL: Review Existing Work First
@@ -8,12 +9,14 @@ You are completing the gamification system for Sportfolio, a fantasy sports trad
 ### Previously Implemented Components (STUDY THESE FOR PATTERNS):
 
 **Ceremony Components** (in `client/src/components/ceremonies/`):
+
 - `entry-draft-animation.tsx` - Cards deal with 3D flip, spring physics
 - `boost-results-podium.tsx` - Tier-based results display
 - `scout-ceremony-overlay.tsx` - Data harvesting ceremony
 - `boost-ceremony-overlay.tsx` - Boost assignment ceremony
 
 **Animation Patterns** (from existing code):
+
 ```typescript
 // Spring physics (REQUIRED for all animations)
 transition={{
@@ -32,6 +35,7 @@ onClick={handleSkip} on overlay backdrop
 ```
 
 **Color System** (STRICT - use these exact colors):
+
 - Emerald (#10B981): Success, payouts, positive trends
 - Amber (#F59E0B): Scout, boosts, warnings
 - Violet (#8B5CF6): Power levels, premium
@@ -39,6 +43,7 @@ onClick={handleSkip} on overlay backdrop
 - Red (#EF4444): Urgency, errors, negative trends
 
 **WebSocket Pattern** (from `client/src/lib/websocket.tsx`):
+
 ```typescript
 case 'event_type':
   queryClient.setQueryData(['key'], data);
@@ -46,6 +51,7 @@ case 'event_type':
 ```
 
 **Backend Pattern** (from `server/amm/pool.ts`):
+
 - Whale alerts: Check thresholds, broadcast via WebSocket
 - Database queries using Drizzle ORM
 - Transaction safety with `db.transaction()`
@@ -59,30 +65,43 @@ case 'event_type':
 **User Story**: Users earn badges for collecting all players from a team or achieving collection milestones.
 
 **Database Schema** (add to `shared/schema.ts`):
+
 ```typescript
-export const userCollections = pgTable("user_collections", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  collectionType: varchar("collection_type", { length: 50 }).notNull(), // 'team', 'rookie', 'position', 'allstar'
-  targetId: varchar("target_id").notNull(), // team abbreviation, position, etc.
-  progress: integer("progress").notNull().default(0),
-  total: integer("total").notNull(),
-  completed: boolean("completed").notNull().default(false),
-  completedAt: timestamp("completed_at"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-}, (table) => ({
-  userTypeTargetIdx: uniqueIndex("user_collection_idx").on(table.userId, table.collectionType, table.targetId),
-  userIdx: index("user_collections_user_idx").on(table.userId),
-  completedIdx: index("user_collections_completed_idx").on(table.completed),
-}));
+export const userCollections = pgTable(
+  "user_collections",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    collectionType: varchar("collection_type", { length: 50 }).notNull(), // 'team', 'rookie', 'position', 'allstar'
+    targetId: varchar("target_id").notNull(), // team abbreviation, position, etc.
+    progress: integer("progress").notNull().default(0),
+    total: integer("total").notNull(),
+    completed: boolean("completed").notNull().default(false),
+    completedAt: timestamp("completed_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    userTypeTargetIdx: uniqueIndex("user_collection_idx").on(
+      table.userId,
+      table.collectionType,
+      table.targetId,
+    ),
+    userIdx: index("user_collections_user_idx").on(table.userId),
+    completedIdx: index("user_collections_completed_idx").on(table.completed),
+  }),
+);
 ```
 
 **Collection Types**:
+
 1. **Team Collections**: "Lakers Squad", "Warriors Squad", etc.
    - Target: All active players from a specific team
    - Progress: Count of owned players / total active players on team
-   
 2. **Rookie Hunter**: Own 5+ rookies (players with isRookie flag or first season)
    - Target: 5 rookies
    - Progress: Owned rookies count
@@ -96,6 +115,7 @@ export const userCollections = pgTable("user_collections", {
 **Frontend Components**:
 
 Create `client/src/components/collections/collection-badge.tsx`:
+
 ```typescript
 interface CollectionBadgeProps {
   collection: {
@@ -118,6 +138,7 @@ interface CollectionBadgeProps {
 ```
 
 Create `client/src/components/collections/collection-progress.tsx`:
+
 ```typescript
 // Progress bar component with:
 // - Animated fill (width transition)
@@ -127,6 +148,7 @@ Create `client/src/components/collections/collection-progress.tsx`:
 ```
 
 Create `client/src/components/collections/collection-ceremony.tsx`:
+
 ```typescript
 // Full-screen ceremony when collection completed
 // - Confetti explosion
@@ -141,6 +163,7 @@ Create `client/src/components/collections/collection-ceremony.tsx`:
 **Backend Implementation**:
 
 Add to `server/routes.ts`:
+
 ```typescript
 // Get user's collections
 app.get("/api/collections", isAuthenticated, async (req, res) => {
@@ -162,6 +185,7 @@ app.get("/api/collections/:type/:targetId", isAuthenticated, async (req, res) =>
 ```
 
 Create `server/jobs/update-collections.ts`:
+
 ```typescript
 // Job to check and update collection progress
 // Run every 15 minutes
@@ -171,6 +195,7 @@ Create `server/jobs/update-collections.ts`:
 ```
 
 **Integration Points**:
+
 - Add collection badges to Portfolio page (`client/src/pages/portfolio.tsx`)
 - Add collection progress to User Profile (`client/src/pages/user-profile.tsx`)
 - Trigger ceremony on collection completion
@@ -182,6 +207,7 @@ Create `server/jobs/update-collections.ts`:
 **User Story**: Celebrate when users reach net worth milestones.
 
 **Milestones**:
+
 - $1,000 - "First Thousand"
 - $10,000 - "Ten K Club"
 - $100,000 - "Six Figures"
@@ -189,22 +215,36 @@ Create `server/jobs/update-collections.ts`:
 - $10,000,000 - "Ten Million"
 
 **Database Schema** (add to `shared/schema.ts`):
+
 ```typescript
-export const userMilestones = pgTable("user_milestones", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  milestoneType: varchar("milestone_type", { length: 50 }).notNull(), // 'netWorth', 'portfolioValue', 'totalTrades'
-  threshold: decimal("threshold", { precision: 20, scale: 2 }).notNull(),
-  achievedAt: timestamp("achieved_at").notNull().defaultNow(),
-  celebrated: boolean("celebrated").notNull().default(false),
-}, (table) => ({
-  userTypeThresholdIdx: uniqueIndex("user_milestone_idx").on(table.userId, table.milestoneType, table.threshold),
-}));
+export const userMilestones = pgTable(
+  "user_milestones",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    milestoneType: varchar("milestone_type", { length: 50 }).notNull(), // 'netWorth', 'portfolioValue', 'totalTrades'
+    threshold: decimal("threshold", { precision: 20, scale: 2 }).notNull(),
+    achievedAt: timestamp("achieved_at").notNull().defaultNow(),
+    celebrated: boolean("celebrated").notNull().default(false),
+  },
+  (table) => ({
+    userTypeThresholdIdx: uniqueIndex("user_milestone_idx").on(
+      table.userId,
+      table.milestoneType,
+      table.threshold,
+    ),
+  }),
+);
 ```
 
 **Frontend Components**:
 
 Create `client/src/components/milestones/milestone-ceremony.tsx`:
+
 ```typescript
 interface MilestoneCeremonyProps {
   milestone: {
@@ -228,6 +268,7 @@ interface MilestoneCeremonyProps {
 ```
 
 Create `client/src/components/milestones/milestone-badge.tsx`:
+
 ```typescript
 // Small badge showing achieved milestones
 // Display in profile header
@@ -238,6 +279,7 @@ Create `client/src/components/milestones/milestone-badge.tsx`:
 **Backend Implementation**:
 
 Create `server/jobs/check-milestones.ts`:
+
 ```typescript
 // Check user net worth against milestones
 // Run every 5 minutes
@@ -246,11 +288,13 @@ Create `server/jobs/check-milestones.ts`:
 ```
 
 Add WebSocket type:
+
 ```typescript
 | 'milestone_achieved' // User achieved milestone
 ```
 
 **Integration Points**:
+
 - Check milestones when portfolio value updates
 - Show ceremony on dashboard when milestone achieved
 - Display badges in user profile header
@@ -304,7 +348,7 @@ export function JuicyButton({
           filter: "blur(8px)",
         }}
       />
-      
+
       <Button
         className={cn(
           "relative transition-all duration-200",
@@ -354,6 +398,7 @@ export function JuicyButton({
 ```
 
 **Requirements**:
+
 - Scale to 0.95 on press (spring physics)
 - Glow pulse on hover (subtle, not overwhelming)
 - Success state morphs to checkmark
@@ -405,11 +450,11 @@ export function AnimatedCounter({
       const animate = (currentTime: number) => {
         const elapsed = currentTime - startTime;
         const progress = Math.min(elapsed / (duration * 1000), 1);
-        
+
         // Ease out cubic
         const easeOut = 1 - Math.pow(1 - progress, 3);
         const current = startValue + (endValue - startValue) * easeOut;
-        
+
         setDisplayValue(current);
 
         if (progress < 1) {
@@ -450,6 +495,7 @@ export function AnimatedCounter({
 ```
 
 **Integration Points**:
+
 - Replace static portfolio values in header
 - Replace balance displays
 - Replace P&L numbers
@@ -549,22 +595,23 @@ export function MarketPulse({ children }: MarketPulseProps) {
 **Backend Endpoint**:
 
 Add to `server/routes.ts`:
+
 ```typescript
 app.get("/api/market/activity", async (req, res) => {
   try {
     // Calculate activity level based on trades in last 15 minutes
     const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
-    
+
     const recentTrades = await db
       .select({ count: sql<number>`COUNT(*)` })
       .from(trades)
       .where(gte(trades.executedAt, fifteenMinutesAgo));
-    
+
     const tradeCount = recentTrades[0]?.count || 0;
-    
+
     // Normalize to 0-100 scale (assume 100 trades = max activity)
     const activityLevel = Math.min((tradeCount / 100) * 100, 100);
-    
+
     res.json({
       activityLevel,
       tradeCount,
@@ -579,6 +626,7 @@ app.get("/api/market/activity", async (req, res) => {
 **Breaking News Banner** (Optional enhancement):
 
 Create `client/src/components/market/breaking-news-banner.tsx`:
+
 ```typescript
 // Top banner for significant market events
 // - Large trades (>$50k)
@@ -593,12 +641,14 @@ Create `client/src/components/market/breaking-news-banner.tsx`:
 ## IMPLEMENTATION ORDER
 
 ### Week 1: Phase 5
+
 1. **Day 1-2**: Database schema updates (userCollections, userMilestones)
 2. **Day 3-4**: Team Collection Badges (frontend + backend)
 3. **Day 5**: Portfolio Milestones (frontend + backend)
 4. **Day 6-7**: Integration and testing
 
 ### Week 2: Phase 6
+
 1. **Day 1**: Juicy Button component + replace primary buttons
 2. **Day 2**: Animated Counter component + integrate in portfolio/header
 3. **Day 3-4**: Market Pulse background + activity tracking
@@ -609,6 +659,7 @@ Create `client/src/components/market/breaking-news-banner.tsx`:
 ## CRITICAL REQUIREMENTS CHECKLIST
 
 ### Style Compliance
+
 - [ ] All animations use spring physics (stiffness: 300-400, damping: 20-25)
 - [ ] NO bouncy easing functions
 - [ ] Timing: Micro (0.2s), Feedback (0.4s), Ceremony (0.8-1s)
@@ -617,6 +668,7 @@ Create `client/src/components/market/breaking-news-banner.tsx`:
 - [ ] Colors: Emerald, Amber, Violet, Blue, Red only
 
 ### Technical Requirements
+
 - [ ] TypeScript strict mode compliance
 - [ ] All WebSocket events added to `server/websocket.ts`
 - [ ] All WebSocket handlers added to `client/src/lib/websocket.tsx`
@@ -625,6 +677,7 @@ Create `client/src/components/market/breaking-news-banner.tsx`:
 - [ ] Jobs registered in scheduler
 
 ### Testing Requirements
+
 - [ ] Run `npx tsc --noEmit` in client and server
 - [ ] Run `npm run build` for production build
 - [ ] Test all animations work smoothly
@@ -633,7 +686,9 @@ Create `client/src/components/market/breaking-news-banner.tsx`:
 - [ ] Verify no console errors
 
 ### Files to Create (Estimated)
+
 **New Components (12 files)**:
+
 1. `client/src/components/collections/collection-badge.tsx`
 2. `client/src/components/collections/collection-progress.tsx`
 3. `client/src/components/collections/collection-ceremony.tsx`
@@ -647,6 +702,7 @@ Create `client/src/components/market/breaking-news-banner.tsx`:
 11. `server/jobs/check-milestones.ts`
 
 **Modified Files (8 files)**:
+
 1. `shared/schema.ts` - Add userCollections, userMilestones tables
 2. `server/routes.ts` - Add collection and milestone endpoints
 3. `server/websocket.ts` - Add new subscription types
@@ -661,6 +717,7 @@ Create `client/src/components/market/breaking-news-banner.tsx`:
 ## REFERENCE: Existing Component Patterns
 
 ### From `entry-draft-animation.tsx`:
+
 ```typescript
 // 3D card flip with preserve-3d
 style={{ transformStyle: "preserve-3d" }}
@@ -674,6 +731,7 @@ className="... backdrop-blur-sm"
 ```
 
 ### From `whale-alert-banner.tsx`:
+
 ```typescript
 // Wave animation
 animate={{ x: ["-100%", "100%"] }}
@@ -685,6 +743,7 @@ transition={{ duration: 8, ease: "linear" }}
 ```
 
 ### From `boost-results-podium.tsx`:
+
 ```typescript
 // Spring entrance
 initial={{ opacity: 0, y: 50, scale: 0.9 }}
@@ -740,6 +799,7 @@ transition={{ type: "spring", stiffness: 300, damping: 25, delay }}
 ## DELIVERABLES
 
 By end of this phase, you should have:
+
 1. ✅ All 12 new components created
 2. ✅ All 8 files modified correctly
 3. ✅ Database schema updated with migrations

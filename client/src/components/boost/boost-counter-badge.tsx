@@ -42,7 +42,7 @@ export function BoostCounterBadge({
         className={cn(
           "bg-amber-500/10 text-amber-500 border-amber-500/20",
           "flex items-center gap-1 font-medium",
-          sizeClasses[size]
+          sizeClasses[size],
         )}
       >
         <motion.div
@@ -69,10 +69,7 @@ interface CommunityBoostIndicatorProps {
   className?: string;
 }
 
-export function CommunityBoostIndicator({
-  count,
-  className,
-}: CommunityBoostIndicatorProps) {
+export function CommunityBoostIndicator({ count, className }: CommunityBoostIndicatorProps) {
   if (count === 0) return null;
 
   return (
@@ -84,7 +81,7 @@ export function CommunityBoostIndicator({
         "inline-flex items-center gap-1.5 px-2 py-1 rounded-full",
         "bg-violet-500/10 border border-violet-500/20",
         "text-violet-500 text-xs font-medium",
-        className
+        className,
       )}
     >
       <Users className="w-3 h-3" />

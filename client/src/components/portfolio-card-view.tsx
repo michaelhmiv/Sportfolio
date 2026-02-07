@@ -68,15 +68,15 @@ export function PortfolioCardView({
 
   const getSortValue = (group: PlayerGroup): string => {
     switch (sortField) {
-      case 'quantity':
+      case "quantity":
         return `${group.totalShares} shares`;
-      case 'value':
+      case "value":
         return `$${group.currentValue}`;
-      case 'pnl':
-        return `${parseFloat(group.pnl) >= 0 ? '+' : ''}$${group.pnl}`;
-      case 'avgCost':
+      case "pnl":
+        return `${parseFloat(group.pnl) >= 0 ? "+" : ""}$${group.pnl}`;
+      case "avgCost":
         return `$${group.avgCostBasis}`;
-      case 'price':
+      case "price":
         return `$${parseFloat(group.player.lastTradePrice || "0").toFixed(2)}`;
       default:
         return `$${group.currentValue}`;
@@ -85,18 +85,18 @@ export function PortfolioCardView({
 
   const getSortLabel = (): string => {
     switch (sortField) {
-      case 'quantity':
-        return 'Shares';
-      case 'value':
-        return 'Value';
-      case 'pnl':
-        return 'P&L';
-      case 'avgCost':
-        return 'Avg Cost';
-      case 'price':
-        return 'Price';
+      case "quantity":
+        return "Shares";
+      case "value":
+        return "Value";
+      case "pnl":
+        return "P&L";
+      case "avgCost":
+        return "Avg Cost";
+      case "price":
+        return "Price";
       default:
-        return 'Value';
+        return "Value";
     }
   };
 
@@ -118,16 +118,15 @@ export function PortfolioCardView({
 
           // Calculate total powered shares
           const totalPoweredShares = group.powered.reduce((sum, share) => sum + share.quantity, 0);
-          const maxPower = group.powered.length > 0 
-            ? Math.max(...group.powered.map(s => s.power))
-            : 0;
+          const maxPower =
+            group.powered.length > 0 ? Math.max(...group.powered.map((s) => s.power)) : 0;
 
           const lpPos = lpPositions?.find((lp) => lp.playerId === group.player.id);
           const lpShares = lpPos ? Math.round(lpPos.equivalentShares || 0) : 0;
 
           return (
-            <Card 
-              key={group.player.id} 
+            <Card
+              key={group.player.id}
               className="hover:shadow-md transition-shadow cursor-pointer border-2 border-border hover:border-primary/50 bg-card"
               onClick={() => onSelectPlayer(group.player.id)}
             >
@@ -135,7 +134,7 @@ export function PortfolioCardView({
                 {/* Power Badge - Top Right */}
                 <div className="flex justify-end mb-1">
                   {totalPowerNum > 0 ? (
-                    <Badge 
+                    <Badge
                       className={`${getPowerTierColor(totalPowerNum)} text-[10px] px-1 py-0 h-4 cursor-pointer hover:opacity-80`}
                       onClick={(e) => handlePowerBadgeClick(e, group)}
                     >
@@ -149,12 +148,18 @@ export function PortfolioCardView({
 
                 {/* Main Value - Large */}
                 <div className="text-center mb-1">
-                  <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{getSortLabel()}</div>
-                  <div className={`font-mono font-bold text-lg ${
-                    sortField === 'pnl' 
-                      ? parseFloat(group.pnl) >= 0 ? 'text-green-500' : 'text-red-500'
-                      : ''
-                  }`}>
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wide">
+                    {getSortLabel()}
+                  </div>
+                  <div
+                    className={`font-mono font-bold text-lg ${
+                      sortField === "pnl"
+                        ? parseFloat(group.pnl) >= 0
+                          ? "text-green-500"
+                          : "text-red-500"
+                        : ""
+                    }`}
+                  >
                     {getSortValue(group)}
                   </div>
                 </div>
@@ -180,14 +185,14 @@ export function PortfolioCardView({
                 {hasRegularShares && (
                   <div className="text-center">
                     {canBoost ? (
-                      <div 
+                      <div
                         className="text-[10px] bg-purple-500/10 text-purple-600 rounded px-1.5 py-0.5 inline-flex items-center gap-1"
                         onClick={(e) => {
                           e.stopPropagation();
                           onPowerUp(
                             group.player.id,
                             `${group.player.firstName} ${group.player.lastName}`,
-                            regularQuantity
+                            regularQuantity,
                           );
                         }}
                       >
@@ -195,9 +200,7 @@ export function PortfolioCardView({
                         Boost
                       </div>
                     ) : (
-                      <div className="text-[10px] text-muted-foreground">
-                        {regularQuantity}/5
-                      </div>
+                      <div className="text-[10px] text-muted-foreground">{regularQuantity}/5</div>
                     )}
                   </div>
                 )}
@@ -216,7 +219,7 @@ export function PortfolioCardView({
               Power Distribution
             </DialogTitle>
           </DialogHeader>
-          
+
           {selectedPlayer && (
             <div className="space-y-4">
               {/* Player Info */}
@@ -232,7 +235,9 @@ export function PortfolioCardView({
                     {selectedPlayer.player.team} • {selectedPlayer.player.position}
                   </div>
                 </div>
-                <Badge className={`${getPowerTierColor(parseFloat(selectedPlayer.totalPower))} text-sm`}>
+                <Badge
+                  className={`${getPowerTierColor(parseFloat(selectedPlayer.totalPower))} text-sm`}
+                >
                   <Zap className="w-3 h-3 mr-1" />
                   Total: {selectedPlayer.totalPower}
                 </Badge>
@@ -251,27 +256,39 @@ export function PortfolioCardView({
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="font-mono font-bold text-lg">{selectedPlayer.regular.quantity}</div>
-                      <div className="text-sm text-muted-foreground">{selectedPlayer.regular.quantity} power</div>
+                      <div className="font-mono font-bold text-lg">
+                        {selectedPlayer.regular.quantity}
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        {selectedPlayer.regular.quantity} power
+                      </div>
                     </div>
                   </div>
                 )}
 
                 {/* Powered Shares */}
                 {selectedPlayer.powered.map((share, idx) => (
-                  <div 
+                  <div
                     key={idx}
                     className={`flex items-center justify-between p-3 rounded-lg border ${getPowerTierBg(share.power)} border-purple-500/30`}
                   >
                     <div className="flex items-center gap-3">
-                      <div className={`w-3 h-3 rounded-full ${getPowerTierColor(share.power).split(' ')[0]}`} />
+                      <div
+                        className={`w-3 h-3 rounded-full ${getPowerTierColor(share.power).split(" ")[0]}`}
+                      />
                       <div>
-                        <div className="font-medium text-purple-700">{share.power}x Power Shares</div>
-                        <div className="text-sm text-muted-foreground">{share.power}x multiplier</div>
+                        <div className="font-medium text-purple-700">
+                          {share.power}x Power Shares
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          {share.power}x multiplier
+                        </div>
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="font-mono font-bold text-lg text-purple-700">{share.quantity}</div>
+                      <div className="font-mono font-bold text-lg text-purple-700">
+                        {share.quantity}
+                      </div>
                       <div className="text-sm text-muted-foreground">{share.powerLevel} power</div>
                     </div>
                   </div>
@@ -286,7 +303,7 @@ export function PortfolioCardView({
                     onPowerUp(
                       selectedPlayer.player.id,
                       `${selectedPlayer.player.firstName} ${selectedPlayer.player.lastName}`,
-                      selectedPlayer.regular!.quantity
+                      selectedPlayer.regular!.quantity,
                     );
                     setSelectedPlayer(null);
                   }}

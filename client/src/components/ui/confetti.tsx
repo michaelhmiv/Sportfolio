@@ -52,7 +52,11 @@ export function Confetti({
       rotation: Math.random() * 360,
       color: usedColors[Math.floor(Math.random() * usedColors.length)],
       scale: 0.5 + Math.random() * 0.5,
-      type: (type === "coins" ? "coin" : Math.random() > 0.5 ? "circle" : "square") as Particle["type"],
+      type: (type === "coins"
+        ? "coin"
+        : Math.random() > 0.5
+          ? "circle"
+          : "square") as Particle["type"],
     }));
   }, [particleCount, colors, type]);
 
@@ -60,7 +64,7 @@ export function Confetti({
     if (active && !isActive) {
       setIsActive(true);
       setParticles(createParticles());
-      
+
       const timer = setTimeout(() => {
         setIsActive(false);
         setParticles([]);
@@ -103,7 +107,7 @@ export function Confetti({
             {particle.type === "coin" ? (
               <div
                 className="w-6 h-6 rounded-full border-2 flex items-center justify-center font-bold text-xs"
-                style={{ 
+                style={{
                   backgroundColor: particle.color,
                   borderColor: "#8B6914",
                   color: "#8B6914",
@@ -112,15 +116,9 @@ export function Confetti({
                 $
               </div>
             ) : particle.type === "circle" ? (
-              <div
-                className="w-3 h-3 rounded-full"
-                style={{ backgroundColor: particle.color }}
-              />
+              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: particle.color }} />
             ) : (
-              <div
-                className="w-3 h-3"
-                style={{ backgroundColor: particle.color }}
-              />
+              <div className="w-3 h-3" style={{ backgroundColor: particle.color }} />
             )}
           </motion.div>
         ))}

@@ -1,6 +1,6 @@
 /**
  * Twitter/X Service
- * 
+ *
  * Handles posting tweets to X using the v2 API.
  */
 
@@ -95,25 +95,35 @@ class TwitterService {
       const result = await rwClient.v2.tweet(content);
 
       console.log("[Twitter] Tweet posted successfully:", result.data.id);
-      
+
       return {
         success: true,
         tweetId: result.data.id,
       };
     } catch (error: any) {
       console.error("[Twitter] Failed to post tweet:", error.message, error);
-      
+
       // Handle specific Twitter API errors - twitter-api-v2 uses different error formats
       let errorMessage = error.message;
-      const statusCode = error.code || error.statusCode || (error.data?.status);
-      
-      if (statusCode === 403 || error.message?.includes('403') || error.message?.includes('Forbidden')) {
-        errorMessage = "Access forbidden - ensure your Twitter Developer App has 'Read and Write' permissions enabled, and that you've regenerated your Access Token & Secret AFTER enabling those permissions. Also verify the app is using OAuth 1.0a User Context.";
-      } else if (statusCode === 429 || error.message?.includes('429')) {
+      const statusCode = error.code || error.statusCode || error.data?.status;
+
+      if (
+        statusCode === 403 ||
+        error.message?.includes("403") ||
+        error.message?.includes("Forbidden")
+      ) {
+        errorMessage =
+          "Access forbidden - ensure your Twitter Developer App has 'Read and Write' permissions enabled, and that you've regenerated your Access Token & Secret AFTER enabling those permissions. Also verify the app is using OAuth 1.0a User Context.";
+      } else if (statusCode === 429 || error.message?.includes("429")) {
         errorMessage = "Rate limit exceeded - try again later";
-      } else if (statusCode === 401 || error.message?.includes('401') || error.message?.includes('Unauthorized')) {
-        errorMessage = "Authentication failed - check that all 4 Twitter API credentials (API Key, API Secret, Access Token, Access Token Secret) are correct and haven't expired";
-      } else if (statusCode === 400 || error.message?.includes('400')) {
+      } else if (
+        statusCode === 401 ||
+        error.message?.includes("401") ||
+        error.message?.includes("Unauthorized")
+      ) {
+        errorMessage =
+          "Authentication failed - check that all 4 Twitter API credentials (API Key, API Secret, Access Token, Access Token Secret) are correct and haven't expired";
+      } else if (statusCode === 400 || error.message?.includes("400")) {
         errorMessage = `Bad request: ${error.message}. This often means incorrect OAuth credentials or missing 'Read and Write' app permissions.`;
       }
 
@@ -127,7 +137,12 @@ class TwitterService {
   /**
    * Verify credentials work correctly
    */
-  async verifyCredentials(): Promise<{ valid: boolean; username?: string; error?: string; details?: any }> {
+  async verifyCredentials(): Promise<{
+    valid: boolean;
+    username?: string;
+    error?: string;
+    details?: any;
+  }> {
     if (!this.isReady() || !this.client) {
       return {
         valid: false,
@@ -153,7 +168,7 @@ class TwitterService {
         rateLimit: error.rateLimit,
         fullError: JSON.stringify(error, null, 2),
       });
-      
+
       // Build detailed error message
       let errorMessage = error.message;
       const errorDetails = {
@@ -162,16 +177,16 @@ class TwitterService {
         data: error.data,
         errors: error.errors,
       };
-      
+
       // Check for common Twitter API v2 issues
-      if (error.message?.includes('Request') || error.code === 32 || error.code === 89) {
+      if (error.message?.includes("Request") || error.code === 32 || error.code === 89) {
         errorMessage = `OAuth error: ${error.message}. This typically means your Access Token was not generated with the correct permissions. Go to your Twitter Developer Portal, ensure your app has 'Read and Write' permissions under 'User authentication settings', then regenerate your Access Token and Secret.`;
       } else if (error.statusCode === 401 || error.code === 401) {
         errorMessage = `Authentication failed (401): ${error.message}. Your API credentials may be incorrect or expired.`;
       } else if (error.statusCode === 403 || error.code === 403) {
         errorMessage = `Forbidden (403): ${error.message}. Your app may not have the required permissions enabled.`;
       }
-      
+
       return {
         valid: false,
         error: errorMessage,

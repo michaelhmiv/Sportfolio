@@ -6,7 +6,7 @@
  * Log event structure for admin streaming
  */
 export interface LogEvent {
-  type: 'info' | 'warning' | 'error' | 'progress' | 'complete' | 'debug';
+  type: "info" | "warning" | "error" | "progress" | "complete" | "debug";
   timestamp: string;
   message: string;
   data?: any;

@@ -45,15 +45,16 @@ export function LiveRankTicker({
       className={cn(
         "inline-flex items-center gap-3 px-4 py-2 rounded-lg bg-card border",
         showPulse && isImproving && "border-emerald-500/50 shadow-[0_0_10px_rgba(16,185,129,0.2)]",
-        showPulse && !isImproving && isImproving !== null && "border-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.2)]",
-        className
+        showPulse &&
+          !isImproving &&
+          isImproving !== null &&
+          "border-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.2)]",
+        className,
       )}
     >
       <div className="flex flex-col">
         <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground uppercase tracking-wide">
-            Rank
-          </span>
+          <span className="text-xs text-muted-foreground uppercase tracking-wide">Rank</span>
           <AnimatePresence mode="wait">
             {showPulse && (
               <motion.div
@@ -63,7 +64,7 @@ export function LiveRankTicker({
                 exit={{ opacity: 0, y: 10 }}
                 className={cn(
                   "flex items-center gap-1 text-xs font-medium",
-                  isImproving ? "text-emerald-500" : "text-red-500"
+                  isImproving ? "text-emerald-500" : "text-red-500",
                 )}
               >
                 {isImproving ? (
@@ -91,14 +92,12 @@ export function LiveRankTicker({
             className={cn(
               "text-2xl font-bold font-mono",
               showPulse && isImproving && "text-emerald-500",
-              showPulse && !isImproving && isImproving !== null && "text-red-500"
+              showPulse && !isImproving && isImproving !== null && "text-red-500",
             )}
           >
             #{displayRank}
           </motion.span>
-          <span className="text-sm text-muted-foreground">
-            of {totalEntries}
-          </span>
+          <span className="text-sm text-muted-foreground">of {totalEntries}</span>
         </div>
       </div>
 
@@ -123,7 +122,7 @@ export function LiveRankTicker({
             className={cn(
               percentComplete >= 50 ? "text-emerald-500" : "text-amber-500",
               showPulse && isImproving && "text-emerald-500",
-              showPulse && !isImproving && isImproving !== null && "text-red-500"
+              showPulse && !isImproving && isImproving !== null && "text-red-500",
             )}
             initial={{ pathLength: 0 }}
             animate={{ pathLength: percentComplete / 100 }}

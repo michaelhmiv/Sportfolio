@@ -29,6 +29,7 @@ Your Sportfolio app requires these automated jobs:
 ### Step 2: Get Your Published Site URL
 
 Your published site URL should be something like:
+
 ```
 https://your-repl-name.replit.app
 ```
@@ -54,7 +55,7 @@ For each job below, create a new cron job in cron-job.org:
 - **Request Method:** POST
 - **Request Body:**
   ```json
-  {"jobName": "create_contests"}
+  { "jobName": "create_contests" }
   ```
 - **Headers:**
   - Name: `Content-Type`, Value: `application/json`
@@ -69,7 +70,7 @@ For each job below, create a new cron job in cron-job.org:
 - **Request Method:** POST
 - **Request Body:**
   ```json
-  {"jobName": "settle_contests"}
+  { "jobName": "settle_contests" }
   ```
 - **Headers:**
   - Name: `Content-Type`, Value: `application/json`
@@ -84,7 +85,7 @@ For each job below, create a new cron job in cron-job.org:
 - **Request Method:** POST
 - **Request Body:**
   ```json
-  {"jobName": "schedule_sync"}
+  { "jobName": "schedule_sync" }
   ```
 - **Headers:**
   - Name: `Content-Type`, Value: `application/json`
@@ -99,7 +100,7 @@ For each job below, create a new cron job in cron-job.org:
 - **Request Method:** POST
 - **Request Body:**
   ```json
-  {"jobName": "stats_sync"}
+  { "jobName": "stats_sync" }
   ```
 - **Headers:**
   - Name: `Content-Type`, Value: `application/json`
@@ -114,7 +115,7 @@ For each job below, create a new cron job in cron-job.org:
 - **Request Method:** POST
 - **Request Body:**
   ```json
-  {"jobName": "roster_sync"}
+  { "jobName": "roster_sync" }
   ```
 - **Headers:**
   - Name: `Content-Type`, Value: `application/json`
@@ -129,7 +130,7 @@ For each job below, create a new cron job in cron-job.org:
 - **Request Method:** POST
 - **Request Body:**
   ```json
-  {"jobName": "sync_player_game_logs"}
+  { "jobName": "sync_player_game_logs" }
   ```
 - **Headers:**
   - Name: `Content-Type`, Value: `application/json`
@@ -162,6 +163,7 @@ Admin users can access the admin panel for manual job triggers and system monito
 4. View system stats and use job trigger buttons to run jobs manually
 
 **Security Model:**
+
 - Admin panel access requires the `isAdmin` flag to be set to `true` in the users table
 - External cron jobs use token-based authentication (`ADMIN_API_TOKEN`) for secure automated access
 - To grant admin access to a user, run: `UPDATE users SET is_admin = true WHERE id = 'user_id';`
@@ -171,24 +173,29 @@ Admin users can access the admin panel for manual job triggers and system monito
 ### Job Returns 401 Unauthorized
 
 **For external cron jobs:**
+
 - Check that your `ADMIN_API_TOKEN` is correct in the Authorization header
 - Make sure you included "Bearer " prefix in the header value
 
 **For admin panel access:**
+
 - Ensure you're logged in to the application
 - Verify your user has `is_admin = true` in the database
 - To grant admin access: `UPDATE users SET is_admin = true WHERE id = 'user_id';`
 
 ### Job Returns 503 Service Unavailable
+
 - Your `ADMIN_API_TOKEN` environment variable is not set in Replit
 - Add it in Secrets (or environment variables in deployment) and redeploy
 
 ### Contests Not Appearing
+
 - Run `create_contests` job manually first
 - Check that MySportsFeeds API is accessible from your deployed site
 - Verify `MYSPORTSFEEDS_API_KEY` is set in production secrets
 
 ### Games Not Updating
+
 - Make sure `schedule_sync` job is running every minute
 - Check job execution logs in cron-job.org for errors
 
@@ -199,6 +206,7 @@ cron-job.org is completely free for up to 50 cron jobs. Sportfolio only needs 5,
 ## Security
 
 Your `ADMIN_API_TOKEN` acts as authentication for these endpoints. Keep it secure:
+
 - Don't share it publicly
 - Rotate it periodically (update in both Replit Secrets and cron-job.org)
 - Only use HTTPS URLs (Replit provides this automatically)

@@ -23,7 +23,10 @@ const collectionTypeLabels: Record<string, string> = {
   allstar: "All-Star Collector",
 };
 
-const collectionTypeColors: Record<string, { bg: string; border: string; text: string; glow: string }> = {
+const collectionTypeColors: Record<
+  string,
+  { bg: string; border: string; text: string; glow: string }
+> = {
   team: {
     bg: "bg-blue-500/10",
     border: "border-blue-500/30",
@@ -86,7 +89,7 @@ export function CollectionBadge({ collection, size = "md", onClick }: Collection
         colors.border,
         isCompleted && "ring-2 ring-offset-2 ring-offset-background",
         isCompleted && colors.border.replace("/30", ""),
-        onClick && "hover:shadow-md transition-shadow"
+        onClick && "hover:shadow-md transition-shadow",
       )}
     >
       {/* Holographic shimmer effect for completed badges */}
@@ -115,11 +118,7 @@ export function CollectionBadge({ collection, size = "md", onClick }: Collection
         <motion.div
           animate={isCompleted ? { scale: [1, 1.1, 1] } : {}}
           transition={{ duration: 0.5, repeat: isCompleted ? Infinity : 0, repeatDelay: 2 }}
-          className={cn(
-            "p-1.5 rounded-full",
-            colors.bg,
-            colors.text
-          )}
+          className={cn("p-1.5 rounded-full", colors.bg, colors.text)}
         >
           <Icon className={iconSizes[size]} />
         </motion.div>
@@ -160,7 +159,7 @@ export function CollectionBadge({ collection, size = "md", onClick }: Collection
             className={cn(
               "absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center",
               colors.text.replace("text-", "bg-"),
-              "text-white text-xs font-bold"
+              "text-white text-xs font-bold",
             )}
           >
             ✓

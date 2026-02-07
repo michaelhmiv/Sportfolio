@@ -1,4 +1,4 @@
-import 'dotenv/config';
+import "dotenv/config";
 import { db } from "../server/db";
 import { dailyGames } from "../shared/schema";
 import { eq, and, gte, lt } from "drizzle-orm";
@@ -14,12 +14,16 @@ async function test() {
   console.log(`endOfDay (UTC): ${endOfDay.toISOString()}`);
 
   // Query using the date field (like the fix does)
-  const todaysGames = await db.select().from(dailyGames)
-      .where(and(
-          eq(dailyGames.sport, "NBA"),
-          gte(dailyGames.date, startOfDay),
-          lt(dailyGames.date, endOfDay)
-      ));
+  const todaysGames = await db
+    .select()
+    .from(dailyGames)
+    .where(
+      and(
+        eq(dailyGames.sport, "NBA"),
+        gte(dailyGames.date, startOfDay),
+        lt(dailyGames.date, endOfDay),
+      ),
+    );
 
   console.log(`\nGames found: ${todaysGames.length}`);
   const teams = new Set<string>();
@@ -29,11 +33,11 @@ async function test() {
     console.log(`  ${g.awayTeam} @ ${g.homeTeam} | date: ${g.date} | startTime: ${g.startTime}`);
   }
 
-  console.log(`\nTeams with games today: ${[...teams].sort().join(', ')}`);
+  console.log(`\nTeams with games today: ${[...teams].sort().join(", ")}`);
 
   // Now test with DET specifically
   console.log("\n=== DET game on Jan 20? ===");
-  const detGames = todaysGames.filter(g => g.homeTeam === 'DET' || g.awayTeam === 'DET');
+  const detGames = todaysGames.filter((g) => g.homeTeam === "DET" || g.awayTeam === "DET");
   console.log(`DET games found: ${detGames.length}`);
   for (const g of detGames) {
     console.log(`  ${g.awayTeam} @ ${g.homeTeam}`);

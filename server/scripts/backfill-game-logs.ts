@@ -1,14 +1,14 @@
 /**
  * Standalone Player Game Logs Backfill Script
- * 
+ *
  * Runs independently from the dev server to avoid port conflicts.
  * Caches ALL player game logs from the current season using date-based Daily endpoint approach.
- * 
+ *
  * CRITICAL: Uses Daily Player Gamelogs endpoint (NOT Seasonal)
  * - Fetches all players' games for each date in ONE request
  * - ~50 dates (Oct 1 - today) × 5-second delays = ~5-10 minutes total
  * - Daily endpoint: 5-second backoff vs Seasonal: 30-second backoff (6x faster!)
- * 
+ *
  * Usage: tsx server/scripts/backfill-game-logs.ts
  */
 
@@ -27,7 +27,7 @@ async function main() {
 
   try {
     const result = await syncPlayerGameLogs();
-    
+
     console.log("");
     console.log("=".repeat(60));
     console.log("BACKFILL COMPLETE!");
@@ -36,7 +36,7 @@ async function main() {
     console.log(`Game logs synced: ${result.recordsProcessed}`);
     console.log(`Errors: ${result.errorCount}`);
     console.log("=".repeat(60));
-    
+
     process.exit(0);
   } catch (error: any) {
     console.error("");
@@ -45,7 +45,7 @@ async function main() {
     console.error("=".repeat(60));
     console.error("Error:", error.message);
     console.error("=".repeat(60));
-    
+
     process.exit(1);
   }
 }

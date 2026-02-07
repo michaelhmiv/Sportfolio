@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from "react";
 
 interface ScoutDistribution {
   playerId: string;
@@ -62,9 +62,9 @@ export function useScoutCeremony() {
       if (prev.startTime && prev.data) {
         const duration = Date.now() - prev.startTime;
         // Send analytics to server
-        fetch('/api/scouts/ceremony-viewed', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+        fetch("/api/scouts/ceremony-viewed", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             totalShares: prev.data.totalShares,
             playerCount: prev.data.totalPlayers,
@@ -89,9 +89,9 @@ export function useScoutCeremony() {
     setState((prev) => {
       // Track as skipped
       if (prev.data) {
-        fetch('/api/scouts/ceremony-viewed', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+        fetch("/api/scouts/ceremony-viewed", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             totalShares: prev.data.totalShares,
             playerCount: prev.data.totalPlayers,

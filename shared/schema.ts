@@ -1,5 +1,16 @@
 import { sql, relations } from "drizzle-orm";
-import { pgTable, text, varchar, decimal, integer, timestamp, boolean, index, uniqueIndex, jsonb } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  text,
+  varchar,
+  decimal,
+  integer,
+  timestamp,
+  boolean,
+  index,
+  uniqueIndex,
+  jsonb,
+} from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -15,233 +26,342 @@ export const sessions = pgTable(
 );
 
 // Users table - core user account
-export const users = pgTable("users", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  // Replit Auth fields
-  email: varchar("email").unique(),
-  firstName: varchar("first_name"),
-  lastName: varchar("last_name"),
-  profileImageUrl: varchar("profile_image_url"),
-  // App-specific fields
-  username: text("username").unique(), // Optional username, defaults to email
-  balance: decimal("balance", { precision: 20, scale: 2 }).notNull().default("10000.00"), // Starting balance: $10,000
-  isAdmin: boolean("is_admin").notNull().default(false), // Admin access to system management
-  isPremium: boolean("is_premium").notNull().default(false),
-  premiumExpiresAt: timestamp("premium_expires_at"),
-  hasSeenOnboarding: boolean("has_seen_onboarding").notNull().default(false), // Track if user completed onboarding
-  isBot: boolean("is_bot").notNull().default(false), // True for market maker bot accounts
-  // Profile stats
-  totalSharesVested: integer("total_shares_vested").notNull().default(0),
-  totalMarketOrders: integer("total_market_orders").notNull().default(0),
-  totalTradesExecuted: integer("total_trades_executed").notNull().default(0),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-  // News Hub fields
-  lastNewsViewedAt: timestamp("last_news_viewed_at"), // Track when user last viewed news
-  newsNotificationsEnabled: boolean("news_notifications_enabled").notNull().default(true), // Opt-out of news notifications
-  // Scout Engine fields
-  lastActiveAt: timestamp("last_active_at"), // Scout Engine: activity tracking for 24h kill-switch
-}, (table) => ({
-  lastActiveIdx: index("users_last_active_idx").on(table.lastActiveAt),
-}));
+export const users = pgTable(
+  "users",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    // Replit Auth fields
+    email: varchar("email").unique(),
+    firstName: varchar("first_name"),
+    lastName: varchar("last_name"),
+    profileImageUrl: varchar("profile_image_url"),
+    // App-specific fields
+    username: text("username").unique(), // Optional username, defaults to email
+    balance: decimal("balance", { precision: 20, scale: 2 }).notNull().default("10000.00"), // Starting balance: $10,000
+    isAdmin: boolean("is_admin").notNull().default(false), // Admin access to system management
+    isPremium: boolean("is_premium").notNull().default(false),
+    premiumExpiresAt: timestamp("premium_expires_at"),
+    hasSeenOnboarding: boolean("has_seen_onboarding").notNull().default(false), // Track if user completed onboarding
+    isBot: boolean("is_bot").notNull().default(false), // True for market maker bot accounts
+    // Profile stats
+    totalSharesVested: integer("total_shares_vested").notNull().default(0),
+    totalMarketOrders: integer("total_market_orders").notNull().default(0),
+    totalTradesExecuted: integer("total_trades_executed").notNull().default(0),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+    // News Hub fields
+    lastNewsViewedAt: timestamp("last_news_viewed_at"), // Track when user last viewed news
+    newsNotificationsEnabled: boolean("news_notifications_enabled").notNull().default(true), // Opt-out of news notifications
+    // Scout Engine fields
+    lastActiveAt: timestamp("last_active_at"), // Scout Engine: activity tracking for 24h kill-switch
+  },
+  (table) => ({
+    lastActiveIdx: index("users_last_active_idx").on(table.lastActiveAt),
+  }),
+);
 
 // Players table - players from all sports (NBA, NFL, etc.)
 // Player IDs are prefixed with sport: nba_12345, nfl_67890
-export const players = pgTable("players", {
-  id: varchar("id").primaryKey(), // Prefixed player ID (e.g., nba_12345, nfl_67890)
-  sport: text("sport").notNull().default("NBA"), // NBA, NFL, etc.
-  firstName: text("first_name").notNull(),
-  lastName: text("last_name").notNull(),
-  team: text("team").notNull(),
-  position: text("position").notNull(),
-  jerseyNumber: text("jersey_number"),
-  isActive: boolean("is_active").notNull().default(true), // On active roster
-  isEligibleForVesting: boolean("is_eligible_for_vesting").notNull().default(true),
-  currentPrice: decimal("current_price", { precision: 10, scale: 2 }).notNull().default("10.00"), // Placeholder - use lastTradePrice for real market value
-  lastTradePrice: decimal("last_trade_price", { precision: 10, scale: 2 }), // Actual market price from last trade, null if no trades
-  volume24h: integer("volume_24h").notNull().default(0),
-  priceChange24h: decimal("price_change_24h", { precision: 10, scale: 2 }).notNull().default("0.00"),
-  marketCap: decimal("market_cap", { precision: 20, scale: 2 }).notNull().default("0.00"), // Total shares * price, updated on each trade
-  totalShares: integer("total_shares").notNull().default(0), // Total shares held by all users, updated on each trade
-  lastUpdated: timestamp("last_updated").notNull().defaultNow(),
-  // Injury tracking fields
-  injuryStatus: text("injury_status"), // "Out", "Doubtful", "Questionable", "Probable", "Day-To-Day", null = healthy
-  injuryDescription: text("injury_description"), // Full injury details
-  injuryReturnDate: text("injury_return_date"), // Expected return date string
-  injuryUpdatedAt: timestamp("injury_updated_at"), // When injury info was last synced
-}, (table) => ({
-  sportIdx: index("player_sport_idx").on(table.sport),
-  injuryStatusIdx: index("injury_status_idx").on(table.injuryStatus),
-  sportTeamIdx: index("player_sport_team_idx").on(table.sport, table.team),
-  sportPositionIdx: index("player_sport_position_idx").on(table.sport, table.position),
-  teamIdx: index("team_idx").on(table.team),
-  activeIdx: index("active_idx").on(table.isActive),
-  positionIdx: index("position_idx").on(table.position),
-  nameIdx: index("name_idx").on(table.firstName, table.lastName),
-  lastTradePriceIdx: index("last_trade_price_idx").on(table.lastTradePrice),
-  volume24hIdx: index("volume_24h_idx").on(table.volume24h),
-  priceChange24hIdx: index("price_change_24h_idx").on(table.priceChange24h),
-  marketCapIdx: index("market_cap_idx").on(table.marketCap),
-}));
+export const players = pgTable(
+  "players",
+  {
+    id: varchar("id").primaryKey(), // Prefixed player ID (e.g., nba_12345, nfl_67890)
+    sport: text("sport").notNull().default("NBA"), // NBA, NFL, etc.
+    firstName: text("first_name").notNull(),
+    lastName: text("last_name").notNull(),
+    team: text("team").notNull(),
+    position: text("position").notNull(),
+    jerseyNumber: text("jersey_number"),
+    isActive: boolean("is_active").notNull().default(true), // On active roster
+    isEligibleForVesting: boolean("is_eligible_for_vesting").notNull().default(true),
+    currentPrice: decimal("current_price", { precision: 10, scale: 2 }).notNull().default("10.00"), // Placeholder - use lastTradePrice for real market value
+    lastTradePrice: decimal("last_trade_price", { precision: 10, scale: 2 }), // Actual market price from last trade, null if no trades
+    volume24h: integer("volume_24h").notNull().default(0),
+    priceChange24h: decimal("price_change_24h", { precision: 10, scale: 2 })
+      .notNull()
+      .default("0.00"),
+    marketCap: decimal("market_cap", { precision: 20, scale: 2 }).notNull().default("0.00"), // Total shares * price, updated on each trade
+    totalShares: integer("total_shares").notNull().default(0), // Total shares held by all users, updated on each trade
+    lastUpdated: timestamp("last_updated").notNull().defaultNow(),
+    // Injury tracking fields
+    injuryStatus: text("injury_status"), // "Out", "Doubtful", "Questionable", "Probable", "Day-To-Day", null = healthy
+    injuryDescription: text("injury_description"), // Full injury details
+    injuryReturnDate: text("injury_return_date"), // Expected return date string
+    injuryUpdatedAt: timestamp("injury_updated_at"), // When injury info was last synced
+  },
+  (table) => ({
+    sportIdx: index("player_sport_idx").on(table.sport),
+    injuryStatusIdx: index("injury_status_idx").on(table.injuryStatus),
+    sportTeamIdx: index("player_sport_team_idx").on(table.sport, table.team),
+    sportPositionIdx: index("player_sport_position_idx").on(table.sport, table.position),
+    teamIdx: index("team_idx").on(table.team),
+    activeIdx: index("active_idx").on(table.isActive),
+    positionIdx: index("position_idx").on(table.position),
+    nameIdx: index("name_idx").on(table.firstName, table.lastName),
+    lastTradePriceIdx: index("last_trade_price_idx").on(table.lastTradePrice),
+    volume24hIdx: index("volume_24h_idx").on(table.volume24h),
+    priceChange24hIdx: index("price_change_24h_idx").on(table.priceChange24h),
+    marketCapIdx: index("market_cap_idx").on(table.marketCap),
+  }),
+);
 
 // Player market metrics table - precomputed sortable metrics for high-scale player lists
-export const playerMarketMetrics = pgTable("player_market_metrics", {
-  playerId: varchar("player_id").primaryKey().references(() => players.id, { onDelete: "cascade" }),
-  avgFantasyPoints: decimal("avg_fantasy_points", { precision: 10, scale: 2 }).notNull().default("0.00"),
-  buyPressure: decimal("buy_pressure", { precision: 5, scale: 2 }).notNull().default("50.00"),
-  totalOrderVolume24h: integer("total_order_volume_24h").notNull().default(0),
-  valueIndex: decimal("value_index", { precision: 10, scale: 2 }).notNull().default("0.00"),
-  bestBid: decimal("best_bid", { precision: 10, scale: 2 }).notNull().default("0.00"),
-  bestAsk: decimal("best_ask", { precision: 10, scale: 2 }).notNull().default("0.00"),
-  bidSize: integer("bid_size").notNull().default(0),
-  askSize: integer("ask_size").notNull().default(0),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-}, (table) => ({
-  avgFantasyPointsIdx: index("pmm_avg_fantasy_points_idx").on(table.avgFantasyPoints),
-  buyPressureIdx: index("pmm_buy_pressure_idx").on(table.buyPressure),
-  valueIndexIdx: index("pmm_value_index_idx").on(table.valueIndex),
-  bestBidIdx: index("pmm_best_bid_idx").on(table.bestBid),
-  bestAskIdx: index("pmm_best_ask_idx").on(table.bestAsk),
-  updatedAtIdx: index("pmm_updated_at_idx").on(table.updatedAt),
-}));
+export const playerMarketMetrics = pgTable(
+  "player_market_metrics",
+  {
+    playerId: varchar("player_id")
+      .primaryKey()
+      .references(() => players.id, { onDelete: "cascade" }),
+    avgFantasyPoints: decimal("avg_fantasy_points", { precision: 10, scale: 2 })
+      .notNull()
+      .default("0.00"),
+    buyPressure: decimal("buy_pressure", { precision: 5, scale: 2 }).notNull().default("50.00"),
+    totalOrderVolume24h: integer("total_order_volume_24h").notNull().default(0),
+    valueIndex: decimal("value_index", { precision: 10, scale: 2 }).notNull().default("0.00"),
+    bestBid: decimal("best_bid", { precision: 10, scale: 2 }).notNull().default("0.00"),
+    bestAsk: decimal("best_ask", { precision: 10, scale: 2 }).notNull().default("0.00"),
+    bidSize: integer("bid_size").notNull().default(0),
+    askSize: integer("ask_size").notNull().default(0),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    avgFantasyPointsIdx: index("pmm_avg_fantasy_points_idx").on(table.avgFantasyPoints),
+    buyPressureIdx: index("pmm_buy_pressure_idx").on(table.buyPressure),
+    valueIndexIdx: index("pmm_value_index_idx").on(table.valueIndex),
+    bestBidIdx: index("pmm_best_bid_idx").on(table.bestBid),
+    bestAskIdx: index("pmm_best_ask_idx").on(table.bestAsk),
+    updatedAtIdx: index("pmm_updated_at_idx").on(table.updatedAt),
+  }),
+);
 
 // Holdings table - user ownership of player shares and premium shares
-export const holdings = pgTable("holdings", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  assetType: text("asset_type").notNull(), // "player" or "premium"
-  assetId: text("asset_id").notNull(), // player ID or "premium"
-  quantity: decimal("quantity", { precision: 12, scale: 4 }).notNull().default("0"),
-  power: integer("power").notNull().default(1), // Power level per share (1 = regular, 5 = condensed)
-  powerLevel: decimal("power_level", { precision: 10, scale: 2 }).notNull().default("0.00"), // Computed: quantity * power (for backwards compatibility)
-  avgCostBasis: decimal("avg_cost_basis", { precision: 10, scale: 4 }).notNull().default("0.0000"), // Average cost per share
-  totalCostBasis: decimal("total_cost_basis", { precision: 20, scale: 2 }).notNull().default("0.00"), // Total invested
-  lastUpdated: timestamp("last_updated").notNull().defaultNow(),
-}, (table) => ({
-  userAssetIdx: index("user_asset_idx").on(table.userId, table.assetType, table.assetId),
-  // Index for finding powered shares
-  powerIdx: index("holdings_power_idx").on(table.assetId, table.power),
-}));
+export const holdings = pgTable(
+  "holdings",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    assetType: text("asset_type").notNull(), // "player" or "premium"
+    assetId: text("asset_id").notNull(), // player ID or "premium"
+    quantity: decimal("quantity", { precision: 12, scale: 4 }).notNull().default("0"),
+    power: integer("power").notNull().default(1), // Power level per share (1 = regular, 5 = condensed)
+    powerLevel: decimal("power_level", { precision: 10, scale: 2 }).notNull().default("0.00"), // Computed: quantity * power (for backwards compatibility)
+    avgCostBasis: decimal("avg_cost_basis", { precision: 10, scale: 4 })
+      .notNull()
+      .default("0.0000"), // Average cost per share
+    totalCostBasis: decimal("total_cost_basis", { precision: 20, scale: 2 })
+      .notNull()
+      .default("0.00"), // Total invested
+    lastUpdated: timestamp("last_updated").notNull().defaultNow(),
+  },
+  (table) => ({
+    userAssetIdx: index("user_asset_idx").on(table.userId, table.assetType, table.assetId),
+    // Index for finding powered shares
+    powerIdx: index("holdings_power_idx").on(table.assetId, table.power),
+  }),
+);
 
 // Holdings locks table - tracks reserved/locked shares to prevent double-spending
 // Available shares = holdings.quantity - SUM(holdings_locks.lockedQuantity)
-export const holdingsLocks = pgTable("holdings_locks", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  assetType: text("asset_type").notNull(), // "player" or "premium"
-  assetId: text("asset_id").notNull(), // player ID or "premium"
-  lockType: text("lock_type").notNull(), // "order", "contest", "vesting"
-  lockReferenceId: varchar("lock_reference_id").notNull(), // order ID, contest entry ID, or vesting record ID
-  lockedQuantity: integer("locked_quantity").notNull().default(0),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-}, (table) => ({
-  userAssetIdx: index("locks_user_asset_idx").on(table.userId, table.assetType, table.assetId),
-  referenceIdx: index("locks_reference_idx").on(table.lockReferenceId),
-  lockTypeIdx: index("locks_type_idx").on(table.lockType),
-}));
+export const holdingsLocks = pgTable(
+  "holdings_locks",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    assetType: text("asset_type").notNull(), // "player" or "premium"
+    assetId: text("asset_id").notNull(), // player ID or "premium"
+    lockType: text("lock_type").notNull(), // "order", "contest", "vesting"
+    lockReferenceId: varchar("lock_reference_id").notNull(), // order ID, contest entry ID, or vesting record ID
+    lockedQuantity: integer("locked_quantity").notNull().default(0),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    userAssetIdx: index("locks_user_asset_idx").on(table.userId, table.assetType, table.assetId),
+    referenceIdx: index("locks_reference_idx").on(table.lockReferenceId),
+    lockTypeIdx: index("locks_type_idx").on(table.lockType),
+  }),
+);
 
 // Balance locks table - tracks reserved cash to prevent double-spending
 // Available balance = users.balance - SUM(balance_locks.lockedAmount)
-export const balanceLocks = pgTable("balance_locks", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  lockType: text("lock_type").notNull(), // "order" (for buy orders)
-  lockReferenceId: varchar("lock_reference_id").notNull(), // order ID
-  lockedAmount: decimal("locked_amount", { precision: 20, scale: 2 }).notNull().default("0.00"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-}, (table) => ({
-  userIdx: index("balance_locks_user_idx").on(table.userId),
-  referenceIdx: index("balance_locks_reference_idx").on(table.lockReferenceId),
-  lockTypeIdx: index("balance_locks_type_idx").on(table.lockType),
-}));
+export const balanceLocks = pgTable(
+  "balance_locks",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    lockType: text("lock_type").notNull(), // "order" (for buy orders)
+    lockReferenceId: varchar("lock_reference_id").notNull(), // order ID
+    lockedAmount: decimal("locked_amount", { precision: 20, scale: 2 }).notNull().default("0.00"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    userIdx: index("balance_locks_user_idx").on(table.userId),
+    referenceIdx: index("balance_locks_reference_idx").on(table.lockReferenceId),
+    lockTypeIdx: index("balance_locks_type_idx").on(table.lockType),
+  }),
+);
 
 // Orders table - limit and market orders on the order book
-export const orders = pgTable("orders", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  playerId: varchar("player_id").notNull().references(() => players.id),
-  orderType: text("order_type").notNull(), // "limit" or "market"
-  side: text("side").notNull(), // "buy" or "sell"
-  quantity: integer("quantity").notNull(),
-  filledQuantity: integer("filled_quantity").notNull().default(0),
-  limitPrice: decimal("limit_price", { precision: 10, scale: 2 }), // null for market orders
-  status: text("status").notNull().default("open"), // "open", "filled", "cancelled", "partial"
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-}, (table) => ({
-  playerSideIdx: index("player_side_idx").on(table.playerId, table.side, table.status),
-  userIdx: index("user_idx").on(table.userId),
-}));
+export const orders = pgTable(
+  "orders",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    playerId: varchar("player_id")
+      .notNull()
+      .references(() => players.id),
+    orderType: text("order_type").notNull(), // "limit" or "market"
+    side: text("side").notNull(), // "buy" or "sell"
+    quantity: integer("quantity").notNull(),
+    filledQuantity: integer("filled_quantity").notNull().default(0),
+    limitPrice: decimal("limit_price", { precision: 10, scale: 2 }), // null for market orders
+    status: text("status").notNull().default("open"), // "open", "filled", "cancelled", "partial"
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    playerSideIdx: index("player_side_idx").on(table.playerId, table.side, table.status),
+    userIdx: index("user_idx").on(table.userId),
+  }),
+);
 
 // Trades table - executed trade history
-export const trades = pgTable("trades", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  playerId: varchar("player_id").notNull().references(() => players.id),
-  buyerId: varchar("buyer_id").notNull().references(() => users.id),
-  sellerId: varchar("seller_id").notNull().references(() => users.id),
-  buyOrderId: varchar("buy_order_id").references(() => orders.id),
-  sellOrderId: varchar("sell_order_id").references(() => orders.id),
-  quantity: decimal("quantity", { precision: 12, scale: 4 }).notNull(),
-  price: decimal("price", { precision: 10, scale: 2 }).notNull(),
-  executedAt: timestamp("executed_at").notNull().defaultNow(),
-}, (table) => ({
-  playerIdx: index("player_trade_idx").on(table.playerId),
-  executedIdx: index("executed_idx").on(table.executedAt),
-  playerExecutedIdx: index("trades_player_executed_at_idx").on(table.playerId, table.executedAt),
-}));
+export const trades = pgTable(
+  "trades",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    playerId: varchar("player_id")
+      .notNull()
+      .references(() => players.id),
+    buyerId: varchar("buyer_id")
+      .notNull()
+      .references(() => users.id),
+    sellerId: varchar("seller_id")
+      .notNull()
+      .references(() => users.id),
+    buyOrderId: varchar("buy_order_id").references(() => orders.id),
+    sellOrderId: varchar("sell_order_id").references(() => orders.id),
+    quantity: decimal("quantity", { precision: 12, scale: 4 }).notNull(),
+    price: decimal("price", { precision: 10, scale: 2 }).notNull(),
+    executedAt: timestamp("executed_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    playerIdx: index("player_trade_idx").on(table.playerId),
+    executedIdx: index("executed_idx").on(table.executedAt),
+    playerExecutedIdx: index("trades_player_executed_at_idx").on(table.playerId, table.executedAt),
+  }),
+);
 
 // Player Pools table - AMM constant product pools for instant trading
 // x * y = k where x=shares, y=play_money (Sportfolio Bucks)
-export const playerPools = pgTable("player_pools", {
-  playerId: varchar("player_id").primaryKey().references(() => players.id, { onDelete: "cascade" }),
-  shares: decimal("shares", { precision: 12, scale: 2 }).notNull().default("1000"),
-  playMoney: decimal("play_money", { precision: 12, scale: 2 }).notNull().default("10000"),
-  k: decimal("k", { precision: 24, scale: 2 }).notNull().default("10000000"),
-  lpSharesTotal: decimal("lp_shares_total", { precision: 24, scale: 2 }).notNull().default("1000"),
-  feesAccumulated: decimal("fees_accumulated", { precision: 12, scale: 2 }).notNull().default("0"),
-  feeGrowthPerLpShare: decimal("fee_growth_per_lp_share", { precision: 24, scale: 12 }).notNull().default("0"),
-  totalVolume: decimal("total_volume", { precision: 12, scale: 2 }).notNull().default("0"),
-  totalTrades: integer("total_trades").notNull().default(0),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-}, (table) => ({
-  updatedIdx: index("player_pools_updated_idx").on(table.updatedAt),
-}));
+export const playerPools = pgTable(
+  "player_pools",
+  {
+    playerId: varchar("player_id")
+      .primaryKey()
+      .references(() => players.id, { onDelete: "cascade" }),
+    shares: decimal("shares", { precision: 12, scale: 2 }).notNull().default("1000"),
+    playMoney: decimal("play_money", { precision: 12, scale: 2 }).notNull().default("10000"),
+    k: decimal("k", { precision: 24, scale: 2 }).notNull().default("10000000"),
+    lpSharesTotal: decimal("lp_shares_total", { precision: 24, scale: 2 })
+      .notNull()
+      .default("1000"),
+    feesAccumulated: decimal("fees_accumulated", { precision: 12, scale: 2 })
+      .notNull()
+      .default("0"),
+    feeGrowthPerLpShare: decimal("fee_growth_per_lp_share", { precision: 24, scale: 12 })
+      .notNull()
+      .default("0"),
+    totalVolume: decimal("total_volume", { precision: 12, scale: 2 }).notNull().default("0"),
+    totalTrades: integer("total_trades").notNull().default(0),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    updatedIdx: index("player_pools_updated_idx").on(table.updatedAt),
+  }),
+);
 
 // LP Positions table - Tracks user ownership of liquidity provider tokens
-export const lpPositions = pgTable("lp_positions", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  playerId: varchar("player_id").notNull().references(() => players.id, { onDelete: "cascade" }),
-  lpShares: decimal("lp_shares", { precision: 24, scale: 2 }).notNull().default("0"),
-  feeGrowthSnapshot: decimal("fee_growth_snapshot", { precision: 24, scale: 12 }).notNull().default("0"),
-  feesEarnedTotal: decimal("fees_earned_total", { precision: 12, scale: 2 }).notNull().default("0"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-}, (table) => ({
-  userPlayerUniqueIdx: uniqueIndex("lp_user_player_unique_idx").on(table.userId, table.playerId),
-  userIdx: index("lp_user_idx").on(table.userId),
-  playerIdx: index("lp_player_idx").on(table.playerId),
-  sharesIdx: index("lp_shares_idx").on(table.lpShares),
-}));
+export const lpPositions = pgTable(
+  "lp_positions",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    playerId: varchar("player_id")
+      .notNull()
+      .references(() => players.id, { onDelete: "cascade" }),
+    lpShares: decimal("lp_shares", { precision: 24, scale: 2 }).notNull().default("0"),
+    feeGrowthSnapshot: decimal("fee_growth_snapshot", { precision: 24, scale: 12 })
+      .notNull()
+      .default("0"),
+    feesEarnedTotal: decimal("fees_earned_total", { precision: 12, scale: 2 })
+      .notNull()
+      .default("0"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    userPlayerUniqueIdx: uniqueIndex("lp_user_player_unique_idx").on(table.userId, table.playerId),
+    userIdx: index("lp_user_idx").on(table.userId),
+    playerIdx: index("lp_player_idx").on(table.playerId),
+    sharesIdx: index("lp_shares_idx").on(table.lpShares),
+  }),
+);
 
 // LP Transactions table - Audit trail for liquidity additions/removals
-export const lpTransactions = pgTable("lp_transactions", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  playerId: varchar("player_id").notNull().references(() => players.id, { onDelete: "cascade" }),
-  transactionType: text("transaction_type").notNull(), // 'add' or 'remove'
-  lpShares: decimal("lp_shares", { precision: 24, scale: 2 }).notNull(),
-  sharesAmount: decimal("shares_amount", { precision: 12, scale: 2 }).notNull(),
-  playMoneyAmount: decimal("play_money_amount", { precision: 12, scale: 2 }).notNull(),
-  poolSharesBefore: decimal("pool_shares_before", { precision: 12, scale: 2 }).notNull(),
-  poolPlayMoneyBefore: decimal("pool_play_money_before", { precision: 12, scale: 2 }).notNull(),
-  poolLpSharesTotalBefore: decimal("pool_lp_shares_total_before", { precision: 24, scale: 2 }).notNull(),
-  timestamp: timestamp("timestamp").notNull().defaultNow(),
-}, (table) => ({
-  userIdx: index("lp_tx_user_idx").on(table.userId),
-  playerIdx: index("lp_tx_player_idx").on(table.playerId),
-  timestampIdx: index("lp_tx_timestamp_idx").on(table.timestamp),
-}));
+export const lpTransactions = pgTable(
+  "lp_transactions",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    playerId: varchar("player_id")
+      .notNull()
+      .references(() => players.id, { onDelete: "cascade" }),
+    transactionType: text("transaction_type").notNull(), // 'add' or 'remove'
+    lpShares: decimal("lp_shares", { precision: 24, scale: 2 }).notNull(),
+    sharesAmount: decimal("shares_amount", { precision: 12, scale: 2 }).notNull(),
+    playMoneyAmount: decimal("play_money_amount", { precision: 12, scale: 2 }).notNull(),
+    poolSharesBefore: decimal("pool_shares_before", { precision: 12, scale: 2 }).notNull(),
+    poolPlayMoneyBefore: decimal("pool_play_money_before", { precision: 12, scale: 2 }).notNull(),
+    poolLpSharesTotalBefore: decimal("pool_lp_shares_total_before", {
+      precision: 24,
+      scale: 2,
+    }).notNull(),
+    timestamp: timestamp("timestamp").notNull().defaultNow(),
+  },
+  (table) => ({
+    userIdx: index("lp_tx_user_idx").on(table.userId),
+    playerIdx: index("lp_tx_player_idx").on(table.playerId),
+    timestampIdx: index("lp_tx_timestamp_idx").on(table.timestamp),
+  }),
+);
 
 // Insert schemas for AMM/LP tables
 export const insertPlayerPoolSchema = createInsertSchema(playerPools).omit({
@@ -263,8 +383,13 @@ export const insertLpTransactionSchema = createInsertSchema(lpTransactions).omit
 
 // Vesting table - tracks user vesting state
 export const vesting = pgTable("vesting", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }).unique(),
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  userId: varchar("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" })
+    .unique(),
   playerId: varchar("player_id").references(() => players.id), // null for premium users with split vesting
   sharesAccumulated: integer("shares_accumulated").notNull().default(0),
   residualMs: integer("residual_ms").notNull().default(0), // Fractional time carryover in milliseconds
@@ -275,465 +400,693 @@ export const vesting = pgTable("vesting", {
 });
 
 // Vesting splits table - for premium users splitting vesting across players
-export const vestingSplits = pgTable("vesting_splits", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  playerId: varchar("player_id").notNull().references(() => players.id),
-  sharesPerHour: integer("shares_per_hour").notNull(),
-}, (table) => ({
-  userIdx: index("user_split_idx").on(table.userId),
-}));
+export const vestingSplits = pgTable(
+  "vesting_splits",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    playerId: varchar("player_id")
+      .notNull()
+      .references(() => players.id),
+    sharesPerHour: integer("shares_per_hour").notNull(),
+  },
+  (table) => ({
+    userIdx: index("user_split_idx").on(table.userId),
+  }),
+);
 
 // Vesting claims table - immutable log of individual claim events
-export const vestingClaims = pgTable("vesting_claims", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  playerId: varchar("player_id").references(() => players.id), // null for premium split vesting
-  sharesClaimed: integer("shares_claimed").notNull(),
-  claimedAt: timestamp("claimed_at").notNull().defaultNow(),
-}, (table) => ({
-  userIdx: index("vesting_claims_user_idx").on(table.userId),
-  claimedAtIdx: index("vesting_claims_claimed_at_idx").on(table.claimedAt),
-}));
+export const vestingClaims = pgTable(
+  "vesting_claims",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    playerId: varchar("player_id").references(() => players.id), // null for premium split vesting
+    sharesClaimed: integer("shares_claimed").notNull(),
+    claimedAt: timestamp("claimed_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    userIdx: index("vesting_claims_user_idx").on(table.userId),
+    claimedAtIdx: index("vesting_claims_claimed_at_idx").on(table.claimedAt),
+  }),
+);
 
 // Vesting presets table - saved player groups for quick redemption
-export const vestingPresets = pgTable("vesting_presets", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  name: text("name").notNull(),
-  playerIds: text("player_ids").array().notNull(), // Array of player IDs (max 20)
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-}, (table) => ({
-  userIdx: index("vesting_presets_user_idx").on(table.userId),
-}));
+export const vestingPresets = pgTable(
+  "vesting_presets",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    playerIds: text("player_ids").array().notNull(), // Array of player IDs (max 20)
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    userIdx: index("vesting_presets_user_idx").on(table.userId),
+  }),
+);
 
 // Scout Engine: Scout assignments - tracks which players each user is scouting
 // Users can stack multiple scouts (up to 5 standard, 10 premium) on players
-export const scoutAssignments = pgTable("scout_assignments", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  playerId: varchar("player_id").notNull().references(() => players.id, { onDelete: "cascade" }),
-  scoutCount: integer("scout_count").notNull().default(1), // Number of scouts stacked on this player
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-}, (table) => ({
-  userPlayerUniqueIdx: uniqueIndex("scout_user_player_unique_idx").on(table.userId, table.playerId),
-  playerIdx: index("scout_player_idx").on(table.playerId),
-  userIdx: index("scout_user_idx").on(table.userId),
-}));
+export const scoutAssignments = pgTable(
+  "scout_assignments",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    playerId: varchar("player_id")
+      .notNull()
+      .references(() => players.id, { onDelete: "cascade" }),
+    scoutCount: integer("scout_count").notNull().default(1), // Number of scouts stacked on this player
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    userPlayerUniqueIdx: uniqueIndex("scout_user_player_unique_idx").on(
+      table.userId,
+      table.playerId,
+    ),
+    playerIdx: index("scout_player_idx").on(table.playerId),
+    userIdx: index("scout_user_idx").on(table.userId),
+  }),
+);
 
 // Scout Engine: Scout distributions - immutable ledger of hourly share distributions
 // Formula: (60 Shares) * (User's Scout-Minutes / Total Global Scout-Minutes)
-export const scoutDistributions = pgTable("scout_distributions", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  hourTimestamp: timestamp("hour_timestamp").notNull(), // Hour bucket (truncated to hour)
-  playerId: varchar("player_id").notNull().references(() => players.id),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  userScoutMinutes: integer("user_scout_minutes").notNull(), // User's scout-minutes for this hour
-  globalScoutMinutes: integer("global_scout_minutes").notNull(), // Total scout-minutes for this player
-  sharesEarned: decimal("shares_earned", { precision: 10, scale: 2 }).notNull(), // Rounded to .01
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-}, (table) => ({
-  hourPlayerIdx: index("scout_dist_hour_player_idx").on(table.hourTimestamp, table.playerId),
-  userHourIdx: index("scout_dist_user_hour_idx").on(table.userId, table.hourTimestamp),
-}));
+export const scoutDistributions = pgTable(
+  "scout_distributions",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    hourTimestamp: timestamp("hour_timestamp").notNull(), // Hour bucket (truncated to hour)
+    playerId: varchar("player_id")
+      .notNull()
+      .references(() => players.id),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    userScoutMinutes: integer("user_scout_minutes").notNull(), // User's scout-minutes for this hour
+    globalScoutMinutes: integer("global_scout_minutes").notNull(), // Total scout-minutes for this player
+    sharesEarned: decimal("shares_earned", { precision: 10, scale: 2 }).notNull(), // Rounded to .01
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    hourPlayerIdx: index("scout_dist_hour_player_idx").on(table.hourTimestamp, table.playerId),
+    userHourIdx: index("scout_dist_user_hour_idx").on(table.userId, table.hourTimestamp),
+  }),
+);
 
 // Scout Engine: Scout History - Tracks duration of assignments for minute-level precision
 // Used to calculate "Scout-Minutes" when users change scouts mid-hour.
-export const scoutHistory = pgTable("scout_history", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  playerId: varchar("player_id").notNull().references(() => players.id, { onDelete: "cascade" }),
-  scoutCount: integer("scout_count").notNull(),
-  startedAt: timestamp("started_at").notNull().defaultNow(),
-  endedAt: timestamp("ended_at"), // Null if currently active
-}, (table) => ({
-  userTimeIdx: index("scout_history_user_time_idx").on(table.userId, table.startedAt, table.endedAt),
-  playerTimeIdx: index("scout_history_player_time_idx").on(table.playerId, table.startedAt, table.endedAt),
-}));
+export const scoutHistory = pgTable(
+  "scout_history",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    playerId: varchar("player_id")
+      .notNull()
+      .references(() => players.id, { onDelete: "cascade" }),
+    scoutCount: integer("scout_count").notNull(),
+    startedAt: timestamp("started_at").notNull().defaultNow(),
+    endedAt: timestamp("ended_at"), // Null if currently active
+  },
+  (table) => ({
+    userTimeIdx: index("scout_history_user_time_idx").on(
+      table.userId,
+      table.startedAt,
+      table.endedAt,
+    ),
+    playerTimeIdx: index("scout_history_player_time_idx").on(
+      table.playerId,
+      table.startedAt,
+      table.endedAt,
+    ),
+  }),
+);
 
 // Contests table
-export const contests = pgTable("contests", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  name: text("name").notNull(),
-  sport: text("sport").notNull().default("NBA"),
-  contestType: text("contest_type").notNull().default("50/50"),
-  gameDate: timestamp("game_date").notNull(), // Date of games this contest covers
-  week: integer("week"), // NFL week number (null for NBA)
-  gameDay: text("game_day"), // NFL: "thursday", "sunday", "monday" (null for NBA)
-  status: text("status").notNull().default("open"), // "open", "live", "completed"
-  entryFee: decimal("entry_fee", { precision: 20, scale: 2 }).notNull().default("0.00"), // Entry fee per contest
-  totalSharesEntered: integer("total_shares_entered").notNull().default(0),
-  totalPrizePool: decimal("total_prize_pool", { precision: 20, scale: 2 }).notNull().default("0.00"),
-  entryCount: integer("entry_count").notNull().default(0),
-  startsAt: timestamp("starts_at").notNull(),
-  endsAt: timestamp("ends_at"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-}, (table) => ({
-  sportIdx: index("contest_sport_idx").on(table.sport),
-  sportStatusIdx: index("contest_sport_status_idx").on(table.sport, table.status),
-  sportWeekIdx: index("contest_sport_week_idx").on(table.sport, table.week),
-  statusIdx: index("contest_status_idx").on(table.status),
-}));
+export const contests = pgTable(
+  "contests",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    name: text("name").notNull(),
+    sport: text("sport").notNull().default("NBA"),
+    contestType: text("contest_type").notNull().default("50/50"),
+    gameDate: timestamp("game_date").notNull(), // Date of games this contest covers
+    week: integer("week"), // NFL week number (null for NBA)
+    gameDay: text("game_day"), // NFL: "thursday", "sunday", "monday" (null for NBA)
+    status: text("status").notNull().default("open"), // "open", "live", "completed"
+    entryFee: decimal("entry_fee", { precision: 20, scale: 2 }).notNull().default("0.00"), // Entry fee per contest
+    totalSharesEntered: integer("total_shares_entered").notNull().default(0),
+    totalPrizePool: decimal("total_prize_pool", { precision: 20, scale: 2 })
+      .notNull()
+      .default("0.00"),
+    entryCount: integer("entry_count").notNull().default(0),
+    startsAt: timestamp("starts_at").notNull(),
+    endsAt: timestamp("ends_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    sportIdx: index("contest_sport_idx").on(table.sport),
+    sportStatusIdx: index("contest_sport_status_idx").on(table.sport, table.status),
+    sportWeekIdx: index("contest_sport_week_idx").on(table.sport, table.week),
+    statusIdx: index("contest_status_idx").on(table.status),
+  }),
+);
 
 // Contest entries table
-export const contestEntries = pgTable("contest_entries", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  contestId: varchar("contest_id").notNull().references(() => contests.id, { onDelete: "cascade" }),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  totalSharesEntered: integer("total_shares_entered").notNull().default(0),
-  totalScore: decimal("total_score", { precision: 10, scale: 2 }).notNull().default("0.00"),
-  rank: integer("rank"),
-  payout: decimal("payout", { precision: 20, scale: 2 }).notNull().default("0.00"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-}, (table) => ({
-  contestUserIdx: index("contest_user_idx").on(table.contestId, table.userId),
-}));
+export const contestEntries = pgTable(
+  "contest_entries",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    contestId: varchar("contest_id")
+      .notNull()
+      .references(() => contests.id, { onDelete: "cascade" }),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    totalSharesEntered: integer("total_shares_entered").notNull().default(0),
+    totalScore: decimal("total_score", { precision: 10, scale: 2 }).notNull().default("0.00"),
+    rank: integer("rank"),
+    payout: decimal("payout", { precision: 20, scale: 2 }).notNull().default("0.00"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    contestUserIdx: index("contest_user_idx").on(table.contestId, table.userId),
+  }),
+);
 
 // Contest lineup table - specific player shares entered in a contest
-export const contestLineups = pgTable("contest_lineups", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  entryId: varchar("entry_id").notNull().references(() => contestEntries.id, { onDelete: "cascade" }),
-  playerId: varchar("player_id").notNull().references(() => players.id),
-  sharesEntered: integer("shares_entered").notNull(),
-  fantasyPoints: decimal("fantasy_points", { precision: 10, scale: 2 }).notNull().default("0.00"),
-  earnedScore: decimal("earned_score", { precision: 10, scale: 2 }).notNull().default("0.00"), // Pro-rated score
-}, (table) => ({
-  entryIdx: index("entry_idx").on(table.entryId),
-}));
+export const contestLineups = pgTable(
+  "contest_lineups",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    entryId: varchar("entry_id")
+      .notNull()
+      .references(() => contestEntries.id, { onDelete: "cascade" }),
+    playerId: varchar("player_id")
+      .notNull()
+      .references(() => players.id),
+    sharesEntered: integer("shares_entered").notNull(),
+    fantasyPoints: decimal("fantasy_points", { precision: 10, scale: 2 }).notNull().default("0.00"),
+    earnedScore: decimal("earned_score", { precision: 10, scale: 2 }).notNull().default("0.00"), // Pro-rated score
+  },
+  (table) => ({
+    entryIdx: index("entry_idx").on(table.entryId),
+  }),
+);
 
 // Player game stats table - for all sports
 // NBA: uses dedicated columns for backwards compatibility
 // NFL: uses statsJson for flexible stat storage
-export const playerGameStats = pgTable("player_game_stats", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  playerId: varchar("player_id").notNull().references(() => players.id),
-  gameId: text("game_id").notNull(), // API game ID
-  sport: text("sport").notNull().default("NBA"), // NBA, NFL, etc.
-  gameDate: timestamp("game_date").notNull(),
-  week: integer("week"), // NFL week number (null for NBA)
-  season: text("season").notNull().default("2024-2025-regular"), // Track season for historical data
-  opponentTeam: text("opponent_team"), // Opponent abbreviation
-  homeAway: text("home_away"), // "home" or "away"
-  // Sport-specific stats stored as JSON (used for NFL and future sports)
-  statsJson: jsonb("stats_json").notNull().default("{}"),
-  // NBA-specific columns (kept for backward compatibility)
-  minutes: integer("minutes").notNull().default(0), // Minutes played
-  points: integer("points").notNull().default(0),
-  fieldGoalsMade: integer("field_goals_made").notNull().default(0),
-  fieldGoalsAttempted: integer("field_goals_attempted").notNull().default(0),
-  threePointersMade: integer("three_pointers_made").notNull().default(0),
-  threePointersAttempted: integer("three_pointers_attempted").notNull().default(0),
-  freeThrowsMade: integer("free_throws_made").notNull().default(0),
-  freeThrowsAttempted: integer("free_throws_attempted").notNull().default(0),
-  rebounds: integer("rebounds").notNull().default(0),
-  assists: integer("assists").notNull().default(0),
-  steals: integer("steals").notNull().default(0),
-  blocks: integer("blocks").notNull().default(0),
-  turnovers: integer("turnovers").notNull().default(0),
-  isDoubleDouble: boolean("is_double_double").notNull().default(false),
-  isTripleDouble: boolean("is_triple_double").notNull().default(false),
-  // Common field
-  fantasyPoints: decimal("fantasy_points", { precision: 10, scale: 2 }).notNull().default("0.00"),
-  lastFetchedAt: timestamp("last_fetched_at").notNull().defaultNow(), // Track ingestion time
-}, (table) => ({
-  sportIdx: index("game_stats_sport_idx").on(table.sport),
-  sportWeekIdx: index("game_stats_sport_week_idx").on(table.sport, table.week),
-  sportPlayerIdx: index("game_stats_sport_player_idx").on(table.sport, table.playerId),
-  playerGameIdx: index("player_game_idx").on(table.playerId, table.gameId),
-}));
+export const playerGameStats = pgTable(
+  "player_game_stats",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    playerId: varchar("player_id")
+      .notNull()
+      .references(() => players.id),
+    gameId: text("game_id").notNull(), // API game ID
+    sport: text("sport").notNull().default("NBA"), // NBA, NFL, etc.
+    gameDate: timestamp("game_date").notNull(),
+    week: integer("week"), // NFL week number (null for NBA)
+    season: text("season").notNull().default("2024-2025-regular"), // Track season for historical data
+    opponentTeam: text("opponent_team"), // Opponent abbreviation
+    homeAway: text("home_away"), // "home" or "away"
+    // Sport-specific stats stored as JSON (used for NFL and future sports)
+    statsJson: jsonb("stats_json").notNull().default("{}"),
+    // NBA-specific columns (kept for backward compatibility)
+    minutes: integer("minutes").notNull().default(0), // Minutes played
+    points: integer("points").notNull().default(0),
+    fieldGoalsMade: integer("field_goals_made").notNull().default(0),
+    fieldGoalsAttempted: integer("field_goals_attempted").notNull().default(0),
+    threePointersMade: integer("three_pointers_made").notNull().default(0),
+    threePointersAttempted: integer("three_pointers_attempted").notNull().default(0),
+    freeThrowsMade: integer("free_throws_made").notNull().default(0),
+    freeThrowsAttempted: integer("free_throws_attempted").notNull().default(0),
+    rebounds: integer("rebounds").notNull().default(0),
+    assists: integer("assists").notNull().default(0),
+    steals: integer("steals").notNull().default(0),
+    blocks: integer("blocks").notNull().default(0),
+    turnovers: integer("turnovers").notNull().default(0),
+    isDoubleDouble: boolean("is_double_double").notNull().default(false),
+    isTripleDouble: boolean("is_triple_double").notNull().default(false),
+    // Common field
+    fantasyPoints: decimal("fantasy_points", { precision: 10, scale: 2 }).notNull().default("0.00"),
+    lastFetchedAt: timestamp("last_fetched_at").notNull().defaultNow(), // Track ingestion time
+  },
+  (table) => ({
+    sportIdx: index("game_stats_sport_idx").on(table.sport),
+    sportWeekIdx: index("game_stats_sport_week_idx").on(table.sport, table.week),
+    sportPlayerIdx: index("game_stats_sport_player_idx").on(table.sport, table.playerId),
+    playerGameIdx: index("player_game_idx").on(table.playerId, table.gameId),
+  }),
+);
 
 // Price history table - for charts
-export const priceHistory = pgTable("price_history", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  playerId: varchar("player_id").notNull().references(() => players.id),
-  price: decimal("price", { precision: 10, scale: 2 }).notNull(),
-  volume: integer("volume").notNull().default(0),
-  timestamp: timestamp("timestamp").notNull().defaultNow(),
-}, (table) => ({
-  playerTimeIdx: index("player_time_idx").on(table.playerId, table.timestamp),
-}));
+export const priceHistory = pgTable(
+  "price_history",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    playerId: varchar("player_id")
+      .notNull()
+      .references(() => players.id),
+    price: decimal("price", { precision: 10, scale: 2 }).notNull(),
+    volume: integer("volume").notNull().default(0),
+    timestamp: timestamp("timestamp").notNull().defaultNow(),
+  },
+  (table) => ({
+    playerTimeIdx: index("player_time_idx").on(table.playerId, table.timestamp),
+  }),
+);
 
 // Daily games table - cached game schedules for all sports
-export const dailyGames = pgTable("daily_games", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  gameId: text("game_id").notNull().unique(), // API game ID (prefixed for clarity)
-  sport: text("sport").notNull().default("NBA"), // NBA, NFL, etc.
-  date: timestamp("date", { withTimezone: true }).notNull(), // Game date
-  week: integer("week"), // NFL week number (1-18 for regular season, null for NBA)
-  homeTeam: text("home_team").notNull(), // Team abbreviation
-  awayTeam: text("away_team").notNull(), // Team abbreviation
-  venue: text("venue"),
-  status: text("status").notNull().default("scheduled"), // "scheduled", "inprogress", "completed", "postponed"
-  startTime: timestamp("start_time", { withTimezone: true }).notNull(),
-  homeScore: integer("home_score"), // null for scheduled games
-  awayScore: integer("away_score"), // null for scheduled games
-  lastFetchedAt: timestamp("last_fetched_at", { withTimezone: true }).notNull().defaultNow(),
-}, (table) => ({
-  sportIdx: index("daily_games_sport_idx").on(table.sport),
-  sportDateIdx: index("daily_games_sport_date_idx").on(table.sport, table.date),
-  sportWeekIdx: index("daily_games_sport_week_idx").on(table.sport, table.week),
-  dateIdx: index("daily_games_date_idx").on(table.date),
-  statusIdx: index("daily_games_status_idx").on(table.status),
-  gameIdDateIdx: index("daily_games_game_date_idx").on(table.gameId, table.date),
-}));
+export const dailyGames = pgTable(
+  "daily_games",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    gameId: text("game_id").notNull().unique(), // API game ID (prefixed for clarity)
+    sport: text("sport").notNull().default("NBA"), // NBA, NFL, etc.
+    date: timestamp("date", { withTimezone: true }).notNull(), // Game date
+    week: integer("week"), // NFL week number (1-18 for regular season, null for NBA)
+    homeTeam: text("home_team").notNull(), // Team abbreviation
+    awayTeam: text("away_team").notNull(), // Team abbreviation
+    venue: text("venue"),
+    status: text("status").notNull().default("scheduled"), // "scheduled", "inprogress", "completed", "postponed"
+    startTime: timestamp("start_time", { withTimezone: true }).notNull(),
+    homeScore: integer("home_score"), // null for scheduled games
+    awayScore: integer("away_score"), // null for scheduled games
+    lastFetchedAt: timestamp("last_fetched_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    sportIdx: index("daily_games_sport_idx").on(table.sport),
+    sportDateIdx: index("daily_games_sport_date_idx").on(table.sport, table.date),
+    sportWeekIdx: index("daily_games_sport_week_idx").on(table.sport, table.week),
+    dateIdx: index("daily_games_date_idx").on(table.date),
+    statusIdx: index("daily_games_status_idx").on(table.status),
+    gameIdDateIdx: index("daily_games_game_date_idx").on(table.gameId, table.date),
+  }),
+);
 
 // Job execution logs - track sync job runs for monitoring
-export const jobExecutionLogs = pgTable("job_execution_logs", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  jobName: text("job_name").notNull(), // e.g., "roster_sync", "schedule_sync", "stats_sync"
-  scheduledFor: timestamp("scheduled_for").notNull(), // When job was supposed to run
-  startedAt: timestamp("started_at").notNull().defaultNow(),
-  finishedAt: timestamp("finished_at"),
-  status: text("status").notNull().default("running"), // "running", "success", "failed", "degraded"
-  errorMessage: text("error_message"),
-  requestCount: integer("request_count").notNull().default(0), // API requests made during job
-  recordsProcessed: integer("records_processed").notNull().default(0),
-  errorCount: integer("error_count").notNull().default(0), // Number of failed records
-}, (table) => ({
-  jobNameIdx: index("job_name_idx").on(table.jobName),
-  scheduledIdx: index("scheduled_idx").on(table.scheduledFor),
-}));
+export const jobExecutionLogs = pgTable(
+  "job_execution_logs",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    jobName: text("job_name").notNull(), // e.g., "roster_sync", "schedule_sync", "stats_sync"
+    scheduledFor: timestamp("scheduled_for").notNull(), // When job was supposed to run
+    startedAt: timestamp("started_at").notNull().defaultNow(),
+    finishedAt: timestamp("finished_at"),
+    status: text("status").notNull().default("running"), // "running", "success", "failed", "degraded"
+    errorMessage: text("error_message"),
+    requestCount: integer("request_count").notNull().default(0), // API requests made during job
+    recordsProcessed: integer("records_processed").notNull().default(0),
+    errorCount: integer("error_count").notNull().default(0), // Number of failed records
+  },
+  (table) => ({
+    jobNameIdx: index("job_name_idx").on(table.jobName),
+    scheduledIdx: index("scheduled_idx").on(table.scheduledFor),
+  }),
+);
 
 // Blog posts table - admin-created content for SEO and user engagement
-export const blogPosts = pgTable("blog_posts", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  title: text("title").notNull(),
-  slug: text("slug").notNull().unique(), // URL-friendly version of title
-  excerpt: text("excerpt").notNull(), // Brief summary for listing pages
-  content: text("content").notNull(), // Full blog post content (can be markdown or HTML)
-  authorId: varchar("author_id").notNull().references(() => users.id),
-  publishedAt: timestamp("published_at"), // null = draft, non-null = published
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-}, (table) => ({
-  slugIdx: index("blog_slug_idx").on(table.slug),
-  publishedIdx: index("blog_published_idx").on(table.publishedAt),
-  authorIdx: index("blog_author_idx").on(table.authorId),
-}));
+export const blogPosts = pgTable(
+  "blog_posts",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    title: text("title").notNull(),
+    slug: text("slug").notNull().unique(), // URL-friendly version of title
+    excerpt: text("excerpt").notNull(), // Brief summary for listing pages
+    content: text("content").notNull(), // Full blog post content (can be markdown or HTML)
+    authorId: varchar("author_id")
+      .notNull()
+      .references(() => users.id),
+    publishedAt: timestamp("published_at"), // null = draft, non-null = published
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    slugIdx: index("blog_slug_idx").on(table.slug),
+    publishedIdx: index("blog_published_idx").on(table.publishedAt),
+    authorIdx: index("blog_author_idx").on(table.authorId),
+  }),
+);
 
 // Portfolio snapshots table - daily snapshots of user portfolio metrics for historical tracking and rank changes
-export const portfolioSnapshots = pgTable("portfolio_snapshots", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  snapshotDate: timestamp("snapshot_date").notNull(), // Date this snapshot was taken (UTC midnight)
-  cashBalance: decimal("cash_balance", { precision: 20, scale: 2 }).notNull(),
-  portfolioValue: decimal("portfolio_value", { precision: 20, scale: 2 }).notNull(),
-  totalNetWorth: decimal("total_net_worth", { precision: 20, scale: 2 }).notNull(), // cashBalance + portfolioValue
-  cashRank: integer("cash_rank"), // User's rank on cash balance leaderboard
-  portfolioRank: integer("portfolio_rank"), // User's rank on portfolio value leaderboard
-  netWorthRank: integer("net_worth_rank"), // User's rank on total net worth leaderboard
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-}, (table) => ({
-  userDateIdx: index("portfolio_snapshots_user_date_idx").on(table.userId, table.snapshotDate),
-  dateIdx: index("portfolio_snapshots_date_idx").on(table.snapshotDate),
-}));
+export const portfolioSnapshots = pgTable(
+  "portfolio_snapshots",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    snapshotDate: timestamp("snapshot_date").notNull(), // Date this snapshot was taken (UTC midnight)
+    cashBalance: decimal("cash_balance", { precision: 20, scale: 2 }).notNull(),
+    portfolioValue: decimal("portfolio_value", { precision: 20, scale: 2 }).notNull(),
+    totalNetWorth: decimal("total_net_worth", { precision: 20, scale: 2 }).notNull(), // cashBalance + portfolioValue
+    cashRank: integer("cash_rank"), // User's rank on cash balance leaderboard
+    portfolioRank: integer("portfolio_rank"), // User's rank on portfolio value leaderboard
+    netWorthRank: integer("net_worth_rank"), // User's rank on total net worth leaderboard
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    userDateIdx: index("portfolio_snapshots_user_date_idx").on(table.userId, table.snapshotDate),
+    dateIdx: index("portfolio_snapshots_date_idx").on(table.snapshotDate),
+  }),
+);
 
 // Market snapshots table - daily snapshots of platform-wide market metrics for analytics charts
-export const marketSnapshots = pgTable("market_snapshots", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  snapshotDate: timestamp("snapshot_date").notNull().unique(), // One row per day (UTC midnight)
-  marketCap: decimal("market_cap", { precision: 20, scale: 2 }).notNull(), // Total value of all shares (shares * price)
-  transactionsCount: integer("transactions_count").notNull().default(0), // Number of trades that day
-  volume: decimal("volume", { precision: 20, scale: 2 }).notNull().default("0"), // Total trading volume that day
-  sharesVested: integer("shares_vested").notNull().default(0), // Shares vested that day
-  sharesBurned: integer("shares_burned").notNull().default(0), // Shares used in contests that day
-  totalShares: integer("total_shares").notNull().default(0), // Total shares in economy (snapshot)
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-}, (table) => ({
-  dateIdx: index("market_snapshots_date_idx").on(table.snapshotDate),
-}));
+export const marketSnapshots = pgTable(
+  "market_snapshots",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    snapshotDate: timestamp("snapshot_date").notNull().unique(), // One row per day (UTC midnight)
+    marketCap: decimal("market_cap", { precision: 20, scale: 2 }).notNull(), // Total value of all shares (shares * price)
+    transactionsCount: integer("transactions_count").notNull().default(0), // Number of trades that day
+    volume: decimal("volume", { precision: 20, scale: 2 }).notNull().default("0"), // Total trading volume that day
+    sharesVested: integer("shares_vested").notNull().default(0), // Shares vested that day
+    sharesBurned: integer("shares_burned").notNull().default(0), // Shares used in contests that day
+    totalShares: integer("total_shares").notNull().default(0), // Total shares in economy (snapshot)
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    dateIdx: index("market_snapshots_date_idx").on(table.snapshotDate),
+  }),
+);
 
 // Bot profiles table - configuration for market maker bots
-export const botProfiles = pgTable("bot_profiles", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }).unique(),
-  botName: text("bot_name").notNull(), // Human-readable name like "MarketMaker_Alpha"
-  botRole: text("bot_role").notNull(), // "market_maker", "trader", "contest", "vester", "casual"
-  isActive: boolean("is_active").notNull().default(true), // Enable/disable this bot
-  // Trading configuration
-  aggressiveness: decimal("aggressiveness", { precision: 3, scale: 2 }).notNull().default("0.50"), // 0.0-1.0 scale
-  spreadPercent: decimal("spread_percent", { precision: 5, scale: 2 }).notNull().default("2.00"), // Bid/ask spread percentage
-  maxOrderSize: integer("max_order_size").notNull().default(100), // Maximum shares per order
-  minOrderSize: integer("min_order_size").notNull().default(5), // Minimum shares per order
-  maxDailyOrders: integer("max_daily_orders").notNull().default(50), // Daily order cap
-  maxDailyVolume: integer("max_daily_volume").notNull().default(1000), // Max shares traded per day
-  targetTiers: integer("target_tiers").array(), // Player tiers to target (1-5), null = all tiers
-  // Vesting configuration
-  vestingClaimThreshold: decimal("vesting_claim_threshold", { precision: 3, scale: 2 }).notNull().default("0.85"), // Claim at 85% of cap
-  maxPlayersToVest: integer("max_players_to_vest").notNull().default(5), // Max players to split vesting across
-  // Contest configuration
-  maxContestEntriesPerDay: integer("max_contest_entries_per_day").notNull().default(2),
-  contestEntryBudget: integer("contest_entry_budget").notNull().default(500), // Max shares per entry
-  // Timing configuration
-  minActionCooldownMs: integer("min_action_cooldown_ms").notNull().default(60000), // 1 minute minimum between actions
-  maxActionCooldownMs: integer("max_action_cooldown_ms").notNull().default(300000), // 5 minute max cooldown
-  activeHoursStart: integer("active_hours_start").notNull().default(8), // Start hour (0-23 UTC)
-  activeHoursEnd: integer("active_hours_end").notNull().default(23), // End hour (0-23 UTC)
-  // State tracking
-  lastActionAt: timestamp("last_action_at"),
-  ordersToday: integer("orders_today").notNull().default(0),
-  volumeToday: integer("volume_today").notNull().default(0),
-  contestEntriesToday: integer("contest_entries_today").notNull().default(0),
-  lastResetDate: timestamp("last_reset_date").notNull().defaultNow(), // Reset daily counters
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-}, (table) => ({
-  roleIdx: index("bot_role_idx").on(table.botRole),
-  activeIdx: index("bot_active_idx").on(table.isActive),
-}));
+export const botProfiles = pgTable(
+  "bot_profiles",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" })
+      .unique(),
+    botName: text("bot_name").notNull(), // Human-readable name like "MarketMaker_Alpha"
+    botRole: text("bot_role").notNull(), // "market_maker", "trader", "contest", "vester", "casual"
+    isActive: boolean("is_active").notNull().default(true), // Enable/disable this bot
+    // Trading configuration
+    aggressiveness: decimal("aggressiveness", { precision: 3, scale: 2 }).notNull().default("0.50"), // 0.0-1.0 scale
+    spreadPercent: decimal("spread_percent", { precision: 5, scale: 2 }).notNull().default("2.00"), // Bid/ask spread percentage
+    maxOrderSize: integer("max_order_size").notNull().default(100), // Maximum shares per order
+    minOrderSize: integer("min_order_size").notNull().default(5), // Minimum shares per order
+    maxDailyOrders: integer("max_daily_orders").notNull().default(50), // Daily order cap
+    maxDailyVolume: integer("max_daily_volume").notNull().default(1000), // Max shares traded per day
+    targetTiers: integer("target_tiers").array(), // Player tiers to target (1-5), null = all tiers
+    // Vesting configuration
+    vestingClaimThreshold: decimal("vesting_claim_threshold", { precision: 3, scale: 2 })
+      .notNull()
+      .default("0.85"), // Claim at 85% of cap
+    maxPlayersToVest: integer("max_players_to_vest").notNull().default(5), // Max players to split vesting across
+    // Contest configuration
+    maxContestEntriesPerDay: integer("max_contest_entries_per_day").notNull().default(2),
+    contestEntryBudget: integer("contest_entry_budget").notNull().default(500), // Max shares per entry
+    // Timing configuration
+    minActionCooldownMs: integer("min_action_cooldown_ms").notNull().default(60000), // 1 minute minimum between actions
+    maxActionCooldownMs: integer("max_action_cooldown_ms").notNull().default(300000), // 5 minute max cooldown
+    activeHoursStart: integer("active_hours_start").notNull().default(8), // Start hour (0-23 UTC)
+    activeHoursEnd: integer("active_hours_end").notNull().default(23), // End hour (0-23 UTC)
+    // State tracking
+    lastActionAt: timestamp("last_action_at"),
+    ordersToday: integer("orders_today").notNull().default(0),
+    volumeToday: integer("volume_today").notNull().default(0),
+    contestEntriesToday: integer("contest_entries_today").notNull().default(0),
+    lastResetDate: timestamp("last_reset_date").notNull().defaultNow(), // Reset daily counters
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    roleIdx: index("bot_role_idx").on(table.botRole),
+    activeIdx: index("bot_active_idx").on(table.isActive),
+  }),
+);
 
 // Bot actions log table - audit trail of all bot actions
-export const botActionsLog = pgTable("bot_actions_log", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  botUserId: varchar("bot_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  actionType: text("action_type").notNull(), // "order_placed", "order_cancelled", "vesting_claim", "contest_entry", "vesting_selection"
-  actionDetails: jsonb("action_details").notNull(), // JSON with specific details (order ID, player ID, amounts, etc.)
-  triggerReason: text("trigger_reason").notNull(), // Why this action was taken
-  success: boolean("success").notNull().default(true),
-  errorMessage: text("error_message"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-}, (table) => ({
-  botUserIdx: index("bot_actions_user_idx").on(table.botUserId),
-  actionTypeIdx: index("bot_actions_type_idx").on(table.actionType),
-  createdAtIdx: index("bot_actions_created_idx").on(table.createdAt),
-}));
+export const botActionsLog = pgTable(
+  "bot_actions_log",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    botUserId: varchar("bot_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    actionType: text("action_type").notNull(), // "order_placed", "order_cancelled", "vesting_claim", "contest_entry", "vesting_selection"
+    actionDetails: jsonb("action_details").notNull(), // JSON with specific details (order ID, player ID, amounts, etc.)
+    triggerReason: text("trigger_reason").notNull(), // Why this action was taken
+    success: boolean("success").notNull().default(true),
+    errorMessage: text("error_message"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    botUserIdx: index("bot_actions_user_idx").on(table.botUserId),
+    actionTypeIdx: index("bot_actions_type_idx").on(table.actionType),
+    createdAtIdx: index("bot_actions_created_idx").on(table.createdAt),
+  }),
+);
 
 // Premium checkout sessions table - tracks Whop checkout sessions for premium share purchases
-export const premiumCheckoutSessions = pgTable("premium_checkout_sessions", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  whopSessionId: varchar("whop_session_id").unique(), // Whop's session ID (if using session API)
-  planId: text("plan_id").notNull(), // Whop plan ID
-  quantity: integer("quantity").notNull().default(1), // Number of premium shares to credit
-  amountCents: integer("amount_cents").notNull(), // Amount in cents (500 = $5)
-  status: text("status").notNull().default("pending"), // "pending", "completed", "failed"
-  receiptId: varchar("receipt_id").unique(), // Whop receipt/payment ID for idempotency
-  completedAt: timestamp("completed_at"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-}, (table) => ({
-  userIdx: index("premium_checkout_user_idx").on(table.userId),
-  statusIdx: index("premium_checkout_status_idx").on(table.status),
-  receiptIdx: index("premium_checkout_receipt_idx").on(table.receiptId),
-}));
+export const premiumCheckoutSessions = pgTable(
+  "premium_checkout_sessions",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    whopSessionId: varchar("whop_session_id").unique(), // Whop's session ID (if using session API)
+    planId: text("plan_id").notNull(), // Whop plan ID
+    quantity: integer("quantity").notNull().default(1), // Number of premium shares to credit
+    amountCents: integer("amount_cents").notNull(), // Amount in cents (500 = $5)
+    status: text("status").notNull().default("pending"), // "pending", "completed", "failed"
+    receiptId: varchar("receipt_id").unique(), // Whop receipt/payment ID for idempotency
+    completedAt: timestamp("completed_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    userIdx: index("premium_checkout_user_idx").on(table.userId),
+    statusIdx: index("premium_checkout_status_idx").on(table.status),
+    receiptIdx: index("premium_checkout_receipt_idx").on(table.receiptId),
+  }),
+);
 
 // Premium orders table - limit and market orders for premium share trading
-export const premiumOrders = pgTable("premium_orders", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  orderType: text("order_type").notNull(), // "limit" or "market"
-  side: text("side").notNull(), // "buy" or "sell"
-  quantity: integer("quantity").notNull(),
-  filledQuantity: integer("filled_quantity").notNull().default(0),
-  limitPrice: decimal("limit_price", { precision: 10, scale: 2 }), // null for market orders
-  status: text("status").notNull().default("open"), // "open", "filled", "cancelled", "partial"
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-}, (table) => ({
-  sideStatusIdx: index("premium_orders_side_status_idx").on(table.side, table.status),
-  userIdx: index("premium_orders_user_idx").on(table.userId),
-  createdAtIdx: index("premium_orders_created_idx").on(table.createdAt),
-}));
+export const premiumOrders = pgTable(
+  "premium_orders",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    orderType: text("order_type").notNull(), // "limit" or "market"
+    side: text("side").notNull(), // "buy" or "sell"
+    quantity: integer("quantity").notNull(),
+    filledQuantity: integer("filled_quantity").notNull().default(0),
+    limitPrice: decimal("limit_price", { precision: 10, scale: 2 }), // null for market orders
+    status: text("status").notNull().default("open"), // "open", "filled", "cancelled", "partial"
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    sideStatusIdx: index("premium_orders_side_status_idx").on(table.side, table.status),
+    userIdx: index("premium_orders_user_idx").on(table.userId),
+    createdAtIdx: index("premium_orders_created_idx").on(table.createdAt),
+  }),
+);
 
 // Premium trades table - executed premium share trade history
-export const premiumTrades = pgTable("premium_trades", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  buyerId: varchar("buyer_id").notNull().references(() => users.id),
-  sellerId: varchar("seller_id").notNull().references(() => users.id),
-  buyOrderId: varchar("buy_order_id").references(() => premiumOrders.id),
-  sellOrderId: varchar("sell_order_id").references(() => premiumOrders.id),
-  quantity: integer("quantity").notNull(),
-  price: decimal("price", { precision: 10, scale: 2 }).notNull(),
-  executedAt: timestamp("executed_at").notNull().defaultNow(),
-}, (table) => ({
-  executedIdx: index("premium_trades_executed_idx").on(table.executedAt),
-  buyerIdx: index("premium_trades_buyer_idx").on(table.buyerId),
-  sellerIdx: index("premium_trades_seller_idx").on(table.sellerId),
-}));
+export const premiumTrades = pgTable(
+  "premium_trades",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    buyerId: varchar("buyer_id")
+      .notNull()
+      .references(() => users.id),
+    sellerId: varchar("seller_id")
+      .notNull()
+      .references(() => users.id),
+    buyOrderId: varchar("buy_order_id").references(() => premiumOrders.id),
+    sellOrderId: varchar("sell_order_id").references(() => premiumOrders.id),
+    quantity: integer("quantity").notNull(),
+    price: decimal("price", { precision: 10, scale: 2 }).notNull(),
+    executedAt: timestamp("executed_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    executedIdx: index("premium_trades_executed_idx").on(table.executedAt),
+    buyerIdx: index("premium_trades_buyer_idx").on(table.buyerId),
+    sellerIdx: index("premium_trades_seller_idx").on(table.sellerId),
+  }),
+);
 
 // Community checkout sessions table - tracks Whop checkout sessions for community share purchases
 // Community shares are used to create community boosts (+1x multiplier for all holders of a player)
-export const communityCheckoutSessions = pgTable("community_checkout_sessions", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  whopSessionId: varchar("whop_session_id").unique(), // Whop's session ID (if using session API)
-  planId: text("plan_id").notNull(), // Whop plan ID (should be WHOP_COMMUNITY_PLAN_ID)
-  quantity: integer("quantity").notNull().default(1), // Number of community shares to credit ($1 each)
-  amountCents: integer("amount_cents").notNull(), // Amount in cents (100 = $1 per share)
-  status: text("status").notNull().default("pending"), // "pending", "completed", "failed"
-  receiptId: varchar("receipt_id").unique(), // Whop receipt/payment ID for idempotency
-  completedAt: timestamp("completed_at"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-}, (table) => ({
-  userIdx: index("community_checkout_user_idx").on(table.userId),
-  statusIdx: index("community_checkout_status_idx").on(table.status),
-  receiptIdx: index("community_checkout_receipt_idx").on(table.receiptId),
-}));
+export const communityCheckoutSessions = pgTable(
+  "community_checkout_sessions",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    whopSessionId: varchar("whop_session_id").unique(), // Whop's session ID (if using session API)
+    planId: text("plan_id").notNull(), // Whop plan ID (should be WHOP_COMMUNITY_PLAN_ID)
+    quantity: integer("quantity").notNull().default(1), // Number of community shares to credit ($1 each)
+    amountCents: integer("amount_cents").notNull(), // Amount in cents (100 = $1 per share)
+    status: text("status").notNull().default("pending"), // "pending", "completed", "failed"
+    receiptId: varchar("receipt_id").unique(), // Whop receipt/payment ID for idempotency
+    completedAt: timestamp("completed_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    userIdx: index("community_checkout_user_idx").on(table.userId),
+    statusIdx: index("community_checkout_status_idx").on(table.status),
+    receiptIdx: index("community_checkout_receipt_idx").on(table.receiptId),
+  }),
+);
 
 // Community orders table - limit and market orders for community share trading
-export const communityOrders = pgTable("community_orders", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  orderType: text("order_type").notNull(), // "limit" or "market"
-  side: text("side").notNull(), // "buy" or "sell"
-  quantity: integer("quantity").notNull(),
-  filledQuantity: integer("filled_quantity").notNull().default(0),
-  limitPrice: decimal("limit_price", { precision: 10, scale: 2 }), // null for market orders
-  status: text("status").notNull().default("open"), // "open", "filled", "cancelled", "partial"
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-}, (table) => ({
-  sideStatusIdx: index("community_orders_side_status_idx").on(table.side, table.status),
-  userIdx: index("community_orders_user_idx").on(table.userId),
-  createdAtIdx: index("community_orders_created_idx").on(table.createdAt),
-}));
+export const communityOrders = pgTable(
+  "community_orders",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    orderType: text("order_type").notNull(), // "limit" or "market"
+    side: text("side").notNull(), // "buy" or "sell"
+    quantity: integer("quantity").notNull(),
+    filledQuantity: integer("filled_quantity").notNull().default(0),
+    limitPrice: decimal("limit_price", { precision: 10, scale: 2 }), // null for market orders
+    status: text("status").notNull().default("open"), // "open", "filled", "cancelled", "partial"
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    sideStatusIdx: index("community_orders_side_status_idx").on(table.side, table.status),
+    userIdx: index("community_orders_user_idx").on(table.userId),
+    createdAtIdx: index("community_orders_created_idx").on(table.createdAt),
+  }),
+);
 
 // Community trades table - executed community share trade history
-export const communityTrades = pgTable("community_trades", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  buyerId: varchar("buyer_id").notNull().references(() => users.id),
-  sellerId: varchar("seller_id").notNull().references(() => users.id),
-  buyOrderId: varchar("buy_order_id").references(() => communityOrders.id),
-  sellOrderId: varchar("sell_order_id").references(() => communityOrders.id),
-  quantity: integer("quantity").notNull(),
-  price: decimal("price", { precision: 10, scale: 2 }).notNull(),
-  executedAt: timestamp("executed_at").notNull().defaultNow(),
-}, (table) => ({
-  executedIdx: index("community_trades_executed_idx").on(table.executedAt),
-  buyerIdx: index("community_trades_buyer_idx").on(table.buyerId),
-  sellerIdx: index("community_trades_seller_idx").on(table.sellerId),
-}));
+export const communityTrades = pgTable(
+  "community_trades",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    buyerId: varchar("buyer_id")
+      .notNull()
+      .references(() => users.id),
+    sellerId: varchar("seller_id")
+      .notNull()
+      .references(() => users.id),
+    buyOrderId: varchar("buy_order_id").references(() => communityOrders.id),
+    sellOrderId: varchar("sell_order_id").references(() => communityOrders.id),
+    quantity: integer("quantity").notNull(),
+    price: decimal("price", { precision: 10, scale: 2 }).notNull(),
+    executedAt: timestamp("executed_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    executedIdx: index("community_trades_executed_idx").on(table.executedAt),
+    buyerIdx: index("community_trades_buyer_idx").on(table.buyerId),
+    sellerIdx: index("community_trades_seller_idx").on(table.sellerId),
+  }),
+);
 
 // Whop payments table - tracks Whop purchases for cross-platform crediting
 // Used to sync premium shares between Whop and Sportfolio
-export const whopPayments = pgTable("whop_payments", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  paymentId: varchar("payment_id").notNull().unique(), // Whop's unique payment ID (primary key for idempotency)
-  email: varchar("email").notNull(), // Email from Whop payment (used to match Sportfolio users)
-  userId: varchar("user_id").references(() => users.id, { onDelete: "set null" }), // Sportfolio user who received credit (null if not yet matched)
-  quantity: integer("quantity").notNull().default(1), // Number of premium shares purchased
-  amountCents: integer("amount_cents").notNull(), // Amount paid in cents
-  currency: varchar("currency").notNull().default("usd"),
-  whopStatus: text("whop_status").notNull(), // "paid", "refunded", "disputed", etc.
-  creditedAt: timestamp("credited_at"), // When shares were credited (null if not yet credited)
-  revokedAt: timestamp("revoked_at"), // When shares were revoked due to refund/chargeback
-  revokedQuantity: integer("revoked_quantity"), // How many shares were revoked
-  liabilityQuantity: integer("liability_quantity").default(0), // Shares owed if user traded them away before revocation
-  lastSyncedAt: timestamp("last_synced_at").notNull().defaultNow(), // Last time this payment was synced from Whop
-  rawPayload: jsonb("raw_payload"), // Full Whop payment object for debugging
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-}, (table) => ({
-  paymentIdIdx: index("whop_payments_payment_id_idx").on(table.paymentId),
-  emailIdx: index("whop_payments_email_idx").on(table.email),
-  userIdIdx: index("whop_payments_user_id_idx").on(table.userId),
-  statusIdx: index("whop_payments_status_idx").on(table.whopStatus),
-  creditedIdx: index("whop_payments_credited_idx").on(table.creditedAt),
-}));
+export const whopPayments = pgTable(
+  "whop_payments",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    paymentId: varchar("payment_id").notNull().unique(), // Whop's unique payment ID (primary key for idempotency)
+    email: varchar("email").notNull(), // Email from Whop payment (used to match Sportfolio users)
+    userId: varchar("user_id").references(() => users.id, { onDelete: "set null" }), // Sportfolio user who received credit (null if not yet matched)
+    quantity: integer("quantity").notNull().default(1), // Number of premium shares purchased
+    amountCents: integer("amount_cents").notNull(), // Amount paid in cents
+    currency: varchar("currency").notNull().default("usd"),
+    whopStatus: text("whop_status").notNull(), // "paid", "refunded", "disputed", etc.
+    creditedAt: timestamp("credited_at"), // When shares were credited (null if not yet credited)
+    revokedAt: timestamp("revoked_at"), // When shares were revoked due to refund/chargeback
+    revokedQuantity: integer("revoked_quantity"), // How many shares were revoked
+    liabilityQuantity: integer("liability_quantity").default(0), // Shares owed if user traded them away before revocation
+    lastSyncedAt: timestamp("last_synced_at").notNull().defaultNow(), // Last time this payment was synced from Whop
+    rawPayload: jsonb("raw_payload"), // Full Whop payment object for debugging
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    paymentIdIdx: index("whop_payments_payment_id_idx").on(table.paymentId),
+    emailIdx: index("whop_payments_email_idx").on(table.email),
+    userIdIdx: index("whop_payments_user_id_idx").on(table.userId),
+    statusIdx: index("whop_payments_status_idx").on(table.whopStatus),
+    creditedIdx: index("whop_payments_credited_idx").on(table.creditedAt),
+  }),
+);
 
 // Tweet settings table - stores configuration for automated tweets
 export const tweetSettings = pgTable("tweet_settings", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
   enabled: boolean("enabled").notNull().default(false),
-  promptTemplate: text("prompt_template").notNull().default("Give a brief 1-sentence summary of recent NBA news or game performance for these players: {players}. Focus on their most recent game or any breaking news. Keep each summary under 60 characters."),
+  promptTemplate: text("prompt_template")
+    .notNull()
+    .default(
+      "Give a brief 1-sentence summary of recent NBA news or game performance for these players: {players}. Focus on their most recent game or any breaking news. Keep each summary under 60 characters.",
+    ),
   includeRisers: boolean("include_risers").notNull().default(true),
   includeVolume: boolean("include_volume").notNull().default(true),
   includeMarketCap: boolean("include_market_cap").notNull().default(true),
@@ -742,125 +1095,195 @@ export const tweetSettings = pgTable("tweet_settings", {
 });
 
 // Tweet history table - logs of all tweets sent
-export const tweetHistory = pgTable("tweet_history", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  content: text("content").notNull(),
-  tweetId: varchar("tweet_id"), // X's tweet ID if successfully posted
-  status: text("status").notNull().default("pending"), // "pending", "success", "failed"
-  errorMessage: text("error_message"),
-  playerData: jsonb("player_data"), // Snapshot of player stats used
-  aiSummary: text("ai_summary"), // Perplexity response
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-}, (table) => ({
-  statusIdx: index("tweet_history_status_idx").on(table.status),
-  createdAtIdx: index("tweet_history_created_idx").on(table.createdAt),
-}));
+export const tweetHistory = pgTable(
+  "tweet_history",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    content: text("content").notNull(),
+    tweetId: varchar("tweet_id"), // X's tweet ID if successfully posted
+    status: text("status").notNull().default("pending"), // "pending", "success", "failed"
+    errorMessage: text("error_message"),
+    playerData: jsonb("player_data"), // Snapshot of player stats used
+    aiSummary: text("ai_summary"), // Perplexity response
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    statusIdx: index("tweet_history_status_idx").on(table.status),
+    createdAtIdx: index("tweet_history_created_idx").on(table.createdAt),
+  }),
+);
 
 // Watchlists table - named lists for organizing players
-export const watchlists = pgTable("watchlists", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  name: varchar("name", { length: 100 }).notNull(),
-  isDefault: boolean("is_default").notNull().default(false),
-  color: varchar("color", { length: 20 }),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-}, (table) => ({
-  userIdx: index("watchlists_user_idx").on(table.userId),
-}));
+export const watchlists = pgTable(
+  "watchlists",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 100 }).notNull(),
+    isDefault: boolean("is_default").notNull().default(false),
+    color: varchar("color", { length: 20 }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    userIdx: index("watchlists_user_idx").on(table.userId),
+  }),
+);
 
 // Watch list items table - tracks players in each watchlist
-export const watchList = pgTable("watch_list", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  watchlistId: varchar("watchlist_id").references(() => watchlists.id, { onDelete: "cascade" }),
-  playerId: varchar("player_id").notNull().references(() => players.id, { onDelete: "cascade" }),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-}, (table) => ({
-  userPlayerIdx: index("watch_user_player_idx").on(table.userId, table.playerId),
-  watchlistIdx: index("watch_watchlist_idx").on(table.watchlistId),
-  userWatchlistPlayerIdx: index("watch_user_watchlist_player_idx").on(table.userId, table.watchlistId, table.playerId),
-}));
+export const watchList = pgTable(
+  "watch_list",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    watchlistId: varchar("watchlist_id").references(() => watchlists.id, { onDelete: "cascade" }),
+    playerId: varchar("player_id")
+      .notNull()
+      .references(() => players.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    userPlayerIdx: index("watch_user_player_idx").on(table.userId, table.playerId),
+    watchlistIdx: index("watch_watchlist_idx").on(table.watchlistId),
+    userWatchlistPlayerIdx: index("watch_user_watchlist_player_idx").on(
+      table.userId,
+      table.watchlistId,
+      table.playerId,
+    ),
+  }),
+);
 
 // News feed table - AI-generated sports news for the News Hub
-export const newsFeed = pgTable("news_feed", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  headline: text("headline").notNull(),
-  briefing: text("briefing").notNull(),
-  sourceUrl: text("source_url"),
-  contentHash: varchar("content_hash", { length: 64 }).notNull(), // SHA-256 hash for deduplication
-  sport: text("sport").notNull(), // NBA, NFL
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-}, (table) => ({
-  createdAtIdx: index("news_feed_created_at_idx").on(table.createdAt),
-  contentHashIdx: index("news_feed_content_hash_idx").on(table.contentHash),
-  sportIdx: index("news_feed_sport_idx").on(table.sport),
-}));
+export const newsFeed = pgTable(
+  "news_feed",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    headline: text("headline").notNull(),
+    briefing: text("briefing").notNull(),
+    sourceUrl: text("source_url"),
+    contentHash: varchar("content_hash", { length: 64 }).notNull(), // SHA-256 hash for deduplication
+    sport: text("sport").notNull(), // NBA, NFL
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    createdAtIdx: index("news_feed_created_at_idx").on(table.createdAt),
+    contentHashIdx: index("news_feed_content_hash_idx").on(table.contentHash),
+    sportIdx: index("news_feed_sport_idx").on(table.sport),
+  }),
+);
 
 // Daily Boosts table - replaces contests with daily multiplier-based payouts
 // Users select 4 players from their holdings each day for performance multipliers
-export const dailyBoosts = pgTable("daily_boosts", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  playerId: varchar("player_id").notNull().references(() => players.id),
-  sport: text("sport").notNull(), // "NBA" or "NFL"
-  slotTier: integer("slot_tier").notNull(), // 2, 3, 4, or 5 (multiplier value)
-  boostDate: timestamp("boost_date").notNull(), // The date this boost applies to
-  sharesEntered: integer("shares_entered").notNull(), // Shares used for calculation
-  powerLevel: decimal("power_level", { precision: 10, scale: 2 }).notNull().default("0.00"), // Power of shares at time of boost
-  gameId: text("game_id"), // API game ID for the player's game
-  status: text("status").notNull().default("active"), // "active", "locked", "processed", "cancelled"
-  fantasyPoints: decimal("fantasy_points", { precision: 10, scale: 2 }), // Final normalized FP after game
-  payout: decimal("payout", { precision: 20, scale: 2 }), // Calculated payout
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  processedAt: timestamp("processed_at"), // When payout was credited
-}, (table) => ({
-  userDateIdx: index("boost_user_date_idx").on(table.userId, table.boostDate),
-  userSportDateIdx: index("boost_user_sport_date_idx").on(table.userId, table.sport, table.boostDate),
-  statusIdx: index("boost_status_idx").on(table.status),
-  playerIdx: index("boost_player_idx").on(table.playerId),
-  gameIdx: index("boost_game_idx").on(table.gameId),
-}));
+export const dailyBoosts = pgTable(
+  "daily_boosts",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    playerId: varchar("player_id")
+      .notNull()
+      .references(() => players.id),
+    sport: text("sport").notNull(), // "NBA" or "NFL"
+    slotTier: integer("slot_tier").notNull(), // 2, 3, 4, or 5 (multiplier value)
+    boostDate: timestamp("boost_date").notNull(), // The date this boost applies to
+    sharesEntered: integer("shares_entered").notNull(), // Shares used for calculation
+    powerLevel: decimal("power_level", { precision: 10, scale: 2 }).notNull().default("0.00"), // Power of shares at time of boost
+    gameId: text("game_id"), // API game ID for the player's game
+    status: text("status").notNull().default("active"), // "active", "locked", "processed", "cancelled"
+    fantasyPoints: decimal("fantasy_points", { precision: 10, scale: 2 }), // Final normalized FP after game
+    payout: decimal("payout", { precision: 20, scale: 2 }), // Calculated payout
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    processedAt: timestamp("processed_at"), // When payout was credited
+  },
+  (table) => ({
+    userDateIdx: index("boost_user_date_idx").on(table.userId, table.boostDate),
+    userSportDateIdx: index("boost_user_sport_date_idx").on(
+      table.userId,
+      table.sport,
+      table.boostDate,
+    ),
+    statusIdx: index("boost_status_idx").on(table.status),
+    playerIdx: index("boost_player_idx").on(table.playerId),
+    gameIdx: index("boost_game_idx").on(table.gameId),
+  }),
+);
 
 // Boost payouts table - immutable ledger for audit trail
 // Records every payout calculation for transparency
-export const boostPayouts = pgTable("boost_payouts", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  boostId: varchar("boost_id").notNull().references(() => dailyBoosts.id, { onDelete: "cascade" }),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  playerId: varchar("player_id").notNull().references(() => players.id),
-  sharesUsed: integer("shares_used").notNull(),
-  fantasyPoints: decimal("fantasy_points", { precision: 10, scale: 2 }).notNull(),
-  multiplier: integer("multiplier").notNull(), // 2, 3, 4, or 5
-  payoutAmount: decimal("payout_amount", { precision: 20, scale: 2 }).notNull(),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-}, (table) => ({
-  userIdx: index("boost_payout_user_idx").on(table.userId),
-  boostIdx: index("boost_payout_boost_idx").on(table.boostId),
-  createdAtIdx: index("boost_payout_created_idx").on(table.createdAt),
-}));
+export const boostPayouts = pgTable(
+  "boost_payouts",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    boostId: varchar("boost_id")
+      .notNull()
+      .references(() => dailyBoosts.id, { onDelete: "cascade" }),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    playerId: varchar("player_id")
+      .notNull()
+      .references(() => players.id),
+    sharesUsed: integer("shares_used").notNull(),
+    fantasyPoints: decimal("fantasy_points", { precision: 10, scale: 2 }).notNull(),
+    multiplier: integer("multiplier").notNull(), // 2, 3, 4, or 5
+    payoutAmount: decimal("payout_amount", { precision: 20, scale: 2 }).notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    userIdx: index("boost_payout_user_idx").on(table.userId),
+    boostIdx: index("boost_payout_boost_idx").on(table.boostId),
+    createdAtIdx: index("boost_payout_created_idx").on(table.createdAt),
+  }),
+);
 
 // Community Boosts table - global 5x boosts created by premium share redemption
 // When a user redeems a premium share, ALL users holding that player benefit from 5x
-export const communityBoosts = pgTable("community_boosts", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  creatorId: varchar("creator_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  playerId: varchar("player_id").notNull().references(() => players.id),
-  sport: text("sport").notNull(), // "NBA" or "NFL"
-  boostDate: timestamp("boost_date").notNull(), // The date this boost applies to
-  gameId: text("game_id"), // API game ID for the player's game
-  status: text("status").notNull().default("active"), // "active", "locked", "processed", "cancelled"
-  fantasyPoints: decimal("fantasy_points", { precision: 10, scale: 2 }), // Final normalized FP after game
-  totalPayout: decimal("total_payout", { precision: 20, scale: 2 }), // Sum of all beneficiary payouts
-  beneficiaryCount: integer("beneficiary_count"), // Number of users who benefited
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  processedAt: timestamp("processed_at"), // When payouts were credited
-}, (table) => ({
-  creatorDateIdx: index("community_boost_creator_date_idx").on(table.creatorId, table.boostDate),
-  sportDateIdx: index("community_boost_sport_date_idx").on(table.sport, table.boostDate),
-  statusIdx: index("community_boost_status_idx").on(table.status),
-  playerIdx: index("community_boost_player_idx").on(table.playerId),
-  gameIdx: index("community_boost_game_idx").on(table.gameId),
-}));
+export const communityBoosts = pgTable(
+  "community_boosts",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    creatorId: varchar("creator_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    playerId: varchar("player_id")
+      .notNull()
+      .references(() => players.id),
+    sport: text("sport").notNull(), // "NBA" or "NFL"
+    boostDate: timestamp("boost_date").notNull(), // The date this boost applies to
+    gameId: text("game_id"), // API game ID for the player's game
+    status: text("status").notNull().default("active"), // "active", "locked", "processed", "cancelled"
+    fantasyPoints: decimal("fantasy_points", { precision: 10, scale: 2 }), // Final normalized FP after game
+    totalPayout: decimal("total_payout", { precision: 20, scale: 2 }), // Sum of all beneficiary payouts
+    beneficiaryCount: integer("beneficiary_count"), // Number of users who benefited
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    processedAt: timestamp("processed_at"), // When payouts were credited
+  },
+  (table) => ({
+    creatorDateIdx: index("community_boost_creator_date_idx").on(table.creatorId, table.boostDate),
+    sportDateIdx: index("community_boost_sport_date_idx").on(table.sport, table.boostDate),
+    statusIdx: index("community_boost_status_idx").on(table.status),
+    playerIdx: index("community_boost_player_idx").on(table.playerId),
+    gameIdx: index("community_boost_game_idx").on(table.gameId),
+  }),
+);
 
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
@@ -1020,21 +1443,23 @@ export const insertHoldingsLockSchema = createInsertSchema(holdingsLocks).omit({
   createdAt: true,
 });
 
-export const insertOrderSchema = createInsertSchema(orders).omit({
-  id: true,
-  filledQuantity: true,
-  status: true,
-  createdAt: true,
-}).extend({
-  quantity: z.number().int().positive(),
-  limitPrice: z.string().optional(),
-});
+export const insertOrderSchema = createInsertSchema(orders)
+  .omit({
+    id: true,
+    filledQuantity: true,
+    status: true,
+    createdAt: true,
+  })
+  .extend({
+    quantity: z.number().int().positive(),
+    limitPrice: z.string().optional(),
+  });
 
 export const insertContestSchema = createInsertSchema(contests).omit({
   id: true,
   createdAt: true,
   entryCount: true,
-  totalSharesEntered: true
+  totalSharesEntered: true,
 });
 
 export const insertContestEntrySchema = createInsertSchema(contestEntries).omit({
@@ -1149,7 +1574,6 @@ export type InsertScoutDistribution = z.infer<typeof insertScoutDistributionSche
 export type ScoutHistory = typeof scoutHistory.$inferSelect;
 export type InsertScoutHistory = z.infer<typeof insertScoutHistorySchema>;
 
-
 export type DailyGame = typeof dailyGames.$inferSelect;
 export type InsertDailyGame = z.infer<typeof insertDailyGameSchema>;
 
@@ -1250,7 +1674,9 @@ export type PremiumTrade = typeof premiumTrades.$inferSelect;
 export type InsertPremiumTrade = z.infer<typeof insertPremiumTradeSchema>;
 
 // Community checkout session schemas and types
-export const insertCommunityCheckoutSessionSchema = createInsertSchema(communityCheckoutSessions).omit({
+export const insertCommunityCheckoutSessionSchema = createInsertSchema(
+  communityCheckoutSessions,
+).omit({
   id: true,
   status: true,
   completedAt: true,
@@ -1351,36 +1777,60 @@ export type CommunityBoost = typeof communityBoosts.$inferSelect;
 export type InsertCommunityBoost = z.infer<typeof insertCommunityBoostSchema>;
 
 // User Collections table - tracks player collection progress (team, rookie, position, allstar)
-export const userCollections = pgTable("user_collections", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  collectionType: varchar("collection_type", { length: 50 }).notNull(), // 'team', 'rookie', 'position', 'allstar'
-  targetId: varchar("target_id").notNull(), // team abbreviation, position, etc.
-  progress: integer("progress").notNull().default(0),
-  total: integer("total").notNull(),
-  completed: boolean("completed").notNull().default(false),
-  completedAt: timestamp("completed_at"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-}, (table) => ({
-  userTypeTargetIdx: uniqueIndex("user_collection_idx").on(table.userId, table.collectionType, table.targetId),
-  userIdx: index("user_collections_user_idx").on(table.userId),
-  completedIdx: index("user_collections_completed_idx").on(table.completed),
-}));
+export const userCollections = pgTable(
+  "user_collections",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    collectionType: varchar("collection_type", { length: 50 }).notNull(), // 'team', 'rookie', 'position', 'allstar'
+    targetId: varchar("target_id").notNull(), // team abbreviation, position, etc.
+    progress: integer("progress").notNull().default(0),
+    total: integer("total").notNull(),
+    completed: boolean("completed").notNull().default(false),
+    completedAt: timestamp("completed_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    userTypeTargetIdx: uniqueIndex("user_collection_idx").on(
+      table.userId,
+      table.collectionType,
+      table.targetId,
+    ),
+    userIdx: index("user_collections_user_idx").on(table.userId),
+    completedIdx: index("user_collections_completed_idx").on(table.completed),
+  }),
+);
 
 // User Milestones table - tracks net worth and achievement milestones
-export const userMilestones = pgTable("user_milestones", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  milestoneType: varchar("milestone_type", { length: 50 }).notNull(), // 'netWorth', 'portfolioValue', 'totalTrades'
-  threshold: decimal("threshold", { precision: 20, scale: 2 }).notNull(),
-  achievedAt: timestamp("achieved_at").notNull().defaultNow(),
-  celebrated: boolean("celebrated").notNull().default(false),
-}, (table) => ({
-  userTypeThresholdIdx: uniqueIndex("user_milestone_idx").on(table.userId, table.milestoneType, table.threshold),
-  userIdx: index("user_milestones_user_idx").on(table.userId),
-  celebratedIdx: index("user_milestones_celebrated_idx").on(table.celebrated),
-}));
+export const userMilestones = pgTable(
+  "user_milestones",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    milestoneType: varchar("milestone_type", { length: 50 }).notNull(), // 'netWorth', 'portfolioValue', 'totalTrades'
+    threshold: decimal("threshold", { precision: 20, scale: 2 }).notNull(),
+    achievedAt: timestamp("achieved_at").notNull().defaultNow(),
+    celebrated: boolean("celebrated").notNull().default(false),
+  },
+  (table) => ({
+    userTypeThresholdIdx: uniqueIndex("user_milestone_idx").on(
+      table.userId,
+      table.milestoneType,
+      table.threshold,
+    ),
+    userIdx: index("user_milestones_user_idx").on(table.userId),
+    celebratedIdx: index("user_milestones_celebrated_idx").on(table.celebrated),
+  }),
+);
 
 // Relations for new tables
 export const userCollectionsRelations = relations(userCollections, ({ one }) => ({
@@ -1429,4 +1879,3 @@ export type InsertLpPosition = z.infer<typeof insertLpPositionSchema>;
 
 export type LpTransaction = typeof lpTransactions.$inferSelect;
 export type InsertLpTransaction = z.infer<typeof insertLpTransactionSchema>;
-

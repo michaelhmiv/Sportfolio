@@ -1,6 +1,7 @@
 # IMPLEMENTATION INSTRUCTIONS: PHASE 5 & 6
 
 ## AGENT ROLE
+
 You are implementing the final gamification phases for Sportfolio. Follow these instructions precisely. Do not deviate from the patterns established in Phases 3 & 4.
 
 ---
@@ -8,7 +9,9 @@ You are implementing the final gamification phases for Sportfolio. Follow these 
 ## BEFORE YOU START
 
 ### Step 1: Review Existing Code
+
 Read these files to understand the patterns:
+
 1. `client/src/components/ceremonies/boost-results-podium.tsx` - Study ceremony structure
 2. `client/src/components/ceremonies/entry-draft-animation.tsx` - Study animations
 3. `client/src/components/market/whale-alert-banner.tsx` - Study WebSocket integration
@@ -16,7 +19,9 @@ Read these files to understand the patterns:
 5. `server/amm/pool.ts` - Study backend patterns
 
 ### Step 2: Verify Build
+
 Run these commands and ensure they pass:
+
 ```bash
 cd client && npx tsc --noEmit
 cd server && npx tsc --noEmit
@@ -35,22 +40,34 @@ Insert this after the scoutHistory table (around line 323):
 
 ```typescript
 // User Collections - tracks collection progress (team, rookie, etc.)
-export const userCollections = pgTable("user_collections", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  collectionType: varchar("collection_type", { length: 50 }).notNull(), // 'team', 'rookie', 'position', 'allstar'
-  targetId: varchar("target_id").notNull(), // team abbreviation, position, etc.
-  progress: integer("progress").notNull().default(0),
-  total: integer("total").notNull(),
-  completed: boolean("completed").notNull().default(false),
-  completedAt: timestamp("completed_at"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-}, (table) => ({
-  userTypeTargetIdx: uniqueIndex("user_collection_idx").on(table.userId, table.collectionType, table.targetId),
-  userIdx: index("user_collections_user_idx").on(table.userId),
-  completedIdx: index("user_collections_completed_idx").on(table.completed),
-}));
+export const userCollections = pgTable(
+  "user_collections",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    collectionType: varchar("collection_type", { length: 50 }).notNull(), // 'team', 'rookie', 'position', 'allstar'
+    targetId: varchar("target_id").notNull(), // team abbreviation, position, etc.
+    progress: integer("progress").notNull().default(0),
+    total: integer("total").notNull(),
+    completed: boolean("completed").notNull().default(false),
+    completedAt: timestamp("completed_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    userTypeTargetIdx: uniqueIndex("user_collection_idx").on(
+      table.userId,
+      table.collectionType,
+      table.targetId,
+    ),
+    userIdx: index("user_collections_user_idx").on(table.userId),
+    completedIdx: index("user_collections_completed_idx").on(table.completed),
+  }),
+);
 ```
 
 **ACTION 2**: Add userMilestones table to `shared/schema.ts`
@@ -59,16 +76,28 @@ Insert this after userCollections:
 
 ```typescript
 // User Milestones - tracks achievement milestones
-export const userMilestones = pgTable("user_milestones", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  milestoneType: varchar("milestone_type", { length: 50 }).notNull(), // 'netWorth', 'portfolioValue', 'totalTrades'
-  threshold: decimal("threshold", { precision: 20, scale: 2 }).notNull(),
-  achievedAt: timestamp("achieved_at").notNull().defaultNow(),
-  celebrated: boolean("celebrated").notNull().default(false),
-}, (table) => ({
-  userTypeThresholdIdx: uniqueIndex("user_milestone_idx").on(table.userId, table.milestoneType, table.threshold),
-}));
+export const userMilestones = pgTable(
+  "user_milestones",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    milestoneType: varchar("milestone_type", { length: 50 }).notNull(), // 'netWorth', 'portfolioValue', 'totalTrades'
+    threshold: decimal("threshold", { precision: 20, scale: 2 }).notNull(),
+    achievedAt: timestamp("achieved_at").notNull().defaultNow(),
+    celebrated: boolean("celebrated").notNull().default(false),
+  },
+  (table) => ({
+    userTypeThresholdIdx: uniqueIndex("user_milestone_idx").on(
+      table.userId,
+      table.milestoneType,
+      table.threshold,
+    ),
+  }),
+);
 ```
 
 **ACTION 3**: Add TypeScript types at end of `shared/schema.ts`
@@ -672,75 +701,93 @@ export function MilestoneBadge({ milestone, size = "md" }: MilestoneBadgeProps) 
 Find the scout velocity endpoints (around line 7850) and add these after them:
 
 ```typescript
-  // Collection API Endpoints
-  
-  // Get user's collections
-  app.get("/api/collections", isAuthenticated, async (req, res) => {
-    try {
-      const userId = getUserId(req);
-      const collections = await db
-        .select()
-        .from(userCollections)
-        .where(eq(userCollections.userId, userId))
-        .orderBy(desc(userCollections.completed), desc(userCollections.updatedAt));
-      
-      res.json(collections);
-    } catch (error: any) {
-      console.error("[collections] Error:", error.message);
-      res.status(500).json({ error: error.message });
-    }
-  });
+// Collection API Endpoints
 
-  // Get collection details for a specific user (public)
-  app.get("/api/collections/:userId", async (req, res) => {
-    try {
-      const { userId } = req.params;
-      const collections = await db
-        .select({
-          collectionType: userCollections.collectionType,
-          targetId: userCollections.targetId,
-          progress: userCollections.progress,
-          total: userCollections.total,
-          completed: userCollections.completed,
-          completedAt: userCollections.completedAt,
-        })
-        .from(userCollections)
-        .where(eq(userCollections.userId, userId));
-      
-      res.json(collections);
-    } catch (error: any) {
-      console.error("[collections/public] Error:", error.message);
-      res.status(500).json({ error: error.message });
-    }
-  });
+// Get user's collections
+app.get("/api/collections", isAuthenticated, async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    const collections = await db
+      .select()
+      .from(userCollections)
+      .where(eq(userCollections.userId, userId))
+      .orderBy(desc(userCollections.completed), desc(userCollections.updatedAt));
 
-  // Get user's milestones (public)
-  app.get("/api/milestones/:userId", async (req, res) => {
-    try {
-      const { userId } = req.params;
-      const milestones = await db
-        .select({
-          milestoneType: userMilestones.milestoneType,
-          threshold: userMilestones.threshold,
-          achievedAt: userMilestones.achievedAt,
-        })
-        .from(userMilestones)
-        .where(eq(userMilestones.userId, userId))
-        .orderBy(desc(userMilestones.achievedAt));
-      
-      res.json(milestones);
-    } catch (error: any) {
-      console.error("[milestones] Error:", error.message);
-      res.status(500).json({ error: error.message });
-    }
-  });
+    res.json(collections);
+  } catch (error: any) {
+    console.error("[collections] Error:", error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get collection details for a specific user (public)
+app.get("/api/collections/:userId", async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const collections = await db
+      .select({
+        collectionType: userCollections.collectionType,
+        targetId: userCollections.targetId,
+        progress: userCollections.progress,
+        total: userCollections.total,
+        completed: userCollections.completed,
+        completedAt: userCollections.completedAt,
+      })
+      .from(userCollections)
+      .where(eq(userCollections.userId, userId));
+
+    res.json(collections);
+  } catch (error: any) {
+    console.error("[collections/public] Error:", error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get user's milestones (public)
+app.get("/api/milestones/:userId", async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const milestones = await db
+      .select({
+        milestoneType: userMilestones.milestoneType,
+        threshold: userMilestones.threshold,
+        achievedAt: userMilestones.achievedAt,
+      })
+      .from(userMilestones)
+      .where(eq(userMilestones.userId, userId))
+      .orderBy(desc(userMilestones.achievedAt));
+
+    res.json(milestones);
+  } catch (error: any) {
+    console.error("[milestones] Error:", error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
 ```
 
 **ACTION 10**: Import new tables at top of `server/routes.ts`
 
 Add to imports (around line 9):
+
 ```typescript
-import { contestLineups, contestEntries, contests, holdings, marketSnapshots, premiumCheckoutSessions, tweetSettings, tweetHistory, users, scoutAssignments, scoutHistory, dailyGames, players, communityCheckoutSessions, userCollections, userMilestones } from "@shared/schema";
+import {
+  contestLineups,
+  contestEntries,
+  contests,
+  holdings,
+  marketSnapshots,
+  premiumCheckoutSessions,
+  tweetSettings,
+  tweetHistory,
+  users,
+  scoutAssignments,
+  scoutHistory,
+  dailyGames,
+  players,
+  communityCheckoutSessions,
+  userCollections,
+  userMilestones,
+} from "@shared/schema";
 ```
 
 **ACTION 11**: Create collection update job
@@ -750,7 +797,7 @@ Create `server/jobs/update-collections.ts`:
 ```typescript
 /**
  * Collection Update Job
- * 
+ *
  * Checks user holdings against collection criteria and updates progress.
  * Run every 15 minutes.
  */
@@ -762,14 +809,44 @@ import { broadcast } from "../websocket";
 import { info } from "../lib/log-utility";
 
 const NBA_TEAMS = [
-  "ATL", "BOS", "BKN", "CHA", "CHI", "CLE", "DAL", "DEN", "DET", "GSW",
-  "HOU", "IND", "LAC", "LAL", "MEM", "MIA", "MIL", "MIN", "NOP", "NYK",
-  "OKC", "ORL", "PHI", "PHX", "POR", "SAC", "SAS", "TOR", "UTA", "WAS"
+  "ATL",
+  "BOS",
+  "BKN",
+  "CHA",
+  "CHI",
+  "CLE",
+  "DAL",
+  "DEN",
+  "DET",
+  "GSW",
+  "HOU",
+  "IND",
+  "LAC",
+  "LAL",
+  "MEM",
+  "MIA",
+  "MIL",
+  "MIN",
+  "NOP",
+  "NYK",
+  "OKC",
+  "ORL",
+  "PHI",
+  "PHX",
+  "POR",
+  "SAC",
+  "SAS",
+  "TOR",
+  "UTA",
+  "WAS",
 ];
 
 const POSITIONS = ["PG", "SG", "SF", "PF", "C"];
 
-export async function updateCollections(): Promise<{ recordsProcessed: number; completedCount: number }> {
+export async function updateCollections(): Promise<{
+  recordsProcessed: number;
+  completedCount: number;
+}> {
   let completedCount = 0;
 
   // Get all users with holdings
@@ -788,34 +865,22 @@ export async function updateCollections(): Promise<{ recordsProcessed: number; c
       })
       .from(holdings)
       .innerJoin(players, eq(holdings.playerId, players.id))
-      .where(and(
-        eq(holdings.userId, userId),
-        eq(holdings.assetType, "player")
-      ));
+      .where(and(eq(holdings.userId, userId), eq(holdings.assetType, "player")));
 
-    const ownedPlayerIds = new Set(userHoldings.map(h => h.playerId));
+    const ownedPlayerIds = new Set(userHoldings.map((h) => h.playerId));
 
     // Check team collections
     for (const team of NBA_TEAMS) {
       const teamPlayers = await db
         .select({ id: players.id })
         .from(players)
-        .where(and(
-          eq(players.team, team),
-          eq(players.isActive, true)
-        ));
+        .where(and(eq(players.team, team), eq(players.isActive, true)));
 
-      const ownedOnTeam = teamPlayers.filter(p => ownedPlayerIds.has(p.id)).length;
+      const ownedOnTeam = teamPlayers.filter((p) => ownedPlayerIds.has(p.id)).length;
       const totalOnTeam = teamPlayers.length;
 
       if (totalOnTeam > 0) {
-        const wasCompleted = await updateCollection(
-          userId,
-          "team",
-          team,
-          ownedOnTeam,
-          totalOnTeam
-        );
+        const wasCompleted = await updateCollection(userId, "team", team, ownedOnTeam, totalOnTeam);
         if (wasCompleted) completedCount++;
       }
     }
@@ -825,12 +890,9 @@ export async function updateCollections(): Promise<{ recordsProcessed: number; c
       const positionPlayers = await db
         .select({ id: players.id })
         .from(players)
-        .where(and(
-          eq(players.position, position),
-          eq(players.isActive, true)
-        ));
+        .where(and(eq(players.position, position), eq(players.isActive, true)));
 
-      const ownedInPosition = positionPlayers.filter(p => ownedPlayerIds.has(p.id)).length;
+      const ownedInPosition = positionPlayers.filter((p) => ownedPlayerIds.has(p.id)).length;
       const totalInPosition = positionPlayers.length;
 
       if (totalInPosition > 0) {
@@ -839,14 +901,16 @@ export async function updateCollections(): Promise<{ recordsProcessed: number; c
           "position",
           position,
           ownedInPosition,
-          totalInPosition
+          totalInPosition,
         );
         if (wasCompleted) completedCount++;
       }
     }
   }
 
-  info(`[collections] Updated ${usersWithHoldings.length} users, ${completedCount} newly completed`);
+  info(
+    `[collections] Updated ${usersWithHoldings.length} users, ${completedCount} newly completed`,
+  );
 
   return {
     recordsProcessed: usersWithHoldings.length,
@@ -859,16 +923,18 @@ async function updateCollection(
   type: string,
   targetId: string,
   progress: number,
-  total: number
+  total: number,
 ): Promise<boolean> {
   const existing = await db
     .select()
     .from(userCollections)
-    .where(and(
-      eq(userCollections.userId, userId),
-      eq(userCollections.collectionType, type),
-      eq(userCollections.targetId, targetId)
-    ))
+    .where(
+      and(
+        eq(userCollections.userId, userId),
+        eq(userCollections.collectionType, type),
+        eq(userCollections.targetId, targetId),
+      ),
+    )
     .limit(1);
 
   const isCompleted = progress >= total;
@@ -914,7 +980,10 @@ async function updateCollection(
   return false;
 }
 
-export async function runCollectionUpdateJob(): Promise<{ recordsProcessed: number; errorCount: number }> {
+export async function runCollectionUpdateJob(): Promise<{
+  recordsProcessed: number;
+  errorCount: number;
+}> {
   try {
     const result = await updateCollections();
     return {
@@ -938,7 +1007,7 @@ Create `server/jobs/check-milestones.ts`:
 ```typescript
 /**
  * Milestone Check Job
- * 
+ *
  * Checks user net worth against milestones and triggers celebrations.
  * Run every 5 minutes.
  */
@@ -977,7 +1046,7 @@ export async function checkMilestones(): Promise<{ checked: number; newMilestone
           user.id,
           "netWorth",
           milestone.threshold,
-          milestone.title
+          milestone.title,
         );
         if (wasCreated) newMilestones++;
       }
@@ -996,16 +1065,18 @@ async function createMilestoneIfNotExists(
   userId: string,
   type: string,
   threshold: number,
-  title: string
+  title: string,
 ): Promise<boolean> {
   const existing = await db
     .select()
     .from(userMilestones)
-    .where(and(
-      eq(userMilestones.userId, userId),
-      eq(userMilestones.milestoneType, type),
-      eq(userMilestones.threshold, threshold.toString())
-    ))
+    .where(
+      and(
+        eq(userMilestones.userId, userId),
+        eq(userMilestones.milestoneType, type),
+        eq(userMilestones.threshold, threshold.toString()),
+      ),
+    )
     .limit(1);
 
   if (existing.length === 0) {
@@ -1032,7 +1103,10 @@ async function createMilestoneIfNotExists(
   return false;
 }
 
-export async function runMilestoneCheckJob(): Promise<{ recordsProcessed: number; errorCount: number }> {
+export async function runMilestoneCheckJob(): Promise<{
+  recordsProcessed: number;
+  errorCount: number;
+}> {
   try {
     const result = await checkMilestones();
     return {
@@ -1052,6 +1126,7 @@ export async function runMilestoneCheckJob(): Promise<{ recordsProcessed: number
 **ACTION 13**: Add WebSocket types
 
 Add to `server/websocket.ts` in SubscriptionType:
+
 ```typescript
   | 'collection_completed' // Collection completed notification
   | 'milestone_achieved'   // Milestone achieved notification
@@ -1060,13 +1135,14 @@ Add to `server/websocket.ts` in SubscriptionType:
 **ACTION 14**: Add WebSocket handlers
 
 Add to `client/src/lib/websocket.tsx` in the switch statement:
+
 ```typescript
             case 'collection_completed':
               // Invalidate collections query
               queryClient.invalidateQueries({ queryKey: ['/api/collections'] });
               // Trigger ceremony
-              window.dispatchEvent(new CustomEvent('collection-completed', { 
-                detail: message 
+              window.dispatchEvent(new CustomEvent('collection-completed', {
+                detail: message
               }));
               break;
 
@@ -1074,8 +1150,8 @@ Add to `client/src/lib/websocket.tsx` in the switch statement:
               // Invalidate milestones query
               queryClient.invalidateQueries({ queryKey: ['/api/milestones'] });
               // Trigger ceremony
-              window.dispatchEvent(new CustomEvent('milestone-achieved', { 
-                detail: message 
+              window.dispatchEvent(new CustomEvent('milestone-achieved', {
+                detail: message
               }));
               break;
 ```
@@ -1150,7 +1226,7 @@ useEffect(() => {
         <MilestoneBadge key={idx} milestone={milestone} size="sm" />
       ))}
       {collections?.filter(c => c.completed).slice(0, 5).map((collection) => (
-        <CollectionBadge 
+        <CollectionBadge
           key={`${collection.collectionType}-${collection.targetId}`}
           collection={collection}
           size="sm"
@@ -1337,11 +1413,11 @@ export function AnimatedCounter({
       const animate = (currentTime: number) => {
         const elapsed = currentTime - startTime;
         const progress = Math.min(elapsed / (duration * 1000), 1);
-        
+
         // Ease out cubic
         const easeOut = 1 - Math.pow(1 - progress, 3);
         const current = startValue + (endValue - startValue) * easeOut;
-        
+
         setDisplayValue(current);
 
         if (progress < 1) {
@@ -1476,28 +1552,28 @@ export function MarketPulse({ children }: MarketPulseProps) {
 Add to `server/routes.ts`:
 
 ```typescript
-  // Market activity endpoint
-  app.get("/api/market/activity", async (req, res) => {
-    try {
-      const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
-      
-      const recentTrades = await db
-        .select({ count: sql<number>`COUNT(*)` })
-        .from(trades)
-        .where(gte(trades.executedAt, fifteenMinutesAgo));
-      
-      const tradeCount = recentTrades[0]?.count || 0;
-      const activityLevel = Math.min((tradeCount / 100) * 100, 100);
-      
-      res.json({
-        activityLevel,
-        tradeCount,
-        timestamp: new Date().toISOString(),
-      });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
+// Market activity endpoint
+app.get("/api/market/activity", async (req, res) => {
+  try {
+    const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
+
+    const recentTrades = await db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(trades)
+      .where(gte(trades.executedAt, fifteenMinutesAgo));
+
+    const tradeCount = recentTrades[0]?.count || 0;
+    const activityLevel = Math.min((tradeCount / 100) * 100, 100);
+
+    res.json({
+      activityLevel,
+      tradeCount,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
 ```
 
 **ACTION 20**: Integrate Market Pulse in App
@@ -1505,11 +1581,13 @@ Add to `server/routes.ts`:
 Edit `client/src/App.tsx`:
 
 Add import:
+
 ```typescript
 import { MarketPulse } from "@/components/market/market-pulse";
 ```
 
 Wrap Router in MarketPulse in AppContent:
+
 ```typescript
 // In AppContent function, replace:
 <div className="pb-20 sm:pb-0 flex-1">
@@ -1551,6 +1629,7 @@ npm run build
 Verify each feature:
 
 **Collections:**
+
 - [ ] Collection badges display in user profile
 - [ ] Progress updates automatically
 - [ ] Ceremony plays when collection completes
@@ -1558,6 +1637,7 @@ Verify each feature:
 - [ ] Confetti animation works
 
 **Milestones:**
+
 - [ ] Milestone badges display in user profile
 - [ ] Ceremony plays when milestone achieved
 - [ ] Number counts up during ceremony
@@ -1565,6 +1645,7 @@ Verify each feature:
 - [ ] Confetti animation works
 
 **UI Juice:**
+
 - [ ] JuicyButton has hover glow
 - [ ] JuicyButton scales on press
 - [ ] Loading state shows spinner
@@ -1575,6 +1656,7 @@ Verify each feature:
 - [ ] Evening mode darkens background
 
 **General:**
+
 - [ ] All animations use spring physics
 - [ ] No bouncy easing
 - [ ] Mobile responsive
@@ -1604,16 +1686,19 @@ By completion, you must have:
 ## TROUBLESHOOTING
 
 **If TypeScript errors occur:**
+
 1. Check import paths match project structure
 2. Verify all new tables imported in routes.ts
 3. Check that WebSocket types match exactly
 
 **If animations don't work:**
+
 1. Verify framer-motion is installed
 2. Check spring physics values match requirements
 3. Ensure AnimatePresence wraps animated content
 
 **If ceremonies don't show:**
+
 1. Check WebSocket connection is active
 2. Verify event listeners attached correctly
 3. Check that state updates trigger re-render
@@ -1623,6 +1708,7 @@ By completion, you must have:
 ## SUCCESS CRITERIA
 
 The implementation is successful when:
+
 1. All checklist items verified
 2. No TypeScript errors
 3. Production build succeeds

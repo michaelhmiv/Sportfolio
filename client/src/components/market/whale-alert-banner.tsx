@@ -91,7 +91,7 @@ export function WhaleAlertBanner({ className }: WhaleAlertBannerProps) {
         className={cn(
           "fixed top-4 left-1/2 -translate-x-1/2 z-50",
           "w-full max-w-lg px-4",
-          className
+          className,
         )}
       >
         <div
@@ -101,15 +101,12 @@ export function WhaleAlertBanner({ className }: WhaleAlertBannerProps) {
             "backdrop-blur-sm shadow-2xl",
             isBuy
               ? "border-emerald-500/50 shadow-emerald-500/20"
-              : "border-red-500/50 shadow-red-500/20"
+              : "border-red-500/50 shadow-red-500/20",
           )}
         >
           {/* Animated background wave */}
           <motion.div
-            className={cn(
-              "absolute inset-0 opacity-10",
-              isBuy ? "bg-emerald-500" : "bg-red-500"
-            )}
+            className={cn("absolute inset-0 opacity-10", isBuy ? "bg-emerald-500" : "bg-red-500")}
             animate={{
               x: ["-100%", "100%"],
             }}
@@ -134,15 +131,10 @@ export function WhaleAlertBanner({ className }: WhaleAlertBannerProps) {
               transition={{ type: "spring", stiffness: 400, damping: 20, delay: 0.1 }}
               className={cn(
                 "w-12 h-12 rounded-full flex items-center justify-center shrink-0",
-                isBuy ? "bg-emerald-500/20" : "bg-red-500/20"
+                isBuy ? "bg-emerald-500/20" : "bg-red-500/20",
               )}
             >
-              <Waves
-                className={cn(
-                  "w-6 h-6",
-                  isBuy ? "text-emerald-500" : "text-red-500"
-                )}
-              />
+              <Waves className={cn("w-6 h-6", isBuy ? "text-emerald-500" : "text-red-500")} />
             </motion.div>
 
             {/* Text */}
@@ -159,10 +151,7 @@ export function WhaleAlertBanner({ className }: WhaleAlertBannerProps) {
                 <motion.div
                   animate={{ scale: [1, 1.2, 1] }}
                   transition={{ duration: 1, repeat: 3 }}
-                  className={cn(
-                    "w-2 h-2 rounded-full",
-                    isBuy ? "bg-emerald-500" : "bg-red-500"
-                  )}
+                  className={cn("w-2 h-2 rounded-full", isBuy ? "bg-emerald-500" : "bg-red-500")}
                 />
               </motion.div>
 
@@ -172,7 +161,9 @@ export function WhaleAlertBanner({ className }: WhaleAlertBannerProps) {
                 transition={{ delay: 0.2 }}
                 className="text-sm font-medium mt-1"
               >
-                <span className="text-muted-foreground">{maskUsername(currentAlert.traderUsername)}</span>
+                <span className="text-muted-foreground">
+                  {maskUsername(currentAlert.traderUsername)}
+                </span>
                 <span className="mx-1">{isBuy ? "bought" : "sold"}</span>
                 <span className="font-bold">{currentAlert.playerName}</span>
               </motion.p>
@@ -186,7 +177,7 @@ export function WhaleAlertBanner({ className }: WhaleAlertBannerProps) {
                 <span
                   className={cn(
                     "text-lg font-bold font-mono",
-                    isBuy ? "text-emerald-500" : "text-red-500"
+                    isBuy ? "text-emerald-500" : "text-red-500",
                   )}
                 >
                   ${currentAlert.tradeValue.toLocaleString()}
@@ -214,7 +205,7 @@ export function WhaleAlertBanner({ className }: WhaleAlertBannerProps) {
                   "h-8 text-xs gap-1",
                   isBuy
                     ? "border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300"
-                    : "border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                    : "border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300",
                 )}
               >
                 View
@@ -238,7 +229,7 @@ export function WhaleAlertBanner({ className }: WhaleAlertBannerProps) {
           <motion.div
             className={cn(
               "absolute bottom-0 left-0 h-0.5",
-              isBuy ? "bg-emerald-500" : "bg-red-500"
+              isBuy ? "bg-emerald-500" : "bg-red-500",
             )}
             initial={{ width: "100%" }}
             animate={{ width: "0%" }}

@@ -7,13 +7,13 @@ import { sql } from "drizzle-orm";
 
 async function runMigration() {
   console.log("[Migration] Adding shares column to lp_transactions...");
-  
+
   try {
     await db.execute(sql`
       ALTER TABLE lp_transactions 
       ADD COLUMN IF NOT EXISTS shares DECIMAL(12, 2) NOT NULL DEFAULT '0'
     `);
-    
+
     console.log("[Migration] shares column added successfully!");
     console.log("[Migration] Complete!");
     process.exit(0);
@@ -24,7 +24,7 @@ async function runMigration() {
 }
 
 // Run if called directly
-import { fileURLToPath } from 'url';
+import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 if (process.argv[1] === __filename) {
   runMigration();

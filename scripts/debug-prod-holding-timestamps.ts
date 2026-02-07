@@ -1,18 +1,19 @@
-import 'dotenv/config';
-import { Pool } from 'pg';
+import "dotenv/config";
+import { Pool } from "pg";
 
 async function checkHoldingTimestamps() {
   console.log("=== Checking Holdings Creation Time ===\n");
 
   const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false }
+    ssl: { rejectUnauthorized: false },
   });
 
   const client = await pool.connect();
-  const userId = 'dev-user-12345678';
+  const userId = "dev-user-12345678";
 
-  const result = await client.query(`
+  const result = await client.query(
+    `
     SELECT
       p.first_name,
       p.last_name,
@@ -29,7 +30,9 @@ async function checkHoldingTimestamps() {
     JOIN players p ON h.asset_id = p.id
     WHERE h.user_id = $1 AND h.asset_type = 'player'
     ORDER BY h.last_updated DESC
-  `, [userId]);
+  `,
+    [userId],
+  );
 
   console.log(`Holdings: ${result.rows.length}\n`);
 
@@ -41,7 +44,7 @@ async function checkHoldingTimestamps() {
   }
 
   // Count how many need fixing
-  const needFix = result.rows.filter(r => r.status === 'needs_fix').length;
+  const needFix = result.rows.filter((r) => r.status === "needs_fix").length;
   console.log(`\n${needFix} holdings need powerLevel fix`);
 
   await client.release();

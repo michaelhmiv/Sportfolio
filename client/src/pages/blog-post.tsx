@@ -36,7 +36,7 @@ export default function BlogPost() {
     queryFn: async () => {
       const response = await fetch(`/api/blog/${slug}`);
       if (!response.ok) {
-        throw new Error('Failed to fetch blog post');
+        throw new Error("Failed to fetch blog post");
       }
       return response.json();
     },
@@ -45,46 +45,52 @@ export default function BlogPost() {
   // Update page meta tags for SEO - MUST be before any early returns to follow Rules of Hooks
   useEffect(() => {
     if (!data?.post) return;
-    
+
     // Update title
     document.title = `${data.post.title} | Sportfolio Blog`;
-    
+
     // Update meta description
     const metaDescription = document.querySelector('meta[name="description"]');
     if (metaDescription) {
-      metaDescription.setAttribute('content', data.post.excerpt);
+      metaDescription.setAttribute("content", data.post.excerpt);
     }
-    
+
     // Add Open Graph tags for social sharing
     const ogTags = [
-      { property: 'og:title', content: data.post.title },
-      { property: 'og:description', content: data.post.excerpt },
-      { property: 'og:type', content: 'article' },
-      { property: 'og:url', content: `${window.location.origin}/blog/${data.post.slug}` },
-      { property: 'article:published_time', content: data.post.publishedAt },
-      { name: 'twitter:card', content: 'summary_large_image' },
-      { name: 'twitter:title', content: data.post.title },
-      { name: 'twitter:description', content: data.post.excerpt },
+      { property: "og:title", content: data.post.title },
+      { property: "og:description", content: data.post.excerpt },
+      { property: "og:type", content: "article" },
+      { property: "og:url", content: `${window.location.origin}/blog/${data.post.slug}` },
+      { property: "article:published_time", content: data.post.publishedAt },
+      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: data.post.title },
+      { name: "twitter:description", content: data.post.excerpt },
     ];
-    
-    ogTags.forEach(tag => {
+
+    ogTags.forEach((tag) => {
       const property = (tag.property || tag.name) as string;
-      const attr = tag.property ? 'property' : 'name';
+      const attr = tag.property ? "property" : "name";
       let meta = document.querySelector(`meta[${attr}="${property}"]`);
-      
+
       if (!meta) {
-        meta = document.createElement('meta');
+        meta = document.createElement("meta");
         meta.setAttribute(attr, property);
         document.head.appendChild(meta);
       }
-      meta.setAttribute('content', tag.content);
+      meta.setAttribute("content", tag.content);
     });
-    
+
     // Cleanup - reset to default on unmount
     return () => {
-      document.title = 'Sportfolio - Fantasy Sports Stock Market';
+      document.title = "Sportfolio - Fantasy Sports Stock Market";
     };
-  }, [data?.post?.id, data?.post?.title, data?.post?.excerpt, data?.post?.slug, data?.post?.publishedAt]);
+  }, [
+    data?.post?.id,
+    data?.post?.title,
+    data?.post?.excerpt,
+    data?.post?.slug,
+    data?.post?.publishedAt,
+  ]);
 
   if (isLoading) {
     return (
@@ -123,14 +129,16 @@ export default function BlogPost() {
 
   return (
     <div className="min-h-screen bg-background">
-      <SchemaOrg schema={schemas.createArticle({
-        title: post.title,
-        excerpt: post.excerpt,
-        content: post.content,
-        publishedAt: post.publishedAt,
-        slug: post.slug,
-        authorId: author?.id
-      })} />
+      <SchemaOrg
+        schema={schemas.createArticle({
+          title: post.title,
+          excerpt: post.excerpt,
+          content: post.content,
+          publishedAt: post.publishedAt,
+          slug: post.slug,
+          authorId: author?.id,
+        })}
+      />
       <div className="max-w-3xl mx-auto p-6 md:p-12">
         {/* Back Button */}
         <Link href="/blog">
@@ -143,7 +151,9 @@ export default function BlogPost() {
         {/* Article */}
         <article data-testid="article-blog-post">
           <header className="mb-6">
-            <h1 className="text-2xl font-bold mb-3" data-testid="heading-blog-post-title">{post.title}</h1>
+            <h1 className="text-2xl font-bold mb-3" data-testid="heading-blog-post-title">
+              {post.title}
+            </h1>
             <div className="flex items-center gap-4 text-sm text-muted-foreground">
               <div className="flex items-center gap-1">
                 <Calendar className="w-4 h-4" />
@@ -168,10 +178,7 @@ export default function BlogPost() {
 
           <Card>
             <CardContent className="p-6 prose-sm dark:prose-invert max-w-none">
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                data-testid="content-blog-post"
-              >
+              <ReactMarkdown remarkPlugins={[remarkGfm]} data-testid="content-blog-post">
                 {post.content}
               </ReactMarkdown>
             </CardContent>

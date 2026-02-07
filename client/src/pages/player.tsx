@@ -12,7 +12,14 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { TrendingUp, TrendingDown, BarChart2, Droplets, Info } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { LineChart, Line, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer } from "recharts";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip as RechartsTooltip,
+  ResponsiveContainer,
+} from "recharts";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { invalidatePortfolioQueries } from "@/lib/cache-invalidation";
@@ -62,7 +69,12 @@ export default function PlayerPage() {
   const { id: rawId } = useParams<{ id: string }>();
   const id = (rawId || "").split("?")[0].split("#")[0].trim();
   const searchParams = new URLSearchParams(useSearch());
-  const initialTradeType = searchParams.get("tab") === "buy" ? "buy" : (searchParams.get("tab") === "sell" ? "sell" : undefined);
+  const initialTradeType =
+    searchParams.get("tab") === "buy"
+      ? "buy"
+      : searchParams.get("tab") === "sell"
+        ? "sell"
+        : undefined;
   const initialPanel = searchParams.get("panel");
   const { toast } = useToast();
   const { subscribe } = useWebSocket();
@@ -88,7 +100,7 @@ export default function PlayerPage() {
     queryFn: async () => {
       const headers: HeadersInit = {};
       if (session?.access_token) {
-        headers['Authorization'] = `Bearer ${session.access_token}`;
+        headers["Authorization"] = `Bearer ${session.access_token}`;
       }
       const res = await fetch(`/api/player/${encodeURIComponent(id)}?range=${timeRange}`, {
         credentials: "include",
@@ -101,7 +113,11 @@ export default function PlayerPage() {
   });
 
   // Fetch AMM pool data with proper error handling
-  const { data: poolData, isLoading: isPoolLoading, error: poolError } = useQuery<AmmPoolData>({
+  const {
+    data: poolData,
+    isLoading: isPoolLoading,
+    error: poolError,
+  } = useQuery<AmmPoolData>({
     queryKey: ["/api/amm", id],
     queryFn: async () => {
       const res = await fetch(`/api/amm/${encodeURIComponent(id)}`, {
@@ -126,7 +142,7 @@ export default function PlayerPage() {
     queryFn: async () => {
       const headers: HeadersInit = {};
       if (session?.access_token) {
-        headers['Authorization'] = `Bearer ${session.access_token}`;
+        headers["Authorization"] = `Bearer ${session.access_token}`;
       }
       const res = await fetch(`/api/lp/${encodeURIComponent(id)}/position`, {
         credentials: "include",
@@ -154,10 +170,12 @@ export default function PlayerPage() {
   const estimatedSharesUnused = Math.max(0, maxSharesToUse - estimatedSharesDeposited);
   const estimatedPlayMoneyUnused = Math.max(0, maxPlayMoneyToUse - estimatedPlayMoneyDeposited);
 
-  const isLinkingConstrained = linkAmounts && currentPoolPrice ? (
-    (lastEdited === "shares" && (maxSharesToUse * currentPoolPrice) > userPlayMoneyBalance + 1e-9) ||
-    (lastEdited === "sb" && ((maxPlayMoneyToUse / currentPoolPrice) > userSharesBalance + 1e-9))
-  ) : false;
+  const isLinkingConstrained =
+    linkAmounts && currentPoolPrice
+      ? (lastEdited === "shares" &&
+          maxSharesToUse * currentPoolPrice > userPlayMoneyBalance + 1e-9) ||
+        (lastEdited === "sb" && maxPlayMoneyToUse / currentPoolPrice > userSharesBalance + 1e-9)
+      : false;
 
   useEffect(() => {
     if (initialPanel !== "lp") return;
@@ -183,12 +201,21 @@ export default function PlayerPage() {
         setMaxSharesToUse(nextShares);
       }
     }
-  }, [linkAmounts, lastEdited, currentPoolPrice, maxSharesToUse, maxPlayMoneyToUse, userSharesBalance, userPlayMoneyBalance]);
+  }, [
+    linkAmounts,
+    lastEdited,
+    currentPoolPrice,
+    maxSharesToUse,
+    maxPlayMoneyToUse,
+    userSharesBalance,
+    userPlayMoneyBalance,
+  ]);
 
   const addLiquidityOptimalMutation = useMutation({
     mutationFn: async () => {
       if (!currentPoolPrice) throw new Error("Pool price unavailable");
-      if (maxSharesToUse <= 0 || maxPlayMoneyToUse <= 0) throw new Error("Select shares and SB to use");
+      if (maxSharesToUse <= 0 || maxPlayMoneyToUse <= 0)
+        throw new Error("Select shares and SB to use");
       const res = await apiRequest("POST", `/api/lp/${encodeURIComponent(id)}/add-optimal`, {
         maxShares: maxSharesToUse,
         maxPlayMoney: maxPlayMoneyToUse,
@@ -223,7 +250,9 @@ export default function PlayerPage() {
       const pct = Math.max(0, Math.min(100, removePercent));
       const lpSharesToRemove = (lpPosition.lpShares * pct) / 100;
       if (lpSharesToRemove <= 0) throw new Error("Select an amount to remove");
-      const res = await apiRequest("POST", `/api/lp/${encodeURIComponent(id)}/remove`, { lpShares: lpSharesToRemove });
+      const res = await apiRequest("POST", `/api/lp/${encodeURIComponent(id)}/remove`, {
+        lpShares: lpSharesToRemove,
+      });
       return res.json();
     },
     onSuccess: async (result: any) => {
@@ -239,7 +268,11 @@ export default function PlayerPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/player", id, timeRange] });
     },
     onError: (error: Error) => {
-      toast({ title: "Remove Liquidity Failed", description: error.message, variant: "destructive" });
+      toast({
+        title: "Remove Liquidity Failed",
+        description: error.message,
+        variant: "destructive",
+      });
     },
   });
 
@@ -247,14 +280,14 @@ export default function PlayerPage() {
   useEffect(() => {
     if (!id) return;
 
-    const unsubTrade = subscribe('trade', (data) => {
+    const unsubTrade = subscribe("trade", (data) => {
       if (data.playerId === id) {
         queryClient.invalidateQueries({ queryKey: ["/api/player", id, timeRange] });
         queryClient.invalidateQueries({ queryKey: ["/api/amm", id] });
       }
     });
 
-    const unsubPortfolio = subscribe('portfolio', (data) => {
+    const unsubPortfolio = subscribe("portfolio", (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/player", id, timeRange] });
     });
 
@@ -265,12 +298,12 @@ export default function PlayerPage() {
   }, [id, timeRange, subscribe]);
 
   const handleTradeSuccess = () => {
-    setCelebrationKey(prev => prev + 1);
+    setCelebrationKey((prev) => prev + 1);
     invalidatePortfolioQueries();
     queryClient.invalidateQueries({ queryKey: ["/api/player", id, timeRange] });
     queryClient.invalidateQueries({ queryKey: ["/api/amm", id] });
     queryClient.invalidateQueries({ queryKey: ["/api/lp", id, "position"] });
-    
+
     toast({
       title: "Trade Successful!",
       description: "Your transaction has been completed.",
@@ -283,8 +316,10 @@ export default function PlayerPage() {
         <Card className="w-full max-w-md">
           <CardContent className="pt-6 text-center">
             <h2 className="text-xl font-bold mb-2">Player Not Found</h2>
-            <p className="text-muted-foreground mb-4">The player you're looking for doesn't exist or has been removed.</p>
-            <Button onClick={() => window.location.href = "/"}>Back to Dashboard</Button>
+            <p className="text-muted-foreground mb-4">
+              The player you're looking for doesn't exist or has been removed.
+            </p>
+            <Button onClick={() => (window.location.href = "/")}>Back to Dashboard</Button>
           </CardContent>
         </Card>
       </div>
@@ -303,17 +338,24 @@ export default function PlayerPage() {
   const playerName = `${player.firstName} ${player.lastName}`;
 
   // AMM-first display price: prefer live pool spot price over cached player.lastTradePrice
-  const effectiveCurrentPrice = poolData?.currentPrice ?? (player.lastTradePrice ? parseFloat(player.lastTradePrice) : null);
+  const effectiveCurrentPrice =
+    poolData?.currentPrice ?? (player.lastTradePrice ? parseFloat(player.lastTradePrice) : null);
 
   // Only show change when we have at least two AMM chart points in range
-  const displayedPriceChange = priceHistory.length >= 2 && effectiveCurrentPrice !== null
-    ? effectiveCurrentPrice - (typeof priceHistory[0].price === "string" ? parseFloat(priceHistory[0].price) : priceHistory[0].price)
-    : null;
-  
+  const displayedPriceChange =
+    priceHistory.length >= 2 && effectiveCurrentPrice !== null
+      ? effectiveCurrentPrice -
+        (typeof priceHistory[0].price === "string"
+          ? parseFloat(priceHistory[0].price)
+          : priceHistory[0].price)
+      : null;
+
   // Calculate Y-axis domain with 5% padding for better chart visualization
   const chartDomain = (() => {
     if (priceHistory.length === 0) return undefined;
-    const prices = priceHistory.map(p => typeof p.price === 'string' ? parseFloat(p.price) : p.price);
+    const prices = priceHistory.map((p) =>
+      typeof p.price === "string" ? parseFloat(p.price) : p.price,
+    );
     const minPrice = Math.min(...prices);
     const maxPrice = Math.max(...prices);
     if (minPrice === maxPrice) {
@@ -329,45 +371,53 @@ export default function PlayerPage() {
     <div className="min-h-screen bg-background p-2 sm:p-3 lg:p-4">
       {celebrationKey > 0 && (
         <>
-          <Confetti 
+          <Confetti
             key={`confetti-${celebrationKey}`}
-            active={true} 
-            type="coins" 
+            active={true}
+            type="coins"
             particleCount={30}
             duration={2000}
           />
-          <CelebrationBurst 
-            key={`burst-${celebrationKey}`}
-            active={true} 
-          />
+          <CelebrationBurst key={`burst-${celebrationKey}`} active={true} />
         </>
       )}
-      <SchemaOrg schema={schemas.createPlayer({
-        name: playerName,
-        team: player.team,
-        position: player.position,
-        id: player.id
-      })} />
+      <SchemaOrg
+        schema={schemas.createPlayer({
+          name: playerName,
+          team: player.team,
+          position: player.position,
+          id: player.id,
+        })}
+      />
       <div className="max-w-7xl mx-auto">
         {/* Player Header */}
         <div className="mb-4">
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-3">
             <div className="flex items-center gap-2">
               <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                <span className="text-sm sm:text-base font-bold">{player.firstName[0]}{player.lastName[0]}</span>
+                <span className="text-sm sm:text-base font-bold">
+                  {player.firstName[0]}
+                  {player.lastName[0]}
+                </span>
               </div>
               <div className="min-w-0">
                 <h1 className="text-base sm:text-lg font-bold inline-flex items-center gap-1.5">
                   {player.firstName} {player.lastName}
-                  {getInjury(player.id) && <InjuryIndicator injury={getInjury(player.id)!} size="md" />}
+                  {getInjury(player.id) && (
+                    <InjuryIndicator injury={getInjury(player.id)!} size="md" />
+                  )}
                 </h1>
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <Badge className="text-xs">{player.team}</Badge>
-                  <Badge variant="outline" className="text-xs">{player.position}</Badge>
-                  {player.jerseyNumber && <span className="text-xs text-muted-foreground">#{player.jerseyNumber}</span>}
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
+                  <Badge variant="outline" className="text-xs">
+                    {player.position}
+                  </Badge>
+                  {player.jerseyNumber && (
+                    <span className="text-xs text-muted-foreground">#{player.jerseyNumber}</span>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     className="h-6 px-2 text-xs"
                     onClick={() => setStatsModalOpen(true)}
                     data-testid="button-view-stats"
@@ -381,9 +431,9 @@ export default function PlayerPage() {
             <div className="text-left sm:text-right flex items-center sm:block gap-2">
               <div className="font-mono font-bold" data-testid="text-current-price">
                 {effectiveCurrentPrice !== null ? (
-                  <AnimatedPrice 
-                    value={effectiveCurrentPrice} 
-                    size="sm" 
+                  <AnimatedPrice
+                    value={effectiveCurrentPrice}
+                    size="sm"
                     className="text-lg sm:text-xl justify-start sm:justify-end"
                   />
                 ) : (
@@ -391,9 +441,18 @@ export default function PlayerPage() {
                 )}
               </div>
               {displayedPriceChange !== null && (
-                <div className={`flex items-center gap-0.5 ${displayedPriceChange >= 0 ? 'text-positive' : 'text-negative'}`}>
-                  {displayedPriceChange >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                  <span className="text-xs font-mono">{displayedPriceChange >= 0 ? '+' : ''}{displayedPriceChange.toFixed(2)}</span>
+                <div
+                  className={`flex items-center gap-0.5 ${displayedPriceChange >= 0 ? "text-positive" : "text-negative"}`}
+                >
+                  {displayedPriceChange >= 0 ? (
+                    <TrendingUp className="w-3 h-3" />
+                  ) : (
+                    <TrendingDown className="w-3 h-3" />
+                  )}
+                  <span className="text-xs font-mono">
+                    {displayedPriceChange >= 0 ? "+" : ""}
+                    {displayedPriceChange.toFixed(2)}
+                  </span>
                 </div>
               )}
             </div>
@@ -407,7 +466,9 @@ export default function PlayerPage() {
             <Card>
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm font-medium uppercase tracking-wide">Price History</CardTitle>
+                  <CardTitle className="text-sm font-medium uppercase tracking-wide">
+                    Price History
+                  </CardTitle>
                   <div className="flex gap-1">
                     {(["1D", "1W", "1M", "1Y"] as TimeRange[]).map((range) => (
                       <Button
@@ -430,32 +491,39 @@ export default function PlayerPage() {
                       <div>
                         <div className="text-sm text-muted-foreground">No AMM trades yet</div>
                         {effectiveCurrentPrice !== null && (
-                          <div className="text-xs text-muted-foreground mt-1">Current spot: ${effectiveCurrentPrice.toFixed(2)}</div>
+                          <div className="text-xs text-muted-foreground mt-1">
+                            Current spot: ${effectiveCurrentPrice.toFixed(2)}
+                          </div>
                         )}
                       </div>
                     </div>
                   ) : (
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={priceHistory}>
-                        <XAxis 
-                          dataKey="timestamp" 
+                        <XAxis
+                          dataKey="timestamp"
                           tickFormatter={(value) => new Date(value).toLocaleDateString()}
                           stroke="currentColor"
                           fontSize={10}
                         />
-                        <YAxis 
+                        <YAxis
                           stroke="currentColor"
                           fontSize={10}
                           tickFormatter={(value) => `$${value}`}
                           domain={chartDomain}
                         />
-                        <RechartsTooltip 
+                        <RechartsTooltip
                           content={({ active, payload }) => {
                             if (active && payload && payload.length) {
                               return (
                                 <div className="bg-background border rounded p-2 shadow-lg">
                                   <div className="font-mono font-bold">
-                                    ${typeof payload[0].value === 'number' ? payload[0].value.toFixed(2) : typeof payload[0].value === 'string' ? parseFloat(payload[0].value).toFixed(2) : '0.00'}
+                                    $
+                                    {typeof payload[0].value === "number"
+                                      ? payload[0].value.toFixed(2)
+                                      : typeof payload[0].value === "string"
+                                        ? parseFloat(payload[0].value).toFixed(2)
+                                        : "0.00"}
                                   </div>
                                   <div className="text-xs text-muted-foreground">
                                     {new Date(payload[0].payload.timestamp).toLocaleString()}
@@ -466,10 +534,10 @@ export default function PlayerPage() {
                             return null;
                           }}
                         />
-                        <Line 
-                          type="monotone" 
-                          dataKey="price" 
-                          stroke="hsl(var(--primary))" 
+                        <Line
+                          type="monotone"
+                          dataKey="price"
+                          stroke="hsl(var(--primary))"
                           strokeWidth={2}
                           dot={false}
                           activeDot={{ r: 4 }}
@@ -488,15 +556,15 @@ export default function PlayerPage() {
                 <CardHeader>
                   <div className="flex items-center gap-2">
                     <Droplets className="w-4 h-4 text-blue-500" />
-                    <CardTitle className="text-sm font-medium uppercase tracking-wide">AMM Pool</CardTitle>
+                    <CardTitle className="text-sm font-medium uppercase tracking-wide">
+                      AMM Pool
+                    </CardTitle>
                     <Tooltip>
                       <TooltipTrigger>
                         <Info className="w-3 h-3 text-muted-foreground" />
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p className="max-w-xs text-xs">
-                          1% fee to LPs, 1% burned.
-                        </p>
+                        <p className="max-w-xs text-xs">1% fee to LPs, 1% burned.</p>
                       </TooltipContent>
                     </Tooltip>
                   </div>
@@ -515,7 +583,9 @@ export default function PlayerPage() {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => queryClient.invalidateQueries({ queryKey: ["/api/amm", id] })}
+                        onClick={() =>
+                          queryClient.invalidateQueries({ queryKey: ["/api/amm", id] })
+                        }
                       >
                         Retry
                       </Button>
@@ -524,35 +594,61 @@ export default function PlayerPage() {
                     <>
                       <div className="grid grid-cols-2 gap-2">
                         <div className="p-2 bg-muted/50 rounded">
-                          <div className="text-[10px] text-muted-foreground uppercase">Pool Shares</div>
-                          <div className="font-mono font-bold text-sm">{poolData.shares.toLocaleString()}</div>
+                          <div className="text-[10px] text-muted-foreground uppercase">
+                            Pool Shares
+                          </div>
+                          <div className="font-mono font-bold text-sm">
+                            {poolData.shares.toLocaleString()}
+                          </div>
                         </div>
                         <div className="p-2 bg-muted/50 rounded">
-                          <div className="text-[10px] text-muted-foreground uppercase">Pool TVL</div>
-                          <div className="font-mono font-bold text-sm">${(poolData.playMoney + (poolData.shares * poolData.currentPrice)).toLocaleString()}</div>
+                          <div className="text-[10px] text-muted-foreground uppercase">
+                            Pool TVL
+                          </div>
+                          <div className="font-mono font-bold text-sm">
+                            $
+                            {(
+                              poolData.playMoney +
+                              poolData.shares * poolData.currentPrice
+                            ).toLocaleString()}
+                          </div>
                         </div>
                       </div>
 
                       <div className="p-2 bg-muted/50 rounded">
-                        <div className="text-[10px] text-muted-foreground uppercase">Total Volume</div>
-                        <div className="font-mono font-bold">${poolData.totalVolume.toLocaleString()}</div>
-                        <div className="text-xs text-muted-foreground">{poolData.totalTrades.toLocaleString()} trades</div>
+                        <div className="text-[10px] text-muted-foreground uppercase">
+                          Total Volume
+                        </div>
+                        <div className="font-mono font-bold">
+                          ${poolData.totalVolume.toLocaleString()}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {poolData.totalTrades.toLocaleString()} trades
+                        </div>
                       </div>
 
                       {lpPosition && lpPosition.lpShares > 0 && (
                         <div className="p-2 bg-blue-500/10 border border-blue-500/20 rounded">
-                          <div className="text-[10px] text-blue-600 uppercase font-semibold">Your LP Position</div>
+                          <div className="text-[10px] text-blue-600 uppercase font-semibold">
+                            Your LP Position
+                          </div>
                           <div className="flex justify-between items-center mt-1">
                             <span className="text-sm">Ownership</span>
-                            <span className="font-mono font-bold">{(lpPosition.ownershipPercentage * 100).toFixed(2)}%</span>
+                            <span className="font-mono font-bold">
+                              {(lpPosition.ownershipPercentage * 100).toFixed(2)}%
+                            </span>
                           </div>
                           <div className="flex justify-between items-center">
                             <span className="text-sm text-muted-foreground">Value</span>
-                            <span className="font-mono">${lpPosition.positionValue.toFixed(2)}</span>
+                            <span className="font-mono">
+                              ${lpPosition.positionValue.toFixed(2)}
+                            </span>
                           </div>
                           <div className="flex justify-between items-center">
                             <span className="text-sm text-muted-foreground">Fees earned</span>
-                            <span className="font-mono">${lpPosition.feesEarnedToDate.toFixed(2)}</span>
+                            <span className="font-mono">
+                              ${lpPosition.feesEarnedToDate.toFixed(2)}
+                            </span>
                           </div>
                           <div className="text-xs text-muted-foreground mt-1">
                             {Math.round(lpPosition.equivalentShares)} shares in pool
@@ -560,7 +656,13 @@ export default function PlayerPage() {
                         </div>
                       )}
 
-                      <div className={lpPosition && lpPosition.lpShares > 0 ? "grid grid-cols-2 gap-2" : "grid grid-cols-1 gap-2"}>
+                      <div
+                        className={
+                          lpPosition && lpPosition.lpShares > 0
+                            ? "grid grid-cols-2 gap-2"
+                            : "grid grid-cols-1 gap-2"
+                        }
+                      >
                         <Button
                           type="button"
                           variant="outline"
@@ -591,7 +693,9 @@ export default function PlayerPage() {
                       </div>
                     </>
                   ) : (
-                    <div className="text-center text-muted-foreground py-4">No pool data available</div>
+                    <div className="text-center text-muted-foreground py-4">
+                      No pool data available
+                    </div>
                   )}
                 </CardContent>
               </Card>
@@ -599,7 +703,9 @@ export default function PlayerPage() {
               {/* Recent Trades */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-sm font-medium uppercase tracking-wide">Recent Trades</CardTitle>
+                  <CardTitle className="text-sm font-medium uppercase tracking-wide">
+                    Recent Trades
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="p-0">
                   <div className="divide-y">
@@ -643,17 +749,22 @@ export default function PlayerPage() {
 
           <div className="space-y-4">
             <div className="text-xs text-muted-foreground">
-              Uses the latest pool price at execution. Final amounts may adjust slightly and any unused amount stays in your wallet.
+              Uses the latest pool price at execution. Final amounts may adjust slightly and any
+              unused amount stays in your wallet.
             </div>
 
             <div className="rounded-md border bg-muted/30 p-3 text-xs space-y-1">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Current price</span>
-                <span className="font-mono">{currentPoolPrice ? `$${currentPoolPrice.toFixed(2)}` : "-"} / share</span>
+                <span className="font-mono">
+                  {currentPoolPrice ? `$${currentPoolPrice.toFixed(2)}` : "-"} / share
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Your balance</span>
-                <span className="font-mono">{userSharesBalance.toFixed(4)} shares, ${userPlayMoneyBalance.toFixed(2)} SB</span>
+                <span className="font-mono">
+                  {userSharesBalance.toFixed(4)} shares, ${userPlayMoneyBalance.toFixed(2)} SB
+                </span>
               </div>
             </div>
 
@@ -696,7 +807,9 @@ export default function PlayerPage() {
             <div className="flex items-center justify-between rounded-md border p-3">
               <div>
                 <div className="text-sm font-medium">Auto-balance amounts</div>
-                <div className="text-xs text-muted-foreground">When enabled, adjusting one side updates the other to match.</div>
+                <div className="text-xs text-muted-foreground">
+                  When enabled, adjusting one side updates the other to match.
+                </div>
               </div>
               <Switch
                 checked={linkAmounts}
@@ -709,18 +822,24 @@ export default function PlayerPage() {
 
             {isLinkingConstrained && (
               <div className="text-xs text-muted-foreground">
-                You don't have enough on the other side to fully match this selection. We'll only deposit what can be paired.
+                You don't have enough on the other side to fully match this selection. We'll only
+                deposit what can be paired.
               </div>
             )}
 
             <div className="rounded-md border bg-muted/30 p-3 text-xs space-y-1">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Est. deposit</span>
-                <span className="font-mono">{estimatedSharesDeposited.toFixed(4)} shares + ${estimatedPlayMoneyDeposited.toFixed(2)}</span>
+                <span className="font-mono">
+                  {estimatedSharesDeposited.toFixed(4)} shares + $
+                  {estimatedPlayMoneyDeposited.toFixed(2)}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Est. unused</span>
-                <span className="font-mono">{estimatedSharesUnused.toFixed(4)} shares + ${estimatedPlayMoneyUnused.toFixed(2)}</span>
+                <span className="font-mono">
+                  {estimatedSharesUnused.toFixed(4)} shares + ${estimatedPlayMoneyUnused.toFixed(2)}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Est. total value</span>
@@ -731,7 +850,11 @@ export default function PlayerPage() {
             <Button
               className="w-full"
               onClick={() => addLiquidityOptimalMutation.mutate()}
-              disabled={addLiquidityOptimalMutation.isPending || estimatedSharesDeposited <= 0 || estimatedPlayMoneyDeposited <= 0}
+              disabled={
+                addLiquidityOptimalMutation.isPending ||
+                estimatedSharesDeposited <= 0 ||
+                estimatedPlayMoneyDeposited <= 0
+              }
             >
               {addLiquidityOptimalMutation.isPending ? "Adding..." : "Add Liquidity"}
             </Button>
@@ -753,11 +876,15 @@ export default function PlayerPage() {
             <div className="rounded-md border bg-muted/30 p-3 text-xs space-y-1">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Your ownership</span>
-                <span className="font-mono">{lpPosition ? `${(lpPosition.ownershipPercentage * 100).toFixed(2)}%` : "-"}</span>
+                <span className="font-mono">
+                  {lpPosition ? `${(lpPosition.ownershipPercentage * 100).toFixed(2)}%` : "-"}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Fees earned</span>
-                <span className="font-mono">${lpPosition ? lpPosition.feesEarnedToDate.toFixed(2) : "0.00"}</span>
+                <span className="font-mono">
+                  ${lpPosition ? lpPosition.feesEarnedToDate.toFixed(2) : "0.00"}
+                </span>
               </div>
             </div>
 
@@ -778,11 +905,20 @@ export default function PlayerPage() {
             <div className="rounded-md border bg-muted/30 p-3 text-xs space-y-1">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Est. shares</span>
-                <span className="font-mono">{lpPosition ? (lpPosition.equivalentShares * (removePercent / 100)).toFixed(2) : "0.00"}</span>
+                <span className="font-mono">
+                  {lpPosition
+                    ? (lpPosition.equivalentShares * (removePercent / 100)).toFixed(2)
+                    : "0.00"}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Est. SB</span>
-                <span className="font-mono">${lpPosition ? (lpPosition.equivalentPlayMoney * (removePercent / 100)).toFixed(2) : "0.00"}</span>
+                <span className="font-mono">
+                  $
+                  {lpPosition
+                    ? (lpPosition.equivalentPlayMoney * (removePercent / 100)).toFixed(2)
+                    : "0.00"}
+                </span>
               </div>
             </div>
 
@@ -790,7 +926,12 @@ export default function PlayerPage() {
               className="w-full"
               variant="outline"
               onClick={() => removeLiquidityMutation.mutate()}
-              disabled={removeLiquidityMutation.isPending || !lpPosition || lpPosition.lpShares <= 0 || removePercent <= 0}
+              disabled={
+                removeLiquidityMutation.isPending ||
+                !lpPosition ||
+                lpPosition.lpShares <= 0 ||
+                removePercent <= 0
+              }
             >
               {removeLiquidityMutation.isPending ? "Removing..." : "Remove Liquidity"}
             </Button>
@@ -799,11 +940,7 @@ export default function PlayerPage() {
       </Dialog>
 
       {/* Player Stats Modal */}
-      <PlayerModal
-        playerId={id}
-        open={statsModalOpen}
-        onOpenChange={setStatsModalOpen}
-      />
+      <PlayerModal playerId={id} open={statsModalOpen} onOpenChange={setStatsModalOpen} />
     </div>
   );
 }

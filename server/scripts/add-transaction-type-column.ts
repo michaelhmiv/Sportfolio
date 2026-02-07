@@ -1,6 +1,6 @@
 /**
  * SQL Migration Script - Add transaction_type column
- * 
+ *
  * This script adds the missing transaction_type column to lp_transactions table
  */
 
@@ -9,7 +9,7 @@ import { sql } from "drizzle-orm";
 
 async function runMigration() {
   console.log("[Migration] Starting...");
-  
+
   try {
     // Add the transaction_type column
     console.log("[Migration] Adding transaction_type column...");
@@ -17,9 +17,9 @@ async function runMigration() {
       ALTER TABLE lp_transactions 
       ADD COLUMN IF NOT EXISTS transaction_type TEXT NOT NULL DEFAULT 'add'
     `);
-    
+
     console.log("[Migration] Column added successfully");
-    
+
     // Update any existing rows (shouldn't be any, but just in case)
     console.log("[Migration] Updating existing rows...");
     await db.execute(sql`
@@ -27,7 +27,7 @@ async function runMigration() {
       SET transaction_type = 'add' 
       WHERE transaction_type IS NULL OR transaction_type = ''
     `);
-    
+
     console.log("[Migration] Complete!");
     process.exit(0);
   } catch (error) {
@@ -37,7 +37,7 @@ async function runMigration() {
 }
 
 // Run if called directly
-import { fileURLToPath } from 'url';
+import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 if (process.argv[1] === __filename) {
   runMigration();

@@ -1,14 +1,14 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
 let supabaseInstance: SupabaseClient | null = null;
 let initializationPromise: Promise<SupabaseClient> | null = null;
 
-const CONFIG_CACHE_KEY = 'supabase_config';
+const CONFIG_CACHE_KEY = "supabase_config";
 const CONFIG_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 // IMPORTANT: Supabase client defaults to a specific storage key; using a custom key can break
 // session persistence across contexts (e.g., installed PWA vs browser tab) and across upgrades.
 // Prefer the default key unless there's a strong reason to customize.
-const AUTH_STORAGE_KEY = 'sb-auth-token';
+const AUTH_STORAGE_KEY = "sb-auth-token";
 
 interface CachedConfig {
   url: string;
@@ -24,11 +24,11 @@ const customStorageAdapter = {
       // Try localStorage first
       const value = localStorage.getItem(key);
       if (value) return value;
-      
+
       // Fallback to sessionStorage (for PWA edge cases)
       return sessionStorage.getItem(key);
     } catch (e) {
-      console.warn('[SUPABASE] Storage read failed:', e);
+      console.warn("[SUPABASE] Storage read failed:", e);
       return null;
     }
   },
@@ -38,12 +38,12 @@ const customStorageAdapter = {
       localStorage.setItem(key, value);
       sessionStorage.setItem(key, value);
     } catch (e) {
-      console.warn('[SUPABASE] Storage write failed:', e);
+      console.warn("[SUPABASE] Storage write failed:", e);
       // Try sessionStorage only as fallback
       try {
         sessionStorage.setItem(key, value);
       } catch (e2) {
-        console.error('[SUPABASE] All storage failed:', e2);
+        console.error("[SUPABASE] All storage failed:", e2);
       }
     }
   },
@@ -52,7 +52,7 @@ const customStorageAdapter = {
       localStorage.removeItem(key);
       sessionStorage.removeItem(key);
     } catch (e) {
-      console.warn('[SUPABASE] Storage remove failed:', e);
+      console.warn("[SUPABASE] Storage remove failed:", e);
     }
   },
 };
@@ -60,7 +60,7 @@ const customStorageAdapter = {
 function debugLog(stage: string, message: string, data?: any) {
   const timestamp = new Date().toISOString();
   const elapsed = performance.now().toFixed(0);
-  console.log(`[SUPABASE ${elapsed}ms] ${stage}: ${message}`, data || '');
+  console.log(`[SUPABASE ${elapsed}ms] ${stage}: ${message}`, data || "");
 }
 
 function getCachedConfig(): CachedConfig | null {
@@ -92,17 +92,17 @@ function setCachedConfig(url: string, anonKey: string): void {
 }
 
 async function initializeSupabase(): Promise<SupabaseClient> {
-  debugLog('INIT', 'Starting Supabase initialization');
+  debugLog("INIT", "Starting Supabase initialization");
 
   if (supabaseInstance) {
-    debugLog('INIT', 'Returning cached Supabase instance');
+    debugLog("INIT", "Returning cached Supabase instance");
     return supabaseInstance;
   }
 
   // Try localStorage cache first for instant initialization
   const cachedConfig = getCachedConfig();
   if (cachedConfig) {
-    debugLog('CONFIG', 'Using cached config from localStorage');
+    debugLog("CONFIG", "Using cached config from localStorage");
     supabaseInstance = createClient(cachedConfig.url, cachedConfig.anonKey, {
       auth: {
         autoRefreshToken: true,
@@ -111,42 +111,42 @@ async function initializeSupabase(): Promise<SupabaseClient> {
         // Use default storage key for compatibility with Supabase session management.
         storageKey: AUTH_STORAGE_KEY,
         storage: customStorageAdapter,
-        flowType: 'pkce',
+        flowType: "pkce",
       },
     });
-    debugLog('CLIENT', 'Supabase client created from cache');
+    debugLog("CLIENT", "Supabase client created from cache");
     return supabaseInstance;
   }
 
   try {
-    debugLog('CONFIG', 'Fetching /api/auth/config...');
+    debugLog("CONFIG", "Fetching /api/auth/config...");
     const startTime = performance.now();
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => {
-      debugLog('CONFIG', 'TIMEOUT - Aborting after 5 seconds');
+      debugLog("CONFIG", "TIMEOUT - Aborting after 5 seconds");
       controller.abort();
     }, 5000);
 
-    const response = await fetch('/api/auth/config', {
+    const response = await fetch("/api/auth/config", {
       signal: controller.signal,
     });
     clearTimeout(timeoutId);
 
     const elapsed = (performance.now() - startTime).toFixed(0);
-    debugLog('CONFIG', `Response received in ${elapsed}ms, status: ${response.status}`);
+    debugLog("CONFIG", `Response received in ${elapsed}ms, status: ${response.status}`);
 
     if (!response.ok) {
       throw new Error(`Failed to fetch Supabase config: ${response.status}`);
     }
 
     const config = await response.json();
-    debugLog('CONFIG', 'Config parsed successfully', { url: config.url?.substring(0, 30) + '...' });
+    debugLog("CONFIG", "Config parsed successfully", { url: config.url?.substring(0, 30) + "..." });
 
     // Cache config for future visits
     setCachedConfig(config.url, config.anonKey);
 
-    debugLog('CLIENT', 'Creating Supabase client...');
+    debugLog("CLIENT", "Creating Supabase client...");
     supabaseInstance = createClient(config.url, config.anonKey, {
       auth: {
         autoRefreshToken: true,
@@ -155,29 +155,29 @@ async function initializeSupabase(): Promise<SupabaseClient> {
         // Use default storage key for compatibility with Supabase session management.
         storageKey: AUTH_STORAGE_KEY,
         storage: customStorageAdapter,
-        flowType: 'pkce',
+        flowType: "pkce",
       },
     });
-    debugLog('CLIENT', 'Supabase client created successfully');
+    debugLog("CLIENT", "Supabase client created successfully");
 
     return supabaseInstance;
   } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
-      debugLog('ERROR', 'Config fetch TIMED OUT after 5 seconds - server may be down');
+    if (error instanceof Error && error.name === "AbortError") {
+      debugLog("ERROR", "Config fetch TIMED OUT after 5 seconds - server may be down");
     } else {
-      debugLog('ERROR', 'Failed to initialize Supabase', { error: (error as Error).message });
+      debugLog("ERROR", "Failed to initialize Supabase", { error: (error as Error).message });
     }
     throw error;
   }
 }
 
 export function getSupabase(): Promise<SupabaseClient> {
-  debugLog('GET', 'getSupabase() called', { hasPromise: !!initializationPromise });
+  debugLog("GET", "getSupabase() called", { hasPromise: !!initializationPromise });
 
   if (!initializationPromise) {
-    debugLog('GET', 'Creating new initialization promise');
+    debugLog("GET", "Creating new initialization promise");
     initializationPromise = initializeSupabase().catch((error) => {
-      debugLog('GET', 'Initialization failed, clearing promise for retry');
+      debugLog("GET", "Initialization failed, clearing promise for retry");
       initializationPromise = null;
       throw error;
     });
@@ -186,7 +186,7 @@ export function getSupabase(): Promise<SupabaseClient> {
 }
 
 export function resetSupabase() {
-  debugLog('RESET', 'Resetting Supabase instance for retry');
+  debugLog("RESET", "Resetting Supabase instance for retry");
   supabaseInstance = null;
   initializationPromise = null;
 }

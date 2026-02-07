@@ -26,10 +26,14 @@ export function AnimatedList<T>({
 }: AnimatedListProps<T>) {
   const getInitialPosition = () => {
     switch (animateDirection) {
-      case "left": return { x: -30, opacity: 0 };
-      case "right": return { x: 30, opacity: 0 };
-      case "top": return { y: -30, opacity: 0 };
-      case "bottom": return { y: 30, opacity: 0 };
+      case "left":
+        return { x: -30, opacity: 0 };
+      case "right":
+        return { x: 30, opacity: 0 };
+      case "top":
+        return { y: -30, opacity: 0 };
+      case "bottom":
+        return { y: 30, opacity: 0 };
     }
   };
 
@@ -48,10 +52,7 @@ export function AnimatedList<T>({
               ease: "easeOut",
             }}
             layout
-            className={cn(
-              highlightNew && "animate-highlight-once",
-              itemClassName
-            )}
+            className={cn(highlightNew && "animate-highlight-once", itemClassName)}
           >
             {renderItem(item, index)}
           </motion.div>
@@ -84,7 +85,7 @@ export function AnimatedActivityItem({
       className={cn(
         "relative rounded-lg hover:bg-muted/50 transition-colors",
         onClick && "cursor-pointer",
-        className
+        className,
       )}
     >
       {isNew && (

@@ -43,13 +43,7 @@ export function CollectionProgress({
 
   return (
     <div className={cn("w-full", className)}>
-      <div
-        className={cn(
-          "w-full rounded-full overflow-hidden",
-          heightClasses[size],
-          colors.bg
-        )}
-      >
+      <div className={cn("w-full rounded-full overflow-hidden", heightClasses[size], colors.bg)}>
         <motion.div
           initial={{ width: 0 }}
           animate={{ width: `${percentage}%` }}

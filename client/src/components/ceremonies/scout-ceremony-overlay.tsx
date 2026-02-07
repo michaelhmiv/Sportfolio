@@ -32,13 +32,13 @@ interface ScoutCeremonyOverlayProps {
 }
 
 // Data particle component
-function DataParticle({ 
-  delay, 
-  duration, 
-  color 
-}: { 
-  delay: number; 
-  duration: number; 
+function DataParticle({
+  delay,
+  duration,
+  color,
+}: {
+  delay: number;
+  duration: number;
   color: string;
 }) {
   return (
@@ -75,8 +75,8 @@ function ScoutPlayerCard({
     distribution.efficiency < 20
       ? "#F59E0B" // Amber
       : distribution.efficiency < 50
-      ? "#10B981" // Emerald
-      : "#8B5CF6"; // Violet
+        ? "#10B981" // Emerald
+        : "#8B5CF6"; // Violet
 
   return (
     <motion.div
@@ -90,7 +90,7 @@ function ScoutPlayerCard({
       }}
       className={cn(
         "relative p-3 rounded-lg border bg-card",
-        isHighlight && "ring-2 ring-emerald-500/50"
+        isHighlight && "ring-2 ring-emerald-500/50",
       )}
     >
       {/* Efficiency indicator */}
@@ -154,11 +154,11 @@ function AnimatedCounter({ value, duration = 2 }: { value: number; duration?: nu
     const animate = (timestamp: number) => {
       if (!startTime) startTime = timestamp;
       const progress = Math.min((timestamp - startTime) / (duration * 1000), 1);
-      
+
       // Ease out quart
       const easeOutQuart = 1 - Math.pow(1 - progress, 4);
       const current = value * easeOutQuart;
-      
+
       setDisplayValue(current);
 
       if (progress < 1) {
@@ -170,11 +170,7 @@ function AnimatedCounter({ value, duration = 2 }: { value: number; duration?: nu
     return () => cancelAnimationFrame(animationFrame);
   }, [value, duration]);
 
-  return (
-    <span className="font-mono font-bold">
-      {displayValue.toFixed(2)}
-    </span>
-  );
+  return <span className="font-mono font-bold">{displayValue.toFixed(2)}</span>;
 }
 
 export function ScoutCeremonyOverlay({
@@ -251,10 +247,7 @@ export function ScoutCeremonyOverlay({
           </motion.button>
         )}
 
-        <div
-          className="w-full max-w-2xl mx-4"
-          onClick={(e) => e.stopPropagation()}
-        >
+        <div className="w-full max-w-2xl mx-4" onClick={(e) => e.stopPropagation()}>
           {/* Header */}
           <motion.div
             initial={{ opacity: 0, y: -20 }}
@@ -264,9 +257,7 @@ export function ScoutCeremonyOverlay({
           >
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-amber-500/10 border border-amber-500/20">
               <Binoculars className="w-4 h-4 text-amber-500" />
-              <span className="text-sm font-medium text-amber-500">
-                Scout Data Harvested
-              </span>
+              <span className="text-sm font-medium text-amber-500">Scout Data Harvested</span>
             </div>
           </motion.div>
 
@@ -305,9 +296,7 @@ export function ScoutCeremonyOverlay({
             className="text-center"
           >
             <div className="inline-flex flex-col items-center p-6 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
-              <span className="text-sm text-muted-foreground mb-1">
-                Total Shares Earned
-              </span>
+              <span className="text-sm text-muted-foreground mb-1">Total Shares Earned</span>
               <div className="text-4xl font-bold text-emerald-500">
                 <AnimatedCounter value={data.totalShares} duration={2} />
               </div>

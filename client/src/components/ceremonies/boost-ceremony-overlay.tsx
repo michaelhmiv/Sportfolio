@@ -48,11 +48,11 @@ function ParticleBurst({ color, count = 8 }: { color: string; count?: number }) 
             key={i}
             className="absolute w-1.5 h-1.5 rounded-full"
             style={{ backgroundColor: color }}
-            initial={{ 
-              x: 0, 
-              y: 0, 
+            initial={{
+              x: 0,
+              y: 0,
               opacity: 0,
-              scale: 0 
+              scale: 0,
             }}
             animate={{
               x: [0, Math.cos((angle * Math.PI) / 180) * distance],
@@ -119,17 +119,13 @@ function getTierVisuals(tier: number) {
   }
 }
 
-export function BoostCeremonyOverlay({
-  isOpen,
-  data,
-  onClose,
-}: BoostCeremonyOverlayProps) {
+export function BoostCeremonyOverlay({ isOpen, data, onClose }: BoostCeremonyOverlayProps) {
   const [phase, setPhase] = useState<"intro" | "charge" | "boost" | "complete">("intro");
 
   useEffect(() => {
     if (isOpen && data) {
       setPhase("intro");
-      
+
       const timers = [
         setTimeout(() => setPhase("charge"), 300),
         setTimeout(() => setPhase("boost"), 1000),
@@ -168,10 +164,7 @@ export function BoostCeremonyOverlay({
           <X className="w-5 h-5" />
         </motion.button>
 
-        <div
-          className="w-full max-w-md mx-4"
-          onClick={(e) => e.stopPropagation()}
-        >
+        <div className="w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
           {/* Header */}
           <motion.div
             initial={{ opacity: 0, y: -20 }}
@@ -179,15 +172,15 @@ export function BoostCeremonyOverlay({
             transition={{ duration: 0.3 }}
             className="text-center mb-8"
           >
-            <div className={cn(
-              "inline-flex items-center gap-2 px-4 py-2 rounded-full border",
-              visuals.bgColor,
-              visuals.borderColor
-            )}>
+            <div
+              className={cn(
+                "inline-flex items-center gap-2 px-4 py-2 rounded-full border",
+                visuals.bgColor,
+                visuals.borderColor,
+              )}
+            >
               <Zap className={cn("w-4 h-4", visuals.textColor)} />
-              <span className={cn("text-sm font-medium", visuals.textColor)}>
-                Boost Applied
-              </span>
+              <span className={cn("text-sm font-medium", visuals.textColor)}>Boost Applied</span>
             </div>
           </motion.div>
 
@@ -201,13 +194,15 @@ export function BoostCeremonyOverlay({
               className={cn(
                 "p-4 rounded-lg border bg-card mb-4 relative overflow-hidden",
                 phase === "charge" && "ring-2",
-                phase === "charge" && visuals.borderColor
+                phase === "charge" && visuals.borderColor,
               )}
             >
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded bg-primary/10 flex items-center justify-center text-sm font-bold"
-                >
-                  {data.playerName.split(" ").map(n => n[0]).join("")}
+                <div className="w-10 h-10 rounded bg-primary/10 flex items-center justify-center text-sm font-bold">
+                  {data.playerName
+                    .split(" ")
+                    .map((n) => n[0])
+                    .join("")}
                 </div>
                 <div className="flex-1">
                   <p className="font-medium">{data.playerName}</p>
@@ -237,15 +232,13 @@ export function BoostCeremonyOverlay({
 
             {/* Energy beam */}
             <div className="relative h-8 flex items-center justify-center">
-              {phase === "boost" && (
-                <EnergyBeam color={visuals.color} delay={0} />
-              )}
+              {phase === "boost" && <EnergyBeam color={visuals.color} delay={0} />}
               <motion.div
                 animate={phase === "boost" ? { scale: [1, 1.2, 1] } : {}}
                 transition={{ duration: 0.3 }}
                 className={cn(
                   "w-8 h-8 rounded-full flex items-center justify-center z-10",
-                  visuals.bgColor
+                  visuals.bgColor,
                 )}
               >
                 <Zap className={cn("w-4 h-4", visuals.textColor)} />
@@ -255,46 +248,41 @@ export function BoostCeremonyOverlay({
             {/* Boost slot */}
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ 
-                opacity: 1, 
+              animate={{
+                opacity: 1,
                 scale: phase === "complete" ? [1, 1.05, 1] : 1,
               }}
-              transition={{ 
-                duration: 0.3, 
+              transition={{
+                duration: 0.3,
                 delay: 0.2,
-                scale: { duration: 0.4, delay: 0 }
+                scale: { duration: 0.4, delay: 0 },
               }}
               className={cn(
                 "p-6 rounded-lg border text-center relative overflow-hidden mt-4",
                 visuals.bgColor,
                 visuals.borderColor,
-                phase === "complete" && cn("shadow-lg", visuals.glowColor)
+                phase === "complete" && cn("shadow-lg", visuals.glowColor),
               )}
             >
               <motion.div
-                animate={phase === "complete" ? { 
-                  scale: [1, 1.2, 1],
-                  opacity: [0.5, 1, 0.5],
-                } : {}}
+                animate={
+                  phase === "complete"
+                    ? {
+                        scale: [1, 1.2, 1],
+                        opacity: [0.5, 1, 0.5],
+                      }
+                    : {}
+                }
                 transition={{ duration: 0.6 }}
-                className={cn(
-                  "text-5xl font-bold mb-2",
-                  visuals.textColor
-                )}
+                className={cn("text-5xl font-bold mb-2", visuals.textColor)}
               >
                 {visuals.label}
               </motion.div>
-              <p className="text-sm text-muted-foreground">
-                Total Multiplier
-              </p>
-              <p className="text-lg font-semibold mt-1">
-                {data.totalMultiplier}x
-              </p>
+              <p className="text-sm text-muted-foreground">Total Multiplier</p>
+              <p className="text-lg font-semibold mt-1">{data.totalMultiplier}x</p>
 
               {/* Particle burst on complete */}
-              {phase === "complete" && (
-                <ParticleBurst color={visuals.color} count={12} />
-              )}
+              {phase === "complete" && <ParticleBurst color={visuals.color} count={12} />}
             </motion.div>
 
             {/* Stats */}
@@ -304,14 +292,12 @@ export function BoostCeremonyOverlay({
               transition={{ delay: 0.3 }}
               className="mt-6 grid grid-cols-2 gap-4"
             >
-              <div className="text-center p-3 rounded-lg bg-muted"
-              >
+              <div className="text-center p-3 rounded-lg bg-muted">
                 <TrendingUp className="w-4 h-4 mx-auto mb-1 text-muted-foreground" />
                 <p className="text-xs text-muted-foreground">Power Level</p>
                 <p className="font-mono font-semibold">{data.powerLevel}</p>
               </div>
-              <div className="text-center p-3 rounded-lg bg-muted"
-              >
+              <div className="text-center p-3 rounded-lg bg-muted">
                 <Zap className="w-4 h-4 mx-auto mb-1 text-muted-foreground" />
                 <p className="text-xs text-muted-foreground">Shares Burned</p>
                 <p className="font-mono font-semibold">{data.sharesBurned}</p>

@@ -26,10 +26,7 @@ async function getUserHoldings(userId: string) {
 
 async function getPlayerInfo(playerIds: string[]) {
   if (playerIds.length === 0) return [];
-  const { data: players } = await supabase
-    .from("players")
-    .select("*")
-    .in("id", playerIds);
+  const { data: players } = await supabase.from("players").select("*").in("id", playerIds);
   return players || [];
 }
 
@@ -69,31 +66,38 @@ async function main() {
     console.log(JSON.stringify(holdings.slice(0, 3), null, 2));
   }
 
-  const playerIds = holdings.map(h => h.assetId);
+  const playerIds = holdings.map((h) => h.assetId);
   const players = await getPlayerInfo(playerIds);
   console.log(`\n=== PLAYERS ===`);
   console.log(`Total players: ${players.length}`);
 
-  const playerMap = new Map(players.map(p => [p.id, p]));
-  holdings.forEach(h => {
+  const playerMap = new Map(players.map((p) => [p.id, p]));
+  holdings.forEach((h) => {
     const player = playerMap.get(h.assetId);
-    console.log(`  - ${player?.firstName} ${player?.lastName} (${player?.team}) - ${h.quantity} shares, powerLevel: ${h.powerLevel}`);
+    console.log(
+      `  - ${player?.firstName} ${player?.lastName} (${player?.team}) - ${h.quantity} shares, powerLevel: ${h.powerLevel}`,
+    );
   });
 
   const games = await getDailyGames();
   console.log(`\n=== TODAY'S GAMES ===`);
   console.log(`Total games: ${games.length}`);
-  games.forEach(g => {
+  games.forEach((g) => {
     console.log(`  - ${g.homeTeam} vs ${g.awayTeam} (${g.sport}) at ${g.startTime}`);
   });
 
   // Check if any player teams have games
   console.log(`\n=== PLAYERS WITH GAMES TODAY ===`);
-  const teamsWithGames = new Set([...games.map(g => g.homeTeam), ...games.map(g => g.awayTeam)]);
-  holdings.forEach(h => {
+  const teamsWithGames = new Set([
+    ...games.map((g) => g.homeTeam),
+    ...games.map((g) => g.awayTeam),
+  ]);
+  holdings.forEach((h) => {
     const player = playerMap.get(h.assetId);
     const hasGame = teamsWithGames.has(player?.team);
-    console.log(`  - ${player?.firstName} ${player?.lastName}: ${player?.team} - ${hasGame ? 'HAS GAME' : 'NO GAME'}`);
+    console.log(
+      `  - ${player?.firstName} ${player?.lastName}: ${player?.team} - ${hasGame ? "HAS GAME" : "NO GAME"}`,
+    );
   });
 }
 

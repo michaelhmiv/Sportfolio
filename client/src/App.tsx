@@ -116,7 +116,7 @@ function Router() {
   // Handle OAuth redirect hash tokens - redirect to /auth/callback if access_token is in hash
   useEffect(() => {
     const hash = window.location.hash;
-    if (hash && hash.includes('access_token=')) {
+    if (hash && hash.includes("access_token=")) {
       // Preserve the hash and redirect to auth callback
       navigate(`/auth/callback${hash}`, { replace: true });
     }
@@ -139,7 +139,10 @@ function Router() {
   useEffect(() => {
     const viewport = document.querySelector('meta[name="viewport"]');
     if (viewport) {
-      viewport.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=yes');
+      viewport.setAttribute(
+        "content",
+        "width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=yes",
+      );
     }
   }, [isAuthenticated]);
 
@@ -147,7 +150,10 @@ function Router() {
   useEffect(() => {
     const viewport = document.querySelector('meta[name="viewport"]');
     if (viewport) {
-      viewport.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=yes');
+      viewport.setAttribute(
+        "content",
+        "width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=yes",
+      );
     }
   }, []);
 
@@ -158,8 +164,18 @@ function Router() {
         <div className="text-center max-w-md px-4">
           <div className="flex justify-center mb-4">
             <div className="w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center">
-              <svg className="w-6 h-6 text-destructive" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              <svg
+                className="w-6 h-6 text-destructive"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                />
               </svg>
             </div>
           </div>
@@ -247,46 +263,28 @@ function Router() {
           <Route path="/news" component={News} />
 
           {/* Power / Boosts - requires authentication */}
-          <Route path="/power">
-            {isAuthenticated ? <Power /> : <Dashboard />}
-          </Route>
+          <Route path="/power">{isAuthenticated ? <Power /> : <Dashboard />}</Route>
 
           {/* Legacy route for backwards compatibility */}
-          <Route path="/boosts">
-            {isAuthenticated ? <Power /> : <Dashboard />}
-          </Route>
+          <Route path="/boosts">{isAuthenticated ? <Power /> : <Dashboard />}</Route>
 
           {/* Protected routes - require authentication, redirect to dashboard if not logged in */}
-          <Route path="/player/:id">
-            {isAuthenticated ? <PlayerPage /> : <Dashboard />}
-          </Route>
+          <Route path="/player/:id">{isAuthenticated ? <PlayerPage /> : <Dashboard />}</Route>
 
           {/* Canonical player route used across the app (some data uses prefixed ids like nba_123) */}
-          <Route path="/player/nba_:id">
-            {isAuthenticated ? <PlayerPage /> : <Dashboard />}
-          </Route>
-          <Route path="/player/nfl_:id">
-            {isAuthenticated ? <PlayerPage /> : <Dashboard />}
-          </Route>
+          <Route path="/player/nba_:id">{isAuthenticated ? <PlayerPage /> : <Dashboard />}</Route>
+          <Route path="/player/nfl_:id">{isAuthenticated ? <PlayerPage /> : <Dashboard />}</Route>
           <Route path="/contest/:id/entry">
             {isAuthenticated ? <ContestEntry /> : <Dashboard />}
           </Route>
           <Route path="/contest/:id/entry/:entryId">
             {isAuthenticated ? <ContestEntry /> : <Dashboard />}
           </Route>
-          <Route path="/portfolio">
-            {isAuthenticated ? <Portfolio /> : <Dashboard />}
-          </Route>
-          <Route path="/admin">
-            {isAuthenticated ? <Admin /> : <Dashboard />}
-          </Route>
-          <Route path="/premium">
-            {isAuthenticated ? <Premium /> : <Dashboard />}
-          </Route>
+          <Route path="/portfolio">{isAuthenticated ? <Portfolio /> : <Dashboard />}</Route>
+          <Route path="/admin">{isAuthenticated ? <Admin /> : <Dashboard />}</Route>
+          <Route path="/premium">{isAuthenticated ? <Premium /> : <Dashboard />}</Route>
           {/* Premium share trading removed; premium shares are redeemed for premium access */}
-          <Route path="/watchlists">
-            {isAuthenticated ? <Watchlists /> : <Dashboard />}
-          </Route>
+          <Route path="/watchlists">{isAuthenticated ? <Watchlists /> : <Dashboard />}</Route>
           <Route path="/profile">
             {isAuthenticated && user ? <ProfileRedirect userId={user.id} /> : <Dashboard />}
           </Route>
@@ -306,17 +304,17 @@ function Header() {
   const [location, navigate] = useLocation();
   const { subscribe } = useWebSocket();
   const { data: dashboardData } = useQuery<{ user: { balance: string; portfolioValue: string } }>({
-    queryKey: ['/api/dashboard'],
+    queryKey: ["/api/dashboard"],
   });
 
   // Detect if we're on a user profile page
-  const isProfilePage = location.startsWith('/user/');
+  const isProfilePage = location.startsWith("/user/");
 
   // WebSocket listener for real-time balance updates in header
   useEffect(() => {
     // Portfolio events will auto-invalidate dashboard queries via WebSocket provider
     // The header balance will update automatically
-    const unsubPortfolio = subscribe('portfolio', () => {
+    const unsubPortfolio = subscribe("portfolio", () => {
       // Balance updates will be handled by the global WebSocket provider
     });
 
@@ -329,10 +327,12 @@ function Header() {
   const isPremium = user?.isPremium || false;
 
   return (
-    <header className={cn(
-      "flex items-center justify-between h-16 px-4 border-b bg-sidebar sticky top-0 z-10",
-      isPremium && "border-b-yellow-500/30"
-    )}>
+    <header
+      className={cn(
+        "flex items-center justify-between h-16 px-4 border-b bg-sidebar sticky top-0 z-10",
+        isPremium && "border-b-yellow-500/30",
+      )}
+    >
       <div className="flex items-center gap-4">
         <div className="hidden sm:block">
           <SidebarTrigger data-testid="button-sidebar-toggle" />
@@ -345,9 +345,7 @@ function Header() {
               <ScoutWidget compact className="flex sm:hidden" />
             </>
           ) : (
-            <span className="text-xl font-extrabold tracking-tight text-primary">
-              Sportfolio
-            </span>
+            <span className="text-xl font-extrabold tracking-tight text-primary">Sportfolio</span>
           )}
         </div>
         <div className="hidden sm:flex items-center gap-2 text-sm">
@@ -360,7 +358,11 @@ function Header() {
       <div className="flex items-center gap-2">
         {isAuthenticated ? (
           <>
-            <Link href={user?.id ? `/user/${user.id}` : "/profile"} className="hidden sm:block" data-testid="link-username">
+            <Link
+              href={user?.id ? `/user/${user.id}` : "/profile"}
+              className="hidden sm:block"
+              data-testid="link-username"
+            >
               <div className="flex items-center gap-2 text-sm text-muted-foreground hover-elevate active-elevate-2 px-3 py-1.5 rounded-md transition-colors">
                 <span data-testid="text-username">{userName}</span>
               </div>
@@ -393,19 +395,14 @@ function Header() {
             )}
           </>
         ) : (
-          <Button
-            asChild
-            data-testid="button-header-login"
-          >
-            <Link href="/login">
-              Sign In
-            </Link>
+          <Button asChild data-testid="button-header-login">
+            <Link href="/login">Sign In</Link>
           </Button>
         )}
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => window.open('https://discord.gg/r8MsduNvXG', '_blank')}
+          onClick={() => window.open("https://discord.gg/r8MsduNvXG", "_blank")}
           data-testid="button-discord"
           title="Join our Discord"
           className="hover-elevate active-elevate-2"
@@ -419,7 +416,8 @@ function Header() {
 }
 
 function ScoutCeremonyManager() {
-  const { isReady, isShowing, data, handleScoutReady, showCeremony, closeCeremony, dismissReady } = useScoutCeremony();
+  const { isReady, isShowing, data, handleScoutReady, showCeremony, closeCeremony, dismissReady } =
+    useScoutCeremony();
   const [, navigate] = useLocation();
 
   useEffect(() => {
@@ -427,12 +425,12 @@ function ScoutCeremonyManager() {
       handleScoutReady(event.detail);
     };
 
-    window.addEventListener('scout-ceremony-ready', handleEvent as EventListener);
-    return () => window.removeEventListener('scout-ceremony-ready', handleEvent as EventListener);
+    window.addEventListener("scout-ceremony-ready", handleEvent as EventListener);
+    return () => window.removeEventListener("scout-ceremony-ready", handleEvent as EventListener);
   }, [handleScoutReady]);
 
   const handleViewPortfolio = () => {
-    navigate('/portfolio');
+    navigate("/portfolio");
     dismissReady();
   };
 
@@ -446,11 +444,7 @@ function ScoutCeremonyManager() {
         onDismiss={dismissReady}
         onViewPortfolio={handleViewPortfolio}
       />
-      <ScoutCeremonyOverlay
-        isOpen={isShowing}
-        data={data}
-        onClose={closeCeremony}
-      />
+      <ScoutCeremonyOverlay isOpen={isShowing} data={data} onClose={closeCeremony} />
     </>
   );
 }

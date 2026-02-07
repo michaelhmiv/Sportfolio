@@ -1,11 +1,11 @@
 /**
  * Contest Creation Job
- * 
+ *
  * Automatically creates 50/50 contests for upcoming game days:
  * - Reads from daily_games table (already synced from external APIs)
  * - Creates a daily 50/50 contest for each sport on each day with games
  * - Skips dates that already have contests
- * 
+ *
  * UNIFIED JOB: Handles ALL sports (NBA, NFL, etc.) in a single job.
  * This avoids duplicate API calls and ensures consistency.
  */
@@ -17,26 +17,26 @@ import { fromZonedTime, toZonedTime, format } from "date-fns-tz";
 import { addDays } from "date-fns";
 
 interface GameDay {
-  dateStr: string;       // YYYY-MM-DD in ET
-  sport: string;         // NBA, NFL, etc.
-  earliestGame: Date;    // UTC timestamp of first game
+  dateStr: string; // YYYY-MM-DD in ET
+  sport: string; // NBA, NFL, etc.
+  earliestGame: Date; // UTC timestamp of first game
   gameCount: number;
-  week?: number;         // For NFL
+  week?: number; // For NFL
 }
 
 /**
  * Get ET date string from a Date object
  */
 function getETDateString(date: Date): string {
-  const etTime = toZonedTime(date, 'America/New_York');
-  return format(etTime, 'yyyy-MM-dd', { timeZone: 'America/New_York' });
+  const etTime = toZonedTime(date, "America/New_York");
+  return format(etTime, "yyyy-MM-dd", { timeZone: "America/New_York" });
 }
 
 /**
  * Extract YYYY-MM-DD date string from a contest's gameDate
  */
 function getContestDateString(gameDate: Date | string): string {
-  const date = typeof gameDate === 'string' ? new Date(gameDate) : gameDate;
+  const date = typeof gameDate === "string" ? new Date(gameDate) : gameDate;
   return getETDateString(date);
 }
 
@@ -52,7 +52,7 @@ export async function createContests(progressCallback?: ProgressCallback): Promi
   console.log(`[create_contests] Current UTC time: ${new Date().toISOString()}`);
 
   progressCallback?.({
-    type: 'info',
+    type: "info",
     timestamp: new Date().toISOString(),
     message: `Starting unified contest creation (Today ET: ${todayET})`,
   });
@@ -68,14 +68,14 @@ export async function createContests(progressCallback?: ProgressCallback): Promi
     console.log(`[create_contests] Fetching games from daily_games table...`);
 
     progressCallback?.({
-      type: 'info',
+      type: "info",
       timestamp: new Date().toISOString(),
-      message: 'Fetching upcoming games from database (all sports)',
+      message: "Fetching upcoming games from database (all sports)",
     });
 
     // Fetch ALL games from the database for the next 7 days
     // This pulls from already-synced data, no external API calls
-    const allGames = await storage.getDailyGamesBySport('ALL', now, future);
+    const allGames = await storage.getDailyGamesBySport("ALL", now, future);
 
     console.log(`[create_contests] Found ${allGames.length} total games in next 7 days`);
 
@@ -83,9 +83,9 @@ export async function createContests(progressCallback?: ProgressCallback): Promi
       console.log("[create_contests] No upcoming games found");
 
       progressCallback?.({
-        type: 'complete',
+        type: "complete",
         timestamp: new Date().toISOString(),
-        message: 'No upcoming games found in database',
+        message: "No upcoming games found in database",
         data: {
           success: true,
           summary: { contestsCreated: 0, errors: 0 },
@@ -102,7 +102,7 @@ export async function createContests(progressCallback?: ProgressCallback): Promi
     for (const game of allGames) {
       const gameTime = game.startTime || game.date;
       const dateStr = getETDateString(gameTime);
-      const sport = game.sport || 'NBA';  // Default to NBA for legacy data
+      const sport = game.sport || "NBA"; // Default to NBA for legacy data
       const key = `${sport}-${dateStr}`;
 
       const existing = gameDayMap.get(key);
@@ -125,7 +125,7 @@ export async function createContests(progressCallback?: ProgressCallback): Promi
     console.log(`[create_contests] Found ${gameDayMap.size} sport-days with games`);
 
     progressCallback?.({
-      type: 'info',
+      type: "info",
       timestamp: new Date().toISOString(),
       message: `Found ${gameDayMap.size} sport-days with games`,
     });
@@ -138,7 +138,7 @@ export async function createContests(progressCallback?: ProgressCallback): Promi
     for (const [key, gameDay] of Array.from(gameDayMap.entries())) {
       try {
         // Check if contest already exists for this sport AND date
-        const existingContest = existingContests.find(c => {
+        const existingContest = existingContests.find((c) => {
           if (c.sport !== gameDay.sport) return false;
           const contestDateStr = getContestDateString(c.gameDate);
           return contestDateStr === gameDay.dateStr && (c.status === "open" || c.status === "live");
@@ -157,21 +157,23 @@ export async function createContests(progressCallback?: ProgressCallback): Promi
 
             await storage.updateContest(existingContest.id, {
               startsAt: gameDay.earliestGame,
-              status: new Date() < gameDay.earliestGame ? 'open' : existingContest.status,
+              status: new Date() < gameDay.earliestGame ? "open" : existingContest.status,
             });
 
             contestsUpdated++;
             console.log(`[create_contests] ✓ Updated contest ${existingContest.id}`);
 
             progressCallback?.({
-              type: 'info',
+              type: "info",
               timestamp: new Date().toISOString(),
               message: `✓ Updated ${existingContest.name} start time`,
             });
           } else {
-            console.log(`[create_contests] Contest ${key} already has correct start time, skipping...`);
+            console.log(
+              `[create_contests] Contest ${key} already has correct start time, skipping...`,
+            );
             progressCallback?.({
-              type: 'debug',
+              type: "debug",
               timestamp: new Date().toISOString(),
               message: `Contest ${key} already correct, skipping`,
             });
@@ -183,23 +185,25 @@ export async function createContests(progressCallback?: ProgressCallback): Promi
 
         // Create midnight ET gameDate for storage
         const midnightETString = `${gameDay.dateStr}T00:00:00`;
-        const gameDate = fromZonedTime(midnightETString, 'America/New_York');
+        const gameDate = fromZonedTime(midnightETString, "America/New_York");
 
         // Contest starts at first game time
         const startsAt = gameDay.earliestGame;
 
         // Contest ends at end of that day
         const endOfDayETString = `${gameDay.dateStr}T23:59:59.999`;
-        const endsAt = fromZonedTime(endOfDayETString, 'America/New_York');
+        const endsAt = fromZonedTime(endOfDayETString, "America/New_York");
 
         // Generate contest name
-        const dateForName = gameDay.dateStr.replace(/-/g, '/');
-        const weekSuffix = gameDay.week ? ` (Week ${gameDay.week})` : '';
+        const dateForName = gameDay.dateStr.replace(/-/g, "/");
+        const weekSuffix = gameDay.week ? ` (Week ${gameDay.week})` : "";
         const contestName = `${gameDay.sport} 50/50 - ${dateForName}${weekSuffix}`;
 
         console.log(`[create_contests] Creating: ${contestName}`);
         console.log(`  gameDate: ${gameDate.toISOString()}`);
-        console.log(`  startsAt: ${startsAt.toISOString()} (${format(toZonedTime(startsAt, 'America/New_York'), 'h:mm a', { timeZone: 'America/New_York' })} ET)`);
+        console.log(
+          `  startsAt: ${startsAt.toISOString()} (${format(toZonedTime(startsAt, "America/New_York"), "h:mm a", { timeZone: "America/New_York" })} ET)`,
+        );
         console.log(`  endsAt: ${endsAt.toISOString()}`);
 
         const contest = await storage.createContest({
@@ -216,18 +220,17 @@ export async function createContests(progressCallback?: ProgressCallback): Promi
         console.log(`[create_contests] ✓ Created contest ${contest.id} for ${key}`);
 
         progressCallback?.({
-          type: 'info',
+          type: "info",
           timestamp: new Date().toISOString(),
           message: `✓ Created ${contestName} (${gameDay.gameCount} games)`,
           data: { sport: gameDay.sport, date: gameDay.dateStr, gameCount: gameDay.gameCount },
         });
-
       } catch (error: any) {
         console.error(`[create_contests] Failed to create contest for ${key}:`, error.message);
         errorCount++;
 
         progressCallback?.({
-          type: 'warning',
+          type: "warning",
           timestamp: new Date().toISOString(),
           message: `Failed to create contest for ${key}: ${error.message}`,
         });
@@ -237,11 +240,12 @@ export async function createContests(progressCallback?: ProgressCallback): Promi
     console.log(`[create_contests] Created ${contestsCreated} new contests, ${errorCount} errors`);
 
     progressCallback?.({
-      type: 'complete',
+      type: "complete",
       timestamp: new Date().toISOString(),
-      message: errorCount > 0
-        ? `Contest creation completed with ${errorCount} errors: ${contestsCreated} contests created`
-        : `Contest creation completed: ${contestsCreated} contests created`,
+      message:
+        errorCount > 0
+          ? `Contest creation completed with ${errorCount} errors: ${contestsCreated} contests created`
+          : `Contest creation completed: ${contestsCreated} contests created`,
       data: {
         success: errorCount === 0,
         summary: { contestsCreated, errors: errorCount },
@@ -249,23 +253,22 @@ export async function createContests(progressCallback?: ProgressCallback): Promi
     });
 
     return {
-      requestCount: 0,  // No external API calls!
+      requestCount: 0, // No external API calls!
       recordsProcessed: contestsCreated,
-      errorCount
+      errorCount,
     };
-
   } catch (error: any) {
     console.error("[create_contests] Failed:", error.message);
 
     progressCallback?.({
-      type: 'error',
+      type: "error",
       timestamp: new Date().toISOString(),
       message: `Contest creation failed: ${error.message}`,
       data: { error: error.message },
     });
 
     progressCallback?.({
-      type: 'complete',
+      type: "complete",
       timestamp: new Date().toISOString(),
       message: `Contest creation failed: ${error.message}`,
       data: {

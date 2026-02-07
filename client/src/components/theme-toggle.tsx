@@ -18,23 +18,23 @@ export function ThemeToggle() {
 
   const toggleTheme = () => {
     if (isAnimating) return;
-    
+
     setIsAnimating(true);
     const newTheme = theme === "light" ? "dark" : "light";
     setTheme(newTheme);
     localStorage.setItem("theme", newTheme);
     document.documentElement.classList.toggle("dark", newTheme === "dark");
-    
+
     setTimeout(() => setIsAnimating(false), ANIMATION_DURATION);
   };
 
   const iconVariants = {
-    initial: { 
+    initial: {
       scale: 0,
       rotate: -180,
-      opacity: 0 
+      opacity: 0,
     },
-    animate: { 
+    animate: {
       scale: 1,
       rotate: 0,
       opacity: 1,
@@ -42,18 +42,18 @@ export function ThemeToggle() {
         type: "spring",
         stiffness: 260,
         damping: 20,
-        duration: ANIMATION_DURATION / 1000
-      }
+        duration: ANIMATION_DURATION / 1000,
+      },
     },
-    exit: { 
+    exit: {
       scale: 0,
       rotate: 180,
       opacity: 0,
       transition: {
         duration: 0.15,
-        ease: "easeIn"
-      }
-    }
+        ease: "easeIn",
+      },
+    },
   };
 
   const rayVariants = {
@@ -63,9 +63,9 @@ export function ThemeToggle() {
       transition: {
         duration: 2,
         repeat: Infinity,
-        ease: "easeInOut"
-      }
-    }
+        ease: "easeInOut",
+      },
+    },
   };
 
   return (
@@ -98,10 +98,7 @@ export function ThemeToggle() {
             exit="exit"
             className="absolute inset-0 flex items-center justify-center"
           >
-            <motion.div
-              variants={rayVariants}
-              animate="animate"
-            >
+            <motion.div variants={rayVariants} animate="animate">
               <Sun className="h-5 w-5" />
             </motion.div>
           </motion.div>

@@ -1,6 +1,7 @@
 # Development Mode Bypass
 
 ## Overview
+
 This app includes a development mode bypass that allows you to test the application without going through the OAuth login flow. This is useful for testing on the `.replit.dev` domain where OAuth callback URLs may not be registered.
 
 ## How to Enable
@@ -10,6 +11,7 @@ The dev bypass is **automatically enabled by default** in development mode (`NOD
 ## How It Works
 
 When the dev bypass is active:
+
 1. You don't need to log in - authentication is automatically bypassed
 2. A mock user is created with the following credentials:
    - **User ID**: `dev-user-12345678`
@@ -23,6 +25,7 @@ When the dev bypass is active:
 ## Security
 
 **Important:** This bypass only works when:
+
 - `NODE_ENV=development` (development mode)
 - `DEV_BYPASS_AUTH=true` is set
 
@@ -49,6 +52,7 @@ If you still see login errors after enabling the dev bypass, you may have an old
 ## Logs
 
 When the dev bypass is active, you'll see this message in the console:
+
 ```
 [DEV_BYPASS] Dev mode auth bypass active - using mock user
 ```
@@ -56,6 +60,7 @@ When the dev bypass is active, you'll see this message in the console:
 ## Normal OAuth Flow
 
 To test the normal OAuth flow in production:
+
 1. The app is published at a `.replit.app` URL
 2. OAuth callback URLs must be registered in your Replit OAuth application settings
 3. Users log in with their real Replit accounts
@@ -65,7 +70,9 @@ To test the normal OAuth flow in production:
 ## GitHub CLI Access for Private Repositories
 
 ### Important: GitHub CLI is Per-Instance
+
 GitHub CLI (`gh`) is a **system-level tool** that must be installed separately for each:
+
 - Claude Code instance/environment
 - Development machine
 - CI/CD pipeline
@@ -73,17 +80,22 @@ GitHub CLI (`gh`) is a **system-level tool** that must be installed separately f
 It is **not** automatically shared across different instances.
 
 ### What Happens Without GitHub CLI
+
 Claude Code cannot:
+
 - View GitHub issues via CLI (`gh issue view`)
 - Access private repository content programmatically
 - Run GitHub API commands directly (`gh api`)
 
 ### Installation
+
 Download GitHub CLI from: https://cli.github.com/
+
 - **Windows**: `winget install GitHub.cli` or download installer
 - **macOS**: `brew install gh`
 - **Linux**: `apt install gh` or your distro's package manager
 
 ### Workarounds (Without GitHub CLI)
+
 1. **WebFetch**: Can access public GitHub URLs (but not private issues)
 2. **User Provides Details**: Share issue text/URLs directly with Claude Code

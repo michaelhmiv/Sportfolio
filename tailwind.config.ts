@@ -5,11 +5,10 @@ export default {
   content: ["./client/index.html", "./client/src/**/*.{js,jsx,ts,tsx}"],
   theme: {
     extend: {
-
       borderRadius: {
-        lg: "0.25rem", /* 4px */
-        md: "0.125rem", /* 2px */
-        sm: "0rem", /* 0px */
+        lg: "0.25rem" /* 4px */,
+        md: "0.125rem" /* 2px */,
+        sm: "0rem" /* 0px */,
       },
       colors: {
         // Trading-specific colors (TradingView Palette)
@@ -78,7 +77,7 @@ export default {
         "sidebar-accent": {
           DEFAULT: "hsl(var(--sidebar-accent) / <alpha-value>)",
           foreground: "hsl(var(--sidebar-accent-foreground) / <alpha-value>)",
-          border: "var(--sidebar-accent-border)"
+          border: "var(--sidebar-accent-border)",
         },
         status: {
           online: "rgb(34 197 94)",
@@ -93,8 +92,8 @@ export default {
         mono: ["JetBrains Mono", "var(--font-mono)"],
       },
       fontSize: {
-        'hero': ['4rem', { lineHeight: '1', fontWeight: '700' }], // 64px for hero prices
-        'price': ['3rem', { lineHeight: '1.2', fontWeight: '700' }], // 48px for large prices
+        hero: ["4rem", { lineHeight: "1", fontWeight: "700" }], // 64px for hero prices
+        price: ["3rem", { lineHeight: "1.2", fontWeight: "700" }], // 48px for large prices
       },
       keyframes: {
         "accordion-down": {
@@ -109,7 +108,7 @@ export default {
           from: { transform: "translateX(0)" },
           to: { transform: "translateX(-100%)" },
         },
-        "ticker": {
+        ticker: {
           "0%": { transform: "translateX(0)" },
           "100%": { transform: "translateX(-33.333%)" },
         },
@@ -136,7 +135,7 @@ export default {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
         "slide-left": "slide-left 30s linear infinite",
-        "ticker": "ticker 40s linear infinite",
+        ticker: "ticker 40s linear infinite",
         "fade-in": "fade-in 0.3s ease-out",
         "highlight-once": "highlight-once 2s ease-out forwards",
         "toast-slide-in": "toast-slide-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)",

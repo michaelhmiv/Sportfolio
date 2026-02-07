@@ -41,38 +41,49 @@ async function fixPowerShares() {
       // This is the buggy format - power was set to power_level instead of power_level/5
       const correctPower = Math.round((powerLevelAsNum / 5) * 100) / 100;
       console.log(`Fixing: ${row.user_id} | ${row.asset_id}:`);
-      console.log(`  Before: quantity=${row.quantity}, power=${row.power}, power_level=${row.power_level}`);
+      console.log(
+        `  Before: quantity=${row.quantity}, power=${row.power}, power_level=${row.power_level}`,
+      );
       console.log(`  Note: power_level/5 = ${powerLevelAsNum}/5 = ${correctPower}`);
 
-      await pool.query(`
+      await pool.query(
+        `
         UPDATE holdings
         SET power = CAST($1 AS INTEGER),
             power_level = CAST($1 AS NUMERIC),
             last_updated = NOW()
         WHERE id = $2
-      `, [correctPower.toString(), row.id]);
+      `,
+        [correctPower.toString(), row.id],
+      );
 
       console.log(`  After:  quantity=1, power=${correctPower}, power_level=${correctPower}`);
       console.log("");
-
     } else if (row.quantity === 1 && powerAsNum !== powerLevelAsNum) {
       console.log(`Fixing: ${row.user_id} | ${row.asset_id}:`);
-      console.log(`  Before: quantity=${row.quantity}, power=${row.power}, power_level=${row.power_level}`);
+      console.log(
+        `  Before: quantity=${row.quantity}, power=${row.power}, power_level=${row.power_level}`,
+      );
 
       // If power != power_level, one of them is wrong
       // The correct format is: power = power_level (when quantity=1)
       // Fix: set power_level = power
-      await pool.query(`
+      await pool.query(
+        `
         UPDATE holdings
         SET power_level = CAST($1 AS NUMERIC),
             last_updated = NOW()
         WHERE id = $2
-      `, [powerAsNum.toString(), row.id]);
+      `,
+        [powerAsNum.toString(), row.id],
+      );
 
       console.log(`  After:  quantity=1, power=${row.power}, power_level=${row.power}`);
       console.log("");
     } else {
-      console.log(`OK: ${row.user_id} | ${row.asset_id}: quantity=${row.quantity}, power=${row.power}, power_level=${row.power_level}`);
+      console.log(
+        `OK: ${row.user_id} | ${row.asset_id}: quantity=${row.quantity}, power=${row.power}, power_level=${row.power_level}`,
+      );
     }
   }
 

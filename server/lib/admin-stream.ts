@@ -1,16 +1,16 @@
-import { EventEmitter } from 'events';
-import type { Response } from 'express';
+import { EventEmitter } from "events";
+import type { Response } from "express";
 
 // Event types for structured logging
 export interface LogEvent {
-  type: 'info' | 'warning' | 'error' | 'progress' | 'complete' | 'debug';
+  type: "info" | "warning" | "error" | "progress" | "complete" | "debug";
   timestamp: string;
   message: string;
   data?: any;
 }
 
 export interface ProgressEvent extends LogEvent {
-  type: 'progress';
+  type: "progress";
   data: {
     current: number;
     total: number;
@@ -20,7 +20,7 @@ export interface ProgressEvent extends LogEvent {
 }
 
 export interface CompleteEvent extends LogEvent {
-  type: 'complete';
+  type: "complete";
   data: {
     success: boolean;
     summary: Record<string, any>;
@@ -39,7 +39,7 @@ class AdminStreamManager extends EventEmitter {
     this.activeStreams.get(operationId)!.add(res);
 
     // Clean up on client disconnect
-    res.on('close', () => {
+    res.on("close", () => {
       this.unregisterClient(operationId, res);
     });
   }
@@ -65,7 +65,7 @@ class AdminStreamManager extends EventEmitter {
     }
 
     const data = JSON.stringify(event);
-    clients.forEach(res => {
+    clients.forEach((res) => {
       try {
         res.write(`data: ${data}\n\n`);
       } catch (error) {
@@ -101,7 +101,7 @@ export function createProgressCallback(operationId: string): ProgressCallback {
 // Convenience functions for emitting different event types
 export function emitInfo(operationId: string, message: string, data?: any) {
   adminStreamManager.emitLog(operationId, {
-    type: 'info',
+    type: "info",
     timestamp: new Date().toISOString(),
     message,
     data,
@@ -110,7 +110,7 @@ export function emitInfo(operationId: string, message: string, data?: any) {
 
 export function emitWarning(operationId: string, message: string, data?: any) {
   adminStreamManager.emitLog(operationId, {
-    type: 'warning',
+    type: "warning",
     timestamp: new Date().toISOString(),
     message,
     data,
@@ -119,7 +119,7 @@ export function emitWarning(operationId: string, message: string, data?: any) {
 
 export function emitError(operationId: string, message: string, error?: any) {
   const errorData: any = {};
-  
+
   if (error) {
     errorData.message = error.message || String(error);
     if (error.stack) {
@@ -131,7 +131,7 @@ export function emitError(operationId: string, message: string, error?: any) {
   }
 
   adminStreamManager.emitLog(operationId, {
-    type: 'error',
+    type: "error",
     timestamp: new Date().toISOString(),
     message,
     data: errorData,
@@ -140,7 +140,7 @@ export function emitError(operationId: string, message: string, error?: any) {
 
 export function emitDebug(operationId: string, message: string, data?: any) {
   adminStreamManager.emitLog(operationId, {
-    type: 'debug',
+    type: "debug",
     timestamp: new Date().toISOString(),
     message,
     data,
@@ -152,12 +152,12 @@ export function emitProgress(
   message: string,
   current: number,
   total: number,
-  stats?: Record<string, number>
+  stats?: Record<string, number>,
 ) {
   const percentage = total > 0 ? Math.round((current / total) * 100) : 0;
-  
+
   adminStreamManager.emitLog(operationId, {
-    type: 'progress',
+    type: "progress",
     timestamp: new Date().toISOString(),
     message,
     data: {
@@ -173,10 +173,10 @@ export function emitComplete(
   operationId: string,
   message: string,
   success: boolean,
-  summary: Record<string, any>
+  summary: Record<string, any>,
 ) {
   adminStreamManager.emitLog(operationId, {
-    type: 'complete',
+    type: "complete",
     timestamp: new Date().toISOString(),
     message,
     data: {
