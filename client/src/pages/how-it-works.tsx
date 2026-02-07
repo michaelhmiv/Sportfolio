@@ -6,12 +6,12 @@ const faqs = [
   {
     question: "How does trading player shares work on Sportfolio?",
     answer:
-      "NBA players on Sportfolio are represented as tradable shares, similar to stocks. Each player has a market price that changes based on trading activity in the AMM pool. You can buy or sell instantly against the pool with live quote previews.",
+      "NBA players on Sportfolio are represented as tradable shares, similar to stocks. Each player has an AMM (Automated Market Maker) pool with transparent pricing. You can buy or sell instantly against the pool with real-time quote previews. Prices adjust based on buying and selling activity.",
   },
   {
     question: "What is the Scout System and how do I earn free shares?",
     answer:
-      "Scouts are your agents who earn you free shares every hour. Assign scouts to your favorite players, and they'll earn shares for you based on the Scout-Minute formula. The more scouts you have on a player, the larger your share of that player's hourly distribution. Check the scout widget to manage your assignments.",
+      "Scouts are your agents who earn you free shares every hour. Click the scout widget in the header to assign up to 5 scouts (10 for premium users) to your favorite players. Scouts earn shares based on the Scout-Minute formula. You must log in at least every 24 hours to keep scouts active.",
   },
   {
     question: "How do fantasy contests work?",
@@ -26,7 +26,7 @@ const faqs = [
   {
     question: "What happens to my shares when I enter a contest?",
     answer:
-      "When you enter a contest, you draft players from a specific game date. Your existing portfolio shares are separate from contest lineups - entering contests doesn't affect your trading portfolio.",
+      "When you enter a contest, you draft players from a specific game date and pay an entry fee from your cash balance. Your existing portfolio shares are separate from contest lineups - entering contests doesn't consume your portfolio shares. Contest prizes create new money in the economy, balanced by the share flow from scouting.",
   },
 ];
 
@@ -141,8 +141,8 @@ export default function HowItWorks() {
             <CardContent className="space-y-4">
               <p className="text-muted-foreground">
                 Track your performance against other Sportfolio users on global leaderboards.
-                Rankings are available for portfolio net worth, total shares vested, and trading
-                activity. See where you stand and compete for bragging rights in the community.
+                Rankings are available for portfolio net worth, total shares earned via scouting,
+                and trading activity. See where you stand and compete for bragging rights in the community.
               </p>
             </CardContent>
           </Card>
