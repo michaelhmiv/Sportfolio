@@ -23,6 +23,7 @@ import {
   jobExecutionLogs,
   blogPosts,
   portfolioSnapshots,
+  marketSnapshots,
   premiumCheckoutSessions,
   premiumOrders,
   premiumTrades,
@@ -516,9 +517,11 @@ export interface IStorage {
     endDate?: Date,
   ): Promise<{
     totalSharesVested: number;
+    totalSharesScouted: number;
     totalSharesBurned: number;
     totalSharesInEconomy: number;
     periodSharesVested: number;
+    periodSharesScouted: number;
     periodsharesVested: number;
     periodSharesBurned: number;
   }>;
@@ -529,6 +532,7 @@ export interface IStorage {
     Array<{
       date: string;
       sharesVested: number;
+      sharesScouted: number;
       sharesBurned: number;
     }>
   >;
@@ -2238,11 +2242,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   /**
-   * Recompute players.volume24h as rolling 24h shares volume.
-   * Source of truth: trades executed in the last 24 hours.
+   * Recompute players.volume24h as rolling 24h shares volume from AMM trades only.
+   * Source of truth: AMM trades executed in the last 24 hours (pool is buyer or seller).
    */
   async refreshPlayerVolume24h(): Promise<number> {
-    // 1) Update players with trades in the window
+    // 1) Update players with AMM trades in the window
     const updatedWithTrades: any = await db.execute(sql`
       WITH v AS (
         SELECT
@@ -2250,6 +2254,7 @@ export class DatabaseStorage implements IStorage {
           COALESCE(ROUND(SUM(${trades.quantity}))::int, 0) AS vol
         FROM ${trades}
         WHERE ${trades.executedAt} >= NOW() - INTERVAL '24 hours'
+          AND (${trades.buyerId} = 'pool' OR ${trades.sellerId} = 'pool')
         GROUP BY ${trades.playerId}
       )
       UPDATE ${players} p
@@ -2270,6 +2275,7 @@ export class DatabaseStorage implements IStorage {
           FROM ${trades} t
           WHERE t.${trades.playerId} = p.${players.id}
             AND t.${trades.executedAt} >= NOW() - INTERVAL '24 hours'
+            AND (t.${trades.buyerId} = 'pool' OR t.${trades.sellerId} = 'pool')
         );
     `);
 
@@ -3651,13 +3657,25 @@ export class DatabaseStorage implements IStorage {
       .innerJoin(players, eq(holdings.assetId, players.id))
       .where(eq(holdings.assetType, "player"));
 
+    // Get previous period's market cap from snapshots
+    const prevMarketCapSnapshot = await db
+      .select({
+        marketCap: marketSnapshots.marketCap,
+      })
+      .from(marketSnapshots)
+      .where(lte(marketSnapshots.snapshotDate, prevStartDate))
+      .orderBy(desc(marketSnapshots.snapshotDate))
+      .limit(1);
+
     return {
       transactionCount: currentTrades[0]?.count || 0,
       totalVolume: parseFloat(currentTrades[0]?.volume || "0"),
       totalMarketCap: parseFloat(marketCapResult[0]?.marketCap || "0"),
       prevTransactionCount: prevTrades[0]?.count || 0,
       prevTotalVolume: parseFloat(prevTrades[0]?.volume || "0"),
-      prevTotalMarketCap: parseFloat(marketCapResult[0]?.marketCap || "0"), // Same as current (no historical tracking)
+      prevTotalMarketCap: prevMarketCapSnapshot[0]
+        ? parseFloat(prevMarketCapSnapshot[0].marketCap)
+        : parseFloat(marketCapResult[0]?.marketCap || "0"), // Fallback to current if no historical data
     };
   }
 
@@ -3866,19 +3884,29 @@ export class DatabaseStorage implements IStorage {
     endDate?: Date,
   ): Promise<{
     totalSharesVested: number;
+    totalSharesScouted: number;
     totalSharesBurned: number;
     totalSharesInEconomy: number;
     periodSharesVested: number;
+    periodSharesScouted: number;
     periodsharesVested: number;
     periodSharesBurned: number;
   }> {
-    // Total shares vested all time
+    // Total shares vested all time (vesting claims from automatic vesting)
     const totalVestedResult = await db
       .select({
         total: sql<string>`COALESCE(SUM(${vestingClaims.sharesClaimed}), 0)`.as("total"),
       })
       .from(vestingClaims);
     const totalSharesVested = parseInt(totalVestedResult[0]?.total || "0");
+
+    // Total shares scouted all time (active scout distributions)
+    const totalScoutedResult = await db
+      .select({
+        total: sql<string>`COALESCE(SUM(${scoutDistributions.sharesEarned}), 0)`.as("total"),
+      })
+      .from(scoutDistributions);
+    const totalSharesScouted = Math.floor(parseFloat(totalScoutedResult[0]?.total || "0"));
 
     // Total shares in economy (all holdings)
     const totalHoldingsResult = await db
@@ -3911,6 +3939,7 @@ export class DatabaseStorage implements IStorage {
 
     // Period stats (if dates provided)
     let periodSharesVested = 0;
+    let periodSharesScouted = 0;
     let periodSharesBurned = 0;
 
     if (startDate && endDate) {
@@ -3921,6 +3950,14 @@ export class DatabaseStorage implements IStorage {
         .from(vestingClaims)
         .where(and(gte(vestingClaims.claimedAt, startDate), lte(vestingClaims.claimedAt, endDate)));
       periodSharesVested = parseInt(periodVestedResult[0]?.total || "0");
+
+      const periodScoutedResult = await db
+        .select({
+          total: sql<string>`COALESCE(SUM(${scoutDistributions.sharesEarned}), 0)`.as("total"),
+        })
+        .from(scoutDistributions)
+        .where(and(gte(scoutDistributions.hourTimestamp, startDate), lte(scoutDistributions.hourTimestamp, endDate)));
+      periodSharesScouted = Math.floor(parseFloat(periodScoutedResult[0]?.total || "0"));
 
       const periodBurnedBoostsResult = await db
         .select({
@@ -3949,9 +3986,11 @@ export class DatabaseStorage implements IStorage {
 
     return {
       totalSharesVested,
+      totalSharesScouted,
       totalSharesBurned,
       totalSharesInEconomy,
       periodSharesVested,
+      periodSharesScouted,
       periodsharesVested: periodSharesVested,
       periodSharesBurned,
     };
@@ -3964,6 +4003,7 @@ export class DatabaseStorage implements IStorage {
     {
       date: string;
       sharesVested: number;
+      sharesScouted: number;
       sharesBurned: number;
     }[]
   > {
@@ -3977,6 +4017,17 @@ export class DatabaseStorage implements IStorage {
       .where(and(gte(vestingClaims.claimedAt, startDate), lte(vestingClaims.claimedAt, endDate)))
       .groupBy(sql`DATE(${vestingClaims.claimedAt})`)
       .orderBy(sql`DATE(${vestingClaims.claimedAt})`);
+
+    // Get shares scouted by date
+    const scoutedByDate = await db
+      .select({
+        date: sql<string>`DATE(${scoutDistributions.hourTimestamp})`.as("date"),
+        shares: sql<string>`COALESCE(SUM(${scoutDistributions.sharesEarned}), 0)`.as("shares"),
+      })
+      .from(scoutDistributions)
+      .where(and(gte(scoutDistributions.hourTimestamp, startDate), lte(scoutDistributions.hourTimestamp, endDate)))
+      .groupBy(sql`DATE(${scoutDistributions.hourTimestamp})`)
+      .orderBy(sql`DATE(${scoutDistributions.hourTimestamp})`);
 
     // Get shares burned by Daily Boost date in current system (locked/processed only)
     const burnedByDate = await db
@@ -4014,19 +4065,28 @@ export class DatabaseStorage implements IStorage {
       .orderBy(sql`DATE(${contests.gameDate})`);
 
     // Add all vested dates
-    const dateMap = new Map<string, { sharesVested: number; sharesBurned: number }>();
+    const dateMap = new Map<string, { sharesVested: number; sharesScouted: number; sharesBurned: number }>();
     for (const row of vestedByDate) {
       const dateStr = row.date;
       dateMap.set(dateStr, {
         sharesVested: parseInt(row.shares || "0"),
+        sharesScouted: 0,
         sharesBurned: 0,
       });
+    }
+
+    // Add/merge scouted dates
+    for (const row of scoutedByDate) {
+      const dateStr = row.date;
+      const existing = dateMap.get(dateStr) || { sharesVested: 0, sharesScouted: 0, sharesBurned: 0 };
+      existing.sharesScouted += Math.floor(parseFloat(row.shares || "0"));
+      dateMap.set(dateStr, existing);
     }
 
     // Add/merge burned dates
     for (const row of burnedByDate) {
       const dateStr = row.date;
-      const existing = dateMap.get(dateStr) || { sharesVested: 0, sharesBurned: 0 };
+      const existing = dateMap.get(dateStr) || { sharesVested: 0, sharesScouted: 0, sharesBurned: 0 };
       existing.sharesBurned += parseInt(row.shares || "0");
       dateMap.set(dateStr, existing);
     }
@@ -4034,7 +4094,7 @@ export class DatabaseStorage implements IStorage {
     // Add/merge legacy burned dates
     for (const row of legacyBurnedByDate) {
       const dateStr = row.date;
-      const existing = dateMap.get(dateStr) || { sharesVested: 0, sharesBurned: 0 };
+      const existing = dateMap.get(dateStr) || { sharesVested: 0, sharesScouted: 0, sharesBurned: 0 };
       existing.sharesBurned += parseInt(row.shares || "0");
       dateMap.set(dateStr, existing);
     }
@@ -4044,6 +4104,7 @@ export class DatabaseStorage implements IStorage {
     return sortedDates.map((date) => ({
       date,
       sharesVested: dateMap.get(date)?.sharesVested || 0,
+      sharesScouted: dateMap.get(date)?.sharesScouted || 0,
       sharesBurned: dateMap.get(date)?.sharesBurned || 0,
     }));
   }

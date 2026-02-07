@@ -94,6 +94,24 @@ export default function PlayerPage() {
   const [lastEdited, setLastEdited] = useState<"shares" | "sb" | null>(null);
   const [removePercent, setRemovePercent] = useState(50);
 
+  // Add liquidity mode: auto-detect (zap), dual-max (optimal), or fixed-ratio
+  const [addLiquidityMode, setAddLiquidityMode] = useState<"auto-detect" | "dual-max" | "fixed-ratio">("auto-detect");
+  const [zapQuote, setZapQuote] = useState<{
+    side: "shares" | "sb";
+    sharesIn?: number;
+    sbIn?: number;
+    sharesSold?: number;
+    sharesBought?: number;
+    sbReceived?: number;
+    totalSwapCost?: number;
+    sharesDeposited: number;
+    playMoneyDeposited: number;
+    estimatedLpSharesMinted: number;
+    estimatedOwnershipPercentage: number;
+    priceAfterSwap: number;
+  } | null>(null);
+  const [isLoadingZapQuote, setIsLoadingZapQuote] = useState(false);
+
   // Fetch player data
   const { data, isLoading, isError, error: playerError } = useQuery<PlayerPageData>({
     queryKey: ["/api/player", id, timeRange],
@@ -209,6 +227,54 @@ export default function PlayerPage() {
     userPlayMoneyBalance,
   ]);
 
+  // Fetch zap quote for auto-detect mode
+  useEffect(() => {
+    const fetchZapQuote = async () => {
+      if (addLiquidityMode !== "auto-detect") {
+        setZapQuote(null);
+        return;
+      }
+
+      // Only fetch quote when user has adjusted one side
+      if (lastEdited === "shares" && maxSharesToUse > 0) {
+        setIsLoadingZapQuote(true);
+        try {
+          const res = await fetch(`/api/lp/${encodeURIComponent(id)}/zap-quote?shares=${maxSharesToUse}`, {
+            credentials: "include",
+          });
+          if (res.ok) {
+            const data = await res.json();
+            setZapQuote(data);
+          }
+        } catch (e) {
+          console.error("Failed to fetch zap quote:", e);
+        } finally {
+          setIsLoadingZapQuote(false);
+        }
+      } else if (lastEdited === "sb" && maxPlayMoneyToUse > 0) {
+        setIsLoadingZapQuote(true);
+        try {
+          const res = await fetch(`/api/lp/${encodeURIComponent(id)}/zap-quote?sb=${maxPlayMoneyToUse}`, {
+            credentials: "include",
+          });
+          if (res.ok) {
+            const data = await res.json();
+            setZapQuote(data);
+          }
+        } catch (e) {
+          console.error("Failed to fetch zap quote:", e);
+        } finally {
+          setIsLoadingZapQuote(false);
+        }
+      } else {
+        setZapQuote(null);
+      }
+    };
+
+    const timer = setTimeout(fetchZapQuote, 300);
+    return () => clearTimeout(timer);
+  }, [addLiquidityMode, lastEdited, maxSharesToUse, maxPlayMoneyToUse, id]);
+
   const addLiquidityOptimalMutation = useMutation({
     mutationFn: async () => {
       if (!currentPoolPrice) throw new Error("Pool price unavailable");
@@ -271,6 +337,69 @@ export default function PlayerPage() {
         description: error.message,
         variant: "destructive",
       });
+    },
+  });
+
+  // Zap mutations for single-sided liquidity
+  const zapAddSharesMutation = useMutation({
+    mutationFn: async (sharesIn: number) => {
+      if (sharesIn <= 0) throw new Error("Select shares to deposit");
+      const res = await apiRequest("POST", `/api/lp/${encodeURIComponent(id)}/zap-add`, {
+        shares: sharesIn,
+      });
+      return res.json();
+    },
+    onSuccess: async (result: any) => {
+      toast({
+        title: "Liquidity Added",
+        description: `Deposited ${Number(result.sharesDeposited || 0).toFixed(4)} shares. ${Number(result.sharesSold || 0).toFixed(4)} shares auto-sold for $${Number(result.sbReceived || 0).toFixed(2)} to balance.`,
+      });
+      setAddLiquidityOpen(false);
+      setMaxSharesToUse(0);
+      setMaxPlayMoneyToUse(0);
+      setZapQuote(null);
+      setLinkAmounts(false);
+      setLastEdited(null);
+
+      invalidatePortfolioQueries();
+      queryClient.invalidateQueries({ queryKey: ["/api/amm", id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/lp", id, "position"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/lp/positions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/player", id, timeRange] });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Add Liquidity Failed", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const zapAddSbMutation = useMutation({
+    mutationFn: async (sbIn: number) => {
+      if (sbIn <= 0) throw new Error("Select SB to deposit");
+      const res = await apiRequest("POST", `/api/lp/${encodeURIComponent(id)}/zap-add`, {
+        sb: sbIn,
+      });
+      return res.json();
+    },
+    onSuccess: async (result: any) => {
+      toast({
+        title: "Liquidity Added",
+        description: `Deposited $${Number(result.sbIn || 0).toFixed(2)} SB. $${Number(result.totalSwapCost || 0).toFixed(2)} auto-swapped for ${Number(result.sharesBought || 0).toFixed(4)} shares to balance.`,
+      });
+      setAddLiquidityOpen(false);
+      setMaxSharesToUse(0);
+      setMaxPlayMoneyToUse(0);
+      setZapQuote(null);
+      setLinkAmounts(false);
+      setLastEdited(null);
+
+      invalidatePortfolioQueries();
+      queryClient.invalidateQueries({ queryKey: ["/api/amm", id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/lp", id, "position"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/lp/positions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/player", id, timeRange] });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Add Liquidity Failed", description: error.message, variant: "destructive" });
     },
   });
 
@@ -700,10 +829,12 @@ export default function PlayerPage() {
                           className="w-full"
                           onClick={() => {
                             setAddLiquidityOpen(true);
+                            setAddLiquidityMode("auto-detect");
                             setMaxSharesToUse(0);
                             setMaxPlayMoneyToUse(0);
                             setLinkAmounts(false);
                             setLastEdited(null);
+                            setZapQuote(null);
                           }}
                         >
                           Add Liquidity
@@ -779,9 +910,69 @@ export default function PlayerPage() {
           </DialogHeader>
 
           <div className="space-y-4">
+            {/* Mode Selector */}
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant={addLiquidityMode === "auto-detect" ? "default" : "outline"}
+                size="sm"
+                className="flex-1 text-xs"
+                onClick={() => {
+                  setAddLiquidityMode("auto-detect");
+                  setMaxSharesToUse(0);
+                  setMaxPlayMoneyToUse(0);
+                  setLastEdited(null);
+                  setZapQuote(null);
+                  setLinkAmounts(false);
+                }}
+              >
+                Auto-Detect
+              </Button>
+              <Button
+                type="button"
+                variant={addLiquidityMode === "dual-max" ? "default" : "outline"}
+                size="sm"
+                className="flex-1 text-xs"
+                onClick={() => {
+                  setAddLiquidityMode("dual-max");
+                  setMaxSharesToUse(0);
+                  setMaxPlayMoneyToUse(0);
+                  setLastEdited(null);
+                  setZapQuote(null);
+                  setLinkAmounts(false);
+                }}
+              >
+                Dual Max
+              </Button>
+              <Button
+                type="button"
+                variant={addLiquidityMode === "fixed-ratio" ? "default" : "outline"}
+                size="sm"
+                className="flex-1 text-xs"
+                onClick={() => {
+                  setAddLiquidityMode("fixed-ratio");
+                  setMaxSharesToUse(0);
+                  setMaxPlayMoneyToUse(0);
+                  setLastEdited(null);
+                  setZapQuote(null);
+                  setLinkAmounts(true);
+                }}
+              >
+                Fixed Ratio
+              </Button>
+            </div>
+
+            {/* Mode Description */}
             <div className="text-xs text-muted-foreground">
-              Uses the latest pool price at execution. Final amounts may adjust slightly and any
-              unused amount stays in your wallet.
+              {addLiquidityMode === "auto-detect" && (
+                <>Drag one slider. We auto-trade to balance your deposit. Simplest option.</>
+              )}
+              {addLiquidityMode === "dual-max" && (
+                <>Use max of both assets. We'll balance at execution time.</>
+              )}
+              {addLiquidityMode === "fixed-ratio" && (
+                <>Both sliders linked. Deposit must match current pool price exactly.</>
+              )}
             </div>
 
             <div className="rounded-md border bg-muted/30 p-3 text-xs space-y-1">
@@ -799,10 +990,32 @@ export default function PlayerPage() {
               </div>
             </div>
 
+            {/* Shares Slider with Max */}
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm">
-                <span>Max shares to use</span>
-                <span className="font-mono">{maxSharesToUse.toFixed(4)}</span>
+                <span>
+                  {addLiquidityMode === "auto-detect" && lastEdited === "sb"
+                    ? "Shares to buy"
+                    : addLiquidityMode === "auto-detect" && lastEdited === "shares"
+                      ? "Shares to deposit"
+                      : "Max shares to use"}
+                </span>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono">{maxSharesToUse.toFixed(4)}</span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-6 px-2 text-xs"
+                    onClick={() => {
+                      setMaxSharesToUse(userSharesBalance);
+                      setLastEdited("shares");
+                    }}
+                    disabled={userSharesBalance <= 0}
+                  >
+                    Max
+                  </Button>
+                </div>
               </div>
               <Slider
                 value={[maxSharesToUse]}
@@ -817,10 +1030,32 @@ export default function PlayerPage() {
               />
             </div>
 
+            {/* SB Slider with Max */}
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm">
-                <span>Max SB to use</span>
-                <span className="font-mono">${maxPlayMoneyToUse.toFixed(2)}</span>
+                <span>
+                  {addLiquidityMode === "auto-detect" && lastEdited === "shares"
+                    ? "SB from sale"
+                    : addLiquidityMode === "auto-detect" && lastEdited === "sb"
+                      ? "SB to deposit"
+                      : "Max SB to use"}
+                </span>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono">${maxPlayMoneyToUse.toFixed(2)}</span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-6 px-2 text-xs"
+                    onClick={() => {
+                      setMaxPlayMoneyToUse(userPlayMoneyBalance);
+                      setLastEdited("sb");
+                    }}
+                    disabled={userPlayMoneyBalance <= 0}
+                  >
+                    Max
+                  </Button>
+                </div>
               </div>
               <Slider
                 value={[maxPlayMoneyToUse]}
@@ -835,60 +1070,154 @@ export default function PlayerPage() {
               />
             </div>
 
-            <div className="flex items-center justify-between rounded-md border p-3">
-              <div>
-                <div className="text-sm font-medium">Auto-balance amounts</div>
-                <div className="text-xs text-muted-foreground">
-                  When enabled, adjusting one side updates the other to match.
+            {/* Auto-Detect Zap Quote Display */}
+            {addLiquidityMode === "auto-detect" && zapQuote && (
+              <div className="rounded-md border bg-accent/10 p-3 text-xs space-y-1">
+                <div className="text-[10px] uppercase font-semibold text-muted-foreground mb-2">
+                  Auto-Trade Preview
                 </div>
-              </div>
-              <Switch
-                checked={linkAmounts}
-                onCheckedChange={(checked) => {
-                  setLinkAmounts(checked);
-                  if (checked && !lastEdited) setLastEdited("shares");
-                }}
-              />
-            </div>
-
-            {isLinkingConstrained && (
-              <div className="text-xs text-muted-foreground">
-                You don't have enough on the other side to fully match this selection. We'll only
-                deposit what can be paired.
+                {zapQuote.side === "shares" ? (
+                  <>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Shares to sell</span>
+                      <span className="font-mono">{zapQuote.sharesSold?.toFixed(4)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">SB from sale</span>
+                      <span className="font-mono">${zapQuote.sbReceived?.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Shares to deposit</span>
+                      <span className="font-mono">{zapQuote.sharesDeposited.toFixed(4)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">SB to deposit</span>
+                      <span className="font-mono">${zapQuote.playMoneyDeposited.toFixed(2)}</span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">SB to swap</span>
+                      <span className="font-mono">${zapQuote.totalSwapCost?.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Shares from swap</span>
+                      <span className="font-mono">{zapQuote.sharesBought?.toFixed(4)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Shares to deposit</span>
+                      <span className="font-mono">{zapQuote.sharesDeposited.toFixed(4)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">SB to deposit</span>
+                      <span className="font-mono">${zapQuote.playMoneyDeposited.toFixed(2)}</span>
+                    </div>
+                  </>
+                )}
+                <div className="flex justify-between pt-1 border-t border-dashed">
+                  <span className="text-muted-foreground">Est. LP shares</span>
+                  <span className="font-mono">{zapQuote.estimatedLpSharesMinted.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Est. ownership</span>
+                  <span className="font-mono">
+                    {(zapQuote.estimatedOwnershipPercentage * 100).toFixed(2)}%
+                  </span>
+                </div>
               </div>
             )}
 
-            <div className="rounded-md border bg-muted/30 p-3 text-xs space-y-1">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Est. deposit</span>
-                <span className="font-mono">
-                  {estimatedSharesDeposited.toFixed(4)} shares + $
-                  {estimatedPlayMoneyDeposited.toFixed(2)}
-                </span>
+            {/* Dual Max / Fixed Ratio Estimates */}
+            {(addLiquidityMode === "dual-max" || addLiquidityMode === "fixed-ratio") && (
+              <div className="rounded-md border bg-muted/30 p-3 text-xs space-y-1">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Est. deposit</span>
+                  <span className="font-mono">
+                    {estimatedSharesDeposited.toFixed(4)} shares + $
+                    {estimatedPlayMoneyDeposited.toFixed(2)}
+                  </span>
+                </div>
+                {addLiquidityMode === "dual-max" && (
+                  <>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Est. unused</span>
+                      <span className="font-mono">
+                        {estimatedSharesUnused.toFixed(4)} shares + ${estimatedPlayMoneyUnused.toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Est. total value</span>
+                      <span className="font-mono">${estimatedTotalValue.toFixed(2)}</span>
+                    </div>
+                  </>
+                )}
+                {addLiquidityMode === "fixed-ratio" && linkAmounts && isLinkingConstrained && (
+                  <div className="text-xs text-amber-600">
+                    Limited by your {lastEdited === "shares" ? "SB balance" : "shares"}. Deposit will be reduced.
+                  </div>
+                )}
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Est. unused</span>
-                <span className="font-mono">
-                  {estimatedSharesUnused.toFixed(4)} shares + ${estimatedPlayMoneyUnused.toFixed(2)}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Est. total value</span>
-                <span className="font-mono">${estimatedTotalValue.toFixed(2)}</span>
-              </div>
-            </div>
+            )}
 
-            <Button
-              className="w-full"
-              onClick={() => addLiquidityOptimalMutation.mutate()}
-              disabled={
-                addLiquidityOptimalMutation.isPending ||
-                estimatedSharesDeposited <= 0 ||
-                estimatedPlayMoneyDeposited <= 0
-              }
-            >
-              {addLiquidityOptimalMutation.isPending ? "Adding..." : "Add Liquidity"}
-            </Button>
+            {/* Execute Button */}
+            {addLiquidityMode === "auto-detect" && (
+              <Button
+                className="w-full"
+                onClick={() => {
+                  if (zapQuote?.side === "shares" && maxSharesToUse > 0) {
+                    zapAddSharesMutation.mutate(maxSharesToUse);
+                  } else if (zapQuote?.side === "sb" && maxPlayMoneyToUse > 0) {
+                    zapAddSbMutation.mutate(maxPlayMoneyToUse);
+                  }
+                }}
+                disabled={
+                  zapAddSharesMutation.isPending ||
+                  zapAddSbMutation.isPending ||
+                  !zapQuote ||
+                  (lastEdited === "shares" && maxSharesToUse <= 0) ||
+                  (lastEdited === "sb" && maxPlayMoneyToUse <= 0)
+                }
+              >
+                {zapAddSharesMutation.isPending || zapAddSbMutation.isPending
+                  ? "Adding..."
+                  : "Add Liquidity"}
+              </Button>
+            )}
+
+            {addLiquidityMode === "dual-max" && (
+              <Button
+                className="w-full"
+                onClick={() => addLiquidityOptimalMutation.mutate()}
+                disabled={
+                  addLiquidityOptimalMutation.isPending ||
+                  estimatedSharesDeposited <= 0 ||
+                  estimatedPlayMoneyDeposited <= 0
+                }
+              >
+                {addLiquidityOptimalMutation.isPending ? "Adding..." : "Add Liquidity"}
+              </Button>
+            )}
+
+            {addLiquidityMode === "fixed-ratio" && (
+              <Button
+                className="w-full"
+                onClick={() => {
+                  // For fixed ratio, we use the add-optimal endpoint but ensure strict ratio
+                  if (estimatedSharesDeposited > 0 && estimatedPlayMoneyDeposited > 0) {
+                    addLiquidityOptimalMutation.mutate();
+                  }
+                }}
+                disabled={
+                  addLiquidityOptimalMutation.isPending ||
+                  estimatedSharesDeposited <= 0 ||
+                  estimatedPlayMoneyDeposited <= 0 ||
+                  isLinkingConstrained
+                }
+              >
+                {addLiquidityOptimalMutation.isPending ? "Adding..." : "Add Liquidity"}
+              </Button>
+            )}
           </div>
         </DialogContent>
       </Dialog>
