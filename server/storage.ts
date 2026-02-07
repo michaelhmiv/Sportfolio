@@ -1421,13 +1421,25 @@ export class DatabaseStorage implements IStorage {
 
   async getPlayerPoolsByPlayerIds(playerIds: string[]): Promise<any[]> {
     if (playerIds.length === 0) return [];
-    
-    const pools = await db
-      .select()
+
+    // IMPORTANT: avoid `select()` (SELECT *) here.
+    // If the database is behind migrations (e.g. missing fee_growth_per_lp_share),
+    // selecting all columns will throw and break otherwise unrelated endpoints.
+    return await db
+      .select({
+        playerId: playerPools.playerId,
+        shares: playerPools.shares,
+        playMoney: playerPools.playMoney,
+        k: playerPools.k,
+        lpSharesTotal: playerPools.lpSharesTotal,
+        feesAccumulated: playerPools.feesAccumulated,
+        totalVolume: playerPools.totalVolume,
+        totalTrades: playerPools.totalTrades,
+        createdAt: playerPools.createdAt,
+        updatedAt: playerPools.updatedAt,
+      })
       .from(playerPools)
       .where(inArray(playerPools.playerId, playerIds));
-    
-    return pools;
   }
 
   // Holdings methods

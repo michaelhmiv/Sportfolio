@@ -105,6 +105,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Legacy player order-book mode is archived; player trading is AMM-only.
   const isAmmOnlyMode = true;
 
+
+  // Best-effort: ensure LP fee-growth columns exist.
+  // This project historically applies SQL migrations manually; if prod misses a migration,
+  // a single missing column can break market carousels and AMM reads.
+  // Safe to re-run due to IF NOT EXISTS.
+  const ensureLpFeeGrowthColumns = async () => {
+    try {
+      await db.execute(sql`
+        ALTER TABLE player_pools
+          ADD COLUMN IF NOT EXISTS fee_growth_per_lp_share numeric(24, 12) NOT NULL DEFAULT 0;
+      `);
+      await db.execute(sql`
+        ALTER TABLE lp_positions
+          ADD COLUMN IF NOT EXISTS fee_growth_snapshot numeric(24, 12) NOT NULL DEFAULT 0;
+      `);
+      await db.execute(sql`
+        ALTER TABLE lp_positions
+          ADD COLUMN IF NOT EXISTS fees_earned_total numeric(12, 2) NOT NULL DEFAULT 0;
+      `);
+    } catch (err: any) {
+      // If permissions are restricted, continue running; endpoints that don't need these columns still work.
+      console.warn("[DB] Could not ensure LP fee-growth columns:", err?.message || err);
+    }
+  };
+
+  await ensureLpFeeGrowthColumns();
+
   // Scout Status Endpoint (Placed early to avoid shadowing)
   app.get("/api/scouts/status", isAuthenticated, async (req, res) => {
     try {
@@ -1627,24 +1654,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const limit = parseInt(req.query.limit as string) || 5;
       const sport = (req.query.sport as string) || "NBA";
-      const players = await storage.getPlayersBySport(sport);
 
-      // Filter to players with positive price change and actual trade prices
-      const risers = players
-        .filter(p => p.lastTradePrice && parseFloat(p.priceChange24h) > 0)
-        .sort((a, b) => parseFloat(b.priceChange24h) - parseFloat(a.priceChange24h))
-        .slice(0, limit)
-        .map(p => ({
-          id: p.id,
-          firstName: p.firstName,
-          lastName: p.lastName,
-          team: p.team,
-          position: p.position,
-          currentPrice: p.currentPrice ? parseFloat(p.currentPrice) : (p.lastTradePrice ? parseFloat(p.lastTradePrice) : null),
-          priceChange24h: parseFloat(p.priceChange24h),
-        }));
+      const normalizedSport = (sport || "ALL").toUpperCase();
+      const sportFilter = normalizedSport === "ALL"
+        ? sql`TRUE`
+        : sql`UPPER(p.sport) = ${normalizedSport}`;
 
-      res.json(risers);
+      // AMM-only: players.price_change_24h is not maintained; compute risers from actual trades in last 24h.
+      // Uses first vs last trade price within the window.
+      const result: any = await db.execute(sql`
+        WITH recent AS (
+          SELECT
+            t.player_id AS player_id,
+            FIRST_VALUE(t.price::numeric) OVER (PARTITION BY t.player_id ORDER BY t.executed_at ASC) AS first_price,
+            FIRST_VALUE(t.price::numeric) OVER (PARTITION BY t.player_id ORDER BY t.executed_at DESC) AS last_price
+          FROM trades t
+          INNER JOIN players p ON p.id = t.player_id
+          WHERE t.executed_at >= NOW() - INTERVAL '24 hours'
+            AND p.is_active = TRUE
+            AND ${sportFilter}
+        ),
+        agg AS (
+          SELECT DISTINCT
+            player_id,
+            first_price,
+            last_price,
+            CASE
+              WHEN first_price > 0 THEN ((last_price - first_price) / first_price) * 100
+              ELSE 0
+            END AS pct_change
+          FROM recent
+        )
+        SELECT
+          p.id AS id,
+          p.first_name AS "firstName",
+          p.last_name AS "lastName",
+          p.team AS team,
+          p.position AS position,
+          (a.last_price)::float8 AS "currentPrice",
+          (a.pct_change)::float8 AS "priceChange24h"
+        FROM agg a
+        INNER JOIN players p ON p.id = a.player_id
+        WHERE a.pct_change > 0
+        ORDER BY a.pct_change DESC
+        LIMIT ${limit};
+      `);
+
+      res.json((result?.rows || []).map((r: any) => ({
+        id: r.id,
+        firstName: r.firstName,
+        lastName: r.lastName,
+        team: r.team,
+        position: r.position,
+        currentPrice: typeof r.currentPrice === "number" ? r.currentPrice : (r.currentPrice != null ? parseFloat(r.currentPrice) : null),
+        priceChange24h: typeof r.priceChange24h === "number" ? r.priceChange24h : (r.priceChange24h != null ? parseFloat(r.priceChange24h) : 0),
+      })));
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -1684,45 +1748,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const limit = parseInt(req.query.limit as string) || 5;
       const sport = (req.query.sport as string) || "NBA";
-      
-      // Get players for the sport first
-      const players = await storage.getPlayersBySport(sport);
-      const playerIds = players.map(p => p.id);
-      
-      // Get pools for these players
-      const pools = await storage.getPlayerPoolsByPlayerIds(playerIds);
-      
-      // Sort by TVL descending and take top N
-      const topPools = pools
-        .sort((a, b) => {
-          const aPlayMoney = parseFloat(a.playMoney);
-          const bPlayMoney = parseFloat(b.playMoney);
-          const aTvl = aPlayMoney * 2;
-          const bTvl = bPlayMoney * 2;
-          return bTvl - aTvl;
-        })
-        .slice(0, limit)
-        .map(pool => {
-          const player = players.find(p => p.id === pool.playerId);
-          const playMoney = parseFloat(pool.playMoney);
-          const shares = parseFloat(pool.shares);
-          const tvl = shares > 0 ? playMoney * 2 : playMoney;
-          return {
-            player: {
-              id: pool.playerId,
-              firstName: player?.firstName || "Unknown",
-              lastName: player?.lastName || "Unknown",
-              team: player?.team || "",
-              position: player?.position || "",
-              currentPrice: player?.currentPrice ? parseFloat(player.currentPrice) : null,
-            },
-            tvl,
-            shares,
-            playMoney,
-          };
-        });
 
-      res.json(topPools);
+      const normalizedSport = (sport || "ALL").toUpperCase();
+      const sportFilter = normalizedSport === "ALL"
+        ? sql`TRUE`
+        : sql`UPPER(p.sport) = ${normalizedSport}`;
+
+      // Avoid storage.getPlayerPoolsByPlayerIds -> it used SELECT * which can fail if DB is behind migrations.
+      const result: any = await db.execute(sql`
+        SELECT
+          pp.player_id AS "playerId",
+          (pp.shares)::float8 AS shares,
+          (pp.play_money)::float8 AS "playMoney",
+          (CASE WHEN (pp.shares)::numeric > 0 THEN (pp.play_money)::numeric * 2 ELSE (pp.play_money)::numeric END)::float8 AS tvl,
+          p.first_name AS "firstName",
+          p.last_name AS "lastName",
+          p.team AS team,
+          p.position AS position,
+          (p.current_price)::float8 AS "currentPrice"
+        FROM player_pools pp
+        INNER JOIN players p ON p.id = pp.player_id
+        WHERE p.is_active = TRUE
+          AND ${sportFilter}
+        ORDER BY tvl DESC
+        LIMIT ${limit};
+      `);
+
+      res.json((result?.rows || []).map((r: any) => ({
+        player: {
+          id: r.playerId,
+          firstName: r.firstName,
+          lastName: r.lastName,
+          team: r.team || "",
+          position: r.position || "",
+          currentPrice: typeof r.currentPrice === "number" ? r.currentPrice : (r.currentPrice != null ? parseFloat(r.currentPrice) : null),
+        },
+        tvl: typeof r.tvl === "number" ? r.tvl : (r.tvl != null ? parseFloat(r.tvl) : 0),
+        shares: typeof r.shares === "number" ? r.shares : (r.shares != null ? parseFloat(r.shares) : 0),
+        playMoney: typeof r.playMoney === "number" ? r.playMoney : (r.playMoney != null ? parseFloat(r.playMoney) : 0),
+      })));
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

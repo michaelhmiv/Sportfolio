@@ -219,7 +219,13 @@ async function setupMarketMaker() {
 
     // Check 1: Verify all pools have correct values
     console.log("\n[Verify] Check 1: Verifying pool values...");
-    const allPools = await db.select().from(playerPools);
+    const allPools = await db
+      .select({
+        playerId: playerPools.playerId,
+        shares: playerPools.shares,
+        playMoney: playerPools.playMoney,
+      })
+      .from(playerPools);
     const incorrectPools = allPools.filter(pool => {
       const shares = parseFloat(pool.shares);
       const playMoney = parseFloat(pool.playMoney);
