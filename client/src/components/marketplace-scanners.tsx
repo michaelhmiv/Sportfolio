@@ -55,6 +55,7 @@ function useScannerData() {
         },
     });
 
+
     const { data: topMc, isLoading: mcLoading } = useQuery<any[]>({
         queryKey: ["/api/players/spotlight/top-market-cap", sport, "limit-10"],
         queryFn: async () => {
@@ -190,8 +191,11 @@ export function DashboardScanners() {
                                     value = item.metrics?.valueIndex?.toFixed(0);
                                     label = "Index";
                                 } else if (section.type === "risers") {
-                                    value = `+$${item.priceChange24h?.toFixed(2)}`;
-                                    label = "Change";
+                                    const pct = typeof item.priceChange24h === 'number'
+                                        ? item.priceChange24h
+                                        : parseFloat(String(item.priceChange24h || '0'));
+                                    value = `+${pct.toFixed(1)}%`;
+                                    label = "24h %";
                                 } else if (section.type === "pools") {
                                     const tvl = item.tvl || 0;
                                     value = tvl >= 1000000000
