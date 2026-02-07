@@ -32,6 +32,7 @@ import { backfillMarketSnapshots } from "./market-snapshot";
 import { syncNFLSchedule } from "./sync-nfl-schedule";
 import { syncNFLStats } from "./sync-nfl-stats";
 import { syncNFLRoster } from "./sync-nfl-roster";
+import { syncPlayerInjuries } from "./sync-injuries";
 import { fetchNews } from "./fetch-news";
 import { compileAllDigests } from "./compile-digest";
 import { lockBoostShares } from "./lock-boost-shares";
@@ -42,6 +43,7 @@ import { prunePriceHistory } from "./prune-price-history";
 import { updateCollectionsJob } from "./update-collections";
 import { checkMilestonesJob } from "./check-milestones";
 import { refreshPlayerMarketMetricsJob } from "./refresh-player-metrics";
+import { refreshPlayerVolume24hJob } from "./refresh-player-volume-24h";
 import type { ProgressCallback } from "../lib/admin-stream";
 
 export interface JobResult {
@@ -59,6 +61,7 @@ export interface JobConfig {
 
 export class JobScheduler {
   private jobs: Map<string, cron.ScheduledTask> = new Map();
+  private jobConfigs: Map<string, JobConfig> = new Map();
   private isInitialized = false;
 
   constructor() { }
@@ -135,6 +138,7 @@ export class JobScheduler {
     );
 
     this.jobs.set(jobConfig.name, task);
+    this.jobConfigs.set(jobConfig.name, jobConfig);
     info(`Job ${jobConfig.name} scheduled: ${jobConfig.schedule}`);
   }
 
@@ -253,6 +257,12 @@ export class JobScheduler {
         enabled: true,
         handler: () => refreshPlayerMarketMetricsJob(),
       },
+      {
+        name: "refresh_player_volume_24h",
+        schedule: "*/5 * * * *", // Every 5 minutes - rolling 24h shares volume for marketplace sorting
+        enabled: true,
+        handler: () => refreshPlayerVolume24hJob(),
+      },
     ];
 
     for (const jobConfig of contestJobs) {
@@ -297,6 +307,19 @@ export class JobScheduler {
         schedule: "10 * * * *", // Every hour at minute 10
         enabled: true,
         handler: syncStats,
+      },
+      {
+        name: "injury_sync",
+        schedule: "0,30 * * * *", // Every 30 minutes (at :00 and :30)
+        enabled: true,
+        handler: async () => {
+          const result = await syncPlayerInjuries();
+          return {
+            requestCount: 1,
+            recordsProcessed: result.synced + result.cleared,
+            errorCount: 0,
+          };
+        },
       },
       {
         name: "stats_sync_live",
@@ -418,6 +441,10 @@ export class JobScheduler {
       schedule_sync: (callback) => syncSchedule(callback),
       stats_sync: (callback) => syncStats(callback),
       stats_sync_live: (callback) => syncStatsLive(callback),
+      injury_sync: async () => {
+        const result = await syncPlayerInjuries();
+        return { requestCount: 1, recordsProcessed: result.synced + result.cleared, errorCount: 0 };
+      },
       create_contests: (callback) => createContests(callback),
       update_contest_statuses: (callback) => updateContestStatuses(callback),
       settle_contests: (callback) => settleContests(callback),
@@ -469,6 +496,7 @@ export class JobScheduler {
         };
       },
       refresh_player_metrics: (callback) => refreshPlayerMarketMetricsJob(callback),
+      refresh_player_volume_24h: (callback) => refreshPlayerVolume24hJob(callback),
     };
 
     const handler = jobConfigs[jobName];
@@ -543,6 +571,48 @@ export class JobScheduler {
       name,
       running: task.getStatus() === 'running',
     }));
+  }
+
+  getConfiguredJobs(): Array<{ name: string; schedule: string; enabled: boolean }> {
+    return Array.from(this.jobConfigs.values()).map((j) => ({
+      name: j.name,
+      schedule: j.schedule,
+      enabled: j.enabled,
+    }));
+  }
+
+  getConfiguredJobNames(): string[] {
+    return Array.from(this.jobConfigs.keys());
+  }
+
+  getAvailableManualJobNames(): string[] {
+    // Keep in sync with triggerJob() map
+    return [
+      'roster_sync',
+      'sync_player_game_logs',
+      'schedule_sync',
+      'stats_sync',
+      'stats_sync_live',
+      'create_contests',
+      'update_contest_statuses',
+      'settle_contests',
+      'daily_snapshot',
+      'backfill_contest_stats',
+      'weekly_roundup',
+      'backfill_market_snapshots',
+      'scout_distribution',
+      'news_fetch',
+      'compile_digest',
+      'lock_boost_shares',
+      'settle_boosts',
+      'settle_community_boosts',
+      'cleanup_job_logs',
+      'prune_price_history',
+      'update_collections',
+      'check_milestones',
+      'refresh_player_metrics',
+      'refresh_player_volume_24h',
+    ];
   }
 }
 

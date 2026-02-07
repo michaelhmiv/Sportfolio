@@ -5,9 +5,8 @@ import { LivePriceTicker } from "@/components/ui/animated-price";
 
 interface MarketActivity {
     id: string;
-    activityType: "trade" | "order_placed" | "order_cancelled";
+    activityType: "trade";
     price: string | null;
-    limitPrice: string | null;
     playerId: string;
     playerFirstName: string;
     playerLastName: string;
@@ -32,7 +31,7 @@ export function MarketTicker() {
     // Transform to ticker items
     const tickerItems = activity
         .map(item => {
-            const displayPrice = item.price ? parseFloat(item.price) : (item.limitPrice ? parseFloat(item.limitPrice) : 0);
+            const displayPrice = item.price ? parseFloat(item.price) : 0;
             return {
                 symbol: `${item.playerFirstName?.charAt(0) || ''}. ${item.playerLastName || 'Unknown'}`,
                 price: displayPrice,

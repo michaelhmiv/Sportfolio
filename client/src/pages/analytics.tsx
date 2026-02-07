@@ -690,7 +690,7 @@ export default function Analytics() {
                             </Link>
                           </td>
                           <td className="py-2 px-2 text-right font-mono">${ranking.player.lastTradePrice}</td>
-                          <td className="py-2 px-2 text-right font-mono">{ranking.player.volume24h}</td>
+                          <td className="py-2 px-2 text-right font-mono">{Number(ranking.player.volume24h || 0).toLocaleString()}</td>
                           <td className="py-2 px-2 text-right font-mono">{ranking.avgFantasyPoints.toFixed(1)}</td>
                           <td className={`py-2 px-2 text-right font-mono ${getPriceChangeColor(ranking.priceChange7d)}`}>
                             {ranking.priceChange7d >= 0 ? '+' : ''}{ranking.priceChange7d.toFixed(1)}%

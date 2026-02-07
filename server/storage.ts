@@ -45,7 +45,6 @@ import {
   type HoldingsLock,
   type InsertHoldingsLock,
   type BalanceLock,
-  type Order,
   type Trade,
   type Vesting,
   type VestingSplit,
@@ -175,13 +174,14 @@ export interface IStorage {
     sport?: string;
     limit?: number;
     offset?: number;
-    sortBy?: 'price' | 'volume' | 'change' | 'marketCap' | 'sentiment' | 'undervalued' | 'fantasyPoints' | 'name' | 'team';
+    sortBy?: 'price' | 'volume' | 'change' | 'tvl' | 'marketCap' | 'sentiment' | 'undervalued' | 'fantasyPoints' | 'name' | 'team';
     sortOrder?: 'asc' | 'desc';
     teamsPlayingOnDate?: string[];
     watchlistUserId?: string;
     watchlistId?: string;
   }): Promise<{ players: Player[]; total: number }>;
   refreshPlayerMarketMetrics(playerIds?: string[]): Promise<number>;
+  refreshPlayerVolume24h(): Promise<number>;
   getPlayer(id: string): Promise<Player | undefined>;
   getPlayersByIds(ids: string[]): Promise<Player[]>;
   getPlayersBySport(sport: string): Promise<Player[]>;
@@ -243,14 +243,6 @@ export interface IStorage {
   getAvailableBalance(userId: string): Promise<number>;
   getTotalLockedBalance(userId: string): Promise<number>;
   adjustLockAmount(lockReferenceId: string, newAmount: string): Promise<void>;
-
-  // Order methods
-  createOrder(order: any): Promise<Order>;
-  getOrder(id: string): Promise<Order | undefined>;
-  getUserOrders(userId: string, status?: string): Promise<Order[]>;
-  getOrderBook(playerId: string): Promise<{ bids: Order[]; asks: Order[] }>;
-  updateOrder(orderId: string, updates: Partial<Order>): Promise<void>;
-  cancelOrder(orderId: string): Promise<void>;
 
   // Trade methods
   createTrade(trade: any): Promise<Trade>;
@@ -1186,7 +1178,7 @@ export class DatabaseStorage implements IStorage {
     sport?: string;
     limit?: number;
     offset?: number;
-    sortBy?: 'price' | 'volume' | 'change' | 'marketCap' | 'sentiment' | 'undervalued' | 'fantasyPoints' | 'name' | 'team';
+    sortBy?: 'price' | 'volume' | 'change' | 'tvl' | 'marketCap' | 'sentiment' | 'undervalued' | 'fantasyPoints' | 'name' | 'team';
     sortOrder?: 'asc' | 'desc';
     teamsPlayingOnDate?: string[];
     watchlistUserId?: string;
@@ -1201,6 +1193,9 @@ export class DatabaseStorage implements IStorage {
       watchlistUserId,
       watchlistId
     } = filters || {};
+
+    type PlayerSortBy = 'price' | 'volume' | 'change' | 'tvl' | 'marketCap' | 'sentiment' | 'undervalued' | 'fantasyPoints' | 'name' | 'team';
+    const sortBySafe: PlayerSortBy = sortBy as PlayerSortBy;
 
     // Build conditions using the helper
     const conditions = this.buildPlayerQueryConditions({ search, team, position, sport });
@@ -1222,11 +1217,11 @@ export class DatabaseStorage implements IStorage {
     }    // Always filter by is_active
     conditions.push(eq(players.isActive, true));
 
-    const isComplexSort = ['sentiment', 'undervalued', 'fantasyPoints'].includes(sortBy);
+    const isComplexSort = ['sentiment', 'undervalued', 'fantasyPoints'].includes(sortBySafe);
 
     // Build ORDER BY clause
     let orderByClause: any;
-    switch (sortBy) {
+    switch (sortBySafe) {
       case 'price':
         orderByClause = sortOrder === 'asc' ? asc(players.lastTradePrice) : desc(players.lastTradePrice);
         break;
@@ -1262,6 +1257,13 @@ export class DatabaseStorage implements IStorage {
           ? asc(sql`COALESCE(${playerMarketMetrics.avgFantasyPoints}, 0)`)
           : desc(sql`COALESCE(${playerMarketMetrics.avgFantasyPoints}, 0)`);
         break;
+      case 'tvl': {
+        const tvlExpr = sql<number>`COALESCE(${playerPools.playMoney}, 0) * 2`;
+        orderByClause = sortOrder === 'asc'
+          ? sql`${tvlExpr} ASC`
+          : sql`${tvlExpr} DESC`;
+        break;
+      }
       default:
         orderByClause = desc(players.volume24h);
     }
@@ -1286,13 +1288,23 @@ export class DatabaseStorage implements IStorage {
         .orderBy(orderByClause)
         .limit(limit)
         .offset(offset)
-      : db
-        .select({ player: players })
-        .from(players)
-        .where(and(...conditions))
-        .orderBy(orderByClause)
-        .limit(limit)
-        .offset(offset);
+      : (sortBySafe === 'tvl'
+        ? db
+          .select({ player: players })
+          .from(players)
+          .leftJoin(playerPools, eq(playerPools.playerId, players.id))
+          .where(and(...conditions))
+          .orderBy(orderByClause)
+          .limit(limit)
+          .offset(offset)
+        : db
+          .select({ player: players })
+          .from(players)
+          .where(and(...conditions))
+          .orderBy(orderByClause)
+          .limit(limit)
+          .offset(offset)
+      );
 
     const [countResult, playerRows] = await Promise.all([
       countQuery,
@@ -1319,8 +1331,21 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getPlayer(id: string): Promise<Player | undefined> {
-    const [player] = await db.select().from(players).where(eq(players.id, id));
-    return player || undefined;
+    const trimmedId = (id || "").trim();
+    if (!trimmedId) return undefined;
+
+    const [player] = await db.select().from(players).where(eq(players.id, trimmedId));
+    if (player) return player;
+
+    // Backwards compatibility: allow passing raw numeric IDs and resolve to prefixed IDs.
+    // The canonical format is sport-prefixed (e.g., nba_12345, nfl_67890).
+    if (/^\d+$/.test(trimmedId)) {
+      const candidates = [`nba_${trimmedId}`, `nfl_${trimmedId}`];
+      const resolved = await db.select().from(players).where(inArray(players.id, candidates)).limit(1);
+      return resolved[0] || undefined;
+    }
+
+    return undefined;
   }
 
   async getPlayersByIds(ids: string[]): Promise<Player[]> {
@@ -1684,11 +1709,20 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAvailableShares(userId: string, assetType: string, assetId: string): Promise<number> {
-    const holding = await this.getHolding(userId, assetType, assetId);
-    if (!holding) return 0;
+    // IMPORTANT: users can have multiple holding rows for the same asset (regular + powered).
+    // Available shares must be computed from the total quantity across ALL rows.
+    const result = await db
+      .select({ total: sql<number>`COALESCE(SUM(CAST(${holdings.quantity} AS NUMERIC)), 0)` })
+      .from(holdings)
+      .where(and(
+        eq(holdings.userId, userId),
+        eq(holdings.assetType, assetType),
+        eq(holdings.assetId, assetId)
+      ));
 
+    const totalQuantity = Number(result[0]?.total || 0);
     const lockedQuantity = await this.getTotalLockedQuantity(userId, assetType, assetId);
-    return Math.max(0, parseFloat(holding.quantity) - lockedQuantity);
+    return Math.max(0, totalQuantity - lockedQuantity);
   }
 
   async getLockedShares(userId: string, assetType: string, assetId: string): Promise<HoldingsLock[]> {
@@ -1823,131 +1857,36 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  // Order methods
-  async createOrder(order: any): Promise<Order> {
-    const [created] = await db
-      .insert(orders)
-      .values(order)
-      .returning();
-    return created;
-  }
-
-  async getOrder(id: string): Promise<Order | undefined> {
-    const [order] = await db.select().from(orders).where(eq(orders.id, id));
-    return order || undefined;
-  }
-
-  async getUserOrders(userId: string, status?: string): Promise<Order[]> {
-    if (status) {
-      return await db
-        .select()
-        .from(orders)
-        .where(and(eq(orders.userId, userId), eq(orders.status, status)))
-        .orderBy(desc(orders.createdAt));
-    }
-    return await db
-      .select()
-      .from(orders)
-      .where(eq(orders.userId, userId))
-      .orderBy(desc(orders.createdAt));
-  }
-
-  async getOrderBook(playerId: string): Promise<{ bids: Order[]; asks: Order[] }> {
-    const allOrders = await db
-      .select()
-      .from(orders)
-      .where(and(eq(orders.playerId, playerId), or(eq(orders.status, "open"), eq(orders.status, "partial"))));
-
-    const bids = allOrders
-      .filter(o => o.side === "buy" && o.orderType === "limit")
-      .sort((a, b) => parseFloat(b.limitPrice || "0") - parseFloat(a.limitPrice || "0"));
-
-    const asks = allOrders
-      .filter(o => o.side === "sell" && o.orderType === "limit")
-      .sort((a, b) => parseFloat(a.limitPrice || "0") - parseFloat(b.limitPrice || "0"));
-
-    return { bids, asks };
-  }
-
-  // Batched version: fetch order books for multiple players in ONE query
-  // This eliminates N+1 query problem (50 players = 1 query instead of 50 queries)
-  async getBatchOrderBooks(playerIds: string[]): Promise<Map<string, { bids: Order[]; asks: Order[]; bestBid: string | null; bestAsk: string | null; bidSize: number; askSize: number }>> {
-    if (playerIds.length === 0) {
-      return new Map();
-    }
-
-    // Fetch all open and partial orders for ALL players in one query
-    const allOrders = await db
-      .select()
-      .from(orders)
-      .where(and(
-        inArray(orders.playerId, playerIds),
-        or(eq(orders.status, "open"), eq(orders.status, "partial"))
-      ));
-
-    // Group orders by player and calculate order book data
-    const orderBookMap = new Map();
-
-    for (const playerId of playerIds) {
-      const playerOrders = allOrders.filter(o => o.playerId === playerId);
-
-      const bids = playerOrders
-        .filter(o => o.side === "buy" && o.orderType === "limit")
-        .sort((a, b) => parseFloat(b.limitPrice || "0") - parseFloat(a.limitPrice || "0"));
-
-      const asks = playerOrders
-        .filter(o => o.side === "sell" && o.orderType === "limit")
-        .sort((a, b) => parseFloat(a.limitPrice || "0") - parseFloat(b.limitPrice || "0"));
-
-      // Calculate best bid, best ask, and sizes (same logic as /api/players endpoint)
-      const bestBid = bids.length > 0 && bids[0].limitPrice ? bids[0].limitPrice : null;
-      const bestAsk = asks.length > 0 && asks[0].limitPrice ? asks[0].limitPrice : null;
-
-      const bidSize = bids.length > 0 && bids[0].limitPrice
-        ? bids.filter(b => b.limitPrice === bids[0].limitPrice)
-          .reduce((sum, b) => sum + (b.quantity - b.filledQuantity), 0)
-        : 0;
-
-      const askSize = asks.length > 0 && asks[0].limitPrice
-        ? asks.filter(a => a.limitPrice === asks[0].limitPrice)
-          .reduce((sum, a) => sum + (a.quantity - a.filledQuantity), 0)
-        : 0;
-
-      orderBookMap.set(playerId, {
-        bids,
-        asks,
-        bestBid,
-        bestAsk,
-        bidSize,
-        askSize,
-      });
-    }
-
-    return orderBookMap;
-  }
-
   async getBatchSentiment(playerIds: string[]): Promise<Map<string, { buyPressure: number; totalVolume24h: number }>> {
     if (playerIds.length === 0) {
       return new Map();
     }
 
+    // AMM-only sentiment: derive "buy" vs "sell" pressure from executed trades.
+    // Convention: in AMM trades, the pool is one side of the trade.
+    // - User BUYs shares when sellerId === 'pool'
+    // - User SELLs shares when buyerId === 'pool'
+    // Non-pool trades are ignored for sentiment.
     const sentimentStats = await db
       .select({
-        playerId: orders.playerId,
-        buyVol: sql<number>`SUM(CASE WHEN ${orders.side} = 'buy' THEN ${orders.quantity} ELSE 0 END)`,
-        totalVol: sql<number>`SUM(${orders.quantity})`,
+        playerId: trades.playerId,
+        buyVol: sql<number>`SUM(CASE WHEN ${trades.sellerId} = 'pool' THEN ${trades.quantity} ELSE 0 END)`,
+        sellVol: sql<number>`SUM(CASE WHEN ${trades.buyerId} = 'pool' THEN ${trades.quantity} ELSE 0 END)`,
       })
-      .from(orders)
+      .from(trades)
       .where(and(
-        inArray(orders.playerId, playerIds),
-        gte(orders.createdAt, sql`NOW() - INTERVAL '24 hours'`)
+        inArray(trades.playerId, playerIds),
+        gte(trades.executedAt, sql`NOW() - INTERVAL '24 hours'`)
       ))
-      .groupBy(orders.playerId);
+      .groupBy(trades.playerId);
 
     const sentimentMap = new Map();
     for (const s of sentimentStats) {
-      const buyPressure = s.totalVol > 0 ? (s.buyVol / s.totalVol) * 100 : 50;
-      sentimentMap.set(s.playerId as string, { buyPressure, totalVolume24h: s.totalVol });
+      const buyVol = Number(s.buyVol || 0);
+      const sellVol = Number(s.sellVol || 0);
+      const totalVol = buyVol + sellVol;
+      const buyPressure = totalVol > 0 ? (buyVol / totalVol) * 100 : 50;
+      sentimentMap.set(s.playerId as string, { buyPressure, totalVolume24h: totalVol });
     }
 
     // Ensure all requested IDs have an entry (default to neutral 50)
@@ -2072,24 +2011,45 @@ export class DatabaseStorage implements IStorage {
     return rows.length;
   }
 
-  async updateOrder(orderId: string, updates: Partial<Order>): Promise<void> {
-    await db
-      .update(orders)
-      .set(updates)
-      .where(eq(orders.id, orderId));
-  }
+  /**
+   * Recompute players.volume24h as rolling 24h shares volume.
+   * Source of truth: trades executed in the last 24 hours.
+   */
+  async refreshPlayerVolume24h(): Promise<number> {
+    // 1) Update players with trades in the window
+    const updatedWithTrades: any = await db.execute(sql`
+      WITH v AS (
+        SELECT
+          ${trades.playerId} AS player_id,
+          COALESCE(ROUND(SUM(${trades.quantity}))::int, 0) AS vol
+        FROM ${trades}
+        WHERE ${trades.executedAt} >= NOW() - INTERVAL '24 hours'
+        GROUP BY ${trades.playerId}
+      )
+      UPDATE ${players} p
+      SET ${players.volume24h} = v.vol,
+          ${players.lastUpdated} = NOW()
+      FROM v
+      WHERE p.${players.id} = v.player_id;
+    `);
 
-  async cancelOrder(orderId: string): Promise<void> {
-    await db
-      .update(orders)
-      .set({ status: "cancelled" })
-      .where(eq(orders.id, orderId));
+    // 2) Zero out any players that previously had volume but no longer do
+    const updatedZeroed: any = await db.execute(sql`
+      UPDATE ${players} p
+      SET ${players.volume24h} = 0,
+          ${players.lastUpdated} = NOW()
+      WHERE p.${players.volume24h} <> 0
+        AND NOT EXISTS (
+          SELECT 1
+          FROM ${trades} t
+          WHERE t.${trades.playerId} = p.${players.id}
+            AND t.${trades.executedAt} >= NOW() - INTERVAL '24 hours'
+        );
+    `);
 
-    // Release any locked shares for this order (sell orders)
-    await this.releaseSharesByReference(orderId);
-
-    // Release any locked cash for this order (buy orders)
-    await this.releaseCashByReference(orderId);
+    const c1 = typeof updatedWithTrades?.rowCount === "number" ? updatedWithTrades.rowCount : 0;
+    const c2 = typeof updatedZeroed?.rowCount === "number" ? updatedZeroed.rowCount : 0;
+    return c1 + c2;
   }
 
   // Trade methods
@@ -2122,11 +2082,8 @@ export class DatabaseStorage implements IStorage {
 
     const buyer = alias(users, "buyer");
     const seller = alias(users, "seller");
-    const ordersUser = alias(users, "orders_user");
 
-
-    // Unified Market Activity Query using UNION ALL
-    // This allows the database to handle sorting and limiting across both trades and orders in one pass.
+    // AMM-only market activity: trades-only feed.
     const searchPattern = playerSearch ? `%${playerSearch}%` : null;
     const normalizedSport = sport?.toUpperCase() !== "ALL" ? sport?.toUpperCase() : null;
 
@@ -2144,9 +2101,9 @@ export class DatabaseStorage implements IStorage {
         userUsername: sql<string>`NULL`.as('userUsername'),
         userAvatar: sql<string | null>`NULL`.as('userAvatar'),
         buyerId: trades.buyerId,
-        buyerUsername: sql<string>`${buyer.username}`.as('buyerUsername'),
+        buyerUsername: sql<string>`CASE WHEN ${trades.buyerId} = 'pool' THEN 'Pool' ELSE ${buyer.username} END`.as('buyerUsername'),
         sellerId: trades.sellerId,
-        sellerUsername: sql<string>`${seller.username}`.as('sellerUsername'),
+        sellerUsername: sql<string>`CASE WHEN ${trades.sellerId} = 'pool' THEN 'Pool' ELSE ${seller.username} END`.as('sellerUsername'),
         side: sql<string>`NULL`.as('side'),
         orderType: sql<string>`NULL`.as('orderType'),
         quantity: trades.quantity,
@@ -2156,8 +2113,8 @@ export class DatabaseStorage implements IStorage {
       })
       .from(trades)
       .innerJoin(players, eq(trades.playerId, players.id))
-      .innerJoin(buyer, eq(trades.buyerId, buyer.id))
-      .innerJoin(seller, eq(trades.sellerId, seller.id));
+      .leftJoin(buyer, eq(trades.buyerId, buyer.id))
+      .leftJoin(seller, eq(trades.sellerId, seller.id));
 
     const tradesConditions = [];
     if (playerId) tradesConditions.push(eq(trades.playerId, playerId));
@@ -2167,55 +2124,9 @@ export class DatabaseStorage implements IStorage {
 
     const finalTradesQuery = tradesConditions.length > 0 ? tradesBase.where(and(...tradesConditions)) : tradesBase;
 
-    // --- Orders Subquery ---
-    const ordersBase = db
-      .select({
-        activityType: sql<string>`CASE WHEN ${orders.status} = 'cancelled' THEN 'order_cancelled' ELSE 'order_placed' END`.as('activityType'),
-        id: orders.id,
-        playerId: orders.playerId,
-        playerFirstName: players.firstName,
-        playerLastName: players.lastName,
-        playerTeam: players.team,
-        playerSport: players.sport,
-        userId: orders.userId,
-        userUsername: sql<string>`${ordersUser.username}`.as('userUsername'),
-        userAvatar: ordersUser.profileImageUrl,
-        buyerId: sql<string>`NULL`.as('buyerId'),
-        buyerUsername: sql<string>`NULL`.as('buyerUsername'),
-        sellerId: sql<string>`NULL`.as('sellerId'),
-        sellerUsername: sql<string>`NULL`.as('sellerUsername'),
-        side: orders.side,
-        orderType: orders.orderType,
-        quantity: orders.quantity,
-        price: sql<string>`NULL`.as('price'),
-        limitPrice: sql<string>`${orders.limitPrice}`.as('limitPrice'),
-        timestamp: sql<Date>`${orders.createdAt}`.as('timestamp'),
-      })
-      .from(orders)
-      .innerJoin(players, eq(orders.playerId, players.id))
-      .innerJoin(ordersUser, eq(orders.userId, ordersUser.id));
-
-    const orderConditions = [];
-    if (playerId) orderConditions.push(eq(orders.playerId, playerId));
-    if (userId) orderConditions.push(eq(orders.userId, userId));
-    if (searchPattern) orderConditions.push(sql`(${players.firstName} ILIKE ${searchPattern} OR ${players.lastName} ILIKE ${searchPattern})`);
-    if (normalizedSport) orderConditions.push(sql`UPPER(${players.sport}) = ${normalizedSport}`);
-
-    const finalOrdersQuery = orderConditions.length > 0 ? ordersBase.where(and(...orderConditions)) : ordersBase;
-
-    // Combine using UNION ALL and apply global order + limit
-    const combinedQuery = db
-      .select()
-      .from(unionAll(
-        finalTradesQuery as any,
-        finalOrdersQuery as any
-      ).as('activity'))
-      .orderBy(sql`timestamp DESC`)
+    return await finalTradesQuery
+      .orderBy(desc(trades.executedAt))
       .limit(limit);
-
-    return await combinedQuery;
-
-
   }
 
   // Price history methods
@@ -2378,52 +2289,8 @@ export class DatabaseStorage implements IStorage {
       });
     }
 
-    // 2. Orders (placed/cancelled)
+    // 2. Trades (executed)
     if (types.includes('market')) {
-      const userOrders = await db
-        .select({
-          id: orders.id,
-          occurredAt: orders.createdAt,
-          playerId: orders.playerId,
-          playerFirstName: players.firstName,
-          playerLastName: players.lastName,
-          playerTeam: players.team,
-          side: orders.side,
-          orderType: orders.orderType,
-          quantity: orders.quantity,
-          limitPrice: orders.limitPrice,
-          status: orders.status,
-        })
-        .from(orders)
-        .innerJoin(players, eq(orders.playerId, players.id))
-        .where(eq(orders.userId, userId))
-        .orderBy(desc(orders.createdAt))
-        .limit(limit);
-
-      userOrders.forEach(order => {
-        activities.push({
-          id: `order-${order.id}`,
-          userId,
-          occurredAt: order.occurredAt,
-          category: 'market',
-          subtype: order.status === 'cancelled' ? 'order_cancelled' : 'order_placed',
-          cashDelta: '0.00', // Orders don't change cash until trades execute
-          sharesDelta: 0,
-          metadata: {
-            playerId: order.playerId,
-            playerName: `${order.playerFirstName} ${order.playerLastName}`,
-            playerTeam: order.playerTeam,
-            side: order.side,
-            orderType: order.orderType,
-            quantity: order.quantity,
-            limitPrice: order.limitPrice,
-            tradePrice: order.limitPrice, // For frontend display consistency
-            status: order.status,
-          },
-        });
-      });
-
-      // 3. Trades (executed)
       const userBuyTrades = await db
         .select({
           id: trades.id,
@@ -2630,14 +2497,6 @@ export class DatabaseStorage implements IStorage {
           description = `Bought ${meta.quantity} shares of ${meta.playerName} @ $${meta.tradePrice}`;
         } else if (activity.subtype === 'trade_sell') {
           description = `Sold ${meta.quantity} shares of ${meta.playerName} @ $${meta.tradePrice}`;
-        } else if (activity.subtype === 'order_placed') {
-          if (meta.orderType === 'limit') {
-            description = `${meta.side === 'buy' ? 'Buy' : 'Sell'} limit order: ${meta.quantity} shares of ${meta.playerName} @ $${meta.limitPrice}`;
-          } else {
-            description = `${meta.side === 'buy' ? 'Buy' : 'Sell'} market order: ${meta.quantity} shares of ${meta.playerName}`;
-          }
-        } else if (activity.subtype === 'order_cancelled') {
-          description = `Cancelled ${meta.side} order for ${meta.quantity} shares of ${meta.playerName}`;
         }
       } else if (activity.category === 'contest') {
         if (activity.subtype === 'contest_entry') {
@@ -4110,79 +3969,7 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(communityCheckoutSessions.createdAt));
   }
 
-  // Premium trading methods - database-backed for persistence
-  async getPremiumOrderBook(): Promise<{
-    bids: { price: string; quantity: number; userId: string; orderId: string }[];
-    asks: { price: string; quantity: number; userId: string; orderId: string }[];
-  }> {
-    // Get all open or partial orders from database
-    const openOrders = await db
-      .select()
-      .from(premiumOrders)
-      .where(or(eq(premiumOrders.status, "open"), eq(premiumOrders.status, "partial")));
-
-    const bids: { price: string; quantity: number; userId: string; orderId: string }[] = [];
-    const asks: { price: string; quantity: number; userId: string; orderId: string }[] = [];
-
-    for (const order of openOrders) {
-      // Calculate remaining quantity
-      const remainingQty = order.quantity - (order.filledQuantity || 0);
-      if (remainingQty <= 0) continue;
-
-      const orderData = {
-        price: order.limitPrice || "5.00",
-        quantity: remainingQty,
-        userId: order.userId,
-        orderId: order.id,
-      };
-
-      if (order.side === "buy") {
-        bids.push(orderData);
-      } else {
-        asks.push(orderData);
-      }
-    }
-
-    // Sort bids high to low, asks low to high
-    bids.sort((a, b) => parseFloat(b.price) - parseFloat(a.price));
-    asks.sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
-
-    return { bids, asks };
-  }
-
-  async getRecentPremiumTrades(limit: number): Promise<Array<{
-    buyerId: string;
-    sellerId: string;
-    quantity: number;
-    price: string;
-    executedAt: Date;
-    buyer: { username: string } | null;
-    seller: { username: string } | null;
-  }>> {
-    const recentTrades = await db
-      .select()
-      .from(premiumTrades)
-      .orderBy(desc(premiumTrades.executedAt))
-      .limit(limit);
-
-    // Enrich with usernames
-    const enriched = await Promise.all(recentTrades.map(async (trade) => {
-      const buyer = await this.getUser(trade.buyerId);
-      const seller = await this.getUser(trade.sellerId);
-      return {
-        buyerId: trade.buyerId,
-        sellerId: trade.sellerId,
-        quantity: trade.quantity,
-        price: trade.price,
-        executedAt: trade.executedAt,
-        buyer: buyer ? { username: buyer.username || "Unknown" } : null,
-        seller: seller ? { username: seller.username || "Unknown" } : null,
-      };
-    }));
-
-    return enriched;
-  }
-
+  // Premium market data (read-only)
   async getPremiumTradesInRange(startDate: Date, endDate: Date): Promise<Array<{
     buyerId: string;
     sellerId: string;
@@ -4209,105 +3996,6 @@ export class DatabaseStorage implements IStorage {
       .where(eq(holdings.assetType, "premium"));
 
     return result[0]?.total || 0;
-  }
-
-  async createPremiumOrder(order: {
-    userId: string;
-    side: "buy" | "sell";
-    quantity: number;
-    price: string;
-    orderType: string;
-    status: string;
-  }): Promise<PremiumOrder> {
-    const [createdOrder] = await db
-      .insert(premiumOrders)
-      .values({
-        userId: order.userId,
-        side: order.side,
-        quantity: order.quantity,
-        limitPrice: order.price,
-        orderType: order.orderType,
-        status: order.status,
-      })
-      .returning();
-
-    return createdOrder;
-  }
-
-  async getPremiumOrder(orderId: string): Promise<PremiumOrder | undefined> {
-    const [order] = await db
-      .select()
-      .from(premiumOrders)
-      .where(eq(premiumOrders.id, orderId));
-    return order || undefined;
-  }
-
-  async updatePremiumOrderQuantity(orderId: string, remainingQuantity: number): Promise<void> {
-    // remainingQuantity = how many shares are left unfilled in this order
-    // Called after a match: newRemainingQty = oldRemainingQty - matchQuantity
-    const order = await this.getPremiumOrder(orderId);
-    if (!order) return;
-
-    // Calculate how many have been filled: original - remaining
-    const newFilledQuantity = order.quantity - remainingQuantity;
-
-    if (remainingQuantity <= 0) {
-      // Order is fully filled
-      await db
-        .update(premiumOrders)
-        .set({
-          filledQuantity: order.quantity,
-          status: "filled"
-        })
-        .where(eq(premiumOrders.id, orderId));
-    } else if (newFilledQuantity > 0) {
-      // Order is partially filled
-      await db
-        .update(premiumOrders)
-        .set({
-          filledQuantity: newFilledQuantity,
-          status: "partial"
-        })
-        .where(eq(premiumOrders.id, orderId));
-    }
-  }
-
-  async createPremiumTrade(trade: {
-    buyerId: string;
-    sellerId: string;
-    buyOrderId?: string;
-    sellOrderId?: string;
-    quantity: number;
-    price: string;
-  }): Promise<PremiumTrade> {
-    const [createdTrade] = await db
-      .insert(premiumTrades)
-      .values({
-        buyerId: trade.buyerId,
-        sellerId: trade.sellerId,
-        buyOrderId: trade.buyOrderId,
-        sellOrderId: trade.sellOrderId,
-        quantity: trade.quantity,
-        price: trade.price,
-      })
-      .returning();
-
-    return createdTrade;
-  }
-
-  async getUserPremiumOrders(userId: string): Promise<PremiumOrder[]> {
-    return await db
-      .select()
-      .from(premiumOrders)
-      .where(eq(premiumOrders.userId, userId))
-      .orderBy(desc(premiumOrders.createdAt));
-  }
-
-  async cancelPremiumOrder(orderId: string): Promise<void> {
-    await db
-      .update(premiumOrders)
-      .set({ status: "cancelled" })
-      .where(eq(premiumOrders.id, orderId));
   }
 
   // Whop payment sync methods
@@ -4436,28 +4124,22 @@ export class DatabaseStorage implements IStorage {
     const now = new Date();
     const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
-    // Aggregation of buy vs sell orders in last 24h
-    // Note: We use the 'orders' table. Ideally we check 'trades' for actual volume, 
-    // but 'orders' shows intent/sentiment even if not filled.
-    const recentOrders = await db
+    // AMM-only sentiment: compute from executed trades against the pool.
+    // - User BUYs shares when sellerId === 'pool'
+    // - User SELLs shares when buyerId === 'pool'
+    const [sentimentRow] = await db
       .select({
-        side: orders.side,
-        quantity: orders.quantity,
+        buyVol: sql<number>`SUM(CASE WHEN ${trades.sellerId} = 'pool' THEN ${trades.quantity} ELSE 0 END)`,
+        sellVol: sql<number>`SUM(CASE WHEN ${trades.buyerId} = 'pool' THEN ${trades.quantity} ELSE 0 END)`,
       })
-      .from(orders)
+      .from(trades)
       .where(and(
-        eq(orders.playerId, playerId),
-        gte(orders.createdAt, twentyFourHoursAgo)
+        eq(trades.playerId, playerId),
+        gte(trades.executedAt, twentyFourHoursAgo)
       ));
 
-    let buyVol = 0;
-    let sellVol = 0;
-
-    for (const o of recentOrders) {
-      if (o.side === 'buy') buyVol += o.quantity;
-      if (o.side === 'sell') sellVol += o.quantity;
-    }
-
+    const buyVol = Number(sentimentRow?.buyVol || 0);
+    const sellVol = Number(sentimentRow?.sellVol || 0);
     const totalVol = buyVol + sellVol;
     const buyPressure = totalVol > 0 ? (buyVol / totalVol) * 100 : 50; // Default to neutral 50
 
@@ -4576,16 +4258,16 @@ export class DatabaseStorage implements IStorage {
       .where(whereClause)
       .groupBy(players.id);
 
-    // 2. Bulk Fetch Sentiment (using Postgres-native interval for consistency with getPlayersPaginated)
+    // 2. Bulk Fetch Sentiment (AMM-only) based on executed pool trades in last 24h
     const sentimentStats = await db
       .select({
-        playerId: orders.playerId,
-        buyVol: sql<number>`SUM(CASE WHEN ${orders.side} = 'buy' THEN ${orders.quantity} ELSE 0 END)`,
-        totalVol: sql<number>`SUM(${orders.quantity})`,
+        playerId: trades.playerId,
+        buyVol: sql<number>`SUM(CASE WHEN ${trades.sellerId} = 'pool' THEN ${trades.quantity} ELSE 0 END)`,
+        sellVol: sql<number>`SUM(CASE WHEN ${trades.buyerId} = 'pool' THEN ${trades.quantity} ELSE 0 END)`,
       })
-      .from(orders)
-      .where(gte(orders.createdAt, sql`NOW() - INTERVAL '24 hours'`))
-      .groupBy(orders.playerId);
+      .from(trades)
+      .where(gte(trades.executedAt, sql`NOW() - INTERVAL '24 hours'`))
+      .groupBy(trades.playerId);
 
     const sentimentMap = new Map(sentimentStats.map(s => [s.playerId, s]));
 
@@ -4598,7 +4280,10 @@ export class DatabaseStorage implements IStorage {
       const valueIndex = LEAGUE_AVG_PE > 0 ? (peRatio / LEAGUE_AVG_PE) * 100 : 0;
 
       const sent = sentimentMap.get(p.id);
-      const buyPressure = sent && sent.totalVol > 0 ? (sent.buyVol / sent.totalVol) * 100 : 50;
+      const buyVol = Number(sent?.buyVol || 0);
+      const sellVol = Number(sent?.sellVol || 0);
+      const totalVol = buyVol + sellVol;
+      const buyPressure = totalVol > 0 ? (buyVol / totalVol) * 100 : 50;
 
       return {
         player: {
@@ -4613,11 +4298,11 @@ export class DatabaseStorage implements IStorage {
           peRatio,
           valueIndex,
           isUndervalued: valueIndex > 0 && valueIndex < 100,
-          sentiment: {
-            buyPressure,
-            totalVolume24h: sent?.totalVol || 0,
-            trend: buyPressure >= 60 ? 'bullish' : buyPressure <= 40 ? 'bearish' : 'neutral',
-          } as any,
+           sentiment: {
+             buyPressure,
+             totalVolume24h: totalVol,
+             trend: buyPressure >= 60 ? 'bullish' : buyPressure <= 40 ? 'bearish' : 'neutral',
+           } as any,
           heatCheck: { status: 'neutral' } as any,
           marketCapRank: { tier: 'mid_cap' } as any
         }
@@ -4915,13 +4600,46 @@ export class DatabaseStorage implements IStorage {
     const [boost] = await db.select().from(dailyBoosts).where(eq(dailyBoosts.id, boostId));
     if (!boost) throw new Error(`Boost ${boostId} not found`);
 
-    // BURN the shares from user's holdings (not just lock them)
-    // This is a core mechanic: boosted shares are consumed for the chance at multiplied payouts
-    const holding = await this.getHolding(boost.userId, "player", boost.playerId);
-    if (!holding) throw new Error(`No holding found for user ${boost.userId} player ${boost.playerId}`);
+    // Hard safety: boost slots are 1 share only.
+    // If a bad row exists (older backend/client), do NOT burn the user's entire position.
+    if (boost.sharesEntered !== 1) {
+      console.error(`[BOOST] Refusing to burn shares for boost ${boostId}: sharesEntered=${boost.sharesEntered} (expected 1)`);
+      await this.updateDailyBoost(boostId, { status: "cancelled" });
+      return;
+    }
 
-    const newQuantity = parseFloat(holding.quantity) - boost.sharesEntered;
-    if (newQuantity < 0) throw new Error(`Cannot burn ${boost.sharesEntered} shares - only ${holding.quantity} available`);
+    // BURN the share from user's holdings (not just lock it)
+    // This is a core mechanic: boosted shares are consumed for the chance at multiplied payouts
+    const allHoldings = await db
+      .select()
+      .from(holdings)
+      .where(and(
+        eq(holdings.userId, boost.userId),
+        eq(holdings.assetType, "player"),
+        eq(holdings.assetId, boost.playerId)
+      ));
+
+    if (allHoldings.length === 0) {
+      throw new Error(`No holding found for user ${boost.userId} player ${boost.playerId}`);
+    }
+
+    const effectivePower = boost.powerLevel ? parseFloat(boost.powerLevel.toString()) : 1;
+
+    // Pick a deterministic holding row to burn from.
+    // If the boost used powered-up power (>1), prefer burning a powered holding.
+    const sorted = [...allHoldings].sort((a, b) => (b.power || 1) - (a.power || 1));
+    let holding = sorted.find(h => (h.power || 1) > 1 && parseFloat(h.quantity) >= 1);
+    if (!holding || !isFinite(effectivePower) || effectivePower <= 1) {
+      holding = sorted.find(h => (h.power || 1) === 1 && parseFloat(h.quantity) >= 1) || sorted.find(h => parseFloat(h.quantity) >= 1);
+    }
+
+    if (!holding) {
+      throw new Error(`No burnable shares found for user ${boost.userId} player ${boost.playerId}`);
+    }
+
+    const sharesToBurn = 1;
+    const newQuantity = parseFloat(holding.quantity) - sharesToBurn;
+    if (newQuantity < 0) throw new Error(`Cannot burn ${sharesToBurn} shares - only ${holding.quantity} available`);
 
     // Reduce the holding quantity (burn the shares)
     // Also reduce powerLevel proportionally since power is tied to shares
@@ -4929,11 +4647,8 @@ export class DatabaseStorage implements IStorage {
     const avgCostNormalized = isNaN(avgCostParsed) ? "0.0000" : avgCostParsed.toFixed(4);
     const totalCost = (parseFloat(avgCostNormalized) * newQuantity).toFixed(2);
 
-    // Calculate power level reduction proportionally
-    // powerLevel = quantity * power (per-share power), so reduce both
-    const currentPowerLevel = parseFloat(holding.powerLevel || "0");
-    const holdingQuantity = parseFloat(holding.quantity);
-    const powerPerShare = holdingQuantity > 0 ? currentPowerLevel / holdingQuantity : 0;
+    // Keep powerLevel consistent: powerLevel = quantity * power
+    const powerPerShare = holding.power || 1;
     const newPowerLevel = powerPerShare * newQuantity;
 
     if (newQuantity <= 0) {
@@ -4941,10 +4656,13 @@ export class DatabaseStorage implements IStorage {
       await db
         .delete(holdings)
         .where(
+          // IMPORTANT: target the specific holding row we burned from.
+          // Users can have multiple holding rows for the same player (e.g., powered vs regular),
+          // so deleting by userId+assetType+assetId would wipe unrelated rows.
           and(
             eq(holdings.userId, boost.userId),
             eq(holdings.assetType, "player"),
-            eq(holdings.assetId, boost.playerId)
+            eq(holdings.id, holding.id)
           )
         );
     } else {
@@ -4962,12 +4680,12 @@ export class DatabaseStorage implements IStorage {
           and(
             eq(holdings.userId, boost.userId),
             eq(holdings.assetType, "player"),
-            eq(holdings.assetId, boost.playerId)
+            eq(holdings.id, holding.id)
           )
         );
     }
 
-    console.log(`[BOOST] Burned ${boost.sharesEntered} shares of player ${boost.playerId} from user ${boost.userId} (${holding.quantity} -> ${newQuantity}, powerLevel: ${holding.powerLevel} -> ${newPowerLevel.toFixed(2)})`);
+    console.log(`[BOOST] Burned 1 share of player ${boost.playerId} from user ${boost.userId} (holding ${holding.id}: ${holding.quantity} -> ${newQuantity}, powerLevel: ${holding.powerLevel} -> ${newPowerLevel.toFixed(2)})`);
 
     // Update boost status to locked
     await this.updateDailyBoost(boostId, { status: "locked" });
@@ -5351,6 +5069,7 @@ export class DatabaseStorage implements IStorage {
         await tx
           .update(holdings)
           .set({
+            power: Math.round(newPower),
             powerLevel: newPower.toFixed(2),
             lastUpdated: new Date(),
           })

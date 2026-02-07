@@ -102,32 +102,9 @@ if (filterHasSellOrders) params.append("hasSellOrders", "true");
 **Priority:** MEDIUM
 **Estimated Time:** 1-2 hours
 
-**Need to remove:**
-```typescript
-// Order book state (lines 21-24)
-orderBook: { bids: [...], asks: [...] }
+**Status:** Removed (premium trading UI deleted)
 
-// Order type state (line 36)
-const [orderType, setOrderType] = useState<"limit" | "market">("limit");
-
-// Limit price state (line 39)
-const [limitPrice, setLimitPrice] = useState(...);
-
-// Order mutation (lines 73-100)
-const orderMutation = useMutation(...)
-
-// Order book display (lines 351-421)
-<Card>...Order Book...</Card>
-
-// Order form (lines 253-277)
-<Tabs value={orderType} ... />
-<Input value={limitPrice} ... />
-```
-
-**Options:**
-1. Replace with AMM trading interface
-2. Disable premium trading (as planned)
-3. Keep as view-only (no trading)
+Premium shares are redeemed for access; premium share trading is not part of the AMM player market.
 
 ### 3. Market Activity Widget (`client/src/components/market-activity-widget.tsx`)
 **Priority:** MEDIUM
@@ -147,12 +124,7 @@ getActivityText() function handling orders
 **Priority:** LOW
 **Estimated Time:** 15 minutes
 
-**Need to remove:**
-```typescript
-// Handler (lines 72-73)
-case 'orderBook':
-  debouncedInvalidatePlayer(message.playerId);
-```
+**Status:** Removed (AMM-only)
 
 ### 5. Other Components to Check
 **Priority:** LOW

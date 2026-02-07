@@ -19,7 +19,7 @@ import { useAuth, AuthProvider } from "@/hooks/useAuth";
 import { OnboardingModal } from "@/components/onboarding-modal";
 import { AnimatePresence, motion } from "framer-motion";
 import Dashboard from "@/pages/dashboard";
-import Marketplace from "@/pages/marketplace";
+import PlayerPools from "@/pages/marketplace";
 import PlayerPage from "@/pages/player";
 import Contests from "@/pages/contests";
 import ContestEntry from "@/pages/contest-entry";
@@ -41,7 +41,6 @@ import HowItWorks from "@/pages/how-it-works";
 import Analytics from "@/pages/analytics";
 import News from "@/pages/news";
 import Premium from "@/pages/premium";
-import PremiumTrade from "@/pages/premium-trade";
 import Watchlists from "@/pages/watchlists";
 import Power from "@/pages/power";
 import Login from "@/pages/Login";
@@ -56,10 +55,22 @@ import { ScoutDashboardModal } from "@/components/scout-dashboard-modal";
 import { ScoutProvider, useScout } from "@/lib/scout-context";
 import { SportProvider } from "@/lib/sport-context";
 import { NewsNotificationProvider } from "@/lib/news-notification-context";
+import { InjuryProvider } from "@/lib/injury-context";
 import { ScoutCeremonyOverlay } from "@/components/ceremonies/scout-ceremony-overlay";
 import { ScoutReadyBanner } from "@/components/ceremonies/scout-ready-banner";
 import { useScoutCeremony } from "@/hooks/use-scout-ceremony";
 import { WhaleAlertBanner } from "@/components/market/whale-alert-banner";
+
+function LegacyMarketplaceRedirect() {
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    const search = window.location.search || "";
+    setLocation(`/pools${search}`, { replace: true });
+  }, [setLocation]);
+
+  return null;
+}
 
 function OnboardingCheck() {
   const { user, isAuthenticated } = useAuth();
@@ -223,7 +234,8 @@ function Router() {
           <Route path="/contest/:id/leaderboard" component={ContestLeaderboard} />
           <Route path="/leaderboards" component={Leaderboards} />
           <Route path="/user/:id" component={UserProfile} />
-          <Route path="/marketplace" component={Marketplace} />
+          <Route path="/pools" component={PlayerPools} />
+          <Route path="/marketplace" component={LegacyMarketplaceRedirect} />
           <Route path="/blog" component={Blog} />
           <Route path="/blog/:slug" component={BlogPost} />
           <Route path="/privacy" component={Privacy} />
@@ -263,9 +275,7 @@ function Router() {
           <Route path="/premium">
             {isAuthenticated ? <Premium /> : <Dashboard />}
           </Route>
-          <Route path="/premium/trade">
-            {isAuthenticated ? <PremiumTrade /> : <Dashboard />}
-          </Route>
+          {/* Premium share trading removed; premium shares are redeemed for premium access */}
           <Route path="/watchlists">
             {isAuthenticated ? <Watchlists /> : <Dashboard />}
           </Route>
@@ -481,9 +491,11 @@ function App() {
             <TooltipProvider>
               <ScoutProvider>
                 <SportProvider>
-                  <NewsNotificationProvider>
-                    <AppContent />
-                  </NewsNotificationProvider>
+                  <InjuryProvider>
+                    <NewsNotificationProvider>
+                      <AppContent />
+                    </NewsNotificationProvider>
+                  </InjuryProvider>
                 </SportProvider>
                 <Toaster />
               </ScoutProvider>

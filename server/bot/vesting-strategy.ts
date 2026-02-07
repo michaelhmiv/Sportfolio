@@ -127,40 +127,70 @@ async function claimVestingShares(
         // Apply distributions to holdings
         for (const dist of distributions) {
             if (dist.shares > 0) {
-                const existing = await storage.getHolding(userId, "player", dist.playerId);
+                // Vesting shares are minted (free). Always credit to regular holdings (power=1)
+                // and keep powerLevel consistent with quantity.
+                const existing = await storage.getRegularHolding(userId, "player", dist.playerId);
+
                 if (existing) {
-                    await db.update(holdings).set({
-                        quantity: (parseFloat(existing.quantity) + dist.shares).toString(),
-                        lastUpdated: new Date()
-                    }).where(eq(holdings.id, existing.id));
+                    const existingQty = parseFloat(existing.quantity);
+                    const newQty = existingQty + dist.shares;
+                    const existingTotalCost = parseFloat(existing.totalCostBasis || "0");
+                    const newAvgCost = newQty > 0 ? (existingTotalCost / newQty).toFixed(4) : "0.0000";
+
+                    await db
+                        .update(holdings)
+                        .set({
+                            quantity: newQty.toString(),
+                            avgCostBasis: newAvgCost,
+                            // totalCostBasis stays the same (new shares are free)
+                            powerLevel: newQty.toFixed(2),
+                            lastUpdated: new Date(),
+                        })
+                        .where(eq(holdings.id, existing.id));
                 } else {
                     await db.insert(holdings).values({
                         userId,
                         assetType: "player",
                         assetId: dist.playerId,
                         quantity: dist.shares.toString(),
+                        power: 1,
+                        powerLevel: dist.shares.toFixed(2),
                         avgCostBasis: "0.0000",
                         totalCostBasis: "0.00",
+                        lastUpdated: new Date(),
                     });
                 }
             }
         }
     } else if (fallbackPlayerId) {
         // Legacy single-player vesting - add all shares to one player
-        const existing = await storage.getHolding(userId, "player", fallbackPlayerId);
+        const existing = await storage.getRegularHolding(userId, "player", fallbackPlayerId);
         if (existing) {
-            await db.update(holdings).set({
-                quantity: (parseFloat(existing.quantity) + totalSharesClaimed).toString(),
-                lastUpdated: new Date()
-            }).where(eq(holdings.id, existing.id));
+            const existingQty = parseFloat(existing.quantity);
+            const newQty = existingQty + totalSharesClaimed;
+            const existingTotalCost = parseFloat(existing.totalCostBasis || "0");
+            const newAvgCost = newQty > 0 ? (existingTotalCost / newQty).toFixed(4) : "0.0000";
+
+            await db
+                .update(holdings)
+                .set({
+                    quantity: newQty.toString(),
+                    avgCostBasis: newAvgCost,
+                    powerLevel: newQty.toFixed(2),
+                    lastUpdated: new Date(),
+                })
+                .where(eq(holdings.id, existing.id));
         } else {
             await db.insert(holdings).values({
                 userId,
                 assetType: "player",
                 assetId: fallbackPlayerId,
                 quantity: totalSharesClaimed.toString(),
+                power: 1,
+                powerLevel: totalSharesClaimed.toFixed(2),
                 avgCostBasis: "0.0000",
                 totalCostBasis: "0.00",
+                lastUpdated: new Date(),
             });
         }
     }

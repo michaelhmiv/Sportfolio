@@ -5,7 +5,7 @@
  * Uses DEFERRABLE INITIALLY DEFERRED constraint handling for ID prefixing.
  */
 
-import { db, pool } from "../server/db";
+import { db, pool } from "../../../server/db";
 import { sql } from "drizzle-orm";
 
 async function runMigration() {

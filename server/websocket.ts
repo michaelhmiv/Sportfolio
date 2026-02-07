@@ -16,7 +16,6 @@ export type SubscriptionType =
   | 'portfolio'          // User's portfolio changes
   | 'scouts'             // Scout assignment changes
   | 'trade'              // Order/trade updates
-  | 'orderBook'          // Order book changes
   | 'liveStats'          // Game stats updates
   | 'contestUpdate'      // Contest status changes
   | 'marketActivity'     // Market-wide activity
@@ -143,6 +142,32 @@ export function broadcastToAll(message: any) {
     console.log(`[WebSocket] Broadcasted ${message.type} to ${sent} clients`);
     lastBroadcastLogTime = now;
   }
+}
+
+/**
+ * Aggregate WebSocket client stats for admin diagnostics.
+ * Never returns message payloads or any secrets.
+ */
+export function getWebSocketStats(): {
+  totalClients: number;
+  uniqueUsers: number;
+  subscriptions: Record<string, number>;
+} {
+  const subscriptions: Record<string, number> = {};
+  const users = new Set<string>();
+
+  wsClients.forEach((client) => {
+    if (client.userId) users.add(client.userId);
+    client.subscriptions.forEach((s) => {
+      subscriptions[s] = (subscriptions[s] || 0) + 1;
+    });
+  });
+
+  return {
+    totalClients: wsClients.size,
+    uniqueUsers: users.size,
+    subscriptions,
+  };
 }
 
 export function getClientCount(): number {

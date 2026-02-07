@@ -7,8 +7,8 @@
  * Run with: npx tsx scripts/debug-player-list-performance.ts
  */
 
-import { db } from "../server/db";
-import { players, orders, playerGameStats, watchList } from "../shared/schema";
+import { db } from "../../../server/db";
+import { players, orders, playerGameStats, watchList } from "../../../shared/schema";
 import { sql, eq, and, inArray, desc, asc, count } from "drizzle-orm";
 
 // Test configuration

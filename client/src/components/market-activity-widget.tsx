@@ -2,7 +2,6 @@ import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Clock } from "lucide-react";
 import { Link } from "wouter";
 import { formatDistanceToNow } from "date-fns";
@@ -13,23 +12,18 @@ import { UserName } from "@/components/user-name";
 import { AnimatedList } from "@/components/ui/animated-list";
 
 interface MarketActivity {
-  activityType: "trade" | "order_placed" | "order_cancelled";
+  activityType: "trade";
   id: string;
   playerId: string;
   playerFirstName: string;
   playerLastName: string;
   playerTeam: string;
-  userId: string | null;
-  username: string | null;
   buyerId: string | null;
   buyerUsername: string | null;
   sellerId: string | null;
   sellerUsername: string | null;
-  side: "buy" | "sell" | null;
-  orderType: "limit" | "market" | null;
   quantity: number;
   price: string | null;
-  limitPrice: string | null;
   timestamp: string;
 }
 
@@ -54,60 +48,30 @@ export function MarketActivityWidget() {
   }, [subscribe]);
 
   const getActivityIcon = (item: MarketActivity) => {
-    if (item.activityType === "trade") {
-      return <span className="text-blue-500 font-bold text-lg">▲</span>;
-    }
-    if (item.side === "buy") {
-      return <span className="text-blue-500 font-bold text-lg">▲</span>;
-    }
-    return <span className="text-red-500 font-bold text-lg">▼</span>;
+    return <span className="text-blue-500 font-bold text-lg">▲</span>;
   };
 
   const getActivityText = (item: MarketActivity) => {
-    if (item.activityType === "trade") {
-      return (
+    return (
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-muted-foreground text-xs">Trade:</span>
-          {item.buyerId && item.buyerUsername && (
-            <span className="font-medium text-xs">
-              <UserName userId={item.buyerId} username={item.buyerUsername} className="text-xs" />
-            </span>
-          )}
+        {item.buyerId && item.buyerUsername && (
+          <span className="font-medium text-xs">
+            {item.buyerId === "pool"
+              ? "Pool"
+              : <UserName userId={item.buyerId} username={item.buyerUsername} className="text-xs" />}
+          </span>
+        )}
           <span className="text-muted-foreground text-xs">bought from</span>
-          {item.sellerId && item.sellerUsername && (
-            <span className="font-medium text-xs">
-              <UserName userId={item.sellerId} username={item.sellerUsername} className="text-xs" />
-            </span>
-          )}
-        </div>
-      );
-    }
-    if (item.activityType === "order_placed") {
-      return (
-        <div className="flex items-center gap-1 flex-wrap">
-          {item.userId && item.username && (
-            <span className="font-medium text-xs">
-              <UserName userId={item.userId} username={item.username} className="text-xs" />
-            </span>
-          )}
-          <Badge variant="outline" className="text-xs">
-            {item.side} {item.orderType}
-          </Badge>
-        </div>
-      );
-    }
-    if (item.activityType === "order_cancelled") {
-      return (
-        <div className="flex items-center gap-1 flex-wrap">
-          {item.userId && item.username && (
-            <span className="font-medium text-xs">
-              <UserName userId={item.userId} username={item.username} className="text-xs" />
-            </span>
-          )}
-          <Badge variant="outline" className="text-xs">cancelled</Badge>
-        </div>
-      );
-    }
+        {item.sellerId && item.sellerUsername && (
+          <span className="font-medium text-xs">
+            {item.sellerId === "pool"
+              ? "Pool"
+              : <UserName userId={item.sellerId} username={item.sellerUsername} className="text-xs" />}
+          </span>
+        )}
+      </div>
+    );
   };
 
   if (isLoading) {
@@ -162,7 +126,7 @@ export function MarketActivityWidget() {
                   </div>
                   <div className="text-right flex-shrink-0 ml-3">
                     <div className="font-mono font-bold text-sm">
-                      {item.price ? `$${item.price}` : item.limitPrice ? `$${item.limitPrice}` : "-"}
+                      {item.price ? `$${item.price}` : "-"}
                     </div>
                     <div className="text-xs text-muted-foreground">{item.quantity} shares</div>
                     <div className="text-xs text-muted-foreground">
@@ -172,7 +136,7 @@ export function MarketActivityWidget() {
                 </div>
               )}
             />
-            <Link href="/marketplace?tab=activity">
+            <Link href="/pools?tab=activity">
               <Button variant="outline" className="w-full" data-testid="button-view-market-activity">
                 View More Activity
               </Button>

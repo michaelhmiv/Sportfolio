@@ -14,12 +14,16 @@ import {
   Snowflake,
   Activity,
   Zap,
-  TicketPercent
+  TicketPercent,
+  ShoppingCart,
+  Droplets
 } from "lucide-react";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import { ScoutSelector } from "@/components/scout-selector";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { InjuryIndicator } from "@/components/player-name";
+import { useInjuries } from "@/lib/injury-context";
 
 interface PlayerModalProps {
   playerId: string | null;
@@ -100,31 +104,33 @@ interface RecentGame {
 }
 
 export function PlayerModal({ playerId, open, onOpenChange }: PlayerModalProps) {
+  const cleanPlayerId = (playerId || "").split("?")[0].split("#")[0].trim();
   const [gamesToShow, setGamesToShow] = useState(5);
   const { isAuthenticated } = useAuth();
+  const { getInjury } = useInjuries();
 
   // Fetch all player data
   const { data: statsData, isLoading: statsLoading } = useQuery<any>({
-    queryKey: ["/api/player", playerId, "stats"],
-    enabled: open && !!playerId,
+    queryKey: ["/api/player", cleanPlayerId, "stats"],
+    enabled: open && !!cleanPlayerId,
   });
 
   const { data: recentGamesData, isLoading: gamesLoading } = useQuery<any>({
-    queryKey: ["/api/player", playerId, "recent-games"],
-    enabled: open && !!playerId,
+    queryKey: ["/api/player", cleanPlayerId, "recent-games"],
+    enabled: open && !!cleanPlayerId,
   });
 
   const { data: sharesData, isLoading: sharesLoading } = useQuery<any>({
-    queryKey: ["/api/player", playerId, "shares-info"],
-    enabled: open && !!playerId,
+    queryKey: ["/api/player", cleanPlayerId, "shares-info"],
+    enabled: open && !!cleanPlayerId,
   });
 
   const { data: financialMetrics, isLoading: financialsLoading } = useQuery<PlayerFinancialMetrics>({
-    queryKey: ["/api/player", playerId, "financials"],
-    enabled: open && !!playerId,
+    queryKey: ["/api/player", cleanPlayerId, "financials"],
+    enabled: open && !!cleanPlayerId,
   });
 
-  if (!playerId) return null;
+  if (!cleanPlayerId) return null;
 
   const player = statsData?.player;
   const team = statsData?.team;
@@ -145,7 +151,7 @@ export function PlayerModal({ playerId, open, onOpenChange }: PlayerModalProps) 
             <DialogTitle className="flex items-center gap-2 text-base" data-testid="text-player-modal-title">
               {player ? (
                 <>
-                  <span>{player.firstName} {player.lastName}</span>
+                  <span className="inline-flex items-center gap-1.5">{player.firstName} {player.lastName}{getInjury(player.id) && <InjuryIndicator injury={getInjury(player.id)!} />}</span>
                   {team && <Badge variant="secondary" className="text-xs h-5" data-testid="badge-team">{team.abbreviation}</Badge>}
 
                   {/* Heat Check Badge */}
@@ -182,14 +188,28 @@ export function PlayerModal({ playerId, open, onOpenChange }: PlayerModalProps) 
                 <Skeleton className="h-5 w-48" />
               )}
             </DialogTitle>
-            <div className="flex items-center gap-2">
-              {playerId && (
-                <Link href={`/player/${playerId}`} onClick={() => onOpenChange(false)}>
-                  <Button size="sm" data-testid="button-trade-player">
-                    Trade
-                    <ArrowRight className="w-4 h-4 ml-1" />
-                  </Button>
-                </Link>
+            <div className="flex items-center justify-end flex-wrap gap-2">
+              {cleanPlayerId && (
+                <div className="flex items-center flex-wrap justify-end gap-2">
+                  <Link href={`/player/${cleanPlayerId}?tab=buy`} onClick={() => onOpenChange(false)}>
+                    <Button size="sm" className="h-8 px-2 text-xs" data-testid="button-modal-buy">
+                      <ShoppingCart className="w-4 h-4 mr-1" />
+                      Buy
+                    </Button>
+                  </Link>
+                  <Link href={`/player/${cleanPlayerId}?tab=sell`} onClick={() => onOpenChange(false)}>
+                    <Button size="sm" variant="outline" className="h-8 px-2 text-xs" data-testid="button-modal-sell">
+                      Sell
+                      <ArrowRight className="w-4 h-4 ml-1" />
+                    </Button>
+                  </Link>
+                  <Link href={`/player/${cleanPlayerId}?panel=lp`} onClick={() => onOpenChange(false)}>
+                    <Button size="sm" variant="outline" className="h-8 px-2 text-xs" data-testid="button-modal-pool">
+                      <Droplets className="w-4 h-4 mr-1" />
+                      Pool
+                    </Button>
+                  </Link>
+                </div>
               )}
             </div>
           </div>
@@ -304,7 +324,7 @@ export function PlayerModal({ playerId, open, onOpenChange }: PlayerModalProps) 
                 </div>
                 <div>
                   <div className="text-muted-foreground text-[10px]">24h Vol</div>
-                  <div className="font-bold" data-testid="text-volume">{sharesInfo.volume24h.toLocaleString()}</div>
+                  <div className="font-bold" data-testid="text-volume">{Number(sharesInfo.volume24h || 0).toLocaleString()}</div>
                 </div>
                 <div>
                   <div className="text-muted-foreground text-[10px]">24h Chg</div>

@@ -193,11 +193,11 @@ export function DashboardScanners() {
                                     value = `+$${item.priceChange24h?.toFixed(2)}`;
                                     label = "Change";
                                 } else if (section.type === "pools") {
-                                    const poolSize = item.k || 0;
-                                    value = poolSize >= 1000000000
-                                        ? `${(poolSize / 1000000000).toFixed(1)}B`
-                                        : `${(poolSize / 1000000).toFixed(0)}M`;
-                                    label = "Pool Size";
+                                    const tvl = item.tvl || 0;
+                                    value = tvl >= 1000000000
+                                        ? `$${(tvl / 1000000000).toFixed(1)}B`
+                                        : `$${(tvl / 1000000).toFixed(0)}M`;
+                                    label = "TVL";
                                 }
 
                                 return (
@@ -215,7 +215,7 @@ export function DashboardScanners() {
                         </div>
 
                         <div className="p-2 border-t bg-muted/20 text-center">
-                            <Link href="/marketplace">
+                            <Link href="/pools">
                                 <Button
                                     variant="ghost"
                                     size="sm"
@@ -283,11 +283,11 @@ function ScannerCarousel({ scanData, topRisers, topMc, topPools, mode }: { scanD
                                 value = `+$${item.priceChange24h?.toFixed(2)}`;
                                 label = "Change";
                             } else if (type === "pools") {
-                                const poolSize = item.k || 0;
-                                value = poolSize >= 1000000000
-                                    ? `${(poolSize / 1000000000).toFixed(1)}B`
-                                    : `${(poolSize / 1000000).toFixed(0)}M`;
-                                label = "Pool Size";
+                                const tvl = item.tvl || 0;
+                                value = tvl >= 1000000000
+                                    ? `$${(tvl / 1000000000).toFixed(1)}B`
+                                    : `$${(tvl / 1000000).toFixed(0)}M`;
+                                label = "TVL";
                             } else if (type === "sentiment") {
                                 value = `${item.metrics?.sentiment?.buyPressure?.toFixed(0)}%`;
                                 label = "Buy Vol";
@@ -331,11 +331,11 @@ function ScannerCarousel({ scanData, topRisers, topMc, topPools, mode }: { scanD
                             className="w-full h-6 text-[10px] uppercase text-muted-foreground"
                             onClick={() => {
                                 const url =
-                                    type === "risers" ? "/marketplace?sortBy=change&sortOrder=desc" :
-                                        type === "pools" ? "/marketplace?sortBy=poolSize&sortOrder=desc" :
-                                            type === "sentiment" ? "/marketplace?sortBy=sentiment&sortOrder=desc" :
-                                                type === "undervalued" ? "/marketplace?sortBy=undervalued&sortOrder=asc" :
-                                                    "/marketplace";
+                                    type === "risers" ? "/pools?sortBy=change&sortOrder=desc" :
+                                        type === "pools" ? "/pools?sortBy=tvl&sortOrder=desc" :
+                                            type === "sentiment" ? "/pools?sortBy=sentiment&sortOrder=desc" :
+                                                type === "undervalued" ? "/pools?sortBy=undervalued&sortOrder=asc" :
+                                                    "/pools";
 
                                 setLocation(url);
                                 // Delayed scroll to ensure page state updates first if needed

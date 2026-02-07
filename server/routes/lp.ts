@@ -11,7 +11,18 @@
 
 import { Express } from "express";
 import { isAuthenticated } from "../supabaseAuth";
-import { addLiquidity, removeLiquidity, getLpPosition, getUserLpPositions, getPool } from "../amm/pool";
+import {
+  addLiquidity,
+  addLiquidityOptimal,
+  removeLiquidity,
+  getLpPosition,
+  getUserLpPositions,
+  getPool,
+  getZapAddQuoteSharesOnly,
+  zapAddLiquiditySharesOnly,
+  getZapAddQuoteSbOnly,
+  zapAddLiquiditySbOnly,
+} from "../amm/pool";
 import { storage } from "../storage";
 
 export function registerLpRoutes(app: Express) {
@@ -125,6 +136,122 @@ export function registerLpRoutes(app: Express) {
       });
     } catch (error: any) {
       console.error("[LP API] Error adding liquidity:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  /**
+   * POST /api/lp/:playerId/add-optimal
+   * Add liquidity using up-to amounts (server computes optimal ratio at execution time).
+   * Body: { maxShares: number, maxPlayMoney: number }
+   */
+  app.post("/api/lp/:playerId/add-optimal", isAuthenticated, async (req, res) => {
+    try {
+      const { playerId } = req.params;
+      const userId = getUserId(req);
+      const { maxShares, maxPlayMoney } = req.body;
+
+      const maxSharesNum = parseFloat(maxShares);
+      const maxPlayMoneyNum = parseFloat(maxPlayMoney);
+
+      if (!maxSharesNum || !maxPlayMoneyNum || maxSharesNum <= 0 || maxPlayMoneyNum <= 0) {
+        return res.status(400).json({ error: "Invalid max shares or play money amount" });
+      }
+
+      const result = await addLiquidityOptimal(playerId, userId, maxSharesNum, maxPlayMoneyNum);
+      if (!result.success) {
+        return res.status(400).json({ error: result.error });
+      }
+
+      res.json({
+        success: true,
+        lpSharesMinted: result.lpSharesMinted,
+        sharesDeposited: result.sharesDeposited,
+        playMoneyDeposited: result.playMoneyDeposited,
+        ownershipPercentage: result.ownershipPercentage,
+        sharesUnused: result.sharesUnused,
+        playMoneyUnused: result.playMoneyUnused,
+      });
+    } catch (error: any) {
+      console.error("[LP API] Error adding liquidity (optimal):", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  /**
+   * GET /api/lp/:playerId/zap-quote
+   * Quote a single-sided (shares-only) zap into LP.
+   * Query: shares=number
+   */
+  app.get("/api/lp/:playerId/zap-quote", isAuthenticated, async (req, res) => {
+    try {
+      const { playerId } = req.params;
+      const userId = getUserId(req);
+      const sharesRaw = req.query.shares as string | undefined;
+      const sbRaw = req.query.sb as string | undefined;
+
+      if (sharesRaw) {
+        const sharesIn = parseFloat(sharesRaw);
+        if (!sharesIn || !isFinite(sharesIn) || isNaN(sharesIn) || sharesIn <= 0) {
+          return res.status(400).json({ error: "Invalid shares amount" });
+        }
+        const quote = await getZapAddQuoteSharesOnly(playerId, userId, sharesIn);
+        return res.json({ side: "shares", ...quote });
+      }
+
+      if (sbRaw) {
+        const sbIn = parseFloat(sbRaw);
+        if (!sbIn || !isFinite(sbIn) || isNaN(sbIn) || sbIn <= 0) {
+          return res.status(400).json({ error: "Invalid SB amount" });
+        }
+        const quote = await getZapAddQuoteSbOnly(playerId, userId, sbIn);
+        return res.json({ side: "sb", ...quote });
+      }
+
+      return res.status(400).json({ error: "Missing query param: shares or sb" });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  /**
+   * POST /api/lp/:playerId/zap-add
+   * Execute a single-sided (shares-only) zap into LP.
+   * Body: { shares: number }
+   */
+  app.post("/api/lp/:playerId/zap-add", isAuthenticated, async (req, res) => {
+    try {
+      const { playerId } = req.params;
+      const userId = getUserId(req);
+      const { shares, sb } = req.body;
+
+      if (shares != null) {
+        const sharesIn = parseFloat(shares);
+        if (!sharesIn || !isFinite(sharesIn) || isNaN(sharesIn) || sharesIn <= 0) {
+          return res.status(400).json({ error: "Invalid shares amount" });
+        }
+        const result = await zapAddLiquiditySharesOnly(playerId, userId, sharesIn);
+        if (!result.success) {
+          return res.status(400).json({ error: result.error });
+        }
+        return res.json({ side: "shares", ...result });
+      }
+
+      if (sb != null) {
+        const sbIn = parseFloat(sb);
+        if (!sbIn || !isFinite(sbIn) || isNaN(sbIn) || sbIn <= 0) {
+          return res.status(400).json({ error: "Invalid SB amount" });
+        }
+        const result = await zapAddLiquiditySbOnly(playerId, userId, sbIn);
+        if (!result.success) {
+          return res.status(400).json({ error: result.error });
+        }
+        return res.json({ side: "sb", ...result });
+      }
+
+      return res.status(400).json({ error: "Missing body param: shares or sb" });
+    } catch (error: any) {
+      console.error("[LP API] Error executing zap add:", error);
       res.status(500).json({ error: error.message });
     }
   });

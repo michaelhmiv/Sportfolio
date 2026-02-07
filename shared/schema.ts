@@ -64,8 +64,14 @@ export const players = pgTable("players", {
   marketCap: decimal("market_cap", { precision: 20, scale: 2 }).notNull().default("0.00"), // Total shares * price, updated on each trade
   totalShares: integer("total_shares").notNull().default(0), // Total shares held by all users, updated on each trade
   lastUpdated: timestamp("last_updated").notNull().defaultNow(),
+  // Injury tracking fields
+  injuryStatus: text("injury_status"), // "Out", "Doubtful", "Questionable", "Probable", "Day-To-Day", null = healthy
+  injuryDescription: text("injury_description"), // Full injury details
+  injuryReturnDate: text("injury_return_date"), // Expected return date string
+  injuryUpdatedAt: timestamp("injury_updated_at"), // When injury info was last synced
 }, (table) => ({
   sportIdx: index("player_sport_idx").on(table.sport),
+  injuryStatusIdx: index("injury_status_idx").on(table.injuryStatus),
   sportTeamIdx: index("player_sport_team_idx").on(table.sport, table.team),
   sportPositionIdx: index("player_sport_position_idx").on(table.sport, table.position),
   teamIdx: index("team_idx").on(table.team),
@@ -180,6 +186,7 @@ export const trades = pgTable("trades", {
 }, (table) => ({
   playerIdx: index("player_trade_idx").on(table.playerId),
   executedIdx: index("executed_idx").on(table.executedAt),
+  playerExecutedIdx: index("trades_player_executed_at_idx").on(table.playerId, table.executedAt),
 }));
 
 // Player Pools table - AMM constant product pools for instant trading
@@ -191,6 +198,7 @@ export const playerPools = pgTable("player_pools", {
   k: decimal("k", { precision: 24, scale: 2 }).notNull().default("10000000"),
   lpSharesTotal: decimal("lp_shares_total", { precision: 24, scale: 2 }).notNull().default("1000"),
   feesAccumulated: decimal("fees_accumulated", { precision: 12, scale: 2 }).notNull().default("0"),
+  feeGrowthPerLpShare: decimal("fee_growth_per_lp_share", { precision: 24, scale: 12 }).notNull().default("0"),
   totalVolume: decimal("total_volume", { precision: 12, scale: 2 }).notNull().default("0"),
   totalTrades: integer("total_trades").notNull().default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -205,6 +213,8 @@ export const lpPositions = pgTable("lp_positions", {
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   playerId: varchar("player_id").notNull().references(() => players.id, { onDelete: "cascade" }),
   lpShares: decimal("lp_shares", { precision: 24, scale: 2 }).notNull().default("0"),
+  feeGrowthSnapshot: decimal("fee_growth_snapshot", { precision: 24, scale: 12 }).notNull().default("0"),
+  feesEarnedTotal: decimal("fees_earned_total", { precision: 12, scale: 2 }).notNull().default("0"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => ({

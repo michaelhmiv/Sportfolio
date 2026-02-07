@@ -48,7 +48,7 @@ export default function HowItWorks() {
                 NBA players on Sportfolio are represented as tradable shares, similar to stocks. Each player has a market price that changes based on trading activity - when more users want to buy a player, the price goes up; when more want to sell, it goes down.
               </p>
               <p className="text-muted-foreground">
-                You can browse the marketplace to find players to trade. Execute instant buys and sells directly against each player’s AMM pool with quote previews and slippage protection. Your portfolio value changes as player prices fluctuate.
+                Browse player pools to find players to trade. Execute instant buys and sells directly against each player’s AMM pool with quote previews and slippage protection. Your portfolio value changes as player prices fluctuate.
               </p>
             </CardContent>
           </Card>
@@ -136,7 +136,7 @@ export default function HowItWorks() {
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="font-semibold text-foreground">2.</span>
-                  <span>Browse the marketplace and buy shares of your favorite NBA players</span>
+                  <span>Browse player pools and buy shares of your favorite NBA players</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="font-semibold text-foreground">3.</span>

@@ -1,7 +1,7 @@
 /**
  * Roster Sync Job
  * 
- * Fetches NBA player rosters from BallDontLie API and updates database.
+ * Fetches NBA player rosters from BallDontLie API and updates the database.
  * Updates: active status, team assignments, and vesting eligibility.
  */
 
@@ -64,9 +64,6 @@ export async function syncRoster(progressCallback?: ProgressCallback): Promise<J
           jerseyNumber: player.jersey_number || "",
           isActive,
           isEligibleForVesting,
-          currentPrice: "10.00", // Keep existing price
-          volume24h: 0, // Reset daily volume
-          priceChange24h: "0.00",
         });
 
         recordsProcessed++;

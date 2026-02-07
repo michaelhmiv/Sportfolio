@@ -4,8 +4,8 @@
  */
 
 import { db } from "../db";
-import { players, playerGameStats, orders } from "@shared/schema";
-import { eq, desc, sql, isNotNull, and, gte, notInArray, inArray } from "drizzle-orm";
+import { players, playerGameStats, playerPools } from "@shared/schema";
+import { eq, desc, sql, isNotNull, and, gte, notInArray, inArray, gt } from "drizzle-orm";
 
 // Configuration
 const FAIR_VALUE_MULTIPLIER = 0.50; // $0.50 per fantasy point per game
@@ -319,22 +319,20 @@ export async function getEffectivePrice(playerId: string): Promise<number> {
 }
 
 /**
- * Get player IDs that have no open orders in the order book
- * These are "cold" players that need liquidity bootstrapping
+ * Get player IDs that have no (or minimal) AMM pool activity.
+ * These are "cold" players that need liquidity bootstrapping.
  */
-async function getPlayersWithNoOrders(): Promise<Set<string>> {
-  // Get all player IDs that currently have open/partial orders
-  const playersWithOrders = await db
-    .selectDistinct({ playerId: orders.playerId })
-    .from(orders)
-    .where(
-      and(
-        inArray(orders.status, ["open", "partial"]),
-        isNotNull(orders.playerId)
-      )
-    );
+async function getColdPlayersByPoolActivity(): Promise<Set<string>> {
+  // Warm players: have a pool row and at least 1 executed trade recorded.
+  const warmPlayers = await db
+    .selectDistinct({ playerId: playerPools.playerId })
+    .from(playerPools)
+    .where(and(
+      isNotNull(playerPools.playerId),
+      gt(playerPools.totalTrades, 0)
+    ));
 
-  const playersWithOrdersSet = new Set(playersWithOrders.map(p => p.playerId).filter(Boolean) as string[]);
+  const warmPlayersSet = new Set(warmPlayers.map(p => p.playerId).filter(Boolean) as string[]);
 
   // Get all active players
   const allActivePlayers = await db
@@ -342,10 +340,10 @@ async function getPlayersWithNoOrders(): Promise<Set<string>> {
     .from(players)
     .where(eq(players.isActive, true));
 
-  // Return players that DON'T have orders
+  // Return players that DON'T have pool activity
   const coldPlayers = new Set<string>();
   for (const player of allActivePlayers) {
-    if (!playersWithOrdersSet.has(player.id)) {
+    if (!warmPlayersSet.has(player.id)) {
       coldPlayers.add(player.id);
     }
   }
@@ -369,8 +367,8 @@ export async function getMarketMakingCandidates(
   const sports = ['NBA', 'NFL'];
   const perSportLimit = Math.ceil(limit / sports.length);
 
-  // Get players that have no orders (need liquidity bootstrapping) - shared across all sports
-  const coldPlayers = await getPlayersWithNoOrders();
+  // Get players that have low/no pool activity (need liquidity bootstrapping) - shared across all sports
+  const coldPlayers = await getColdPlayersByPoolActivity();
 
   const allCandidates: PlayerValuation[] = [];
 

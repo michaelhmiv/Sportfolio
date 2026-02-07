@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Crown, Zap, Check, Loader2, ShoppingCart, Plus, Minus, TrendingUp, X, RefreshCw } from "lucide-react";
+import { Crown, Zap, Check, Loader2, ShoppingCart, Plus, Minus, X, RefreshCw } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
@@ -363,25 +363,7 @@ export default function Premium() {
         </CardContent>
       </Card>
 
-      {/* Trade on Marketplace */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <TrendingUp className="h-5 w-5" />
-            Trade Premium Shares
-          </CardTitle>
-          <CardDescription>
-            Premium Shares can be traded on the marketplace just like player shares
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Link href="/marketplace">
-            <Button variant="outline" className="w-full" data-testid="button-goto-marketplace">
-              View Premium Shares on Marketplace
-            </Button>
-          </Link>
-        </CardContent>
-      </Card>
+      {/* Premium share trading removed */}
 
       {/* Recent Purchases */}
       {premiumStatus?.recentPurchases && premiumStatus.recentPurchases.length > 0 && (
@@ -439,18 +421,7 @@ export default function Premium() {
               <Crown className="h-4 w-4 mr-2" />
               Redeem for 30 Days Premium
             </Button>
-            <Button
-              variant="outline"
-              className="w-full"
-              onClick={() => {
-                setShowPostPurchaseModal(false);
-                setLocation("/marketplace?tab=premium");
-              }}
-              data-testid="button-modal-sell"
-            >
-              <TrendingUp className="h-4 w-4 mr-2" />
-              Sell on Marketplace
-            </Button>
+            {/* Premium share trading removed */}
             <Button
               variant="ghost"
               className="w-full"

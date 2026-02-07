@@ -2,6 +2,11 @@
 
 ## ✅ COMPLETED
 
+### Routes / Naming
+- Canonical UI name: `Player Pools`
+- Canonical route: `/pools`
+- Legacy alias: `/marketplace` redirects to `/pools` (same feature)
+
 ### 1. Player Detail Page (`client/src/pages/player.tsx`)
 **Status:** ✅ FULLY REPLACED
 
@@ -19,7 +24,7 @@
 - ✅ AMM Pool data interface
 - ✅ AMM Pool info card showing:
   - Pool shares
-  - Pool liquidity
+  - Pool TVL
   - Total volume & trades
   - User's LP position (if any)
 - ✅ `AmmTradePanel` component integration
@@ -153,12 +158,6 @@ activityType: "trade"
 ### 5. WebSocket Handler (`client/src/lib/websocket.tsx`)
 **Priority:** MEDIUM
 
-**Remove:**
-```typescript
-case 'orderBook':
-  debouncedInvalidatePlayer(message.playerId);
-```
-
 **Keep:**
 ```typescript
 case 'trade':
@@ -170,17 +169,9 @@ case 'marketActivity':
 **Priority:** CRITICAL
 
 **Remove/Replace these API calls:**
-```typescript
-// Player page (COMPLETED)
-/api/orders/${id}/preview -> /api/amm/${id}/quote
-/api/orders/${id} -> /api/amm/${id}/buy or /sell
-
-// Portfolio page
-/api/orders/${orderId}/cancel -> REMOVE (AMM has no cancel)
-
-// Marketplace page
-/api/players?hasBuyOrders=true -> REMOVE
-/api/players?hasSellOrders=true -> REMOVE
+```text
+Legacy /api/orders endpoints removed (AMM-only).
+Use /api/amm/:playerId (+ /quote, /buy, /sell).
 ```
 
 ---
@@ -213,17 +204,14 @@ case 'marketActivity':
 - [ ] Update to show AMM pool price
 - [ ] Remove order book filters UI
 
-#### ❌ `client/src/pages/premium-trade.tsx` (NOT STARTED)
-- [ ] Remove order book display
-- [ ] Remove limit order form
-- [ ] Replace with AMM or disable
+#### ✅ `client/src/pages/premium-trade.tsx` (REMOVED)
+- [x] Remove page (premium share trading disabled)
 
-#### ❌ `client/src/components/market-activity-widget.tsx` (NOT STARTED)
-- [ ] Remove order_placed/order_cancelled types
-- [ ] Update activity display logic
+#### ✅ `client/src/components/market-activity-widget.tsx` (DONE)
+- [x] Trades-only market activity
 
-#### ❌ `client/src/lib/websocket.tsx` (NOT STARTED)
-- [ ] Remove orderBook message handler
+#### ✅ `client/src/lib/websocket.tsx` (DONE)
+- [x] Remove orderBook message handler
 
 ---
 
@@ -233,13 +221,13 @@ Given the complexity, I recommend this implementation order:
 
 ### Phase 1: Critical Pages (DONE + Next)
 1. ✅ Player detail page (DONE)
-2. ❌ Portfolio page - Remove orders tab, update holdings display
-3. ❌ Marketplace page - Replace bid/ask with AMM price
+2. ✅ Portfolio page - Remove orders tab, update holdings display
+3. ✅ Marketplace page - Replace bid/ask with AMM price
 
 ### Phase 2: Supporting Components
-4. ❌ Premium trade page
-5. ❌ Market activity widget
-6. ❌ WebSocket cleanup
+4. ✅ Premium trade page
+5. ✅ Market activity widget
+6. ✅ WebSocket cleanup
 
 ### Phase 3: Polish
 7. ❌ Update onboarding text
