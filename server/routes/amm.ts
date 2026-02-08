@@ -147,6 +147,9 @@ export function registerAmmRoutes(app: Express) {
       }
 
       const amount = parseFloat(sbAmount);
+      if (isNaN(amount) || amount < 0.01) {
+        return res.status(400).json({ error: "Minimum buy amount is $0.01" });
+      }
       // Validate and clamp maxSlippage to safe bounds
       let maxSlippageDecimal = maxSlippage !== undefined ? parseFloat(maxSlippage) : DEFAULT_SLIPPAGE;
       if (isNaN(maxSlippageDecimal) || maxSlippageDecimal < MIN_SLIPPAGE) {
