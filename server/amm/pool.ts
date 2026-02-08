@@ -478,7 +478,44 @@ export async function executeBuy(
       };
 
       // 2. Calculate trade details
-      const quote = calculateBuyShares(poolData, sbAmount);
+      const rawQuote = calculateBuyShares(poolData, sbAmount);
+      const sharesOutRounded = Math.floor(rawQuote.sharesOut);
+
+      if (sharesOutRounded < 1) {
+        return { success: false, error: "Trade too small: must buy at least 1 share" };
+      }
+
+      const targetNewShares = poolData.shares - sharesOutRounded;
+      if (targetNewShares <= 0) {
+        return { success: false, error: "Trade would deplete pool reserves" };
+      }
+
+      const targetNewPlayMoney = poolData.k / targetNewShares;
+      const poolReceives = targetNewPlayMoney - poolData.playMoney;
+      if (!isFinite(poolReceives) || poolReceives <= 0) {
+        return { success: false, error: "Trade too large: invalid pool state" };
+      }
+
+      const adjustedSbAmount = poolReceives / (1 + POOL_FEE_PERCENT);
+      if (adjustedSbAmount - sbAmount > 1e-6) {
+        return { success: false, error: "Trade rounding requires more SB than requested" };
+      }
+      const poolFee = adjustedSbAmount * POOL_FEE_PERCENT;
+      const burnFee = adjustedSbAmount * BURN_FEE_PERCENT;
+      const totalCost = adjustedSbAmount + poolFee + burnFee;
+      const effectivePrice = totalCost / sharesOutRounded;
+      const currentPrice = poolData.playMoney / poolData.shares;
+      const slippagePercent = (effectivePrice - currentPrice) / currentPrice;
+
+      const quote: BuyQuote = {
+        sharesOut: sharesOutRounded,
+        effectivePrice,
+        slippagePercent,
+        newPoolPrice: targetNewPlayMoney / targetNewShares,
+        totalCost,
+        poolFee,
+        burnFee,
+      };
 
       // 3. Check slippage
       if (quote.slippagePercent > maxSlippage) {
@@ -505,8 +542,8 @@ export async function executeBuy(
 
       // 5. Update pool state (pool receives SB + pool fee, burn fee is just not added)
       const newShares = poolData.shares - quote.sharesOut;
-      const newPlayMoney = poolData.playMoney + sbAmount + quote.poolFee; // User SB + pool fee
-      const newTotalVolume = poolData.totalVolume + sbAmount;
+      const newPlayMoney = poolData.playMoney + adjustedSbAmount + quote.poolFee; // User SB + pool fee
+      const newTotalVolume = poolData.totalVolume + adjustedSbAmount;
       const newFeesAccumulated = poolData.feesAccumulated + quote.poolFee;
       const feeGrowthDelta =
         poolData.lpSharesTotal > 0 ? quote.poolFee / poolData.lpSharesTotal : 0;
@@ -539,7 +576,7 @@ export async function executeBuy(
         .set({ balance: newBalance.toFixed(2) })
         .where(eq(users.id, userId));
 
-      // 7. Add shares to user holdings
+      // 7. Add shares to user holdings (rounded to whole numbers)
       const [existingHolding] = await tx
         .select()
         .from(holdings)
@@ -593,7 +630,7 @@ export async function executeBuy(
           sellerId: "pool",
           buyOrderId: null,
           sellOrderId: null,
-          quantity: Math.round(quote.sharesOut).toString(),
+          quantity: quote.sharesOut.toString(),
           price: quote.effectivePrice.toFixed(2),
           executedAt: new Date(),
         })
@@ -607,7 +644,7 @@ export async function executeBuy(
           currentPrice: quote.newPoolPrice.toFixed(2),
           // volume24h is updated asynchronously as a true rolling 24h metric.
           // Keep a lightweight counter here for immediate UI feedback between refreshes.
-          volume24h: sql`${players.volume24h} + ${Math.round(quote.sharesOut)}`,
+          volume24h: sql`${players.volume24h} + ${quote.sharesOut}`,
           lastUpdated: new Date(),
         })
         .where(eq(players.id, playerId));
@@ -617,7 +654,7 @@ export async function executeBuy(
         type: "trade",
         playerId,
         price: quote.newPoolPrice.toFixed(2),
-        quantity: quote.sharesOut,
+        quantity: sharesOutRounded,
         buyerId: userId,
         sellerId: "pool",
       });
@@ -661,7 +698,7 @@ export async function executeBuy(
       return {
         success: true,
         tradeId: trade.id,
-        sharesTraded: quote.sharesOut,
+        sharesTraded: sharesOutRounded,
         pricePerShare: quote.effectivePrice,
         totalValue: quote.totalCost,
         slippagePercent: quote.slippagePercent,

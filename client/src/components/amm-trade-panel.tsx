@@ -90,57 +90,56 @@ export function AmmTradePanel({
   });
 
   // Handle slider change
-  const handleSliderChange = useCallback(
-    (value: number[]) => {
-      const percentage = value[0];
-      setSliderValue(percentage);
-
-      if (maxAmount > 0) {
-        const newAmount = (maxAmount * percentage) / 100;
-        // Format based on trade type
-        if (tradeType === "buy") {
-          setAmount(newAmount.toFixed(2));
-        } else {
-          setAmount(newAmount.toFixed(4));
-        }
+  const handleSliderChange = useCallback((value: number[]) => {
+    const percentage = value[0];
+    setSliderValue(percentage);
+    
+    if (maxAmount > 0) {
+      const newAmount = (maxAmount * percentage) / 100;
+      // Format based on trade type - shares must be whole numbers
+      if (tradeType === "buy") {
+        setAmount(newAmount.toFixed(2));
+      } else {
+        // Round to whole number shares
+        setAmount(Math.floor(newAmount).toString());
       }
-    },
-    [maxAmount, tradeType],
-  );
+    }
+  }, [maxAmount, tradeType]);
 
   // Handle quick select buttons
-  const handleQuickSelect = useCallback(
-    (percentage: number) => {
-      setSliderValue(percentage);
-
-      if (maxAmount > 0) {
-        const newAmount = (maxAmount * percentage) / 100;
-        if (tradeType === "buy") {
-          setAmount(newAmount.toFixed(2));
-        } else {
-          setAmount(newAmount.toFixed(4));
-        }
+  const handleQuickSelect = useCallback((percentage: number) => {
+    setSliderValue(percentage);
+    
+    if (maxAmount > 0) {
+      const newAmount = (maxAmount * percentage) / 100;
+      if (tradeType === "buy") {
+        setAmount(newAmount.toFixed(2));
+      } else {
+        // Round to whole number shares
+        setAmount(Math.floor(newAmount).toString());
       }
-    },
-    [maxAmount, tradeType],
-  );
+    }
+  }, [maxAmount, tradeType]);
 
   // Handle manual input change
-  const handleManualInputChange = useCallback(
-    (value: string) => {
+  const handleManualInputChange = useCallback((value: string) => {
+    // For selling shares, ensure whole numbers
+    if (tradeType === "sell") {
+      const intValue = Math.floor(parseFloat(value || "0"));
+      setAmount(intValue.toString());
+    } else {
       setAmount(value);
+    }
 
-      // Update slider to match manual input
-      const numValue = parseFloat(value);
-      if (!isNaN(numValue) && maxAmount > 0) {
-        const percentage = Math.min((numValue / maxAmount) * 100, 100);
-        setSliderValue(percentage);
-      } else {
-        setSliderValue(0);
-      }
-    },
-    [maxAmount],
-  );
+    // Update slider to match manual input
+    const numValue = parseFloat(value || "0");
+    if (!isNaN(numValue) && maxAmount > 0) {
+      const percentage = Math.min((numValue / maxAmount) * 100, 100);
+      setSliderValue(percentage);
+    } else {
+      setSliderValue(0);
+    }
+  }, [maxAmount, tradeType]);
 
   // Debounced quote fetch
   const fetchQuote = useCallback(async () => {
@@ -342,7 +341,7 @@ export function AmmTradePanel({
           <span className="text-xs text-muted-foreground">
             {tradeType === "buy"
               ? `Balance: $${userBalance.toFixed(2)}`
-              : `Owned: ${userShares.toFixed(4)} shares`}
+              : `Owned: ${Math.floor(userShares)} shares`}
           </span>
         </div>
 
@@ -352,7 +351,7 @@ export function AmmTradePanel({
             value={[sliderValue]}
             onValueChange={handleSliderChange}
             max={100}
-            step={0.1}
+            step={1}
             className="w-full"
           />
           <div className="flex justify-between text-xs text-muted-foreground">
@@ -391,8 +390,8 @@ export function AmmTradePanel({
             placeholder={tradeType === "buy" ? "100" : "10"}
             value={amount}
             onChange={(e) => handleManualInputChange(e.target.value)}
-            min={0.01}
-            step={tradeType === "buy" ? 0.01 : 0.0001}
+            min={tradeType === "buy" ? 0.01 : 1}
+            step={tradeType === "buy" ? 0.01 : 1}
             className="flex-1"
           />
           <span className="text-sm text-muted-foreground whitespace-nowrap">
@@ -407,7 +406,9 @@ export function AmmTradePanel({
           {/* Primary Trade Info */}
           <div className="text-center pb-3 border-b border-border/50">
             <div className="text-3xl font-bold text-foreground">
-              {tradeType === "buy" ? quote.sharesOut?.toFixed(4) : `$${quote.sbOut?.toFixed(2)}`}
+              {tradeType === "buy"
+                ? Math.floor(quote.sharesOut || 0).toLocaleString()
+                : `$${quote.sbOut?.toFixed(2)}`}
             </div>
             <div className="text-sm text-muted-foreground">
               {tradeType === "buy" ? "Shares You'll Receive" : "SB You'll Receive"}
