@@ -6,7 +6,15 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { LiveLogViewer } from "@/components/live-log-viewer";
@@ -118,7 +126,7 @@ export default function Admin() {
   const [isBackfilling, setIsBackfilling] = useState(false);
   const [backfillOperationId, setBackfillOperationId] = useState<string | null>(null);
   const [jobOperationIds, setJobOperationIds] = useState<Map<string, string>>(new Map());
-  
+
   // Blog post state
   const [blogDialogOpen, setBlogDialogOpen] = useState(false);
   const [editingPost, setEditingPost] = useState<BlogPost | null>(null);
@@ -151,15 +159,15 @@ export default function Admin() {
       return await res.json();
     },
     onMutate: ({ jobName, operationId }) => {
-      setRunningJobs(prev => new Set(prev).add(jobName));
-      setJobOperationIds(prev => new Map(prev).set(jobName, operationId));
+      setRunningJobs((prev) => new Set(prev).add(jobName));
+      setJobOperationIds((prev) => new Map(prev).set(jobName, operationId));
     },
     onSuccess: (data, { jobName }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] });
       toast({
-        title: data.status === 'degraded' ? "Job completed with errors" : "Job completed",
+        title: data.status === "degraded" ? "Job completed with errors" : "Job completed",
         description: `${jobName}: ${data.result.recordsProcessed} records processed, ${data.result.errorCount} errors`,
-        variant: data.status === 'degraded' ? 'destructive' : undefined,
+        variant: data.status === "degraded" ? "destructive" : undefined,
       });
     },
     onError: (error: any, { jobName }) => {
@@ -170,7 +178,7 @@ export default function Admin() {
       });
     },
     onSettled: (_, __, { jobName }) => {
-      setRunningJobs(prev => {
+      setRunningJobs((prev) => {
         const next = new Set(prev);
         next.delete(jobName);
         return next;
@@ -184,8 +192,20 @@ export default function Admin() {
   };
 
   const backfillMutation = useMutation({
-    mutationFn: async ({ startDate, endDate, operationId }: { startDate: string; endDate: string; operationId: string }) => {
-      const res = await apiRequest("POST", "/api/admin/backfill", { startDate, endDate, operationId });
+    mutationFn: async ({
+      startDate,
+      endDate,
+      operationId,
+    }: {
+      startDate: string;
+      endDate: string;
+      operationId: string;
+    }) => {
+      const res = await apiRequest("POST", "/api/admin/backfill", {
+        startDate,
+        endDate,
+        operationId,
+      });
       return await res.json();
     },
     onMutate: ({ operationId }) => {
@@ -194,12 +214,12 @@ export default function Admin() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] });
-      
-      const variant = data.status === 'degraded' ? 'default' : 'default';
+
+      const variant = data.status === "degraded" ? "default" : "default";
       toast({
-        title: data.status === 'degraded' ? "Backfill completed with errors" : "Backfill completed",
+        title: data.status === "degraded" ? "Backfill completed with errors" : "Backfill completed",
         description: `${data.result.recordsProcessed} game logs cached, ${data.result.errorCount} errors, ${data.result.requestCount} API requests`,
-        variant: data.status === 'degraded' ? 'destructive' : undefined,
+        variant: data.status === "degraded" ? "destructive" : undefined,
       });
     },
     onError: (error: any) => {
@@ -223,10 +243,14 @@ export default function Admin() {
       });
       return;
     }
-    
+
     // Generate unique operation ID
     const operationId = `backfill-${Date.now()}`;
-    backfillMutation.mutate({ startDate: backfillStartDate, endDate: backfillEndDate, operationId });
+    backfillMutation.mutate({
+      startDate: backfillStartDate,
+      endDate: backfillEndDate,
+      operationId,
+    });
   };
 
   // Blog posts query
@@ -251,7 +275,11 @@ export default function Admin() {
       toast({ title: "Settings updated" });
     },
     onError: (error: any) => {
-      toast({ title: "Failed to update settings", description: error.message, variant: "destructive" });
+      toast({
+        title: "Failed to update settings",
+        description: error.message,
+        variant: "destructive",
+      });
     },
   });
 
@@ -317,7 +345,11 @@ export default function Admin() {
 
   const handleDraftCustomTweet = async () => {
     if (!customPrompt.trim()) {
-      toast({ title: "Enter a prompt", description: "Describe what you want to tweet about", variant: "destructive" });
+      toast({
+        title: "Enter a prompt",
+        description: "Describe what you want to tweet about",
+        variant: "destructive",
+      });
       return;
     }
     setIsDrafting(true);
@@ -341,7 +373,9 @@ export default function Admin() {
     if (!customDraft) return;
     setIsPosting(true);
     try {
-      const res = await apiRequest("POST", "/api/admin/tweets/post", { customContent: customDraft });
+      const res = await apiRequest("POST", "/api/admin/tweets/post", {
+        customContent: customDraft,
+      });
       const data = await res.json();
       if (data.success) {
         toast({ title: "Tweet posted!", description: `Tweet ID: ${data.tweetId}` });
@@ -418,7 +452,11 @@ export default function Admin() {
   });
 
   const handleCleanupDuplicates = () => {
-    if (confirm("This will delete legacy MySportsFeeds game records that have BallDontLie equivalents. Continue?")) {
+    if (
+      confirm(
+        "This will delete legacy MySportsFeeds game records that have BallDontLie equivalents. Continue?",
+      )
+    ) {
       cleanupDuplicatesMutation.mutate();
     }
   };
@@ -583,7 +621,11 @@ export default function Admin() {
       case "success":
         return <Badge className="bg-positive/10 text-positive border-positive/20">Success</Badge>;
       case "degraded":
-        return <Badge className="bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border-yellow-500/20">Degraded</Badge>;
+        return (
+          <Badge className="bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border-yellow-500/20">
+            Degraded
+          </Badge>
+        );
       case "failed":
         return <Badge variant="destructive">Failed</Badge>;
       default:
@@ -657,9 +699,7 @@ export default function Admin() {
               <Sparkles className="w-5 h-5" />
               Grant Premium Shares
             </CardTitle>
-            <CardDescription>
-              Manually grant premium shares to a user by username.
-            </CardDescription>
+            <CardDescription>Manually grant premium shares to a user by username.</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
@@ -757,7 +797,8 @@ export default function Admin() {
                   <div className="font-semibold">Cleanup Results:</div>
                   <div className="text-sm">{cleanupDuplicatesMutation.data.message}</div>
                   <div className="text-xs mt-1">
-                    {cleanupDuplicatesMutation.data.deletedCount} deleted, {cleanupDuplicatesMutation.data.keptCount} kept
+                    {cleanupDuplicatesMutation.data.deletedCount} deleted,{" "}
+                    {cleanupDuplicatesMutation.data.keptCount} kept
                   </div>
                 </div>
               )}
@@ -773,7 +814,8 @@ export default function Admin() {
               Game Logs Backfill
             </CardTitle>
             <CardDescription>
-              Manually backfill game logs for a specific date range. The daily cron job only fetches yesterday's games. Use this for initial setup or catching up after downtime.
+              Manually backfill game logs for a specific date range. The daily cron job only fetches
+              yesterday's games. Use this for initial setup or catching up after downtime.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -821,7 +863,9 @@ export default function Admin() {
                 )}
               </Button>
               <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-lg">
-                <strong>Note:</strong> Backfilling is slow (~5-10 minutes for full season). Each date requires a 5-second API call. The daily cron job completes in ~5 seconds since it only fetches yesterday.
+                <strong>Note:</strong> Backfilling is slow (~5-10 minutes for full season). Each
+                date requires a 5-second API call. The daily cron job completes in ~5 seconds since
+                it only fetches yesterday.
               </div>
             </div>
           </CardContent>
@@ -847,12 +891,16 @@ export default function Admin() {
               Background Jobs
             </CardTitle>
             <CardDescription>
-              Manually trigger background sync jobs. In production, these should run via external cron service.
+              Manually trigger background sync jobs. In production, these should run via external
+              cron service.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {Object.entries(jobDescriptions).map(([jobName, description]) => (
-              <div key={jobName} className="flex items-center justify-between p-4 rounded-lg border">
+              <div
+                key={jobName}
+                className="flex items-center justify-between p-4 rounded-lg border"
+              >
                 <div className="flex-1">
                   <div className="font-semibold font-mono text-sm mb-1">{jobName}</div>
                   <div className="text-sm text-muted-foreground">{description}</div>
@@ -889,7 +937,7 @@ export default function Admin() {
             title={`${jobName} - Live Status`}
             description={`Real-time progress and logs from ${jobName} job`}
             onComplete={() => {
-              setJobOperationIds(prev => {
+              setJobOperationIds((prev) => {
                 const next = new Map(prev);
                 next.delete(jobName);
                 return next;
@@ -911,7 +959,12 @@ export default function Admin() {
               </div>
               <Dialog open={blogDialogOpen} onOpenChange={setBlogDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button size="sm" className="gap-2" onClick={() => handleOpenBlogDialog()} data-testid="button-create-blog-post">
+                  <Button
+                    size="sm"
+                    className="gap-2"
+                    onClick={() => handleOpenBlogDialog()}
+                    data-testid="button-create-blog-post"
+                  >
                     <Plus className="w-4 h-4" />
                     New Post
                   </Button>
@@ -920,7 +973,9 @@ export default function Admin() {
                   <DialogHeader>
                     <DialogTitle>{editingPost ? "Edit Blog Post" : "Create Blog Post"}</DialogTitle>
                     <DialogDescription>
-                      {editingPost ? "Update your blog post content" : "Create a new blog post for Sportfolio"}
+                      {editingPost
+                        ? "Update your blog post content"
+                        : "Create a new blog post for Sportfolio"}
                     </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4 py-4">
@@ -967,7 +1022,8 @@ export default function Admin() {
                         data-testid="textarea-blog-content"
                       />
                       <p className="text-xs text-muted-foreground">
-                        Use markdown syntax: **bold**, *italic*, # Headings, - Lists, [links](url), ```code blocks```, etc.
+                        Use markdown syntax: **bold**, *italic*, # Headings, - Lists, [links](url),
+                        ```code blocks```, etc.
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -1059,11 +1115,15 @@ export default function Admin() {
                 Twitter Automation
               </CardTitle>
               <div className="flex items-center gap-2">
-                <Label htmlFor="tweet-enabled" className="text-sm">Auto-post</Label>
+                <Label htmlFor="tweet-enabled" className="text-sm">
+                  Auto-post
+                </Label>
                 <Switch
                   id="tweet-enabled"
                   checked={tweetData?.settings?.enabled ?? false}
-                  onCheckedChange={(checked) => updateTweetSettingsMutation.mutate({ enabled: checked })}
+                  onCheckedChange={(checked) =>
+                    updateTweetSettingsMutation.mutate({ enabled: checked })
+                  }
                   data-testid="switch-tweet-enabled"
                 />
               </div>
@@ -1075,20 +1135,32 @@ export default function Admin() {
             <div className="flex flex-wrap gap-2">
               <Badge variant={tweetData?.status?.twitter?.configured ? "default" : "secondary"}>
                 <Twitter className="w-3 h-3 mr-1" />
-                X/Twitter: {tweetData?.status?.twitter?.configured ? "Configured" : "Not configured"}
+                X/Twitter:{" "}
+                {tweetData?.status?.twitter?.configured ? "Configured" : "Not configured"}
               </Badge>
               <Badge variant={tweetData?.status?.perplexity?.configured ? "default" : "secondary"}>
                 <Sparkles className="w-3 h-3 mr-1" />
-                Perplexity: {tweetData?.status?.perplexity?.configured ? "Configured" : "Not configured"}
+                Perplexity:{" "}
+                {tweetData?.status?.perplexity?.configured ? "Configured" : "Not configured"}
               </Badge>
             </div>
 
             {/* Test Connections */}
             <div className="flex flex-wrap gap-2">
-              <Button size="sm" variant="outline" onClick={handleTestTwitter} data-testid="button-test-twitter">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleTestTwitter}
+                data-testid="button-test-twitter"
+              >
                 Test X Connection
               </Button>
-              <Button size="sm" variant="outline" onClick={handleTestPerplexity} data-testid="button-test-perplexity">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleTestPerplexity}
+                data-testid="button-test-perplexity"
+              >
                 Test Perplexity
               </Button>
             </div>
@@ -1100,43 +1172,61 @@ export default function Admin() {
                   type="checkbox"
                   id="include-risers"
                   checked={tweetData?.settings?.includeRisers ?? true}
-                  onChange={(e) => updateTweetSettingsMutation.mutate({ includeRisers: e.target.checked })}
+                  onChange={(e) =>
+                    updateTweetSettingsMutation.mutate({ includeRisers: e.target.checked })
+                  }
                   className="h-4 w-4"
                   data-testid="checkbox-include-risers"
                 />
-                <Label htmlFor="include-risers" className="text-xs">Top Risers</Label>
+                <Label htmlFor="include-risers" className="text-xs">
+                  Top Risers
+                </Label>
               </div>
               <div className="flex items-center gap-2">
                 <input
                   type="checkbox"
                   id="include-volume"
                   checked={tweetData?.settings?.includeVolume ?? true}
-                  onChange={(e) => updateTweetSettingsMutation.mutate({ includeVolume: e.target.checked })}
+                  onChange={(e) =>
+                    updateTweetSettingsMutation.mutate({ includeVolume: e.target.checked })
+                  }
                   className="h-4 w-4"
                   data-testid="checkbox-include-volume"
                 />
-                <Label htmlFor="include-volume" className="text-xs">Volume</Label>
+                <Label htmlFor="include-volume" className="text-xs">
+                  Volume
+                </Label>
               </div>
               <div className="flex items-center gap-2">
                 <input
                   type="checkbox"
                   id="include-marketcap"
                   checked={tweetData?.settings?.includeMarketCap ?? true}
-                  onChange={(e) => updateTweetSettingsMutation.mutate({ includeMarketCap: e.target.checked })}
+                  onChange={(e) =>
+                    updateTweetSettingsMutation.mutate({ includeMarketCap: e.target.checked })
+                  }
                   className="h-4 w-4"
                   data-testid="checkbox-include-marketcap"
                 />
-                <Label htmlFor="include-marketcap" className="text-xs">Market Cap</Label>
+                <Label htmlFor="include-marketcap" className="text-xs">
+                  Market Cap
+                </Label>
               </div>
               <div className="flex items-center gap-2">
-                <Label htmlFor="max-players" className="text-xs">Max Players:</Label>
+                <Label htmlFor="max-players" className="text-xs">
+                  Max Players:
+                </Label>
                 <Input
                   id="max-players"
                   type="number"
                   min={1}
                   max={5}
                   value={tweetData?.settings?.maxPlayers ?? 3}
-                  onChange={(e) => updateTweetSettingsMutation.mutate({ maxPlayers: parseInt(e.target.value) || 3 })}
+                  onChange={(e) =>
+                    updateTweetSettingsMutation.mutate({
+                      maxPlayers: parseInt(e.target.value) || 3,
+                    })
+                  }
                   className="w-14 h-7 text-xs"
                   data-testid="input-max-players"
                 />
@@ -1147,12 +1237,30 @@ export default function Admin() {
             <div className="space-y-2">
               <h4 className="text-sm font-semibold">Daily Auto-Tweet</h4>
               <div className="flex flex-wrap gap-2">
-                <Button size="sm" onClick={handlePreviewTweet} disabled={isPreviewLoading} data-testid="button-preview-tweet">
-                  {isPreviewLoading ? <RefreshCw className="w-4 h-4 mr-1 animate-spin" /> : <Eye className="w-4 h-4 mr-1" />}
+                <Button
+                  size="sm"
+                  onClick={handlePreviewTweet}
+                  disabled={isPreviewLoading}
+                  data-testid="button-preview-tweet"
+                >
+                  {isPreviewLoading ? (
+                    <RefreshCw className="w-4 h-4 mr-1 animate-spin" />
+                  ) : (
+                    <Eye className="w-4 h-4 mr-1" />
+                  )}
                   Preview Daily
                 </Button>
-                <Button size="sm" onClick={handlePostTweet} disabled={isPosting || !tweetData?.status?.twitter?.configured} data-testid="button-post-tweet">
-                  {isPosting ? <RefreshCw className="w-4 h-4 mr-1 animate-spin" /> : <Send className="w-4 h-4 mr-1" />}
+                <Button
+                  size="sm"
+                  onClick={handlePostTweet}
+                  disabled={isPosting || !tweetData?.status?.twitter?.configured}
+                  data-testid="button-post-tweet"
+                >
+                  {isPosting ? (
+                    <RefreshCw className="w-4 h-4 mr-1 animate-spin" />
+                  ) : (
+                    <Send className="w-4 h-4 mr-1" />
+                  )}
                   Post Daily
                 </Button>
               </div>
@@ -1176,18 +1284,30 @@ export default function Admin() {
                 data-testid="textarea-custom-prompt"
               />
               <div className="flex flex-wrap gap-2">
-                <Button size="sm" onClick={handleDraftCustomTweet} disabled={isDrafting || !tweetData?.status?.perplexity?.configured} data-testid="button-draft-custom">
-                  {isDrafting ? <RefreshCw className="w-4 h-4 mr-1 animate-spin" /> : <Sparkles className="w-4 h-4 mr-1" />}
+                <Button
+                  size="sm"
+                  onClick={handleDraftCustomTweet}
+                  disabled={isDrafting || !tweetData?.status?.perplexity?.configured}
+                  data-testid="button-draft-custom"
+                >
+                  {isDrafting ? (
+                    <RefreshCw className="w-4 h-4 mr-1 animate-spin" />
+                  ) : (
+                    <Sparkles className="w-4 h-4 mr-1" />
+                  )}
                   Draft with AI
                 </Button>
               </div>
-              
+
               {/* Custom Draft Result */}
               {customDraft && (
                 <div className="p-3 rounded-lg border bg-muted/30 space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-semibold">AI Draft</span>
-                    <Badge variant={customDraft.length <= 280 ? "default" : "destructive"} className="text-xs">
+                    <Badge
+                      variant={customDraft.length <= 280 ? "default" : "destructive"}
+                      className="text-xs"
+                    >
                       {customDraft.length}/280
                     </Badge>
                   </div>
@@ -1199,8 +1319,17 @@ export default function Admin() {
                     data-testid="textarea-custom-draft"
                   />
                   <div className="flex gap-2">
-                    <Button size="sm" onClick={handlePostCustomDraft} disabled={isPosting || customDraft.length > 280} data-testid="button-post-custom">
-                      {isPosting ? <RefreshCw className="w-4 h-4 mr-1 animate-spin" /> : <Send className="w-4 h-4 mr-1" />}
+                    <Button
+                      size="sm"
+                      onClick={handlePostCustomDraft}
+                      disabled={isPosting || customDraft.length > 280}
+                      data-testid="button-post-custom"
+                    >
+                      {isPosting ? (
+                        <RefreshCw className="w-4 h-4 mr-1 animate-spin" />
+                      ) : (
+                        <Send className="w-4 h-4 mr-1" />
+                      )}
                       Post This Tweet
                     </Button>
                     <Button size="sm" variant="outline" onClick={() => setCustomDraft(null)}>
@@ -1216,14 +1345,19 @@ export default function Admin() {
               <div className="p-3 rounded-lg border bg-muted/30">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs font-semibold">Preview</span>
-                  <Badge variant={tweetPreview.characterCount <= 280 ? "default" : "destructive"} className="text-xs">
+                  <Badge
+                    variant={tweetPreview.characterCount <= 280 ? "default" : "destructive"}
+                    className="text-xs"
+                  >
                     {tweetPreview.characterCount}/280
                   </Badge>
                 </div>
                 <pre className="text-sm whitespace-pre-wrap font-mono">{tweetPreview.content}</pre>
                 {tweetPreview.aiSummary && (
                   <div className="mt-2 pt-2 border-t">
-                    <span className="text-xs text-muted-foreground">AI Summary (expanded): {tweetPreview.aiSummary}</span>
+                    <span className="text-xs text-muted-foreground">
+                      AI Summary (expanded): {tweetPreview.aiSummary}
+                    </span>
                   </div>
                 )}
               </div>
@@ -1235,10 +1369,15 @@ export default function Admin() {
                 <h4 className="text-sm font-semibold">Recent Tweets</h4>
                 <div className="space-y-1 max-h-40 overflow-y-auto">
                   {tweetData.history.slice(0, 5).map((tweet) => (
-                    <div key={tweet.id} className="flex items-center justify-between p-2 rounded border text-xs">
+                    <div
+                      key={tweet.id}
+                      className="flex items-center justify-between p-2 rounded border text-xs"
+                    >
                       <div className="flex-1 min-w-0 mr-2">
                         <span className="truncate block">{tweet.content.slice(0, 60)}...</span>
-                        <span className="text-muted-foreground">{new Date(tweet.createdAt).toLocaleString()}</span>
+                        <span className="text-muted-foreground">
+                          {new Date(tweet.createdAt).toLocaleString()}
+                        </span>
                       </div>
                       {tweet.status === "posted" ? (
                         <Badge variant="default" className="text-xs shrink-0">
@@ -1272,15 +1411,16 @@ export default function Admin() {
             {stats?.lastJobRuns && stats.lastJobRuns.length > 0 ? (
               <div className="space-y-3">
                 {stats.lastJobRuns.map((job) => (
-                  <div key={job.jobName} className="flex items-center justify-between p-3 rounded-lg border">
+                  <div
+                    key={job.jobName}
+                    className="flex items-center justify-between p-3 rounded-lg border"
+                  >
                     <div className="flex items-center gap-3">
                       {getStatusIcon(job.status)}
                       <div>
                         <div className="font-mono text-sm font-semibold">{job.jobName}</div>
                         <div className="text-xs text-muted-foreground">
-                          {job.finishedAt
-                            ? new Date(job.finishedAt).toLocaleString()
-                            : "Never run"}
+                          {job.finishedAt ? new Date(job.finishedAt).toLocaleString() : "Never run"}
                         </div>
                       </div>
                     </div>
@@ -1297,9 +1437,7 @@ export default function Admin() {
                 ))}
               </div>
             ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                No job history available
-              </div>
+              <div className="text-center py-8 text-muted-foreground">No job history available</div>
             )}
           </CardContent>
         </Card>

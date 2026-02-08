@@ -7,18 +7,18 @@ import { users, trades } from "@shared/schema";
 import { eq, sql } from "drizzle-orm";
 
 async function debugFK() {
-    console.log("[Debug] Checking pool user...");
+  console.log("[Debug] Checking pool user...");
 
-    // 1. Check pool user exists
-    const [poolUser] = await db
-        .select({ id: users.id, username: users.username, email: users.email })
-        .from(users)
-        .where(eq(users.id, "pool"));
+  // 1. Check pool user exists
+  const [poolUser] = await db
+    .select({ id: users.id, username: users.username, email: users.email })
+    .from(users)
+    .where(eq(users.id, "pool"));
 
-    console.log("[Debug] Pool user:", poolUser);
+  console.log("[Debug] Pool user:", poolUser);
 
-    // 2. Check FK constraint on trades table
-    const constraints = await db.execute(sql`
+  // 2. Check FK constraint on trades table
+  const constraints = await db.execute(sql`
     SELECT 
       tc.constraint_name,
       kcu.column_name,
@@ -34,12 +34,12 @@ async function debugFK() {
       AND kcu.column_name = 'seller_id'
   `);
 
-    console.log("[Debug] FK constraints on trades.seller_id:", constraints.rows);
+  console.log("[Debug] FK constraints on trades.seller_id:", constraints.rows);
 
-    // 3. Try to insert a test trade with sellerId = "pool" directly
-    console.log("[Debug] Testing direct insert with sellerId='pool'...");
-    try {
-        const testResult = await db.execute(sql`
+  // 3. Try to insert a test trade with sellerId = "pool" directly
+  console.log("[Debug] Testing direct insert with sellerId='pool'...");
+  try {
+    const testResult = await db.execute(sql`
       INSERT INTO trades (player_id, buyer_id, seller_id, quantity, price)
       SELECT 
         (SELECT id FROM players LIMIT 1),
@@ -49,24 +49,24 @@ async function debugFK() {
         10.00
       RETURNING id
     `);
-        console.log("[Debug] Test insert succeeded:", testResult.rows);
+    console.log("[Debug] Test insert succeeded:", testResult.rows);
 
-        // Clean up test trade
-        if (testResult.rows[0]) {
-            await db.execute(sql`DELETE FROM trades WHERE id = ${testResult.rows[0].id}`);
-            console.log("[Debug] Cleaned up test trade");
-        }
-    } catch (error: any) {
-        console.error("[Debug] Test insert failed:", error.message);
+    // Clean up test trade
+    if (testResult.rows[0]) {
+      await db.execute(sql`DELETE FROM trades WHERE id = ${testResult.rows[0].id}`);
+      console.log("[Debug] Cleaned up test trade");
     }
+  } catch (error: any) {
+    console.error("[Debug] Test insert failed:", error.message);
+  }
 }
 
 debugFK()
-    .then(() => {
-        console.log("[Debug] Done");
-        process.exit(0);
-    })
-    .catch((err) => {
-        console.error("[Debug] Error:", err);
-        process.exit(1);
-    });
+  .then(() => {
+    console.log("[Debug] Done");
+    process.exit(0);
+  })
+  .catch((err) => {
+    console.error("[Debug] Error:", err);
+    process.exit(1);
+  });

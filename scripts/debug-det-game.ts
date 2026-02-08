@@ -1,4 +1,4 @@
-import 'dotenv/config';
+import "dotenv/config";
 import { db } from "../server/db";
 import { dailyGames } from "../shared/schema";
 import { eq, and, gte, lt } from "drizzle-orm";
@@ -11,34 +11,41 @@ async function debug() {
   console.log("Query range:", startOfDay.toISOString(), "to", endOfDay.toISOString());
 
   // Query with exact same filters as the eligible players function
-  const todaysGames = await db.select().from(dailyGames)
-      .where(and(
-          eq(dailyGames.sport, "NBA"),
-          gte(dailyGames.startTime, startOfDay),
-          lt(dailyGames.startTime, endOfDay)
-      ));
+  const todaysGames = await db
+    .select()
+    .from(dailyGames)
+    .where(
+      and(
+        eq(dailyGames.sport, "NBA"),
+        gte(dailyGames.startTime, startOfDay),
+        lt(dailyGames.startTime, endOfDay),
+      ),
+    );
 
   console.log("\nGames returned by query:", todaysGames.length);
   for (const g of todaysGames) {
-    console.log(`  ${g.awayTeam} @ ${g.homeTeam} | ${g.status} | start: ${new Date(g.startTime).toISOString()}`);
+    console.log(
+      `  ${g.awayTeam} @ ${g.homeTeam} | ${g.status} | start: ${new Date(g.startTime).toISOString()}`,
+    );
   }
 
   // Check specifically for DET games
   console.log("\n=== DET games in query range ===");
-  const detGames = todaysGames.filter(g =>
-    g.homeTeam === 'DET' || g.awayTeam === 'DET'
-  );
+  const detGames = todaysGames.filter((g) => g.homeTeam === "DET" || g.awayTeam === "DET");
   console.log("DET games found:", detGames.length);
 
   // Check ALL games for today regardless of status filter
   console.log("\n=== All games with startTime today (any status) ===");
-  const allToday = await db.select().from(dailyGames).where(
-    and(
-      eq(dailyGames.sport, "NBA"),
-      gte(dailyGames.startTime, startOfDay),
-      lt(dailyGames.startTime, endOfDay)
-    )
-  );
+  const allToday = await db
+    .select()
+    .from(dailyGames)
+    .where(
+      and(
+        eq(dailyGames.sport, "NBA"),
+        gte(dailyGames.startTime, startOfDay),
+        lt(dailyGames.startTime, endOfDay),
+      ),
+    );
   console.log("Total games:", allToday.length);
   for (const g of allToday) {
     console.log(`  ${g.awayTeam} @ ${g.homeTeam} | ${g.status}`);
@@ -46,13 +53,16 @@ async function debug() {
 
   // Check for BOS @ DET specifically
   console.log("\n=== BOS @ DET game ===");
-  const bosDet = await db.select().from(dailyGames).where(
-    and(
-      eq(dailyGames.sport, "NBA"),
-      eq(dailyGames.homeTeam, "DET"),
-      eq(dailyGames.awayTeam, "BOS")
-    )
-  );
+  const bosDet = await db
+    .select()
+    .from(dailyGames)
+    .where(
+      and(
+        eq(dailyGames.sport, "NBA"),
+        eq(dailyGames.homeTeam, "DET"),
+        eq(dailyGames.awayTeam, "BOS"),
+      ),
+    );
   console.log("BOS @ DET games:", bosDet.length);
   for (const g of bosDet) {
     console.log(`  ID: ${g.id}`);

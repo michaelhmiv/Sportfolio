@@ -3,16 +3,16 @@
  * Fixes the stuck vesting by manually processing claims
  */
 
-import { Pool } from 'pg';
-import * as dotenv from 'dotenv';
-import * as path from 'path';
+import { Pool } from "pg";
+import * as dotenv from "dotenv";
+import * as path from "path";
 
-dotenv.config({ path: path.resolve(process.cwd(), '.env') });
+dotenv.config({ path: path.resolve(process.cwd(), ".env") });
 
 const pool = new Pool({ connectionString: process.env.DEV_DATABASE_URL });
 
 async function forceClaimBotShares() {
-  console.log('=== FORCE CLAIMING BOT VESTING SHARES ===\n');
+  console.log("=== FORCE CLAIMING BOT VESTING SHARES ===\n");
 
   // Get all bot vesting records with accumulated shares
   const vestingRecords = await pool.query(`
@@ -32,9 +32,12 @@ async function forceClaimBotShares() {
     if (shares <= 0) continue;
 
     // Get vesting splits for this user
-    const splits = await pool.query(`
+    const splits = await pool.query(
+      `
       SELECT player_id, shares_per_hour FROM vesting_splits WHERE user_id = $1
-    `, [v.user_id]);
+    `,
+      [v.user_id],
+    );
 
     if (splits.rows.length > 0) {
       // Distribute across splits proportionally
@@ -46,52 +49,74 @@ async function forceClaimBotShares() {
 
         if (sharesToAdd > 0) {
           // Check for existing holding
-          const existing = await pool.query(`
+          const existing = await pool.query(
+            `
             SELECT id, quantity FROM holdings 
             WHERE user_id = $1 AND asset_type = 'player' AND asset_id = $2
-          `, [v.user_id, split.player_id]);
+          `,
+            [v.user_id, split.player_id],
+          );
 
           if (existing.rows.length > 0) {
-            await pool.query(`
+            await pool.query(
+              `
               UPDATE holdings SET quantity = quantity + $1, last_updated = NOW()
               WHERE id = $2
-            `, [sharesToAdd, existing.rows[0].id]);
+            `,
+              [sharesToAdd, existing.rows[0].id],
+            );
           } else {
-            await pool.query(`
+            await pool.query(
+              `
               INSERT INTO holdings (user_id, asset_type, asset_id, quantity, avg_cost_basis, total_cost_basis)
               VALUES ($1, 'player', $2, $3, '0.0000', '0.00')
-            `, [v.user_id, split.player_id, sharesToAdd]);
+            `,
+              [v.user_id, split.player_id, sharesToAdd],
+            );
           }
         }
       }
     } else if (v.player_id) {
       // Single player vesting
-      const existing = await pool.query(`
+      const existing = await pool.query(
+        `
         SELECT id, quantity FROM holdings 
         WHERE user_id = $1 AND asset_type = 'player' AND asset_id = $2
-      `, [v.user_id, v.player_id]);
+      `,
+        [v.user_id, v.player_id],
+      );
 
       if (existing.rows.length > 0) {
-        await pool.query(`
+        await pool.query(
+          `
           UPDATE holdings SET quantity = quantity + $1, last_updated = NOW()
           WHERE id = $2
-        `, [shares, existing.rows[0].id]);
+        `,
+          [shares, existing.rows[0].id],
+        );
       } else {
-        await pool.query(`
+        await pool.query(
+          `
           INSERT INTO holdings (user_id, asset_type, asset_id, quantity, avg_cost_basis, total_cost_basis)
           VALUES ($1, 'player', $2, $3, '0.0000', '0.00')
-        `, [v.user_id, v.player_id, shares]);
+        `,
+          [v.user_id, v.player_id, shares],
+        );
       }
     }
 
     // Record the claim
-    await pool.query(`
+    await pool.query(
+      `
       INSERT INTO vesting_claims (user_id, player_id, shares_claimed)
       VALUES ($1, $2, $3)
-    `, [v.user_id, v.player_id, shares]);
+    `,
+      [v.user_id, v.player_id, shares],
+    );
 
     // Reset vesting record and fix timestamp
-    await pool.query(`
+    await pool.query(
+      `
       UPDATE vesting 
       SET shares_accumulated = 0, 
           residual_ms = 0, 
@@ -99,7 +124,9 @@ async function forceClaimBotShares() {
           last_claimed_at = NOW(),
           updated_at = NOW()
       WHERE id = $1
-    `, [v.id]);
+    `,
+      [v.id],
+    );
 
     console.log(`✅ ${v.username}: claimed ${shares} shares`);
     totalClaimed += shares;
@@ -113,7 +140,9 @@ async function forceClaimBotShares() {
     FROM holdings 
     WHERE user_id IN (SELECT id FROM users WHERE is_bot = true)
   `);
-  console.log(`Bot holdings now: ${holdings.rows[0].records} records, ${holdings.rows[0].total} total shares`);
+  console.log(
+    `Bot holdings now: ${holdings.rows[0].records} records, ${holdings.rows[0].total} total shares`,
+  );
 
   await pool.end();
 }

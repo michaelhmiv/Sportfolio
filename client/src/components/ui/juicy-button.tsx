@@ -45,7 +45,7 @@ export function JuicyButton({
         className={cn(
           "relative transition-all duration-200",
           successState && "bg-emerald-500 hover:bg-emerald-600",
-          className
+          className,
         )}
         {...props}
       >

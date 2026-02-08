@@ -92,7 +92,7 @@ function ResultCard({
       className={cn(
         "flex flex-col items-center p-4 rounded-xl border",
         visuals.bgColor,
-        visuals.borderColor
+        visuals.borderColor,
       )}
     >
       {/* Tier badge */}
@@ -103,7 +103,7 @@ function ResultCard({
         className={cn(
           "w-12 h-12 rounded-full flex items-center justify-center mb-3",
           "bg-card border-2",
-          visuals.borderColor
+          visuals.borderColor,
         )}
       >
         <Icon className={cn("w-6 h-6", visuals.textColor)} />
@@ -136,7 +136,12 @@ function ResultCard({
         transition={{ delay: delay + 0.4 }}
         className="mt-3 text-center"
       >
-        <p className={cn("text-2xl font-bold font-mono", result.payout > 0 ? "text-emerald-500" : "text-muted-foreground")}>
+        <p
+          className={cn(
+            "text-2xl font-bold font-mono",
+            result.payout > 0 ? "text-emerald-500" : "text-muted-foreground",
+          )}
+        >
           ${result.payout.toFixed(2)}
         </p>
       </motion.div>
@@ -174,10 +179,7 @@ export function BoostResultsPodium({
         className="fixed inset-0 z-50 flex items-center justify-center bg-background/95 backdrop-blur-sm"
         onClick={onClose}
       >
-        <div
-          className="w-full max-w-2xl mx-4"
-          onClick={(e) => e.stopPropagation()}
-        >
+        <div className="w-full max-w-2xl mx-4" onClick={(e) => e.stopPropagation()}>
           {/* Title */}
           <motion.div
             initial={{ opacity: 0, y: -20 }}
@@ -194,12 +196,7 @@ export function BoostResultsPodium({
           {/* Results grid */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
             {sortedResults.map((result, index) => (
-              <ResultCard
-                key={result.slotTier}
-                result={result}
-                index={index}
-                delay={index * 0.1}
-              />
+              <ResultCard key={result.slotTier} result={result} index={index} delay={index * 0.1} />
             ))}
           </div>
 
@@ -214,7 +211,7 @@ export function BoostResultsPodium({
                   "p-6 rounded-xl border text-center",
                   totalPayout > 0
                     ? "bg-emerald-500/10 border-emerald-500/30"
-                    : "bg-muted border-border"
+                    : "bg-muted border-border",
                 )}
               >
                 <p className="text-sm text-muted-foreground mb-2">Total Payout</p>
@@ -224,7 +221,7 @@ export function BoostResultsPodium({
                   transition={{ type: "spring", stiffness: 400, damping: 20, delay: 0.2 }}
                   className={cn(
                     "text-5xl font-bold font-mono",
-                    totalPayout > 0 ? "text-emerald-500" : "text-muted-foreground"
+                    totalPayout > 0 ? "text-emerald-500" : "text-muted-foreground",
                   )}
                 >
                   ${totalPayout.toFixed(2)}

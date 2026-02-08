@@ -1,6 +1,6 @@
 /**
  * Contest Scoring Logic
- * 
+ *
  * Implements proportional ownership scoring for fantasy contests.
  * If a contest has 100 total LeBron shares and you own 10,
  * you get 10% of his fantasy points.
@@ -37,13 +37,15 @@ export interface LeaderboardEntry {
 /**
  * Calculate total shares of each player across all entries in a contest
  */
-export async function calculateTotalSharesByPlayer(contestId: string): Promise<Map<string, number>> {
+export async function calculateTotalSharesByPlayer(
+  contestId: string,
+): Promise<Map<string, number>> {
   const entries = await storage.getContestEntries(contestId);
   const sharesByPlayer = new Map<string, number>();
 
   for (const entry of entries) {
     const lineups = await storage.getContestLineups(entry.id);
-    
+
     for (const lineup of lineups) {
       const current = sharesByPlayer.get(lineup.playerId) || 0;
       sharesByPlayer.set(lineup.playerId, current + lineup.sharesEntered);
@@ -59,7 +61,7 @@ export async function calculateTotalSharesByPlayer(contestId: string): Promise<M
  */
 export async function getPlayerFantasyPoints(
   contestId: string,
-  gameIds: string[]
+  gameIds: string[],
 ): Promise<Map<string, number>> {
   const pointsByPlayer = new Map<string, number>();
 
@@ -68,22 +70,26 @@ export async function getPlayerFantasyPoints(
 
   for (const gameId of gameIds) {
     const stats = await storage.getGameStatsByGameId(gameId);
-    
+
     console.log(`[getPlayerFantasyPoints] Game ${gameId}: Found ${stats.length} player stats`);
-    
+
     if (stats.length === 0) {
-      console.warn(`[getPlayerFantasyPoints] ⚠️ No stats found for game ${gameId} - stats may not be synced yet`);
+      console.warn(
+        `[getPlayerFantasyPoints] ⚠️ No stats found for game ${gameId} - stats may not be synced yet`,
+      );
     }
-    
+
     for (const stat of stats) {
       // Normalize player ID to string to match contest lineup player IDs
       const playerId = String(stat.playerId);
       const current = pointsByPlayer.get(playerId) || 0;
       const fantasyPoints = parseFloat(stat.fantasyPoints) || 0;
       pointsByPlayer.set(playerId, current + fantasyPoints);
-      
+
       if (fantasyPoints > 0) {
-        console.log(`[getPlayerFantasyPoints]   - Player ${playerId}: ${fantasyPoints} fantasy points`);
+        console.log(
+          `[getPlayerFantasyPoints]   - Player ${playerId}: ${fantasyPoints} fantasy points`,
+        );
       }
     }
   }
@@ -108,19 +114,25 @@ export async function calculateContestLeaderboard(contestId: string): Promise<Le
     return [];
   }
 
-  console.log(`[calculateContestLeaderboard] Contest ${contestId}: Calculating leaderboard for ${entries.length} entries`);
+  console.log(
+    `[calculateContestLeaderboard] Contest ${contestId}: Calculating leaderboard for ${entries.length} entries`,
+  );
 
   // Get game IDs for this contest (based on gameDate)
   // IMPORTANT: Use ET boundaries to correctly match games to contest dates
   const dateStr = getGameDay(new Date(contest.gameDate)); // Get proper ET game day
   const { startOfDay, endOfDay } = getETDayBoundaries(dateStr);
   const games = await storage.getDailyGames(startOfDay, endOfDay);
-  const gameIds = games.map(g => g.gameId);
+  const gameIds = games.map((g) => g.gameId);
 
-  console.log(`[calculateContestLeaderboard] Contest date: ${dateStr} (ET boundaries: ${startOfDay.toISOString()} to ${endOfDay.toISOString()})`);
+  console.log(
+    `[calculateContestLeaderboard] Contest date: ${dateStr} (ET boundaries: ${startOfDay.toISOString()} to ${endOfDay.toISOString()})`,
+  );
   console.log(`[calculateContestLeaderboard] Found ${games.length} games for this contest date`);
-  games.forEach(g => {
-    console.log(`[calculateContestLeaderboard]   - Game ${g.gameId}: ${g.awayTeam} @ ${g.homeTeam} (${g.status})`);
+  games.forEach((g) => {
+    console.log(
+      `[calculateContestLeaderboard]   - Game ${g.gameId}: ${g.awayTeam} @ ${g.homeTeam} (${g.status})`,
+    );
   });
 
   // Calculate total shares per player across all entries
@@ -135,35 +147,46 @@ export async function calculateContestLeaderboard(contestId: string): Promise<Le
   for (const entry of entries) {
     const lineups = await storage.getContestLineups(entry.id);
     const user = await storage.getUser(entry.userId);
-    
+
     let totalScore = 0;
     const playerDetails: EntryLineupWithStats[] = [];
 
     for (const lineup of lineups) {
       const player = await storage.getPlayer(lineup.playerId);
       const fantasyPoints = fantasyPointsByPlayer.get(lineup.playerId) || 0;
-      
+
       // Get total shares for this player - should ALWAYS exist if data is consistent
       const totalShares = totalSharesByPlayer.get(lineup.playerId);
-      
+
       if (totalShares === undefined || totalShares === null) {
         // This indicates a data consistency issue - player in lineup but missing from totals
-        console.error(`[calculateContestLeaderboard] Data inconsistency: Player ${lineup.playerId} in lineup but missing from totalSharesByPlayer map`);
-        throw new Error(`Data inconsistency in contest ${contestId}: player ${lineup.playerId} missing from share totals`);
+        console.error(
+          `[calculateContestLeaderboard] Data inconsistency: Player ${lineup.playerId} in lineup but missing from totalSharesByPlayer map`,
+        );
+        throw new Error(
+          `Data inconsistency in contest ${contestId}: player ${lineup.playerId} missing from share totals`,
+        );
       }
-      
+
       if (totalShares === 0) {
-        console.warn(`[calculateContestLeaderboard] Player ${lineup.playerId} has zero total shares, setting earnedScore to 0`);
+        console.warn(
+          `[calculateContestLeaderboard] Player ${lineup.playerId} has zero total shares, setting earnedScore to 0`,
+        );
       }
-      
+
       // Calculate proportional score: (my shares / total shares) × fantasy points
-      const earnedScore = totalShares > 0 ? (lineup.sharesEntered / totalShares) * fantasyPoints : 0;
+      const earnedScore =
+        totalShares > 0 ? (lineup.sharesEntered / totalShares) * fantasyPoints : 0;
       totalScore += earnedScore;
 
       if (fantasyPoints === 0) {
-        console.warn(`[calculateContestLeaderboard] ⚠️ Player ${player?.firstName} ${player?.lastName} (${lineup.playerId}) has 0 fantasy points!`);
+        console.warn(
+          `[calculateContestLeaderboard] ⚠️ Player ${player?.firstName} ${player?.lastName} (${lineup.playerId}) has 0 fantasy points!`,
+        );
       } else {
-        console.log(`[calculateContestLeaderboard] Player ${player?.firstName} ${player?.lastName}: ${fantasyPoints} FP, ${lineup.sharesEntered}/${totalShares} shares = ${earnedScore.toFixed(2)} earned`);
+        console.log(
+          `[calculateContestLeaderboard] Player ${player?.firstName} ${player?.lastName}: ${fantasyPoints} FP, ${lineup.sharesEntered}/${totalShares} shares = ${earnedScore.toFixed(2)} earned`,
+        );
       }
 
       playerDetails.push({
@@ -200,7 +223,7 @@ export async function calculateContestLeaderboard(contestId: string): Promise<Le
 
   // Sort by total score (descending) and assign ranks
   leaderboard.sort((a, b) => b.totalScore - a.totalScore);
-  
+
   // Update ranks in database - use for...of to properly await async calls
   for (let index = 0; index < leaderboard.length; index++) {
     const entry = leaderboard[index];
@@ -232,13 +255,15 @@ export async function settleContest(contestId: string): Promise<void> {
 
   // Only settle live contests that have ended
   if (contest.status !== "live") {
-    console.log(`[settleContest] Contest ${contestId} status is ${contest.status}, not ready for settlement`);
+    console.log(
+      `[settleContest] Contest ${contestId} status is ${contest.status}, not ready for settlement`,
+    );
     return;
   }
 
   // Calculate final leaderboard
   const leaderboard = await calculateContestLeaderboard(contestId);
-  
+
   if (leaderboard.length === 0) {
     console.log(`[settleContest] No entries in contest ${contestId}, marking as completed`);
     await storage.updateContest(contestId, { status: "completed" });
@@ -247,26 +272,34 @@ export async function settleContest(contestId: string): Promise<void> {
 
   // Safety guard: Check if ANY player has non-zero fantasy points
   // If all scores are 0, game stats likely aren't synced yet - delay settlement
-  const hasAnyScores = leaderboard.some(entry => entry.totalScore > 0);
+  const hasAnyScores = leaderboard.some((entry) => entry.totalScore > 0);
   if (!hasAnyScores) {
-    console.warn(`[settleContest] ⚠️ Contest ${contestId} has ALL zero scores - game stats may not be synced yet`);
-    console.warn(`[settleContest] Delaying settlement until game stats are available to prevent incorrect payouts`);
-    throw new Error(`Cannot settle contest ${contestId}: All scores are 0.00. Game stats may not be synced yet.`);
+    console.warn(
+      `[settleContest] ⚠️ Contest ${contestId} has ALL zero scores - game stats may not be synced yet`,
+    );
+    console.warn(
+      `[settleContest] Delaying settlement until game stats are available to prevent incorrect payouts`,
+    );
+    throw new Error(
+      `Cannot settle contest ${contestId}: All scores are 0.00. Game stats may not be synced yet.`,
+    );
   }
 
   const totalPrizePool = parseFloat(contest.totalPrizePool);
   const totalEntries = leaderboard.length;
-  
+
   // For 50/50 contests: top 50% of entries win
   const winnerCount = Math.ceil(totalEntries / 2);
   const payoutPerWinner = totalPrizePool / winnerCount;
 
-  console.log(`[settleContest] Contest ${contestId}: ${totalEntries} entries, ${winnerCount} winners, $${payoutPerWinner.toFixed(2)} each`);
+  console.log(
+    `[settleContest] Contest ${contestId}: ${totalEntries} entries, ${winnerCount} winners, $${payoutPerWinner.toFixed(2)} each`,
+  );
 
   // Distribute prizes to winners
   for (let i = 0; i < winnerCount; i++) {
     const winner = leaderboard[i];
-    
+
     // Update entry payout
     await storage.updateContestEntry(winner.entryId, {
       payout: payoutPerWinner.toFixed(2),
@@ -277,12 +310,14 @@ export async function settleContest(contestId: string): Promise<void> {
     if (user) {
       const newBalance = (parseFloat(user.balance) + payoutPerWinner).toFixed(2);
       await storage.updateUserBalance(winner.userId, newBalance);
-      console.log(`[settleContest] Paid ${winner.username} $${payoutPerWinner.toFixed(2)} (rank ${winner.rank})`);
+      console.log(
+        `[settleContest] Paid ${winner.username} $${payoutPerWinner.toFixed(2)} (rank ${winner.rank})`,
+      );
     }
   }
 
   // Mark contest as completed
   await storage.updateContest(contestId, { status: "completed" });
-  
+
   console.log(`[settleContest] Contest ${contestId} settled successfully`);
 }

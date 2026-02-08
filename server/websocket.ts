@@ -13,23 +13,23 @@ import { WebSocket } from "ws";
 
 // Subscription types for filtering
 export type SubscriptionType =
-  | 'portfolio'          // User's portfolio changes
-  | 'scouts'             // Scout assignment changes
-  | 'trade'              // Order/trade updates
-  | 'liveStats'          // Game stats updates
-  | 'contestUpdate'      // Contest status changes
-  | 'marketActivity'     // Market-wide activity
-  | 'contestSettled'     // Contest settlement notifications
-  | 'scout_payout'       // Scout distribution notifications
-  | 'boost_settled'      // Boost settlement notifications
-  | 'COMMUNITY_BOOST_SETTLED' // Community boost settlement
-  | 'vesting'            // Vesting notifications
-  | 'scout_update'       // Scout update notifications
-  | 'scout_ready'        // Scout ceremony ready notification
-  | 'whale_alert'        // Large trade alerts
-  | 'scout_velocity_update' // Scout velocity updates
-  | 'trending_players_update' // Trending players updates
-  | 'all';               // Receive all events
+  | "portfolio" // User's portfolio changes
+  | "scouts" // Scout assignment changes
+  | "trade" // Order/trade updates
+  | "liveStats" // Game stats updates
+  | "contestUpdate" // Contest status changes
+  | "marketActivity" // Market-wide activity
+  | "contestSettled" // Contest settlement notifications
+  | "scout_payout" // Scout distribution notifications
+  | "boost_settled" // Boost settlement notifications
+  | "COMMUNITY_BOOST_SETTLED" // Community boost settlement
+  | "vesting" // Vesting notifications
+  | "scout_update" // Scout update notifications
+  | "scout_ready" // Scout ceremony ready notification
+  | "whale_alert" // Large trade alerts
+  | "scout_velocity_update" // Scout velocity updates
+  | "trending_players_update" // Trending players updates
+  | "all"; // Receive all events
 
 interface ClientSubscription {
   ws: WebSocket;
@@ -46,7 +46,7 @@ const BROADCAST_LOG_INTERVAL = 60000; // Log every 60 seconds
 export function addClient(ws: WebSocket, userId?: string) {
   wsClients.set(ws, {
     ws,
-    subscriptions: new Set<SubscriptionType>(['all']), // Default to all
+    subscriptions: new Set<SubscriptionType>(["all"]), // Default to all
     userId,
   });
   const now = Date.now();
@@ -71,8 +71,8 @@ export function removeClient(ws: WebSocket) {
 export function subscribe(ws: WebSocket, types: SubscriptionType[]) {
   const client = wsClients.get(ws);
   if (client) {
-    client.subscriptions.delete('all'); // Remove 'all' when subscribing to specific types
-    types.forEach(type => client.subscriptions.add(type));
+    client.subscriptions.delete("all"); // Remove 'all' when subscribing to specific types
+    types.forEach((type) => client.subscriptions.add(type));
   }
 }
 
@@ -82,10 +82,10 @@ export function subscribe(ws: WebSocket, types: SubscriptionType[]) {
 export function unsubscribe(ws: WebSocket, types: SubscriptionType[]) {
   const client = wsClients.get(ws);
   if (client) {
-    types.forEach(type => client.subscriptions.delete(type));
+    types.forEach((type) => client.subscriptions.delete(type));
     // If no subscriptions left, default to all
     if (client.subscriptions.size === 0) {
-      client.subscriptions.add('all');
+      client.subscriptions.add("all");
     }
   }
 }
@@ -98,7 +98,10 @@ export function getClientSubscriptions(ws: WebSocket): SubscriptionType[] {
   return client ? Array.from(client.subscriptions) : [];
 }
 
-export function broadcast(message: { type: SubscriptionType; [key: string]: unknown }, excludeWs?: WebSocket) {
+export function broadcast(
+  message: { type: SubscriptionType; [key: string]: unknown },
+  excludeWs?: WebSocket,
+) {
   const payload = JSON.stringify(message);
   let sent = 0;
   const now = Date.now();
@@ -108,7 +111,7 @@ export function broadcast(message: { type: SubscriptionType; [key: string]: unkn
     if (client.ws === excludeWs) return;
 
     // Check subscription filter
-    if (!client.subscriptions.has('all') && !client.subscriptions.has(message.type)) {
+    if (!client.subscriptions.has("all") && !client.subscriptions.has(message.type)) {
       return; // Client not subscribed to this event type
     }
 
@@ -174,7 +177,10 @@ export function getClientCount(): number {
   return wsClients.size;
 }
 
-export function getConnectedClientsInfo(): Array<{ userId?: string; subscriptions: SubscriptionType[] }> {
+export function getConnectedClientsInfo(): Array<{
+  userId?: string;
+  subscriptions: SubscriptionType[];
+}> {
   return Array.from(wsClients.entries()).map(([_, client]) => ({
     userId: client.userId,
     subscriptions: Array.from(client.subscriptions),
@@ -184,7 +190,10 @@ export function getConnectedClientsInfo(): Array<{ userId?: string; subscription
 /**
  * Broadcast a message to all connected clients for a specific user
  */
-export function broadcastToUser(userId: string, message: { type: SubscriptionType; [key: string]: unknown }) {
+export function broadcastToUser(
+  userId: string,
+  message: { type: SubscriptionType; [key: string]: unknown },
+) {
   const payload = JSON.stringify(message);
   let sent = 0;
   const now = Date.now();
@@ -194,7 +203,7 @@ export function broadcastToUser(userId: string, message: { type: SubscriptionTyp
     if (client.userId !== userId) return;
 
     // Check subscription filter
-    if (!client.subscriptions.has('all') && !client.subscriptions.has(message.type)) {
+    if (!client.subscriptions.has("all") && !client.subscriptions.has(message.type)) {
       return; // Client not subscribed to this event type
     }
 

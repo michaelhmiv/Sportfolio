@@ -1,0 +1,11 @@
+dist
+node_modules
+mobile
+package
+attached_assets
+tmp
+package-lock.json
+.agent
+.claude
+.vscode
+migrations

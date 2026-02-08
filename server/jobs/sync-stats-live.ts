@@ -1,13 +1,20 @@
 /**
  * Live Stats Sync Job
- * 
+ *
  * Runs every 1 minute to fetch real-time stats for in-progress NBA games.
  * Only processes games with status='inprogress'.
  * Broadcasts updates via WebSocket when stats change.
  */
 
 import { storage } from "../storage";
-import { fetchPlayerGameStats, fetchLiveBoxScores, calculateFantasyPoints, createNBAPlayerId, getCurrentNBASeasonString, convertToGameStats } from "../balldontlie-nba";
+import {
+  fetchPlayerGameStats,
+  fetchLiveBoxScores,
+  calculateFantasyPoints,
+  createNBAPlayerId,
+  getCurrentNBASeasonString,
+  convertToGameStats,
+} from "../balldontlie-nba";
 import { balldontlieRateLimiter } from "./rate-limiter";
 import type { JobResult } from "./scheduler";
 import type { ProgressCallback } from "../lib/admin-stream";
@@ -31,16 +38,24 @@ async function updateLiveGameScores(): Promise<number> {
     let scoresUpdated = 0;
     for (const boxScore of boxScores) {
       // Find the matching game in our database by teams and date
-      const gameId = boxScore.home_team?.abbreviation && boxScore.visitor_team?.abbreviation
-        ? boxScore.home_team.abbreviation + "-" + boxScore.visitor_team.abbreviation
-        : null;
+      const gameId =
+        boxScore.home_team?.abbreviation && boxScore.visitor_team?.abbreviation
+          ? boxScore.home_team.abbreviation + "-" + boxScore.visitor_team.abbreviation
+          : null;
 
       if (gameId) {
         // Try to find game by matching teams
-        const games = await storage.getDailyGamesBySport("NBA", new Date(boxScore.date), new Date(boxScore.date));
-        const matchingGame = games.find(g =>
-          (g.homeTeam === boxScore.home_team?.abbreviation && g.awayTeam === boxScore.visitor_team?.abbreviation) ||
-          (g.homeTeam === boxScore.visitor_team?.abbreviation && g.awayTeam === boxScore.home_team?.abbreviation)
+        const games = await storage.getDailyGamesBySport(
+          "NBA",
+          new Date(boxScore.date),
+          new Date(boxScore.date),
+        );
+        const matchingGame = games.find(
+          (g) =>
+            (g.homeTeam === boxScore.home_team?.abbreviation &&
+              g.awayTeam === boxScore.visitor_team?.abbreviation) ||
+            (g.homeTeam === boxScore.visitor_team?.abbreviation &&
+              g.awayTeam === boxScore.home_team?.abbreviation),
         );
 
         if (matchingGame) {
@@ -51,11 +66,13 @@ async function updateLiveGameScores(): Promise<number> {
             matchingGame.gameId,
             homeScore,
             awayScore,
-            "inprogress"
+            "inprogress",
           );
 
           scoresUpdated++;
-          console.log(`[stats_sync_live] Updated score: ${boxScore.visitor_team?.abbreviation} ${awayScore} @ ${boxScore.home_team?.abbreviation} ${homeScore}`);
+          console.log(
+            `[stats_sync_live] Updated score: ${boxScore.visitor_team?.abbreviation} ${awayScore} @ ${boxScore.home_team?.abbreviation} ${homeScore}`,
+          );
         }
       }
     }
@@ -72,9 +89,9 @@ export async function syncStatsLive(progressCallback?: ProgressCallback): Promis
   console.log("[stats_sync_live] Starting live game stats sync...");
 
   progressCallback?.({
-    type: 'info',
+    type: "info",
     timestamp: new Date().toISOString(),
-    message: 'Starting live stats sync job',
+    message: "Starting live stats sync job",
   });
 
   let requestCount = 0;
@@ -89,7 +106,7 @@ export async function syncStatsLive(progressCallback?: ProgressCallback): Promis
     const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
 
     const games = await storage.getDailyGames(startOfDay, endOfDay);
-    const liveGames = games.filter(g => g.status === "inprogress");
+    const liveGames = games.filter((g) => g.status === "inprogress");
 
     // Short-circuit if no live games - but still try to update scores for any in-progress games
     if (liveGames.length === 0) {
@@ -100,11 +117,12 @@ export async function syncStatsLive(progressCallback?: ProgressCallback): Promis
       requestCount++;
 
       progressCallback?.({
-        type: 'complete',
+        type: "complete",
         timestamp: new Date().toISOString(),
-        message: scoresUpdated > 0
-          ? `Score sync: ${scoresUpdated} game scores updated`
-          : 'No live games in progress, skipping',
+        message:
+          scoresUpdated > 0
+            ? `Score sync: ${scoresUpdated} game scores updated`
+            : "No live games in progress, skipping",
         data: {
           success: true,
           summary: {
@@ -127,7 +145,7 @@ export async function syncStatsLive(progressCallback?: ProgressCallback): Promis
     requestCount++;
 
     progressCallback?.({
-      type: 'info',
+      type: "info",
       timestamp: new Date().toISOString(),
       message: `Found ${liveGames.length} live games to process`,
       data: { totalGames: liveGames.length, scoresUpdated },
@@ -135,10 +153,12 @@ export async function syncStatsLive(progressCallback?: ProgressCallback): Promis
 
     // Rate limit budget: if >6 concurrent games, we might need to back off
     if (liveGames.length > 6) {
-      console.warn(`[stats_sync_live] Warning: ${liveGames.length} concurrent live games may strain rate limits`);
+      console.warn(
+        `[stats_sync_live] Warning: ${liveGames.length} concurrent live games may strain rate limits`,
+      );
 
       progressCallback?.({
-        type: 'warning',
+        type: "warning",
         timestamp: new Date().toISOString(),
         message: `Warning: ${liveGames.length} concurrent live games may strain rate limits`,
       });
@@ -149,7 +169,7 @@ export async function syncStatsLive(progressCallback?: ProgressCallback): Promis
 
       try {
         progressCallback?.({
-          type: 'info',
+          type: "info",
           timestamp: new Date().toISOString(),
           message: `Processing live game ${i + 1}/${liveGames.length}: ${game.awayTeam} @ ${game.homeTeam}`,
           data: {
@@ -183,7 +203,7 @@ export async function syncStatsLive(progressCallback?: ProgressCallback): Promis
 
             // Calculate double-double and triple-double
             const categories = [points, rebounds, assists, steals, blocks];
-            const doubleDigitCategories = categories.filter(c => c >= 10).length;
+            const doubleDigitCategories = categories.filter((c) => c >= 10).length;
             const isDoubleDouble = doubleDigitCategories >= 2;
             const isTripleDouble = doubleDigitCategories >= 3;
 
@@ -198,7 +218,8 @@ export async function syncStatsLive(progressCallback?: ProgressCallback): Promis
               sport: "NBA",
               gameDate: game.date,
               season: getCurrentNBASeasonString(),
-              opponentTeam: stat.team.abbreviation === game.homeTeam ? game.awayTeam : game.homeTeam,
+              opponentTeam:
+                stat.team.abbreviation === game.homeTeam ? game.awayTeam : game.homeTeam,
               homeAway: stat.team.abbreviation === game.homeTeam ? "home" : "away",
               minutes,
               points,
@@ -248,15 +269,18 @@ export async function syncStatsLive(progressCallback?: ProgressCallback): Promis
       }
     }
 
-    console.log(`[stats_sync_live] ✓ Processed ${recordsProcessed} player stats from ${liveGames.length} live games, ${errorCount} errors`);
+    console.log(
+      `[stats_sync_live] ✓ Processed ${recordsProcessed} player stats from ${liveGames.length} live games, ${errorCount} errors`,
+    );
     console.log(`[stats_sync_live] API requests made: ${requestCount}`);
 
     progressCallback?.({
-      type: 'complete',
+      type: "complete",
       timestamp: new Date().toISOString(),
-      message: errorCount > 0
-        ? `Live stats sync completed with ${errorCount} errors: ${recordsProcessed} player stats from ${liveGames.length} games`
-        : `Live stats sync completed successfully: ${recordsProcessed} player stats, ${scoresUpdated} scores updated from ${liveGames.length} games`,
+      message:
+        errorCount > 0
+          ? `Live stats sync completed with ${errorCount} errors: ${recordsProcessed} player stats from ${liveGames.length} games`
+          : `Live stats sync completed successfully: ${recordsProcessed} player stats, ${scoresUpdated} scores updated from ${liveGames.length} games`,
       data: {
         success: errorCount === 0,
         summary: {
@@ -275,14 +299,14 @@ export async function syncStatsLive(progressCallback?: ProgressCallback): Promis
     console.error("[stats_sync_live] Failed:", error.message);
 
     progressCallback?.({
-      type: 'error',
+      type: "error",
       timestamp: new Date().toISOString(),
       message: `Live stats sync failed: ${error.message}`,
       data: { error: error.message, stack: error.stack },
     });
 
     progressCallback?.({
-      type: 'complete',
+      type: "complete",
       timestamp: new Date().toISOString(),
       message: `Live stats sync failed: ${error.message}`,
       data: {

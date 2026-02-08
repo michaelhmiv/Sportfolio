@@ -3,45 +3,45 @@ name: Firebase App Distribution
 on:
   push:
     branches: [main]
-  workflow_dispatch:  # Manual trigger
+  workflow_dispatch: # Manual trigger
 
 jobs:
   build-and-distribute:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
-          cache: 'npm'
-          
+          node-version: "22"
+          cache: "npm"
+
       - name: Install dependencies
         run: npm ci
-        
+
       - name: Build web app
         run: npm run build:client
-        
+
       - name: Sync Capacitor Android
         run: npx cap sync android
-        
+
       - name: Setup JDK
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: '21'
-          
+          distribution: "temurin"
+          java-version: "21"
+
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
-        
+
       - name: Build Debug APK
         run: |
           cd mobile/android
           ./gradlew assembleDebug
-        
+
       - name: Upload to Firebase App Distribution
         uses: wzieba/Firebase-Distribution-Github-Action@v1
         with:

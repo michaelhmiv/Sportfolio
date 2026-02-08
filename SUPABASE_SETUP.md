@@ -3,7 +3,7 @@
 ## Changes Made
 
 1. **Fixed `.gitignore`** - Now properly ignores `.env` files while allowing `.env.example`
-2. **Created `.env.example`** - Documents required environment variables  
+2. **Created `.env.example`** - Documents required environment variables
 3. **Switched database driver** - Changed from Neon (`@neondatabase/serverless`) to standard PostgreSQL (`pg`)
 4. **Installed `pg` package** - Added `pg` and `@types/pg` dependencies
 
@@ -12,6 +12,7 @@
 ### Option 1: Run locally with .env file (Recommended for first-time setup)
 
 1. Create a `.env` file in your project root with your Supabase connection string:
+
    ```
    DATABASE_URL=postgresql://postgres.[PROJECT-REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres
    ```
@@ -34,6 +35,7 @@ Copy the contents of `migrations/0000_sloppy_dazzler.sql` and `migrations/0001_n
 ## After Pushing Tables
 
 1. Commit and push your changes to GitHub:
+
    ```bash
    git add .
    git commit -m "Switch to pg driver for Supabase compatibility"
@@ -53,4 +55,5 @@ Copy the contents of `migrations/0000_sloppy_dazzler.sql` and `migrations/0001_n
 Get your connection string from: **Supabase Dashboard > Project Settings > Database > Connection string**
 
 Choose "Connection pooling" and use:
+
 - **Transaction mode** (port 6543) - Best for serverless/Railway

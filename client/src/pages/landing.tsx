@@ -62,8 +62,15 @@ function HeroCard() {
         />
 
         <div className="absolute bottom-4 left-4 right-4 text-center">
-          <h3 style={{ transform: "translateZ(50px)" }} className="text-xl font-black italic text-white uppercase tracking-tighter">Market Leader</h3>
-          <p style={{ transform: "translateZ(25px)" }} className="text-primary font-mono font-bold">$1,245.50</p>
+          <h3
+            style={{ transform: "translateZ(50px)" }}
+            className="text-xl font-black italic text-white uppercase tracking-tighter"
+          >
+            Market Leader
+          </h3>
+          <p style={{ transform: "translateZ(25px)" }} className="text-primary font-mono font-bold">
+            $1,245.50
+          </p>
         </div>
       </div>
 
@@ -85,7 +92,7 @@ export default function Landing() {
         style={{
           backgroundImage: `linear-gradient(hsl(var(--border)) 1px, transparent 1px),
                             linear-gradient(90deg, hsl(var(--border)) 1px, transparent 1px)`,
-          backgroundSize: '40px 40px'
+          backgroundSize: "40px 40px",
         }}
       />
 
@@ -107,17 +114,27 @@ export default function Landing() {
             Live NBA Fantasy Trading
           </motion.div>
           <h1 className="text-5xl sm:text-7xl md:text-8xl font-black italic tracking-tighter mb-4 leading-[0.9] text-foreground uppercase">
-            Free Market<br />
+            Free Market
+            <br />
             <span className="text-primary">Fantasy</span>
           </h1>
           <div className="flex flex-col lg:flex-row gap-8 items-center mt-12">
             <div className="flex-1 space-y-6">
               <p className="text-lg sm:text-xl md:text-2xl text-muted-foreground max-w-2xl font-medium">
-                Your portfolio lasts a player's entire career. Trade shares, vest value, and own the game.
+                Your portfolio lasts a player's entire career. Trade shares, vest value, and own the
+                game.
               </p>
               <div className="flex flex-col sm:flex-row gap-4">
-                <Button asChild size="lg" className="w-full sm:w-auto text-lg h-14 px-10 rounded-md">
-                  <Link href="/login" data-testid="button-hero-login" className="flex items-center justify-center gap-2">
+                <Button
+                  asChild
+                  size="lg"
+                  className="w-full sm:w-auto text-lg h-14 px-10 rounded-md"
+                >
+                  <Link
+                    href="/login"
+                    data-testid="button-hero-login"
+                    className="flex items-center justify-center gap-2"
+                  >
                     Get Started
                     <ArrowRight className="w-5 h-5" />
                   </Link>
@@ -136,15 +153,21 @@ export default function Landing() {
         <div className="mx-auto max-w-4xl grid grid-cols-3 gap-3 sm:gap-6">
           <div className="text-center p-3 sm:p-4 rounded-lg bg-card border border-border">
             <div className="text-lg sm:text-2xl md:text-3xl font-bold text-primary">100+</div>
-            <div className="text-xs sm:text-sm text-muted-foreground mt-0.5 sm:mt-1">NBA Players</div>
+            <div className="text-xs sm:text-sm text-muted-foreground mt-0.5 sm:mt-1">
+              NBA Players
+            </div>
           </div>
           <div className="text-center p-3 sm:p-4 rounded-lg bg-card border border-border">
             <div className="text-lg sm:text-2xl md:text-3xl font-bold text-primary">24/7</div>
-            <div className="text-xs sm:text-sm text-muted-foreground mt-0.5 sm:mt-1">Live Trading</div>
+            <div className="text-xs sm:text-sm text-muted-foreground mt-0.5 sm:mt-1">
+              Live Trading
+            </div>
           </div>
           <div className="text-center p-3 sm:p-4 rounded-lg bg-card border border-border">
             <div className="text-lg sm:text-2xl md:text-3xl font-bold text-primary">$10K</div>
-            <div className="text-xs sm:text-sm text-muted-foreground mt-0.5 sm:mt-1">Starting Cash</div>
+            <div className="text-xs sm:text-sm text-muted-foreground mt-0.5 sm:mt-1">
+              Starting Cash
+            </div>
           </div>
         </div>
       </div>
@@ -164,7 +187,8 @@ export default function Landing() {
                 </div>
               </CardHeader>
               <CardContent className="text-xs sm:text-sm text-muted-foreground">
-                Trade like a pro. Market prices determined by real trades. Pure supply and demand in the open market.
+                Trade like a pro. Market prices determined by real trades. Pure supply and demand in
+                the open market.
               </CardContent>
             </Card>
 
@@ -178,7 +202,8 @@ export default function Landing() {
                 </div>
               </CardHeader>
               <CardContent className="text-xs sm:text-sm text-muted-foreground">
-                Generate shares for free over time. Vest up to 10 players simultaneously. 100 shares per hour.
+                Generate shares for free over time. Vest up to 10 players simultaneously. 100 shares
+                per hour.
               </CardContent>
             </Card>
 
@@ -192,7 +217,8 @@ export default function Landing() {
                 </div>
               </CardHeader>
               <CardContent className="text-xs sm:text-sm text-muted-foreground">
-                Enter 50/50 contests. Top half wins. Shares burn after contests end—keeping scarcity.
+                Enter 50/50 contests. Top half wins. Shares burn after contests end—keeping
+                scarcity.
               </CardContent>
             </Card>
           </div>
@@ -204,14 +230,20 @@ export default function Landing() {
         <div className="mx-auto max-w-3xl">
           <Card className="bg-primary text-primary-foreground border-0 overflow-hidden relative rounded-lg">
             <CardHeader className="relative pb-3 sm:pb-4">
-              <CardTitle className="text-lg sm:text-2xl text-center">Start Building Your Portfolio</CardTitle>
+              <CardTitle className="text-lg sm:text-2xl text-center">
+                Start Building Your Portfolio
+              </CardTitle>
               <CardDescription className="text-center text-primary-foreground/90 text-xs sm:text-base pt-1 sm:pt-2">
                 Get $10,000 in virtual cash. No credit card required.
               </CardDescription>
             </CardHeader>
             <CardContent className="flex justify-center pb-4 sm:pb-6 relative">
               <Button variant="secondary" size="lg" asChild className="shadow-lg rounded-md">
-                <Link href="/login" data-testid="button-cta-login" className="flex items-center gap-2">
+                <Link
+                  href="/login"
+                  data-testid="button-cta-login"
+                  className="flex items-center gap-2"
+                >
                   <DollarSign className="w-4 h-4" />
                   Get Started Free
                 </Link>

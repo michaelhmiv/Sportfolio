@@ -1,5 +1,5 @@
-import { Pool } from 'pg';
-import { randomUUID } from 'crypto';
+import { Pool } from "pg";
+import { randomUUID } from "crypto";
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -9,7 +9,8 @@ async function addColdMarketBot() {
 
   try {
     // Create the cold market bot user
-    await pool.query(`
+    await pool.query(
+      `
       INSERT INTO users (
         id, email, username, first_name, last_name, balance, 
         is_admin, is_premium, is_bot, has_seen_onboarding, 
@@ -19,17 +20,23 @@ async function addColdMarketBot() {
         $1, 'coldmarket@bot.sportfolio.internal', 'deep_roster_dave', 'Deep', 'Roster Dave',
         '50000.00', false, false, true, true, 0, 0, 0, NOW(), NOW()
       )
-    `, [userId]);
+    `,
+      [userId],
+    );
 
     // Create vesting record
-    await pool.query(`
+    await pool.query(
+      `
       INSERT INTO vesting (user_id, shares_accumulated, last_accrued_at, updated_at)
       VALUES ($1, 0, NOW(), NOW())
-    `, [userId]);
+    `,
+      [userId],
+    );
 
     // Create the cold market bot profile
     // This bot specifically targets players with NO recent activity
-    await pool.query(`
+    await pool.query(
+      `
       INSERT INTO bot_profiles (
         id, user_id, bot_name, bot_role, is_active,
         aggressiveness, spread_percent, max_order_size, min_order_size,
@@ -51,15 +58,16 @@ async function addColdMarketBot() {
         0, 0, 0,
         NOW(), NOW(), NOW(), NULL
       )
-    `, [profileId, userId]);
+    `,
+      [profileId, userId],
+    );
 
-    console.log('✅ Created cold market bot: deep_roster_dave');
-    console.log('   - Targets players with NO recent trading activity');
-    console.log('   - Vests up to 15 players');
-    console.log('   - Trades all tiers');
-
+    console.log("✅ Created cold market bot: deep_roster_dave");
+    console.log("   - Targets players with NO recent trading activity");
+    console.log("   - Vests up to 15 players");
+    console.log("   - Trades all tiers");
   } catch (e: any) {
-    console.error('Error:', e.message);
+    console.error("Error:", e.message);
   }
   await pool.end();
 }

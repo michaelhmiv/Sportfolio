@@ -8,8 +8,8 @@ import { players, playerGameStats, playerPools } from "@shared/schema";
 import { eq, desc, sql, isNotNull, and, gte, notInArray, inArray, gt } from "drizzle-orm";
 
 // Configuration
-const FAIR_VALUE_MULTIPLIER = 0.50; // $0.50 per fantasy point per game
-const DEFAULT_FAIR_VALUE = 10.00; // Default if no stats available
+const FAIR_VALUE_MULTIPLIER = 0.5; // $0.50 per fantasy point per game
+const DEFAULT_FAIR_VALUE = 10.0; // Default if no stats available
 const RECENT_GAMES_WINDOW = 10; // Consider last 10 games for averages
 const MOMENTUM_PERIOD_DAYS = 7; // Compare recent 3 games to prior 7 days
 
@@ -80,7 +80,7 @@ async function calculatePlayerFairValue(playerId: string): Promise<{
   // Calculate average fantasy points
   const totalFantasyPoints = recentStats.reduce(
     (sum, stat) => sum + parseFloat(stat.fantasyPoints || "0"),
-    0
+    0,
   );
   const avgFantasyPoints = totalFantasyPoints / recentStats.length;
 
@@ -142,14 +142,11 @@ export async function getAllPlayerValuations(sport?: string): Promise<ValuationS
     ? and(eq(players.isActive, true), sql`UPPER(${players.sport}) = ${sport.toUpperCase()}`)
     : eq(players.isActive, true);
 
-  const allPlayers = await db
-    .select()
-    .from(players)
-    .where(whereClause);
+  const allPlayers = await db.select().from(players).where(whereClause);
 
   // Calculate fair values for all players
   const valuationsRaw: Array<{
-    player: typeof allPlayers[0];
+    player: (typeof allPlayers)[0];
     fairValue: number;
     avgFantasyPoints: number;
     gamesPlayed: number;
@@ -177,21 +174,16 @@ export async function getAllPlayerValuations(sport?: string): Promise<ValuationS
   const variance =
     fairValues.length > 1
       ? fairValues.reduce((sum, v) => sum + Math.pow(v - meanFairValue, 2), 0) /
-      (fairValues.length - 1)
+        (fairValues.length - 1)
       : 1;
   const stdDevFairValue = Math.sqrt(variance);
 
   // Build final valuations with z-scores and tiers
   const valuations: PlayerValuation[] = valuationsRaw.map((v) => {
-    const zScore =
-      stdDevFairValue > 0
-        ? (v.fairValue - meanFairValue) / stdDevFairValue
-        : 0;
+    const zScore = stdDevFairValue > 0 ? (v.fairValue - meanFairValue) / stdDevFairValue : 0;
     const { tier, tierLabel } = calculateTier(zScore);
 
-    const lastTradePrice = v.player.lastTradePrice
-      ? parseFloat(v.player.lastTradePrice)
-      : null;
+    const lastTradePrice = v.player.lastTradePrice ? parseFloat(v.player.lastTradePrice) : null;
 
     // Calculate spread opportunity
     let spreadPercent = 0;
@@ -242,10 +234,7 @@ export async function getAllPlayerValuations(sport?: string): Promise<ValuationS
  * Get valuation for a single player
  */
 export async function getPlayerValuation(playerId: string): Promise<PlayerValuation | null> {
-  const [player] = await db
-    .select()
-    .from(players)
-    .where(eq(players.id, playerId));
+  const [player] = await db.select().from(players).where(eq(players.id, playerId));
 
   if (!player) return null;
 
@@ -327,12 +316,9 @@ async function getColdPlayersByPoolActivity(): Promise<Set<string>> {
   const warmPlayers = await db
     .selectDistinct({ playerId: playerPools.playerId })
     .from(playerPools)
-    .where(and(
-      isNotNull(playerPools.playerId),
-      gt(playerPools.totalTrades, 0)
-    ));
+    .where(and(isNotNull(playerPools.playerId), gt(playerPools.totalTrades, 0)));
 
-  const warmPlayersSet = new Set(warmPlayers.map(p => p.playerId).filter(Boolean) as string[]);
+  const warmPlayersSet = new Set(warmPlayers.map((p) => p.playerId).filter(Boolean) as string[]);
 
   // Get all active players
   const allActivePlayers = await db
@@ -360,11 +346,11 @@ async function getColdPlayersByPoolActivity(): Promise<Set<string>> {
  */
 export async function getMarketMakingCandidates(
   limit: number = 30,
-  targetTiers?: number[]
+  targetTiers?: number[],
 ): Promise<PlayerValuation[]> {
   // SPORT-AWARE DISTRIBUTION: Process each sport separately
   // This ensures NFL players get fair representation instead of being drowned out by NBA's larger player pool
-  const sports = ['NBA', 'NFL'];
+  const sports = ["NBA", "NFL"];
   const perSportLimit = Math.ceil(limit / sports.length);
 
   // Get players that have low/no pool activity (need liquidity bootstrapping) - shared across all sports
@@ -379,14 +365,14 @@ export async function getMarketMakingCandidates(
 
     // Apply tier filter
     const tiers = targetTiers || [1, 2, 3, 4, 5];
-    sportCandidates = sportCandidates.filter(v => tiers.includes(v.tier));
+    sportCandidates = sportCandidates.filter((v) => tiers.includes(v.tier));
 
     // Apply minimum games filter
-    sportCandidates = sportCandidates.filter(v => v.gamesPlayed >= 1);
+    sportCandidates = sportCandidates.filter((v) => v.gamesPlayed >= 1);
 
     // Separate cold players (priority) from players with existing orders
-    const coldCandidates = sportCandidates.filter(c => coldPlayers.has(c.playerId));
-    const warmCandidates = sportCandidates.filter(c => !coldPlayers.has(c.playerId));
+    const coldCandidates = sportCandidates.filter((c) => coldPlayers.has(c.playerId));
+    const warmCandidates = sportCandidates.filter((c) => !coldPlayers.has(c.playerId));
 
     // Prioritize cold players (70% of results for this sport) to bootstrap liquidity
     const coldLimit = Math.floor(perSportLimit * 0.7);
@@ -420,13 +406,15 @@ export async function getVestingCandidates(limit: number = 10): Promise<PlayerVa
  * These players have never been traded and need initial price establishment
  * Returns players sorted by fairValue (prioritizes high-value players first)
  */
-export async function getColdMarketCandidates(limit: number = 50): Promise<{
-  playerId: string;
-  playerName: string;
-  currentPrice: number;
-  fairValue: number;
-  tier: number;
-}[]> {
+export async function getColdMarketCandidates(limit: number = 50): Promise<
+  {
+    playerId: string;
+    playerName: string;
+    currentPrice: number;
+    fairValue: number;
+    tier: number;
+  }[]
+> {
   // Get active players with NULL lastTradePrice (never traded)
   const coldPlayers = await db
     .select({
@@ -436,12 +424,7 @@ export async function getColdMarketCandidates(limit: number = 50): Promise<{
       currentPrice: players.currentPrice,
     })
     .from(players)
-    .where(
-      and(
-        eq(players.isActive, true),
-        sql`${players.lastTradePrice} IS NULL`
-      )
-    )
+    .where(and(eq(players.isActive, true), sql`${players.lastTradePrice} IS NULL`))
     .limit(limit * 2); // Fetch more to allow filtering
 
   if (coldPlayers.length === 0) {
@@ -468,7 +451,7 @@ export async function getColdMarketCandidates(limit: number = 50): Promise<{
         fairValue: stats.fairValue,
         tier,
       };
-    })
+    }),
   );
 
   // Sort by fair value (high to low) to prioritize valuable players
@@ -476,4 +459,3 @@ export async function getColdMarketCandidates(limit: number = 50): Promise<{
 
   return candidates.slice(0, limit);
 }
-

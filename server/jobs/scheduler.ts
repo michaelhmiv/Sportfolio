@@ -64,7 +64,7 @@ export class JobScheduler {
   private jobConfigs: Map<string, JobConfig> = new Map();
   private isInitialized = false;
 
-  constructor() { }
+  constructor() {}
 
   /**
    * Helper method to schedule a job
@@ -112,9 +112,13 @@ export class JobScheduler {
           }
 
           if (status === "degraded") {
-            warn(`[${jobConfig.name}] Completed with errors - ${result.recordsProcessed} records processed, ${result.errorCount} failed, ${result.requestCount} requests`);
+            warn(
+              `[${jobConfig.name}] Completed with errors - ${result.recordsProcessed} records processed, ${result.errorCount} failed, ${result.requestCount} requests`,
+            );
           } else {
-            logJobEvent(`[${jobConfig.name}] Completed successfully - ${result.recordsProcessed} records, ${result.requestCount} requests`);
+            logJobEvent(
+              `[${jobConfig.name}] Completed successfully - ${result.recordsProcessed} records, ${result.requestCount} requests`,
+            );
           }
         } catch (err: any) {
           error(`[${jobConfig.name}] Failed:`, err?.message || err);
@@ -127,14 +131,16 @@ export class JobScheduler {
                 finishedAt: new Date(),
               });
             } catch (logErr: any) {
-              warn(`[${jobConfig.name}] Failed to update failed job log: ${logErr?.message || logErr}`);
+              warn(
+                `[${jobConfig.name}] Failed to update failed job log: ${logErr?.message || logErr}`,
+              );
             }
           }
         }
       },
       {
         timezone: "America/New_York", // ET timezone
-      }
+      },
     );
 
     this.jobs.set(jobConfig.name, task);
@@ -294,7 +300,7 @@ export class JobScheduler {
         name: "sync_player_game_logs",
         schedule: "30 6 * * *", // Daily at 6:30 AM ET - after games finalize
         enabled: true,
-        handler: () => syncPlayerGameLogs({ mode: 'daily' }),
+        handler: () => syncPlayerGameLogs({ mode: "daily" }),
       },
       {
         name: "schedule_sync",
@@ -504,7 +510,7 @@ export class JobScheduler {
       throw new Error(`Unknown job: ${jobName}`);
     }
 
-    info(`[${jobName}] Manual trigger started${progressCallback ? ' with live logging' : ''}...`);
+    info(`[${jobName}] Manual trigger started${progressCallback ? " with live logging" : ""}...`);
 
     // Best-effort job logging; manual triggers should still run if logs fail.
     let jobLog: { id: string } | null = null;
@@ -539,9 +545,13 @@ export class JobScheduler {
       }
 
       if (status === "degraded") {
-        warn(`[${jobName}] Manual trigger completed with errors - ${result.recordsProcessed} records processed, ${result.errorCount} failed, ${result.requestCount} requests`);
+        warn(
+          `[${jobName}] Manual trigger completed with errors - ${result.recordsProcessed} records processed, ${result.errorCount} failed, ${result.requestCount} requests`,
+        );
       } else {
-        logJobEvent(`[${jobName}] Manual trigger completed - ${result.recordsProcessed} records, ${result.requestCount} requests`);
+        logJobEvent(
+          `[${jobName}] Manual trigger completed - ${result.recordsProcessed} records, ${result.requestCount} requests`,
+        );
       }
       return result;
     } catch (err: any) {
@@ -569,7 +579,7 @@ export class JobScheduler {
   getStatus(): Array<{ name: string; running: boolean }> {
     return Array.from(this.jobs.entries()).map(([name, task]) => ({
       name,
-      running: task.getStatus() === 'running',
+      running: task.getStatus() === "running",
     }));
   }
 
@@ -588,30 +598,30 @@ export class JobScheduler {
   getAvailableManualJobNames(): string[] {
     // Keep in sync with triggerJob() map
     return [
-      'roster_sync',
-      'sync_player_game_logs',
-      'schedule_sync',
-      'stats_sync',
-      'stats_sync_live',
-      'create_contests',
-      'update_contest_statuses',
-      'settle_contests',
-      'daily_snapshot',
-      'backfill_contest_stats',
-      'weekly_roundup',
-      'backfill_market_snapshots',
-      'scout_distribution',
-      'news_fetch',
-      'compile_digest',
-      'lock_boost_shares',
-      'settle_boosts',
-      'settle_community_boosts',
-      'cleanup_job_logs',
-      'prune_price_history',
-      'update_collections',
-      'check_milestones',
-      'refresh_player_metrics',
-      'refresh_player_volume_24h',
+      "roster_sync",
+      "sync_player_game_logs",
+      "schedule_sync",
+      "stats_sync",
+      "stats_sync_live",
+      "create_contests",
+      "update_contest_statuses",
+      "settle_contests",
+      "daily_snapshot",
+      "backfill_contest_stats",
+      "weekly_roundup",
+      "backfill_market_snapshots",
+      "scout_distribution",
+      "news_fetch",
+      "compile_digest",
+      "lock_boost_shares",
+      "settle_boosts",
+      "settle_community_boosts",
+      "cleanup_job_logs",
+      "prune_price_history",
+      "update_collections",
+      "check_milestones",
+      "refresh_player_metrics",
+      "refresh_player_volume_24h",
     ];
   }
 }

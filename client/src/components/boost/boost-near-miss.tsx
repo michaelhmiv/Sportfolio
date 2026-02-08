@@ -20,7 +20,7 @@ export function useBoostNearMissDetector() {
     if (!data) return;
 
     const { playerName, fantasyPoints, threshold, pointsMissed, potentialPayout } = data;
-    
+
     // Only show if within 3 points of threshold
     if (pointsMissed <= 3 && pointsMissed > 0) {
       toast({

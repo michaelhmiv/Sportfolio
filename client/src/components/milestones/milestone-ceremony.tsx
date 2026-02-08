@@ -57,7 +57,12 @@ function formatMilestoneValue(value: number): string {
   return `$${value}`;
 }
 
-export function MilestoneCeremony({ isOpen, milestone, userName, onClose }: MilestoneCeremonyProps) {
+export function MilestoneCeremony({
+  isOpen,
+  milestone,
+  userName,
+  onClose,
+}: MilestoneCeremonyProps) {
   const [phase, setPhase] = useState<"intro" | "count" | "reveal" | "complete">("intro");
   const [displayValue, setDisplayValue] = useState(0);
   const startTimeRef = useRef<number>(0);
@@ -171,10 +176,7 @@ export function MilestoneCeremony({ isOpen, milestone, userName, onClose }: Mile
           <X className="w-5 h-5" />
         </motion.button>
 
-        <div
-          className="w-full max-w-lg mx-4"
-          onClick={(e) => e.stopPropagation()}
-        >
+        <div className="w-full max-w-lg mx-4" onClick={(e) => e.stopPropagation()}>
           {/* Header */}
           <motion.div
             initial={{ opacity: 0, y: -20 }}
@@ -188,7 +190,7 @@ export function MilestoneCeremony({ isOpen, milestone, userName, onClose }: Mile
               className={cn(
                 "inline-flex items-center gap-2 px-4 py-2 rounded-full border",
                 config.bgColor,
-                config.borderColor
+                config.borderColor,
               )}
             >
               <Trophy className={cn("w-4 h-4", config.color)} />
@@ -207,7 +209,7 @@ export function MilestoneCeremony({ isOpen, milestone, userName, onClose }: Mile
             className={cn(
               "p-8 rounded-2xl border-2 text-center relative overflow-hidden",
               config.bgColor,
-              config.borderColor
+              config.borderColor,
             )}
           >
             {/* Animated background */}
@@ -271,7 +273,7 @@ export function MilestoneCeremony({ isOpen, milestone, userName, onClose }: Mile
                   "absolute -top-4 -right-4 w-16 h-16 rounded-full flex items-center justify-center",
                   config.bgColor,
                   config.borderColor,
-                  "border-2"
+                  "border-2",
                 )}
               >
                 <Icon className={cn("w-8 h-8", config.color)} />
@@ -308,7 +310,7 @@ export function MilestoneCeremony({ isOpen, milestone, userName, onClose }: Mile
                   });
                 } else {
                   navigator.clipboard.writeText(
-                    `I just achieved the ${milestoneName} milestone (${formatMilestoneValue(parseFloat(milestone.threshold))}) on Sportfolio!`
+                    `I just achieved the ${milestoneName} milestone (${formatMilestoneValue(parseFloat(milestone.threshold))}) on Sportfolio!`,
                   );
                 }
               }}

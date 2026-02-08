@@ -1,8 +1,7 @@
-
 import { getTodayET, getETDayBoundaries, getGameDay } from "../server/lib/time";
-import { toZonedTime, fromZonedTime } from 'date-fns-tz';
+import { toZonedTime, fromZonedTime } from "date-fns-tz";
 
-const ET_TIMEZONE = 'America/New_York';
+const ET_TIMEZONE = "America/New_York";
 
 console.log("=== Date Logic Comparison Debug ===");
 console.log(`Current Server Time: ${new Date().toISOString()}`);
@@ -29,11 +28,11 @@ console.log(`[Boost Storage] endOfDay:   ${storageBoundaries.endOfDay.toISOStrin
 
 // Comparison
 const match =
-    dashboardBoundaries.startOfDay.getTime() === storageBoundaries.startOfDay.getTime() &&
-    dashboardBoundaries.endOfDay.getTime() === storageBoundaries.endOfDay.getTime();
+  dashboardBoundaries.startOfDay.getTime() === storageBoundaries.startOfDay.getTime() &&
+  dashboardBoundaries.endOfDay.getTime() === storageBoundaries.endOfDay.getTime();
 
 console.log(`\n=== RESULT: Logic Match? ${match ? "YES" : "NO"} ===`);
 
 if (!match) {
-    console.log("!!! MISMATCH DETECTED !!!");
+  console.log("!!! MISMATCH DETECTED !!!");
 }

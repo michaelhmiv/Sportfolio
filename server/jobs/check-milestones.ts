@@ -31,8 +31,8 @@ async function calculateNetWorth(userId: string): Promise<number> {
       and(
         eq(holdings.userId, userId),
         eq(holdings.assetType, "player"),
-        sql`${holdings.quantity} > 0`
-      )
+        sql`${holdings.quantity} > 0`,
+      ),
     );
 
   const cashBalance = parseFloat(user[0].balance);
@@ -82,7 +82,7 @@ async function checkUserMilestones(userId: string): Promise<void> {
 async function createMilestoneIfNotExists(
   userId: string,
   milestoneType: string,
-  threshold: number
+  threshold: number,
 ): Promise<void> {
   // Check if milestone already exists
   const existing = await db
@@ -92,8 +92,8 @@ async function createMilestoneIfNotExists(
       and(
         eq(userMilestones.userId, userId),
         eq(userMilestones.milestoneType, milestoneType),
-        eq(userMilestones.threshold, threshold.toString())
-      )
+        eq(userMilestones.threshold, threshold.toString()),
+      ),
     )
     .limit(1);
 
@@ -140,7 +140,9 @@ export async function checkMilestonesJob(): Promise<void> {
       await db.select({ id: userMilestones.id }).from(userMilestones).limit(1);
     } catch (err: any) {
       if (err?.code === "42P01") {
-        console.warn("[Milestones Job] Skipping: user_milestones table does not exist (migrations not applied)");
+        console.warn(
+          "[Milestones Job] Skipping: user_milestones table does not exist (migrations not applied)",
+        );
         return;
       }
       throw err;

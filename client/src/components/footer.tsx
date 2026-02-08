@@ -13,27 +13,27 @@ export function Footer() {
             <h3 className="font-semibold mb-4 text-sm">Company</h3>
             <ul className="space-y-2 text-sm">
               <li>
-                <Link 
-                  href="/about" 
-                  className="text-muted-foreground hover:text-foreground transition-colors" 
+                <Link
+                  href="/about"
+                  className="text-muted-foreground hover:text-foreground transition-colors"
                   data-testid="link-footer-about"
                 >
                   About Us
                 </Link>
               </li>
               <li>
-                <Link 
-                  href="/contact" 
-                  className="text-muted-foreground hover:text-foreground transition-colors" 
+                <Link
+                  href="/contact"
+                  className="text-muted-foreground hover:text-foreground transition-colors"
                   data-testid="link-footer-contact"
                 >
                   Contact
                 </Link>
               </li>
               <li>
-                <Link 
-                  href="/blog" 
-                  className="text-muted-foreground hover:text-foreground transition-colors" 
+                <Link
+                  href="/blog"
+                  className="text-muted-foreground hover:text-foreground transition-colors"
                   data-testid="link-footer-blog"
                 >
                   Blog
@@ -47,25 +47,25 @@ export function Footer() {
             <h3 className="font-semibold mb-4 text-sm">Resources</h3>
             <ul className="space-y-2 text-sm">
               <li>
-                <Link 
-                  href="/how-it-works" 
-                  className="text-muted-foreground hover:text-foreground transition-colors" 
+                <Link
+                  href="/how-it-works"
+                  className="text-muted-foreground hover:text-foreground transition-colors"
                   data-testid="link-footer-how-it-works"
                 >
                   How It Works
                 </Link>
               </li>
               <li>
-                <Link 
-                  href="/pools" 
+                <Link
+                  href="/pools"
                   className="text-muted-foreground hover:text-foreground transition-colors"
                 >
                   Player Pools
                 </Link>
               </li>
               <li>
-                <Link 
-                  href="/contests" 
+                <Link
+                  href="/contests"
                   className="text-muted-foreground hover:text-foreground transition-colors"
                 >
                   Contests
@@ -79,18 +79,18 @@ export function Footer() {
             <h3 className="font-semibold mb-4 text-sm">Legal</h3>
             <ul className="space-y-2 text-sm">
               <li>
-                <Link 
-                  href="/privacy" 
-                  className="text-muted-foreground hover:text-foreground transition-colors" 
+                <Link
+                  href="/privacy"
+                  className="text-muted-foreground hover:text-foreground transition-colors"
                   data-testid="link-footer-privacy"
                 >
                   Privacy Policy
                 </Link>
               </li>
               <li>
-                <Link 
-                  href="/terms" 
-                  className="text-muted-foreground hover:text-foreground transition-colors" 
+                <Link
+                  href="/terms"
+                  className="text-muted-foreground hover:text-foreground transition-colors"
                   data-testid="link-footer-terms"
                 >
                   Terms of Service
@@ -116,8 +116,8 @@ export function Footer() {
                 </a>
               </li>
               <li>
-                <Link 
-                  href="/leaderboards" 
+                <Link
+                  href="/leaderboards"
                   className="text-muted-foreground hover:text-foreground transition-colors"
                 >
                   Leaderboards

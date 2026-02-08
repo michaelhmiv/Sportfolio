@@ -1,6 +1,6 @@
 /**
  * Perplexity AI Service
- * 
+ *
  * Uses Perplexity's API to get real-time NBA player news and summaries.
  */
 
@@ -49,7 +49,10 @@ class PerplexityService {
   /**
    * Get player news summaries from Perplexity
    */
-  async getPlayerSummaries(playerNames: string[], promptTemplate: string): Promise<PerplexityResponse> {
+  async getPlayerSummaries(
+    playerNames: string[],
+    promptTemplate: string,
+  ): Promise<PerplexityResponse> {
     const apiKey = this.getApiKey();
     if (!apiKey) {
       return {
@@ -73,7 +76,7 @@ class PerplexityService {
       const response = await fetch(this.baseUrl, {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${apiKey}`,
+          Authorization: `Bearer ${apiKey}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
@@ -81,12 +84,13 @@ class PerplexityService {
           messages: [
             {
               role: "system",
-              content: "You are a concise sports reporter. Provide brief, factual summaries of NBA player performance and news. Keep responses short and suitable for Twitter posts."
+              content:
+                "You are a concise sports reporter. Provide brief, factual summaries of NBA player performance and news. Keep responses short and suitable for Twitter posts.",
             },
             {
               role: "user",
-              content: prompt
-            }
+              content: prompt,
+            },
           ],
           max_tokens: 300,
           temperature: 0.2,
@@ -149,7 +153,7 @@ class PerplexityService {
       const response = await fetch(this.baseUrl, {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${apiKey}`,
+          Authorization: `Bearer ${apiKey}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
@@ -157,12 +161,13 @@ class PerplexityService {
           messages: [
             {
               role: "system",
-              content: "You are a social media manager for Sportfolio, a fantasy sports stock market platform. Your job is to draft engaging tweets about NBA player performance and market activity. Keep tweets concise, use relevant stats, and make them shareable."
+              content:
+                "You are a social media manager for Sportfolio, a fantasy sports stock market platform. Your job is to draft engaging tweets about NBA player performance and market activity. Keep tweets concise, use relevant stats, and make them shareable.",
             },
             {
               role: "user",
-              content: prompt
-            }
+              content: prompt,
+            },
           ],
           max_tokens: 400,
           temperature: 0.7,
@@ -224,7 +229,7 @@ class PerplexityService {
       const response = await fetch(this.baseUrl, {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${apiKey}`,
+          Authorization: `Bearer ${apiKey}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
@@ -232,12 +237,13 @@ class PerplexityService {
           messages: [
             {
               role: "system",
-              content: "You are a breaking news sports reporter for NBA, NFL, and MLB. Provide factual, concise news updates about player injuries, trades, signings, coaching hires, and major performances. Format your response as: [Headline] - [Brief 1-2 sentence summary]."
+              content:
+                "You are a breaking news sports reporter for NBA, NFL, and MLB. Provide factual, concise news updates about player injuries, trades, signings, coaching hires, and major performances. Format your response as: [Headline] - [Brief 1-2 sentence summary].",
             },
             {
               role: "user",
-              content: prompt
-            }
+              content: prompt,
+            },
           ],
           max_tokens: 400,
           temperature: 0.1, // Low temperature for factual news
@@ -297,7 +303,7 @@ class PerplexityService {
     try {
       const result = await this.getPlayerSummaries(
         ["LeBron James"],
-        "In one sentence, what was LeBron James' most recent game performance?"
+        "In one sentence, what was LeBron James' most recent game performance?",
       );
 
       return {

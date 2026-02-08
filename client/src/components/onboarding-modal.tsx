@@ -2,7 +2,12 @@ import { useState, useEffect, useCallback } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { Button } from "@/components/ui/button";
-import { Carousel, CarouselContent, CarouselItem, type CarouselApi } from "@/components/ui/carousel";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  type CarouselApi,
+} from "@/components/ui/carousel";
 import { Clock, TrendingUp, Trophy } from "lucide-react";
 import { SiDiscord } from "react-icons/si";
 import { useMutation } from "@tanstack/react-query";
@@ -19,7 +24,8 @@ const slides = [
     icon: Clock,
     title: "SCOUT SHARES",
     subtitle: "Earn player shares via scouting",
-    description: "Assign scouts to players to earn free shares hourly. You get 5 scout slots (10 for premium), and scouted shares are yours to keep! Manage assignments in your dashboard.",
+    description:
+      "Assign scouts to players to earn free shares hourly. You get 5 scout slots (10 for premium), and scouted shares are yours to keep! Manage assignments in your dashboard.",
     color: "text-yellow-500",
   },
   {
@@ -27,7 +33,8 @@ const slides = [
     icon: TrendingUp,
     title: "TRADE SHARES",
     subtitle: "Buy and sell like stocks",
-    description: "Trade instantly against the AMM pool with transparent pricing and real-time quotes. Build your portfolio as prices move with pool activity.",
+    description:
+      "Trade instantly against the AMM pool with transparent pricing and real-time quotes. Build your portfolio as prices move with pool activity.",
     color: "text-green-500",
   },
   {
@@ -35,7 +42,8 @@ const slides = [
     icon: Trophy,
     title: "ENTER CONTESTS",
     subtitle: "Compete in daily 50/50 contests",
-    description: "Use your player shares to enter contests and win Sportfolio cash! Build a lineup and score based on real player performance!",
+    description:
+      "Enter contests using your Sportfolio cash and win prizes! Build a lineup from that day's games and score based on real player performance!",
     color: "text-blue-500",
   },
   {
@@ -43,7 +51,8 @@ const slides = [
     icon: SiDiscord,
     title: "JOIN THE COMMUNITY",
     subtitle: "Connect with other traders",
-    description: "Get trading tips, contest strategies, and platform updates. Join our Discord to chat with fellow traders!",
+    description:
+      "Get trading tips, contest strategies, and platform updates. Join our Discord to chat with fellow traders!",
     color: "text-[#5865F2]",
     isDiscord: true,
   },
@@ -91,7 +100,7 @@ export function OnboardingModal({ open, onComplete }: OnboardingModalProps) {
   const isLastSlide = current === slides.length - 1;
 
   return (
-    <Dialog open={open} onOpenChange={() => { }}>
+    <Dialog open={open} onOpenChange={() => {}}>
       <DialogContent
         className="w-[90vw] max-w-[400px] sm:max-w-[420px] p-0 gap-0 border-2 border-border overflow-hidden rounded-none"
         onPointerDownOutside={(e) => e.preventDefault()}
@@ -103,7 +112,11 @@ export function OnboardingModal({ open, onComplete }: OnboardingModalProps) {
           <DialogTitle>Welcome to Sportfolio</DialogTitle>
         </VisuallyHidden>
         <div className="w-full overflow-hidden">
-          <Carousel setApi={setApi} className="w-full" opts={{ align: "start", containScroll: "trimSnaps" }}>
+          <Carousel
+            setApi={setApi}
+            className="w-full"
+            opts={{ align: "start", containScroll: "trimSnaps" }}
+          >
             <CarouselContent className="-ml-0">
               {slides.map((slide) => {
                 const Icon = slide.icon;
@@ -154,8 +167,9 @@ export function OnboardingModal({ open, onComplete }: OnboardingModalProps) {
               <button
                 key={index}
                 onClick={() => api?.scrollTo(index)}
-                className={`w-2.5 h-2.5 rounded-full transition-colors ${index === current ? "bg-primary" : "bg-muted-foreground/30"
-                  }`}
+                className={`w-2.5 h-2.5 rounded-full transition-colors ${
+                  index === current ? "bg-primary" : "bg-muted-foreground/30"
+                }`}
                 aria-label={`Go to slide ${index + 1}`}
                 data-testid={`dot-slide-${index}`}
               />

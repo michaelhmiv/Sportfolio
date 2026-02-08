@@ -15,25 +15,28 @@ Identified and fixed a critical performance bottleneck in the player list querie
 
 ## Database Statistics
 
-| Metric | Value |
-|--------|-------|
-| Total Players (active) | 3,118 |
-| Total Orders | 3,497,467 |
-| Orders (24h window) | 128,129 |
-| Orders (open/partial) | 2,025 |
+| Metric                 | Value     |
+| ---------------------- | --------- |
+| Total Players (active) | 3,118     |
+| Total Orders           | 3,497,467 |
+| Orders (24h window)    | 128,129   |
+| Orders (open/partial)  | 2,025     |
 
 ---
 
 ## Performance Test Results
 
 ### Test 1: Baseline (no joins)
+
 ```sql
 SELECT id, first_name, last_name, team, ... FROM players WHERE is_active = true
 ORDER BY volume_24h DESC LIMIT 50
 ```
+
 **Result:** 18ms (0.018s)
 
 ### Test 2c: CURRENT (correlated subqueries) ⚠️
+
 ```sql
 SELECT p.*,
   (SELECT MAX(limit_price) FROM orders WHERE player_id = p.id AND side = 'buy' ...) as best_bid,
@@ -41,11 +44,13 @@ SELECT p.*,
   (SELECT CASE WHEN SUM(quantity) > 0 THEN ... FROM orders WHERE player_id = p.id AND created_at >= NOW() - '24h') as buy_pressure
 FROM players p WHERE is_active = true ORDER BY volume_24h DESC LIMIT 50
 ```
+
 **Result:** 73,764ms (73.7 seconds) ❌
 
 **Bottleneck:** The sentiment subquery scans 7,413 rows per player × 50 players = ~370,000 row scans
 
 ### Test 5: OPTIMIZED (CTEs + LEFT JOINs)
+
 ```sql
 WITH best_bids AS (
   SELECT player_id, MAX(limit_price) as best_bid
@@ -73,17 +78,18 @@ LEFT JOIN sentiment s ON p.id = s.player_id
 WHERE p.is_active = true
 ORDER BY p.volume_24h DESC LIMIT 50
 ```
+
 **Result:** 188ms (0.19 seconds) ✅
 
 ---
 
 ## Performance Comparison
 
-| Approach | Execution Time | Improvement |
-|----------|---------------|-------------|
-| Baseline (no metrics) | 18ms | - |
-| Current (correlated subqueries) | 73,764ms | baseline |
-| Optimized (CTEs + LEFT JOINs) | 188ms | **99.7% faster (392x)** |
+| Approach                        | Execution Time | Improvement             |
+| ------------------------------- | -------------- | ----------------------- |
+| Baseline (no metrics)           | 18ms           | -                       |
+| Current (correlated subqueries) | 73,764ms       | baseline                |
+| Optimized (CTEs + LEFT JOINs)   | 188ms          | **99.7% faster (392x)** |
 
 ---
 
@@ -110,6 +116,7 @@ ON orders(player_id, created_at DESC) INCLUDE (quantity, side);
 **Before:** `getPlayersPaginated` used correlated subqueries for bestBid, bestAsk, and sentiment calculations.
 
 **After:** Simplified the function to:
+
 - Remove complex correlated subqueries
 - Use basic filtering and sorting
 - The full CTE optimization is documented for a follow-up PR
@@ -129,11 +136,13 @@ The full CTE optimization with LEFT JOINs should be implemented for maximum perf
 ## Impact
 
 **Affected Pages:**
+
 - `/marketplace` - Player list
 - Scout selector modal
 - Any page using `getPlayersPaginated`
 
 **Expected User Experience Improvement:**
+
 - **Before:** 10-73 seconds load time
 - **After:** 200-500ms load time
 

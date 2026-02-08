@@ -1,5 +1,5 @@
-import 'dotenv/config';
-import { Pool } from 'pg';
+import "dotenv/config";
+import { Pool } from "pg";
 
 async function checkProdHoldingsAndBoosts() {
   console.log("=== Checking PRODUCTION database ===\n");
@@ -7,23 +7,26 @@ async function checkProdHoldingsAndBoosts() {
   // Use production DATABASE_URL
   const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false }
+    ssl: { rejectUnauthorized: false },
   });
 
   const client = await pool.connect();
 
   // Your user ID
-  const userId = 'dev-user-12345678';
+  const userId = "dev-user-12345678";
 
   // 1. Get all holdings for dev-user
   console.log("--- Holdings ---");
-  const holdingsResult = await client.query(`
+  const holdingsResult = await client.query(
+    `
     SELECT h.*, p.first_name, p.last_name, p.team
     FROM holdings h
     JOIN players p ON h.asset_id = p.id
     WHERE h.user_id = $1 AND h.asset_type = 'player'
     ORDER BY p.last_name
-  `, [userId]);
+  `,
+    [userId],
+  );
 
   console.log(`Total holdings: ${holdingsResult.rows.length}\n`);
 
@@ -37,14 +40,17 @@ async function checkProdHoldingsAndBoosts() {
 
   // 2. Get all boosts (any date)
   console.log("--- All Boosts ---");
-  const boostsResult = await client.query(`
+  const boostsResult = await client.query(
+    `
     SELECT b.*, p.first_name, p.last_name, p.team
     FROM daily_boosts b
     JOIN players p ON b.player_id = p.id
     WHERE b.user_id = $1
     ORDER BY b.boost_date DESC
     LIMIT 20
-  `, [userId]);
+  `,
+    [userId],
+  );
 
   console.log(`Recent boosts: ${boostsResult.rows.length}\n`);
 
@@ -61,7 +67,7 @@ async function checkProdHoldingsAndBoosts() {
   // Cross-reference
   console.log("--- Cross-Reference ---");
   for (const b of boostsResult.rows) {
-    const holding = holdingsResult.rows.find(h => h.asset_id === b.player_id);
+    const holding = holdingsResult.rows.find((h) => h.asset_id === b.player_id);
     if (holding) {
       console.log(`${b.first_name} ${b.last_name}:`);
       console.log(`  Current Holding PowerLevel: ${holding.power_level}`);

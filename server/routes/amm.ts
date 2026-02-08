@@ -1,6 +1,6 @@
 /**
  * AMM API Routes
- * 
+ *
  * Endpoints for Automated Market Maker trading:
  * - GET /api/amm/:playerId - Get pool state and current price
  * - GET /api/amm/:playerId/quote - Get trade quote (preview)
@@ -9,13 +9,20 @@
  */
 
 import { Express } from "express";
-import { getPool, getOrCreatePool, getBuyQuote, getSellQuote, executeBuy, executeSell } from "../amm/pool";
+import {
+  getPool,
+  getOrCreatePool,
+  getBuyQuote,
+  getSellQuote,
+  executeBuy,
+  executeSell,
+} from "../amm/pool";
 import { isAuthenticated } from "../supabaseAuth";
 import { storage } from "../storage";
 
 // Slippage validation bounds
-const MIN_SLIPPAGE = 0.001;  // 0.1%
-const MAX_SLIPPAGE = 0.50;   // 50%
+const MIN_SLIPPAGE = 0.001; // 0.1%
+const MAX_SLIPPAGE = 0.5; // 50%
 const DEFAULT_SLIPPAGE = 0.05; // 5%
 
 export function registerAmmRoutes(app: Express) {
@@ -42,12 +49,15 @@ export function registerAmmRoutes(app: Express) {
         console.error(`[AMM API] Player not found: ${playerId}`);
         return res.status(404).json({
           error: "Player not found",
-          playerId: playerId
+          playerId: playerId,
         });
       }
 
       const pool = await getOrCreatePool(playerId);
-      console.log(`[AMM API] Pool found for ${playerId}:`, { shares: pool.shares, playMoney: pool.playMoney });
+      console.log(`[AMM API] Pool found for ${playerId}:`, {
+        shares: pool.shares,
+        playMoney: pool.playMoney,
+      });
 
       res.json({
         playerId: pool.playerId,
@@ -62,7 +72,7 @@ export function registerAmmRoutes(app: Express) {
       console.error("[AMM API] Error getting pool:", error);
       res.status(500).json({
         error: error.message,
-        details: error.stack?.split('\n')[0] || 'No additional details'
+        details: error.stack?.split("\n")[0] || "No additional details",
       });
     }
   });
@@ -151,7 +161,8 @@ export function registerAmmRoutes(app: Express) {
         return res.status(400).json({ error: "Minimum buy amount is $0.01" });
       }
       // Validate and clamp maxSlippage to safe bounds
-      let maxSlippageDecimal = maxSlippage !== undefined ? parseFloat(maxSlippage) : DEFAULT_SLIPPAGE;
+      let maxSlippageDecimal =
+        maxSlippage !== undefined ? parseFloat(maxSlippage) : DEFAULT_SLIPPAGE;
       if (isNaN(maxSlippageDecimal) || maxSlippageDecimal < MIN_SLIPPAGE) {
         maxSlippageDecimal = MIN_SLIPPAGE;
       } else if (maxSlippageDecimal > MAX_SLIPPAGE) {
@@ -195,7 +206,8 @@ export function registerAmmRoutes(app: Express) {
 
       const amount = parseFloat(sharesAmount);
       // Validate and clamp maxSlippage to safe bounds
-      let maxSlippageDecimal = maxSlippage !== undefined ? parseFloat(maxSlippage) : DEFAULT_SLIPPAGE;
+      let maxSlippageDecimal =
+        maxSlippage !== undefined ? parseFloat(maxSlippage) : DEFAULT_SLIPPAGE;
       if (isNaN(maxSlippageDecimal) || maxSlippageDecimal < MIN_SLIPPAGE) {
         maxSlippageDecimal = MIN_SLIPPAGE;
       } else if (maxSlippageDecimal > MAX_SLIPPAGE) {

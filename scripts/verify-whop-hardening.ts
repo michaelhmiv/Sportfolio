@@ -16,10 +16,13 @@ function assertNotContains(label: string, needle: string) {
   console.log(`✓ ${label}`);
 }
 
-assertContains("authenticated finalize endpoint", "app.post(\"/api/checkout/finalize\", isAuthenticated");
+assertContains(
+  "authenticated finalize endpoint",
+  'app.post("/api/checkout/finalize", isAuthenticated',
+);
 assertContains("atomic credit guard", "sql`${whopPayments.creditedAt} IS NULL`");
 assertContains("unknown plan unresolved path", "plan_id:unknown");
-assertContains("webhook unresolved response", "state: \"unresolved\"");
+assertContains("webhook unresolved response", 'state: "unresolved"');
 assertNotContains("unsafe most-recent pending fallback", "using most recent pending session");
 
 console.log("\nWhop hardening verification passed.");

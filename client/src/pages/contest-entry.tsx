@@ -90,7 +90,9 @@ export default function ContestEntry() {
         const player = lineupItem.player;
         if (player) {
           // Find the eligible player entry with correct maxShares already calculated by API
-          const eligiblePlayer = existingEntry.eligiblePlayers.find((ep: any) => ep.assetId === player.id);
+          const eligiblePlayer = existingEntry.eligiblePlayers.find(
+            (ep: any) => ep.assetId === player.id,
+          );
           newLineup.set(player.id, {
             playerId: player.id,
             playerName: `${player.firstName} ${player.lastName}`,
@@ -108,15 +110,14 @@ export default function ContestEntry() {
   const submitEntryMutation = useMutation({
     mutationFn: async (lineupData: { playerId: string; sharesEntered: number }[]) => {
       if (isEditMode) {
-        return await apiRequest("PUT", `/api/contest/${id}/entry/${entryId}`, { lineup: lineupData });
+        return await apiRequest("PUT", `/api/contest/${id}/entry/${entryId}`, {
+          lineup: lineupData,
+        });
       }
       return await apiRequest("POST", `/api/contest/${id}/enter`, { lineup: lineupData });
     },
     onSuccess: async () => {
-      await Promise.all([
-        invalidatePortfolioQueries(),
-        invalidateContestQueries(),
-      ]);
+      await Promise.all([invalidatePortfolioQueries(), invalidateContestQueries()]);
 
       if (!isEditMode) {
         // Show draft animation for new entries
@@ -131,7 +132,11 @@ export default function ContestEntry() {
       }
     },
     onError: (error: Error) => {
-      toast({ title: isEditMode ? "Update failed" : "Entry failed", description: error.message, variant: "destructive" });
+      toast({
+        title: isEditMode ? "Update failed" : "Entry failed",
+        description: error.message,
+        variant: "destructive",
+      });
     },
   });
 
@@ -170,7 +175,7 @@ export default function ContestEntry() {
       return;
     }
 
-    const lineupData = Array.from(lineup.values()).map(entry => ({
+    const lineupData = Array.from(lineup.values()).map((entry) => ({
       playerId: entry.playerId,
       sharesEntered: entry.sharesEntered,
     }));
@@ -186,18 +191,22 @@ export default function ContestEntry() {
     );
   }
 
-  const eligiblePlayers = isEditMode ? (existingEntry?.eligiblePlayers || []) : (data?.eligiblePlayers || []);
+  const eligiblePlayers = isEditMode
+    ? existingEntry?.eligiblePlayers || []
+    : data?.eligiblePlayers || [];
 
   // Extract teams playing on contest date
-  const teamsPlaying = gamesData ? Array.from(new Set([
-    ...gamesData.map(g => g.homeTeam),
-    ...gamesData.map(g => g.awayTeam)
-  ])) : [];
+  const teamsPlaying = gamesData
+    ? Array.from(
+        new Set([...gamesData.map((g) => g.homeTeam), ...gamesData.map((g) => g.awayTeam)]),
+      )
+    : [];
 
   // Apply filters
   const filteredPlayers = eligiblePlayers.filter((holding: any) => {
     // Search filter
-    const matchesSearch = holding.player.firstName.toLowerCase().includes(search.toLowerCase()) ||
+    const matchesSearch =
+      holding.player.firstName.toLowerCase().includes(search.toLowerCase()) ||
       holding.player.lastName.toLowerCase().includes(search.toLowerCase());
 
     // Teams playing filter
@@ -216,7 +225,9 @@ export default function ContestEntry() {
             {isEditMode && <Badge>Editing Entry</Badge>}
           </div>
           <p className="text-muted-foreground">
-            {isEditMode ? "Edit your lineup before the contest locks" : "Select players from your portfolio to enter this contest"}
+            {isEditMode
+              ? "Edit your lineup before the contest locks"
+              : "Select players from your portfolio to enter this contest"}
           </p>
         </div>
 
@@ -229,15 +240,20 @@ export default function ContestEntry() {
                   <div className="flex items-center gap-2">
                     <Calendar className="w-5 h-5 text-primary" />
                     <CardTitle className="text-sm font-medium uppercase tracking-wide">
-                      Games on {contestData?.gameDate ? format(new Date(contestData.gameDate), "MMM d, yyyy") : "Contest Date"}
+                      Games on{" "}
+                      {contestData?.gameDate
+                        ? format(new Date(contestData.gameDate), "MMM d, yyyy")
+                        : "Contest Date"}
                     </CardTitle>
                     <Badge variant="outline" data-testid="badge-games-count">
-                      {gamesData.length} {gamesData.length === 1 ? 'Game' : 'Games'}
+                      {gamesData.length} {gamesData.length === 1 ? "Game" : "Games"}
                     </Badge>
                   </div>
                   <CollapsibleTrigger asChild>
                     <Button variant="ghost" size="sm" data-testid="button-toggle-games">
-                      <ChevronDown className={`w-4 h-4 transition-transform ${isGamesOpen ? 'rotate-180' : ''}`} />
+                      <ChevronDown
+                        className={`w-4 h-4 transition-transform ${isGamesOpen ? "rotate-180" : ""}`}
+                      />
                     </Button>
                   </CollapsibleTrigger>
                 </div>
@@ -270,7 +286,9 @@ export default function ContestEntry() {
           {/* Available Players */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-sm font-medium uppercase tracking-wide">Your Eligible Players</CardTitle>
+              <CardTitle className="text-sm font-medium uppercase tracking-wide">
+                Your Eligible Players
+              </CardTitle>
               <div className="flex items-center gap-2 mt-4">
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -301,41 +319,51 @@ export default function ContestEntry() {
                   No eligible players found
                 </div>
               ) : (
-                filteredPlayers.map((holding: Holding & { player: Player; isEligible: boolean; availableShares: number }) => (
-                  <div
-                    key={holding.player.id}
-                    className="flex items-center justify-between p-3 border rounded-md hover-elevate"
-                    data-testid={`player-available-${holding.player.id}`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                        <span className="font-bold text-sm">
-                          {holding.player.firstName[0]}{holding.player.lastName[0]}
-                        </span>
-                      </div>
-                      <div>
-                        <div className="font-medium">
-                          <PlayerName
-                            playerId={holding.player.id}
-                            firstName={holding.player.firstName}
-                            lastName={holding.player.lastName}
-                          />
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {holding.player.team} · {holding.player.position} · {holding.availableShares} available
-                        </div>
-                      </div>
-                    </div>
-                    <Button
-                      size="sm"
-                      onClick={() => addToLineup(holding)}
-                      disabled={lineup.has(holding.player.id) || !holding.isEligible}
-                      data-testid={`button-add-${holding.player.id}`}
+                filteredPlayers.map(
+                  (
+                    holding: Holding & {
+                      player: Player;
+                      isEligible: boolean;
+                      availableShares: number;
+                    },
+                  ) => (
+                    <div
+                      key={holding.player.id}
+                      className="flex items-center justify-between p-3 border rounded-md hover-elevate"
+                      data-testid={`player-available-${holding.player.id}`}
                     >
-                      <Plus className="w-4 h-4" />
-                    </Button>
-                  </div>
-                ))
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                          <span className="font-bold text-sm">
+                            {holding.player.firstName[0]}
+                            {holding.player.lastName[0]}
+                          </span>
+                        </div>
+                        <div>
+                          <div className="font-medium">
+                            <PlayerName
+                              playerId={holding.player.id}
+                              firstName={holding.player.firstName}
+                              lastName={holding.player.lastName}
+                            />
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {holding.player.team} · {holding.player.position} ·{" "}
+                            {holding.availableShares} available
+                          </div>
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        onClick={() => addToLineup(holding)}
+                        disabled={lineup.has(holding.player.id) || !holding.isEligible}
+                        data-testid={`button-add-${holding.player.id}`}
+                      >
+                        <Plus className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ),
+                )
               )}
             </CardContent>
           </Card>
@@ -344,7 +372,9 @@ export default function ContestEntry() {
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-medium uppercase tracking-wide">Your Lineup</CardTitle>
+                <CardTitle className="text-sm font-medium uppercase tracking-wide">
+                  Your Lineup
+                </CardTitle>
                 <Badge variant="outline" data-testid="badge-total-shares">
                   {getTotalShares()} Total Shares
                 </Badge>
@@ -368,8 +398,8 @@ export default function ContestEntry() {
                           <div className="font-medium">
                             <PlayerName
                               playerId={entry.playerId}
-                              firstName={entry.playerName.split(' ')[0]}
-                              lastName={entry.playerName.split(' ').slice(1).join(' ')}
+                              firstName={entry.playerName.split(" ")[0]}
+                              lastName={entry.playerName.split(" ").slice(1).join(" ")}
                             />
                           </div>
                           <div className="text-xs text-muted-foreground">
@@ -402,7 +432,9 @@ export default function ContestEntry() {
                           <Input
                             type="number"
                             value={entry.sharesEntered}
-                            onChange={(e) => updateShares(entry.playerId, parseInt(e.target.value) || 1)}
+                            onChange={(e) =>
+                              updateShares(entry.playerId, parseInt(e.target.value) || 1)
+                            }
                             className="w-20 text-center font-mono"
                             min={1}
                             max={entry.maxShares}
@@ -427,7 +459,9 @@ export default function ContestEntry() {
                     </span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">Potential Payout (Top 50%)</span>
+                    <span className="text-sm text-muted-foreground">
+                      Potential Payout (Top 50%)
+                    </span>
                     <span className="text-xl font-mono font-bold text-positive">
                       ${getTotalShares() * 2} {/* $2 per share */}
                     </span>

@@ -3,14 +3,17 @@
 ## ✅ COMPLETED
 
 ### Routes / Naming
+
 - Canonical UI name: `Player Pools`
 - Canonical route: `/pools`
 - Legacy alias: `/marketplace` redirects to `/pools` (same feature)
 
 ### 1. Player Detail Page (`client/src/pages/player.tsx`)
+
 **Status:** ✅ FULLY REPLACED
 
 **What was removed:**
+
 - ❌ Order book interface definition
 - ❌ Order book display (bids/asks columns)
 - ❌ Limit order form
@@ -21,6 +24,7 @@
 - ❌ Order book WebSocket subscription
 
 **What was added:**
+
 - ✅ AMM Pool data interface
 - ✅ AMM Pool info card showing:
   - Pool shares
@@ -32,9 +36,11 @@
 - ✅ Portfolio WebSocket subscription
 
 ### 2. Backend Infrastructure
+
 **Status:** ✅ COMPLETE
 
 **Files created:**
+
 - `server/amm/pool.ts` - Core AMM + LP logic
 - `server/routes/amm.ts` - AMM API endpoints
 - `server/routes/lp.ts` - LP API endpoints
@@ -42,20 +48,24 @@
 - `migrations/0014_lp_system.sql` - LP system migration
 
 **Files modified:**
+
 - `shared/schema.ts` - Added playerPools, lpPositions, lpTransactions tables
 - `server/storage.ts` - Added LP storage methods
 - `server/routes.ts` - Registered new routes
 - `server/jobs/scheduler.ts` - Disabled bot engine
 
 ### 3. Portfolio Page
+
 **Status:** ✅ PARTIALLY UPDATED
 
 **Completed:**
+
 - ✅ Added LP positions query
 - ✅ Holdings display shows "(X in pool)" next to quantity
 - ✅ Shows LP shares in holdings table
 
 **Still needs:**
+
 - ❌ Remove "Open Orders" tab (lines 1380-1445)
 - ❌ Remove cancel order mutation (line 220)
 - ❌ Remove bid/ask columns from holdings table
@@ -66,10 +76,12 @@
 ## ❌ STILL NEEDS UPDATING
 
 ### 1. Marketplace Page (`client/src/pages/marketplace.tsx`)
+
 **Priority:** CRITICAL
 **Lines to change:** 100+ references
 
 **Remove:**
+
 ```typescript
 // Type definitions
 bestBid: string | null;
@@ -94,6 +106,7 @@ Ask column
 ```
 
 **Replace with:**
+
 ```typescript
 // Show AMM pool price only
 ammPrice: number;
@@ -103,10 +116,12 @@ poolLiquidity: number;
 ```
 
 ### 2. Portfolio Page (`client/src/pages/portfolio.tsx`)
+
 **Priority:** CRITICAL
 **Lines to change:** 50+ references
 
 **Remove:**
+
 ```typescript
 // Open Orders tab (lines 1380-1445)
 <TabsContent value="orders">
@@ -126,39 +141,48 @@ case 'ask':
 ```
 
 **Replace with:**
+
 - Show AMM pool price
 - Remove order-related UI entirely
 
 ### 3. Premium Trade Page (`client/src/pages/premium-trade.tsx`)
+
 **Priority:** HIGH
 **Lines to change:** 80+ references
 
 **Remove:**
+
 - Order book display (lines 351-421)
 - Limit order form
 - Order type tabs
 - Price input for limit orders
 
 **Replace with:**
+
 - AMM trading interface (or disable premium trading as planned)
 
 ### 4. Market Activity Widget (`client/src/components/market-activity-widget.tsx`)
+
 **Priority:** MEDIUM
 
 **Remove:**
+
 ```typescript
-activityType: "order_placed" | "order_cancelled"
+activityType: "order_placed" | "order_cancelled";
 ```
 
 **Keep:**
+
 ```typescript
-activityType: "trade"
+activityType: "trade";
 ```
 
 ### 5. WebSocket Handler (`client/src/lib/websocket.tsx`)
+
 **Priority:** MEDIUM
 
 **Keep:**
+
 ```typescript
 case 'trade':
 case 'portfolio':
@@ -166,9 +190,11 @@ case 'marketActivity':
 ```
 
 ### 6. API Endpoint Calls
+
 **Priority:** CRITICAL
 
 **Remove/Replace these API calls:**
+
 ```text
 Legacy /api/orders endpoints removed (AMM-only).
 Use /api/amm/:playerId (+ /quote, /buy, /sell).
@@ -181,6 +207,7 @@ Use /api/amm/:playerId (+ /quote, /buy, /sell).
 ### File-by-File Breakdown
 
 #### ✅ `client/src/pages/player.tsx` (DONE)
+
 - [x] Replace orderBook with ammPool data
 - [x] Remove limit order form
 - [x] Integrate AmmTradePanel
@@ -189,6 +216,7 @@ Use /api/amm/:playerId (+ /quote, /buy, /sell).
 - [x] Remove order book display
 
 #### ❌ `client/src/pages/portfolio.tsx` (PARTIAL)
+
 - [x] Add LP positions display
 - [ ] Remove "Open Orders" tab
 - [ ] Remove cancel order functionality
@@ -197,6 +225,7 @@ Use /api/amm/:playerId (+ /quote, /buy, /sell).
 - [ ] Update to show AMM price only
 
 #### ❌ `client/src/pages/marketplace.tsx` (NOT STARTED)
+
 - [ ] Remove PlayerWithOrderBook type
 - [ ] Remove bid/ask from SortField
 - [ ] Remove hasBuyOrders/hasSellOrders filters
@@ -205,12 +234,15 @@ Use /api/amm/:playerId (+ /quote, /buy, /sell).
 - [ ] Remove order book filters UI
 
 #### ✅ `client/src/pages/premium-trade.tsx` (REMOVED)
+
 - [x] Remove page (premium share trading disabled)
 
 #### ✅ `client/src/components/market-activity-widget.tsx` (DONE)
+
 - [x] Trades-only market activity
 
 #### ✅ `client/src/lib/websocket.tsx` (DONE)
+
 - [x] Remove orderBook message handler
 
 ---
@@ -220,16 +252,19 @@ Use /api/amm/:playerId (+ /quote, /buy, /sell).
 Given the complexity, I recommend this implementation order:
 
 ### Phase 1: Critical Pages (DONE + Next)
+
 1. ✅ Player detail page (DONE)
 2. ✅ Portfolio page - Remove orders tab, update holdings display
 3. ✅ Marketplace page - Replace bid/ask with AMM price
 
 ### Phase 2: Supporting Components
+
 4. ✅ Premium trade page
 5. ✅ Market activity widget
 6. ✅ WebSocket cleanup
 
 ### Phase 3: Polish
+
 7. ❌ Update onboarding text
 8. ❌ Update FAQ/help text
 9. ❌ Remove old order book backend code (optional)
@@ -239,12 +274,14 @@ Given the complexity, I recommend this implementation order:
 ## 📊 CURRENT STATUS
 
 **Backend:** ✅ 100% Complete
+
 - AMM pools working
 - LP system working
 - Fee structure (1%+1%) implemented
 - API endpoints ready
 
 **Frontend:** ⚠️ 30% Complete
+
 - Player page: ✅ Complete
 - Portfolio page: ⚠️ Partial
 - Marketplace: ❌ Not started
@@ -252,6 +289,7 @@ Given the complexity, I recommend this implementation order:
 - Activity widget: ❌ Not started
 
 **Build Status:** ✅ PASSING
+
 - TypeScript compiles
 - No breaking errors
 

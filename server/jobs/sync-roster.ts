@@ -1,6 +1,6 @@
 /**
  * Roster Sync Job
- * 
+ *
  * Fetches NBA player rosters from BallDontLie API and updates the database.
  * Updates: active status, team assignments, and vesting eligibility.
  */
@@ -15,9 +15,9 @@ export async function syncRoster(progressCallback?: ProgressCallback): Promise<J
   console.log("[roster_sync] Starting player roster sync...");
 
   progressCallback?.({
-    type: 'info',
+    type: "info",
     timestamp: new Date().toISOString(),
-    message: 'Starting roster sync job',
+    message: "Starting roster sync job",
   });
 
   let requestCount = 0;
@@ -27,9 +27,9 @@ export async function syncRoster(progressCallback?: ProgressCallback): Promise<J
   try {
     // Fetch players with rate limiting
     progressCallback?.({
-      type: 'info',
+      type: "info",
       timestamp: new Date().toISOString(),
-      message: 'Fetching active players from BallDontLie API',
+      message: "Fetching active players from BallDontLie API",
     });
 
     const players = await balldontlieRateLimiter.executeWithRetry(async () => {
@@ -40,7 +40,7 @@ export async function syncRoster(progressCallback?: ProgressCallback): Promise<J
     console.log(`[roster_sync] Fetched ${players.length} players from BallDontLie`);
 
     progressCallback?.({
-      type: 'info',
+      type: "info",
       timestamp: new Date().toISOString(),
       message: `Fetched ${players.length} players from API, updating database`,
       data: { totalPlayers: players.length, apiCalls: requestCount },
@@ -71,7 +71,7 @@ export async function syncRoster(progressCallback?: ProgressCallback): Promise<J
         // Progress update every 50 players
         if (recordsProcessed % 50 === 0) {
           progressCallback?.({
-            type: 'progress',
+            type: "progress",
             timestamp: new Date().toISOString(),
             message: `Updated ${recordsProcessed}/${players.length} players`,
             data: {
@@ -86,9 +86,10 @@ export async function syncRoster(progressCallback?: ProgressCallback): Promise<J
         console.error(`[roster_sync] Failed to update player ${player.id}:`, error.message);
         errorCount++;
 
-        if (errorCount <= 5) { // Only log first 5 errors to avoid spam
+        if (errorCount <= 5) {
+          // Only log first 5 errors to avoid spam
           progressCallback?.({
-            type: 'warning',
+            type: "warning",
             timestamp: new Date().toISOString(),
             message: `Failed to update player ${player.first_name} ${player.last_name}: ${error.message}`,
           });
@@ -96,15 +97,18 @@ export async function syncRoster(progressCallback?: ProgressCallback): Promise<J
       }
     }
 
-    console.log(`[roster_sync] Successfully processed ${recordsProcessed}/${players.length} players, ${errorCount} errors`);
+    console.log(
+      `[roster_sync] Successfully processed ${recordsProcessed}/${players.length} players, ${errorCount} errors`,
+    );
     console.log(`[roster_sync] API requests made: ${requestCount}`);
 
     progressCallback?.({
-      type: 'complete',
+      type: "complete",
       timestamp: new Date().toISOString(),
-      message: errorCount > 0
-        ? `Roster sync completed with ${errorCount} errors: ${recordsProcessed}/${players.length} players updated`
-        : `Roster sync completed successfully: ${recordsProcessed} players updated`,
+      message:
+        errorCount > 0
+          ? `Roster sync completed with ${errorCount} errors: ${recordsProcessed}/${players.length} players updated`
+          : `Roster sync completed successfully: ${recordsProcessed} players updated`,
       data: {
         success: errorCount === 0,
         summary: {
@@ -120,14 +124,14 @@ export async function syncRoster(progressCallback?: ProgressCallback): Promise<J
     console.error("[roster_sync] Failed:", error.message);
 
     progressCallback?.({
-      type: 'error',
+      type: "error",
       timestamp: new Date().toISOString(),
       message: `Roster sync failed: ${error.message}`,
       data: { error: error.message, stack: error.stack },
     });
 
     progressCallback?.({
-      type: 'complete',
+      type: "complete",
       timestamp: new Date().toISOString(),
       message: `Roster sync failed: ${error.message}`,
       data: {

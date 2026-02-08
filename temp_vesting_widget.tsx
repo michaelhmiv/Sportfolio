@@ -30,7 +30,7 @@ export function VestingWidget({ onVestShares, className, compact = false }: Vest
   const [projectedShares, setProjectedShares] = useState(0);
 
   const { data } = useQuery<VestingData>({
-    queryKey: ['/api/dashboard'],
+    queryKey: ["/api/dashboard"],
     enabled: isAuthenticated,
   });
 
@@ -92,18 +92,12 @@ export function VestingWidget({ onVestShares, className, compact = false }: Vest
         className={cn(
           "flex items-center gap-1.5 px-2 py-1 rounded-md cursor-pointer hover-elevate",
           hasNeverVested && "first-time-indicator",
-          className
+          className,
         )}
         data-testid="button-vesting-widget-mobile"
       >
         <div className="relative w-20 h-5">
-          <Progress
-            value={progress}
-            className={cn(
-              "h-5 w-full",
-              isAtCap && "bg-yellow-500/20"
-            )}
-          />
+          <Progress value={progress} className={cn("h-5 w-full", isAtCap && "bg-yellow-500/20")} />
           <span
             className="absolute inset-0 flex items-center justify-center text-[10px] font-mono font-bold text-white"
             data-testid="text-vesting-shares-mobile"
@@ -122,7 +116,7 @@ export function VestingWidget({ onVestShares, className, compact = false }: Vest
           className={cn(
             "flex flex-col items-start gap-0.5 px-3 py-1.5 rounded-md hover-elevate active-elevate-2 transition-colors cursor-pointer min-w-[140px]",
             hasNeverVested && "first-time-indicator",
-            className
+            className,
           )}
           data-testid="button-vesting-widget"
         >
@@ -130,10 +124,7 @@ export function VestingWidget({ onVestShares, className, compact = false }: Vest
           <div className="relative w-full h-5">
             <Progress
               value={progress}
-              className={cn(
-                "h-5 w-full",
-                isAtCap && "bg-yellow-500/20"
-              )}
+              className={cn("h-5 w-full", isAtCap && "bg-yellow-500/20")}
               data-testid="progress-vesting-widget"
             />
             <span
@@ -149,20 +140,11 @@ export function VestingWidget({ onVestShares, className, compact = false }: Vest
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium">Vested Shares</span>
-            <span className={cn(
-              "text-sm font-mono font-bold",
-              isAtCap && "text-yellow-500"
-            )}>
+            <span className={cn("text-sm font-mono font-bold", isAtCap && "text-yellow-500")}>
               {projectedShares.toLocaleString()} / {capLimit.toLocaleString()}
             </span>
           </div>
-          <Progress
-            value={progress}
-            className={cn(
-              "h-2",
-              isAtCap && "bg-yellow-500/20"
-            )}
-          />
+          <Progress value={progress} className={cn("h-2", isAtCap && "bg-yellow-500/20")} />
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span>Rate: {sharesPerHour} shares/hr</span>
             {isAtCap && <span className="text-yellow-500 font-medium">Cap reached!</span>}

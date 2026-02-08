@@ -8,5 +8,6 @@
 - [ ] Fix 24h volume accuracy: compute rolling 24h shares volume from `trades` and stop roster sync from clobbering market fields
 
 ## Notes
+
 - Keep `/marketplace` working as a legacy alias to avoid breaking old links.
 - Premium share trading removed; future trading returns via pools.

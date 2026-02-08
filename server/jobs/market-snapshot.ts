@@ -1,6 +1,6 @@
 /**
  * Market Snapshot Job
- * 
+ *
  * Takes daily snapshots of platform-wide market metrics for analytics charts:
  * - Market Cap: Total value of all shares (shares outstanding × price)
  * - Transactions Count: Number of trades that day
@@ -8,12 +8,20 @@
  * - Shares Vested: Shares vested that day
  * - Shares Burned: Shares used in contests that day
  * - Total Shares: Total shares in economy (snapshot)
- * 
+ *
  * Runs daily as part of the daily_snapshot job
  */
 
 import { db } from "../db";
-import { trades, vestingClaims, dailyBoosts, contestEntries, holdings, players, marketSnapshots } from "@shared/schema";
+import {
+  trades,
+  vestingClaims,
+  dailyBoosts,
+  contestEntries,
+  holdings,
+  players,
+  marketSnapshots,
+} from "@shared/schema";
 import { sql, eq, gte, lte, and, inArray } from "drizzle-orm";
 import type { JobResult } from "./scheduler";
 import type { ProgressCallback } from "../lib/admin-stream";
@@ -32,8 +40,28 @@ interface DailyMetrics {
  * Calculate market metrics for a specific date
  */
 async function calculateMetricsForDate(targetDate: Date): Promise<DailyMetrics> {
-  const startOfDay = new Date(Date.UTC(targetDate.getUTCFullYear(), targetDate.getUTCMonth(), targetDate.getUTCDate(), 0, 0, 0, 0));
-  const endOfDay = new Date(Date.UTC(targetDate.getUTCFullYear(), targetDate.getUTCMonth(), targetDate.getUTCDate(), 23, 59, 59, 999));
+  const startOfDay = new Date(
+    Date.UTC(
+      targetDate.getUTCFullYear(),
+      targetDate.getUTCMonth(),
+      targetDate.getUTCDate(),
+      0,
+      0,
+      0,
+      0,
+    ),
+  );
+  const endOfDay = new Date(
+    Date.UTC(
+      targetDate.getUTCFullYear(),
+      targetDate.getUTCMonth(),
+      targetDate.getUTCDate(),
+      23,
+      59,
+      59,
+      999,
+    ),
+  );
 
   // 1. Transactions count and volume for the day
   const tradeStats = await db
@@ -42,10 +70,7 @@ async function calculateMetricsForDate(targetDate: Date): Promise<DailyMetrics> 
       volume: sql<string>`COALESCE(SUM(${trades.price} * ${trades.quantity}), 0)`,
     })
     .from(trades)
-    .where(and(
-      gte(trades.executedAt, startOfDay),
-      lte(trades.executedAt, endOfDay)
-    ));
+    .where(and(gte(trades.executedAt, startOfDay), lte(trades.executedAt, endOfDay)));
 
   const transactionsCount = parseInt(tradeStats[0]?.count || "0");
   const volume = parseFloat(tradeStats[0]?.volume || "0");
@@ -56,10 +81,7 @@ async function calculateMetricsForDate(targetDate: Date): Promise<DailyMetrics> 
       total: sql<string>`COALESCE(SUM(${vestingClaims.sharesClaimed}), 0)`,
     })
     .from(vestingClaims)
-    .where(and(
-      gte(vestingClaims.claimedAt, startOfDay),
-      lte(vestingClaims.claimedAt, endOfDay)
-    ));
+    .where(and(gte(vestingClaims.claimedAt, startOfDay), lte(vestingClaims.claimedAt, endOfDay)));
 
   const sharesVested = parseInt(vestedStats[0]?.total || "0");
 
@@ -69,11 +91,13 @@ async function calculateMetricsForDate(targetDate: Date): Promise<DailyMetrics> 
       total: sql<string>`COALESCE(SUM(${dailyBoosts.sharesEntered}), 0)`,
     })
     .from(dailyBoosts)
-    .where(and(
-      inArray(dailyBoosts.status, ["locked", "processed"]),
-      gte(dailyBoosts.boostDate, startOfDay),
-      lte(dailyBoosts.boostDate, endOfDay)
-    ));
+    .where(
+      and(
+        inArray(dailyBoosts.status, ["locked", "processed"]),
+        gte(dailyBoosts.boostDate, startOfDay),
+        lte(dailyBoosts.boostDate, endOfDay),
+      ),
+    );
 
   // Legacy contest burn support during migration window
   const burnedLegacyContestStats = await db
@@ -81,10 +105,7 @@ async function calculateMetricsForDate(targetDate: Date): Promise<DailyMetrics> 
       total: sql<string>`COALESCE(SUM(${contestEntries.totalSharesEntered}), 0)`,
     })
     .from(contestEntries)
-    .where(and(
-      gte(contestEntries.createdAt, startOfDay),
-      lte(contestEntries.createdAt, endOfDay)
-    ));
+    .where(and(gte(contestEntries.createdAt, startOfDay), lte(contestEntries.createdAt, endOfDay)));
 
   const sharesBurned =
     parseInt(burnedBoostStats[0]?.total || "0") +
@@ -129,21 +150,23 @@ export async function takeMarketSnapshot(progressCallback?: ProgressCallback): P
   console.log("[market_snapshot] Starting market snapshot...");
 
   progressCallback?.({
-    type: 'info',
+    type: "info",
     timestamp: new Date().toISOString(),
-    message: 'Starting market snapshot',
+    message: "Starting market snapshot",
   });
 
   try {
     const now = new Date();
-    const snapshotDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
+    const snapshotDate = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0),
+    );
 
     console.log(`[market_snapshot] Taking snapshot for ${snapshotDate.toISOString()}`);
 
     progressCallback?.({
-      type: 'info',
+      type: "info",
       timestamp: new Date().toISOString(),
-      message: `Calculating metrics for ${snapshotDate.toISOString().split('T')[0]}`,
+      message: `Calculating metrics for ${snapshotDate.toISOString().split("T")[0]}`,
     });
 
     const metrics = await calculateMetricsForDate(now);
@@ -172,10 +195,12 @@ export async function takeMarketSnapshot(progressCallback?: ProgressCallback): P
         },
       });
 
-    console.log(`[market_snapshot] Snapshot saved: Market Cap=$${metrics.marketCap.toFixed(2)}, Transactions=${metrics.transactionsCount}, Volume=$${metrics.volume.toFixed(2)}, Vested=${metrics.sharesVested}, Burned=${metrics.sharesBurned}, Total=${metrics.totalShares}`);
+    console.log(
+      `[market_snapshot] Snapshot saved: Market Cap=$${metrics.marketCap.toFixed(2)}, Transactions=${metrics.transactionsCount}, Volume=$${metrics.volume.toFixed(2)}, Vested=${metrics.sharesVested}, Burned=${metrics.sharesBurned}, Total=${metrics.totalShares}`,
+    );
 
     progressCallback?.({
-      type: 'complete',
+      type: "complete",
       timestamp: new Date().toISOString(),
       message: `Market snapshot saved: Market Cap=$${metrics.marketCap.toFixed(2)}, ${metrics.transactionsCount} transactions`,
       data: metrics,
@@ -190,7 +215,7 @@ export async function takeMarketSnapshot(progressCallback?: ProgressCallback): P
     console.error("[market_snapshot] Error:", error);
 
     progressCallback?.({
-      type: 'error',
+      type: "error",
       timestamp: new Date().toISOString(),
       message: `Error: ${error.message}`,
     });
@@ -206,13 +231,15 @@ export async function takeMarketSnapshot(progressCallback?: ProgressCallback): P
 /**
  * Backfill historical market snapshots from existing event data
  */
-export async function backfillMarketSnapshots(progressCallback?: ProgressCallback): Promise<JobResult> {
+export async function backfillMarketSnapshots(
+  progressCallback?: ProgressCallback,
+): Promise<JobResult> {
   console.log("[market_snapshot] Starting historical backfill...");
 
   progressCallback?.({
-    type: 'info',
+    type: "info",
     timestamp: new Date().toISOString(),
-    message: 'Starting historical market snapshot backfill',
+    message: "Starting historical market snapshot backfill",
   });
 
   let recordsProcessed = 0;
@@ -228,35 +255,40 @@ export async function backfillMarketSnapshots(progressCallback?: ProgressCallbac
       .select({ minDate: sql<Date>`MIN(${vestingClaims.claimedAt})` })
       .from(vestingClaims);
 
-    const earliestDates = [
-      earliestTrade[0]?.minDate,
-      earliestVesting[0]?.minDate,
-    ].filter(Boolean).map(d => new Date(d));
+    const earliestDates = [earliestTrade[0]?.minDate, earliestVesting[0]?.minDate]
+      .filter(Boolean)
+      .map((d) => new Date(d));
 
     if (earliestDates.length === 0) {
       console.log("[market_snapshot] No historical data to backfill");
       progressCallback?.({
-        type: 'complete',
+        type: "complete",
         timestamp: new Date().toISOString(),
-        message: 'No historical data to backfill',
+        message: "No historical data to backfill",
       });
       return { requestCount: 0, recordsProcessed: 0, errorCount: 0 };
     }
 
-    const startDate = new Date(Math.min(...earliestDates.map(d => d.getTime())));
+    const startDate = new Date(Math.min(...earliestDates.map((d) => d.getTime())));
     const endDate = new Date();
 
-    console.log(`[market_snapshot] Backfilling from ${startDate.toISOString()} to ${endDate.toISOString()}`);
+    console.log(
+      `[market_snapshot] Backfilling from ${startDate.toISOString()} to ${endDate.toISOString()}`,
+    );
 
     progressCallback?.({
-      type: 'info',
+      type: "info",
       timestamp: new Date().toISOString(),
-      message: `Backfilling from ${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`,
+      message: `Backfilling from ${startDate.toISOString().split("T")[0]} to ${endDate.toISOString().split("T")[0]}`,
     });
 
     // Iterate through each day
-    const currentDate = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate()));
-    const today = new Date(Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), endDate.getUTCDate()));
+    const currentDate = new Date(
+      Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate()),
+    );
+    const today = new Date(
+      Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), endDate.getUTCDate()),
+    );
 
     while (currentDate <= today) {
       try {
@@ -288,10 +320,15 @@ export async function backfillMarketSnapshots(progressCallback?: ProgressCallbac
             });
 
           recordsProcessed++;
-          console.log(`[market_snapshot] Backfilled ${currentDate.toISOString().split('T')[0]}: ${metrics.transactionsCount} txns, $${metrics.volume.toFixed(2)} vol`);
+          console.log(
+            `[market_snapshot] Backfilled ${currentDate.toISOString().split("T")[0]}: ${metrics.transactionsCount} txns, $${metrics.volume.toFixed(2)} vol`,
+          );
         }
       } catch (err: any) {
-        console.error(`[market_snapshot] Error backfilling ${currentDate.toISOString().split('T')[0]}:`, err.message);
+        console.error(
+          `[market_snapshot] Error backfilling ${currentDate.toISOString().split("T")[0]}:`,
+          err.message,
+        );
         errorCount++;
       }
 
@@ -299,10 +336,12 @@ export async function backfillMarketSnapshots(progressCallback?: ProgressCallbac
       currentDate.setUTCDate(currentDate.getUTCDate() + 1);
     }
 
-    console.log(`[market_snapshot] Backfill complete: ${recordsProcessed} days processed, ${errorCount} errors`);
+    console.log(
+      `[market_snapshot] Backfill complete: ${recordsProcessed} days processed, ${errorCount} errors`,
+    );
 
     progressCallback?.({
-      type: 'complete',
+      type: "complete",
       timestamp: new Date().toISOString(),
       message: `Backfill complete: ${recordsProcessed} days processed`,
       data: { recordsProcessed, errorCount },
@@ -317,7 +356,7 @@ export async function backfillMarketSnapshots(progressCallback?: ProgressCallbac
     console.error("[market_snapshot] Backfill error:", error);
 
     progressCallback?.({
-      type: 'error',
+      type: "error",
       timestamp: new Date().toISOString(),
       message: `Backfill error: ${error.message}`,
     });

@@ -1,6 +1,6 @@
 /**
  * Schedule Sync Job
- * 
+ *
  * Fetches daily NBA game schedules from BallDontLie API.
  * Caches game data for contest eligibility checking.
  * Broadcasts updates when game scores change.
@@ -18,9 +18,9 @@ export async function syncSchedule(progressCallback?: ProgressCallback): Promise
   console.log("[schedule_sync] Starting game schedule sync...");
 
   progressCallback?.({
-    type: 'info',
+    type: "info",
     timestamp: new Date().toISOString(),
-    message: 'Starting schedule sync job',
+    message: "Starting schedule sync job",
   });
 
   let requestCount = 0;
@@ -36,13 +36,13 @@ export async function syncSchedule(progressCallback?: ProgressCallback): Promise
     for (let i = -7; i <= 14; i++) {
       const date = new Date(today);
       date.setDate(today.getDate() + i);
-      dates.push(date.toISOString().split('T')[0]); // YYYY-MM-DD format
+      dates.push(date.toISOString().split("T")[0]); // YYYY-MM-DD format
     }
 
     console.log(`[schedule_sync] Fetching games for dates range`);
 
     progressCallback?.({
-      type: 'info',
+      type: "info",
       timestamp: new Date().toISOString(),
       message: `Fetching games for ${dates.length} dates (7 days back to 14 days forward)`,
       data: { totalDates: dates.length },
@@ -59,7 +59,7 @@ export async function syncSchedule(progressCallback?: ProgressCallback): Promise
         // Progress update every 5 dates
         if ((i + 1) % 5 === 0) {
           progressCallback?.({
-            type: 'progress',
+            type: "progress",
             timestamp: new Date().toISOString(),
             message: `Fetched ${i + 1}/${dates.length} dates`,
             data: {
@@ -109,7 +109,10 @@ export async function syncSchedule(progressCallback?: ProgressCallback): Promise
             recordsProcessed++;
 
             // Track games that have scores (live or completed) for broadcasting
-            if ((normalizedStatus === 'inprogress' || normalizedStatus === 'completed') && (homeScore !== null || awayScore !== null)) {
+            if (
+              (normalizedStatus === "inprogress" || normalizedStatus === "completed") &&
+              (homeScore !== null || awayScore !== null)
+            ) {
               gamesWithUpdates.add(gameId);
             }
           } catch (error: any) {
@@ -125,10 +128,12 @@ export async function syncSchedule(progressCallback?: ProgressCallback): Promise
 
     // Broadcast updates for games with scores
     if (gamesWithUpdates.size > 0) {
-      console.log(`[schedule_sync] Broadcasting updates for ${gamesWithUpdates.size} games with scores`);
+      console.log(
+        `[schedule_sync] Broadcasting updates for ${gamesWithUpdates.size} games with scores`,
+      );
 
       progressCallback?.({
-        type: 'info',
+        type: "info",
         timestamp: new Date().toISOString(),
         message: `Broadcasting updates for ${gamesWithUpdates.size} games with score changes`,
         data: { gamesWithUpdates: gamesWithUpdates.size },
@@ -151,15 +156,18 @@ export async function syncSchedule(progressCallback?: ProgressCallback): Promise
       }
     }
 
-    console.log(`[schedule_sync] Successfully processed ${recordsProcessed} games, ${errorCount} errors`);
+    console.log(
+      `[schedule_sync] Successfully processed ${recordsProcessed} games, ${errorCount} errors`,
+    );
     console.log(`[schedule_sync] API requests made: ${requestCount}`);
 
     progressCallback?.({
-      type: 'complete',
+      type: "complete",
       timestamp: new Date().toISOString(),
-      message: errorCount > 0
-        ? `Schedule sync completed with ${errorCount} errors: ${recordsProcessed} games processed`
-        : `Schedule sync completed successfully: ${recordsProcessed} games processed`,
+      message:
+        errorCount > 0
+          ? `Schedule sync completed with ${errorCount} errors: ${recordsProcessed} games processed`
+          : `Schedule sync completed successfully: ${recordsProcessed} games processed`,
       data: {
         success: errorCount === 0,
         summary: {
@@ -176,14 +184,14 @@ export async function syncSchedule(progressCallback?: ProgressCallback): Promise
     console.error("[schedule_sync] Failed:", error.message);
 
     progressCallback?.({
-      type: 'error',
+      type: "error",
       timestamp: new Date().toISOString(),
       message: `Schedule sync failed: ${error.message}`,
       data: { error: error.message, stack: error.stack },
     });
 
     progressCallback?.({
-      type: 'complete',
+      type: "complete",
       timestamp: new Date().toISOString(),
       message: `Schedule sync failed: ${error.message}`,
       data: {
