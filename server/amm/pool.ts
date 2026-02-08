@@ -599,7 +599,7 @@ export async function executeBuy(
         await tx
           .update(holdings)
           .set({
-            quantity: newQuantity.toFixed(4),
+            quantity: Math.round(newQuantity).toString(),
             powerLevel: (newQuantity * holdingPower).toFixed(2),
             avgCostBasis: newAvgCost.toFixed(4),
             totalCostBasis: newTotalCost.toFixed(2),
@@ -612,7 +612,7 @@ export async function executeBuy(
           userId,
           assetType: "player",
           assetId: playerId,
-          quantity: newQuantity.toFixed(4),
+          quantity: Math.round(newQuantity).toString(),
           power: 1,
           powerLevel: newQuantity.toFixed(2),
           avgCostBasis: quote.effectivePrice.toFixed(4),
@@ -817,7 +817,7 @@ export async function executeSell(
         await tx
           .update(holdings)
           .set({
-            quantity: newQuantity.toFixed(4),
+            quantity: Math.round(newQuantity).toString(),
             powerLevel: (newQuantity * holdingPower).toFixed(2),
             lastUpdated: new Date(),
           })
@@ -1347,7 +1347,7 @@ export async function zapAddLiquiditySharesOnly(
         await tx
           .update(holdings)
           .set({
-            quantity: qtyAfterAdd.toFixed(4),
+            quantity: Math.round(qtyAfterAdd).toString(),
             powerLevel: (qtyAfterAdd * holdingPower).toFixed(2),
             lastUpdated: new Date(),
           })
@@ -1780,7 +1780,7 @@ export async function addLiquidity(
         await tx
           .update(holdings)
           .set({
-            quantity: newQuantity.toFixed(4),
+            quantity: Math.round(newQuantity).toString(),
             powerLevel: (newQuantity * holdingPower).toFixed(2),
             lastUpdated: new Date(),
           })
@@ -1977,7 +1977,7 @@ export async function removeLiquidity(
         await tx
           .update(holdings)
           .set({
-            quantity: newQuantity.toFixed(4),
+            quantity: Math.round(newQuantity).toString(),
             powerLevel: (newQuantity * holdingPower).toFixed(2),
             lastUpdated: new Date(),
           })
@@ -1987,7 +1987,7 @@ export async function removeLiquidity(
           userId,
           assetType: "player",
           assetId: playerId,
-          quantity: sharesToReturn.toFixed(4),
+          quantity: Math.round(sharesToReturn).toString(),
           power: 1,
           powerLevel: sharesToReturn.toFixed(2),
           avgCostBasis: poolData.currentPrice.toFixed(4),
@@ -2197,7 +2197,7 @@ export async function addLiquidityOptimal(
         await tx
           .update(holdings)
           .set({
-            quantity: newQuantity.toFixed(4),
+            quantity: Math.round(newQuantity).toString(),
             powerLevel: (newQuantity * holdingPower).toFixed(2),
             lastUpdated: new Date(),
           })
