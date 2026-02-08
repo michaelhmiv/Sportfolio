@@ -55,7 +55,7 @@ export function ScoutReadyBanner({
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: 100, opacity: 0 }}
         transition={{ type: "spring", stiffness: 400, damping: 30 }}
-        className="fixed bottom-4 left-4 right-4 z-50 sm:left-auto sm:right-4 sm:w-96"
+        className="fixed bottom-20 sm:bottom-4 left-3 right-3 z-50 sm:left-auto sm:right-4 sm:w-96"
       >
         <div className="relative overflow-hidden rounded-lg border bg-card shadow-lg"
         >
@@ -65,34 +65,34 @@ export function ScoutReadyBanner({
             style={{ width: `${progress}%` }}
           />
 
-          <div className="p-4 flex items-center gap-3"
+          <div className="p-3 sm:p-4 flex items-center gap-2 sm:gap-3"
           >
             {/* Icon */}
-            <div className="flex-shrink-0 w-10 h-10 rounded-full bg-amber-500/10 flex items-center justify-center"
+            <div className="flex-shrink-0 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-amber-500/10 flex items-center justify-center"
             >
-              <Binoculars className="w-5 h-5 text-amber-500" />
+              <Binoculars className="w-4 h-4 sm:w-5 sm:h-5 text-amber-500" />
             </div>
 
             {/* Content */}
             <div className="flex-1 min-w-0"
             >
-              <p className="text-sm font-medium">
+              <p className="text-sm font-medium truncate">
                 Scout shares ready!
               </p>
-              <p className="text-xs text-muted-foreground"
+              <p className="text-xs text-muted-foreground truncate"
               >
                 {totalShares.toFixed(2)} shares from {playerCount} players
               </p>
             </div>
 
             {/* Actions */}
-            <div className="flex items-center gap-2 flex-wrap justify-end"
+            <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0"
             >
               <Button
                 size="sm"
                 variant="outline"
                 onClick={onView}
-                className="h-8 text-xs bg-amber-500/10 border-amber-500/20 text-amber-500 hover:bg-amber-500/20"
+                className="h-7 sm:h-8 text-xs px-2 sm:px-3 bg-amber-500/10 border-amber-500/20 text-amber-500 hover:bg-amber-500/20"
               >
                 View
               </Button>
@@ -101,15 +101,15 @@ export function ScoutReadyBanner({
                   size="sm"
                   variant="outline"
                   onClick={onViewPortfolio}
-                  className="h-8 text-xs gap-1"
+                  className="h-7 sm:h-8 text-xs px-2 sm:px-3 gap-1 hidden sm:inline-flex"
                 >
                   <Wallet className="w-3 h-3" />
-                  Portfolio
+                  <span className="hidden sm:inline">Portfolio</span>
                 </Button>
               )}
               <button
                 onClick={onDismiss}
-                className="p-1 text-muted-foreground hover:text-foreground transition-colors"
+                className="p-1.5 sm:p-1 text-muted-foreground hover:text-foreground transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
