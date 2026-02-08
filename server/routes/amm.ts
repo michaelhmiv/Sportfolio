@@ -193,10 +193,9 @@ export function registerAmmRoutes(app: Express) {
         return res.status(400).json({ error: "Invalid sharesAmount" });
       }
 
-      // Round to whole number shares - shares must be integers
-      const amount = Math.floor(parseFloat(sharesAmount));
-      if (amount < 1) {
-        return res.status(400).json({ error: "Must sell at least 1 share" });
+      const amount = parseFloat(sharesAmount);
+      if (!Number.isInteger(amount)) {
+        return res.status(400).json({ error: "sharesAmount must be a whole number" });
       }
       // Validate and clamp maxSlippage to safe bounds
       let maxSlippageDecimal = maxSlippage !== undefined ? parseFloat(maxSlippage) : DEFAULT_SLIPPAGE;
