@@ -485,7 +485,9 @@ export async function executeBuy(
       }
 
       // 5. Update pool state (pool receives SB + pool fee, burn fee is just not added)
-      const newShares = poolData.shares - quote.sharesOut;
+      // Round shares to ensure whole numbers only
+      const sharesOutRounded = Math.floor(quote.sharesOut);
+      const newShares = poolData.shares - sharesOutRounded;
       const newPlayMoney = poolData.playMoney + sbAmount + quote.poolFee; // User SB + pool fee
       const newTotalVolume = poolData.totalVolume + sbAmount;
       const newFeesAccumulated = poolData.feesAccumulated + quote.poolFee;
@@ -519,7 +521,7 @@ export async function executeBuy(
         .set({ balance: newBalance.toFixed(2) })
         .where(eq(users.id, userId));
 
-      // 7. Add shares to user holdings
+      // 7. Add shares to user holdings (rounded to whole numbers)
       const [existingHolding] = await tx
         .select()
         .from(holdings)
@@ -531,7 +533,7 @@ export async function executeBuy(
 
       if (existingHolding) {
         const currentQuantity = parseFloat(existingHolding.quantity);
-        const newQuantity = currentQuantity + quote.sharesOut;
+        const newQuantity = currentQuantity + sharesOutRounded;
         const currentTotalCost = parseFloat(existingHolding.totalCostBasis);
         const newTotalCost = currentTotalCost + quote.totalCost;
         const newAvgCost = newTotalCost / newQuantity;
@@ -548,7 +550,7 @@ export async function executeBuy(
           })
           .where(eq(holdings.id, existingHolding.id));
       } else {
-        const newQuantity = quote.sharesOut;
+        const newQuantity = sharesOutRounded;
         await tx.insert(holdings).values({
           userId,
           assetType: "player",
@@ -571,7 +573,7 @@ export async function executeBuy(
           sellerId: "pool",
           buyOrderId: null,
           sellOrderId: null,
-          quantity: Math.round(quote.sharesOut).toString(),
+          quantity: sharesOutRounded.toString(),
           price: quote.effectivePrice.toFixed(2),
           executedAt: new Date(),
         })
@@ -585,7 +587,7 @@ export async function executeBuy(
           currentPrice: quote.newPoolPrice.toFixed(2),
           // volume24h is updated asynchronously as a true rolling 24h metric.
           // Keep a lightweight counter here for immediate UI feedback between refreshes.
-          volume24h: sql`${players.volume24h} + ${Math.round(quote.sharesOut)}`,
+          volume24h: sql`${players.volume24h} + ${sharesOutRounded}`,
           lastUpdated: new Date(),
         })
         .where(eq(players.id, playerId));
@@ -595,7 +597,7 @@ export async function executeBuy(
         type: "trade",
         playerId,
         price: quote.newPoolPrice.toFixed(2),
-        quantity: quote.sharesOut,
+        quantity: sharesOutRounded,
         buyerId: userId,
         sellerId: "pool",
       });
@@ -636,7 +638,7 @@ export async function executeBuy(
       return {
         success: true,
         tradeId: trade.id,
-        sharesTraded: quote.sharesOut,
+        sharesTraded: sharesOutRounded,
         pricePerShare: quote.effectivePrice,
         totalValue: quote.totalCost,
         slippagePercent: quote.slippagePercent,

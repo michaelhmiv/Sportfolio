@@ -147,6 +147,9 @@ export function registerAmmRoutes(app: Express) {
       }
 
       const amount = parseFloat(sbAmount);
+      if (amount < 0.01) {
+        return res.status(400).json({ error: "Minimum buy amount is $0.01" });
+      }
       // Validate and clamp maxSlippage to safe bounds
       let maxSlippageDecimal = maxSlippage !== undefined ? parseFloat(maxSlippage) : DEFAULT_SLIPPAGE;
       if (isNaN(maxSlippageDecimal) || maxSlippageDecimal < MIN_SLIPPAGE) {
@@ -190,7 +193,11 @@ export function registerAmmRoutes(app: Express) {
         return res.status(400).json({ error: "Invalid sharesAmount" });
       }
 
-      const amount = parseFloat(sharesAmount);
+      // Round to whole number shares - shares must be integers
+      const amount = Math.floor(parseFloat(sharesAmount));
+      if (amount < 1) {
+        return res.status(400).json({ error: "Must sell at least 1 share" });
+      }
       // Validate and clamp maxSlippage to safe bounds
       let maxSlippageDecimal = maxSlippage !== undefined ? parseFloat(maxSlippage) : DEFAULT_SLIPPAGE;
       if (isNaN(maxSlippageDecimal) || maxSlippageDecimal < MIN_SLIPPAGE) {
