@@ -1906,7 +1906,7 @@ export class DatabaseStorage implements IStorage {
         throw new Error(`Insufficient available shares: have ${available}, need ${quantity}`);
       }
 
-      // Step 4: Create the lock
+      // Step 4: Create the lock (round quantity to nearest integer)
       const [lock] = await tx
         .insert(holdingsLocks)
         .values({
@@ -1915,7 +1915,7 @@ export class DatabaseStorage implements IStorage {
           assetId,
           lockType,
           lockReferenceId,
-          lockedQuantity: quantity,
+          lockedQuantity: Math.round(quantity),
         })
         .returning();
 
@@ -1992,7 +1992,7 @@ export class DatabaseStorage implements IStorage {
     } else {
       await db
         .update(holdingsLocks)
-        .set({ lockedQuantity: newQuantity })
+        .set({ lockedQuantity: Math.round(newQuantity) })
         .where(eq(holdingsLocks.lockReferenceId, lockReferenceId));
     }
   }
