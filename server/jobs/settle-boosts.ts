@@ -63,7 +63,17 @@ export async function settleBoosts(progressCallback?: ProgressCallback): Promise
 
         // Get player's fantasy points for this game
         const stats = await storage.getPlayerGameStats(boost.playerId, boost.gameId);
-        const fantasyPoints = stats ? parseFloat(stats.fantasyPoints) : 0;
+
+        // BUG FIX #44: Skip settlement if stats are not yet available
+        // This prevents race condition where boost is settled before sync-stats job stores player stats
+        if (!stats) {
+          console.warn(
+            `[settle_boosts] Boost ${boost.id}: No stats found for player ${boost.playerId} game ${boost.gameId}, deferring settlement`,
+          );
+          continue;
+        }
+
+        const fantasyPoints = parseFloat(stats.fantasyPoints);
 
         const dateKey = boost.boostDate
           ? new Date(boost.boostDate).toISOString().split("T")[0]
