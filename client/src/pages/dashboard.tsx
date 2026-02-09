@@ -532,12 +532,7 @@ export default function Dashboard() {
                               <div
                                 className="p-2 rounded-md bg-muted hover:bg-secondary cursor-pointer relative overflow-hidden group"
                                 onClick={() => {
-                                  if (
-                                    effectiveStatus === "inprogress" ||
-                                    effectiveStatus === "completed"
-                                  ) {
-                                    setFlippedGameId(game.gameId);
-                                  }
+                                  setFlippedGameId(game.gameId);
                                 }}
                               >
                                 {/* Status Indicator for Live Games */}

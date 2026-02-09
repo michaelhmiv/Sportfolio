@@ -5,7 +5,7 @@
  * Dispatches to sport-specific sync logic based on which games are active.
  *
  * Sports supported:
- * - NBA: Uses MySportsFeeds API
+ * - NBA: Uses Ball Don't Lie API
  * - NFL: Uses Ball Don't Lie API
  */
 
@@ -22,9 +22,11 @@ interface UnifiedResult extends JobResult {
   gamesProcessed?: number;
 }
 
+let lastNflSyncMinuteKey: string | null = null;
+
 /**
  * Unified live stats sync that handles all sports
- * Called every 5 minutes to update player stats for active games
+ * Called every minute to update player stats for active games
  */
 export async function syncAllLiveStats(
   progressCallback?: ProgressCallback,
@@ -44,35 +46,38 @@ export async function syncAllLiveStats(
   };
 
   try {
+    const now = new Date();
+
     // Get yesterday's and today's games to check which sports have active games.
     // Looking back 1 day ensures we catch games from the previous evening
     // (e.g. Super Bowl on Sunday when this runs Monday morning).
-    const yesterday = new Date();
+    const yesterday = new Date(now);
     yesterday.setDate(yesterday.getDate() - 1);
     const { startOfDay } = getETDayBoundaries(getGameDay(yesterday));
     const { endOfDay } = getTodayETBoundaries();
     const allGames = await storage.getDailyGames(startOfDay, endOfDay);
 
-    // Check for active games by sport
-    const nbaGames = allGames.filter((g) => g.sport === "NBA" && g.status === "inprogress");
+    // Check for games by sport
+    // NOTE: NBA sync refreshes scores/statuses itself from the API, so we do NOT gate on DB status.
+    const nbaGames = allGames.filter((g) => g.sport === "NBA");
     // Include NFL games with ANY status (including "scheduled") so that syncNFLStats
     // can fetch fresh statuses from the API and break the chicken-and-egg problem where
     // games stuck at "scheduled" never get updated because the updater only ran for
     // already-active games.
     const nflGames = allGames.filter((g) => g.sport === "NFL");
 
-    console.log(`[live_stats_sync] Active games: NBA=${nbaGames.length}, NFL=${nflGames.length}`);
+    console.log(`[live_stats_sync] Games in window: NBA=${nbaGames.length}, NFL=${nflGames.length}`);
 
     progressCallback?.({
       type: "info",
       timestamp: new Date().toISOString(),
-      message: `Active games found: NBA=${nbaGames.length}, NFL=${nflGames.length}`,
+      message: `Games found: NBA=${nbaGames.length}, NFL=${nflGames.length}`,
       data: { nbaCount: nbaGames.length, nflCount: nflGames.length },
     });
 
-    // Process NBA games if any active
+    // Process NBA games if any exist in the window.
     if (nbaGames.length > 0) {
-      console.log(`[live_stats_sync] Processing ${nbaGames.length} active NBA games...`);
+      console.log(`[live_stats_sync] Processing NBA live sync...`);
       try {
         const nbaResult = await syncNBAStatsLive(progressCallback);
         result.nbaResult = nbaResult;
@@ -85,9 +90,14 @@ export async function syncAllLiveStats(
       }
     }
 
-    // Process NFL games if any active or recently completed
-    if (nflGames.length > 0) {
-      console.log(`[live_stats_sync] Processing ${nflGames.length} active/completed NFL games...`);
+    // Process NFL games if any exist in the window.
+    // Throttle to once per 5 minutes to avoid excessive API usage.
+    const minuteKey = `${now.getUTCFullYear()}-${now.getUTCMonth()}-${now.getUTCDate()}-${now.getUTCHours()}-${now.getUTCMinutes()}`;
+    const shouldRunNfl = now.getUTCMinutes() % 5 === 0 && lastNflSyncMinuteKey !== minuteKey;
+
+    if (nflGames.length > 0 && shouldRunNfl) {
+      lastNflSyncMinuteKey = minuteKey;
+      console.log(`[live_stats_sync] Processing NFL live sync (throttled)...`);
       try {
         const nflResult = await syncNFLStats();
         result.nflResult = {
@@ -106,14 +116,14 @@ export async function syncAllLiveStats(
       }
     }
 
-    // If no active games for any sport, short-circuit
+    // If no games for any sport, short-circuit
     if (nbaGames.length === 0 && nflGames.length === 0) {
-      console.log("[live_stats_sync] No active games for any sport, skipping");
+      console.log("[live_stats_sync] No games in window for any sport, skipping");
 
       progressCallback?.({
         type: "complete",
         timestamp: new Date().toISOString(),
-        message: "No active games for any sport, skipping",
+        message: "No games in window for any sport, skipping",
         data: {
           success: true,
           summary: {

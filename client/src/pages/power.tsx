@@ -45,7 +45,7 @@ interface BoostCeremonyData {
   playerName: string;
   playerTeam: string;
   slotTier: number;
-  powerLevel: string;
+  sharePower: number; // Power per share (bestSharePower)
   totalMultiplier: number;
   sharesBurned: number;
 }
@@ -111,7 +111,8 @@ interface EligiblePlayer {
   playerId: string;
   player: Player;
   availableShares: number;
-  powerLevel: string;
+  powerLevel: string; // Total power across all shares (quantity * power)
+  bestSharePower: number; // Power per share for the best share that will be used
   totalShares: number;
   gameId: string | null;
   gameStartTime: string | null;
@@ -315,16 +316,20 @@ export default function Power() {
           playerName: `${player.player.firstName} ${player.player.lastName}`,
           playerTeam: player.player.team,
           slotTier: variables.slotTier,
-          powerLevel: player.powerLevel,
+          sharePower: player.bestSharePower || 1,
           totalMultiplier: totalMultiplier,
           sharesBurned: variables.sharesEntered,
         });
         setBoostCeremonyOpen(true);
       }
 
+      const slotLabel =
+        MULTIPLIER_SLOTS.find((s) => s.tier === variables.slotTier)?.label ||
+        `${variables.slotTier}x`;
+      const sharePower = player?.bestSharePower || 1;
       toast({
-        title: "Player boosted!",
-        description: "Share will be burned when the game starts.",
+        title: "Boost slot filled!",
+        description: `Added 1 share to the ${slotLabel} slot (share power ${sharePower}). Share will be burned when the game starts.`,
       });
       refetchBoosts();
       refetchEligible();
@@ -908,10 +913,16 @@ export default function Power() {
                                   {ep.sport}
                                 </Badge>
                                 <span>{ep.player.team}</span>
+                                <span>•</span>
+                                <span className="text-muted-foreground">
+                                  {ep.totalShares} shares ({ep.availableShares} avail)
+                                </span>
                                 {hasPowerLevel && (
                                   <>
                                     <span>•</span>
-                                    <span className="text-purple-400">⚡ {ep.powerLevel}</span>
+                                    <span className="text-purple-400">
+                                      ⚡{ep.bestSharePower}/share
+                                    </span>
                                   </>
                                 )}
                                 {/* Game status indicator */}

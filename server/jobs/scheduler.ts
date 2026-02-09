@@ -329,7 +329,7 @@ export class JobScheduler {
       },
       {
         name: "stats_sync_live",
-        schedule: "*/5 * * * *", // Every 5 minutes for live games (all sports)
+        schedule: "* * * * *", // Every minute for near-real-time live games (all sports; NFL throttled in handler)
         enabled: true,
         handler: async () => {
           // Unified live stats sync for all sports (NBA + NFL)
