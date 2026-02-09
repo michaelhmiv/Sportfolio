@@ -14,7 +14,7 @@ import { syncStatsLive as syncNBAStatsLive } from "./sync-stats-live";
 import { syncNFLStats } from "./sync-nfl-stats";
 import type { JobResult } from "./scheduler";
 import type { ProgressCallback } from "../lib/admin-stream";
-import { getTodayETBoundaries } from "../lib/time";
+import { getTodayETBoundaries, getETDayBoundaries, getGameDay } from "../lib/time";
 
 interface UnifiedResult extends JobResult {
   nbaResult?: JobResult;
@@ -44,15 +44,22 @@ export async function syncAllLiveStats(
   };
 
   try {
-    // Get today's games to check which sports have active games
-    const { startOfDay, endOfDay } = getTodayETBoundaries();
+    // Get yesterday's and today's games to check which sports have active games.
+    // Looking back 1 day ensures we catch games from the previous evening
+    // (e.g. Super Bowl on Sunday when this runs Monday morning).
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const { startOfDay } = getETDayBoundaries(getGameDay(yesterday));
+    const { endOfDay } = getTodayETBoundaries();
     const allGames = await storage.getDailyGames(startOfDay, endOfDay);
 
     // Check for active games by sport
     const nbaGames = allGames.filter((g) => g.sport === "NBA" && g.status === "inprogress");
-    const nflGames = allGames.filter(
-      (g) => g.sport === "NFL" && (g.status === "inprogress" || g.status === "completed"),
-    );
+    // Include NFL games with ANY status (including "scheduled") so that syncNFLStats
+    // can fetch fresh statuses from the API and break the chicken-and-egg problem where
+    // games stuck at "scheduled" never get updated because the updater only ran for
+    // already-active games.
+    const nflGames = allGames.filter((g) => g.sport === "NFL");
 
     console.log(`[live_stats_sync] Active games: NBA=${nbaGames.length}, NFL=${nflGames.length}`);
 

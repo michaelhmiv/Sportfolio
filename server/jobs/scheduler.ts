@@ -370,7 +370,7 @@ export class JobScheduler {
       },
       {
         name: "nfl_schedule_sync",
-        schedule: "45 6 * * *", // Daily at 6:45 AM ET (after roster sync)
+        schedule: "45 * * * *", // Hourly at :45 - must run frequently to update game statuses (scores, inprogress/completed)
         enabled: true,
         handler: async () => {
           const result = await syncNFLSchedule();
@@ -503,6 +503,18 @@ export class JobScheduler {
       },
       refresh_player_metrics: (callback) => refreshPlayerMarketMetricsJob(callback),
       refresh_player_volume_24h: (callback) => refreshPlayerVolume24hJob(callback),
+      nfl_schedule_sync: async () => {
+        const result = await syncNFLSchedule();
+        return { requestCount: 0, recordsProcessed: result.gamesProcessed, errorCount: result.errors.length };
+      },
+      nfl_stats_sync: async () => {
+        const result = await syncNFLStats();
+        return { requestCount: 0, recordsProcessed: result.statsProcessed, errorCount: result.errors.length };
+      },
+      nfl_roster_sync: async () => {
+        const result = await syncNFLRoster();
+        return { requestCount: 0, recordsProcessed: result.playersAdded + result.playersUpdated, errorCount: result.errors.length };
+      },
     };
 
     const handler = jobConfigs[jobName];
@@ -622,6 +634,9 @@ export class JobScheduler {
       "check_milestones",
       "refresh_player_metrics",
       "refresh_player_volume_24h",
+      "nfl_schedule_sync",
+      "nfl_stats_sync",
+      "nfl_roster_sync",
     ];
   }
 }
