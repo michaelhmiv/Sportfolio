@@ -109,11 +109,12 @@ export async function syncNFLSchedule(): Promise<SyncResult> {
   try {
     const season = getCurrentNFLSeason();
 
-    // Fetch games for the next 14 days using dates[] instead of weeks[]
-    // This fixes the playoff week numbering issue (playoffs use week 1-3, not 19-21)
+    // Fetch games for 3 days back to 14 days forward using dates[] instead of weeks[]
+    // Lookback covers recently completed games (e.g. Super Bowl yesterday) whose
+    // status/scores need updating.  Forward window handles upcoming scheduling.
     const today = new Date();
     const dates: string[] = [];
-    for (let i = 0; i <= 14; i++) {
+    for (let i = -3; i <= 14; i++) {
       const date = new Date(today);
       date.setDate(today.getDate() + i);
       dates.push(date.toISOString().split("T")[0]);
