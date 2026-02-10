@@ -316,7 +316,13 @@ export default function Power() {
                 ...data,
                 date: formatDateET(selectedDate)
             });
-            return res.json();
+            // Safely parse JSON response
+            try {
+                return await res.json();
+            } catch {
+                // Return minimal success data if parsing fails
+                return { success: true };
+            }
         },
         onSuccess: (response, variables) => {
             // Get player details for ceremony

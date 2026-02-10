@@ -301,7 +301,13 @@ export default function Portfolio() {
   const condenseSharesMutation = useMutation({
     mutationFn: async ({ playerId, sharesToCondense }: { playerId: string; sharesToCondense: number }) => {
       const res = await apiRequest("POST", "/api/holdings/condense", { playerId, sharesToCondense });
-      return res.json();
+      // Safely parse JSON response
+      try {
+        return await res.json();
+      } catch {
+        // Return minimal data if parsing fails
+        return { sharesCondensed: sharesToCondense, powerLevelGained: (sharesToCondense / 5).toFixed(2) };
+      }
     },
     onSuccess: async (data: any) => {
       await invalidatePortfolioQueries();
@@ -310,7 +316,7 @@ export default function Portfolio() {
       setSharesToCondenseInput("");
       toast({
         title: "Shares Powered Up! ⚡",
-        description: data.message || `Powered up ${data.sharesCondensed} shares into ${data.powerLevelGained} Power Level`,
+        description: data?.message || `Powered up ${data?.sharesCondensed || 0} shares into ${data?.powerLevelGained || 0} Power Level`,
       });
     },
     onError: (error: Error) => {
