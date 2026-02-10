@@ -48,7 +48,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { formatDistanceToNow } from "date-fns";
 import {
   LineChart,
@@ -182,6 +182,7 @@ function calculatePnL(
 type LpSortField = "player" | "ownership" | "fees" | "value";
 
 export default function Portfolio() {
+  const [, setLocation] = useLocation();
   const { toast } = useToast();
   const { subscribe } = useWebSocket();
   const { unreadCount, clearUnread } = useNotifications();
@@ -1363,20 +1364,19 @@ export default function Portfolio() {
                                         </div>
                                       </div>
                                       <div className="flex items-center gap-1 flex-shrink-0">
-                                        <Link
-                                          href={`/player/${group.player.id}?panel=lp&lpTab=zap`}
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          className="h-7 px-2 text-xs"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setLocation(`/player/${group.player.id}?panel=lp&lpTab=zap`);
+                                          }}
+                                          data-testid={`button-pool-${group.player.id}`}
                                         >
-                                          <Button
-                                            variant="outline"
-                                            size="sm"
-                                            className="h-7 px-2 text-xs"
-                                            onClick={(e) => e.stopPropagation()}
-                                            data-testid={`button-pool-${group.player.id}`}
-                                          >
-                                            <Droplets className="w-3 h-3 mr-1" />
-                                            Pool
-                                          </Button>
-                                        </Link>
+                                          <Droplets className="w-3 h-3 mr-1" />
+                                          Pool
+                                        </Button>
                                         <CollapsibleTrigger asChild>
                                           <Button
                                             variant="ghost"
@@ -1427,26 +1427,21 @@ export default function Portfolio() {
                                             </Badge>
                                           )}
                                         </div>
-                                        <div className="text-xs text-muted-foreground hidden md:inline">
-                                          {group.player.team} • {group.player.position}
-                                        </div>
-                                        <div className="text-xs text-muted-foreground md:hidden">
-                                          {group.player.team} • {group.player.position}
-                                        </div>
-                                        <Link
-                                          href={`/player/${group.player.id}?panel=lp&lpTab=zap`}
+                                        <div className="text-xs text-muted-foreground hidden md:inline">{group.player.team} • {group.player.position}</div>
+                                        <div className="text-xs text-muted-foreground md:hidden">{group.player.team} • {group.player.position}</div>
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          className="h-7 px-2 text-xs ml-2 hidden md:inline-flex"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setLocation(`/player/${group.player.id}?panel=lp&lpTab=zap`);
+                                          }}
+                                          data-testid={`button-pool-desktop-${group.player.id}`}
                                         >
-                                          <Button
-                                            variant="outline"
-                                            size="sm"
-                                            className="h-7 px-2 text-xs ml-2 hidden md:inline-flex"
-                                            onClick={(e) => e.stopPropagation()}
-                                            data-testid={`button-pool-desktop-${group.player.id}`}
-                                          >
-                                            <Droplets className="w-3 h-3 mr-1" />
-                                            Pool
-                                          </Button>
-                                        </Link>
+                                          <Droplets className="w-3 h-3 mr-1" />
+                                          Pool
+                                        </Button>
                                       </div>
                                     </div>
                                   </td>
