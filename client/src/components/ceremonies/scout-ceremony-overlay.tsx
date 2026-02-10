@@ -89,8 +89,8 @@ function ScoutPlayerCard({
         delay: index * 0.05,
       }}
       className={cn(
-        "relative p-3 rounded-lg border bg-card",
-        isHighlight && "ring-2 ring-emerald-500/50",
+        "relative p-2 sm:p-3 rounded-lg border bg-card",
+        isHighlight && "ring-2 ring-emerald-500/50"
       )}
     >
       {/* Efficiency indicator */}
@@ -101,15 +101,15 @@ function ScoutPlayerCard({
 
       {/* Player info */}
       <div className="flex items-center gap-2">
-        <div className="w-8 h-8 rounded bg-primary/10 flex items-center justify-center text-xs font-bold">
+        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded bg-primary/10 flex items-center justify-center text-[10px] sm:text-xs font-bold shrink-0">
           {distribution.playerName
             .split(" ")
             .map((n) => n[0])
             .join("")}
         </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium truncate">{distribution.playerName}</p>
-          <p className="text-xs text-muted-foreground">
+        <div className="flex-1 min-w-0 overflow-hidden">
+          <p className="text-xs sm:text-sm font-medium truncate">{distribution.playerName}</p>
+          <p className="text-[10px] sm:text-xs text-muted-foreground">
             {distribution.playerTeam} • {distribution.sport}
           </p>
         </div>
@@ -117,15 +117,15 @@ function ScoutPlayerCard({
 
       {/* Shares earned */}
       <motion.div
-        className="mt-2 text-center"
+        className="mt-1 sm:mt-2 text-center"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.3 + index * 0.05 }}
       >
-        <span className="text-lg font-bold text-emerald-500">
+        <span className="text-base sm:text-lg font-bold text-emerald-500">
           +{distribution.sharesEarned.toFixed(2)}
         </span>
-        <span className="text-xs text-muted-foreground ml-1">shares</span>
+        <span className="text-[10px] sm:text-xs text-muted-foreground ml-1">shares</span>
       </motion.div>
 
       {/* Particles */}
@@ -229,7 +229,7 @@ export function ScoutCeremonyOverlay({
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         transition={{ duration: 0.3 }}
-        className="fixed inset-0 z-50 flex items-center justify-center bg-background/95 backdrop-blur-sm"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-background/95 backdrop-blur-sm overflow-y-auto"
         onClick={handleSkip}
       >
         {/* Close button */}
@@ -237,7 +237,7 @@ export function ScoutCeremonyOverlay({
           <motion.button
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="absolute top-4 right-4 p-2 text-muted-foreground hover:text-foreground transition-colors"
+            className="absolute top-4 right-4 p-2 text-muted-foreground hover:text-foreground transition-colors z-10"
             onClick={(e) => {
               e.stopPropagation();
               handleSkip();
@@ -247,7 +247,10 @@ export function ScoutCeremonyOverlay({
           </motion.button>
         )}
 
-        <div className="w-full max-w-2xl mx-4" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="w-full max-w-2xl mx-4 py-8"
+          onClick={(e) => e.stopPropagation()}
+        >
           {/* Header */}
           <motion.div
             initial={{ opacity: 0, y: -20 }}
@@ -262,7 +265,7 @@ export function ScoutCeremonyOverlay({
           </motion.div>
 
           {/* Player grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mb-6">
             {displayDistributions.map((dist, index) => (
               <ScoutPlayerCard
                 key={dist.playerId}
@@ -276,9 +279,9 @@ export function ScoutCeremonyOverlay({
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.4 }}
-                className="p-3 rounded-lg border bg-card/50 flex items-center justify-center"
+                className="p-2 sm:p-3 rounded-lg border bg-card/50 flex items-center justify-center"
               >
-                <span className="text-sm text-muted-foreground">
+                <span className="text-xs sm:text-sm text-muted-foreground">
                   +{data.distributions.length - 8} more
                 </span>
               </motion.div>
