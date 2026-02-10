@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+dist/
+build/
+
+# Mobile platforms
+mobile/ios/
+mobile/android/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Database
+migrations/
+
+# Cache
+.cache/
+
+# Generated files
+*.generated.ts
+*.generated.tsx
+
+# Assets
+attached_assets/
+
+# Temporary files
+tmp/
+temp_*.tsx
+temp_*.ts
+*.tmp
