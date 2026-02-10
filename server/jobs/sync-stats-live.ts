@@ -7,7 +7,7 @@
  */
 
 import { storage } from "../storage";
-import { fetchPlayerGameStats, fetchLiveBoxScores, calculateFantasyPoints, createNBAPlayerId, getCurrentNBASeasonString, convertToGameStats } from "../balldontlie-nba";
+import { fetchPlayerGameStats, fetchLiveBoxScores, calculateFantasyPoints, createNBAPlayerId, getCurrentNBASeasonString, convertToGameStats, normalizeGameStatus } from "../balldontlie-nba";
 import { balldontlieRateLimiter } from "./rate-limiter";
 import type { JobResult } from "./scheduler";
 import type { ProgressCallback } from "../lib/admin-stream";
@@ -47,15 +47,18 @@ async function updateLiveGameScores(): Promise<number> {
           const homeScore = boxScore.home_team_score ?? 0;
           const awayScore = boxScore.visitor_team_score ?? 0;
 
+          // Use actual box score status instead of hardcoding "inprogress"
+          const normalizedStatus = normalizeGameStatus(boxScore.status);
+
           await storage.updateDailyGameScore(
             matchingGame.gameId,
             homeScore,
             awayScore,
-            "inprogress"
+            normalizedStatus
           );
 
           scoresUpdated++;
-          console.log(`[stats_sync_live] Updated score: ${boxScore.visitor_team?.abbreviation} ${awayScore} @ ${boxScore.home_team?.abbreviation} ${homeScore}`);
+          console.log(`[stats_sync_live] Updated score: ${boxScore.visitor_team?.abbreviation} ${awayScore} @ ${boxScore.home_team?.abbreviation} ${homeScore} (status: ${normalizedStatus})`);
         }
       }
     }
