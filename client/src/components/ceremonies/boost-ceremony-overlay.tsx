@@ -8,7 +8,7 @@ interface BoostCeremonyData {
   playerName: string;
   playerTeam: string;
   slotTier: number;
-  powerLevel: string;
+  sharePower: number; // Power per share (bestSharePower)
   totalMultiplier: number;
   sharesBurned: number;
 }
@@ -209,8 +209,8 @@ export function BoostCeremonyOverlay({ isOpen, data, onClose }: BoostCeremonyOve
                   <p className="text-sm text-muted-foreground">{data.playerTeam}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm text-muted-foreground">Power Level</p>
-                  <p className="font-mono font-bold">{data.powerLevel}</p>
+                  <p className="text-sm text-muted-foreground">Share Power</p>
+                  <p className="font-mono font-bold">{data.sharePower}</p>
                 </div>
               </div>
 
@@ -294,8 +294,8 @@ export function BoostCeremonyOverlay({ isOpen, data, onClose }: BoostCeremonyOve
             >
               <div className="text-center p-3 rounded-lg bg-muted">
                 <TrendingUp className="w-4 h-4 mx-auto mb-1 text-muted-foreground" />
-                <p className="text-xs text-muted-foreground">Power Level</p>
-                <p className="font-mono font-semibold">{data.powerLevel}</p>
+                <p className="text-xs text-muted-foreground">Share Power</p>
+                <p className="font-mono font-semibold">{data.sharePower}</p>
               </div>
               <div className="text-center p-3 rounded-lg bg-muted">
                 <Zap className="w-4 h-4 mx-auto mb-1 text-muted-foreground" />
