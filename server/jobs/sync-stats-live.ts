@@ -306,7 +306,7 @@ export async function syncStatsLive(progressCallback?: ProgressCallback): Promis
           }
         }
       } catch (err: any) {
-        // If /stats is unauthorized for the key tier, all games will fail. Stop early.
+        // If /stats is unauthorized for the key tier, log the error but continue processing other games.
         if (err?.response?.status === 401) {
           errorCount++;
           console.error(
@@ -318,7 +318,7 @@ export async function syncStatsLive(progressCallback?: ProgressCallback): Promis
             message:
               "BallDontLie NBA /stats unauthorized. Confirm your API key has NBA ALL-STAR/GOAT tier for Game Player Stats and BALLDONTLIE_API_KEY is set correctly.",
           });
-          break;
+          continue;
         }
 
         errorCount++;

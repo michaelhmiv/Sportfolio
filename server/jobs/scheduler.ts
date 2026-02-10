@@ -64,7 +64,7 @@ export class JobScheduler {
   private jobConfigs: Map<string, JobConfig> = new Map();
   private isInitialized = false;
 
-  constructor() {}
+  constructor() { }
 
   /**
    * Helper method to schedule a job
@@ -329,7 +329,7 @@ export class JobScheduler {
       },
       {
         name: "stats_sync_live",
-        schedule: "* * * * *", // Every minute for near-real-time live games (all sports; NFL throttled in handler)
+        schedule: "*/5 * * * *", // Every 5 minutes for live games (all sports; NFL throttled in handler)
         enabled: true,
         handler: async () => {
           // Unified live stats sync for all sports (NBA + NFL)

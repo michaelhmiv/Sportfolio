@@ -1196,12 +1196,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         hotPlayers,
         vesting: vestingData
           ? {
-              ...vestingData,
-              player: vestingPlayer,
-              players: vestingPlayers,
-              capLimit: user.isPremium ? 4800 : 2400,
-              sharesPerHour: user.isPremium ? 200 : 100,
-            }
+            ...vestingData,
+            player: vestingPlayer,
+            players: vestingPlayers,
+            capLimit: user.isPremium ? 4800 : 2400,
+            sharesPerHour: user.isPremium ? 200 : 100,
+          }
           : null,
         power: powerData,
         recentTrades: recentTrades.map((trade) => ({
@@ -1345,10 +1345,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         topPerformers:
           allStats.length > 0
             ? {
-                topScorer,
-                topRebounder,
-                topAssister,
-              }
+              topScorer,
+              topRebounder,
+              topAssister,
+            }
             : null,
       });
     } catch (error: any) {
@@ -1373,7 +1373,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (game.sport === "NBA") {
         const gameIdNum = Number(gameId);
-        if (!Number.isFinite(gameIdNum)) {
+        if (!Number.isSafeInteger(gameIdNum) || gameIdNum <= 0) {
           return res.status(400).json({ error: "Invalid game ID" });
         }
 
@@ -1498,7 +1498,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // NFL gameIds are stored as `nfl_<id>` in the database.
         const nflGameIdStr = gameId.startsWith("nfl_") ? gameId.slice(4) : gameId;
         const nflGameIdNum = Number(nflGameIdStr);
-        if (!Number.isFinite(nflGameIdNum)) {
+        if (!Number.isSafeInteger(nflGameIdNum) || nflGameIdNum <= 0) {
           return res.status(400).json({ error: "Invalid game ID" });
         }
 
@@ -2072,16 +2072,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const safeSortBy =
         normalizedSortBy && validSortBy.includes(normalizedSortBy as string)
           ? (normalizedSortBy as
-              | "price"
-              | "volume"
-              | "change"
-              | "tvl"
-              | "marketCap"
-              | "sentiment"
-              | "undervalued"
-              | "fantasyPoints"
-              | "name"
-              | "team")
+            | "price"
+            | "volume"
+            | "change"
+            | "tvl"
+            | "marketCap"
+            | "sentiment"
+            | "undervalued"
+            | "fantasyPoints"
+            | "name"
+            | "team")
           : "volume";
       const safeSortOrder = sortOrder === "asc" ? "asc" : "desc";
 
@@ -2196,9 +2196,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ...enriched,
           ...(isAmmOnlyMode && ammSpotPrice !== null
             ? {
-                lastTradePrice: ammSpotPrice.toFixed(2),
-                currentPrice: ammSpotPrice.toFixed(2),
-              }
+              lastTradePrice: ammSpotPrice.toFixed(2),
+              currentPrice: ammSpotPrice.toFixed(2),
+            }
             : {}),
           bestBid: null,
           bestAsk: null,
@@ -2768,9 +2768,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const avgFantasyPoints =
         completedContests.length > 0
           ? completedContests.reduce(
-              (sum: number, c: any) => sum + parseFloat(c.fantasyPoints || "0"),
-              0,
-            ) / completedContests.length
+            (sum: number, c: any) => sum + parseFloat(c.fantasyPoints || "0"),
+            0,
+          ) / completedContests.length
           : 0;
 
       // Calculate win rate (entries that finished in the top 50%)
@@ -3061,15 +3061,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({
         vesting: vestingData
           ? {
-              ...vestingData,
-              player: vestingData.playerId ? playerMap.get(vestingData.playerId) : null,
-              splits: vestingSplits.map((s) => ({
-                ...s,
-                player: playerMap.get(s.playerId),
-              })),
-              sharesPerHour: isPremiumUser ? 200 : 100,
-              capLimit: isPremiumUser ? 4800 : 2400,
-            }
+            ...vestingData,
+            player: vestingData.playerId ? playerMap.get(vestingData.playerId) : null,
+            splits: vestingSplits.map((s) => ({
+              ...s,
+              player: playerMap.get(s.playerId),
+            })),
+            sharesPerHour: isPremiumUser ? 200 : 100,
+            capLimit: isPremiumUser ? 4800 : 2400,
+          }
           : null,
       });
     } catch (error: any) {
@@ -3768,10 +3768,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const [players, globalScoutCounts, seasonStatsMap] =
         playerIds.length > 0
           ? await Promise.all([
-              storage.getPlayersByIds(playerIds),
-              storage.getBatchActiveScoutCounts(playerIds),
-              storage.getBatchPlayerSeasonStatsFromLogs(playerIds),
-            ])
+            storage.getPlayersByIds(playerIds),
+            storage.getBatchActiveScoutCounts(playerIds),
+            storage.getBatchPlayerSeasonStatsFromLogs(playerIds),
+          ])
           : [[], new Map<string, number>(), new Map<string, any>()];
 
       const playerMap = new Map(players.map((p) => [p.id, p]));
@@ -3784,9 +3784,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ...a,
           player: player
             ? {
-                ...player,
-                avgFantasyPointsPerGame: seasonStats.avgFantasyPointsPerGame,
-              }
+              ...player,
+              avgFantasyPointsPerGame: seasonStats.avgFantasyPointsPerGame,
+            }
             : null,
           globalScoutCount: globalScoutCounts.get(a.playerId) || 0,
         };
@@ -4674,12 +4674,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         post,
         author: author
           ? {
-              id: author.id,
-              username: author.username,
-              firstName: author.firstName,
-              lastName: author.lastName,
-              profileImageUrl: author.profileImageUrl,
-            }
+            id: author.id,
+            username: author.username,
+            firstName: author.firstName,
+            lastName: author.lastName,
+            profileImageUrl: author.profileImageUrl,
+          }
           : null,
       });
     } catch (error: any) {
@@ -4739,15 +4739,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     <priority>0.3</priority>
   </url>
 ${posts
-  .map(
-    (post) => `  <url>
+          .map(
+            (post) => `  <url>
     <loc>${baseUrl}/blog/${post.slug}</loc>
     <lastmod>${new Date(post.publishedAt || post.createdAt).toISOString()}</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>`,
-  )
-  .join("\n")}
+          )
+          .join("\n")}
 </urlset>`;
 
       res.header("Content-Type", "application/xml");
@@ -6018,23 +6018,23 @@ ${posts
         jobTypes.length > 0
           ? jobTypes
           : [
-              "roster_sync",
-              "sync_player_game_logs",
-              "schedule_sync",
-              "stats_sync",
-              "stats_sync_live",
-              "create_contests",
-              "update_contest_statuses",
-              "settle_contests",
-              "daily_snapshot",
-              "weekly_roundup",
-              "refresh_player_metrics",
-              "refresh_player_volume_24h",
-              "update_collections",
-              "check_milestones",
-              "cleanup_job_logs",
-              "prune_price_history",
-            ];
+            "roster_sync",
+            "sync_player_game_logs",
+            "schedule_sync",
+            "stats_sync",
+            "stats_sync_live",
+            "create_contests",
+            "update_contest_statuses",
+            "settle_contests",
+            "daily_snapshot",
+            "weekly_roundup",
+            "refresh_player_metrics",
+            "refresh_player_volume_24h",
+            "update_collections",
+            "check_milestones",
+            "cleanup_job_logs",
+            "prune_price_history",
+          ];
 
       const [users, players, allContests, recentLogs, latestJobLogs] = await Promise.all([
         storage.getUsers(),
@@ -6107,13 +6107,13 @@ ${posts
         adminContext,
         user: user
           ? {
-              id: user.id,
-              email: user.email,
-              username: user.username,
-              isAdmin: user.isAdmin,
-              isPremium: user.isPremium,
-              premiumExpiresAt: user.premiumExpiresAt || null,
-            }
+            id: user.id,
+            email: user.email,
+            username: user.username,
+            isAdmin: user.isAdmin,
+            isPremium: user.isPremium,
+            premiumExpiresAt: user.premiumExpiresAt || null,
+          }
           : null,
       });
     } catch (error: any) {
@@ -6153,15 +6153,15 @@ ${posts
             running: live?.running || false,
             lastRun: last
               ? {
-                  status: last.status,
-                  scheduledFor: last.scheduledFor,
-                  startedAt: last.startedAt,
-                  finishedAt: last.finishedAt,
-                  requestCount: last.requestCount,
-                  recordsProcessed: last.recordsProcessed,
-                  errorCount: last.errorCount,
-                  errorMessage: last.errorMessage || null,
-                }
+                status: last.status,
+                scheduledFor: last.scheduledFor,
+                startedAt: last.startedAt,
+                finishedAt: last.finishedAt,
+                requestCount: last.requestCount,
+                recordsProcessed: last.recordsProcessed,
+                errorCount: last.errorCount,
+                errorMessage: last.errorMessage || null,
+              }
               : null,
           };
         })
@@ -6286,13 +6286,13 @@ ${posts
       { name: "admin.stats", method: "GET", path: "/api/admin/stats", expectedStatus: 200 },
       ...(includeHeavy
         ? [
-            {
-              name: "admin.diagnostics",
-              method: "GET",
-              path: "/api/admin/diagnostics",
-              expectedStatus: 200,
-            } as SmokeTarget,
-          ]
+          {
+            name: "admin.diagnostics",
+            method: "GET",
+            path: "/api/admin/diagnostics",
+            expectedStatus: 200,
+          } as SmokeTarget,
+        ]
         : []),
 
       {
@@ -6327,13 +6327,13 @@ ${posts
       },
       ...(includeHeavy
         ? [
-            {
-              name: "analytics.overview",
-              method: "GET",
-              path: "/api/analytics?timeRange=24H",
-              expectedStatus: 200,
-            } as SmokeTarget,
-          ]
+          {
+            name: "analytics.overview",
+            method: "GET",
+            path: "/api/analytics?timeRange=24H",
+            expectedStatus: 200,
+          } as SmokeTarget,
+        ]
         : []),
     ];
 
@@ -6359,13 +6359,13 @@ ${posts
         },
         ...(includeHeavy
           ? [
-              {
-                name: "admin.diagnostics.player",
-                method: "GET",
-                path: `/api/admin/diagnostics?playerId=${encodeURIComponent(playerId)}`,
-                expectedStatus: 200,
-              } as SmokeTarget,
-            ]
+            {
+              name: "admin.diagnostics.player",
+              method: "GET",
+              path: `/api/admin/diagnostics?playerId=${encodeURIComponent(playerId)}`,
+              expectedStatus: 200,
+            } as SmokeTarget,
+          ]
           : []),
       );
     }
@@ -7264,20 +7264,20 @@ ${posts
       const transactionChange =
         marketHealth.prevTransactionCount > 0
           ? ((marketHealth.transactionCount - marketHealth.prevTransactionCount) /
-              marketHealth.prevTransactionCount) *
-            100
+            marketHealth.prevTransactionCount) *
+          100
           : 0;
       const volumeChange =
         marketHealth.prevTotalVolume > 0
           ? ((marketHealth.totalVolume - marketHealth.prevTotalVolume) /
-              marketHealth.prevTotalVolume) *
-            100
+            marketHealth.prevTotalVolume) *
+          100
           : 0;
       const marketCapChange =
         marketHealth.prevTotalMarketCap > 0
           ? ((marketHealth.totalMarketCap - marketHealth.prevTotalMarketCap) /
-              marketHealth.prevTotalMarketCap) *
-            100
+            marketHealth.prevTotalMarketCap) *
+          100
           : 0;
 
       // Get power rankings
@@ -7714,11 +7714,11 @@ ${posts
         holding: holdingInfo,
         player: player
           ? {
-              id: player.id,
-              firstName: player.firstName,
-              lastName: player.lastName,
-              team: player.team,
-            }
+            id: player.id,
+            firstName: player.firstName,
+            lastName: player.lastName,
+            team: player.team,
+          }
           : null,
         message: `Successfully condensed ${shares} shares into ${(shares / 5).toFixed(1)} Power Level for ${player?.firstName} ${player?.lastName}`,
       });
