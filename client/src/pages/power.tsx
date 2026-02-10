@@ -9,7 +9,7 @@ import { Zap, TrendingUp, History, AlertTriangle, Flame, Search, X, Clock, Chevr
 import { apiRequest, getAuthHeaders } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import type { Player, DailyGame } from "@shared/schema";
+import type { Player, DailyGame, Holding } from "@shared/schema";
 import { PlayerName } from "@/components/player-name";
 import { format, addDays, subDays } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -19,6 +19,8 @@ import { BoostCeremonyOverlay } from "@/components/ceremonies/boost-ceremony-ove
 import { BoostResultsPodium } from "@/components/ceremonies/boost-results-podium";
 import { LiveFantasyPoints, BoostThresholdWarning } from "@/components/boost/live-fantasy-points";
 import { useBoostNearMissDetector } from "@/components/boost/boost-near-miss";
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
+import { ChevronRight } from "lucide-react";
 
 interface BoostCeremonyData {
   playerName: string;
@@ -102,6 +104,16 @@ interface EligiblePlayer {
     hasCommunityBoost: boolean;
     userPremiumShares: number;
     sport: string;
+    holdings?: HoldingsWithPower[]; // Individual holdings breakdown
+}
+
+interface HoldingsWithPower {
+    id: string;
+    quantity: number;
+    power: number;
+    powerLevel: string;
+    avgCostBasis: string;
+    isPowered: boolean;
 }
 
 interface CommunityBoostEntry {
@@ -161,6 +173,8 @@ export default function Power() {
     const [boostCeremonyOpen, setBoostCeremonyOpen] = useState(false);
     const [boostCeremonyData, setBoostCeremonyData] = useState<BoostCeremonyData | null>(null);
     const [resultsPodiumOpen, setResultsPodiumOpen] = useState(false);
+    const [expandedPlayers, setExpandedPlayers] = useState<Set<string>>(new Set());
+    const [selectedHoldingId, setSelectedHoldingId] = useState<string | null>(null);
 
     // Fetch all boosts across sports
     const { data: boostsData, isLoading: loadingBoosts, refetch: refetchBoosts } = useQuery<{
@@ -212,6 +226,43 @@ export default function Power() {
         console.error("[Power] Eligible query error:", eligibleError);
     }
 
+    // Fetch holdings with power levels for share selection
+    const { data: holdingsData } = useQuery<{
+        holdings: (Holding & { player?: Player; power?: number; powerLevel?: string })[];
+    }>({
+        queryKey: ["/api/portfolio"],
+        enabled: playerSelectorOpen, // Only fetch when selector is open
+    });
+
+    // Toggle expanded player
+    const toggleExpandedPlayer = (playerId: string) => {
+        setExpandedPlayers(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(playerId)) {
+                newSet.delete(playerId);
+            } else {
+                newSet.add(playerId);
+            }
+            return newSet;
+        });
+    };
+
+    // Get holdings for a specific player
+    const getPlayerHoldings = (playerId: string): HoldingsWithPower[] => {
+        if (!holdingsData?.holdings) return [];
+        
+        return holdingsData.holdings
+            .filter(h => h.player?.id === playerId && h.assetType === "player")
+            .map(h => ({
+                id: h.id,
+                quantity: parseFloat(h.quantity),
+                power: h.power || 1,
+                powerLevel: h.powerLevel || parseFloat(h.quantity).toFixed(2),
+                avgCostBasis: h.avgCostBasis,
+                isPowered: (h.power || 1) > 1,
+            }));
+    };
+
     // Debug query to test storage
     const { data: debugData } = useQuery<any>({
         queryKey: ["/api/daily-boosts/debug"],
@@ -260,11 +311,12 @@ export default function Power() {
 
     // Assign boost mutation
     const assignBoostMutation = useMutation({
-        mutationFn: async (data: { playerId: string; slotTier: number; sharesEntered: number; sport: string }) => {
-            return await apiRequest("POST", "/api/daily-boosts/assign", {
+        mutationFn: async (data: { playerId: string; slotTier: number; sharesEntered: number; sport: string; holdingId?: string }) => {
+            const res = await apiRequest("POST", "/api/daily-boosts/assign", {
                 ...data,
                 date: formatDateET(selectedDate)
             });
+            return res.json();
         },
         onSuccess: (response, variables) => {
             // Get player details for ceremony
@@ -377,6 +429,11 @@ export default function Power() {
             slotTier: selectedSlot,
             sharesEntered: 1, // Only 1 share per boost slot - power is added to that share
             sport,
+            holdingId: selectedHoldingId || undefined, // Pass selected holding if user made a selection
+        }, {
+            onSuccess: () => {
+                setSelectedHoldingId(null); // Reset selection after successful boost
+            }
         });
     };
 
@@ -667,6 +724,8 @@ export default function Power() {
                         if (!open) {
                             setSearch("");
                             setSelectedSlot(null);
+                            setExpandedPlayers(new Set());
+                            setSelectedHoldingId(null);
                         }
                     }}>
                         <DialogContent className="max-w-md max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
@@ -715,6 +774,9 @@ export default function Power() {
                                         {filteredPlayers.map((ep) => {
                                             const hasPowerLevel = parseFloat(ep.powerLevel || "0") > 0;
                                             const playerBoost = boostsData?.boosts?.find(b => b.playerId === ep.playerId);
+                                            const isExpanded = expandedPlayers.has(ep.playerId);
+                                            const playerHoldings = getPlayerHoldings(ep.playerId);
+                                            const hasHoldings = playerHoldings.length > 0;
 
                                             // Determine if player can be boosted
                                             const canBoost = ep.hasGameToday &&
@@ -722,61 +784,153 @@ export default function Power() {
                                                 !playerBoost;
 
                                             return (
-                                                <div key={ep.holdingId || ep.playerId} className={cn("p-3 flex items-center justify-between gap-2", ep.gameStatus === 'live' && "bg-yellow-500/5", ep.gameStatus === 'ended' && "bg-muted/30")}>
-                                                    <div className="flex items-center gap-2 min-w-0 flex-1">
-                                                        <div className={cn("w-8 h-8 rounded-full flex items-center justify-center shrink-0", ep.hasGameToday ? "bg-primary/10" : "bg-muted")}>
-                                                            <span className="text-xs font-bold">{ep.player.firstName[0]}{ep.player.lastName[0]}</span>
+                                                <div key={ep.holdingId || ep.playerId}>
+                                                    {/* Main Player Row */}
+                                                    <div className={cn("p-3 flex items-center justify-between gap-2", ep.gameStatus === 'live' && "bg-yellow-500/5", ep.gameStatus === 'ended' && "bg-muted/30")}>
+                                                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                                                            {hasHoldings && canBoost && (
+                                                                <CollapsibleTrigger asChild>
+                                                                    <Button
+                                                                        variant="ghost"
+                                                                        size="sm"
+                                                                        className="p-0 h-6 w-6 hover:bg-transparent"
+                                                                        onClick={() => toggleExpandedPlayer(ep.playerId)}
+                                                                    >
+                                                                        <ChevronRight className={cn("w-4 h-4 transition-transform", isExpanded && "rotate-90")} />
+                                                                    </Button>
+                                                                </CollapsibleTrigger>
+                                                            )}
+                                                            <div className={cn("w-8 h-8 rounded-full flex items-center justify-center shrink-0", ep.hasGameToday ? "bg-primary/10" : "bg-muted")}>
+                                                                <span className="text-xs font-bold">{ep.player.firstName[0]}{ep.player.lastName[0]}</span>
+                                                            </div>
+                                                            <div className="min-w-0">
+                                                                <div className="font-medium text-sm truncate">
+                                                                    <PlayerName playerId={ep.player.id} firstName={ep.player.firstName} lastName={ep.player.lastName} className="text-sm" />
+                                                                </div>
+                                                                <div className="flex items-center gap-1 text-xs text-muted-foreground flex-wrap">
+                                                                    <Badge variant="outline" className="text-[10px] px-1 py-0 h-4">{ep.sport}</Badge>
+                                                                    <span>{ep.player.team}</span>
+                                                                    {hasPowerLevel && (
+                                                                        <><span>•</span><span className="text-purple-400">⚡ {ep.powerLevel}</span></>
+                                                                    )}
+                                                                    {/* Game status indicator */}
+                                                                    {!ep.hasGameToday && (
+                                                                        <><span>•</span><Badge variant="secondary" className="text-[10px] px-1 py-0 h-4">No game</Badge></>
+                                                                    )}
+                                                                    {ep.hasGameToday && ep.gameStatus === 'upcoming' && ep.gameStartTime && (
+                                                                        <><span>•</span><Badge className="bg-blue-500/20 text-blue-500 border-blue-500/30 text-[10px] px-1 py-0 h-4">{format(new Date(ep.gameStartTime), "h:mm a")}</Badge></>
+                                                                    )}
+                                                                    {ep.hasGameToday && ep.gameStatus === 'live' && (
+                                                                        <><span>•</span><Badge variant="destructive" className="text-[10px] px-1 py-0 h-4 animate-pulse">Live</Badge></>
+                                                                    )}
+                                                                    {ep.hasGameToday && ep.gameStatus === 'ended' && (
+                                                                        <><span>•</span><Badge variant="secondary" className="text-[10px] px-1 py-0 h-4">Ended</Badge></>
+                                                                    )}
+                                                                </div>
+                                                            </div>
                                                         </div>
-                                                        <div className="min-w-0">
-                                                            <div className="font-medium text-sm truncate">
-                                                                <PlayerName playerId={ep.player.id} firstName={ep.player.firstName} lastName={ep.player.lastName} className="text-sm" />
-                                                            </div>
-                                                            <div className="flex items-center gap-1 text-xs text-muted-foreground flex-wrap">
-                                                                <Badge variant="outline" className="text-[10px] px-1 py-0 h-4">{ep.sport}</Badge>
-                                                                <span>{ep.player.team}</span>
-                                                                {hasPowerLevel && (
-                                                                    <><span>•</span><span className="text-purple-400">⚡ {ep.powerLevel}</span></>
-                                                                )}
-                                                                {/* Game status indicator */}
-                                                                {!ep.hasGameToday && (
-                                                                    <><span>•</span><Badge variant="secondary" className="text-[10px] px-1 py-0 h-4">No game</Badge></>
-                                                                )}
-                                                                {ep.hasGameToday && ep.gameStatus === 'upcoming' && ep.gameStartTime && (
-                                                                    <><span>•</span><Badge className="bg-blue-500/20 text-blue-500 border-blue-500/30 text-[10px] px-1 py-0 h-4">{format(new Date(ep.gameStartTime), "h:mm a")}</Badge></>
-                                                                )}
-                                                                {ep.hasGameToday && ep.gameStatus === 'live' && (
-                                                                    <><span>•</span><Badge variant="destructive" className="text-[10px] px-1 py-0 h-4 animate-pulse">Live</Badge></>
-                                                                )}
-                                                                {ep.hasGameToday && ep.gameStatus === 'ended' && (
-                                                                    <><span>•</span><Badge variant="secondary" className="text-[10px] px-1 py-0 h-4">Ended</Badge></>
-                                                                )}
-                                                            </div>
+                                                        <div className="flex items-center gap-1 shrink-0">
+                                                            {playerBoost ? (
+                                                                <Badge className="bg-green-500/20 text-green-500 border-green-500/30 text-xs">
+                                                                    <Zap className="w-3 h-3 mr-0.5" />
+                                                                    Boosted
+                                                                </Badge>
+                                                            ) : canBoost ? (
+                                                                <Button
+                                                                    size="sm"
+                                                                    onClick={() => handleAssignBoost(ep.playerId, ep.sport)}
+                                                                    disabled={assignBoostMutation.isPending}
+                                                                    className="h-8"
+                                                                >
+                                                                    <Zap className="w-3 h-3 mr-1" />
+                                                                    {MULTIPLIER_SLOTS.find(s => s.tier === selectedSlot)?.label}
+                                                                </Button>
+                                                            ) : ep.hasGameToday && ep.gameStatus === 'live' ? (
+                                                                <Badge variant="destructive" className="text-xs">Live</Badge>
+                                                            ) : ep.hasGameToday && ep.gameStatus === 'ended' ? (
+                                                                <Badge variant="secondary" className="text-xs">Ended</Badge>
+                                                            ) : (
+                                                                <Badge variant="outline" className="text-xs text-muted-foreground">No game</Badge>
+                                                            )}
                                                         </div>
                                                     </div>
-                                                    <div className="flex items-center gap-1 shrink-0">
-                                                        {playerBoost ? (
-                                                            <Badge className="bg-green-500/20 text-green-500 border-green-500/30 text-xs">
-                                                                <Zap className="w-3 h-3 mr-0.5" />
-                                                                Boosted
-                                                            </Badge>
-                                                        ) : canBoost ? (
-                                                            <Button
-                                                                size="sm"
-                                                                onClick={() => handleAssignBoost(ep.playerId, ep.sport)}
-                                                                disabled={assignBoostMutation.isPending}
-                                                                className="h-8"
-                                                            >
-                                                                <Zap className="w-3 h-3 mr-1" />
-                                                                {MULTIPLIER_SLOTS.find(s => s.tier === selectedSlot)?.label}
-                                                            </Button>
-                                                        ) : ep.hasGameToday && ep.gameStatus === 'live' ? (
-                                                            <Badge variant="destructive" className="text-xs">Live</Badge>
-                                                        ) : ep.hasGameToday && ep.gameStatus === 'ended' ? (
-                                                            <Badge variant="secondary" className="text-xs">Ended</Badge>
-                                                        ) : (
-                                                            <Badge variant="outline" className="text-xs text-muted-foreground">No game</Badge>
-                                                        )}
-                                                    </div>
+
+                                                    {/* Expanded Share Holdings */}
+                                                    {isExpanded && hasHoldings && canBoost && (
+                                                        <div className="bg-muted/30 px-3 pb-3">
+                                                            <div className="text-xs text-muted-foreground mb-2 pl-8 pt-2">
+                                                                Select which share to use for boost:
+                                                            </div>
+                                                            <table className="w-full text-xs">
+                                                                <thead>
+                                                                    <tr className="text-muted-foreground border-b border-border/50">
+                                                                        <th className="text-left py-2 pl-8">Qty</th>
+                                                                        <th className="text-left py-2">Power</th>
+                                                                        <th className="text-right py-2 pr-1">Action</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody className="divide-y divide-border/30">
+                                                                    {playerHoldings.map((holding) => {
+                                                                        const isSelected = selectedHoldingId === holding.id;
+                                                                        return (
+                                                                            <tr key={holding.id} className={cn(
+                                                                                holding.isPowered ? 'bg-purple-500/5' : 'bg-green-500/5',
+                                                                                isSelected && 'ring-1 ring-primary/50',
+                                                                                "hover:bg-muted/50 transition-colors"
+                                                                            )}>
+                                                                                <td className="py-2 pl-8">
+                                                                                    <span className="font-mono">{holding.quantity}</span>
+                                                                                    <span className={cn("ml-1 text-[10px]", holding.isPowered ? 'text-purple-400' : 'text-muted-foreground')}>
+                                                                                        @ {holding.power}x
+                                                                                    </span>
+                                                                                </td>
+                                                                                <td className="py-2">
+                                                                                    <span className={cn("font-mono font-medium", holding.isPowered ? 'text-purple-400' : 'text-muted-foreground')}>
+                                                                                        {holding.powerLevel}
+                                                                                    </span>
+                                                                                </td>
+                                                                                <td className="py-2 pr-1 text-right">
+                                                                                    <Button
+                                                                                        size="sm"
+                                                                                        variant={isSelected ? "default" : "ghost"}
+                                                                                        className={cn(
+                                                                                            "h-6 px-2 text-xs",
+                                                                                            isSelected 
+                                                                                                ? "bg-primary" 
+                                                                                                : holding.isPowered 
+                                                                                                    ? "bg-purple-500/10 hover:bg-purple-500/20 text-purple-600" 
+                                                                                                    : "bg-green-500/10 hover:bg-green-500/20 text-green-600"
+                                                                                        )}
+                                                                                        onClick={() => setSelectedHoldingId(isSelected ? null : holding.id)}
+                                                                                    >
+                                                                                        {isSelected ? 'Selected' : 'Select'}
+                                                                                    </Button>
+                                                                                </td>
+                                                                            </tr>
+                                                                        );
+                                                                    })}
+                                                                </tbody>
+                                                            </table>
+                                                            {selectedHoldingId && playerHoldings.find(h => h.id === selectedHoldingId) && (
+                                                                <div className="mt-2 flex items-center justify-between bg-primary/10 rounded p-2">
+                                                                    <span className="text-xs text-muted-foreground">
+                                                                        Using: {playerHoldings.find(h => h.id === selectedHoldingId)?.quantity} share @ {playerHoldings.find(h => h.id === selectedHoldingId)?.power}x power
+                                                                    </span>
+                                                                    <Button
+                                                                        size="sm"
+                                                                        className="h-6 text-xs"
+                                                                        onClick={() => {
+                                                                            handleAssignBoost(ep.playerId, ep.sport);
+                                                                        }}
+                                                                        disabled={assignBoostMutation.isPending}
+                                                                    >
+                                                                        <Zap className="w-3 h-3 mr-1" />
+                                                                        Boost
+                                                                    </Button>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             );
                                         })}

@@ -300,7 +300,8 @@ export default function Portfolio() {
   // Condense shares into Power Level (5:1 ratio)
   const condenseSharesMutation = useMutation({
     mutationFn: async ({ playerId, sharesToCondense }: { playerId: string; sharesToCondense: number }) => {
-      return await apiRequest("POST", "/api/holdings/condense", { playerId, sharesToCondense });
+      const res = await apiRequest("POST", "/api/holdings/condense", { playerId, sharesToCondense });
+      return res.json();
     },
     onSuccess: async (data: any) => {
       await invalidatePortfolioQueries();
