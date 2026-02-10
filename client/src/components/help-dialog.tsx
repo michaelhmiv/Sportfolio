@@ -111,7 +111,7 @@ export function HelpDialog() {
                     <div>
                       <p className="font-medium mb-1">Option B: Enter Contests</p>
                       <p className="text-muted-foreground">
-                        Use your Sportfolio cash to enter daily 50/50 contests. Draft players from that
+                        Use your shares to enter daily 50/50 contests. Draft players from that
                         day's games and earn fantasy points based on real NBA performance. Top half
                         of contestants win prizes.
                       </p>
@@ -120,15 +120,15 @@ export function HelpDialog() {
                 </div>
 
                 <div>
-                  <h4 className="font-semibold mb-2">4. The Economy</h4>
-                  <p className="mb-2">This keeps the game balanced:</p>
+                  <h4 className="font-semibold mb-2">4. The "Burn" Mechanic</h4>
+                  <p className="mb-2">This keeps the economy balanced:</p>
                   <ul className="list-disc pl-6 space-y-1">
                     <li>
-                      When you enter a contest, your entry fee creates new "money" in the
+                      When you enter a contest, your entry fee is used to create new "money" in the
                       game (prizes for winners).
                     </li>
                     <li>
-                      This is balanced by the continuous flow of shares through scouting,
+                      This creation is balanced by the continuous flow of shares through scouting,
                       keeping the economy stable and shares valuable.
                     </li>
                   </ul>

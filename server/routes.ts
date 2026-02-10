@@ -17,6 +17,7 @@ import {
   tweetHistory,
   users,
   scoutAssignments,
+  scoutDistributions,
   scoutHistory,
   dailyGames,
   dailyBoosts,
@@ -7349,18 +7350,18 @@ ${posts
           volumeChange,
           marketCap: marketHealth.totalMarketCap,
           marketCapChange,
-          sharesMined: shareEconomy.totalSharesVested,
-          sharesVested: shareEconomy.totalSharesVested,
+          sharesMined: shareEconomy.totalSharesScouted, // Changed from vested to scouted - active scout shares
+          sharesVested: shareEconomy.totalSharesVested, // Keep vesting separately for reference
           sharesBurned: shareEconomy.totalSharesBurned,
           totalShares: shareEconomy.totalSharesInEconomy,
-          periodSharesMined: shareEconomy.periodSharesVested,
+          periodSharesMined: shareEconomy.periodSharesScouted, // Changed from vested to scouted
           periodSharesVested: shareEconomy.periodSharesVested,
-          periodsharesVested: shareEconomy.periodSharesVested,
           periodSharesBurned: shareEconomy.periodSharesBurned,
           timeSeries,
           shareEconomyTimeSeries: shareEconomyTimeSeries.map((point) => ({
             ...point,
-            sharesMined: point.sharesVested,
+            sharesMined: point.sharesScouted, // Changed from vested to scouted for chart
+            sharesVested: point.sharesVested, // Keep vesting available
           })),
         },
         powerRankings,
@@ -7415,20 +7416,42 @@ ${posts
         )
         .orderBy(marketSnapshots.snapshotDate);
 
+      // Query scout distributions by date for the same time range
+      const scoutDistributionsByDate = await db
+        .select({
+          date: sql<string>`DATE(${scoutDistributions.hourTimestamp})`.as("date"),
+          totalShares: sql<string>`COALESCE(SUM(${scoutDistributions.sharesEarned}), 0)`.as("totalShares"),
+        })
+        .from(scoutDistributions)
+        .where(and(gte(scoutDistributions.hourTimestamp, startDate), lte(scoutDistributions.hourTimestamp, now)))
+        .groupBy(sql`DATE(${scoutDistributions.hourTimestamp})`);
+
+      // Create a map of scout shares by date for easy lookup
+      const scoutSharesMap = new Map<string, number>();
+      for (const row of scoutDistributionsByDate) {
+        scoutSharesMap.set(row.date, Math.floor(parseFloat(row.totalShares || "0")));
+      }
+
       res.json({
         timeRange,
         startDate: startDate.toISOString(),
         endDate: now.toISOString(),
-        snapshots: snapshots.map((s) => ({
-          date: s.snapshotDate,
-          marketCap: parseFloat(s.marketCap),
-          transactions: s.transactionsCount,
-          volume: parseFloat(s.volume),
-          sharesMined: s.sharesVested,
-          sharesVested: s.sharesVested,
-          sharesBurned: s.sharesBurned,
-          totalShares: s.totalShares,
-        })),
+        snapshots: snapshots.map((s) => {
+          const snapshotDateStr = new Date(s.snapshotDate).toISOString().split('T')[0];
+          const sharesScouted = scoutSharesMap.get(snapshotDateStr) || 0;
+
+          return {
+            date: s.snapshotDate,
+            marketCap: parseFloat(s.marketCap),
+            transactions: s.transactionsCount,
+            volume: parseFloat(s.volume),
+            sharesMined: sharesScouted, // Scout shares (changed from vested)
+            sharesVested: s.sharesVested, // Keep vesting available
+            sharesScouted, // Add scout shares explicitly
+            sharesBurned: s.sharesBurned,
+            totalShares: s.totalShares,
+          };
+        }),
       });
     } catch (error: any) {
       console.error("[analytics/snapshots] Error:", error);

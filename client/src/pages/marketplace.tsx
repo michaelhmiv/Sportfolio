@@ -584,31 +584,20 @@ export default function PlayerPools() {
                                 ${player.poolTvl?.toLocaleString() || "N/A"}
                               </td>
                               <td className="p-3 text-center">
-                                <div className="flex items-center justify-center gap-2">
-                                  <Button
-                                    size="sm"
-                                    variant="default"
-                                    className="h-8 px-3"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setLocation(`/player/${player.id}?tab=buy`);
-                                    }}
-                                  >
-                                    <ShoppingCart className="w-3 h-3 mr-1" />
-                                    Buy
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-8 px-3"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setLocation(`/player/${player.id}?tab=sell`);
-                                    }}
-                                  >
-                                    Sell
-                                  </Button>
-                                </div>
+                                <Button
+                                  size="sm"
+                                  variant="default"
+                                  className="h-8 px-3"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const pid = String(player.id || "").trim();
+                                    setSelectedPlayerId(pid);
+                                    setPlayerModalOpen(true);
+                                  }}
+                                >
+                                  <ShoppingCart className="w-3 h-3 mr-1" />
+                                  Trade
+                                </Button>
                               </td>
                             </tr>
                           ))}

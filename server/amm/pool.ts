@@ -230,7 +230,7 @@ export async function initializePool(playerId: string): Promise<Pool> {
           totalVolume: "0",
           totalTrades: 0,
         })
-        .onConflictDoNothing()
+        .onConflictDoNothing({ target: playerPools.playerId })
         .returning();
 
       if (!newPool) {
@@ -320,7 +320,7 @@ export async function initializePool(playerId: string): Promise<Pool> {
           playerId,
           lpShares: INITIAL_POOL_SHARES.toString(),
         })
-        .onConflictDoNothing()
+        .onConflictDoNothing({ target: [lpPositions.userId, lpPositions.playerId] })
         .returning();
 
       if (insertedPositions.length > 0) {
