@@ -29,6 +29,7 @@ import type { JobResult } from "./scheduler";
 import type { ProgressCallback } from "../lib/admin-stream";
 import { broadcast } from "../websocket";
 import { getETDayBoundaries, getGameDay, getTodayET, getTodayETBoundaries } from "../lib/time";
+import { toZonedTime } from "date-fns-tz";
 
 function getLikelyLiveStatus(normalizedApiStatus: string, startTime: Date, now: Date): string {
   if (normalizedApiStatus !== "scheduled") return normalizedApiStatus;
@@ -81,7 +82,8 @@ export async function syncStatsLive(progressCallback?: ProgressCallback): Promis
     const yesterdayET = getGameDay(yesterday);
 
     // Only fetch yesterday's games during the late-night ET window when games can cross midnight.
-    const nowEt = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
+    // Use deterministic toZonedTime (same as project's time.ts) instead of locale-dependent toLocaleString.
+    const nowEt = toZonedTime(now, "America/New_York");
     const includeYesterday = nowEt.getHours() < 6;
 
     const { startOfDay: windowStart } = getETDayBoundaries(includeYesterday ? yesterdayET : todayET);

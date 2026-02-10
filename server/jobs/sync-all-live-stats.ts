@@ -22,11 +22,9 @@ interface UnifiedResult extends JobResult {
   gamesProcessed?: number;
 }
 
-let lastNflSyncMinuteKey: string | null = null;
-
 /**
- * Unified live stats sync that handles all sports
- * Called every minute to update player stats for active games
+ * Unified live stats sync that handles all sports.
+ * Called every 5 minutes (cron cadence is the throttle).
  */
 export async function syncAllLiveStats(
   progressCallback?: ProgressCallback,
@@ -91,13 +89,9 @@ export async function syncAllLiveStats(
     }
 
     // Process NFL games if any exist in the window.
-    // Throttle to once per 5 minutes to avoid excessive API usage.
-    const minuteKey = `${now.getUTCFullYear()}-${now.getUTCMonth()}-${now.getUTCDate()}-${now.getUTCHours()}-${now.getUTCMinutes()}`;
-    const shouldRunNfl = now.getUTCMinutes() % 5 === 0 && lastNflSyncMinuteKey !== minuteKey;
-
-    if (nflGames.length > 0 && shouldRunNfl) {
-      lastNflSyncMinuteKey = minuteKey;
-      console.log(`[live_stats_sync] Processing NFL live sync (throttled)...`);
+    // No in-process throttle needed — the cron cadence (*/5) is the throttle.
+    if (nflGames.length > 0) {
+      console.log(`[live_stats_sync] Processing NFL live sync...`);
       try {
         const nflResult = await syncNFLStats();
         result.nflResult = {
