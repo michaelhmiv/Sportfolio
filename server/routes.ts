@@ -148,6 +148,15 @@ type GameInsightUserContext = {
     totalShares: number;
     isBoosted: boolean;
   }>;
+  ownedPlayers: Array<{
+    playerId: string;
+    name: string;
+    team: string;
+    powerLevel: number;
+    availableShares: number;
+    totalShares: number;
+    isBoosted: boolean;
+  }>;
 };
 
 type GameInsight = {
@@ -278,25 +287,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     dateStr: string;
     userId?: string | null;
   }): Promise<{ insights: GameInsight[]; boostSlotsRemaining: number | null }> => {
-    const teamSet = new Set<string>();
+    const requestedSport = sport.toUpperCase();
+    const teamsBySport = new Map<string, Set<string>>();
+
     games.forEach((game) => {
-      teamSet.add(game.homeTeam);
-      teamSet.add(game.awayTeam);
+      const gameSport = (requestedSport === "ALL" ? game.sport : sport).toUpperCase();
+      const teams = teamsBySport.get(gameSport) || new Set<string>();
+      teams.add(game.homeTeam);
+      teams.add(game.awayTeam);
+      teamsBySport.set(gameSport, teams);
     });
 
-    const teams = Array.from(teamSet);
     const teamPlayers =
-      teams.length > 0
-        ? await db
-            .select()
-            .from(players)
-            .where(
-              and(
-                eq(players.sport, sport),
-                inArray(players.team, teams),
-                eq(players.isActive, true),
-              ),
+      teamsBySport.size > 0
+        ? (
+            await Promise.all(
+              Array.from(teamsBySport.entries())
+                .filter(([, teamSet]) => teamSet.size > 0)
+                .map(([gameSport, teamSet]) =>
+                  db
+                    .select()
+                    .from(players)
+                    .where(
+                      and(
+                        sql`UPPER(${players.sport}) = ${gameSport}`,
+                        inArray(players.team, Array.from(teamSet)),
+                        eq(players.isActive, true),
+                      ),
+                    ),
+                ),
             )
+          ).flat()
         : [];
 
     const playerIds = teamPlayers.map((player) => player.id);
@@ -305,17 +326,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       storage.getBatchActiveScoutCounts(playerIds),
     ]);
 
+    const playerTeamKey = (playerSport: string, team: string) =>
+      `${playerSport.toUpperCase()}:${team}`;
+
     const playersByTeam = new Map<string, typeof teamPlayers>();
     teamPlayers.forEach((player) => {
-      const list = playersByTeam.get(player.team) || [];
+      const teamKey = playerTeamKey(player.sport, player.team);
+      const list = playersByTeam.get(teamKey) || [];
       list.push(player);
-      playersByTeam.set(player.team, list);
+      playersByTeam.set(teamKey, list);
     });
 
     const getCandidates = (game: DailyGame) => {
+      const gameSport = (requestedSport === "ALL" ? game.sport : sport).toUpperCase();
       const candidates = [
-        ...(playersByTeam.get(game.homeTeam) || []),
-        ...(playersByTeam.get(game.awayTeam) || []),
+        ...(playersByTeam.get(playerTeamKey(gameSport, game.homeTeam)) || []),
+        ...(playersByTeam.get(playerTeamKey(gameSport, game.awayTeam)) || []),
       ];
 
       return candidates.map((player) => ({
@@ -381,9 +407,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
             isBoosted: boostedPlayerIds.has(player.player.id),
           }));
 
+        const ownedPlayersById = new Map<
+          string,
+          {
+            playerId: string;
+            name: string;
+            team: string;
+            powerLevel: number;
+            availableShares: number;
+            totalShares: number;
+            isBoosted: boolean;
+          }
+        >();
+
+        playersForGame.forEach((player) => {
+          const playerId = player.player.id;
+          const powerLevel = parseFloat(player.powerLevel || "0");
+          const availableShares = Number(player.availableShares || 0);
+          const totalShares = Number(player.quantity || 0);
+          const existing = ownedPlayersById.get(playerId);
+
+          if (!existing) {
+            ownedPlayersById.set(playerId, {
+              playerId,
+              name: `${player.player.firstName} ${player.player.lastName}`,
+              team: player.player.team,
+              powerLevel,
+              availableShares,
+              totalShares,
+              isBoosted: boostedPlayerIds.has(playerId),
+            });
+            return;
+          }
+
+          existing.powerLevel = Math.max(existing.powerLevel, powerLevel);
+          existing.availableShares += availableShares;
+          existing.totalShares += totalShares;
+          existing.isBoosted = existing.isBoosted || boostedPlayerIds.has(playerId);
+        });
+
+        const ownedPlayers = Array.from(ownedPlayersById.values()).sort((a, b) => {
+          if (b.powerLevel !== a.powerLevel) return b.powerLevel - a.powerLevel;
+          if (b.totalShares !== a.totalShares) return b.totalShares - a.totalShares;
+          return a.name.localeCompare(b.name);
+        });
+
         userContextByGame.set(gameId, {
           eligibleCount: playersForGame.length,
           topPowerPlayers,
+          ownedPlayers,
         });
       });
     }
@@ -1495,12 +1567,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/games/:gameId/insights", optionalAuth, async (req, res) => {
     try {
       const { gameId } = req.params;
-      const sport = (req.query.sport as string) || "NBA";
       const game = await storage.getDailyGameByGameId(gameId);
 
       if (!game) {
         return res.status(404).json({ error: "Game not found" });
       }
+
+      const requestedSport = (req.query.sport as string) || game.sport || "NBA";
+      const sport = requestedSport.toUpperCase() === "ALL" ? game.sport : requestedSport;
 
       const dateStr = getGameDay(game.startTime);
       const userId = req.user ? getUserId(req) : null;
@@ -1518,7 +1592,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .from(players)
         .where(
           and(
-            eq(players.sport, sport),
+            sql`UPPER(${players.sport}) = ${sport.toUpperCase()}`,
             inArray(players.team, [game.homeTeam, game.awayTeam]),
             eq(players.isActive, true),
           ),
@@ -1542,7 +1616,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const topBy = (key: "avgFantasyPointsPerGame" | "totalShares" | "scoutCount") =>
         [...candidates]
           .sort((a, b) => (b[key] ?? 0) - (a[key] ?? 0))
-          .slice(0, 5)
           .map((entry) => ({
             playerId: entry.player.id,
             name: `${entry.player.firstName} ${entry.player.lastName}`,
@@ -1679,7 +1752,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Live game stats - fetches real-time player stats from Ball Don't Lie API
-  app.get("/api/games/:gameId/live-stats", async (req, res) => {
+  app.get("/api/games/:gameId/live-stats", optionalAuth, async (req: any, res) => {
     try {
       const { gameId } = req.params;
 
@@ -1689,9 +1762,128 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Game not found" });
       }
 
-      // Import here to avoid circular dependency issues
-      const { fetchPlayerGameStats, normalizeGameStatus } = await import("./balldontlie-nba");
-      const { fetchGameStats } = await import("./balldontlie-nfl");
+      const getPlayerNumericValue = (value: unknown): number => {
+        const numeric = Number(value);
+        return Number.isFinite(numeric) ? numeric : 0;
+      };
+
+      const buildUserLiveEarnings = async (
+        livePlayers: Array<{
+          playerId: string;
+          fantasyPoints: number;
+          name?: string;
+          team?: string;
+        }>,
+      ) => {
+        if (!req.user?.claims?.sub) return null;
+
+        const userId = getUserId(req);
+        const holdingsWithPlayers = await storage.getUserHoldingsWithPlayers(userId);
+        const liveByPlayerId = new Map<string, { playerId: string; fantasyPoints: number }>();
+        const liveByNameAndTeam = new Map<string, number>();
+
+        const normalizeName = (name: string) =>
+          name
+            .toLowerCase()
+            .replace(/[^a-z0-9\s]/g, "")
+            .replace(/\s+/g, " ")
+            .trim();
+
+        livePlayers.forEach((player) => {
+          const rawId = String(player.playerId || "").trim();
+          if (!rawId) return;
+
+          liveByPlayerId.set(rawId, player);
+
+          if (rawId.startsWith("nba_") || rawId.startsWith("nfl_")) {
+            liveByPlayerId.set(rawId.slice(4), player);
+          } else if (game.sport === "NBA") {
+            liveByPlayerId.set(`nba_${rawId}`, player);
+          } else if (game.sport === "NFL") {
+            liveByPlayerId.set(`nfl_${rawId}`, player);
+          }
+
+          if (player.name && player.team) {
+            const key = `${player.team}|${normalizeName(player.name)}`;
+            const existing = liveByNameAndTeam.get(key) || 0;
+            if ((player.fantasyPoints || 0) > existing) {
+              liveByNameAndTeam.set(key, player.fantasyPoints || 0);
+            }
+          }
+        });
+
+        const aggregatedOwnedPlayers = holdingsWithPlayers
+          .filter((entry: any) => {
+            if (!entry?.holding || !entry?.player) return false;
+            if (entry.holding.assetType !== "player") return false;
+            if ((entry.player.sport || "").toUpperCase() !== game.sport.toUpperCase()) return false;
+            if (entry.player.team !== game.homeTeam && entry.player.team !== game.awayTeam)
+              return false;
+            return getPlayerNumericValue(entry.holding.quantity) > 0;
+          })
+          .reduce((map: Map<string, any>, entry: any) => {
+            const playerId = String(entry.player.id || "").trim();
+            const playerName =
+              `${entry.player.firstName || ""} ${entry.player.lastName || ""}`.trim();
+            const fantasyPointsById = liveByPlayerId.get(playerId)?.fantasyPoints || 0;
+            const fantasyPointsByName =
+              liveByNameAndTeam.get(`${entry.player.team}|${normalizeName(playerName)}`) || 0;
+            const fantasyPoints = fantasyPointsById || fantasyPointsByName;
+            const quantity = getPlayerNumericValue(entry.holding.quantity);
+            const powerLevel = getPlayerNumericValue(entry.holding.powerLevel);
+
+            const existing = map.get(playerId);
+            if (!existing) {
+              map.set(playerId, {
+                playerId,
+                name: playerName,
+                team: entry.player.team,
+                quantity,
+                powerLevel,
+                fantasyPoints,
+              });
+              return map;
+            }
+
+            existing.quantity += quantity;
+            existing.powerLevel += powerLevel;
+            return map;
+          }, new Map<string, any>());
+
+        const ownedPlayers = Array.from(aggregatedOwnedPlayers.values())
+          .map((player) => {
+            const estimatedEarnings = player.fantasyPoints * player.powerLevel;
+
+            return {
+              playerId: player.playerId,
+              name: player.name,
+              team: player.team,
+              quantity: parseFloat(player.quantity.toFixed(4)),
+              powerLevel: parseFloat(player.powerLevel.toFixed(2)),
+              fantasyPoints: parseFloat(player.fantasyPoints.toFixed(2)),
+              estimatedEarnings: parseFloat(estimatedEarnings.toFixed(2)),
+            };
+          })
+          .sort((a: any, b: any) => {
+            if (b.estimatedEarnings !== a.estimatedEarnings) {
+              return b.estimatedEarnings - a.estimatedEarnings;
+            }
+            if (b.fantasyPoints !== a.fantasyPoints) {
+              return b.fantasyPoints - a.fantasyPoints;
+            }
+            return a.name.localeCompare(b.name);
+          });
+
+        const totalEstimatedEarnings = ownedPlayers.reduce(
+          (sum: number, player: any) => sum + player.estimatedEarnings,
+          0,
+        );
+
+        return {
+          totalEstimatedEarnings: parseFloat(totalEstimatedEarnings.toFixed(2)),
+          ownedPlayers,
+        };
+      };
 
       if (game.sport === "NBA") {
         const gameIdNum = Number(gameId);
@@ -1702,6 +1894,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log(`[live-stats] Fetching NBA player stats for game ${gameId}`);
 
         // Fetch player stats for this specific game using /stats endpoint with game_ids[]
+        const {
+          fetchPlayerGameStats,
+          normalizeGameStatus,
+          calculateFantasyPoints,
+          convertToGameStats,
+          createNBAPlayerId,
+        } = await import("./balldontlie-nba");
+
         const playerStats = await fetchPlayerGameStats(gameIdNum);
         console.log(`[live-stats] Found ${playerStats.length} NBA player stats`);
 
@@ -1745,6 +1945,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
               }));
           };
 
+          const homePlayers = homeStats.map((s) => ({
+            id: s.player.id,
+            playerId: createNBAPlayerId(s.player.id),
+            name: `${s.player.first_name} ${s.player.last_name}`,
+            team: s.team.abbreviation,
+            position: s.player.position,
+            min: s.min,
+            pts: s.pts,
+            reb: s.reb,
+            ast: s.ast,
+            stl: s.stl,
+            blk: s.blk,
+            fgm: s.fgm,
+            fga: s.fga,
+            fg3m: s.fg3m,
+            fg3a: s.fg3a,
+            ftm: s.ftm,
+            fta: s.fta,
+            pf: s.pf,
+            plusMinus: s.plus_minus,
+            turnover: s.turnover,
+            fg_pct: s.fg_pct,
+            fantasyPoints: calculateFantasyPoints(convertToGameStats(s)),
+          }));
+
+          const awayPlayers = awayStats.map((s) => ({
+            id: s.player.id,
+            playerId: createNBAPlayerId(s.player.id),
+            name: `${s.player.first_name} ${s.player.last_name}`,
+            team: s.team.abbreviation,
+            position: s.player.position,
+            min: s.min,
+            pts: s.pts,
+            reb: s.reb,
+            ast: s.ast,
+            stl: s.stl,
+            blk: s.blk,
+            fgm: s.fgm,
+            fga: s.fga,
+            fg3m: s.fg3m,
+            fg3a: s.fg3a,
+            ftm: s.ftm,
+            fta: s.fta,
+            pf: s.pf,
+            plusMinus: s.plus_minus,
+            turnover: s.turnover,
+            fg_pct: s.fg_pct,
+            fantasyPoints: calculateFantasyPoints(convertToGameStats(s)),
+          }));
+
+          const userEarnings = await buildUserLiveEarnings([...homePlayers, ...awayPlayers]);
+
           return res.json({
             gameId,
             status: liveStatus,
@@ -1752,32 +2004,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             homeScore: liveHomeScore,
             awayTeam: game.awayTeam,
             awayScore: liveAwayScore,
-            homePlayers: homeStats.map((s) => ({
-              id: s.player.id,
-              name: `${s.player.first_name} ${s.player.last_name}`,
-              position: s.player.position,
-              min: s.min,
-              pts: s.pts,
-              reb: s.reb,
-              ast: s.ast,
-              stl: s.stl,
-              blk: s.blk,
-              fg_pct: s.fg_pct,
-            })),
-            awayPlayers: awayStats.map((s) => ({
-              id: s.player.id,
-              name: `${s.player.first_name} ${s.player.last_name}`,
-              position: s.player.position,
-              min: s.min,
-              pts: s.pts,
-              reb: s.reb,
-              ast: s.ast,
-              stl: s.stl,
-              blk: s.blk,
-              fg_pct: s.fg_pct,
-            })),
+            homePlayers,
+            awayPlayers,
             homeTopPerformers: getTopPerformers(homeStats),
             awayTopPerformers: getTopPerformers(awayStats),
+            userEarnings,
           });
         }
 
@@ -1803,6 +2034,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           message = "Live stats not available yet";
         }
 
+        const userEarnings = await buildUserLiveEarnings([]);
+
         return res.json({
           gameId,
           status: game.status,
@@ -1815,6 +2048,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           homeTopPerformers: [],
           awayTopPerformers: [],
           message,
+          userEarnings,
         });
       } else if (game.sport === "NFL") {
         // NFL gameIds are stored as `nfl_<id>` in the database.
@@ -1827,6 +2061,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log(`[live-stats] Fetching NFL stats for game ${gameId}`);
 
         // Fetch NFL player stats
+        const { fetchGameStats, calculateNFLFantasyPoints, createNFLPlayerId } =
+          await import("./balldontlie-nfl");
         const nflStats = await fetchGameStats([nflGameIdNum]);
         console.log(`[live-stats] Found ${nflStats.length} NFL player stats`);
 
@@ -1835,6 +2071,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const homeStats = nflStats.filter((s) => s.team.abbreviation === game.homeTeam);
           const awayStats = nflStats.filter((s) => s.team.abbreviation === game.awayTeam);
 
+          const homePlayers = homeStats.map((s) => ({
+            id: s.player.id,
+            playerId: createNFLPlayerId(s.player.id),
+            name: `${s.player.first_name} ${s.player.last_name}`,
+            team: s.team.abbreviation,
+            position: s.player.position,
+            passingCompletions: s.passing_completions,
+            passingAttempts: s.passing_attempts,
+            passingYards: s.passing_yards,
+            passingTDs: s.passing_touchdowns,
+            passingInterceptions: s.passing_interceptions,
+            rushingYards: s.rushing_yards,
+            rushingAttempts: s.rushing_attempts,
+            rushingTDs: s.rushing_touchdowns,
+            receivingYards: s.receiving_yards,
+            receivingTargets: s.receiving_targets,
+            receivingTDs: s.receiving_touchdowns,
+            receptions: s.receiving_receptions,
+            fantasyPoints: calculateNFLFantasyPoints(s),
+          }));
+
+          const awayPlayers = awayStats.map((s) => ({
+            id: s.player.id,
+            playerId: createNFLPlayerId(s.player.id),
+            name: `${s.player.first_name} ${s.player.last_name}`,
+            team: s.team.abbreviation,
+            position: s.player.position,
+            passingCompletions: s.passing_completions,
+            passingAttempts: s.passing_attempts,
+            passingYards: s.passing_yards,
+            passingTDs: s.passing_touchdowns,
+            passingInterceptions: s.passing_interceptions,
+            rushingYards: s.rushing_yards,
+            rushingAttempts: s.rushing_attempts,
+            rushingTDs: s.rushing_touchdowns,
+            receivingYards: s.receiving_yards,
+            receivingTargets: s.receiving_targets,
+            receivingTDs: s.receiving_touchdowns,
+            receptions: s.receiving_receptions,
+            fantasyPoints: calculateNFLFantasyPoints(s),
+          }));
+
+          const userEarnings = await buildUserLiveEarnings([...homePlayers, ...awayPlayers]);
+
           return res.json({
             gameId,
             status: game.status,
@@ -1842,36 +2122,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
             homeScore: game.homeScore,
             awayTeam: game.awayTeam,
             awayScore: game.awayScore,
-            homePlayers: homeStats.map((s) => ({
-              id: s.player.id,
-              name: `${s.player.first_name} ${s.player.last_name}`,
-              position: s.player.position,
-              passingYards: s.passing_yards,
-              passingTDs: s.passing_touchdowns,
-              rushingYards: s.rushing_yards,
-              rushingTDs: s.rushing_touchdowns,
-              receivingYards: s.receiving_yards,
-              receivingTDs: s.receiving_touchdowns,
-              receptions: s.receiving_receptions,
-            })),
-            awayPlayers: awayStats.map((s) => ({
-              id: s.player.id,
-              name: `${s.player.first_name} ${s.player.last_name}`,
-              position: s.player.position,
-              passingYards: s.passing_yards,
-              passingTDs: s.passing_touchdowns,
-              rushingYards: s.rushing_yards,
-              rushingTDs: s.rushing_touchdowns,
-              receivingYards: s.receiving_yards,
-              receivingTDs: s.receiving_touchdowns,
-              receptions: s.receiving_receptions,
-            })),
+            homePlayers,
+            awayPlayers,
             homeTopPerformers: [],
             awayTopPerformers: [],
+            userEarnings,
           });
         }
 
         console.log(`[live-stats] No NFL live stats available for ${gameId}`);
+
+        const userEarnings = await buildUserLiveEarnings([]);
 
         // Return cached scores if no player stats available
         return res.json({
@@ -1886,6 +2147,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           homeTopPerformers: [],
           awayTopPerformers: [],
           message: "No live stats available yet",
+          userEarnings,
         });
       }
 

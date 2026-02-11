@@ -39,6 +39,12 @@ export function GameCommandCenterCard({
   const startTime = new Date(game.startTime);
   const timeLabel = startTime.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
   const powerLeader = game.userContext?.topPowerPlayers?.[0];
+  const ownedTeams = new Set(
+    [
+      ...(game.userContext?.ownedPlayers || []).map((player) => player.team),
+      ...(game.userContext?.topPowerPlayers || []).map((player) => player.team),
+    ].filter(Boolean),
+  );
 
   // Boost assignment mutation
   const assignBoostMutation = useMutation({
@@ -82,32 +88,11 @@ export function GameCommandCenterCard({
     },
   });
 
-  const LeaderRow = ({
-    label,
-    leader,
-    value,
-  }: {
-    label: string;
-    leader: string;
-    value: string | number;
-  }) => (
-    <div className="flex items-center justify-between text-xs">
-      <span className="text-muted-foreground w-16 flex-shrink-0">{label}</span>
-      <span className="truncate flex-1 text-right mr-2">{leader}</span>
-      <span className="font-mono font-semibold text-right w-14">{value}</span>
-    </div>
-  );
-
-  const formatLeader = (leader: GameInsight["leaders"]["fantasy"]) => (leader ? leader.name : "—");
-
-  const formatNumber = (value: number | null | undefined, digits: number = 0) =>
-    value === null || value === undefined ? "—" : value.toFixed(digits);
-
   return (
     <button
       type="button"
       onClick={onOpen}
-      className="w-full text-left rounded-lg border border-border bg-card p-3 transition-shadow hover:shadow-sm"
+      className="w-full text-left rounded-lg border-2 border-border/90 bg-card p-3 shadow-sm transition-all hover:border-border hover:shadow-md"
     >
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
@@ -126,8 +111,16 @@ export function GameCommandCenterCard({
 
       <div className="mt-2 flex items-center justify-between">
         <div className="space-y-1">
-          <div className="text-sm font-semibold">{game.awayTeam}</div>
-          <div className="text-sm font-semibold">{game.homeTeam}</div>
+          <div
+            className={`text-sm font-semibold ${ownedTeams.has(game.awayTeam) ? "text-purple-500" : ""}`}
+          >
+            {game.awayTeam}
+          </div>
+          <div
+            className={`text-sm font-semibold ${ownedTeams.has(game.homeTeam) ? "text-purple-500" : ""}`}
+          >
+            {game.homeTeam}
+          </div>
         </div>
         <div className="text-right font-mono">
           <div className="text-base font-bold">{game.awayScore ?? "-"}</div>
@@ -135,25 +128,7 @@ export function GameCommandCenterCard({
         </div>
       </div>
 
-      <div className="mt-3 space-y-1">
-        <LeaderRow
-          label="FP Avg"
-          leader={formatLeader(game.leaders.fantasy)}
-          value={formatNumber(game.leaders.fantasy?.avgFantasyPointsPerGame, 1)}
-        />
-        <LeaderRow
-          label="TSV"
-          leader={formatLeader(game.leaders.shares)}
-          value={game.leaders.shares ? game.leaders.shares.totalShares : "—"}
-        />
-        <LeaderRow
-          label="Scouts"
-          leader={formatLeader(game.leaders.scouts)}
-          value={game.leaders.scouts ? game.leaders.scouts.scoutCount : "—"}
-        />
-      </div>
-
-      {isAuthenticated && game.userContext && (
+      {isAuthenticated && game.userContext && effectiveStatus === "scheduled" && (
         <div className="mt-3 border-t border-border/60 pt-2">
           <div className="flex flex-wrap items-center gap-2">
             {/* Eligible badge - non clickable */}

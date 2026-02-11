@@ -137,7 +137,6 @@ export default function Dashboard() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const { sport } = useSport();
   const [activeGame, setActiveGame] = useState<GameInsight | null>(null);
-  const [initialGameTab, setInitialGameTab] = useState<"pre" | "during" | "post">("pre");
   const { shouldPoll, isMobile } = useAppState();
 
   // Disable polling when app is backgrounded or offline; reduce frequency on mobile
@@ -546,7 +545,7 @@ export default function Dashboard() {
                           <Badge variant="outline">{section.games.length}</Badge>
                         </div>
                         {section.games.length > 0 ? (
-                          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                          <div className="grid grid-cols-2 gap-2">
                             {section.games.map((game) => {
                               const effectiveStatus = getEffectiveGameStatus(game);
                               return (
@@ -556,13 +555,7 @@ export default function Dashboard() {
                                   effectiveStatus={effectiveStatus}
                                   boostSlotsRemaining={boostSlotsRemaining}
                                   isAuthenticated={isAuthenticated}
-                                  onOpen={() => {
-                                    // If the game is live, open command center directly on Live tab
-                                    setInitialGameTab(
-                                      getEffectiveGameStatus(game) === "inprogress" ? "during" : "pre",
-                                    );
-                                    setActiveGame(game);
-                                  }}
+                                  onOpen={() => setActiveGame(game)}
                                 />
                               );
                             })}
@@ -760,7 +753,6 @@ export default function Dashboard() {
           sport={sport}
           date={formattedDate}
           initialInsight={activeGame}
-          initialTab={initialGameTab}
           onClose={() => setActiveGame(null)}
         />
       )}

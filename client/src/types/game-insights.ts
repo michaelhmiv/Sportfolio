@@ -20,6 +20,7 @@ export interface GameInsightUserContextPlayer {
 export interface GameInsightUserContext {
   eligibleCount: number;
   topPowerPlayers: GameInsightUserContextPlayer[];
+  ownedPlayers: GameInsightUserContextPlayer[];
 }
 
 export interface GameInsight {
