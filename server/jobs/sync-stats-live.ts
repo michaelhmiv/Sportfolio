@@ -86,7 +86,9 @@ export async function syncStatsLive(progressCallback?: ProgressCallback): Promis
     const nowEt = toZonedTime(now, "America/New_York");
     const includeYesterday = nowEt.getHours() < 6;
 
-    const { startOfDay: windowStart } = getETDayBoundaries(includeYesterday ? yesterdayET : todayET);
+    const { startOfDay: windowStart } = getETDayBoundaries(
+      includeYesterday ? yesterdayET : todayET,
+    );
     const { endOfDay: windowEnd } = getTodayETBoundaries();
 
     // Snapshot existing games for change detection.
@@ -280,7 +282,8 @@ export async function syncStatsLive(progressCallback?: ProgressCallback): Promis
               sport: "NBA",
               gameDate: startOfDay,
               season: getCurrentNBASeasonString(),
-              opponentTeam: stat.team.abbreviation === game.homeTeam ? game.awayTeam : game.homeTeam,
+              opponentTeam:
+                stat.team.abbreviation === game.homeTeam ? game.awayTeam : game.homeTeam,
               homeAway: stat.team.abbreviation === game.homeTeam ? "home" : "away",
               minutes,
               points,
@@ -324,7 +327,10 @@ export async function syncStatsLive(progressCallback?: ProgressCallback): Promis
         }
 
         errorCount++;
-        console.error(`[stats_sync_live] Failed to process game ${game.gameId}:`, err?.message || err);
+        console.error(
+          `[stats_sync_live] Failed to process game ${game.gameId}:`,
+          err?.message || err,
+        );
       }
     }
 

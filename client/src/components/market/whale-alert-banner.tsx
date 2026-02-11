@@ -93,7 +93,7 @@ export function WhaleAlertBanner({ className }: WhaleAlertBannerProps) {
           "w-[calc(100%-2rem)] max-w-lg px-0",
           "max-[480px]:top-12",
           "max-[480px]:w-[calc(100%-1rem)]",
-          className
+          className,
         )}
       >
         <div
@@ -133,14 +133,11 @@ export function WhaleAlertBanner({ className }: WhaleAlertBannerProps) {
               transition={{ type: "spring", stiffness: 400, damping: 20, delay: 0.1 }}
               className={cn(
                 "w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center shrink-0",
-                isBuy ? "bg-emerald-500/20" : "bg-red-500/20"
+                isBuy ? "bg-emerald-500/20" : "bg-red-500/20",
               )}
             >
               <Waves
-                className={cn(
-                  "w-5 h-5 sm:w-6 sm:h-6",
-                  isBuy ? "text-emerald-500" : "text-red-500"
-                )}
+                className={cn("w-5 h-5 sm:w-6 sm:h-6", isBuy ? "text-emerald-500" : "text-red-500")}
               />
             </motion.div>
 
@@ -160,7 +157,7 @@ export function WhaleAlertBanner({ className }: WhaleAlertBannerProps) {
                   transition={{ duration: 1, repeat: 3 }}
                   className={cn(
                     "w-2 h-2 rounded-full shrink-0",
-                    isBuy ? "bg-emerald-500" : "bg-red-500"
+                    isBuy ? "bg-emerald-500" : "bg-red-500",
                   )}
                 />
               </motion.div>
@@ -187,7 +184,7 @@ export function WhaleAlertBanner({ className }: WhaleAlertBannerProps) {
                 <span
                   className={cn(
                     "text-base sm:text-lg font-bold font-mono",
-                    isBuy ? "text-emerald-500" : "text-red-500"
+                    isBuy ? "text-emerald-500" : "text-red-500",
                   )}
                 >
                   ${currentAlert.tradeValue.toLocaleString()}
@@ -217,7 +214,7 @@ export function WhaleAlertBanner({ className }: WhaleAlertBannerProps) {
                     "h-7 sm:h-8 text-xs gap-1 px-2 sm:px-3",
                     isBuy
                       ? "border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300"
-                      : "border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                      : "border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300",
                   )}
                 >
                   <span className="hidden sm:inline">View</span>

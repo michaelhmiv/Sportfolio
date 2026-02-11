@@ -241,7 +241,9 @@ export async function initializePool(playerId: string): Promise<Pool> {
           .where(eq(playerPools.playerId, playerId));
 
         if (!racePoolRow) {
-          throw new Error(`Pool creation returned no data and pool does not exist for player ${playerId}`);
+          throw new Error(
+            `Pool creation returned no data and pool does not exist for player ${playerId}`,
+          );
         }
 
         const shares = parseFloat(racePoolRow.shares);
@@ -268,12 +270,14 @@ export async function initializePool(playerId: string): Promise<Pool> {
       const [existingMmHolding] = await tx
         .select()
         .from(holdings)
-        .where(and(
-          eq(holdings.userId, MARKET_MAKER_ID),
-          eq(holdings.assetType, "player"),
-          eq(holdings.assetId, playerId),
-          eq(holdings.power, 1)
-        ))
+        .where(
+          and(
+            eq(holdings.userId, MARKET_MAKER_ID),
+            eq(holdings.assetType, "player"),
+            eq(holdings.assetId, playerId),
+            eq(holdings.power, 1),
+          ),
+        )
         .limit(1);
 
       if (existingMmHolding) {
@@ -309,7 +313,10 @@ export async function initializePool(playerId: string): Promise<Pool> {
           })
           .where(eq(users.id, MARKET_MAKER_ID));
       } catch (e) {
-        console.warn(`[AMM] Failed to deduct market maker balance for ${playerId}:`, (e as Error).message);
+        console.warn(
+          `[AMM] Failed to deduct market maker balance for ${playerId}:`,
+          (e as Error).message,
+        );
       }
 
       // Create LP position for market maker (idempotent)

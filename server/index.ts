@@ -1,5 +1,18 @@
 import "dotenv/config";
+import "./observability/otel";
 import express, { type Request, Response, NextFunction } from "express";
+import {
+  initSentry,
+  setSentryRequestContext,
+  setupSentryExpressErrorHandler,
+} from "./observability/sentry";
+import { requestIdMiddleware } from "./observability/request-id";
+import {
+  getMetricsContentType,
+  getMetricsText,
+  metricsEnabled,
+  metricsMiddleware,
+} from "./observability/metrics";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { jobScheduler } from "./jobs/scheduler.js";
@@ -8,6 +21,7 @@ import { botProfiles } from "@shared/schema";
 import { sql } from "drizzle-orm";
 import pinoHttp from "pino-http";
 import { logger } from "./lib/logger";
+import { nanoid } from "nanoid";
 
 const serverStartTime = Date.now();
 let serverReady = false;
@@ -21,12 +35,18 @@ startupLog("INIT", "Server starting...");
 
 const app = express();
 
+initSentry();
+
+app.use(requestIdMiddleware);
+app.use(metricsMiddleware);
+
 app.use(
   pinoHttp({
     logger,
     autoLogging: {
       ignore: (req) => req.url === "/api/health",
     },
+    genReqId: (req) => req.requestId ?? nanoid(),
     customLogLevel: (_req, res, err) => {
       if (err || res.statusCode >= 500) return "error";
       if (res.statusCode >= 400) return "warn";
@@ -43,8 +63,32 @@ app.get("/api/health", (_req, res) => {
     uptime,
     uptimeSeconds: Math.floor(uptime / 1000),
     timestamp: new Date().toISOString(),
+    requestId: _req.requestId,
   });
 });
+
+app.get("/api/metrics", async (_req, res) => {
+  if (!metricsEnabled) return res.status(404).json({ message: "Metrics disabled" });
+
+  const token = process.env.METRICS_TOKEN;
+  if (app.get("env") === "production" && token) {
+    const provided = _req.header("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
+    if (provided !== token) return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  try {
+    res.setHeader("Content-Type", getMetricsContentType());
+    res.send(await getMetricsText());
+  } catch (err: any) {
+    res.status(500).json({ message: err?.message ?? "Failed to collect metrics" });
+  }
+});
+
+if (app.get("env") !== "production") {
+  app.get("/api/debug-sentry", (_req, _res) => {
+    throw new Error("Sentry debug route hit");
+  });
+}
 
 declare module "http" {
   interface IncomingMessage {
@@ -61,6 +105,8 @@ app.use(
 app.use(express.urlencoded({ extended: false }));
 
 app.use((req, res, next) => {
+  if (req.requestId) setSentryRequestContext(req.requestId);
+
   const start = Date.now();
   const path = req.path;
   let capturedJsonResponse: Record<string, any> | undefined = undefined;
@@ -94,6 +140,8 @@ app.use((req, res, next) => {
   startupLog("ROUTES", "Registering routes...");
   const server = await registerRoutes(app);
   startupLog("ROUTES", "Routes registered");
+
+  setupSentryExpressErrorHandler(app);
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

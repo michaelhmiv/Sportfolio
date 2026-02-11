@@ -90,7 +90,7 @@ function ScoutPlayerCard({
       }}
       className={cn(
         "relative p-2 sm:p-3 rounded-lg border bg-card",
-        isHighlight && "ring-2 ring-emerald-500/50"
+        isHighlight && "ring-2 ring-emerald-500/50",
       )}
     >
       {/* Efficiency indicator */}
@@ -247,10 +247,7 @@ export function ScoutCeremonyOverlay({
           </motion.button>
         )}
 
-        <div
-          className="w-full max-w-2xl mx-4 py-8"
-          onClick={(e) => e.stopPropagation()}
-        >
+        <div className="w-full max-w-2xl mx-4 py-8" onClick={(e) => e.stopPropagation()}>
           {/* Header */}
           <motion.div
             initial={{ opacity: 0, y: -20 }}

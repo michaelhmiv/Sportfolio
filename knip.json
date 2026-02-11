@@ -1,0 +1,14 @@
+{
+  "$schema": "https://unpkg.com/knip@latest/schema.json",
+  "entry": ["server/index.ts", "client/src/main.tsx"],
+  "project": ["tsconfig.json"],
+  "ignore": [
+    "dist/**",
+    "node_modules/**",
+    "mobile/**",
+    "package/**",
+    "tmp/**",
+    "attached_assets/**",
+    "migrations/**"
+  ]
+}

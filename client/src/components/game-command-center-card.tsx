@@ -42,7 +42,15 @@ export function GameCommandCenterCard({
 
   // Boost assignment mutation
   const assignBoostMutation = useMutation({
-    mutationFn: async ({ playerId, slotTier, sharesEntered }: { playerId: string; slotTier: number; sharesEntered: number }) => {
+    mutationFn: async ({
+      playerId,
+      slotTier,
+      sharesEntered,
+    }: {
+      playerId: string;
+      slotTier: number;
+      sharesEntered: number;
+    }) => {
       const date = game.gameDay;
       const res = await apiRequest("POST", "/api/daily-boosts/assign", {
         playerId,
@@ -90,8 +98,7 @@ export function GameCommandCenterCard({
     </div>
   );
 
-  const formatLeader = (leader: GameInsight["leaders"]["fantasy"]) =>
-    leader ? leader.name : "—";
+  const formatLeader = (leader: GameInsight["leaders"]["fantasy"]) => (leader ? leader.name : "—");
 
   const formatNumber = (value: number | null | undefined, digits: number = 0) =>
     value === null || value === undefined ? "—" : value.toFixed(digits);
@@ -135,7 +142,7 @@ export function GameCommandCenterCard({
           value={formatNumber(game.leaders.fantasy?.avgFantasyPointsPerGame, 1)}
         />
         <LeaderRow
-          label="Shares"
+          label="TSV"
           leader={formatLeader(game.leaders.shares)}
           value={game.leaders.shares ? game.leaders.shares.totalShares : "—"}
         />
@@ -169,21 +176,33 @@ export function GameCommandCenterCard({
                 }`}
               >
                 {showBoostSelector ? (
-                  <><X className="h-3 w-3" />Close</>
+                  <>
+                    <X className="h-3 w-3" />
+                    Close
+                  </>
                 ) : (
-                  <><Zap className="h-3 w-3" />Slots: {boostSlotsRemaining}</>
+                  <>
+                    <Zap className="h-3 w-3" />
+                    Slots: {boostSlotsRemaining}
+                  </>
                 )}
               </button>
             )}
             {boostSlotsRemaining !== null && boostSlotsRemaining === 0 && (
-              <Badge variant="outline" className="text-[10px] text-muted-foreground border-border/80">
+              <Badge
+                variant="outline"
+                className="text-[10px] text-muted-foreground border-border/80"
+              >
                 Slots: 0
               </Badge>
             )}
 
             {/* Power badge - non clickable info */}
             {powerLeader && powerLeader.powerLevel > 0 && (
-              <Badge variant="secondary" className="gap-1 text-[10px] text-purple-500 border-border/80">
+              <Badge
+                variant="secondary"
+                className="gap-1 text-[10px] text-purple-500 border-border/80"
+              >
                 <Zap className="h-3 w-3" />
                 Power {powerLeader.powerLevel.toFixed(2)}
               </Badge>
@@ -232,7 +251,9 @@ export function GameCommandCenterCard({
                       <div className="flex items-center gap-1.5 min-w-0">
                         <span className="font-medium truncate">{player.name}</span>
                         <span className="text-muted-foreground text-[10px]">{player.team}</span>
-                        <span className="text-purple-500 font-mono text-[10px]">{player.powerLevel.toFixed(1)} power</span>
+                        <span className="text-purple-500 font-mono text-[10px]">
+                          {player.powerLevel.toFixed(1)} power
+                        </span>
                       </div>
                       <Button
                         size="sm"
@@ -252,7 +273,10 @@ export function GameCommandCenterCard({
                         {assignBoostMutation.isPending ? (
                           <RefreshCw className="h-3 w-3 animate-spin" />
                         ) : (
-                          <><Zap className="h-3 w-3 mr-1" />Boost</>
+                          <>
+                            <Zap className="h-3 w-3 mr-1" />
+                            Boost
+                          </>
                         )}
                       </Button>
                     </div>
@@ -269,11 +293,18 @@ export function GameCommandCenterCard({
           {/* Collapsed power players list (shown when boost selector is closed) */}
           {!showBoostSelector && game.userContext.topPowerPlayers.length > 0 && (
             <div className="mt-2 space-y-1 text-xs">
-              <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Your Power Shares</div>
+              <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                Your Power Shares
+              </div>
               {game.userContext.topPowerPlayers.slice(0, 3).map((player, idx) => (
-                <div key={`${player.playerId}-${idx}`} className="flex items-center justify-between">
+                <div
+                  key={`${player.playerId}-${idx}`}
+                  className="flex items-center justify-between"
+                >
                   <span className="truncate">{player.name}</span>
-                  <span className="font-mono text-purple-400">{player.powerLevel.toFixed(1)} power</span>
+                  <span className="font-mono text-purple-400">
+                    {player.powerLevel.toFixed(1)} power
+                  </span>
                 </div>
               ))}
               {game.userContext.topPowerPlayers.length > 3 && (

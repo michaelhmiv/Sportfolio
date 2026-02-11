@@ -64,29 +64,22 @@ export function ScoutReadyBanner({
             style={{ width: `${progress}%` }}
           />
 
-          <div className="p-3 sm:p-4 flex items-center gap-2 sm:gap-3"
-          >
+          <div className="p-3 sm:p-4 flex items-center gap-2 sm:gap-3">
             {/* Icon */}
-            <div className="flex-shrink-0 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-amber-500/10 flex items-center justify-center"
-            >
+            <div className="flex-shrink-0 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-amber-500/10 flex items-center justify-center">
               <Binoculars className="w-4 h-4 sm:w-5 sm:h-5 text-amber-500" />
             </div>
 
             {/* Content */}
-            <div className="flex-1 min-w-0"
-            >
-              <p className="text-sm font-medium truncate">
-                Scout shares ready!
-              </p>
-              <p className="text-xs text-muted-foreground truncate"
-              >
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate">Scout shares ready!</p>
+              <p className="text-xs text-muted-foreground truncate">
                 {totalShares.toFixed(2)} shares from {playerCount} players
               </p>
             </div>
 
             {/* Actions */}
-            <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0"
-            >
+            <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
               <Button
                 size="sm"
                 variant="outline"

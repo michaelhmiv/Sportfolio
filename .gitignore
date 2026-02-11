@@ -9,6 +9,10 @@ vite.config.ts.*
 .env.*
 !.env.example
 
+# Playwright
+test-results
+playwright-report
+
 # Mobile build artifacts
 mobile/ios/App/build/
 mobile/ios/App/Pods/

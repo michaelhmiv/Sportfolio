@@ -64,7 +64,7 @@ export class JobScheduler {
   private jobConfigs: Map<string, JobConfig> = new Map();
   private isInitialized = false;
 
-  constructor() { }
+  constructor() {}
 
   /**
    * Helper method to schedule a job
@@ -505,15 +505,27 @@ export class JobScheduler {
       refresh_player_volume_24h: (callback) => refreshPlayerVolume24hJob(callback),
       nfl_schedule_sync: async () => {
         const result = await syncNFLSchedule();
-        return { requestCount: 0, recordsProcessed: result.gamesProcessed, errorCount: result.errors.length };
+        return {
+          requestCount: 0,
+          recordsProcessed: result.gamesProcessed,
+          errorCount: result.errors.length,
+        };
       },
       nfl_stats_sync: async () => {
         const result = await syncNFLStats();
-        return { requestCount: 0, recordsProcessed: result.statsProcessed, errorCount: result.errors.length };
+        return {
+          requestCount: 0,
+          recordsProcessed: result.statsProcessed,
+          errorCount: result.errors.length,
+        };
       },
       nfl_roster_sync: async () => {
         const result = await syncNFLRoster();
-        return { requestCount: 0, recordsProcessed: result.playersAdded + result.playersUpdated, errorCount: result.errors.length };
+        return {
+          requestCount: 0,
+          recordsProcessed: result.playersAdded + result.playersUpdated,
+          errorCount: result.errors.length,
+        };
       },
     };
 

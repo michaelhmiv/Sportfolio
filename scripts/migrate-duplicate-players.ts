@@ -65,7 +65,8 @@ async function migrateDuplicatePlayers() {
     const duplicates: PlayerDuplicate[] = duplicateResults.rows.map((row) => {
       const ids = row.player_ids as string[];
       // Choose canonical ID: prefer nba_XXX or nfl_XXX format
-      const canonicalId = ids.find((id) => id.startsWith("nba_") || id.startsWith("nfl_")) || ids[0];
+      const canonicalId =
+        ids.find((id) => id.startsWith("nba_") || id.startsWith("nfl_")) || ids[0];
       const oldIds = ids.filter((id) => id !== canonicalId);
 
       return {
@@ -127,109 +128,181 @@ async function migrateDuplicatePlayers() {
     // Migrate each table
     console.log("\nMigrating orders...");
     for (const [oldId, newId] of idMap.entries()) {
-      const result = await db.update(orders).set({ playerId: newId }).where(eq(orders.playerId, oldId)).returning();
+      const result = await db
+        .update(orders)
+        .set({ playerId: newId })
+        .where(eq(orders.playerId, oldId))
+        .returning();
       migrationResults.orders += result.length;
     }
 
     console.log("Migrating trades...");
     for (const [oldId, newId] of idMap.entries()) {
-      const result = await db.update(trades).set({ playerId: newId }).where(eq(trades.playerId, oldId)).returning();
+      const result = await db
+        .update(trades)
+        .set({ playerId: newId })
+        .where(eq(trades.playerId, oldId))
+        .returning();
       migrationResults.trades += result.length;
     }
 
     console.log("Migrating playerGameStats...");
     for (const [oldId, newId] of idMap.entries()) {
-      const result = await db.update(playerGameStats).set({ playerId: newId }).where(eq(playerGameStats.playerId, oldId)).returning();
+      const result = await db
+        .update(playerGameStats)
+        .set({ playerId: newId })
+        .where(eq(playerGameStats.playerId, oldId))
+        .returning();
       migrationResults.playerGameStats += result.length;
     }
 
     console.log("Migrating priceHistory...");
     for (const [oldId, newId] of idMap.entries()) {
-      const result = await db.update(priceHistory).set({ playerId: newId }).where(eq(priceHistory.playerId, oldId)).returning();
+      const result = await db
+        .update(priceHistory)
+        .set({ playerId: newId })
+        .where(eq(priceHistory.playerId, oldId))
+        .returning();
       migrationResults.priceHistory += result.length;
     }
 
     console.log("Migrating contestLineups...");
     for (const [oldId, newId] of idMap.entries()) {
-      const result = await db.update(contestLineups).set({ playerId: newId }).where(eq(contestLineups.playerId, oldId)).returning();
+      const result = await db
+        .update(contestLineups)
+        .set({ playerId: newId })
+        .where(eq(contestLineups.playerId, oldId))
+        .returning();
       migrationResults.contestLineups += result.length;
     }
 
     console.log("Migrating scoutAssignments...");
     for (const [oldId, newId] of idMap.entries()) {
-      const result = await db.update(scoutAssignments).set({ playerId: newId }).where(eq(scoutAssignments.playerId, oldId)).returning();
+      const result = await db
+        .update(scoutAssignments)
+        .set({ playerId: newId })
+        .where(eq(scoutAssignments.playerId, oldId))
+        .returning();
       migrationResults.scoutAssignments += result.length;
     }
 
     console.log("Migrating scoutDistributions...");
     for (const [oldId, newId] of idMap.entries()) {
-      const result = await db.update(scoutDistributions).set({ playerId: newId }).where(eq(scoutDistributions.playerId, oldId)).returning();
+      const result = await db
+        .update(scoutDistributions)
+        .set({ playerId: newId })
+        .where(eq(scoutDistributions.playerId, oldId))
+        .returning();
       migrationResults.scoutDistributions += result.length;
     }
 
     console.log("Migrating scoutHistory...");
     for (const [oldId, newId] of idMap.entries()) {
-      const result = await db.update(scoutHistory).set({ playerId: newId }).where(eq(scoutHistory.playerId, oldId)).returning();
+      const result = await db
+        .update(scoutHistory)
+        .set({ playerId: newId })
+        .where(eq(scoutHistory.playerId, oldId))
+        .returning();
       migrationResults.scoutHistory += result.length;
     }
 
     console.log("Migrating vesting...");
     for (const [oldId, newId] of idMap.entries()) {
-      const result = await db.update(vesting).set({ playerId: newId }).where(eq(vesting.playerId, oldId)).returning();
+      const result = await db
+        .update(vesting)
+        .set({ playerId: newId })
+        .where(eq(vesting.playerId, oldId))
+        .returning();
       migrationResults.vesting += result.length;
     }
 
     console.log("Migrating vestingSplits...");
     for (const [oldId, newId] of idMap.entries()) {
-      const result = await db.update(vestingSplits).set({ playerId: newId }).where(eq(vestingSplits.playerId, oldId)).returning();
+      const result = await db
+        .update(vestingSplits)
+        .set({ playerId: newId })
+        .where(eq(vestingSplits.playerId, oldId))
+        .returning();
       migrationResults.vestingSplits += result.length;
     }
 
     console.log("Migrating vestingClaims...");
     for (const [oldId, newId] of idMap.entries()) {
-      const result = await db.update(vestingClaims).set({ playerId: newId }).where(eq(vestingClaims.playerId, oldId)).returning();
+      const result = await db
+        .update(vestingClaims)
+        .set({ playerId: newId })
+        .where(eq(vestingClaims.playerId, oldId))
+        .returning();
       migrationResults.vestingClaims += result.length;
     }
 
     console.log("Migrating watchList...");
     for (const [oldId, newId] of idMap.entries()) {
-      const result = await db.update(watchList).set({ playerId: newId }).where(eq(watchList.playerId, oldId)).returning();
+      const result = await db
+        .update(watchList)
+        .set({ playerId: newId })
+        .where(eq(watchList.playerId, oldId))
+        .returning();
       migrationResults.watchList += result.length;
     }
 
     console.log("Migrating playerPools...");
     for (const [oldId, newId] of idMap.entries()) {
-      const result = await db.update(playerPools).set({ playerId: newId }).where(eq(playerPools.playerId, oldId)).returning();
+      const result = await db
+        .update(playerPools)
+        .set({ playerId: newId })
+        .where(eq(playerPools.playerId, oldId))
+        .returning();
       migrationResults.playerPools += result.length;
     }
 
     console.log("Migrating lpPositions...");
     for (const [oldId, newId] of idMap.entries()) {
-      const result = await db.update(lpPositions).set({ playerId: newId }).where(eq(lpPositions.playerId, oldId)).returning();
+      const result = await db
+        .update(lpPositions)
+        .set({ playerId: newId })
+        .where(eq(lpPositions.playerId, oldId))
+        .returning();
       migrationResults.lpPositions += result.length;
     }
 
     console.log("Migrating lpTransactions...");
     for (const [oldId, newId] of idMap.entries()) {
-      const result = await db.update(lpTransactions).set({ playerId: newId }).where(eq(lpTransactions.playerId, oldId)).returning();
+      const result = await db
+        .update(lpTransactions)
+        .set({ playerId: newId })
+        .where(eq(lpTransactions.playerId, oldId))
+        .returning();
       migrationResults.lpTransactions += result.length;
     }
 
     console.log("Migrating dailyBoosts...");
     for (const [oldId, newId] of idMap.entries()) {
-      const result = await db.update(dailyBoosts).set({ playerId: newId }).where(eq(dailyBoosts.playerId, oldId)).returning();
+      const result = await db
+        .update(dailyBoosts)
+        .set({ playerId: newId })
+        .where(eq(dailyBoosts.playerId, oldId))
+        .returning();
       migrationResults.dailyBoosts += result.length;
     }
 
     console.log("Migrating boostPayouts...");
     for (const [oldId, newId] of idMap.entries()) {
-      const result = await db.update(boostPayouts).set({ playerId: newId }).where(eq(boostPayouts.playerId, oldId)).returning();
+      const result = await db
+        .update(boostPayouts)
+        .set({ playerId: newId })
+        .where(eq(boostPayouts.playerId, oldId))
+        .returning();
       migrationResults.boostPayouts += result.length;
     }
 
     console.log("Migrating communityBoosts...");
     for (const [oldId, newId] of idMap.entries()) {
-      const result = await db.update(communityBoosts).set({ playerId: newId }).where(eq(communityBoosts.playerId, oldId)).returning();
+      const result = await db
+        .update(communityBoosts)
+        .set({ playerId: newId })
+        .where(eq(communityBoosts.playerId, oldId))
+        .returning();
       migrationResults.communityBoosts += result.length;
     }
 
@@ -265,7 +338,6 @@ async function migrateDuplicatePlayers() {
     console.log(`  - communityBoosts: ${migrationResults.communityBoosts}`);
 
     console.log("\n== Migration Complete Successfully! ==");
-
   } catch (error: any) {
     console.error("\n!!! Migration Failed !!!");
     console.error("Error:", error.message);

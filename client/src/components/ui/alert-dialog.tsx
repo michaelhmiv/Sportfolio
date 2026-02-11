@@ -41,7 +41,7 @@ const AlertDialogContent = React.forwardRef<
         "data-[state=open]:slide-in-from-bottom-2 data-[state=closed]:slide-out-to-bottom-1",
         "data-[state=open]:duration-300 data-[state=closed]:duration-200",
         "max-h-[calc(100vh-4rem)] overflow-y-auto",
-        className
+        className,
       )}
       {...props}
     />

@@ -12,7 +12,14 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { TrendingUp, TrendingDown, BarChart2, Droplets, Info } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { LineChart, Line, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer } from "recharts";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip as RechartsTooltip,
+  ResponsiveContainer,
+} from "recharts";
 import { apiRequest, authenticatedFetch, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { invalidatePortfolioQueries } from "@/lib/cache-invalidation";
@@ -88,7 +95,9 @@ export default function PlayerPage() {
   const [removePercent, setRemovePercent] = useState(50);
 
   // Add liquidity mode: auto-detect (zap), dual-max (optimal), or fixed-ratio
-  const [addLiquidityMode, setAddLiquidityMode] = useState<"auto-detect" | "dual-max" | "fixed-ratio">("auto-detect");
+  const [addLiquidityMode, setAddLiquidityMode] = useState<
+    "auto-detect" | "dual-max" | "fixed-ratio"
+  >("auto-detect");
   const [zapQuote, setZapQuote] = useState<{
     side: "shares" | "sb";
     sharesIn?: number;
@@ -106,14 +115,23 @@ export default function PlayerPage() {
   const [isLoadingZapQuote, setIsLoadingZapQuote] = useState(false);
 
   // Fetch player data
-  const { data, isLoading, isError, error: playerError } = useQuery<PlayerPageData>({
+  const {
+    data,
+    isLoading,
+    isError,
+    error: playerError,
+  } = useQuery<PlayerPageData>({
     queryKey: ["/api/player", id, timeRange],
     queryFn: async () => {
       const url = `/api/player/${encodeURIComponent(id)}?range=${timeRange}`;
       const res = await authenticatedFetch(url);
       if (!res.ok) {
         const text = await res.text();
-        const err = new Error(text ? `Player API ${res.status}: ${text}` : `Player API ${res.status}: ${res.statusText}`);
+        const err = new Error(
+          text
+            ? `Player API ${res.status}: ${text}`
+            : `Player API ${res.status}: ${res.statusText}`,
+        );
         (err as any).status = res.status;
         throw err;
       }
@@ -154,7 +172,9 @@ export default function PlayerPage() {
       const res = await authenticatedFetch(url);
       if (!res.ok) {
         const text = await res.text();
-        const err = new Error(text ? `LP API ${res.status}: ${text}` : `LP API ${res.status}: ${res.statusText}`);
+        const err = new Error(
+          text ? `LP API ${res.status}: ${text}` : `LP API ${res.status}: ${res.statusText}`,
+        );
         (err as any).status = res.status;
         throw err;
       }
@@ -232,9 +252,12 @@ export default function PlayerPage() {
       if (lastEdited === "shares" && maxSharesToUse > 0) {
         setIsLoadingZapQuote(true);
         try {
-          const res = await fetch(`/api/lp/${encodeURIComponent(id)}/zap-quote?shares=${maxSharesToUse}`, {
-            credentials: "include",
-          });
+          const res = await fetch(
+            `/api/lp/${encodeURIComponent(id)}/zap-quote?shares=${maxSharesToUse}`,
+            {
+              credentials: "include",
+            },
+          );
           if (res.ok) {
             const data = await res.json();
             setZapQuote(data);
@@ -247,9 +270,12 @@ export default function PlayerPage() {
       } else if (lastEdited === "sb" && maxPlayMoneyToUse > 0) {
         setIsLoadingZapQuote(true);
         try {
-          const res = await fetch(`/api/lp/${encodeURIComponent(id)}/zap-quote?sb=${maxPlayMoneyToUse}`, {
-            credentials: "include",
-          });
+          const res = await fetch(
+            `/api/lp/${encodeURIComponent(id)}/zap-quote?sb=${maxPlayMoneyToUse}`,
+            {
+              credentials: "include",
+            },
+          );
           if (res.ok) {
             const data = await res.json();
             setZapQuote(data);
@@ -438,8 +464,10 @@ export default function PlayerPage() {
             <h2 className="text-xl font-bold mb-2">Sign In Required</h2>
             <p className="text-muted-foreground mb-4">Please sign in to view player pages.</p>
             <div className="flex items-center justify-center gap-2">
-              <Button variant="outline" onClick={() => window.location.reload()}>Refresh</Button>
-              <Button onClick={() => window.location.href = "/"}>Back</Button>
+              <Button variant="outline" onClick={() => window.location.reload()}>
+                Refresh
+              </Button>
+              <Button onClick={() => (window.location.href = "/")}>Back</Button>
             </div>
           </CardContent>
         </Card>
@@ -449,19 +477,21 @@ export default function PlayerPage() {
 
   if (isError) {
     const status = (playerError as any)?.status ?? null;
-    const message = (playerError instanceof Error ? playerError.message : "Failed to load player");
+    const message = playerError instanceof Error ? playerError.message : "Failed to load player";
 
-    const title = status === 401
-      ? "Sign In Required"
-      : status === 404
-        ? "Player Not Found"
-        : "Unable to Load Player";
+    const title =
+      status === 401
+        ? "Sign In Required"
+        : status === 404
+          ? "Player Not Found"
+          : "Unable to Load Player";
 
-    const description = status === 401
-      ? "Your session expired or you are not signed in. Please refresh or sign in again."
-      : status === 404
-        ? "The player you're looking for doesn't exist or has been removed."
-        : message;
+    const description =
+      status === 401
+        ? "Your session expired or you are not signed in. Please refresh or sign in again."
+        : status === 404
+          ? "The player you're looking for doesn't exist or has been removed."
+          : message;
 
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -470,8 +500,10 @@ export default function PlayerPage() {
             <h2 className="text-xl font-bold mb-2">{title}</h2>
             <p className="text-muted-foreground mb-4">{description}</p>
             <div className="flex items-center justify-center gap-2">
-              <Button variant="outline" onClick={() => window.location.reload()}>Refresh</Button>
-              <Button onClick={() => window.location.href = "/"}>Back</Button>
+              <Button variant="outline" onClick={() => window.location.reload()}>
+                Refresh
+              </Button>
+              <Button onClick={() => (window.location.href = "/")}>Back</Button>
             </div>
           </CardContent>
         </Card>
@@ -1136,7 +1168,8 @@ export default function PlayerPage() {
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Est. unused</span>
                       <span className="font-mono">
-                        {estimatedSharesUnused.toFixed(4)} shares + ${estimatedPlayMoneyUnused.toFixed(2)}
+                        {estimatedSharesUnused.toFixed(4)} shares + $
+                        {estimatedPlayMoneyUnused.toFixed(2)}
                       </span>
                     </div>
                     <div className="flex justify-between">
@@ -1147,7 +1180,8 @@ export default function PlayerPage() {
                 )}
                 {addLiquidityMode === "fixed-ratio" && linkAmounts && isLinkingConstrained && (
                   <div className="text-xs text-amber-600">
-                    Limited by your {lastEdited === "shares" ? "SB balance" : "shares"}. Deposit will be reduced.
+                    Limited by your {lastEdited === "shares" ? "SB balance" : "shares"}. Deposit
+                    will be reduced.
                   </div>
                 )}
               </div>

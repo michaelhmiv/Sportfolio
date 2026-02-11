@@ -4,6 +4,8 @@
  * Uses Perplexity's API to get real-time NBA player news and summaries.
  */
 
+import { instrumentedFetch } from "../observability/fetch";
+
 interface PerplexityResponse {
   success: boolean;
   content?: string;
@@ -73,7 +75,7 @@ class PerplexityService {
     const prompt = promptTemplate.replace("{players}", playersString);
 
     try {
-      const response = await fetch(this.baseUrl, {
+      const response = await instrumentedFetch(this.baseUrl, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${apiKey}`,
@@ -150,7 +152,7 @@ class PerplexityService {
     }
 
     try {
-      const response = await fetch(this.baseUrl, {
+      const response = await instrumentedFetch(this.baseUrl, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${apiKey}`,
@@ -226,7 +228,7 @@ class PerplexityService {
     try {
       console.log("[Perplexity] Fetching breaking sports news...");
 
-      const response = await fetch(this.baseUrl, {
+      const response = await instrumentedFetch(this.baseUrl, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${apiKey}`,
