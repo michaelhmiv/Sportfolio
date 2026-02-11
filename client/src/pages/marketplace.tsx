@@ -18,7 +18,7 @@ import {
   ChevronRight,
   X,
   Activity,
-  ShoppingCart
+  ShoppingCart,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useWebSocket } from "@/lib/websocket";
@@ -41,17 +41,39 @@ type PlayerWithPool = Player & {
   valueIndex?: number;
 };
 
-type SortField = "price" | "volume" | "change" | "tvl" | "marketCap" | "sentiment" | "undervalued" | "fantasyPoints" | "name" | "team";
+type SortField =
+  | "price"
+  | "volume"
+  | "change"
+  | "tvl"
+  | "marketCap"
+  | "sentiment"
+  | "undervalued"
+  | "fantasyPoints"
+  | "name"
+  | "team";
 type SortOrder = "asc" | "desc";
 
-const getDefaultSortOrder = (field: SortField): SortOrder => (
-  ["name", "team"].includes(field) ? "asc" : "desc"
-);
+const getDefaultSortOrder = (field: SortField): SortOrder =>
+  ["name", "team"].includes(field) ? "asc" : "desc";
 
 const normalizeSortField = (value: string | null): SortField | null => {
   if (!value) return null;
   if (value === "liquidity" || value === "poolSize") return "tvl";
-  if (["price", "volume", "change", "tvl", "marketCap", "sentiment", "undervalued", "fantasyPoints", "name", "team"].includes(value)) {
+  if (
+    [
+      "price",
+      "volume",
+      "change",
+      "tvl",
+      "marketCap",
+      "sentiment",
+      "undervalued",
+      "fantasyPoints",
+      "name",
+      "team",
+    ].includes(value)
+  ) {
     return value as SortField;
   }
   return null;
@@ -74,9 +96,11 @@ export default function PlayerPools() {
   const initialSortField = normalizeSortField(searchParams.get("sortBy")) || "volume";
   const initialSortOrderParam = searchParams.get("sortOrder") as SortOrder | null;
   const [sortField, setSortField] = useState<SortField>(initialSortField);
-  const [sortOrder, setSortOrder] = useState<SortOrder>(initialSortOrderParam && ["asc", "desc"].includes(initialSortOrderParam)
-    ? initialSortOrderParam
-    : getDefaultSortOrder(initialSortField));
+  const [sortOrder, setSortOrder] = useState<SortOrder>(
+    initialSortOrderParam && ["asc", "desc"].includes(initialSortOrderParam)
+      ? initialSortOrderParam
+      : getDefaultSortOrder(initialSortField),
+  );
   const [filterWatchlistId, setFilterWatchlistId] = useState<string>("none");
   const [page, setPage] = useState(1);
   const [showFilters, setShowFilters] = useState(false);
@@ -97,9 +121,10 @@ export default function PlayerPools() {
     setSortField((prev) => (prev === nextSortField ? prev : nextSortField));
 
     const sortOrderParam = searchParams.get("sortOrder") as SortOrder;
-    const nextSortOrder = (sortOrderParam && ["asc", "desc"].includes(sortOrderParam))
-      ? sortOrderParam
-      : getDefaultSortOrder(nextSortField);
+    const nextSortOrder =
+      sortOrderParam && ["asc", "desc"].includes(sortOrderParam)
+        ? sortOrderParam
+        : getDefaultSortOrder(nextSortField);
     setSortOrder((prev) => (prev === nextSortOrder ? prev : nextSortOrder));
   }, [searchString]);
 
@@ -119,7 +144,7 @@ export default function PlayerPools() {
 
   // WebSocket subscriptions for real-time updates
   useEffect(() => {
-    const unsubTrade = subscribe('trade', (data) => {
+    const unsubTrade = subscribe("trade", (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/players"] });
     });
 
@@ -130,21 +155,24 @@ export default function PlayerPools() {
 
   // Fetch players with AMM pool data
   const { data: playersData, isLoading } = useQuery<{ players: PlayerWithPool[]; total: number }>({
-    queryKey: ["/api/players", {
-      sport,
-      search: debouncedSearch,
-      team: teamFilter,
-      position: positionFilter,
-      sortBy: sortField,
-      sortOrder,
-      page,
-      offset,
-      limit: ITEMS_PER_PAGE,
-      watchlistId: filterWatchlistId !== "none" ? filterWatchlistId : undefined,
-    }],
+    queryKey: [
+      "/api/players",
+      {
+        sport,
+        search: debouncedSearch,
+        team: teamFilter,
+        position: positionFilter,
+        sortBy: sortField,
+        sortOrder,
+        page,
+        offset,
+        limit: ITEMS_PER_PAGE,
+        watchlistId: filterWatchlistId !== "none" ? filterWatchlistId : undefined,
+      },
+    ],
     queryFn: async () => {
       const params = new URLSearchParams();
-      if (sport && sport !== 'ALL') params.append("sport", sport);
+      if (sport && sport !== "ALL") params.append("sport", sport);
       if (debouncedSearch) params.append("search", debouncedSearch);
       if (teamFilter !== "all") params.append("team", teamFilter);
       if (positionFilter !== "all") params.append("position", positionFilter);
@@ -230,7 +258,8 @@ export default function PlayerPools() {
     }
   }, [activeTab, sortField, sortOrder, setLocation]);
 
-  const hasActiveFilters = teamFilter !== "all" || positionFilter !== "all" || filterWatchlistId !== "none" || search;
+  const hasActiveFilters =
+    teamFilter !== "all" || positionFilter !== "all" || filterWatchlistId !== "none" || search;
 
   // Render sort icon for column header
   const SortIcon = ({ field }: { field: SortField }) => {
@@ -454,8 +483,10 @@ export default function PlayerPools() {
                       <table className="w-full">
                         <thead className="border-b bg-muted/50">
                           <tr>
-                            <th className="text-left p-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Player</th>
-                            <th 
+                            <th className="text-left p-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                              Player
+                            </th>
+                            <th
                               className="text-right p-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground cursor-pointer hover:bg-muted/80"
                               onClick={() => toggleSort("price")}
                             >
@@ -464,7 +495,7 @@ export default function PlayerPools() {
                                 <SortIcon field="price" />
                               </div>
                             </th>
-                            <th 
+                            <th
                               className="text-right p-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground cursor-pointer hover:bg-muted/80"
                               onClick={() => toggleSort("volume")}
                             >
@@ -473,7 +504,7 @@ export default function PlayerPools() {
                                 <SortIcon field="volume" />
                               </div>
                             </th>
-                            <th 
+                            <th
                               className="text-right p-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground cursor-pointer hover:bg-muted/80"
                               onClick={() => toggleSort("change")}
                             >
@@ -496,78 +527,78 @@ export default function PlayerPools() {
                             </th>
                           </tr>
                         </thead>
-                          <tbody>
-                            {players.map((player) => (
-                              <tr key={player.id} className="border-b hover:bg-muted/30">
-                          <td className="p-3">
-                              <button
-                                type="button"
-                                className="flex items-center gap-2 cursor-pointer text-left"
-                                onClick={() => {
-                                  setSelectedPlayerId(player.id);
-                                  setPlayerModalOpen(true);
-                                }}
-                              >
-                                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                                  <span className="text-xs font-bold">{player.firstName[0]}{player.lastName[0]}</span>
-                                </div>
-                                <div>
-                                  <div className="font-medium text-sm">
-                                    <PlayerName playerId={player.id} firstName={player.firstName} lastName={player.lastName} />
+                        <tbody>
+                          {players.map((player) => (
+                            <tr key={player.id} className="border-b hover:bg-muted/30">
+                              <td className="p-3">
+                                <button
+                                  type="button"
+                                  className="flex items-center gap-2 cursor-pointer text-left"
+                                  onClick={() => {
+                                    setSelectedPlayerId(player.id);
+                                    setPlayerModalOpen(true);
+                                  }}
+                                >
+                                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                                    <span className="text-xs font-bold">
+                                      {player.firstName[0]}
+                                      {player.lastName[0]}
+                                    </span>
                                   </div>
-                                  <div className="text-xs text-muted-foreground">
-                                    {player.team} • {player.position}
+                                  <div>
+                                    <div className="font-medium text-sm">
+                                      <PlayerName
+                                        playerId={player.id}
+                                        firstName={player.firstName}
+                                        lastName={player.lastName}
+                                      />
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">
+                                      {player.team} • {player.position}
+                                    </div>
                                   </div>
+                                </button>
+                              </td>
+                              <td className="p-3 text-right">
+                                <div className="font-mono font-medium">
+                                  ${player.currentPrice || "0.00"}
                                 </div>
-                              </button>
-                          </td>
-                          <td className="p-3 text-right">
-                            <div className="font-mono font-medium">
-                              ${player.currentPrice || "0.00"}
-                            </div>
-                          </td>
+                              </td>
                               <td className="p-3 text-right text-sm text-muted-foreground">
                                 {player.volume24h?.toLocaleString() || 0}
                               </td>
-                          <td className="p-3 text-right">
-                            <div className={cn(
-                              "font-mono text-sm",
-                              parseFloat(player.priceChange24h || "0") >= 0 ? "text-positive" : "text-negative"
-                            )}>
-                              {parseFloat(player.priceChange24h || "0") >= 0 ? "+" : ""}
-                              {parseFloat(player.priceChange24h || "0").toFixed(2)}%
-                            </div>
-                          </td>
+                              <td className="p-3 text-right">
+                                <div
+                                  className={cn(
+                                    "font-mono text-sm",
+                                    parseFloat(player.priceChange24h || "0") >= 0
+                                      ? "text-positive"
+                                      : "text-negative",
+                                  )}
+                                >
+                                  {parseFloat(player.priceChange24h || "0") >= 0 ? "+" : ""}
+                                  {parseFloat(player.priceChange24h || "0").toFixed(2)}%
+                                </div>
+                              </td>
                               <td className="p-3 text-right text-sm text-muted-foreground hidden lg:table-cell">
                                 ${player.poolTvl?.toLocaleString() || "N/A"}
                               </td>
-                          <td className="p-3 text-center">
-                            <div className="flex items-center justify-center gap-2">
-                              <Button
-                                size="sm"
-                                variant="default"
-                                className="h-8 px-3"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setLocation(`/player/${player.id}?tab=buy`);
-                                }}
-                              >
-                                <ShoppingCart className="w-3 h-3 mr-1" />
-                                Buy
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-8 px-3"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setLocation(`/player/${player.id}?tab=sell`);
-                                }}
-                              >
-                                Sell
-                              </Button>
-                            </div>
-                          </td>
+                              <td className="p-3 text-center">
+                                <Button
+                                  size="sm"
+                                  variant="default"
+                                  className="h-8 px-3"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const pid = String(player.id || "").trim();
+                                    setSelectedPlayerId(pid);
+                                    setPlayerModalOpen(true);
+                                  }}
+                                >
+                                  <ShoppingCart className="w-3 h-3 mr-1" />
+                                  Trade
+                                </Button>
+                              </td>
                             </tr>
                           ))}
                         </tbody>
@@ -577,7 +608,10 @@ export default function PlayerPools() {
                     {/* Mobile Cards */}
                     <div className="md:hidden divide-y">
                       {players.map((player) => (
-                        <div key={player.id} className="p-3 flex items-center justify-between hover:bg-muted/30">
+                        <div
+                          key={player.id}
+                          className="p-3 flex items-center justify-between hover:bg-muted/30"
+                        >
                           <button
                             type="button"
                             className="flex-1"
@@ -588,21 +622,32 @@ export default function PlayerPools() {
                           >
                             <div className="flex items-center gap-2 cursor-pointer text-left">
                               <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                                <span className="text-xs font-bold">{player.firstName[0]}{player.lastName[0]}</span>
+                                <span className="text-xs font-bold">
+                                  {player.firstName[0]}
+                                  {player.lastName[0]}
+                                </span>
                               </div>
                               <div>
                                 <div className="font-medium text-sm">
-                                  <PlayerName playerId={player.id} firstName={player.firstName} lastName={player.lastName} />
+                                  <PlayerName
+                                    playerId={player.id}
+                                    firstName={player.firstName}
+                                    lastName={player.lastName}
+                                  />
                                 </div>
                                 <div className="text-xs text-muted-foreground flex items-center gap-1.5 flex-wrap">
                                   <span>{player.team}</span>
                                   <span>•</span>
-                                  <span className="font-mono">${player.currentPrice || "0.00"}</span>
+                                  <span className="font-mono">
+                                    ${player.currentPrice || "0.00"}
+                                  </span>
                                   <span>•</span>
                                   <span
                                     className={cn(
                                       "font-mono",
-                                      parseFloat(player.priceChange24h || "0") >= 0 ? "text-positive" : "text-negative"
+                                      parseFloat(player.priceChange24h || "0") >= 0
+                                        ? "text-positive"
+                                        : "text-negative",
                                     )}
                                   >
                                     {parseFloat(player.priceChange24h || "0") >= 0 ? "+" : ""}

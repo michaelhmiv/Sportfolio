@@ -1,20 +1,21 @@
-import 'dotenv/config';
-import { Pool } from 'pg';
+import "dotenv/config";
+import { Pool } from "pg";
 
 async function checkPowerLevelCalculation() {
   console.log("=== Checking PowerLevel Calculation ===\n");
 
   const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false }
+    ssl: { rejectUnauthorized: false },
   });
 
   const client = await pool.connect();
-  const userId = 'dev-user-12345678';
+  const userId = "dev-user-12345678";
 
   // Check if powerLevel equals quantity * power for all holdings
   console.log("--- PowerLevel Calculation Check ---");
-  const check = await client.query(`
+  const check = await client.query(
+    `
     SELECT
       h.id,
       p.first_name,
@@ -32,12 +33,14 @@ async function checkPowerLevelCalculation() {
     JOIN players p ON h.asset_id = p.id
     WHERE h.user_id = $1 AND h.asset_type = 'player'
     ORDER BY p.last_name
-  `, [userId]);
+  `,
+    [userId],
+  );
 
   console.log(`Total holdings: ${check.rows.length}\n`);
 
-  const wrong = check.rows.filter(r => r.status === '❌ WRONG');
-  const correct = check.rows.filter(r => r.status === '✓ CORRECT');
+  const wrong = check.rows.filter((r) => r.status === "❌ WRONG");
+  const correct = check.rows.filter((r) => r.status === "✓ CORRECT");
 
   console.log(`Correct: ${correct.length}`);
   console.log(`Wrong: ${wrong.length}`);
@@ -54,13 +57,16 @@ async function checkPowerLevelCalculation() {
 
   // Check scout distribution history for this user
   console.log("\n--- Scout Distribution History ---");
-  const scoutDist = await client.query(`
+  const scoutDist = await client.query(
+    `
     SELECT *
     FROM scout_distributions
     WHERE user_id = $1
     ORDER BY created_at DESC
     LIMIT 20
-  `, [userId]);
+  `,
+    [userId],
+  );
 
   console.log(`Recent scout distributions: ${scoutDist.rows.length}`);
   for (const d of scoutDist.rows) {

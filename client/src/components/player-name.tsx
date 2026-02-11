@@ -10,7 +10,13 @@ interface PlayerNameProps {
   showInjury?: boolean; // Can be disabled if injury shown elsewhere
 }
 
-export function PlayerName({ playerId, firstName, lastName, className = "", showInjury = true }: PlayerNameProps) {
+export function PlayerName({
+  playerId,
+  firstName,
+  lastName,
+  className = "",
+  showInjury = true,
+}: PlayerNameProps) {
   const { getInjury } = useInjuries();
   const injury = showInjury ? getInjury(playerId) : undefined;
 
@@ -38,13 +44,14 @@ interface InjuryIndicatorProps {
 export function InjuryIndicator({ injury, size = "sm" }: InjuryIndicatorProps) {
   const severity = getInjurySeverity(injury.injuryStatus);
   const iconSize = size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4";
-  
+
   // Color based on severity
-  const colorClass = severity >= 3 
-    ? "text-red-500" // Out or Doubtful
-    : severity >= 2 
-      ? "text-orange-500" // Questionable
-      : "text-yellow-500"; // Probable/Day-to-Day
+  const colorClass =
+    severity >= 3
+      ? "text-red-500" // Out or Doubtful
+      : severity >= 2
+        ? "text-orange-500" // Questionable
+        : "text-yellow-500"; // Probable/Day-to-Day
 
   const tooltipContent = (
     <div className="text-xs max-w-[200px]">

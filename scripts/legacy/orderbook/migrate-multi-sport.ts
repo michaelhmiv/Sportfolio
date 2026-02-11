@@ -1,6 +1,6 @@
 /**
  * Multi-Sport Migration Script
- * 
+ *
  * This script migrates the database to support multiple sports (NBA, NFL, etc.)
  * Uses DEFERRABLE INITIALLY DEFERRED constraint handling for ID prefixing.
  */
@@ -26,7 +26,9 @@ async function runMigration() {
     console.log("2. Creating sport indexes for players...");
     await db.execute(sql`CREATE INDEX IF NOT EXISTS player_sport_idx ON players(sport)`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS player_sport_team_idx ON players(sport, team)`);
-    await db.execute(sql`CREATE INDEX IF NOT EXISTS player_sport_position_idx ON players(sport, position)`);
+    await db.execute(
+      sql`CREATE INDEX IF NOT EXISTS player_sport_position_idx ON players(sport, position)`,
+    );
     console.log("   ✅ Created player sport indexes\n");
 
     console.log("3. Adding 'sport' and 'week' columns to daily_games...");
@@ -42,8 +44,12 @@ async function runMigration() {
 
     console.log("4. Creating sport indexes for daily_games...");
     await db.execute(sql`CREATE INDEX IF NOT EXISTS daily_games_sport_idx ON daily_games(sport)`);
-    await db.execute(sql`CREATE INDEX IF NOT EXISTS daily_games_sport_date_idx ON daily_games(sport, date)`);
-    await db.execute(sql`CREATE INDEX IF NOT EXISTS daily_games_sport_week_idx ON daily_games(sport, week)`);
+    await db.execute(
+      sql`CREATE INDEX IF NOT EXISTS daily_games_sport_date_idx ON daily_games(sport, date)`,
+    );
+    await db.execute(
+      sql`CREATE INDEX IF NOT EXISTS daily_games_sport_week_idx ON daily_games(sport, week)`,
+    );
     console.log("   ✅ Created daily_games sport indexes\n");
 
     console.log("5. Adding 'sport', 'week', and 'stats_json' columns to player_game_stats...");
@@ -62,9 +68,15 @@ async function runMigration() {
     console.log("   ✅ Added columns to player_game_stats\n");
 
     console.log("6. Creating sport indexes for player_game_stats...");
-    await db.execute(sql`CREATE INDEX IF NOT EXISTS game_stats_sport_idx ON player_game_stats(sport)`);
-    await db.execute(sql`CREATE INDEX IF NOT EXISTS game_stats_sport_week_idx ON player_game_stats(sport, week)`);
-    await db.execute(sql`CREATE INDEX IF NOT EXISTS game_stats_sport_player_idx ON player_game_stats(sport, player_id)`);
+    await db.execute(
+      sql`CREATE INDEX IF NOT EXISTS game_stats_sport_idx ON player_game_stats(sport)`,
+    );
+    await db.execute(
+      sql`CREATE INDEX IF NOT EXISTS game_stats_sport_week_idx ON player_game_stats(sport, week)`,
+    );
+    await db.execute(
+      sql`CREATE INDEX IF NOT EXISTS game_stats_sport_player_idx ON player_game_stats(sport, player_id)`,
+    );
     console.log("   ✅ Created player_game_stats sport indexes\n");
 
     console.log("7. Adding 'week' and 'game_day' columns to contests...");
@@ -80,8 +92,12 @@ async function runMigration() {
 
     console.log("8. Creating sport indexes for contests...");
     await db.execute(sql`CREATE INDEX IF NOT EXISTS contest_sport_idx ON contests(sport)`);
-    await db.execute(sql`CREATE INDEX IF NOT EXISTS contest_sport_status_idx ON contests(sport, status)`);
-    await db.execute(sql`CREATE INDEX IF NOT EXISTS contest_sport_week_idx ON contests(sport, week)`);
+    await db.execute(
+      sql`CREATE INDEX IF NOT EXISTS contest_sport_status_idx ON contests(sport, status)`,
+    );
+    await db.execute(
+      sql`CREATE INDEX IF NOT EXISTS contest_sport_week_idx ON contests(sport, week)`,
+    );
     console.log("   ✅ Created contests sport indexes\n");
 
     // =====================================================
@@ -107,10 +123,10 @@ async function runMigration() {
 
       try {
         // Begin transaction
-        await client.query('BEGIN');
+        await client.query("BEGIN");
 
         // Disable all foreign key triggers temporarily
-        await client.query('SET session_replication_role = replica');
+        await client.query("SET session_replication_role = replica");
         console.log("   🔓 Disabled FK constraints");
 
         // Now update ALL tables with the new prefixed IDs
@@ -234,22 +250,20 @@ async function runMigration() {
         console.log("   ✅ Updated vesting_presets table");
 
         // Re-enable foreign key triggers
-        await client.query('SET session_replication_role = DEFAULT');
+        await client.query("SET session_replication_role = DEFAULT");
         console.log("   🔒 Re-enabled FK constraints");
 
         // Commit the transaction
-        await client.query('COMMIT');
+        await client.query("COMMIT");
         console.log("\n   ✅ All updates committed successfully!");
-
       } catch (txError) {
         // Rollback on error
-        await client.query('ROLLBACK');
-        await client.query('SET session_replication_role = DEFAULT');
+        await client.query("ROLLBACK");
+        await client.query("SET session_replication_role = DEFAULT");
         throw txError;
       } finally {
         client.release();
       }
-
     } else {
       console.log("   ℹ️ No player IDs need prefixing (already migrated or empty)\n");
     }
@@ -261,7 +275,6 @@ async function runMigration() {
     console.log("3. Test the app to ensure NBA features still work");
 
     await pool.end();
-
   } catch (error) {
     console.error("\n❌ Migration failed:", error);
     await pool.end();

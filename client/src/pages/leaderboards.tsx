@@ -31,7 +31,11 @@ export default function Leaderboards() {
   // Get initial category from URL hash
   const getHashCategory = () => {
     const hash = window.location.hash.replace("#", "") || "netWorth";
-    return ["netWorth", "cashBalance", "portfolioValue", "sharesMined", "marketOrders"].includes(hash) ? hash : "netWorth";
+    return ["netWorth", "cashBalance", "portfolioValue", "sharesMined", "marketOrders"].includes(
+      hash,
+    )
+      ? hash
+      : "netWorth";
   };
 
   // Track active category in state
@@ -50,19 +54,19 @@ export default function Leaderboards() {
   // Subscribe to WebSocket events for real-time leaderboard updates
   useEffect(() => {
     // Scout events → update shares vested leaderboard
-    const unsubScouts = subscribe('scouts', () => {
+    const unsubScouts = subscribe("scouts", () => {
       queryClient.invalidateQueries({ queryKey: ["/api/leaderboards?category=sharesMined"] });
     });
 
     // Portfolio events → update net worth, cash balance, and portfolio value leaderboards
-    const unsubPortfolio = subscribe('portfolio', () => {
+    const unsubPortfolio = subscribe("portfolio", () => {
       queryClient.invalidateQueries({ queryKey: ["/api/leaderboards?category=netWorth"] });
       queryClient.invalidateQueries({ queryKey: ["/api/leaderboards?category=cashBalance"] });
       queryClient.invalidateQueries({ queryKey: ["/api/leaderboards?category=portfolioValue"] });
     });
 
     // Trade events → update all money-related leaderboards
-    const unsubTrade = subscribe('trade', () => {
+    const unsubTrade = subscribe("trade", () => {
       queryClient.invalidateQueries({ queryKey: ["/api/leaderboards?category=marketOrders"] });
       queryClient.invalidateQueries({ queryKey: ["/api/leaderboards?category=netWorth"] });
       queryClient.invalidateQueries({ queryKey: ["/api/leaderboards?category=cashBalance"] });
@@ -105,13 +109,13 @@ export default function Leaderboards() {
     window.location.hash = value;
   };
 
-  const renderLeaderboard = (data: LeaderboardData | undefined, isLoading: boolean, valueFormatter: (value: number | string) => string) => {
+  const renderLeaderboard = (
+    data: LeaderboardData | undefined,
+    isLoading: boolean,
+    valueFormatter: (value: number | string) => string,
+  ) => {
     if (isLoading) {
-      return (
-        <div className="text-center py-6 text-muted-foreground">
-          Loading leaderboard...
-        </div>
-      );
+      return <div className="text-center py-6 text-muted-foreground">Loading leaderboard...</div>;
     }
 
     if (!data || data.leaderboard.length === 0) {
@@ -141,7 +145,7 @@ export default function Leaderboards() {
             return (
               <Card
                 key={entry.userId}
-                className={`hover-elevate ${isCurrentUser ? 'border-primary border-2' : ''}`}
+                className={`hover-elevate ${isCurrentUser ? "border-primary border-2" : ""}`}
                 data-testid={`card-leaderboard-${entry.rank}`}
               >
                 <CardContent className="p-3">
@@ -152,17 +156,23 @@ export default function Leaderboards() {
                           #{entry.rank}
                         </span>
                         {entry.rank <= 3 && (
-                          <Trophy className={`w-3 h-3 ${entry.rank === 1 ? 'text-yellow-500' : 'text-muted-foreground'}`} />
+                          <Trophy
+                            className={`w-3 h-3 ${entry.rank === 1 ? "text-yellow-500" : "text-muted-foreground"}`}
+                          />
                         )}
                       </div>
 
                       <Avatar className="w-7 h-7 flex-shrink-0">
                         <AvatarImage src={entry.profileImageUrl || undefined} />
-                        <AvatarFallback className="text-xs">{entry.username[0].toUpperCase()}</AvatarFallback>
+                        <AvatarFallback className="text-xs">
+                          {entry.username[0].toUpperCase()}
+                        </AvatarFallback>
                       </Avatar>
 
                       <div className="flex-1 min-w-0">
-                        <div className={`font-semibold text-xs truncate ${isCurrentUser ? 'text-primary' : ''}`}>
+                        <div
+                          className={`font-semibold text-xs truncate ${isCurrentUser ? "text-primary" : ""}`}
+                        >
                           @{entry.username}
                         </div>
                       </div>
@@ -192,9 +202,15 @@ export default function Leaderboards() {
               <table className="w-full">
                 <thead className="border-b bg-muted/50">
                   <tr>
-                    <th className="text-left p-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Rank</th>
-                    <th className="text-left p-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">User</th>
-                    <th className="text-right p-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Value</th>
+                    <th className="text-left p-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Rank
+                    </th>
+                    <th className="text-left p-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      User
+                    </th>
+                    <th className="text-right p-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Value
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -205,16 +221,16 @@ export default function Leaderboards() {
                     return (
                       <tr
                         key={entry.userId}
-                        className={`border-b hover-elevate ${isCurrentUser ? 'bg-primary/5' : ''}`}
+                        className={`border-b hover-elevate ${isCurrentUser ? "bg-primary/5" : ""}`}
                         data-testid={`row-leaderboard-${entry.rank}`}
                       >
                         <td className="p-3">
                           <div className="flex items-center gap-1.5">
-                            <span className="font-mono font-bold text-sm">
-                              #{entry.rank}
-                            </span>
+                            <span className="font-mono font-bold text-sm">#{entry.rank}</span>
                             {entry.rank <= 3 && (
-                              <Trophy className={`w-3 h-3 ${entry.rank === 1 ? 'text-yellow-500' : 'text-muted-foreground'}`} />
+                              <Trophy
+                                className={`w-3 h-3 ${entry.rank === 1 ? "text-yellow-500" : "text-muted-foreground"}`}
+                              />
                             )}
                           </div>
                         </td>
@@ -223,17 +239,24 @@ export default function Leaderboards() {
                             <div className="flex items-center gap-2 hover:text-primary hover:underline cursor-pointer">
                               <Avatar className="w-7 h-7">
                                 <AvatarImage src={entry.profileImageUrl || undefined} />
-                                <AvatarFallback className="text-xs">{entry.username[0].toUpperCase()}</AvatarFallback>
+                                <AvatarFallback className="text-xs">
+                                  {entry.username[0].toUpperCase()}
+                                </AvatarFallback>
                               </Avatar>
                               <div>
                                 <div className="font-semibold text-sm">{displayName}</div>
-                                <div className="text-[10px] text-muted-foreground">@{entry.username}</div>
+                                <div className="text-[10px] text-muted-foreground">
+                                  @{entry.username}
+                                </div>
                               </div>
                             </div>
                           </Link>
                         </td>
                         <td className="p-3 text-right">
-                          <div className="font-mono font-bold text-sm" data-testid={`text-value-${entry.userId}`}>
+                          <div
+                            className="font-mono font-bold text-sm"
+                            data-testid={`text-value-${entry.userId}`}
+                          >
                             {valueFormatter(entry.value)}
                           </div>
                         </td>
@@ -287,15 +310,27 @@ export default function Leaderboards() {
           </TabsList>
 
           <TabsContent value="netWorth">
-            {renderLeaderboard(netWorthData, netWorthLoading, (value) => `$${typeof value === 'string' ? value : value.toFixed(2)}`)}
+            {renderLeaderboard(
+              netWorthData,
+              netWorthLoading,
+              (value) => `$${typeof value === "string" ? value : value.toFixed(2)}`,
+            )}
           </TabsContent>
 
           <TabsContent value="cashBalance">
-            {renderLeaderboard(cashBalanceData, cashBalanceLoading, (value) => `$${typeof value === 'string' ? value : value.toFixed(2)}`)}
+            {renderLeaderboard(
+              cashBalanceData,
+              cashBalanceLoading,
+              (value) => `$${typeof value === "string" ? value : value.toFixed(2)}`,
+            )}
           </TabsContent>
 
           <TabsContent value="portfolioValue">
-            {renderLeaderboard(portfolioValueData, portfolioValueLoading, (value) => `$${typeof value === 'string' ? value : value.toFixed(2)}`)}
+            {renderLeaderboard(
+              portfolioValueData,
+              portfolioValueLoading,
+              (value) => `$${typeof value === "string" ? value : value.toFixed(2)}`,
+            )}
           </TabsContent>
 
           <TabsContent value="sharesMined">

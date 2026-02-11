@@ -1,6 +1,6 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { useWebSocket } from './websocket';
-import { useAuth } from '@/hooks/useAuth';
+import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { useWebSocket } from "./websocket";
+import { useAuth } from "@/hooks/useAuth";
 
 interface NotificationContextType {
   unreadCount: number;
@@ -10,7 +10,7 @@ interface NotificationContextType {
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
 
-const STORAGE_KEY = 'sportfolio_unread_activity';
+const STORAGE_KEY = "sportfolio_unread_activity";
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const [unreadCount, setUnreadCount] = useState(() => {
@@ -28,30 +28,30 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // Only increment for background events that affect the CURRENT user
     // Not for trades/events from other users or bots
-    
+
     // 1. Portfolio updates (your order was filled - balance changed)
     // Only triggers when YOUR balance/holdings change from a filled order
-    const unsubPortfolio = subscribe('portfolio', (data: { userId?: string }) => {
+    const unsubPortfolio = subscribe("portfolio", (data: { userId?: string }) => {
       // Only increment if this portfolio update is for the current user
       if (user?.id && data.userId === user.id) {
-        setUnreadCount(prev => prev + 1);
+        setUnreadCount((prev) => prev + 1);
       }
     });
 
     // 2. Trade notifications - only for trades you participated in
     // Server sends userId for the trader who initiated the market order
-    const unsubTrade = subscribe('trade', (data: { userId?: string }) => {
+    const unsubTrade = subscribe("trade", (data: { userId?: string }) => {
       if (user?.id && data.userId === user.id) {
-        setUnreadCount(prev => prev + 1);
+        setUnreadCount((prev) => prev + 1);
       }
     });
 
     // 3. Contest settlements (you won/placed in a contest)
     // contestSettled events are user-specific
-    const unsubContestSettled = subscribe('contestSettled', (data: { userId?: string }) => {
+    const unsubContestSettled = subscribe("contestSettled", (data: { userId?: string }) => {
       // Only increment if this settlement is for the current user
       if (!data.userId || (user?.id && data.userId === user.id)) {
-        setUnreadCount(prev => prev + 1);
+        setUnreadCount((prev) => prev + 1);
       }
     });
 
@@ -62,7 +62,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     };
   }, [subscribe, user?.id]);
 
-  const incrementUnread = () => setUnreadCount(prev => prev + 1);
+  const incrementUnread = () => setUnreadCount((prev) => prev + 1);
   const clearUnread = () => setUnreadCount(0);
 
   return (
@@ -75,7 +75,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 export function useNotifications() {
   const context = useContext(NotificationContext);
   if (!context) {
-    throw new Error('useNotifications must be used within NotificationProvider');
+    throw new Error("useNotifications must be used within NotificationProvider");
   }
   return context;
 }

@@ -1,39 +1,47 @@
-import 'dotenv/config';
-import { Pool } from 'pg';
+import "dotenv/config";
+import { Pool } from "pg";
 
 async function checkScoutDistributions() {
   console.log("=== Checking Scout Distribution Data ===\n");
 
   const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false }
+    ssl: { rejectUnauthorized: false },
   });
 
   const client = await pool.connect();
-  const userId = 'dev-user-12345678';
+  const userId = "dev-user-12345678";
 
   // Check scout_history for this user
   console.log("--- Scout History ---");
-  const history = await client.query(`
+  const history = await client.query(
+    `
     SELECT *
     FROM scout_history
     WHERE user_id = $1
     ORDER BY started_at DESC
     LIMIT 20
-  `, [userId]);
+  `,
+    [userId],
+  );
 
   console.log(`History records: ${history.rows.length}`);
   for (const h of history.rows) {
-    console.log(`  Player ${h.player_id}: ${h.scout_count} scouts, ${h.started_at} -> ${h.ended_at || 'OPEN'}`);
+    console.log(
+      `  Player ${h.player_id}: ${h.scout_count} scouts, ${h.started_at} -> ${h.ended_at || "OPEN"}`,
+    );
   }
 
   // Check scout_assignments
   console.log("\n--- Scout Assignments ---");
-  const assignments = await client.query(`
+  const assignments = await client.query(
+    `
     SELECT *
     FROM scout_assignments
     WHERE user_id = $1
-  `, [userId]);
+  `,
+    [userId],
+  );
 
   console.log(`Assignments: ${assignments.rows.length}`);
   for (const a of assignments.rows) {
@@ -42,13 +50,16 @@ async function checkScoutDistributions() {
 
   // Check scout_distributions table (different from scout_history)
   console.log("\n--- Scout Distributions Table ---");
-  const distTable = await client.query(`
+  const distTable = await client.query(
+    `
     SELECT *
     FROM scout_distributions
     WHERE user_id = $1
     ORDER BY created_at DESC
     LIMIT 20
-  `, [userId]);
+  `,
+    [userId],
+  );
 
   console.log(`Distribution records: ${distTable.rows.length}`);
   for (const d of distTable.rows) {
@@ -57,13 +68,16 @@ async function checkScoutDistributions() {
 
   // Check the ledger table
   console.log("\n--- Scout Distribution Ledger ---");
-  const ledger = await client.query(`
+  const ledger = await client.query(
+    `
     SELECT *
     FROM scout_distribution_ledger
     WHERE user_id = $1
     ORDER BY created_at DESC
     LIMIT 20
-  `, [userId]);
+  `,
+    [userId],
+  );
 
   console.log(`Ledger records: ${ledger.rows.length}`);
   for (const l of ledger.rows) {
@@ -82,7 +96,7 @@ async function checkScoutDistributions() {
 
   console.log(`Job logs: ${jobs.rows.length}`);
   for (const j of jobs.rows) {
-    console.log(`  ${j.created_at}: ${j.job_name} - ${j.status} - ${j.message || 'no message'}`);
+    console.log(`  ${j.created_at}: ${j.job_name} - ${j.status} - ${j.message || "no message"}`);
   }
 
   await client.release();

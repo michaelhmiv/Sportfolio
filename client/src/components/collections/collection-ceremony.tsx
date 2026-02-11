@@ -26,7 +26,10 @@ const collectionTypeLabels: Record<string, string> = {
   allstar: "All-Star Collector",
 };
 
-const collectionTypeColors: Record<string, { bg: string; border: string; text: string; gradient: string }> = {
+const collectionTypeColors: Record<
+  string,
+  { bg: string; border: string; text: string; gradient: string }
+> = {
   team: {
     bg: "bg-blue-500/10",
     border: "border-blue-500/30",
@@ -130,10 +133,7 @@ export function CollectionCeremony({ isOpen, collection, onClose }: CollectionCe
           <X className="w-5 h-5" />
         </motion.button>
 
-        <div
-          className="w-full max-w-md mx-4"
-          onClick={(e) => e.stopPropagation()}
-        >
+        <div className="w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
           {/* Header */}
           <motion.div
             initial={{ opacity: 0, y: -20 }}
@@ -147,13 +147,11 @@ export function CollectionCeremony({ isOpen, collection, onClose }: CollectionCe
               className={cn(
                 "inline-flex items-center gap-2 px-4 py-2 rounded-full border",
                 colors.bg,
-                colors.border
+                colors.border,
               )}
             >
               <Trophy className={cn("w-4 h-4", colors.text)} />
-              <span className={cn("text-sm font-medium", colors.text)}>
-                Collection Complete!
-              </span>
+              <span className={cn("text-sm font-medium", colors.text)}>Collection Complete!</span>
             </motion.div>
           </motion.div>
 
@@ -176,7 +174,7 @@ export function CollectionCeremony({ isOpen, collection, onClose }: CollectionCe
                 "p-8 rounded-2xl border-2 text-center relative overflow-hidden",
                 "bg-gradient-to-br",
                 colors.gradient,
-                colors.border
+                colors.border,
               )}
             >
               {/* Shimmer effect */}
@@ -207,7 +205,7 @@ export function CollectionCeremony({ isOpen, collection, onClose }: CollectionCe
                   "w-20 h-20 rounded-full mx-auto mb-4 flex items-center justify-center",
                   colors.bg,
                   colors.border,
-                  "border-2"
+                  "border-2",
                 )}
               >
                 <Icon className={cn("w-10 h-10", colors.text)} />
@@ -216,7 +214,10 @@ export function CollectionCeremony({ isOpen, collection, onClose }: CollectionCe
               {/* Title */}
               <motion.h2
                 initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: phase === "complete" ? 1 : 0, y: phase === "complete" ? 0 : 10 }}
+                animate={{
+                  opacity: phase === "complete" ? 1 : 0,
+                  y: phase === "complete" ? 0 : 10,
+                }}
                 transition={{ delay: 0.6 }}
                 className="text-2xl font-bold mb-2"
               >
@@ -236,12 +237,12 @@ export function CollectionCeremony({ isOpen, collection, onClose }: CollectionCe
               {/* Progress */}
               <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: phase === "complete" ? 1 : 0, scale: phase === "complete" ? 1 : 0.9 }}
+                animate={{
+                  opacity: phase === "complete" ? 1 : 0,
+                  scale: phase === "complete" ? 1 : 0.9,
+                }}
                 transition={{ delay: 0.8 }}
-                className={cn(
-                  "inline-flex items-center gap-2 px-4 py-2 rounded-full",
-                  colors.bg
-                )}
+                className={cn("inline-flex items-center gap-2 px-4 py-2 rounded-full", colors.bg)}
               >
                 <span className={cn("font-bold", colors.text)}>
                   {collection.progress}/{collection.total}
@@ -272,7 +273,7 @@ export function CollectionCeremony({ isOpen, collection, onClose }: CollectionCe
                 } else {
                   // Fallback: copy to clipboard
                   navigator.clipboard.writeText(
-                    `I just completed the ${collectionTypeLabels[collection.collectionType]} collection for ${collection.targetId} on Sportfolio!`
+                    `I just completed the ${collectionTypeLabels[collection.collectionType]} collection for ${collection.targetId} on Sportfolio!`,
                   );
                 }
               }}

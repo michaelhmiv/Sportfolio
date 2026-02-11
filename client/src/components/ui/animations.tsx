@@ -20,13 +20,14 @@ export function AnimatedNumber({
   suffix = "",
   className,
 }: AnimatedNumberProps) {
-  const spring = useSpring(0, { 
+  const spring = useSpring(0, {
     stiffness: 100 / duration,
     damping: 20,
     mass: 1,
   });
-  const display = useTransform(spring, (current) =>
-    `${prefix}${current.toFixed(decimals)}${suffix}`
+  const display = useTransform(
+    spring,
+    (current) => `${prefix}${current.toFixed(decimals)}${suffix}`,
   );
   const [displayValue, setDisplayValue] = useState(`${prefix}${value.toFixed(decimals)}${suffix}`);
 
@@ -65,11 +66,16 @@ export function FadeIn({
 
   const getInitialPosition = () => {
     switch (direction) {
-      case "up": return { y: distance };
-      case "down": return { y: -distance };
-      case "left": return { x: distance };
-      case "right": return { x: -distance };
-      default: return {};
+      case "up":
+        return { y: distance };
+      case "down":
+        return { y: -distance };
+      case "left":
+        return { x: distance };
+      case "right":
+        return { x: -distance };
+      default:
+        return {};
     }
   };
 
@@ -105,10 +111,14 @@ export function SlideIn({
 }: SlideInProps) {
   const getInitialPosition = () => {
     switch (from) {
-      case "left": return { x: -distance };
-      case "right": return { x: distance };
-      case "top": return { y: -distance };
-      case "bottom": return { y: distance };
+      case "left":
+        return { x: -distance };
+      case "right":
+        return { x: distance };
+      case "top":
+        return { y: -distance };
+      case "bottom":
+        return { y: distance };
     }
   };
 
@@ -153,12 +163,12 @@ export function ScaleIn({
       initial={{ opacity: 0, scale: 0.9 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.9 }}
-      transition={{ 
-        duration, 
-        delay, 
+      transition={{
+        duration,
+        delay,
         type: "spring",
         stiffness: 300,
-        damping: 25
+        damping: 25,
       }}
       className={cn(originClass[origin], className)}
     >
@@ -260,9 +270,13 @@ export function Flash({ children, flash, color = "green", className }: FlashProp
   return (
     <motion.div
       className={cn("relative", className)}
-      animate={flash ? { 
-        backgroundColor: ["transparent", colorClasses[color], "transparent"],
-      } : {}}
+      animate={
+        flash
+          ? {
+              backgroundColor: ["transparent", colorClasses[color], "transparent"],
+            }
+          : {}
+      }
       transition={{ duration: 0.6 }}
     >
       {children}
@@ -279,10 +293,7 @@ interface ShimmerProps {
 export function Shimmer({ className, width = "100%", height = "20px" }: ShimmerProps) {
   return (
     <div
-      className={cn(
-        "relative overflow-hidden rounded-md bg-muted",
-        className
-      )}
+      className={cn("relative overflow-hidden rounded-md bg-muted", className)}
       style={{ width, height }}
     >
       <motion.div
@@ -323,10 +334,14 @@ interface BounceProps {
 export function Bounce({ children, className, trigger = false }: BounceProps) {
   return (
     <motion.div
-      animate={trigger ? {
-        y: [0, -8, 0],
-        scale: [1, 1.05, 1],
-      } : {}}
+      animate={
+        trigger
+          ? {
+              y: [0, -8, 0],
+              scale: [1, 1.05, 1],
+            }
+          : {}
+      }
       transition={{
         duration: 0.4,
         ease: "easeOut",
@@ -397,10 +412,10 @@ export function CountUp({
     const animate = (timestamp: number) => {
       if (!startTime) startTime = timestamp;
       const progress = Math.min((timestamp - startTime) / (duration * 1000), 1);
-      
+
       const easeOutQuart = 1 - Math.pow(1 - progress, 4);
       const current = start + (end - start) * easeOutQuart;
-      
+
       setCount(current);
 
       if (progress < 1) {
@@ -422,7 +437,9 @@ export function CountUp({
 
   return (
     <span ref={ref} className={className}>
-      {prefix}{formatNumber(count)}{suffix}
+      {prefix}
+      {formatNumber(count)}
+      {suffix}
     </span>
   );
 }
@@ -450,13 +467,17 @@ export function Highlight({
   return (
     <motion.div
       className={cn("relative rounded-md", className)}
-      animate={active ? {
-        boxShadow: [
-          `0 0 0 0 transparent`,
-          `0 0 0 4px var(--${color === "primary" ? "primary" : color === "success" ? "emerald-500" : color === "warning" ? "yellow-500" : "red-500"})`,
-          `0 0 0 0 transparent`,
-        ],
-      } : {}}
+      animate={
+        active
+          ? {
+              boxShadow: [
+                `0 0 0 0 transparent`,
+                `0 0 0 4px var(--${color === "primary" ? "primary" : color === "success" ? "emerald-500" : color === "warning" ? "yellow-500" : "red-500"})`,
+                `0 0 0 0 transparent`,
+              ],
+            }
+          : {}
+      }
       transition={{ duration: 0.6 }}
     >
       {children}
@@ -493,10 +514,18 @@ export function ScrollReveal({
   const getInitialTransform = () => {
     const transforms: { x?: number; y?: number; scale?: number } = {};
     switch (direction) {
-      case "up": transforms.y = distance; break;
-      case "down": transforms.y = -distance; break;
-      case "left": transforms.x = distance; break;
-      case "right": transforms.x = -distance; break;
+      case "up":
+        transforms.y = distance;
+        break;
+      case "down":
+        transforms.y = -distance;
+        break;
+      case "left":
+        transforms.x = distance;
+        break;
+      case "right":
+        transforms.x = -distance;
+        break;
     }
     if (scale !== 1) transforms.scale = scale;
     return transforms;
@@ -506,7 +535,9 @@ export function ScrollReveal({
     <motion.div
       ref={ref}
       initial={{ opacity: 0, ...getInitialTransform() }}
-      animate={isInView ? { opacity: 1, x: 0, y: 0, scale: 1 } : { opacity: 0, ...getInitialTransform() }}
+      animate={
+        isInView ? { opacity: 1, x: 0, y: 0, scale: 1 } : { opacity: 0, ...getInitialTransform() }
+      }
       transition={{ duration, delay, ease: "easeOut" }}
       className={className}
     >
@@ -538,11 +569,16 @@ export function ScrollRevealGroup({
 
   const getInitialPosition = () => {
     switch (direction) {
-      case "up": return { y: 30 };
-      case "down": return { y: -30 };
-      case "left": return { x: 30 };
-      case "right": return { x: -30 };
-      default: return {};
+      case "up":
+        return { y: 30 };
+      case "down":
+        return { y: -30 };
+      case "left":
+        return { x: 30 };
+      case "right":
+        return { x: -30 };
+      default:
+        return {};
     }
   };
 
@@ -608,11 +644,7 @@ export function AnimatedButton({
   }, [isSuccess]);
 
   return (
-    <Button
-      disabled={disabled || isLoading}
-      className={cn("relative", className)}
-      {...props}
-    >
+    <Button disabled={disabled || isLoading} className={cn("relative", className)} {...props}>
       <AnimatePresence mode="wait">
         {isLoading ? (
           <motion.span
@@ -705,26 +737,22 @@ export function PullToRefreshIndicator({
   const clampedProgress = Math.min(1, Math.max(0, pullProgress));
   const rotation = clampedProgress * 360;
   const opacity = Math.min(1, clampedProgress * 1.5);
-  
+
   return (
     <motion.div
-      className={cn(
-        "flex items-center justify-center py-3",
-        className
-      )}
+      className={cn("flex items-center justify-center py-3", className)}
       initial={{ opacity: 0, height: 0 }}
-      animate={{ 
-        opacity: clampedProgress > 0.1 ? opacity : 0, 
-        height: clampedProgress > 0.1 ? 48 : 0 
+      animate={{
+        opacity: clampedProgress > 0.1 ? opacity : 0,
+        height: clampedProgress > 0.1 ? 48 : 0,
       }}
       transition={{ duration: 0.2 }}
     >
       <motion.div
         className="w-6 h-6 rounded-full border-2 border-primary/30 border-t-primary"
         animate={isRefreshing ? { rotate: 360 } : { rotate: rotation }}
-        transition={isRefreshing 
-          ? { duration: 0.8, repeat: Infinity, ease: "linear" }
-          : { duration: 0 }
+        transition={
+          isRefreshing ? { duration: 0.8, repeat: Infinity, ease: "linear" } : { duration: 0 }
         }
       />
       <AnimatePresence>
@@ -752,12 +780,12 @@ interface SwipeHintProps {
 
 export function SwipeHint({ direction = "both", className, show = true }: SwipeHintProps) {
   if (!show) return null;
-  
+
   return (
     <motion.div
       className={cn(
         "flex items-center justify-center gap-1 text-xs text-muted-foreground/60",
-        className
+        className,
       )}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -793,22 +821,23 @@ interface TapHintProps {
 
 export function TapHint({ className, show = true, label = "Tap" }: TapHintProps) {
   if (!show) return null;
-  
+
   return (
     <motion.div
-      className={cn(
-        "flex flex-col items-center gap-1",
-        className
-      )}
+      className={cn("flex flex-col items-center gap-1", className)}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ delay: 1.5, duration: 0.5 }}
     >
       <motion.div
         className="w-8 h-8 rounded-full border-2 border-dashed border-muted-foreground/30 flex items-center justify-center"
-        animate={{ 
+        animate={{
           scale: [1, 0.9, 1],
-          borderColor: ["hsl(var(--muted-foreground) / 0.3)", "hsl(var(--primary) / 0.5)", "hsl(var(--muted-foreground) / 0.3)"]
+          borderColor: [
+            "hsl(var(--muted-foreground) / 0.3)",
+            "hsl(var(--primary) / 0.5)",
+            "hsl(var(--muted-foreground) / 0.3)",
+          ],
         }}
         transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
       >
@@ -831,25 +860,25 @@ interface ScrollIndicatorProps {
 
 export function ScrollIndicator({ className, show = true }: ScrollIndicatorProps) {
   const [visible, setVisible] = useState(true);
-  
+
   useEffect(() => {
     const handleScroll = () => {
       if (window.scrollY > 50) {
         setVisible(false);
       }
     };
-    
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
   }, []);
-  
+
   if (!show || !visible) return null;
-  
+
   return (
     <motion.div
       className={cn(
         "fixed bottom-20 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 pointer-events-none sm:hidden",
-        className
+        className,
       )}
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
@@ -884,10 +913,14 @@ export function NavBounce({ children, isActive, wasJustActivated, className }: N
   return (
     <motion.div
       className={className}
-      animate={wasJustActivated ? {
-        scale: [1, 1.15, 0.95, 1.05, 1],
-        y: [0, -6, 0, -2, 0],
-      } : {}}
+      animate={
+        wasJustActivated
+          ? {
+              scale: [1, 1.15, 0.95, 1.05, 1],
+              y: [0, -6, 0, -2, 0],
+            }
+          : {}
+      }
       transition={{
         duration: 0.4,
         ease: "easeOut",

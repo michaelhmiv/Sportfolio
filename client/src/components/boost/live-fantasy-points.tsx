@@ -29,7 +29,7 @@ export function BoostThresholdWarning({
         "inline-flex items-center gap-2 px-3 py-1.5 rounded-full",
         "bg-amber-500/10 border border-amber-500/30",
         "text-amber-500 text-sm font-medium",
-        className
+        className,
       )}
     >
       <motion.div
@@ -46,9 +46,7 @@ export function BoostThresholdWarning({
         <Flame className="w-4 h-4" />
       </motion.div>
       <span>{pointsNeeded.toFixed(1)} pts to next tier!</span>
-      <span className="text-amber-400/70 text-xs">
-        (+${estimatedPayout.toFixed(2)})
-      </span>
+      <span className="text-amber-400/70 text-xs">(+${estimatedPayout.toFixed(2)})</span>
     </motion.div>
   );
 }
@@ -94,9 +92,11 @@ export function LiveFantasyPoints({
     <div
       className={cn(
         "inline-flex flex-col items-center p-4 rounded-xl border bg-card",
-        isUpdating && trend === "up" && "border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.2)]",
+        isUpdating &&
+          trend === "up" &&
+          "border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.2)]",
         isUpdating && trend === "down" && "border-red-500/50 shadow-[0_0_15px_rgba(239,68,68,0.2)]",
-        className
+        className,
       )}
     >
       <div className="flex items-center gap-2 mb-2">
@@ -109,7 +109,7 @@ export function LiveFantasyPoints({
             animate={{ opacity: 1, scale: 1 }}
             className={cn(
               "flex items-center gap-1 text-xs font-medium",
-              trend === "up" ? "text-emerald-500" : "text-red-500"
+              trend === "up" ? "text-emerald-500" : "text-red-500",
             )}
           >
             {trend === "up" ? (
@@ -135,7 +135,7 @@ export function LiveFantasyPoints({
         className={cn(
           "text-4xl font-bold font-mono",
           trend === "up" && "text-emerald-500",
-          trend === "down" && "text-red-500"
+          trend === "down" && "text-red-500",
         )}
       >
         {displayPoints.toFixed(1)}
@@ -158,7 +158,7 @@ export function LiveFantasyPoints({
         <motion.div
           className={cn(
             "absolute inset-0 rounded-xl border-2",
-            trend === "up" ? "border-emerald-500" : "border-red-500"
+            trend === "up" ? "border-emerald-500" : "border-red-500",
           )}
           initial={{ opacity: 0.5, scale: 1 }}
           animate={{ opacity: 0, scale: 1.05 }}

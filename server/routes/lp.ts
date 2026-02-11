@@ -1,6 +1,6 @@
 /**
  * LP (Liquidity Provider) API Routes
- * 
+ *
  * Endpoints for managing liquidity provider positions:
  * - GET /api/lp/positions - Get all LP positions for current user
  * - GET /api/lp/:playerId/position - Get LP position for specific player
@@ -42,7 +42,7 @@ export function registerLpRoutes(app: Express) {
     try {
       const userId = getUserId(req);
       const positions = await getUserLpPositions(userId);
-      
+
       // Enrich with player info
       const enrichedPositions = await Promise.all(
         positions.map(async (pos) => {
@@ -50,20 +50,24 @@ export function registerLpRoutes(app: Express) {
           const pool = await getPool(pos.playerId);
           return {
             ...pos,
-            player: player ? {
-              id: player.id,
-              name: `${player.firstName} ${player.lastName}`,
-              team: player.team,
-              position: player.position,
-            } : null,
-            pool: pool ? {
-              currentPrice: pool.currentPrice,
-              totalLpShares: pool.lpSharesTotal,
-            } : null,
+            player: player
+              ? {
+                  id: player.id,
+                  name: `${player.firstName} ${player.lastName}`,
+                  team: player.team,
+                  position: player.position,
+                }
+              : null,
+            pool: pool
+              ? {
+                  currentPrice: pool.currentPrice,
+                  totalLpShares: pool.lpSharesTotal,
+                }
+              : null,
           };
-        })
+        }),
       );
-      
+
       res.json(enrichedPositions);
     } catch (error: any) {
       console.error("[LP API] Error getting positions:", error);
@@ -79,25 +83,27 @@ export function registerLpRoutes(app: Express) {
     try {
       const { playerId } = req.params;
       const userId = getUserId(req);
-      
+
       const position = await getLpPosition(playerId, userId);
-      
+
       if (!position) {
         return res.json({ position: null });
       }
-      
+
       const player = await storage.getPlayer(playerId);
-      
+
       res.json({
         position: {
           ...position,
-          player: player ? {
-            id: player.id,
-            name: `${player.firstName} ${player.lastName}`,
-            team: player.team,
-            position: player.position,
-            currentPrice: player.lastTradePrice,
-          } : null,
+          player: player
+            ? {
+                id: player.id,
+                name: `${player.firstName} ${player.lastName}`,
+                team: player.team,
+                position: player.position,
+                currentPrice: player.lastTradePrice,
+              }
+            : null,
         },
       });
     } catch (error: any) {
@@ -116,17 +122,17 @@ export function registerLpRoutes(app: Express) {
       const { playerId } = req.params;
       const userId = getUserId(req);
       const { shares, playMoney } = req.body;
-      
+
       if (!shares || !playMoney || shares <= 0 || playMoney <= 0) {
         return res.status(400).json({ error: "Invalid shares or play money amount" });
       }
-      
+
       const result = await addLiquidity(playerId, userId, shares, playMoney);
-      
+
       if (!result.success) {
         return res.status(400).json({ error: result.error });
       }
-      
+
       res.json({
         success: true,
         lpSharesMinted: result.lpSharesMinted,
@@ -266,17 +272,17 @@ export function registerLpRoutes(app: Express) {
       const { playerId } = req.params;
       const userId = getUserId(req);
       const { lpShares } = req.body;
-      
+
       if (!lpShares || lpShares <= 0) {
         return res.status(400).json({ error: "Invalid LP shares amount" });
       }
-      
+
       const result = await removeLiquidity(playerId, userId, lpShares);
-      
+
       if (!result.success) {
         return res.status(400).json({ error: result.error });
       }
-      
+
       res.json({
         success: true,
         lpSharesBurned: result.lpSharesBurned,
@@ -298,7 +304,7 @@ export function registerLpRoutes(app: Express) {
       const { playerId } = req.params;
       const userId = getUserId(req);
       const limit = parseInt(req.query.limit as string) || 50;
-      
+
       const history = await storage.getLpTransactionHistory(userId, playerId, limit);
       res.json(history);
     } catch (error: any) {
@@ -315,7 +321,7 @@ export function registerLpRoutes(app: Express) {
     try {
       const userId = getUserId(req);
       const limit = parseInt(req.query.limit as string) || 50;
-      
+
       const history = await storage.getLpTransactionHistory(userId, undefined, limit);
       res.json(history);
     } catch (error: any) {

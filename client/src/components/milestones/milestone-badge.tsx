@@ -70,7 +70,7 @@ export function MilestoneBadge({ milestone, size = "md", onClick }: MilestoneBad
         sizeClasses[size],
         colors.bg,
         colors.border,
-        onClick && "hover:shadow-md"
+        onClick && "hover:shadow-md",
       )}
       title={`${milestone.milestoneType}: ${formatMilestoneValue(value)}`}
     >
@@ -110,8 +110,14 @@ interface MilestoneBadgeListProps {
   size?: "sm" | "md" | "lg";
 }
 
-export function MilestoneBadgeList({ milestones, maxDisplay = 5, size = "md" }: MilestoneBadgeListProps) {
-  const sortedMilestones = [...milestones].sort((a, b) => parseFloat(b.threshold) - parseFloat(a.threshold));
+export function MilestoneBadgeList({
+  milestones,
+  maxDisplay = 5,
+  size = "md",
+}: MilestoneBadgeListProps) {
+  const sortedMilestones = [...milestones].sort(
+    (a, b) => parseFloat(b.threshold) - parseFloat(a.threshold),
+  );
   const displayMilestones = sortedMilestones.slice(0, maxDisplay);
   const remainingCount = sortedMilestones.length - maxDisplay;
 
@@ -141,7 +147,7 @@ export function MilestoneBadgeList({ milestones, maxDisplay = 5, size = "md" }: 
             "flex items-center justify-center rounded-full bg-muted text-muted-foreground font-medium",
             size === "sm" && "w-8 h-8 text-xs",
             size === "md" && "w-10 h-10 text-sm",
-            size === "lg" && "w-12 h-12 text-base"
+            size === "lg" && "w-12 h-12 text-base",
           )}
         >
           +{remainingCount}

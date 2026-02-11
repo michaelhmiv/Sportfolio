@@ -3,7 +3,7 @@ import { getSupabase } from "./supabase";
 
 function debugLog(stage: string, message: string, data?: any) {
   const elapsed = performance.now().toFixed(0);
-  console.log(`[QUERY ${elapsed}ms] ${stage}: ${message}`, data || '');
+  console.log(`[QUERY ${elapsed}ms] ${stage}: ${message}`, data || "");
 }
 
 async function throwIfResNotOk(res: Response) {
@@ -16,17 +16,22 @@ async function throwIfResNotOk(res: Response) {
 export async function getAuthHeaders(): Promise<HeadersInit> {
   try {
     const supabase = await getSupabase();
-    const { data: { session } } = await supabase.auth.getSession();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
     if (session?.access_token) {
-      return { 'Authorization': `Bearer ${session.access_token}` };
+      return { Authorization: `Bearer ${session.access_token}` };
     }
   } catch (error) {
-    debugLog('AUTH_HEADERS', 'Failed to get auth headers', { error: (error as Error).message });
+    debugLog("AUTH_HEADERS", "Failed to get auth headers", { error: (error as Error).message });
   }
   return {};
 }
 
-export async function authenticatedFetch(url: string, options: RequestInit = {}): Promise<Response> {
+export async function authenticatedFetch(
+  url: string,
+  options: RequestInit = {},
+): Promise<Response> {
   const authHeaders = await getAuthHeaders();
   return fetch(url, {
     ...options,
@@ -34,7 +39,7 @@ export async function authenticatedFetch(url: string, options: RequestInit = {})
       ...authHeaders,
       ...options.headers,
     },
-    credentials: 'include',
+    credentials: "include",
   });
 }
 
@@ -61,58 +66,59 @@ export async function apiRequest(
 type UnauthorizedBehavior = "returnNull" | "throw";
 
 async function sleep(ms: number) {
-  return new Promise(resolve => setTimeout(resolve, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export const getQueryFn: <T>(options: {
-  on401: UnauthorizedBehavior;
-}) => QueryFunction<T> =
+export const getQueryFn: <T>(options: { on401: UnauthorizedBehavior }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
     const url = queryKey.join("/") as string;
     const startTime = performance.now();
-    debugLog('FETCH', `Starting request: ${url}`);
-    
+    debugLog("FETCH", `Starting request: ${url}`);
+
     try {
       const authHeaders = await getAuthHeaders();
-      
+
       if (unauthorizedBehavior === "returnNull") {
         const maxRetries = 3;
         const retryDelays = [500, 1000, 1500];
-        
+
         for (let attempt = 0; attempt <= maxRetries; attempt++) {
           const controller = new AbortController();
           const timeoutId = setTimeout(() => {
-            debugLog('FETCH', `TIMEOUT on attempt ${attempt + 1}: ${url}`);
+            debugLog("FETCH", `TIMEOUT on attempt ${attempt + 1}: ${url}`);
             controller.abort();
           }, 15000);
-          
+
           try {
-            const res = await fetch(url, { 
+            const res = await fetch(url, {
               credentials: "include",
               headers: authHeaders,
               signal: controller.signal,
             });
             clearTimeout(timeoutId);
-            
+
             const elapsed = (performance.now() - startTime).toFixed(0);
-            
+
             if (res.status === 401) {
-              debugLog('FETCH', `Got 401 on attempt ${attempt + 1}, ${attempt < maxRetries ? 'retrying...' : 'giving up'}`);
+              debugLog(
+                "FETCH",
+                `Got 401 on attempt ${attempt + 1}, ${attempt < maxRetries ? "retrying..." : "giving up"}`,
+              );
               if (attempt < maxRetries) {
                 await sleep(retryDelays[attempt]);
                 continue;
               }
               return null;
             }
-            
-            debugLog('FETCH', `Completed in ${elapsed}ms: ${url}`, { status: res.status });
+
+            debugLog("FETCH", `Completed in ${elapsed}ms: ${url}`, { status: res.status });
             await throwIfResNotOk(res);
             return await res.json();
           } catch (error) {
             clearTimeout(timeoutId);
-            if (error instanceof Error && error.name === 'AbortError') {
-              debugLog('FETCH', `Request aborted (timeout) on attempt ${attempt + 1}: ${url}`);
+            if (error instanceof Error && error.name === "AbortError") {
+              debugLog("FETCH", `Request aborted (timeout) on attempt ${attempt + 1}: ${url}`);
               if (attempt < maxRetries) {
                 await sleep(retryDelays[attempt]);
                 continue;
@@ -123,30 +129,30 @@ export const getQueryFn: <T>(options: {
         }
         return null;
       }
-      
+
       const controller = new AbortController();
       const timeoutId = setTimeout(() => {
-        debugLog('FETCH', `TIMEOUT: ${url}`);
+        debugLog("FETCH", `TIMEOUT: ${url}`);
         controller.abort();
       }, 15000);
-      
-      const res = await fetch(url, { 
+
+      const res = await fetch(url, {
         credentials: "include",
         headers: authHeaders,
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
-      
+
       const elapsed = (performance.now() - startTime).toFixed(0);
-      debugLog('FETCH', `Completed in ${elapsed}ms: ${url}`, { status: res.status });
-      
+      debugLog("FETCH", `Completed in ${elapsed}ms: ${url}`, { status: res.status });
+
       await throwIfResNotOk(res);
       return await res.json();
     } catch (error) {
       const elapsed = (performance.now() - startTime).toFixed(0);
-      debugLog('FETCH', `FAILED after ${elapsed}ms: ${url}`, { 
-        error: error instanceof Error ? error.message : 'Unknown error',
-        isAbort: error instanceof Error && error.name === 'AbortError'
+      debugLog("FETCH", `FAILED after ${elapsed}ms: ${url}`, {
+        error: error instanceof Error ? error.message : "Unknown error",
+        isAbort: error instanceof Error && error.name === "AbortError",
       });
       throw error;
     }
@@ -160,7 +166,7 @@ export const queryClient = new QueryClient({
       refetchOnWindowFocus: false,
       staleTime: 10000,
       retry: (failureCount, error) => {
-        if (error instanceof Error && error.name === 'AbortError') {
+        if (error instanceof Error && error.name === "AbortError") {
           return failureCount < 2;
         }
         return false;

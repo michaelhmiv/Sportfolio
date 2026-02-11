@@ -45,10 +45,7 @@ export interface BotAction {
 /**
  * Log a bot action to the audit trail
  */
-export async function logBotAction(
-  botUserId: string,
-  action: BotAction
-): Promise<void> {
+export async function logBotAction(botUserId: string, action: BotAction): Promise<void> {
   await db.insert(botActionsLog).values({
     botUserId,
     actionType: action.actionType,
@@ -78,10 +75,11 @@ function isCooldownComplete(profile: BotProfile): boolean {
 
   // Add jitter: random cooldown between min and max
   const jitter = Math.random();
-  const cooldownMs = profile.minActionCooldownMs +
+  const cooldownMs =
+    profile.minActionCooldownMs +
     (profile.maxActionCooldownMs - profile.minActionCooldownMs) * jitter;
 
-  return (now - lastAction) >= cooldownMs;
+  return now - lastAction >= cooldownMs;
 }
 
 /**
@@ -126,26 +124,27 @@ async function maybeResetDailyCounters(profile: BotProfile): Promise<BotProfile>
  */
 async function updateLastActionTime(profileId: string): Promise<void> {
   const now = new Date();
-  
+
   await db.transaction(async (tx) => {
     // Update bot profile
     await tx
-        .update(botProfiles)
-        .set({
+      .update(botProfiles)
+      .set({
         lastActionAt: now,
         updatedAt: now,
-        })
-        .where(eq(botProfiles.id, profileId));
+      })
+      .where(eq(botProfiles.id, profileId));
 
     // Update user activity (Keep-Alive for Scout Engine)
     // We need to find the userId. Since we are in a transaction, let's just fetch it quickly.
-    const profile = await tx.select({ userId: botProfiles.userId }).from(botProfiles).where(eq(botProfiles.id, profileId)).limit(1);
-    
+    const profile = await tx
+      .select({ userId: botProfiles.userId })
+      .from(botProfiles)
+      .where(eq(botProfiles.id, profileId))
+      .limit(1);
+
     if (profile.length > 0) {
-        await tx
-            .update(users)
-            .set({ lastActiveAt: now })
-            .where(eq(users.id, profile[0].userId));
+      await tx.update(users).set({ lastActiveAt: now }).where(eq(users.id, profile[0].userId));
     }
   });
 }
@@ -156,7 +155,7 @@ async function updateLastActionTime(profileId: string): Promise<void> {
 export async function updateBotCounters(
   profileId: string,
   ordersPlaced: number,
-  volumeTraded: number
+  volumeTraded: number,
 ): Promise<void> {
   const [current] = await db
     .select({ ordersToday: botProfiles.ordersToday, volumeToday: botProfiles.volumeToday })
@@ -205,7 +204,7 @@ async function getActiveBots(): Promise<Array<BotProfile & { user: typeof users.
     .innerJoin(users, eq(botProfiles.userId, users.id))
     .where(eq(botProfiles.isActive, true));
 
-  return results.map(r => ({
+  return results.map((r) => ({
     ...r.bot_profiles,
     user: r.users,
   }));
@@ -240,7 +239,7 @@ const STRATEGY_TIMEOUT_MS = 30000; // 30 seconds max per strategy
  * The bot_role field now acts as a "persona" hint but doesn't gate any strategies
  */
 async function executeBotStrategies(
-  profile: BotProfile & { user: typeof users.$inferSelect }
+  profile: BotProfile & { user: typeof users.$inferSelect },
 ): Promise<void> {
   // Lazy imports to avoid circular dependency issues
   // Vesting strategy archived for marketplace automation retirement.
@@ -253,7 +252,7 @@ async function executeBotStrategies(
     // 1. SCOUTING - Active in AMM-only mode
     // Uses: maxScouts (enforced in strategy)
     try {
-      await withTimeout(executeScoutStrategy(profile), STRATEGY_TIMEOUT_MS, 'scouting');
+      await withTimeout(executeScoutStrategy(profile), STRATEGY_TIMEOUT_MS, "scouting");
       strategiesExecuted.push("scouting");
     } catch (e: any) {
       console.warn(`[BotEngine] ${profile.botName} scouting failed: ${e.message}`);
@@ -266,7 +265,7 @@ async function executeBotStrategies(
     // Check if bot has contest entries remaining
     if (profile.contestEntriesToday < profile.maxContestEntriesPerDay) {
       try {
-        await withTimeout(executeContestStrategy(profile), STRATEGY_TIMEOUT_MS, 'contests');
+        await withTimeout(executeContestStrategy(profile), STRATEGY_TIMEOUT_MS, "contests");
         strategiesExecuted.push("contests");
       } catch (e: any) {
         console.warn(`[BotEngine] ${profile.botName} contests failed: ${e.message}`);
@@ -274,7 +273,6 @@ async function executeBotStrategies(
     }
 
     console.log(`[BotEngine] ${profile.botName} executed: [${strategiesExecuted.join(", ")}]`);
-
   } catch (error: any) {
     console.error(`[BotEngine] Error executing strategies for ${profile.botName}:`, error.message);
     try {
@@ -284,14 +282,14 @@ async function executeBotStrategies(
           actionDetails: {
             persona: profile.botRole,
             strategiesAttempted: strategiesExecuted,
-            error: error.message
+            error: error.message,
           },
           triggerReason: "Strategy execution failed",
           success: false,
           errorMessage: error.message,
         }),
         5000,
-        'logBotAction'
+        "logBotAction",
       );
     } catch (logError: any) {
       console.error(`[BotEngine] Failed to log bot action: ${logError.message}`);
@@ -345,19 +343,19 @@ export async function runBotEngineTick(): Promise<{
 
         botsProcessed++;
         console.log(`[BotEngine] ${profile.botName} processed successfully`);
-
       } catch (error: any) {
         errors++;
         console.error(`[BotEngine] Error processing bot ${botData.botName}:`, error.message);
       }
     }
-
   } catch (error: any) {
     console.error("[BotEngine] Fatal error in bot engine tick:", error.message);
     errors++;
   }
 
-  console.log(`[BotEngine] Tick complete: ${botsProcessed} processed, ${botsSkipped} skipped, ${errors} errors`);
+  console.log(
+    `[BotEngine] Tick complete: ${botsProcessed} processed, ${botsSkipped} skipped, ${errors} errors`,
+  );
 
   return { botsProcessed, botsSkipped, errors };
 }
@@ -372,7 +370,7 @@ export async function getBotStats(): Promise<{
   totalActionsToday: number;
 }> {
   const allProfiles = await db.select().from(botProfiles);
-  const activeBots = allProfiles.filter(p => p.isActive);
+  const activeBots = allProfiles.filter((p) => p.isActive);
 
   const botsByRole: Record<string, number> = {};
   for (const profile of allProfiles) {

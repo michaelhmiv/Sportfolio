@@ -112,14 +112,12 @@ export function LoadingButton({
         "relative overflow-hidden transition-all duration-300",
         showSuccess && "bg-emerald-600 hover:bg-emerald-700",
         showError && "bg-red-600 hover:bg-red-700",
-        className
+        className,
       )}
       disabled={disabled || loading || showSuccess || showError}
       {...props}
     >
-      <AnimatePresence mode="wait">
-        {getContent()}
-      </AnimatePresence>
+      <AnimatePresence mode="wait">{getContent()}</AnimatePresence>
     </Button>
   );
 }
@@ -168,14 +166,18 @@ export function PulsingButton({
 }: PulsingButtonProps) {
   return (
     <motion.div
-      animate={pulse ? {
-        scale: [1, 1.02, 1],
-        boxShadow: [
-          "0 0 0 0 rgba(var(--primary), 0)",
-          "0 0 0 8px rgba(var(--primary), 0.2)",
-          "0 0 0 0 rgba(var(--primary), 0)",
-        ],
-      } : {}}
+      animate={
+        pulse
+          ? {
+              scale: [1, 1.02, 1],
+              boxShadow: [
+                "0 0 0 0 rgba(var(--primary), 0)",
+                "0 0 0 8px rgba(var(--primary), 0.2)",
+                "0 0 0 0 rgba(var(--primary), 0)",
+              ],
+            }
+          : {}
+      }
       transition={{
         duration: 2,
         repeat: Infinity,

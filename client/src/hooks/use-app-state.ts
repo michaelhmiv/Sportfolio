@@ -30,7 +30,8 @@ export function useAppState(): AppState {
 
     // Detect mobile
     const checkMobile = () => {
-      const mobile = window.innerWidth < 768 || 
+      const mobile =
+        window.innerWidth < 768 ||
         /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
       setIsMobile(mobile);
     };
@@ -39,7 +40,8 @@ export function useAppState(): AppState {
 
     // Detect PWA (standalone mode)
     const checkPWA = () => {
-      const standalone = window.matchMedia("(display-mode: standalone)").matches ||
+      const standalone =
+        window.matchMedia("(display-mode: standalone)").matches ||
         (window.navigator as any).standalone === true;
       setIsPWA(standalone);
     };
@@ -77,7 +79,7 @@ export function useAppState(): AppState {
  */
 export function useSmartPollingInterval(
   baseInterval: number | false,
-  options?: { disableOnMobile?: boolean; mobileMultiplier?: number }
+  options?: { disableOnMobile?: boolean; mobileMultiplier?: number },
 ): number | false {
   const { shouldPoll, isMobile } = useAppState();
   const { disableOnMobile = false, mobileMultiplier = 2 } = options || {};
@@ -103,15 +105,18 @@ export function useSmartPollingInterval(
 export function useAppStateForQueries() {
   const appState = useAppState();
 
-  const getPollingInterval = useCallback((baseInterval: number | false, mobileMultiplier = 2): number | false => {
-    if (!appState.shouldPoll || baseInterval === false) {
-      return false;
-    }
-    if (appState.isMobile) {
-      return baseInterval * mobileMultiplier;
-    }
-    return baseInterval;
-  }, [appState.shouldPoll, appState.isMobile]);
+  const getPollingInterval = useCallback(
+    (baseInterval: number | false, mobileMultiplier = 2): number | false => {
+      if (!appState.shouldPoll || baseInterval === false) {
+        return false;
+      }
+      if (appState.isMobile) {
+        return baseInterval * mobileMultiplier;
+      }
+      return baseInterval;
+    },
+    [appState.shouldPoll, appState.isMobile],
+  );
 
   return {
     ...appState,

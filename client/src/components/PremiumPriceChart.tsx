@@ -4,7 +4,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ComposedChart, Line, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from "recharts";
+import {
+  ComposedChart,
+  Line,
+  Area,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  CartesianGrid,
+  Legend,
+} from "recharts";
 import { Crown, TrendingUp, Users } from "lucide-react";
 import { format } from "date-fns";
 
@@ -53,10 +63,11 @@ export function PremiumPriceChart() {
     return format(new Date(timestamp), "MMM d, yyyy h:mm a");
   };
 
-  const chartData = data?.priceHistory.map(point => ({
-    ...point,
-    circulation: data.circulation,
-  })) || [];
+  const chartData =
+    data?.priceHistory.map((point) => ({
+      ...point,
+      circulation: data.circulation,
+    })) || [];
 
   const hasData = chartData.length > 0;
 
@@ -107,7 +118,7 @@ export function PremiumPriceChart() {
             ))}
           </div>
         </div>
-        
+
         <div className="flex flex-wrap items-center gap-4 mt-2 text-sm">
           <div className="flex items-center gap-1.5">
             <TrendingUp className="h-4 w-4 text-green-500" />
@@ -130,7 +141,7 @@ export function PremiumPriceChart() {
           </Badge>
         </div>
       </CardHeader>
-      
+
       <CardContent>
         {!hasData ? (
           <div className="h-[250px] flex items-center justify-center border border-dashed rounded-lg">
@@ -163,7 +174,7 @@ export function PremiumPriceChart() {
                   tickFormatter={(value) => `$${value.toFixed(2)}`}
                   tick={{ fontSize: 11 }}
                   className="text-muted-foreground"
-                  domain={['auto', 'auto']}
+                  domain={["auto", "auto"]}
                 />
                 <YAxis
                   yAxisId="volume"

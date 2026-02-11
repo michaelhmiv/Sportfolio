@@ -1,11 +1,11 @@
 /**
  * Daily Portfolio Snapshot Job
- * 
+ *
  * Takes daily snapshots of all users' portfolio metrics for historical tracking:
  * - Calculates current cash balance, portfolio value, and total net worth for each user
- * - Ranks users on cash balance, portfolio value, and net worth leaderboards  
+ * - Ranks users on cash balance, portfolio value, and net worth leaderboards
  * - Stores snapshots for historical charts and rank change tracking
- * 
+ *
  * Runs daily at midnight UTC
  */
 
@@ -26,68 +26,72 @@ interface UserPortfolioData {
 
 export async function dailySnapshot(progressCallback?: ProgressCallback): Promise<JobResult> {
   console.log("[daily_snapshot] Starting daily portfolio snapshot...");
-  
+
   progressCallback?.({
-    type: 'info',
+    type: "info",
     timestamp: new Date().toISOString(),
-    message: 'Starting daily portfolio snapshot job',
+    message: "Starting daily portfolio snapshot job",
   });
-  
+
   let snapshotsCreated = 0;
   let errorCount = 0;
 
   try {
     // Get current timestamp for snapshot (UTC midnight)
     const now = new Date();
-    const snapshotDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
-    
+    const snapshotDate = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0),
+    );
+
     console.log(`[daily_snapshot] Taking snapshot for ${snapshotDate.toISOString()}`);
-    
+
     progressCallback?.({
-      type: 'info',
+      type: "info",
       timestamp: new Date().toISOString(),
       message: `Taking snapshot for ${snapshotDate.toISOString()}`,
     });
 
     // Step 1: Get all users and calculate their portfolio values using optimized bulk query
     console.log("[daily_snapshot] Calculating portfolio values for all users...");
-    
+
     progressCallback?.({
-      type: 'info',
+      type: "info",
       timestamp: new Date().toISOString(),
-      message: 'Calculating portfolio values for all users using bulk SQL query',
+      message: "Calculating portfolio values for all users using bulk SQL query",
     });
 
     // Use the optimized storage method that performs a single JOIN query
     const allUsersData = await storage.getAllUsersForRanking();
-    
-    const userPortfolioData: UserPortfolioData[] = allUsersData.map(user => ({
+
+    const userPortfolioData: UserPortfolioData[] = allUsersData.map((user) => ({
       userId: user.userId,
       cashBalance: user.balance,
       portfolioValue: user.portfolioValue,
       totalNetWorth: parseFloat(user.balance) + user.portfolioValue,
     }));
 
-    console.log(`[daily_snapshot] Calculated portfolio values for ${userPortfolioData.length} users`);
-    
+    console.log(
+      `[daily_snapshot] Calculated portfolio values for ${userPortfolioData.length} users`,
+    );
+
     progressCallback?.({
-      type: 'info',
+      type: "info",
       timestamp: new Date().toISOString(),
       message: `Calculated portfolio values for ${userPortfolioData.length} users`,
     });
 
     // Step 2: Calculate ranks for each metric
     console.log("[daily_snapshot] Calculating ranks...");
-    
+
     progressCallback?.({
-      type: 'info',
+      type: "info",
       timestamp: new Date().toISOString(),
-      message: 'Calculating leaderboard ranks',
+      message: "Calculating leaderboard ranks",
     });
 
     // Sort by cash balance (descending) and assign ranks
-    const cashRanked = [...userPortfolioData].sort((a, b) => 
-      parseFloat(b.cashBalance) - parseFloat(a.cashBalance)
+    const cashRanked = [...userPortfolioData].sort(
+      (a, b) => parseFloat(b.cashBalance) - parseFloat(a.cashBalance),
     );
     const cashRankMap = new Map<string, number>();
     cashRanked.forEach((user, index) => {
@@ -95,8 +99,8 @@ export async function dailySnapshot(progressCallback?: ProgressCallback): Promis
     });
 
     // Sort by portfolio value (descending) and assign ranks
-    const portfolioRanked = [...userPortfolioData].sort((a, b) => 
-      b.portfolioValue - a.portfolioValue
+    const portfolioRanked = [...userPortfolioData].sort(
+      (a, b) => b.portfolioValue - a.portfolioValue,
     );
     const portfolioRankMap = new Map<string, number>();
     portfolioRanked.forEach((user, index) => {
@@ -104,9 +108,7 @@ export async function dailySnapshot(progressCallback?: ProgressCallback): Promis
     });
 
     // Sort by total net worth (descending) and assign ranks
-    const netWorthRanked = [...userPortfolioData].sort((a, b) => 
-      b.totalNetWorth - a.totalNetWorth
-    );
+    const netWorthRanked = [...userPortfolioData].sort((a, b) => b.totalNetWorth - a.totalNetWorth);
     const netWorthRankMap = new Map<string, number>();
     netWorthRanked.forEach((user, index) => {
       netWorthRankMap.set(user.userId, index + 1);
@@ -116,9 +118,9 @@ export async function dailySnapshot(progressCallback?: ProgressCallback): Promis
     console.log("[daily_snapshot] Inserting snapshots into database (bulk)...");
 
     progressCallback?.({
-      type: 'info',
+      type: "info",
       timestamp: new Date().toISOString(),
-      message: 'Inserting snapshots into database',
+      message: "Inserting snapshots into database",
     });
 
     // Batch size for bulk inserts to avoid overwhelming the database
@@ -129,7 +131,7 @@ export async function dailySnapshot(progressCallback?: ProgressCallback): Promis
       const batch = userPortfolioData.slice(i, i + BATCH_SIZE);
 
       try {
-        const snapshotValues = batch.map(userData => ({
+        const snapshotValues = batch.map((userData) => ({
           userId: userData.userId,
           snapshotDate,
           cashBalance: userData.cashBalance,
@@ -145,7 +147,7 @@ export async function dailySnapshot(progressCallback?: ProgressCallback): Promis
         processedCount += batch.length;
 
         progressCallback?.({
-          type: 'info',
+          type: "info",
           timestamp: new Date().toISOString(),
           message: `Inserted ${processedCount}/${userPortfolioData.length} snapshots`,
         });
@@ -156,9 +158,9 @@ export async function dailySnapshot(progressCallback?: ProgressCallback): Promis
     }
 
     console.log(`[daily_snapshot] Created ${snapshotsCreated} portfolio snapshots successfully`);
-    
+
     progressCallback?.({
-      type: 'info',
+      type: "info",
       timestamp: new Date().toISOString(),
       message: `Portfolio snapshots complete: ${snapshotsCreated} created`,
     });
@@ -166,9 +168,9 @@ export async function dailySnapshot(progressCallback?: ProgressCallback): Promis
     // Step 4: Take market-wide snapshot for analytics
     console.log("[daily_snapshot] Step 4: Taking market snapshot...");
     progressCallback?.({
-      type: 'info',
+      type: "info",
       timestamp: new Date().toISOString(),
-      message: 'Taking market-wide snapshot for analytics...',
+      message: "Taking market-wide snapshot for analytics...",
     });
 
     try {
@@ -185,7 +187,7 @@ export async function dailySnapshot(progressCallback?: ProgressCallback): Promis
     }
 
     progressCallback?.({
-      type: 'complete',
+      type: "complete",
       timestamp: new Date().toISOString(),
       message: `Daily snapshot completed: ${snapshotsCreated} portfolio + market snapshot`,
       data: {
@@ -197,26 +199,25 @@ export async function dailySnapshot(progressCallback?: ProgressCallback): Promis
       },
     });
 
-    return { 
-      requestCount: 0, 
-      recordsProcessed: snapshotsCreated + 1, 
-      errorCount 
+    return {
+      requestCount: 0,
+      recordsProcessed: snapshotsCreated + 1,
+      errorCount,
     };
-
   } catch (error: any) {
     console.error("[daily_snapshot] Fatal error:", error);
-    
+
     progressCallback?.({
-      type: 'error',
+      type: "error",
       timestamp: new Date().toISOString(),
       message: `Fatal error: ${error.message}`,
       data: { error: error.message },
     });
 
-    return { 
-      requestCount: 0, 
-      recordsProcessed: snapshotsCreated, 
-      errorCount: errorCount + 1 
+    return {
+      requestCount: 0,
+      recordsProcessed: snapshotsCreated,
+      errorCount: errorCount + 1,
     };
   }
 }

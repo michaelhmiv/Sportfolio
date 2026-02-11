@@ -122,13 +122,13 @@ export function debouncedInvalidateContests(contestId?: string): void {
 /**
  * Invalidate all portfolio-related queries across the entire application.
  * Call this for user-initiated actions (trades, claims, etc.) - NOT for WebSocket events.
- * 
+ *
  * This ensures ALL pages show updated data after any portfolio change:
  * - Cash balance updates everywhere
  * - Holdings reflect across dashboard, portfolio, player pages
  * - Contest eligibility updates instantly
  * - Player prices and order books refresh
- * 
+ *
  * Returns a Promise that resolves when all invalidations complete.
  */
 export async function invalidatePortfolioQueries(): Promise<void> {
@@ -148,7 +148,7 @@ export async function invalidatePortfolioQueries(): Promise<void> {
 /**
  * Invalidate all contest-related queries.
  * Call this when contests are updated, entries are made, or contest status changes.
- * 
+ *
  * Returns a Promise that resolves when all invalidations complete.
  */
 export async function invalidateContestQueries(): Promise<void> {
@@ -162,12 +162,9 @@ export async function invalidateContestQueries(): Promise<void> {
 /**
  * Invalidate all queries when a major state change occurs.
  * Use this for actions that affect multiple parts of the app.
- * 
+ *
  * Returns a Promise that resolves when all invalidations complete.
  */
 export async function invalidateAll(): Promise<void> {
-  await Promise.all([
-    invalidatePortfolioQueries(),
-    invalidateContestQueries(),
-  ]);
+  await Promise.all([invalidatePortfolioQueries(), invalidateContestQueries()]);
 }

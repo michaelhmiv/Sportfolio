@@ -73,7 +73,12 @@ interface LiveGameStatsProps {
 export function LiveGameStats({ gameId, sport, teams, scores, status }: LiveGameStatsProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
-  const { data: liveStats, isLoading, error, refetch } = useQuery<LiveStats>({
+  const {
+    data: liveStats,
+    isLoading,
+    error,
+    refetch,
+  } = useQuery<LiveStats>({
     queryKey: [`/api/games/${gameId}/live-stats`],
     queryFn: async () => {
       const res = await fetch(`/api/games/${gameId}/live-stats`);
@@ -86,7 +91,9 @@ export function LiveGameStats({ gameId, sport, teams, scores, status }: LiveGame
 
   // Update teams and scores from API data if available
   const displayTeams = liveStats ? { home: liveStats.homeTeam, away: liveStats.awayTeam } : teams;
-  const displayScores = liveStats ? { home: liveStats.homeScore, away: liveStats.awayScore } : scores;
+  const displayScores = liveStats
+    ? { home: liveStats.homeScore, away: liveStats.awayScore }
+    : scores;
 
   return (
     <div className="w-full">
@@ -118,8 +125,16 @@ export function LiveGameStats({ gameId, sport, teams, scores, status }: LiveGame
             </div>
           ) : error || liveStats?.message ? (
             <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">{liveStats?.message || "Stats unavailable"}</span>
-              <button onClick={(e) => { e.stopPropagation(); refetch(); }} className="text-primary hover:underline">
+              <span className="text-muted-foreground">
+                {liveStats?.message || "Stats unavailable"}
+              </span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  refetch();
+                }}
+                className="text-primary hover:underline"
+              >
                 Retry
               </button>
             </div>
@@ -139,7 +154,10 @@ export function LiveGameStats({ gameId, sport, teams, scores, status }: LiveGame
 
           {/* Close button */}
           <button
-            onClick={(e) => { e.stopPropagation(); setIsExpanded(false); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsExpanded(false);
+            }}
             className="absolute top-1 right-1 text-muted-foreground hover:text-foreground"
           >
             <X className="w-4 h-4" />
@@ -155,13 +173,19 @@ function NBAStatsPanel({ liveStats }: { liveStats: NBALiveStats }) {
   const [showAllHome, setShowAllHome] = useState(false);
   const [showAllAway, setShowAllAway] = useState(false);
 
-  const displayHomePlayers = showAllHome ? liveStats.homePlayers : liveStats.homePlayers.slice(0, 5);
-  const displayAwayPlayers = showAllAway ? liveStats.awayPlayers : liveStats.awayPlayers.slice(0, 5);
+  const displayHomePlayers = showAllHome
+    ? liveStats.homePlayers
+    : liveStats.homePlayers.slice(0, 5);
+  const displayAwayPlayers = showAllAway
+    ? liveStats.awayPlayers
+    : liveStats.awayPlayers.slice(0, 5);
 
   const PlayerRow = ({ player }: { player: NBAPlayerStats }) => (
     <div className="flex items-center justify-between py-1 px-1 hover:bg-muted/50 rounded text-xs">
       <div className="flex items-center gap-2 min-w-0 flex-1">
-        <span className="text-[9px] bg-secondary px-1 rounded w-5 text-center flex-shrink-0">{player.position}</span>
+        <span className="text-[9px] bg-secondary px-1 rounded w-5 text-center flex-shrink-0">
+          {player.position}
+        </span>
         <span className="truncate">{player.name}</span>
       </div>
       <div className="flex gap-3 text-mono text-[10px]">
@@ -178,21 +202,25 @@ function NBAStatsPanel({ liveStats }: { liveStats: NBALiveStats }) {
       {/* Top Performers Summary */}
       <div className="flex gap-2 mb-2">
         <div className="flex-1">
-          <div className="text-[10px] font-semibold text-muted-foreground mb-1">{liveStats.awayTeam}</div>
+          <div className="text-[10px] font-semibold text-muted-foreground mb-1">
+            {liveStats.awayTeam}
+          </div>
           <div className="flex flex-wrap gap-1">
             {liveStats.awayTopPerformers.slice(0, 2).map((p, i) => (
               <Badge key={i} variant="outline" className="text-[9px] px-1 py-0">
-                {p.name.split(' ').pop()}: {p.pts}
+                {p.name.split(" ").pop()}: {p.pts}
               </Badge>
             ))}
           </div>
         </div>
         <div className="flex-1">
-          <div className="text-[10px] font-semibold text-muted-foreground mb-1">{liveStats.homeTeam}</div>
+          <div className="text-[10px] font-semibold text-muted-foreground mb-1">
+            {liveStats.homeTeam}
+          </div>
           <div className="flex flex-wrap gap-1">
             {liveStats.homeTopPerformers.slice(0, 2).map((p, i) => (
               <Badge key={i} variant="outline" className="text-[9px] px-1 py-0">
-                {p.name.split(' ').pop()}: {p.pts}
+                {p.name.split(" ").pop()}: {p.pts}
               </Badge>
             ))}
           </div>
@@ -212,7 +240,9 @@ function NBAStatsPanel({ liveStats }: { liveStats: NBALiveStats }) {
 
       {/* Away Team Players */}
       <div className="mt-2">
-        <div className="text-[10px] font-semibold text-muted-foreground mb-1">{liveStats.awayTeam}</div>
+        <div className="text-[10px] font-semibold text-muted-foreground mb-1">
+          {liveStats.awayTeam}
+        </div>
         {displayAwayPlayers.map((player) => (
           <PlayerRow key={player.id} player={player} />
         ))}
@@ -228,7 +258,9 @@ function NBAStatsPanel({ liveStats }: { liveStats: NBALiveStats }) {
 
       {/* Home Team Players */}
       <div className="mt-2">
-        <div className="text-[10px] font-semibold text-muted-foreground mb-1">{liveStats.homeTeam}</div>
+        <div className="text-[10px] font-semibold text-muted-foreground mb-1">
+          {liveStats.homeTeam}
+        </div>
         {displayHomePlayers.map((player) => (
           <PlayerRow key={player.id} player={player} />
         ))}
@@ -250,13 +282,19 @@ function NFLStatsPanel({ liveStats }: { liveStats: NFLLiveStats }) {
   const [showAllHome, setShowAllHome] = useState(false);
   const [showAllAway, setShowAllAway] = useState(false);
 
-  const displayHomePlayers = showAllHome ? liveStats.homePlayers : liveStats.homePlayers.slice(0, 5);
-  const displayAwayPlayers = showAllAway ? liveStats.awayPlayers : liveStats.awayPlayers.slice(0, 5);
+  const displayHomePlayers = showAllHome
+    ? liveStats.homePlayers
+    : liveStats.homePlayers.slice(0, 5);
+  const displayAwayPlayers = showAllAway
+    ? liveStats.awayPlayers
+    : liveStats.awayPlayers.slice(0, 5);
 
   const PlayerRow = ({ player }: { player: NFLPlayerStats }) => (
     <div className="flex items-center justify-between py-1 px-1 hover:bg-muted/50 rounded text-xs">
       <div className="flex items-center gap-2 min-w-0 flex-1">
-        <span className="text-[9px] bg-secondary px-1 rounded w-5 text-center flex-shrink-0">{player.position}</span>
+        <span className="text-[9px] bg-secondary px-1 rounded w-5 text-center flex-shrink-0">
+          {player.position}
+        </span>
         <span className="truncate">{player.name}</span>
       </div>
       <div className="flex gap-2 text-mono text-[10px]">
@@ -274,7 +312,9 @@ function NFLStatsPanel({ liveStats }: { liveStats: NFLLiveStats }) {
         )}
         {player.receivingYards !== null && player.receivingYards !== undefined && (
           <>
-            <span className="w-5 text-center">{player.receptions}-{player.receivingYards}</span>
+            <span className="w-5 text-center">
+              {player.receptions}-{player.receivingYards}
+            </span>
             <span className="w-4 text-center">{player.receivingTDs}TD</span>
           </>
         )}
@@ -295,7 +335,9 @@ function NFLStatsPanel({ liveStats }: { liveStats: NFLLiveStats }) {
 
       {/* Away Team Players */}
       <div className="mt-2">
-        <div className="text-[10px] font-semibold text-muted-foreground mb-1">{liveStats.awayTeam}</div>
+        <div className="text-[10px] font-semibold text-muted-foreground mb-1">
+          {liveStats.awayTeam}
+        </div>
         {displayAwayPlayers.map((player) => (
           <PlayerRow key={player.id} player={player} />
         ))}
@@ -311,7 +353,9 @@ function NFLStatsPanel({ liveStats }: { liveStats: NFLLiveStats }) {
 
       {/* Home Team Players */}
       <div className="mt-2">
-        <div className="text-[10px] font-semibold text-muted-foreground mb-1">{liveStats.homeTeam}</div>
+        <div className="text-[10px] font-semibold text-muted-foreground mb-1">
+          {liveStats.homeTeam}
+        </div>
         {displayHomePlayers.map((player) => (
           <PlayerRow key={player.id} player={player} />
         ))}
@@ -334,7 +378,9 @@ function isNBALiveStats(stats: LiveStats): stats is NBALiveStats {
 }
 
 function isNFLLiveStats(stats: LiveStats): stats is NFLLiveStats {
-  return "homePlayers" in stats && stats.homePlayers.length > 0 && "passingYards" in stats.homePlayers[0];
+  return (
+    "homePlayers" in stats && stats.homePlayers.length > 0 && "passingYards" in stats.homePlayers[0]
+  );
 }
 
 export default LiveGameStats;

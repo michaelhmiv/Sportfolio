@@ -92,7 +92,7 @@ export function MarketPulse({ children }: MarketPulseProps) {
       <div
         className={cn(
           "fixed inset-0 pointer-events-none z-0 opacity-[0.02]",
-          isEvening ? "bg-violet-500/10" : "bg-emerald-500/10"
+          isEvening ? "bg-violet-500/10" : "bg-emerald-500/10",
         )}
         style={{
           backgroundImage: `

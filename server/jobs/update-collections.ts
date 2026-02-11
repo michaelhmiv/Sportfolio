@@ -28,8 +28,8 @@ const COLLECTION_CONFIG = {
             eq(holdings.userId, userId),
             eq(holdings.assetType, "player"),
             inArray(holdings.assetId, playerIds),
-            sql`${holdings.quantity} > 0`
-          )
+            sql`${holdings.quantity} > 0`,
+          ),
         );
 
       return {
@@ -52,8 +52,8 @@ const COLLECTION_CONFIG = {
           and(
             eq(holdings.userId, userId),
             eq(holdings.assetType, "player"),
-            sql`${holdings.quantity} > 0`
-          )
+            sql`${holdings.quantity} > 0`,
+          ),
         );
 
       return {
@@ -77,8 +77,8 @@ const COLLECTION_CONFIG = {
             eq(holdings.userId, userId),
             eq(holdings.assetType, "player"),
             sql`${holdings.quantity} > 0`,
-            inArray(players.position, positions)
-          )
+            inArray(players.position, positions),
+          ),
         )
         .groupBy(players.position);
 
@@ -103,8 +103,8 @@ const COLLECTION_CONFIG = {
             eq(holdings.userId, userId),
             eq(holdings.assetType, "player"),
             sql`${holdings.quantity} > 0`,
-            sql`${players.marketCap} >= ${minMarketCap}`
-          )
+            sql`${players.marketCap} >= ${minMarketCap}`,
+          ),
         );
 
       return {
@@ -154,8 +154,8 @@ async function updateUserCollections(userId: string): Promise<void> {
           and(
             eq(userCollections.userId, userId),
             eq(userCollections.collectionType, "team"),
-            eq(userCollections.targetId, team)
-          )
+            eq(userCollections.targetId, team),
+          ),
         )
         .limit(1);
 
@@ -220,8 +220,8 @@ async function updateUserCollections(userId: string): Promise<void> {
           and(
             eq(userCollections.userId, userId),
             eq(userCollections.collectionType, collectionType),
-            eq(userCollections.targetId, collectionType) // Use type as target for non-team collections
-          )
+            eq(userCollections.targetId, collectionType), // Use type as target for non-team collections
+          ),
         )
         .limit(1);
 
@@ -278,7 +278,9 @@ export async function updateCollectionsJob(): Promise<void> {
       await db.select({ id: userCollections.id }).from(userCollections).limit(1);
     } catch (err: any) {
       if (err?.code === "42P01") {
-        console.warn("[Collections Job] Skipping: user_collections table does not exist (migrations not applied)");
+        console.warn(
+          "[Collections Job] Skipping: user_collections table does not exist (migrations not applied)",
+        );
         return;
       }
       throw err;

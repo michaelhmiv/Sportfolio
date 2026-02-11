@@ -1,10 +1,10 @@
 /**
  * Backfill Contest Stats Job
- * 
+ *
  * This job specifically syncs player game stats for games that are associated
  * with live contests pending settlement. This fixes the issue where older games
  * (outside the 24-hour window) never got their stats synced.
- * 
+ *
  * The job:
  * 1. Finds all live contests that should be settled (endsAt has passed)
  * 2. Gets all games for those contest dates
@@ -13,19 +13,27 @@
  */
 
 import { storage } from "../storage";
-import { fetchPlayerGameStats, calculateFantasyPoints, createNBAPlayerId, getCurrentNBASeasonString, convertToGameStats } from "../balldontlie-nba";
+import {
+  fetchPlayerGameStats,
+  calculateFantasyPoints,
+  createNBAPlayerId,
+  getCurrentNBASeasonString,
+  convertToGameStats,
+} from "../balldontlie-nba";
 import { balldontlieRateLimiter } from "./rate-limiter";
 import type { JobResult } from "./scheduler";
 import type { ProgressCallback } from "../lib/admin-stream";
 import { getETDayBoundaries, getGameDay } from "../lib/time";
 
-export async function backfillContestStats(progressCallback?: ProgressCallback): Promise<JobResult> {
+export async function backfillContestStats(
+  progressCallback?: ProgressCallback,
+): Promise<JobResult> {
   console.log("[backfill_contest_stats] Starting backfill for pending live contests...");
 
   progressCallback?.({
-    type: 'info',
+    type: "info",
     timestamp: new Date().toISOString(),
-    message: 'Starting contest stats backfill job',
+    message: "Starting contest stats backfill job",
   });
 
   let requestCount = 0;
@@ -37,15 +45,17 @@ export async function backfillContestStats(progressCallback?: ProgressCallback):
     const liveContests = await storage.getContests("live");
     const now = new Date();
 
-    const contestsNeedingSettlement = liveContests.filter(contest => {
+    const contestsNeedingSettlement = liveContests.filter((contest) => {
       if (!contest.endsAt) return false;
       return new Date(contest.endsAt) < now;
     });
 
-    console.log(`[backfill_contest_stats] Found ${contestsNeedingSettlement.length} live contests past their end time`);
+    console.log(
+      `[backfill_contest_stats] Found ${contestsNeedingSettlement.length} live contests past their end time`,
+    );
 
     progressCallback?.({
-      type: 'info',
+      type: "info",
       timestamp: new Date().toISOString(),
       message: `Found ${contestsNeedingSettlement.length} live contests needing stats`,
       data: { contestCount: contestsNeedingSettlement.length },
@@ -53,9 +63,9 @@ export async function backfillContestStats(progressCallback?: ProgressCallback):
 
     if (contestsNeedingSettlement.length === 0) {
       progressCallback?.({
-        type: 'complete',
+        type: "complete",
         timestamp: new Date().toISOString(),
-        message: 'No live contests need stats backfill',
+        message: "No live contests need stats backfill",
         data: { success: true, summary: { gamesProcessed: 0, statsProcessed: 0 } },
       });
       return { requestCount: 0, recordsProcessed: 0, errorCount: 0 };
@@ -71,7 +81,12 @@ export async function backfillContestStats(progressCallback?: ProgressCallback):
     console.log(`[backfill_contest_stats] Processing ${uniqueGameDates.size} unique game dates`);
 
     // For each game date, get games and check which are missing stats
-    const gamesToProcess: Array<{ gameId: string, startTime: Date, homeTeam: string, awayTeam: string }> = [];
+    const gamesToProcess: Array<{
+      gameId: string;
+      startTime: Date;
+      homeTeam: string;
+      awayTeam: string;
+    }> = [];
 
     for (const dateStr of Array.from(uniqueGameDates)) {
       const { startOfDay, endOfDay } = getETDayBoundaries(dateStr);
@@ -81,18 +96,24 @@ export async function backfillContestStats(progressCallback?: ProgressCallback):
 
       for (const game of games) {
         if (game.status !== "completed") {
-          console.log(`[backfill_contest_stats]   - Game ${game.gameId} not completed (${game.status}), skipping`);
+          console.log(
+            `[backfill_contest_stats]   - Game ${game.gameId} not completed (${game.status}), skipping`,
+          );
           continue;
         }
 
         // Check if this game already has player stats
         const existingStats = await storage.getGameStatsByGameId(game.gameId);
         if (existingStats.length > 0) {
-          console.log(`[backfill_contest_stats]   - Game ${game.gameId} already has ${existingStats.length} player stats`);
+          console.log(
+            `[backfill_contest_stats]   - Game ${game.gameId} already has ${existingStats.length} player stats`,
+          );
           continue;
         }
 
-        console.log(`[backfill_contest_stats]   - Game ${game.gameId} (${game.awayTeam} @ ${game.homeTeam}) NEEDS stats sync`);
+        console.log(
+          `[backfill_contest_stats]   - Game ${game.gameId} (${game.awayTeam} @ ${game.homeTeam}) NEEDS stats sync`,
+        );
         gamesToProcess.push({
           gameId: game.gameId,
           startTime: new Date(game.startTime),
@@ -102,10 +123,12 @@ export async function backfillContestStats(progressCallback?: ProgressCallback):
       }
     }
 
-    console.log(`[backfill_contest_stats] Found ${gamesToProcess.length} games missing player stats`);
+    console.log(
+      `[backfill_contest_stats] Found ${gamesToProcess.length} games missing player stats`,
+    );
 
     progressCallback?.({
-      type: 'info',
+      type: "info",
       timestamp: new Date().toISOString(),
       message: `Found ${gamesToProcess.length} games missing player stats`,
       data: { gamesMissingStats: gamesToProcess.length },
@@ -113,9 +136,9 @@ export async function backfillContestStats(progressCallback?: ProgressCallback):
 
     if (gamesToProcess.length === 0) {
       progressCallback?.({
-        type: 'complete',
+        type: "complete",
         timestamp: new Date().toISOString(),
-        message: 'All games already have stats synced',
+        message: "All games already have stats synced",
         data: { success: true, summary: { gamesProcessed: 0, statsProcessed: 0 } },
       });
       return { requestCount: 0, recordsProcessed: 0, errorCount: 0 };
@@ -127,13 +150,15 @@ export async function backfillContestStats(progressCallback?: ProgressCallback):
 
       try {
         progressCallback?.({
-          type: 'info',
+          type: "info",
           timestamp: new Date().toISOString(),
           message: `Syncing game ${i + 1}/${gamesToProcess.length}: ${game.awayTeam} @ ${game.homeTeam}`,
           data: { current: i + 1, total: gamesToProcess.length, gameId: game.gameId },
         });
 
-        console.log(`[backfill_contest_stats] Fetching stats for game ${game.gameId} (${game.awayTeam} @ ${game.homeTeam})`);
+        console.log(
+          `[backfill_contest_stats] Fetching stats for game ${game.gameId} (${game.awayTeam} @ ${game.homeTeam})`,
+        );
 
         const stats = await balldontlieRateLimiter.executeWithRetry(async () => {
           requestCount++;
@@ -145,7 +170,9 @@ export async function backfillContestStats(progressCallback?: ProgressCallback):
           continue;
         }
 
-        console.log(`[backfill_contest_stats] Processing ${stats.length} player stats for game ${game.gameId}`);
+        console.log(
+          `[backfill_contest_stats] Processing ${stats.length} player stats for game ${game.gameId}`,
+        );
 
         for (const stat of stats) {
           try {
@@ -160,7 +187,7 @@ export async function backfillContestStats(progressCallback?: ProgressCallback):
 
             // Calculate double-double and triple-double
             const categories = [points, rebounds, assists, steals, blocks];
-            const doubleDigitCategories = categories.filter(c => c >= 10).length;
+            const doubleDigitCategories = categories.filter((c) => c >= 10).length;
             const isDoubleDouble = doubleDigitCategories >= 2;
             const isTripleDouble = doubleDigitCategories >= 3;
 
@@ -172,7 +199,8 @@ export async function backfillContestStats(progressCallback?: ProgressCallback):
               sport: "NBA",
               gameDate: game.startTime,
               season: getCurrentNBASeasonString(),
-              opponentTeam: stat.team.abbreviation === game.homeTeam ? game.awayTeam : game.homeTeam,
+              opponentTeam:
+                stat.team.abbreviation === game.homeTeam ? game.awayTeam : game.homeTeam,
               homeAway: stat.team.abbreviation === game.homeTeam ? "home" : "away",
               minutes: stat.min ? parseInt(stat.min) : 0,
               points,
@@ -199,22 +227,30 @@ export async function backfillContestStats(progressCallback?: ProgressCallback):
           }
         }
 
-        console.log(`[backfill_contest_stats] ✓ Synced ${stats.length} player stats for game ${game.gameId}`);
+        console.log(
+          `[backfill_contest_stats] ✓ Synced ${stats.length} player stats for game ${game.gameId}`,
+        );
       } catch (error: any) {
-        console.error(`[backfill_contest_stats] Failed to process game ${game.gameId}:`, error.message);
+        console.error(
+          `[backfill_contest_stats] Failed to process game ${game.gameId}:`,
+          error.message,
+        );
         errorCount++;
       }
     }
 
-    console.log(`[backfill_contest_stats] Successfully processed ${recordsProcessed} player stats, ${errorCount} errors`);
+    console.log(
+      `[backfill_contest_stats] Successfully processed ${recordsProcessed} player stats, ${errorCount} errors`,
+    );
     console.log(`[backfill_contest_stats] API requests made: ${requestCount}`);
 
     progressCallback?.({
-      type: 'complete',
+      type: "complete",
       timestamp: new Date().toISOString(),
-      message: errorCount > 0
-        ? `Backfill completed with ${errorCount} errors: ${recordsProcessed} player stats synced`
-        : `Backfill completed successfully: ${recordsProcessed} player stats synced`,
+      message:
+        errorCount > 0
+          ? `Backfill completed with ${errorCount} errors: ${recordsProcessed} player stats synced`
+          : `Backfill completed successfully: ${recordsProcessed} player stats synced`,
       data: {
         success: errorCount === 0,
         summary: {
@@ -231,7 +267,7 @@ export async function backfillContestStats(progressCallback?: ProgressCallback):
     console.error("[backfill_contest_stats] Failed:", error.message);
 
     progressCallback?.({
-      type: 'error',
+      type: "error",
       timestamp: new Date().toISOString(),
       message: `Contest stats backfill failed: ${error.message}`,
       data: { error: error.message, stack: error.stack },

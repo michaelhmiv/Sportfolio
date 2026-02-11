@@ -18,7 +18,11 @@ interface InjuryContextValue {
 const InjuryContext = createContext<InjuryContextValue | null>(null);
 
 export function InjuryProvider({ children }: { children: ReactNode }) {
-  const { data: injuredPlayers, isLoading, error } = useQuery<InjuryInfo[]>({
+  const {
+    data: injuredPlayers,
+    isLoading,
+    error,
+  } = useQuery<InjuryInfo[]>({
     queryKey: ["/api/players/injuries"],
     staleTime: 5 * 60 * 1000, // Cache for 5 minutes
     refetchInterval: 10 * 60 * 1000, // Refetch every 10 minutes

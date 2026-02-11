@@ -1,31 +1,36 @@
 # SPORTFOLIO AMM Migration - Implementation Summary
 
 ## Overview
+
 Successfully migrated from traditional order book (4.5M rows) to Constant Product AMM (3,753 pools)
-using the formula **x * y = k**.
+using the formula **x \* y = k**.
 
 ## Database Changes
 
 ### New Table: `player_pools`
+
 - **Location**: `migrations/0013_amm_migration.sql`
 - **Purpose**: One pool per active player (3,753 total)
 - **Columns**:
   - `player_id` (PK) - Reference to players table
   - `shares` (decimal) - Shares in pool (default: 1000)
   - `play_money` (decimal) - Sportfolio Bucks in pool (default: 10000)
-  - `k` (generated) - Constant product = shares * play_money
+  - `k` (generated) - Constant product = shares \* play_money
   - `total_volume` - Total trading volume
   - `total_trades` - Trade count
   - `created_at`, `updated_at` - Timestamps
 
 ### Archived Tables
+
 - `orders_archive` - All 4.5M+ order book rows archived
 - `bot_actions_log_archive` - All bot action logs archived
 
 ## Backend Implementation
 
 ### Core AMM Module: `server/amm/pool.ts`
+
 **Mathematical Functions**:
+
 - `getPool(playerId)` - Fetch pool state
 - `calculateBuyShares(pool, sbAmount)` - Calculate shares received for SB input
   - Formula: new_shares = k / (play_money + sb_in), shares_out = current_shares - new_shares
@@ -33,6 +38,7 @@ using the formula **x * y = k**.
   - Formula: new_play_money = k / (shares + shares_in), sb_out = current_play_money - new_play_money
 
 **Execution Functions** (with transaction safety):
+
 - `executeBuy(playerId, userId, sbAmount, maxSlippage)`
   - Locks pool row with SELECT FOR UPDATE
   - Validates user balance
@@ -51,19 +57,23 @@ using the formula **x * y = k**.
   - Records trade with null order IDs
 
 ### API Routes: `server/routes/amm.ts`
+
 - `GET /api/amm/:playerId` - Pool state, current price
 - `GET /api/amm/:playerId/quote?type=buy|sell&amount=XXX` - Trade quote with slippage
 - `POST /api/amm/:playerId/buy` - Execute buy trade
 - `POST /api/amm/:playerId/sell` - Execute sell trade
 
 ### Integration
+
 - AMM routes registered in `server/routes.ts`
 - Bot engine disabled in `server/jobs/scheduler.ts`
 
 ## Frontend Implementation
 
 ### AMM Trade Panel: `client/src/components/amm-trade-panel.tsx`
+
 **Features**:
+
 - Buy/Sell toggle buttons
 - Amount input with max buttons
 - Real-time quote display showing:
@@ -82,12 +92,14 @@ using the formula **x * y = k**.
 ## Performance Improvements
 
 ### Before (Order Book)
+
 - **Orders table**: 4.5M rows
 - **Bot actions**: 4.8M logs
 - **Trade execution**: 2-4 inserts + complex matching logic
 - **Database writes**: ~50,000/day from bots alone
 
 ### After (AMM)
+
 - **Player pools**: 3,753 rows (99.9% reduction)
 - **Trade execution**: 1 UPDATE + 1 INSERT per trade
 - **Database writes**: ~90% reduction
@@ -96,6 +108,7 @@ using the formula **x * y = k**.
 ## Rollback Plan
 
 If critical issues occur:
+
 1. **Re-enable bot engine**: Set `enabled: true` in scheduler.ts line 142
 2. **Old data preserved**: Archive tables remain intact
 3. **Code preserved**: Order book code not deleted, only disabled
@@ -140,6 +153,7 @@ const result = await executeBuy("nba_12345", userId, 100);
 ## Files Modified/Created
 
 ### New Files
+
 - `migrations/0013_amm_migration.sql`
 - `server/amm/pool.ts`
 - `server/routes/amm.ts`
@@ -147,6 +161,7 @@ const result = await executeBuy("nba_12345", userId, 100);
 - `AMM_MIGRATION_SUMMARY.md`
 
 ### Modified Files
+
 - `shared/schema.ts` - Added playerPools table
 - `server/routes.ts` - Registered AMM routes
 - `server/jobs/scheduler.ts` - Disabled bot engine

@@ -21,15 +21,18 @@ export default function Blog() {
 
   // Update page meta tags for SEO
   useEffect(() => {
-    document.title = 'Blog - Fantasy Sports Insights & NBA Trading Strategies | Sportfolio';
-    
+    document.title = "Blog - Fantasy Sports Insights & NBA Trading Strategies | Sportfolio";
+
     const metaDescription = document.querySelector('meta[name="description"]');
     if (metaDescription) {
-      metaDescription.setAttribute('content', 'Latest insights on fantasy sports, NBA player trading strategies, contest tips, and Sportfolio platform updates. Expert analysis for fantasy basketball enthusiasts.');
+      metaDescription.setAttribute(
+        "content",
+        "Latest insights on fantasy sports, NBA player trading strategies, contest tips, and Sportfolio platform updates. Expert analysis for fantasy basketball enthusiasts.",
+      );
     }
-    
+
     return () => {
-      document.title = 'Sportfolio - Fantasy Sports Stock Market';
+      document.title = "Sportfolio - Fantasy Sports Stock Market";
     };
   }, []);
 
@@ -50,9 +53,12 @@ export default function Blog() {
       <div className="max-w-4xl mx-auto p-6 md:p-12">
         {/* Header */}
         <div className="mb-12 text-center">
-          <h1 className="hidden sm:block text-4xl font-bold mb-4" data-testid="heading-blog">Sportfolio Blog</h1>
+          <h1 className="hidden sm:block text-4xl font-bold mb-4" data-testid="heading-blog">
+            Sportfolio Blog
+          </h1>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            News, insights, and updates about fantasy sports, NBA player trading, and the Sportfolio platform
+            News, insights, and updates about fantasy sports, NBA player trading, and the Sportfolio
+            platform
           </p>
         </div>
 
@@ -67,7 +73,9 @@ export default function Blog() {
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1">
                           <CardTitle className="text-xl mb-2">{post.title}</CardTitle>
-                          <CardDescription className="text-sm line-clamp-2">{post.excerpt}</CardDescription>
+                          <CardDescription className="text-sm line-clamp-2">
+                            {post.excerpt}
+                          </CardDescription>
                         </div>
                         <ArrowRight className="w-5 h-5 text-muted-foreground flex-shrink-0 mt-1" />
                       </div>

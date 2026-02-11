@@ -26,7 +26,7 @@ export interface VestingCalculationResult {
  */
 export function calculateVestingShares(
   params: VestingCalculationParams,
-  currentTime: Date = new Date()
+  currentTime: Date = new Date(),
 ): VestingCalculationResult {
   const { sharesAccumulated, residualMs, lastAccruedAt, sharesPerHour, capLimit } = params;
 
@@ -41,13 +41,14 @@ export function calculateVestingShares(
   }
 
   // Calculate elapsed time from baseline
-  const effectiveStart = typeof lastAccruedAt === 'string' ? new Date(lastAccruedAt) : lastAccruedAt;
+  const effectiveStart =
+    typeof lastAccruedAt === "string" ? new Date(lastAccruedAt) : lastAccruedAt;
   const currentElapsedMs = currentTime.getTime() - effectiveStart.getTime();
   const totalElapsedMs = (residualMs || 0) + currentElapsedMs;
 
   // Convert elapsed time to shares (ms per share = 3600000ms / sharesPerHour)
   const msPerShare = (60 * 60 * 1000) / sharesPerHour;
-  
+
   // Clamp at zero to handle client/server clock skew
   const sharesEarned = Math.max(0, Math.floor(totalElapsedMs / msPerShare));
 
@@ -68,7 +69,7 @@ export function calculateVestingShares(
  */
 export function calculateAccrualUpdate(
   params: VestingCalculationParams,
-  currentTime: Date = new Date()
+  currentTime: Date = new Date(),
 ): {
   sharesAccumulated: number;
   residualMs: number;
@@ -76,19 +77,22 @@ export function calculateAccrualUpdate(
   capReached: boolean;
 } {
   const { sharesAccumulated, capLimit } = params;
-  
+
   // Normalize lastAccruedAt to always be a valid Date
   let normalizedLastAccruedAt: Date;
   if (!params.lastAccruedAt) {
     normalizedLastAccruedAt = currentTime;
-  } else if (typeof params.lastAccruedAt === 'string') {
+  } else if (typeof params.lastAccruedAt === "string") {
     normalizedLastAccruedAt = new Date(params.lastAccruedAt);
   } else {
     normalizedLastAccruedAt = params.lastAccruedAt;
   }
-  
+
   const normalizedParams = { ...params, lastAccruedAt: normalizedLastAccruedAt };
-  const { sharesEarned, msPerShare, totalElapsedMs, projectedShares } = calculateVestingShares(normalizedParams, currentTime);
+  const { sharesEarned, msPerShare, totalElapsedMs, projectedShares } = calculateVestingShares(
+    normalizedParams,
+    currentTime,
+  );
 
   if (sharesEarned === 0) {
     // No shares earned yet - return unchanged but with normalized timestamp

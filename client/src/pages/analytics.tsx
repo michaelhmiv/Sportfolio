@@ -3,9 +3,40 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend, BarChart, Bar, AreaChart, Area, ComposedChart } from "recharts";
-import { BarChart3, Users, Target, GitCompare, Activity, DollarSign, ArrowUpRight, ArrowDownRight, Flame, Coins } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  CartesianGrid,
+  Legend,
+  BarChart,
+  Bar,
+  AreaChart,
+  Area,
+  ComposedChart,
+} from "recharts";
+import {
+  BarChart3,
+  Users,
+  Target,
+  GitCompare,
+  Activity,
+  DollarSign,
+  ArrowUpRight,
+  ArrowDownRight,
+  Flame,
+  Coins,
+} from "lucide-react";
 import { Link } from "wouter";
 import type { Player } from "@shared/schema";
 
@@ -102,7 +133,13 @@ interface AnalyticsData {
 }
 
 type TimeRange = "7D" | "30D" | "3M" | "1Y" | "All";
-type MetricType = "marketCap" | "transactions" | "volume" | "sharesMined" | "sharesBurned" | "totalShares";
+type MetricType =
+  | "marketCap"
+  | "transactions"
+  | "volume"
+  | "sharesMined"
+  | "sharesBurned"
+  | "totalShares";
 
 interface MarketSnapshot {
   date: string;
@@ -140,7 +177,9 @@ export default function Analytics() {
   const { data: comparisonData, isLoading: comparisonLoading } = useQuery<{
     players: ComparisonPlayer[];
   }>({
-    queryKey: [`/api/analytics/compare?playerIds=${selectedPlayers.join(",")}&timeRange=${timeRange}`],
+    queryKey: [
+      `/api/analytics/compare?playerIds=${selectedPlayers.join(",")}&timeRange=${timeRange}`,
+    ],
     enabled: selectedPlayers.length >= 1,
   });
 
@@ -151,7 +190,7 @@ export default function Analytics() {
 
   const handlePlayerSelect = (playerId: string) => {
     if (selectedPlayers.includes(playerId)) {
-      setSelectedPlayers(selectedPlayers.filter(id => id !== playerId));
+      setSelectedPlayers(selectedPlayers.filter((id) => id !== playerId));
     } else if (selectedPlayers.length < 5) {
       setSelectedPlayers([...selectedPlayers, playerId]);
     }
@@ -210,8 +249,15 @@ export default function Analytics() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="hidden sm:block text-2xl sm:text-3xl font-bold" data-testid="text-analytics-title">Market Analytics</h1>
-            <p className="text-muted-foreground text-sm sm:text-base">Market health and player insights</p>
+            <h1
+              className="hidden sm:block text-2xl sm:text-3xl font-bold"
+              data-testid="text-analytics-title"
+            >
+              Market Analytics
+            </h1>
+            <p className="text-muted-foreground text-sm sm:text-base">
+              Market health and player insights
+            </p>
           </div>
           <div className="flex items-center gap-2">
             <Select value={timeRange} onValueChange={(v) => setTimeRange(v as TimeRange)}>
@@ -234,8 +280,8 @@ export default function Analytics() {
           {/* Market Cap - First and Default */}
           <Card
             data-testid="card-market-cap"
-            className={`cursor-pointer transition-all ${selectedMetric === 'marketCap' ? 'ring-2 ring-primary' : 'hover-elevate'}`}
-            onClick={() => setSelectedMetric('marketCap')}
+            className={`cursor-pointer transition-all ${selectedMetric === "marketCap" ? "ring-2 ring-primary" : "hover-elevate"}`}
+            onClick={() => setSelectedMetric("marketCap")}
           >
             <CardContent className="p-3 sm:p-4">
               <div className="flex flex-col gap-1">
@@ -246,8 +292,14 @@ export default function Analytics() {
                 <div className="text-xl sm:text-2xl font-mono font-bold">
                   {formatLargeNumber(mh?.marketCap || 0)}
                 </div>
-                <div className={`flex items-center gap-1 text-xs ${(mh?.marketCapChange || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                  {(mh?.marketCapChange || 0) >= 0 ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+                <div
+                  className={`flex items-center gap-1 text-xs ${(mh?.marketCapChange || 0) >= 0 ? "text-green-500" : "text-red-500"}`}
+                >
+                  {(mh?.marketCapChange || 0) >= 0 ? (
+                    <ArrowUpRight className="w-3 h-3" />
+                  ) : (
+                    <ArrowDownRight className="w-3 h-3" />
+                  )}
                   {formatPercent(mh?.marketCapChange || 0)}
                 </div>
               </div>
@@ -257,8 +309,8 @@ export default function Analytics() {
           {/* Transactions */}
           <Card
             data-testid="card-transactions"
-            className={`cursor-pointer transition-all ${selectedMetric === 'transactions' ? 'ring-2 ring-primary' : 'hover-elevate'}`}
-            onClick={() => setSelectedMetric('transactions')}
+            className={`cursor-pointer transition-all ${selectedMetric === "transactions" ? "ring-2 ring-primary" : "hover-elevate"}`}
+            onClick={() => setSelectedMetric("transactions")}
           >
             <CardContent className="p-3 sm:p-4">
               <div className="flex flex-col gap-1">
@@ -269,8 +321,14 @@ export default function Analytics() {
                 <div className="text-xl sm:text-2xl font-mono font-bold">
                   {mh?.transactions?.toLocaleString() || 0}
                 </div>
-                <div className={`flex items-center gap-1 text-xs ${(mh?.transactionChange || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                  {(mh?.transactionChange || 0) >= 0 ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+                <div
+                  className={`flex items-center gap-1 text-xs ${(mh?.transactionChange || 0) >= 0 ? "text-green-500" : "text-red-500"}`}
+                >
+                  {(mh?.transactionChange || 0) >= 0 ? (
+                    <ArrowUpRight className="w-3 h-3" />
+                  ) : (
+                    <ArrowDownRight className="w-3 h-3" />
+                  )}
                   {formatPercent(mh?.transactionChange || 0)}
                 </div>
               </div>
@@ -280,8 +338,8 @@ export default function Analytics() {
           {/* Volume */}
           <Card
             data-testid="card-volume"
-            className={`cursor-pointer transition-all ${selectedMetric === 'volume' ? 'ring-2 ring-primary' : 'hover-elevate'}`}
-            onClick={() => setSelectedMetric('volume')}
+            className={`cursor-pointer transition-all ${selectedMetric === "volume" ? "ring-2 ring-primary" : "hover-elevate"}`}
+            onClick={() => setSelectedMetric("volume")}
           >
             <CardContent className="p-3 sm:p-4">
               <div className="flex flex-col gap-1">
@@ -292,8 +350,14 @@ export default function Analytics() {
                 <div className="text-xl sm:text-2xl font-mono font-bold">
                   {formatLargeNumber(mh?.volume || 0)}
                 </div>
-                <div className={`flex items-center gap-1 text-xs ${(mh?.volumeChange || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                  {(mh?.volumeChange || 0) >= 0 ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+                <div
+                  className={`flex items-center gap-1 text-xs ${(mh?.volumeChange || 0) >= 0 ? "text-green-500" : "text-red-500"}`}
+                >
+                  {(mh?.volumeChange || 0) >= 0 ? (
+                    <ArrowUpRight className="w-3 h-3" />
+                  ) : (
+                    <ArrowDownRight className="w-3 h-3" />
+                  )}
                   {formatPercent(mh?.volumeChange || 0)}
                 </div>
               </div>
@@ -303,8 +367,8 @@ export default function Analytics() {
           {/* Shares Mined */}
           <Card
             data-testid="card-shares-mined"
-            className={`cursor-pointer transition-all ${selectedMetric === 'sharesMined' ? 'ring-2 ring-primary' : 'hover-elevate'}`}
-            onClick={() => setSelectedMetric('sharesMined')}
+            className={`cursor-pointer transition-all ${selectedMetric === "sharesMined" ? "ring-2 ring-primary" : "hover-elevate"}`}
+            onClick={() => setSelectedMetric("sharesMined")}
           >
             <CardContent className="p-3 sm:p-4">
               <div className="flex flex-col gap-1">
@@ -325,8 +389,8 @@ export default function Analytics() {
           {/* Shares Burned */}
           <Card
             data-testid="card-shares-burned"
-            className={`cursor-pointer transition-all ${selectedMetric === 'sharesBurned' ? 'ring-2 ring-primary' : 'hover-elevate'}`}
-            onClick={() => setSelectedMetric('sharesBurned')}
+            className={`cursor-pointer transition-all ${selectedMetric === "sharesBurned" ? "ring-2 ring-primary" : "hover-elevate"}`}
+            onClick={() => setSelectedMetric("sharesBurned")}
           >
             <CardContent className="p-3 sm:p-4">
               <div className="flex flex-col gap-1">
@@ -347,8 +411,8 @@ export default function Analytics() {
           {/* Total Shares */}
           <Card
             data-testid="card-total-shares"
-            className={`cursor-pointer transition-all ${selectedMetric === 'totalShares' ? 'ring-2 ring-primary' : 'hover-elevate'}`}
-            onClick={() => setSelectedMetric('totalShares')}
+            className={`cursor-pointer transition-all ${selectedMetric === "totalShares" ? "ring-2 ring-primary" : "hover-elevate"}`}
+            onClick={() => setSelectedMetric("totalShares")}
           >
             <CardContent className="p-3 sm:p-4">
               <div className="flex flex-col gap-1">
@@ -359,9 +423,7 @@ export default function Analytics() {
                 <div className="text-xl sm:text-2xl font-mono font-bold">
                   {formatNumber(mh?.totalShares || 0)}
                 </div>
-                <div className="text-xs text-muted-foreground">
-                  in economy
-                </div>
+                <div className="text-xs text-muted-foreground">in economy</div>
               </div>
             </CardContent>
           </Card>
@@ -371,12 +433,36 @@ export default function Analytics() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
-              {selectedMetric === 'marketCap' && <><BarChart3 className="w-4 h-4" /> Market Cap Over Time</>}
-              {selectedMetric === 'transactions' && <><Activity className="w-4 h-4" /> Transactions Over Time</>}
-              {selectedMetric === 'volume' && <><DollarSign className="w-4 h-4" /> Volume Over Time</>}
-              {selectedMetric === 'sharesMined' && <><Activity className="w-4 h-4 text-primary" /> Shares Scouted Over Time</>}
-              {selectedMetric === 'sharesBurned' && <><Flame className="w-4 h-4" /> Shares Burned Over Time</>}
-              {selectedMetric === 'totalShares' && <><Coins className="w-4 h-4" /> Total Shares Over Time</>}
+              {selectedMetric === "marketCap" && (
+                <>
+                  <BarChart3 className="w-4 h-4" /> Market Cap Over Time
+                </>
+              )}
+              {selectedMetric === "transactions" && (
+                <>
+                  <Activity className="w-4 h-4" /> Transactions Over Time
+                </>
+              )}
+              {selectedMetric === "volume" && (
+                <>
+                  <DollarSign className="w-4 h-4" /> Volume Over Time
+                </>
+              )}
+              {selectedMetric === "sharesMined" && (
+                <>
+                  <Activity className="w-4 h-4 text-primary" /> Shares Scouted Over Time
+                </>
+              )}
+              {selectedMetric === "sharesBurned" && (
+                <>
+                  <Flame className="w-4 h-4" /> Shares Burned Over Time
+                </>
+              )}
+              {selectedMetric === "totalShares" && (
+                <>
+                  <Coins className="w-4 h-4" /> Total Shares Over Time
+                </>
+              )}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -388,13 +474,15 @@ export default function Analytics() {
                     dataKey="date"
                     stroke="hsl(var(--muted-foreground))"
                     fontSize={10}
-                    tickFormatter={(v) => new Date(v).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    tickFormatter={(v) =>
+                      new Date(v).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+                    }
                   />
                   <YAxis
                     stroke="hsl(var(--muted-foreground))"
                     fontSize={10}
                     tickFormatter={(v) => {
-                      if (selectedMetric === 'marketCap' || selectedMetric === 'volume') {
+                      if (selectedMetric === "marketCap" || selectedMetric === "volume") {
                         if (v >= 1000000) return `$${(v / 1000000).toFixed(1)}M`;
                         if (v >= 1000) return `$${(v / 1000).toFixed(0)}K`;
                         return `$${v}`;
@@ -405,20 +493,34 @@ export default function Analytics() {
                   />
                   <Tooltip
                     contentStyle={{
-                      backgroundColor: 'hsl(var(--card))',
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '6px',
-                      fontSize: '12px'
+                      backgroundColor: "hsl(var(--card))",
+                      border: "1px solid hsl(var(--border))",
+                      borderRadius: "6px",
+                      fontSize: "12px",
                     }}
-                    labelFormatter={(v) => new Date(v).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                    labelFormatter={(v) =>
+                      new Date(v).toLocaleDateString("en-US", {
+                        weekday: "short",
+                        month: "short",
+                        day: "numeric",
+                      })
+                    }
                     formatter={(value: number) => {
-                      if (selectedMetric === 'marketCap' || selectedMetric === 'volume') {
-                        return [`$${value.toLocaleString()}`, selectedMetric === 'marketCap' ? 'Market Cap' : 'Volume'];
+                      if (selectedMetric === "marketCap" || selectedMetric === "volume") {
+                        return [
+                          `$${value.toLocaleString()}`,
+                          selectedMetric === "marketCap" ? "Market Cap" : "Volume",
+                        ];
                       }
-                      return [value.toLocaleString(),
-                      selectedMetric === 'transactions' ? 'Transactions' :
-                        selectedMetric === 'sharesMined' ? 'Shares Scouted' :
-                          selectedMetric === 'sharesBurned' ? 'Shares Burned' : 'Total Shares'
+                      return [
+                        value.toLocaleString(),
+                        selectedMetric === "transactions"
+                          ? "Transactions"
+                          : selectedMetric === "sharesMined"
+                            ? "Shares Scouted"
+                            : selectedMetric === "sharesBurned"
+                              ? "Shares Burned"
+                              : "Total Shares",
                       ];
                     }}
                   />
@@ -427,8 +529,8 @@ export default function Analytics() {
                     dataKey={selectedMetric}
                     stroke="hsl(var(--primary))"
                     strokeWidth={2}
-                    dot={{ fill: 'hsl(var(--primary))', strokeWidth: 0, r: 3 }}
-                    activeDot={{ r: 5, fill: 'hsl(var(--primary))' }}
+                    dot={{ fill: "hsl(var(--primary))", strokeWidth: 0, r: 3 }}
+                    activeDot={{ r: 5, fill: "hsl(var(--primary))" }}
                     isAnimationActive={true}
                     animationDuration={1200}
                     animationEasing="ease-out"
@@ -437,7 +539,9 @@ export default function Analytics() {
               </ResponsiveContainer>
             ) : (
               <div className="flex items-center justify-center h-[280px] text-muted-foreground text-sm">
-                {snapshotsData ? 'No snapshot data available for selected time range' : 'Loading market data...'}
+                {snapshotsData
+                  ? "No snapshot data available for selected time range"
+                  : "Loading market data..."}
               </div>
             )}
           </CardContent>
@@ -446,19 +550,35 @@ export default function Analytics() {
         {/* Tabs - Simplified to Overview, Rankings, Compare, Positions */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <TabsList className="w-full grid grid-cols-4 h-auto">
-            <TabsTrigger value="overview" className="text-xs sm:text-sm py-2" data-testid="tab-overview">
+            <TabsTrigger
+              value="overview"
+              className="text-xs sm:text-sm py-2"
+              data-testid="tab-overview"
+            >
               <BarChart3 className="w-4 h-4 mr-1 hidden sm:inline" />
               Overview
             </TabsTrigger>
-            <TabsTrigger value="rankings" className="text-xs sm:text-sm py-2" data-testid="tab-rankings">
+            <TabsTrigger
+              value="rankings"
+              className="text-xs sm:text-sm py-2"
+              data-testid="tab-rankings"
+            >
               <Target className="w-4 h-4 mr-1 hidden sm:inline" />
               Rankings
             </TabsTrigger>
-            <TabsTrigger value="compare" className="text-xs sm:text-sm py-2" data-testid="tab-compare">
+            <TabsTrigger
+              value="compare"
+              className="text-xs sm:text-sm py-2"
+              data-testid="tab-compare"
+            >
               <GitCompare className="w-4 h-4 mr-1 hidden sm:inline" />
               Compare
             </TabsTrigger>
-            <TabsTrigger value="positions" className="text-xs sm:text-sm py-2" data-testid="tab-positions">
+            <TabsTrigger
+              value="positions"
+              className="text-xs sm:text-sm py-2"
+              data-testid="tab-positions"
+            >
               <Users className="w-4 h-4 mr-1 hidden sm:inline" />
               Positions
             </TabsTrigger>
@@ -483,18 +603,20 @@ export default function Analytics() {
                         dataKey="date"
                         stroke="hsl(var(--muted-foreground))"
                         fontSize={10}
-                        tickFormatter={(v) => new Date(v).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        tickFormatter={(v) =>
+                          new Date(v).toLocaleDateString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                          })
+                        }
                       />
-                      <YAxis
-                        stroke="hsl(var(--muted-foreground))"
-                        fontSize={10}
-                      />
+                      <YAxis stroke="hsl(var(--muted-foreground))" fontSize={10} />
                       <Tooltip
                         contentStyle={{
-                          backgroundColor: 'hsl(var(--card))',
-                          border: '1px solid hsl(var(--border))',
-                          borderRadius: '6px',
-                          fontSize: '12px'
+                          backgroundColor: "hsl(var(--card))",
+                          border: "1px solid hsl(var(--border))",
+                          borderRadius: "6px",
+                          fontSize: "12px",
                         }}
                         labelFormatter={(v) => new Date(v).toLocaleDateString()}
                         formatter={(value: number, name: string) => [value.toLocaleString(), name]}
@@ -546,13 +668,18 @@ export default function Analytics() {
                         dataKey="date"
                         stroke="hsl(var(--muted-foreground))"
                         fontSize={10}
-                        tickFormatter={(v) => new Date(v).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        tickFormatter={(v) =>
+                          new Date(v).toLocaleDateString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                          })
+                        }
                       />
                       <YAxis
                         yAxisId="left"
                         stroke="hsl(var(--muted-foreground))"
                         fontSize={10}
-                        tickFormatter={(v) => `$${v >= 1000 ? (v / 1000).toFixed(0) + 'K' : v}`}
+                        tickFormatter={(v) => `$${v >= 1000 ? (v / 1000).toFixed(0) + "K" : v}`}
                       />
                       <YAxis
                         yAxisId="right"
@@ -562,14 +689,14 @@ export default function Analytics() {
                       />
                       <Tooltip
                         contentStyle={{
-                          backgroundColor: 'hsl(var(--card))',
-                          border: '1px solid hsl(var(--border))',
-                          borderRadius: '6px',
-                          fontSize: '12px'
+                          backgroundColor: "hsl(var(--card))",
+                          border: "1px solid hsl(var(--border))",
+                          borderRadius: "6px",
+                          fontSize: "12px",
                         }}
                         labelFormatter={(v) => new Date(v).toLocaleDateString()}
                         formatter={(value: number, name: string) => {
-                          if (name === 'Volume') return [`$${value.toLocaleString()}`, name];
+                          if (name === "Volume") return [`$${value.toLocaleString()}`, name];
                           return [value.toLocaleString(), name];
                         }}
                       />
@@ -612,20 +739,26 @@ export default function Analytics() {
                 <CardContent className="space-y-2">
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-muted-foreground">Net Share Flow</span>
-                    <span className={`font-mono font-bold ${(mh?.sharesMined || 0) - (mh?.sharesBurned || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                      {(mh?.sharesMined || 0) - (mh?.sharesBurned || 0) >= 0 ? '+' : ''}
+                    <span
+                      className={`font-mono font-bold ${(mh?.sharesMined || 0) - (mh?.sharesBurned || 0) >= 0 ? "text-green-500" : "text-red-500"}`}
+                    >
+                      {(mh?.sharesMined || 0) - (mh?.sharesBurned || 0) >= 0 ? "+" : ""}
                       {formatNumber((mh?.sharesMined || 0) - (mh?.sharesBurned || 0))}
                     </span>
                   </div>
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-muted-foreground">Avg Trade Size</span>
                     <span className="font-mono">
-                      {mh?.transactions ? formatLargeNumber((mh?.volume || 0) / mh.transactions) : '$0.00'}
+                      {mh?.transactions
+                        ? formatLargeNumber((mh?.volume || 0) / mh.transactions)
+                        : "$0.00"}
                     </span>
                   </div>
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-muted-foreground">Most Active Team</span>
-                    <Badge variant="outline">{analyticsData?.marketStats?.mostActiveTeam || 'N/A'}</Badge>
+                    <Badge variant="outline">
+                      {analyticsData?.marketStats?.mostActiveTeam || "N/A"}
+                    </Badge>
                   </div>
                 </CardContent>
               </Card>
@@ -640,15 +773,24 @@ export default function Analytics() {
                       <Link key={ranking.player.id} href={`/player/${ranking.player.id}`}>
                         <div className="flex items-center justify-between text-sm hover-elevate p-1 rounded">
                           <div className="flex items-center gap-2">
-                            <span className="font-mono text-muted-foreground w-4">{ranking.rank}</span>
-                            <span className="font-medium">{ranking.player.firstName} {ranking.player.lastName}</span>
+                            <span className="font-mono text-muted-foreground w-4">
+                              {ranking.rank}
+                            </span>
+                            <span className="font-medium">
+                              {ranking.player.firstName} {ranking.player.lastName}
+                            </span>
                           </div>
-                          <span className={`font-mono text-xs ${getPriceChangeColor(ranking.priceChange7d)}`}>
-                            {ranking.priceChange7d >= 0 ? '+' : ''}{ranking.priceChange7d.toFixed(1)}%
+                          <span
+                            className={`font-mono text-xs ${getPriceChangeColor(ranking.priceChange7d)}`}
+                          >
+                            {ranking.priceChange7d >= 0 ? "+" : ""}
+                            {ranking.priceChange7d.toFixed(1)}%
                           </span>
                         </div>
                       </Link>
-                    )) || <div className="text-sm text-muted-foreground text-center py-4">No data</div>}
+                    )) || (
+                      <div className="text-sm text-muted-foreground text-center py-4">No data</div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -669,38 +811,66 @@ export default function Analytics() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b">
-                        <th className="text-left py-2 px-2 font-medium text-muted-foreground">Rank</th>
-                        <th className="text-left py-2 px-2 font-medium text-muted-foreground">Player</th>
-                        <th className="text-right py-2 px-2 font-medium text-muted-foreground">Price</th>
-                        <th className="text-right py-2 px-2 font-medium text-muted-foreground">Volume</th>
-                        <th className="text-right py-2 px-2 font-medium text-muted-foreground">Avg FP</th>
-                        <th className="text-right py-2 px-2 font-medium text-muted-foreground">Change</th>
+                        <th className="text-left py-2 px-2 font-medium text-muted-foreground">
+                          Rank
+                        </th>
+                        <th className="text-left py-2 px-2 font-medium text-muted-foreground">
+                          Player
+                        </th>
+                        <th className="text-right py-2 px-2 font-medium text-muted-foreground">
+                          Price
+                        </th>
+                        <th className="text-right py-2 px-2 font-medium text-muted-foreground">
+                          Volume
+                        </th>
+                        <th className="text-right py-2 px-2 font-medium text-muted-foreground">
+                          Avg FP
+                        </th>
+                        <th className="text-right py-2 px-2 font-medium text-muted-foreground">
+                          Change
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
                       {analyticsData?.powerRankings?.map((ranking) => (
-                        <tr key={ranking.player.id} className="border-b last:border-0 hover-elevate">
+                        <tr
+                          key={ranking.player.id}
+                          className="border-b last:border-0 hover-elevate"
+                        >
                           <td className="py-2 px-2 font-mono font-bold">{ranking.rank}</td>
                           <td className="py-2 px-2">
                             <Link href={`/player/${ranking.player.id}`}>
                               <div className="font-medium hover:underline">
                                 {ranking.player.firstName} {ranking.player.lastName}
                               </div>
-                              <div className="text-xs text-muted-foreground">{ranking.player.team} - {ranking.player.position}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {ranking.player.team} - {ranking.player.position}
+                              </div>
                             </Link>
                           </td>
-                          <td className="py-2 px-2 text-right font-mono">${ranking.player.lastTradePrice}</td>
-                          <td className="py-2 px-2 text-right font-mono">{Number(ranking.player.volume24h || 0).toLocaleString()}</td>
-                          <td className="py-2 px-2 text-right font-mono">{ranking.avgFantasyPoints.toFixed(1)}</td>
-                          <td className={`py-2 px-2 text-right font-mono ${getPriceChangeColor(ranking.priceChange7d)}`}>
-                            {ranking.priceChange7d >= 0 ? '+' : ''}{ranking.priceChange7d.toFixed(1)}%
+                          <td className="py-2 px-2 text-right font-mono">
+                            ${ranking.player.lastTradePrice}
+                          </td>
+                          <td className="py-2 px-2 text-right font-mono">
+                            {Number(ranking.player.volume24h || 0).toLocaleString()}
+                          </td>
+                          <td className="py-2 px-2 text-right font-mono">
+                            {ranking.avgFantasyPoints.toFixed(1)}
+                          </td>
+                          <td
+                            className={`py-2 px-2 text-right font-mono ${getPriceChangeColor(ranking.priceChange7d)}`}
+                          >
+                            {ranking.priceChange7d >= 0 ? "+" : ""}
+                            {ranking.priceChange7d.toFixed(1)}%
                           </td>
                         </tr>
                       )) || (
-                          <tr>
-                            <td colSpan={6} className="text-center py-8 text-muted-foreground">No rankings available</td>
-                          </tr>
-                        )}
+                        <tr>
+                          <td colSpan={6} className="text-center py-8 text-muted-foreground">
+                            No rankings available
+                          </td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -724,18 +894,18 @@ export default function Analytics() {
                       <SelectValue placeholder="Add player..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {allPlayers?.filter(p => p.isActive && !selectedPlayers.includes(p.id))
+                      {allPlayers
+                        ?.filter((p) => p.isActive && !selectedPlayers.includes(p.id))
                         .slice(0, 50)
-                        .map(player => (
+                        .map((player) => (
                           <SelectItem key={player.id} value={player.id}>
                             {player.firstName} {player.lastName}
                           </SelectItem>
-                        ))
-                      }
+                        ))}
                     </SelectContent>
                   </Select>
-                  {selectedPlayers.map(id => {
-                    const player = allPlayers?.find(p => p.id === id);
+                  {selectedPlayers.map((id) => {
+                    const player = allPlayers?.find((p) => p.id === id);
                     return player ? (
                       <Badge
                         key={id}
@@ -761,14 +931,30 @@ export default function Analytics() {
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="border-b">
-                            <th className="text-left py-2 px-2 font-medium text-muted-foreground">Player</th>
-                            <th className="text-right py-2 px-2 font-medium text-muted-foreground">Shares</th>
-                            <th className="text-right py-2 px-2 font-medium text-muted-foreground">Market Cap</th>
-                            <th className="text-right py-2 px-2 font-medium text-muted-foreground">Price</th>
-                            <th className="text-right py-2 px-2 font-medium text-muted-foreground">AMM Vol</th>
-                            <th className="text-right py-2 px-2 font-medium text-muted-foreground">AMM Trades</th>
-                            <th className="text-right py-2 px-2 font-medium text-muted-foreground">Pool Liquidity</th>
-                            <th className="text-right py-2 px-2 font-medium text-muted-foreground">Boost %</th>
+                            <th className="text-left py-2 px-2 font-medium text-muted-foreground">
+                              Player
+                            </th>
+                            <th className="text-right py-2 px-2 font-medium text-muted-foreground">
+                              Shares
+                            </th>
+                            <th className="text-right py-2 px-2 font-medium text-muted-foreground">
+                              Market Cap
+                            </th>
+                            <th className="text-right py-2 px-2 font-medium text-muted-foreground">
+                              Price
+                            </th>
+                            <th className="text-right py-2 px-2 font-medium text-muted-foreground">
+                              AMM Vol
+                            </th>
+                            <th className="text-right py-2 px-2 font-medium text-muted-foreground">
+                              AMM Trades
+                            </th>
+                            <th className="text-right py-2 px-2 font-medium text-muted-foreground">
+                              Pool Liquidity
+                            </th>
+                            <th className="text-right py-2 px-2 font-medium text-muted-foreground">
+                              Boost %
+                            </th>
                           </tr>
                         </thead>
                         <tbody>
@@ -776,27 +962,46 @@ export default function Analytics() {
                             <tr key={player.id} className="border-b last:border-0">
                               <td className="py-2 px-2">
                                 <div className="flex items-center gap-2">
-                                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: chartColors[idx] }}></div>
+                                  <div
+                                    className="w-3 h-3 rounded-full"
+                                    style={{ backgroundColor: chartColors[idx] }}
+                                  ></div>
                                   <div>
                                     <div className="font-medium">{player.name}</div>
-                                    <div className="text-xs text-muted-foreground">{player.team} - {player.position}</div>
+                                    <div className="text-xs text-muted-foreground">
+                                      {player.team} - {player.position}
+                                    </div>
                                   </div>
                                 </div>
                               </td>
-                              <td className="py-2 px-2 text-right font-mono">{player.shares.toLocaleString()}</td>
-                              <td className="py-2 px-2 text-right font-mono">{formatLargeNumber(player.marketCap)}</td>
-                              <td className="py-2 px-2 text-right font-mono">${player.price.toFixed(2)}</td>
-                              <td className="py-2 px-2 text-right font-mono">{formatLargeNumber(player.ammVolume)}</td>
-                              <td className="py-2 px-2 text-right font-mono">{player.ammTrades.toLocaleString()}</td>
-                              <td className="py-2 px-2 text-right font-mono">{formatLargeNumber(player.poolLiquidity)}</td>
-                              <td className="py-2 px-2 text-right font-mono">{player.boostUsagePercent.toFixed(1)}%</td>
+                              <td className="py-2 px-2 text-right font-mono">
+                                {player.shares.toLocaleString()}
+                              </td>
+                              <td className="py-2 px-2 text-right font-mono">
+                                {formatLargeNumber(player.marketCap)}
+                              </td>
+                              <td className="py-2 px-2 text-right font-mono">
+                                ${player.price.toFixed(2)}
+                              </td>
+                              <td className="py-2 px-2 text-right font-mono">
+                                {formatLargeNumber(player.ammVolume)}
+                              </td>
+                              <td className="py-2 px-2 text-right font-mono">
+                                {player.ammTrades.toLocaleString()}
+                              </td>
+                              <td className="py-2 px-2 text-right font-mono">
+                                {formatLargeNumber(player.poolLiquidity)}
+                              </td>
+                              <td className="py-2 px-2 text-right font-mono">
+                                {player.boostUsagePercent.toFixed(1)}%
+                              </td>
                             </tr>
                           ))}
                         </tbody>
                       </table>
                     </div>
 
-                    {comparisonData.players.some(p => p.ammVolumeHistory.length > 0) && (
+                    {comparisonData.players.some((p) => p.ammVolumeHistory.length > 0) && (
                       <div className="mt-4">
                         <h4 className="text-sm font-medium mb-2">AMM Volume Trend</h4>
                         <ResponsiveContainer width="100%" height={200}>
@@ -806,37 +1011,46 @@ export default function Analytics() {
                               dataKey="timestamp"
                               stroke="hsl(var(--muted-foreground))"
                               fontSize={10}
-                              tickFormatter={(v) => new Date(v).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                              tickFormatter={(v) =>
+                                new Date(v).toLocaleDateString("en-US", {
+                                  month: "short",
+                                  day: "numeric",
+                                })
+                              }
                             />
                             <YAxis stroke="hsl(var(--muted-foreground))" fontSize={10} />
                             <Tooltip
                               contentStyle={{
-                                backgroundColor: 'hsl(var(--card))',
-                                border: '1px solid hsl(var(--border))',
-                                borderRadius: '6px',
-                                fontSize: '12px'
+                                backgroundColor: "hsl(var(--card))",
+                                border: "1px solid hsl(var(--border))",
+                                borderRadius: "6px",
+                                fontSize: "12px",
                               }}
-                              formatter={(value: number) => [`$${value.toLocaleString()}`, 'AMM Volume']}
+                              formatter={(value: number) => [
+                                `$${value.toLocaleString()}`,
+                                "AMM Volume",
+                              ]}
                             />
                             <Legend />
-                            {comparisonData.players.map((player, idx) => (
-                              player.ammVolumeHistory.length > 0 && (
-                                <Line
-                                  key={player.id}
-                                  type="monotone"
-                                  data={player.ammVolumeHistory}
-                                  dataKey="volume"
-                                  stroke={chartColors[idx]}
-                                  name={player.name}
-                                  strokeWidth={2}
-                                  dot={false}
-                                  isAnimationActive={true}
-                                  animationDuration={1200}
-                                  animationEasing="ease-out"
-                                  animationBegin={idx * 150}
-                                />
-                              )
-                            ))}
+                            {comparisonData.players.map(
+                              (player, idx) =>
+                                player.ammVolumeHistory.length > 0 && (
+                                  <Line
+                                    key={player.id}
+                                    type="monotone"
+                                    data={player.ammVolumeHistory}
+                                    dataKey="volume"
+                                    stroke={chartColors[idx]}
+                                    name={player.name}
+                                    strokeWidth={2}
+                                    dot={false}
+                                    isAnimationActive={true}
+                                    animationDuration={1200}
+                                    animationEasing="ease-out"
+                                    animationBegin={idx * 150}
+                                  />
+                                ),
+                            )}
                           </LineChart>
                         </ResponsiveContainer>
                       </div>
@@ -844,11 +1058,12 @@ export default function Analytics() {
                   </>
                 )}
 
-                {(!comparisonData?.players || comparisonData.players.length === 0) && selectedPlayers.length === 0 && (
-                  <div className="text-center py-8 text-muted-foreground">
-                    Select players to compare their stats
-                  </div>
-                )}
+                {(!comparisonData?.players || comparisonData.players.length === 0) &&
+                  selectedPlayers.length === 0 && (
+                    <div className="text-center py-8 text-muted-foreground">
+                      Select players to compare their stats
+                    </div>
+                  )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -870,20 +1085,31 @@ export default function Analytics() {
                         <Link key={ranking.player.id} href={`/player/${ranking.player.id}`}>
                           <div className="flex items-center justify-between text-sm hover-elevate p-1 rounded">
                             <div className="flex items-center gap-2">
-                              <span className="font-mono text-muted-foreground w-4">{ranking.rank}</span>
+                              <span className="font-mono text-muted-foreground w-4">
+                                {ranking.rank}
+                              </span>
                               <span className="font-medium truncate max-w-[120px]">
                                 {ranking.player.firstName} {ranking.player.lastName}
                               </span>
                             </div>
                             <div className="text-right">
-                              <div className="font-mono text-xs">{ranking.avgFantasyPoints.toFixed(1)} FP</div>
-                              <div className={`font-mono text-xs ${getPriceChangeColor(ranking.priceChange7d)}`}>
-                                {ranking.priceChange7d >= 0 ? '+' : ''}{ranking.priceChange7d.toFixed(1)}%
+                              <div className="font-mono text-xs">
+                                {ranking.avgFantasyPoints.toFixed(1)} FP
+                              </div>
+                              <div
+                                className={`font-mono text-xs ${getPriceChangeColor(ranking.priceChange7d)}`}
+                              >
+                                {ranking.priceChange7d >= 0 ? "+" : ""}
+                                {ranking.priceChange7d.toFixed(1)}%
                               </div>
                             </div>
                           </div>
                         </Link>
-                      )) || <div className="text-sm text-muted-foreground text-center py-4">No players</div>}
+                      )) || (
+                        <div className="text-sm text-muted-foreground text-center py-4">
+                          No players
+                        </div>
+                      )}
                     </div>
                   </CardContent>
                 </Card>

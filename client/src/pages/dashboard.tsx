@@ -3,9 +3,45 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
-import { TrendingUp, TrendingDown, DollarSign, Calendar, ChevronLeft, ChevronRight, LogIn, Zap, Flame } from "lucide-react";
+import {
+  TrendingUp,
+  TrendingDown,
+  DollarSign,
+  Calendar,
+  Search,
+  ChevronDown,
+  BarChart3,
+  ChevronLeft,
+  ChevronRight,
+  ExternalLink,
+  ArrowUpDown,
+  LogIn,
+  Zap,
+  Flame,
+  Activity,
+  Trophy,
+  Clock,
+} from "lucide-react";
 import { useAppState } from "@/hooks/use-app-state";
 import { Link, useLocation } from "wouter";
 import type { Player, Trade } from "@shared/schema";
@@ -34,7 +70,13 @@ interface DashboardData {
   } | null; // Null for non-authenticated users
   recentTrades: (Trade & { player: Player })[];
   portfolioHistory: { date: string; value: number }[];
-  topHoldings: { player: Player; quantity: number; value: string; pnl: string; pnlPercent: string }[];
+  topHoldings: {
+    player: Player;
+    quantity: number;
+    value: string;
+    pnl: string;
+    pnlPercent: string;
+  }[];
   power: {
     activeBoosts: number;
     lockedBoosts: number;
@@ -59,28 +101,28 @@ const getEffectiveGameStatus = (game: Pick<GameInsight, "startTime" | "status">)
   const threeHoursInMs = 3 * 60 * 60 * 1000;
 
   // If DB says postponed, trust it
-  if (game.status === 'postponed') {
-    return 'postponed';
+  if (game.status === "postponed") {
+    return "postponed";
   }
 
   // If DB says completed, trust it
-  if (game.status === 'completed') {
-    return 'completed';
+  if (game.status === "completed") {
+    return "completed";
   }
 
   // If DB says inprogress, trust it
-  if (game.status === 'inprogress') {
-    return 'inprogress';
+  if (game.status === "inprogress") {
+    return "inprogress";
   }
 
   // If game is scheduled but should have started (and it's been less than 3 hours), assume it's live
-  if (game.status === 'scheduled' && timeSinceStart > 0 && timeSinceStart < threeHoursInMs) {
-    return 'inprogress';
+  if (game.status === "scheduled" && timeSinceStart > 0 && timeSinceStart < threeHoursInMs) {
+    return "inprogress";
   }
 
   // If more than 3 hours have passed since start and still scheduled, likely completed but not synced
-  if (game.status === 'scheduled' && timeSinceStart >= threeHoursInMs) {
-    return 'completed';
+  if (game.status === "scheduled" && timeSinceStart >= threeHoursInMs) {
+    return "completed";
   }
 
   return game.status as EffectiveGameStatus;
@@ -122,8 +164,8 @@ export default function Dashboard() {
         return data;
       } catch (err) {
         clearTimeout(timeoutId);
-        if (err instanceof Error && err.name === 'AbortError') {
-          throw new Error('Dashboard request timed out after 10 seconds');
+        if (err instanceof Error && err.name === "AbortError") {
+          throw new Error("Dashboard request timed out after 10 seconds");
         }
         throw err;
       }
@@ -135,17 +177,19 @@ export default function Dashboard() {
   // Format date as YYYY-MM-DD
   const formatDateForAPI = (date: Date) => {
     const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
     return `${year}-${month}-${day}`;
   };
 
   // Check if selected date is today
   const isToday = (date: Date) => {
     const today = new Date();
-    return date.getDate() === today.getDate() &&
+    return (
+      date.getDate() === today.getDate() &&
       date.getMonth() === today.getMonth() &&
-      date.getFullYear() === today.getFullYear();
+      date.getFullYear() === today.getFullYear()
+    );
   };
 
   // Validate date is within allowed range (7 days back to 14 days forward)
@@ -262,7 +306,10 @@ export default function Dashboard() {
               <div className="flex items-center gap-2 text-sm sm:text-base">
                 <LogIn className="w-4 h-4 flex-shrink-0" />
                 <span className="font-medium">
-                  See live NBA trading in action. <span className="hidden sm:inline">Sign in to start trading, scouting, and competing.</span>
+                  See live NBA trading in action.{" "}
+                  <span className="hidden sm:inline">
+                    Sign in to start trading, scouting, and competing.
+                  </span>
                 </span>
               </div>
               <Button
@@ -298,17 +345,24 @@ export default function Dashboard() {
             <div className="p-4 sm:p-6 rounded-lg bg-card border shadow-sm relative overflow-hidden group">
               {/* Background Pattern */}
               <BackgroundPattern variant="gradient-mesh" color="primary" opacity={0.05} />
-              
+
               {/* Labels row */}
               <div className="flex justify-between gap-4 mb-4 relative z-10">
-                <div className="text-xs text-muted-foreground uppercase tracking-wider font-sans">Cash Balance</div>
-                <div className="text-xs text-muted-foreground uppercase tracking-wider font-sans">Portfolio Value</div>
+                <div className="text-xs text-muted-foreground uppercase tracking-wider font-sans">
+                  Cash Balance
+                </div>
+                <div className="text-xs text-muted-foreground uppercase tracking-wider font-sans">
+                  Portfolio Value
+                </div>
               </div>
 
               {/* Values row */}
               <div className="flex justify-between gap-4 items-center relative z-10">
                 <div className="flex items-center gap-2 min-w-0 flex-1">
-                  <div className="fintech-balance text-foreground truncate" data-testid="text-balance">
+                  <div
+                    className="fintech-balance text-foreground truncate"
+                    data-testid="text-balance"
+                  >
                     <AnimatedPrice
                       value={parseFloat(data?.user?.balance || "0")}
                       size="lg"
@@ -325,7 +379,11 @@ export default function Dashboard() {
                     >
                       #{data?.user.cashRank}
                       {data?.user.cashRankChange !== null && data?.user.cashRankChange !== 0 && (
-                        <span className={data?.user.cashRankChange > 0 ? "text-positive" : "text-negative"}>
+                        <span
+                          className={
+                            data?.user.cashRankChange > 0 ? "text-positive" : "text-negative"
+                          }
+                        >
                           {data?.user.cashRankChange > 0 ? (
                             <TrendingUp className="w-2.5 h-2.5 inline" />
                           ) : (
@@ -338,7 +396,10 @@ export default function Dashboard() {
                 </div>
 
                 <div className="flex items-center gap-2 min-w-0 flex-1 justify-end">
-                  <div className="fintech-balance text-foreground" data-testid="text-portfolio-value">
+                  <div
+                    className="fintech-balance text-foreground"
+                    data-testid="text-portfolio-value"
+                  >
                     <AnimatedPrice
                       value={parseFloat(data?.user?.portfolioValue || "0")}
                       size="lg"
@@ -354,15 +415,20 @@ export default function Dashboard() {
                       aria-label={`Portfolio value rank #${data?.user.portfolioRank}, click to view leaderboard`}
                     >
                       #{data?.user.portfolioRank}
-                      {data?.user.portfolioRankChange !== null && data?.user.portfolioRankChange !== 0 && (
-                        <span className={data?.user.portfolioRankChange > 0 ? "text-positive" : "text-negative"}>
-                          {data?.user.portfolioRankChange > 0 ? (
-                            <TrendingUp className="w-2.5 h-2.5 inline" />
-                          ) : (
-                            <TrendingDown className="w-2.5 h-2.5 inline" />
-                          )}
-                        </span>
-                      )}
+                      {data?.user.portfolioRankChange !== null &&
+                        data?.user.portfolioRankChange !== 0 && (
+                          <span
+                            className={
+                              data?.user.portfolioRankChange > 0 ? "text-positive" : "text-negative"
+                            }
+                          >
+                            {data?.user.portfolioRankChange > 0 ? (
+                              <TrendingUp className="w-2.5 h-2.5 inline" />
+                            ) : (
+                              <TrendingDown className="w-2.5 h-2.5 inline" />
+                            )}
+                          </span>
+                        )}
                     </button>
                   )}
                 </div>
@@ -377,126 +443,127 @@ export default function Dashboard() {
               <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 space-y-0 pb-2 relative z-10">
                 {/* Left side: Sport selector on mobile, Title + Sport on desktop */}
                 <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-start">
-                  <CardTitle className="text-sm font-medium uppercase tracking-wide hidden sm:block">Games</CardTitle>
-                  <SportSelector size="sm" />
-                </div>
+                <CardTitle className="text-sm font-medium uppercase tracking-wide hidden sm:block">Games</CardTitle>
+                <SportSelector size="sm" />
+              </div>
 
-                {/* Right side: Date controls */}
-                <div className="flex items-center gap-1.5 sm:gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={goToPrevDay}
-                    disabled={!isDateInRange(new Date(selectedDate.getTime() - 86400000))}
-                    className="h-8 px-2 sm:px-3"
-                    data-testid="button-prev-day"
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                  </Button>
+              {/* Right side: Date controls */}
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={goToPrevDay}
+                  disabled={!isDateInRange(new Date(selectedDate.getTime() - 86400000))}
+                  className="h-8 px-2 sm:px-3"
+                  data-testid="button-prev-day"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
 
-                  <Popover open={showDatePicker} onOpenChange={setShowDatePicker}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-8 gap-2 px-2 sm:px-3"
-                        data-testid="button-open-calendar"
-                      >
-                        <Calendar className="w-4 h-4" />
-                        <span className="text-sm">
-                          {selectedDate.toLocaleDateString('en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                            year: selectedDate.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined
-                          })}
-                        </span>
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="end">
-                      <CalendarComponent
-                        mode="single"
-                        selected={selectedDate}
-                        onSelect={handleDateSelect}
-                        disabled={(date) => !isDateInRange(date)}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={goToNextDay}
-                    disabled={!isDateInRange(new Date(selectedDate.getTime() + 86400000))}
-                    className="h-8 px-2 sm:px-3"
-                    data-testid="button-next-day"
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                  </Button>
-
-                  {!isToday(selectedDate) && (
+                <Popover open={showDatePicker} onOpenChange={setShowDatePicker}>
+                  <PopoverTrigger asChild>
                     <Button
-                      variant="default"
+                      variant="outline"
                       size="sm"
-                      onClick={goToToday}
-                      className="h-8 px-2 sm:px-3 hidden sm:inline-flex"
-                      data-testid="button-today"
+                      className="h-8 gap-2 px-2 sm:px-3"
+                      data-testid="button-open-calendar"
                     >
-                      Today
+                      <Calendar className="w-4 h-4" />
+                      <span className="text-sm">
+                        {selectedDate.toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: selectedDate.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined
+                        })}
+                      </span>
                     </Button>
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {isLoadingGames ? (
-                  <div className="space-y-3">
-                    <ShimmerCard lines={3} />
-                    <ShimmerCard lines={3} />
-                  </div>
-                ) : games.length > 0 ? (
-                  <>
-                    {[
-                      { title: "Live", games: liveGames, empty: "No live games right now." },
-                      { title: "Upcoming", games: upcomingGames, empty: "No upcoming games scheduled." },
-                      { title: "Final", games: finalGames, empty: "No final scores yet." },
-                    ].map(section => (
-                      <div key={section.title} className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                            {section.title}
-                          </div>
-                          <Badge variant="outline">{section.games.length}</Badge>
-                        </div>
-                        {section.games.length > 0 ? (
-                          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                            {section.games.map(game => {
-                              const effectiveStatus = getEffectiveGameStatus(game);
-                              return (
-                                <GameCommandCenterCard
-                                  key={game.gameId}
-                                  game={game}
-                                  effectiveStatus={effectiveStatus}
-                                  boostSlotsRemaining={boostSlotsRemaining}
-                                  isAuthenticated={isAuthenticated}
-                                  onOpen={() => setActiveGame(game)}
-                                />
-                              );
-                            })}
-                          </div>
-                        ) : (
-                          <div className="text-sm text-muted-foreground">{section.empty}</div>
-                        )}
-                      </div>
-                    ))}
-                  </>
-                ) : (
-                  <div className="text-center py-8 text-sm text-muted-foreground">
-                    ⊡ No games scheduled for this date
-                  </div>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="end">
+                    <CalendarComponent
+                      mode="single"
+                      selected={selectedDate}
+                      onSelect={handleDateSelect}
+                      disabled={(date) => !isDateInRange(date)}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={goToNextDay}
+                  disabled={!isDateInRange(new Date(selectedDate.getTime() + 86400000))}
+                  className="h-8 px-2 sm:px-3"
+                  data-testid="button-next-day"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+
+                {!isToday(selectedDate) && (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={goToToday}
+                    className="h-8 px-2 sm:px-3 hidden sm:inline-flex"
+                    data-testid="button-today"
+                  >
+                    Today
+                  </Button>
                 )}
-              </CardContent>
-            </Card>
-          </ScrollReveal>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {isLoadingGames ? (
+                <div className="space-y-3">
+                  <ShimmerCard lines={3} />
+                  <ShimmerCard lines={3} />
+                </div>
+              ) : games.length > 0 ? (
+                <>
+                  {[
+                    { title: "Live", games: liveGames, empty: "No live games right now." },
+                    { title: "Upcoming", games: upcomingGames, empty: "No upcoming games scheduled." },
+                    { title: "Final", games: finalGames, empty: "No final scores yet." },
+                  ].map(section => (
+                    <div key={section.title} className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                          {section.title}
+                        </div>
+                        <Badge variant="outline">{section.games.length}</Badge>
+                      </div>
+                      {section.games.length > 0 ? (
+                        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                          {section.games.map(game => {
+                            const effectiveStatus = getEffectiveGameStatus(game);
+                            return (
+                              <GameCommandCenterCard
+                                key={game.gameId}
+                                game={game}
+                                effectiveStatus={effectiveStatus}
+                                boostSlotsRemaining={boostSlotsRemaining}
+                                isAuthenticated={isAuthenticated}
+                                onOpen={() => setActiveGame(game)}
+                              />
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="text-sm text-muted-foreground">{section.empty}</div>
+                      )}
+                    </div>
+                  ))}
+                </>
+              ) : (
+                <div className="text-center py-8 text-sm text-muted-foreground">
+                  ⊡ No games scheduled for this date
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </ScrollReveal>
+
 
           {/* Market Scanners Carousel */}
           <ScrollReveal delay={0.15}>
@@ -511,7 +578,9 @@ export default function Dashboard() {
                 {/* Card Accent */}
                 <CardAccent variant="top" color="warning" intensity="medium" />
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative z-10">
-                  <CardTitle className="text-sm font-medium uppercase tracking-wide">Power</CardTitle>
+                  <CardTitle className="text-sm font-medium uppercase tracking-wide">
+                    Power
+                  </CardTitle>
                   <Zap className="w-4 h-4 text-yellow-500" />
                 </CardHeader>
                 <CardContent className="space-y-2 sm:space-y-3">
@@ -540,7 +609,7 @@ export default function Dashboard() {
                         <div className="flex-1">
                           <div className="text-xs text-muted-foreground mb-1">Slots Available</div>
                           <div className="flex gap-1 mt-1">
-                            {data.power.availableSlots.map(slot => (
+                            {data.power.availableSlots.map((slot) => (
                               <Badge key={slot} variant="outline" className="text-xs">
                                 {slot}x
                               </Badge>
@@ -559,7 +628,9 @@ export default function Dashboard() {
                         <div className="flex items-center gap-2 p-2 bg-amber-500/10 rounded-md border border-amber-500/20">
                           <div className="flex-1">
                             <div className="text-xs text-muted-foreground">Community Boosts</div>
-                            <div className="text-sm font-medium">{data.power.communityBoostCount} active today</div>
+                            <div className="text-sm font-medium">
+                              {data.power.communityBoostCount} active today
+                            </div>
                           </div>
                           <Badge className="bg-amber-500/20 text-amber-600 border-amber-500/30">
                             +{data.power.communityBoostCount}x
@@ -568,12 +639,17 @@ export default function Dashboard() {
                       )}
 
                       {/* Today's Payout */}
-                      {(data.power.totalLivePayout !== "0.00" || data.power.totalProcessedPayout !== "0.00") && (
+                      {(data.power.totalLivePayout !== "0.00" ||
+                        data.power.totalProcessedPayout !== "0.00") && (
                         <div className="p-2 bg-green-500/10 rounded-md border border-green-500/20">
                           <div className="flex items-center justify-between">
                             <span className="text-xs text-muted-foreground">Today's Payout</span>
                             <span className="text-lg font-bold text-green-500">
-                              ${(parseFloat(data.power.totalLivePayout) + parseFloat(data.power.totalProcessedPayout)).toFixed(2)}
+                              $
+                              {(
+                                parseFloat(data.power.totalLivePayout) +
+                                parseFloat(data.power.totalProcessedPayout)
+                              ).toFixed(2)}
                             </span>
                           </div>
                           {data.power.totalLivePayout !== "0.00" && (
@@ -604,7 +680,9 @@ export default function Dashboard() {
               <ScrollReveal delay={0.45}>
                 <Card className="lg:col-span-1">
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium uppercase tracking-wide">Top Holdings</CardTitle>
+                    <CardTitle className="text-sm font-medium uppercase tracking-wide">
+                      Top Holdings
+                    </CardTitle>
                     <DollarSign className="w-4 h-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent className="space-y-2 sm:space-y-3">
@@ -612,7 +690,12 @@ export default function Dashboard() {
                       <Link key={holding.player.id} href={`/player/${holding.player.id}`}>
                         <div className="p-2 rounded-md hover-elevate">
                           <div className="flex items-center justify-between mb-1">
-                            <PlayerName playerId={holding.player.id} firstName={holding.player.firstName} lastName={holding.player.lastName} className="font-medium text-sm" />
+                            <PlayerName
+                              playerId={holding.player.id}
+                              firstName={holding.player.firstName}
+                              lastName={holding.player.lastName}
+                              className="font-medium text-sm"
+                            />
                             {holding.value !== null ? (
                               <span className="font-mono font-bold text-sm">${holding.value}</span>
                             ) : (
@@ -622,8 +705,13 @@ export default function Dashboard() {
                           <div className="flex items-center justify-between text-xs">
                             <span className="text-muted-foreground">{holding.quantity} shares</span>
                             {holding.pnl !== null ? (
-                              <span className={parseFloat(holding.pnl) >= 0 ? 'text-positive' : 'text-negative'}>
-                                {parseFloat(holding.pnl) >= 0 ? '+' : ''}${holding.pnl} ({holding.pnlPercent}%)
+                              <span
+                                className={
+                                  parseFloat(holding.pnl) >= 0 ? "text-positive" : "text-negative"
+                                }
+                              >
+                                {parseFloat(holding.pnl) >= 0 ? "+" : ""}${holding.pnl} (
+                                {holding.pnlPercent}%)
                               </span>
                             ) : (
                               <span className="text-muted-foreground">-</span>
@@ -633,7 +721,11 @@ export default function Dashboard() {
                       </Link>
                     ))}
                     <Link href="/portfolio">
-                      <Button variant="outline" className="w-full" data-testid="button-view-portfolio">
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        data-testid="button-view-portfolio"
+                      >
                         View Full Portfolio
                       </Button>
                     </Link>
@@ -654,8 +746,6 @@ export default function Dashboard() {
           onClose={() => setActiveGame(null)}
         />
       )}
-
     </>
   );
 }
-

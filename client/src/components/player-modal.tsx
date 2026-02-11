@@ -16,7 +16,7 @@ import {
   Zap,
   TicketPercent,
   ShoppingCart,
-  Droplets
+  Droplets,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
@@ -38,24 +38,32 @@ interface PlayerFinancialMetrics {
   sentiment: {
     buyPressure: number;
     totalVolume24h: number;
-    trend: 'bullish' | 'bearish' | 'neutral';
+    trend: "bullish" | "bearish" | "neutral";
   };
   heatCheck: {
     l5Avg: number;
     seasonAvg: number;
-    status: 'fire' | 'ice' | 'neutral';
+    status: "fire" | "ice" | "neutral";
   };
   marketCapRank: {
-    tier: 'blue_chip' | 'mid_cap' | 'moonshot';
+    tier: "blue_chip" | "mid_cap" | "moonshot";
     percentile: number;
   };
 }
 
 // Sport configuration for dynamic display
-const SPORT_CONFIG: Record<string, {
-  seasonStats: { key: string; label: string; highlight?: boolean; format?: (val: any) => string }[];
-  recentGames: { key: string; label: string; format?: (val: any) => string }[];
-}> = {
+const SPORT_CONFIG: Record<
+  string,
+  {
+    seasonStats: {
+      key: string;
+      label: string;
+      highlight?: boolean;
+      format?: (val: any) => string;
+    }[];
+    recentGames: { key: string; label: string; format?: (val: any) => string }[];
+  }
+> = {
   NBA: {
     seasonStats: [
       { key: "avgFantasyPointsPerGame", label: "FP/G", highlight: true },
@@ -71,7 +79,7 @@ const SPORT_CONFIG: Record<string, {
       { key: "points", label: "PTS" },
       { key: "rebounds", label: "REB" },
       { key: "assists", label: "AST" },
-    ]
+    ],
   },
   NFL: {
     seasonStats: [
@@ -88,8 +96,8 @@ const SPORT_CONFIG: Record<string, {
       { key: "passingYards", label: "P.YDS" },
       { key: "rushingYards", label: "R.YDS" },
       { key: "receivingYards", label: "R.YDS" },
-    ]
-  }
+    ],
+  },
 };
 
 interface RecentGame {
@@ -125,16 +133,18 @@ export function PlayerModal({ playerId, open, onOpenChange }: PlayerModalProps) 
     enabled: open && !!cleanPlayerId,
   });
 
-  const { data: financialMetrics, isLoading: financialsLoading } = useQuery<PlayerFinancialMetrics>({
-    queryKey: ["/api/player", cleanPlayerId, "financials"],
-    enabled: open && !!cleanPlayerId,
-  });
+  const { data: financialMetrics, isLoading: financialsLoading } = useQuery<PlayerFinancialMetrics>(
+    {
+      queryKey: ["/api/player", cleanPlayerId, "financials"],
+      enabled: open && !!cleanPlayerId,
+    },
+  );
 
   if (!cleanPlayerId) return null;
 
   const player = statsData?.player;
   const team = statsData?.team;
-  const sport = statsData?.stats?.sport || (player?.sport === 'NFL' ? 'NFL' : 'NBA');
+  const sport = statsData?.stats?.sport || (player?.sport === "NFL" ? "NFL" : "NBA");
   const stats = statsData?.stats;
   const recentGames: RecentGame[] = recentGamesData?.recentGames || [];
   const sharesInfo: any = sharesData?.sharesInfo;
@@ -145,17 +155,30 @@ export function PlayerModal({ playerId, open, onOpenChange }: PlayerModalProps) 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-3" data-testid="dialog-player-modal">
+      <DialogContent
+        className="max-w-2xl max-h-[90vh] overflow-y-auto p-3"
+        data-testid="dialog-player-modal"
+      >
         <DialogHeader className="pb-1">
           <div className="flex items-center justify-between gap-2">
-            <DialogTitle className="flex items-center gap-2 text-base" data-testid="text-player-modal-title">
+            <DialogTitle
+              className="flex items-center gap-2 text-base"
+              data-testid="text-player-modal-title"
+            >
               {player ? (
                 <>
-                  <span className="inline-flex items-center gap-1.5">{player.firstName} {player.lastName}{getInjury(player.id) && <InjuryIndicator injury={getInjury(player.id)!} />}</span>
-                  {team && <Badge variant="secondary" className="text-xs h-5" data-testid="badge-team">{team.abbreviation}</Badge>}
+                  <span className="inline-flex items-center gap-1.5">
+                    {player.firstName} {player.lastName}
+                    {getInjury(player.id) && <InjuryIndicator injury={getInjury(player.id)!} />}
+                  </span>
+                  {team && (
+                    <Badge variant="secondary" className="text-xs h-5" data-testid="badge-team">
+                      {team.abbreviation}
+                    </Badge>
+                  )}
 
                   {/* Heat Check Badge */}
-                  {!isLoading && financialMetrics?.heatCheck?.status === 'fire' && (
+                  {!isLoading && financialMetrics?.heatCheck?.status === "fire" && (
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -169,7 +192,7 @@ export function PlayerModal({ playerId, open, onOpenChange }: PlayerModalProps) 
                       </Tooltip>
                     </TooltipProvider>
                   )}
-                  {!isLoading && financialMetrics?.heatCheck?.status === 'ice' && (
+                  {!isLoading && financialMetrics?.heatCheck?.status === "ice" && (
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -191,20 +214,39 @@ export function PlayerModal({ playerId, open, onOpenChange }: PlayerModalProps) 
             <div className="flex items-center justify-end flex-wrap gap-2">
               {cleanPlayerId && (
                 <div className="flex items-center flex-wrap justify-end gap-2">
-                  <Link href={`/player/${cleanPlayerId}?tab=buy`} onClick={() => onOpenChange(false)}>
+                  <Link
+                    href={`/player/${cleanPlayerId}?tab=buy`}
+                    onClick={() => onOpenChange(false)}
+                  >
                     <Button size="sm" className="h-8 px-2 text-xs" data-testid="button-modal-buy">
                       <ShoppingCart className="w-4 h-4 mr-1" />
                       Buy
                     </Button>
                   </Link>
-                  <Link href={`/player/${cleanPlayerId}?tab=sell`} onClick={() => onOpenChange(false)}>
-                    <Button size="sm" variant="outline" className="h-8 px-2 text-xs" data-testid="button-modal-sell">
+                  <Link
+                    href={`/player/${cleanPlayerId}?tab=sell`}
+                    onClick={() => onOpenChange(false)}
+                  >
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 px-2 text-xs"
+                      data-testid="button-modal-sell"
+                    >
                       Sell
                       <ArrowRight className="w-4 h-4 ml-1" />
                     </Button>
                   </Link>
-                  <Link href={`/player/${cleanPlayerId}?panel=lp`} onClick={() => onOpenChange(false)}>
-                    <Button size="sm" variant="outline" className="h-8 px-2 text-xs" data-testid="button-modal-pool">
+                  <Link
+                    href={`/player/${cleanPlayerId}?panel=lp`}
+                    onClick={() => onOpenChange(false)}
+                  >
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 px-2 text-xs"
+                      data-testid="button-modal-pool"
+                    >
                       <Droplets className="w-4 h-4 mr-1" />
                       Pool
                     </Button>
@@ -222,7 +264,9 @@ export function PlayerModal({ playerId, open, onOpenChange }: PlayerModalProps) 
               {/* Value Index Card */}
               <div className="border rounded-md p-2 bg-accent/5">
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Value Index</span>
+                  <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">
+                    Value Index
+                  </span>
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger>
@@ -237,16 +281,23 @@ export function PlayerModal({ playerId, open, onOpenChange }: PlayerModalProps) 
 
                 <div className="flex items-baseline gap-2">
                   <span className="text-sm font-bold">
-                    {financialMetrics.valueIndex !== undefined && financialMetrics.valueIndex !== null
+                    {financialMetrics.valueIndex !== undefined &&
+                    financialMetrics.valueIndex !== null
                       ? financialMetrics.valueIndex.toFixed(0)
                       : "N/A"}
                   </span>
                   {(financialMetrics.valueIndex || 0) < 100 ? (
-                    <Badge variant="default" className="bg-green-500/15 text-green-600 hover:bg-green-500/25 border-green-500/20 text-[10px] px-1.5 h-5">
+                    <Badge
+                      variant="default"
+                      className="bg-green-500/15 text-green-600 hover:bg-green-500/25 border-green-500/20 text-[10px] px-1.5 h-5"
+                    >
                       🔥 Undervalued
                     </Badge>
                   ) : (
-                    <Badge variant="outline" className="text-red-500 border-red-500/30 text-[10px] px-1.5 h-5 bg-red-500/5">
+                    <Badge
+                      variant="outline"
+                      className="text-red-500 border-red-500/30 text-[10px] px-1.5 h-5 bg-red-500/5"
+                    >
                       Premium
                     </Badge>
                   )}
@@ -256,10 +307,18 @@ export function PlayerModal({ playerId, open, onOpenChange }: PlayerModalProps) 
               {/* Sentiment Gauge */}
               <div className="border rounded-md p-2 bg-accent/5">
                 <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Trader Sentiment</span>
-                  <span className={`text-[10px] font-bold ${financialMetrics.sentiment?.trend === 'bullish' ? 'text-green-500' :
-                    financialMetrics.sentiment?.trend === 'bearish' ? 'text-red-500' : 'text-yellow-500'
-                    }`}>
+                  <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">
+                    Trader Sentiment
+                  </span>
+                  <span
+                    className={`text-[10px] font-bold ${
+                      financialMetrics.sentiment?.trend === "bullish"
+                        ? "text-green-500"
+                        : financialMetrics.sentiment?.trend === "bearish"
+                          ? "text-red-500"
+                          : "text-yellow-500"
+                    }`}
+                  >
                     {financialMetrics.sentiment?.buyPressure?.toFixed(0) || 0}% Buy Vol
                   </span>
                 </div>
@@ -284,9 +343,15 @@ export function PlayerModal({ playerId, open, onOpenChange }: PlayerModalProps) 
                 <span className="text-xs font-semibold">Market Data</span>
               </div>
               {!isLoading && financialMetrics?.marketCapRank && (
-                <Badge variant="secondary" className="text-[10px] h-4 font-normal bg-blue-500/10 text-blue-600 dark:text-blue-400">
-                  {financialMetrics.marketCapRank.tier === 'blue_chip' ? '🐋 Blue Chip' :
-                    financialMetrics.marketCapRank.tier === 'mid_cap' ? '🏢 Mid Cap' : '🌑 Moonshot'}
+                <Badge
+                  variant="secondary"
+                  className="text-[10px] h-4 font-normal bg-blue-500/10 text-blue-600 dark:text-blue-400"
+                >
+                  {financialMetrics.marketCapRank.tier === "blue_chip"
+                    ? "🐋 Blue Chip"
+                    : financialMetrics.marketCapRank.tier === "mid_cap"
+                      ? "🏢 Mid Cap"
+                      : "🌑 Moonshot"}
                 </Badge>
               )}
             </div>
@@ -305,37 +370,50 @@ export function PlayerModal({ playerId, open, onOpenChange }: PlayerModalProps) 
                 <div>
                   <div className="text-muted-foreground text-[10px]">Price</div>
                   <div className="font-bold" data-testid="text-share-price">
-                    {sharesInfo.currentSharePrice ? `$${sharesInfo.currentSharePrice}` : <span className="text-muted-foreground text-[10px] font-normal">-</span>}
+                    {sharesInfo.currentSharePrice ? (
+                      `$${sharesInfo.currentSharePrice}`
+                    ) : (
+                      <span className="text-muted-foreground text-[10px] font-normal">-</span>
+                    )}
                   </div>
                 </div>
                 <div>
                   <div className="text-muted-foreground text-[10px]">Market Cap</div>
                   <div className="font-bold" data-testid="text-market-cap">
-                    {sharesInfo.marketCap ? `$${sharesInfo.marketCap}` : <span className="text-muted-foreground text-[10px] font-normal">-</span>}
+                    {sharesInfo.marketCap ? (
+                      `$${sharesInfo.marketCap}`
+                    ) : (
+                      <span className="text-muted-foreground text-[10px] font-normal">-</span>
+                    )}
                   </div>
                 </div>
                 <div>
                   <div className="text-muted-foreground text-[10px]">Shares</div>
-                  <div className="font-bold" data-testid="text-total-shares">{sharesInfo.totalSharesOutstanding.toLocaleString()}</div>
+                  <div className="font-bold" data-testid="text-total-shares">
+                    {sharesInfo.totalSharesOutstanding.toLocaleString()}
+                  </div>
                 </div>
                 <div>
                   <div className="text-muted-foreground text-[10px]">Holders</div>
-                  <div className="font-bold" data-testid="text-holders">{sharesInfo.totalHolders}</div>
+                  <div className="font-bold" data-testid="text-holders">
+                    {sharesInfo.totalHolders}
+                  </div>
                 </div>
                 <div>
                   <div className="text-muted-foreground text-[10px]">24h Vol</div>
-                  <div className="font-bold" data-testid="text-volume">{Number(sharesInfo.volume24h || 0).toLocaleString()}</div>
+                  <div className="font-bold" data-testid="text-volume">
+                    {Number(sharesInfo.volume24h || 0).toLocaleString()}
+                  </div>
                 </div>
                 <div>
                   <div className="text-muted-foreground text-[10px]">24h Chg</div>
                   <div
-                    className={`font-bold ${parseFloat(sharesInfo.priceChange24h) >= 0
-                      ? 'text-positive'
-                      : 'text-negative'
-                      }`}
+                    className={`font-bold ${
+                      parseFloat(sharesInfo.priceChange24h) >= 0 ? "text-positive" : "text-negative"
+                    }`}
                     data-testid="text-price-change"
                   >
-                    {parseFloat(sharesInfo.priceChange24h) >= 0 ? '+' : ''}
+                    {parseFloat(sharesInfo.priceChange24h) >= 0 ? "+" : ""}
                     {sharesInfo.priceChange24h}%
                   </div>
                 </div>
@@ -346,9 +424,7 @@ export function PlayerModal({ playerId, open, onOpenChange }: PlayerModalProps) 
           </div>
 
           {/* Scout Assignment - Only for authenticated users */}
-          {isAuthenticated && playerId && (
-            <ScoutSelector playerId={playerId} />
-          )}
+          {isAuthenticated && playerId && <ScoutSelector playerId={playerId} />}
 
           {/* Season Stats - Compact List */}
           <div className="border rounded-md p-2">
@@ -364,22 +440,24 @@ export function PlayerModal({ playerId, open, onOpenChange }: PlayerModalProps) 
               </div>
             ) : stats ? (
               <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs">
-                {(SPORT_CONFIG[sport]?.seasonStats || SPORT_CONFIG.NBA.seasonStats).map((statConfig) => {
-                  const value = stats[statConfig.key];
-                  if (value === undefined || value === null) return null;
+                {(SPORT_CONFIG[sport]?.seasonStats || SPORT_CONFIG.NBA.seasonStats).map(
+                  (statConfig) => {
+                    const value = stats[statConfig.key];
+                    if (value === undefined || value === null) return null;
 
-                  return (
-                    <div key={statConfig.key} className="flex justify-between">
-                      <span className="text-muted-foreground">{statConfig.label}</span>
-                      <span
-                        className={`font-bold ${statConfig.highlight ? "text-primary" : ""}`}
-                        data-testid={`stat-${statConfig.key}`}
-                      >
-                        {statConfig.format ? statConfig.format(value) : value}
-                      </span>
-                    </div>
-                  );
-                })}
+                    return (
+                      <div key={statConfig.key} className="flex justify-between">
+                        <span className="text-muted-foreground">{statConfig.label}</span>
+                        <span
+                          className={`font-bold ${statConfig.highlight ? "text-primary" : ""}`}
+                          data-testid={`stat-${statConfig.key}`}
+                        >
+                          {statConfig.format ? statConfig.format(value) : value}
+                        </span>
+                      </div>
+                    );
+                  },
+                )}
               </div>
             ) : (
               <div className="text-center text-xs text-muted-foreground py-2">No stats</div>
@@ -399,29 +477,36 @@ export function PlayerModal({ playerId, open, onOpenChange }: PlayerModalProps) 
               <>
                 <div className="space-y-1">
                   {displayedGames.map((game: RecentGame, i: number) => (
-                    <div key={i} className="border rounded p-1.5 hover-elevate" data-testid={`card-game-${i}`}>
+                    <div
+                      key={i}
+                      className="border rounded p-1.5 hover-elevate"
+                      data-testid={`card-game-${i}`}
+                    >
                       <div className="flex justify-between items-center gap-2">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5 mb-0.5">
                             <span className="text-xs font-medium">
-                              {game.game.isHome ? 'vs' : '@'} {game.game.opponent}
+                              {game.game.isHome ? "vs" : "@"} {game.game.opponent}
                             </span>
                             <span className="text-[10px] text-muted-foreground">
-                              {format(new Date(game.game.date), 'MMM d')}
+                              {format(new Date(game.game.date), "MMM d")}
                             </span>
                           </div>
                           <div className="flex gap-2 text-[10px]">
-                            {(SPORT_CONFIG[sport]?.recentGames || SPORT_CONFIG.NBA.recentGames).map((statConfig) => {
-                              const value = game.stats[statConfig.key];
-                              // Skip 0 values for cleaner look, unless it's a key stat
-                              if (!value) return null;
+                            {(SPORT_CONFIG[sport]?.recentGames || SPORT_CONFIG.NBA.recentGames).map(
+                              (statConfig) => {
+                                const value = game.stats[statConfig.key];
+                                // Skip 0 values for cleaner look, unless it's a key stat
+                                if (!value) return null;
 
-                              return (
-                                <span key={statConfig.key} className="text-muted-foreground">
-                                  <span className="font-semibold text-foreground">{value}</span> {statConfig.label}
-                                </span>
-                              );
-                            })}
+                                return (
+                                  <span key={statConfig.key} className="text-muted-foreground">
+                                    <span className="font-semibold text-foreground">{value}</span>{" "}
+                                    {statConfig.label}
+                                  </span>
+                                );
+                              },
+                            )}
                           </div>
                         </div>
                         <div className="text-right flex-shrink-0">

@@ -9,7 +9,9 @@ import { storage } from "../storage";
 import type { JobResult } from "./scheduler";
 import type { ProgressCallback } from "../lib/admin-stream";
 
-export async function refreshPlayerVolume24hJob(progressCallback?: ProgressCallback): Promise<JobResult> {
+export async function refreshPlayerVolume24hJob(
+  progressCallback?: ProgressCallback,
+): Promise<JobResult> {
   progressCallback?.({
     type: "info",
     timestamp: new Date().toISOString(),

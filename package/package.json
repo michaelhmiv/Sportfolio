@@ -1,0 +1,24 @@
+{
+  "name": "@factory/cli-win32-x64",
+  "version": "0.57.8",
+  "description": "Platform-specific binary for @factory/cli (win32 x64)",
+  "os": [
+    "win32"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "main": "bin/droid.exe",
+  "files": [
+    "bin/"
+  ],
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Factory-AI/factory.git",
+    "directory": "apps/cli"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

@@ -2,12 +2,7 @@ import { motion } from "framer-motion";
 import { Flame, TrendingUp, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface TrendingIndicatorProps {
   scoutVelocity: number; // Scouts added per hour
@@ -25,7 +20,7 @@ export function TrendingIndicator({
   if (!isTrending && scoutVelocity < 5) return null;
 
   const intensity = scoutVelocity >= 20 ? "high" : scoutVelocity >= 10 ? "medium" : "low";
-  
+
   const colors = {
     high: "text-red-500 bg-red-500/10 border-red-500/30",
     medium: "text-orange-500 bg-orange-500/10 border-orange-500/30",
@@ -49,10 +44,7 @@ export function TrendingIndicator({
     >
       <Badge
         variant="outline"
-        className={cn(
-          "flex items-center gap-1 font-medium",
-          colors[intensity]
-        )}
+        className={cn("flex items-center gap-1 font-medium", colors[intensity])}
       >
         <motion.div
           animate={
@@ -83,12 +75,8 @@ export function TrendingIndicator({
       <Tooltip>
         <TooltipTrigger asChild>{content}</TooltipTrigger>
         <TooltipContent>
-          <p className="text-xs">
-            {scoutVelocity.toFixed(1)} scouts/hour
-          </p>
-          <p className="text-[10px] text-muted-foreground">
-            High scout activity detected
-          </p>
+          <p className="text-xs">{scoutVelocity.toFixed(1)} scouts/hour</p>
+          <p className="text-[10px] text-muted-foreground">High scout activity detected</p>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
@@ -114,11 +102,7 @@ export function ScoutVelocityBadge({
   if (velocity <= 0) return null;
 
   return (
-    <TrendingIndicator
-      scoutVelocity={velocity}
-      isTrending={isTrending}
-      className={className}
-    />
+    <TrendingIndicator scoutVelocity={velocity} isTrending={isTrending} className={className} />
   );
 }
 
@@ -128,11 +112,7 @@ interface ScoutCountBadgeProps {
   className?: string;
 }
 
-export function ScoutCountBadge({
-  count,
-  showAnimation = true,
-  className,
-}: ScoutCountBadgeProps) {
+export function ScoutCountBadge({ count, showAnimation = true, className }: ScoutCountBadgeProps) {
   if (count === 0) return null;
 
   return (
@@ -147,7 +127,9 @@ export function ScoutCountBadge({
         className="flex items-center gap-1 bg-blue-500/10 text-blue-500 border-blue-500/20"
       >
         <Users className="w-3 h-3" />
-        <span>{count} scout{count !== 1 ? "s" : ""}</span>
+        <span>
+          {count} scout{count !== 1 ? "s" : ""}
+        </span>
       </Badge>
     </motion.div>
   );

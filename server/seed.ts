@@ -22,10 +22,38 @@ async function seed() {
 
   // Seed players first (before vesting references them)
   const mockPlayers = [
-    { id: "lebron-james", firstName: "LeBron", lastName: "James", currentTeam: { abbreviation: "LAL" }, primaryPosition: "F", jerseyNumber: "23" },
-    { id: "stephen-curry", firstName: "Stephen", lastName: "Curry", currentTeam: { abbreviation: "GSW" }, primaryPosition: "G", jerseyNumber: "30" },
-    { id: "kevin-durant", firstName: "Kevin", lastName: "Durant", currentTeam: { abbreviation: "PHX" }, primaryPosition: "F", jerseyNumber: "35" },
-    { id: "giannis-antetokounmpo", firstName: "Giannis", lastName: "Antetokounmpo", currentTeam: { abbreviation: "MIL" }, primaryPosition: "F", jerseyNumber: "34" }
+    {
+      id: "lebron-james",
+      firstName: "LeBron",
+      lastName: "James",
+      currentTeam: { abbreviation: "LAL" },
+      primaryPosition: "F",
+      jerseyNumber: "23",
+    },
+    {
+      id: "stephen-curry",
+      firstName: "Stephen",
+      lastName: "Curry",
+      currentTeam: { abbreviation: "GSW" },
+      primaryPosition: "G",
+      jerseyNumber: "30",
+    },
+    {
+      id: "kevin-durant",
+      firstName: "Kevin",
+      lastName: "Durant",
+      currentTeam: { abbreviation: "PHX" },
+      primaryPosition: "F",
+      jerseyNumber: "35",
+    },
+    {
+      id: "giannis-antetokounmpo",
+      firstName: "Giannis",
+      lastName: "Antetokounmpo",
+      currentTeam: { abbreviation: "MIL" },
+      primaryPosition: "F",
+      jerseyNumber: "34",
+    },
   ];
   for (const player of mockPlayers) {
     await db
@@ -97,15 +125,15 @@ async function seed() {
   // Use ET timezone logic (same as /api/games/today endpoint)
   const now = new Date();
   const etOffset = -5; // ET is UTC-5 (EST) or UTC-4 (EDT), using -5 for simplicity
-  const nowET = new Date(now.getTime() + (etOffset * 60 * 60 * 1000));
+  const nowET = new Date(now.getTime() + etOffset * 60 * 60 * 1000);
 
   // Get start and end of day in ET, then convert back to UTC for database
   const startOfDayET = new Date(nowET.getFullYear(), nowET.getMonth(), nowET.getDate(), 0, 0, 0);
   const endOfDayET = new Date(nowET.getFullYear(), nowET.getMonth(), nowET.getDate(), 23, 59, 59);
 
   // Convert ET boundaries to UTC for database query
-  const startOfDayUTC = new Date(startOfDayET.getTime() - (etOffset * 60 * 60 * 1000));
-  const endOfDayUTC = new Date(endOfDayET.getTime() - (etOffset * 60 * 60 * 1000));
+  const startOfDayUTC = new Date(startOfDayET.getTime() - etOffset * 60 * 60 * 1000);
+  const endOfDayUTC = new Date(endOfDayET.getTime() - etOffset * 60 * 60 * 1000);
 
   // Create a pure date for gameDate field (midnight ET in local timezone representation)
   const todayDate = new Date(nowET.getFullYear(), nowET.getMonth(), nowET.getDate(), 0, 0, 0);
@@ -119,28 +147,25 @@ async function seed() {
       gameId: "game-1-today",
       homeTeam: "LAL",
       awayTeam: "GSW",
-      date: new Date(startOfDayET.getTime() - (etOffset * 60 * 60 * 1000)),
-      startTime: new Date(game1StartET.getTime() - (etOffset * 60 * 60 * 1000)), // Convert to UTC
+      date: new Date(startOfDayET.getTime() - etOffset * 60 * 60 * 1000),
+      startTime: new Date(game1StartET.getTime() - etOffset * 60 * 60 * 1000), // Convert to UTC
       status: "scheduled" as const,
     },
     {
       gameId: "game-2-today",
       homeTeam: "MIL",
       awayTeam: "PHX",
-      date: new Date(startOfDayET.getTime() - (etOffset * 60 * 60 * 1000)),
-      startTime: new Date(game2StartET.getTime() - (etOffset * 60 * 60 * 1000)), // Convert to UTC
+      date: new Date(startOfDayET.getTime() - etOffset * 60 * 60 * 1000),
+      startTime: new Date(game2StartET.getTime() - etOffset * 60 * 60 * 1000), // Convert to UTC
       status: "scheduled" as const,
     },
   ];
 
   for (const game of mockGames) {
-    await db
-      .insert(dailyGames)
-      .values(game)
-      .onConflictDoUpdate({
-        target: dailyGames.gameId,
-        set: game,
-      });
+    await db.insert(dailyGames).values(game).onConflictDoUpdate({
+      target: dailyGames.gameId,
+      set: game,
+    });
   }
 
   console.log("Created mock games for today (ET timezone)");
@@ -149,19 +174,14 @@ async function seed() {
   const todayGames = await db
     .select()
     .from(dailyGames)
-    .where(and(
-      gte(dailyGames.startTime, startOfDayUTC),
-      lte(dailyGames.startTime, endOfDayUTC)
-    ))
+    .where(and(gte(dailyGames.startTime, startOfDayUTC), lte(dailyGames.startTime, endOfDayUTC)))
     .orderBy(asc(dailyGames.startTime));
 
   // Set contest start time to earliest game time, or default to 7pm ET if no games
   const defaultStartET = new Date(nowET.getFullYear(), nowET.getMonth(), nowET.getDate(), 19, 0, 0);
-  const defaultStartTime = new Date(defaultStartET.getTime() - (etOffset * 60 * 60 * 1000));
+  const defaultStartTime = new Date(defaultStartET.getTime() - etOffset * 60 * 60 * 1000);
 
-  const contestStartTime = todayGames.length > 0
-    ? todayGames[0].startTime
-    : defaultStartTime;
+  const contestStartTime = todayGames.length > 0 ? todayGames[0].startTime : defaultStartTime;
 
   await db
     .insert(contests)

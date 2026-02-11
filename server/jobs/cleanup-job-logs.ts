@@ -27,9 +27,9 @@ export async function cleanupJobLogs(progressCallback?: ProgressCallback): Promi
   log("[cleanup_job_logs] Starting job execution logs cleanup...");
 
   progressCallback?.({
-    type: 'info',
+    type: "info",
     timestamp: new Date().toISOString(),
-    message: 'Starting job execution logs cleanup',
+    message: "Starting job execution logs cleanup",
   });
 
   try {
@@ -40,7 +40,7 @@ export async function cleanupJobLogs(progressCallback?: ProgressCallback): Promi
     log(`[cleanup_job_logs] Deleting logs older than ${cutoffDate.toISOString()}`);
 
     progressCallback?.({
-      type: 'info',
+      type: "info",
       timestamp: new Date().toISOString(),
       message: `Deleting logs older than ${cutoffDate.toISOString()}`,
     });
@@ -55,7 +55,7 @@ export async function cleanupJobLogs(progressCallback?: ProgressCallback): Promi
     log(`[cleanup_job_logs] Cleaned up ${deletedCount} old job log entries`);
 
     progressCallback?.({
-      type: 'complete',
+      type: "complete",
       timestamp: new Date().toISOString(),
       message: `Cleaned up ${deletedCount} old job log entries`,
       data: {
@@ -74,7 +74,7 @@ export async function cleanupJobLogs(progressCallback?: ProgressCallback): Promi
     log(`[cleanup_job_logs] Error: ${error.message}`);
 
     progressCallback?.({
-      type: 'error',
+      type: "error",
       timestamp: new Date().toISOString(),
       message: `Cleanup error: ${error.message}`,
     });
@@ -96,9 +96,7 @@ export async function getJobLogStats(): Promise<{
   oldestLogDate: Date | null;
   newestLogDate: Date | null;
 }> {
-  const [totalResult] = await db
-    .select({ count: sql<number>`COUNT(*)` })
-    .from(jobExecutionLogs);
+  const [totalResult] = await db.select({ count: sql<number>`COUNT(*)` }).from(jobExecutionLogs);
 
   const [oldCountResult] = await db
     .select({ count: sql<number>`COUNT(*)` })
@@ -114,8 +112,8 @@ export async function getJobLogStats(): Promise<{
     .from(jobExecutionLogs);
 
   return {
-    totalLogs: parseInt(totalResult?.count?.toString() || '0'),
-    logsOlderThan30Days: parseInt(oldCountResult?.count?.toString() || '0'),
+    totalLogs: parseInt(totalResult?.count?.toString() || "0"),
+    logsOlderThan30Days: parseInt(oldCountResult?.count?.toString() || "0"),
     oldestLogDate: oldestResult?.date || null,
     newestLogDate: newestResult?.date || null,
   };

@@ -6,22 +6,22 @@ This document describes all scheduled jobs, their purposes, and manual execution
 
 Jobs run in Eastern Time (ET). The scheduler is initialized in `server/jobs/scheduler.ts`.
 
-| Job Name | Schedule | Purpose |
-|----------|----------|---------|
-| `update_contest_statuses` | Every 5 min (`:01`) | Updates contest statuses based on game times |
-| `settle_contests` | Every 5 min (`:02`) | Settles completed contests and pays winners |
-| `bot_engine` | Archived | Legacy player order-book bot automation retired in AMM-only mode |
-| `vesting_accrual` | Every 5 min (`:04`) | Accrues vesting shares for users |
-| `news_fetch` | Every hour (`:00`) | Fetches sports news from Perplexity |
-| `roster_sync` | Daily 5:30 AM | Syncs NBA player roster from MySportsFeeds |
-| `schedule_sync` | Every hour (`:05`) | Syncs NBA game schedules |
-| `stats_sync` | Every hour (`:10`) | Syncs NBA game stats for completed games |
-| `stats_sync_live` | **Every 5 min** | **Unified live stats for ALL sports (NBA+NFL)** |
-| `create_contests` | Daily 00:20 | Creates contests for upcoming games |
-| `daily_snapshot` | Daily 1:30 AM | Creates daily market/rank snapshots |
-| `weekly_roundup` | Monday 6:00 AM | Generates weekly performance summaries |
-| `nfl_roster_sync` | Daily 4:30 AM | Syncs NFL players from Ball Don't Lie |
-| `nfl_schedule_sync` | Daily 6:45 AM | Syncs NFL game schedules |
+| Job Name                  | Schedule            | Purpose                                                          |
+| ------------------------- | ------------------- | ---------------------------------------------------------------- |
+| `update_contest_statuses` | Every 5 min (`:01`) | Updates contest statuses based on game times                     |
+| `settle_contests`         | Every 5 min (`:02`) | Settles completed contests and pays winners                      |
+| `bot_engine`              | Archived            | Legacy player order-book bot automation retired in AMM-only mode |
+| `vesting_accrual`         | Every 5 min (`:04`) | Accrues vesting shares for users                                 |
+| `news_fetch`              | Every hour (`:00`)  | Fetches sports news from Perplexity                              |
+| `roster_sync`             | Daily 5:30 AM       | Syncs NBA player roster from MySportsFeeds                       |
+| `schedule_sync`           | Every hour (`:05`)  | Syncs NBA game schedules                                         |
+| `stats_sync`              | Every hour (`:10`)  | Syncs NBA game stats for completed games                         |
+| `stats_sync_live`         | **Every 5 min**     | **Unified live stats for ALL sports (NBA+NFL)**                  |
+| `create_contests`         | Daily 00:20         | Creates contests for upcoming games                              |
+| `daily_snapshot`          | Daily 1:30 AM       | Creates daily market/rank snapshots                              |
+| `weekly_roundup`          | Monday 6:00 AM      | Generates weekly performance summaries                           |
+| `nfl_roster_sync`         | Daily 4:30 AM       | Syncs NFL players from Ball Don't Lie                            |
+| `nfl_schedule_sync`       | Daily 6:45 AM       | Syncs NFL game schedules                                         |
 
 ---
 
@@ -91,6 +91,7 @@ WHERE status = 'failed' AND started_at > NOW() - INTERVAL '24 hours';
 ### Debug Output
 
 Jobs log to console with prefixes:
+
 - `[stats_sync_live]` - Unified live stats
 - `[NFL Stats Sync]` - NFL stats processing
 - `[NFL Schedule Sync]` - NFL schedule updates
@@ -100,16 +101,19 @@ Jobs log to console with prefixes:
 ## Troubleshooting
 
 ### Job not running
+
 1. Check if enabled in `scheduler.ts`
 2. Verify cron expression is correct
 3. Check for overlapping job locks
 
 ### Job failing silently
+
 1. Check `job_execution_logs` table
 2. Review console logs for error messages
 3. Manually trigger job and observe output
 
 ### NFL scores not updating
+
 1. Trigger `nfl_schedule_sync` first (updates statuses)
 2. Then trigger `stats_sync_live` (fetches scores)
 3. Check debug logs for game status breakdown

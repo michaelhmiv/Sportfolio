@@ -90,7 +90,9 @@ export function WhaleAlertBanner({ className }: WhaleAlertBannerProps) {
         transition={{ type: "spring", stiffness: 400, damping: 25 }}
         className={cn(
           "fixed top-4 left-1/2 -translate-x-1/2 z-50",
-          "w-full max-w-lg px-4",
+          "w-[calc(100%-2rem)] max-w-lg px-0",
+          "max-[480px]:top-12",
+          "max-[480px]:w-[calc(100%-1rem)]",
           className
         )}
       >
@@ -101,15 +103,12 @@ export function WhaleAlertBanner({ className }: WhaleAlertBannerProps) {
             "backdrop-blur-sm shadow-2xl",
             isBuy
               ? "border-emerald-500/50 shadow-emerald-500/20"
-              : "border-red-500/50 shadow-red-500/20"
+              : "border-red-500/50 shadow-red-500/20",
           )}
         >
           {/* Animated background wave */}
           <motion.div
-            className={cn(
-              "absolute inset-0 opacity-10",
-              isBuy ? "bg-emerald-500" : "bg-red-500"
-            )}
+            className={cn("absolute inset-0 opacity-10", isBuy ? "bg-emerald-500" : "bg-red-500")}
             animate={{
               x: ["-100%", "100%"],
             }}
@@ -126,27 +125,27 @@ export function WhaleAlertBanner({ className }: WhaleAlertBannerProps) {
           />
 
           {/* Content */}
-          <div className="relative flex items-center gap-4">
+          <div className="relative flex items-center gap-2 sm:gap-4">
             {/* Icon */}
             <motion.div
               initial={{ scale: 0, rotate: -180 }}
               animate={{ scale: 1, rotate: 0 }}
               transition={{ type: "spring", stiffness: 400, damping: 20, delay: 0.1 }}
               className={cn(
-                "w-12 h-12 rounded-full flex items-center justify-center shrink-0",
+                "w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center shrink-0",
                 isBuy ? "bg-emerald-500/20" : "bg-red-500/20"
               )}
             >
               <Waves
                 className={cn(
-                  "w-6 h-6",
+                  "w-5 h-5 sm:w-6 sm:h-6",
                   isBuy ? "text-emerald-500" : "text-red-500"
                 )}
               />
             </motion.div>
 
             {/* Text */}
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0 overflow-hidden">
               <motion.div
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
@@ -160,7 +159,7 @@ export function WhaleAlertBanner({ className }: WhaleAlertBannerProps) {
                   animate={{ scale: [1, 1.2, 1] }}
                   transition={{ duration: 1, repeat: 3 }}
                   className={cn(
-                    "w-2 h-2 rounded-full",
+                    "w-2 h-2 rounded-full shrink-0",
                     isBuy ? "bg-emerald-500" : "bg-red-500"
                   )}
                 />
@@ -170,9 +169,11 @@ export function WhaleAlertBanner({ className }: WhaleAlertBannerProps) {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2 }}
-                className="text-sm font-medium mt-1"
+                className="text-sm font-medium mt-1 truncate"
               >
-                <span className="text-muted-foreground">{maskUsername(currentAlert.traderUsername)}</span>
+                <span className="text-muted-foreground">
+                  {maskUsername(currentAlert.traderUsername)}
+                </span>
                 <span className="mx-1">{isBuy ? "bought" : "sold"}</span>
                 <span className="font-bold">{currentAlert.playerName}</span>
               </motion.p>
@@ -185,7 +186,7 @@ export function WhaleAlertBanner({ className }: WhaleAlertBannerProps) {
               >
                 <span
                   className={cn(
-                    "text-lg font-bold font-mono",
+                    "text-base sm:text-lg font-bold font-mono",
                     isBuy ? "text-emerald-500" : "text-red-500"
                   )}
                 >
@@ -199,46 +200,49 @@ export function WhaleAlertBanner({ className }: WhaleAlertBannerProps) {
               </motion.div>
             </div>
 
-            {/* View Player Button */}
-            <motion.div
-              initial={{ opacity: 0, scale: 0 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.25 }}
-              className="shrink-0"
-            >
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleViewPlayer}
-                className={cn(
-                  "h-8 text-xs gap-1",
-                  isBuy
-                    ? "border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300"
-                    : "border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300"
-                )}
+            {/* Actions: View Button + Close */}
+            <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+              {/* View Player Button */}
+              <motion.div
+                initial={{ opacity: 0, scale: 0 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.25 }}
+                className="shrink-0"
               >
-                View
-                <ExternalLink className="w-3 h-3" />
-              </Button>
-            </motion.div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleViewPlayer}
+                  className={cn(
+                    "h-7 sm:h-8 text-xs gap-1 px-2 sm:px-3",
+                    isBuy
+                      ? "border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300"
+                      : "border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                  )}
+                >
+                  <span className="hidden sm:inline">View</span>
+                  <ExternalLink className="w-3 h-3" />
+                </Button>
+              </motion.div>
 
-            {/* Close button */}
-            <motion.button
-              initial={{ opacity: 0, scale: 0 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.3 }}
-              onClick={dismissAlert}
-              className="p-1.5 rounded-full hover:bg-white/10 transition-colors shrink-0"
-            >
-              <X className="w-4 h-4 text-muted-foreground" />
-            </motion.button>
+              {/* Close button */}
+              <motion.button
+                initial={{ opacity: 0, scale: 0 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.3 }}
+                onClick={dismissAlert}
+                className="p-1 sm:p-1.5 rounded-full hover:bg-white/10 transition-colors shrink-0"
+              >
+                <X className="w-4 h-4 text-muted-foreground" />
+              </motion.button>
+            </div>
           </div>
 
           {/* Progress bar */}
           <motion.div
             className={cn(
               "absolute bottom-0 left-0 h-0.5",
-              isBuy ? "bg-emerald-500" : "bg-red-500"
+              isBuy ? "bg-emerald-500" : "bg-red-500",
             )}
             initial={{ width: "100%" }}
             animate={{ width: "0%" }}
