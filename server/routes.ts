@@ -5,7 +5,7 @@ import { performance } from "node:perf_hooks";
 import { storage } from "./storage";
 import { db } from "./db";
 import { fetchActivePlayers, calculateFantasyPoints } from "./balldontlie-nba";
-import type { InsertPlayer, Player, User, Holding, CommunityBoost } from "@shared/schema";
+import type { InsertPlayer, Player, User, Holding, CommunityBoost, DailyGame } from "@shared/schema";
 import {
   contestLineups,
   contestEntries,
@@ -121,6 +121,47 @@ async function getDashboardPowerData(userId: string) {
   }
 }
 
+type GameInsightLeader = {
+  playerId: string;
+  name: string;
+  team: string;
+  avgFantasyPointsPerGame: number;
+  totalShares: number;
+  scoutCount: number;
+};
+
+type GameInsightUserContext = {
+  eligibleCount: number;
+  topPowerPlayers: Array<{
+    playerId: string;
+    name: string;
+    team: string;
+    powerLevel: number;
+    availableShares: number;
+    totalShares: number;
+    isBoosted: boolean;
+  }>;
+};
+
+type GameInsight = {
+  gameId: string;
+  sport: string;
+  gameDay: string;
+  status: string;
+  startTime: Date;
+  homeTeam: string;
+  awayTeam: string;
+  homeScore: number | null;
+  awayScore: number | null;
+  venue: string | null;
+  leaders: {
+    fantasy: GameInsightLeader | null;
+    shares: GameInsightLeader | null;
+    scouts: GameInsightLeader | null;
+  };
+  userContext: GameInsightUserContext | null;
+};
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Setup authentication middleware
   await setupAuth(app);
@@ -217,6 +258,149 @@ export async function registerRoutes(app: Express): Promise<Server> {
       throw new Error("User not authenticated");
     }
     return req.user.claims.sub;
+  };
+
+  const buildGameInsights = async ({
+    games,
+    sport,
+    dateStr,
+    userId,
+  }: {
+    games: DailyGame[];
+    sport: string;
+    dateStr: string;
+    userId?: string | null;
+  }): Promise<{ insights: GameInsight[]; boostSlotsRemaining: number | null }> => {
+    const teamSet = new Set<string>();
+    games.forEach(game => {
+      teamSet.add(game.homeTeam);
+      teamSet.add(game.awayTeam);
+    });
+
+    const teams = Array.from(teamSet);
+    const teamPlayers = teams.length > 0
+      ? await db
+        .select()
+        .from(players)
+        .where(and(
+          eq(players.sport, sport),
+          inArray(players.team, teams),
+          eq(players.isActive, true)
+        ))
+      : [];
+
+    const playerIds = teamPlayers.map(player => player.id);
+    const [seasonStatsMap, scoutCountsMap] = await Promise.all([
+      storage.getBatchPlayerSeasonStatsFromLogs(playerIds),
+      storage.getBatchActiveScoutCounts(playerIds),
+    ]);
+
+    const playersByTeam = new Map<string, typeof teamPlayers>();
+    teamPlayers.forEach(player => {
+      const list = playersByTeam.get(player.team) || [];
+      list.push(player);
+      playersByTeam.set(player.team, list);
+    });
+
+    const getCandidates = (game: DailyGame) => {
+      const candidates = [
+        ...(playersByTeam.get(game.homeTeam) || []),
+        ...(playersByTeam.get(game.awayTeam) || []),
+      ];
+
+      return candidates.map(player => ({
+        player,
+        avgFantasyPointsPerGame: parseFloat(seasonStatsMap.get(player.id)?.avgFantasyPointsPerGame || "0"),
+        totalShares: player.totalShares || 0,
+        scoutCount: scoutCountsMap.get(player.id) || 0,
+      }));
+    };
+
+    const buildLeader = (candidate: { player: Player; avgFantasyPointsPerGame: number; totalShares: number; scoutCount: number; }): GameInsightLeader => ({
+      playerId: candidate.player.id,
+      name: `${candidate.player.firstName} ${candidate.player.lastName}`,
+      team: candidate.player.team,
+      avgFantasyPointsPerGame: candidate.avgFantasyPointsPerGame,
+      totalShares: candidate.totalShares,
+      scoutCount: candidate.scoutCount,
+    });
+
+    let boostSlotsRemaining: number | null = null;
+    const userContextByGame = new Map<string, GameInsightUserContext>();
+    const boostedPlayerIds = new Set<string>();
+
+    if (userId) {
+      const { startOfDay } = getETDayBoundaries(dateStr);
+      const targetDate = new Date(startOfDay.getTime() + 12 * 60 * 60 * 1000);
+      const [eligiblePlayers, currentBoosts] = await Promise.all([
+        storage.getEligiblePlayersForBoost(userId, sport, targetDate),
+        storage.getDailyBoosts(userId, sport, targetDate),
+      ]);
+
+      currentBoosts.forEach(boost => boostedPlayerIds.add(boost.playerId));
+      boostSlotsRemaining = Math.max(0, 4 - currentBoosts.length);
+
+      const eligibleByGame = new Map<string, typeof eligiblePlayers>();
+      eligiblePlayers.forEach(player => {
+        if (!player.gameId) return;
+        const list = eligibleByGame.get(player.gameId) || [];
+        list.push(player);
+        eligibleByGame.set(player.gameId, list);
+      });
+
+      eligibleByGame.forEach((playersForGame, gameId) => {
+        // Each holding row represents a distinct share with its own power level
+        // We show individual shares because only ONE share can be placed in a boost slot
+        const topPowerPlayers = [...playersForGame]
+          .sort((a, b) => parseFloat(b.powerLevel || "0") - parseFloat(a.powerLevel || "0"))
+          .slice(0, 2)
+          .map(player => ({
+            playerId: player.player.id,
+            name: `${player.player.firstName} ${player.player.lastName}`,
+            team: player.player.team,
+            powerLevel: parseFloat(player.powerLevel || "0"),
+            availableShares: Number(player.availableShares || 0),
+            totalShares: Number(player.quantity || 0),
+            isBoosted: boostedPlayerIds.has(player.player.id),
+          }));
+
+        userContextByGame.set(gameId, {
+          eligibleCount: playersForGame.length,
+          topPowerPlayers,
+        });
+      });
+    }
+
+    const insights = games.map(game => {
+      const candidates = getCandidates(game);
+      const pickLeader = (key: "avgFantasyPointsPerGame" | "totalShares" | "scoutCount") => {
+        if (!candidates.length) return null;
+        const sorted = [...candidates].sort((a, b) => (b[key] ?? 0) - (a[key] ?? 0));
+        const top = sorted[0];
+        return top ? buildLeader(top) : null;
+      };
+
+      return {
+        gameId: game.gameId,
+        sport: game.sport,
+        gameDay: getGameDay(game.startTime),
+        status: game.status,
+        startTime: game.startTime,
+        homeTeam: game.homeTeam,
+        awayTeam: game.awayTeam,
+        homeScore: game.homeScore ?? null,
+        awayScore: game.awayScore ?? null,
+        venue: game.venue ?? null,
+        leaders: {
+          fantasy: pickLeader("avgFantasyPointsPerGame"),
+          shares: pickLeader("totalShares"),
+          scouts: pickLeader("scoutCount"),
+        },
+        userContext: userContextByGame.get(game.gameId) || null,
+      } satisfies GameInsight;
+    });
+
+    return { insights, boostSlotsRemaining };
   };
 
   // Helper: Enrich player data with last trade price (market value)
@@ -1259,6 +1443,123 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(gamesWithDay);
     } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/games/insights", optionalAuth, async (req, res) => {
+    try {
+      const sport = (req.query.sport as string) || "NBA";
+      const rawDate = typeof req.query.date === "string" ? req.query.date : getTodayET();
+      const dateStr = /^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? rawDate : getTodayET();
+      const { startOfDay, endOfDay } = getETDayBoundaries(dateStr);
+      const games = await storage.getDailyGamesBySport(sport, startOfDay, endOfDay);
+
+      const userId = req.user ? getUserId(req) : null;
+      const { insights, boostSlotsRemaining } = await buildGameInsights({
+        games,
+        sport,
+        dateStr,
+        userId,
+      });
+
+      res.json({
+        date: dateStr,
+        sport,
+        boostSlotsRemaining,
+        games: insights,
+      });
+    } catch (error: any) {
+      console.error("[games/insights] Error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/games/:gameId/insights", optionalAuth, async (req, res) => {
+    try {
+      const { gameId } = req.params;
+      const sport = (req.query.sport as string) || "NBA";
+      const game = await storage.getDailyGameByGameId(gameId);
+
+      if (!game) {
+        return res.status(404).json({ error: "Game not found" });
+      }
+
+      const dateStr = getGameDay(game.startTime);
+      const userId = req.user ? getUserId(req) : null;
+
+      const { insights, boostSlotsRemaining } = await buildGameInsights({
+        games: [game],
+        sport,
+        dateStr,
+        userId,
+      });
+
+      const gameInsight = insights[0];
+      const teamPlayers = await db
+        .select()
+        .from(players)
+        .where(and(
+          eq(players.sport, sport),
+          inArray(players.team, [game.homeTeam, game.awayTeam]),
+          eq(players.isActive, true)
+        ));
+
+      const playerIds = teamPlayers.map(player => player.id);
+      const [seasonStatsMap, scoutCountsMap] = await Promise.all([
+        storage.getBatchPlayerSeasonStatsFromLogs(playerIds),
+        storage.getBatchActiveScoutCounts(playerIds),
+      ]);
+
+      const candidates = teamPlayers.map(player => ({
+        player,
+        avgFantasyPointsPerGame: parseFloat(seasonStatsMap.get(player.id)?.avgFantasyPointsPerGame || "0"),
+        totalShares: player.totalShares || 0,
+        scoutCount: scoutCountsMap.get(player.id) || 0,
+      }));
+
+      const topBy = (key: "avgFantasyPointsPerGame" | "totalShares" | "scoutCount") => (
+        [...candidates]
+          .sort((a, b) => (b[key] ?? 0) - (a[key] ?? 0))
+          .slice(0, 5)
+          .map(entry => ({
+            playerId: entry.player.id,
+            name: `${entry.player.firstName} ${entry.player.lastName}`,
+            team: entry.player.team,
+            avgFantasyPointsPerGame: entry.avgFantasyPointsPerGame,
+            totalShares: entry.totalShares,
+            scoutCount: entry.scoutCount,
+          }))
+      );
+
+      const injuries = teamPlayers
+        .filter(player => player.injuryStatus && player.injuryStatus !== "")
+        .map(player => ({
+          playerId: player.id,
+          name: `${player.firstName} ${player.lastName}`,
+          team: player.team,
+          status: player.injuryStatus,
+          description: player.injuryDescription || null,
+          returnDate: player.injuryReturnDate || null,
+        }))
+        .sort((a, b) => a.team.localeCompare(b.team));
+
+      res.json({
+        date: dateStr,
+        sport,
+        boostSlotsRemaining,
+        game: gameInsight,
+        leaders: gameInsight?.leaders || { fantasy: null, shares: null, scouts: null },
+        topPlayers: {
+          fantasy: topBy("avgFantasyPointsPerGame"),
+          shares: topBy("totalShares"),
+          scouts: topBy("scoutCount"),
+        },
+        injuries,
+        userContext: gameInsight?.userContext || null,
+      });
+    } catch (error: any) {
+      console.error("[games/insights/:gameId] Error:", error);
       res.status(500).json({ error: error.message });
     }
   });

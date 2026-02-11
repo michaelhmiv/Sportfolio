@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -36,30 +36,28 @@ import {
   ExternalLink,
   ArrowUpDown,
   LogIn,
+  Zap,
+  Flame,
   Activity,
   Trophy,
   Clock,
 } from "lucide-react";
 import { useAppState } from "@/hooks/use-app-state";
 import { Link, useLocation } from "wouter";
-import type { Player, Trade, DailyGame } from "@shared/schema";
-import { apiRequest, queryClient } from "@/lib/queryClient";
-import { formatBalance } from "@/lib/utils";
-import { useToast } from "@/hooks/use-toast";
+import type { Player, Trade } from "@shared/schema";
 import { useAuth } from "@/hooks/useAuth";
-import { invalidatePortfolioQueries } from "@/lib/cache-invalidation";
 import { DashboardScanners } from "@/components/marketplace-scanners";
 import { PlayerName } from "@/components/player-name";
-import { WhopAd } from "@/components/whop-ad";
-import { Shimmer, ShimmerCard, ScrollReveal, AnimatedButton } from "@/components/ui/animations";
+import { Shimmer, ShimmerCard, ScrollReveal } from "@/components/ui/animations";
 import { AnimatedPrice } from "@/components/ui/animated-price";
 import { useSport } from "@/lib/sport-context";
 import { SportSelector } from "@/components/sport-selector";
 import { OnboardingMissions } from "@/components/onboarding-missions";
 import { MarketTicker } from "@/components/market-ticker";
-import { GameStatsModal } from "@/components/game-stats-modal";
-import { Zap, Flame } from "lucide-react";
-import { BackgroundPattern, CardAccent, TierBadge } from "@/components/ui/decorative-elements";
+import { GameCommandCenterCard } from "@/components/game-command-center-card";
+import { GameCommandCenterModal } from "@/components/game-command-center-modal";
+import { BackgroundPattern, CardAccent } from "@/components/ui/decorative-elements";
+import type { GameInsight, GameInsightsResponse } from "@/types/game-insights";
 
 interface DashboardData {
   user: {
@@ -93,8 +91,10 @@ interface DashboardData {
   } | null;
 }
 
+type EffectiveGameStatus = "scheduled" | "inprogress" | "completed" | "postponed";
+
 // Helper to determine effective game status based on current time
-const getEffectiveGameStatus = (game: DailyGame): string => {
+const getEffectiveGameStatus = (game: Pick<GameInsight, "startTime" | "status">): EffectiveGameStatus => {
   const now = new Date();
   const startTime = new Date(game.startTime);
   const timeSinceStart = now.getTime() - startTime.getTime();
@@ -125,18 +125,16 @@ const getEffectiveGameStatus = (game: DailyGame): string => {
     return "completed";
   }
 
-  return game.status;
+  return game.status as EffectiveGameStatus;
 };
 
 export default function Dashboard() {
-  const { toast } = useToast();
-  const { isAuthenticated, user } = useAuth();
-  const isPremiumUser = user?.isPremium || false;
+  const { isAuthenticated } = useAuth();
   const [, setLocation] = useLocation();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const { sport } = useSport();
-  const [flippedGameId, setFlippedGameId] = useState<string | null>(null);
+  const [activeGame, setActiveGame] = useState<GameInsight | null>(null);
   const { shouldPoll, isMobile } = useAppState();
 
   // Disable polling when app is backgrounded or offline; reduce frequency on mobile
@@ -221,18 +219,24 @@ export default function Dashboard() {
 
   const formattedDate = formatDateForAPI(selectedDate);
 
-  const { data: todayGames } = useQuery<DailyGame[]>({
-    queryKey: isToday(selectedDate)
-      ? ["/api/games/today", sport]
-      : ["/api/games/date", formattedDate, sport],
+  const { data: gameInsights, isLoading: isLoadingGames } = useQuery<GameInsightsResponse>({
+    queryKey: ["/api/games/insights", sport, formattedDate],
     queryFn: async () => {
-      const endpoint = isToday(selectedDate)
-        ? `/api/games/today?sport=${sport}`
-        : `/api/games/date/${formattedDate}?sport=${sport}`;
-      const res = await fetch(endpoint);
-      if (!res.ok) throw new Error("Failed to fetch games");
+      const res = await fetch(`/api/games/insights?sport=${sport}&date=${formattedDate}`);
+      if (!res.ok) throw new Error('Failed to fetch game insights');
       return res.json();
     },
+    refetchInterval: isToday(selectedDate) ? pollingInterval : false,
+    refetchIntervalInBackground: false,
+  });
+
+  const games = gameInsights?.games || [];
+  const boostSlotsRemaining = gameInsights?.boostSlotsRemaining ?? null;
+  const liveGames = games.filter(game => getEffectiveGameStatus(game) === "inprogress");
+  const upcomingGames = games.filter(game => getEffectiveGameStatus(game) === "scheduled");
+  const finalGames = games.filter(game => {
+    const status = getEffectiveGameStatus(game);
+    return status === "completed" || status === "postponed";
   });
 
   // Navigation helpers with validation
@@ -432,184 +436,134 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* Games */}
-          {todayGames && (
-            <ScrollReveal delay={0.1}>
-              <Card className="mb-3 sm:mb-6 relative overflow-hidden">
-                {/* Card Accent */}
-                <CardAccent variant="top" color="primary" intensity="medium" />
-                <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 space-y-0 pb-2 relative z-10">
-                  <div className="flex items-center gap-2">
-                    <CardTitle className="text-sm font-medium uppercase tracking-wide">
-                      {isToday(selectedDate) ? "Today's Games" : "Games"}
-                    </CardTitle>
-                    <SportSelector size="sm" />
-                  </div>
-                  <div className="flex items-center gap-2 flex-wrap">
+          {/* Games Section */}
+          <ScrollReveal delay={0.1}>
+            <Card className="mb-3 sm:mb-6 relative overflow-hidden">
+              <CardAccent variant="top" color="primary" intensity="medium" />
+              <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 space-y-0 pb-2 relative z-10">
+                {/* Left side: Sport selector on mobile, Title + Sport on desktop */}
+                <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-start">
+                <CardTitle className="text-sm font-medium uppercase tracking-wide hidden sm:block">Games</CardTitle>
+                <SportSelector size="sm" />
+              </div>
+
+              {/* Right side: Date controls */}
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={goToPrevDay}
+                  disabled={!isDateInRange(new Date(selectedDate.getTime() - 86400000))}
+                  className="h-8 px-2 sm:px-3"
+                  data-testid="button-prev-day"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+
+                <Popover open={showDatePicker} onOpenChange={setShowDatePicker}>
+                  <PopoverTrigger asChild>
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={goToPrevDay}
-                      disabled={!isDateInRange(new Date(selectedDate.getTime() - 86400000))}
-                      className="h-8"
-                      data-testid="button-prev-day"
+                      className="h-8 gap-2 px-2 sm:px-3"
+                      data-testid="button-open-calendar"
                     >
-                      <ChevronLeft className="w-4 h-4" />
-                    </Button>
-
-                    <Popover open={showDatePicker} onOpenChange={setShowDatePicker}>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-8 gap-2"
-                          data-testid="button-open-calendar"
-                        >
-                          <Calendar className="w-4 h-4" />
-                          <span className="text-sm">
-                            {selectedDate.toLocaleDateString("en-US", {
-                              month: "short",
-                              day: "numeric",
-                              year:
-                                selectedDate.getFullYear() !== new Date().getFullYear()
-                                  ? "numeric"
-                                  : undefined,
-                            })}
-                          </span>
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="end">
-                        <CalendarComponent
-                          mode="single"
-                          selected={selectedDate}
-                          onSelect={handleDateSelect}
-                          disabled={(date) => !isDateInRange(date)}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={goToNextDay}
-                      disabled={!isDateInRange(new Date(selectedDate.getTime() + 86400000))}
-                      className="h-8"
-                      data-testid="button-next-day"
-                    >
-                      <ChevronRight className="w-4 h-4" />
-                    </Button>
-
-                    {!isToday(selectedDate) && (
-                      <Button
-                        variant="default"
-                        size="sm"
-                        onClick={goToToday}
-                        className="h-8"
-                        data-testid="button-today"
-                      >
-                        Today
-                      </Button>
-                    )}
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  {todayGames.length > 0 ? (
-                    <div className="overflow-x-auto -mx-2 px-2 relative">
-                      <div className="grid grid-rows-2 grid-flow-col auto-cols-[minmax(140px,1fr)] gap-2">
-                        {todayGames.map((game) => {
-                          const effectiveStatus = getEffectiveGameStatus(game);
-                          const plainTextSportsUrl = getPlainTextSportsUrl(game);
-
-                          return (
-                            <div
-                              key={game.gameId}
-                              data-game-card-id={game.gameId}
-                              className="relative"
-                              data-testid={`game-${game.gameId}`}
-                            >
-                              {/* Game Score Card - click to open stats modal */}
-                              <div
-                                className="p-2 rounded-md bg-muted hover:bg-secondary cursor-pointer relative overflow-hidden group"
-                                onClick={() => {
-                                  setFlippedGameId(game.gameId);
-                                }}
-                              >
-                                {/* Status Indicator for Live Games */}
-                                <div className="flex flex-col gap-1">
-                                  <div className="flex items-center justify-between">
-                                    <span className="font-medium text-xs">{game.awayTeam}</span>
-                                    {(effectiveStatus === "completed" ||
-                                      effectiveStatus === "inprogress") &&
-                                      game.awayScore != null && (
-                                        <span className="font-mono font-bold text-xs">
-                                          {game.awayScore}
-                                        </span>
-                                      )}
-                                  </div>
-                                  <div className="flex items-center justify-between">
-                                    <span className="font-medium text-xs">{game.homeTeam}</span>
-                                    {(effectiveStatus === "completed" ||
-                                      effectiveStatus === "inprogress") &&
-                                      game.homeScore != null && (
-                                        <span className="font-mono font-bold text-xs">
-                                          {game.homeScore}
-                                        </span>
-                                      )}
-                                  </div>
-                                  <div className="flex items-center justify-between text-xs mt-0.5">
-                                    <span className="text-muted-foreground text-[10px]">
-                                      {effectiveStatus === "postponed"
-                                        ? "Postponed"
-                                        : effectiveStatus === "scheduled"
-                                          ? new Date(game.startTime).toLocaleTimeString([], {
-                                              hour: "numeric",
-                                              minute: "2-digit",
-                                            })
-                                          : effectiveStatus === "completed"
-                                            ? "Final"
-                                            : "Live"}
-                                    </span>
-                                    <Badge
-                                      variant={
-                                        effectiveStatus === "inprogress"
-                                          ? "default"
-                                          : effectiveStatus === "completed"
-                                            ? "secondary"
-                                            : effectiveStatus === "postponed"
-                                              ? "destructive"
-                                              : "outline"
-                                      }
-                                      className="text-[10px] h-4 px-1"
-                                    >
-                                      {effectiveStatus === "inprogress"
-                                        ? "LIVE"
-                                        : effectiveStatus === "completed"
-                                          ? "Final"
-                                          : effectiveStatus === "postponed"
-                                            ? "PPD"
-                                            : new Date(game.startTime).toLocaleDateString([], {
-                                                month: "short",
-                                                day: "numeric",
-                                              })}
-                                    </Badge>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          );
+                      <Calendar className="w-4 h-4" />
+                      <span className="text-sm">
+                        {selectedDate.toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: selectedDate.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined
                         })}
+                      </span>
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="end">
+                    <CalendarComponent
+                      mode="single"
+                      selected={selectedDate}
+                      onSelect={handleDateSelect}
+                      disabled={(date) => !isDateInRange(date)}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={goToNextDay}
+                  disabled={!isDateInRange(new Date(selectedDate.getTime() + 86400000))}
+                  className="h-8 px-2 sm:px-3"
+                  data-testid="button-next-day"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+
+                {!isToday(selectedDate) && (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={goToToday}
+                    className="h-8 px-2 sm:px-3 hidden sm:inline-flex"
+                    data-testid="button-today"
+                  >
+                    Today
+                  </Button>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {isLoadingGames ? (
+                <div className="space-y-3">
+                  <ShimmerCard lines={3} />
+                  <ShimmerCard lines={3} />
+                </div>
+              ) : games.length > 0 ? (
+                <>
+                  {[
+                    { title: "Live", games: liveGames, empty: "No live games right now." },
+                    { title: "Upcoming", games: upcomingGames, empty: "No upcoming games scheduled." },
+                    { title: "Final", games: finalGames, empty: "No final scores yet." },
+                  ].map(section => (
+                    <div key={section.title} className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                          {section.title}
+                        </div>
+                        <Badge variant="outline">{section.games.length}</Badge>
                       </div>
+                      {section.games.length > 0 ? (
+                        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                          {section.games.map(game => {
+                            const effectiveStatus = getEffectiveGameStatus(game);
+                            return (
+                              <GameCommandCenterCard
+                                key={game.gameId}
+                                game={game}
+                                effectiveStatus={effectiveStatus}
+                                boostSlotsRemaining={boostSlotsRemaining}
+                                isAuthenticated={isAuthenticated}
+                                onOpen={() => setActiveGame(game)}
+                              />
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="text-sm text-muted-foreground">{section.empty}</div>
+                      )}
                     </div>
-                  ) : (
-                    <div className="text-center py-8 text-sm text-muted-foreground">
-                      ⊡ No games scheduled for this date
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </ScrollReveal>
-          )}
+                  ))}
+                </>
+              ) : (
+                <div className="text-center py-8 text-sm text-muted-foreground">
+                  ⊡ No games scheduled for this date
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </ScrollReveal>
+
 
           {/* Market Scanners Carousel */}
           <ScrollReveal delay={0.15}>
@@ -783,44 +737,15 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Game Stats Modal */}
-      {flippedGameId && (
-        <GameStatsModal
-          gameId={flippedGameId}
+      {activeGame && (
+        <GameCommandCenterModal
+          gameId={activeGame.gameId}
           sport={sport}
-          onClose={() => setFlippedGameId(null)}
+          date={formattedDate}
+          initialInsight={activeGame}
+          onClose={() => setActiveGame(null)}
         />
       )}
     </>
   );
-}
-
-// Helper function to build Plain Text Sports URL from game data
-// Takes game date and team codes directly from database
-// Plain Text Sports format: https://plaintextsports.com/nba/YYYY-MM-DD/away-home
-function getPlainTextSportsUrl(game: DailyGame): string {
-  try {
-    // Format date as YYYY-MM-DD
-    const gameDate = new Date(game.date);
-    const year = gameDate.getFullYear();
-    const month = String(gameDate.getMonth() + 1).padStart(2, "0");
-    const day = String(gameDate.getDate()).padStart(2, "0");
-    const formattedDate = `${year}-${month}-${day}`;
-
-    // Team code mapping for Plain Text Sports URLs only
-    // MySportsFeeds uses BRO but Plain Text Sports uses BKN for Brooklyn
-    const teamCodeMapping: Record<string, string> = {
-      BRO: "BKN",
-    };
-
-    // Apply mapping and lowercase for URL
-    const awayTeam = (teamCodeMapping[game.awayTeam] || game.awayTeam).toLowerCase();
-    const homeTeam = (teamCodeMapping[game.homeTeam] || game.homeTeam).toLowerCase();
-    const sport = game.sport ? game.sport.toLowerCase() : "nba";
-
-    return `https://plaintextsports.com/${sport}/${formattedDate}/${awayTeam}-${homeTeam}`;
-  } catch (error) {
-    console.error("[Game Card] Error building Plain Text Sports URL:", error);
-    return "#";
-  }
 }
