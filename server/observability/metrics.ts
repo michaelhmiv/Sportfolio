@@ -16,6 +16,7 @@ const httpRequestDuration = new client.Histogram({
   help: "HTTP request duration in milliseconds",
   labelNames: ["method", "path", "status"],
   buckets: [5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000],
+  registers: enabled ? [register] : [],
 });
 
 const httpExternalRequestDuration = new client.Histogram({
@@ -23,12 +24,8 @@ const httpExternalRequestDuration = new client.Histogram({
   help: "External HTTP request duration in milliseconds",
   labelNames: ["host", "status"],
   buckets: [5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000],
+  registers: enabled ? [register] : [],
 });
-
-if (enabled) {
-  register.registerMetric(httpRequestDuration);
-  register.registerMetric(httpExternalRequestDuration);
-}
 
 export function observeExternalHttpRequest(args: {
   host: string;
