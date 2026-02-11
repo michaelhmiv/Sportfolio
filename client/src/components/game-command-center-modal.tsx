@@ -645,6 +645,15 @@ export function GameCommandCenterModal({
   });
 
   const handleQuickScout = (playerId: string) => {
+    if (!isAuthenticated) {
+      toast({
+        title: "Sign in required",
+        description: "Please sign in to assign scouts.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const currentCount = scoutAssignmentsByPlayer.get(playerId)?.scoutCount || 0;
 
     if (currentCount > 0) {
@@ -1056,11 +1065,15 @@ export function GameCommandCenterModal({
                                   className="h-6 px-2 text-[10px]"
                                   onClick={() => handleQuickScout(player.playerId)}
                                   disabled={
-                                    quickScoutMutation.isPending || swapScoutMutation.isPending
+                                    !isAuthenticated ||
+                                    quickScoutMutation.isPending ||
+                                    swapScoutMutation.isPending
                                   }
                                 >
                                   {quickScoutMutation.isPending || swapScoutMutation.isPending ? (
                                     <Loader2 className="h-3 w-3 animate-spin" />
+                                  ) : !isAuthenticated ? (
+                                    "Sign In"
                                   ) : scoutData?.remaining ? (
                                     "Quick Scout"
                                   ) : (

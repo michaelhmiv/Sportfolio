@@ -287,11 +287,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     dateStr: string;
     userId?: string | null;
   }): Promise<{ insights: GameInsight[]; boostSlotsRemaining: number | null }> => {
-    const requestedSport = sport.toUpperCase();
+    const normalizedSport = (sport || "NBA").toUpperCase();
     const teamsBySport = new Map<string, Set<string>>();
 
     games.forEach((game) => {
-      const gameSport = (requestedSport === "ALL" ? game.sport : sport).toUpperCase();
+      const gameSport = (normalizedSport === "ALL" ? game.sport : normalizedSport).toUpperCase();
       const teams = teamsBySport.get(gameSport) || new Set<string>();
       teams.add(game.homeTeam);
       teams.add(game.awayTeam);
@@ -338,7 +338,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
 
     const getCandidates = (game: DailyGame) => {
-      const gameSport = (requestedSport === "ALL" ? game.sport : sport).toUpperCase();
+      const gameSport = (normalizedSport === "ALL" ? game.sport : normalizedSport).toUpperCase();
       const candidates = [
         ...(playersByTeam.get(playerTeamKey(gameSport, game.homeTeam)) || []),
         ...(playersByTeam.get(playerTeamKey(gameSport, game.awayTeam)) || []),
@@ -1775,9 +1775,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           team?: string;
         }>,
       ) => {
-        if (!req.user?.claims?.sub) return null;
+        const userId =
+          (typeof req?.user?.claims?.sub === "string" && req.user.claims.sub) ||
+          (typeof req?.user?.id === "string" && req.user.id) ||
+          (typeof req?.userId === "string" && req.userId) ||
+          null;
 
-        const userId = getUserId(req);
+        if (!userId) return null;
+
         const holdingsWithPlayers = await storage.getUserHoldingsWithPlayers(userId);
         const liveByPlayerId = new Map<string, { playerId: string; fantasyPoints: number }>();
         const liveByNameAndTeam = new Map<string, number>();
