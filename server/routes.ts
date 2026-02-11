@@ -298,6 +298,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       eligibleByGame.forEach((playersForGame, gameId) => {
+        // Each holding row represents a distinct share with its own power level
+        // We show individual shares because only ONE share can be placed in a boost slot
         const topPowerPlayers = [...playersForGame]
           .sort((a, b) => parseFloat(b.powerLevel || "0") - parseFloat(a.powerLevel || "0"))
           .slice(0, 2)

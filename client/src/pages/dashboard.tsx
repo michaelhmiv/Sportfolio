@@ -370,22 +370,25 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* Game Command Center */}
+          {/* Games Section */}
           <ScrollReveal delay={0.1}>
             <Card className="mb-3 sm:mb-6 relative overflow-hidden">
               <CardAccent variant="top" color="primary" intensity="medium" />
               <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 space-y-0 pb-2 relative z-10">
-                <div className="flex items-center gap-2">
-                  <CardTitle className="text-sm font-medium uppercase tracking-wide">Game Command Center</CardTitle>
+                {/* Left side: Sport selector on mobile, Title + Sport on desktop */}
+                <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-start">
+                  <CardTitle className="text-sm font-medium uppercase tracking-wide hidden sm:block">Games</CardTitle>
                   <SportSelector size="sm" />
                 </div>
-                <div className="flex items-center gap-2 flex-wrap">
+
+                {/* Right side: Date controls */}
+                <div className="flex items-center gap-1.5 sm:gap-2">
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={goToPrevDay}
                     disabled={!isDateInRange(new Date(selectedDate.getTime() - 86400000))}
-                    className="h-8"
+                    className="h-8 px-2 sm:px-3"
                     data-testid="button-prev-day"
                   >
                     <ChevronLeft className="w-4 h-4" />
@@ -396,7 +399,7 @@ export default function Dashboard() {
                       <Button
                         variant="outline"
                         size="sm"
-                        className="h-8 gap-2"
+                        className="h-8 gap-2 px-2 sm:px-3"
                         data-testid="button-open-calendar"
                       >
                         <Calendar className="w-4 h-4" />
@@ -425,7 +428,7 @@ export default function Dashboard() {
                     size="sm"
                     onClick={goToNextDay}
                     disabled={!isDateInRange(new Date(selectedDate.getTime() + 86400000))}
-                    className="h-8"
+                    className="h-8 px-2 sm:px-3"
                     data-testid="button-next-day"
                   >
                     <ChevronRight className="w-4 h-4" />
@@ -436,7 +439,7 @@ export default function Dashboard() {
                       variant="default"
                       size="sm"
                       onClick={goToToday}
-                      className="h-8"
+                      className="h-8 px-2 sm:px-3 hidden sm:inline-flex"
                       data-testid="button-today"
                     >
                       Today

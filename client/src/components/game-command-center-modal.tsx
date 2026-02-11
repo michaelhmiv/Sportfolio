@@ -1,11 +1,13 @@
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { RefreshCw } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { RefreshCw, ChevronDown, ChevronUp, AlertTriangle, Zap, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Shimmer } from "@/components/ui/animations";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import type { GameInsight, GameInsightDetailResponse } from "@/types/game-insights";
 
 interface GameCommandCenterModalProps {
@@ -58,7 +60,12 @@ export function GameCommandCenterModal({
   initialInsight,
   onClose,
 }: GameCommandCenterModalProps) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("pre");
+  const [showAllInjuries, setShowAllInjuries] = useState(false);
+  const [showBoostSelector, setShowBoostSelector] = useState(false);
+  const [selectedTier, setSelectedTier] = useState<2 | 3 | 4 | 5 | null>(null);
 
   const { data: insight, isLoading } = useQuery<GameInsightDetailResponse>({
     queryKey: ["/api/games", gameId, "insights", sport, date],
@@ -104,11 +111,63 @@ export function GameCommandCenterModal({
     return [...players].sort((a, b) => b.fantasyPoints - a.fantasyPoints).slice(0, 5);
   }, [gameStats]);
 
+  // Split top players by team for Pre-Game tab
+  const awayTeamPlayers = useMemo(() => {
+    if (!insight?.topPlayers?.fantasy || !game) return [];
+    return insight.topPlayers.fantasy
+      .filter(p => p.team === game.awayTeam)
+      .slice(0, 5);
+  }, [insight?.topPlayers?.fantasy, game]);
+
+  const homeTeamPlayers = useMemo(() => {
+    if (!insight?.topPlayers?.fantasy || !game) return [];
+    return insight.topPlayers.fantasy
+      .filter(p => p.team === game.homeTeam)
+      .slice(0, 5);
+  }, [insight?.topPlayers?.fantasy, game]);
+
+  // Set of player IDs the user owns for quick lookup
+  const ownedPlayerIds = useMemo(() => {
+    if (!userContext?.topPowerPlayers) return new Set<string>();
+    return new Set(userContext.topPowerPlayers.map(p => p.playerId));
+  }, [userContext?.topPowerPlayers]);
+
+  // Boost assignment mutation
+  const assignBoostMutation = useMutation({
+    mutationFn: async ({ playerId, slotTier, sharesEntered }: { playerId: string; slotTier: number; sharesEntered: number }) => {
+      const res = await apiRequest("POST", "/api/daily-boosts/assign", {
+        playerId,
+        slotTier,
+        sharesEntered,
+        sport,
+        date,
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/games", gameId, "insights"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/daily-boosts"] });
+      toast({
+        title: "Boost Applied!",
+        description: "Your player has been boosted for this game.",
+      });
+      setShowBoostSelector(false);
+      setSelectedTier(null);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to apply boost",
+        description: error.message || "Please try again",
+        variant: "destructive",
+      });
+    },
+  });
+
   const startTimeLabel = game ? new Date(game.startTime).toLocaleString() : "";
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-4xl">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {game ? `${game.awayTeam} @ ${game.homeTeam}` : "Game Command Center"}
@@ -133,77 +192,253 @@ export function GameCommandCenterModal({
               </div>
             ) : (
               <>
-                <div className="grid gap-3 md:grid-cols-3">
-                  <div className="rounded-lg border border-border/60 p-3">
-                    <div className="text-xs text-muted-foreground">FP Avg Leader</div>
-                    <div className="mt-1 text-sm font-semibold">{leaders?.fantasy?.name || "—"}</div>
-                    <div className="mt-1 text-xs text-muted-foreground">
-                      {leaders?.fantasy
-                        ? `Avg ${leaders.fantasy.avgFantasyPointsPerGame.toFixed(1)} · Shares ${leaders.fantasy.totalShares} · Scouts ${leaders.fantasy.scoutCount}`
-                        : "No leader data"}
-                    </div>
+                {/* Compact Leaders Row */}
+                <div className="flex items-center justify-between gap-2 rounded-lg border border-border/60 p-2 text-[11px]">
+                  <div className="flex-1 text-center">
+                    <div className="text-muted-foreground">FP Leader</div>
+                    <div className="font-semibold truncate">{leaders?.fantasy?.name || "—"}</div>
+                    <div className="text-muted-foreground">{leaders?.fantasy?.avgFantasyPointsPerGame.toFixed(1) || "—"}</div>
                   </div>
-                  <div className="rounded-lg border border-border/60 p-3">
-                    <div className="text-xs text-muted-foreground">Shares Leader</div>
-                    <div className="mt-1 text-sm font-semibold">{leaders?.shares?.name || "—"}</div>
-                    <div className="mt-1 text-xs text-muted-foreground">
-                      {leaders?.shares
-                        ? `Shares ${leaders.shares.totalShares} · Avg ${leaders.shares.avgFantasyPointsPerGame.toFixed(1)} · Scouts ${leaders.shares.scoutCount}`
-                        : "No leader data"}
-                    </div>
+                  <div className="w-px h-8 bg-border/60" />
+                  <div className="flex-1 text-center">
+                    <div className="text-muted-foreground">Shares Leader</div>
+                    <div className="font-semibold truncate">{leaders?.shares?.name || "—"}</div>
+                    <div className="text-muted-foreground">{leaders?.shares?.totalShares || "—"}</div>
                   </div>
-                  <div className="rounded-lg border border-border/60 p-3">
-                    <div className="text-xs text-muted-foreground">Scout Leader</div>
-                    <div className="mt-1 text-sm font-semibold">{leaders?.scouts?.name || "—"}</div>
-                    <div className="mt-1 text-xs text-muted-foreground">
-                      {leaders?.scouts
-                        ? `Scouts ${leaders.scouts.scoutCount} · Avg ${leaders.scouts.avgFantasyPointsPerGame.toFixed(1)} · Shares ${leaders.scouts.totalShares}`
-                        : "No leader data"}
-                    </div>
+                  <div className="w-px h-8 bg-border/60" />
+                  <div className="flex-1 text-center">
+                    <div className="text-muted-foreground">Scouts Leader</div>
+                    <div className="font-semibold truncate">{leaders?.scouts?.name || "—"}</div>
+                    <div className="text-muted-foreground">{leaders?.scouts?.scoutCount || "—"}</div>
                   </div>
                 </div>
 
-                <div className="rounded-lg border border-border/60 p-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                      <div className="text-xs text-muted-foreground">Your Edge</div>
-                      <div className="text-sm font-semibold">
-                        {userContext?.topPowerPlayers?.length
-                          ? `${userContext.topPowerPlayers.length} power-ready players`
-                          : "No eligible holdings for this matchup"}
-                      </div>
+                {/* Team Rosters - Top 5 by Season Avg Fantasy Points */}
+                <div className="grid gap-3 md:grid-cols-2">
+                  {/* Away Team */}
+                  <div className="rounded-lg border border-border/60 p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="text-sm font-semibold">{game?.awayTeam}</div>
+                      <Badge variant="outline" className="text-[10px]">Top 5 by FP</Badge>
                     </div>
-                    {boostSlotsRemaining !== null && (
-                      <Badge variant="outline">Boost slots: {boostSlotsRemaining}</Badge>
+                    {awayTeamPlayers.length > 0 ? (
+                      <div className="space-y-1.5">
+                        {awayTeamPlayers.map((player, idx) => (
+                          <div key={player.playerId} className="flex items-center justify-between text-xs">
+                            <span className={ownedPlayerIds.has(player.playerId) ? "text-purple-400 font-medium" : ""}>
+                              {idx + 1}. {formatName(player.name)}
+                            </span>
+                            <span className="font-mono text-muted-foreground">{player.avgFantasyPointsPerGame.toFixed(1)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-xs text-muted-foreground">No player data available</div>
                     )}
                   </div>
-                  {userContext?.topPowerPlayers?.length ? (
-                    <div className="mt-3 space-y-2">
-                      {userContext.topPowerPlayers.map(player => (
-                        <div key={player.playerId} className="flex items-center justify-between text-xs">
-                          <span>{formatName(player.name)}</span>
-                          <span className="font-mono text-purple-400">{player.powerLevel.toFixed(2)} power</span>
-                        </div>
-                      ))}
+
+                  {/* Home Team */}
+                  <div className="rounded-lg border border-border/60 p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="text-sm font-semibold">{game?.homeTeam}</div>
+                      <Badge variant="outline" className="text-[10px]">Top 5 by FP</Badge>
                     </div>
-                  ) : null}
+                    {homeTeamPlayers.length > 0 ? (
+                      <div className="space-y-1.5">
+                        {homeTeamPlayers.map((player, idx) => (
+                          <div key={player.playerId} className="flex items-center justify-between text-xs">
+                            <span className={ownedPlayerIds.has(player.playerId) ? "text-purple-400 font-medium" : ""}>
+                              {idx + 1}. {formatName(player.name)}
+                            </span>
+                            <span className="font-mono text-muted-foreground">{player.avgFantasyPointsPerGame.toFixed(1)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-xs text-muted-foreground">No player data available</div>
+                    )}
+                  </div>
                 </div>
 
+                {/* Your Power Players - Interactive with Quick Boost */}
+                <div className="rounded-lg border-2 border-purple-500/40 bg-purple-500/5 p-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Zap className="h-4 w-4 text-purple-500" />
+                      <div className="text-sm font-semibold">Your Power Players</div>
+                      {userContext?.topPowerPlayers?.length ? (
+                        <Badge variant="secondary" className="text-[10px] border-border/80">
+                          {userContext.topPowerPlayers.length}
+                        </Badge>
+                      ) : null}
+                    </div>
+
+                    {/* Slots Button - Very clickable styling */}
+                    {boostSlotsRemaining !== null && boostSlotsRemaining > 0 && (
+                      <Button
+                        variant={showBoostSelector ? "default" : "outline"}
+                        size="sm"
+                        className={`h-7 px-3 text-[11px] font-medium border-2 ${
+                          showBoostSelector
+                            ? "bg-purple-600 border-purple-600 hover:bg-purple-700 hover:border-purple-700"
+                            : "border-purple-500 text-purple-700 bg-purple-50 hover:bg-purple-100 hover:text-purple-800 hover:border-purple-600 dark:bg-purple-950/30 dark:text-purple-400 dark:border-purple-500/60"
+                        }`}
+                        onClick={() => setShowBoostSelector(!showBoostSelector)}
+                      >
+                        {showBoostSelector ? (
+                          <><X className="h-3 w-3 mr-1" />Close</>
+                        ) : (
+                          <><Zap className="h-3 w-3 mr-1" />Slots: {boostSlotsRemaining}</>
+                        )}
+                      </Button>
+                    )}
+                    {boostSlotsRemaining !== null && boostSlotsRemaining === 0 && (
+                      <Badge variant="outline" className="text-[10px] text-muted-foreground border-border/80 px-2 py-1">
+                        Slots: 0
+                      </Badge>
+                    )}
+                  </div>
+
+                  {/* Player badges - shown when collapsed */}
+                  {!showBoostSelector && userContext?.topPowerPlayers?.length ? (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {userContext.topPowerPlayers.slice(0, 4).map((player, idx) => (
+                        <Badge key={`${player.playerId}-${idx}`} variant="outline" className="text-[10px] gap-1.5 border-border/80 px-2 py-1">
+                          <span className="text-purple-500 font-medium">{formatName(player.name)}</span>
+                          <span className="text-purple-500 font-mono">{player.powerLevel.toFixed(1)}p</span>
+                        </Badge>
+                      ))}
+                      {userContext.topPowerPlayers.length > 4 && (
+                        <Badge variant="outline" className="text-[10px] text-muted-foreground border-border/80">
+                          +{userContext.topPowerPlayers.length - 4}
+                        </Badge>
+                      )}
+                    </div>
+                  ) : !showBoostSelector && (
+                    <div className="mt-2 text-xs text-muted-foreground">
+                      No eligible holdings for this matchup
+                    </div>
+                  )}
+
+                  {/* Quick Boost Selector - Expanded panel with clear borders */}
+                  {showBoostSelector && boostSlotsRemaining !== null && boostSlotsRemaining > 0 && (
+                    <div className="mt-3 p-3 rounded-lg border-2 border-purple-400 bg-background/80">
+                      <div className="text-[11px] font-medium text-purple-700 dark:text-purple-400 mb-2">
+                        Select tier & player to boost:
+                      </div>
+
+                      {/* Tier Selection */}
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className="text-[10px] text-muted-foreground font-medium">Tier:</span>
+                        <div className="flex gap-1">
+                          {([5, 4, 3, 2] as const).map((tier) => (
+                            <Button
+                              key={tier}
+                              variant={selectedTier === tier ? "default" : "outline"}
+                              size="sm"
+                              className={`h-7 px-2.5 text-[11px] font-semibold border-2 ${
+                                selectedTier === tier
+                                  ? "bg-purple-600 border-purple-600 hover:bg-purple-700 hover:border-purple-700"
+                                  : "border-border hover:border-purple-400"
+                              }`}
+                              onClick={() => setSelectedTier(selectedTier === tier ? null : tier)}
+                            >
+                              {tier}x
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Player List with Boost Button - Each row is ONE share */}
+                      {userContext?.topPowerPlayers && userContext.topPowerPlayers.length > 0 ? (
+                        <div className="space-y-1 max-h-40 overflow-y-auto border border-border/60 rounded-md p-1">
+                          {userContext.topPowerPlayers.map((player, idx) => (
+                            <div
+                              key={`${player.playerId}-${idx}`}
+                              className="flex items-center justify-between text-xs py-2 px-2 rounded bg-muted/30 hover:bg-purple-500/10 transition-colors"
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className="font-medium truncate">{formatName(player.name)}</span>
+                                <span className="text-muted-foreground text-[10px]">{player.team}</span>
+                                <span className="text-purple-500 font-mono text-[10px]">{player.powerLevel.toFixed(1)} power</span>
+                              </div>
+                              <Button
+                                size="sm"
+                                variant={selectedTier ? "default" : "ghost"}
+                                disabled={!selectedTier || assignBoostMutation.isPending}
+                                className={`h-6 px-2 text-[10px] border-2 ${
+                                  selectedTier
+                                    ? "bg-purple-600 border-purple-600 hover:bg-purple-700 hover:border-purple-700"
+                                    : "border-transparent"
+                                }`}
+                                onClick={() => {
+                                  if (selectedTier) {
+                                    assignBoostMutation.mutate({
+                                      playerId: player.playerId,
+                                      slotTier: selectedTier as number,
+                                      sharesEntered: player.availableShares,
+                                    });
+                                  }
+                                }}
+                              >
+                                {assignBoostMutation.isPending ? (
+                                  <RefreshCw className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <><Zap className="h-3 w-3 mr-1" />Boost</>
+                                )}
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-xs text-muted-foreground text-center py-4 border border-dashed border-border/60 rounded-md">
+                          No eligible players to boost
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Injuries - Compact */}
                 <div className="rounded-lg border border-border/60 p-3">
-                  <div className="text-xs text-muted-foreground">Injuries</div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle className="h-3 w-3 text-amber-500" />
+                      <span className="text-xs text-muted-foreground">Injuries</span>
+                      {insight?.injuries?.length ? (
+                        <Badge variant="outline" className="text-[10px]">{insight.injuries.length}</Badge>
+                      ) : null}
+                    </div>
+                    {insight?.injuries && insight.injuries.length > 2 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-[10px]"
+                        onClick={() => setShowAllInjuries(!showAllInjuries)}
+                      >
+                        {showAllInjuries ? (
+                          <>Less <ChevronUp className="ml-1 h-3 w-3" /></>
+                        ) : (
+                          <>More <ChevronDown className="ml-1 h-3 w-3" /></>
+                        )}
+                      </Button>
+                    )}
+                  </div>
                   {insight?.injuries?.length ? (
-                    <div className="mt-2 space-y-2">
-                      {insight.injuries.map(player => (
-                        <div key={player.playerId} className="text-xs">
-                          <div className="flex items-center justify-between">
-                            <span className="font-semibold">{formatName(player.name)} · {player.team}</span>
-                            <Badge variant="outline">{player.status}</Badge>
-                          </div>
-                          {player.description && (
-                            <div className="text-muted-foreground">{player.description}</div>
-                          )}
+                    <div className="mt-2 space-y-1.5">
+                      {(showAllInjuries ? insight.injuries : insight.injuries.slice(0, 2)).map(player => (
+                        <div key={player.playerId} className="flex items-center justify-between text-xs">
+                          <span className="truncate">{formatName(player.name)} <span className="text-muted-foreground">({player.team})</span></span>
+                          <Badge variant={player.status === 'Out' ? 'destructive' : 'outline'} className="text-[10px] ml-2 flex-shrink-0">
+                            {player.status}
+                          </Badge>
                         </div>
                       ))}
+                      {!showAllInjuries && insight.injuries.length > 2 && (
+                        <div className="text-[10px] text-muted-foreground text-center pt-1">
+                          +{insight.injuries.length - 2} more
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="mt-2 text-xs text-muted-foreground">No reported injuries.</div>
