@@ -54,7 +54,9 @@ export function GameCommandCenterCard({
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/games"] });
+      // Invalidate the specific insights query used by dashboard to refresh slots/leaders
+      queryClient.invalidateQueries({ queryKey: ["/api/games/insights"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/games", game.gameId, "insights"] });
       queryClient.invalidateQueries({ queryKey: ["/api/daily-boosts"] });
       toast({
         title: "Boost Applied!",

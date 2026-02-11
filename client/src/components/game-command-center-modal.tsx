@@ -145,7 +145,9 @@ export function GameCommandCenterModal({
       return res.json();
     },
     onSuccess: () => {
+      // Invalidate both the specific game insights and the dashboard list
       queryClient.invalidateQueries({ queryKey: ["/api/games", gameId, "insights"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/games/insights"] });
       queryClient.invalidateQueries({ queryKey: ["/api/daily-boosts"] });
       toast({
         title: "Boost Applied!",
@@ -197,19 +199,19 @@ export function GameCommandCenterModal({
                   <div className="flex-1 text-center">
                     <div className="text-muted-foreground">FP Leader</div>
                     <div className="font-semibold truncate">{leaders?.fantasy?.name || "—"}</div>
-                    <div className="text-muted-foreground">{leaders?.fantasy?.avgFantasyPointsPerGame.toFixed(1) || "—"}</div>
+                    <div className="text-muted-foreground">{leaders?.fantasy?.avgFantasyPointsPerGame?.toFixed(1) ?? "—"}</div>
                   </div>
                   <div className="w-px h-8 bg-border/60" />
                   <div className="flex-1 text-center">
                     <div className="text-muted-foreground">Shares Leader</div>
                     <div className="font-semibold truncate">{leaders?.shares?.name || "—"}</div>
-                    <div className="text-muted-foreground">{leaders?.shares?.totalShares || "—"}</div>
+                    <div className="text-muted-foreground">{leaders?.shares?.totalShares ?? "—"}</div>
                   </div>
                   <div className="w-px h-8 bg-border/60" />
                   <div className="flex-1 text-center">
                     <div className="text-muted-foreground">Scouts Leader</div>
                     <div className="font-semibold truncate">{leaders?.scouts?.name || "—"}</div>
-                    <div className="text-muted-foreground">{leaders?.scouts?.scoutCount || "—"}</div>
+                    <div className="text-muted-foreground">{leaders?.scouts?.scoutCount ?? "—"}</div>
                   </div>
                 </div>
 
