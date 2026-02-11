@@ -3956,7 +3956,12 @@ export class DatabaseStorage implements IStorage {
           total: sql<string>`COALESCE(SUM(${scoutDistributions.sharesEarned}), 0)`.as("total"),
         })
         .from(scoutDistributions)
-        .where(and(gte(scoutDistributions.hourTimestamp, startDate), lte(scoutDistributions.hourTimestamp, endDate)));
+        .where(
+          and(
+            gte(scoutDistributions.hourTimestamp, startDate),
+            lte(scoutDistributions.hourTimestamp, endDate),
+          ),
+        );
       periodSharesScouted = Math.floor(parseFloat(periodScoutedResult[0]?.total || "0"));
 
       const periodBurnedBoostsResult = await db
@@ -4025,7 +4030,12 @@ export class DatabaseStorage implements IStorage {
         shares: sql<string>`COALESCE(SUM(${scoutDistributions.sharesEarned}), 0)`.as("shares"),
       })
       .from(scoutDistributions)
-      .where(and(gte(scoutDistributions.hourTimestamp, startDate), lte(scoutDistributions.hourTimestamp, endDate)))
+      .where(
+        and(
+          gte(scoutDistributions.hourTimestamp, startDate),
+          lte(scoutDistributions.hourTimestamp, endDate),
+        ),
+      )
       .groupBy(sql`DATE(${scoutDistributions.hourTimestamp})`)
       .orderBy(sql`DATE(${scoutDistributions.hourTimestamp})`);
 
@@ -4065,7 +4075,10 @@ export class DatabaseStorage implements IStorage {
       .orderBy(sql`DATE(${contests.gameDate})`);
 
     // Add all vested dates
-    const dateMap = new Map<string, { sharesVested: number; sharesScouted: number; sharesBurned: number }>();
+    const dateMap = new Map<
+      string,
+      { sharesVested: number; sharesScouted: number; sharesBurned: number }
+    >();
     for (const row of vestedByDate) {
       const dateStr = row.date;
       dateMap.set(dateStr, {
@@ -4078,7 +4091,11 @@ export class DatabaseStorage implements IStorage {
     // Add/merge scouted dates
     for (const row of scoutedByDate) {
       const dateStr = row.date;
-      const existing = dateMap.get(dateStr) || { sharesVested: 0, sharesScouted: 0, sharesBurned: 0 };
+      const existing = dateMap.get(dateStr) || {
+        sharesVested: 0,
+        sharesScouted: 0,
+        sharesBurned: 0,
+      };
       existing.sharesScouted += Math.floor(parseFloat(row.shares || "0"));
       dateMap.set(dateStr, existing);
     }
@@ -4086,7 +4103,11 @@ export class DatabaseStorage implements IStorage {
     // Add/merge burned dates
     for (const row of burnedByDate) {
       const dateStr = row.date;
-      const existing = dateMap.get(dateStr) || { sharesVested: 0, sharesScouted: 0, sharesBurned: 0 };
+      const existing = dateMap.get(dateStr) || {
+        sharesVested: 0,
+        sharesScouted: 0,
+        sharesBurned: 0,
+      };
       existing.sharesBurned += parseInt(row.shares || "0");
       dateMap.set(dateStr, existing);
     }
@@ -4094,7 +4115,11 @@ export class DatabaseStorage implements IStorage {
     // Add/merge legacy burned dates
     for (const row of legacyBurnedByDate) {
       const dateStr = row.date;
-      const existing = dateMap.get(dateStr) || { sharesVested: 0, sharesScouted: 0, sharesBurned: 0 };
+      const existing = dateMap.get(dateStr) || {
+        sharesVested: 0,
+        sharesScouted: 0,
+        sharesBurned: 0,
+      };
       existing.sharesBurned += parseInt(row.shares || "0");
       dateMap.set(dateStr, existing);
     }

@@ -5,7 +5,14 @@ import { performance } from "node:perf_hooks";
 import { storage } from "./storage";
 import { db } from "./db";
 import { fetchActivePlayers, calculateFantasyPoints } from "./balldontlie-nba";
-import type { InsertPlayer, Player, User, Holding, CommunityBoost, DailyGame } from "@shared/schema";
+import type {
+  InsertPlayer,
+  Player,
+  User,
+  Holding,
+  CommunityBoost,
+  DailyGame,
+} from "@shared/schema";
 import {
   contestLineups,
   contestEntries,
@@ -272,31 +279,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     userId?: string | null;
   }): Promise<{ insights: GameInsight[]; boostSlotsRemaining: number | null }> => {
     const teamSet = new Set<string>();
-    games.forEach(game => {
+    games.forEach((game) => {
       teamSet.add(game.homeTeam);
       teamSet.add(game.awayTeam);
     });
 
     const teams = Array.from(teamSet);
-    const teamPlayers = teams.length > 0
-      ? await db
-        .select()
-        .from(players)
-        .where(and(
-          eq(players.sport, sport),
-          inArray(players.team, teams),
-          eq(players.isActive, true)
-        ))
-      : [];
+    const teamPlayers =
+      teams.length > 0
+        ? await db
+            .select()
+            .from(players)
+            .where(
+              and(
+                eq(players.sport, sport),
+                inArray(players.team, teams),
+                eq(players.isActive, true),
+              ),
+            )
+        : [];
 
-    const playerIds = teamPlayers.map(player => player.id);
+    const playerIds = teamPlayers.map((player) => player.id);
     const [seasonStatsMap, scoutCountsMap] = await Promise.all([
       storage.getBatchPlayerSeasonStatsFromLogs(playerIds),
       storage.getBatchActiveScoutCounts(playerIds),
     ]);
 
     const playersByTeam = new Map<string, typeof teamPlayers>();
-    teamPlayers.forEach(player => {
+    teamPlayers.forEach((player) => {
       const list = playersByTeam.get(player.team) || [];
       list.push(player);
       playersByTeam.set(player.team, list);
@@ -308,15 +318,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...(playersByTeam.get(game.awayTeam) || []),
       ];
 
-      return candidates.map(player => ({
+      return candidates.map((player) => ({
         player,
-        avgFantasyPointsPerGame: parseFloat(seasonStatsMap.get(player.id)?.avgFantasyPointsPerGame || "0"),
+        avgFantasyPointsPerGame: parseFloat(
+          seasonStatsMap.get(player.id)?.avgFantasyPointsPerGame || "0",
+        ),
         totalShares: player.totalShares || 0,
         scoutCount: scoutCountsMap.get(player.id) || 0,
       }));
     };
 
-    const buildLeader = (candidate: { player: Player; avgFantasyPointsPerGame: number; totalShares: number; scoutCount: number; }): GameInsightLeader => ({
+    const buildLeader = (candidate: {
+      player: Player;
+      avgFantasyPointsPerGame: number;
+      totalShares: number;
+      scoutCount: number;
+    }): GameInsightLeader => ({
       playerId: candidate.player.id,
       name: `${candidate.player.firstName} ${candidate.player.lastName}`,
       team: candidate.player.team,
@@ -337,11 +354,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         storage.getDailyBoosts(userId, sport, targetDate),
       ]);
 
-      currentBoosts.forEach(boost => boostedPlayerIds.add(boost.playerId));
+      currentBoosts.forEach((boost) => boostedPlayerIds.add(boost.playerId));
       boostSlotsRemaining = Math.max(0, 4 - currentBoosts.length);
 
       const eligibleByGame = new Map<string, typeof eligiblePlayers>();
-      eligiblePlayers.forEach(player => {
+      eligiblePlayers.forEach((player) => {
         if (!player.gameId) return;
         const list = eligibleByGame.get(player.gameId) || [];
         list.push(player);
@@ -354,7 +371,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const topPowerPlayers = [...playersForGame]
           .sort((a, b) => parseFloat(b.powerLevel || "0") - parseFloat(a.powerLevel || "0"))
           .slice(0, 2)
-          .map(player => ({
+          .map((player) => ({
             playerId: player.player.id,
             name: `${player.player.firstName} ${player.player.lastName}`,
             team: player.player.team,
@@ -371,7 +388,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
 
-    const insights = games.map(game => {
+    const insights = games.map((game) => {
       const candidates = getCandidates(game);
       const pickLeader = (key: "avgFantasyPointsPerGame" | "totalShares" | "scoutCount") => {
         if (!candidates.length) return null;
@@ -1381,12 +1398,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         hotPlayers,
         vesting: vestingData
           ? {
-            ...vestingData,
-            player: vestingPlayer,
-            players: vestingPlayers,
-            capLimit: user.isPremium ? 4800 : 2400,
-            sharesPerHour: user.isPremium ? 200 : 100,
-          }
+              ...vestingData,
+              player: vestingPlayer,
+              players: vestingPlayers,
+              capLimit: user.isPremium ? 4800 : 2400,
+              sharesPerHour: user.isPremium ? 200 : 100,
+            }
           : null,
         power: powerData,
         recentTrades: recentTrades.map((trade) => ({
@@ -1499,42 +1516,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const teamPlayers = await db
         .select()
         .from(players)
-        .where(and(
-          eq(players.sport, sport),
-          inArray(players.team, [game.homeTeam, game.awayTeam]),
-          eq(players.isActive, true)
-        ));
+        .where(
+          and(
+            eq(players.sport, sport),
+            inArray(players.team, [game.homeTeam, game.awayTeam]),
+            eq(players.isActive, true),
+          ),
+        );
 
-      const playerIds = teamPlayers.map(player => player.id);
+      const playerIds = teamPlayers.map((player) => player.id);
       const [seasonStatsMap, scoutCountsMap] = await Promise.all([
         storage.getBatchPlayerSeasonStatsFromLogs(playerIds),
         storage.getBatchActiveScoutCounts(playerIds),
       ]);
 
-      const candidates = teamPlayers.map(player => ({
+      const candidates = teamPlayers.map((player) => ({
         player,
-        avgFantasyPointsPerGame: parseFloat(seasonStatsMap.get(player.id)?.avgFantasyPointsPerGame || "0"),
+        avgFantasyPointsPerGame: parseFloat(
+          seasonStatsMap.get(player.id)?.avgFantasyPointsPerGame || "0",
+        ),
         totalShares: player.totalShares || 0,
         scoutCount: scoutCountsMap.get(player.id) || 0,
       }));
 
-      const topBy = (key: "avgFantasyPointsPerGame" | "totalShares" | "scoutCount") => (
+      const topBy = (key: "avgFantasyPointsPerGame" | "totalShares" | "scoutCount") =>
         [...candidates]
           .sort((a, b) => (b[key] ?? 0) - (a[key] ?? 0))
           .slice(0, 5)
-          .map(entry => ({
+          .map((entry) => ({
             playerId: entry.player.id,
             name: `${entry.player.firstName} ${entry.player.lastName}`,
             team: entry.player.team,
             avgFantasyPointsPerGame: entry.avgFantasyPointsPerGame,
             totalShares: entry.totalShares,
             scoutCount: entry.scoutCount,
-          }))
-      );
+          }));
 
       const injuries = teamPlayers
-        .filter(player => player.injuryStatus && player.injuryStatus !== "")
-        .map(player => ({
+        .filter((player) => player.injuryStatus && player.injuryStatus !== "")
+        .map((player) => ({
           playerId: player.id,
           name: `${player.firstName} ${player.lastName}`,
           team: player.team,
@@ -1647,10 +1667,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         topPerformers:
           allStats.length > 0
             ? {
-              topScorer,
-              topRebounder,
-              topAssister,
-            }
+                topScorer,
+                topRebounder,
+                topAssister,
+              }
             : null,
       });
     } catch (error: any) {
@@ -2374,16 +2394,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const safeSortBy =
         normalizedSortBy && validSortBy.includes(normalizedSortBy as string)
           ? (normalizedSortBy as
-            | "price"
-            | "volume"
-            | "change"
-            | "tvl"
-            | "marketCap"
-            | "sentiment"
-            | "undervalued"
-            | "fantasyPoints"
-            | "name"
-            | "team")
+              | "price"
+              | "volume"
+              | "change"
+              | "tvl"
+              | "marketCap"
+              | "sentiment"
+              | "undervalued"
+              | "fantasyPoints"
+              | "name"
+              | "team")
           : "volume";
       const safeSortOrder = sortOrder === "asc" ? "asc" : "desc";
 
@@ -2498,9 +2518,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ...enriched,
           ...(isAmmOnlyMode && ammSpotPrice !== null
             ? {
-              lastTradePrice: ammSpotPrice.toFixed(2),
-              currentPrice: ammSpotPrice.toFixed(2),
-            }
+                lastTradePrice: ammSpotPrice.toFixed(2),
+                currentPrice: ammSpotPrice.toFixed(2),
+              }
             : {}),
           bestBid: null,
           bestAsk: null,
@@ -3070,9 +3090,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const avgFantasyPoints =
         completedContests.length > 0
           ? completedContests.reduce(
-            (sum: number, c: any) => sum + parseFloat(c.fantasyPoints || "0"),
-            0,
-          ) / completedContests.length
+              (sum: number, c: any) => sum + parseFloat(c.fantasyPoints || "0"),
+              0,
+            ) / completedContests.length
           : 0;
 
       // Calculate win rate (entries that finished in the top 50%)
@@ -3363,15 +3383,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({
         vesting: vestingData
           ? {
-            ...vestingData,
-            player: vestingData.playerId ? playerMap.get(vestingData.playerId) : null,
-            splits: vestingSplits.map((s) => ({
-              ...s,
-              player: playerMap.get(s.playerId),
-            })),
-            sharesPerHour: isPremiumUser ? 200 : 100,
-            capLimit: isPremiumUser ? 4800 : 2400,
-          }
+              ...vestingData,
+              player: vestingData.playerId ? playerMap.get(vestingData.playerId) : null,
+              splits: vestingSplits.map((s) => ({
+                ...s,
+                player: playerMap.get(s.playerId),
+              })),
+              sharesPerHour: isPremiumUser ? 200 : 100,
+              capLimit: isPremiumUser ? 4800 : 2400,
+            }
           : null,
       });
     } catch (error: any) {
@@ -4070,10 +4090,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const [players, globalScoutCounts, seasonStatsMap] =
         playerIds.length > 0
           ? await Promise.all([
-            storage.getPlayersByIds(playerIds),
-            storage.getBatchActiveScoutCounts(playerIds),
-            storage.getBatchPlayerSeasonStatsFromLogs(playerIds),
-          ])
+              storage.getPlayersByIds(playerIds),
+              storage.getBatchActiveScoutCounts(playerIds),
+              storage.getBatchPlayerSeasonStatsFromLogs(playerIds),
+            ])
           : [[], new Map<string, number>(), new Map<string, any>()];
 
       const playerMap = new Map(players.map((p) => [p.id, p]));
@@ -4086,9 +4106,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ...a,
           player: player
             ? {
-              ...player,
-              avgFantasyPointsPerGame: seasonStats.avgFantasyPointsPerGame,
-            }
+                ...player,
+                avgFantasyPointsPerGame: seasonStats.avgFantasyPointsPerGame,
+              }
             : null,
           globalScoutCount: globalScoutCounts.get(a.playerId) || 0,
         };
@@ -4976,12 +4996,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         post,
         author: author
           ? {
-            id: author.id,
-            username: author.username,
-            firstName: author.firstName,
-            lastName: author.lastName,
-            profileImageUrl: author.profileImageUrl,
-          }
+              id: author.id,
+              username: author.username,
+              firstName: author.firstName,
+              lastName: author.lastName,
+              profileImageUrl: author.profileImageUrl,
+            }
           : null,
       });
     } catch (error: any) {
@@ -5041,15 +5061,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     <priority>0.3</priority>
   </url>
 ${posts
-          .map(
-            (post) => `  <url>
+  .map(
+    (post) => `  <url>
     <loc>${baseUrl}/blog/${post.slug}</loc>
     <lastmod>${new Date(post.publishedAt || post.createdAt).toISOString()}</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>`,
-          )
-          .join("\n")}
+  )
+  .join("\n")}
 </urlset>`;
 
       res.header("Content-Type", "application/xml");
@@ -6320,23 +6340,23 @@ ${posts
         jobTypes.length > 0
           ? jobTypes
           : [
-            "roster_sync",
-            "sync_player_game_logs",
-            "schedule_sync",
-            "stats_sync",
-            "stats_sync_live",
-            "create_contests",
-            "update_contest_statuses",
-            "settle_contests",
-            "daily_snapshot",
-            "weekly_roundup",
-            "refresh_player_metrics",
-            "refresh_player_volume_24h",
-            "update_collections",
-            "check_milestones",
-            "cleanup_job_logs",
-            "prune_price_history",
-          ];
+              "roster_sync",
+              "sync_player_game_logs",
+              "schedule_sync",
+              "stats_sync",
+              "stats_sync_live",
+              "create_contests",
+              "update_contest_statuses",
+              "settle_contests",
+              "daily_snapshot",
+              "weekly_roundup",
+              "refresh_player_metrics",
+              "refresh_player_volume_24h",
+              "update_collections",
+              "check_milestones",
+              "cleanup_job_logs",
+              "prune_price_history",
+            ];
 
       const [users, players, allContests, recentLogs, latestJobLogs] = await Promise.all([
         storage.getUsers(),
@@ -6409,13 +6429,13 @@ ${posts
         adminContext,
         user: user
           ? {
-            id: user.id,
-            email: user.email,
-            username: user.username,
-            isAdmin: user.isAdmin,
-            isPremium: user.isPremium,
-            premiumExpiresAt: user.premiumExpiresAt || null,
-          }
+              id: user.id,
+              email: user.email,
+              username: user.username,
+              isAdmin: user.isAdmin,
+              isPremium: user.isPremium,
+              premiumExpiresAt: user.premiumExpiresAt || null,
+            }
           : null,
       });
     } catch (error: any) {
@@ -6455,15 +6475,15 @@ ${posts
             running: live?.running || false,
             lastRun: last
               ? {
-                status: last.status,
-                scheduledFor: last.scheduledFor,
-                startedAt: last.startedAt,
-                finishedAt: last.finishedAt,
-                requestCount: last.requestCount,
-                recordsProcessed: last.recordsProcessed,
-                errorCount: last.errorCount,
-                errorMessage: last.errorMessage || null,
-              }
+                  status: last.status,
+                  scheduledFor: last.scheduledFor,
+                  startedAt: last.startedAt,
+                  finishedAt: last.finishedAt,
+                  requestCount: last.requestCount,
+                  recordsProcessed: last.recordsProcessed,
+                  errorCount: last.errorCount,
+                  errorMessage: last.errorMessage || null,
+                }
               : null,
           };
         })
@@ -6588,13 +6608,13 @@ ${posts
       { name: "admin.stats", method: "GET", path: "/api/admin/stats", expectedStatus: 200 },
       ...(includeHeavy
         ? [
-          {
-            name: "admin.diagnostics",
-            method: "GET",
-            path: "/api/admin/diagnostics",
-            expectedStatus: 200,
-          } as SmokeTarget,
-        ]
+            {
+              name: "admin.diagnostics",
+              method: "GET",
+              path: "/api/admin/diagnostics",
+              expectedStatus: 200,
+            } as SmokeTarget,
+          ]
         : []),
 
       {
@@ -6629,13 +6649,13 @@ ${posts
       },
       ...(includeHeavy
         ? [
-          {
-            name: "analytics.overview",
-            method: "GET",
-            path: "/api/analytics?timeRange=24H",
-            expectedStatus: 200,
-          } as SmokeTarget,
-        ]
+            {
+              name: "analytics.overview",
+              method: "GET",
+              path: "/api/analytics?timeRange=24H",
+              expectedStatus: 200,
+            } as SmokeTarget,
+          ]
         : []),
     ];
 
@@ -6661,13 +6681,13 @@ ${posts
         },
         ...(includeHeavy
           ? [
-            {
-              name: "admin.diagnostics.player",
-              method: "GET",
-              path: `/api/admin/diagnostics?playerId=${encodeURIComponent(playerId)}`,
-              expectedStatus: 200,
-            } as SmokeTarget,
-          ]
+              {
+                name: "admin.diagnostics.player",
+                method: "GET",
+                path: `/api/admin/diagnostics?playerId=${encodeURIComponent(playerId)}`,
+                expectedStatus: 200,
+              } as SmokeTarget,
+            ]
           : []),
       );
     }
@@ -7566,20 +7586,20 @@ ${posts
       const transactionChange =
         marketHealth.prevTransactionCount > 0
           ? ((marketHealth.transactionCount - marketHealth.prevTransactionCount) /
-            marketHealth.prevTransactionCount) *
-          100
+              marketHealth.prevTransactionCount) *
+            100
           : 0;
       const volumeChange =
         marketHealth.prevTotalVolume > 0
           ? ((marketHealth.totalVolume - marketHealth.prevTotalVolume) /
-            marketHealth.prevTotalVolume) *
-          100
+              marketHealth.prevTotalVolume) *
+            100
           : 0;
       const marketCapChange =
         marketHealth.prevTotalMarketCap > 0
           ? ((marketHealth.totalMarketCap - marketHealth.prevTotalMarketCap) /
-            marketHealth.prevTotalMarketCap) *
-          100
+              marketHealth.prevTotalMarketCap) *
+            100
           : 0;
 
       // Get power rankings
@@ -7721,10 +7741,17 @@ ${posts
       const scoutDistributionsByDate = await db
         .select({
           date: sql<string>`DATE(${scoutDistributions.hourTimestamp})`.as("date"),
-          totalShares: sql<string>`COALESCE(SUM(${scoutDistributions.sharesEarned}), 0)`.as("totalShares"),
+          totalShares: sql<string>`COALESCE(SUM(${scoutDistributions.sharesEarned}), 0)`.as(
+            "totalShares",
+          ),
         })
         .from(scoutDistributions)
-        .where(and(gte(scoutDistributions.hourTimestamp, startDate), lte(scoutDistributions.hourTimestamp, now)))
+        .where(
+          and(
+            gte(scoutDistributions.hourTimestamp, startDate),
+            lte(scoutDistributions.hourTimestamp, now),
+          ),
+        )
         .groupBy(sql`DATE(${scoutDistributions.hourTimestamp})`);
 
       // Create a map of scout shares by date for easy lookup
@@ -7738,7 +7765,7 @@ ${posts
         startDate: startDate.toISOString(),
         endDate: now.toISOString(),
         snapshots: snapshots.map((s) => {
-          const snapshotDateStr = new Date(s.snapshotDate).toISOString().split('T')[0];
+          const snapshotDateStr = new Date(s.snapshotDate).toISOString().split("T")[0];
           const sharesScouted = scoutSharesMap.get(snapshotDateStr) || 0;
 
           return {
@@ -8038,11 +8065,11 @@ ${posts
         holding: holdingInfo,
         player: player
           ? {
-            id: player.id,
-            firstName: player.firstName,
-            lastName: player.lastName,
-            team: player.team,
-          }
+              id: player.id,
+              firstName: player.firstName,
+              lastName: player.lastName,
+              team: player.team,
+            }
           : null,
         message: `Successfully condensed ${shares} shares into ${(shares / 5).toFixed(1)} Power Level for ${player?.firstName} ${player?.lastName}`,
       });

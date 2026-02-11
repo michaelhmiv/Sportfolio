@@ -1370,7 +1370,9 @@ export default function Portfolio() {
                                           className="h-7 px-2 text-xs"
                                           onClick={(e) => {
                                             e.stopPropagation();
-                                            setLocation(`/player/${group.player.id}?panel=lp&lpTab=zap`);
+                                            setLocation(
+                                              `/player/${group.player.id}?panel=lp&lpTab=zap`,
+                                            );
                                           }}
                                           data-testid={`button-pool-${group.player.id}`}
                                         >
@@ -1427,15 +1429,21 @@ export default function Portfolio() {
                                             </Badge>
                                           )}
                                         </div>
-                                        <div className="text-xs text-muted-foreground hidden md:inline">{group.player.team} • {group.player.position}</div>
-                                        <div className="text-xs text-muted-foreground md:hidden">{group.player.team} • {group.player.position}</div>
+                                        <div className="text-xs text-muted-foreground hidden md:inline">
+                                          {group.player.team} • {group.player.position}
+                                        </div>
+                                        <div className="text-xs text-muted-foreground md:hidden">
+                                          {group.player.team} • {group.player.position}
+                                        </div>
                                         <Button
                                           variant="outline"
                                           size="sm"
                                           className="h-7 px-2 text-xs ml-2 hidden md:inline-flex"
                                           onClick={(e) => {
                                             e.stopPropagation();
-                                            setLocation(`/player/${group.player.id}?panel=lp&lpTab=zap`);
+                                            setLocation(
+                                              `/player/${group.player.id}?panel=lp&lpTab=zap`,
+                                            );
                                           }}
                                           data-testid={`button-pool-desktop-${group.player.id}`}
                                         >

@@ -1,0 +1,13 @@
+{
+  "threshold": 0,
+  "reporters": ["console"],
+  "ignore": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/mobile/**",
+    "**/package/**",
+    "**/tmp/**",
+    "**/attached_assets/**",
+    "**/migrations/**"
+  ]
+}

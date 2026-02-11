@@ -90,56 +90,65 @@ export function AmmTradePanel({
   });
 
   // Handle slider change
-  const handleSliderChange = useCallback((value: number[]) => {
-    const percentage = value[0];
-    setSliderValue(percentage);
-    
-    if (maxAmount > 0) {
-      const newAmount = (maxAmount * percentage) / 100;
-      // Format based on trade type - shares must be whole numbers
-      if (tradeType === "buy") {
-        setAmount(newAmount.toFixed(2));
-      } else {
-        // Round to whole number shares
-        setAmount(Math.floor(newAmount).toString());
+  const handleSliderChange = useCallback(
+    (value: number[]) => {
+      const percentage = value[0];
+      setSliderValue(percentage);
+
+      if (maxAmount > 0) {
+        const newAmount = (maxAmount * percentage) / 100;
+        // Format based on trade type - shares must be whole numbers
+        if (tradeType === "buy") {
+          setAmount(newAmount.toFixed(2));
+        } else {
+          // Round to whole number shares
+          setAmount(Math.floor(newAmount).toString());
+        }
       }
-    }
-  }, [maxAmount, tradeType]);
+    },
+    [maxAmount, tradeType],
+  );
 
   // Handle quick select buttons
-  const handleQuickSelect = useCallback((percentage: number) => {
-    setSliderValue(percentage);
-    
-    if (maxAmount > 0) {
-      const newAmount = (maxAmount * percentage) / 100;
-      if (tradeType === "buy") {
-        setAmount(newAmount.toFixed(2));
-      } else {
-        // Round to whole number shares
-        setAmount(Math.floor(newAmount).toString());
+  const handleQuickSelect = useCallback(
+    (percentage: number) => {
+      setSliderValue(percentage);
+
+      if (maxAmount > 0) {
+        const newAmount = (maxAmount * percentage) / 100;
+        if (tradeType === "buy") {
+          setAmount(newAmount.toFixed(2));
+        } else {
+          // Round to whole number shares
+          setAmount(Math.floor(newAmount).toString());
+        }
       }
-    }
-  }, [maxAmount, tradeType]);
+    },
+    [maxAmount, tradeType],
+  );
 
   // Handle manual input change
-  const handleManualInputChange = useCallback((value: string) => {
-    // For selling shares, ensure whole numbers
-    if (tradeType === "sell") {
-      const intValue = Math.floor(parseFloat(value || "0"));
-      setAmount(intValue.toString());
-    } else {
-      setAmount(value);
-    }
+  const handleManualInputChange = useCallback(
+    (value: string) => {
+      // For selling shares, ensure whole numbers
+      if (tradeType === "sell") {
+        const intValue = Math.floor(parseFloat(value || "0"));
+        setAmount(intValue.toString());
+      } else {
+        setAmount(value);
+      }
 
-    // Update slider to match manual input
-    const numValue = parseFloat(value || "0");
-    if (!isNaN(numValue) && maxAmount > 0) {
-      const percentage = Math.min((numValue / maxAmount) * 100, 100);
-      setSliderValue(percentage);
-    } else {
-      setSliderValue(0);
-    }
-  }, [maxAmount, tradeType]);
+      // Update slider to match manual input
+      const numValue = parseFloat(value || "0");
+      if (!isNaN(numValue) && maxAmount > 0) {
+        const percentage = Math.min((numValue / maxAmount) * 100, 100);
+        setSliderValue(percentage);
+      } else {
+        setSliderValue(0);
+      }
+    },
+    [maxAmount, tradeType],
+  );
 
   // Debounced quote fetch
   const fetchQuote = useCallback(async () => {

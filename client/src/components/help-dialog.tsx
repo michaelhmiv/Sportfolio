@@ -56,8 +56,8 @@ export function HelpDialog() {
                   <h4 className="font-semibold mb-2">1. Scout Players (Earn Free Shares)</h4>
                   <ul className="list-disc pl-6 space-y-1">
                     <li>
-                      <strong>What it is:</strong> Scouting is the <em>primary</em> way to earn
-                      free player shares without spending cash.
+                      <strong>What it is:</strong> Scouting is the <em>primary</em> way to earn free
+                      player shares without spending cash.
                     </li>
                     <li>
                       <strong>How it works:</strong> You have a limited number of "Scouts" (5 for
@@ -67,7 +67,8 @@ export function HelpDialog() {
                     <li>
                       <strong>The Reward:</strong> Every hour, your scouts earn shares for you based
                       on the "Scout-Minute" formula. The more scouts assigned to a player, the more
-                      shares you earn. Scouts must be active (log in every 24 hours) to keep earning.
+                      shares you earn. Scouts must be active (log in every 24 hours) to keep
+                      earning.
                     </li>
                   </ul>
                 </div>
@@ -76,17 +77,17 @@ export function HelpDialog() {
                   <h4 className="font-semibold mb-2">2. Manage Your Scouts</h4>
                   <ul className="list-disc pl-6 space-y-1">
                     <li>
-                      <strong>Flexibility:</strong> You can reassign scouts at any time. If a
-                      player gets injured or you lose faith in them, move your scout to someone
-                      else through the Scout Dashboard.
+                      <strong>Flexibility:</strong> You can reassign scouts at any time. If a player
+                      gets injured or you lose faith in them, move your scout to someone else
+                      through the Scout Dashboard.
                     </li>
                     <li>
                       <strong>Strategy:</strong> Do you stack all scouts on one superstar to
                       maximize earnings, or spread them out to diversify?
                     </li>
                     <li>
-                      <strong>Activity Required:</strong> To keep earning, you must log in at least once
-                      every 24 hours. Inactive scouts stop producing shares.
+                      <strong>Activity Required:</strong> To keep earning, you must log in at least
+                      once every 24 hours. Inactive scouts stop producing shares.
                     </li>
                   </ul>
                 </div>
@@ -111,9 +112,9 @@ export function HelpDialog() {
                     <div>
                       <p className="font-medium mb-1">Option B: Enter Contests</p>
                       <p className="text-muted-foreground">
-                        Use your shares to enter daily 50/50 contests. Draft players from that
-                        day's games and earn fantasy points based on real NBA performance. Top half
-                        of contestants win prizes.
+                        Use your shares to enter daily 50/50 contests. Draft players from that day's
+                        games and earn fantasy points based on real NBA performance. Top half of
+                        contestants win prizes.
                       </p>
                     </div>
                   </div>
@@ -147,8 +148,8 @@ export function HelpDialog() {
                 </li>
                 <li>
                   <strong>Persistence is Key:</strong> Unlike seasonal fantasy, you don't have to
-                  redraft your players every year. If you scout a player early and they become a star,
-                  you can benefit from that investment for their <em>entire career</em>.
+                  redraft your players every year. If you scout a player early and they become a
+                  star, you can benefit from that investment for their <em>entire career</em>.
                 </li>
                 <li>
                   <strong>You Control the Market:</strong> A player's share supply is determined by

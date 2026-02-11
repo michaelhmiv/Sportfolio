@@ -6,4 +6,3 @@
   - `git status -sb` to check for uncommitted changes.
   - `git stash push -u` if needed.
   - Merge/rebase `origin/main` into the working branch so fixes target current code.
-

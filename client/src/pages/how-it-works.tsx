@@ -142,7 +142,8 @@ export default function HowItWorks() {
               <p className="text-muted-foreground">
                 Track your performance against other Sportfolio users on global leaderboards.
                 Rankings are available for portfolio net worth, total shares earned via scouting,
-                and trading activity. See where you stand and compete for bragging rights in the community.
+                and trading activity. See where you stand and compete for bragging rights in the
+                community.
               </p>
             </CardContent>
           </Card>

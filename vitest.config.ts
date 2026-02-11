@@ -6,7 +6,7 @@ export default defineConfig({
     globals: true,
     environment: "node",
     include: ["**/*.test.ts", "**/*.spec.ts"],
-    exclude: ["node_modules", "dist"],
+    exclude: ["node_modules", "dist", "tests/e2e"],
     coverage: {
       reporter: ["text", "html"],
       exclude: ["node_modules/", "dist/", "**/*.test.ts", "**/*.spec.ts"],

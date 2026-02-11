@@ -7,8 +7,7 @@ import { db } from "../server/db";
 import { eq, sql } from "drizzle-orm";
 
 async function verifyNoDuplicates() {
-
-console.log("=== Verifying No Duplicate Players ===\n");
+  console.log("=== Verifying No Duplicate Players ===\n");
 
   try {
     const duplicateResults = await db.execute(sql`
@@ -32,12 +31,13 @@ console.log("=== Verifying No Duplicate Players ===\n");
     } else {
       console.log(`Warning: Found ${duplicateCount} sets of duplicate players:`);
       duplicateResults.rows.forEach((row) => {
-        console.log(`- ${row.first_name} ${row.last_name} (${row.sport}): ${row.player_count} entries`);
+        console.log(
+          `- ${row.first_name} ${row.last_name} (${row.sport}): ${row.player_count} entries`,
+        );
         console.log(`  IDs: ${row.player_ids.join(", ")}`);
       });
     }
-
-    } catch (error: any) {
+  } catch (error: any) {
     console.error("\n!!! Verification Failed !!!");
     console.error("Error:", error.message);
     console.error("Stack:", error.stack);

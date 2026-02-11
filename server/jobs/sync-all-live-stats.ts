@@ -64,7 +64,9 @@ export async function syncAllLiveStats(
     // already-active games.
     const nflGames = allGames.filter((g) => g.sport === "NFL");
 
-    console.log(`[live_stats_sync] Games in window: NBA=${nbaGames.length}, NFL=${nflGames.length}`);
+    console.log(
+      `[live_stats_sync] Games in window: NBA=${nbaGames.length}, NFL=${nflGames.length}`,
+    );
 
     progressCallback?.({
       type: "info",

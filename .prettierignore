@@ -9,3 +9,7 @@ package-lock.json
 .claude
 .vscode
 migrations
+pr_comments.json
+pr_review.json
+test-results
+playwright-report

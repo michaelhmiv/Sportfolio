@@ -94,7 +94,9 @@ interface DashboardData {
 type EffectiveGameStatus = "scheduled" | "inprogress" | "completed" | "postponed";
 
 // Helper to determine effective game status based on current time
-const getEffectiveGameStatus = (game: Pick<GameInsight, "startTime" | "status">): EffectiveGameStatus => {
+const getEffectiveGameStatus = (
+  game: Pick<GameInsight, "startTime" | "status">,
+): EffectiveGameStatus => {
   const now = new Date();
   const startTime = new Date(game.startTime);
   const timeSinceStart = now.getTime() - startTime.getTime();
@@ -135,6 +137,7 @@ export default function Dashboard() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const { sport } = useSport();
   const [activeGame, setActiveGame] = useState<GameInsight | null>(null);
+  const [initialGameTab, setInitialGameTab] = useState<"pre" | "during" | "post">("pre");
   const { shouldPoll, isMobile } = useAppState();
 
   // Disable polling when app is backgrounded or offline; reduce frequency on mobile
@@ -223,7 +226,7 @@ export default function Dashboard() {
     queryKey: ["/api/games/insights", sport, formattedDate],
     queryFn: async () => {
       const res = await fetch(`/api/games/insights?sport=${sport}&date=${formattedDate}`);
-      if (!res.ok) throw new Error('Failed to fetch game insights');
+      if (!res.ok) throw new Error("Failed to fetch game insights");
       return res.json();
     },
     refetchInterval: isToday(selectedDate) ? pollingInterval : false,
@@ -232,9 +235,9 @@ export default function Dashboard() {
 
   const games = gameInsights?.games || [];
   const boostSlotsRemaining = gameInsights?.boostSlotsRemaining ?? null;
-  const liveGames = games.filter(game => getEffectiveGameStatus(game) === "inprogress");
-  const upcomingGames = games.filter(game => getEffectiveGameStatus(game) === "scheduled");
-  const finalGames = games.filter(game => {
+  const liveGames = games.filter((game) => getEffectiveGameStatus(game) === "inprogress");
+  const upcomingGames = games.filter((game) => getEffectiveGameStatus(game) === "scheduled");
+  const finalGames = games.filter((game) => {
     const status = getEffectiveGameStatus(game);
     return status === "completed" || status === "postponed";
   });
@@ -443,127 +446,141 @@ export default function Dashboard() {
               <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 space-y-0 pb-2 relative z-10">
                 {/* Left side: Sport selector on mobile, Title + Sport on desktop */}
                 <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-start">
-                <CardTitle className="text-sm font-medium uppercase tracking-wide hidden sm:block">Games</CardTitle>
-                <SportSelector size="sm" />
-              </div>
+                  <CardTitle className="text-sm font-medium uppercase tracking-wide hidden sm:block">
+                    Games
+                  </CardTitle>
+                  <SportSelector size="sm" />
+                </div>
 
-              {/* Right side: Date controls */}
-              <div className="flex items-center gap-1.5 sm:gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={goToPrevDay}
-                  disabled={!isDateInRange(new Date(selectedDate.getTime() - 86400000))}
-                  className="h-8 px-2 sm:px-3"
-                  data-testid="button-prev-day"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </Button>
-
-                <Popover open={showDatePicker} onOpenChange={setShowDatePicker}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-8 gap-2 px-2 sm:px-3"
-                      data-testid="button-open-calendar"
-                    >
-                      <Calendar className="w-4 h-4" />
-                      <span className="text-sm">
-                        {selectedDate.toLocaleDateString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                          year: selectedDate.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined
-                        })}
-                      </span>
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="end">
-                    <CalendarComponent
-                      mode="single"
-                      selected={selectedDate}
-                      onSelect={handleDateSelect}
-                      disabled={(date) => !isDateInRange(date)}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={goToNextDay}
-                  disabled={!isDateInRange(new Date(selectedDate.getTime() + 86400000))}
-                  className="h-8 px-2 sm:px-3"
-                  data-testid="button-next-day"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </Button>
-
-                {!isToday(selectedDate) && (
+                {/* Right side: Date controls */}
+                <div className="flex items-center gap-1.5 sm:gap-2">
                   <Button
-                    variant="default"
+                    variant="outline"
                     size="sm"
-                    onClick={goToToday}
-                    className="h-8 px-2 sm:px-3 hidden sm:inline-flex"
-                    data-testid="button-today"
+                    onClick={goToPrevDay}
+                    disabled={!isDateInRange(new Date(selectedDate.getTime() - 86400000))}
+                    className="h-8 px-2 sm:px-3"
+                    data-testid="button-prev-day"
                   >
-                    Today
+                    <ChevronLeft className="w-4 h-4" />
                   </Button>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {isLoadingGames ? (
-                <div className="space-y-3">
-                  <ShimmerCard lines={3} />
-                  <ShimmerCard lines={3} />
-                </div>
-              ) : games.length > 0 ? (
-                <>
-                  {[
-                    { title: "Live", games: liveGames, empty: "No live games right now." },
-                    { title: "Upcoming", games: upcomingGames, empty: "No upcoming games scheduled." },
-                    { title: "Final", games: finalGames, empty: "No final scores yet." },
-                  ].map(section => (
-                    <div key={section.title} className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                          {section.title}
-                        </div>
-                        <Badge variant="outline">{section.games.length}</Badge>
-                      </div>
-                      {section.games.length > 0 ? (
-                        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                          {section.games.map(game => {
-                            const effectiveStatus = getEffectiveGameStatus(game);
-                            return (
-                              <GameCommandCenterCard
-                                key={game.gameId}
-                                game={game}
-                                effectiveStatus={effectiveStatus}
-                                boostSlotsRemaining={boostSlotsRemaining}
-                                isAuthenticated={isAuthenticated}
-                                onOpen={() => setActiveGame(game)}
-                              />
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <div className="text-sm text-muted-foreground">{section.empty}</div>
-                      )}
-                    </div>
-                  ))}
-                </>
-              ) : (
-                <div className="text-center py-8 text-sm text-muted-foreground">
-                  ⊡ No games scheduled for this date
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </ScrollReveal>
 
+                  <Popover open={showDatePicker} onOpenChange={setShowDatePicker}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 gap-2 px-2 sm:px-3"
+                        data-testid="button-open-calendar"
+                      >
+                        <Calendar className="w-4 h-4" />
+                        <span className="text-sm">
+                          {selectedDate.toLocaleDateString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                            year:
+                              selectedDate.getFullYear() !== new Date().getFullYear()
+                                ? "numeric"
+                                : undefined,
+                          })}
+                        </span>
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="end">
+                      <CalendarComponent
+                        mode="single"
+                        selected={selectedDate}
+                        onSelect={handleDateSelect}
+                        disabled={(date) => !isDateInRange(date)}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={goToNextDay}
+                    disabled={!isDateInRange(new Date(selectedDate.getTime() + 86400000))}
+                    className="h-8 px-2 sm:px-3"
+                    data-testid="button-next-day"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </Button>
+
+                  {!isToday(selectedDate) && (
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={goToToday}
+                      className="h-8 px-2 sm:px-3 hidden sm:inline-flex"
+                      data-testid="button-today"
+                    >
+                      Today
+                    </Button>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {isLoadingGames ? (
+                  <div className="space-y-3">
+                    <ShimmerCard lines={3} />
+                    <ShimmerCard lines={3} />
+                  </div>
+                ) : games.length > 0 ? (
+                  <>
+                    {[
+                      { title: "Live", games: liveGames, empty: "No live games right now." },
+                      {
+                        title: "Upcoming",
+                        games: upcomingGames,
+                        empty: "No upcoming games scheduled.",
+                      },
+                      { title: "Final", games: finalGames, empty: "No final scores yet." },
+                    ].map((section) => (
+                      <div key={section.title} className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                            {section.title}
+                          </div>
+                          <Badge variant="outline">{section.games.length}</Badge>
+                        </div>
+                        {section.games.length > 0 ? (
+                          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                            {section.games.map((game) => {
+                              const effectiveStatus = getEffectiveGameStatus(game);
+                              return (
+                                <GameCommandCenterCard
+                                  key={game.gameId}
+                                  game={game}
+                                  effectiveStatus={effectiveStatus}
+                                  boostSlotsRemaining={boostSlotsRemaining}
+                                  isAuthenticated={isAuthenticated}
+                                  onOpen={() => {
+                                    // If the game is live, open command center directly on Live tab
+                                    setInitialGameTab(
+                                      getEffectiveGameStatus(game) === "inprogress" ? "during" : "pre",
+                                    );
+                                    setActiveGame(game);
+                                  }}
+                                />
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="text-sm text-muted-foreground">{section.empty}</div>
+                        )}
+                      </div>
+                    ))}
+                  </>
+                ) : (
+                  <div className="text-center py-8 text-sm text-muted-foreground">
+                    ⊡ No games scheduled for this date
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </ScrollReveal>
 
           {/* Market Scanners Carousel */}
           <ScrollReveal delay={0.15}>
@@ -743,6 +760,7 @@ export default function Dashboard() {
           sport={sport}
           date={formattedDate}
           initialInsight={activeGame}
+          initialTab={initialGameTab}
           onClose={() => setActiveGame(null)}
         />
       )}
