@@ -35,6 +35,7 @@ import {
   userMilestones,
   trades,
   whopPayments,
+  jobExecutionLogs,
 } from "@shared/schema";
 import { sql, eq, desc, and, gte, lte, inArray, lt } from "drizzle-orm";
 import { jobScheduler } from "./jobs/scheduler";
@@ -137,6 +138,20 @@ type GameInsightLeader = {
   totalShares: number;
   scoutCount: number;
 };
+
+const ADMIN_STATS_CACHE_TTL_MS = Math.max(
+  5000,
+  Number(process.env.ADMIN_STATS_CACHE_TTL_MS || 20000),
+);
+
+let adminStatsCache: {
+  expiresAt: number;
+  payload: Record<string, any>;
+} | null = null;
+
+function invalidateAdminStatsCache() {
+  adminStatsCache = null;
+}
 
 type GameInsightUserContext = {
   eligibleCount: number;
@@ -6774,6 +6789,14 @@ ${posts
   // Admin endpoint: Get system statistics
   app.get("/api/admin/stats", adminAuth, async (req, res) => {
     try {
+      const nowMs = Date.now();
+      if (adminStatsCache && adminStatsCache.expiresAt > nowMs) {
+        return res.json({
+          ...adminStatsCache.payload,
+          adminContext: (req as any).adminContext || null,
+        });
+      }
+
       // All scheduled job types in the system (from scheduler config)
       const jobTypes = jobScheduler.getConfiguredJobNames();
       const jobTypesSafe =
@@ -6798,29 +6821,44 @@ ${posts
               "prune_price_history",
             ];
 
-      const [users, players, allContests, recentLogs, latestJobLogs] = await Promise.all([
-        storage.getUsers(),
-        storage.getPlayers(),
-        storage.getContests(),
-        storage.getRecentJobLogs(undefined, 200), // For today's API request count
-        storage.getLatestJobLogPerType(jobTypesSafe),
-      ]);
-      const openContests = allContests.filter((c: any) => c.status === "open").length;
-      const liveContests = allContests.filter((c: any) => c.status === "live").length;
-      const completedContests = allContests.filter((c: any) => c.status === "completed").length;
-
-      // Get today's API request count from recent logs
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      const todayLogs = recentLogs.filter((log: any) => {
-        const logDate = new Date(log.scheduledFor);
-        logDate.setHours(0, 0, 0, 0);
-        return logDate.getTime() === today.getTime();
-      });
-      const apiRequestsToday = todayLogs.reduce(
-        (sum: number, log: any) => sum + (log.requestCount || 0),
-        0,
-      );
+
+      const [
+        userCountResult,
+        playerCountResult,
+        contestCountsResult,
+        apiRequestsResult,
+        latestJobLogs,
+      ] = await Promise.all([
+        db.select({ count: sql<number>`COUNT(*)::int` }).from(users),
+        db.select({ count: sql<number>`COUNT(*)::int` }).from(players),
+        db
+          .select({
+            total: sql<number>`COUNT(*)::int`,
+            open: sql<number>`COUNT(*) FILTER (WHERE ${contests.status} = 'open')::int`,
+            live: sql<number>`COUNT(*) FILTER (WHERE ${contests.status} = 'live')::int`,
+            completed: sql<number>`COUNT(*) FILTER (WHERE ${contests.status} = 'completed')::int`,
+          })
+          .from(contests),
+        db
+          .select({
+            requestCount: sql<number>`COALESCE(SUM(${jobExecutionLogs.requestCount}), 0)::int`,
+          })
+          .from(jobExecutionLogs)
+          .where(gte(jobExecutionLogs.scheduledFor, today)),
+        storage.getLatestJobLogPerType(jobTypesSafe),
+      ]);
+
+      const userCount = userCountResult[0]?.count || 0;
+      const playerCount = playerCountResult[0]?.count || 0;
+      const contestCounts = contestCountsResult[0] || {
+        total: 0,
+        open: 0,
+        live: 0,
+        completed: 0,
+      };
+      const apiRequestsToday = apiRequestsResult[0]?.requestCount || 0;
 
       // Build last job runs from the per-type query results
       const lastJobRuns = jobTypesSafe.map((jobName) => {
@@ -6834,15 +6872,14 @@ ${posts
         };
       });
 
-      res.json({
+      const payload = {
         ok: true,
-        adminContext: (req as any).adminContext || null,
-        totalUsers: users.length,
-        totalPlayers: players.length,
-        totalContests: allContests.length,
-        openContests,
-        liveContests,
-        completedContests,
+        totalUsers: userCount,
+        totalPlayers: playerCount,
+        totalContests: contestCounts.total,
+        openContests: contestCounts.open,
+        liveContests: contestCounts.live,
+        completedContests: contestCounts.completed,
         apiRequestsToday,
         lastJobRuns,
         websocket: getWebSocketStats(),
@@ -6850,6 +6887,16 @@ ${posts
           now: new Date().toISOString(),
           uptimeSec: Math.round(process.uptime()),
         },
+      };
+
+      adminStatsCache = {
+        expiresAt: nowMs + ADMIN_STATS_CACHE_TTL_MS,
+        payload,
+      };
+
+      res.json({
+        ...payload,
+        adminContext: (req as any).adminContext || null,
       });
     } catch (error: any) {
       console.error("[ADMIN] Failed to get stats:", error.message);
@@ -7285,6 +7332,8 @@ ${posts
         });
       }
 
+      invalidateAdminStatsCache();
+
       res.json({
         success: true,
         jobName,
@@ -7317,7 +7366,8 @@ ${posts
         }
       }
 
-      res.status(500).json({ error: error.message });
+      const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
+      res.status(statusCode).json({ error: error.message });
     }
   });
 
@@ -7457,6 +7507,7 @@ ${posts
 
       // Only send response if headers haven't been sent yet (streaming case)
       if (!res.headersSent) {
+        invalidateAdminStatsCache();
         res.json({
           success: status === "success",
           status,

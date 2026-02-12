@@ -64,6 +64,7 @@ export interface JobConfig {
 export class JobScheduler {
   private jobs: Map<string, cron.ScheduledTask> = new Map();
   private jobConfigs: Map<string, JobConfig> = new Map();
+  private runningJobs: Set<string> = new Set();
   private isInitialized = false;
 
   constructor() {}
@@ -80,64 +81,74 @@ export class JobScheduler {
     const task = cron.schedule(
       jobConfig.schedule,
       async () => {
-        logJobEvent(`[${jobConfig.name}] Starting scheduled run...`);
-
-        // Best-effort job execution logging: job failures should never crash the server.
-        let jobLog: { id: string } | null = null;
-        try {
-          jobLog = await storage.createJobLog({
-            jobName: jobConfig.name,
-            scheduledFor: new Date(),
-            status: "running",
-          });
-        } catch (err: any) {
-          warn(`[${jobConfig.name}] Failed to create job log: ${err?.message || err}`);
+        if (this.runningJobs.has(jobConfig.name)) {
+          warn(`[${jobConfig.name}] Skipping scheduled run because a previous run is still active`);
+          return;
         }
 
+        this.runningJobs.add(jobConfig.name);
+        logJobEvent(`[${jobConfig.name}] Starting scheduled run...`);
+
         try {
-          const result = await jobConfig.handler();
+          // Best-effort job execution logging: job failures should never crash the server.
+          let jobLog: { id: string } | null = null;
+          try {
+            jobLog = await storage.createJobLog({
+              jobName: jobConfig.name,
+              scheduledFor: new Date(),
+              status: "running",
+            });
+          } catch (err: any) {
+            warn(`[${jobConfig.name}] Failed to create job log: ${err?.message || err}`);
+          }
 
-          const status = result.errorCount > 0 ? "degraded" : "success";
+          try {
+            const result = await jobConfig.handler();
 
-          if (jobLog) {
-            try {
-              await storage.updateJobLog(jobLog.id, {
-                status,
-                finishedAt: new Date(),
-                requestCount: result.requestCount || 0,
-                recordsProcessed: result.recordsProcessed || 0,
-                errorCount: result.errorCount || 0,
-              });
-            } catch (err: any) {
-              warn(`[${jobConfig.name}] Failed to update job log: ${err?.message || err}`);
+            const status = result.errorCount > 0 ? "degraded" : "success";
+
+            if (jobLog) {
+              try {
+                await storage.updateJobLog(jobLog.id, {
+                  status,
+                  finishedAt: new Date(),
+                  requestCount: result.requestCount || 0,
+                  recordsProcessed: result.recordsProcessed || 0,
+                  errorCount: result.errorCount || 0,
+                });
+              } catch (err: any) {
+                warn(`[${jobConfig.name}] Failed to update job log: ${err?.message || err}`);
+              }
             }
-          }
 
-          if (status === "degraded") {
-            warn(
-              `[${jobConfig.name}] Completed with errors - ${result.recordsProcessed} records processed, ${result.errorCount} failed, ${result.requestCount} requests`,
-            );
-          } else {
-            logJobEvent(
-              `[${jobConfig.name}] Completed successfully - ${result.recordsProcessed} records, ${result.requestCount} requests`,
-            );
-          }
-        } catch (err: any) {
-          error(`[${jobConfig.name}] Failed:`, err?.message || err);
-
-          if (jobLog) {
-            try {
-              await storage.updateJobLog(jobLog.id, {
-                status: "failed",
-                errorMessage: err?.message || String(err),
-                finishedAt: new Date(),
-              });
-            } catch (logErr: any) {
+            if (status === "degraded") {
               warn(
-                `[${jobConfig.name}] Failed to update failed job log: ${logErr?.message || logErr}`,
+                `[${jobConfig.name}] Completed with errors - ${result.recordsProcessed} records processed, ${result.errorCount} failed, ${result.requestCount} requests`,
+              );
+            } else {
+              logJobEvent(
+                `[${jobConfig.name}] Completed successfully - ${result.recordsProcessed} records, ${result.requestCount} requests`,
               );
             }
+          } catch (err: any) {
+            error(`[${jobConfig.name}] Failed:`, err?.message || err);
+
+            if (jobLog) {
+              try {
+                await storage.updateJobLog(jobLog.id, {
+                  status: "failed",
+                  errorMessage: err?.message || String(err),
+                  finishedAt: new Date(),
+                });
+              } catch (logErr: any) {
+                warn(
+                  `[${jobConfig.name}] Failed to update failed job log: ${logErr?.message || logErr}`,
+                );
+              }
+            }
           }
+        } finally {
+          this.runningJobs.delete(jobConfig.name);
         }
       },
       {
@@ -203,7 +214,7 @@ export class JobScheduler {
       },
       {
         name: "lock_boost_shares",
-        schedule: "*/5 * * * *", // Every 5 minutes - lock shares when games start
+        schedule: "0-59/5 * * * *", // Every 5 minutes - lock shares when games start
         enabled: true,
         handler: lockBoostShares,
       },
@@ -215,19 +226,19 @@ export class JobScheduler {
       },
       {
         name: "settle_boosts",
-        schedule: "*/10 * * * *", // Every 10 minutes - settle completed boosts
+        schedule: "5-59/10 * * * *", // Every 10 minutes (offset 5m) - settle completed boosts
         enabled: true,
         handler: settleBoosts,
       },
       {
         name: "settle_share_payouts",
-        schedule: "2-59/10 * * * *", // Every 10 minutes (offset 2m) - settle processed game-based share payouts
+        schedule: "7-59/10 * * * *", // Every 10 minutes (offset 7m) - settle processed game-based share payouts
         enabled: true,
         handler: settleSharePayouts,
       },
       {
         name: "settle_community_boosts",
-        schedule: "*/10 * * * *", // Every 10 minutes - settle community boosts
+        schedule: "9-59/10 * * * *", // Every 10 minutes (offset 9m) - settle community boosts
         enabled: true,
         handler: settleCommunityBoosts,
       },
@@ -247,7 +258,7 @@ export class JobScheduler {
       // Collection and milestone jobs
       {
         name: "update_collections",
-        schedule: "*/15 * * * *", // Every 15 minutes - update user collection progress
+        schedule: "7-59/15 * * * *", // Every 15 minutes (offset 7m) - update user collection progress
         enabled: true,
         handler: async () => {
           await updateCollectionsJob();
@@ -260,7 +271,7 @@ export class JobScheduler {
       },
       {
         name: "check_milestones",
-        schedule: "*/5 * * * *", // Every 5 minutes - check for milestone achievements
+        schedule: "3-59/15 * * * *", // Every 15 minutes (offset 3m) - check for milestone achievements
         enabled: true,
         handler: async () => {
           await checkMilestonesJob();
@@ -273,13 +284,13 @@ export class JobScheduler {
       },
       {
         name: "refresh_player_metrics",
-        schedule: "*/15 * * * *", // Every 15 minutes - keep list-sort metrics fresh at scale
+        schedule: "12-59/15 * * * *", // Every 15 minutes (offset 12m) - keep list-sort metrics fresh at scale
         enabled: true,
         handler: () => refreshPlayerMarketMetricsJob(),
       },
       {
         name: "refresh_player_volume_24h",
-        schedule: "*/5 * * * *", // Every 5 minutes - rolling 24h shares volume for marketplace sorting
+        schedule: "4-59/10 * * * *", // Every 10 minutes (offset 4m) - rolling 24h shares volume for marketplace sorting
         enabled: true,
         handler: () => refreshPlayerVolume24hJob(),
       },
@@ -343,7 +354,7 @@ export class JobScheduler {
       },
       {
         name: "stats_sync_live",
-        schedule: "*/5 * * * *", // Every 5 minutes for live games (all sports; NFL throttled in handler)
+        schedule: "4-59/5 * * * *", // Every 5 minutes (offset 4m) for live games (all sports; NFL throttled in handler)
         enabled: true,
         handler: async () => {
           // Unified live stats sync for all sports (NBA + NFL)
@@ -550,6 +561,14 @@ export class JobScheduler {
       throw new Error(`Unknown job: ${jobName}`);
     }
 
+    if (this.runningJobs.has(jobName)) {
+      const alreadyRunningError = new Error(`Job ${jobName} is already running`);
+      (alreadyRunningError as any).statusCode = 409;
+      throw alreadyRunningError;
+    }
+
+    this.runningJobs.add(jobName);
+
     info(`[${jobName}] Manual trigger started${progressCallback ? " with live logging" : ""}...`);
 
     // Best-effort job logging; manual triggers should still run if logs fail.
@@ -610,6 +629,8 @@ export class JobScheduler {
       }
 
       throw err;
+    } finally {
+      this.runningJobs.delete(jobName);
     }
   }
 
@@ -617,9 +638,9 @@ export class JobScheduler {
    * Get status of all jobs
    */
   getStatus(): Array<{ name: string; running: boolean }> {
-    return Array.from(this.jobs.entries()).map(([name, task]) => ({
+    return Array.from(this.jobs.keys()).map((name) => ({
       name,
-      running: task.getStatus() === "running",
+      running: this.runningJobs.has(name),
     }));
   }
 
