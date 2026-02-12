@@ -1,65 +1,39 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
-import {
-  TrendingUp,
-  TrendingDown,
-  DollarSign,
-  Calendar,
-  Search,
-  ChevronDown,
-  BarChart3,
-  ChevronLeft,
-  ChevronRight,
-  ExternalLink,
-  ArrowUpDown,
-  LogIn,
-  Zap,
-  Flame,
-  Activity,
-  Trophy,
-  Clock,
-} from "lucide-react";
+import { TrendingUp, TrendingDown, DollarSign, Calendar, Search, ChevronDown, BarChart3, ChevronLeft, ChevronRight, ExternalLink, ArrowUpDown, LogIn, Activity, Trophy, Clock } from "lucide-react";
 import { useAppState } from "@/hooks/use-app-state";
 import { Link, useLocation } from "wouter";
-import type { Player, Trade } from "@shared/schema";
+import type { Player, Trade, DailyGame } from "@shared/schema";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { formatBalance } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { invalidatePortfolioQueries } from "@/lib/cache-invalidation";
 import { DashboardScanners } from "@/components/marketplace-scanners";
 import { PlayerName } from "@/components/player-name";
-import { Shimmer, ShimmerCard, ScrollReveal } from "@/components/ui/animations";
+import { WhopAd } from "@/components/whop-ad";
+import { Shimmer, ShimmerCard, ScrollReveal, AnimatedButton } from "@/components/ui/animations";
+import { AnimatedPrice } from "@/components/ui/animated-price";
 import { useSport } from "@/lib/sport-context";
-import { authenticatedFetch } from "@/lib/queryClient";
 import { SportSelector } from "@/components/sport-selector";
 import { OnboardingMissions } from "@/components/onboarding-missions";
 import { MarketTicker } from "@/components/market-ticker";
-import { GameCommandCenterCard } from "@/components/game-command-center-card";
-import { GameCommandCenterModal } from "@/components/game-command-center-modal";
-import { BackgroundPattern, CardAccent } from "@/components/ui/decorative-elements";
-import type { GameInsight, GameInsightsResponse } from "@/types/game-insights";
+import { GameStatsModal } from "@/components/game-stats-modal";
+import { Zap, Flame } from "lucide-react";
+import { BackgroundPattern, CardAccent, TierBadge } from "@/components/ui/decorative-elements";
 
-interface NetWorthChangeSummary {
+interface NetWorthChange {
   amount: number | null;
   percent: number | null;
   rank: number | null;
@@ -69,24 +43,17 @@ interface DashboardData {
   user: {
     balance: string;
     portfolioValue: string;
-    netWorth: string;
     cashRank: number;
     portfolioRank: number;
     cashRankChange: number | null;
     portfolioRankChange: number | null;
-    change24h: NetWorthChangeSummary;
-    change7d: NetWorthChangeSummary;
-    change30d: NetWorthChangeSummary;
+    change24h: NetWorthChange;
+    change7d: NetWorthChange;
+    change30d: NetWorthChange;
   } | null; // Null for non-authenticated users
   recentTrades: (Trade & { player: Player })[];
   portfolioHistory: { date: string; value: number }[];
-  topHoldings: {
-    player: Player;
-    quantity: number;
-    value: string;
-    pnl: string;
-    pnlPercent: string;
-  }[];
+  topHoldings: { player: Player; quantity: number; value: string; pnl: string; pnlPercent: string }[];
   power: {
     activeBoosts: number;
     lockedBoosts: number;
@@ -101,59 +68,86 @@ interface DashboardData {
   } | null;
 }
 
-type EffectiveGameStatus = "scheduled" | "inprogress" | "completed" | "postponed";
+// Helper component for time period columns
+function PeriodColumn({ 
+  label, 
+  change 
+}: { 
+  label: string; 
+  change: { amount: number | null; percent: number | null; rank: number | null };
+}) {
+  const isPositive = change.amount ? change.amount >= 0 : true;
+  const displayChange = change.amount !== null ? formatBalance(Math.abs(change.amount)) : "—";
+  const displayPercent = change.percent !== null ? `${Math.abs(change.percent).toFixed(1)}%` : "—";
+  const hasRank = change.rank !== null && change.rank > 0;
 
-const compactCurrencyFormatter = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  notation: "compact",
-  maximumFractionDigits: 1,
-});
+  return (
+    <button
+      onClick={() => window.location.href = "/portfolio"}
+      className="flex flex-col justify-center text-center rounded-md hover:bg-secondary/40 transition-colors p-1 -m-1"
+    >
+      <div className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wider mb-1">{label}</div>
+      <div className="flex items-center justify-center gap-1">
+        <div className={`font-mono font-semibold text-sm sm:text-base truncate ${isPositive ? 'text-positive' : 'text-negative'}`}>
+          {change.amount !== null ? (isPositive ? '+' : '-') : ''}{displayChange}
+        </div>
+        {hasRank && (
+          <span className="inline-flex items-center border border-border px-1 rounded-full text-[9px] text-muted-foreground">
+            #{change.rank}
+          </span>
+        )}
+      </div>
+      <div className={`text-[10px] sm:text-xs font-medium ${isPositive ? 'text-positive/80' : 'text-negative/80'}`}>
+        {change.percent !== null ? (isPositive ? '+' : '-') : ''}{displayPercent}
+      </div>
+    </button>
+  );
+}
 
 // Helper to determine effective game status based on current time
-const getEffectiveGameStatus = (
-  game: Pick<GameInsight, "startTime" | "status">,
-): EffectiveGameStatus => {
+const getEffectiveGameStatus = (game: DailyGame): string => {
   const now = new Date();
   const startTime = new Date(game.startTime);
   const timeSinceStart = now.getTime() - startTime.getTime();
   const threeHoursInMs = 3 * 60 * 60 * 1000;
 
   // If DB says postponed, trust it
-  if (game.status === "postponed") {
-    return "postponed";
+  if (game.status === 'postponed') {
+    return 'postponed';
   }
 
   // If DB says completed, trust it
-  if (game.status === "completed") {
-    return "completed";
+  if (game.status === 'completed') {
+    return 'completed';
   }
 
   // If DB says inprogress, trust it
-  if (game.status === "inprogress") {
-    return "inprogress";
+  if (game.status === 'inprogress') {
+    return 'inprogress';
   }
 
   // If game is scheduled but should have started (and it's been less than 3 hours), assume it's live
-  if (game.status === "scheduled" && timeSinceStart > 0 && timeSinceStart < threeHoursInMs) {
-    return "inprogress";
+  if (game.status === 'scheduled' && timeSinceStart > 0 && timeSinceStart < threeHoursInMs) {
+    return 'inprogress';
   }
 
   // If more than 3 hours have passed since start and still scheduled, likely completed but not synced
-  if (game.status === "scheduled" && timeSinceStart >= threeHoursInMs) {
-    return "completed";
+  if (game.status === 'scheduled' && timeSinceStart >= threeHoursInMs) {
+    return 'completed';
   }
 
-  return game.status as EffectiveGameStatus;
+  return game.status;
 };
 
 export default function Dashboard() {
-  const { isAuthenticated } = useAuth();
+  const { toast } = useToast();
+  const { isAuthenticated, user } = useAuth();
+  const isPremiumUser = user?.isPremium || false;
   const [, setLocation] = useLocation();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const { sport } = useSport();
-  const [activeGame, setActiveGame] = useState<GameInsight | null>(null);
+  const [flippedGameId, setFlippedGameId] = useState<string | null>(null);
   const { shouldPoll, isMobile } = useAppState();
 
   // Disable polling when app is backgrounded or offline; reduce frequency on mobile
@@ -169,7 +163,8 @@ export default function Dashboard() {
       }, 10000);
 
       try {
-        const res = await authenticatedFetch("/api/dashboard", {
+        const res = await fetch("/api/dashboard", {
+          credentials: "include",
           signal: controller.signal,
         });
         clearTimeout(timeoutId);
@@ -182,8 +177,8 @@ export default function Dashboard() {
         return data;
       } catch (err) {
         clearTimeout(timeoutId);
-        if (err instanceof Error && err.name === "AbortError") {
-          throw new Error("Dashboard request timed out after 10 seconds");
+        if (err instanceof Error && err.name === 'AbortError') {
+          throw new Error('Dashboard request timed out after 10 seconds');
         }
         throw err;
       }
@@ -195,19 +190,17 @@ export default function Dashboard() {
   // Format date as YYYY-MM-DD
   const formatDateForAPI = (date: Date) => {
     const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
   };
 
   // Check if selected date is today
   const isToday = (date: Date) => {
     const today = new Date();
-    return (
-      date.getDate() === today.getDate() &&
+    return date.getDate() === today.getDate() &&
       date.getMonth() === today.getMonth() &&
-      date.getFullYear() === today.getFullYear()
-    );
+      date.getFullYear() === today.getFullYear();
   };
 
   // Validate date is within allowed range (7 days back to 14 days forward)
@@ -237,24 +230,18 @@ export default function Dashboard() {
 
   const formattedDate = formatDateForAPI(selectedDate);
 
-  const { data: gameInsights, isLoading: isLoadingGames } = useQuery<GameInsightsResponse>({
-    queryKey: ["/api/games/insights", sport, formattedDate],
+  const { data: todayGames } = useQuery<DailyGame[]>({
+    queryKey: isToday(selectedDate)
+      ? ['/api/games/today', sport]
+      : ['/api/games/date', formattedDate, sport],
     queryFn: async () => {
-      const res = await fetch(`/api/games/insights?sport=${sport}&date=${formattedDate}`);
-      if (!res.ok) throw new Error("Failed to fetch game insights");
+      const endpoint = isToday(selectedDate)
+        ? `/api/games/today?sport=${sport}`
+        : `/api/games/date/${formattedDate}?sport=${sport}`;
+      const res = await fetch(endpoint);
+      if (!res.ok) throw new Error('Failed to fetch games');
       return res.json();
     },
-    refetchInterval: isToday(selectedDate) ? pollingInterval : false,
-    refetchIntervalInBackground: false,
-  });
-
-  const games = gameInsights?.games || [];
-  const boostSlotsRemaining = gameInsights?.boostSlotsRemaining ?? null;
-  const liveGames = games.filter((game) => getEffectiveGameStatus(game) === "inprogress");
-  const upcomingGames = games.filter((game) => getEffectiveGameStatus(game) === "scheduled");
-  const finalGames = games.filter((game) => {
-    const status = getEffectiveGameStatus(game);
-    return status === "completed" || status === "postponed";
   });
 
   // Navigation helpers with validation
@@ -284,31 +271,6 @@ export default function Dashboard() {
       setShowDatePicker(false);
     }
   };
-
-  const formatSignedCurrency = (value: number | null) => {
-    if (value === null || Number.isNaN(value)) return "—";
-    const absolute = Math.abs(value).toFixed(2);
-    if (value > 0) return `+$${absolute}`;
-    if (value < 0) return `-$${absolute}`;
-    return "$0.00";
-  };
-
-  const formatSignedPercent = (value: number | null) => {
-    if (value === null || Number.isNaN(value)) return "—";
-    const absolute = Math.abs(value).toFixed(2);
-    if (value > 0) return `+${absolute}%`;
-    if (value < 0) return `-${absolute}%`;
-    return "0.00%";
-  };
-
-  const getChangeClassName = (value: number | null) => {
-    if (value === null || Number.isNaN(value)) return "text-muted-foreground";
-    if (value > 0) return "text-positive";
-    if (value < 0) return "text-negative";
-    return "text-muted-foreground";
-  };
-
-  const formatCompactCurrency = (value: number) => compactCurrencyFormatter.format(value);
 
   if (isLoading) {
     return (
@@ -349,10 +311,7 @@ export default function Dashboard() {
               <div className="flex items-center gap-2 text-sm sm:text-base">
                 <LogIn className="w-4 h-4 flex-shrink-0" />
                 <span className="font-medium">
-                  See live NBA trading in action.{" "}
-                  <span className="hidden sm:inline">
-                    Sign in to start trading, scouting, and competing.
-                  </span>
+                  See live NBA trading in action. <span className="hidden sm:inline">Sign in to start trading, scouting, and competing.</span>
                 </span>
               </div>
               <Button
@@ -385,278 +344,228 @@ export default function Dashboard() {
 
           {/* Balance Header - Only show for authenticated users */}
           {isAuthenticated && data?.user && (
-            <div className="p-1.5 sm:p-2 rounded-lg bg-card border shadow-sm relative overflow-hidden group">
+            <div className="p-4 sm:p-6 rounded-lg bg-card border shadow-sm relative overflow-hidden group">
               {/* Background Pattern */}
               <BackgroundPattern variant="gradient-mesh" color="primary" opacity={0.05} />
-
-              <div className="grid grid-cols-4 gap-1 relative z-10">
-                <div className="rounded-md border border-border/70 bg-background/40 p-1">
-                  <div className="grid grid-rows-4 gap-0.5 h-full">
-                    <div className="text-[9px] text-muted-foreground uppercase tracking-tight leading-none">
-                      Portfolio
+              
+              <div className="grid grid-cols-4 gap-3 sm:gap-6 relative z-10">
+                {/* Column 1: Portfolio Value (Primary) */}
+                <div className="col-span-1 flex flex-col justify-center">
+                  <div className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wider mb-1">Portfolio</div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="font-mono font-bold text-lg sm:text-2xl text-foreground truncate" data-testid="text-portfolio-value">
+                      {formatBalance(data?.user?.portfolioValue || "0")}
                     </div>
-                    <button
-                      onClick={() => setLocation("/leaderboards#portfolioValue")}
-                      className="text-left leading-none hover:bg-secondary/40 rounded-sm transition-colors"
-                      data-testid="button-dashboard-portfolio-summary"
-                      aria-label="Open portfolio value leaderboard"
-                    >
-                      <div className="flex items-center justify-between gap-0.5">
-                        <div
-                          className="fintech-balance text-foreground min-w-0"
-                          data-testid="text-portfolio-value"
-                        >
-                          <span className="text-[11px] sm:text-xs font-bold font-mono leading-none">
-                            {formatCompactCurrency(parseFloat(data?.user?.portfolioValue || "0"))}
-                          </span>
-                        </div>
-                        {data?.user?.portfolioRank && data?.user.portfolioRank > 0 && (
-                          <span
-                            className="inline-flex items-center gap-0.5 border border-border px-1 py-0 rounded-full text-[9px] leading-none"
-                            data-testid="badge-portfolio-rank"
-                          >
-                            #{data?.user.portfolioRank}
-                            {data?.user.portfolioRankChange !== null &&
-                              data?.user.portfolioRankChange !== 0 && (
-                                <span
-                                  className={
-                                    data?.user.portfolioRankChange > 0
-                                      ? "text-positive"
-                                      : "text-negative"
-                                  }
-                                >
-                                  {data?.user.portfolioRankChange > 0 ? (
-                                    <TrendingUp className="w-2 h-2 inline" />
-                                  ) : (
-                                    <TrendingDown className="w-2 h-2 inline" />
-                                  )}
-                                </span>
-                              )}
+                    {data?.user?.portfolioRank && data?.user.portfolioRank > 0 && (
+                      <button
+                        onClick={() => setLocation("/leaderboards#portfolioValue")}
+                        className="inline-flex items-center gap-1 border border-border px-1.5 py-0.5 rounded-full text-[10px] hover:bg-secondary transition-colors cursor-pointer flex-shrink-0"
+                        data-testid="badge-portfolio-rank"
+                        aria-label={`Portfolio value rank #${data?.user.portfolioRank}, click to view leaderboard`}
+                      >
+                        #{data?.user.portfolioRank}
+                        {data?.user.portfolioRankChange !== null && data?.user.portfolioRankChange !== 0 && (
+                          <span className={data?.user.portfolioRankChange > 0 ? "text-positive" : "text-negative"}>
+                            {data?.user.portfolioRankChange > 0 ? (
+                              <TrendingUp className="w-2.5 h-2.5 inline" />
+                            ) : (
+                              <TrendingDown className="w-2.5 h-2.5 inline" />
+                            )}
                           </span>
                         )}
-                      </div>
-                    </button>
-
-                    <div className="text-[9px] text-muted-foreground uppercase tracking-tight leading-none">
-                      Cash
-                    </div>
-                    <button
-                      onClick={() => setLocation("/leaderboards#cashBalance")}
-                      className="text-left leading-none hover:bg-secondary/40 rounded-sm transition-colors"
-                      data-testid="button-dashboard-cash-summary"
-                      aria-label="Open cash balance leaderboard"
-                    >
-                      <div className="flex items-center justify-between gap-0.5">
-                        <div
-                          className="fintech-balance text-foreground min-w-0"
-                          data-testid="text-balance"
-                        >
-                          <span className="text-[11px] sm:text-xs font-bold font-mono leading-none">
-                            {formatCompactCurrency(parseFloat(data?.user?.balance || "0"))}
-                          </span>
-                        </div>
-                        {data?.user?.cashRank && data?.user.cashRank > 0 && (
-                          <span
-                            className="inline-flex items-center gap-0.5 border border-border px-1 py-0 rounded-full text-[9px] leading-none"
-                            data-testid="badge-cash-rank"
-                          >
-                            #{data?.user.cashRank}
-                            {data?.user.cashRankChange !== null &&
-                              data?.user.cashRankChange !== 0 && (
-                                <span
-                                  className={
-                                    data?.user.cashRankChange > 0
-                                      ? "text-positive"
-                                      : "text-negative"
-                                  }
-                                >
-                                  {data?.user.cashRankChange > 0 ? (
-                                    <TrendingUp className="w-2 h-2 inline" />
-                                  ) : (
-                                    <TrendingDown className="w-2 h-2 inline" />
-                                  )}
-                                </span>
-                              )}
+                      </button>
+                    )}
+                  </div>
+                  <div className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">
+                    Cash: {formatBalance(data?.user?.balance || "0")}
+                    {data?.user?.cashRank && data?.user.cashRank > 0 && (
+                      <button
+                        onClick={() => setLocation("/leaderboards#cashBalance")}
+                        className="inline-flex items-center gap-1 border border-border px-1 py-0 rounded-full text-[10px] hover:bg-secondary transition-colors cursor-pointer flex-shrink-0 ml-1"
+                        data-testid="badge-cash-rank"
+                      >
+                        #{data?.user.cashRank}
+                        {data?.user.cashRankChange !== null && data?.user.cashRankChange !== 0 && (
+                          <span className={data?.user.cashRankChange > 0 ? "text-positive" : "text-negative"}>
+                            {data?.user.cashRankChange > 0 ? "↑" : "↓"}
                           </span>
                         )}
-                      </div>
-                    </button>
+                      </button>
+                    )}
                   </div>
                 </div>
 
-                {[
-                  { key: "24h", change: data?.user?.change24h, testId: "button-networth-24h" },
-                  { key: "7d", change: data?.user?.change7d, testId: "button-networth-7d" },
-                  { key: "30d", change: data?.user?.change30d, testId: "button-networth-30d" },
-                ].map((metric) => {
-                  const change = metric.change ?? { amount: null, percent: null, rank: null };
-                  return (
-                    <button
-                      key={metric.key}
-                      onClick={() => setLocation("/portfolio")}
-                      className="rounded-md border border-border/70 bg-background/40 p-1 text-left hover:bg-secondary/40 transition-colors"
-                      data-testid={metric.testId}
-                      aria-label={`Open portfolio details for ${metric.key} net worth change`}
-                    >
-                      <div className="grid grid-rows-3 gap-0.5 h-full leading-none">
-                        <div className="text-[9px] text-muted-foreground uppercase tracking-tight">
-                          {metric.key}
-                        </div>
-                        <div className="text-[10px] text-muted-foreground">
-                          {change.rank !== null && change.rank > 0 ? `#${change.rank}` : "—"}
-                        </div>
-                        <div
-                          className={`text-[10px] font-semibold ${getChangeClassName(change.amount)} truncate`}
-                        >
-                          {formatSignedCurrency(change.amount)}
-                          <span className={`ml-0.5 ${getChangeClassName(change.percent)}`}>
-                            {formatSignedPercent(change.percent)}
-                          </span>
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
+                {/* Column 2: 24h Performance */}
+                <PeriodColumn 
+                  label="24h" 
+                  change={data?.user?.change24h || { amount: null, percent: null, rank: null }}
+                />
+
+                {/* Column 3: 7d Performance */}
+                <PeriodColumn 
+                  label="7d" 
+                  change={data?.user?.change7d || { amount: null, percent: null, rank: null }}
+                />
+
+                {/* Column 4: 30d Performance */}
+                <PeriodColumn 
+                  label="30d" 
+                  change={data?.user?.change30d || { amount: null, percent: null, rank: null }}
+                />
               </div>
             </div>
           )}
 
-          {/* Games Section */}
-          <ScrollReveal delay={0.1}>
-            <Card className="mb-3 sm:mb-6 relative overflow-hidden">
-              <CardAccent variant="top" color="primary" intensity="medium" />
-              <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 space-y-0 pb-2 relative z-10">
-                {/* Left side: Sport selector on mobile, Title + Sport on desktop */}
-                <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-start">
-                  <CardTitle className="text-sm font-medium uppercase tracking-wide hidden sm:block">
-                    Games
-                  </CardTitle>
-                  <SportSelector size="sm" />
-                </div>
-
-                {/* Right side: Date controls */}
-                <div className="flex items-center gap-1.5 sm:gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={goToPrevDay}
-                    disabled={!isDateInRange(new Date(selectedDate.getTime() - 86400000))}
-                    className="h-8 px-2 sm:px-3"
-                    data-testid="button-prev-day"
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                  </Button>
-
-                  <Popover open={showDatePicker} onOpenChange={setShowDatePicker}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-8 gap-2 px-2 sm:px-3"
-                        data-testid="button-open-calendar"
-                      >
-                        <Calendar className="w-4 h-4" />
-                        <span className="text-sm">
-                          {selectedDate.toLocaleDateString("en-US", {
-                            month: "short",
-                            day: "numeric",
-                            year:
-                              selectedDate.getFullYear() !== new Date().getFullYear()
-                                ? "numeric"
-                                : undefined,
-                          })}
-                        </span>
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="end">
-                      <CalendarComponent
-                        mode="single"
-                        selected={selectedDate}
-                        onSelect={handleDateSelect}
-                        disabled={(date) => !isDateInRange(date)}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={goToNextDay}
-                    disabled={!isDateInRange(new Date(selectedDate.getTime() + 86400000))}
-                    className="h-8 px-2 sm:px-3"
-                    data-testid="button-next-day"
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                  </Button>
-
-                  {!isToday(selectedDate) && (
+          {/* Games */}
+          {todayGames && (
+            <ScrollReveal delay={0.1}>
+              <Card className="mb-3 sm:mb-6 relative overflow-hidden">
+                {/* Card Accent */}
+                <CardAccent variant="top" color="primary" intensity="medium" />
+                <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 space-y-0 pb-2 relative z-10">
+                  <div className="flex items-center gap-2">
+                    <CardTitle className="text-sm font-medium uppercase tracking-wide">
+                      {isToday(selectedDate) ? "Today's Games" : "Games"}
+                    </CardTitle>
+                    <SportSelector size="sm" />
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
                     <Button
-                      variant="default"
+                      variant="outline"
                       size="sm"
-                      onClick={goToToday}
-                      className="h-8 px-2 sm:px-3 hidden sm:inline-flex"
-                      data-testid="button-today"
+                      onClick={goToPrevDay}
+                      disabled={!isDateInRange(new Date(selectedDate.getTime() - 86400000))}
+                      className="h-8"
+                      data-testid="button-prev-day"
                     >
-                      Today
+                      <ChevronLeft className="w-4 h-4" />
                     </Button>
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {isLoadingGames ? (
-                  <div className="space-y-3">
-                    <ShimmerCard lines={3} />
-                    <ShimmerCard lines={3} />
-                  </div>
-                ) : games.length > 0 ? (
-                  <>
-                    {[
-                      { title: "Live", games: liveGames, empty: "No live games right now." },
-                      {
-                        title: "Upcoming",
-                        games: upcomingGames,
-                        empty: "No upcoming games scheduled.",
-                      },
-                      { title: "Final", games: finalGames, empty: "No final scores yet." },
-                    ].map((section) => (
-                      <div key={section.title} className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                            {section.title}
-                          </div>
-                          <Badge variant="outline">{section.games.length}</Badge>
-                        </div>
-                        {section.games.length > 0 ? (
-                          <div className="grid grid-cols-2 gap-2">
-                            {section.games.map((game) => {
-                              const effectiveStatus = getEffectiveGameStatus(game);
-                              return (
-                                <GameCommandCenterCard
-                                  key={game.gameId}
-                                  game={game}
-                                  effectiveStatus={effectiveStatus}
-                                  boostSlotsRemaining={boostSlotsRemaining}
-                                  isAuthenticated={isAuthenticated}
-                                  onOpen={() => setActiveGame(game)}
-                                />
-                              );
+
+                    <Popover open={showDatePicker} onOpenChange={setShowDatePicker}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 gap-2"
+                          data-testid="button-open-calendar"
+                        >
+                          <Calendar className="w-4 h-4" />
+                          <span className="text-sm">
+                            {selectedDate.toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                              year: selectedDate.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined
                             })}
-                          </div>
-                        ) : (
-                          <div className="text-sm text-muted-foreground">{section.empty}</div>
-                        )}
-                      </div>
-                    ))}
-                  </>
-                ) : (
-                  <div className="text-center py-8 text-sm text-muted-foreground">
-                    ⊡ No games scheduled for this date
+                          </span>
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="end">
+                        <CalendarComponent
+                          mode="single"
+                          selected={selectedDate}
+                          onSelect={handleDateSelect}
+                          disabled={(date) => !isDateInRange(date)}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={goToNextDay}
+                      disabled={!isDateInRange(new Date(selectedDate.getTime() + 86400000))}
+                      className="h-8"
+                      data-testid="button-next-day"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </Button>
+
+                    {!isToday(selectedDate) && (
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={goToToday}
+                        className="h-8"
+                        data-testid="button-today"
+                      >
+                        Today
+                      </Button>
+                    )}
                   </div>
-                )}
-              </CardContent>
-            </Card>
-          </ScrollReveal>
+                </CardHeader>
+                <CardContent>
+                  {todayGames.length > 0 ? (
+                    <div className="overflow-x-auto -mx-2 px-2 relative">
+                      <div className="grid grid-rows-2 grid-flow-col auto-cols-[minmax(140px,1fr)] gap-2">
+                        {todayGames.map((game) => {
+                          const effectiveStatus = getEffectiveGameStatus(game);
+                          const plainTextSportsUrl = getPlainTextSportsUrl(game);
+
+                          return (
+                            <div
+                              key={game.gameId}
+                              data-game-card-id={game.gameId}
+                              className="relative"
+                              data-testid={`game-${game.gameId}`}
+                            >
+                              {/* Game Score Card - click to open stats modal */}
+                              <div
+                                className="p-2 rounded-md bg-muted hover:bg-secondary cursor-pointer relative overflow-hidden group"
+                                onClick={() => {
+                                  if (effectiveStatus === 'inprogress' || effectiveStatus === 'completed') {
+                                    setFlippedGameId(game.gameId);
+                                  }
+                                }}
+                              >
+                                {/* Status Indicator for Live Games */}
+                                <div className="flex flex-col gap-1">
+                                  <div className="flex items-center justify-between">
+                                    <span className="font-medium text-xs">{game.awayTeam}</span>
+                                    {(effectiveStatus === 'completed' || effectiveStatus === 'inprogress') && game.awayScore != null && (
+                                      <span className="font-mono font-bold text-xs">{game.awayScore}</span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center justify-between">
+                                    <span className="font-medium text-xs">{game.homeTeam}</span>
+                                    {(effectiveStatus === 'completed' || effectiveStatus === 'inprogress') && game.homeScore != null && (
+                                      <span className="font-mono font-bold text-xs">{game.homeScore}</span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center justify-between text-xs mt-0.5">
+                                    <span className="text-muted-foreground text-[10px]">
+                                      {effectiveStatus === 'postponed'
+                                        ? 'Postponed'
+                                        : effectiveStatus === 'scheduled'
+                                          ? new Date(game.startTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+                                          : effectiveStatus === 'completed'
+                                            ? 'Final'
+                                            : 'Live'
+                                      }
+                                    </span>
+                                    <Badge
+                                      variant={effectiveStatus === 'inprogress' ? 'default' : effectiveStatus === 'completed' ? 'secondary' : effectiveStatus === 'postponed' ? 'destructive' : 'outline'}
+                                      className="text-[10px] h-4 px-1"
+                                    >
+                                      {effectiveStatus === 'inprogress' ? 'LIVE' : effectiveStatus === 'completed' ? 'Final' : effectiveStatus === 'postponed' ? 'PPD' : new Date(game.startTime).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                                    </Badge>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-sm text-muted-foreground">
+                      ⊡ No games scheduled for this date
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </ScrollReveal>
+          )}
 
           {/* Market Scanners Carousel */}
           <ScrollReveal delay={0.15}>
@@ -671,9 +580,7 @@ export default function Dashboard() {
                 {/* Card Accent */}
                 <CardAccent variant="top" color="warning" intensity="medium" />
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative z-10">
-                  <CardTitle className="text-sm font-medium uppercase tracking-wide">
-                    Power
-                  </CardTitle>
+                  <CardTitle className="text-sm font-medium uppercase tracking-wide">Power</CardTitle>
                   <Zap className="w-4 h-4 text-yellow-500" />
                 </CardHeader>
                 <CardContent className="space-y-2 sm:space-y-3">
@@ -702,7 +609,7 @@ export default function Dashboard() {
                         <div className="flex-1">
                           <div className="text-xs text-muted-foreground mb-1">Slots Available</div>
                           <div className="flex gap-1 mt-1">
-                            {data.power.availableSlots.map((slot) => (
+                            {data.power.availableSlots.map(slot => (
                               <Badge key={slot} variant="outline" className="text-xs">
                                 {slot}x
                               </Badge>
@@ -721,9 +628,7 @@ export default function Dashboard() {
                         <div className="flex items-center gap-2 p-2 bg-amber-500/10 rounded-md border border-amber-500/20">
                           <div className="flex-1">
                             <div className="text-xs text-muted-foreground">Community Boosts</div>
-                            <div className="text-sm font-medium">
-                              {data.power.communityBoostCount} active today
-                            </div>
+                            <div className="text-sm font-medium">{data.power.communityBoostCount} active today</div>
                           </div>
                           <Badge className="bg-amber-500/20 text-amber-600 border-amber-500/30">
                             +{data.power.communityBoostCount}x
@@ -732,17 +637,12 @@ export default function Dashboard() {
                       )}
 
                       {/* Today's Payout */}
-                      {(data.power.totalLivePayout !== "0.00" ||
-                        data.power.totalProcessedPayout !== "0.00") && (
+                      {(data.power.totalLivePayout !== "0.00" || data.power.totalProcessedPayout !== "0.00") && (
                         <div className="p-2 bg-green-500/10 rounded-md border border-green-500/20">
                           <div className="flex items-center justify-between">
                             <span className="text-xs text-muted-foreground">Today's Payout</span>
                             <span className="text-lg font-bold text-green-500">
-                              $
-                              {(
-                                parseFloat(data.power.totalLivePayout) +
-                                parseFloat(data.power.totalProcessedPayout)
-                              ).toFixed(2)}
+                              ${(parseFloat(data.power.totalLivePayout) + parseFloat(data.power.totalProcessedPayout)).toFixed(2)}
                             </span>
                           </div>
                           {data.power.totalLivePayout !== "0.00" && (
@@ -773,9 +673,7 @@ export default function Dashboard() {
               <ScrollReveal delay={0.45}>
                 <Card className="lg:col-span-1">
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium uppercase tracking-wide">
-                      Top Holdings
-                    </CardTitle>
+                    <CardTitle className="text-sm font-medium uppercase tracking-wide">Top Holdings</CardTitle>
                     <DollarSign className="w-4 h-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent className="space-y-2 sm:space-y-3">
@@ -783,12 +681,7 @@ export default function Dashboard() {
                       <Link key={holding.player.id} href={`/player/${holding.player.id}`}>
                         <div className="p-2 rounded-md hover-elevate">
                           <div className="flex items-center justify-between mb-1">
-                            <PlayerName
-                              playerId={holding.player.id}
-                              firstName={holding.player.firstName}
-                              lastName={holding.player.lastName}
-                              className="font-medium text-sm"
-                            />
+                            <PlayerName playerId={holding.player.id} firstName={holding.player.firstName} lastName={holding.player.lastName} className="font-medium text-sm" />
                             {holding.value !== null ? (
                               <span className="font-mono font-bold text-sm">${holding.value}</span>
                             ) : (
@@ -798,13 +691,8 @@ export default function Dashboard() {
                           <div className="flex items-center justify-between text-xs">
                             <span className="text-muted-foreground">{holding.quantity} shares</span>
                             {holding.pnl !== null ? (
-                              <span
-                                className={
-                                  parseFloat(holding.pnl) >= 0 ? "text-positive" : "text-negative"
-                                }
-                              >
-                                {parseFloat(holding.pnl) >= 0 ? "+" : ""}${holding.pnl} (
-                                {holding.pnlPercent}%)
+                              <span className={parseFloat(holding.pnl) >= 0 ? 'text-positive' : 'text-negative'}>
+                                {parseFloat(holding.pnl) >= 0 ? '+' : ''}${holding.pnl} ({holding.pnlPercent}%)
                               </span>
                             ) : (
                               <span className="text-muted-foreground">-</span>
@@ -814,11 +702,7 @@ export default function Dashboard() {
                       </Link>
                     ))}
                     <Link href="/portfolio">
-                      <Button
-                        variant="outline"
-                        className="w-full"
-                        data-testid="button-view-portfolio"
-                      >
+                      <Button variant="outline" className="w-full" data-testid="button-view-portfolio">
                         View Full Portfolio
                       </Button>
                     </Link>
@@ -830,15 +714,46 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {activeGame && (
-        <GameCommandCenterModal
-          gameId={activeGame.gameId}
+      {/* Game Stats Modal */}
+      {flippedGameId && (
+        <GameStatsModal
+          gameId={flippedGameId}
           sport={sport}
-          date={formattedDate}
-          initialInsight={activeGame}
-          onClose={() => setActiveGame(null)}
+          onClose={() => setFlippedGameId(null)}
         />
       )}
+
     </>
   );
 }
+
+// Helper function to build Plain Text Sports URL from game data
+// Takes game date and team codes directly from database
+// Plain Text Sports format: https://plaintextsports.com/nba/YYYY-MM-DD/away-home
+function getPlainTextSportsUrl(game: DailyGame): string {
+  try {
+    // Format date as YYYY-MM-DD
+    const gameDate = new Date(game.date);
+    const year = gameDate.getFullYear();
+    const month = String(gameDate.getMonth() + 1).padStart(2, '0');
+    const day = String(gameDate.getDate()).padStart(2, '0');
+    const formattedDate = `${year}-${month}-${day}`;
+
+    // Team code mapping for Plain Text Sports URLs only
+    // MySportsFeeds uses BRO but Plain Text Sports uses BKN for Brooklyn
+    const teamCodeMapping: Record<string, string> = {
+      'BRO': 'BKN'
+    };
+
+    // Apply mapping and lowercase for URL
+    const awayTeam = (teamCodeMapping[game.awayTeam] || game.awayTeam).toLowerCase();
+    const homeTeam = (teamCodeMapping[game.homeTeam] || game.homeTeam).toLowerCase();
+    const sport = game.sport ? game.sport.toLowerCase() : 'nba';
+
+    return `https://plaintextsports.com/${sport}/${formattedDate}/${awayTeam}-${homeTeam}`;
+  } catch (error) {
+    console.error('[Game Card] Error building Plain Text Sports URL:', error);
+    return '#';
+  }
+}
+
