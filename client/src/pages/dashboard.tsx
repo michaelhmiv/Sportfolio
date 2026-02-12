@@ -153,7 +153,7 @@ export default function Dashboard() {
   // Disable polling when app is backgrounded or offline; reduce frequency on mobile
   const pollingInterval = shouldPoll ? (isMobile ? 20000 : 10000) : false;
 
-  const { data, isLoading } = useQuery<DashboardData>({
+  const { data, isLoading, isFetching } = useQuery<DashboardData>({
     queryKey: ["/api/dashboard"],
     queryFn: async () => {
       // Add 10-second timeout to prevent infinite loading
@@ -185,6 +185,7 @@ export default function Dashboard() {
     },
     refetchInterval: pollingInterval,
     refetchIntervalInBackground: false,
+    placeholderData: (previousData) => previousData, // Keep previous data while loading new data
   });
 
   // Format date as YYYY-MM-DD
@@ -272,7 +273,9 @@ export default function Dashboard() {
     }
   };
 
-  if (isLoading) {
+  // Only show full loading shimmer on initial load (no data yet)
+  // During background refetches, keep existing data visible
+  if (isLoading && !data) {
     return (
       <div className="min-h-screen bg-background p-3 sm:p-4">
         <div className="mb-4">
