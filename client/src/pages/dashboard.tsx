@@ -110,6 +110,11 @@ const compactCurrencyFormatter = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 1,
 });
 
+const compactNumberFormatter = new Intl.NumberFormat("en-US", {
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+
 // Helper to determine effective game status based on current time
 const getEffectiveGameStatus = (
   game: Pick<GameInsight, "startTime" | "status">,
@@ -288,10 +293,15 @@ export default function Dashboard() {
 
   const formatSignedCurrency = (value: number | null) => {
     if (value === null || Number.isNaN(value)) return "—";
-    const absolute = Math.abs(value).toFixed(2);
-    if (value > 0) return `+$${absolute}`;
-    if (value < 0) return `-$${absolute}`;
-    return "$0.00";
+    const absolute = compactNumberFormatter
+      .format(Math.abs(value))
+      .replace("K", "k")
+      .replace("M", "m")
+      .replace("B", "b")
+      .replace("T", "t");
+    if (value > 0) return `+${absolute}`;
+    if (value < 0) return `-${absolute}`;
+    return "0";
   };
 
   const formatSignedPercent = (value: number | null) => {
