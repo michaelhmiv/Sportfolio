@@ -190,6 +190,7 @@ export default function Dashboard() {
     },
     refetchInterval: pollingInterval,
     refetchIntervalInBackground: false,
+    placeholderData: (previousData) => previousData,
   });
 
   // Format date as YYYY-MM-DD
@@ -310,7 +311,7 @@ export default function Dashboard() {
 
   const formatCompactCurrency = (value: number) => compactCurrencyFormatter.format(value);
 
-  if (isLoading) {
+  if (isLoading && !data) {
     return (
       <div className="min-h-screen bg-background p-3 sm:p-4">
         <div className="mb-4">
