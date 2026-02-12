@@ -34,5 +34,7 @@ if (enabled && endpoint) {
     console.error("[OTEL] Failed to initialize tracing:", error);
   }
 } else if (enabled && !endpoint) {
-  console.warn("[OTEL] OTEL_ENABLED is true but OTEL_EXPORTER_OTLP_ENDPOINT is not set. Skipping tracing initialization.");
+  console.warn(
+    "[OTEL] OTEL_ENABLED is true but OTEL_EXPORTER_OTLP_ENDPOINT is not set. Skipping tracing initialization.",
+  );
 }
