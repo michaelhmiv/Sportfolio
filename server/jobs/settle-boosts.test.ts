@@ -3,6 +3,7 @@ import { vi } from "vitest";
 const storageMocks = vi.hoisted(() => ({
   getDailyBoostsByStatus: vi.fn(),
   getDailyGameByGameId: vi.fn(),
+  getDailyGamesBySport: vi.fn(),
   getPlayerGameForDate: vi.fn(),
   getPlayerGameStats: vi.fn(),
   getCommunityBoostsForDate: vi.fn(),
@@ -20,6 +21,7 @@ vi.mock("../storage", () => ({
   storage: {
     getDailyBoostsByStatus: storageMocks.getDailyBoostsByStatus,
     getDailyGameByGameId: storageMocks.getDailyGameByGameId,
+    getDailyGamesBySport: storageMocks.getDailyGamesBySport,
     getPlayerGameForDate: storageMocks.getPlayerGameForDate,
     getPlayerGameStats: storageMocks.getPlayerGameStats,
     getCommunityBoostsForDate: storageMocks.getCommunityBoostsForDate,
@@ -67,16 +69,28 @@ describe("settleBoosts", () => {
       date: new Date("2026-02-11T05:00:00.000Z"),
     });
 
-    storageMocks.getPlayerGameForDate.mockResolvedValue({
-      id: "game_canonical",
-      gameId: "123456",
-      sport: "NBA",
-      startTime: new Date("2026-02-11T23:00:00.000Z"),
-      status: "completed",
-      homeTeam: "BOS",
-      awayTeam: "LAL",
-      date: new Date("2026-02-11T05:00:00.000Z"),
-    });
+    storageMocks.getDailyGamesBySport.mockResolvedValue([
+      {
+        id: "game_legacy",
+        gameId: "184471234",
+        sport: "NBA",
+        startTime: new Date("2026-02-11T23:00:00.000Z"),
+        status: "scheduled",
+        homeTeam: "BOS",
+        awayTeam: "LAL",
+        date: new Date("2026-02-11T05:00:00.000Z"),
+      },
+      {
+        id: "game_canonical",
+        gameId: "123456",
+        sport: "NBA",
+        startTime: new Date("2026-02-11T23:00:00.000Z"),
+        status: "completed",
+        homeTeam: "BOS",
+        awayTeam: "LAL",
+        date: new Date("2026-02-11T05:00:00.000Z"),
+      },
+    ]);
 
     storageMocks.getPlayerGameStats.mockResolvedValue({
       id: "stats_1",

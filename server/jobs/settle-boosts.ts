@@ -11,8 +11,14 @@
 
 import { storage } from "../storage";
 import { broadcast } from "../websocket";
+import { choosePreferredDailyGame } from "../lib/daily-game-dedupe";
+import { getETDayBoundaries, getGameDay } from "../lib/time";
 import type { JobResult } from "./scheduler";
 import type { ProgressCallback } from "../lib/admin-stream";
+
+function isLegacyNbaGameId(sport: unknown, gameId: unknown): boolean {
+  return String(sport || "").toUpperCase() === "NBA" && String(gameId || "").startsWith("18447");
+}
 
 export async function settleBoosts(progressCallback?: ProgressCallback): Promise<JobResult> {
   console.log("[settle_boosts] Starting boost settlement...");
@@ -45,14 +51,39 @@ export async function settleBoosts(progressCallback?: ProgressCallback): Promise
         const now = Date.now();
         let game = boost.gameId ? await storage.getDailyGameByGameId(boost.gameId) : undefined;
 
-        const isLikelyLegacyNbaGameId =
-          boost.sport?.toUpperCase?.() === "NBA" &&
-          typeof boost.gameId === "string" &&
-          boost.gameId.startsWith("18447");
+        const shouldTryRepair =
+          !game ||
+          isLegacyNbaGameId(boost.sport, boost.gameId) ||
+          (game && isLegacyNbaGameId(game.sport ?? boost.sport, game.gameId));
 
         // Self-heal: resolve canonical gameId (BallDontLie) for legacy/missing refs.
-        // This prevents settlement from being blocked by legacy MySportsFeeds gameIds that don't match stats.
-        if (!game || isLikelyLegacyNbaGameId) {
+        // Prefer matchup/time context over player team (player.team can change over time).
+        if (game && shouldTryRepair && isLegacyNbaGameId(boost.sport, game.gameId)) {
+          const baseGame = game;
+          const dateStr = getGameDay(baseGame.startTime);
+          const { startOfDay, endOfDay } = getETDayBoundaries(dateStr);
+          const dayGames = await storage.getDailyGamesBySport(boost.sport, startOfDay, endOfDay);
+          const matchupGames = dayGames.filter(
+            (g) => g.homeTeam === baseGame.homeTeam && g.awayTeam === baseGame.awayTeam,
+          );
+
+          let canonical: typeof baseGame | undefined;
+          for (const g of matchupGames) {
+            canonical = canonical ? choosePreferredDailyGame(canonical, g) : g;
+          }
+
+          if (canonical && boost.gameId !== canonical.gameId) {
+            console.warn(
+              `[settle_boosts] Boost ${boost.id}: repairing gameId ${boost.gameId || "(null)"} -> ${canonical.gameId}`,
+            );
+            await storage.updateDailyBoost(boost.id, { gameId: canonical.gameId });
+          }
+
+          game = canonical ?? baseGame;
+        }
+
+        // Fallback: If we still can't resolve a game record, attempt a player/team lookup for that ET date.
+        if (shouldTryRepair && (!game || isLegacyNbaGameId(boost.sport, game.gameId))) {
           const resolved = await storage.getPlayerGameForDate(
             boost.playerId,
             boost.sport,

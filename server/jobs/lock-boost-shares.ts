@@ -7,8 +7,14 @@
  */
 
 import { storage } from "../storage";
+import { choosePreferredDailyGame } from "../lib/daily-game-dedupe";
+import { getETDayBoundaries, getGameDay } from "../lib/time";
 import type { JobResult } from "./scheduler";
 import type { ProgressCallback } from "../lib/admin-stream";
+
+function isLegacyNbaGameId(sport: unknown, gameId: unknown): boolean {
+  return String(sport || "").toUpperCase() === "NBA" && String(gameId || "").startsWith("18447");
+}
 
 export async function lockBoostShares(progressCallback?: ProgressCallback): Promise<JobResult> {
   console.log("[lock_boost_shares] Starting boost share locking...");
@@ -41,14 +47,39 @@ export async function lockBoostShares(progressCallback?: ProgressCallback): Prom
         // Check if game has started
         let game = boost.gameId ? await storage.getDailyGameByGameId(boost.gameId) : undefined;
 
-        const isLikelyLegacyNbaGameId =
-          boost.sport?.toUpperCase?.() === "NBA" &&
-          typeof boost.gameId === "string" &&
-          boost.gameId.startsWith("18447");
+        const shouldTryRepair =
+          !game ||
+          isLegacyNbaGameId(boost.sport, boost.gameId) ||
+          (game && isLegacyNbaGameId(game.sport ?? boost.sport, game.gameId));
 
         // Self-heal: If boost points at a missing/legacy gameId (e.g., old MySportsFeeds duplicates),
-        // resolve the canonical game for the player/team on that ET date and update the boost.
-        if (!game || isLikelyLegacyNbaGameId) {
+        // resolve the canonical game using matchup/time context (player.team can change over time).
+        if (game && shouldTryRepair && isLegacyNbaGameId(boost.sport, game.gameId)) {
+          const baseGame = game;
+          const dateStr = getGameDay(baseGame.startTime);
+          const { startOfDay, endOfDay } = getETDayBoundaries(dateStr);
+          const dayGames = await storage.getDailyGamesBySport(boost.sport, startOfDay, endOfDay);
+          const matchupGames = dayGames.filter(
+            (g) => g.homeTeam === baseGame.homeTeam && g.awayTeam === baseGame.awayTeam,
+          );
+
+          let canonical: typeof baseGame | undefined;
+          for (const g of matchupGames) {
+            canonical = canonical ? choosePreferredDailyGame(canonical, g) : g;
+          }
+
+          if (canonical && boost.gameId !== canonical.gameId) {
+            console.warn(
+              `[lock_boost_shares] Boost ${boost.id}: repairing gameId ${boost.gameId || "(null)"} -> ${canonical.gameId}`,
+            );
+            await storage.updateDailyBoost(boost.id, { gameId: canonical.gameId });
+          }
+
+          game = canonical ?? baseGame;
+        }
+
+        // Fallback: If we still can't resolve a game record, attempt a player/team lookup for that ET date.
+        if (shouldTryRepair && (!game || isLegacyNbaGameId(boost.sport, game.gameId))) {
           const resolved = await storage.getPlayerGameForDate(
             boost.playerId,
             boost.sport,
