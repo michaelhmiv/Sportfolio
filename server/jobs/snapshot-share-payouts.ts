@@ -17,11 +17,28 @@ export async function snapshotSharePayouts(
     const start = new Date(now.getTime() - SNAPSHOT_LOOKBACK_HOURS * 60 * 60 * 1000);
     const candidateGames = await storage.getDailyGames(start, now);
 
-    const gamesToSnapshot = candidateGames.filter((game) => {
+    const gamesToSnapshot = [] as typeof candidateGames;
+    for (const game of candidateGames) {
       const status = (game.status || "").toLowerCase();
-      if (status === "postponed" || status === "cancelled") return false;
-      return new Date(game.startTime).getTime() <= now.getTime();
-    });
+      if (status === "postponed" || status === "cancelled") continue;
+
+      const startTimeMs = new Date(game.startTime).getTime();
+      if (!Number.isFinite(startTimeMs)) {
+        errorCount++;
+        const message = `Share snapshot skipped game ${game.gameId}: invalid startTime`;
+        console.warn(`[snapshot_share_payouts] ${message}`);
+        progressCallback?.({
+          type: "error",
+          timestamp: new Date().toISOString(),
+          message,
+        });
+        continue;
+      }
+
+      if (startTimeMs <= now.getTime()) {
+        gamesToSnapshot.push(game);
+      }
+    }
 
     progressCallback?.({
       type: "info",

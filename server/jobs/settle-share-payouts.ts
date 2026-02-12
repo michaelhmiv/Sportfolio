@@ -3,6 +3,11 @@ import { broadcastToUser } from "../websocket";
 import type { JobResult } from "./scheduler";
 import type { ProgressCallback } from "../lib/admin-stream";
 
+function toFiniteNumber(value: unknown, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 export async function settleSharePayouts(progressCallback?: ProgressCallback): Promise<JobResult> {
   let processed = 0;
   let requestCount = 0;
@@ -30,9 +35,9 @@ export async function settleSharePayouts(progressCallback?: ProgressCallback): P
         const stats = await storage.getPlayerGameStats(payout.playerId, payout.gameId);
         if (!stats) continue;
 
-        const fantasyPoints = parseFloat(stats.fantasyPoints || "0");
-        const sharePower = parseFloat(payout.sharePower || "0");
-        const baseRate = parseFloat(payout.baseRate || "1");
+        const fantasyPoints = toFiniteNumber(stats.fantasyPoints, 0);
+        const sharePower = toFiniteNumber(payout.sharePower, 0);
+        const baseRate = toFiniteNumber(payout.baseRate, 1);
         const amount = Math.max(0, sharePower * fantasyPoints * baseRate);
 
         const credited = await storage.processSharePayoutCredit(
