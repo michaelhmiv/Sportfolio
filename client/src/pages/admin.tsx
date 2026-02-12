@@ -24,7 +24,6 @@ import {
   RefreshCw,
   Calendar,
   TrendingUp,
-  Trophy,
   Users,
   Database,
   Activity,
@@ -48,10 +47,6 @@ import {
 interface SystemStats {
   totalUsers: number;
   totalPlayers: number;
-  totalContests: number;
-  openContests: number;
-  liveContests: number;
-  completedContests: number;
   apiRequestsToday: number;
   lastJobRuns: {
     jobName: string;
@@ -67,8 +62,11 @@ const jobDescriptions = {
   sync_player_game_logs: "Cache all player game logs with pre-calculated fantasy points",
   schedule_sync: "Update game schedules and live scores",
   stats_sync: "Sync completed game statistics",
-  create_contests: "Generate contests for upcoming games",
-  settle_contests: "Settle completed contests and distribute winnings",
+  lock_boost_shares: "Lock boosted shares once games start",
+  snapshot_share_payouts: "Snapshot started-game holdings for payout settlement",
+  settle_boosts: "Settle locked boosts and credit payouts",
+  settle_share_payouts: "Settle pending game-based share payouts",
+  settle_community_boosts: "Settle community boost multipliers and payouts",
 };
 
 interface BlogPost {
@@ -148,9 +146,12 @@ export default function Admin() {
   const [grantUsername, setGrantUsername] = useState("");
   const [grantQuantity, setGrantQuantity] = useState("");
 
+  const adminStatsRefetchMs = runningJobs.size > 0 || isBackfilling ? 15000 : 120000;
+
   const { data: stats, isLoading } = useQuery<SystemStats>({
     queryKey: ["/api/admin/stats"],
-    refetchInterval: 30000, // Refresh every 30 seconds
+    refetchInterval: adminStatsRefetchMs,
+    staleTime: 10000,
   });
 
   const triggerJobMutation = useMutation({
@@ -261,7 +262,7 @@ export default function Admin() {
   // Tweet data query
   const { data: tweetData, refetch: refetchTweets } = useQuery<TweetData>({
     queryKey: ["/api/admin/tweets"],
-    refetchInterval: 60000,
+    refetchInterval: 180000,
   });
 
   // Tweet mutations
@@ -646,7 +647,7 @@ export default function Admin() {
         </div>
 
         {/* System Stats */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
           <Card data-testid="card-total-users">
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-2">
@@ -664,19 +665,6 @@ export default function Admin() {
                 <span className="text-sm text-muted-foreground">NBA Players</span>
               </div>
               <div className="text-2xl font-bold">{stats?.totalPlayers.toLocaleString()}</div>
-            </CardContent>
-          </Card>
-
-          <Card data-testid="card-total-contests">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Trophy className="w-4 h-4 text-primary" />
-                <span className="text-sm text-muted-foreground">Total Contests</span>
-              </div>
-              <div className="text-2xl font-bold">{stats?.totalContests.toLocaleString()}</div>
-              <div className="text-xs text-muted-foreground mt-1">
-                {stats?.openContests} open, {stats?.liveContests} live
-              </div>
             </CardContent>
           </Card>
 
