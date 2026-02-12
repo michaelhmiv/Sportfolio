@@ -1,5 +1,5 @@
 /* eslint-env serviceworker */
-/* global self, caches, fetch, URL */
+/* global self, caches, fetch, URL, Response */
 
 const CACHE_NAME = "sportfolio-v1";
 const STATIC_ASSETS = [
@@ -73,10 +73,20 @@ self.addEventListener("fetch", (event) => {
           return fetchResponse;
         });
       })
-      .catch(() => {
-        // Return fallback for navigation requests
+      .catch(async () => {
         if (event.request.mode === "navigate") {
-          return caches.match("/index.html");
+          const cached = await caches.match("/index.html");
+          return cached || fetch("/index.html");
+        }
+
+        try {
+          return await fetch(event.request);
+        } catch {
+          return new Response("Offline", {
+            status: 504,
+            statusText: "Offline",
+            headers: { "Content-Type": "text/plain" },
+          });
         }
       }),
   );
