@@ -9231,7 +9231,8 @@ ${posts
 
             // Use fantasyPoints from boost if settled, OR from game record if available
             if (boost.fantasyPoints) {
-              liveFantasyPoints = parseFloat(boost.fantasyPoints);
+              const settledFantasyPoints = Number(boost.fantasyPoints);
+              liveFantasyPoints = Number.isFinite(settledFantasyPoints) ? settledFantasyPoints : 0;
               gameStatus = "finished";
             }
             // If we had a live feed updating dailyGames, we'd check game.homeScore etc,
@@ -9240,8 +9241,14 @@ ${posts
           }
         }
 
-        const effectivePower = boost.powerLevel ? parseFloat(boost.powerLevel.toString()) : 1;
-        const estimatedPayout = (effectivePower * liveFantasyPoints * boost.slotTier).toFixed(2);
+        const parsedPowerLevel = Number(boost.powerLevel ?? 1);
+        const effectivePower = Number.isFinite(parsedPowerLevel) ? parsedPowerLevel : 1;
+        const parsedSlotTier = Number(boost.slotTier ?? 0);
+        const slotTierMultiplier = Number.isFinite(parsedSlotTier) ? parsedSlotTier : 0;
+        const estimatedPayoutValue = effectivePower * liveFantasyPoints * slotTierMultiplier;
+        const estimatedPayout = Number.isFinite(estimatedPayoutValue)
+          ? estimatedPayoutValue.toFixed(2)
+          : "0.00";
 
         return {
           ...boost,
