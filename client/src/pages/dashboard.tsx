@@ -84,20 +84,20 @@ function PeriodColumn({
   return (
     <button
       onClick={() => window.location.href = "/portfolio"}
-      className="flex flex-col justify-center text-center rounded-md hover:bg-secondary/40 transition-colors p-1 -m-1"
+      className="flex flex-col justify-center text-center rounded-md hover:bg-secondary/40 transition-colors p-1 -m-1 min-w-0"
     >
-      <div className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wider mb-1">{label}</div>
-      <div className="flex items-center justify-center gap-1">
-        <div className={`font-mono font-semibold text-sm sm:text-base truncate ${isPositive ? 'text-positive' : 'text-negative'}`}>
+      <div className="text-[9px] sm:text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">{label}</div>
+      <div className="flex items-center justify-center gap-0.5 min-w-0">
+        <div className={`font-mono font-semibold text-xs sm:text-sm truncate ${isPositive ? 'text-positive' : 'text-negative'}`}>
           {change.amount !== null ? (isPositive ? '+' : '-') : ''}{displayChange}
         </div>
         {hasRank && (
-          <span className="inline-flex items-center border border-border px-1 rounded-full text-[9px] text-muted-foreground">
+          <span className="inline-flex items-center border border-border px-0.5 rounded text-[8px] text-muted-foreground flex-shrink-0">
             #{change.rank}
           </span>
         )}
       </div>
-      <div className={`text-[10px] sm:text-xs font-medium ${isPositive ? 'text-positive/80' : 'text-negative/80'}`}>
+      <div className={`text-[9px] sm:text-[10px] font-medium ${isPositive ? 'text-positive/80' : 'text-negative/80'}`}>
         {change.percent !== null ? (isPositive ? '+' : '-') : ''}{displayPercent}
       </div>
     </button>
@@ -350,38 +350,34 @@ export default function Dashboard() {
               
               <div className="grid grid-cols-4 gap-3 sm:gap-6 relative z-10">
                 {/* Column 1: Portfolio Value (Primary) */}
-                <div className="col-span-1 flex flex-col justify-center">
+                <div className="col-span-1 flex flex-col justify-center min-w-0">
                   <div className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wider mb-1">Portfolio</div>
-                  <div className="flex items-center gap-1.5">
-                    <div className="font-mono font-bold text-lg sm:text-2xl text-foreground truncate" data-testid="text-portfolio-value">
+                  <div className="flex items-center gap-1 min-w-0">
+                    <div className="font-mono font-bold text-sm sm:text-lg text-foreground truncate" data-testid="text-portfolio-value" title={`$${data?.user?.portfolioValue || "0"}`}>
                       {formatBalance(data?.user?.portfolioValue || "0")}
                     </div>
                     {data?.user?.portfolioRank && data?.user.portfolioRank > 0 && (
                       <button
                         onClick={() => setLocation("/leaderboards#portfolioValue")}
-                        className="inline-flex items-center gap-1 border border-border px-1.5 py-0.5 rounded-full text-[10px] hover:bg-secondary transition-colors cursor-pointer flex-shrink-0"
+                        className="inline-flex items-center gap-0.5 border border-border px-1 py-0 rounded-full text-[9px] hover:bg-secondary transition-colors cursor-pointer flex-shrink-0"
                         data-testid="badge-portfolio-rank"
                         aria-label={`Portfolio value rank #${data?.user.portfolioRank}, click to view leaderboard`}
                       >
                         #{data?.user.portfolioRank}
                         {data?.user.portfolioRankChange !== null && data?.user.portfolioRankChange !== 0 && (
                           <span className={data?.user.portfolioRankChange > 0 ? "text-positive" : "text-negative"}>
-                            {data?.user.portfolioRankChange > 0 ? (
-                              <TrendingUp className="w-2.5 h-2.5 inline" />
-                            ) : (
-                              <TrendingDown className="w-2.5 h-2.5 inline" />
-                            )}
+                            {data?.user.portfolioRankChange > 0 ? "↑" : "↓"}
                           </span>
                         )}
                       </button>
                     )}
                   </div>
-                  <div className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">
+                  <div className="text-[9px] sm:text-[10px] text-muted-foreground mt-0.5 truncate">
                     Cash: {formatBalance(data?.user?.balance || "0")}
                     {data?.user?.cashRank && data?.user.cashRank > 0 && (
                       <button
                         onClick={() => setLocation("/leaderboards#cashBalance")}
-                        className="inline-flex items-center gap-1 border border-border px-1 py-0 rounded-full text-[10px] hover:bg-secondary transition-colors cursor-pointer flex-shrink-0 ml-1"
+                        className="inline-flex items-center gap-0.5 border border-border px-0.5 py-0 rounded text-[9px] hover:bg-secondary transition-colors cursor-pointer flex-shrink-0 ml-0.5"
                         data-testid="badge-cash-rank"
                       >
                         #{data?.user.cashRank}
