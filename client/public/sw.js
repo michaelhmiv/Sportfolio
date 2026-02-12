@@ -48,7 +48,7 @@ self.addEventListener("fetch", (event) => {
   if (
     url.pathname.startsWith("/api/") ||
     url.pathname.startsWith("/auth/") ||
-    !url.origin.includes(self.location.origin)
+    url.origin !== self.location.origin
   ) {
     return;
   }
