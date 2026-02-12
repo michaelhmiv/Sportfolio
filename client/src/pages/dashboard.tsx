@@ -390,98 +390,62 @@ export default function Dashboard() {
               {/* Background Pattern */}
               <BackgroundPattern variant="gradient-mesh" color="primary" opacity={0.05} />
 
-              <div className="grid grid-cols-4 gap-1 relative z-10">
-                <div className="rounded-md border border-border/70 bg-background/40 p-1">
-                  <div className="grid grid-rows-4 gap-0.5 h-full">
-                    <div className="text-[9px] text-muted-foreground uppercase tracking-tight leading-none">
-                      Portfolio
-                    </div>
-                    <button
-                      onClick={() => setLocation("/leaderboards#portfolioValue")}
-                      className="text-left leading-none hover:bg-secondary/40 rounded-sm transition-colors"
-                      data-testid="button-dashboard-portfolio-summary"
-                      aria-label="Open portfolio value leaderboard"
+              <div className="grid grid-cols-4 gap-3 sm:gap-6 relative z-10">
+                <div className="col-span-1 flex flex-col justify-center min-w-0">
+                  <div className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wider mb-1">
+                    Portfolio
+                  </div>
+                  <div className="flex items-center gap-1 min-w-0">
+                    <div
+                      className="font-mono font-bold text-sm sm:text-lg text-foreground truncate"
+                      data-testid="text-portfolio-value"
+                      title={`$${data?.user?.portfolioValue || "0"}`}
                     >
-                      <div className="flex items-center justify-between gap-0.5">
-                        <div
-                          className="fintech-balance text-foreground min-w-0"
-                          data-testid="text-portfolio-value"
-                        >
-                          <span className="text-[11px] sm:text-xs font-bold font-mono leading-none">
-                            {formatCompactCurrency(parseFloat(data?.user?.portfolioValue || "0"))}
-                          </span>
-                        </div>
-                        {data?.user?.portfolioRank && data?.user.portfolioRank > 0 && (
+                      {formatCompactCurrency(parseFloat(data?.user?.portfolioValue || "0"))}
+                    </div>
+                    {data?.user?.portfolioRank && data?.user.portfolioRank > 0 && (
+                      <button
+                        onClick={() => setLocation("/leaderboards#portfolioValue")}
+                        className="inline-flex items-center gap-0.5 border border-border px-1 py-0 rounded-full text-[9px] hover:bg-secondary transition-colors cursor-pointer flex-shrink-0"
+                        data-testid="badge-portfolio-rank"
+                        aria-label={`Portfolio value rank #${data?.user.portfolioRank}, click to view leaderboard`}
+                      >
+                        #{data?.user.portfolioRank}
+                        {data?.user.portfolioRankChange !== null &&
+                          data?.user.portfolioRankChange !== 0 && (
+                            <span
+                              className={
+                                data?.user.portfolioRankChange > 0
+                                  ? "text-positive"
+                                  : "text-negative"
+                              }
+                            >
+                              {data?.user.portfolioRankChange > 0 ? "↑" : "↓"}
+                            </span>
+                          )}
+                      </button>
+                    )}
+                  </div>
+                  <div className="text-[9px] sm:text-[10px] text-muted-foreground mt-0.5 truncate">
+                    Cash: {formatCompactCurrency(parseFloat(data?.user?.balance || "0"))}
+                    {data?.user?.cashRank && data?.user.cashRank > 0 && (
+                      <button
+                        onClick={() => setLocation("/leaderboards#cashBalance")}
+                        className="inline-flex items-center gap-0.5 border border-border px-0.5 py-0 rounded text-[9px] hover:bg-secondary transition-colors cursor-pointer flex-shrink-0 ml-0.5"
+                        data-testid="badge-cash-rank"
+                      >
+                        #{data?.user.cashRank}
+                        {data?.user.cashRankChange !== null && data?.user.cashRankChange !== 0 && (
                           <span
-                            className="inline-flex items-center gap-0.5 border border-border px-1 py-0 rounded-full text-[9px] leading-none"
-                            data-testid="badge-portfolio-rank"
+                            className={
+                              data?.user.cashRankChange > 0 ? "text-positive" : "text-negative"
+                            }
                           >
-                            #{data?.user.portfolioRank}
-                            {data?.user.portfolioRankChange !== null &&
-                              data?.user.portfolioRankChange !== 0 && (
-                                <span
-                                  className={
-                                    data?.user.portfolioRankChange > 0
-                                      ? "text-positive"
-                                      : "text-negative"
-                                  }
-                                >
-                                  {data?.user.portfolioRankChange > 0 ? (
-                                    <TrendingUp className="w-2 h-2 inline" />
-                                  ) : (
-                                    <TrendingDown className="w-2 h-2 inline" />
-                                  )}
-                                </span>
-                              )}
+                            {data?.user.cashRankChange > 0 ? "↑" : "↓"}
                           </span>
                         )}
-                      </div>
-                    </button>
-
-                    <div className="text-[9px] text-muted-foreground uppercase tracking-tight leading-none">
-                      Cash
-                    </div>
-                    <button
-                      onClick={() => setLocation("/leaderboards#cashBalance")}
-                      className="text-left leading-none hover:bg-secondary/40 rounded-sm transition-colors"
-                      data-testid="button-dashboard-cash-summary"
-                      aria-label="Open cash balance leaderboard"
-                    >
-                      <div className="flex items-center justify-between gap-0.5">
-                        <div
-                          className="fintech-balance text-foreground min-w-0"
-                          data-testid="text-balance"
-                        >
-                          <span className="text-[11px] sm:text-xs font-bold font-mono leading-none">
-                            {formatCompactCurrency(parseFloat(data?.user?.balance || "0"))}
-                          </span>
-                        </div>
-                        {data?.user?.cashRank && data?.user.cashRank > 0 && (
-                          <span
-                            className="inline-flex items-center gap-0.5 border border-border px-1 py-0 rounded-full text-[9px] leading-none"
-                            data-testid="badge-cash-rank"
-                          >
-                            #{data?.user.cashRank}
-                            {data?.user.cashRankChange !== null &&
-                              data?.user.cashRankChange !== 0 && (
-                                <span
-                                  className={
-                                    data?.user.cashRankChange > 0
-                                      ? "text-positive"
-                                      : "text-negative"
-                                  }
-                                >
-                                  {data?.user.cashRankChange > 0 ? (
-                                    <TrendingUp className="w-2 h-2 inline" />
-                                  ) : (
-                                    <TrendingDown className="w-2 h-2 inline" />
-                                  )}
-                                </span>
-                              )}
-                          </span>
-                        )}
-                      </div>
-                    </button>
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -495,25 +459,29 @@ export default function Dashboard() {
                     <button
                       key={metric.key}
                       onClick={() => setLocation("/portfolio")}
-                      className="rounded-md border border-border/70 bg-background/40 p-1 text-left hover:bg-secondary/40 transition-colors"
+                      className="flex flex-col justify-center text-center rounded-md hover:bg-secondary/40 transition-colors p-1 -m-1 min-w-0"
                       data-testid={metric.testId}
                       aria-label={`Open portfolio details for ${metric.key} net worth change`}
                     >
-                      <div className="grid grid-rows-3 gap-0.5 h-full leading-none">
-                        <div className="text-[9px] text-muted-foreground uppercase tracking-tight">
-                          {metric.key}
-                        </div>
-                        <div className="text-[10px] text-muted-foreground">
-                          {change.rank !== null && change.rank > 0 ? `#${change.rank}` : "—"}
-                        </div>
+                      <div className="text-[9px] sm:text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">
+                        {metric.key}
+                      </div>
+                      <div className="flex items-center justify-center gap-0.5 min-w-0">
                         <div
-                          className={`text-[10px] font-semibold ${getChangeClassName(change.amount)} truncate`}
+                          className={`font-mono font-semibold text-xs sm:text-sm truncate ${getChangeClassName(change.amount)}`}
                         >
                           {formatSignedCurrency(change.amount)}
-                          <span className={`ml-0.5 ${getChangeClassName(change.percent)}`}>
-                            {formatSignedPercent(change.percent)}
-                          </span>
                         </div>
+                        {change.rank !== null && change.rank > 0 && (
+                          <span className="inline-flex items-center border border-border px-0.5 rounded text-[8px] text-muted-foreground flex-shrink-0">
+                            #{change.rank}
+                          </span>
+                        )}
+                      </div>
+                      <div
+                        className={`text-[9px] sm:text-[10px] font-medium ${getChangeClassName(change.percent)}`}
+                      >
+                        {formatSignedPercent(change.percent)}
                       </div>
                     </button>
                   );
