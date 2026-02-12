@@ -38,6 +38,8 @@ import { compileAllDigests } from "./compile-digest";
 import { lockBoostShares } from "./lock-boost-shares";
 import { settleBoosts } from "./settle-boosts";
 import { settleCommunityBoosts } from "./settle-community-boosts";
+import { snapshotSharePayouts } from "./snapshot-share-payouts";
+import { settleSharePayouts } from "./settle-share-payouts";
 import { cleanupJobLogs } from "./cleanup-job-logs";
 import { prunePriceHistory } from "./prune-price-history";
 import { updateCollectionsJob } from "./update-collections";
@@ -206,10 +208,22 @@ export class JobScheduler {
         handler: lockBoostShares,
       },
       {
+        name: "snapshot_share_payouts",
+        schedule: "1-59/5 * * * *", // Every 5 minutes (offset 1m) - snapshot started-game holdings for payout settlement
+        enabled: true,
+        handler: snapshotSharePayouts,
+      },
+      {
         name: "settle_boosts",
         schedule: "*/10 * * * *", // Every 10 minutes - settle completed boosts
         enabled: true,
         handler: settleBoosts,
+      },
+      {
+        name: "settle_share_payouts",
+        schedule: "2-59/10 * * * *", // Every 10 minutes (offset 2m) - settle processed game-based share payouts
+        enabled: true,
+        handler: settleSharePayouts,
       },
       {
         name: "settle_community_boosts",
@@ -481,7 +495,9 @@ export class JobScheduler {
         };
       },
       lock_boost_shares: (callback) => lockBoostShares(callback),
+      snapshot_share_payouts: (callback) => snapshotSharePayouts(callback),
       settle_boosts: (callback) => settleBoosts(callback),
+      settle_share_payouts: (callback) => settleSharePayouts(callback),
       settle_community_boosts: (callback) => settleCommunityBoosts(callback),
       cleanup_job_logs: (callback) => cleanupJobLogs(callback),
       prune_price_history: (callback) => prunePriceHistory(callback),
@@ -638,7 +654,9 @@ export class JobScheduler {
       "news_fetch",
       "compile_digest",
       "lock_boost_shares",
+      "snapshot_share_payouts",
       "settle_boosts",
+      "settle_share_payouts",
       "settle_community_boosts",
       "cleanup_job_logs",
       "prune_price_history",

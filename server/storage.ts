@@ -32,6 +32,7 @@ import {
   watchList,
   dailyBoosts,
   boostPayouts,
+  sharePayouts,
   communityBoosts,
   communityCheckoutSessions,
   playerPools,
@@ -81,6 +82,8 @@ import {
   type InsertDailyBoost,
   type BoostPayout,
   type InsertBoostPayout,
+  type SharePayout,
+  type InsertSharePayout,
   type CommunityBoost,
   type InsertCommunityBoost,
   type CommunityCheckoutSession,
@@ -623,6 +626,18 @@ export interface IStorage {
   deleteDailyBoost(boostId: string): Promise<void>;
   getBoostPayoutHistory(userId: string, limit?: number): Promise<BoostPayout[]>;
   createBoostPayout(payout: InsertBoostPayout): Promise<BoostPayout>;
+  createSharePayoutSnapshotsForGame(
+    game: Pick<DailyGame, "gameId" | "sport" | "homeTeam" | "awayTeam">,
+    baseRate: string,
+  ): Promise<number>;
+  getPendingSharePayouts(limit?: number): Promise<SharePayout[]>;
+  processSharePayoutCredit(
+    payoutId: string,
+    userId: string,
+    fantasyPoints: string,
+    payoutAmount: string,
+  ): Promise<boolean>;
+  createSharePayout(payout: InsertSharePayout): Promise<SharePayout>;
   lockBoostShares(boostId: string): Promise<void>;
   unlockBoostShares(boostId: string): Promise<void>;
   ensureHoldingConsistency(holdingId: string): Promise<void>;
@@ -4999,6 +5014,95 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
 
+  async createSharePayout(payout: InsertSharePayout): Promise<SharePayout> {
+    const [created] = await db.insert(sharePayouts).values(payout).returning();
+    return created;
+  }
+
+  async createSharePayoutSnapshotsForGame(
+    game: Pick<DailyGame, "gameId" | "sport" | "homeTeam" | "awayTeam">,
+    baseRate: string,
+  ): Promise<number> {
+    const result: any = await db.execute(sql`
+      INSERT INTO ${sharePayouts} (
+        user_id,
+        player_id,
+        game_id,
+        share_power,
+        base_rate,
+        status
+      )
+      SELECT
+        ${holdings.userId},
+        ${holdings.assetId},
+        ${game.gameId},
+        ROUND(SUM(COALESCE(${holdings.powerLevel}::numeric, 0)), 2)::numeric(12, 2),
+        ${baseRate}::numeric,
+        'pending'
+      FROM ${holdings}
+      INNER JOIN ${players} ON ${players.id} = ${holdings.assetId}
+      WHERE ${holdings.assetType} = 'player'
+        AND ${holdings.quantity}::numeric > 0
+        AND UPPER(${players.sport}) = ${game.sport.toUpperCase()}
+        AND (${players.team} = ${game.homeTeam} OR ${players.team} = ${game.awayTeam})
+      GROUP BY ${holdings.userId}, ${holdings.assetId}
+      HAVING SUM(COALESCE(${holdings.powerLevel}::numeric, 0)) > 0
+      ON CONFLICT (user_id, player_id, game_id) DO NOTHING;
+    `);
+
+    return typeof result?.rowCount === "number" ? result.rowCount : 0;
+  }
+
+  async getPendingSharePayouts(limit: number = 1000): Promise<SharePayout[]> {
+    return await db
+      .select()
+      .from(sharePayouts)
+      .where(eq(sharePayouts.status, "pending"))
+      .orderBy(asc(sharePayouts.createdAt))
+      .limit(limit);
+  }
+
+  async processSharePayoutCredit(
+    payoutId: string,
+    userId: string,
+    fantasyPoints: string,
+    payoutAmount: string,
+  ): Promise<boolean> {
+    return await db.transaction(async (tx) => {
+      const [pendingPayout] = await tx
+        .select()
+        .from(sharePayouts)
+        .where(and(eq(sharePayouts.id, payoutId), eq(sharePayouts.status, "pending")))
+        .for("update");
+
+      if (!pendingPayout) return false;
+
+      const [user] = await tx
+        .select({ balance: users.balance })
+        .from(users)
+        .where(eq(users.id, userId))
+        .for("update");
+
+      if (!user) return false;
+
+      const newBalance = (parseFloat(user.balance) + parseFloat(payoutAmount)).toFixed(2);
+
+      await tx.update(users).set({ balance: newBalance }).where(eq(users.id, userId));
+
+      await tx
+        .update(sharePayouts)
+        .set({
+          status: "processed",
+          fantasyPoints,
+          payoutAmount,
+          processedAt: new Date(),
+        })
+        .where(eq(sharePayouts.id, payoutId));
+
+      return true;
+    });
+  }
+
   async lockBoostShares(boostId: string): Promise<void> {
     // Get the boost
     const [boost] = await db.select().from(dailyBoosts).where(eq(dailyBoosts.id, boostId));
@@ -5406,24 +5510,24 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Power Level / Condense methods
-  // Condenses raw shares into Power Level at 5:1 ratio
+  // Condenses raw shares into Power Level at 2:1 ratio
   // Power Level shares are used for Daily Boosts and do NOT earn scout dividends
-  // Creates a separate holding row for powered shares (power=5)
+  // Creates a separate holding row for powered shares (power>1)
   async condenseShares(
     userId: string,
     playerId: string,
     rawShareCount: number,
   ): Promise<{ newPowerLevel: string; sharesCondensed: number; poweredSharesCreated: number }> {
     // Validate input
-    if (rawShareCount < 5) {
-      throw new Error("Minimum 5 shares required to condense");
+    if (rawShareCount < 2) {
+      throw new Error("Minimum 2 shares required to condense");
     }
-    if (rawShareCount % 5 !== 0) {
-      throw new Error("Share count must be divisible by 5");
+    if (rawShareCount % 2 !== 0) {
+      throw new Error("Share count must be divisible by 2");
     }
 
-    // Calculate power gained (5:1 ratio)
-    const powerGained = rawShareCount / 5;
+    // Calculate power gained (2:1 ratio)
+    const powerGained = rawShareCount / 2;
 
     return await db.transaction(async (tx) => {
       // Get regular holding (power=1)
@@ -5512,7 +5616,7 @@ export class DatabaseStorage implements IStorage {
           assetType: "player",
           assetId: playerId,
           quantity: "1",
-          power: Math.round(powerGained), // The single share has power = rawShareCount / 5
+          power: Math.round(powerGained), // The single share has power = rawShareCount / 2
           powerLevel: powerGained.toFixed(2), // powerLevel = power * quantity = powerGained * 1
           avgCostBasis: regularHolding.avgCostBasis,
           totalCostBasis: (powerGained * parseFloat(regularHolding.avgCostBasis)).toFixed(2),
