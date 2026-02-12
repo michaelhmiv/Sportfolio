@@ -365,7 +365,7 @@ export default function Portfolio() {
     },
   });
 
-  // Condense shares into Power Level (5:1 ratio)
+  // Condense shares into Power Level (2:1 ratio)
   const condenseSharesMutation = useMutation({
     mutationFn: async ({
       playerId,
@@ -396,8 +396,8 @@ export default function Portfolio() {
   // Open condense dialog
   const openCondenseDialog = (playerId: string, playerName: string, availableShares: number) => {
     setSelectedPlayerForCondense({ id: playerId, name: playerName });
-    // Default to the maximum condensable shares (rounded down to nearest multiple of 5)
-    const maxCondensable = Math.floor(availableShares / 5) * 5;
+    // Default to the maximum condensable shares (rounded down to nearest multiple of 2)
+    const maxCondensable = Math.floor(availableShares / 2) * 2;
     setSharesToCondenseInput(maxCondensable.toString());
     setCondenseDialogOpen(true);
   };
@@ -406,10 +406,10 @@ export default function Portfolio() {
   const handleCondenseFromDialog = () => {
     if (!selectedPlayerForCondense) return;
     const shares = parseInt(sharesToCondenseInput);
-    if (isNaN(shares) || shares < 5 || shares % 5 !== 0) {
+    if (isNaN(shares) || shares < 2 || shares % 2 !== 0) {
       toast({
         title: "Invalid selection",
-        description: "Please enter a valid number of shares (minimum 5, must be divisible by 5)",
+        description: "Please enter a valid number of shares (minimum 2, must be divisible by 2)",
         variant: "destructive",
       });
       return;
@@ -1954,7 +1954,7 @@ export default function Portfolio() {
                 Power Up Shares
               </DialogTitle>
               <DialogDescription>
-                Convert regular shares into Power Level at a 5:1 ratio. Power Level shares are used
+                Convert regular shares into Power Level at a 2:1 ratio. Power Level shares are used
                 exclusively for Daily Boosts.
               </DialogDescription>
             </DialogHeader>
@@ -1995,18 +1995,18 @@ export default function Portfolio() {
                     value={sharesToCondenseInput}
                     onChange={(e) => setSharesToCondenseInput(e.target.value)}
                     placeholder="Enter shares to power up"
-                    min={5}
-                    step={5}
+                    min={2}
+                    step={2}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Must be at least 5 and divisible by 5. Each 5 shares = 1 Power Level.
+                    Must be at least 2 and divisible by 2. Each 2 shares = 1 Power Level.
                   </p>
                 </div>
 
                 {/* Preview */}
                 {(() => {
                   const shares = parseInt(sharesToCondenseInput);
-                  const isValid = !isNaN(shares) && shares >= 5 && shares % 5 === 0;
+                  const isValid = !isNaN(shares) && shares >= 2 && shares % 2 === 0;
                   if (!isValid) return null;
 
                   const holding = data.holdings.find(
@@ -2014,7 +2014,7 @@ export default function Portfolio() {
                   );
                   if (!holding) return null;
 
-                  const powerCreated = shares / 5;
+                  const powerCreated = shares / 2;
                   const remainingShares = parseFloat(holding.quantity) - shares;
 
                   return (

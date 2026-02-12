@@ -36,13 +36,17 @@ export function GameCommandCenterCard({
 
   const status = statusConfig[effectiveStatus];
   const StatusIcon = status.icon;
+  const userContext = game.userContext;
   const startTime = new Date(game.startTime);
   const timeLabel = startTime.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-  const powerLeader = game.userContext?.topPowerPlayers?.[0];
+  const powerLeader = userContext?.topPowerPlayers?.[0];
+  const showBoostPanel = Boolean(
+    userContext && (userContext.eligibleCount > 0 || userContext.topPowerPlayers.length > 0),
+  );
   const ownedTeams = new Set(
     [
-      ...(game.userContext?.ownedPlayers || []).map((player) => player.team),
-      ...(game.userContext?.topPowerPlayers || []).map((player) => player.team),
+      ...(userContext?.ownedPlayers || []).map((player) => player.team),
+      ...(userContext?.topPowerPlayers || []).map((player) => player.team),
     ].filter(Boolean),
   );
 
@@ -128,12 +132,12 @@ export function GameCommandCenterCard({
         </div>
       </div>
 
-      {isAuthenticated && game.userContext && effectiveStatus === "scheduled" && (
+      {isAuthenticated && userContext && showBoostPanel && effectiveStatus === "scheduled" && (
         <div className="mt-3 border-t border-border/60 pt-2">
           <div className="flex flex-wrap items-center gap-2">
             {/* Eligible badge - non clickable */}
             <Badge variant="outline" className="text-[10px] border-border/80">
-              Eligible: {game.userContext.eligibleCount}
+              Eligible: {userContext.eligibleCount}
             </Badge>
 
             {/* Slots badge - CLICKABLE with distinct styling */}
@@ -216,9 +220,9 @@ export function GameCommandCenterCard({
               </div>
 
               {/* Player List - Each row represents ONE share with its power level */}
-              {game.userContext.topPowerPlayers.length > 0 ? (
+              {userContext.topPowerPlayers.length > 0 ? (
                 <div className="space-y-1 max-h-32 overflow-y-auto">
-                  {game.userContext.topPowerPlayers.map((player, idx) => (
+                  {userContext.topPowerPlayers.map((player, idx) => (
                     <div
                       key={`${player.playerId}-${idx}`}
                       className="flex items-center justify-between text-xs py-1.5 px-2 rounded bg-background/80"
@@ -266,12 +270,12 @@ export function GameCommandCenterCard({
           )}
 
           {/* Collapsed power players list (shown when boost selector is closed) */}
-          {!showBoostSelector && game.userContext.topPowerPlayers.length > 0 && (
+          {!showBoostSelector && userContext.topPowerPlayers.length > 0 && (
             <div className="mt-2 space-y-1 text-xs">
               <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
                 Your Power Shares
               </div>
-              {game.userContext.topPowerPlayers.slice(0, 3).map((player, idx) => (
+              {userContext.topPowerPlayers.slice(0, 3).map((player, idx) => (
                 <div
                   key={`${player.playerId}-${idx}`}
                   className="flex items-center justify-between"
@@ -282,9 +286,9 @@ export function GameCommandCenterCard({
                   </span>
                 </div>
               ))}
-              {game.userContext.topPowerPlayers.length > 3 && (
+              {userContext.topPowerPlayers.length > 3 && (
                 <div className="text-[10px] text-muted-foreground text-center">
-                  +{game.userContext.topPowerPlayers.length - 3} more
+                  +{userContext.topPowerPlayers.length - 3} more
                 </div>
               )}
             </div>

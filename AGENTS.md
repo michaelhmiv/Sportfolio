@@ -1,154 +1,160 @@
-﻿# AGENTS.md
+# AGENTS.md
 
-This file provides guidance for Factory AI agents working on this codebase.
+Operational guidance for Factory droids working in this repository.
 
-## Agent Guidelines
+## Session Start Checklist
 
-### Before Starting Work
+1. Review open issues:
+   - `gh issue list --repo michaelhmiv/Sportfolio-Replit`
+2. Read project rules in `CLAUDE.md`.
+3. For any non-trivial task (3+ steps, architecture, or cross-file change), create a plan first.
+4. Use task tracking files:
+   - `tasks/todo.md`
+   - `tasks/lessons.md`
 
-1. **Check GitHub Issues**: Run gh issue list --repo michaelhmiv/Sportfolio-Replit to review open issues before making changes. Reference issue numbers in commits and code comments.
+## Project Snapshot
 
-2. **Read CLAUDE.md**: Review CLAUDE.md for project-specific patterns and workflows.
+- Product: Sportfolio (sports trading + fantasy mechanics)
+- Stack: React + TanStack Query + Wouter, Express, Drizzle/Postgres
+- Real-time: WebSocket (`/ws`)
+- Runtime: TypeScript throughout (`client/`, `server/`, `shared/`)
+- Key mode: AMM-first trading + LP support
 
-3. **Plan Mode**: Enter plan mode for ANY non-trivial task (3+ steps or architectural decisions). Write detailed specs upfront to reduce ambiguity.
+## Canonical Agent Docs (Read Before Domain Changes)
 
-### Key Project Patterns
+- `docs/agent/product-mechanics.md`
+- `docs/agent/api-map.md`
+- `docs/agent/data-model-economy.md`
+- `docs/agent/runbooks.md`
 
-- **API Migration**: MySportsFeeds → BallDontLie (NBA)
-- **Database**: PostgreSQL with Drizzle ORM
-- **Frontend**: React with TanStack Query, Wouter router
-- **Real-time**: WebSocket for live updates
-- **Testing**: Vitest for unit tests
+## External Sports Data Contract (BallDontLie)
 
-### Workflow Orchestration
+When answering provider API questions or adding a new sport/data flow, consult the upstream OpenAPI spec first:
 
-#### 1. Plan Mode Default
+- `https://www.balldontlie.io/openapi.yml`
 
-- Enter plan mode for non-trivial tasks
-- If something goes sideways, STOP and re-plan immediately
-- Use plan mode for verification steps
-- Write detailed specs upfront
+Use it to confirm:
 
-#### 2. Subagent Strategy
+- endpoint availability by sport,
+- request params and response schema,
+- game/status enum semantics,
+- pagination/rate-limit expectations.
 
-- Offload research, exploration, and parallel analysis to subagents
-- For complex problems, throw more compute at it via subagents
-- One task per subagent for focused execution
+Then map the confirmed contract into our ingestion/sync paths before changing route behavior.
 
-#### 3. Self-Improvement Loop
+Primary source-of-truth code:
 
-- After ANY correction from the user: update asks/lessons.md
-- Write rules to prevent the same mistake
-- Review lessons at session start
+- API surface: `server/routes.ts`, `server/routes/amm.ts`, `server/routes/lp.ts`
+- Domain model: `shared/schema.ts`
+- Core economics: `server/amm/pool.ts`, `server/contest-scoring.ts`, `shared/vesting-utils.ts`
+- Background loops: `server/jobs/`
 
-#### 4. Verification Before Done
+## Product-Critical Mechanics (Do Not Break)
 
-- Never mark task complete without proving it works
-- Diff behavior between main and changes when relevant
-- Ask: "Would a staff engineer approve this?"
-- Run tests, check logs, demonstrate correctness
+1. **AMM/LP invariants**
+   - Constant-product pool (`x * y = k`) for instant trading.
+   - Trade fees are split (pool fee + burn fee) in current AMM logic.
+2. **Scout distribution**
+   - Hourly distribution is proportional to scout-minutes (time-weighted).
+3. **Vesting accrual**
+   - Accrual uses elapsed time + residual milliseconds with hard caps.
+4. **Contest scoring/settlement**
+   - Score is proportional share ownership of player fantasy output.
+   - Settlement is status-gated and must not double-pay.
+5. **Boost lifecycle**
+   - Daily boosts lock/burn shares at game start and settle post-game.
+   - Community boosts modify daily boost multipliers.
 
-#### 5. Demand Elegance (Balanced)
+## Power Levels (Critical Economic Primitive)
 
-- For non-trivial changes: pause and ask "is there a more elegant way?"
-- If a fix feels hacky: implement the elegant solution
-- Skip this for simple, obvious fixes
-- Challenge your own work before presenting it
+Power is modeled per holding row and directly impacts boost payouts.
 
-#### 6. Autonomous Bug Fixing
+### Data model
 
-- When given a bug report: just fix it. Don't ask for hand-holding
-- Point at logs, errors, failing tests → then resolve them
-- Zero context switching required from user
+- `holdings.power` = per-share multiplier (integer; `1` means regular share).
+- `holdings.powerLevel` = derived effective power (`quantity * power`, stored for compatibility/reporting).
+- Regular and powered shares can exist as separate holding rows for the same player.
 
-### Task Management
+### Condense mechanic
 
-1. **Plan First**: Write plan to asks/todo.md with checkable items
-2. **Verify Plan**: Check in before starting implementation
-3. **Track Progress**: Mark items complete as you go
-4. **Explain Changes**: High-level summary at each step
-5. **Document Results**: Add review to asks/todo.md
-6. **Capture Lessons**: Update asks/lessons.md after corrections
+- Route: `POST /api/holdings/condense`
+- Rule: `sharesToCondense` must be `>= 5` and divisible by `5`.
+- Conversion ratio: `5 raw shares -> +1 power gained`.
+- Storage behavior (`condenseShares`):
+  - debits regular shares (`power=1`) after lock checks,
+  - creates/updates powered row (`power > 1`),
+  - keeps `powerLevel` synchronized with quantity/power.
 
-### Core Principles
+### Availability and lock semantics
 
-- **Simplicity First**: Make every change as simple as possible. Impact minimal code.
-- **No Laziness**: Find root causes. No temporary fixes. Senior developer standards.
-- **Minimal Impact**: Changes should only touch what's necessary. Avoid introducing bugs.
+- Available shares are effectively `quantity - lockedQuantity` for player holdings.
+- Condense and boost flows must never consume locked shares.
 
-### Important Files
+### Boost interaction
 
-- CLAUDE.md - Project-specific coding guidelines
--     asks/todo.md - Current task tracker
--     asks/lessons.md - Lessons learned from corrections
-- README.md - Project setup and documentation
+- Daily boost assignment allows exactly `1` share per slot.
+- Assignment selects an eligible holding row (prefers highest powered share when available).
+- Stored boost `powerLevel` represents that single burned share's per-share power.
+- Settlement uses that stored value in payout math (with slot tier and community multiplier effects).
 
-### Git Workflow
+### Invariants for any power-related change
 
-Before ANY commit or push:
+1. Keep `powerLevel == quantity * power` consistent on every write path.
+2. Preserve one-share-per-boost-slot behavior.
+3. Keep lock checks in place before quantity/power mutations.
+4. Validate impact on:
+   - `/api/holdings/:playerId/power-level`
+   - `/api/daily-boosts/eligible*`
+   - `/api/daily-boosts/assign`
 
-- Run git diff --cached to review changes
-- Run git status to confirm files being included
-- Check for secrets, credentials, API keys in changes
-- Stop and warn if sensitive data detected
+If your change affects economics, read `docs/agent/runbooks.md` first and follow the relevant checklist.
 
-### Testing
+## Auth & Access Patterns
 
-- Always run
-  pm run check before completing tasks
-- Run
-  pm run test when applicable
-- Fix all diagnostics and errors in system reminder messages
+- `isAuthenticated`: required user JWT/dev-bypass auth.
+- `optionalAuth`: enriches user context when token exists.
+- `adminAuth`: admin-only routes (JWT admin user or admin API token).
 
-### Environment
+Never reduce auth checks on existing protected endpoints without explicit instruction.
 
-- Check tool availability before using (rg, gh, ffmpeg, python3, etc.)
-- Use absolute paths with file tools (Read, Edit, Create)
-- Never call file editing tools for the same file in parallel
+## Working Rules
 
-## Custom Agents
+- Use existing patterns before introducing new abstractions.
+- Keep changes minimal and targeted.
+- Never expose secrets/tokens in logs or responses.
+- Prefer existing libs/utilities over adding new dependencies.
 
-The following custom droids are available and should be used when relevant:
+## Validation Before Completion
 
-- **code-quality-reviewer** - Reviews code quality and maintainability
-- **documentation-accuracy-reviewer** - Verifies documentation accuracy
-- **git-summarizer** - Collects detailed repository context
-- **performance-reviewer** - Identifies performance bottlenecks
-- **pr-readiness-reviewer** - Assesses branch readiness for PRs
-- **release-notes-writer** - Analyzes commit history for release notes
-- **security-code-reviewer** - Reviews diffs for security issues
-- **test-coverage-reviewer** - Reviews testing implementation and coverage
-- **test-plan-writer** - Produces focused test plans for changes
-- **todo-fixme-scanner** - Scans for TODO and FIXME markers
+Run these from repo root unless the user says otherwise:
 
-## Common Tasks
+1. `npm run check`
+2. `npm run lint`
+3. `npm run test:run`
 
-### Adding a New Feature
+For formatting-sensitive edits, also run:
 
-1. Research existing patterns in codebase
-2. Check for related open issues
-3. Write implementation plan to asks/todo.md
-4. Implement with minimal impact
-5. Add/update tests
-6. Verify with
-   pm run check and
-   pm run test
-7. Document any breaking changes
+- `npm run format:check`
 
-### Fixing a Bug
+If a command fails, report the failure and whether it is pre-existing or introduced by your change.
 
-1. Reproduce the issue if possible
-2. Identify root cause
-3. Write fix
-4. Add tests to prevent regression
-5. Verify all tests pass
-6. Commit with reference to issue number
+## Git Safety
 
-### Database Changes
+Before commit/push:
 
-1. Create Drizzle migration
-2. Review with
-   pm run db:push
-3. Update shared schema
-4. Test changes locally
-5. Document any breaking changes
+1. `git diff --cached`
+2. `git status`
+3. Verify no credentials, keys, tokens, or secrets are included.
+
+## Custom Droids Available
+
+- `code-quality-reviewer`
+- `documentation-accuracy-reviewer`
+- `git-summarizer`
+- `performance-reviewer`
+- `pr-readiness-reviewer`
+- `release-notes-writer`
+- `security-code-reviewer`
+- `test-coverage-reviewer`
+- `test-plan-writer`
+- `todo-fixme-scanner`

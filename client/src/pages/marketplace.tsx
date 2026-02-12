@@ -1,9 +1,8 @@
 import { useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation, useSearch } from "wouter";
-import { useAuth } from "@/hooks/useAuth";
-import { useSport, useSportConfig } from "@/lib/sport-context";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useSport } from "@/lib/sport-context";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -20,7 +19,6 @@ import {
   Activity,
   ShoppingCart,
 } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
 import { useWebSocket } from "@/lib/websocket";
 import { queryClient } from "@/lib/queryClient";
 import type { Player } from "@shared/schema";
@@ -39,6 +37,7 @@ type PlayerWithPool = Player & {
   poolTotalTrades?: number;
   buyPressure?: number;
   valueIndex?: number;
+  avgFantasyPointsPerGame?: string | number;
 };
 
 type SortField =
@@ -79,12 +78,73 @@ const normalizeSortField = (value: string | null): SortField | null => {
   return null;
 };
 
+const compactNumberFormatter = new Intl.NumberFormat("en-US", {
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+
+const integerFormatter = new Intl.NumberFormat("en-US", {
+  maximumFractionDigits: 0,
+});
+
+const parseMetricNumber = (value: string | number | null | undefined) => {
+  const parsed = typeof value === "number" ? value : parseFloat(value ?? "0");
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const getMobileSortMetric = (player: PlayerWithPool, sortField: SortField) => {
+  switch (sortField) {
+    case "price": {
+      const price = parseMetricNumber(player.currentPrice);
+      return { text: `Price $${price.toFixed(2)}`, className: "font-mono" };
+    }
+    case "volume": {
+      return {
+        text: `Vol ${integerFormatter.format(player.volume24h ?? 0)}`,
+        className: "font-mono",
+      };
+    }
+    case "change": {
+      const change = parseMetricNumber(player.priceChange24h);
+      return {
+        text: `24h ${change >= 0 ? "+" : ""}${change.toFixed(2)}%`,
+        className: cn("font-mono", change >= 0 ? "text-positive" : "text-negative"),
+      };
+    }
+    case "tvl": {
+      const tvl = parseMetricNumber(player.poolTvl);
+      return { text: `TVL $${compactNumberFormatter.format(tvl)}`, className: "font-mono" };
+    }
+    case "marketCap": {
+      const marketCap = parseMetricNumber(player.marketCap);
+      return {
+        text: `Cap $${compactNumberFormatter.format(marketCap)}`,
+        className: "font-mono",
+      };
+    }
+    case "sentiment": {
+      const buyPressure = parseMetricNumber(player.buyPressure);
+      return { text: `Sent ${buyPressure.toFixed(1)}%`, className: "font-mono" };
+    }
+    case "undervalued": {
+      const valueIndex = parseMetricNumber(player.valueIndex);
+      return { text: `Value ${valueIndex.toFixed(1)}`, className: "font-mono" };
+    }
+    case "fantasyPoints": {
+      const fantasyPoints = parseMetricNumber(player.avgFantasyPointsPerGame);
+      return { text: `FP ${fantasyPoints.toFixed(1)}`, className: "font-mono" };
+    }
+    case "name":
+      return { text: `${player.lastName}, ${player.firstName}`, className: "" };
+    case "team":
+      return { text: player.team || "-", className: "" };
+    default:
+      return { text: "-", className: "" };
+  }
+};
+
 export default function PlayerPools() {
-  const { user } = useAuth();
-  const isPremiumUser = user?.isPremium || false;
   const { sport } = useSport();
-  const sportConfig = useSportConfig();
-  const { toast } = useToast();
   const searchString = useSearch();
   const searchParams = useMemo(() => new URLSearchParams(searchString), [searchString]);
   const [, setLocation] = useLocation();
@@ -144,7 +204,7 @@ export default function PlayerPools() {
 
   // WebSocket subscriptions for real-time updates
   useEffect(() => {
-    const unsubTrade = subscribe("trade", (data) => {
+    const unsubTrade = subscribe("trade", () => {
       queryClient.invalidateQueries({ queryKey: ["/api/players"] });
     });
 
@@ -277,7 +337,7 @@ export default function PlayerPools() {
     <div className="min-h-screen bg-background p-3 sm:p-4">
       <div className="max-w-7xl mx-auto space-y-4">
         {/* Header with Background Pattern */}
-        <div className="relative overflow-hidden rounded-xl bg-card border p-4 sm:p-6">
+        <div className="hidden sm:block relative overflow-hidden rounded-xl bg-card border p-4 sm:p-6">
           <BackgroundPattern variant="circuit" color="primary" opacity={0.04} />
           <div className="relative z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
@@ -291,16 +351,19 @@ export default function PlayerPools() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList className="grid w-full sm:w-auto grid-cols-2 sm:inline-flex">
-            <TabsTrigger value="players" className="gap-2">
-              <Activity className="w-4 h-4" />
-              Players
-            </TabsTrigger>
-            <TabsTrigger value="activity" className="gap-2">
-              <TrendingUp className="w-4 h-4" />
-              Activity
-            </TabsTrigger>
-          </TabsList>
+          <div className="flex items-center gap-2">
+            <TabsList className="grid flex-1 grid-cols-2 sm:w-auto sm:inline-flex sm:flex-none">
+              <TabsTrigger value="players" className="gap-2">
+                <Activity className="w-4 h-4" />
+                Players
+              </TabsTrigger>
+              <TabsTrigger value="activity" className="gap-2">
+                <TrendingUp className="w-4 h-4" />
+                Activity
+              </TabsTrigger>
+            </TabsList>
+            <SportSelector size="sm" className="sm:hidden" />
+          </div>
 
           <TabsContent value="players" className="space-y-4">
             {/* Scanners */}
@@ -607,72 +670,68 @@ export default function PlayerPools() {
 
                     {/* Mobile Cards */}
                     <div className="md:hidden divide-y">
-                      {players.map((player) => (
-                        <div
-                          key={player.id}
-                          className="p-3 flex items-center justify-between hover:bg-muted/30"
-                        >
-                          <button
-                            type="button"
-                            className="flex-1"
-                            onClick={() => {
-                              setSelectedPlayerId(player.id);
-                              setPlayerModalOpen(true);
-                            }}
+                      {players.map((player) => {
+                        const mobileSortMetric = getMobileSortMetric(player, sortField);
+
+                        return (
+                          <div
+                            key={player.id}
+                            className="p-3 flex items-center justify-between hover:bg-muted/30"
                           >
-                            <div className="flex items-center gap-2 cursor-pointer text-left">
-                              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                                <span className="text-xs font-bold">
-                                  {player.firstName[0]}
-                                  {player.lastName[0]}
-                                </span>
-                              </div>
-                              <div>
-                                <div className="font-medium text-sm">
-                                  <PlayerName
-                                    playerId={player.id}
-                                    firstName={player.firstName}
-                                    lastName={player.lastName}
-                                  />
-                                </div>
-                                <div className="text-xs text-muted-foreground flex items-center gap-1.5 flex-wrap">
-                                  <span>{player.team}</span>
-                                  <span>•</span>
-                                  <span className="font-mono">
-                                    ${player.currentPrice || "0.00"}
-                                  </span>
-                                  <span>•</span>
-                                  <span
-                                    className={cn(
-                                      "font-mono",
-                                      parseFloat(player.priceChange24h || "0") >= 0
-                                        ? "text-positive"
-                                        : "text-negative",
-                                    )}
-                                  >
-                                    {parseFloat(player.priceChange24h || "0") >= 0 ? "+" : ""}
-                                    {parseFloat(player.priceChange24h || "0").toFixed(2)}%
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                          </button>
-                          <div className="flex items-center ml-2">
-                            <Button
-                              size="sm"
-                              variant="default"
-                              className="h-7 px-3 text-xs"
+                            <button
+                              type="button"
+                              className="flex-1"
                               onClick={() => {
-                                const pid = String(player.id || "").trim();
-                                setSelectedPlayerId(pid);
+                                setSelectedPlayerId(player.id);
                                 setPlayerModalOpen(true);
                               }}
                             >
-                              Trade
-                            </Button>
+                              <div className="flex items-center gap-2 cursor-pointer text-left">
+                                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                                  <span className="text-xs font-bold">
+                                    {player.firstName[0]}
+                                    {player.lastName[0]}
+                                  </span>
+                                </div>
+                                <div>
+                                  <div className="font-medium text-sm">
+                                    <PlayerName
+                                      playerId={player.id}
+                                      firstName={player.firstName}
+                                      lastName={player.lastName}
+                                    />
+                                  </div>
+                                  <div className="text-xs text-muted-foreground flex items-center gap-1.5 flex-wrap">
+                                    <span>{player.team}</span>
+                                    <span>•</span>
+                                    <span className="font-mono">
+                                      ${player.currentPrice || "0.00"}
+                                    </span>
+                                    <span>•</span>
+                                    <span className={mobileSortMetric.className || ""}>
+                                      {mobileSortMetric.text}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            </button>
+                            <div className="flex items-center ml-2">
+                              <Button
+                                size="sm"
+                                variant="default"
+                                className="h-7 px-3 text-xs"
+                                onClick={() => {
+                                  const pid = String(player.id || "").trim();
+                                  setSelectedPlayerId(pid);
+                                  setPlayerModalOpen(true);
+                                }}
+                              >
+                                Trade
+                              </Button>
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
 
                     {/* Pagination */}

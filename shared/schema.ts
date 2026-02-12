@@ -1252,6 +1252,42 @@ export const boostPayouts = pgTable(
   }),
 );
 
+// Share payouts table - immutable ledger for game-based holder earnings
+// Records payouts for user/player/game snapshots settled after game completion
+export const sharePayouts = pgTable(
+  "share_payouts",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    playerId: varchar("player_id")
+      .notNull()
+      .references(() => players.id),
+    gameId: text("game_id").notNull(),
+    sharePower: decimal("share_power", { precision: 12, scale: 2 }).notNull(),
+    baseRate: decimal("base_rate", { precision: 10, scale: 4 }).notNull().default("1.0000"),
+    fantasyPoints: decimal("fantasy_points", { precision: 10, scale: 2 }),
+    payoutAmount: decimal("payout_amount", { precision: 20, scale: 2 }),
+    status: text("status").notNull().default("pending"), // pending, processed, cancelled
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    processedAt: timestamp("processed_at"),
+  },
+  (table) => ({
+    userIdx: index("share_payout_user_idx").on(table.userId),
+    gameIdx: index("share_payout_game_idx").on(table.gameId),
+    statusIdx: index("share_payout_status_idx").on(table.status),
+    createdAtIdx: index("share_payout_created_idx").on(table.createdAt),
+    userPlayerGameIdx: uniqueIndex("share_payout_user_player_game_idx").on(
+      table.userId,
+      table.playerId,
+      table.gameId,
+    ),
+  }),
+);
+
 // Community Boosts table - global 5x boosts created by premium share redemption
 // When a user redeems a premium share, ALL users holding that player benefit from 5x
 export const communityBoosts = pgTable(
@@ -1299,6 +1335,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   watchList: many(watchList),
   dailyBoosts: many(dailyBoosts),
   boostPayouts: many(boostPayouts),
+  sharePayouts: many(sharePayouts),
   communityBoosts: many(communityBoosts),
   collections: many(userCollections),
   milestones: many(userMilestones),
@@ -1347,6 +1384,7 @@ export const playersRelations = relations(players, ({ many }) => ({
   trades: many(trades),
   gameStats: many(playerGameStats),
   priceHistory: many(priceHistory),
+  sharePayouts: many(sharePayouts),
 }));
 
 export const holdingsRelations = relations(holdings, ({ one }) => ({
@@ -1416,6 +1454,17 @@ export const boostPayoutsRelations = relations(boostPayouts, ({ one }) => ({
   }),
   player: one(players, {
     fields: [boostPayouts.playerId],
+    references: [players.id],
+  }),
+}));
+
+export const sharePayoutsRelations = relations(sharePayouts, ({ one }) => ({
+  user: one(users, {
+    fields: [sharePayouts.userId],
+    references: [users.id],
+  }),
+  player: one(players, {
+    fields: [sharePayouts.playerId],
     references: [players.id],
   }),
 }));
@@ -1761,6 +1810,15 @@ export const insertBoostPayoutSchema = createInsertSchema(boostPayouts).omit({
 
 export type BoostPayout = typeof boostPayouts.$inferSelect;
 export type InsertBoostPayout = z.infer<typeof insertBoostPayoutSchema>;
+
+export const insertSharePayoutSchema = createInsertSchema(sharePayouts).omit({
+  id: true,
+  createdAt: true,
+  processedAt: true,
+});
+
+export type SharePayout = typeof sharePayouts.$inferSelect;
+export type InsertSharePayout = z.infer<typeof insertSharePayoutSchema>;
 
 // Community boosts schemas and types
 export const insertCommunityBoostSchema = createInsertSchema(communityBoosts).omit({

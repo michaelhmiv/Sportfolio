@@ -1,16 +1,15 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import {
   CheckCircle2,
-  Circle,
   Star,
   Activity,
   Search,
   ShoppingCart,
-  Trophy,
+  Zap,
   ArrowRight,
   ChevronDown,
   ChevronUp,
@@ -18,36 +17,74 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
-import { useQuery } from "@tanstack/react-query";
-import type { Trade, ContestEntry } from "@shared/schema";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+
+interface ScoutData {
+  assignments: Array<{ playerId: string; scoutCount: number }>;
+  totalScouts: number;
+}
+
+interface DailyBoostsData {
+  boosts: Array<{ id: string }>;
+}
+
+interface BoostHistoryData {
+  totalBoosts: number;
+}
 
 export function OnboardingMissions() {
   const { user, isLoading: userLoading } = useAuth();
+  const queryClient = useQueryClient();
   const [isExpanded, setIsExpanded] = useState(false);
+
+  const shouldShowMissions = !!user && user.hasSeenOnboarding === false;
+
+  const skipMissionsMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("POST", "/api/user/onboarding/complete");
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+    },
+  });
+
+  if (!shouldShowMissions) return null;
+  if (skipMissionsMutation.isSuccess) return null;
 
   // Mission tracking queries
   const { data: trades, isLoading: tradesLoading } = useQuery<any[]>({
     queryKey: ["/api/trades/history"],
-    enabled: !!user,
+    enabled: shouldShowMissions,
   });
 
-  const { data: contestEntries, isLoading: entriesLoading } = useQuery<ContestEntry[]>({
-    queryKey: ["/api/contests/entries"],
-    enabled: !!user,
+  const { data: scoutsData, isLoading: scoutsLoading } = useQuery<ScoutData>({
+    queryKey: ["/api/scouts"],
+    enabled: shouldShowMissions,
+  });
+
+  const { data: boostsData, isLoading: boostsLoading } = useQuery<DailyBoostsData>({
+    queryKey: ["/api/daily-boosts/all"],
+    enabled: shouldShowMissions,
+  });
+
+  const { data: boostHistory, isLoading: boostHistoryLoading } = useQuery<BoostHistoryData>({
+    queryKey: ["/api/daily-boosts/history"],
+    enabled: shouldShowMissions,
   });
 
   const { data: watchList, isLoading: watchlistLoading } = useQuery<string[]>({
     queryKey: ["/api/watchlist"],
-    enabled: !!user,
+    enabled: shouldShowMissions,
   });
 
   const missions = [
     {
       id: "scout",
       title: "Start Scouting",
-      description: "Assign your first scout to earn free shares hourly.",
+      description: "Assign your first scout to start earning scout shares.",
       icon: <Activity className="w-4 h-4" />,
-      completed: (user?.totalSharesVested || 0) > 0,
+      completed: (scoutsData?.totalScouts || 0) > 0,
       link: "/pools",
     },
     {
@@ -67,12 +104,12 @@ export function OnboardingMissions() {
       link: "/pools",
     },
     {
-      id: "compete",
-      title: "Enter the Arena",
-      description: "Join your first contest to win prizes.",
-      icon: <Trophy className="w-4 h-4" />,
-      completed: (contestEntries?.length || 0) > 0,
-      link: "/contests",
+      id: "boost",
+      title: "Power Up",
+      description: "Place 1 share into a Daily Boost slot.",
+      icon: <Zap className="w-4 h-4" />,
+      completed: (boostsData?.boosts?.length || 0) > 0 || (boostHistory?.totalBoosts || 0) > 0,
+      link: "/power",
     },
   ];
 
@@ -80,8 +117,11 @@ export function OnboardingMissions() {
   const isLoading =
     userLoading === undefined || // user object is available from context immediately if auth is done, but let's be safe
     tradesLoading ||
-    entriesLoading ||
-    watchlistLoading;
+    scoutsLoading ||
+    boostsLoading ||
+    boostHistoryLoading ||
+    watchlistLoading ||
+    skipMissionsMutation.isPending;
 
   if (isLoading) return null;
 
@@ -104,6 +144,19 @@ export function OnboardingMissions() {
             <CardTitle className="text-sm font-bold tracking-tight">Rookie Missions</CardTitle>
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-5 px-1.5 text-[10px]"
+              onClick={(event) => {
+                event.stopPropagation();
+                skipMissionsMutation.mutate();
+              }}
+              disabled={skipMissionsMutation.isPending}
+              data-testid="button-skip-rookie-missions"
+            >
+              Skip
+            </Button>
             <Badge
               variant="outline"
               className="h-5 px-1.5 font-mono text-[10px] text-primary border-primary/30 bg-primary/5"

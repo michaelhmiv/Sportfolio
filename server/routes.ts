@@ -19,6 +19,7 @@ import {
   contests,
   holdings,
   marketSnapshots,
+  portfolioSnapshots,
   premiumCheckoutSessions,
   tweetSettings,
   tweetHistory,
@@ -329,6 +330,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const playerTeamKey = (playerSport: string, team: string) =>
       `${playerSport.toUpperCase()}:${team}`;
 
+    const gameIdsByTeam = new Map<string, Set<string>>();
+    games.forEach((game) => {
+      const gameSport = (normalizedSport === "ALL" ? game.sport : normalizedSport).toUpperCase();
+      const homeKey = playerTeamKey(gameSport, game.homeTeam);
+      const awayKey = playerTeamKey(gameSport, game.awayTeam);
+
+      const homeGames = gameIdsByTeam.get(homeKey) || new Set<string>();
+      homeGames.add(game.gameId);
+      gameIdsByTeam.set(homeKey, homeGames);
+
+      const awayGames = gameIdsByTeam.get(awayKey) || new Set<string>();
+      awayGames.add(game.gameId);
+      gameIdsByTeam.set(awayKey, awayGames);
+    });
+
     const playersByTeam = new Map<string, typeof teamPlayers>();
     teamPlayers.forEach((player) => {
       const teamKey = playerTeamKey(player.sport, player.team);
@@ -371,13 +387,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     let boostSlotsRemaining: number | null = null;
     const userContextByGame = new Map<string, GameInsightUserContext>();
     const boostedPlayerIds = new Set<string>();
+    const sortOwnedPlayers = (
+      ownedPlayers: GameInsightUserContext["ownedPlayers"],
+    ): GameInsightUserContext["ownedPlayers"] =>
+      [...ownedPlayers].sort((a, b) => {
+        if (b.powerLevel !== a.powerLevel) return b.powerLevel - a.powerLevel;
+        if (b.totalShares !== a.totalShares) return b.totalShares - a.totalShares;
+        return a.name.localeCompare(b.name);
+      });
 
     if (userId) {
       const { startOfDay } = getETDayBoundaries(dateStr);
       const targetDate = new Date(startOfDay.getTime() + 12 * 60 * 60 * 1000);
-      const [eligiblePlayers, currentBoosts] = await Promise.all([
+      const [eligiblePlayers, currentBoosts, allHoldings] = await Promise.all([
         storage.getEligiblePlayersForBoost(userId, sport, targetDate),
         storage.getDailyBoosts(userId, sport, targetDate),
+        storage.getAllHoldingsWithPlayers(userId),
       ]);
 
       currentBoosts.forEach((boost) => boostedPlayerIds.add(boost.playerId));
@@ -446,16 +471,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
           existing.isBoosted = existing.isBoosted || boostedPlayerIds.has(playerId);
         });
 
-        const ownedPlayers = Array.from(ownedPlayersById.values()).sort((a, b) => {
-          if (b.powerLevel !== a.powerLevel) return b.powerLevel - a.powerLevel;
-          if (b.totalShares !== a.totalShares) return b.totalShares - a.totalShares;
-          return a.name.localeCompare(b.name);
-        });
+        const ownedPlayers = sortOwnedPlayers(Array.from(ownedPlayersById.values()));
 
         userContextByGame.set(gameId, {
           eligibleCount: playersForGame.length,
           topPowerPlayers,
           ownedPlayers,
+        });
+      });
+
+      allHoldings.forEach((holding) => {
+        const totalShares = parseFloat(holding.quantity || "0");
+        if (totalShares <= 0) return;
+
+        const teamKey = playerTeamKey(holding.player.sport, holding.player.team);
+        const gameIds = gameIdsByTeam.get(teamKey);
+        if (!gameIds || gameIds.size === 0) return;
+
+        const playerId = holding.player.id;
+        const fallbackOwnedPlayer = {
+          playerId,
+          name: `${holding.player.firstName} ${holding.player.lastName}`,
+          team: holding.player.team,
+          powerLevel: parseFloat(holding.powerLevel || "0"),
+          availableShares: 0,
+          totalShares,
+          isBoosted: boostedPlayerIds.has(playerId),
+        };
+
+        gameIds.forEach((gameId) => {
+          const existingContext = userContextByGame.get(gameId);
+          if (!existingContext) {
+            userContextByGame.set(gameId, {
+              eligibleCount: 0,
+              topPowerPlayers: [],
+              ownedPlayers: [fallbackOwnedPlayer],
+            });
+            return;
+          }
+
+          const existingOwnedPlayer = existingContext.ownedPlayers.find(
+            (player) => player.playerId === playerId,
+          );
+
+          if (!existingOwnedPlayer) {
+            existingContext.ownedPlayers.push(fallbackOwnedPlayer);
+            existingContext.ownedPlayers = sortOwnedPlayers(existingContext.ownedPlayers);
+            return;
+          }
+
+          existingOwnedPlayer.powerLevel = Math.max(
+            existingOwnedPlayer.powerLevel,
+            fallbackOwnedPlayer.powerLevel,
+          );
+          existingOwnedPlayer.totalShares = Math.max(
+            existingOwnedPlayer.totalShares,
+            fallbackOwnedPlayer.totalShares,
+          );
+          existingOwnedPlayer.isBoosted =
+            existingOwnedPlayer.isBoosted || fallbackOwnedPlayer.isBoosted;
+          existingContext.ownedPlayers = sortOwnedPlayers(existingContext.ownedPlayers);
         });
       });
     }
@@ -1359,14 +1434,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (vestingData?.playerId) playerIds.add(vestingData.playerId);
       vestingSplits.forEach((s) => playerIds.add(s.playerId));
 
-      // Parallel fetch: players, ranks, and yesterday's snapshot
+      // Parallel fetch: players, ranks, yesterday's snapshot, and current ranking data
       const yesterday = new Date();
       yesterday.setDate(yesterday.getDate() - 1);
 
-      const [players, latestRanks, yesterdaySnapshot] = await Promise.all([
+      const [players, latestRanks, yesterdaySnapshot, usersForRanking] = await Promise.all([
         storage.getPlayersByIds(Array.from(playerIds)),
         storage.getLatestSnapshotRanks(),
         storage.getPortfolioSnapshot(user.id, yesterday),
+        getOrCompute("dashboard:users_for_ranking", () => storage.getAllUsersForRanking(), 30_000),
       ]);
       const playerMap = new Map(players.map((p) => [p.id, p]));
 
@@ -1438,14 +1514,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // If no cached ranks, fallback to real-time calculation
       if (!cachedRank) {
-        const allUsersRankData = await storage.getAllUsersForRanking();
-
-        const cashSorted = [...allUsersRankData].sort(
+        const cashSorted = [...usersForRanking].sort(
           (a, b) => parseFloat(b.balance) - parseFloat(a.balance),
         );
         currentCashRank = cashSorted.findIndex((u) => u.userId === user.id) + 1;
 
-        const portfolioSorted = [...allUsersRankData].sort(
+        const portfolioSorted = [...usersForRanking].sort(
           (a, b) => b.portfolioValue - a.portfolioValue,
         );
         currentPortfolioRank = portfolioSorted.findIndex((u) => u.userId === user.id) + 1;
@@ -1458,14 +1532,113 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ? yesterdaySnapshot.portfolioRank - currentPortfolioRank
         : null;
 
+      const currentNetWorth = parseFloat(user.balance) + portfolioValue;
+      const roundToTwo = (value: number) => Math.round(value * 100) / 100;
+
+      const currentNetWorthByUser = new Map(
+        usersForRanking.map((u) => [u.userId, parseFloat(u.balance) + u.portfolioValue]),
+      );
+
+      const changeWindows = [
+        { key: "change24h", days: 1 },
+        { key: "change7d", days: 7 },
+        { key: "change30d", days: 30 },
+      ] as const;
+
+      type DashboardChangeKey = (typeof changeWindows)[number]["key"];
+      const netWorthChanges: Record<
+        DashboardChangeKey,
+        { amount: number | null; percent: number | null; rank: number | null }
+      > = {
+        change24h: { amount: null, percent: null, rank: null },
+        change7d: { amount: null, percent: null, rank: null },
+        change30d: { amount: null, percent: null, rank: null },
+      };
+
+      for (const window of changeWindows) {
+        const targetDate = new Date();
+        targetDate.setDate(targetDate.getDate() - window.days);
+        const targetDateKey = targetDate.toISOString().slice(0, 10);
+
+        const baselineSnapshots = await getOrCompute(
+          `dashboard:baseline_snapshots:${window.days}:${targetDateKey}`,
+          async () => {
+            const [baselineDateRow] = await db
+              .select({ snapshotDate: portfolioSnapshots.snapshotDate })
+              .from(portfolioSnapshots)
+              .where(lte(portfolioSnapshots.snapshotDate, targetDate))
+              .orderBy(desc(portfolioSnapshots.snapshotDate))
+              .limit(1);
+
+            if (!baselineDateRow) {
+              return [];
+            }
+
+            return db
+              .select({
+                userId: portfolioSnapshots.userId,
+                totalNetWorth: portfolioSnapshots.totalNetWorth,
+              })
+              .from(portfolioSnapshots)
+              .where(eq(portfolioSnapshots.snapshotDate, baselineDateRow.snapshotDate));
+          },
+          60_000,
+        );
+
+        if (baselineSnapshots.length === 0) {
+          continue;
+        }
+
+        const baselineNetWorthByUser = new Map(
+          baselineSnapshots.map((snapshot) => [
+            snapshot.userId,
+            parseFloat(snapshot.totalNetWorth),
+          ]),
+        );
+
+        const userBaseline = baselineNetWorthByUser.get(user.id);
+        if (userBaseline !== undefined) {
+          const amount = roundToTwo(currentNetWorth - userBaseline);
+          const percent =
+            userBaseline > 0
+              ? roundToTwo(((currentNetWorth - userBaseline) / userBaseline) * 100)
+              : null;
+
+          netWorthChanges[window.key] = {
+            ...netWorthChanges[window.key],
+            amount,
+            percent,
+          };
+        }
+
+        const rankedDeltas = Array.from(currentNetWorthByUser.entries())
+          .map(([userId, netWorth]) => {
+            const baselineNetWorth = baselineNetWorthByUser.get(userId);
+            if (baselineNetWorth === undefined) return null;
+            return { userId, delta: netWorth - baselineNetWorth };
+          })
+          .filter((entry): entry is { userId: string; delta: number } => entry !== null)
+          .sort((a, b) => b.delta - a.delta);
+
+        const rankIndex = rankedDeltas.findIndex((entry) => entry.userId === user.id);
+        netWorthChanges[window.key] = {
+          ...netWorthChanges[window.key],
+          rank: rankIndex >= 0 ? rankIndex + 1 : null,
+        };
+      }
+
       res.json({
         user: {
           balance: user.balance,
           portfolioValue: portfolioValue.toFixed(2),
+          netWorth: currentNetWorth.toFixed(2),
           cashRank: currentCashRank,
           portfolioRank: currentPortfolioRank,
           cashRankChange,
           portfolioRankChange,
+          change24h: netWorthChanges.change24h,
+          change7d: netWorthChanges.change7d,
+          change30d: netWorthChanges.change30d,
         },
         hotPlayers,
         vesting: vestingData
@@ -8296,7 +8469,7 @@ ${posts
   // POWER LEVEL / CONDENSE ROUTES
   // ============================================
 
-  // Condense raw shares into Power Level (5:1 ratio)
+  // Condense raw shares into Power Level (2:1 ratio)
   // Power Level shares can be used in Daily Boost slots but don't earn scout dividends
   app.post("/api/holdings/condense", isAuthenticated, async (req: any, res) => {
     try {
@@ -8309,12 +8482,12 @@ ${posts
       }
 
       const shares = parseInt(sharesToCondense);
-      if (isNaN(shares) || shares < 5) {
-        return res.status(400).json({ error: "Minimum 5 shares required to condense" });
+      if (isNaN(shares) || shares < 2) {
+        return res.status(400).json({ error: "Minimum 2 shares required to condense" });
       }
 
-      if (shares % 5 !== 0) {
-        return res.status(400).json({ error: "Share count must be divisible by 5" });
+      if (shares % 2 !== 0) {
+        return res.status(400).json({ error: "Share count must be divisible by 2" });
       }
 
       // Perform the condense operation
@@ -8328,7 +8501,7 @@ ${posts
         success: true,
         newPowerLevel: result.newPowerLevel,
         sharesCondensed: result.sharesCondensed,
-        powerLevelGained: (shares / 5).toFixed(2),
+        powerLevelGained: (shares / 2).toFixed(2),
         holding: holdingInfo,
         player: player
           ? {
@@ -8338,7 +8511,7 @@ ${posts
               team: player.team,
             }
           : null,
-        message: `Successfully condensed ${shares} shares into ${(shares / 5).toFixed(1)} Power Level for ${player?.firstName} ${player?.lastName}`,
+        message: `Successfully condensed ${shares} shares into ${(shares / 2).toFixed(1)} Power Level for ${player?.firstName} ${player?.lastName}`,
       });
     } catch (error: any) {
       console.error("[holdings/condense] Error:", error);
@@ -8364,13 +8537,13 @@ ${posts
         });
       }
 
-      const canCondense = holdingInfo.availableShares >= 5;
+      const canCondense = holdingInfo.availableShares >= 2;
 
       res.json({
         hasHolding: true,
         ...holdingInfo,
         canCondense,
-        maxCondensable: Math.floor(holdingInfo.availableShares / 5) * 5,
+        maxCondensable: Math.floor(holdingInfo.availableShares / 2) * 2,
       });
     } catch (error: any) {
       console.error("[holdings/power-level] Error:", error);
@@ -9067,9 +9240,8 @@ ${posts
           }
         }
 
-        const estimatedPayout = (boost.sharesEntered * liveFantasyPoints * boost.slotTier).toFixed(
-          2,
-        );
+        const effectivePower = boost.powerLevel ? parseFloat(boost.powerLevel.toString()) : 1;
+        const estimatedPayout = (effectivePower * liveFantasyPoints * boost.slotTier).toFixed(2);
 
         return {
           ...boost,
