@@ -11,8 +11,14 @@
 
 import { storage } from "../storage";
 import { broadcast } from "../websocket";
+import { choosePreferredDailyGame } from "../lib/daily-game-dedupe";
+import { getETDayBoundaries, getGameDay } from "../lib/time";
 import type { JobResult } from "./scheduler";
 import type { ProgressCallback } from "../lib/admin-stream";
+
+function isLegacyNbaGameId(sport: unknown, gameId: unknown): boolean {
+  return String(sport || "").toUpperCase() === "NBA" && String(gameId || "").startsWith("18447");
+}
 
 export async function settleBoosts(progressCallback?: ProgressCallback): Promise<JobResult> {
   console.log("[settle_boosts] Starting boost settlement...");
@@ -42,33 +48,93 @@ export async function settleBoosts(progressCallback?: ProgressCallback): Promise
 
     for (const boost of lockedBoosts) {
       try {
-        // Check if game is completed
-        if (!boost.gameId) {
-          console.warn(`[settle_boosts] Boost ${boost.id} has no gameId, skipping`);
-          continue;
+        const now = Date.now();
+        let game = boost.gameId ? await storage.getDailyGameByGameId(boost.gameId) : undefined;
+
+        const shouldTryRepair =
+          !game ||
+          isLegacyNbaGameId(boost.sport, boost.gameId) ||
+          (game && isLegacyNbaGameId(game.sport ?? boost.sport, game.gameId));
+
+        // Self-heal: resolve canonical gameId (BallDontLie) for legacy/missing refs.
+        // Prefer matchup/time context over player team (player.team can change over time).
+        if (game && shouldTryRepair && isLegacyNbaGameId(boost.sport, game.gameId)) {
+          const baseGame = game;
+          const dateStr = getGameDay(baseGame.startTime);
+          const { startOfDay, endOfDay } = getETDayBoundaries(dateStr);
+          const dayGames = await storage.getDailyGamesBySport(boost.sport, startOfDay, endOfDay);
+          const matchupGames = dayGames.filter(
+            (g) => g.homeTeam === baseGame.homeTeam && g.awayTeam === baseGame.awayTeam,
+          );
+
+          let canonical: typeof baseGame | undefined;
+          for (const g of matchupGames) {
+            canonical = canonical ? choosePreferredDailyGame(canonical, g) : g;
+          }
+
+          if (canonical && boost.gameId !== canonical.gameId) {
+            console.warn(
+              `[settle_boosts] Boost ${boost.id}: repairing gameId ${boost.gameId || "(null)"} -> ${canonical.gameId}`,
+            );
+            await storage.updateDailyBoost(boost.id, { gameId: canonical.gameId });
+          }
+
+          game = canonical ?? baseGame;
         }
 
-        const game = await storage.getDailyGameByGameId(boost.gameId);
+        // Fallback: If we still can't resolve a game record, attempt a player/team lookup for that ET date.
+        if (shouldTryRepair && (!game || isLegacyNbaGameId(boost.sport, game.gameId))) {
+          const resolved = await storage.getPlayerGameForDate(
+            boost.playerId,
+            boost.sport,
+            new Date(boost.boostDate),
+          );
+
+          if (resolved) {
+            if (boost.gameId !== resolved.gameId) {
+              console.warn(
+                `[settle_boosts] Boost ${boost.id}: repairing gameId ${boost.gameId || "(null)"} -> ${resolved.gameId}`,
+              );
+              await storage.updateDailyBoost(boost.id, { gameId: resolved.gameId });
+            }
+            game = resolved;
+          }
+        }
+
         if (!game) {
-          console.warn(`[settle_boosts] Game ${boost.gameId} not found for boost ${boost.id}`);
+          console.warn(
+            `[settle_boosts] Boost ${boost.id}: no game found (gameId=${boost.gameId || "(null)"}), skipping`,
+          );
           continue;
         }
 
-        // Only settle if game is completed
-        if (game.status !== "completed") {
+        // Only settle if game is completed (or very likely completed based on elapsed time)
+        const gameStatus = (game.status || "").toLowerCase();
+        const isCompletedStatus = gameStatus === "completed" || gameStatus === "ended";
+        const isBlockedStatus =
+          gameStatus === "postponed" || gameStatus === "cancelled" || gameStatus === "canceled";
+
+        const gameStartMs = new Date(game.startTime).getTime();
+        const isTimeLikelyEnded = now - gameStartMs > 6 * 60 * 60 * 1000; // 6h buffer
+
+        if (!isCompletedStatus && (isBlockedStatus || !isTimeLikelyEnded)) {
           continue;
         }
 
-        console.log(`[settle_boosts] Settling boost ${boost.id} - game ${boost.gameId} completed`);
+        const canonicalGameId = game.gameId;
+
+        console.log(
+          `[settle_boosts] Settling boost ${boost.id} - game ${canonicalGameId} ${isCompletedStatus ? "completed" : "likely ended"}`,
+        );
 
         // Get player's fantasy points for this game
-        const stats = await storage.getPlayerGameStats(boost.playerId, boost.gameId);
+        const stats = await storage.getPlayerGameStats(boost.playerId, canonicalGameId);
 
         // BUG FIX #44: Skip settlement if stats are not yet available
         // This prevents race condition where boost is settled before sync-stats job stores player stats
         if (!stats) {
           console.warn(
-            `[settle_boosts] Boost ${boost.id}: No stats found for player ${boost.playerId} game ${boost.gameId}, deferring settlement`,
+            `[settle_boosts] Boost ${boost.id}: No stats found for player ${boost.playerId} game ${canonicalGameId}, deferring settlement`,
           );
           continue;
         }
