@@ -39,14 +39,37 @@ export async function lockBoostShares(progressCallback?: ProgressCallback): Prom
     for (const boost of activeBoosts) {
       try {
         // Check if game has started
-        if (!boost.gameId) {
-          console.warn(`[lock_boost_shares] Boost ${boost.id} has no gameId, skipping`);
-          continue;
+        let game = boost.gameId ? await storage.getDailyGameByGameId(boost.gameId) : undefined;
+
+        const isLikelyLegacyNbaGameId =
+          boost.sport?.toUpperCase?.() === "NBA" &&
+          typeof boost.gameId === "string" &&
+          boost.gameId.startsWith("18447");
+
+        // Self-heal: If boost points at a missing/legacy gameId (e.g., old MySportsFeeds duplicates),
+        // resolve the canonical game for the player/team on that ET date and update the boost.
+        if (!game || isLikelyLegacyNbaGameId) {
+          const resolved = await storage.getPlayerGameForDate(
+            boost.playerId,
+            boost.sport,
+            new Date(boost.boostDate),
+          );
+
+          if (resolved) {
+            if (boost.gameId !== resolved.gameId) {
+              console.warn(
+                `[lock_boost_shares] Boost ${boost.id}: repairing gameId ${boost.gameId || "(null)"} -> ${resolved.gameId}`,
+              );
+              await storage.updateDailyBoost(boost.id, { gameId: resolved.gameId });
+            }
+            game = resolved;
+          }
         }
 
-        const game = await storage.getDailyGameByGameId(boost.gameId);
         if (!game) {
-          console.warn(`[lock_boost_shares] Game ${boost.gameId} not found for boost ${boost.id}`);
+          console.warn(
+            `[lock_boost_shares] Boost ${boost.id}: no game found (gameId=${boost.gameId || "(null)"}), skipping`,
+          );
           continue;
         }
 
@@ -55,7 +78,7 @@ export async function lockBoostShares(progressCallback?: ProgressCallback): Prom
         // Lock if game has started or is about to start (within 1 minute buffer)
         if (gameStart <= new Date(now.getTime() + 60000)) {
           console.log(
-            `[lock_boost_shares] Locking boost ${boost.id} - game ${boost.gameId} started at ${gameStart.toISOString()}`,
+            `[lock_boost_shares] Locking boost ${boost.id} - game ${game.gameId} started at ${gameStart.toISOString()}`,
           );
 
           await storage.lockBoostShares(boost.id);

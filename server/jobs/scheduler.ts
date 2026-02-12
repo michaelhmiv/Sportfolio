@@ -1,8 +1,8 @@
 /**
  * Cron Job Scheduler
  *
- * Manages automated sync jobs for MySportsFeeds data ingestion.
- * Jobs run on staggered schedules to avoid overwhelming the API.
+ * Manages automated sync jobs for sports data ingestion.
+ * Jobs run on staggered schedules to avoid overwhelming upstream APIs.
  *
  * OPTIMIZATION: Uses throttled logging to reduce disk I/O from verbose output.
  */
@@ -298,7 +298,7 @@ export class JobScheduler {
   }
 
   /**
-   * Initialize API-dependent jobs (requires MYSPORTSFEEDS_API_KEY)
+   * Initialize sports API-dependent jobs (requires BALLDONTLIE_API_KEY)
    */
   async initializeApiJobs() {
     info("Initializing API-dependent jobs...");

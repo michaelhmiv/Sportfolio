@@ -208,8 +208,8 @@ app.use((req, res, next) => {
         console.error("Failed to initialize contest jobs:", error.message);
       }
 
-      // Initialize API-dependent jobs if either sports API key is available
-      if (process.env.MYSPORTSFEEDS_API_KEY || process.env.BALLDONTLIE_API_KEY) {
+      // Initialize sports API-dependent jobs if the Ball Don't Lie key is available
+      if (process.env.BALLDONTLIE_API_KEY) {
         try {
           await jobScheduler.initializeApiJobs();
           log("API-dependent jobs initialized and started");
@@ -217,9 +217,7 @@ app.use((req, res, next) => {
           console.error("Failed to initialize API jobs:", error.message);
         }
       } else {
-        log(
-          "Skipping API-dependent jobs - no sports API key set (BALLDONTLIE_API_KEY or MYSPORTSFEEDS_API_KEY)",
-        );
+        log("Skipping API-dependent jobs - BALLDONTLIE_API_KEY not set");
         log("Contest jobs will still process data from the database when available");
       }
 

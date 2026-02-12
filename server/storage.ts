@@ -109,6 +109,7 @@ import {
 import { alias, unionAll } from "drizzle-orm/pg-core";
 import { randomUUID } from "crypto";
 import { getETDayBoundaries, getGameDay } from "./lib/time";
+import { choosePreferredDailyGame } from "./lib/daily-game-dedupe";
 
 // Season helper: Get current competitive season patterns (regular + playoffs, exclude preseason)
 // Returns array of season strings to include in queries
@@ -3070,14 +3071,15 @@ export class DatabaseStorage implements IStorage {
 
     // Deduplicate by homeTeam, awayTeam, and startTime (within 5 min tolerance)
     // This handles legacy MySportsFeeds records (gameId starting with 18447) coexisting
-    // with BallDontLie records (6-digit gameIds) for the same games
+    // with BallDontLie records (6-digit gameIds) for the same games.
     return await db
       .select()
       .from(dailyGames)
       .where(and(...conditions))
-      .orderBy(asc(dailyGames.startTime), asc(dailyGames.gameId)) // Prefer shorter BDL gameIds
+      .orderBy(asc(dailyGames.startTime))
       .then((games) => {
         const seen = new Map<string, DailyGame>();
+
         for (const game of games) {
           // Create a dedupe key using teams and startTime rounded to 5-min intervals
           const gameTime = new Date(game.startTime);
@@ -3085,10 +3087,17 @@ export class DatabaseStorage implements IStorage {
             Math.round(gameTime.getTime() / (5 * 60 * 1000)) * (5 * 60 * 1000),
           );
           const key = `${game.homeTeam}-${game.awayTeam}-${roundedTime.toISOString()}`;
-          if (!seen.has(key)) {
+
+          const existing = seen.get(key);
+          if (!existing) {
             seen.set(key, game);
+            continue;
           }
+
+          // Prefer canonical BDL records when both exist (prevents joins/settlement from using legacy IDs)
+          seen.set(key, choosePreferredDailyGame(existing, game));
         }
+
         return Array.from(seen.values()).sort(
           (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime(),
         );
@@ -4910,19 +4919,9 @@ export class DatabaseStorage implements IStorage {
         ),
       );
 
-    // Get games today for this sport using startTime (consistent with dashboard)
-    // The date field stores midnight UTC of the ET game day, but startTime is the
-    // authoritative field for all queries (see sync-schedule.ts comment)
-    const todaysGames = await db
-      .select()
-      .from(dailyGames)
-      .where(
-        and(
-          eq(dailyGames.sport, sport),
-          gte(dailyGames.startTime, startOfDay),
-          lt(dailyGames.startTime, endOfDay),
-        ),
-      );
+    // Get canonical games today for this sport using startTime (consistent with dashboard)
+    // (Deduped to avoid legacy MySportsFeeds gameIds causing settlement joins to miss.)
+    const todaysGames = await this.getDailyGamesBySport(sport, startOfDay, endOfDay);
 
     // Build a map of team -> game info
     const teamGameMap = new Map<string, { gameId: string; startTime: Date }>();
@@ -5261,20 +5260,9 @@ export class DatabaseStorage implements IStorage {
     const dateStr = getGameDay(date);
     const { startOfDay, endOfDay } = getETDayBoundaries(dateStr);
 
-    // Find game where player's team is home or away, matching the ET game date
-    const [game] = await db
-      .select()
-      .from(dailyGames)
-      .where(
-        and(
-          eq(dailyGames.sport, sport),
-          gte(dailyGames.date, startOfDay),
-          lt(dailyGames.date, endOfDay),
-          or(eq(dailyGames.homeTeam, player.team), eq(dailyGames.awayTeam, player.team)),
-        ),
-      );
-
-    return game;
+    // Use startTime windows (authoritative) and dedupe to prefer canonical BDL records.
+    const games = await this.getDailyGamesBySport(sport, startOfDay, endOfDay);
+    return games.find((g) => g.homeTeam === player.team || g.awayTeam === player.team);
   }
   async getCommunityBoostsForDate(
     sport: string,
