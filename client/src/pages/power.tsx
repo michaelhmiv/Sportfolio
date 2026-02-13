@@ -38,7 +38,7 @@ import { ErrorBoundary } from "@/components/error-boundary";
 import { CommunityBoostSelector } from "@/components/community-boost-selector";
 import { BoostCeremonyOverlay } from "@/components/ceremonies/boost-ceremony-overlay";
 import { BoostResultsPodium } from "@/components/ceremonies/boost-results-podium";
-import { LiveFantasyPoints, BoostThresholdWarning } from "@/components/boost/live-fantasy-points";
+import { LiveFantasyPoints } from "@/components/boost/live-fantasy-points";
 import { useBoostNearMissDetector } from "@/components/boost/boost-near-miss";
 
 interface BoostCeremonyData {
@@ -619,19 +619,6 @@ export default function Power() {
                                     className="w-full max-w-[180px]"
                                   />
                                 </div>
-
-                                {/* Near-threshold warning */}
-                                <BoostThresholdWarning
-                                  currentPoints={boost.liveFantasyPoints}
-                                  nextThreshold={Math.ceil(boost.liveFantasyPoints / 5) * 5}
-                                  estimatedPayout={
-                                    (Math.ceil(boost.liveFantasyPoints / 5) * 5 -
-                                      boost.liveFantasyPoints) *
-                                    (tier + boost.communityBoostCount) *
-                                    parseFloat(boost.powerLevel)
-                                  }
-                                  className="w-full justify-center"
-                                />
 
                                 {boost.liveGameStats && (
                                   <div className="flex items-center justify-center gap-2 text-[10px] text-muted-foreground pt-1">

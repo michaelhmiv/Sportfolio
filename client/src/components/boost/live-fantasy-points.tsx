@@ -1,55 +1,7 @@
 import { motion } from "framer-motion";
-import { AlertTriangle, TrendingUp, TrendingDown, Flame } from "lucide-react";
+import { TrendingUp, TrendingDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
-
-interface BoostThresholdWarningProps {
-  currentPoints: number;
-  nextThreshold: number;
-  estimatedPayout: number;
-  className?: string;
-}
-
-export function BoostThresholdWarning({
-  currentPoints,
-  nextThreshold,
-  estimatedPayout,
-  className,
-}: BoostThresholdWarningProps) {
-  const pointsNeeded = nextThreshold - currentPoints;
-  const isClose = pointsNeeded <= 5 && pointsNeeded > 0;
-
-  if (!isClose) return null;
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.9, y: 10 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
-      className={cn(
-        "inline-flex items-center gap-2 px-3 py-1.5 rounded-full",
-        "bg-amber-500/10 border border-amber-500/30",
-        "text-amber-500 text-sm font-medium",
-        className,
-      )}
-    >
-      <motion.div
-        animate={{
-          scale: [1, 1.2, 1],
-          rotate: [0, -5, 5, 0],
-        }}
-        transition={{
-          duration: 0.5,
-          repeat: Infinity,
-          repeatDelay: 2,
-        }}
-      >
-        <Flame className="w-4 h-4" />
-      </motion.div>
-      <span>{pointsNeeded.toFixed(1)} pts to next tier!</span>
-      <span className="text-amber-400/70 text-xs">(+${estimatedPayout.toFixed(2)})</span>
-    </motion.div>
-  );
-}
 
 interface LiveFantasyPointsProps {
   points: number;
