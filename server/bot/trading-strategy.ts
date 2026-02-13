@@ -88,10 +88,10 @@ async function executeTrade(
 ): Promise<boolean> {
   try {
     if (isBuy) {
-      const result = await executeBuy(userId, playerId, amount);
+      const result = await executeBuy(playerId, userId, amount);
       return result.success;
     } else {
-      const result = await executeSell(userId, playerId, amount);
+      const result = await executeSell(playerId, userId, amount);
       return result.success;
     }
   } catch (error: any) {
@@ -131,7 +131,7 @@ async function executeAddLiquidity(
   maxPlayMoney: number,
 ): Promise<boolean> {
   try {
-    const result = await addLiquidityOptimal(userId, playerId, maxShares, maxPlayMoney);
+    const result = await addLiquidityOptimal(playerId, userId, maxShares, maxPlayMoney);
     return result.success;
   } catch (error: any) {
     console.error(`[BotTrade] Liquidity add failed for ${playerName}:`, error.message);

@@ -544,6 +544,14 @@ export class JobScheduler {
       },
       refresh_player_metrics: (callback) => refreshPlayerMarketMetricsJob(callback),
       refresh_player_volume_24h: (callback) => refreshPlayerVolume24hJob(callback),
+      bot_engine: async () => {
+        const result = await runBotEngineTick();
+        return {
+          requestCount: 1,
+          recordsProcessed: result.botsProcessed,
+          errorCount: result.errors,
+        };
+      },
       nfl_schedule_sync: async () => {
         const result = await syncNFLSchedule();
         return {
