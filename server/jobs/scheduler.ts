@@ -46,6 +46,7 @@ import { updateCollectionsJob } from "./update-collections";
 import { checkMilestonesJob } from "./check-milestones";
 import { refreshPlayerMarketMetricsJob } from "./refresh-player-metrics";
 import { refreshPlayerVolume24hJob } from "./refresh-player-volume-24h";
+import { runBotEngineTick } from "../bot/bot-engine";
 import type { ProgressCallback } from "../lib/admin-stream";
 
 export interface JobResult {
@@ -196,6 +197,19 @@ export class JobScheduler {
             requestCount: 1,
             recordsProcessed: result.storiesProcessed,
             errorCount: result.success ? 0 : 1,
+          };
+        },
+      },
+      {
+        name: "bot_engine",
+        schedule: "*/15 * * * *", // Every 15 minutes - run bot strategies (scout, trade, add liquidity)
+        enabled: true,
+        handler: async () => {
+          const result = await runBotEngineTick();
+          return {
+            requestCount: 1,
+            recordsProcessed: result.botsProcessed,
+            errorCount: result.errors,
           };
         },
       },

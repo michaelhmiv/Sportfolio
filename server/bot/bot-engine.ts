@@ -175,11 +175,11 @@ export async function updateBotCounters(
 }
 
 /**
- * Update bot's contest entries counter
+ * Update bot's daily trading volume
  */
-export async function updateContestEntries(profileId: string): Promise<void> {
+export async function updateBotVolume(profileId: string, volumeAdded: number): Promise<void> {
   const [current] = await db
-    .select({ contestEntriesToday: botProfiles.contestEntriesToday })
+    .select({ volumeToday: botProfiles.volumeToday })
     .from(botProfiles)
     .where(eq(botProfiles.id, profileId));
 
@@ -187,7 +187,7 @@ export async function updateContestEntries(profileId: string): Promise<void> {
     await db
       .update(botProfiles)
       .set({
-        contestEntriesToday: current.contestEntriesToday + 1,
+        volumeToday: current.volumeToday + volumeAdded,
         updatedAt: new Date(),
       })
       .where(eq(botProfiles.id, profileId));
@@ -234,23 +234,22 @@ function withTimeout<T>(promise: Promise<T>, ms: number, name: string): Promise<
 const STRATEGY_TIMEOUT_MS = 30000; // 30 seconds max per strategy
 
 /**
- * Execute bot strategies that remain active in AMM-only mode (scouting + contests)
+ * Execute bot strategies: scouting + trading (no more contests)
  * Each bot's individual settings (aggressiveness, limits, budgets) determine their behavior
- * The bot_role field now acts as a "persona" hint but doesn't gate any strategies
+ * Bots provide liquidity across ALL players, not just popular ones
  */
 async function executeBotStrategies(
   profile: BotProfile & { user: typeof users.$inferSelect },
 ): Promise<void> {
   // Lazy imports to avoid circular dependency issues
-  // Vesting strategy archived for marketplace automation retirement.
-  const { executeContestStrategy } = await import("./contest-strategy");
   const { executeScoutStrategy } = await import("./scout-strategy");
+  const { executeTradingStrategy } = await import("./trading-strategy");
 
   const strategiesExecuted: string[] = [];
 
   try {
-    // 1. SCOUTING - Active in AMM-only mode
-    // Uses: maxScouts (enforced in strategy)
+    // 1. SCOUTING - Assign scouts to random players across all active players
+    // This ensures ALL players get scout coverage, not just top ones
     try {
       await withTimeout(executeScoutStrategy(profile), STRATEGY_TIMEOUT_MS, "scouting");
       strategiesExecuted.push("scouting");
@@ -258,17 +257,15 @@ async function executeBotStrategies(
       console.warn(`[BotEngine] ${profile.botName} scouting failed: ${e.message}`);
     }
 
-    // 1.1 VESTING - Legacy vesting (minimized/deprecated)
-
-    // 2. CONTESTS - All bots can enter contests
-    // Uses: maxContestEntriesPerDay, contestEntryBudget, aggressiveness
-    // Check if bot has contest entries remaining
-    if (profile.contestEntriesToday < profile.maxContestEntriesPerDay) {
+    // 2. TRADING - Provide liquidity across ALL players
+    // Bots buy/sell to ensure even lesser-known players have market activity
+    // Uses: maxDailyVolume, maxOrderSize, aggressiveness
+    if (profile.volumeToday < profile.maxDailyVolume) {
       try {
-        await withTimeout(executeContestStrategy(profile), STRATEGY_TIMEOUT_MS, "contests");
-        strategiesExecuted.push("contests");
+        await withTimeout(executeTradingStrategy(profile), STRATEGY_TIMEOUT_MS, "trading");
+        strategiesExecuted.push("trading");
       } catch (e: any) {
-        console.warn(`[BotEngine] ${profile.botName} contests failed: ${e.message}`);
+        console.warn(`[BotEngine] ${profile.botName} trading failed: ${e.message}`);
       }
     }
 

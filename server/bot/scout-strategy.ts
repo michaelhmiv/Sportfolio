@@ -1,6 +1,6 @@
 import { db } from "../db";
-import { scoutAssignments, players, users } from "@shared/schema";
-import { eq, and, desc, sql, inArray } from "drizzle-orm";
+import { players } from "@shared/schema";
+import { eq } from "drizzle-orm";
 import { BotProfile, logBotAction } from "./bot-engine";
 import { storage } from "../storage";
 
@@ -9,9 +9,9 @@ import { storage } from "../storage";
  *
  * Logic for bots to manage their scout assignments.
  * 1. Calculate capacity (5 for standard, 10 for pro).
- * 2. Identify "Target" players: High market cap, high volume, or trending.
+ * 2. Identify "Target" players: Randomly from ALL active players (not just top ones).
  * 3. Assign scouts iteratively to targets until capacity is reached.
- * 4. Occasionally rebalance scouts to "chase" users on popular players.
+ * 4. Occasionally rebalance scouts to spread coverage across all players.
  */
 export async function executeScoutStrategy(profile: BotProfile & { user: any }): Promise<void> {
   const userId = profile.userId;
@@ -32,25 +32,21 @@ export async function executeScoutStrategy(profile: BotProfile & { user: any }):
       return;
     }
 
-    // 3. Identify Target Players
-    // We pick top players by market cap/price to simulate "smart" scouting
-    const targetPlayers = await db
+    // 3. Get ALL active players - no filtering by market cap
+    // This ensures ALL players get scout coverage, not just popular ones
+    const allPlayers = await db
       .select()
       .from(players)
-      .where(eq(players.isActive, true))
-      .orderBy(
-        desc(sql`COALESCE(${players.lastTradePrice}, ${players.currentPrice}, '0')::numeric`),
-      )
-      .limit(20);
+      .where(eq(players.isActive, true));
 
-    if (targetPlayers.length === 0) return;
+    if (allPlayers.length === 0) return;
 
     // 4. Deciding how to assign
-    // If we have capacity, find a player we aren't scouting or increase count on a high-value one
+    // If we have capacity, scout a random player from ALL active players
     if (hasCapacity) {
       const needed = maxCapacity - currentTotal;
-      // Pick a random target player
-      const target = targetPlayers[Math.floor(Math.random() * targetPlayers.length)];
+      // Pick a random target from ALL players (not just top ones)
+      const target = allPlayers[Math.floor(Math.random() * allPlayers.length)];
 
       // Assign 1-2 scouts at a time to keep it organic
       const toAssign = Math.min(needed, Math.floor(Math.random() * 2) + 1);
@@ -68,7 +64,7 @@ export async function executeScoutStrategy(profile: BotProfile & { user: any }):
           count: newCount,
           isIncrease: !!existing,
         },
-        triggerReason: "Capacity available or strategic placement",
+        triggerReason: "Capacity available - random player selection",
         success: true,
       });
 
@@ -76,15 +72,15 @@ export async function executeScoutStrategy(profile: BotProfile & { user: any }):
         `[BotScout] ${profile.botName} assigned ${toAssign} scouts to ${target.firstName} ${target.lastName}`,
       );
     } else if (shouldRebalance && currentAssignments.length > 0) {
-      // Rebalance: Remove from one, add to another
+      // Rebalance: Remove from one, add to another random player
       const sourceIdx = Math.floor(Math.random() * currentAssignments.length);
       const source = currentAssignments[sourceIdx];
 
       // Remove 1 scout from source
       await storage.assignScouts(userId, source.playerId, source.scoutCount - 1);
 
-      // Add to a new random target
-      const target = targetPlayers[Math.floor(Math.random() * targetPlayers.length)];
+      // Add to a new random target from ALL players
+      const target = allPlayers[Math.floor(Math.random() * allPlayers.length)];
       const existingTarget = currentAssignments.find((a) => a.playerId === target.id);
       const newCount = (existingTarget?.scoutCount || 0) + 1;
 
@@ -97,7 +93,7 @@ export async function executeScoutStrategy(profile: BotProfile & { user: any }):
           addedTo: target.id,
           playerName: `${target.firstName} ${target.lastName}`,
         },
-        triggerReason: "Periodic strategic rebalancing",
+        triggerReason: "Periodic rebalancing to spread coverage",
         success: true,
       });
 
