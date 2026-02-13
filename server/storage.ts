@@ -1580,6 +1580,52 @@ export class DatabaseStorage implements IStorage {
   }
 
   async upsertPlayer(player: InsertPlayer): Promise<Player> {
+    // First, check if a player with the same name+team+sport already exists
+    // This handles the case where BallDontLie changed player IDs over time
+    const existingByName = await db
+      .select()
+      .from(players)
+      .where(
+        and(
+          sql`LOWER(${players.firstName}) = LOWER(${player.firstName})`,
+          sql`LOWER(${players.lastName}) = LOWER(${player.lastName})`,
+          eq(players.team, player.team),
+          eq(players.sport, player.sport),
+        ),
+      )
+      .limit(1);
+
+    if (existingByName.length > 0) {
+      // Player exists with different ID - update with new info from BallDontLie
+      // BUT keep the existing ID to preserve references in holdings, boosts, etc.
+      const existing = existingByName[0];
+      console.log(
+        `[upsertPlayer] Merging duplicate: ${player.firstName} ${player.lastName} (${player.team}) - keeping existing ID: ${existing.id}, ignoring new ID: ${player.id}`,
+      );
+
+      // Update the existing player with new info from BallDontLie, but keep the old ID
+      const [updated] = await db
+        .update(players)
+        .set({
+          // Keep existing ID to preserve references in holdings/boosts
+          // Update all other fields from BallDontLie
+          sport: player.sport,
+          firstName: player.firstName,
+          lastName: player.lastName,
+          team: player.team,
+          position: player.position,
+          jerseyNumber: player.jerseyNumber,
+          isActive: player.isActive,
+          isEligibleForVesting: player.isEligibleForVesting,
+          lastUpdated: new Date(),
+        })
+        .where(eq(players.id, existing.id))
+        .returning();
+
+      return updated;
+    }
+
+    // No existing player found - check by ID
     const existing = await this.getPlayer(player.id);
 
     if (existing) {
