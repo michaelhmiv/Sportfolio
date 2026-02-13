@@ -50,6 +50,9 @@ import { registerAmmRoutes } from "./routes/amm";
 import { registerLpRoutes } from "./routes/lp";
 import { getOrCreatePool } from "./amm/pool";
 
+// Feature flags - set to false to disable features
+const CONTESTS_ENABLED = false; // DISABLED - contests feature removed
+
 /**
  * Get power/boosts data for the dashboard
  */
@@ -1748,6 +1751,136 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("[games/insights] Error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // NASCAR Races Insights - Returns race info with driver standings
+  app.get("/api/races/insights", optionalAuth, async (req, res) => {
+    try {
+      const rawDate = typeof req.query.date === "string" ? req.query.date : getTodayET();
+      const dateStr = /^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? rawDate : getTodayET();
+      const { startOfDay, endOfDay } = getETDayBoundaries(dateStr);
+
+      // Get NASCAR games for the date
+      const games = await storage.getDailyGamesBySport("NASCAR", startOfDay, endOfDay);
+
+      const userId = req.user ? getUserId(req) : null;
+
+      // Build race insights for each game
+      const raceInsights = await Promise.all(
+        games.map(async (game) => {
+          // Get driver stats for this race
+          const raceStats = await storage.getGameStatsByGameId(game.gameId);
+
+          // Sort by position (running position for live, finish position for completed)
+          const sortedStats = [...raceStats].sort((a, b) => {
+            const aPos = a.statsJson?.runningPosition ?? a.statsJson?.finishPosition ?? 999;
+            const bPos = b.statsJson?.runningPosition ?? b.statsJson?.finishPosition ?? 999;
+            return aPos - bPos;
+          });
+
+          // Get player info for each driver
+          const driverStandings = await Promise.all(
+            sortedStats.map(async (stat) => {
+              const player = await storage.getPlayer(stat.playerId);
+              return {
+                position: stat.statsJson?.runningPosition ?? stat.statsJson?.finishPosition ?? 0,
+                playerId: stat.playerId,
+                driverName: player ? `${player.firstName} ${player.lastName}` : "Unknown",
+                carNumber: stat.statsJson?.carNumber || "",
+                manufacturer: stat.statsJson?.manufacturer || "",
+                lapsCompleted: stat.statsJson?.lapsCompleted || 0,
+                lapsLed: stat.statsJson?.lapsLedCount || stat.statsJson?.lapsLed || 0,
+                fantasyPoints: parseFloat(stat.fantasyPoints) || 0,
+              };
+            })
+          );
+
+          // Determine race status
+          let status = game.status || "scheduled";
+          if (raceStats.length > 0) {
+            // If we have recent stats (within last hour), consider it live
+            const mostRecentStat = raceStats[0];
+            if (mostRecentStat) {
+              const statTime = new Date(mostRecentStat.gameDate).getTime();
+              const now = Date.now();
+              const hourAgo = now - 60 * 60 * 1000;
+              if (statTime > hourAgo && status === "scheduled") {
+                status = "inprogress";
+              }
+            }
+          }
+
+          // Get lap info from live stats if available
+          const lapInfo = raceStats[0]?.statsJson
+            ? {
+                currentLap: raceStats[0].statsJson.lapNumber || 0,
+                totalLaps: raceStats[0].statsJson.lapsInRace || 0,
+                lapsToGo: raceStats[0].statsJson.lapsToGo || 0,
+                flagState: raceStats[0].statsJson.flagStateDescription || "Unknown",
+              }
+            : null;
+
+          return {
+            raceId: game.gameId,
+            trackName: game.homeTeam, // Stored as track in homeTeam
+            series: game.awayTeam, // Stored as series code in awayTeam
+            raceDate: game.startTime,
+            status,
+            venue: game.venue,
+            lapInfo,
+            driverStandings,
+            totalDrivers: driverStandings.length,
+          };
+        })
+      );
+
+      // Get user's NASCAR holdings for boost eligibility
+      let userHoldings: any[] = [];
+      let boostSlotsRemaining: number | null = null;
+
+      if (userId) {
+        const { startOfDay: dayStart } = getETDayBoundaries(dateStr);
+        const targetDate = new Date(dayStart.getTime() + 12 * 60 * 60 * 1000);
+
+        const [eligiblePlayers, currentBoosts] = await Promise.all([
+          storage.getEligiblePlayersForBoost(userId, "NASCAR", targetDate),
+          storage.getDailyBoosts(userId, "NASCAR", targetDate),
+        ]);
+
+        boostSlotsRemaining = Math.max(0, 4 - currentBoosts.length);
+
+        // Get boosted player IDs to check against holdings
+        const boostedPlayerIds = new Set(currentBoosts.map((b) => b.playerId));
+
+        // Get player details for holdings
+        userHoldings = await Promise.all(
+          eligiblePlayers.map(async (h) => {
+            const player = await storage.getPlayer(h.player.id);
+            return {
+              playerId: h.player.id,
+              name: player ? `${player.firstName} ${player.lastName}` : "Unknown",
+              team: h.player.team,
+              availableShares: h.availableShares,
+              totalShares: h.totalShares,
+              powerLevel: parseFloat(h.powerLevel) || 0,
+              isBoosted: boostedPlayerIds.has(h.player.id),
+              gameId: h.gameId,
+            };
+          })
+        );
+      }
+
+      res.json({
+        date: dateStr,
+        sport: "NASCAR",
+        boostSlotsRemaining,
+        races: raceInsights,
+        userHoldings,
+      });
+    } catch (error: any) {
+      console.error("[races/insights] Error:", error);
       res.status(500).json({ error: error.message });
     }
   });
@@ -3501,6 +3634,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Player contest earnings and performance
   app.get("/api/player/:id/contest-earnings", async (req, res) => {
+    if (!CONTESTS_ENABLED) {
+      return res.status(410).json({ error: "Contests feature has been disabled" });
+    }
     try {
       const player = await storage.getPlayer(req.params.id);
 
@@ -4677,6 +4813,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // =====================
   // Watchlist Routes
   app.get("/api/contests/entries", isAuthenticated, async (req: any, res) => {
+    if (!CONTESTS_ENABLED) {
+      return res.status(410).json({ error: "Contests feature has been disabled" });
+    }
     try {
       const userId = req.user.claims.sub;
       const entries = await storage.getUserContestEntries(userId);
@@ -4688,6 +4827,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Contests (public - anyone can view, optionalAuth to check for user entries)
   app.get("/api/contests", optionalAuth, async (req: any, res) => {
+    if (!CONTESTS_ENABLED) {
+      return res.status(410).json({ error: "Contests feature has been disabled" });
+    }
     try {
       const { date, sport } = req.query;
 
@@ -4747,6 +4889,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Admin endpoint to manually trigger contest creation (for testing)
   app.post("/api/admin/create-contests", isAuthenticated, async (req, res) => {
+    if (!CONTESTS_ENABLED) {
+      return res.status(410).json({ error: "Contests feature has been disabled" });
+    }
     try {
       console.log("[admin] Manually triggering contest creation...");
       const result = await createContests();
@@ -4758,6 +4903,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Admin endpoint to re-score a contest without redistributing payouts
   app.post("/api/admin/contests/:id/rescore", adminAuth, async (req, res) => {
+    if (!CONTESTS_ENABLED) {
+      return res.status(410).json({ error: "Contests feature has been disabled" });
+    }
     try {
       const contestId = req.params.id;
       console.log(`[admin] Manually re-scoring contest ${contestId}...`);
@@ -4797,6 +4945,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Contest entry form
   app.get("/api/contest/:id/entry", isAuthenticated, async (req, res) => {
+    if (!CONTESTS_ENABLED) {
+      return res.status(410).json({ error: "Contests feature has been disabled" });
+    }
     try {
       const userId = getUserId(req);
       const user = await storage.getUser(userId);
@@ -4852,6 +5003,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Submit contest entry
   app.post("/api/contest/:id/enter", isAuthenticated, async (req, res) => {
+    if (!CONTESTS_ENABLED) {
+      return res.status(410).json({ error: "Contests feature has been disabled" });
+    }
     try {
       const userId = getUserId(req);
       const user = await storage.getUser(userId);
@@ -4960,6 +5114,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Get existing contest entry for editing
   app.get("/api/contest/:contestId/entry/:entryId", isAuthenticated, async (req, res) => {
+    if (!CONTESTS_ENABLED) {
+      return res.status(410).json({ error: "Contests feature has been disabled" });
+    }
     try {
       const userId = getUserId(req);
       const user = await storage.getUser(userId);
@@ -5052,6 +5209,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Update contest entry (edit lineup before lock)
   app.put("/api/contest/:contestId/entry/:entryId", isAuthenticated, async (req, res) => {
+    if (!CONTESTS_ENABLED) {
+      return res.status(410).json({ error: "Contests feature has been disabled" });
+    }
     try {
       const userId = getUserId(req);
       const user = await storage.getUser(userId);
@@ -5233,6 +5393,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Get detailed contest entry information (public - anyone can view)
   app.get("/api/contest/:contestId/entries/:entryId", async (req, res) => {
+    if (!CONTESTS_ENABLED) {
+      return res.status(410).json({ error: "Contests feature has been disabled" });
+    }
     try {
       const { contestId, entryId } = req.params;
       const entryDetails = await storage.getContestEntryDetail(contestId, entryId);
@@ -5250,6 +5413,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Contest leaderboard with proportional scoring (public - anyone can view)
   app.get("/api/contest/:id/leaderboard", optionalAuth, async (req: any, res) => {
+    if (!CONTESTS_ENABLED) {
+      return res.status(410).json({ error: "Contests feature has been disabled" });
+    }
     try {
       const contest = await storage.getContest(req.params.id);
 

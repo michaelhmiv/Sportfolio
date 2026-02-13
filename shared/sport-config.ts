@@ -6,7 +6,7 @@
  * fantasy scoring rules, and contest frequencies.
  */
 
-export const SPORTS = ["NBA", "NFL"] as const;
+export const SPORTS = ["NBA", "NFL", "NASCAR"] as const;
 export type Sport = (typeof SPORTS)[number];
 
 export interface SportConfig {
@@ -66,6 +66,20 @@ function getNFLSeasonYear(): number {
   return month < 8 ? now.getFullYear() - 1 : now.getFullYear();
 }
 
+/**
+ * NASCAR Season Logic:
+ * - Season runs February to November (36 races)
+ * - Uses calendar year as season (e.g., 2024, 2025)
+ */
+function getNASCARSeason(): string {
+  const now = new Date();
+  return String(now.getFullYear());
+}
+
+function getNASCARSeasonYear(): number {
+  return new Date().getFullYear();
+}
+
 export const SPORT_CONFIGS: Record<Sport, SportConfig> = {
   NBA: {
     name: "NBA",
@@ -111,6 +125,21 @@ export const SPORT_CONFIGS: Record<Sport, SportConfig> = {
     apiProvider: "balldontlie",
     getApiSeason: getNFLSeason,
     getSeasonYear: getNFLSeasonYear,
+  },
+  NASCAR: {
+    name: "NASCAR",
+    fullName: "NASCAR Cup Series",
+    icon: "🏎️",
+    emoji: "🏎️",
+    positions: ["DRV"],
+    positionLabels: {
+      DRV: "Driver",
+    },
+    seasonType: "february-november",
+    contestFrequency: "weekly",
+    apiProvider: "nascar-api",
+    getApiSeason: getNASCARSeason,
+    getSeasonYear: getNASCARSeasonYear,
   },
 };
 

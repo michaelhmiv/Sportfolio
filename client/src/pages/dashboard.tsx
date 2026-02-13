@@ -56,6 +56,7 @@ import { OnboardingMissions } from "@/components/onboarding-missions";
 import { MarketTicker } from "@/components/market-ticker";
 import { GameCommandCenterCard } from "@/components/game-command-center-card";
 import { GameCommandCenterModal } from "@/components/game-command-center-modal";
+import { NascarRaceCard } from "@/components/nascar-race-card";
 import { BackgroundPattern, CardAccent } from "@/components/ui/decorative-elements";
 import type { GameInsight, GameInsightsResponse } from "@/types/game-insights";
 
@@ -242,7 +243,22 @@ export default function Dashboard() {
   };
 
   const formattedDate = formatDateForAPI(selectedDate);
+  const isNascar = sport === "NASCAR";
 
+  // NASCAR-specific query using /api/races/insights
+  const { data: raceInsights, isLoading: isLoadingRaces } = useQuery<any>({
+    queryKey: ["/api/races/insights", formattedDate],
+    queryFn: async () => {
+      const res = await fetch(`/api/races/insights?date=${formattedDate}`);
+      if (!res.ok) throw new Error("Failed to fetch race insights");
+      return res.json();
+    },
+    enabled: isNascar,
+    refetchInterval: isToday(selectedDate) ? pollingInterval : false,
+    refetchIntervalInBackground: false,
+  });
+
+  // NBA/NFL query using /api/games/insights
   const { data: gameInsights, isLoading: isLoadingGames } = useQuery<GameInsightsResponse>({
     queryKey: ["/api/games/insights", sport, formattedDate],
     queryFn: async () => {
@@ -250,18 +266,28 @@ export default function Dashboard() {
       if (!res.ok) throw new Error("Failed to fetch game insights");
       return res.json();
     },
+    enabled: !isNascar,
     refetchInterval: isToday(selectedDate) ? pollingInterval : false,
     refetchIntervalInBackground: false,
   });
 
   const games = gameInsights?.games || [];
-  const boostSlotsRemaining = gameInsights?.boostSlotsRemaining ?? null;
+  const races = raceInsights?.races || [];
+  const boostSlotsRemaining = isNascar
+    ? raceInsights?.boostSlotsRemaining ?? null
+    : gameInsights?.boostSlotsRemaining ?? null;
+  const userHoldings = raceInsights?.userHoldings || [];
   const liveGames = games.filter((game) => getEffectiveGameStatus(game) === "inprogress");
   const upcomingGames = games.filter((game) => getEffectiveGameStatus(game) === "scheduled");
   const finalGames = games.filter((game) => {
     const status = getEffectiveGameStatus(game);
     return status === "completed" || status === "postponed";
   });
+
+  // NASCAR race filtering
+  const liveRaces = races.filter((race: any) => race.status === "inprogress");
+  const upcomingRaces = races.filter((race: any) => race.status === "scheduled");
+  const completedRaces = races.filter((race: any) => race.status === "completed");
 
   // Navigation helpers with validation
   const goToPrevDay = () => {
@@ -588,6 +614,50 @@ export default function Dashboard() {
                     <ShimmerCard lines={3} />
                     <ShimmerCard lines={3} />
                   </div>
+                ) : isNascar ? (
+                  // NASCAR Races
+                  races.length > 0 ? (
+                    <>
+                      {[
+                        { title: "Live", raceList: liveRaces, empty: "No live races right now." },
+                        {
+                          title: "Upcoming",
+                          raceList: upcomingRaces,
+                          empty: "No upcoming races scheduled.",
+                        },
+                        { title: "Completed", raceList: completedRaces, empty: "No completed races." },
+                      ].map((section) => (
+                        <div key={section.title} className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                              {section.title}
+                            </div>
+                            <Badge variant="outline">{section.raceList.length}</Badge>
+                          </div>
+                          {section.raceList.length > 0 ? (
+                            <div className="grid grid-cols-1 gap-2">
+                              {section.raceList.map((race: any) => (
+                                <NascarRaceCard
+                                  key={race.raceId}
+                                  race={race}
+                                  boostSlotsRemaining={boostSlotsRemaining}
+                                  isAuthenticated={isAuthenticated}
+                                  userHoldings={userHoldings}
+                                  onOpen={() => {}}
+                                />
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="text-sm text-muted-foreground">{section.empty}</div>
+                          )}
+                        </div>
+                      ))}
+                    </>
+                  ) : (
+                    <div className="text-center py-8 text-sm text-muted-foreground">
+                      ⊡ No races scheduled for this date
+                    </div>
+                  )
                 ) : games.length > 0 ? (
                   <>
                     {[

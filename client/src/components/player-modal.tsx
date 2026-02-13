@@ -98,6 +98,23 @@ const SPORT_CONFIG: Record<
       { key: "receivingYards", label: "R.YDS" },
     ],
   },
+  NASCAR: {
+    seasonStats: [
+      { key: "avgFantasyPointsPerGame", label: "FP/G", highlight: true },
+      { key: "totalLapsLed", label: "Laps Led" },
+      { key: "totalFastestLaps", label: "Fast Laps" },
+      { key: "wins", label: "Wins" },
+      { key: "top5s", label: "Top 5" },
+      { key: "top10s", label: "Top 10" },
+      { key: "racesCompleted", label: "Races" },
+      { key: "winRate", label: "Win%", format: (v) => `${v}%` },
+    ],
+    recentGames: [
+      { key: "finishPosition", label: "Pos" },
+      { key: "lapsLed", label: "Led" },
+      { key: "fantasyPoints", label: "FP" },
+    ],
+  },
 };
 
 interface RecentGame {
@@ -144,7 +161,7 @@ export function PlayerModal({ playerId, open, onOpenChange }: PlayerModalProps) 
 
   const player = statsData?.player;
   const team = statsData?.team;
-  const sport = statsData?.stats?.sport || (player?.sport === "NFL" ? "NFL" : "NBA");
+  const sport = statsData?.stats?.sport || (player?.sport === "NFL" ? "NFL" : player?.sport === "NASCAR" ? "NASCAR" : "NBA");
   const stats = statsData?.stats;
   const recentGames: RecentGame[] = recentGamesData?.recentGames || [];
   const sharesInfo: any = sharesData?.sharesInfo;

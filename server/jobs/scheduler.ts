@@ -32,6 +32,10 @@ import { backfillMarketSnapshots } from "./market-snapshot";
 import { syncNFLSchedule } from "./sync-nfl-schedule";
 import { syncNFLStats } from "./sync-nfl-stats";
 import { syncNFLRoster } from "./sync-nfl-roster";
+import { syncNascarRoster } from "./sync-nascar-roster";
+import { syncNascarSchedule } from "./sync-nascar-schedule";
+import { syncNascarLive } from "./sync-nascar-live";
+import { syncNascarStats } from "./sync-nascar-stats";
 import { syncPlayerInjuries } from "./sync-injuries";
 import { fetchNews } from "./fetch-news";
 import { compileAllDigests } from "./compile-digest";
@@ -172,13 +176,13 @@ export class JobScheduler {
       {
         name: "update_contest_statuses",
         schedule: "1-59/5 * * * *", // Every 5 minutes (offset 1m) - transition contests from open to live
-        enabled: true,
+        enabled: false, // DISABLED - contests feature removed
         handler: updateContestStatuses,
       },
       {
         name: "settle_contests",
         schedule: "2-59/5 * * * *", // Every 5 minutes (offset 2m) - check for contests to settle
-        enabled: true,
+        enabled: false, // DISABLED - contests feature removed
         handler: settleContests,
       },
       {
@@ -379,7 +383,7 @@ export class JobScheduler {
       {
         name: "create_contests",
         schedule: "20 0 * * *", // Daily at 00:20 - create contests for upcoming games
-        enabled: true,
+        enabled: false, // DISABLED - contests feature removed
         handler: createContests,
       },
       {
@@ -421,6 +425,58 @@ export class JobScheduler {
         },
       },
       // NFL stats sync is now handled by unified 'stats_sync_live' job above
+      {
+        name: "nascar_roster_sync",
+        schedule: "30 3 * * *", // Daily at 3:30 AM ET - sync driver rosters for all series
+        enabled: true,
+        handler: async () => {
+          const result = await syncNascarRoster();
+          return {
+            requestCount: result.requestCount,
+            recordsProcessed: result.recordsProcessed,
+            errorCount: result.errorCount,
+          };
+        },
+      },
+      {
+        name: "nascar_schedule_sync",
+        schedule: "45 3 * * *", // Daily at 3:45 AM ET - sync race schedule
+        enabled: true,
+        handler: async () => {
+          const result = await syncNascarSchedule();
+          return {
+            requestCount: result.requestCount,
+            recordsProcessed: result.recordsProcessed,
+            errorCount: result.errorCount,
+          };
+        },
+      },
+      {
+        name: "nascar_live_sync",
+        schedule: "*/5 * * * *", // Every 5 minutes - sync live race data during events
+        enabled: true,
+        handler: async () => {
+          const result = await syncNascarLive();
+          return {
+            requestCount: result.requestCount,
+            recordsProcessed: result.recordsProcessed,
+            errorCount: result.errorCount,
+          };
+        },
+      },
+      {
+        name: "nascar_stats_sync",
+        schedule: "30 6 * * *", // Daily at 6:30 AM ET - sync completed race stats
+        enabled: true,
+        handler: async () => {
+          const result = await syncNascarStats();
+          return {
+            requestCount: result.requestCount,
+            recordsProcessed: result.recordsProcessed,
+            errorCount: result.errorCount,
+          };
+        },
+      },
     ];
 
     for (const jobConfig of apiJobs) {
@@ -490,11 +546,9 @@ export class JobScheduler {
         const result = await syncPlayerInjuries();
         return { requestCount: 1, recordsProcessed: result.synced + result.cleared, errorCount: 0 };
       },
-      create_contests: (callback) => createContests(callback),
-      update_contest_statuses: (callback) => updateContestStatuses(callback),
-      settle_contests: (callback) => settleContests(callback),
+      // Contest jobs disabled - feature removed
+      // create_contests, update_contest_statuses, settle_contests, backfill_contest_stats
       daily_snapshot: (callback) => dailySnapshot(callback),
-      backfill_contest_stats: (callback) => backfillContestStats(callback),
       weekly_roundup: (callback) => generateWeeklyRoundup(callback),
       backfill_market_snapshots: (callback) => backfillMarketSnapshots(callback),
       scout_distribution: async () => {
@@ -687,11 +741,8 @@ export class JobScheduler {
       "schedule_sync",
       "stats_sync",
       "stats_sync_live",
-      "create_contests",
-      "update_contest_statuses",
-      "settle_contests",
+      // Contest jobs removed - feature disabled
       "daily_snapshot",
-      "backfill_contest_stats",
       "weekly_roundup",
       "backfill_market_snapshots",
       "scout_distribution",

@@ -7,9 +7,9 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 
-export type Sport = "NBA" | "NFL" | "ALL";
+export type Sport = "NBA" | "NFL" | "NASCAR" | "ALL";
 
-export const SPORTS: Sport[] = ["NBA", "NFL", "ALL"];
+export const SPORTS: Sport[] = ["NBA", "NFL", "NASCAR", "ALL"];
 
 interface SportContextValue {
   /** Currently selected sport */
@@ -32,7 +32,7 @@ export function SportProvider({ children }: { children: ReactNode }) {
     // Initialize from localStorage, default to ALL for new visitors
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored === "NBA" || stored === "NFL" || stored === "ALL") {
+      if (stored === "NBA" || stored === "NFL" || stored === "NASCAR" || stored === "ALL") {
         return stored;
       }
     }
@@ -101,6 +101,15 @@ export function useSportConfig() {
         TE: "Tight End",
         K: "Kicker",
         DEF: "Defense",
+      } as Record<string, string>,
+    },
+    NASCAR: {
+      name: "NASCAR",
+      fullName: "NASCAR Cup Series",
+      icon: "🏎️",
+      positions: ["DRV"],
+      positionLabels: {
+        DRV: "Driver",
       } as Record<string, string>,
     },
     ALL: {

@@ -34,6 +34,7 @@ export function GameCommandCenterCard({
   const [showBoostSelector, setShowBoostSelector] = useState(false);
   const [selectedTier, setSelectedTier] = useState<2 | 3 | 4 | 5 | null>(null);
 
+  const isNascar = game.sport === "NASCAR";
   const status = statusConfig[effectiveStatus];
   const StatusIcon = status.icon;
   const userContext = game.userContext;
@@ -43,6 +44,15 @@ export function GameCommandCenterCard({
   const showBoostPanel = Boolean(
     userContext && (userContext.eligibleCount > 0 || userContext.topPowerPlayers.length > 0),
   );
+
+  // For NASCAR, homeTeam = track, awayTeam = series
+  const nascarTrack = game.homeTeam;
+  const nascarSeries = game.awayTeam;
+  // Use scores to show lap info for NASCAR (homeScore = laps completed, awayScore = total laps)
+  const nascarLapInfo = effectiveStatus === "inprogress"
+    ? `${game.homeScore || 0}/${game.awayScore || "?"}`
+    : null;
+
   const ownedTeams = new Set(
     [
       ...(userContext?.ownedPlayers || []).map((player) => player.team),
@@ -102,7 +112,7 @@ export function GameCommandCenterCard({
         <div className="flex items-center gap-2">
           <Badge variant={status.variant} className="gap-1 text-[10px] uppercase">
             <StatusIcon className="h-3 w-3" />
-            {status.label}
+            {isNascar && effectiveStatus === "inprogress" ? "Live" : status.label}
           </Badge>
           {effectiveStatus === "scheduled" && (
             <span className="text-xs text-muted-foreground">{timeLabel}</span>
@@ -114,21 +124,41 @@ export function GameCommandCenterCard({
       </div>
 
       <div className="mt-2 flex items-center justify-between">
-        <div className="space-y-1">
-          <div
-            className={`text-sm font-semibold ${ownedTeams.has(game.awayTeam) ? "text-purple-500" : ""}`}
-          >
-            {game.awayTeam}
+        {isNascar ? (
+          // NASCAR: Show track and series
+          <div className="space-y-1">
+            <div className="text-sm font-semibold">{nascarTrack}</div>
+            <div className="text-xs text-muted-foreground">{nascarSeries}</div>
           </div>
-          <div
-            className={`text-sm font-semibold ${ownedTeams.has(game.homeTeam) ? "text-purple-500" : ""}`}
-          >
-            {game.homeTeam}
+        ) : (
+          // NBA/NFL: Show home and away teams
+          <div className="space-y-1">
+            <div
+              className={`text-sm font-semibold ${ownedTeams.has(game.awayTeam) ? "text-purple-500" : ""}`}
+            >
+              {game.awayTeam}
+            </div>
+            <div
+              className={`text-sm font-semibold ${ownedTeams.has(game.homeTeam) ? "text-purple-500" : ""}`}
+            >
+              {game.homeTeam}
+            </div>
           </div>
-        </div>
+        )}
         <div className="text-right font-mono">
-          <div className="text-base font-bold">{game.awayScore ?? "-"}</div>
-          <div className="text-base font-bold">{game.homeScore ?? "-"}</div>
+          {isNascar && nascarLapInfo ? (
+            // NASCAR live: Show lap count
+            <div className="text-base font-bold text-green-500">{nascarLapInfo}</div>
+          ) : isNascar ? (
+            // NASCAR scheduled: Show race time
+            <div className="text-sm text-muted-foreground">{timeLabel}</div>
+          ) : (
+            // NBA/NFL: Show scores
+            <>
+              <div className="text-base font-bold">{game.awayScore ?? "-"}</div>
+              <div className="text-base font-bold">{game.homeScore ?? "-"}</div>
+            </>
+          )}
         </div>
       </div>
 
