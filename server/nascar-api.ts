@@ -88,40 +88,42 @@ export const NASCAR_SERIES_CODES: Record<NascarSeriesId, string> = {
 };
 
 // NASCAR Driver
+// Note: API returns snake_case
 export interface NascarDriver {
-  driverId: number;
-  fullName: string;
-  firstName: string;
-  lastName: string;
-  shortName?: string;
+  driver_id: number;
+  full_name: string;
+  first_name: string;
+  last_name: string;
+  short_name?: string;
 }
 
 // NASCAR Vehicle (car during race)
+// Note: API returns snake_case
 export interface NascarVehicle {
-  vehicleId: number;
-  vehicleNumber: string;
-  vehicleManufacturer: string; // "Tyt" = Toyota, "Chv" = Chevy, "Frd" = Ford
+  vehicle_id: number;
+  vehicle_number: string;
+  vehicle_manufacturer: string; // "Tyt" = Toyota, "Chv" = Chevy, "Frd" = Ford
   driver: NascarDriver;
   // Position data
-  runningPosition: number;
-  startingPosition: number;
-  positionDifferentialLast10Percent?: number;
+  running_position: number;
+  starting_position: number;
+  position_differential_last_10_percent?: number;
   // Lap data
-  lapsCompleted: number;
-  lapsLed: number[];
+  laps_completed: number;
+  laps_led: number[];
   // Speed data
-  averageRunningPosition: number;
-  averageSpeed: number;
-  bestLap: number;
-  bestLapSpeed: number;
-  bestLapTime: string;
+  average_running_position: number;
+  average_speed: number;
+  best_lap: number;
+  best_lap_speed: number;
+  best_lap_time: string;
   // Time data
   delta: number; // Gap to leader in seconds
   // Pit stops
-  pitStops: NascarPitStop[];
+  pit_stops: NascarPitStop[];
   // Status
-  isOnTrack: boolean;
-  isOnDvp: boolean; // Damaged Vehicle Policy
+  is_on_track: boolean;
+  is_on_dvp: boolean; // Damaged Vehicle Policy
 }
 
 // Pit stop data
@@ -147,36 +149,58 @@ export interface NascarRaceInfo {
 }
 
 // Live feed response
+// Note: API returns snake_case (series_id, race_id, etc.), not camelCase
 export interface NascarLiveFeed {
-  // Race info
-  raceId: number;
-  runId: number;
-  seriesId: number;
-  trackId: number;
-  trackName: string;
-  trackLength: number;
+  // Race info - API uses snake_case
+  race_id: number;
+  run_id: number;
+  series_id: number;
+  track_id: number;
+  track_name: string;
+  track_length: number;
   // Session info
-  lapNumber: number;
-  elapsedTime: number; // seconds
-  lapsInRace: number;
-  lapsToGo: number;
-  runName: string;
-  runType: number;
+  lap_number: number;
+  elapsed_time: number; // seconds
+  laps_in_race: number;
+  laps_to_go: number;
+  run_name: string;
+  run_type: number;
   // Race state
-  flagState: number; // 1=Green, 2=Yellow, 3=Red
-  numberOfCautionSegments: number;
-  numberOfLeadChanges: number;
-  numberOfLeaders: number;
-  avgDiff1to3: number;
+  flag_state: number; // 1=Green, 2=Yellow, 3=Red
+  number_of_caution_segments: number;
+  number_of_lead_changes: number;
+  number_of_leaders: number;
+  avg_diff_1to3: number;
   // Stage info
   stage: {
-    stageNum: number;
-    finishAtLap: number;
-    lapsInStage: number;
+    stage_num: number;
+    finish_at_lap: number;
+    laps_in_stage: number;
   } | null;
   // Vehicles
   vehicles: NascarVehicle[];
 }
+
+// Add camelCase aliases for backwards compatibility
+export type NascarLiveFeedAlias = NascarLiveFeed & {
+  raceId?: number;
+  runId?: number;
+  seriesId?: number;
+  trackId?: number;
+  trackName?: string;
+  trackLength?: number;
+  lapNumber?: number;
+  elapsedTime?: number;
+  lapsInRace?: number;
+  lapsToGo?: number;
+  runName?: string;
+  runType?: number;
+  flagState?: number;
+  numberOfCautionSegments?: number;
+  numberOfLeadChanges?: number;
+  numberOfLeaders?: number;
+  avgDiff1to3?: number;
+};
 
 // Race list / schedule (from race_list_basic.json)
 export interface NascarRaceListItem {
@@ -267,8 +291,8 @@ export async function fetchLiveFeed(seriesId?: NascarSeriesId): Promise<NascarLi
     const response = await apiClient.get<NascarLiveFeed>("/live/feeds/live-feed.json");
     const feed = response.data;
 
-    // Filter by series if specified
-    if (seriesId && feed.seriesId !== seriesId) {
+    // Filter by series if specified - API uses series_id (snake_case)
+    if (seriesId && feed.series_id !== seriesId) {
       return null;
     }
 
@@ -346,20 +370,20 @@ export async function fetchRaceResults(
 
     // Convert vehicles to race results
     const results: NascarRaceResult[] = raceSession.vehicles
-      .filter((v) => v.runningPosition > 0)
+      .filter((v) => v.running_position > 0)
       .map((vehicle) => ({
-        driverId: vehicle.driver.driverId,
-        driverName: vehicle.driver.fullName,
-        carNumber: vehicle.vehicleNumber,
-        manufacturer: vehicle.vehicleManufacturer,
-        finishPosition: vehicle.runningPosition,
-        startPosition: vehicle.startingPosition,
-        positionDifferential: vehicle.startingPosition - vehicle.runningPosition,
-        lapsCompleted: vehicle.lapsCompleted,
-        lapsLed: vehicle.lapsLed.length,
+        driverId: vehicle.driver.driver_id,
+        driverName: vehicle.driver.full_name,
+        carNumber: vehicle.vehicle_number,
+        manufacturer: vehicle.vehicle_manufacturer,
+        finishPosition: vehicle.running_position,
+        startPosition: vehicle.starting_position,
+        positionDifferential: vehicle.starting_position - vehicle.running_position,
+        lapsCompleted: vehicle.laps_completed,
+        lapsLed: vehicle.laps_led.length,
         fastestLaps: 0, // Need to calculate from lap data
         points: 0, // Points based on finish position
-        status: vehicle.isOnTrack ? "Running" : "DNF",
+        status: vehicle.is_on_track ? "Running" : "DNF",
       }));
 
     // Calculate points based on finish position (standard NASCAR points)
@@ -425,7 +449,7 @@ export async function fetchDrivers(seriesId: NascarSeriesId): Promise<NascarDriv
         const driverMap = new Map<number, NascarDriver>();
         for (const session of weekendFeed.sessions) {
           for (const vehicle of session.vehicles) {
-            driverMap.set(vehicle.driver.driverId, vehicle.driver);
+            driverMap.set(vehicle.driver.driver_id, vehicle.driver);
           }
         }
         return Array.from(driverMap.values());
@@ -463,15 +487,15 @@ export async function fetchStandings(
     if (liveFeed && liveFeed.vehicles.length > 0) {
       // Sort by running position to get standings
       return liveFeed.vehicles
-        .filter((v) => v.runningPosition > 0)
+        .filter((v) => v.running_position > 0)
         .map((vehicle, index) => ({
-          driverId: vehicle.driver.driverId,
-          driverName: vehicle.driver.fullName,
-          position: vehicle.runningPosition,
+          driverId: vehicle.driver.driver_id,
+          driverName: vehicle.driver.full_name,
+          position: vehicle.running_position,
           wins: 0, // Would need historical data
           top5: 0,
           top10: 0,
-          lapsLed: vehicle.lapsLed.length,
+          lapsLed: vehicle.laps_led.length,
           points: 0, // Would need complete season data
         }));
     }

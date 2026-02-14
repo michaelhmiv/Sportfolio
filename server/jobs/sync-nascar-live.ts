@@ -54,7 +54,7 @@ async function convertLiveFeedToStats(
   statsJson: Record<string, any>;
   fantasyPoints: string;
 }[]> {
-  const raceId = liveFeed.raceId;
+  const raceId = liveFeed.race_id;
   const gameId = createNascarGameId(raceId, seriesId);
   const gameDate = new Date();
   const season = String(new Date().getFullYear());
@@ -62,48 +62,48 @@ async function convertLiveFeedToStats(
   const statsPromises = liveFeed.vehicles.map(async (vehicle) => {
     // Calculate live fantasy points
     let liveFantasyPoints = 0;
-    liveFantasyPoints += (41 - vehicle.runningPosition) * 2.5; // Position points
-    if (vehicle.runningPosition === 1) liveFantasyPoints += 25; // Leader bonus
-    if (vehicle.lapsLed.length > 0) {
+    liveFantasyPoints += (41 - vehicle.running_position) * 2.5; // Position points
+    if (vehicle.running_position === 1) liveFantasyPoints += 25; // Leader bonus
+    if (vehicle.laps_led.length > 0) {
       liveFantasyPoints += 15; // Led a lap
-      liveFantasyPoints += vehicle.lapsLed.length * 0.5; // Laps led bonus
+      liveFantasyPoints += vehicle.laps_led.length * 0.5; // Laps led bonus
     }
     liveFantasyPoints = Math.round(liveFantasyPoints * 100) / 100;
 
-    const playerId = createNascarPlayerId(vehicle.driver.driverId, seriesId);
+    const playerId = createNascarPlayerId(vehicle.driver.driver_id, seriesId);
 
     const statsJson = {
       // Live position data
-      runningPosition: vehicle.runningPosition,
-      startingPosition: vehicle.startingPosition,
-      positionDifferential: vehicle.startingPosition - vehicle.runningPosition,
+      runningPosition: vehicle.running_position,
+      startingPosition: vehicle.starting_position,
+      positionDifferential: vehicle.starting_position - vehicle.running_position,
       // Lap data
-      lapsCompleted: vehicle.lapsCompleted,
-      lapsLed: vehicle.lapsLed,
-      lapsLedCount: vehicle.lapsLed.length,
+      lapsCompleted: vehicle.laps_completed,
+      lapsLed: vehicle.laps_led,
+      lapsLedCount: vehicle.laps_led.length,
       // Speed data
-      averageRunningPosition: vehicle.averageRunningPosition,
-      averageSpeed: vehicle.averageSpeed,
-      bestLap: vehicle.bestLap,
-      bestLapSpeed: vehicle.bestLapSpeed,
-      bestLapTime: vehicle.bestLapTime,
+      averageRunningPosition: vehicle.average_running_position,
+      averageSpeed: vehicle.average_speed,
+      bestLap: vehicle.best_lap,
+      bestLapSpeed: vehicle.best_lap_speed,
+      bestLapTime: vehicle.best_lap_time,
       // Time gap
       delta: vehicle.delta,
       // Car info
-      carNumber: vehicle.vehicleNumber,
-      manufacturer: vehicle.vehicleManufacturer,
+      carNumber: vehicle.vehicle_number,
+      manufacturer: vehicle.vehicle_manufacturer,
       // Status
-      isOnTrack: vehicle.isOnTrack,
-      isOnDvp: vehicle.isOnDvp,
+      isOnTrack: vehicle.is_on_track,
+      isOnDvp: vehicle.is_on_dvp,
       // Race info
-      raceId: liveFeed.raceId,
-      trackName: liveFeed.trackName,
-      lapNumber: liveFeed.lapNumber,
-      lapsInRace: liveFeed.lapsInRace,
-      lapsToGo: liveFeed.lapsToGo,
-      flagState: liveFeed.flagState,
-      flagStateDescription: getFlagStateDescription(liveFeed.flagState),
-      runName: liveFeed.runName,
+      raceId: liveFeed.race_id,
+      trackName: liveFeed.track_name,
+      lapNumber: liveFeed.lap_number,
+      lapsInRace: liveFeed.laps_in_race,
+      lapsToGo: liveFeed.laps_to_go,
+      flagState: liveFeed.flag_state,
+      flagStateDescription: getFlagStateDescription(liveFeed.flag_state),
+      runName: liveFeed.run_name,
     };
 
     return {
@@ -118,7 +118,7 @@ async function convertLiveFeedToStats(
       statsJson,
       // NBA-specific fields (not used for NASCAR)
       minutes: 0,
-      points: vehicle.runningPosition,
+      points: vehicle.running_position,
       fieldGoalsMade: 0,
       fieldGoalsAttempted: 0,
       threePointersMade: 0,
@@ -171,17 +171,17 @@ export async function syncNascarLiveForSeries(
     }
 
     // Check if this is the series we're looking for
-    if (liveFeed.seriesId !== seriesId) {
-      console.log(`[nascar_live_sync] Live race is for series ${liveFeed.seriesId}, not ${seriesId}`);
+    if (liveFeed.series_id !== seriesId) {
+      console.log(`[nascar_live_sync] Live race is for series ${liveFeed.series_id}, not ${seriesId}`);
       return { requestCount, recordsProcessed: 0, errorCount: 0, isLive: false, raceInfo: null };
     }
 
     isLive = true;
-    const flagStateDesc = getFlagStateDescription(liveFeed.flagState);
-    const isRaceFinished = liveFeed.flagState === 4; // 4 = Checkered flag = race finished
+    const flagStateDesc = getFlagStateDescription(liveFeed.flag_state);
+    const isRaceFinished = liveFeed.flag_state === 4; // 4 = Checkered flag = race finished
 
     // Update the dailyGames status - mark as completed if checkered flag, otherwise inprogress
-    const gameId = createNascarGameId(liveFeed.raceId, seriesId);
+    const gameId = createNascarGameId(liveFeed.race_id, seriesId);
     const newStatus = isRaceFinished ? "completed" : "inprogress";
     try {
       await storage.updateDailyGameStatus(gameId, newStatus);
@@ -191,21 +191,21 @@ export async function syncNascarLiveForSeries(
     }
 
     console.log(
-      `[nascar_live_sync] Live race: ${liveFeed.trackName}, Lap ${liveFeed.lapNumber}/${liveFeed.lapsInRace}, Flag: ${flagStateDesc}`,
+      `[nascar_live_sync] Live race: ${liveFeed.track_name}, Lap ${liveFeed.lap_number}/${liveFeed.laps_in_race}, Flag: ${flagStateDesc}`,
     );
 
     raceInfo = {
-      raceId: liveFeed.raceId,
-      trackName: liveFeed.trackName,
-      lapNumber: liveFeed.lapNumber,
-      lapsToGo: liveFeed.lapsToGo,
+      raceId: liveFeed.race_id,
+      trackName: liveFeed.track_name,
+      lapNumber: liveFeed.lap_number,
+      lapsToGo: liveFeed.laps_to_go,
       flagState: flagStateDesc,
     };
 
     progressCallback?.({
       type: "info",
       timestamp: new Date().toISOString(),
-      message: `Live race: ${liveFeed.trackName}, Lap ${liveFeed.lapNumber}/${liveFeed.lapsInRace}`,
+      message: `Live race: ${liveFeed.track_name}, Lap ${liveFeed.lap_number}/${liveFeed.laps_in_race}`,
       data: raceInfo,
     });
 

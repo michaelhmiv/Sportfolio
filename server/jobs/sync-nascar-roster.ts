@@ -77,10 +77,10 @@ export async function syncNascarRosterForSeries(
         const team = NASCAR_SERIES_CODES[seriesId]; // e.g., "NCS", "NXS", "NTS"
 
         await storage.upsertPlayer({
-          id: createNascarPlayerId(driver.driverId, seriesId),
+          id: createNascarPlayerId(driver.driver_id, seriesId),
           sport: NASCAR_SPORT,
-          firstName: driver.firstName,
-          lastName: driver.lastName,
+          firstName: driver.first_name,
+          lastName: driver.last_name,
           team: team,
           position: "DRV",
           jerseyNumber: "", // No jersey number in NASCAR
@@ -106,7 +106,7 @@ export async function syncNascarRosterForSeries(
         }
       } catch (error: any) {
         console.error(
-          `[nascar_roster_sync] Failed to update driver ${driver.driverId}:`,
+          `[nascar_roster_sync] Failed to update driver ${driver.driver_id}:`,
           error.message,
         );
         errorCount++;
