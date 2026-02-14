@@ -446,43 +446,60 @@ function calculatePoints(finishPosition: number, ledLaps: boolean): number {
 
 /**
  * Fetch all drivers for a series (active roster)
+ * Uses the drivers database endpoint which doesn't require proxy
  */
 export async function fetchDrivers(seriesId: NascarSeriesId): Promise<NascarDriver[]> {
   try {
-    // Get current live feed or use a known race to get driver list
-    // Drivers are available in the live feed vehicle list
-    const liveFeed = await fetchLiveFeed(seriesId);
-    if (liveFeed) {
-      return liveFeed.vehicles.map((v) => v.driver);
-    }
+    // Use the drivers database endpoint - it works without proxy
+    // and provides all drivers across all series
+    const response = await apiClient.get("/cacher/drivers.json");
+    const data = response.data;
 
-    // Fallback: try to fetch from a recent race
-    const currentYear = new Date().getFullYear();
-    const schedule = await fetchRaceSchedule(currentYear);
-    const racesForSeries = schedule.filter((r) => r.series_id === seriesId);
-
-    if (racesForSeries.length === 0) {
+    if (!data.response || !Array.isArray(data.response)) {
+      console.error("[NASCAR API] Invalid drivers response format");
       return [];
     }
 
-    // Try to get drivers from the most recent race
-    for (const race of racesForSeries.reverse()) {
-      const weekendFeed = await fetchWeekendFeed(currentYear, seriesId, race.race_id);
-      if (weekendFeed) {
-        // Get unique drivers from all sessions
-        const driverMap = new Map<number, NascarDriver>();
-        for (const session of weekendFeed.sessions) {
-          for (const vehicle of session.vehicles) {
-            driverMap.set(vehicle.driver.driver_id, vehicle.driver);
-          }
-        }
-        return Array.from(driverMap.values());
-      }
-    }
+    // Map series logos to series IDs
+    // NCS = NASCAR Cup Series, NOAPS = Xfinity (likely), trucks = Trucks
+    const seriesLogoMap: Record<string, number> = {
+      "NCS_RGB_240x120.png": 1, // Cup Series
+      "NOAPS-Primary_FullColor-RGB.svg": 2, // Xfinity Series
+      "nascar_craftsman_truck_series_logo.svg": 3, // Truck Series
+    };
 
-    return [];
+    // Filter drivers by series based on Series_Logo
+    const seriesDrivers = data.response.filter((driver: any) => {
+      const logoUrl = driver.Series_Logo || "";
+      const logo = logoUrl.split("/").pop() || ""; // Get filename
+      const driverSeries = seriesLogoMap[logo];
+      return driverSeries === seriesId;
+    });
+
+    // Convert to our driver format
+    const drivers: NascarDriver[] = seriesDrivers.map((driver: any) => ({
+      driver_id: parseInt(driver.Nascar_Driver_ID, 10),
+      full_name: driver.Full_Name,
+      first_name: driver.First_Name,
+      last_name: driver.Last_Name,
+      short_name: driver.Short_Name || undefined,
+    }));
+
+    console.log(`[NASCAR API] Fetched ${drivers.length} drivers for series ${seriesId}`);
+    return drivers;
   } catch (error: any) {
     console.error(`[NASCAR API] Error fetching drivers for series ${seriesId}:`, error.message);
+
+    // Fallback: try live feed
+    try {
+      const liveFeed = await fetchLiveFeed(seriesId);
+      if (liveFeed) {
+        return liveFeed.vehicles.map((v) => v.driver);
+      }
+    } catch (e) {
+      // Ignore fallback errors
+    }
+
     return [];
   }
 }
