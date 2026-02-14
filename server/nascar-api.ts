@@ -307,7 +307,8 @@ export async function fetchLiveFeed(seriesId?: NascarSeriesId): Promise<NascarLi
       console.log("[NASCAR API] No live race currently");
       return null;
     }
-    console.error("[NASCAR API] Error fetching live feed:", error.message);
+    // Log more details about the error
+    console.error("[NASCAR API] Error fetching live feed:", error.message, "code:", error.code, "status:", error.response?.status);
     throw error;
   }
 }
