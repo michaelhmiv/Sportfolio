@@ -324,23 +324,33 @@ export async function fetchLiveFeed(seriesId?: NascarSeriesId): Promise<NascarLi
 
 /**
  * Fetch race list/schedule for a given year
+ * Fetches from all 3 series (Cup, Xfinity, Trucks) and combines them
  */
 export async function fetchRaceSchedule(year: number): Promise<NascarRaceListItem[]> {
-  try {
-    // Use race_list_basic.json endpoint (not race_list.json which returns 403)
-    const response = await apiClient.get(`/cacher/${year}/1/race_list_basic.json`);
-    const raceList: NascarRaceListItem[] = response.data;
+  const allRaces: NascarRaceListItem[] = [];
+  const seriesList = [1, 2, 3]; // Cup, Xfinity, Trucks
 
-    console.log(`[NASCAR API] Fetched ${raceList.length} races for ${year}`);
-    return raceList;
-  } catch (error: any) {
-    console.error(`[NASCAR API] Error fetching race schedule for ${year}:`, error.message);
-    // Return empty array if no data available yet for this year
-    if (error.response?.status === 404 || error.response?.status === 403) {
-      return [];
+  for (const seriesId of seriesList) {
+    try {
+      // Use race_list_basic.json endpoint (not race_list.json which returns 403)
+      const response = await apiClient.get(`/cacher/${year}/${seriesId}/race_list_basic.json`);
+      const raceList: NascarRaceListItem[] = response.data;
+
+      if (raceList.length > 0) {
+        allRaces.push(...raceList);
+        console.log(`[NASCAR API] Fetched ${raceList.length} races for ${year} series ${seriesId}`);
+      }
+    } catch (error: any) {
+      console.error(`[NASCAR API] Error fetching race schedule for ${year} series ${seriesId}:`, error.message);
+      // Continue with other series if one fails
     }
-    throw error;
   }
+
+  // Sort by race date
+  allRaces.sort((a, b) => new Date(a.race_date).getTime() - new Date(b.race_date).getTime());
+
+  console.log(`[NASCAR API] Total races for ${year}: ${allRaces.length}`);
+  return allRaces;
 }
 
 /**
