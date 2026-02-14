@@ -19,24 +19,51 @@ import axios, { AxiosInstance } from "axios";
 const NASCAR_API_BASE = "https://cf.nascar.com";
 const NASCAR_PROXY_URL = process.env.NASCAR_PROXY_URL;
 
+// Parse IPRoyal proxy URL format: host:port:username:password
+function parseProxyUrl(proxyUrl: string): { host: string; port: number; auth: { username: string; password: string } } | null {
+  const parts = proxyUrl.split(":");
+  if (parts.length >= 4) {
+    const host = parts[0];
+    const port = parseInt(parts[1], 10);
+    const username = parts[2];
+    const password = parts.slice(3).join(":"); // Join rest in case password contains colons
+    return { host, port, auth: { username, password } };
+  }
+  return null;
+}
+
 // Create axios instance for NASCAR API
 // When NASCAR_PROXY_URL is set, requests will be routed through that proxy
 // This is needed when hosting on cloud platforms that NASCAR API blocks
 function createApiClient(): AxiosInstance {
-  // If proxy URL is set, use it as the base URL (the proxy will forward to NASCAR API)
-  const baseURL = NASCAR_PROXY_URL || NASCAR_API_BASE;
-
-  if (NASCAR_PROXY_URL) {
-    console.log(`[NASCAR API] Using proxy: ${NASCAR_PROXY_URL}`);
-  }
-
-  return axios.create({
-    baseURL,
+  const config: any = {
+    baseURL: NASCAR_API_BASE,
     timeout: 30000,
     headers: {
       "User-Agent": "Sportfolio/1.0",
     },
-  });
+  };
+
+  // Configure proxy if set (supports IPRoyal format: host:port:username:password)
+  if (NASCAR_PROXY_URL) {
+    const proxy = parseProxyUrl(NASCAR_PROXY_URL);
+    if (proxy) {
+      config.proxy = {
+        protocol: "http",
+        host: proxy.host,
+        port: proxy.port,
+        auth: {
+          username: proxy.auth.username,
+          password: proxy.auth.password,
+        },
+      };
+      console.log(`[NASCAR API] Using proxy: ${proxy.host}:${proxy.port}`);
+    } else {
+      console.warn(`[NASCAR API] Invalid proxy URL format: ${NASCAR_PROXY_URL}`);
+    }
+  }
+
+  return axios.create(config);
 }
 
 const apiClient = createApiClient();
