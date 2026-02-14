@@ -178,12 +178,14 @@ export async function syncNascarLiveForSeries(
 
     isLive = true;
     const flagStateDesc = getFlagStateDescription(liveFeed.flagState);
+    const isRaceFinished = liveFeed.flagState === 4; // 4 = Checkered flag = race finished
 
-    // Update the dailyGames status to "inprogress"
+    // Update the dailyGames status - mark as completed if checkered flag, otherwise inprogress
     const gameId = createNascarGameId(liveFeed.raceId, seriesId);
+    const newStatus = isRaceFinished ? "completed" : "inprogress";
     try {
-      await storage.updateDailyGameStatus(gameId, "inprogress");
-      console.log(`[nascar_live_sync] Updated game ${gameId} status to inprogress`);
+      await storage.updateDailyGameStatus(gameId, newStatus);
+      console.log(`[nascar_live_sync] Updated game ${gameId} status to ${newStatus} (flag: ${flagStateDesc})`);
     } catch (error: any) {
       console.error(`[nascar_live_sync] Failed to update game status:`, error.message);
     }
