@@ -630,6 +630,38 @@ export class JobScheduler {
           errorCount: result.errors.length,
         };
       },
+      nascar_roster_sync: async () => {
+        const result = await syncNascarRoster();
+        return {
+          requestCount: result.requestCount,
+          recordsProcessed: result.recordsProcessed,
+          errorCount: result.errorCount,
+        };
+      },
+      nascar_schedule_sync: async () => {
+        const result = await syncNascarSchedule();
+        return {
+          requestCount: result.requestCount,
+          recordsProcessed: result.recordsProcessed,
+          errorCount: result.errorCount,
+        };
+      },
+      nascar_live_sync: async () => {
+        const result = await syncNascarLive();
+        return {
+          requestCount: result.requestCount,
+          recordsProcessed: result.recordsProcessed,
+          errorCount: result.errorCount,
+        };
+      },
+      nascar_stats_sync: async () => {
+        const result = await syncNascarStats();
+        return {
+          requestCount: result.requestCount,
+          recordsProcessed: result.recordsProcessed,
+          errorCount: result.errorCount,
+        };
+      },
     };
 
     const handler = jobConfigs[jobName];
@@ -762,6 +794,10 @@ export class JobScheduler {
       "nfl_schedule_sync",
       "nfl_stats_sync",
       "nfl_roster_sync",
+      "nascar_roster_sync",
+      "nascar_schedule_sync",
+      "nascar_live_sync",
+      "nascar_stats_sync",
     ];
   }
 }

@@ -24,7 +24,7 @@ const NASCAR_SPORT = "NASCAR";
 function createNascarPlayerId(driverId: number, seriesId: NascarSeriesId): string {
   // Use series code to distinguish between Cup/Xfinity/Trucks drivers
   // who might race in multiple series
-  const seriesCode = NASCAR_SERIES_NAMES[seriesId].toUpperCase().replace(" SERIES", "");
+  const seriesCode = NASCAR_SERIES_CODES[seriesId];
   return `nascar_${seriesCode}_${driverId}`;
 }
 
