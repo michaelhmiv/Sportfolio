@@ -17,12 +17,22 @@
 import axios, { AxiosInstance } from "axios";
 
 const NASCAR_API_BASE = "https://cf.nascar.com";
+const NASCAR_PROXY_URL = process.env.NASCAR_PROXY_URL;
 
 // Create axios instance for NASCAR API
+// When NASCAR_PROXY_URL is set, requests will be routed through that proxy
+// This is needed when hosting on cloud platforms that NASCAR API blocks
 function createApiClient(): AxiosInstance {
+  // If proxy URL is set, use it as the base URL (the proxy will forward to NASCAR API)
+  const baseURL = NASCAR_PROXY_URL || NASCAR_API_BASE;
+
+  if (NASCAR_PROXY_URL) {
+    console.log(`[NASCAR API] Using proxy: ${NASCAR_PROXY_URL}`);
+  }
+
   return axios.create({
-    baseURL: NASCAR_API_BASE,
-    timeout: 30000, // 30 second timeout
+    baseURL,
+    timeout: 30000,
     headers: {
       "User-Agent": "Sportfolio/1.0",
     },
