@@ -287,6 +287,7 @@ export interface NascarRace {
  * Fetch live feed for current/ongoing race
  */
 export async function fetchLiveFeed(seriesId?: NascarSeriesId): Promise<NascarLiveFeed | null> {
+  console.log(`[NASCAR API] fetchLiveFeed called with seriesId=${seriesId}`);
   try {
     const response = await apiClient.get<NascarLiveFeed>("/live/feeds/live-feed.json");
     const feed = response.data;
