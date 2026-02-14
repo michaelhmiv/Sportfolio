@@ -67,6 +67,15 @@ const jobDescriptions = {
   settle_boosts: "Settle locked boosts and credit payouts",
   settle_share_payouts: "Settle pending game-based share payouts",
   settle_community_boosts: "Settle community boost multipliers and payouts",
+  // NFL jobs
+  nfl_roster_sync: "Sync NFL player roster",
+  nfl_schedule_sync: "Sync NFL schedule",
+  nfl_stats_sync: "Sync NFL stats",
+  // NASCAR jobs
+  nascar_roster_sync: "Sync NASCAR driver roster (Cup, Xfinity, Trucks)",
+  nascar_schedule_sync: "Sync NASCAR race schedule",
+  nascar_live_sync: "Sync live NASCAR race data",
+  nascar_stats_sync: "Sync NASCAR race statistics",
 };
 
 interface BlogPost {
