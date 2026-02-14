@@ -15,6 +15,7 @@
  */
 
 import axios, { AxiosInstance } from "axios";
+import { HttpsProxyAgent } from "https-proxy-agent";
 
 const NASCAR_API_BASE = "https://cf.nascar.com";
 const NASCAR_PROXY_URL = process.env.NASCAR_PROXY_URL;
@@ -48,15 +49,9 @@ function createApiClient(): AxiosInstance {
   if (NASCAR_PROXY_URL) {
     const proxy = parseProxyUrl(NASCAR_PROXY_URL);
     if (proxy) {
-      config.proxy = {
-        protocol: "http",
-        host: proxy.host,
-        port: proxy.port,
-        auth: {
-          username: proxy.auth.username,
-          password: proxy.auth.password,
-        },
-      };
+      const proxyUrl = `http://${proxy.auth.username}:${proxy.auth.password}@${proxy.host}:${proxy.port}`;
+      config.httpsAgent = new HttpsProxyAgent(proxyUrl);
+      config.proxy = false; // Disable default axios proxy since we're using httpsAgent
       console.log(`[NASCAR API] Using proxy: ${proxy.host}:${proxy.port}`);
     } else {
       console.warn(`[NASCAR API] Invalid proxy URL format: ${NASCAR_PROXY_URL}`);
