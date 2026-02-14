@@ -291,8 +291,12 @@ export async function fetchLiveFeed(seriesId?: NascarSeriesId): Promise<NascarLi
     const response = await apiClient.get<NascarLiveFeed>("/live/feeds/live-feed.json");
     const feed = response.data;
 
+    // Debug log
+    console.log(`[NASCAR API] Live feed: series_id=${feed.series_id}, race_id=${feed.race_id}, lap=${feed.lap_number}`);
+
     // Filter by series if specified - API uses series_id (snake_case)
     if (seriesId && feed.series_id !== seriesId) {
+      console.log(`[NASCAR API] Series mismatch: requested=${seriesId}, got=${feed.series_id}`);
       return null;
     }
 
