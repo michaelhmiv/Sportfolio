@@ -170,6 +170,26 @@ export async function syncNascarRaceResults(
       }
     }
 
+    const gameId = createNascarGameId(raceId, seriesId);
+    // Only mark race as completed if all driver stats were successfully stored
+    // to avoid presenting a "Final" race with incomplete data
+    if (errorCount === 0) {
+      try {
+        await storage.updateDailyGameStatus(gameId, "completed");
+      } catch (error: any) {
+        console.error(
+          `[nascar_stats_sync] Failed to mark race ${raceId} as completed:`,
+          error.message,
+        );
+        errorCount++;
+      }
+    } else {
+      console.warn(
+        `[nascar_stats_sync] Race ${raceId} not marked as completed due to ${errorCount} driver stat write failures`,
+      );
+    }
+
+    const totalRecordsProcessed = recordsProcessed + weekendRecordsProcessed;
     console.log(
       `[nascar_stats_sync] Completed race ${raceId}: ${recordsProcessed} driver stats stored, ${errorCount} errors`,
     );
