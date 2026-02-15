@@ -51,10 +51,20 @@ async function convertToDailyGame(
   const trackName = race.track_name;
 
   // Parse the race date/time (use race_date field)
-  const raceDateTime = new Date(race.race_date);
+  // NASCAR API returns times in Eastern Time without timezone info
+  // So "13:30" means 1:30 PM ET, not UTC
+  // We need to convert ET to UTC (add 5 hours for EST, 4 for EDT)
+  const isEDT = () => {
+    const date = new Date(race.race_date);
+    const month = date.getMonth();
+    return month > 2 && month < 11; // April-October is EDT
+  };
+  const etOffset = isEDT() ? 4 : 5; // ET offset from UTC
+  const raceDateTimeET = new Date(race.race_date);
+  const raceDateTimeUTC = new Date(raceDateTimeET.getTime() + etOffset * 60 * 60 * 1000);
 
   // Calculate game day in Eastern Time
-  const gameDay = getGameDay(raceDateTime);
+  const gameDay = getGameDay(raceDateTimeUTC);
   const { startOfDay } = getETDayBoundaries(gameDay);
 
   // Determine initial status based on race time
@@ -62,8 +72,8 @@ async function convertToDailyGame(
   // If race recently happened (within 24 hours), let live sync determine
   // If race is older than 24 hours, mark as "completed"
   const now = new Date();
-  const raceHasStarted = raceDateTime < now;
-  const withinRecentWindow = now.getTime() - raceDateTime.getTime() < 24 * 60 * 60 * 1000;
+  const raceHasStarted = raceDateTimeUTC < now;
+  const withinRecentWindow = now.getTime() - raceDateTimeUTC.getTime() < 24 * 60 * 60 * 1000;
 
   let status: string;
   if (!raceHasStarted) {
@@ -84,7 +94,7 @@ async function convertToDailyGame(
     awayTeam: seriesName, // Series is "away"
     venue: trackName,
     status,
-    startTime: raceDateTime,
+    startTime: raceDateTimeUTC,
   };
 }
 
