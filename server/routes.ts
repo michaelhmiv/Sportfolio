@@ -1773,8 +1773,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Get driver stats for this race
           const raceStats = await storage.getGameStatsByGameId(game.gameId);
 
-          // Sort by position (running position for live, finish position for completed)
+          // Sort by position:
+          // - scheduled: starting position (grid order)
+          // - inprogress/completed: running position (live order)
           const sortedStats = [...raceStats].sort((a, b) => {
+            // Use starting position for scheduled races, running/finish position for live/completed
+            const gameStatus = game.status || "scheduled";
+            if (gameStatus === "scheduled") {
+              const aStart = a.statsJson?.startingPosition ?? 999;
+              const bStart = b.statsJson?.startingPosition ?? 999;
+              return aStart - bStart;
+            }
             const aPos = a.statsJson?.runningPosition ?? a.statsJson?.finishPosition ?? 999;
             const bPos = b.statsJson?.runningPosition ?? b.statsJson?.finishPosition ?? 999;
             return aPos - bPos;
@@ -1786,6 +1795,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               const player = await storage.getPlayer(stat.playerId);
               return {
                 position: stat.statsJson?.runningPosition ?? stat.statsJson?.finishPosition ?? 0,
+                startingPosition: stat.statsJson?.startingPosition ?? 0,
                 playerId: stat.playerId,
                 driverName: player ? `${player.firstName} ${player.lastName}` : "Unknown",
                 carNumber: stat.statsJson?.carNumber || "",

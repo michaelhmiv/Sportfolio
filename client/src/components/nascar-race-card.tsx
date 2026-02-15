@@ -15,6 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 
 export interface NascarDriverStanding {
   position: number;
+  startingPosition: number;
   playerId: string;
   driverName: string;
   carNumber: string;
