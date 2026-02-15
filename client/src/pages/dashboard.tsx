@@ -889,6 +889,48 @@ export default function Dashboard() {
           onClose={() => setActiveGame(null)}
         />
       )}
+
+      {selectedRace && (
+        <Dialog open={!!selectedRace} onOpenChange={() => setSelectedRace(null)}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>{selectedRace.trackName}</DialogTitle>
+              <DialogDescription>
+                {selectedRace.series} Series - {selectedRace.status === "completed" ? "Final Results" : selectedRace.status === "inprogress" ? "Live Race" : "Scheduled"}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="mt-4">
+              {selectedRace.lapInfo && (
+                <div className="mb-4 flex items-center gap-4 text-sm">
+                  <Badge variant={selectedRace.status === "completed" ? "secondary" : "default"}>
+                    {selectedRace.status === "completed" ? "Final" : `Lap ${selectedRace.lapInfo.currentLap}/${selectedRace.lapInfo.totalLaps}`}
+                  </Badge>
+                  {selectedRace.lapInfo.flagState && (
+                    <span className="text-muted-foreground">
+                      Flag: {selectedRace.lapInfo.flagState}
+                    </span>
+                  )}
+                </div>
+              )}
+              <div className="space-y-2">
+                <h4 className="text-sm font-medium">Driver Standings</h4>
+                {selectedRace.driverStandings?.slice(0, 10).map((driver: any, index: number) => (
+                  <div key={driver.playerId} className="flex items-center justify-between py-2 border-b">
+                    <div className="flex items-center gap-3">
+                      <span className={`font-bold ${index < 3 ? "text-yellow-500" : ""}`}>
+                        {driver.position}
+                      </span>
+                      <span>{driver.driverName}</span>
+                      <span className="text-muted-foreground text-sm">#{driver.carNumber}</span>
+                    </div>
+                    <span className="font-mono text-purple-400">{driver.fantasyPoints?.toFixed(1)} FP</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </>
   );
 }

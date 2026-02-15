@@ -1803,10 +1803,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // Get lap info from stats for flag state check
             const mostRecentStat = raceStats[0];
             const flagState = mostRecentStat?.statsJson?.flagStateDescription;
+            const lapsToGo = mostRecentStat?.statsJson?.lapsToGo;
 
-            // Check if race is finished (checkered flag)
-            if (flagState === "Checkered" || flagState === "FINISHED") {
+            // Check if race is finished (checkered flag or 0 laps to go)
+            const isRaceFinished =
+              flagState === "Checkered" ||
+              flagState === "FINISHED" ||
+              flagState === "White" ||
+              lapsToGo === 0;
+
+            if (isRaceFinished) {
               status = "completed";
+              console.log(`[races/insights] Race ${game.gameId} marked completed: flagState=${flagState}, lapsToGo=${lapsToGo}`);
             } else if (mostRecentStat) {
               // If we have recent stats (within last hour), consider it live
               const statTime = new Date(mostRecentStat.gameDate).getTime();
