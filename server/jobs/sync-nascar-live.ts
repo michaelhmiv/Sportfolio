@@ -23,11 +23,12 @@ import type { ProgressCallback } from "../lib/admin-stream";
 const NASCAR_SPORT = "NASCAR";
 
 /**
- * Create a NASCAR player ID from driver ID and series
+ * Create a NASCAR player ID from driver ID
+ * Uses the NASCAR driver ID directly - this is consistent across all series
+ * so shares transfer when drivers move between series
  */
-function createNascarPlayerId(driverId: number, seriesId: NascarSeriesId): string {
-  const seriesCode = NASCAR_SERIES_CODES[seriesId];
-  return `nascar_${seriesCode}_${driverId}`;
+function createNascarPlayerId(driverId: number, _seriesId: NascarSeriesId): string {
+  return `nascar_${driverId}`;
 }
 
 /**
