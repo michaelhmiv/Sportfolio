@@ -35,7 +35,6 @@ import { syncNFLRoster } from "./sync-nfl-roster";
 import { syncNascarRoster, syncNascarActiveRoster } from "./sync-nascar-roster";
 import { syncNascarSchedule } from "./sync-nascar-schedule";
 import { syncNascarLive } from "./sync-nascar-live";
-import { syncNascarStats } from "./sync-nascar-stats";
 import { syncPlayerInjuries } from "./sync-injuries";
 import { fetchNews } from "./fetch-news";
 import { compileAllDigests } from "./compile-digest";
@@ -478,19 +477,6 @@ export class JobScheduler {
           };
         },
       },
-      {
-        name: "nascar_stats_sync",
-        schedule: "30 6 * * *", // Daily at 6:30 AM ET - sync completed race stats
-        enabled: true,
-        handler: async () => {
-          const result = await syncNascarStats();
-          return {
-            requestCount: result.requestCount,
-            recordsProcessed: result.recordsProcessed,
-            errorCount: result.errorCount,
-          };
-        },
-      },
     ];
 
     for (const jobConfig of apiJobs) {
@@ -678,14 +664,6 @@ export class JobScheduler {
           errorCount: result.errorCount,
         };
       },
-      nascar_stats_sync: async () => {
-        const result = await syncNascarStats();
-        return {
-          requestCount: result.requestCount,
-          recordsProcessed: result.recordsProcessed,
-          errorCount: result.errorCount,
-        };
-      },
     };
 
     const handler = jobConfigs[jobName];
@@ -821,7 +799,6 @@ export class JobScheduler {
       "nascar_roster_sync",
       "nascar_schedule_sync",
       "nascar_live_sync",
-      "nascar_stats_sync",
     ];
   }
 }
