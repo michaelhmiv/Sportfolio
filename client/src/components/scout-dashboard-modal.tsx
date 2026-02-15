@@ -785,6 +785,7 @@ export function ScoutDashboardModal() {
                   <SelectItem value="all">All</SelectItem>
                   <SelectItem value="NBA">NBA</SelectItem>
                   <SelectItem value="NFL">NFL</SelectItem>
+                  <SelectItem value="NASCAR">NASCAR</SelectItem>
                 </SelectContent>
               </Select>
 
