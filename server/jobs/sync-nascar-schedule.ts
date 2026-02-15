@@ -57,6 +57,25 @@ async function convertToDailyGame(
   const gameDay = getGameDay(raceDateTime);
   const { startOfDay } = getETDayBoundaries(gameDay);
 
+  // Determine initial status based on race time
+  // If race is in the future, status = "scheduled"
+  // If race recently happened (within 24 hours), let live sync determine
+  // If race is older than 24 hours, mark as "completed"
+  const now = new Date();
+  const raceHasStarted = raceDateTime < now;
+  const withinRecentWindow = now.getTime() - raceDateTime.getTime() < 24 * 60 * 60 * 1000;
+
+  let status: string;
+  if (!raceHasStarted) {
+    status = "scheduled";
+  } else if (withinRecentWindow) {
+    // Recently completed or possibly still live - let live sync determine
+    status = "scheduled";
+  } else {
+    // Old race - mark as completed
+    status = "completed";
+  }
+
   return {
     gameId: createNascarGameId(race.race_id, seriesId),
     sport: NASCAR_SPORT,
@@ -64,7 +83,7 @@ async function convertToDailyGame(
     homeTeam: trackName, // Track is "home"
     awayTeam: seriesName, // Series is "away"
     venue: trackName,
-    status: "scheduled",
+    status,
     startTime: raceDateTime,
   };
 }

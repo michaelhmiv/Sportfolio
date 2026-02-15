@@ -8,10 +8,13 @@
 import { storage } from "../storage";
 import {
   fetchDrivers,
+  fetchRaceSchedule,
+  fetchActiveDriversForRace,
   NASCAR_SERIES,
   NASCAR_SERIES_NAMES,
   NASCAR_SERIES_CODES,
   NascarSeriesId,
+  NascarDriver,
 } from "../nascar-api";
 import type { JobResult } from "./scheduler";
 import type { ProgressCallback } from "../lib/admin-stream";
@@ -154,6 +157,142 @@ export async function syncNascarRoster(progressCallback?: ProgressCallback): Pro
 
   console.log(
     `[nascar_roster_sync] Completed NASCAR roster sync: ${totalRecordsProcessed} drivers updated, ${totalErrorCount} errors`,
+  );
+
+  return {
+    requestCount: totalRequestCount,
+    recordsProcessed: totalRecordsProcessed,
+    errorCount: totalErrorCount,
+  };
+}
+
+/**
+ * Helper: Update a single driver in the database
+ */
+async function upsertDriver(
+  driver: NascarDriver,
+  seriesId: NascarSeriesId,
+  isActive: boolean,
+): Promise<void> {
+  const team = NASCAR_SERIES_CODES[seriesId];
+  await storage.upsertPlayer({
+    id: createNascarPlayerId(driver.driver_id, seriesId),
+    sport: NASCAR_SPORT,
+    firstName: driver.first_name,
+    lastName: driver.last_name,
+    team: team,
+    position: "DRV",
+    jerseyNumber: "",
+    isActive: isActive,
+    isEligibleForVesting: true,
+  });
+}
+
+/**
+ * Sync active NASCAR drivers from upcoming/recent races
+ * This filters out old/inactive drivers by only including drivers
+ * who are entered in upcoming races or have raced recently
+ *
+ * @param upcomingDays - How many days ahead to look for upcoming races (default 14)
+ * @param pastDays - How many days back to look for recent races (default 7)
+ */
+export async function syncNascarActiveRoster(
+  upcomingDays: number = 14,
+  pastDays: number = 7,
+  progressCallback?: ProgressCallback,
+): Promise<JobResult> {
+  console.log(`[nascar_roster_sync] Syncing ACTIVE drivers (upcoming: ${upcomingDays} days, past: ${pastDays} days)...`);
+
+  const currentYear = new Date().getFullYear();
+  const now = new Date();
+
+  // Calculate date range
+  const startDate = new Date(now);
+  startDate.setDate(startDate.getDate() - pastDays);
+  const endDate = new Date(now);
+  endDate.setDate(endDate.getDate() + upcomingDays);
+
+  let totalRequestCount = 0;
+  let totalRecordsProcessed = 0;
+  let totalErrorCount = 0;
+
+  const seriesList: NascarSeriesId[] = [
+    NASCAR_SERIES.CUP,
+    NASCAR_SERIES.XFINITY,
+    NASCAR_SERIES.TRUCKS,
+  ];
+
+  for (const seriesId of seriesList) {
+    const seriesName = NASCAR_SERIES_NAMES[seriesId];
+    console.log(`[nascar_roster_sync] Processing active drivers for ${seriesName}...`);
+
+    progressCallback?.({
+      type: "info",
+      timestamp: new Date().toISOString(),
+      message: `Processing ${seriesName} active drivers`,
+    });
+
+    try {
+      // Fetch schedule for this year/series
+      totalRequestCount++;
+      const schedule = await fetchRaceSchedule(currentYear);
+      const seriesSchedule = schedule.filter((race) => race.series_id === seriesId);
+
+      // Filter to races within our date range
+      const relevantRaces = seriesSchedule.filter((race) => {
+        const raceDate = new Date(race.race_date);
+        return raceDate >= startDate && raceDate <= endDate;
+      });
+
+      console.log(`[nascar_roster_sync] Found ${relevantRaces.length} relevant races for ${seriesName}`);
+
+      // Collect all active driver IDs from relevant races
+      const activeDriverIds = new Set<number>();
+      const activeDrivers: NascarDriver[] = [];
+
+      for (const race of relevantRaces) {
+        try {
+          totalRequestCount++;
+          const drivers = await fetchActiveDriversForRace(currentYear, seriesId, race.race_id);
+
+          for (const driver of drivers) {
+            if (!activeDriverIds.has(driver.driver_id)) {
+              activeDriverIds.add(driver.driver_id);
+              activeDrivers.push(driver);
+            }
+          }
+        } catch (error: any) {
+          console.error(`[nascar_roster_sync] Error fetching drivers for race ${race.race_id}:`, error.message);
+          totalErrorCount++;
+        }
+      }
+
+      console.log(`[nascar_roster_sync] Found ${activeDrivers.length} active drivers for ${seriesName}`);
+
+      // Upsert all active drivers (mark as active)
+      for (const driver of activeDrivers) {
+        try {
+          await upsertDriver(driver, seriesId, true);
+          totalRecordsProcessed++;
+        } catch (error: any) {
+          console.error(`[nascar_roster_sync] Error upserting driver ${driver.driver_id}:`, error.message);
+          totalErrorCount++;
+        }
+      }
+
+      // Mark other drivers from the full database as inactive
+      // (This is optional - we keep them in DB but mark as inactive)
+      // Note: We don't remove players, just mark them as inactive
+      console.log(`[nascar_roster_sync] ${seriesName}: ${activeDrivers.length} active drivers synced`);
+
+    } catch (error: any) {
+      console.error(`[nascar_roster_sync] Error processing ${seriesName}:`, error.message);
+      totalErrorCount++;
+    }
+  }
+
+  console.log(
+    `[nascar_roster_sync] Completed active roster sync: ${totalRecordsProcessed} drivers, ${totalErrorCount} errors`,
   );
 
   return {

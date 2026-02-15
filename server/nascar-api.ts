@@ -227,6 +227,7 @@ export interface NascarRaceListItem {
 }
 
 // Weekend feed - practice/qualifying/race results
+// API returns: weekend_runs[].run_type: 1=Practice, 2=Qualifying, 3=Race
 export interface NascarWeekendSession {
   runId: number;
   runName: string;
@@ -236,6 +237,35 @@ export interface NascarWeekendSession {
   actualStartTime?: string;
   laps: number;
   vehicles: NascarVehicle[];
+}
+
+// Actual API response structure from /cacher/{year}/{series}/{raceId}/weekend-feed.json
+export interface NascarWeekendRun {
+  weekend_run_id: number;
+  race_id: number;
+  timing_run_id: number;
+  run_type: number;
+  run_name: string;
+  run_date: string;
+  run_date_utc: string;
+  results: NascarWeekendResult[];
+}
+
+export interface NascarWeekendResult {
+  run_id: number;
+  car_number: string;
+  vehicle_number: string;
+  manufacturer: string;
+  driver_id: number;
+  driver_name: string;
+  finishing_position: number;
+  best_lap_time: number;
+  best_lap_speed: number;
+  best_lap_number: number;
+  laps_completed: number;
+  comment: string;
+  delta_leader: number;
+  disqualified: boolean;
 }
 
 export interface NascarWeekendFeed {
@@ -362,10 +392,63 @@ export async function fetchWeekendFeed(
   raceId: number,
 ): Promise<NascarWeekendFeed | null> {
   try {
-    const response = await apiClient.get<NascarWeekendFeed>(
+    const response = await apiClient.get<any>(
       `/cacher/${year}/${seriesId}/${raceId}/weekend-feed.json`,
     );
-    return response.data;
+    const data = response.data;
+
+    if (!data || !data.weekend_runs) {
+      console.log(`[NASCAR API] No weekend feed for race ${raceId}`);
+      return null;
+    }
+
+    // Extract race info from weekend_race array
+    const raceInfo = data.weekend_race?.[0] || {};
+
+    // Transform weekend_runs to sessions format
+    const sessions: NascarWeekendSession[] = data.weekend_runs.map((run: NascarWeekendRun) => ({
+      runId: run.weekend_run_id,
+      runName: run.run_name,
+      runType: run.run_type,
+      status: "completed", // Weekend feed is historical
+      scheduledStartTime: run.run_date,
+      actualStartTime: run.run_date_utc,
+      laps: run.results?.[0]?.laps_completed || 0,
+      vehicles: run.results?.map((result) => ({
+        vehicle_id: 0,
+        vehicle_number: result.car_number,
+        vehicle_manufacturer: result.manufacturer,
+        driver: {
+          driver_id: result.driver_id,
+          full_name: result.driver_name,
+          first_name: result.driver_name.split(" ")[0],
+          last_name: result.driver_name.split(" ").slice(1).join(" "),
+        },
+        running_position: result.finishing_position,
+        starting_position: result.finishing_position, // Not available in PQ
+        laps_completed: result.laps_completed,
+        laps_led: [], // Not available
+        average_running_position: 0,
+        average_speed: result.best_lap_speed,
+        best_lap: result.best_lap_number,
+        best_lap_speed: result.best_lap_speed,
+        best_lap_time: String(result.best_lap_time),
+        delta: result.delta_leader,
+        pit_stops: [],
+        is_on_track: !result.disqualified,
+        is_on_dvp: false,
+      })) || [],
+    }));
+
+    return {
+      raceId: raceInfo.race_id || raceId,
+      seriesId: seriesId,
+      trackId: raceInfo.track_id || 0,
+      trackName: raceInfo.track_name || "",
+      raceName: raceInfo.race_name || "",
+      date: raceInfo.race_date || "",
+      sessions,
+    };
   } catch (error: any) {
     if (error.response?.status === 404) {
       console.log(`[NASCAR API] No weekend feed for race ${raceId}`);
@@ -386,11 +469,53 @@ export async function fetchRaceResults(
 ): Promise<NascarRaceResult[]> {
   try {
     const weekendFeed = await fetchWeekendFeed(year, seriesId, raceId);
-    if (!weekendFeed) return [];
 
-    // Find the race session (runType 3 = Race)
-    const raceSession = weekendFeed.sessions.find((s) => s.runType === 3);
-    if (!raceSession) return [];
+    // Try to find race session in weekend feed (runType 3 = Race)
+    let raceSession = weekendFeed?.sessions.find((s) => s.runType === 3);
+
+    // If no race session in weekend feed, try live feed
+    if (!raceSession) {
+      try {
+        const liveFeed = await fetchLiveFeed(seriesId);
+        if (liveFeed && liveFeed.race_id === raceId && liveFeed.run_type === 3) {
+          // Transform live feed to session format
+          raceSession = {
+            runId: liveFeed.run_id,
+            runName: liveFeed.run_name,
+            runType: liveFeed.run_type,
+            status: liveFeed.flag_state === 4 ? "completed" : "inprogress",
+            scheduledStartTime: "",
+            laps: liveFeed.laps_in_race,
+            vehicles: liveFeed.vehicles.map((v) => ({
+              vehicle_id: 0,
+              vehicle_number: v.vehicle_number,
+              vehicle_manufacturer: v.vehicle_manufacturer,
+              driver: v.driver,
+              running_position: v.running_position,
+              starting_position: v.starting_position,
+              laps_completed: v.laps_completed,
+              laps_led: v.laps_led,
+              average_running_position: v.average_running_position,
+              average_speed: v.average_speed,
+              best_lap: v.best_lap,
+              best_lap_speed: v.best_lap_speed,
+              best_lap_time: v.best_lap_time,
+              delta: v.delta,
+              pit_stops: v.pit_stops,
+              is_on_track: v.is_on_track,
+              is_on_dvp: v.is_on_dvp,
+            })),
+          };
+        }
+      } catch (e) {
+        // Ignore live feed errors
+      }
+    }
+
+    if (!raceSession) {
+      console.log(`[NASCAR API] No race session found for race ${raceId}`);
+      return [];
+    }
 
     // Convert vehicles to race results
     const results: NascarRaceResult[] = raceSession.vehicles
@@ -420,6 +545,120 @@ export async function fetchRaceResults(
     console.error(`[NASCAR API] Error fetching race results:`, error.message);
     return [];
   }
+}
+
+/**
+ * Fetch practice/qualifying session results to get active drivers for a race
+ * This helps identify which drivers are entered in upcoming races
+ * Returns drivers from practice (runType=1) and qualifying (runType=2) sessions
+ */
+export async function fetchPracticeQualifyingDrivers(
+  year: number,
+  seriesId: NascarSeriesId,
+  raceId: number,
+): Promise<NascarDriver[]> {
+  try {
+    const weekendFeed = await fetchWeekendFeed(year, seriesId, raceId);
+    if (!weekendFeed || !weekendFeed.sessions) {
+      console.log(`[NASCAR API] No weekend feed for race ${raceId}`);
+      return [];
+    }
+
+    // Get unique drivers from practice and qualifying sessions
+    const driverMap = new Map<number, NascarDriver>();
+
+    for (const session of weekendFeed.sessions) {
+      // runType: 1=Practice, 2=Qualifying
+      if (session.runType === 1 || session.runType === 2) {
+        for (const vehicle of session.vehicles) {
+          if (vehicle.driver && vehicle.driver.driver_id) {
+            driverMap.set(vehicle.driver.driver_id, vehicle.driver);
+          }
+        }
+      }
+    }
+
+    const drivers = Array.from(driverMap.values());
+    console.log(`[NASCAR API] Found ${drivers.length} active drivers for race ${raceId} from practice/qualifying`);
+    return drivers;
+  } catch (error: any) {
+    console.error(`[NASCAR API] Error fetching practice/qualifying drivers:`, error.message);
+    return [];
+  }
+}
+
+/**
+ * Fetch entry list for an upcoming race (official list of drivers entered)
+ */
+export async function fetchEntryList(
+  year: number,
+  seriesId: NascarSeriesId,
+  raceId: number,
+): Promise<NascarDriver[]> {
+  try {
+    const response = await apiClient.get(`/cacher/${year}/${seriesId}/${raceId}/entry-list.json`);
+    const data = response.data;
+
+    if (!data || !Array.isArray(data)) {
+      console.log(`[NASCAR API] No entry list for race ${raceId}`);
+      return [];
+    }
+
+    // Entry list typically has driver objects with driver_id
+    const drivers: NascarDriver[] = data
+      .filter((entry: any) => entry.driver_id)
+      .map((entry: any) => ({
+        driver_id: entry.driver_id,
+        full_name: entry.driver_name || entry.Full_Name || "",
+        first_name: entry.first_name || entry.First_Name || "",
+        last_name: entry.last_name || entry.Last_Name || "",
+        short_name: entry.short_name || entry.Short_Name || undefined,
+      }));
+
+    console.log(`[NASCAR API] Found ${drivers.length} drivers in entry list for race ${raceId}`);
+    return drivers;
+  } catch (error: any) {
+    // Entry list might not exist for all races
+    if (error.response?.status === 404) {
+      console.log(`[NASCAR API] No entry list found for race ${raceId}`);
+    } else {
+      console.error(`[NASCAR API] Error fetching entry list:`, error.message);
+    }
+    return [];
+  }
+}
+
+/**
+ * Get active drivers for a race - tries multiple sources in order:
+ * 1. Entry list (for upcoming races)
+ * 2. Practice/qualifying results (for recent races)
+ * 3. Race results (as fallback)
+ */
+export async function fetchActiveDriversForRace(
+  year: number,
+  seriesId: NascarSeriesId,
+  raceId: number,
+): Promise<NascarDriver[]> {
+  // Try entry list first (best for upcoming races)
+  let drivers = await fetchEntryList(year, seriesId, raceId);
+  if (drivers.length > 0) {
+    return drivers;
+  }
+
+  // Fall back to practice/qualifying
+  drivers = await fetchPracticeQualifyingDrivers(year, seriesId, raceId);
+  if (drivers.length > 0) {
+    return drivers;
+  }
+
+  // Last resort: race results
+  const results = await fetchRaceResults(year, seriesId, raceId);
+  return results.map((r) => ({
+    driver_id: r.driverId,
+    full_name: r.driverName,
+    first_name: r.driverName.split(" ")[0],
+    last_name: r.driverName.split(" ").slice(1).join(" "),
+  }));
 }
 
 /**

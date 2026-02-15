@@ -32,7 +32,7 @@ import { backfillMarketSnapshots } from "./market-snapshot";
 import { syncNFLSchedule } from "./sync-nfl-schedule";
 import { syncNFLStats } from "./sync-nfl-stats";
 import { syncNFLRoster } from "./sync-nfl-roster";
-import { syncNascarRoster } from "./sync-nascar-roster";
+import { syncNascarRoster, syncNascarActiveRoster } from "./sync-nascar-roster";
 import { syncNascarSchedule } from "./sync-nascar-schedule";
 import { syncNascarLive } from "./sync-nascar-live";
 import { syncNascarStats } from "./sync-nascar-stats";
@@ -439,6 +439,20 @@ export class JobScheduler {
         },
       },
       {
+        // Sync active drivers from upcoming/recent races (filters out old/inactive drivers)
+        name: "nascar_active_roster_sync",
+        schedule: "0 4 * * *", // Daily at 4:00 AM ET - sync active drivers from race entry lists
+        enabled: true,
+        handler: async () => {
+          const result = await syncNascarActiveRoster(14, 7);
+          return {
+            requestCount: result.requestCount,
+            recordsProcessed: result.recordsProcessed,
+            errorCount: result.errorCount,
+          };
+        },
+      },
+      {
         name: "nascar_schedule_sync",
         schedule: "45 3 * * *", // Daily at 3:45 AM ET - sync race schedule
         enabled: true,
@@ -632,6 +646,16 @@ export class JobScheduler {
       },
       nascar_roster_sync: async () => {
         const result = await syncNascarRoster();
+        return {
+          requestCount: result.requestCount,
+          recordsProcessed: result.recordsProcessed,
+          errorCount: result.errorCount,
+        };
+      },
+      // Sync active drivers from upcoming/recent races (filters out old/inactive drivers)
+      nascar_active_roster_sync: async () => {
+        // Look at races from past 7 days and upcoming 14 days
+        const result = await syncNascarActiveRoster(14, 7);
         return {
           requestCount: result.requestCount,
           recordsProcessed: result.recordsProcessed,
