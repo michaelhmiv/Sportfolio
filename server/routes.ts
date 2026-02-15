@@ -30,6 +30,9 @@ import {
   dailyGames,
   dailyBoosts,
   players,
+  playerGameStats,
+  sharePayouts,
+  holdingsLocks,
   communityCheckoutSessions,
   userCollections,
   userMilestones,
@@ -37,7 +40,7 @@ import {
   whopPayments,
   jobExecutionLogs,
 } from "@shared/schema";
-import { sql, eq, desc, and, gte, lte, inArray, lt } from "drizzle-orm";
+import { sql, eq, desc, and, gte, lte, inArray, lt, like, or } from "drizzle-orm";
 import { jobScheduler } from "./jobs/scheduler";
 import { addClient, removeClient, broadcast, getWebSocketStats } from "./websocket";
 import { calculateAccrualUpdate } from "@shared/vesting-utils";
@@ -7090,6 +7093,108 @@ ${posts
       });
     } catch (error: any) {
       console.error("[ADMIN] Failed to get stats:", error.message);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Admin endpoint: Migrate NASCAR player IDs to unified format
+  app.post("/api/admin/migrate-nascar-player-ids", adminAuth, async (req, res) => {
+    try {
+      console.log("[ADMIN] Starting NASCAR player ID migration...");
+
+      // Find all NASCAR players with old format
+      const oldPlayers = await db
+        .select()
+        .from(players)
+        .where(
+          or(
+            like(players.id, "nascar_NCS_%"),
+            like(players.id, "nascar_NXS_%"),
+            like(players.id, "nascar_NTS_%")
+          )
+        );
+
+      console.log(`[ADMIN] Found ${oldPlayers.length} players with old format`);
+
+      if (oldPlayers.length === 0) {
+        return res.json({ ok: true, message: "No players to migrate" });
+      }
+
+      // Create ID mapping
+      const idMapping: { oldId: string; newId: string }[] = [];
+      for (const player of oldPlayers) {
+        const match = player.id.match(/^nascar_(NCS|NXS|NTS)_(\d+)$/);
+        if (match) {
+          idMapping.push({
+            oldId: player.id,
+            newId: `nascar_${match[2]}`,
+          });
+        }
+      }
+
+      console.log(`[ADMIN] Created ${idMapping.length} ID mappings`);
+
+      let statsUpdated = 0;
+      let holdingsUpdated = 0;
+      let boostsUpdated = 0;
+      let payoutsUpdated = 0;
+      let locksUpdated = 0;
+
+      // Migrate each table
+      for (const { oldId, newId } of idMapping) {
+        // Players table
+        await db.update(players).set({ id: newId }).where(eq(players.id, oldId));
+
+        // Player game stats
+        const statsResult = await db
+          .update(playerGameStats)
+          .set({ playerId: newId })
+          .where(eq(playerGameStats.playerId, oldId));
+        statsUpdated += statsResult.rowCount || 0;
+
+        // Holdings
+        const holdingsResult = await db
+          .update(holdings)
+          .set({ assetId: newId })
+          .where(eq(holdings.assetId, oldId));
+        holdingsUpdated += holdingsResult.rowCount || 0;
+
+        // Daily boosts
+        const boostsResult = await db
+          .update(dailyBoosts)
+          .set({ playerId: newId })
+          .where(eq(dailyBoosts.playerId, oldId));
+        boostsUpdated += boostsResult.rowCount || 0;
+
+        // Share payouts
+        const payoutsResult = await db
+          .update(sharePayouts)
+          .set({ playerId: newId })
+          .where(eq(sharePayouts.playerId, oldId));
+        payoutsUpdated += payoutsResult.rowCount || 0;
+
+        // Holdings locks
+        const locksResult = await db
+          .update(holdingsLocks)
+          .set({ assetId: newId })
+          .where(eq(holdingsLocks.assetId, oldId));
+        locksUpdated += locksResult.rowCount || 0;
+      }
+
+      const result = {
+        ok: true,
+        playersMigrated: idMapping.length,
+        statsUpdated,
+        holdingsUpdated,
+        boostsUpdated,
+        payoutsUpdated,
+        locksUpdated,
+      };
+
+      console.log("[ADMIN] Migration complete:", result);
+      res.json(result);
+    } catch (error: any) {
+      console.error("[ADMIN] Migration failed:", error.message);
       res.status(500).json({ error: error.message });
     }
   });
