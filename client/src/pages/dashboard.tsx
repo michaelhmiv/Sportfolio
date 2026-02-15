@@ -160,6 +160,7 @@ export default function Dashboard() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const { sport } = useSport();
   const [activeGame, setActiveGame] = useState<GameInsight | null>(null);
+  const [selectedRace, setSelectedRace] = useState<any>(null);
   const { shouldPoll, isMobile } = useAppState();
 
   // Disable polling when app is backgrounded or offline; reduce frequency on mobile
@@ -643,7 +644,7 @@ export default function Dashboard() {
                                   boostSlotsRemaining={boostSlotsRemaining}
                                   isAuthenticated={isAuthenticated}
                                   userHoldings={userHoldings}
-                                  onOpen={() => {}}
+                                  onOpen={() => setSelectedRace(race)}
                                 />
                               ))}
                             </div>

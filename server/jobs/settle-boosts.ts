@@ -32,6 +32,8 @@ export async function settleBoosts(progressCallback?: ProgressCallback): Promise
   let boostsSettled = 0;
   let totalPayout = 0;
   let errorCount = 0;
+  const MAX_RETRIES = 3;
+  const RETRY_DELAY_MS = 2000; // 2 seconds between retries
 
   try {
     // Get all locked boosts ready for settlement
@@ -45,6 +47,9 @@ export async function settleBoosts(progressCallback?: ProgressCallback): Promise
       timestamp: new Date().toISOString(),
       message: `Checking ${lockedBoosts.length} locked boosts for completed games`,
     });
+
+    // Collect boosts that need retry due to missing stats
+    const boostsNeedingRetry: typeof lockedBoosts = [];
 
     for (const boost of lockedBoosts) {
       try {
@@ -132,10 +137,12 @@ export async function settleBoosts(progressCallback?: ProgressCallback): Promise
 
         // BUG FIX #44: Skip settlement if stats are not yet available
         // This prevents race condition where boost is settled before sync-stats job stores player stats
+        // FIX: Add to retry list instead of just skipping
         if (!stats) {
           console.warn(
-            `[settle_boosts] Boost ${boost.id}: No stats found for player ${boost.playerId} game ${canonicalGameId}, deferring settlement`,
+            `[settle_boosts] Boost ${boost.id}: No stats found for player ${boost.playerId} game ${canonicalGameId}, queuing for retry`,
           );
+          boostsNeedingRetry.push(boost);
           continue;
         }
 
@@ -227,6 +234,154 @@ export async function settleBoosts(progressCallback?: ProgressCallback): Promise
           timestamp: new Date().toISOString(),
           message: `Error settling boost ${boost.id}: ${boostError.message}`,
         });
+      }
+    }
+
+    // Retry boosts that were skipped due to missing stats
+    if (boostsNeedingRetry.length > 0) {
+      console.log(
+        `[settle_boosts] Retrying ${boostsNeedingRetry.length} boosts that had missing stats...`,
+      );
+
+      for (let retry = 1; retry <= MAX_RETRIES && boostsNeedingRetry.length > 0; retry++) {
+        console.log(`[settle_boosts] Retry attempt ${retry}/${MAX_RETRIES}`);
+
+        // Wait before retry
+        if (retry > 1) {
+          await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+        }
+
+        const remainingBoosts: typeof lockedBoosts = [];
+
+        for (const boost of boostsNeedingRetry) {
+          try {
+            // Re-fetch game data (it may have been updated)
+            const game = boost.gameId ? await storage.getDailyGameByGameId(boost.gameId) : undefined;
+
+            if (!game) {
+              console.warn(
+                `[settle_boosts] Retry - Boost ${boost.id}: no game found, skipping`,
+              );
+              continue;
+            }
+
+            const canonicalGameId = game.gameId;
+
+            // Re-check stats
+            const stats = await storage.getPlayerGameStats(boost.playerId, canonicalGameId);
+
+            if (!stats) {
+              console.warn(
+                `[settle_boosts] Retry ${retry} - Boost ${boost.id}: still no stats, will retry again if available`,
+              );
+              remainingBoosts.push(boost);
+              continue;
+            }
+
+            console.log(
+              `[settle_boosts] Retry ${retry} - Settling boost ${boost.id} - game ${canonicalGameId}`,
+            );
+
+            const fantasyPoints = parseFloat(stats.fantasyPoints);
+
+            // Re-calculate community boost count
+            const dateKey = boost.boostDate
+              ? new Date(boost.boostDate).toISOString().split("T")[0]
+              : "unknown";
+            const cacheKey = `${boost.sport}:${dateKey}:${boost.playerId}`;
+            let communityBoostCount = communityCountCache.get(cacheKey);
+            if (communityBoostCount === undefined) {
+              const communityBoosts = await storage.getCommunityBoostsForDate(
+                boost.sport,
+                new Date(boost.boostDate),
+              );
+              communityBoostCount = communityBoosts.filter(
+                (cb) => cb.playerId === boost.playerId,
+              ).length;
+              communityCountCache.set(cacheKey, communityBoostCount);
+            }
+
+            // Calculate payout
+            const effectivePower = boost.powerLevel
+              ? parseFloat(boost.powerLevel.toString())
+              : boost.sharesEntered;
+            const effectiveMultiplier = boost.slotTier + communityBoostCount;
+            const rawPayout = effectivePower * fantasyPoints * effectiveMultiplier;
+            const payout = Math.max(0, rawPayout);
+
+            console.log(
+              `[settle_boosts] Retry ${retry} - Boost ${boost.id}: ${effectivePower} power × ${fantasyPoints} FP × ${effectiveMultiplier}x = $${payout.toFixed(2)}`,
+            );
+
+            // Credit user balance
+            const user = await storage.getUser(boost.userId);
+            if (user) {
+              const newBalance = parseFloat(user.balance) + payout;
+              await storage.updateUserBalance(boost.userId, newBalance.toFixed(2));
+            }
+
+            // Log to boost_payouts ledger
+            await storage.createBoostPayout({
+              boostId: boost.id,
+              userId: boost.userId,
+              playerId: boost.playerId,
+              sharesUsed: boost.sharesEntered,
+              fantasyPoints: fantasyPoints.toFixed(2),
+              multiplier: effectiveMultiplier,
+              payoutAmount: payout.toFixed(2),
+            });
+
+            // Update boost status to processed
+            await storage.updateDailyBoost(boost.id, {
+              status: "processed",
+              fantasyPoints: fantasyPoints.toFixed(2),
+              payout: payout.toFixed(2),
+              processedAt: new Date(),
+            });
+
+            boostsSettled++;
+            totalPayout += payout;
+
+            progressCallback?.({
+              type: "info",
+              timestamp: new Date().toISOString(),
+              message: `Settled boost ${boost.id} on retry ${retry}: $${payout.toFixed(2)} payout`,
+              data: { boostId: boost.id, payout, fantasyPoints, retry },
+            });
+
+            // Broadcast settlement to user
+            broadcast({
+              type: "boost_settled",
+              userId: boost.userId,
+              boostId: boost.id,
+              payout: payout.toFixed(2),
+              fantasyPoints,
+              multiplier: effectiveMultiplier,
+            });
+          } catch (retryError: any) {
+            console.error(
+              `[settle_boosts] Retry error for boost ${boost.id}:`,
+              retryError.message,
+            );
+            errorCount++;
+            remainingBoosts.push(boost);
+          }
+        }
+
+        // Update the list for next iteration
+        boostsNeedingRetry.length = 0;
+        boostsNeedingRetry.push(...remainingBoosts);
+      }
+
+      if (boostsNeedingRetry.length > 0) {
+        console.warn(
+          `[settle_boosts] ${boostsNeedingRetry.length} boosts still missing stats after ${MAX_RETRIES} retries`,
+        );
+        for (const boost of boostsNeedingRetry) {
+          console.warn(
+            `[settle_boosts] Unsettled boost: ${boost.id} - player ${boost.playerId} game ${boost.gameId}`,
+          );
+        }
       }
     }
 

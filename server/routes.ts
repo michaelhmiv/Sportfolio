@@ -1800,9 +1800,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Determine race status
           let status = game.status || "scheduled";
           if (raceStats.length > 0) {
-            // If we have recent stats (within last hour), consider it live
+            // Get lap info from stats for flag state check
             const mostRecentStat = raceStats[0];
-            if (mostRecentStat) {
+            const flagState = mostRecentStat?.statsJson?.flagStateDescription;
+
+            // Check if race is finished (checkered flag)
+            if (flagState === "Checkered" || flagState === "FINISHED") {
+              status = "completed";
+            } else if (mostRecentStat) {
+              // If we have recent stats (within last hour), consider it live
               const statTime = new Date(mostRecentStat.gameDate).getTime();
               const now = Date.now();
               const hourAgo = now - 60 * 60 * 1000;
