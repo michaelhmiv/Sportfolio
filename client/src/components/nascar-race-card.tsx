@@ -86,7 +86,7 @@ export function NascarRaceCard({
   // Get user's drivers for this race's series
   const userDriversForRace = userHoldings.filter((h) => h.team === race.series);
   const eligibleDrivers = userDriversForRace.filter(
-    (h) => h.availableShares > 0 || parseFloat(h.powerLevel) > 0 || h.isBoosted
+    (h) => h.availableShares > 0 || parseFloat(h.powerLevel) > 0 || h.isBoosted,
   );
 
   // Boost assignment mutation
@@ -147,7 +147,9 @@ export function NascarRaceCard({
           </Badge>
           {race.status === "inprogress" && race.lapInfo && (
             <div className="flex items-center gap-1">
-              <span className={`w-2 h-2 rounded-full ${flagColorMap[race.lapInfo.flagState] || "bg-gray-500"}`} />
+              <span
+                className={`w-2 h-2 rounded-full ${flagColorMap[race.lapInfo.flagState] || "bg-gray-500"}`}
+              />
               <span className="text-xs text-muted-foreground">
                 Lap {race.lapInfo.currentLap}/{race.lapInfo.totalLaps}
               </span>
@@ -281,7 +283,9 @@ export function NascarRaceCard({
                       <div className="flex items-center gap-1.5 min-w-0">
                         <span className="font-medium truncate">{driver.name}</span>
                         <span className="text-purple-500 font-mono text-[10px]">
-                          {driver.powerLevel > 0 ? `${driver.powerLevel.toFixed(1)} power` : `${driver.availableShares} shares`}
+                          {driver.powerLevel > 0
+                            ? `${driver.powerLevel.toFixed(1)} power`
+                            : `${driver.availableShares} shares`}
                         </span>
                       </div>
                       <Button

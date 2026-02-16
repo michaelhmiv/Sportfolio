@@ -60,6 +60,10 @@ import { ScoutCeremonyOverlay } from "@/components/ceremonies/scout-ceremony-ove
 import { ScoutReadyBanner } from "@/components/ceremonies/scout-ready-banner";
 import { useScoutCeremony } from "@/hooks/use-scout-ceremony";
 import { WhaleAlertBanner } from "@/components/market/whale-alert-banner";
+import { Capacitor } from "@capacitor/core";
+import { App as CapacitorApp } from "@capacitor/app";
+import { Browser } from "@capacitor/browser";
+import { getSupabase } from "@/lib/supabase";
 
 function LegacyMarketplaceRedirect() {
   const [, setLocation] = useLocation();
@@ -121,6 +125,86 @@ function Router() {
       navigate(`/auth/callback${hash}`, { replace: true });
     }
   }, [navigate]);
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) {
+      return;
+    }
+
+    let listener: { remove: () => Promise<void> } | null = null;
+
+    const register = async () => {
+      listener = await CapacitorApp.addListener("appUrlOpen", async ({ url }) => {
+        if (!url?.startsWith("sportfolio://auth/callback")) {
+          return;
+        }
+
+        try {
+          const callbackUrl = new URL(url);
+          const code = callbackUrl.searchParams.get("code");
+          const hashParams = new URLSearchParams(callbackUrl.hash.replace(/^#/, ""));
+          const accessToken = hashParams.get("access_token");
+          const refreshToken = hashParams.get("refresh_token");
+
+          const supabase = await getSupabase();
+          if (code) {
+            const { error } = await supabase.auth.exchangeCodeForSession(code);
+            if (error) {
+              console.error("[MOBILE_AUTH] Code exchange failed:", error);
+            }
+          } else if (accessToken && refreshToken) {
+            const { error } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            });
+            if (error) {
+              console.error("[MOBILE_AUTH] Session set failed:", error);
+            }
+          }
+        } catch (error) {
+          console.error("[MOBILE_AUTH] Callback handling failed:", error);
+        } finally {
+          await Browser.close().catch(() => undefined);
+          navigate("/auth/callback", { replace: true });
+        }
+      });
+    };
+
+    register();
+
+    return () => {
+      void listener?.remove();
+    };
+  }, [navigate]);
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) {
+      return;
+    }
+
+    let listener: { remove: () => Promise<void> } | null = null;
+
+    const register = async () => {
+      listener = await CapacitorApp.addListener("appStateChange", async ({ isActive }) => {
+        if (!isActive) {
+          return;
+        }
+
+        try {
+          const supabase = await getSupabase();
+          await supabase.auth.getSession();
+        } catch (error) {
+          console.error("[MOBILE_AUTH] Session refresh on resume failed:", error);
+        }
+      });
+    };
+
+    register();
+
+    return () => {
+      void listener?.remove();
+    };
+  }, []);
 
   // Track how long we've been loading
   useEffect(() => {

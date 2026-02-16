@@ -104,7 +104,7 @@ export function MarketplaceScanners() {
 
       {/* Desktop: Grid */}
       <div className="hidden md:grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <DesktopScannerGrid scanData={scanData} />
+        <DesktopScannerGrid scanData={scanData} topRisers={topRisers} />
       </div>
     </>
   );
@@ -433,11 +433,33 @@ function ScannerCarousel({
 }
 
 // --- Desktop Grid Component (Legacy implementation) ---
-function DesktopScannerGrid({ scanData }: { scanData: ScannerResponse }) {
-  // Transform data for Top Gainers (sorted by 24h price change)
-  const topRisers = scanData.momentum
-    .filter((item) => parseFloat(item.player.priceChange24h) > 0)
-    .sort((a, b) => parseFloat(b.player.priceChange24h) - parseFloat(a.player.priceChange24h))
+function DesktopScannerGrid({
+  scanData,
+  topRisers,
+}: {
+  scanData: ScannerResponse;
+  topRisers?: any[];
+}) {
+  // Use spotlight top-risers endpoint so desktop pools view matches dashboard logic.
+  const normalizedTopRisers = (topRisers || [])
+    .filter((item) => {
+      const pct =
+        typeof item?.priceChange24h === "number"
+          ? item.priceChange24h
+          : parseFloat(String(item?.priceChange24h || "0"));
+      return pct > 0;
+    })
+    .sort((a, b) => {
+      const aPct =
+        typeof a?.priceChange24h === "number"
+          ? a.priceChange24h
+          : parseFloat(String(a?.priceChange24h || "0"));
+      const bPct =
+        typeof b?.priceChange24h === "number"
+          ? b.priceChange24h
+          : parseFloat(String(b?.priceChange24h || "0"));
+      return bPct - aPct;
+    })
     .slice(0, 6);
 
   // Transform data for Market Cap Leaders
@@ -486,13 +508,13 @@ function DesktopScannerGrid({ scanData }: { scanData: ScannerResponse }) {
           badge: "",
         }}
       >
-        {topRisers.slice(0, 5).map((item, i) => (
+        {normalizedTopRisers.slice(0, 5).map((item, i) => (
           <ScannerRow
-            key={item.player.id}
+            key={item.id}
             rank={i + 1}
-            player={item.player}
+            player={item}
             metricLabel="24h"
-            metricValue={`+${parseFloat(item.player.priceChange24h).toFixed(1)}%`}
+            metricValue={`+${parseFloat(String(item.priceChange24h || "0")).toFixed(1)}%`}
             metricColor="text-green-500"
           />
         ))}

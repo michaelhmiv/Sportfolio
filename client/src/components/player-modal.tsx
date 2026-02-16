@@ -161,7 +161,9 @@ export function PlayerModal({ playerId, open, onOpenChange }: PlayerModalProps) 
 
   const player = statsData?.player;
   const team = statsData?.team;
-  const sport = statsData?.stats?.sport || (player?.sport === "NFL" ? "NFL" : player?.sport === "NASCAR" ? "NASCAR" : "NBA");
+  const sport =
+    statsData?.stats?.sport ||
+    (player?.sport === "NFL" ? "NFL" : player?.sport === "NASCAR" ? "NASCAR" : "NBA");
   const stats = statsData?.stats;
   const recentGames: RecentGame[] = recentGamesData?.recentGames || [];
   const sharesInfo: any = sharesData?.sharesInfo;

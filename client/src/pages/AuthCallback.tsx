@@ -12,10 +12,17 @@ export default function AuthCallback() {
         const supabase = await getSupabase();
 
         const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        const queryParams = new URLSearchParams(window.location.search);
+        const authCode = queryParams.get("code");
         const accessToken = hashParams.get("access_token");
         const refreshToken = hashParams.get("refresh_token");
 
-        if (accessToken && refreshToken) {
+        if (authCode) {
+          const { error } = await supabase.auth.exchangeCodeForSession(authCode);
+          if (error) {
+            console.error("[AUTH_CALLBACK] Code exchange error:", error);
+          }
+        } else if (accessToken && refreshToken) {
           await supabase.auth.setSession({
             access_token: accessToken,
             refresh_token: refreshToken,

@@ -4,6 +4,8 @@ import { authenticatedFetch } from "@/lib/queryClient";
 
 interface NewsNotificationContextType {
   unreadNewsCount: number;
+  unreadDigestCount: number;
+  hasUnreadDigest: boolean;
   markNewsAsRead: () => Promise<void>;
   refreshUnreadCount: () => Promise<void>;
 }
@@ -12,11 +14,15 @@ const NewsNotificationContext = createContext<NewsNotificationContextType | unde
 
 export function NewsNotificationProvider({ children }: { children: ReactNode }) {
   const [unreadNewsCount, setUnreadNewsCount] = useState(0);
+  const [unreadDigestCount, setUnreadDigestCount] = useState(0);
+  const [hasUnreadDigest, setHasUnreadDigest] = useState(false);
   const { isAuthenticated } = useAuth();
 
   const refreshUnreadCount = useCallback(async () => {
     if (!isAuthenticated) {
       setUnreadNewsCount(0);
+      setUnreadDigestCount(0);
+      setHasUnreadDigest(false);
       return;
     }
 
@@ -25,6 +31,8 @@ export function NewsNotificationProvider({ children }: { children: ReactNode }) 
       if (response.ok) {
         const data = await response.json();
         setUnreadNewsCount(data.count || 0);
+        setUnreadDigestCount(data.digestCount || 0);
+        setHasUnreadDigest(Boolean(data.hasUnreadDigest));
       }
     } catch (error) {
       console.error("[NewsNotification] Failed to fetch unread count:", error);
@@ -42,6 +50,8 @@ export function NewsNotificationProvider({ children }: { children: ReactNode }) 
       console.log("[NewsNotification] mark-read response:", response.status, response.ok);
       if (response.ok) {
         setUnreadNewsCount(0);
+        setUnreadDigestCount(0);
+        setHasUnreadDigest(false);
       }
     } catch (error) {
       console.error("[NewsNotification] Failed to mark as read:", error);
@@ -63,7 +73,13 @@ export function NewsNotificationProvider({ children }: { children: ReactNode }) 
 
   return (
     <NewsNotificationContext.Provider
-      value={{ unreadNewsCount, markNewsAsRead, refreshUnreadCount }}
+      value={{
+        unreadNewsCount,
+        unreadDigestCount,
+        hasUnreadDigest,
+        markNewsAsRead,
+        refreshUnreadCount,
+      }}
     >
       {children}
     </NewsNotificationContext.Provider>

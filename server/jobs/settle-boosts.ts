@@ -256,12 +256,12 @@ export async function settleBoosts(progressCallback?: ProgressCallback): Promise
         for (const boost of boostsNeedingRetry) {
           try {
             // Re-fetch game data (it may have been updated)
-            const game = boost.gameId ? await storage.getDailyGameByGameId(boost.gameId) : undefined;
+            const game = boost.gameId
+              ? await storage.getDailyGameByGameId(boost.gameId)
+              : undefined;
 
             if (!game) {
-              console.warn(
-                `[settle_boosts] Retry - Boost ${boost.id}: no game found, skipping`,
-              );
+              console.warn(`[settle_boosts] Retry - Boost ${boost.id}: no game found, skipping`);
               continue;
             }
 
@@ -359,10 +359,7 @@ export async function settleBoosts(progressCallback?: ProgressCallback): Promise
               multiplier: effectiveMultiplier,
             });
           } catch (retryError: any) {
-            console.error(
-              `[settle_boosts] Retry error for boost ${boost.id}:`,
-              retryError.message,
-            );
+            console.error(`[settle_boosts] Retry error for boost ${boost.id}:`, retryError.message);
             errorCount++;
             remainingBoosts.push(boost);
           }

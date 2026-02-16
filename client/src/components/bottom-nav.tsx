@@ -50,7 +50,7 @@ const navItems = [
 export function BottomNav() {
   const [location] = useLocation();
   const { unreadCount } = useNotifications();
-  const { unreadNewsCount } = useNewsNotifications();
+  const { unreadNewsCount, hasUnreadDigest } = useNewsNotifications();
   const { user } = useAuth();
   const isPremium = user?.isPremium || false;
   const [previousLocation, setPreviousLocation] = useState(location);
@@ -242,6 +242,18 @@ export function BottomNav() {
                         >
                           {unreadNewsCount}
                         </Badge>
+                      </motion.div>
+                    )}
+
+                    {item.title === "News" && hasUnreadDigest && (
+                      <motion.div
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        transition={{ type: "spring", stiffness: 500, damping: 25 }}
+                        className="absolute top-1 right-8 z-[51]"
+                        data-testid="dot-digest-unread-mobile"
+                      >
+                        <span className="inline-block h-2.5 w-2.5 rounded-full bg-red-500" />
                       </motion.div>
                     )}
                   </motion.div>

@@ -1580,6 +1580,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async upsertPlayer(player: InsertPlayer): Promise<Player> {
+    const normalizedSport = player.sport ?? "NBA";
+
     // First, check if a player with the same name+team+sport already exists
     // This handles the case where BallDontLie changed player IDs over time
     const existingByName = await db
@@ -1590,7 +1592,7 @@ export class DatabaseStorage implements IStorage {
           sql`LOWER(${players.firstName}) = LOWER(${player.firstName})`,
           sql`LOWER(${players.lastName}) = LOWER(${player.lastName})`,
           eq(players.team, player.team),
-          eq(players.sport, player.sport),
+          eq(players.sport, normalizedSport),
         ),
       )
       .limit(1);
@@ -1609,7 +1611,7 @@ export class DatabaseStorage implements IStorage {
         .set({
           // Keep existing ID to preserve references in holdings/boosts
           // Update all other fields from BallDontLie
-          sport: player.sport,
+          sport: normalizedSport,
           firstName: player.firstName,
           lastName: player.lastName,
           team: player.team,

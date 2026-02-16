@@ -131,11 +131,11 @@ export async function syncNascarScheduleForYearAndSeries(
     const races = await fetchRaceSchedule(year);
 
     // Filter for the specific series if needed
-    const seriesRaces = races.filter(
-      (r) => r.series_id === seriesId,
-    );
+    const seriesRaces = races.filter((r) => r.series_id === seriesId);
 
-    console.log(`[nascar_schedule_sync] Fetched ${seriesRaces.length} races for ${seriesName} in ${year}`);
+    console.log(
+      `[nascar_schedule_sync] Fetched ${seriesRaces.length} races for ${seriesName} in ${year}`,
+    );
 
     progressCallback?.({
       type: "info",
@@ -178,7 +178,10 @@ export async function syncNascarScheduleForYearAndSeries(
           });
         }
       } catch (error: any) {
-        console.error(`[nascar_schedule_sync] Failed to update race ${race.race_id}:`, error.message);
+        console.error(
+          `[nascar_schedule_sync] Failed to update race ${race.race_id}:`,
+          error.message,
+        );
         errorCount++;
       }
     }
@@ -189,7 +192,10 @@ export async function syncNascarScheduleForYearAndSeries(
 
     return { requestCount, recordsProcessed, errorCount };
   } catch (error: any) {
-    console.error(`[nascar_schedule_sync] Error syncing ${seriesName} schedule for ${year}:`, error.message);
+    console.error(
+      `[nascar_schedule_sync] Error syncing ${seriesName} schedule for ${year}:`,
+      error.message,
+    );
     progressCallback?.({
       type: "error",
       timestamp: new Date().toISOString(),

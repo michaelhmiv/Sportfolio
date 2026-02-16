@@ -42,14 +42,65 @@ jobs:
           cd mobile/android
           ./gradlew assembleDebug
 
-      - name: Upload to Firebase App Distribution
-        uses: wzieba/Firebase-Distribution-Github-Action@v1
-        with:
-          appId: ${{ secrets.FIREBASE_APP_ID }}
-          serviceCredentialsFileContent: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          groups: testers
-          file: mobile/android/app/build/outputs/apk/debug/app-debug.apk
-          releaseNotes: |
-            Build from commit ${{ github.sha }}
-            Branch: ${{ github.ref_name }}
-            Triggered by: ${{ github.actor }}
+      - name: Validate Firebase secrets
+        env:
+          FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$FIREBASE_APP_ID" ]; then
+            echo "::error::Missing required secret FIREBASE_APP_ID"
+            exit 1
+          fi
+
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            echo "::error::Missing required secret FIREBASE_SERVICE_ACCOUNT"
+            exit 1
+          fi
+
+      - name: Configure Firebase credentials (ADC)
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          CREDENTIALS_FILE="$RUNNER_TEMP/firebase-service-account.json"
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$CREDENTIALS_FILE"
+          chmod 600 "$CREDENTIALS_FILE"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$CREDENTIALS_FILE" >> "$GITHUB_ENV"
+
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools
+
+      - name: Upload to Firebase App Distribution (CLI)
+        env:
+          FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
+          FIREBASE_DISTRIBUTION_TESTERS: ${{ secrets.FIREBASE_DISTRIBUTION_TESTERS }}
+          FIREBASE_DISTRIBUTION_GROUPS: ${{ secrets.FIREBASE_DISTRIBUTION_GROUPS }}
+        run: |
+          RELEASE_NOTES=$(cat <<EOF
+          Build from commit ${GITHUB_SHA}
+          Branch: ${GITHUB_REF_NAME}
+          Triggered by: ${GITHUB_ACTOR}
+          EOF
+          )
+
+          DISTRIBUTION_LOG="$RUNNER_TEMP/firebase-distribution.log"
+
+          if [ -n "$FIREBASE_DISTRIBUTION_TESTERS" ]; then
+            firebase appdistribution:distribute mobile/android/app/build/outputs/apk/debug/app-debug.apk \
+              --app "$FIREBASE_APP_ID" \
+              --testers "$FIREBASE_DISTRIBUTION_TESTERS" \
+              --release-notes "$RELEASE_NOTES" | tee "$DISTRIBUTION_LOG"
+          elif [ -n "$FIREBASE_DISTRIBUTION_GROUPS" ]; then
+            firebase appdistribution:distribute mobile/android/app/build/outputs/apk/debug/app-debug.apk \
+              --app "$FIREBASE_APP_ID" \
+              --groups "$FIREBASE_DISTRIBUTION_GROUPS" \
+              --release-notes "$RELEASE_NOTES" | tee "$DISTRIBUTION_LOG"
+          else
+            firebase appdistribution:distribute mobile/android/app/build/outputs/apk/debug/app-debug.apk \
+              --app "$FIREBASE_APP_ID" \
+              --release-notes "$RELEASE_NOTES" | tee "$DISTRIBUTION_LOG"
+          fi
+
+          if ! grep -q "firebase_console_uri" "$DISTRIBUTION_LOG"; then
+            echo "::error::Upload finished without expected Firebase release output."
+            exit 1
+          fi
