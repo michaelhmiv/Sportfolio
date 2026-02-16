@@ -21,7 +21,9 @@ const NASCAR_API_BASE = "https://cf.nascar.com";
 const NASCAR_PROXY_URL = process.env.NASCAR_PROXY_URL;
 
 // Parse IPRoyal proxy URL format: host:port:username:password
-function parseProxyUrl(proxyUrl: string): { host: string; port: number; auth: { username: string; password: string } } | null {
+function parseProxyUrl(
+  proxyUrl: string,
+): { host: string; port: number; auth: { username: string; password: string } } | null {
   const parts = proxyUrl.split(":");
   if (parts.length >= 4) {
     const host = parts[0];
@@ -323,7 +325,9 @@ export async function fetchLiveFeed(seriesId?: NascarSeriesId): Promise<NascarLi
     const feed = response.data;
 
     // Debug log
-    console.log(`[NASCAR API] Live feed: series_id=${feed?.series_id}, race_id=${feed?.race_id}, lap=${feed?.lap_number}, hasData=${!!feed}`);
+    console.log(
+      `[NASCAR API] Live feed: series_id=${feed?.series_id}, race_id=${feed?.race_id}, lap=${feed?.lap_number}, hasData=${!!feed}`,
+    );
 
     // If no feed data, return null
     if (!feed) {
@@ -347,7 +351,14 @@ export async function fetchLiveFeed(seriesId?: NascarSeriesId): Promise<NascarLi
       return null;
     }
     // Log more details about the error
-    console.error("[NASCAR API] Error fetching live feed:", error.message, "code:", error.code, "status:", error.response?.status);
+    console.error(
+      "[NASCAR API] Error fetching live feed:",
+      error.message,
+      "code:",
+      error.code,
+      "status:",
+      error.response?.status,
+    );
     throw error;
   }
 }
@@ -371,7 +382,10 @@ export async function fetchRaceSchedule(year: number): Promise<NascarRaceListIte
         console.log(`[NASCAR API] Fetched ${raceList.length} races for ${year} series ${seriesId}`);
       }
     } catch (error: any) {
-      console.error(`[NASCAR API] Error fetching race schedule for ${year} series ${seriesId}:`, error.message);
+      console.error(
+        `[NASCAR API] Error fetching race schedule for ${year} series ${seriesId}:`,
+        error.message,
+      );
       // Continue with other series if one fails
     }
   }
@@ -414,30 +428,31 @@ export async function fetchWeekendFeed(
       scheduledStartTime: run.run_date,
       actualStartTime: run.run_date_utc,
       laps: run.results?.[0]?.laps_completed || 0,
-      vehicles: run.results?.map((result) => ({
-        vehicle_id: 0,
-        vehicle_number: result.car_number,
-        vehicle_manufacturer: result.manufacturer,
-        driver: {
-          driver_id: result.driver_id,
-          full_name: result.driver_name,
-          first_name: result.driver_name.split(" ")[0],
-          last_name: result.driver_name.split(" ").slice(1).join(" "),
-        },
-        running_position: result.finishing_position,
-        starting_position: result.finishing_position, // Not available in PQ
-        laps_completed: result.laps_completed,
-        laps_led: [], // Not available
-        average_running_position: 0,
-        average_speed: result.best_lap_speed,
-        best_lap: result.best_lap_number,
-        best_lap_speed: result.best_lap_speed,
-        best_lap_time: String(result.best_lap_time),
-        delta: result.delta_leader,
-        pit_stops: [],
-        is_on_track: !result.disqualified,
-        is_on_dvp: false,
-      })) || [],
+      vehicles:
+        run.results?.map((result) => ({
+          vehicle_id: 0,
+          vehicle_number: result.car_number,
+          vehicle_manufacturer: result.manufacturer,
+          driver: {
+            driver_id: result.driver_id,
+            full_name: result.driver_name,
+            first_name: result.driver_name.split(" ")[0],
+            last_name: result.driver_name.split(" ").slice(1).join(" "),
+          },
+          running_position: result.finishing_position,
+          starting_position: result.finishing_position, // Not available in PQ
+          laps_completed: result.laps_completed,
+          laps_led: [], // Not available
+          average_running_position: 0,
+          average_speed: result.best_lap_speed,
+          best_lap: result.best_lap_number,
+          best_lap_speed: result.best_lap_speed,
+          best_lap_time: String(result.best_lap_time),
+          delta: result.delta_leader,
+          pit_stops: [],
+          is_on_track: !result.disqualified,
+          is_on_dvp: false,
+        })) || [],
     }));
 
     return {
@@ -579,7 +594,9 @@ export async function fetchPracticeQualifyingDrivers(
     }
 
     const drivers = Array.from(driverMap.values());
-    console.log(`[NASCAR API] Found ${drivers.length} active drivers for race ${raceId} from practice/qualifying`);
+    console.log(
+      `[NASCAR API] Found ${drivers.length} active drivers for race ${raceId} from practice/qualifying`,
+    );
     return drivers;
   } catch (error: any) {
     console.error(`[NASCAR API] Error fetching practice/qualifying drivers:`, error.message);
@@ -668,10 +685,46 @@ export async function fetchActiveDriversForRace(
 function calculatePoints(finishPosition: number, ledLaps: boolean): number {
   // Base points for each position
   const basePoints = [
-    40, 35, 34, 33, 32, 31, 30, 29, 28, 27, // 1-10
-    26, 25, 24, 23, 22, 21, 20, 19, 18, 17, // 11-20
-    16, 15, 14, 13, 12, 11, 10, 9, 8, 7, // 21-30
-    6, 5, 4, 3, 2, 1, 0, 0, 0, 0, // 31-40
+    40,
+    35,
+    34,
+    33,
+    32,
+    31,
+    30,
+    29,
+    28,
+    27, // 1-10
+    26,
+    25,
+    24,
+    23,
+    22,
+    21,
+    20,
+    19,
+    18,
+    17, // 11-20
+    16,
+    15,
+    14,
+    13,
+    12,
+    11,
+    10,
+    9,
+    8,
+    7, // 21-30
+    6,
+    5,
+    4,
+    3,
+    2,
+    1,
+    0,
+    0,
+    0,
+    0, // 31-40
   ];
 
   let points = basePoints[Math.min(finishPosition - 1, basePoints.length - 1)] || 0;

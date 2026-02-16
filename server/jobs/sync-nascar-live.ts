@@ -45,16 +45,18 @@ function createNascarGameId(raceId: number, seriesId: NascarSeriesId): string {
 async function convertLiveFeedToStats(
   liveFeed: NascarLiveFeed,
   seriesId: NascarSeriesId,
-): Promise<{
-  playerId: string;
-  gameId: string;
-  sport: string;
-  gameDate: Date;
-  week: number | null;
-  season: string;
-  statsJson: Record<string, any>;
-  fantasyPoints: string;
-}[]> {
+): Promise<
+  {
+    playerId: string;
+    gameId: string;
+    sport: string;
+    gameDate: Date;
+    week: number | null;
+    season: string;
+    statsJson: Record<string, any>;
+    fantasyPoints: string;
+  }[]
+> {
   const raceId = liveFeed.race_id;
   const gameId = createNascarGameId(raceId, seriesId);
   const gameDate = new Date();
@@ -151,7 +153,13 @@ export async function syncNascarLiveForSeries(
   recordsProcessed: number;
   errorCount: number;
   isLive: boolean;
-  raceInfo: { raceId: number; trackName: string; lapNumber: number; lapsToGo: number; flagState: string } | null;
+  raceInfo: {
+    raceId: number;
+    trackName: string;
+    lapNumber: number;
+    lapsToGo: number;
+    flagState: string;
+  } | null;
 }> {
   const seriesName = NASCAR_SERIES_NAMES[seriesId];
 
@@ -173,7 +181,9 @@ export async function syncNascarLiveForSeries(
 
     // Check if this is the series we're looking for
     if (liveFeed.series_id !== seriesId) {
-      console.log(`[nascar_live_sync] Live race is for series ${liveFeed.series_id}, not ${seriesId}`);
+      console.log(
+        `[nascar_live_sync] Live race is for series ${liveFeed.series_id}, not ${seriesId}`,
+      );
       return { requestCount, recordsProcessed: 0, errorCount: 0, isLive: false, raceInfo: null };
     }
 
@@ -186,7 +196,9 @@ export async function syncNascarLiveForSeries(
     const newStatus = isRaceFinished ? "completed" : "inprogress";
     try {
       await storage.updateDailyGameStatus(gameId, newStatus);
-      console.log(`[nascar_live_sync] Updated game ${gameId} status to ${newStatus} (flag: ${flagStateDesc})`);
+      console.log(
+        `[nascar_live_sync] Updated game ${gameId} status to ${newStatus} (flag: ${flagStateDesc})`,
+      );
     } catch (error: any) {
       console.error(`[nascar_live_sync] Failed to update game status:`, error.message);
     }
@@ -219,10 +231,7 @@ export async function syncNascarLiveForSeries(
         await storage.upsertPlayerGameStats(stats);
         recordsProcessed++;
       } catch (error: any) {
-        console.error(
-          `[nascar_live_sync] Failed to store live stats for driver:`,
-          error.message,
-        );
+        console.error(`[nascar_live_sync] Failed to store live stats for driver:`, error.message);
         errorCount++;
       }
     }
@@ -234,7 +243,13 @@ export async function syncNascarLiveForSeries(
     return { requestCount, recordsProcessed, errorCount, isLive: true, raceInfo };
   } catch (error: any) {
     console.error(`[nascar_live_sync] Error syncing live data for ${seriesName}:`, error.message);
-    return { requestCount, recordsProcessed: 0, errorCount: errorCount + 1, isLive: false, raceInfo: null };
+    return {
+      requestCount,
+      recordsProcessed: 0,
+      errorCount: errorCount + 1,
+      isLive: false,
+      raceInfo: null,
+    };
   }
 }
 

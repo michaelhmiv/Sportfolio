@@ -10,7 +10,13 @@ import { db } from "../db";
 import { players, holdings } from "@shared/schema";
 import { eq, sql } from "drizzle-orm";
 import { logBotAction, updateBotVolume, type BotProfile } from "./bot-engine";
-import { executeBuy, executeSell, addLiquidityOptimal, getBuyQuote, getSellQuote } from "../amm/pool";
+import {
+  executeBuy,
+  executeSell,
+  addLiquidityOptimal,
+  getBuyQuote,
+  getSellQuote,
+} from "../amm/pool";
 
 interface TradeConfig {
   userId: string;
@@ -26,14 +32,16 @@ interface TradeConfig {
 /**
  * Get all active players with their current prices and liquidity info
  */
-async function getAllActivePlayers(): Promise<{
-  id: string;
-  firstName: string;
-  lastName: string;
-  currentPrice: string | null;
-  lastTradePrice: string | null;
-  totalShares: number;
-}[]> {
+async function getAllActivePlayers(): Promise<
+  {
+    id: string;
+    firstName: string;
+    lastName: string;
+    currentPrice: string | null;
+    lastTradePrice: string | null;
+    totalShares: number;
+  }[]
+> {
   const allPlayers = await db
     .select({
       id: players.id,
@@ -53,10 +61,7 @@ async function getAllActivePlayers(): Promise<{
  * Get bot's current holdings for all players
  */
 async function getBotHoldings(userId: string): Promise<Map<string, number>> {
-  const allHoldings = await db
-    .select()
-    .from(holdings)
-    .where(eq(holdings.userId, userId));
+  const allHoldings = await db.select().from(holdings).where(eq(holdings.userId, userId));
 
   const holdingsMap = new Map<string, number>();
   for (const holding of allHoldings) {
@@ -71,7 +76,10 @@ async function getBotHoldings(userId: string): Promise<Map<string, number>> {
 /**
  * Calculate a fair price for a player
  */
-function getFairPrice(player: { currentPrice: string | null; lastTradePrice: string | null }): number {
+function getFairPrice(player: {
+  currentPrice: string | null;
+  lastTradePrice: string | null;
+}): number {
   const price = player.currentPrice || player.lastTradePrice || "1.00";
   return parseFloat(price);
 }
@@ -189,7 +197,7 @@ export async function executeTradingStrategy(
 
     // Select a player - prioritize players with less liquidity or random
     // We want to ensure ALL players get coverage, not just popular ones
-    let targetPlayer: typeof allPlayers[0];
+    let targetPlayer: (typeof allPlayers)[0];
     let actionType: string;
     let success = false;
     let tradeValue = 0;
@@ -240,9 +248,11 @@ export async function executeTradingStrategy(
         .filter((p) => holdingsMap.has(p.id));
 
       if (playersWithoutPosition.length > 0 && Math.random() < 0.5) {
-        targetPlayer = playersWithoutPosition[Math.floor(Math.random() * playersWithoutPosition.length)];
+        targetPlayer =
+          playersWithoutPosition[Math.floor(Math.random() * playersWithoutPosition.length)];
       } else if (playersWithLowLiquidity.length > 0) {
-        targetPlayer = playersWithLowLiquidity[Math.floor(Math.random() * playersWithLowLiquidity.length)];
+        targetPlayer =
+          playersWithLowLiquidity[Math.floor(Math.random() * playersWithLowLiquidity.length)];
       } else {
         targetPlayer = allPlayers[Math.floor(Math.random() * allPlayers.length)];
       }

@@ -1,4 +1,4 @@
-package com.sportfolio.app;
+package sportfolio.market;
 
 import com.getcapacitor.BridgeActivity;
 

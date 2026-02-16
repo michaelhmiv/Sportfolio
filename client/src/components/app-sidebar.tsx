@@ -55,11 +55,11 @@ const menuItems = [
 ];
 
 export function AppSidebar() {
-  const [location, setLocation] = useLocation();
+  const [location] = useLocation();
   const { isAuthenticated, user } = useAuth();
   const { toast } = useToast();
   const { unreadCount } = useNotifications();
-  const { unreadNewsCount } = useNewsNotifications();
+  const { unreadNewsCount, hasUnreadDigest } = useNewsNotifications();
   const isPremium = user?.isPremium || false;
 
   const handleNavigation = (item: (typeof menuItems)[0], e: React.MouseEvent) => {
@@ -112,14 +112,24 @@ export function AppSidebar() {
                           {unreadCount}
                         </Badge>
                       )}
-                      {item.title === "News" && unreadNewsCount > 0 && (
-                        <Badge
-                          variant="default"
-                          className="ml-auto min-w-5 h-5 flex items-center justify-center px-1.5 text-xs bg-blue-600"
-                          data-testid="badge-news-count"
-                        >
-                          {unreadNewsCount}
-                        </Badge>
+                      {item.title === "News" && (unreadNewsCount > 0 || hasUnreadDigest) && (
+                        <div className="ml-auto flex items-center gap-2">
+                          {hasUnreadDigest && (
+                            <span
+                              className="inline-block h-2.5 w-2.5 rounded-full bg-red-500"
+                              data-testid="dot-digest-unread"
+                            />
+                          )}
+                          {unreadNewsCount > 0 && (
+                            <Badge
+                              variant="default"
+                              className="min-w-5 h-5 flex items-center justify-center px-1.5 text-xs bg-blue-600"
+                              data-testid="badge-news-count"
+                            >
+                              {unreadNewsCount}
+                            </Badge>
+                          )}
+                        </div>
                       )}
                     </Link>
                   </SidebarMenuButton>

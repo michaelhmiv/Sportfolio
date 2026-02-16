@@ -200,7 +200,9 @@ export async function syncNascarActiveRoster(
   pastDays: number = 7,
   progressCallback?: ProgressCallback,
 ): Promise<JobResult> {
-  console.log(`[nascar_roster_sync] Syncing ACTIVE drivers (upcoming: ${upcomingDays} days, past: ${pastDays} days)...`);
+  console.log(
+    `[nascar_roster_sync] Syncing ACTIVE drivers (upcoming: ${upcomingDays} days, past: ${pastDays} days)...`,
+  );
 
   const currentYear = new Date().getFullYear();
   const now = new Date();
@@ -243,7 +245,9 @@ export async function syncNascarActiveRoster(
         return raceDate >= startDate && raceDate <= endDate;
       });
 
-      console.log(`[nascar_roster_sync] Found ${relevantRaces.length} relevant races for ${seriesName}`);
+      console.log(
+        `[nascar_roster_sync] Found ${relevantRaces.length} relevant races for ${seriesName}`,
+      );
 
       // Collect all active driver IDs from relevant races
       const activeDriverIds = new Set<number>();
@@ -261,12 +265,17 @@ export async function syncNascarActiveRoster(
             }
           }
         } catch (error: any) {
-          console.error(`[nascar_roster_sync] Error fetching drivers for race ${race.race_id}:`, error.message);
+          console.error(
+            `[nascar_roster_sync] Error fetching drivers for race ${race.race_id}:`,
+            error.message,
+          );
           totalErrorCount++;
         }
       }
 
-      console.log(`[nascar_roster_sync] Found ${activeDrivers.length} active drivers for ${seriesName}`);
+      console.log(
+        `[nascar_roster_sync] Found ${activeDrivers.length} active drivers for ${seriesName}`,
+      );
 
       // Upsert all active drivers (mark as active)
       for (const driver of activeDrivers) {
@@ -274,7 +283,10 @@ export async function syncNascarActiveRoster(
           await upsertDriver(driver, seriesId, true);
           totalRecordsProcessed++;
         } catch (error: any) {
-          console.error(`[nascar_roster_sync] Error upserting driver ${driver.driver_id}:`, error.message);
+          console.error(
+            `[nascar_roster_sync] Error upserting driver ${driver.driver_id}:`,
+            error.message,
+          );
           totalErrorCount++;
         }
       }
@@ -282,8 +294,9 @@ export async function syncNascarActiveRoster(
       // Mark other drivers from the full database as inactive
       // (This is optional - we keep them in DB but mark as inactive)
       // Note: We don't remove players, just mark them as inactive
-      console.log(`[nascar_roster_sync] ${seriesName}: ${activeDrivers.length} active drivers synced`);
-
+      console.log(
+        `[nascar_roster_sync] ${seriesName}: ${activeDrivers.length} active drivers synced`,
+      );
     } catch (error: any) {
       console.error(`[nascar_roster_sync] Error processing ${seriesName}:`, error.message);
       totalErrorCount++;

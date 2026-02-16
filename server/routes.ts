@@ -1770,6 +1770,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const userId = req.user ? getUserId(req) : null;
 
+      type NascarLiveStats = {
+        startingPosition?: number;
+        startPosition?: number;
+        runningPosition?: number;
+        finishPosition?: number;
+        carNumber?: string;
+        manufacturer?: string;
+        lapsCompleted?: number;
+        lapsLedCount?: number;
+        lapsLed?: number;
+        flagStateDescription?: string;
+        lapsToGo?: number;
+        lapNumber?: number;
+        lapsInRace?: number;
+      };
+
+      const getNascarStats = (statsJson: unknown): NascarLiveStats =>
+        statsJson && typeof statsJson === "object" ? (statsJson as NascarLiveStats) : {};
+
       // Build race insights for each game
       const raceInsights = await Promise.all(
         games.map(async (game) => {
@@ -1782,32 +1801,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const sortedStats = [...raceStats].sort((a, b) => {
             // Use starting position for scheduled races, running/finish position for live/completed
             const gameStatus = game.status || "scheduled";
+            const aStats = getNascarStats(a.statsJson);
+            const bStats = getNascarStats(b.statsJson);
             if (gameStatus === "scheduled") {
-              const aStart = a.statsJson?.startingPosition ?? 999;
-              const bStart = b.statsJson?.startingPosition ?? 999;
+              const aStart = aStats.startingPosition ?? aStats.startPosition ?? 999;
+              const bStart = bStats.startingPosition ?? bStats.startPosition ?? 999;
               return aStart - bStart;
             }
-            const aPos = a.statsJson?.runningPosition ?? a.statsJson?.finishPosition ?? 999;
-            const bPos = b.statsJson?.runningPosition ?? b.statsJson?.finishPosition ?? 999;
+            const aPos = aStats.runningPosition ?? aStats.finishPosition ?? 999;
+            const bPos = bStats.runningPosition ?? bStats.finishPosition ?? 999;
             return aPos - bPos;
           });
 
           // Get player info for each driver
           const driverStandings = await Promise.all(
             sortedStats.map(async (stat) => {
+              const statStats = getNascarStats(stat.statsJson);
               const player = await storage.getPlayer(stat.playerId);
               return {
-                position: stat.statsJson?.runningPosition ?? stat.statsJson?.finishPosition ?? 0,
-                startingPosition: stat.statsJson?.startingPosition ?? 0,
+                position: statStats.runningPosition ?? statStats.finishPosition ?? 0,
+                startingPosition: statStats.startingPosition ?? statStats.startPosition ?? 0,
                 playerId: stat.playerId,
                 driverName: player ? `${player.firstName} ${player.lastName}` : "Unknown",
-                carNumber: stat.statsJson?.carNumber || "",
-                manufacturer: stat.statsJson?.manufacturer || "",
-                lapsCompleted: stat.statsJson?.lapsCompleted || 0,
-                lapsLed: stat.statsJson?.lapsLedCount || stat.statsJson?.lapsLed || 0,
+                carNumber: statStats.carNumber || "",
+                manufacturer: statStats.manufacturer || "",
+                lapsCompleted: statStats.lapsCompleted || 0,
+                lapsLed: statStats.lapsLedCount || statStats.lapsLed || 0,
                 fantasyPoints: parseFloat(stat.fantasyPoints) || 0,
               };
-            })
+            }),
           );
 
           // Determine race status
@@ -1815,8 +1837,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (raceStats.length > 0) {
             // Get lap info from stats for flag state check
             const mostRecentStat = raceStats[0];
-            const flagState = mostRecentStat?.statsJson?.flagStateDescription;
-            const lapsToGo = mostRecentStat?.statsJson?.lapsToGo;
+            const latestStats = mostRecentStat ? getNascarStats(mostRecentStat.statsJson) : {};
+            const flagState = latestStats.flagStateDescription;
+            const lapsToGo = latestStats.lapsToGo;
 
             // Check if race is finished (checkered flag or 0 laps to go)
             const isRaceFinished =
@@ -1827,7 +1850,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
             if (isRaceFinished) {
               status = "completed";
-              console.log(`[races/insights] Race ${game.gameId} marked completed: flagState=${flagState}, lapsToGo=${lapsToGo}`);
+              console.log(
+                `[races/insights] Race ${game.gameId} marked completed: flagState=${flagState}, lapsToGo=${lapsToGo}`,
+              );
             } else if (mostRecentStat) {
               // If we have recent stats (within last hour), consider it live
               const statTime = new Date(mostRecentStat.gameDate).getTime();
@@ -1840,12 +1865,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
 
           // Get lap info from live stats if available
-          const lapInfo = raceStats[0]?.statsJson
+          const firstRaceStats = raceStats[0] ? getNascarStats(raceStats[0].statsJson) : null;
+          const lapInfo = firstRaceStats
             ? {
-                currentLap: raceStats[0].statsJson.lapNumber || 0,
-                totalLaps: raceStats[0].statsJson.lapsInRace || 0,
-                lapsToGo: raceStats[0].statsJson.lapsToGo || 0,
-                flagState: raceStats[0].statsJson.flagStateDescription || "Unknown",
+                currentLap: firstRaceStats.lapNumber || 0,
+                totalLaps: firstRaceStats.lapsInRace || 0,
+                lapsToGo: firstRaceStats.lapsToGo || 0,
+                flagState: firstRaceStats.flagStateDescription || "Unknown",
               }
             : null;
 
@@ -1860,7 +1886,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             driverStandings,
             totalDrivers: driverStandings.length,
           };
-        })
+        }),
       );
 
       // Get user's NASCAR holdings for boost eligibility
@@ -1890,12 +1916,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
               name: player ? `${player.firstName} ${player.lastName}` : "Unknown",
               team: h.player.team,
               availableShares: h.availableShares,
-              totalShares: h.totalShares,
+              totalShares: parseFloat(h.quantity) || 0,
               powerLevel: parseFloat(h.powerLevel) || 0,
               isBoosted: boostedPlayerIds.has(h.player.id),
               gameId: h.gameId,
             };
-          })
+          }),
         );
       }
 
@@ -7110,8 +7136,8 @@ ${posts
           or(
             like(players.id, "nascar_NCS_%"),
             like(players.id, "nascar_NXS_%"),
-            like(players.id, "nascar_NTS_%")
-          )
+            like(players.id, "nascar_NTS_%"),
+          ),
         );
 
       console.log(`[ADMIN] Found ${oldPlayers.length} players with old format`);
@@ -8287,7 +8313,24 @@ ${posts
 
       const count = result[0]?.count || 0;
 
-      res.json({ count });
+      // Daily digest notifications release at 6:00 AM ET
+      const now = new Date();
+      const todayET = getTodayET();
+      const { startOfDay: todayStartET } = getETDayBoundaries(todayET);
+      let latestDigestReleaseAt = new Date(todayStartET.getTime() + 6 * 60 * 60 * 1000);
+
+      if (now < latestDigestReleaseAt) {
+        latestDigestReleaseAt = new Date(latestDigestReleaseAt.getTime() - 24 * 60 * 60 * 1000);
+      }
+
+      const hasUnreadDigest = lastViewed < latestDigestReleaseAt;
+
+      res.json({
+        count,
+        digestCount: hasUnreadDigest ? 1 : 0,
+        hasUnreadDigest,
+        digestReleaseAt: latestDigestReleaseAt,
+      });
     } catch (error: any) {
       console.error("[news/unread-count] Error:", error.message);
       res.status(500).json({ error: error.message });
@@ -8329,6 +8372,10 @@ ${posts
 
   // ========== END NEWS HUB ==========
 
+  const ANALYTICS_MARKET_CUTOFF = new Date("2026-02-04T00:00:00.000Z");
+  const clampAnalyticsStartDate = (startDate: Date) =>
+    startDate < ANALYTICS_MARKET_CUTOFF ? new Date(ANALYTICS_MARKET_CUTOFF) : startDate;
+
   // Analytics API - market insights and player analysis
   app.get("/api/analytics", async (req, res) => {
     try {
@@ -8360,12 +8407,14 @@ ${posts
           startDate.setDate(now.getDate() - 1);
       }
 
+      const effectiveStartDate = clampAnalyticsStartDate(startDate);
+
       // Get market health stats and share economy stats from storage
       const [marketHealth, shareEconomy, timeSeries, shareEconomyTimeSeries] = await Promise.all([
-        storage.getMarketHealthStats(startDate, now),
-        storage.getShareEconomyStats(startDate, now),
-        storage.getMarketHealthTimeSeries(startDate, now),
-        storage.getShareEconomyTimeSeries(startDate, now),
+        storage.getMarketHealthStats(effectiveStartDate, now),
+        storage.getShareEconomyStats(effectiveStartDate, now),
+        storage.getMarketHealthTimeSeries(effectiveStartDate, now),
+        storage.getShareEconomyTimeSeries(effectiveStartDate, now),
       ]);
 
       // Calculate percentage changes
@@ -8514,12 +8563,17 @@ ${posts
           startDate.setDate(now.getDate() - 30);
       }
 
+      const effectiveStartDate = clampAnalyticsStartDate(startDate);
+
       // Query market snapshots from database
       const snapshots = await db
         .select()
         .from(marketSnapshots)
         .where(
-          and(gte(marketSnapshots.snapshotDate, startDate), lte(marketSnapshots.snapshotDate, now)),
+          and(
+            gte(marketSnapshots.snapshotDate, effectiveStartDate),
+            lte(marketSnapshots.snapshotDate, now),
+          ),
         )
         .orderBy(marketSnapshots.snapshotDate);
 
@@ -8534,7 +8588,7 @@ ${posts
         .from(scoutDistributions)
         .where(
           and(
-            gte(scoutDistributions.hourTimestamp, startDate),
+            gte(scoutDistributions.hourTimestamp, effectiveStartDate),
             lte(scoutDistributions.hourTimestamp, now),
           ),
         )
@@ -8548,7 +8602,7 @@ ${posts
 
       res.json({
         timeRange,
-        startDate: startDate.toISOString(),
+        startDate: effectiveStartDate.toISOString(),
         endDate: now.toISOString(),
         snapshots: snapshots.map((s) => {
           const snapshotDateStr = new Date(s.snapshotDate).toISOString().split("T")[0];
@@ -8606,6 +8660,8 @@ ${posts
           startDate.setDate(now.getDate() - 30);
       }
 
+      const effectiveStartDate = clampAnalyticsStartDate(startDate);
+
       // Get AMM-first comparison data
       const [
         sharesMap,
@@ -8620,7 +8676,9 @@ ${posts
         db
           .select({ count: sql<number>`COUNT(*)` })
           .from(dailyBoosts)
-          .where(and(gte(dailyBoosts.boostDate, startDate), lte(dailyBoosts.boostDate, now))),
+          .where(
+            and(gte(dailyBoosts.boostDate, effectiveStartDate), lte(dailyBoosts.boostDate, now)),
+          ),
         db
           .select({
             playerId: dailyBoosts.playerId,
@@ -8630,7 +8688,7 @@ ${posts
           .where(
             and(
               inArray(dailyBoosts.playerId, playerIds),
-              gte(dailyBoosts.boostDate, startDate),
+              gte(dailyBoosts.boostDate, effectiveStartDate),
               lte(dailyBoosts.boostDate, now),
             ),
           )
@@ -8645,7 +8703,7 @@ ${posts
           .where(
             and(
               inArray(trades.playerId, playerIds),
-              gte(trades.executedAt, startDate),
+              gte(trades.executedAt, effectiveStartDate),
               lte(trades.executedAt, now),
               sql`(${trades.buyerId} = 'pool' OR ${trades.sellerId} = 'pool')`,
             ),
@@ -8663,7 +8721,7 @@ ${posts
           .where(
             and(
               inArray(trades.playerId, playerIds),
-              gte(trades.executedAt, startDate),
+              gte(trades.executedAt, effectiveStartDate),
               lte(trades.executedAt, now),
               sql`(${trades.buyerId} = 'pool' OR ${trades.sellerId} = 'pool')`,
             ),

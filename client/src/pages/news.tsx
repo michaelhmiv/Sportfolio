@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,8 @@ import {
   RefreshCw,
   Zap,
   Loader2,
+  Target,
+  Wallet,
 } from "lucide-react";
 import { useNewsNotifications } from "@/lib/news-notification-context";
 import { useAuth } from "@/hooks/useAuth";
@@ -45,25 +47,29 @@ interface DigestSection {
   }>;
 }
 
+interface DigestSummaryItem {
+  label: string;
+  value: string;
+  change?: string;
+  isPositive?: boolean;
+}
+
 interface Digest {
   userId: string;
   generatedAt: string;
+  periodStart: string;
+  periodEnd: string;
+  periodLabel: string;
+  summary: DigestSummaryItem[];
   sections: DigestSection[];
 }
 
 export default function NewsPage() {
   const [activeTab, setActiveTab] = useState("general");
   const { isAuthenticated, user } = useAuth();
-  const { markNewsAsRead, refreshUnreadCount } = useNewsNotifications();
+  const { markNewsAsRead, refreshUnreadCount, hasUnreadDigest } = useNewsNotifications();
   const { toast } = useToast();
   const isAdmin = user?.isAdmin || false;
-
-  // Mark news as read when user visits the page (clears notification badge)
-  useEffect(() => {
-    if (isAuthenticated) {
-      markNewsAsRead();
-    }
-  }, [isAuthenticated, markNewsAsRead]);
 
   // Fetch general news
   const {
@@ -191,6 +197,9 @@ export default function NewsPage() {
             <TabsTrigger value="digest" className="gap-2" disabled={!isAuthenticated}>
               <BarChart3 className="w-4 h-4" />
               Daily Digest
+              {hasUnreadDigest && (
+                <span className="ml-1 inline-block h-2.5 w-2.5 rounded-full bg-red-500" />
+              )}
             </TabsTrigger>
           </TabsList>
 
@@ -306,6 +315,40 @@ export default function NewsPage() {
               </div>
             ) : digestData?.digest?.sections?.length ? (
               <div className="space-y-4">
+                {digestData.digest.summary?.length > 0 && (
+                  <>
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                      {digestData.digest.summary.map((item, index) => (
+                        <motion.div
+                          key={`${item.label}-${index}`}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: index * 0.04 }}
+                        >
+                          <Card>
+                            <CardContent className="pt-4 pb-4">
+                              <div className="text-xs text-muted-foreground">{item.label}</div>
+                              <div className="text-lg font-semibold">{item.value}</div>
+                              {item.change && (
+                                <div
+                                  className={`text-xs mt-1 ${
+                                    item.isPositive ? "text-green-500" : "text-red-500"
+                                  }`}
+                                >
+                                  {item.change}
+                                </div>
+                              )}
+                            </CardContent>
+                          </Card>
+                        </motion.div>
+                      ))}
+                    </div>
+                    <p className="text-xs text-muted-foreground text-center">
+                      Reporting window: {digestData.digest.periodLabel}
+                    </p>
+                  </>
+                )}
+
                 {digestData.digest.sections.map((section, sIndex) => (
                   <motion.div
                     key={section.title}
@@ -325,8 +368,20 @@ export default function NewsPage() {
                           {section.title === "Scout Activity" && (
                             <BarChart3 className="w-4 h-4 text-purple-500" />
                           )}
+                          {section.title === "Boost Performance" && (
+                            <Target className="w-4 h-4 text-orange-500" />
+                          )}
+                          {section.title === "Earnings Breakdown" && (
+                            <Wallet className="w-4 h-4 text-emerald-500" />
+                          )}
+                          {section.title === "Portfolio Attribution" && (
+                            <DollarSign className="w-4 h-4 text-cyan-500" />
+                          )}
                           {section.title === "Market Movers" && (
                             <TrendingUp className="w-4 h-4 text-blue-500" />
+                          )}
+                          {section.title === "Vesting Activity" && (
+                            <Clock className="w-4 h-4 text-indigo-500" />
                           )}
                           {section.title}
                         </CardTitle>

@@ -12,6 +12,10 @@ import type { User } from "@shared/schema";
 import { getSupabase, resetSupabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
+import { Capacitor } from "@capacitor/core";
+import { Browser } from "@capacitor/browser";
+
+const MOBILE_AUTH_REDIRECT_URL = "sportfolio://auth/callback";
 
 function debugLog(stage: string, message: string, data?: any) {
   const timestamp = new Date().toISOString();
@@ -348,14 +352,35 @@ export function useAuth() {
         throw new Error("Auth not initialized");
       }
 
-      const { error } = await supabaseClient.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
-        },
-      });
+      if (Capacitor.isNativePlatform()) {
+        const { data, error } = await supabaseClient.auth.signInWithOAuth({
+          provider: "google",
+          options: {
+            redirectTo: MOBILE_AUTH_REDIRECT_URL,
+            skipBrowserRedirect: true,
+          },
+        });
 
-      if (error) throw error;
+        if (error) throw error;
+        if (!data?.url) {
+          throw new Error("Could not start mobile OAuth flow");
+        }
+
+        await Browser.open({
+          url: data.url,
+          windowName: "_self",
+        });
+      } else {
+        const { error } = await supabaseClient.auth.signInWithOAuth({
+          provider: "google",
+          options: {
+            redirectTo: `${window.location.origin}/auth/callback`,
+          },
+        });
+
+        if (error) throw error;
+      }
+
       debugLog("GOOGLE_LOGIN", "Google OAuth initiated");
       return { success: true };
     } catch (error: any) {

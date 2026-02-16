@@ -275,8 +275,8 @@ export default function Dashboard() {
   const games = gameInsights?.games || [];
   const races = raceInsights?.races || [];
   const boostSlotsRemaining = isNascar
-    ? raceInsights?.boostSlotsRemaining ?? null
-    : gameInsights?.boostSlotsRemaining ?? null;
+    ? (raceInsights?.boostSlotsRemaining ?? null)
+    : (gameInsights?.boostSlotsRemaining ?? null);
   const userHoldings = raceInsights?.userHoldings || [];
   const liveGames = games.filter((game) => getEffectiveGameStatus(game) === "inprogress");
   const upcomingGames = games.filter((game) => getEffectiveGameStatus(game) === "scheduled");
@@ -626,7 +626,11 @@ export default function Dashboard() {
                           raceList: upcomingRaces,
                           empty: "No upcoming races scheduled.",
                         },
-                        { title: "Completed", raceList: completedRaces, empty: "No completed races." },
+                        {
+                          title: "Completed",
+                          raceList: completedRaces,
+                          empty: "No completed races.",
+                        },
                       ].map((section) => (
                         <div key={section.title} className="space-y-2">
                           <div className="flex items-center justify-between">
@@ -896,14 +900,21 @@ export default function Dashboard() {
             <DialogHeader>
               <DialogTitle>{selectedRace.trackName}</DialogTitle>
               <DialogDescription>
-                {selectedRace.series} Series - {selectedRace.status === "completed" ? "Final Results" : selectedRace.status === "inprogress" ? "Live Race" : "Starting Grid"}
+                {selectedRace.series} Series -{" "}
+                {selectedRace.status === "completed"
+                  ? "Final Results"
+                  : selectedRace.status === "inprogress"
+                    ? "Live Race"
+                    : "Starting Grid"}
               </DialogDescription>
             </DialogHeader>
             <div className="mt-4">
               {selectedRace.lapInfo && selectedRace.status !== "scheduled" && (
                 <div className="mb-4 flex items-center gap-4 text-sm">
                   <Badge variant={selectedRace.status === "completed" ? "secondary" : "default"}>
-                    {selectedRace.status === "completed" ? "Final" : `Lap ${selectedRace.lapInfo.currentLap}/${selectedRace.lapInfo.totalLaps}`}
+                    {selectedRace.status === "completed"
+                      ? "Final"
+                      : `Lap ${selectedRace.lapInfo.currentLap}/${selectedRace.lapInfo.totalLaps}`}
                   </Badge>
                   {selectedRace.lapInfo.lapsToGo > 0 && (
                     <span className="text-muted-foreground">
@@ -930,30 +941,49 @@ export default function Dashboard() {
                 </div>
                 {selectedRace.driverStandings?.slice(0, 40).map((driver: any, index: number) => {
                   const posDiff = driver.startingPosition - driver.position;
-                  const posDiffClass = posDiff > 0 ? "text-green-500" : posDiff < 0 ? "text-red-500" : "text-muted-foreground";
+                  const posDiffClass =
+                    posDiff > 0
+                      ? "text-green-500"
+                      : posDiff < 0
+                        ? "text-red-500"
+                        : "text-muted-foreground";
                   return (
-                    <div key={driver.playerId} className="grid grid-cols-12 gap-2 text-sm py-2 border-b items-center">
+                    <div
+                      key={driver.playerId}
+                      className="grid grid-cols-12 gap-2 text-sm py-2 border-b items-center"
+                    >
                       <div className={`col-span-1 font-bold ${index < 3 ? "text-yellow-500" : ""}`}>
                         {driver.position}
                       </div>
                       <div className="col-span-1">
-                        <span className="text-muted-foreground">{driver.startingPosition || "-"}</span>
-                        {driver.startingPosition > 0 && driver.position > 0 && driver.startingPosition !== driver.position && (
-                          <span className={`text-xs ml-1 ${posDiffClass}`}>
-                            ({posDiff > 0 ? "+" : ""}{posDiff})
-                          </span>
-                        )}
+                        <span className="text-muted-foreground">
+                          {driver.startingPosition || "-"}
+                        </span>
+                        {driver.startingPosition > 0 &&
+                          driver.position > 0 &&
+                          driver.startingPosition !== driver.position && (
+                            <span className={`text-xs ml-1 ${posDiffClass}`}>
+                              ({posDiff > 0 ? "+" : ""}
+                              {posDiff})
+                            </span>
+                          )}
                       </div>
                       <div className="col-span-4 font-medium truncate">{driver.driverName}</div>
                       <div className="col-span-1 text-muted-foreground">#{driver.carNumber}</div>
-                      <div className="col-span-2 text-muted-foreground text-xs">{driver.manufacturer}</div>
-                      <div className="col-span-1 text-muted-foreground text-xs">{driver.lapsCompleted || "-"}</div>
+                      <div className="col-span-2 text-muted-foreground text-xs">
+                        {driver.manufacturer}
+                      </div>
+                      <div className="col-span-1 text-muted-foreground text-xs">
+                        {driver.lapsCompleted || "-"}
+                      </div>
                       <div className="col-span-1">
                         {driver.lapsLed > 0 && (
                           <span className="text-yellow-500 text-xs">{driver.lapsLed} laps</span>
                         )}
                       </div>
-                      <div className="col-span-1 text-right font-mono text-purple-400">{driver.fantasyPoints?.toFixed(1)}</div>
+                      <div className="col-span-1 text-right font-mono text-purple-400">
+                        {driver.fantasyPoints?.toFixed(1)}
+                      </div>
                     </div>
                   );
                 })}

@@ -3,14 +3,14 @@
  * Run this locally and expose via exe.dev to bypass IP blocking
  */
 
-const http = require('http');
-const https = require('https');
+import http from "node:http";
+import https from "node:https";
 
-const PORT = process.env.PORT || 3001;
-const NASCAR_API_HOST = 'cf.nascar.com';
+const PORT = globalThis.process?.env?.PORT || 3001;
+const NASCAR_API_HOST = "cf.nascar.com";
 
 const proxyServer = http.createServer((req, res) => {
-  console.log(`[PROXY] ${req.method} ${req.url}`);
+  globalThis.console.log(`[PROXY] ${req.method} ${req.url}`);
 
   const options = {
     hostname: NASCAR_API_HOST,
@@ -30,14 +30,14 @@ const proxyServer = http.createServer((req, res) => {
 
   req.pipe(proxyReq);
 
-  proxyReq.on('error', (error) => {
-    console.error('[PROXY] Error:', error.message);
+  proxyReq.on("error", (error) => {
+    globalThis.console.error("[PROXY] Error:", error.message);
     res.writeHead(500);
-    res.end('Proxy error');
+    res.end("Proxy error");
   });
 });
 
 proxyServer.listen(PORT, () => {
-  console.log(`NASCAR Proxy running on http://localhost:${PORT}`);
-  console.log(`Expose via: ssh exe.dev share port <your-vm> ${PORT}`);
+  globalThis.console.log(`NASCAR Proxy running on http://localhost:${PORT}`);
+  globalThis.console.log(`Expose via: ssh exe.dev share port <your-vm> ${PORT}`);
 });

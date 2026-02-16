@@ -34,10 +34,7 @@ export async function executeScoutStrategy(profile: BotProfile & { user: any }):
 
     // 3. Get ALL active players - no filtering by market cap
     // This ensures ALL players get scout coverage, not just popular ones
-    const allPlayers = await db
-      .select()
-      .from(players)
-      .where(eq(players.isActive, true));
+    const allPlayers = await db.select().from(players).where(eq(players.isActive, true));
 
     if (allPlayers.length === 0) return;
 

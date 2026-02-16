@@ -49,9 +49,8 @@ export function GameCommandCenterCard({
   const nascarTrack = game.homeTeam;
   const nascarSeries = game.awayTeam;
   // Use scores to show lap info for NASCAR (homeScore = laps completed, awayScore = total laps)
-  const nascarLapInfo = effectiveStatus === "inprogress"
-    ? `${game.homeScore || 0}/${game.awayScore || "?"}`
-    : null;
+  const nascarLapInfo =
+    effectiveStatus === "inprogress" ? `${game.homeScore || 0}/${game.awayScore || "?"}` : null;
 
   const ownedTeams = new Set(
     [

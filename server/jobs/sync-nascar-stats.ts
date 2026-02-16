@@ -130,7 +130,13 @@ export async function syncNascarRaceResults(
     // Store stats in database
     for (const result of results) {
       try {
-        const statsData = await convertToPlayerGameStats(result, seriesId, raceId, raceDate, season);
+        const statsData = await convertToPlayerGameStats(
+          result,
+          seriesId,
+          raceId,
+          raceDate,
+          season,
+        );
 
         await storage.upsertPlayerGameStats({
           playerId: statsData.playerId,
@@ -190,7 +196,6 @@ export async function syncNascarRaceResults(
       );
     }
 
-    const totalRecordsProcessed = recordsProcessed + weekendRecordsProcessed;
     console.log(
       `[nascar_stats_sync] Completed race ${raceId}: ${recordsProcessed} driver stats stored, ${errorCount} errors`,
     );
@@ -254,7 +259,13 @@ export async function syncNascarStats(progressCallback?: ProgressCallback): Prom
     const seriesId = race.series_id as NascarSeriesId;
     const raceDate = new Date(race.race_date);
 
-    const result = await syncNascarRaceResults(currentYear, seriesId, race.race_id, raceDate, progressCallback);
+    const result = await syncNascarRaceResults(
+      currentYear,
+      seriesId,
+      race.race_id,
+      raceDate,
+      progressCallback,
+    );
     totalRequestCount += result.requestCount;
     totalRecordsProcessed += result.recordsProcessed;
     totalErrorCount += result.errorCount;
