@@ -724,10 +724,10 @@ export async function compileUserDigest(userId: string): Promise<UserDigest> {
   );
   const netWorthDelta = latestNetWorth - previousNetWorth;
   const netWorthDeltaPercent = previousNetWorth > 0 ? (netWorthDelta / previousNetWorth) * 100 : 0;
+  const latestRank = latestSnapshots[0]?.netWorthRank;
+  const previousRank = latestSnapshots[1]?.netWorthRank;
   const rankDelta =
-    latestSnapshots[0]?.netWorthRank !== null && latestSnapshots[1]?.netWorthRank !== null
-      ? asNumber(latestSnapshots[1]?.netWorthRank) - asNumber(latestSnapshots[0]?.netWorthRank)
-      : 0;
+    latestRank != null && previousRank != null ? asNumber(previousRank) - asNumber(latestRank) : 0;
 
   const summary: DigestSummaryItem[] = [
     {
