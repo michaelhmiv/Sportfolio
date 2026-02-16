@@ -83,6 +83,7 @@ jobs:
           )
 
           DISTRIBUTION_LOG="$RUNNER_TEMP/firebase-distribution.log"
+          set -euo pipefail
 
           if [ -n "$FIREBASE_DISTRIBUTION_TESTERS" ]; then
             firebase appdistribution:distribute mobile/android/app/build/outputs/apk/debug/app-debug.apk \
@@ -98,9 +99,4 @@ jobs:
             firebase appdistribution:distribute mobile/android/app/build/outputs/apk/debug/app-debug.apk \
               --app "$FIREBASE_APP_ID" \
               --release-notes "$RELEASE_NOTES" | tee "$DISTRIBUTION_LOG"
-          fi
-
-          if ! grep -q "firebase_console_uri" "$DISTRIBUTION_LOG"; then
-            echo "::error::Upload finished without expected Firebase release output."
-            exit 1
           fi
