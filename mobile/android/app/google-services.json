@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "989352595103",
-    "project_id": "sportfolio-dae63",
-    "storage_bucket": "sportfolio-dae63.firebasestorage.app"
+    "project_number": "949731430033",
+    "project_id": "sportfolio-f1b70",
+    "storage_bucket": "sportfolio-f1b70.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:989352595103:android:0e8e9ea91a868fde161caa",
+        "mobilesdk_app_id": "1:949731430033:android:765ccdf43d4141b4abf930",
         "android_client_info": {
           "package_name": "sportfolio.market"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyA86MVZ67YVp9g70-0BzYmMyV6OwALo8is"
+          "current_key": "AIzaSyDsFZUxQxPGAHlJWLCFwYh2vb6GEr5BfCw"
         }
       ],
       "services": {
