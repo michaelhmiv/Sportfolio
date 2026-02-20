@@ -47,3 +47,23 @@
 - [x] Update MLB schedule/stats sync paths to use compatibility helpers
 - [x] Add regression tests for away-team/away-score fallback behavior
 - [x] Validate via `npm run check`, `npm run lint`, `npm run test:run`
+
+## 2026-02-20 Pricing Integrity Hardening
+
+- [x] Identify remaining API paths that still fallback to placeholder `players.currentPrice`
+- [x] Remove placeholder-price fallback in top-market-cap and market-activity enrichment paths
+- [x] Update market scanner sourcing to require pool-backed pricing (or real trade price)
+- [x] Validate via `npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`
+
+## 2026-02-20 PR #70 Review + Pool Seeding Follow-up
+
+- [x] Review PR #70 comments and isolate the scanner SQL type mismatch in `getFinancialMarketScanners`
+- [x] Fix scanner query typing so `COALESCE` uses compatible SQL types at runtime
+- [x] Ensure pool seeding also repairs active players with unseeded/legacy pool liquidity state
+- [x] Expose repaired count in admin seed response and UI messaging
+- [x] Validate via `npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`
+
+## 2026-02-20 PR #70 Latest Review Comment
+
+- [x] Exclude non-positive AMM spot prices from `/api/players/spotlight/top-market-cap`
+- [ ] Validate via `npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`

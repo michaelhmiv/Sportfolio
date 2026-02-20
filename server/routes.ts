@@ -30,6 +30,7 @@ import {
   dailyGames,
   dailyBoosts,
   players,
+  playerPools,
   playerGameStats,
   sharePayouts,
   holdingsLocks,
@@ -51,11 +52,14 @@ import { getGameDay, getETDayBoundaries, getTodayETBoundaries, getTodayET } from
 import { getOrCompute } from "./cache";
 import { registerAmmRoutes } from "./routes/amm";
 import { registerLpRoutes } from "./routes/lp";
-import { getOrCreatePool } from "./amm/pool";
+import { getOrCreatePool, initializePool } from "./amm/pool";
 
 // Feature flags - set to false to disable features
 const CONTESTS_ENABLED = false; // DISABLED - contests feature removed
 const SUPPORTED_SPORTS = ["NBA", "NFL", "MLB", "NASCAR"] as const;
+const LEGACY_POOL_SHARES = 1000;
+const LEGACY_POOL_PLAY_MONEY = 10000;
+const LEGACY_POOL_LP_SHARES = 1000;
 
 /**
  * Get power/boosts data for the dashboard
@@ -3463,25 +3467,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const sport = (req.query.sport as string) || "NBA";
       const players = await storage.getPlayersBySport(sport);
 
-      // Filter to players with established market prices and sort by marketCap
+      const playerIds = players.map((p) => p.id);
+      const poolDataMap = await storage.getBatchPoolData(playerIds);
+
+      // Only include players with real AMM pool price data
       const topMarketCap = players
-        .filter((p) => (p.lastTradePrice || p.currentPrice) && parseFloat(p.marketCap) > 0)
-        .sort((a, b) => parseFloat(b.marketCap) - parseFloat(a.marketCap))
-        .slice(0, limit)
-        .map((p) => ({
-          id: p.id,
-          firstName: p.firstName,
-          lastName: p.lastName,
-          team: p.team,
-          position: p.position,
-          currentPrice: p.currentPrice
-            ? parseFloat(p.currentPrice)
-            : p.lastTradePrice
-              ? parseFloat(p.lastTradePrice)
-              : null,
-          marketCap: parseFloat(p.marketCap),
-          totalShares: p.totalShares,
-        }));
+        .map((p) => {
+          const poolData = poolDataMap.get(p.id);
+          const ammSpotPrice =
+            poolData && poolData.shares > 0 && poolData.playMoney > 0
+              ? poolData.playMoney / poolData.shares
+              : null;
+
+          return {
+            id: p.id,
+            firstName: p.firstName,
+            lastName: p.lastName,
+            team: p.team,
+            position: p.position,
+            currentPrice: ammSpotPrice,
+            marketCap: parseFloat(p.marketCap),
+            totalShares: p.totalShares,
+          };
+        })
+        .filter(
+          (p) =>
+            p.currentPrice !== null &&
+            Number.isFinite(p.currentPrice) &&
+            p.currentPrice > 0 &&
+            p.marketCap > 0,
+        )
+        .sort((a, b) => b.marketCap - a.marketCap)
+        .slice(0, limit);
 
       res.json(topMarketCap);
     } catch (error: any) {
@@ -3750,10 +3767,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         return {
           ...enriched,
-          ...(isAmmOnlyMode && ammSpotPrice !== null
+          ...(isAmmOnlyMode
             ? {
-                lastTradePrice: ammSpotPrice.toFixed(2),
-                currentPrice: ammSpotPrice.toFixed(2),
+                lastTradePrice: ammSpotPrice !== null ? ammSpotPrice.toFixed(2) : null,
+                currentPrice: ammSpotPrice !== null ? ammSpotPrice.toFixed(2) : null,
               }
             : {}),
           bestBid: null,
@@ -3805,7 +3822,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return {
           ...item,
           priceChange24h: player?.priceChange24h || "0",
-          currentPrice: player?.currentPrice || "0", // Ensure we have the latest reference price
+          currentPrice: player?.lastTradePrice || null,
         };
       });
 
@@ -7748,7 +7765,88 @@ ${posts
     }
   });
 
-  // Admin endpoint: Migrate NASCAR player IDs to unified format
+  // Admin endpoint: Seed missing pools and repair unseeded legacy pools
+  app.post("/api/admin/seed-missing-pools", adminAuth, async (req, res) => {
+    try {
+      const clientIp = req.ip || req.connection.remoteAddress;
+      console.log(`[ADMIN] Seed missing pools requested by ${clientIp}`);
+
+      const missingPools = await db
+        .select({ id: players.id })
+        .from(players)
+        .leftJoin(playerPools, eq(playerPools.playerId, players.id))
+        .where(and(eq(players.isActive, true), sql`${playerPools.playerId} IS NULL`));
+
+      const unseededPools = await db
+        .select({ id: players.id })
+        .from(players)
+        .innerJoin(playerPools, eq(playerPools.playerId, players.id))
+        .where(
+          and(
+            eq(players.isActive, true),
+            eq(playerPools.totalTrades, 0),
+            sql`(
+              CAST(${playerPools.shares} AS numeric) <= 0
+              OR CAST(${playerPools.playMoney} AS numeric) <= 0
+              OR CAST(${playerPools.lpSharesTotal} AS numeric) <= 0
+              OR (
+                CAST(${playerPools.shares} AS numeric) = ${LEGACY_POOL_SHARES}
+                AND CAST(${playerPools.playMoney} AS numeric) = ${LEGACY_POOL_PLAY_MONEY}
+                AND CAST(${playerPools.lpSharesTotal} AS numeric) = ${LEGACY_POOL_LP_SHARES}
+              )
+            )`,
+          ),
+        );
+
+      const missingPoolIds = new Set(missingPools.map((p) => p.id));
+      const repairPoolIds = new Set(unseededPools.map((p) => p.id));
+      const playerIds = Array.from(
+        new Set([...Array.from(missingPoolIds), ...Array.from(repairPoolIds)]),
+      );
+
+      let seededCount = 0;
+      let repairedCount = 0;
+      const failed: Array<{ playerId: string; action: "seed" | "repair"; error: string }> = [];
+
+      for (const playerId of playerIds) {
+        const action: "seed" | "repair" = missingPoolIds.has(playerId) ? "seed" : "repair";
+        try {
+          await initializePool(playerId);
+          if (action === "seed") {
+            seededCount += 1;
+          } else {
+            repairedCount += 1;
+          }
+        } catch (error: any) {
+          failed.push({ playerId, action, error: error.message || "Unknown error" });
+        }
+      }
+
+      const statusCode = failed.length > 0 ? 207 : 200;
+      invalidateAdminStatsCache();
+
+      const successSummary = `Seeded ${seededCount} missing pools and repaired ${repairedCount} unseeded pools`;
+
+      res.status(statusCode).json({
+        ok: failed.length === 0,
+        status: failed.length > 0 ? "degraded" : "success",
+        message:
+          failed.length > 0 ? `${successSummary} with ${failed.length} failures` : successSummary,
+        totalCandidates: playerIds.length,
+        totalMissingPools: missingPoolIds.size,
+        totalRepairCandidates: repairPoolIds.size,
+        seededCount,
+        repairedCount,
+        failedCount: failed.length,
+        failed,
+        adminContext: (req as any).adminContext || null,
+      });
+    } catch (error: any) {
+      console.error("[ADMIN] Failed to seed missing pools:", error.message);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.post("/api/admin/migrate-nascar-player-ids", adminAuth, async (req, res) => {
     try {
       console.log("[ADMIN] Starting NASCAR player ID migration...");
