@@ -78,3 +78,19 @@
 
 - [x] Exclude non-positive AMM spot prices from `/api/players/spotlight/top-market-cap`
 - [ ] Validate via `npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`
+
+## 2026-02-20 Signup Reliability + Onboarding UX
+
+- [x] Add shared email normalization/validation utility for auth inputs
+- [x] Harden `useAuth` signup/login flows with normalized email and mapped auth error messaging
+- [x] Add signup verification follow-up UX (resend verification + sign-in return path)
+- [x] Refresh onboarding modal content and styling to match Sportfolio aesthetic and gameplay priorities
+- [x] Align onboarding missions terminology with updated onboarding concepts
+- [x] Validate via `npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`
+
+## 2026-02-20 Signup + Onboarding Follow-through
+
+- [x] Add Playwright coverage for signup normalization/verification resend and onboarding CTA navigation
+- [x] Add auth telemetry ingestion endpoint and metrics counters for signup/login outcome codes
+- [x] Validate via `npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`
+- [x] Validate targeted e2e via `npx playwright test tests/e2e/auth-onboarding.spec.ts`

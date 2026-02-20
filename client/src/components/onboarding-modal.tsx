@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useLocation } from "wouter";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { Button } from "@/components/ui/button";
@@ -8,7 +9,7 @@ import {
   CarouselItem,
   type CarouselApi,
 } from "@/components/ui/carousel";
-import { Clock, TrendingUp, Trophy } from "lucide-react";
+import { Activity, Trophy, TrendingUp } from "lucide-react";
 import { SiDiscord } from "react-icons/si";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -18,60 +19,81 @@ interface OnboardingModalProps {
   onComplete: () => void;
 }
 
-const slides = [
+interface OnboardingSlide {
+  id: string;
+  icon: typeof Activity;
+  title: string;
+  subtitle: string;
+  description: string;
+  color: string;
+  ctaLabel: string;
+  ctaPath: string;
+}
+
+const slides: OnboardingSlide[] = [
   {
-    id: "scouting",
-    icon: Clock,
-    title: "SCOUT SHARES",
-    subtitle: "Earn player shares via scouting",
+    id: "scouts",
+    icon: Activity,
+    title: "EARN WITH SCOUTS",
+    subtitle: "Scout-minutes generate hourly shares",
     description:
-      "Assign scouts to players to earn free shares hourly. You get 5 scout slots (10 for premium), and scouted shares are yours to keep! Manage assignments in your dashboard.",
-    color: "text-yellow-500",
+      "Assign up to 5 scouts (10 premium) and earn shares every hour based on your share of scout-minutes.",
+    color: "text-amber-500",
+    ctaLabel: "Open Scouts",
+    ctaPath: "/pools",
   },
   {
-    id: "marketplace",
+    id: "pools",
     icon: TrendingUp,
-    title: "TRADE SHARES",
-    subtitle: "Buy and sell like stocks",
+    title: "TRADE PLAYER POOLS",
+    subtitle: "Instant AMM pricing with live quotes",
     description:
-      "Trade instantly against the AMM pool with transparent pricing and real-time quotes. Build your portfolio as prices move with pool activity.",
-    color: "text-green-500",
+      "Buy and sell against constant-product pools instantly, or add liquidity to capture fee flow over time.",
+    color: "text-emerald-500",
+    ctaLabel: "Go to Pools",
+    ctaPath: "/pools",
   },
   {
-    id: "contests",
+    id: "power",
     icon: Trophy,
-    title: "ENTER CONTESTS",
-    subtitle: "Compete in daily 50/50 contests",
+    title: "BOOST GAME OUTCOMES",
+    subtitle: "Use power slots and contests",
     description:
-      "Enter contests using your Sportfolio cash and win prizes! Build a lineup from that day's games and score based on real player performance!",
-    color: "text-blue-500",
-  },
-  {
-    id: "discord",
-    icon: SiDiscord,
-    title: "JOIN THE COMMUNITY",
-    subtitle: "Connect with other traders",
-    description:
-      "Get trading tips, contest strategies, and platform updates. Join our Discord to chat with fellow traders!",
-    color: "text-[#5865F2]",
-    isDiscord: true,
+      "Deploy one share per daily boost slot and combine it with contests to convert game performance into portfolio upside.",
+    color: "text-sky-500",
+    ctaLabel: "Open Power",
+    ctaPath: "/power",
   },
 ];
 
+function trackOnboardingEvent(event: string, data?: Record<string, unknown>) {
+  console.info(`[ONBOARDING_EVENT] ${event}`, data || {});
+}
+
 export function OnboardingModal({ open, onComplete }: OnboardingModalProps) {
+  const [, navigate] = useLocation();
   const [api, setApi] = useState<CarouselApi>();
   const [current, setCurrent] = useState(0);
 
   const completeOnboarding = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (nextPath?: string) => {
       await apiRequest("POST", "/api/user/onboarding/complete");
+      return nextPath;
     },
-    onSuccess: () => {
+    onSuccess: (nextPath) => {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
       onComplete();
+      trackOnboardingEvent("completed", { nextPath: nextPath || "none" });
+      if (nextPath) {
+        navigate(nextPath);
+      }
     },
-    onError: () => {
+    onError: (_error, nextPath) => {
       onComplete();
+      trackOnboardingEvent("completion_failed", { nextPath: nextPath || "none" });
+      if (nextPath) {
+        navigate(nextPath);
+      }
     },
   });
 
@@ -81,28 +103,44 @@ export function OnboardingModal({ open, onComplete }: OnboardingModalProps) {
     setCurrent(api.selectedScrollSnap());
 
     api.on("select", () => {
-      setCurrent(api.selectedScrollSnap());
+      const index = api.selectedScrollSnap();
+      setCurrent(index);
+      trackOnboardingEvent("slide_viewed", { slide: slides[index]?.id || "unknown", index });
     });
   }, [api]);
 
+  useEffect(() => {
+    if (!open) return;
+    trackOnboardingEvent("opened");
+  }, [open]);
+
   const handleNext = useCallback(() => {
     if (current === slides.length - 1) {
-      completeOnboarding.mutate();
+      completeOnboarding.mutate(undefined);
     } else {
       api?.scrollNext();
     }
   }, [api, current, completeOnboarding]);
 
   const handleSkip = useCallback(() => {
-    completeOnboarding.mutate();
-  }, [completeOnboarding]);
+    trackOnboardingEvent("skipped", { atSlide: slides[current]?.id || "unknown" });
+    completeOnboarding.mutate(undefined);
+  }, [completeOnboarding, current]);
+
+  const handleSlideAction = useCallback(
+    (slide: OnboardingSlide) => {
+      trackOnboardingEvent("slide_cta_clicked", { slide: slide.id, path: slide.ctaPath });
+      completeOnboarding.mutate(slide.ctaPath);
+    },
+    [completeOnboarding],
+  );
 
   const isLastSlide = current === slides.length - 1;
 
   return (
     <Dialog open={open} onOpenChange={() => {}}>
       <DialogContent
-        className="w-[90vw] max-w-[400px] sm:max-w-[420px] p-0 gap-0 border-2 border-border overflow-hidden rounded-none"
+        className="w-[92vw] max-w-[430px] sm:max-w-[460px] p-0 gap-0 border border-border shadow-2xl overflow-hidden rounded-lg"
         onPointerDownOutside={(e) => e.preventDefault()}
         onEscapeKeyDown={(e) => e.preventDefault()}
         data-testid="onboarding-modal"
@@ -111,7 +149,10 @@ export function OnboardingModal({ open, onComplete }: OnboardingModalProps) {
         <VisuallyHidden>
           <DialogTitle>Welcome to Sportfolio</DialogTitle>
         </VisuallyHidden>
-        <div className="w-full overflow-hidden">
+
+        <div className="h-1 bg-gradient-to-r from-primary via-emerald-400 to-sky-400" />
+
+        <div className="w-full overflow-hidden bg-card">
           <Carousel
             setApi={setApi}
             className="w-full"
@@ -122,37 +163,27 @@ export function OnboardingModal({ open, onComplete }: OnboardingModalProps) {
                 const Icon = slide.icon;
                 return (
                   <CarouselItem key={slide.id} className="pl-0 basis-full">
-                    <div className="flex flex-col items-center justify-center px-6 sm:px-8 py-8 text-center min-h-[300px]">
-                      <div className={`mb-5 ${slide.color}`}>
-                        <Icon className="w-14 h-14" />
+                    <div className="flex flex-col items-center justify-center px-6 sm:px-8 py-8 text-center min-h-[320px]">
+                      <div
+                        className={`mb-5 ${slide.color} bg-muted/40 border border-border rounded-full h-16 w-16 flex items-center justify-center`}
+                      >
+                        <Icon className="w-8 h-8" />
                       </div>
-                      <h2 className="text-xl font-sans font-bold tracking-tight mb-2 whitespace-nowrap">
-                        {slide.title}
-                      </h2>
-                      <p className="text-xs text-muted-foreground uppercase tracking-widest mb-4">
+                      <h2 className="text-xl font-semibold tracking-tight mb-2">{slide.title}</h2>
+                      <p className="text-xs text-muted-foreground uppercase tracking-wider mb-4">
                         {slide.subtitle}
                       </p>
-                      <p className="text-sm text-foreground/80 leading-relaxed max-w-[280px] sm:max-w-[320px]">
+                      <p className="text-sm text-foreground/80 leading-relaxed max-w-[320px]">
                         {slide.description}
                       </p>
-                      {slide.isDiscord && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="mt-5 gap-2 border-[#5865F2] text-[#5865F2] hover:bg-[#5865F2] hover:text-white"
-                          asChild
-                        >
-                          <a
-                            href="https://discord.gg/r8MsduNvXG"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            data-testid="link-discord"
-                          >
-                            <SiDiscord className="w-4 h-4" />
-                            Join Discord
-                          </a>
-                        </Button>
-                      )}
+                      <Button
+                        className="mt-6 w-full sm:w-auto"
+                        onClick={() => handleSlideAction(slide)}
+                        disabled={completeOnboarding.isPending}
+                        data-testid={`button-onboarding-cta-${slide.id}`}
+                      >
+                        {slide.ctaLabel}
+                      </Button>
                     </div>
                   </CarouselItem>
                 );
@@ -161,19 +192,31 @@ export function OnboardingModal({ open, onComplete }: OnboardingModalProps) {
           </Carousel>
         </div>
 
-        <div className="flex flex-col gap-3 p-4 border-t border-border bg-muted/30">
-          <div className="flex justify-center gap-2">
-            {slides.map((_, index) => (
-              <button
-                key={index}
-                onClick={() => api?.scrollTo(index)}
-                className={`w-2.5 h-2.5 rounded-full transition-colors ${
-                  index === current ? "bg-primary" : "bg-muted-foreground/30"
-                }`}
-                aria-label={`Go to slide ${index + 1}`}
-                data-testid={`dot-slide-${index}`}
-              />
-            ))}
+        <div className="flex flex-col gap-3 p-4 border-t border-border bg-muted/20">
+          <div className="flex items-center justify-between gap-3">
+            <a
+              href="https://discord.gg/r8MsduNvXG"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              data-testid="link-discord"
+            >
+              <SiDiscord className="w-3.5 h-3.5" />
+              Join the community
+            </a>
+            <div className="flex justify-center gap-2">
+              {slides.map((_, index) => (
+                <button
+                  key={index}
+                  onClick={() => api?.scrollTo(index)}
+                  className={`w-2.5 h-2.5 rounded-full transition-colors ${
+                    index === current ? "bg-primary" : "bg-muted-foreground/30"
+                  }`}
+                  aria-label={`Go to slide ${index + 1}`}
+                  data-testid={`dot-slide-${index}`}
+                />
+              ))}
+            </div>
           </div>
           <div className="flex items-center justify-between gap-2">
             <Button
@@ -191,7 +234,7 @@ export function OnboardingModal({ open, onComplete }: OnboardingModalProps) {
               disabled={completeOnboarding.isPending}
               data-testid="button-next-onboarding"
             >
-              {isLastSlide ? "Get Started" : "Next"}
+              {isLastSlide ? "Finish" : "Next"}
             </Button>
           </div>
         </div>
