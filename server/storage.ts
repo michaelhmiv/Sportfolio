@@ -3489,8 +3489,14 @@ export class DatabaseStorage implements IStorage {
       .where(inArray(players.id, playerIds));
 
     const playerSportMap = new Map<string, string>();
+    const playerIdsBySport = new Map<string, string[]>();
     for (const row of playerRows) {
-      playerSportMap.set(row.id, row.sport || "NBA");
+      const sport = (row.sport || "NBA").toUpperCase();
+      playerSportMap.set(row.id, sport);
+
+      const sportPlayerIds = playerIdsBySport.get(sport) || [];
+      sportPlayerIds.push(row.id);
+      playerIdsBySport.set(sport, sportPlayerIds);
     }
 
     const currentSeasonBySport = new Map<string, Set<string>>();
@@ -3501,23 +3507,30 @@ export class DatabaseStorage implements IStorage {
       );
     }
 
-    // Fetch game logs for ALL players in one query
-    const allGameLogs = await db
-      .select()
-      .from(playerGameStats)
-      .where(inArray(playerGameStats.playerId, playerIds));
+    const seasonScopedFilters = Array.from(playerIdsBySport.entries())
+      .map(([sport, sportPlayerIds]) => {
+        const seasons = Array.from(
+          currentSeasonBySport.get(sport) || new Set(getCurrentCompetitiveSeasons(sport)),
+        );
+        if (sportPlayerIds.length === 0 || seasons.length === 0) return null;
 
-    // Group logs by player and compute stats
-    const filteredGameLogs = allGameLogs.filter((log) => {
-      const playerSport = playerSportMap.get(log.playerId) || log.sport || "NBA";
-      const sportKey = playerSport.toUpperCase();
-      let seasons = currentSeasonBySport.get(sportKey);
-      if (!seasons) {
-        seasons = new Set(getCurrentCompetitiveSeasons(playerSport));
-        currentSeasonBySport.set(sportKey, seasons);
-      }
-      return seasons.has(log.season);
-    });
+        return and(
+          inArray(playerGameStats.playerId, sportPlayerIds),
+          inArray(playerGameStats.season, seasons),
+        );
+      })
+      .filter(Boolean);
+
+    // Fetch relevant game logs for all target players in one SQL query with season filtering.
+    const filteredGameLogs =
+      seasonScopedFilters.length > 0
+        ? await db
+            .select()
+            .from(playerGameStats)
+            .where(
+              or(...(seasonScopedFilters as NonNullable<(typeof seasonScopedFilters)[number]>[])),
+            )
+        : [];
 
     const statsMap = new Map<
       string,

@@ -812,7 +812,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       });
 
-      const powerByPlayerId = new Map<string, number>();
+      const powerByPlayerIdBySport = new Map<string, Map<string, number>>();
+      const getSportPowerMap = (sportCode: string) => {
+        const normalizedSport = (sportCode || "NBA").toUpperCase();
+        const existingMap = powerByPlayerIdBySport.get(normalizedSport);
+        if (existingMap) return existingMap;
+
+        const newMap = new Map<string, number>();
+        powerByPlayerIdBySport.set(normalizedSport, newMap);
+        return newMap;
+      };
       const addPowerForPlayerId = (
         rawPlayerId: string,
         powerLevel: number,
@@ -823,17 +832,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const playerId = rawPlayerId.trim();
         if (!playerId) return;
 
-        const existingPower = powerByPlayerId.get(playerId) || 0;
-        powerByPlayerId.set(playerId, existingPower + powerLevel);
+        const normalizedSport = (playerSport || "NBA").toUpperCase();
+        const sportPowerMap = getSportPowerMap(normalizedSport);
+
+        const existingPower = sportPowerMap.get(playerId) || 0;
+        sportPowerMap.set(playerId, existingPower + powerLevel);
 
         if (/^(nba_|nfl_|mlb_|nascar_)/i.test(playerId)) {
           const unprefixed = playerId.replace(/^(nba_|nfl_|mlb_|nascar_)/i, "");
-          const existingUnprefixedPower = powerByPlayerId.get(unprefixed) || 0;
-          powerByPlayerId.set(unprefixed, existingUnprefixedPower + powerLevel);
+          const existingUnprefixedPower = sportPowerMap.get(unprefixed) || 0;
+          sportPowerMap.set(unprefixed, existingUnprefixedPower + powerLevel);
         } else {
-          const prefixed = `${playerSport.toLowerCase()}_${playerId}`;
-          const existingPrefixedPower = powerByPlayerId.get(prefixed) || 0;
-          powerByPlayerId.set(prefixed, existingPrefixedPower + powerLevel);
+          const prefixed = `${normalizedSport.toLowerCase()}_${playerId}`;
+          const existingPrefixedPower = sportPowerMap.get(prefixed) || 0;
+          sportPowerMap.set(prefixed, existingPrefixedPower + powerLevel);
         }
       };
 
@@ -879,6 +891,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
 
           let liveEarned = 0;
+          const gameSport = (game.sport || normalizedSport).toUpperCase();
+          const sportPowerByPlayerId = powerByPlayerIdBySport.get(gameSport);
+
           for (const stat of gameStats) {
             const fantasyPoints = parseFloat(stat.fantasyPoints || "0");
             if (!Number.isFinite(fantasyPoints) || fantasyPoints === 0) continue;
@@ -886,7 +901,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const playerIdCandidates = getPlayerIdCandidates(stat.playerId, game.sport || "NBA");
             let powerLevel = 0;
             for (const candidateId of playerIdCandidates) {
-              const candidatePower = powerByPlayerId.get(candidateId) || 0;
+              const candidatePower = sportPowerByPlayerId?.get(candidateId) || 0;
               if (candidatePower > powerLevel) {
                 powerLevel = candidatePower;
               }

@@ -33,3 +33,9 @@
 - [x] Add live market status enrichment for NBA/NFL/MLB in `/api/games/insights` (inning/quarter/clock)
 - [x] Extend game insight types with optional `liveMarketStatus`
 - [x] Render sport-specific live market status in dashboard market column (replace generic `LIVE`)
+
+## 2026-02-20 PR Review Follow-ups
+
+- [x] Scope live-earned power alias matching by sport to avoid cross-league ID collisions
+- [x] Restore SQL-level season filtering in `getBatchPlayerSeasonStatsFromLogs` to avoid full historical scans
+- [x] Validate via `npm run check`, `npm run lint`, and `npm run test:run`
