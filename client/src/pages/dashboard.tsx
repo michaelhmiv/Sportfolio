@@ -117,12 +117,16 @@ const compactNumberFormatter = new Intl.NumberFormat("en-US", {
 
 // Helper to determine effective game status based on current time
 const getEffectiveGameStatus = (
-  game: Pick<GameInsight, "startTime" | "status">,
+  game: Pick<GameInsight, "startTime" | "status" | "liveMarketStatus" | "homeScore" | "awayScore">,
 ): EffectiveGameStatus => {
   const now = new Date();
   const startTime = new Date(game.startTime);
   const timeSinceStart = now.getTime() - startTime.getTime();
   const threeHoursInMs = 3 * 60 * 60 * 1000;
+  const hasLiveSignal =
+    String(game.liveMarketStatus || "").trim().length > 0 ||
+    game.homeScore !== null ||
+    game.awayScore !== null;
 
   // If DB says postponed, trust it
   if (game.status === "postponed") {
@@ -139,8 +143,13 @@ const getEffectiveGameStatus = (
     return "inprogress";
   }
 
-  // If game is scheduled but should have started (and it's been less than 3 hours), assume it's live
-  if (game.status === "scheduled" && timeSinceStart > 0 && timeSinceStart < threeHoursInMs) {
+  // Treat scheduled games as live only when backend has live evidence (status label or score signal).
+  if (
+    game.status === "scheduled" &&
+    hasLiveSignal &&
+    timeSinceStart > 0 &&
+    timeSinceStart < threeHoursInMs
+  ) {
     return "inprogress";
   }
 

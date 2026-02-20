@@ -43,7 +43,11 @@ export interface MLBTeam {
   name: string;
   full_name?: string;
   abbreviation: string;
+  slug?: string;
+  display_name?: string;
+  short_display_name?: string;
   city?: string;
+  location?: string;
   league?: string;
   division?: string;
 }
@@ -65,20 +69,39 @@ export interface MLBGame {
   date: string;
   season: number;
   status: string;
+  period?: number | null;
+  clock?: string | number | null;
+  display_clock?: string | null;
   home_team: MLBTeam;
+  home_team_name?: string;
   visitor_team?: MLBTeam;
   away_team?: MLBTeam;
+  away_team_name?: string;
   home_team_score: number | null;
   visitor_team_score?: number | null;
   away_team_score?: number | null;
+  home_team_data?: {
+    hits?: number | null;
+    runs?: number | null;
+    errors?: number | null;
+    inning_scores?: Array<number | null>;
+  };
+  away_team_data?: {
+    hits?: number | null;
+    runs?: number | null;
+    errors?: number | null;
+    inning_scores?: Array<number | null>;
+  };
   venue?: string;
 }
 
 export interface MLBGameStats {
-  id: number;
+  id?: number;
   player: MLBPlayer;
-  game: MLBGame;
-  team: MLBTeam;
+  game?: MLBGame;
+  team?: MLBTeam;
+  game_id?: number;
+  team_name?: string;
   [key: string]: any;
 }
 
@@ -255,12 +278,73 @@ export function getMLBAwayTeam(game: Pick<MLBGame, "visitor_team" | "away_team">
   return game.visitor_team ?? game.away_team ?? null;
 }
 
+export function getMLBTeamDisplayName(team: MLBTeam | null | undefined): string | null {
+  if (!team) return null;
+  if (team.full_name) return team.full_name;
+  if (team.display_name) return team.display_name;
+  if (team.location && team.name) return `${team.location} ${team.name}`.trim();
+  if (team.city && team.name) return `${team.city} ${team.name}`.trim();
+  if (team.name) return team.name;
+  return null;
+}
+
+export function getMLBHomeTeamName(
+  game: Pick<MLBGame, "home_team_name" | "home_team">,
+): string | null {
+  return String(game.home_team_name || "").trim() || getMLBTeamDisplayName(game.home_team);
+}
+
+export function getMLBAwayTeamName(
+  game: Pick<MLBGame, "away_team_name" | "visitor_team" | "away_team">,
+): string | null {
+  const awayTeam = getMLBAwayTeam(game);
+  return String(game.away_team_name || "").trim() || getMLBTeamDisplayName(awayTeam);
+}
+
+function toFiniteNumber(value: unknown): number | null {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+export function getMLBHomeScore(
+  game: Pick<MLBGame, "home_team_score" | "home_team_data">,
+): number | null {
+  if (game.home_team_score != null) return game.home_team_score;
+  const runs = toFiniteNumber(game.home_team_data?.runs);
+  return runs ?? null;
+}
+
 export function getMLBAwayScore(
-  game: Pick<MLBGame, "visitor_team_score" | "away_team_score">,
+  game: Pick<MLBGame, "visitor_team_score" | "away_team_score" | "away_team_data">,
 ): number | null {
   if (game.visitor_team_score != null) return game.visitor_team_score;
   if (game.away_team_score != null) return game.away_team_score;
+  const runs = toFiniteNumber(game.away_team_data?.runs);
+  if (runs != null) return runs;
   return null;
+}
+
+export function getMLBStatGameId(stats: Pick<MLBGameStats, "game_id" | "game">): number | null {
+  const gameId = toFiniteNumber(stats.game_id ?? stats.game?.id);
+  if (gameId == null || gameId <= 0) return null;
+  return gameId;
+}
+
+export function getMLBStatTeamAbbreviation(stats: Pick<MLBGameStats, "team">): string | null {
+  const abbreviation = String(stats.team?.abbreviation || "")
+    .trim()
+    .toUpperCase();
+  return abbreviation || null;
+}
+
+export function getMLBStatTeamName(stats: Pick<MLBGameStats, "team_name" | "team">): string | null {
+  const value =
+    String(stats.team_name || "").trim() ||
+    String(stats.team?.full_name || "").trim() ||
+    String(stats.team?.display_name || "").trim() ||
+    getMLBTeamDisplayName(stats.team);
+
+  return value || null;
 }
 
 function readNumericStat(source: Record<string, any>, paths: string[]): number {
@@ -296,6 +380,8 @@ function extractNormalizedStats(stats: MLBGameStats) {
   const strikeoutsBatting = readNumericStat(source, [
     "batting_strikeouts",
     "strikeouts_batting",
+    "k",
+    "so",
     "batting.strikeouts",
   ]);
 
@@ -308,13 +394,19 @@ function extractNormalizedStats(stats: MLBGameStats) {
   const pitchingStrikeouts = readNumericStat(source, [
     "pitching_strikeouts",
     "strikeouts_pitched",
+    "p_k",
     "pitching.strikeouts",
     "pitching.so",
   ]);
   const earnedRuns = readNumericStat(source, ["earned_runs", "er", "pitching.earned_runs"]);
-  const runsAllowed = readNumericStat(source, ["runs_allowed", "ra", "pitching.runs_allowed"]);
-  const hitsAllowed = readNumericStat(source, ["hits_allowed", "pitching.hits_allowed"]);
-  const walksAllowed = readNumericStat(source, ["walks_allowed", "pitching.walks_allowed"]);
+  const runsAllowed = readNumericStat(source, [
+    "runs_allowed",
+    "ra",
+    "p_runs",
+    "pitching.runs_allowed",
+  ]);
+  const hitsAllowed = readNumericStat(source, ["hits_allowed", "p_hits", "pitching.hits_allowed"]);
+  const walksAllowed = readNumericStat(source, ["walks_allowed", "p_bb", "pitching.walks_allowed"]);
   const wins = readNumericStat(source, ["wins", "w", "pitching.wins"]);
   const saves = readNumericStat(source, ["saves", "sv", "pitching.saves"]);
 
@@ -381,7 +473,11 @@ export function calculateMLBFantasyPoints(stats: MLBGameStats): number {
 }
 
 export function normalizeGameStatus(apiStatus: string): string {
-  const status = (apiStatus || "").toLowerCase();
+  const status = (apiStatus || "")
+    .toLowerCase()
+    .replace(/^status[\s_-]*/, "")
+    .replace(/_/g, " ")
+    .trim();
 
   if (
     status.includes("postponed") ||
@@ -396,12 +492,15 @@ export function normalizeGameStatus(apiStatus: string): string {
     status === "final" ||
     status.includes("final") ||
     status.includes("completed") ||
+    status.includes("complete") ||
+    status.includes("ended") ||
     status.includes("game over")
   ) {
     return "completed";
   }
 
   if (
+    status === "live" ||
     status === "in progress" ||
     status.includes("in progress") ||
     status.includes("top") ||

@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { getMLBAwayScore, getMLBAwayTeam, type MLBGame } from "./balldontlie-mlb";
+import {
+  getMLBAwayScore,
+  getMLBAwayTeam,
+  getMLBHomeScore,
+  normalizeGameStatus,
+  type MLBGame,
+} from "./balldontlie-mlb";
 
 describe("MLB away-team compatibility helpers", () => {
   const baseGame: MLBGame = {
@@ -39,5 +45,32 @@ describe("MLB away-team compatibility helpers", () => {
 
     expect(getMLBAwayTeam(game)?.abbreviation).toBe("TOR");
     expect(getMLBAwayScore(game)).toBe(7);
+  });
+
+  it("reads modern away/home line scores from *_team_data.runs", () => {
+    const game: MLBGame = {
+      ...baseGame,
+      away_team: { id: 4, abbreviation: "TOR", name: "Blue Jays" },
+      home_team_score: null,
+      away_team_score: null,
+      home_team_data: { runs: 2 },
+      away_team_data: { runs: 5 },
+    };
+
+    expect(getMLBHomeScore(game)).toBe(2);
+    expect(getMLBAwayScore(game)).toBe(5);
+  });
+});
+
+describe("normalizeGameStatus", () => {
+  it("normalizes STATUS_* enums from modern MLB feed", () => {
+    expect(normalizeGameStatus("STATUS_IN_PROGRESS")).toBe("inprogress");
+    expect(normalizeGameStatus("STATUS_FINAL")).toBe("completed");
+    expect(normalizeGameStatus("STATUS_SCHEDULED")).toBe("scheduled");
+  });
+
+  it("normalizes postponed-like states", () => {
+    expect(normalizeGameStatus("STATUS_POSTPONED")).toBe("postponed");
+    expect(normalizeGameStatus("Suspended")).toBe("postponed");
   });
 });
