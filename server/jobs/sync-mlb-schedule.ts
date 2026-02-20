@@ -5,7 +5,13 @@
  */
 
 import { storage } from "../storage";
-import { fetchGames, normalizeGameStatus, isMLBApiConfigured } from "../balldontlie-mlb";
+import {
+  fetchGames,
+  normalizeGameStatus,
+  isMLBApiConfigured,
+  getMLBAwayScore,
+  getMLBAwayTeam,
+} from "../balldontlie-mlb";
 
 interface SyncResult {
   success: boolean;
@@ -66,12 +72,12 @@ export async function syncMLBSchedule(): Promise<SyncResult> {
           date: startTime,
           week: null,
           homeTeam: apiGame.home_team?.abbreviation || "TBD",
-          awayTeam: apiGame.visitor_team?.abbreviation || "TBD",
+          awayTeam: getMLBAwayTeam(apiGame)?.abbreviation || "TBD",
           venue: apiGame.venue || null,
           status,
           startTime,
           homeScore: apiGame.home_team_score ?? null,
-          awayScore: apiGame.visitor_team_score ?? null,
+          awayScore: getMLBAwayScore(apiGame),
         };
 
         const existingGame = await storage.getDailyGameByGameId(gameId);

@@ -66,9 +66,11 @@ export interface MLBGame {
   season: number;
   status: string;
   home_team: MLBTeam;
-  visitor_team: MLBTeam;
+  visitor_team?: MLBTeam;
+  away_team?: MLBTeam;
   home_team_score: number | null;
-  visitor_team_score: number | null;
+  visitor_team_score?: number | null;
+  away_team_score?: number | null;
   venue?: string;
 }
 
@@ -248,6 +250,18 @@ export async function fetchInjuries(options?: {
 // ============================================================================
 // Helpers
 // ============================================================================
+
+export function getMLBAwayTeam(game: Pick<MLBGame, "visitor_team" | "away_team">): MLBTeam | null {
+  return game.visitor_team ?? game.away_team ?? null;
+}
+
+export function getMLBAwayScore(
+  game: Pick<MLBGame, "visitor_team_score" | "away_team_score">,
+): number | null {
+  if (game.visitor_team_score != null) return game.visitor_team_score;
+  if (game.away_team_score != null) return game.away_team_score;
+  return null;
+}
 
 function readNumericStat(source: Record<string, any>, paths: string[]): number {
   for (const path of paths) {
