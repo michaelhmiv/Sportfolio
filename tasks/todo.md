@@ -62,3 +62,8 @@
 - [x] Ensure pool seeding also repairs active players with unseeded/legacy pool liquidity state
 - [x] Expose repaired count in admin seed response and UI messaging
 - [x] Validate via `npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`
+
+## 2026-02-20 PR #70 Latest Review Comment
+
+- [x] Exclude non-positive AMM spot prices from `/api/players/spotlight/top-market-cap`
+- [ ] Validate via `npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`

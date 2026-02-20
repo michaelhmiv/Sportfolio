@@ -3475,7 +3475,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .map((p) => {
           const poolData = poolDataMap.get(p.id);
           const ammSpotPrice =
-            poolData && poolData.shares > 0 ? poolData.playMoney / poolData.shares : null;
+            poolData && poolData.shares > 0 && poolData.playMoney > 0
+              ? poolData.playMoney / poolData.shares
+              : null;
 
           return {
             id: p.id,
@@ -3488,7 +3490,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
             totalShares: p.totalShares,
           };
         })
-        .filter((p) => p.currentPrice !== null && p.marketCap > 0)
+        .filter(
+          (p) =>
+            p.currentPrice !== null &&
+            Number.isFinite(p.currentPrice) &&
+            p.currentPrice > 0 &&
+            p.marketCap > 0,
+        )
         .sort((a, b) => b.marketCap - a.marketCap)
         .slice(0, limit);
 
