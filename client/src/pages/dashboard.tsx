@@ -48,6 +48,7 @@ import type { Player, Trade } from "@shared/schema";
 import { useAuth } from "@/hooks/useAuth";
 import { DashboardScanners } from "@/components/marketplace-scanners";
 import { PlayerName } from "@/components/player-name";
+import { SportSelector } from "@/components/sport-selector";
 import { Shimmer, ShimmerCard, ScrollReveal } from "@/components/ui/animations";
 import { useSport } from "@/lib/sport-context";
 import { authenticatedFetch } from "@/lib/queryClient";
@@ -489,6 +490,11 @@ export default function Dashboard() {
 
         {/* Main Dashboard Grid */}
         <div className="p-3 sm:p-4 max-w-full overflow-x-hidden space-y-4 sm:space-y-6">
+          {/* Global Sport Filter - always visible on dashboard */}
+          <div className="overflow-x-auto pb-1">
+            <SportSelector variant="buttons" size="sm" className="w-max" />
+          </div>
+
           {/* Missions Section */}
           {isAuthenticated && (
             <div className="mb-4">
