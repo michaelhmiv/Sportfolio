@@ -156,9 +156,8 @@ export default function Dashboard() {
   const { isAuthenticated } = useAuth();
   const [, setLocation] = useLocation();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [dashboardSportTab, setDashboardSportTab] = useState<string>("ALL");
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const { sport } = useSport();
+  const { sport, setSport } = useSport();
   const [activeGame, setActiveGame] = useState<GameInsight | null>(null);
   const [selectedRace, setSelectedRace] = useState<any>(null);
   const { shouldPoll, isMobile } = useAppState();
@@ -285,13 +284,12 @@ export default function Dashboard() {
     if (bIndex === -1) return -1;
     return aIndex - bIndex;
   });
-  const selectedGameSportTab = availableGameSports.includes(dashboardSportTab)
-    ? dashboardSportTab
-    : "ALL";
+  // Use global sport context for filtering (syncs with other pages)
+  const globalSportFilter = sport === "ALL" ? "ALL" : sport;
   const filteredGamesBySport =
-    selectedGameSportTab === "ALL"
+    globalSportFilter === "ALL"
       ? games
-      : games.filter((game) => (game.sport || "").toUpperCase() === selectedGameSportTab);
+      : games.filter((game) => (game.sport || "").toUpperCase() === globalSportFilter);
 
   const sortGamesByStartAsc = (a: GameInsight, b: GameInsight) =>
     new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
@@ -490,11 +488,6 @@ export default function Dashboard() {
 
         {/* Main Dashboard Grid */}
         <div className="p-3 sm:p-4 max-w-full overflow-x-hidden space-y-4 sm:space-y-6">
-          {/* Global Sport Filter - always visible on dashboard */}
-          <div className="overflow-x-auto pb-1">
-            <SportSelector variant="buttons" size="sm" className="w-max" />
-          </div>
-
           {/* Missions Section */}
           {isAuthenticated && (
             <div className="mb-4">
@@ -701,12 +694,12 @@ export default function Dashboard() {
                 {!isLoadingInsights && !isNascar && availableGameSports.length > 0 && (
                   <div className="flex items-center gap-1 overflow-x-auto pb-1">
                     {(["ALL", ...availableGameSports] as string[]).map((sportOption) => {
-                      const isActive = selectedGameSportTab === sportOption;
+                      const isActive = sport === sportOption;
                       return (
                         <button
                           key={sportOption}
                           type="button"
-                          onClick={() => setDashboardSportTab(sportOption)}
+                          onClick={() => setSport(sportOption as typeof sport)}
                           className={`inline-flex items-center rounded-sm border px-2 py-1 text-[11px] font-semibold uppercase tracking-wide whitespace-nowrap transition-colors ${
                             isActive
                               ? "border-primary/60 bg-primary/10 text-primary"
