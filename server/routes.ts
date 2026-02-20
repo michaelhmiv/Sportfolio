@@ -368,6 +368,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!value || value === "TBD") return null;
       return value;
     };
+    const parseProviderScore = (rawScore: unknown): number | null => {
+      if (typeof rawScore === "number") {
+        return Number.isFinite(rawScore) ? rawScore : null;
+      }
+      if (typeof rawScore === "string") {
+        const trimmed = rawScore.trim();
+        if (!trimmed) return null;
+        const parsed = Number(trimmed);
+        return Number.isFinite(parsed) ? parsed : null;
+      }
+      return null;
+    };
     const extractClockFromText = (rawText: string | null | undefined): string | null => {
       const text = String(rawText || "");
       const match = text.match(/(\d{1,2}:\d{2})/);
@@ -706,14 +718,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   ),
                   period: Number(apiGame.period || 0),
                   clock: String(apiGame.time || ""),
-                  homeScore: Number.isFinite(Number(apiGame.home_team_score))
-                    ? Number(apiGame.home_team_score)
-                    : null,
-                  awayScore: Number.isFinite(
-                    Number(apiGame.visitor_team_score ?? apiGame.away_team_score),
-                  )
-                    ? Number(apiGame.visitor_team_score ?? apiGame.away_team_score)
-                    : null,
+                  homeScore: parseProviderScore(apiGame.home_team_score),
+                  awayScore: parseProviderScore(
+                    apiGame.visitor_team_score ?? apiGame.away_team_score,
+                  ),
                   homeTeam: apiGame.home_team?.abbreviation
                     ? String(apiGame.home_team.abbreviation)
                     : null,
@@ -734,24 +742,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   status: apiGame.status,
                   normalizedStatus: normalizeNflProviderStatus(apiGame.status),
                   clock: apiGame.time ? String(apiGame.time) : null,
-                  homeScore: Number.isFinite(Number(apiGame.home_team_score ?? apiGame.home_score))
-                    ? Number(apiGame.home_team_score ?? apiGame.home_score)
-                    : null,
-                  awayScore: Number.isFinite(
-                    Number(
-                      apiGame.visitor_team_score ??
-                        apiGame.away_team_score ??
-                        apiGame.visitor_score ??
-                        apiGame.away_score,
-                    ),
-                  )
-                    ? Number(
-                        apiGame.visitor_team_score ??
-                          apiGame.away_team_score ??
-                          apiGame.visitor_score ??
-                          apiGame.away_score,
-                      )
-                    : null,
+                  homeScore: parseProviderScore(apiGame.home_team_score ?? apiGame.home_score),
+                  awayScore: parseProviderScore(
+                    apiGame.visitor_team_score ??
+                      apiGame.away_team_score ??
+                      apiGame.visitor_score ??
+                      apiGame.away_score,
+                  ),
                   homeTeam: apiGame.home_team?.abbreviation
                     ? String(apiGame.home_team.abbreviation)
                     : null,
