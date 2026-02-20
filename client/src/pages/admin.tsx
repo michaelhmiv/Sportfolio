@@ -504,7 +504,7 @@ export default function Admin() {
   };
 
   const handleSeedMissingPools = () => {
-    if (confirm("Seed liquidity pools for all active players that are missing pools?")) {
+    if (confirm("Seed missing pools and repair unseeded legacy pools for all active players?")) {
       seedMissingPoolsMutation.mutate();
     }
   };
@@ -861,13 +861,14 @@ export default function Admin() {
               AMM Pool Seeding
             </CardTitle>
             <CardDescription>
-              Seed liquidity for active players that are missing AMM pools.
+              Seed missing AMM pools and repair unseeded legacy pool liquidity.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               <div className="p-4 rounded-lg border bg-muted/30 text-sm text-muted-foreground">
-                This only initializes missing pools. Existing pools and balances are not modified.
+                This initializes missing pools and repairs unseeded legacy pools with no trades.
+                Existing traded pools are not modified.
               </div>
               <Button
                 onClick={handleSeedMissingPools}
@@ -894,6 +895,7 @@ export default function Admin() {
                   <div className="text-sm">{seedMissingPoolsMutation.data.message}</div>
                   <div className="text-xs mt-1">
                     {seedMissingPoolsMutation.data.seededCount} seeded,{" "}
+                    {seedMissingPoolsMutation.data.repairedCount ?? 0} repaired,{" "}
                     {seedMissingPoolsMutation.data.failedCount} failed
                   </div>
                 </div>

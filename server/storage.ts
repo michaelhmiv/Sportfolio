@@ -4738,17 +4738,25 @@ export class DatabaseStorage implements IStorage {
     // 1. Bulk Fetch Player Stats for P/E Calculation
     // If sport is specific, filter by it. If "ALL", fetch all.
     const normalizedSport = sport.toUpperCase();
-    const ammSpotPriceExpr = sql<string>`CASE
-      WHEN ${playerPools.shares} > 0 THEN (${playerPools.playMoney} / ${playerPools.shares})::text
+    const ammSpotPriceNumericExpr = sql<number>`CASE
+      WHEN ${playerPools.shares} > 0 THEN (${playerPools.playMoney} / ${playerPools.shares})
       ELSE NULL
     END`;
+    const ammSpotPriceTextExpr = sql<string>`(${ammSpotPriceNumericExpr})::text`;
 
     const whereClause =
       normalizedSport === "ALL"
-        ? and(eq(players.isActive, true), sql`${playerPools.playerId} IS NOT NULL`)
+        ? and(
+            eq(players.isActive, true),
+            sql`${playerPools.playerId} IS NOT NULL`,
+            gt(playerPools.shares, "0"),
+            gt(playerPools.playMoney, "0"),
+          )
         : and(
             eq(players.isActive, true),
             sql`${playerPools.playerId} IS NOT NULL`,
+            gt(playerPools.shares, "0"),
+            gt(playerPools.playMoney, "0"),
             sql`UPPER(${players.sport}) = ${normalizedSport}`,
           );
 
@@ -4760,8 +4768,8 @@ export class DatabaseStorage implements IStorage {
         team: players.team,
         position: players.position,
         sport: players.sport,
-        currentPrice: ammSpotPriceExpr,
-        lastTradePrice: sql<string>`COALESCE(${players.lastTradePrice}, ${ammSpotPriceExpr})`,
+        currentPrice: ammSpotPriceTextExpr,
+        lastTradePrice: sql<string>`COALESCE(${players.lastTradePrice}, ${ammSpotPriceNumericExpr})::text`,
         volume24h: players.volume24h,
         priceChange24h: players.priceChange24h,
         marketCap: players.marketCap,

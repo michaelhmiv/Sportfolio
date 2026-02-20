@@ -57,6 +57,9 @@ import { getOrCreatePool, initializePool } from "./amm/pool";
 // Feature flags - set to false to disable features
 const CONTESTS_ENABLED = false; // DISABLED - contests feature removed
 const SUPPORTED_SPORTS = ["NBA", "NFL", "MLB", "NASCAR"] as const;
+const LEGACY_POOL_SHARES = 1000;
+const LEGACY_POOL_PLAY_MONEY = 10000;
+const LEGACY_POOL_LP_SHARES = 1000;
 
 /**
  * Get power/boosts data for the dashboard
@@ -7754,43 +7757,78 @@ ${posts
     }
   });
 
-  // Admin endpoint: Migrate NASCAR player IDs to unified format
+  // Admin endpoint: Seed missing pools and repair unseeded legacy pools
   app.post("/api/admin/seed-missing-pools", adminAuth, async (req, res) => {
     try {
       const clientIp = req.ip || req.connection.remoteAddress;
       console.log(`[ADMIN] Seed missing pools requested by ${clientIp}`);
 
-      const activePlayers = await db
+      const missingPools = await db
         .select({ id: players.id })
         .from(players)
         .leftJoin(playerPools, eq(playerPools.playerId, players.id))
         .where(and(eq(players.isActive, true), sql`${playerPools.playerId} IS NULL`));
 
-      const playerIds = activePlayers.map((p) => p.id);
-      const seededPlayerIds: string[] = [];
-      const failed: Array<{ playerId: string; error: string }> = [];
+      const unseededPools = await db
+        .select({ id: players.id })
+        .from(players)
+        .innerJoin(playerPools, eq(playerPools.playerId, players.id))
+        .where(
+          and(
+            eq(players.isActive, true),
+            eq(playerPools.totalTrades, 0),
+            sql`(
+              CAST(${playerPools.shares} AS numeric) <= 0
+              OR CAST(${playerPools.playMoney} AS numeric) <= 0
+              OR CAST(${playerPools.lpSharesTotal} AS numeric) <= 0
+              OR (
+                CAST(${playerPools.shares} AS numeric) = ${LEGACY_POOL_SHARES}
+                AND CAST(${playerPools.playMoney} AS numeric) = ${LEGACY_POOL_PLAY_MONEY}
+                AND CAST(${playerPools.lpSharesTotal} AS numeric) = ${LEGACY_POOL_LP_SHARES}
+              )
+            )`,
+          ),
+        );
+
+      const missingPoolIds = new Set(missingPools.map((p) => p.id));
+      const repairPoolIds = new Set(unseededPools.map((p) => p.id));
+      const playerIds = Array.from(
+        new Set([...Array.from(missingPoolIds), ...Array.from(repairPoolIds)]),
+      );
+
+      let seededCount = 0;
+      let repairedCount = 0;
+      const failed: Array<{ playerId: string; action: "seed" | "repair"; error: string }> = [];
 
       for (const playerId of playerIds) {
+        const action: "seed" | "repair" = missingPoolIds.has(playerId) ? "seed" : "repair";
         try {
           await initializePool(playerId);
-          seededPlayerIds.push(playerId);
+          if (action === "seed") {
+            seededCount += 1;
+          } else {
+            repairedCount += 1;
+          }
         } catch (error: any) {
-          failed.push({ playerId, error: error.message || "Unknown error" });
+          failed.push({ playerId, action, error: error.message || "Unknown error" });
         }
       }
 
       const statusCode = failed.length > 0 ? 207 : 200;
       invalidateAdminStatsCache();
 
+      const successSummary = `Seeded ${seededCount} missing pools and repaired ${repairedCount} unseeded pools`;
+
       res.status(statusCode).json({
         ok: failed.length === 0,
         status: failed.length > 0 ? "degraded" : "success",
         message:
-          failed.length > 0
-            ? `Seeded ${seededPlayerIds.length} pools with ${failed.length} failures`
-            : `Seeded ${seededPlayerIds.length} missing pools`,
-        totalMissingPools: playerIds.length,
-        seededCount: seededPlayerIds.length,
+          failed.length > 0 ? `${successSummary} with ${failed.length} failures` : successSummary,
+        totalCandidates: playerIds.length,
+        totalMissingPools: missingPoolIds.size,
+        totalRepairCandidates: repairPoolIds.size,
+        seededCount,
+        repairedCount,
         failedCount: failed.length,
         failed,
         adminContext: (req as any).adminContext || null,
