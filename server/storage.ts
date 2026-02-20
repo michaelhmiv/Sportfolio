@@ -2239,7 +2239,6 @@ export class DatabaseStorage implements IStorage {
         .select({
           id: players.id,
           lastTradePrice: players.lastTradePrice,
-          currentPrice: players.currentPrice,
         })
         .from(players)
         .where(inArray(players.id, targetPlayerIds)),
@@ -2249,7 +2248,7 @@ export class DatabaseStorage implements IStorage {
     ]);
 
     const playerPriceMap = new Map(
-      playerRows.map((p) => [p.id, parseFloat(p.lastTradePrice || p.currentPrice || "0")]),
+      playerRows.map((p) => [p.id, parseFloat(p.lastTradePrice || "0")]),
     );
 
     const LEAGUE_AVG_PE = 0.43;
@@ -4739,11 +4738,17 @@ export class DatabaseStorage implements IStorage {
     // 1. Bulk Fetch Player Stats for P/E Calculation
     // If sport is specific, filter by it. If "ALL", fetch all.
     const normalizedSport = sport.toUpperCase();
+    const ammSpotPriceExpr = sql<string>`CASE
+      WHEN ${playerPools.shares} > 0 THEN (${playerPools.playMoney} / ${playerPools.shares})::text
+      ELSE NULL
+    END`;
+
     const whereClause =
       normalizedSport === "ALL"
-        ? and(gt(sql`COALESCE(${players.lastTradePrice}, ${players.currentPrice})`, "0"))
+        ? and(eq(players.isActive, true), sql`${playerPools.playerId} IS NOT NULL`)
         : and(
-            gt(sql`COALESCE(${players.lastTradePrice}, ${players.currentPrice})`, "0"),
+            eq(players.isActive, true),
+            sql`${playerPools.playerId} IS NOT NULL`,
             sql`UPPER(${players.sport}) = ${normalizedSport}`,
           );
 
@@ -4755,17 +4760,18 @@ export class DatabaseStorage implements IStorage {
         team: players.team,
         position: players.position,
         sport: players.sport,
-        currentPrice: players.currentPrice,
-        lastTradePrice: sql<string>`COALESCE(${players.lastTradePrice}, ${players.currentPrice})`,
+        currentPrice: ammSpotPriceExpr,
+        lastTradePrice: sql<string>`COALESCE(${players.lastTradePrice}, ${ammSpotPriceExpr})`,
         volume24h: players.volume24h,
         priceChange24h: players.priceChange24h,
         marketCap: players.marketCap,
         avgPoints: sql<string>`AVG(CAST(${playerGameStats.fantasyPoints} AS numeric))`,
       })
       .from(players)
+      .leftJoin(playerPools, eq(playerPools.playerId, players.id))
       .leftJoin(playerGameStats, eq(players.id, playerGameStats.playerId))
       .where(whereClause)
-      .groupBy(players.id);
+      .groupBy(players.id, playerPools.playerId, playerPools.shares, playerPools.playMoney);
 
     // 2. Bulk Fetch Sentiment (AMM-only) based on executed pool trades in last 24h
     const sentimentStats = await db

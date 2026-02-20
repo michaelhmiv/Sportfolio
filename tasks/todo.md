@@ -47,3 +47,10 @@
 - [x] Update MLB schedule/stats sync paths to use compatibility helpers
 - [x] Add regression tests for away-team/away-score fallback behavior
 - [x] Validate via `npm run check`, `npm run lint`, `npm run test:run`
+
+## 2026-02-20 Pricing Integrity Hardening
+
+- [x] Identify remaining API paths that still fallback to placeholder `players.currentPrice`
+- [x] Remove placeholder-price fallback in top-market-cap and market-activity enrichment paths
+- [x] Update market scanner sourcing to require pool-backed pricing (or real trade price)
+- [x] Validate via `npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`

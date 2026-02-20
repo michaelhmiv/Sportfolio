@@ -468,6 +468,31 @@ export default function Admin() {
     },
   });
 
+  const seedMissingPoolsMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/admin/seed-missing-pools", {});
+      return await res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] });
+      toast({
+        title:
+          data.status === "degraded"
+            ? "Pool seeding completed with errors"
+            : "Pool seeding completed",
+        description: data.message,
+        variant: data.status === "degraded" ? "destructive" : undefined,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Pool seeding failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleCleanupDuplicates = () => {
     if (
       confirm(
@@ -475,6 +500,12 @@ export default function Admin() {
       )
     ) {
       cleanupDuplicatesMutation.mutate();
+    }
+  };
+
+  const handleSeedMissingPools = () => {
+    if (confirm("Seed liquidity pools for all active players that are missing pools?")) {
+      seedMissingPoolsMutation.mutate();
     }
   };
 
@@ -816,6 +847,54 @@ export default function Admin() {
                   <div className="text-xs mt-1">
                     {cleanupDuplicatesMutation.data.deletedCount} deleted,{" "}
                     {cleanupDuplicatesMutation.data.keptCount} kept
+                  </div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Activity className="w-5 h-5" />
+              AMM Pool Seeding
+            </CardTitle>
+            <CardDescription>
+              Seed liquidity for active players that are missing AMM pools.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="p-4 rounded-lg border bg-muted/30 text-sm text-muted-foreground">
+                This only initializes missing pools. Existing pools and balances are not modified.
+              </div>
+              <Button
+                onClick={handleSeedMissingPools}
+                disabled={seedMissingPoolsMutation.isPending}
+                variant="outline"
+                className="gap-2"
+                data-testid="button-seed-missing-pools"
+              >
+                {seedMissingPoolsMutation.isPending ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    Seeding...
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-4 h-4" />
+                    Seed Missing Pools
+                  </>
+                )}
+              </Button>
+              {seedMissingPoolsMutation.isSuccess && seedMissingPoolsMutation.data && (
+                <div className="p-3 rounded-lg border bg-positive/10 text-positive">
+                  <div className="font-semibold">Seeding Results:</div>
+                  <div className="text-sm">{seedMissingPoolsMutation.data.message}</div>
+                  <div className="text-xs mt-1">
+                    {seedMissingPoolsMutation.data.seededCount} seeded,{" "}
+                    {seedMissingPoolsMutation.data.failedCount} failed
                   </div>
                 </div>
               )}
