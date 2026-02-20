@@ -1575,37 +1575,48 @@ export class DatabaseStorage implements IStorage {
   }
 
   async upsertPlayer(player: InsertPlayer): Promise<Player> {
-    const normalizedSport = player.sport ?? "NBA";
+    const normalizedSport = (player.sport ?? "NBA").toUpperCase();
+    const normalizedTeam = (player.team || "").trim().toUpperCase();
 
-    // First, check if a player with the same name+team+sport already exists
-    // This handles the case where BallDontLie changed player IDs over time
-    const existingByName = await db
+    // Prefer canonical row when same player identity already exists.
+    // If historical duplicates exist, pick the row with the strongest economic footprint.
+    const sameIdentityCandidates = await db
       .select()
       .from(players)
       .where(
         and(
           sql`LOWER(${players.firstName}) = LOWER(${player.firstName})`,
           sql`LOWER(${players.lastName}) = LOWER(${player.lastName})`,
-          eq(players.team, player.team),
-          eq(players.sport, normalizedSport),
+          sql`UPPER(${players.team}) = ${normalizedTeam}`,
+          sql`UPPER(${players.sport}) = ${normalizedSport}`,
         ),
       )
-      .limit(1);
+      .orderBy(
+        desc(players.totalShares),
+        desc(players.volume24h),
+        desc(players.lastUpdated),
+        asc(players.id),
+      )
+      .limit(10);
 
-    if (existingByName.length > 0) {
-      // Player exists with different ID - update with new info from BallDontLie
-      // BUT keep the existing ID to preserve references in holdings, boosts, etc.
-      const existing = existingByName[0];
-      console.log(
-        `[upsertPlayer] Merging duplicate: ${player.firstName} ${player.lastName} (${player.team}) - keeping existing ID: ${existing.id}, ignoring new ID: ${player.id}`,
-      );
+    if (sameIdentityCandidates.length > 0) {
+      const canonical = sameIdentityCandidates[0];
 
-      // Update the existing player with new info from BallDontLie, but keep the old ID
+      if (sameIdentityCandidates.length > 1) {
+        console.warn(
+          `[upsertPlayer] Found ${sameIdentityCandidates.length} existing duplicates for ${player.firstName} ${player.lastName} (${player.team}, ${normalizedSport}). Canonical ID: ${canonical.id}`,
+        );
+      }
+
+      if (canonical.id !== player.id) {
+        console.log(
+          `[upsertPlayer] Merging duplicate: ${player.firstName} ${player.lastName} (${player.team}) - keeping existing ID: ${canonical.id}, ignoring new ID: ${player.id}`,
+        );
+      }
+
       const [updated] = await db
         .update(players)
         .set({
-          // Keep existing ID to preserve references in holdings/boosts
-          // Update all other fields from BallDontLie
           sport: normalizedSport,
           firstName: player.firstName,
           lastName: player.lastName,
@@ -1616,24 +1627,27 @@ export class DatabaseStorage implements IStorage {
           isEligibleForVesting: player.isEligibleForVesting,
           lastUpdated: new Date(),
         })
-        .where(eq(players.id, existing.id))
+        .where(eq(players.id, canonical.id))
         .returning();
 
       return updated;
     }
 
-    // No existing player found - check by ID
+    // No existing player found by identity - check by ID
     const existing = await this.getPlayer(player.id);
 
     if (existing) {
       const [updated] = await db
         .update(players)
-        .set({ ...player, lastUpdated: new Date() })
+        .set({ ...player, sport: normalizedSport, lastUpdated: new Date() })
         .where(eq(players.id, player.id))
         .returning();
       return updated;
     } else {
-      const [created] = await db.insert(players).values(player).returning();
+      const [created] = await db
+        .insert(players)
+        .values({ ...player, sport: normalizedSport })
+        .returning();
       return created;
     }
   }

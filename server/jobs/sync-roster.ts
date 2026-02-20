@@ -23,6 +23,7 @@ export async function syncRoster(progressCallback?: ProgressCallback): Promise<J
   let requestCount = 0;
   let recordsProcessed = 0;
   let errorCount = 0;
+  let deactivatedCount = 0;
 
   try {
     // Fetch players with rate limiting
@@ -39,6 +40,10 @@ export async function syncRoster(progressCallback?: ProgressCallback): Promise<J
 
     console.log(`[roster_sync] Fetched ${players.length} players from BallDontLie`);
 
+    // Load current NBA players once so we can deactivate stale IDs after sync.
+    const existingPlayers = await storage.getPlayersBySport("NBA");
+    const activeApiPlayerIds = new Set<string>();
+
     progressCallback?.({
       type: "info",
       timestamp: new Date().toISOString(),
@@ -54,7 +59,7 @@ export async function syncRoster(progressCallback?: ProgressCallback): Promise<J
         const isActive = true;
         const isEligibleForVesting = isActive;
 
-        await storage.upsertPlayer({
+        const upserted = await storage.upsertPlayer({
           id: createNBAPlayerId(player.id), // Prefix with sport for multi-sport support
           sport: "NBA",
           firstName: player.first_name,
@@ -65,6 +70,7 @@ export async function syncRoster(progressCallback?: ProgressCallback): Promise<J
           isActive,
           isEligibleForVesting,
         });
+        activeApiPlayerIds.add(upserted.id);
 
         recordsProcessed++;
 
@@ -97,8 +103,27 @@ export async function syncRoster(progressCallback?: ProgressCallback): Promise<J
       }
     }
 
+    // Deactivate players no longer present in active roster feed.
+    for (const existingPlayer of existingPlayers) {
+      if (existingPlayer.isActive && !activeApiPlayerIds.has(existingPlayer.id)) {
+        try {
+          await storage.updatePlayer(existingPlayer.id, {
+            isActive: false,
+            isEligibleForVesting: false,
+          });
+          deactivatedCount++;
+        } catch (error: any) {
+          console.error(
+            `[roster_sync] Failed to deactivate stale player ${existingPlayer.id}:`,
+            error.message,
+          );
+          errorCount++;
+        }
+      }
+    }
+
     console.log(
-      `[roster_sync] Successfully processed ${recordsProcessed}/${players.length} players, ${errorCount} errors`,
+      `[roster_sync] Successfully processed ${recordsProcessed}/${players.length} players, deactivated ${deactivatedCount} stale players, ${errorCount} errors`,
     );
     console.log(`[roster_sync] API requests made: ${requestCount}`);
 
@@ -107,12 +132,13 @@ export async function syncRoster(progressCallback?: ProgressCallback): Promise<J
       timestamp: new Date().toISOString(),
       message:
         errorCount > 0
-          ? `Roster sync completed with ${errorCount} errors: ${recordsProcessed}/${players.length} players updated`
-          : `Roster sync completed successfully: ${recordsProcessed} players updated`,
+          ? `Roster sync completed with ${errorCount} errors: ${recordsProcessed}/${players.length} players updated, ${deactivatedCount} stale deactivated`
+          : `Roster sync completed successfully: ${recordsProcessed} players updated, ${deactivatedCount} stale deactivated`,
       data: {
         success: errorCount === 0,
         summary: {
           playersUpdated: recordsProcessed,
+          playersDeactivated: deactivatedCount,
           errors: errorCount,
           apiCalls: requestCount,
         },
@@ -139,6 +165,7 @@ export async function syncRoster(progressCallback?: ProgressCallback): Promise<J
         summary: {
           error: error.message,
           playersUpdated: recordsProcessed,
+          playersDeactivated: deactivatedCount,
           errors: errorCount + 1,
           apiCalls: requestCount,
         },
