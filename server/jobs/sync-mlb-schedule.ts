@@ -9,6 +9,7 @@ import {
   fetchGames,
   normalizeGameStatus,
   isMLBApiConfigured,
+  getMLBHomeScore,
   getMLBAwayScore,
   getMLBAwayTeam,
 } from "../balldontlie-mlb";
@@ -76,7 +77,7 @@ export async function syncMLBSchedule(): Promise<SyncResult> {
           venue: apiGame.venue || null,
           status,
           startTime,
-          homeScore: apiGame.home_team_score ?? null,
+          homeScore: getMLBHomeScore(apiGame),
           awayScore: getMLBAwayScore(apiGame),
         };
 

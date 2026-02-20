@@ -354,6 +354,7 @@ export function GameCommandCenterModal({
   const {
     data: liveStats,
     isLoading: isLoadingLive,
+    error: liveStatsError,
     refetch: refetchLive,
   } = useQuery<LiveStatsResponse>({
     queryKey: ["/api/games", gameId, "live-stats"],
@@ -482,6 +483,8 @@ export function GameCommandCenterModal({
   }, [liveStats, liveAwayPlayers, liveHomePlayers, liveSport]);
 
   const totalLiveEarnings = liveStats?.userEarnings?.totalEstimatedEarnings || 0;
+  const liveStatsErrorMessage =
+    liveStatsError instanceof Error ? liveStatsError.message : "Failed to fetch live stats.";
 
   const { data: scoutData, isLoading: isLoadingScouts } = useQuery<ScoutData>({
     queryKey: ["/api/scouts"],
@@ -1214,7 +1217,7 @@ export function GameCommandCenterModal({
             {isLoadingLive ? (
               <Shimmer height="160px" width="100%" />
             ) : !liveStats ? (
-              <div className="text-sm text-muted-foreground">Live stats are not available yet.</div>
+              <div className="text-sm text-muted-foreground">{liveStatsErrorMessage}</div>
             ) : (
               <>
                 <div className="space-y-3 rounded-lg border border-border/60 p-3">

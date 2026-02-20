@@ -12,3 +12,4 @@
 - For Supabase CLI project targeting in this repo, treat `SUPABASE_URL` as the source-of-truth variable (not `DATABASE_URL`).
 - On dashboard market rows, do not keep generic `LIVE` labels when provider game-state text is available; show sport-specific progress (MLB inning, NBA/NFL quarter+clock).
 - Dashboard already has a global date context; game-row secondary market text should prioritize game-specific time/progress over repeating the date.
+- When provider payload contracts differ from cached DB rows, hydrate game teams/status/scores from provider snapshots in insights responses to avoid stale placeholders like `TBD`.

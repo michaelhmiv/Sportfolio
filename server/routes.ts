@@ -320,6 +320,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const normalizedSport = (sport || "NBA").toUpperCase();
     const teamsBySport = new Map<string, Set<string>>();
     const liveMarketStatusByGameId = new Map<string, string>();
+    const providerStatusByGameId = new Map<
+      string,
+      "scheduled" | "inprogress" | "completed" | "postponed"
+    >();
+    const providerScoreByGameId = new Map<
+      string,
+      { homeScore: number | null; awayScore: number | null }
+    >();
+    const providerTeamsByGameId = new Map<
+      string,
+      { homeTeam: string | null; awayTeam: string | null }
+    >();
+    const allGameIdsBySport = new Map<string, Set<string>>();
     const roundToTwo = (value: number) => Math.round(value * 100) / 100;
     const normalizeInsightStatus = (
       status: string | null | undefined,
@@ -348,12 +361,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       return null;
     };
+    const normalizeTeamCode = (rawTeam: string | null | undefined): string | null => {
+      const value = String(rawTeam || "")
+        .trim()
+        .toUpperCase();
+      if (!value || value === "TBD") return null;
+      return value;
+    };
     const extractClockFromText = (rawText: string | null | undefined): string | null => {
       const text = String(rawText || "");
       const match = text.match(/(\d{1,2}:\d{2})/);
       if (!match) return null;
       return normalizeClockValue(match[1]);
     };
+    const normalizeProviderStatusText = (rawStatus: string | null | undefined) =>
+      String(rawStatus || "")
+        .trim()
+        .toLowerCase()
+        .replace(/^status[\s_-]*/, "")
+        .replace(/_/g, " ")
+        .trim();
     const extractQuarterNumber = (normalizedStatus: string): number | null => {
       const ordinalQuarter = normalizedStatus.match(/([1-4])(st|nd|rd|th)\s*(qtr|quarter)/);
       if (ordinalQuarter) {
@@ -371,6 +398,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (suffixedQuarter) {
         const quarterNumber = Number(suffixedQuarter[1]);
         return Number.isFinite(quarterNumber) ? quarterNumber : null;
+      }
+
+      return null;
+    };
+    const extractInningNumber = (normalizedStatus: string): number | null => {
+      const inningMatch = normalizedStatus.match(/\b(\d{1,2})(st|nd|rd|th)?\s*inning\b/);
+      if (inningMatch) {
+        const inning = Number(inningMatch[1]);
+        return Number.isFinite(inning) ? inning : null;
+      }
+
+      const shortInningMatch = normalizedStatus.match(/\b([tbm])\s*(\d{1,2})\b/);
+      if (shortInningMatch) {
+        const inning = Number(shortInningMatch[2]);
+        return Number.isFinite(inning) ? inning : null;
       }
 
       return null;
@@ -435,12 +477,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       return statusText ? statusText.toUpperCase() : null;
     };
-    const formatMlbLiveMarketStatus = (rawStatus: string | null | undefined): string | null => {
+    const formatMlbLiveMarketStatus = (
+      rawStatus: string | null | undefined,
+      rawPeriod?: number | null,
+    ): string | null => {
       const statusText = String(rawStatus || "").trim();
       if (!statusText) return null;
 
-      const normalized = statusText.toLowerCase();
-      if (normalized === "in progress") return "LIVE";
+      const normalized = normalizeProviderStatusText(statusText);
+      const inningFromStatus = extractInningNumber(normalized);
+      const inningFromText = statusText.match(/\b([tbm])(\d{1,2})\b/i);
+      const parsedPeriod = Number(rawPeriod);
+      const inning =
+        Number.isFinite(parsedPeriod) && parsedPeriod > 0 ? parsedPeriod : inningFromStatus;
+
+      if (
+        normalized === "in progress" ||
+        normalized === "live" ||
+        normalized.includes("in progress") ||
+        normalized.includes("top") ||
+        normalized.includes("bottom") ||
+        normalized.includes("mid") ||
+        normalized.includes("inning")
+      ) {
+        if (inningFromText) {
+          const frame = inningFromText[1].toUpperCase();
+          const frameLabel = frame === "T" ? "TOP" : frame === "B" ? "BOT" : "MID";
+          return `${frameLabel} ${inningFromText[2]}`;
+        }
+        if (inning && inning > 0) return `INNING ${inning}`;
+        return "LIVE";
+      }
+
+      if (normalized.includes("final") || normalized.includes("completed")) {
+        return "FINAL";
+      }
 
       return statusText;
     };
@@ -466,19 +537,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
       teams.add(game.homeTeam);
       teams.add(game.awayTeam);
       teamsBySport.set(gameSport, teams);
+
+      const ids = allGameIdsBySport.get(gameSport) || new Set<string>();
+      const unprefixed = toUnprefixedGameId(game.gameId);
+      if (unprefixed) ids.add(unprefixed);
+      if (game.gameId) ids.add(game.gameId);
+      if (unprefixed) ids.add(`${gameSport.toLowerCase()}_${unprefixed}`);
+      allGameIdsBySport.set(gameSport, ids);
     });
 
     const inprogressGameIdsBySport = new Map<string, Set<string>>();
+    const nowMs = Date.now();
+    const liveWindowMs = 6 * 60 * 60 * 1000;
     games.forEach((game) => {
       const normalizedStatus = normalizeInsightStatus(game.status);
-      if (normalizedStatus !== "inprogress") return;
+      const gameStartMs = new Date(game.startTime).getTime();
+      const looksLiveByStartTime =
+        normalizedStatus === "scheduled" &&
+        Number.isFinite(gameStartMs) &&
+        gameStartMs <= nowMs &&
+        nowMs - gameStartMs <= liveWindowMs;
+      if (normalizedStatus !== "inprogress" && !looksLiveByStartTime) return;
 
       const gameSport = (game.sport || normalizedSport).toUpperCase();
       const ids = inprogressGameIdsBySport.get(gameSport) || new Set<string>();
       const unprefixed = toUnprefixedGameId(game.gameId);
       if (unprefixed) ids.add(unprefixed);
       if (game.gameId) ids.add(game.gameId);
-      ids.add(`${gameSport.toLowerCase()}_${unprefixed}`);
+      if (unprefixed) ids.add(`${gameSport.toLowerCase()}_${unprefixed}`);
       inprogressGameIdsBySport.set(gameSport, ids);
     });
 
@@ -487,6 +573,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
       status?: string | null;
       period?: number | null;
       clock?: string | null;
+      normalizedStatus?: "scheduled" | "inprogress" | "completed" | "postponed";
+      homeScore?: number | null;
+      awayScore?: number | null;
+      homeTeam?: string | null;
+      awayTeam?: string | null;
+    };
+
+    const normalizeNflProviderStatus = (
+      rawStatus: string | null | undefined,
+    ): "scheduled" | "inprogress" | "completed" | "postponed" => {
+      const normalized = normalizeProviderStatusText(rawStatus);
+      if (!normalized) return "scheduled";
+
+      if (
+        normalized.includes("postponed") ||
+        normalized.includes("delayed") ||
+        normalized.includes("suspended") ||
+        normalized.includes("cancel")
+      ) {
+        return "postponed";
+      }
+
+      if (
+        normalized.includes("final") ||
+        normalized.includes("completed") ||
+        normalized.includes("ended")
+      ) {
+        return "completed";
+      }
+
+      if (
+        normalized.includes("in progress") ||
+        normalized === "live" ||
+        normalized.includes("quarter") ||
+        /\bq[1-4]\b/.test(normalized) ||
+        normalized.includes("half") ||
+        normalized.includes("ot")
+      ) {
+        return "inprogress";
+      }
+
+      return "scheduled";
     };
 
     const addLiveMarketStatus = (
@@ -504,10 +632,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
       liveMarketStatusByGameId.set(unprefixed, formatted);
       liveMarketStatusByGameId.set(prefixed, formatted);
     };
+    const addProviderStatus = (
+      gameSport: string,
+      rawGameId: string,
+      status: "scheduled" | "inprogress" | "completed" | "postponed" | null | undefined,
+    ) => {
+      if (!status) return;
+
+      const unprefixed = toUnprefixedGameId(rawGameId);
+      if (!unprefixed) return;
+
+      const prefixed = `${gameSport.toLowerCase()}_${unprefixed}`;
+      providerStatusByGameId.set(unprefixed, status);
+      providerStatusByGameId.set(prefixed, status);
+    };
+    const addProviderScores = (
+      gameSport: string,
+      rawGameId: string,
+      homeScore: number | null | undefined,
+      awayScore: number | null | undefined,
+    ) => {
+      if (homeScore == null && awayScore == null) return;
+
+      const unprefixed = toUnprefixedGameId(rawGameId);
+      if (!unprefixed) return;
+
+      const prefixed = `${gameSport.toLowerCase()}_${unprefixed}`;
+      const scoreRecord = {
+        homeScore: homeScore ?? null,
+        awayScore: awayScore ?? null,
+      };
+      providerScoreByGameId.set(unprefixed, scoreRecord);
+      providerScoreByGameId.set(prefixed, scoreRecord);
+    };
+    const addProviderTeams = (
+      gameSport: string,
+      rawGameId: string,
+      homeTeam: string | null | undefined,
+      awayTeam: string | null | undefined,
+    ) => {
+      const normalizedHomeTeam = normalizeTeamCode(homeTeam);
+      const normalizedAwayTeam = normalizeTeamCode(awayTeam);
+      if (!normalizedHomeTeam && !normalizedAwayTeam) return;
+
+      const unprefixed = toUnprefixedGameId(rawGameId);
+      if (!unprefixed) return;
+
+      const prefixed = `${gameSport.toLowerCase()}_${unprefixed}`;
+      const payload = { homeTeam: normalizedHomeTeam, awayTeam: normalizedAwayTeam };
+      providerTeamsByGameId.set(unprefixed, payload);
+      providerTeamsByGameId.set(prefixed, payload);
+    };
 
     await Promise.all(
-      Array.from(inprogressGameIdsBySport.entries()).map(async ([gameSport, targetGameIds]) => {
-        if (targetGameIds.size === 0) return;
+      Array.from(allGameIdsBySport.entries()).map(async ([gameSport, allGameIds]) => {
+        if (allGameIds.size === 0) return;
+        const targetGameIds = inprogressGameIdsBySport.get(gameSport) || new Set<string>();
 
         const cacheKey = `games_insights:live_market:${gameSport}:${dateStr}`;
         try {
@@ -515,13 +695,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
             cacheKey,
             async () => {
               if (gameSport === "NBA") {
-                const { fetchDailyGames } = await import("./balldontlie-nba");
+                const { fetchDailyGames, normalizeGameStatus: normalizeNbaGameStatus } =
+                  await import("./balldontlie-nba");
                 const apiGames = await fetchDailyGames(dateStr);
                 return apiGames.map((apiGame: any) => ({
                   gameId: String(apiGame.id),
                   status: apiGame.status,
+                  normalizedStatus: normalizeInsightStatus(
+                    normalizeNbaGameStatus(String(apiGame.status || "")),
+                  ),
                   period: Number(apiGame.period || 0),
                   clock: String(apiGame.time || ""),
+                  homeScore: Number.isFinite(Number(apiGame.home_team_score))
+                    ? Number(apiGame.home_team_score)
+                    : null,
+                  awayScore: Number.isFinite(
+                    Number(apiGame.visitor_team_score ?? apiGame.away_team_score),
+                  )
+                    ? Number(apiGame.visitor_team_score ?? apiGame.away_team_score)
+                    : null,
+                  homeTeam: apiGame.home_team?.abbreviation
+                    ? String(apiGame.home_team.abbreviation)
+                    : null,
+                  awayTeam:
+                    apiGame.visitor_team?.abbreviation || apiGame.away_team?.abbreviation
+                      ? String(
+                          apiGame.visitor_team?.abbreviation || apiGame.away_team?.abbreviation,
+                        )
+                      : null,
                 }));
               }
 
@@ -531,16 +732,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 return apiGames.map((apiGame: any) => ({
                   gameId: String(apiGame.id),
                   status: apiGame.status,
+                  normalizedStatus: normalizeNflProviderStatus(apiGame.status),
                   clock: apiGame.time ? String(apiGame.time) : null,
+                  homeScore: Number.isFinite(Number(apiGame.home_team_score ?? apiGame.home_score))
+                    ? Number(apiGame.home_team_score ?? apiGame.home_score)
+                    : null,
+                  awayScore: Number.isFinite(
+                    Number(
+                      apiGame.visitor_team_score ??
+                        apiGame.away_team_score ??
+                        apiGame.visitor_score ??
+                        apiGame.away_score,
+                    ),
+                  )
+                    ? Number(
+                        apiGame.visitor_team_score ??
+                          apiGame.away_team_score ??
+                          apiGame.visitor_score ??
+                          apiGame.away_score,
+                      )
+                    : null,
+                  homeTeam: apiGame.home_team?.abbreviation
+                    ? String(apiGame.home_team.abbreviation)
+                    : null,
+                  awayTeam:
+                    apiGame.visitor_team?.abbreviation || apiGame.away_team?.abbreviation
+                      ? String(
+                          apiGame.visitor_team?.abbreviation || apiGame.away_team?.abbreviation,
+                        )
+                      : null,
                 }));
               }
 
               if (gameSport === "MLB") {
-                const { fetchGames } = await import("./balldontlie-mlb");
+                const {
+                  fetchGames,
+                  normalizeGameStatus: normalizeMlbGameStatus,
+                  getMLBHomeScore,
+                  getMLBAwayScore,
+                  getMLBAwayTeam,
+                } = await import("./balldontlie-mlb");
                 const apiGames = await fetchGames({ dates: [dateStr] });
                 return apiGames.map((apiGame: any) => ({
                   gameId: String(apiGame.id),
                   status: apiGame.status,
+                  normalizedStatus: normalizeInsightStatus(
+                    normalizeMlbGameStatus(String(apiGame.status || "")),
+                  ),
+                  period: Number(apiGame.period || 0),
+                  clock: apiGame.display_clock
+                    ? String(apiGame.display_clock)
+                    : apiGame.clock != null
+                      ? String(apiGame.clock)
+                      : null,
+                  homeScore: getMLBHomeScore(apiGame),
+                  awayScore: getMLBAwayScore(apiGame),
+                  homeTeam: apiGame.home_team?.abbreviation
+                    ? String(apiGame.home_team.abbreviation)
+                    : null,
+                  awayTeam: getMLBAwayTeam(apiGame)?.abbreviation
+                    ? String(getMLBAwayTeam(apiGame)?.abbreviation || "")
+                    : null,
                 }));
               }
 
@@ -552,6 +804,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           for (const providerGame of providerGames) {
             const unprefixed = toUnprefixedGameId(providerGame.gameId);
             const prefixed = `${gameSport.toLowerCase()}_${unprefixed}`;
+            addProviderTeams(
+              gameSport,
+              providerGame.gameId,
+              providerGame.homeTeam,
+              providerGame.awayTeam,
+            );
             if (!targetGameIds.has(unprefixed) && !targetGameIds.has(prefixed)) {
               continue;
             }
@@ -566,10 +824,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 : gameSport === "NFL"
                   ? formatNflLiveMarketStatus(providerGame.status, providerGame.clock)
                   : gameSport === "MLB"
-                    ? formatMlbLiveMarketStatus(providerGame.status)
+                    ? formatMlbLiveMarketStatus(providerGame.status, providerGame.period)
                     : null;
 
             addLiveMarketStatus(gameSport, providerGame.gameId, statusLabel);
+            addProviderStatus(gameSport, providerGame.gameId, providerGame.normalizedStatus);
+            addProviderScores(
+              gameSport,
+              providerGame.gameId,
+              providerGame.homeScore,
+              providerGame.awayScore,
+            );
           }
         } catch (error: any) {
           console.warn(
@@ -579,6 +844,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }),
     );
+
+    games.forEach((game) => {
+      const providerTeams =
+        providerTeamsByGameId.get(game.gameId) ||
+        providerTeamsByGameId.get(toUnprefixedGameId(game.gameId)) ||
+        null;
+
+      if (providerTeams?.homeTeam) {
+        game.homeTeam = providerTeams.homeTeam;
+      }
+      if (providerTeams?.awayTeam) {
+        game.awayTeam = providerTeams.awayTeam;
+      }
+    });
+
+    teamsBySport.clear();
+    games.forEach((game) => {
+      const gameSport = (normalizedSport === "ALL" ? game.sport : normalizedSport).toUpperCase();
+      const teams = teamsBySport.get(gameSport) || new Set<string>();
+      teams.add(game.homeTeam);
+      teams.add(game.awayTeam);
+      teamsBySport.set(gameSport, teams);
+    });
 
     const teamPlayers =
       teamsBySport.size > 0
@@ -929,7 +1217,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return top ? buildLeader(top) : null;
       };
 
-      const status = normalizeInsightStatus(game.status);
+      const providerStatus =
+        providerStatusByGameId.get(game.gameId) ||
+        providerStatusByGameId.get(toUnprefixedGameId(game.gameId)) ||
+        null;
+      const status = providerStatus || normalizeInsightStatus(game.status);
+      const providerScores =
+        providerScoreByGameId.get(game.gameId) ||
+        providerScoreByGameId.get(toUnprefixedGameId(game.gameId)) ||
+        null;
+      const homeScore = providerScores?.homeScore ?? game.homeScore ?? null;
+      const awayScore = providerScores?.awayScore ?? game.awayScore ?? null;
       const baseUserContext = userContextByGame.get(game.gameId);
       const userContext = userId
         ? {
@@ -954,12 +1252,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         gameId: game.gameId,
         sport: game.sport,
         gameDay: getGameDay(game.startTime),
-        status: game.status,
+        status,
         startTime: game.startTime,
         homeTeam: game.homeTeam,
         awayTeam: game.awayTeam,
-        homeScore: game.homeScore ?? null,
-        awayScore: game.awayScore ?? null,
+        homeScore,
+        awayScore,
         venue: game.venue ?? null,
         leaders: {
           fantasy: pickLeader("avgFantasyPointsPerGame"),
@@ -3002,38 +3300,142 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         console.log(`[live-stats] Fetching MLB stats for game ${gameId}`);
 
+        const normalizeTeamKey = (value: string | null | undefined): string =>
+          String(value || "")
+            .trim()
+            .toUpperCase()
+            .replace(/[^A-Z0-9]/g, "");
+
         const {
+          fetchGames,
           fetchGameStats,
           calculateMLBFantasyPoints,
           createMLBPlayerId,
           parseStatsToJson,
           normalizeGameStatus: normalizeMLBStatus,
+          getMLBHomeScore,
+          getMLBAwayScore,
+          getMLBAwayTeam,
+          getMLBHomeTeamName,
+          getMLBAwayTeamName,
+          getMLBTeamDisplayName,
+          getMLBStatGameId,
+          getMLBStatTeamAbbreviation,
+          getMLBStatTeamName,
         } = await import("./balldontlie-mlb");
-        const mlbStats = await fetchGameStats([mlbGameIdNum]);
+        const gameStartTime = new Date(game.startTime);
+        const lookupDates = Array.from(
+          new Set([
+            getGameDay(new Date(gameStartTime.getTime() - 24 * 60 * 60 * 1000)),
+            getGameDay(gameStartTime),
+            getGameDay(new Date(gameStartTime.getTime() + 24 * 60 * 60 * 1000)),
+          ]),
+        );
+        const [mlbStats, mlbGames] = await Promise.all([
+          fetchGameStats([mlbGameIdNum]),
+          fetchGames({ dates: lookupDates }),
+        ]);
         console.log(`[live-stats] Found ${mlbStats.length} MLB player stats`);
 
-        if (mlbStats.length > 0) {
-          // Prefer API game status and scores when available
-          let liveStatus = game.status;
-          let liveHomeScore = game.homeScore;
-          let liveAwayScore = game.awayScore;
-          const apiGame = mlbStats[0]?.game;
-          if (apiGame) {
-            try {
-              liveStatus = normalizeMLBStatus(apiGame.status || "");
-              if (typeof apiGame.home_team_score === "number") {
-                liveHomeScore = apiGame.home_team_score;
-              }
-              if (typeof apiGame.visitor_team_score === "number") {
-                liveAwayScore = apiGame.visitor_team_score;
-              }
-            } catch {
-              // Non-fatal: keep DB values when API parsing fails.
-            }
-          }
+        const apiGame =
+          mlbGames.find((candidateGame: any) => Number(candidateGame.id) === mlbGameIdNum) || null;
 
-          const homeStats = mlbStats.filter((s) => s.team.abbreviation === game.homeTeam);
-          const awayStats = mlbStats.filter((s) => s.team.abbreviation === game.awayTeam);
+        // Prefer API game status and scores when available
+        let liveStatus = game.status;
+        let liveHomeScore = game.homeScore;
+        let liveAwayScore = game.awayScore;
+        let liveHomeTeam = game.homeTeam;
+        let liveAwayTeam = game.awayTeam;
+        if (apiGame) {
+          try {
+            liveStatus = normalizeMLBStatus(apiGame.status || "");
+            if (apiGame.home_team?.abbreviation) {
+              liveHomeTeam = String(apiGame.home_team.abbreviation).toUpperCase();
+            }
+            const apiAwayTeam = getMLBAwayTeam(apiGame);
+            if (apiAwayTeam?.abbreviation) {
+              liveAwayTeam = String(apiAwayTeam.abbreviation).toUpperCase();
+            }
+            const homeScore = getMLBHomeScore(apiGame);
+            const awayScore = getMLBAwayScore(apiGame);
+            if (homeScore != null) {
+              liveHomeScore = homeScore;
+            }
+            if (awayScore != null) {
+              liveAwayScore = awayScore;
+            }
+          } catch {
+            // Non-fatal: keep DB values when API parsing fails.
+          }
+        }
+
+        game.homeTeam = liveHomeTeam || game.homeTeam;
+        game.awayTeam = liveAwayTeam || game.awayTeam;
+
+        if (mlbStats.length > 0) {
+          const apiAwayTeam = apiGame ? getMLBAwayTeam(apiGame) : null;
+          const homeAbbreviation = normalizeTeamKey(
+            apiGame?.home_team?.abbreviation || liveHomeTeam || game.homeTeam,
+          );
+          const awayAbbreviation = normalizeTeamKey(
+            apiAwayTeam?.abbreviation || liveAwayTeam || game.awayTeam,
+          );
+
+          const homeNameKeys = new Set(
+            [
+              game.homeTeam,
+              liveHomeTeam,
+              apiGame ? getMLBHomeTeamName(apiGame) : null,
+              apiGame ? getMLBTeamDisplayName(apiGame.home_team) : null,
+              apiGame?.home_team?.name,
+              apiGame?.home_team?.display_name,
+              apiGame?.home_team?.short_display_name,
+            ]
+              .map(normalizeTeamKey)
+              .filter(Boolean),
+          );
+          const awayNameKeys = new Set(
+            [
+              game.awayTeam,
+              liveAwayTeam,
+              apiGame ? getMLBAwayTeamName(apiGame) : null,
+              getMLBTeamDisplayName(apiAwayTeam),
+              apiAwayTeam?.name,
+              apiAwayTeam?.display_name,
+              apiAwayTeam?.short_display_name,
+            ]
+              .map(normalizeTeamKey)
+              .filter(Boolean),
+          );
+
+          const getStatSide = (stat: (typeof mlbStats)[number]): "home" | "away" | null => {
+            const statGameId = getMLBStatGameId(stat);
+            if (statGameId != null && statGameId !== mlbGameIdNum) return null;
+
+            const statAbbreviation = normalizeTeamKey(getMLBStatTeamAbbreviation(stat));
+            if (statAbbreviation) {
+              if (homeAbbreviation && statAbbreviation === homeAbbreviation) return "home";
+              if (awayAbbreviation && statAbbreviation === awayAbbreviation) return "away";
+            }
+
+            const statTeamName = normalizeTeamKey(getMLBStatTeamName(stat));
+            if (!statTeamName) return null;
+            if (homeNameKeys.has(statTeamName)) return "home";
+            if (awayNameKeys.has(statTeamName)) return "away";
+
+            return null;
+          };
+
+          const homeStats: typeof mlbStats = [];
+          const awayStats: typeof mlbStats = [];
+          mlbStats.forEach((stat) => {
+            const side = getStatSide(stat);
+            if (side === "home") {
+              homeStats.push(stat);
+            } else if (side === "away") {
+              awayStats.push(stat);
+            }
+          });
 
           const getTopPerformers = (stats: typeof mlbStats) => {
             return [...stats]
@@ -3041,9 +3443,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
               .slice(0, 3)
               .map((s) => {
                 const normalizedStats = parseStatsToJson(s);
+                const side = getStatSide(s);
                 return {
                   name: `${s.player.first_name.charAt(0)}. ${s.player.last_name}`,
-                  team: s.team.abbreviation,
+                  team:
+                    side === "home"
+                      ? liveHomeTeam || game.homeTeam
+                      : side === "away"
+                        ? liveAwayTeam || game.awayTeam
+                        : getMLBStatTeamAbbreviation(s) || getMLBStatTeamName(s) || "UNK",
                   pts: Number(calculateMLBFantasyPoints(s).toFixed(1)),
                   hits: normalizedStats.hits || 0,
                   runs: normalizedStats.runs || 0,
@@ -3054,11 +3462,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           const mapPlayer = (s: (typeof mlbStats)[0]) => {
             const normalizedStats = parseStatsToJson(s);
+            const side = getStatSide(s);
             return {
               id: s.player.id,
               playerId: createMLBPlayerId(s.player.id),
               name: `${s.player.first_name} ${s.player.last_name}`,
-              team: s.team.abbreviation,
+              team:
+                side === "home"
+                  ? liveHomeTeam || game.homeTeam
+                  : side === "away"
+                    ? liveAwayTeam || game.awayTeam
+                    : getMLBStatTeamAbbreviation(s) || getMLBStatTeamName(s) || "UNK",
               position: s.player.position_abbreviation || s.player.position || "",
               atBats: normalizedStats.at_bats || 0,
               hits: normalizedStats.hits || 0,
@@ -3087,9 +3501,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.json({
             gameId,
             status: liveStatus,
-            homeTeam: game.homeTeam,
+            homeTeam: liveHomeTeam || game.homeTeam,
             homeScore: liveHomeScore,
-            awayTeam: game.awayTeam,
+            awayTeam: liveAwayTeam || game.awayTeam,
             awayScore: liveAwayScore,
             homePlayers,
             awayPlayers,
@@ -3104,11 +3518,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const userEarnings = await buildUserLiveEarnings([]);
         return res.json({
           gameId,
-          status: game.status,
-          homeTeam: game.homeTeam,
-          homeScore: game.homeScore,
-          awayTeam: game.awayTeam,
-          awayScore: game.awayScore,
+          status: liveStatus,
+          homeTeam: liveHomeTeam || game.homeTeam,
+          homeScore: liveHomeScore,
+          awayTeam: liveAwayTeam || game.awayTeam,
+          awayScore: liveAwayScore,
           homePlayers: [],
           awayPlayers: [],
           homeTopPerformers: [],

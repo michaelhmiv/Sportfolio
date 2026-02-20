@@ -55,6 +55,17 @@
 - [x] Update market scanner sourcing to require pool-backed pricing (or real trade price)
 - [x] Validate via `npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`
 
+## 2026-02-20 MLB Live Inning/Score/Stats Contract Fix
+
+- [x] Diagnose MLB Market tab live-status/score regressions and trace provider contract drift
+- [x] Update MLB API adapters for `STATUS_*` normalization and modern score/stat payload fields
+- [x] Patch MLB schedule/stats sync jobs to map current BallDontLie game + team shapes
+- [x] Fix `/api/games/insights` live enrichment to surface inning/status/score reliably for MLB
+- [x] Fix `/api/games/:gameId/live-stats` MLB mapping for modern stats rows (`game_id`, `team_name`)
+- [x] Add dashboard guardrail to avoid false `LIVE` when backend has no live evidence
+- [x] Surface live-stats fetch errors in game command center modal
+- [x] Validate via `npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`
+
 ## 2026-02-20 PR #70 Review + Pool Seeding Follow-up
 
 - [x] Review PR #70 comments and isolate the scanner SQL type mismatch in `getFinancialMarketScanners`
