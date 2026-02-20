@@ -7,9 +7,9 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 
-export type Sport = "NBA" | "NFL" | "NASCAR" | "ALL";
+export type Sport = "NBA" | "NFL" | "MLB" | "NASCAR" | "ALL";
 
-export const SPORTS: Sport[] = ["NBA", "NFL", "NASCAR", "ALL"];
+export const SPORTS: Sport[] = ["NBA", "NFL", "MLB", "NASCAR", "ALL"];
 
 interface SportContextValue {
   /** Currently selected sport */
@@ -32,7 +32,13 @@ export function SportProvider({ children }: { children: ReactNode }) {
     // Initialize from localStorage, default to ALL for new visitors
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored === "NBA" || stored === "NFL" || stored === "NASCAR" || stored === "ALL") {
+      if (
+        stored === "NBA" ||
+        stored === "NFL" ||
+        stored === "MLB" ||
+        stored === "NASCAR" ||
+        stored === "ALL"
+      ) {
         return stored;
       }
     }
@@ -101,6 +107,23 @@ export function useSportConfig() {
         TE: "Tight End",
         K: "Kicker",
         DEF: "Defense",
+      } as Record<string, string>,
+    },
+    MLB: {
+      name: "MLB",
+      fullName: "Major League Baseball",
+      icon: "⚾",
+      positions: ["P", "C", "1B", "2B", "3B", "SS", "OF", "DH", "UTIL"],
+      positionLabels: {
+        P: "Pitcher",
+        C: "Catcher",
+        "1B": "First Base",
+        "2B": "Second Base",
+        "3B": "Third Base",
+        SS: "Shortstop",
+        OF: "Outfield",
+        DH: "Designated Hitter",
+        UTIL: "Utility",
       } as Record<string, string>,
     },
     NASCAR: {

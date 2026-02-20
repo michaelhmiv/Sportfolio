@@ -152,7 +152,7 @@ const MULTIPLIER_SLOTS = [
   { tier: 2, label: "2x", color: "bg-blue-500", icon: TrendingUp },
 ];
 
-const SPORTS = ["All", "NBA", "NFL"];
+const SPORTS = ["All", "NBA", "NFL", "MLB"];
 
 // Helper to get today's date in Eastern Time
 function getTodayET(): Date {

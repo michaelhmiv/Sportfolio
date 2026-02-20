@@ -47,6 +47,7 @@ import {
 interface SystemStats {
   totalUsers: number;
   totalPlayers: number;
+  playersBySport?: Record<string, number>;
   apiRequestsToday: number;
   lastJobRuns: {
     jobName: string;
@@ -56,6 +57,8 @@ interface SystemStats {
     errorCount: number;
   }[];
 }
+
+const SPORTS = ["NBA", "NFL", "MLB", "NASCAR"] as const;
 
 const jobDescriptions = {
   roster_sync: "Sync NBA player roster from MySportsFeeds",
@@ -71,6 +74,10 @@ const jobDescriptions = {
   nfl_roster_sync: "Sync NFL player roster",
   nfl_schedule_sync: "Sync NFL schedule",
   nfl_stats_sync: "Sync NFL stats",
+  // MLB jobs
+  mlb_roster_sync: "Sync MLB player roster",
+  mlb_schedule_sync: "Sync MLB schedule",
+  mlb_stats_sync: "Sync MLB stats",
   // NASCAR jobs
   nascar_roster_sync: "Sync NASCAR driver roster (Cup, Xfinity, Trucks)",
   nascar_schedule_sync: "Sync NASCAR race schedule",
@@ -671,7 +678,7 @@ export default function Admin() {
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-2">
                 <TrendingUp className="w-4 h-4 text-primary" />
-                <span className="text-sm text-muted-foreground">NBA Players</span>
+                <span className="text-sm text-muted-foreground">Total Players</span>
               </div>
               <div className="text-2xl font-bold">{stats?.totalPlayers.toLocaleString()}</div>
             </CardContent>
@@ -687,6 +694,19 @@ export default function Admin() {
               <div className="text-xs text-muted-foreground mt-1">Today</div>
             </CardContent>
           </Card>
+        </div>
+
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {SPORTS.map((sport) => (
+            <Card key={sport} data-testid={`card-players-${sport.toLowerCase()}`}>
+              <CardContent className="p-4">
+                <div className="text-xs text-muted-foreground mb-1">{sport} Players</div>
+                <div className="text-xl font-bold">
+                  {(stats?.playersBySport?.[sport] || 0).toLocaleString()}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
 
         {/* Premium Shares Grant */}

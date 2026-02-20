@@ -121,12 +121,17 @@ export function CommunityBoostSelector({
   const { data: todaysGames } = useQuery<GameInfo[]>({
     queryKey: ["/api/games/today"],
     queryFn: async () => {
-      const [nbaRes, nflRes] = await Promise.all([
+      const [nbaRes, nflRes, mlbRes] = await Promise.all([
         fetch("/api/games/today?sport=NBA"),
         fetch("/api/games/today?sport=NFL"),
+        fetch("/api/games/today?sport=MLB"),
       ]);
-      const [nbaGames, nflGames] = await Promise.all([nbaRes.json(), nflRes.json()]);
-      return [...(nbaGames || []), ...(nflGames || [])];
+      const [nbaGames, nflGames, mlbGames] = await Promise.all([
+        nbaRes.json(),
+        nflRes.json(),
+        mlbRes.json(),
+      ]);
+      return [...(nbaGames || []), ...(nflGames || []), ...(mlbGames || [])];
     },
     enabled: open,
     refetchInterval: 60000,
@@ -136,9 +141,10 @@ export function CommunityBoostSelector({
   const playerGameMap = useMemo(() => {
     const map = new Map<string, GameInfo>();
     if (!todaysGames) return map;
+    const makeKey = (sport: string, team: string) => `${(sport || "").toUpperCase()}:${team}`;
     for (const game of todaysGames) {
-      map.set(game.homeTeam, game);
-      map.set(game.awayTeam, game);
+      map.set(makeKey(game.sport, game.homeTeam), game);
+      map.set(makeKey(game.sport, game.awayTeam), game);
     }
     return map;
   }, [todaysGames]);
@@ -202,9 +208,9 @@ export function CommunityBoostSelector({
     const now = new Date();
 
     return playersData.players
-      .filter((player) => playerGameMap.has(player.team))
+      .filter((player) => playerGameMap.has(`${player.sport.toUpperCase()}:${player.team}`))
       .map((player) => {
-        const game = playerGameMap.get(player.team);
+        const game = playerGameMap.get(`${player.sport.toUpperCase()}:${player.team}`);
         const gameStartTime = game?.startTime ? new Date(game.startTime) : null;
 
         // Determine opponent
@@ -477,6 +483,7 @@ export function CommunityBoostSelector({
                 <SelectItem value="all">All</SelectItem>
                 <SelectItem value="NBA">NBA</SelectItem>
                 <SelectItem value="NFL">NFL</SelectItem>
+                <SelectItem value="MLB">MLB</SelectItem>
               </SelectContent>
             </Select>
 

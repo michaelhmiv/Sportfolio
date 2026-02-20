@@ -98,6 +98,31 @@ const SPORT_CONFIG: Record<
       { key: "receivingYards", label: "R.YDS" },
     ],
   },
+  MLB: {
+    seasonStats: [
+      { key: "avgFantasyPointsPerGame", label: "FP/G", highlight: true },
+      { key: "gamesPlayed", label: "GP" },
+      { key: "battingAverage", label: "AVG" },
+      { key: "hits", label: "H" },
+      { key: "runs", label: "R" },
+      { key: "runsBattedIn", label: "RBI" },
+      { key: "homeRuns", label: "HR" },
+      { key: "stolenBases", label: "SB" },
+      { key: "walks", label: "BB" },
+      { key: "strikeouts", label: "K" },
+      { key: "inningsPitched", label: "IP" },
+      { key: "pitchingStrikeouts", label: "P-K" },
+      { key: "wins", label: "W" },
+      { key: "saves", label: "SV" },
+    ],
+    recentGames: [
+      { key: "hits", label: "H" },
+      { key: "runs", label: "R" },
+      { key: "runsBattedIn", label: "RBI" },
+      { key: "homeRuns", label: "HR" },
+      { key: "stolenBases", label: "SB" },
+    ],
+  },
   NASCAR: {
     seasonStats: [
       { key: "avgFantasyPointsPerGame", label: "FP/G", highlight: true },
@@ -163,7 +188,13 @@ export function PlayerModal({ playerId, open, onOpenChange }: PlayerModalProps) 
   const team = statsData?.team;
   const sport =
     statsData?.stats?.sport ||
-    (player?.sport === "NFL" ? "NFL" : player?.sport === "NASCAR" ? "NASCAR" : "NBA");
+    (player?.sport === "NFL"
+      ? "NFL"
+      : player?.sport === "MLB"
+        ? "MLB"
+        : player?.sport === "NASCAR"
+          ? "NASCAR"
+          : "NBA");
   const stats = statsData?.stats;
   const recentGames: RecentGame[] = recentGamesData?.recentGames || [];
   const sharesInfo: any = sharesData?.sharesInfo;

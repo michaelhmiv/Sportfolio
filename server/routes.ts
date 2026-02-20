@@ -55,6 +55,7 @@ import { getOrCreatePool } from "./amm/pool";
 
 // Feature flags - set to false to disable features
 const CONTESTS_ENABLED = false; // DISABLED - contests feature removed
+const SUPPORTED_SPORTS = ["NBA", "NFL", "MLB", "NASCAR"] as const;
 
 /**
  * Get power/boosts data for the dashboard
@@ -179,6 +180,8 @@ type GameInsightUserContext = {
     totalShares: number;
     isBoosted: boolean;
   }>;
+  liveEarned?: number | null;
+  earningsStatus?: "scheduled" | "inprogress" | "completed" | "postponed";
 };
 
 type GameInsight = {
@@ -198,6 +201,7 @@ type GameInsight = {
     scouts: GameInsightLeader | null;
   };
   userContext: GameInsightUserContext | null;
+  liveMarketStatus?: string | null;
 };
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -311,6 +315,146 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }): Promise<{ insights: GameInsight[]; boostSlotsRemaining: number | null }> => {
     const normalizedSport = (sport || "NBA").toUpperCase();
     const teamsBySport = new Map<string, Set<string>>();
+    const liveMarketStatusByGameId = new Map<string, string>();
+    const roundToTwo = (value: number) => Math.round(value * 100) / 100;
+    const normalizeInsightStatus = (
+      status: string | null | undefined,
+    ): "scheduled" | "inprogress" | "completed" | "postponed" => {
+      const normalized = String(status || "scheduled").toLowerCase();
+      if (normalized === "inprogress") return "inprogress";
+      if (normalized === "completed") return "completed";
+      if (normalized === "postponed") return "postponed";
+      return "scheduled";
+    };
+    const toUnprefixedGameId = (rawGameId: string | null | undefined) =>
+      String(rawGameId || "")
+        .trim()
+        .replace(/^(nba_|nfl_|mlb_|nascar_)/i, "");
+    const normalizeClockValue = (rawClock: string | null | undefined): string | null => {
+      const text = String(rawClock || "").trim();
+      if (!text || text === "0" || text === "00") return null;
+
+      const mmssMatch = text.match(/(\d{1,2}):(\d{2})/);
+      if (mmssMatch) {
+        const minutes = Number(mmssMatch[1]);
+        const seconds = mmssMatch[2];
+        if (!Number.isFinite(minutes)) return null;
+        return `${minutes}:${seconds}`;
+      }
+
+      return null;
+    };
+    const extractClockFromText = (rawText: string | null | undefined): string | null => {
+      const text = String(rawText || "");
+      const match = text.match(/(\d{1,2}:\d{2})/);
+      if (!match) return null;
+      return normalizeClockValue(match[1]);
+    };
+    const extractQuarterNumber = (normalizedStatus: string): number | null => {
+      const ordinalQuarter = normalizedStatus.match(/([1-4])(st|nd|rd|th)\s*(qtr|quarter)/);
+      if (ordinalQuarter) {
+        const quarterNumber = Number(ordinalQuarter[1]);
+        return Number.isFinite(quarterNumber) ? quarterNumber : null;
+      }
+
+      const prefixedQuarter = normalizedStatus.match(/\bq([1-4])\b/);
+      if (prefixedQuarter) {
+        const quarterNumber = Number(prefixedQuarter[1]);
+        return Number.isFinite(quarterNumber) ? quarterNumber : null;
+      }
+
+      const suffixedQuarter = normalizedStatus.match(/\b([1-4])q\b/);
+      if (suffixedQuarter) {
+        const quarterNumber = Number(suffixedQuarter[1]);
+        return Number.isFinite(quarterNumber) ? quarterNumber : null;
+      }
+
+      return null;
+    };
+    const formatNbaLiveMarketStatus = (
+      rawStatus: string | null | undefined,
+      period: number | null | undefined,
+      rawClock: string | null | undefined,
+    ): string | null => {
+      const statusText = String(rawStatus || "").trim();
+      const normalized = statusText.toLowerCase();
+      const clock = normalizeClockValue(rawClock) || extractClockFromText(statusText);
+
+      if (normalized.includes("half")) return "HALF";
+
+      if (normalized.includes("ot") || normalized.includes("overtime")) {
+        return clock ? `OT ${clock}` : "OT";
+      }
+
+      const periodNumber = Number(period);
+      if (Number.isFinite(periodNumber) && periodNumber > 0) {
+        const frameLabel =
+          periodNumber <= 4
+            ? `Q${periodNumber}`
+            : periodNumber === 5
+              ? "OT"
+              : `${periodNumber - 4}OT`;
+        return clock ? `${frameLabel} ${clock}` : frameLabel;
+      }
+
+      const quarterNumberFromStatus = extractQuarterNumber(normalized);
+      if (quarterNumberFromStatus) {
+        const quarterLabel = `Q${quarterNumberFromStatus}`;
+        return clock ? `${quarterLabel} ${clock}` : quarterLabel;
+      }
+
+      return statusText ? statusText.toUpperCase() : null;
+    };
+    const formatNflLiveMarketStatus = (
+      rawStatus: string | null | undefined,
+      rawClock: string | null | undefined,
+    ): string | null => {
+      const statusText = String(rawStatus || "").trim();
+      const normalized = statusText.toLowerCase();
+      const clock = normalizeClockValue(rawClock) || extractClockFromText(statusText);
+
+      if (normalized.includes("half")) return "HALF";
+
+      if (normalized.includes("ot") || normalized.includes("overtime")) {
+        return clock ? `OT ${clock}` : "OT";
+      }
+
+      const quarterNumberFromStatus = extractQuarterNumber(normalized);
+      if (quarterNumberFromStatus) {
+        const quarterLabel = `Q${quarterNumberFromStatus}`;
+        return clock ? `${quarterLabel} ${clock}` : quarterLabel;
+      }
+
+      if (normalized.includes("in progress") || normalized === "live") {
+        return clock ? `LIVE ${clock}` : "LIVE";
+      }
+
+      return statusText ? statusText.toUpperCase() : null;
+    };
+    const formatMlbLiveMarketStatus = (rawStatus: string | null | undefined): string | null => {
+      const statusText = String(rawStatus || "").trim();
+      if (!statusText) return null;
+
+      const normalized = statusText.toLowerCase();
+      if (normalized === "in progress") return "LIVE";
+
+      return statusText;
+    };
+    const getPlayerIdCandidates = (playerId: string, gameSport: string): string[] => {
+      const rawId = String(playerId || "").trim();
+      if (!rawId) return [];
+
+      const ids = new Set<string>();
+      ids.add(rawId);
+
+      if (/^(nba_|nfl_|mlb_|nascar_)/i.test(rawId)) {
+        ids.add(rawId.replace(/^(nba_|nfl_|mlb_|nascar_)/i, ""));
+      } else {
+        ids.add(`${gameSport.toLowerCase()}_${rawId}`);
+      }
+
+      return Array.from(ids);
+    };
 
     games.forEach((game) => {
       const gameSport = (normalizedSport === "ALL" ? game.sport : normalizedSport).toUpperCase();
@@ -319,6 +463,118 @@ export async function registerRoutes(app: Express): Promise<Server> {
       teams.add(game.awayTeam);
       teamsBySport.set(gameSport, teams);
     });
+
+    const inprogressGameIdsBySport = new Map<string, Set<string>>();
+    games.forEach((game) => {
+      const normalizedStatus = normalizeInsightStatus(game.status);
+      if (normalizedStatus !== "inprogress") return;
+
+      const gameSport = (game.sport || normalizedSport).toUpperCase();
+      const ids = inprogressGameIdsBySport.get(gameSport) || new Set<string>();
+      const unprefixed = toUnprefixedGameId(game.gameId);
+      if (unprefixed) ids.add(unprefixed);
+      if (game.gameId) ids.add(game.gameId);
+      ids.add(`${gameSport.toLowerCase()}_${unprefixed}`);
+      inprogressGameIdsBySport.set(gameSport, ids);
+    });
+
+    type ProviderGameSnapshot = {
+      gameId: string;
+      status?: string | null;
+      period?: number | null;
+      clock?: string | null;
+    };
+
+    const addLiveMarketStatus = (
+      gameSport: string,
+      rawGameId: string,
+      value: string | null | undefined,
+    ) => {
+      const formatted = String(value || "").trim();
+      if (!formatted) return;
+
+      const unprefixed = toUnprefixedGameId(rawGameId);
+      if (!unprefixed) return;
+
+      const prefixed = `${gameSport.toLowerCase()}_${unprefixed}`;
+      liveMarketStatusByGameId.set(unprefixed, formatted);
+      liveMarketStatusByGameId.set(prefixed, formatted);
+    };
+
+    await Promise.all(
+      Array.from(inprogressGameIdsBySport.entries()).map(async ([gameSport, targetGameIds]) => {
+        if (targetGameIds.size === 0) return;
+
+        const cacheKey = `games_insights:live_market:${gameSport}:${dateStr}`;
+        try {
+          const providerGames = await getOrCompute<ProviderGameSnapshot[]>(
+            cacheKey,
+            async () => {
+              if (gameSport === "NBA") {
+                const { fetchDailyGames } = await import("./balldontlie-nba");
+                const apiGames = await fetchDailyGames(dateStr);
+                return apiGames.map((apiGame: any) => ({
+                  gameId: String(apiGame.id),
+                  status: apiGame.status,
+                  period: Number(apiGame.period || 0),
+                  clock: String(apiGame.time || ""),
+                }));
+              }
+
+              if (gameSport === "NFL") {
+                const { fetchGames } = await import("./balldontlie-nfl");
+                const apiGames = await fetchGames({ dates: [dateStr] });
+                return apiGames.map((apiGame: any) => ({
+                  gameId: String(apiGame.id),
+                  status: apiGame.status,
+                  clock: apiGame.time ? String(apiGame.time) : null,
+                }));
+              }
+
+              if (gameSport === "MLB") {
+                const { fetchGames } = await import("./balldontlie-mlb");
+                const apiGames = await fetchGames({ dates: [dateStr] });
+                return apiGames.map((apiGame: any) => ({
+                  gameId: String(apiGame.id),
+                  status: apiGame.status,
+                }));
+              }
+
+              return [];
+            },
+            12_000,
+          );
+
+          for (const providerGame of providerGames) {
+            const unprefixed = toUnprefixedGameId(providerGame.gameId);
+            const prefixed = `${gameSport.toLowerCase()}_${unprefixed}`;
+            if (!targetGameIds.has(unprefixed) && !targetGameIds.has(prefixed)) {
+              continue;
+            }
+
+            const statusLabel =
+              gameSport === "NBA"
+                ? formatNbaLiveMarketStatus(
+                    providerGame.status,
+                    providerGame.period,
+                    providerGame.clock,
+                  )
+                : gameSport === "NFL"
+                  ? formatNflLiveMarketStatus(providerGame.status, providerGame.clock)
+                  : gameSport === "MLB"
+                    ? formatMlbLiveMarketStatus(providerGame.status)
+                    : null;
+
+            addLiveMarketStatus(gameSport, providerGame.gameId, statusLabel);
+          }
+        } catch (error: any) {
+          console.warn(
+            `[games/insights] Live market status enrichment failed for ${gameSport}:`,
+            error?.message || error,
+          );
+        }
+      }),
+    );
 
     const teamPlayers =
       teamsBySport.size > 0
@@ -407,6 +663,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     let boostSlotsRemaining: number | null = null;
     const userContextByGame = new Map<string, GameInsightUserContext>();
+    const gameLiveEarnedById = new Map<string, number | null>();
     const boostedPlayerIds = new Set<string>();
     const sortOwnedPlayers = (
       ownedPlayers: GameInsightUserContext["ownedPlayers"],
@@ -554,6 +811,109 @@ export async function registerRoutes(app: Express): Promise<Server> {
           existingContext.ownedPlayers = sortOwnedPlayers(existingContext.ownedPlayers);
         });
       });
+
+      const powerByPlayerIdBySport = new Map<string, Map<string, number>>();
+      const getSportPowerMap = (sportCode: string) => {
+        const normalizedSport = (sportCode || "NBA").toUpperCase();
+        const existingMap = powerByPlayerIdBySport.get(normalizedSport);
+        if (existingMap) return existingMap;
+
+        const newMap = new Map<string, number>();
+        powerByPlayerIdBySport.set(normalizedSport, newMap);
+        return newMap;
+      };
+      const addPowerForPlayerId = (
+        rawPlayerId: string,
+        powerLevel: number,
+        playerSport: string,
+      ) => {
+        if (!rawPlayerId || !Number.isFinite(powerLevel) || powerLevel <= 0) return;
+
+        const playerId = rawPlayerId.trim();
+        if (!playerId) return;
+
+        const normalizedSport = (playerSport || "NBA").toUpperCase();
+        const sportPowerMap = getSportPowerMap(normalizedSport);
+
+        const existingPower = sportPowerMap.get(playerId) || 0;
+        sportPowerMap.set(playerId, existingPower + powerLevel);
+
+        if (/^(nba_|nfl_|mlb_|nascar_)/i.test(playerId)) {
+          const unprefixed = playerId.replace(/^(nba_|nfl_|mlb_|nascar_)/i, "");
+          const existingUnprefixedPower = sportPowerMap.get(unprefixed) || 0;
+          sportPowerMap.set(unprefixed, existingUnprefixedPower + powerLevel);
+        } else {
+          const prefixed = `${normalizedSport.toLowerCase()}_${playerId}`;
+          const existingPrefixedPower = sportPowerMap.get(prefixed) || 0;
+          sportPowerMap.set(prefixed, existingPrefixedPower + powerLevel);
+        }
+      };
+
+      allHoldings.forEach((holding) => {
+        const quantity = parseFloat(holding.quantity || "0");
+        const powerLevel = parseFloat(holding.powerLevel || "0");
+
+        if (
+          !Number.isFinite(quantity) ||
+          quantity <= 0 ||
+          !Number.isFinite(powerLevel) ||
+          powerLevel <= 0
+        ) {
+          return;
+        }
+
+        addPowerForPlayerId(
+          String(holding.player.id || ""),
+          powerLevel,
+          holding.player.sport || "NBA",
+        );
+      });
+
+      await Promise.all(
+        games.map(async (game) => {
+          const status = normalizeInsightStatus(game.status);
+          if (status === "scheduled" || status === "postponed") {
+            gameLiveEarnedById.set(game.gameId, null);
+            return;
+          }
+
+          let gameStats = await storage.getGameStatsByGameId(game.gameId);
+          if ((!gameStats || gameStats.length === 0) && game.gameId.includes("_")) {
+            const fallbackGameId = game.gameId.split("_").slice(1).join("_");
+            if (fallbackGameId) {
+              gameStats = await storage.getGameStatsByGameId(fallbackGameId);
+            }
+          }
+
+          if (!gameStats || gameStats.length === 0) {
+            gameLiveEarnedById.set(game.gameId, 0);
+            return;
+          }
+
+          let liveEarned = 0;
+          const gameSport = (game.sport || normalizedSport).toUpperCase();
+          const sportPowerByPlayerId = powerByPlayerIdBySport.get(gameSport);
+
+          for (const stat of gameStats) {
+            const fantasyPoints = parseFloat(stat.fantasyPoints || "0");
+            if (!Number.isFinite(fantasyPoints) || fantasyPoints === 0) continue;
+
+            const playerIdCandidates = getPlayerIdCandidates(stat.playerId, game.sport || "NBA");
+            let powerLevel = 0;
+            for (const candidateId of playerIdCandidates) {
+              const candidatePower = sportPowerByPlayerId?.get(candidateId) || 0;
+              if (candidatePower > powerLevel) {
+                powerLevel = candidatePower;
+              }
+            }
+
+            if (powerLevel <= 0) continue;
+            liveEarned += fantasyPoints * powerLevel;
+          }
+
+          gameLiveEarnedById.set(game.gameId, roundToTwo(liveEarned));
+        }),
+      );
     }
 
     const insights = games.map((game) => {
@@ -564,6 +924,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const top = sorted[0];
         return top ? buildLeader(top) : null;
       };
+
+      const status = normalizeInsightStatus(game.status);
+      const baseUserContext = userContextByGame.get(game.gameId);
+      const userContext = userId
+        ? {
+            eligibleCount: baseUserContext?.eligibleCount || 0,
+            topPowerPlayers: baseUserContext?.topPowerPlayers || [],
+            ownedPlayers: baseUserContext?.ownedPlayers || [],
+            liveEarned:
+              status === "scheduled" || status === "postponed"
+                ? null
+                : (gameLiveEarnedById.get(game.gameId) ?? 0),
+            earningsStatus: status,
+          }
+        : null;
+      const liveMarketStatus =
+        status === "inprogress"
+          ? liveMarketStatusByGameId.get(game.gameId) ||
+            liveMarketStatusByGameId.get(toUnprefixedGameId(game.gameId)) ||
+            null
+          : null;
 
       return {
         gameId: game.gameId,
@@ -581,7 +962,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           shares: pickLeader("totalShares"),
           scouts: pickLeader("scoutCount"),
         },
-        userContext: userContextByGame.get(game.gameId) || null,
+        userContext,
+        liveMarketStatus,
       } satisfies GameInsight;
     });
 
@@ -1789,6 +2171,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const getNascarStats = (statsJson: unknown): NascarLiveStats =>
         statsJson && typeof statsJson === "object" ? (statsJson as NascarLiveStats) : {};
 
+      // Get user's NASCAR holdings for boost eligibility and live earnings
+      let userHoldings: any[] = [];
+      let boostSlotsRemaining: number | null = null;
+      const holdingPowerByPlayerId = new Map<string, number>();
+
+      const addHoldingPower = (rawPlayerId: string, powerLevel: number, holdingSport: string) => {
+        if (!rawPlayerId || !Number.isFinite(powerLevel) || powerLevel <= 0) return;
+
+        const playerId = rawPlayerId.trim();
+        if (!playerId) return;
+
+        const existingPower = holdingPowerByPlayerId.get(playerId) || 0;
+        holdingPowerByPlayerId.set(playerId, existingPower + powerLevel);
+
+        if (/^(nba_|nfl_|mlb_|nascar_)/i.test(playerId)) {
+          const unprefixed = playerId.replace(/^(nba_|nfl_|mlb_|nascar_)/i, "");
+          const existingUnprefixed = holdingPowerByPlayerId.get(unprefixed) || 0;
+          holdingPowerByPlayerId.set(unprefixed, existingUnprefixed + powerLevel);
+        } else {
+          const prefixed = `${holdingSport.toLowerCase()}_${playerId}`;
+          const existingPrefixed = holdingPowerByPlayerId.get(prefixed) || 0;
+          holdingPowerByPlayerId.set(prefixed, existingPrefixed + powerLevel);
+        }
+      };
+
+      if (userId) {
+        const { startOfDay: dayStart } = getETDayBoundaries(dateStr);
+        const targetDate = new Date(dayStart.getTime() + 12 * 60 * 60 * 1000);
+
+        const [eligiblePlayers, currentBoosts, allHoldings] = await Promise.all([
+          storage.getEligiblePlayersForBoost(userId, "NASCAR", targetDate),
+          storage.getDailyBoosts(userId, "NASCAR", targetDate),
+          storage.getAllHoldingsWithPlayers(userId),
+        ]);
+
+        boostSlotsRemaining = Math.max(0, 4 - currentBoosts.length);
+        const boostedPlayerIds = new Set(currentBoosts.map((boost) => boost.playerId));
+
+        userHoldings = eligiblePlayers.map((holding) => ({
+          playerId: holding.player.id,
+          name: `${holding.player.firstName} ${holding.player.lastName}`.trim(),
+          team: holding.player.team,
+          availableShares: holding.availableShares,
+          totalShares: parseFloat(holding.quantity) || 0,
+          powerLevel: parseFloat(holding.powerLevel) || 0,
+          isBoosted: boostedPlayerIds.has(holding.player.id),
+          gameId: holding.gameId,
+        }));
+
+        allHoldings.forEach((holding) => {
+          if ((holding.player.sport || "").toUpperCase() !== "NASCAR") return;
+
+          const quantity = parseFloat(holding.quantity || "0");
+          const powerLevel = parseFloat(holding.powerLevel || "0");
+          if (!Number.isFinite(quantity) || quantity <= 0) return;
+          if (!Number.isFinite(powerLevel) || powerLevel <= 0) return;
+
+          addHoldingPower(
+            String(holding.player.id || ""),
+            powerLevel,
+            holding.player.sport || "NASCAR",
+          );
+        });
+      }
+
       // Build race insights for each game
       const raceInsights = await Promise.all(
         games.map(async (game) => {
@@ -1875,6 +2322,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
               }
             : null;
 
+          let liveEarned: number | null = null;
+          if (userId) {
+            if (status === "scheduled" || status === "postponed") {
+              liveEarned = null;
+            } else {
+              let totalLiveEarned = 0;
+
+              for (const standing of driverStandings) {
+                const fantasyPoints = Number(standing.fantasyPoints || 0);
+                if (!Number.isFinite(fantasyPoints) || fantasyPoints === 0) continue;
+
+                const rawPlayerId = String(standing.playerId || "").trim();
+                if (!rawPlayerId) continue;
+
+                const playerIdCandidates = new Set<string>([rawPlayerId]);
+                if (/^(nba_|nfl_|mlb_|nascar_)/i.test(rawPlayerId)) {
+                  playerIdCandidates.add(rawPlayerId.replace(/^(nba_|nfl_|mlb_|nascar_)/i, ""));
+                } else {
+                  playerIdCandidates.add(`nascar_${rawPlayerId}`);
+                }
+
+                let matchedPowerLevel = 0;
+                playerIdCandidates.forEach((candidateId) => {
+                  const candidatePowerLevel = holdingPowerByPlayerId.get(candidateId) || 0;
+                  if (candidatePowerLevel > matchedPowerLevel) {
+                    matchedPowerLevel = candidatePowerLevel;
+                  }
+                });
+
+                if (matchedPowerLevel <= 0) continue;
+                totalLiveEarned += fantasyPoints * matchedPowerLevel;
+              }
+
+              liveEarned = Math.round(totalLiveEarned * 100) / 100;
+            }
+          }
+
           return {
             raceId: game.gameId,
             trackName: game.homeTeam, // Stored as track in homeTeam
@@ -1883,47 +2367,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
             status,
             venue: game.venue,
             lapInfo,
+            liveEarned,
             driverStandings,
             totalDrivers: driverStandings.length,
           };
         }),
       );
-
-      // Get user's NASCAR holdings for boost eligibility
-      let userHoldings: any[] = [];
-      let boostSlotsRemaining: number | null = null;
-
-      if (userId) {
-        const { startOfDay: dayStart } = getETDayBoundaries(dateStr);
-        const targetDate = new Date(dayStart.getTime() + 12 * 60 * 60 * 1000);
-
-        const [eligiblePlayers, currentBoosts] = await Promise.all([
-          storage.getEligiblePlayersForBoost(userId, "NASCAR", targetDate),
-          storage.getDailyBoosts(userId, "NASCAR", targetDate),
-        ]);
-
-        boostSlotsRemaining = Math.max(0, 4 - currentBoosts.length);
-
-        // Get boosted player IDs to check against holdings
-        const boostedPlayerIds = new Set(currentBoosts.map((b) => b.playerId));
-
-        // Get player details for holdings
-        userHoldings = await Promise.all(
-          eligiblePlayers.map(async (h) => {
-            const player = await storage.getPlayer(h.player.id);
-            return {
-              playerId: h.player.id,
-              name: player ? `${player.firstName} ${player.lastName}` : "Unknown",
-              team: h.player.team,
-              availableShares: h.availableShares,
-              totalShares: parseFloat(h.quantity) || 0,
-              powerLevel: parseFloat(h.powerLevel) || 0,
-              isBoosted: boostedPlayerIds.has(h.player.id),
-              gameId: h.gameId,
-            };
-          }),
-        );
-      }
 
       res.json({
         date: dateStr,
@@ -2035,14 +2484,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/games/:gameId/stats", async (req, res) => {
     try {
       const { gameId } = req.params;
-      const gameIdNum = parseInt(gameId);
-
-      if (isNaN(gameIdNum)) {
+      const normalizedGameId = String(gameId || "").trim();
+      if (!normalizedGameId) {
         return res.status(400).json({ error: "Invalid game ID" });
       }
 
       // Get all player stats for this game
-      const stats = await storage.getGameStatsByGameId(gameId);
+      let stats = await storage.getGameStatsByGameId(normalizedGameId);
+      if ((!stats || stats.length === 0) && normalizedGameId.includes("_")) {
+        const unprefixedGameId = normalizedGameId.split("_").slice(1).join("_");
+        if (unprefixedGameId) {
+          stats = await storage.getGameStatsByGameId(unprefixedGameId);
+        }
+      }
 
       if (!stats || stats.length === 0) {
         return res.json({
@@ -2174,12 +2628,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           liveByPlayerId.set(rawId, player);
 
-          if (rawId.startsWith("nba_") || rawId.startsWith("nfl_")) {
+          if (/^(nba_|nfl_|mlb_)/i.test(rawId)) {
             liveByPlayerId.set(rawId.slice(4), player);
-          } else if (game.sport === "NBA") {
-            liveByPlayerId.set(`nba_${rawId}`, player);
-          } else if (game.sport === "NFL") {
-            liveByPlayerId.set(`nfl_${rawId}`, player);
+          } else {
+            const sportPrefixByCode: Record<string, string> = {
+              NBA: "nba_",
+              NFL: "nfl_",
+              MLB: "mlb_",
+            };
+            const prefix = sportPrefixByCode[(game.sport || "").toUpperCase()];
+            if (prefix) {
+              liveByPlayerId.set(`${prefix}${rawId}`, player);
+            }
           }
 
           if (player.name && player.team) {
@@ -2265,7 +2725,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
 
       if (game.sport === "NBA") {
-        const gameIdNum = Number(gameId);
+        const nbaGameIdStr = gameId.startsWith("nba_") ? gameId.slice(4) : gameId;
+        const gameIdNum = Number(nbaGameIdStr);
         if (!Number.isSafeInteger(gameIdNum) || gameIdNum <= 0) {
           return res.status(400).json({ error: "Invalid game ID" });
         }
@@ -2528,6 +2989,129 @@ export async function registerRoutes(app: Express): Promise<Server> {
           message: "No live stats available yet",
           userEarnings,
         });
+      } else if (game.sport === "MLB") {
+        const mlbGameIdStr = gameId.startsWith("mlb_") ? gameId.slice(4) : gameId;
+        const mlbGameIdNum = Number(mlbGameIdStr);
+        if (!Number.isSafeInteger(mlbGameIdNum) || mlbGameIdNum <= 0) {
+          return res.status(400).json({ error: "Invalid game ID" });
+        }
+
+        console.log(`[live-stats] Fetching MLB stats for game ${gameId}`);
+
+        const {
+          fetchGameStats,
+          calculateMLBFantasyPoints,
+          createMLBPlayerId,
+          parseStatsToJson,
+          normalizeGameStatus: normalizeMLBStatus,
+        } = await import("./balldontlie-mlb");
+        const mlbStats = await fetchGameStats([mlbGameIdNum]);
+        console.log(`[live-stats] Found ${mlbStats.length} MLB player stats`);
+
+        if (mlbStats.length > 0) {
+          // Prefer API game status and scores when available
+          let liveStatus = game.status;
+          let liveHomeScore = game.homeScore;
+          let liveAwayScore = game.awayScore;
+          const apiGame = mlbStats[0]?.game;
+          if (apiGame) {
+            try {
+              liveStatus = normalizeMLBStatus(apiGame.status || "");
+              if (typeof apiGame.home_team_score === "number") {
+                liveHomeScore = apiGame.home_team_score;
+              }
+              if (typeof apiGame.visitor_team_score === "number") {
+                liveAwayScore = apiGame.visitor_team_score;
+              }
+            } catch {
+              // Non-fatal: keep DB values when API parsing fails.
+            }
+          }
+
+          const homeStats = mlbStats.filter((s) => s.team.abbreviation === game.homeTeam);
+          const awayStats = mlbStats.filter((s) => s.team.abbreviation === game.awayTeam);
+
+          const getTopPerformers = (stats: typeof mlbStats) => {
+            return [...stats]
+              .sort((a, b) => calculateMLBFantasyPoints(b) - calculateMLBFantasyPoints(a))
+              .slice(0, 3)
+              .map((s) => {
+                const normalizedStats = parseStatsToJson(s);
+                return {
+                  name: `${s.player.first_name.charAt(0)}. ${s.player.last_name}`,
+                  team: s.team.abbreviation,
+                  pts: Number(calculateMLBFantasyPoints(s).toFixed(1)),
+                  hits: normalizedStats.hits || 0,
+                  runs: normalizedStats.runs || 0,
+                  rbi: normalizedStats.runs_batted_in || 0,
+                };
+              });
+          };
+
+          const mapPlayer = (s: (typeof mlbStats)[0]) => {
+            const normalizedStats = parseStatsToJson(s);
+            return {
+              id: s.player.id,
+              playerId: createMLBPlayerId(s.player.id),
+              name: `${s.player.first_name} ${s.player.last_name}`,
+              team: s.team.abbreviation,
+              position: s.player.position_abbreviation || s.player.position || "",
+              atBats: normalizedStats.at_bats || 0,
+              hits: normalizedStats.hits || 0,
+              doubles: normalizedStats.doubles || 0,
+              triples: normalizedStats.triples || 0,
+              homeRuns: normalizedStats.home_runs || 0,
+              runs: normalizedStats.runs || 0,
+              runsBattedIn: normalizedStats.runs_batted_in || 0,
+              walks: normalizedStats.walks || 0,
+              stolenBases: normalizedStats.stolen_bases || 0,
+              strikeoutsBatting: normalizedStats.strikeouts_batting || 0,
+              inningsPitched: normalizedStats.innings_pitched || 0,
+              pitchingStrikeouts: normalizedStats.pitching_strikeouts || 0,
+              earnedRuns: normalizedStats.earned_runs || 0,
+              wins: normalizedStats.wins || 0,
+              saves: normalizedStats.saves || 0,
+              fantasyPoints: calculateMLBFantasyPoints(s),
+            };
+          };
+
+          const homePlayers = homeStats.map(mapPlayer);
+          const awayPlayers = awayStats.map(mapPlayer);
+
+          const userEarnings = await buildUserLiveEarnings([...homePlayers, ...awayPlayers]);
+
+          return res.json({
+            gameId,
+            status: liveStatus,
+            homeTeam: game.homeTeam,
+            homeScore: liveHomeScore,
+            awayTeam: game.awayTeam,
+            awayScore: liveAwayScore,
+            homePlayers,
+            awayPlayers,
+            homeTopPerformers: getTopPerformers(homeStats),
+            awayTopPerformers: getTopPerformers(awayStats),
+            userEarnings,
+          });
+        }
+
+        console.log(`[live-stats] No MLB live stats available for ${gameId}`);
+
+        const userEarnings = await buildUserLiveEarnings([]);
+        return res.json({
+          gameId,
+          status: game.status,
+          homeTeam: game.homeTeam,
+          homeScore: game.homeScore,
+          awayTeam: game.awayTeam,
+          awayScore: game.awayScore,
+          homePlayers: [],
+          awayPlayers: [],
+          homeTopPerformers: [],
+          awayTopPerformers: [],
+          message: "No live stats available yet",
+          userEarnings,
+        });
       }
 
       return res.status(400).json({ error: "Unsupported sport" });
@@ -2537,7 +3121,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (upstreamStatus === 401) {
         return res.status(401).json({
           error:
-            "Upstream sports API unauthorized (401). Confirm BALLDONTLIE_API_KEY is set and your tier includes the requested endpoint (NBA /stats requires ALL-STAR+).",
+            "Upstream sports API unauthorized (401). Confirm BALLDONTLIE_API_KEY is set and your tier includes the requested endpoint.",
         });
       }
 
@@ -2767,11 +3351,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get all injured players (for showing injury indicators across the site)
   app.get("/api/players/injuries", async (req, res) => {
     try {
-      const sport = (req.query.sport as string) || "NBA";
-      const players = await storage.getPlayersBySport(sport);
+      const sportQuery = ((req.query.sport as string) || "ALL").toUpperCase();
+      let playersList: Player[] = [];
+
+      if (sportQuery === "ALL") {
+        const playersBySport = await Promise.all(
+          ["NBA", "NFL", "MLB", "NASCAR"].map((sport) => storage.getPlayersBySport(sport)),
+        );
+        playersList = playersBySport.flat();
+      } else {
+        playersList = await storage.getPlayersBySport(sportQuery);
+      }
 
       // Filter to only injured players and return minimal data needed for UI indicators
-      const injuredPlayers = players
+      const injuredPlayers = playersList
         .filter((p) => p.injuryStatus)
         .map((p) => ({
           id: p.id,
@@ -3612,14 +4205,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      if (seasonStats.sport === "NFL") {
-        res.json({
+      if (
+        seasonStats.sport === "NFL" ||
+        seasonStats.sport === "MLB" ||
+        seasonStats.sport === "NASCAR"
+      ) {
+        return res.json({
           player: { firstName: player.firstName, lastName: player.lastName, sport: player.sport },
           team: { abbreviation: player.team },
           stats: seasonStats,
         });
-      } else {
-        res.json({
+      }
+
+      if (seasonStats.sport === "NBA") {
+        return res.json({
           player: { firstName: player.firstName, lastName: player.lastName, sport: player.sport },
           team: { abbreviation: player.team },
           stats: {
@@ -3652,6 +4251,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           },
         });
       }
+
+      return res.json({
+        player: { firstName: player.firstName, lastName: player.lastName, sport: player.sport },
+        team: { abbreviation: player.team },
+        stats: seasonStats,
+      });
     } catch (error: any) {
       console.error("[API] Error fetching player stats:", error.message);
       // Return graceful fallback instead of 500 error
@@ -5085,7 +5690,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // VALIDATE: Ensure all player IDs are in valid format
       // Accept both pure numeric IDs and sport-prefixed IDs (e.g., nba_12345)
       for (const item of lineup) {
-        if (!/^(nba_|nfl_)?\d+$/.test(item.playerId)) {
+        if (!/^(nba_|nfl_|mlb_)?\d+$/.test(item.playerId)) {
           return res.status(400).json({
             error: `Invalid player ID format: ${item.playerId}. Expected numeric or sport-prefixed format (e.g., nba_12345).`,
           });
@@ -5291,7 +5896,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // VALIDATE: Ensure all player IDs are in valid format
       // Accept both pure numeric IDs and sport-prefixed IDs (e.g., nba_12345)
       for (const item of lineup) {
-        if (!/^(nba_|nfl_)?\d+$/.test(item.playerId)) {
+        if (!/^(nba_|nfl_|mlb_)?\d+$/.test(item.playerId)) {
           return res.status(400).json({
             error: `Invalid player ID format: ${item.playerId}. Expected numeric or sport-prefixed format (e.g., nba_12345).`,
           });
@@ -7046,12 +7651,20 @@ ${posts
       const [
         userCountResult,
         playerCountResult,
+        playersBySportResult,
         contestCountsResult,
         apiRequestsResult,
         latestJobLogs,
       ] = await Promise.all([
         db.select({ count: sql<number>`COUNT(*)::int` }).from(users),
         db.select({ count: sql<number>`COUNT(*)::int` }).from(players),
+        db
+          .select({
+            sport: players.sport,
+            count: sql<number>`COUNT(*)::int`,
+          })
+          .from(players)
+          .groupBy(players.sport),
         db
           .select({
             total: sql<number>`COUNT(*)::int`,
@@ -7078,6 +7691,17 @@ ${posts
         completed: 0,
       };
       const apiRequestsToday = apiRequestsResult[0]?.requestCount || 0;
+      const playersBySport: Record<string, number> = Object.fromEntries(
+        SUPPORTED_SPORTS.map((sport) => [sport, 0]),
+      );
+
+      for (const row of playersBySportResult) {
+        const normalizedSport = (row.sport || "").toUpperCase();
+        if (!normalizedSport) {
+          continue;
+        }
+        playersBySport[normalizedSport] = row.count || 0;
+      }
 
       // Build last job runs from the per-type query results
       const lastJobRuns = jobTypesSafe.map((jobName) => {
@@ -7095,6 +7719,7 @@ ${posts
         ok: true,
         totalUsers: userCount,
         totalPlayers: playerCount,
+        playersBySport,
         totalContests: contestCounts.total,
         openContests: contestCounts.open,
         liveContests: contestCounts.live,
@@ -8409,12 +9034,44 @@ ${posts
 
       const effectiveStartDate = clampAnalyticsStartDate(startDate);
 
-      // Get market health stats and share economy stats from storage
-      const [marketHealth, shareEconomy, timeSeries, shareEconomyTimeSeries] = await Promise.all([
+      // Get market health stats, rankings, and sport breakdown data
+      const [
+        marketHealth,
+        shareEconomy,
+        timeSeries,
+        shareEconomyTimeSeries,
+        powerRankingsData,
+        allPlayers,
+        sportPlayerStats,
+        sportTradeStats,
+      ] = await Promise.all([
         storage.getMarketHealthStats(effectiveStartDate, now),
         storage.getShareEconomyStats(effectiveStartDate, now),
         storage.getMarketHealthTimeSeries(effectiveStartDate, now),
         storage.getShareEconomyTimeSeries(effectiveStartDate, now),
+        storage.getPowerRankings(50),
+        storage.getPlayers(),
+        db
+          .select({
+            sport: players.sport,
+            totalPlayers: sql<number>`COUNT(*)::int`,
+            activePlayers: sql<number>`COUNT(*) FILTER (WHERE ${players.isActive} = true)::int`,
+            totalVolume24h: sql<string>`COALESCE(SUM(CASE WHEN ${players.isActive} = true THEN ${players.volume24h} ELSE 0 END), 0)`,
+            totalMarketCap: sql<string>`COALESCE(SUM(CASE WHEN ${players.isActive} = true THEN ${players.marketCap}::numeric ELSE 0 END), 0)`,
+            avgPriceChange24h: sql<string>`COALESCE(AVG(CASE WHEN ${players.isActive} = true THEN ${players.priceChange24h}::numeric END), 0)`,
+          })
+          .from(players)
+          .groupBy(players.sport),
+        db
+          .select({
+            sport: players.sport,
+            tradesInRange: sql<number>`COUNT(*)::int`,
+            tradedVolumeInRange: sql<string>`COALESCE(SUM(${trades.quantity} * ${trades.price}), 0)`,
+          })
+          .from(trades)
+          .innerJoin(players, eq(trades.playerId, players.id))
+          .where(and(gte(trades.executedAt, effectiveStartDate), lte(trades.executedAt, now)))
+          .groupBy(players.sport),
       ]);
 
       // Calculate percentage changes
@@ -8437,8 +9094,6 @@ ${posts
             100
           : 0;
 
-      // Get power rankings
-      const powerRankingsData = await storage.getPowerRankings(50);
       const powerRankings = powerRankingsData.map((r, idx) => ({
         rank: idx + 1,
         player: {
@@ -8482,7 +9137,6 @@ ${posts
       });
 
       // Calculate avg price change from active players
-      const allPlayers = await storage.getPlayers();
       const activePlayers = allPlayers.filter((p: Player) => p.isActive);
       const priceChanges = activePlayers.map((p: Player) => parseFloat(p.priceChange24h || "0"));
       const avgPriceChange =
@@ -8497,6 +9151,39 @@ ${posts
       });
       const mostActiveTeam =
         Object.entries(teamVolumes).sort((a, b) => b[1] - a[1])[0]?.[0] || "N/A";
+
+      const tradeStatsBySport = new Map(
+        sportTradeStats.map((row) => [(row.sport || "").toUpperCase(), row]),
+      );
+      const sportSet = new Set<string>([
+        ...SUPPORTED_SPORTS,
+        ...sportPlayerStats.map((row) => (row.sport || "").toUpperCase()),
+        ...sportTradeStats.map((row) => (row.sport || "").toUpperCase()),
+      ]);
+      const supportedSportsSet = new Set<string>(SUPPORTED_SPORTS);
+      const sportsInResponse = [
+        ...SUPPORTED_SPORTS.filter((sport) => sportSet.has(sport)),
+        ...Array.from(sportSet)
+          .filter((sport) => !supportedSportsSet.has(sport))
+          .sort(),
+      ];
+      const sportBreakdown = sportsInResponse.map((sport) => {
+        const playerStats = sportPlayerStats.find(
+          (row) => (row.sport || "").toUpperCase() === sport,
+        );
+        const tradeStats = tradeStatsBySport.get(sport);
+
+        return {
+          sport,
+          totalPlayers: playerStats?.totalPlayers || 0,
+          activePlayers: playerStats?.activePlayers || 0,
+          totalVolume24h: parseFloat(playerStats?.totalVolume24h || "0"),
+          totalMarketCap: parseFloat(playerStats?.totalMarketCap || "0"),
+          avgPriceChange24h: parseFloat(playerStats?.avgPriceChange24h || "0"),
+          tradesInRange: tradeStats?.tradesInRange || 0,
+          tradedVolumeInRange: parseFloat(tradeStats?.tradedVolumeInRange || "0"),
+        };
+      });
 
       res.json({
         marketHealth: {
@@ -8522,6 +9209,7 @@ ${posts
         },
         powerRankings,
         positionRankings,
+        sportBreakdown,
         marketStats: {
           totalVolume24h: marketHealth.totalVolume,
           totalTrades24h: marketHealth.transactionCount,

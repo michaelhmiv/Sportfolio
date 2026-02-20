@@ -21,6 +21,8 @@ export interface GameInsightUserContext {
   eligibleCount: number;
   topPowerPlayers: GameInsightUserContextPlayer[];
   ownedPlayers: GameInsightUserContextPlayer[];
+  liveEarned?: number | null;
+  earningsStatus?: "scheduled" | "inprogress" | "completed" | "postponed";
 }
 
 export interface GameInsight {
@@ -40,6 +42,7 @@ export interface GameInsight {
     scouts: GameInsightLeader | null;
   };
   userContext: GameInsightUserContext | null;
+  liveMarketStatus?: string | null;
 }
 
 export interface GameInsightsResponse {

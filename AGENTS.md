@@ -124,6 +124,11 @@ Never reduce auth checks on existing protected endpoints without explicit instru
 - Never expose secrets/tokens in logs or responses.
 - Prefer existing libs/utilities over adding new dependencies.
 
+## Supabase CLI Note
+
+- For Supabase CLI project targeting, use `SUPABASE_URL` as the source-of-truth environment variable.
+- When running DB migration commands (for example `supabase db push --db-url`), use the Postgres connection string from Supabase project settings.
+
 ## Validation Before Completion
 
 Run these from repo root unless the user says otherwise:

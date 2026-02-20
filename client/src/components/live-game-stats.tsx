@@ -60,7 +60,49 @@ export interface NFLLiveStats {
   message?: string;
 }
 
-type LiveStats = NBALiveStats | NFLLiveStats;
+// MLB Player Stats
+export interface MLBPlayerStats {
+  id: number;
+  name: string;
+  position: string;
+  hits?: number;
+  runs?: number;
+  runsBattedIn?: number;
+  homeRuns?: number;
+  stolenBases?: number;
+  inningsPitched?: number;
+  pitchingStrikeouts?: number;
+  earnedRuns?: number;
+  fantasyPoints?: number;
+}
+
+export interface MLBLiveStats {
+  gameId: string;
+  status: string;
+  homeTeam: string;
+  homeScore: number;
+  awayTeam: string;
+  awayScore: number;
+  homePlayers: MLBPlayerStats[];
+  awayPlayers: MLBPlayerStats[];
+  homeTopPerformers: Array<{
+    name: string;
+    pts?: number;
+    hits?: number;
+    runs?: number;
+    rbi?: number;
+  }>;
+  awayTopPerformers: Array<{
+    name: string;
+    pts?: number;
+    hits?: number;
+    runs?: number;
+    rbi?: number;
+  }>;
+  message?: string;
+}
+
+type LiveStats = NBALiveStats | NFLLiveStats | MLBLiveStats;
 
 interface LiveGameStatsProps {
   gameId: string;
@@ -148,6 +190,11 @@ export function LiveGameStats({ gameId, sport, teams, scores, status }: LiveGame
               {/* NFL Stats */}
               {sport === "NFL" && isNFLLiveStats(liveStats) && (
                 <NFLStatsPanel liveStats={liveStats} />
+              )}
+
+              {/* MLB Stats */}
+              {sport === "MLB" && isMLBLiveStats(liveStats) && (
+                <MLBStatsPanel liveStats={liveStats} />
               )}
             </div>
           ) : null}
@@ -372,6 +419,90 @@ function NFLStatsPanel({ liveStats }: { liveStats: NFLLiveStats }) {
   );
 }
 
+// MLB Stats Panel
+function MLBStatsPanel({ liveStats }: { liveStats: MLBLiveStats }) {
+  const [showAllHome, setShowAllHome] = useState(false);
+  const [showAllAway, setShowAllAway] = useState(false);
+
+  const displayHomePlayers = showAllHome
+    ? liveStats.homePlayers
+    : liveStats.homePlayers.slice(0, 5);
+  const displayAwayPlayers = showAllAway
+    ? liveStats.awayPlayers
+    : liveStats.awayPlayers.slice(0, 5);
+
+  const PlayerRow = ({ player }: { player: MLBPlayerStats }) => (
+    <div className="flex items-center justify-between py-1 px-1 hover:bg-muted/50 rounded text-xs">
+      <div className="flex items-center gap-2 min-w-0 flex-1">
+        <span className="text-[9px] bg-secondary px-1 rounded w-6 text-center flex-shrink-0">
+          {player.position || "-"}
+        </span>
+        <span className="truncate">{player.name}</span>
+      </div>
+      <div className="flex gap-2 text-mono text-[10px]">
+        <span className="w-4 text-center">{player.hits ?? 0}</span>
+        <span className="w-4 text-center">{player.runs ?? 0}</span>
+        <span className="w-6 text-center">{player.runsBattedIn ?? 0}</span>
+        <span className="w-4 text-center">{player.homeRuns ?? 0}</span>
+        <span className="w-4 text-center">{player.stolenBases ?? 0}</span>
+        <span className="w-6 text-center">{Number(player.inningsPitched ?? 0).toFixed(1)}</span>
+        <span className="w-4 text-center">{player.pitchingStrikeouts ?? 0}</span>
+      </div>
+    </div>
+  );
+
+  return (
+    <div>
+      <div className="flex items-center justify-between text-[10px] text-muted-foreground px-1 pb-1 border-b border-border/50">
+        <span className="flex-1">Player</span>
+        <div className="flex gap-2">
+          <span className="w-4 text-center">H</span>
+          <span className="w-4 text-center">R</span>
+          <span className="w-6 text-center">RBI</span>
+          <span className="w-4 text-center">HR</span>
+          <span className="w-4 text-center">SB</span>
+          <span className="w-6 text-center">IP</span>
+          <span className="w-4 text-center">K</span>
+        </div>
+      </div>
+
+      <div className="mt-2">
+        <div className="text-[10px] font-semibold text-muted-foreground mb-1">
+          {liveStats.awayTeam}
+        </div>
+        {displayAwayPlayers.map((player) => (
+          <PlayerRow key={player.id} player={player} />
+        ))}
+        {liveStats.awayPlayers.length > 5 && (
+          <button
+            onClick={() => setShowAllAway(!showAllAway)}
+            className="w-full text-[10px] text-center text-muted-foreground hover:text-foreground py-1"
+          >
+            {showAllAway ? "Show less" : `+${liveStats.awayPlayers.length - 5} more`}
+          </button>
+        )}
+      </div>
+
+      <div className="mt-2">
+        <div className="text-[10px] font-semibold text-muted-foreground mb-1">
+          {liveStats.homeTeam}
+        </div>
+        {displayHomePlayers.map((player) => (
+          <PlayerRow key={player.id} player={player} />
+        ))}
+        {liveStats.homePlayers.length > 5 && (
+          <button
+            onClick={() => setShowAllHome(!showAllHome)}
+            className="w-full text-[10px] text-center text-muted-foreground hover:text-foreground py-1"
+          >
+            {showAllHome ? "Show less" : `+${liveStats.homePlayers.length - 5} more`}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // Type guards
 function isNBALiveStats(stats: LiveStats): stats is NBALiveStats {
   return "homePlayers" in stats && stats.homePlayers.length > 0 && "pts" in stats.homePlayers[0];
@@ -380,6 +511,16 @@ function isNBALiveStats(stats: LiveStats): stats is NBALiveStats {
 function isNFLLiveStats(stats: LiveStats): stats is NFLLiveStats {
   return (
     "homePlayers" in stats && stats.homePlayers.length > 0 && "passingYards" in stats.homePlayers[0]
+  );
+}
+
+function isMLBLiveStats(stats: LiveStats): stats is MLBLiveStats {
+  return (
+    "homePlayers" in stats &&
+    stats.homePlayers.length > 0 &&
+    ("hits" in stats.homePlayers[0] ||
+      "runsBattedIn" in stats.homePlayers[0] ||
+      "inningsPitched" in stats.homePlayers[0])
   );
 }
 
