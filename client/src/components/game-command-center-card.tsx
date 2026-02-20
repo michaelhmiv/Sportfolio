@@ -22,6 +22,22 @@ const statusConfig = {
   postponed: { label: "Postponed", icon: Calendar, variant: "outline" as const },
 };
 
+const compactCurrencyFormatter = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+
+const standardCurrencyFormatter = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  maximumFractionDigits: 2,
+});
+
+const listingGridClass =
+  "grid grid-cols-[minmax(74px,1.05fr)_minmax(52px,0.8fr)_minmax(52px,0.8fr)_minmax(86px,1fr)_minmax(88px,1fr)] items-start gap-x-2";
+
 export function GameCommandCenterCard({
   game,
   effectiveStatus,
@@ -34,23 +50,16 @@ export function GameCommandCenterCard({
   const [showBoostSelector, setShowBoostSelector] = useState(false);
   const [selectedTier, setSelectedTier] = useState<2 | 3 | 4 | 5 | null>(null);
 
-  const isNascar = game.sport === "NASCAR";
   const status = statusConfig[effectiveStatus];
   const StatusIcon = status.icon;
   const userContext = game.userContext;
   const startTime = new Date(game.startTime);
   const timeLabel = startTime.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  const dateLabel = startTime.toLocaleDateString([], { month: "short", day: "numeric" });
   const powerLeader = userContext?.topPowerPlayers?.[0];
   const showBoostPanel = Boolean(
     userContext && (userContext.eligibleCount > 0 || userContext.topPowerPlayers.length > 0),
   );
-
-  // For NASCAR, homeTeam = track, awayTeam = series
-  const nascarTrack = game.homeTeam;
-  const nascarSeries = game.awayTeam;
-  // Use scores to show lap info for NASCAR (homeScore = laps completed, awayScore = total laps)
-  const nascarLapInfo =
-    effectiveStatus === "inprogress" ? `${game.homeScore || 0}/${game.awayScore || "?"}` : null;
 
   const ownedTeams = new Set(
     [
@@ -58,6 +67,55 @@ export function GameCommandCenterCard({
       ...(userContext?.topPowerPlayers || []).map((player) => player.team),
     ].filter(Boolean),
   );
+
+  const progressValue =
+    effectiveStatus === "inprogress" || effectiveStatus === "completed"
+      ? `${game.awayScore ?? "-"}-${game.homeScore ?? "-"}`
+      : "--";
+
+  const progressMeta =
+    effectiveStatus === "scheduled"
+      ? `Opens ${timeLabel}`
+      : effectiveStatus === "postponed"
+        ? "Postponed"
+        : effectiveStatus === "inprogress"
+          ? "Live board"
+          : "Final";
+  const marketStatusLabel = status.label;
+  const marketDetailLabel =
+    effectiveStatus === "inprogress"
+      ? String(game.liveMarketStatus || "").trim() || `${dateLabel} ${timeLabel}`
+      : effectiveStatus === "scheduled"
+        ? timeLabel
+        : `${dateLabel} ${timeLabel}`;
+
+  const getLiveEarnedDisplay = () => {
+    if (!isAuthenticated || !userContext) {
+      return { label: "--", toneClass: "text-muted-foreground", meta: "Sign in" };
+    }
+
+    const earningsStatus = userContext.earningsStatus || effectiveStatus;
+    if (earningsStatus === "scheduled" || earningsStatus === "postponed") {
+      return { label: "--", toneClass: "text-muted-foreground", meta: "Pre-market" };
+    }
+
+    const rawValue = typeof userContext.liveEarned === "number" ? userContext.liveEarned : 0;
+    const formatter =
+      Math.abs(rawValue) >= 1000 ? compactCurrencyFormatter : standardCurrencyFormatter;
+    const absValue = formatter.format(Math.abs(rawValue));
+
+    if (rawValue > 0) {
+      return { label: `+${absValue}`, toneClass: "text-emerald-500", meta: "Captured" };
+    }
+
+    if (rawValue < 0) {
+      return { label: `-${absValue}`, toneClass: "text-rose-500", meta: "Captured" };
+    }
+
+    return { label: "$0.00", toneClass: "text-muted-foreground", meta: "Captured" };
+  };
+
+  const liveEarnedDisplay = getLiveEarnedDisplay();
 
   // Boost assignment mutation
   const assignBoostMutation = useMutation({
@@ -107,57 +165,56 @@ export function GameCommandCenterCard({
       onClick={onOpen}
       className="w-full text-left rounded-lg border-2 border-border/90 bg-card p-3 shadow-sm transition-all hover:border-border hover:shadow-md"
     >
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <Badge variant={status.variant} className="gap-1 text-[10px] uppercase">
-            <StatusIcon className="h-3 w-3" />
-            {isNascar && effectiveStatus === "inprogress" ? "Live" : status.label}
-          </Badge>
-          {effectiveStatus === "scheduled" && (
-            <span className="text-xs text-muted-foreground">{timeLabel}</span>
-          )}
+      <div className="rounded-md border border-border/70 bg-background/40 overflow-hidden">
+        <div
+          className={`${listingGridClass} border-b border-border/60 px-2 py-1 text-[10px] uppercase tracking-[0.08em] text-muted-foreground`}
+        >
+          <div>Market</div>
+          <div>Away</div>
+          <div>Home</div>
+          <div>Progress</div>
+          <div className="text-right">Live Earned</div>
         </div>
-        {effectiveStatus === "inprogress" && (
-          <span className="text-xs text-muted-foreground">{timeLabel}</span>
-        )}
-      </div>
+        <div className={`${listingGridClass} px-2 py-2`}>
+          <div className="min-w-0">
+            <div className="inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.08em]">
+              <StatusIcon className="h-3 w-3 text-muted-foreground" />
+              <span>{marketStatusLabel}</span>
+            </div>
+            <div className="text-[10px] text-muted-foreground mt-0.5 truncate">
+              {marketDetailLabel}
+            </div>
+          </div>
 
-      <div className="mt-2 flex items-center justify-between">
-        {isNascar ? (
-          // NASCAR: Show track and series
-          <div className="space-y-1">
-            <div className="text-sm font-semibold">{nascarTrack}</div>
-            <div className="text-xs text-muted-foreground">{nascarSeries}</div>
+          <div
+            className={`text-xs sm:text-sm font-semibold truncate ${ownedTeams.has(game.awayTeam) ? "text-primary" : "text-foreground"}`}
+          >
+            {game.awayTeam}
           </div>
-        ) : (
-          // NBA/NFL: Show home and away teams
-          <div className="space-y-1">
-            <div
-              className={`text-sm font-semibold ${ownedTeams.has(game.awayTeam) ? "text-purple-500" : ""}`}
-            >
-              {game.awayTeam}
+
+          <div
+            className={`text-xs sm:text-sm font-semibold truncate ${ownedTeams.has(game.homeTeam) ? "text-primary" : "text-foreground"}`}
+          >
+            {game.homeTeam}
+          </div>
+
+          <div className="min-w-0">
+            <div className="font-mono text-xs sm:text-sm font-semibold truncate">
+              {progressValue}
             </div>
+            <div className="text-[10px] text-muted-foreground mt-0.5 truncate">{progressMeta}</div>
+          </div>
+
+          <div className="text-right min-w-0">
             <div
-              className={`text-sm font-semibold ${ownedTeams.has(game.homeTeam) ? "text-purple-500" : ""}`}
+              className={`font-mono text-xs sm:text-sm font-semibold truncate ${liveEarnedDisplay.toneClass}`}
             >
-              {game.homeTeam}
+              {liveEarnedDisplay.label}
+            </div>
+            <div className="text-[10px] text-muted-foreground mt-0.5 truncate">
+              {liveEarnedDisplay.meta}
             </div>
           </div>
-        )}
-        <div className="text-right font-mono">
-          {isNascar && nascarLapInfo ? (
-            // NASCAR live: Show lap count
-            <div className="text-base font-bold text-green-500">{nascarLapInfo}</div>
-          ) : isNascar ? (
-            // NASCAR scheduled: Show race time
-            <div className="text-sm text-muted-foreground">{timeLabel}</div>
-          ) : (
-            // NBA/NFL: Show scores
-            <>
-              <div className="text-base font-bold">{game.awayScore ?? "-"}</div>
-              <div className="text-base font-bold">{game.homeScore ?? "-"}</div>
-            </>
-          )}
         </div>
       </div>
 

@@ -14,7 +14,22 @@
 
 - [ ] Fix 24h volume accuracy: compute rolling 24h shares volume from `trades` and stop roster sync from clobbering market fields
 
+## 2026-02-20 Dashboard Listing Redesign
+
+- [x] Add `liveEarned` to game and race insights payloads for authenticated users
+- [x] Update dashboard insight types for `liveEarned`/`earningsStatus`
+- [x] Align team sport card layout columns (`Market`, `Away`, `Home`, `Progress`, `Live Earned`)
+- [x] Align NASCAR row layout columns and keep race-specific metadata
+- [x] Sort dashboard sections by date for live/upcoming/final groupings
+- [x] Validate via `npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`
+
 ## Notes
 
 - Keep `/marketplace` working as a legacy alias to avoid breaking old links.
 - Premium share trading removed; future trading returns via pools.
+
+## 2026-02-20 Live Market Status Enrichment
+
+- [x] Add live market status enrichment for NBA/NFL/MLB in `/api/games/insights` (inning/quarter/clock)
+- [x] Extend game insight types with optional `liveMarketStatus`
+- [x] Render sport-specific live market status in dashboard market column (replace generic `LIVE`)

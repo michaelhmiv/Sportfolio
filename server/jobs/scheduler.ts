@@ -17,7 +17,6 @@ const logJobEvent = createThrottledLogger();
 import { syncRoster } from "./sync-roster";
 import { syncSchedule } from "./sync-schedule";
 import { syncStats } from "./sync-stats";
-import { syncStatsLive } from "./sync-stats-live";
 import { syncAllLiveStats } from "./sync-all-live-stats";
 import { syncPlayerGameLogs } from "./sync-player-game-logs";
 import { settleContests } from "./settle-contests";
@@ -32,6 +31,9 @@ import { backfillMarketSnapshots } from "./market-snapshot";
 import { syncNFLSchedule } from "./sync-nfl-schedule";
 import { syncNFLStats } from "./sync-nfl-stats";
 import { syncNFLRoster } from "./sync-nfl-roster";
+import { syncMLBSchedule } from "./sync-mlb-schedule";
+import { syncMLBStats } from "./sync-mlb-stats";
+import { syncMLBRoster } from "./sync-mlb-roster";
 import { syncNascarRoster, syncNascarActiveRoster } from "./sync-nascar-roster";
 import { syncNascarSchedule } from "./sync-nascar-schedule";
 import { syncNascarLive } from "./sync-nascar-live";
@@ -371,10 +373,10 @@ export class JobScheduler {
       },
       {
         name: "stats_sync_live",
-        schedule: "4-59/5 * * * *", // Every 5 minutes (offset 4m) for live games (all sports; NFL throttled in handler)
+        schedule: "4-59/5 * * * *", // Every 5 minutes (offset 4m) for live games (NBA + NFL + MLB)
         enabled: true,
         handler: async () => {
-          // Unified live stats sync for all sports (NBA + NFL)
+          // Unified live stats sync for all supported Ball Don't Lie sports
           const result = await syncAllLiveStats();
           return result;
         },
@@ -423,6 +425,33 @@ export class JobScheduler {
           };
         },
       },
+      {
+        name: "mlb_roster_sync",
+        schedule: "15 4 * * *", // Daily at 4:15 AM ET
+        enabled: true,
+        handler: async () => {
+          const result = await syncMLBRoster();
+          return {
+            requestCount: 0,
+            recordsProcessed: result.playersAdded + result.playersUpdated,
+            errorCount: result.errors.length,
+          };
+        },
+      },
+      {
+        name: "mlb_schedule_sync",
+        schedule: "50 * * * *", // Hourly at :50 to keep statuses/scores current
+        enabled: true,
+        handler: async () => {
+          const result = await syncMLBSchedule();
+          return {
+            requestCount: 0,
+            recordsProcessed: result.gamesProcessed,
+            errorCount: result.errors.length,
+          };
+        },
+      },
+      // MLB stats sync is handled by unified 'stats_sync_live' job above
       // NFL stats sync is now handled by unified 'stats_sync_live' job above
       {
         name: "nascar_roster_sync",
@@ -541,7 +570,7 @@ export class JobScheduler {
       sync_player_game_logs: (callback) => syncPlayerGameLogs({ progressCallback: callback }),
       schedule_sync: (callback) => syncSchedule(callback),
       stats_sync: (callback) => syncStats(callback),
-      stats_sync_live: (callback) => syncStatsLive(callback),
+      stats_sync_live: (callback) => syncAllLiveStats(callback),
       injury_sync: async () => {
         const result = await syncPlayerInjuries();
         return { requestCount: 1, recordsProcessed: result.synced + result.cleared, errorCount: 0 };
@@ -624,6 +653,30 @@ export class JobScheduler {
       },
       nfl_roster_sync: async () => {
         const result = await syncNFLRoster();
+        return {
+          requestCount: 0,
+          recordsProcessed: result.playersAdded + result.playersUpdated,
+          errorCount: result.errors.length,
+        };
+      },
+      mlb_schedule_sync: async () => {
+        const result = await syncMLBSchedule();
+        return {
+          requestCount: 0,
+          recordsProcessed: result.gamesProcessed,
+          errorCount: result.errors.length,
+        };
+      },
+      mlb_stats_sync: async () => {
+        const result = await syncMLBStats();
+        return {
+          requestCount: 0,
+          recordsProcessed: result.statsProcessed,
+          errorCount: result.errors.length,
+        };
+      },
+      mlb_roster_sync: async () => {
+        const result = await syncMLBRoster();
         return {
           requestCount: 0,
           recordsProcessed: result.playersAdded + result.playersUpdated,
@@ -796,6 +849,9 @@ export class JobScheduler {
       "nfl_schedule_sync",
       "nfl_stats_sync",
       "nfl_roster_sync",
+      "mlb_schedule_sync",
+      "mlb_stats_sync",
+      "mlb_roster_sync",
       "nascar_roster_sync",
       "nascar_schedule_sync",
       "nascar_live_sync",

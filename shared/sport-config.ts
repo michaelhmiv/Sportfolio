@@ -6,7 +6,7 @@
  * fantasy scoring rules, and contest frequencies.
  */
 
-export const SPORTS = ["NBA", "NFL", "NASCAR"] as const;
+export const SPORTS = ["NBA", "NFL", "MLB", "NASCAR"] as const;
 export type Sport = (typeof SPORTS)[number];
 
 export interface SportConfig {
@@ -64,6 +64,19 @@ function getNFLSeasonYear(): number {
   const now = new Date();
   const month = now.getMonth();
   return month < 8 ? now.getFullYear() - 1 : now.getFullYear();
+}
+
+/**
+ * MLB Season Logic:
+ * - Season runs in a single calendar year
+ * - Use current year for API season (e.g., 2026)
+ */
+function getMLBSeason(): string {
+  return String(new Date().getFullYear());
+}
+
+function getMLBSeasonYear(): number {
+  return new Date().getFullYear();
 }
 
 /**
@@ -125,6 +138,29 @@ export const SPORT_CONFIGS: Record<Sport, SportConfig> = {
     apiProvider: "balldontlie",
     getApiSeason: getNFLSeason,
     getSeasonYear: getNFLSeasonYear,
+  },
+  MLB: {
+    name: "MLB",
+    fullName: "Major League Baseball",
+    icon: "⚾",
+    emoji: "⚾",
+    positions: ["P", "C", "1B", "2B", "3B", "SS", "OF", "DH", "UTIL"],
+    positionLabels: {
+      P: "Pitcher",
+      C: "Catcher",
+      "1B": "First Base",
+      "2B": "Second Base",
+      "3B": "Third Base",
+      SS: "Shortstop",
+      OF: "Outfield",
+      DH: "Designated Hitter",
+      UTIL: "Utility",
+    },
+    seasonType: "march-october",
+    contestFrequency: "daily",
+    apiProvider: "balldontlie",
+    getApiSeason: getMLBSeason,
+    getSeasonYear: getMLBSeasonYear,
   },
   NASCAR: {
     name: "NASCAR",

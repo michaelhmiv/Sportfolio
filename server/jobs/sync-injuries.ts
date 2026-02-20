@@ -12,14 +12,18 @@ import { db } from "../db";
 import { players } from "@shared/schema";
 import { eq, isNotNull, and, notInArray } from "drizzle-orm";
 import { fetchPlayerInjuries, createNBAPlayerId, isNBAApiConfigured } from "../balldontlie-nba";
+import { fetchInjuries as fetchMLBInjuries, createMLBPlayerId } from "../balldontlie-mlb";
 
 export async function syncPlayerInjuries(): Promise<{ synced: number; cleared: number }> {
   if (!isNBAApiConfigured()) {
-    console.log("[SYNC INJURIES] NBA API not configured, skipping");
+    console.log("[SYNC INJURIES] BALLDONTLIE_API_KEY not configured, skipping");
     return { synced: 0, cleared: 0 };
   }
 
   console.log("[SYNC INJURIES] Starting injury sync...");
+  const now = new Date();
+  let totalSynced = 0;
+  let totalCleared = 0;
 
   try {
     // Fetch all injuries from API
@@ -32,8 +36,8 @@ export async function syncPlayerInjuries(): Promise<{ synced: number; cleared: n
       return { synced: 0, cleared: 0 };
     }
 
-    // Build a map of player IDs to injury data
-    const injuryMap = new Map<
+    // Build a map of NBA player IDs to injury data
+    const nbaInjuryMap = new Map<
       string,
       {
         status: string;
@@ -44,21 +48,18 @@ export async function syncPlayerInjuries(): Promise<{ synced: number; cleared: n
 
     for (const injury of injuries) {
       const playerId = createNBAPlayerId(injury.player.id);
-      injuryMap.set(playerId, {
+      nbaInjuryMap.set(playerId, {
         status: injury.status,
         description: injury.description,
         returnDate: injury.return_date,
       });
     }
 
-    const injuredPlayerIds = Array.from(injuryMap.keys());
-    console.log(`[SYNC INJURIES] Processing ${injuredPlayerIds.length} injured players`);
+    const injuredNbaPlayerIds = Array.from(nbaInjuryMap.keys());
+    console.log(`[SYNC INJURIES] Processing ${injuredNbaPlayerIds.length} NBA injured players`);
 
     // Update injured players
-    let synced = 0;
-    const now = new Date();
-
-    for (const [playerId, injuryData] of injuryMap) {
+    for (const [playerId, injuryData] of nbaInjuryMap) {
       try {
         const result = await db
           .update(players)
@@ -72,7 +73,7 @@ export async function syncPlayerInjuries(): Promise<{ synced: number; cleared: n
           .returning({ id: players.id });
 
         if (result.length > 0) {
-          synced++;
+          totalSynced++;
         }
       } catch (err) {
         // Player might not exist in our DB - that's fine
@@ -80,18 +81,17 @@ export async function syncPlayerInjuries(): Promise<{ synced: number; cleared: n
     }
 
     // Clear injury status for NBA players no longer on injury report
-    let cleared = 0;
     // If the endpoint is accessible but returns an empty list (e.g., offseason), clear stale flags.
-    const clearWhere =
-      injuredPlayerIds.length > 0
+    const clearNbaWhere =
+      injuredNbaPlayerIds.length > 0
         ? and(
             eq(players.sport, "NBA"),
             isNotNull(players.injuryStatus),
-            notInArray(players.id, injuredPlayerIds),
+            notInArray(players.id, injuredNbaPlayerIds),
           )
         : and(eq(players.sport, "NBA"), isNotNull(players.injuryStatus));
 
-    const clearResult = await db
+    const clearNbaResult = await db
       .update(players)
       .set({
         injuryStatus: null,
@@ -99,13 +99,83 @@ export async function syncPlayerInjuries(): Promise<{ synced: number; cleared: n
         injuryReturnDate: null,
         injuryUpdatedAt: now,
       })
-      .where(clearWhere)
+      .where(clearNbaWhere)
       .returning({ id: players.id });
 
-    cleared = clearResult.length;
+    totalCleared += clearNbaResult.length;
 
-    console.log(`[SYNC INJURIES] Synced ${synced} injured players, cleared ${cleared}`);
-    return { synced, cleared };
+    try {
+      const mlbInjuries = await fetchMLBInjuries();
+
+      const mlbInjuryMap = new Map<
+        string,
+        {
+          status: string;
+          description: string;
+          returnDate: string | null;
+        }
+      >();
+
+      for (const injury of mlbInjuries) {
+        const playerId = createMLBPlayerId(injury.player.id);
+        mlbInjuryMap.set(playerId, {
+          status: injury.status,
+          description: injury.description || injury.injury || "Injury report",
+          returnDate: injury.return_date || null,
+        });
+      }
+
+      const injuredMlbPlayerIds = Array.from(mlbInjuryMap.keys());
+      console.log(`[SYNC INJURIES] Processing ${injuredMlbPlayerIds.length} MLB injured players`);
+
+      for (const [playerId, injuryData] of mlbInjuryMap) {
+        try {
+          const updateResult = await db
+            .update(players)
+            .set({
+              injuryStatus: injuryData.status,
+              injuryDescription: injuryData.description,
+              injuryReturnDate: injuryData.returnDate,
+              injuryUpdatedAt: now,
+            })
+            .where(eq(players.id, playerId))
+            .returning({ id: players.id });
+
+          if (updateResult.length > 0) {
+            totalSynced++;
+          }
+        } catch {
+          // Player might not exist in our DB - that's fine
+        }
+      }
+
+      const clearMlbWhere =
+        injuredMlbPlayerIds.length > 0
+          ? and(
+              eq(players.sport, "MLB"),
+              isNotNull(players.injuryStatus),
+              notInArray(players.id, injuredMlbPlayerIds),
+            )
+          : and(eq(players.sport, "MLB"), isNotNull(players.injuryStatus));
+
+      const clearMlbResult = await db
+        .update(players)
+        .set({
+          injuryStatus: null,
+          injuryDescription: null,
+          injuryReturnDate: null,
+          injuryUpdatedAt: now,
+        })
+        .where(clearMlbWhere)
+        .returning({ id: players.id });
+
+      totalCleared += clearMlbResult.length;
+    } catch (error: any) {
+      console.warn("[SYNC INJURIES] MLB injury sync skipped:", error.message);
+    }
+
+    console.log(`[SYNC INJURIES] Synced ${totalSynced} injured players, cleared ${totalCleared}`);
+    return { synced: totalSynced, cleared: totalCleared };
   } catch (error: any) {
     console.error("[SYNC INJURIES] Error:", error.message);
     throw error;

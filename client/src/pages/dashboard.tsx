@@ -51,13 +51,11 @@ import { PlayerName } from "@/components/player-name";
 import { Shimmer, ShimmerCard, ScrollReveal } from "@/components/ui/animations";
 import { useSport } from "@/lib/sport-context";
 import { authenticatedFetch } from "@/lib/queryClient";
-import { SportSelector } from "@/components/sport-selector";
 import { OnboardingMissions } from "@/components/onboarding-missions";
 import { MarketTicker } from "@/components/market-ticker";
-import { GameCommandCenterCard } from "@/components/game-command-center-card";
 import { GameCommandCenterModal } from "@/components/game-command-center-modal";
-import { NascarRaceCard } from "@/components/nascar-race-card";
 import { BackgroundPattern, CardAccent } from "@/components/ui/decorative-elements";
+import { MobilePortfolioStatsSheet } from "@/components/mobile-portfolio-stats-sheet";
 import type { GameInsight, GameInsightsResponse } from "@/types/game-insights";
 
 interface NetWorthChangeSummary {
@@ -157,6 +155,7 @@ export default function Dashboard() {
   const { isAuthenticated } = useAuth();
   const [, setLocation] = useLocation();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [dashboardSportTab, setDashboardSportTab] = useState<string>("ALL");
   const [showDatePicker, setShowDatePicker] = useState(false);
   const { sport } = useSport();
   const [activeGame, setActiveGame] = useState<GameInsight | null>(null);
@@ -274,21 +273,58 @@ export default function Dashboard() {
 
   const games = gameInsights?.games || [];
   const races = raceInsights?.races || [];
-  const boostSlotsRemaining = isNascar
-    ? (raceInsights?.boostSlotsRemaining ?? null)
-    : (gameInsights?.boostSlotsRemaining ?? null);
-  const userHoldings = raceInsights?.userHoldings || [];
-  const liveGames = games.filter((game) => getEffectiveGameStatus(game) === "inprogress");
-  const upcomingGames = games.filter((game) => getEffectiveGameStatus(game) === "scheduled");
-  const finalGames = games.filter((game) => {
-    const status = getEffectiveGameStatus(game);
-    return status === "completed" || status === "postponed";
+  const sportPriority = ["NBA", "NFL", "MLB", "NASCAR"];
+  const availableGameSports = Array.from(
+    new Set(games.map((game) => (game.sport || "").toUpperCase()).filter(Boolean)),
+  ).sort((a, b) => {
+    const aIndex = sportPriority.indexOf(a);
+    const bIndex = sportPriority.indexOf(b);
+    if (aIndex === -1 && bIndex === -1) return a.localeCompare(b);
+    if (aIndex === -1) return 1;
+    if (bIndex === -1) return -1;
+    return aIndex - bIndex;
   });
+  const selectedGameSportTab = availableGameSports.includes(dashboardSportTab)
+    ? dashboardSportTab
+    : "ALL";
+  const filteredGamesBySport =
+    selectedGameSportTab === "ALL"
+      ? games
+      : games.filter((game) => (game.sport || "").toUpperCase() === selectedGameSportTab);
+
+  const sortGamesByStartAsc = (a: GameInsight, b: GameInsight) =>
+    new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
+  const sortGamesByStartDesc = (a: GameInsight, b: GameInsight) =>
+    new Date(b.startTime).getTime() - new Date(a.startTime).getTime();
+  const sortRacesByDateAsc = (a: any, b: any) =>
+    new Date(a.raceDate).getTime() - new Date(b.raceDate).getTime();
+  const sortRacesByDateDesc = (a: any, b: any) =>
+    new Date(b.raceDate).getTime() - new Date(a.raceDate).getTime();
+
+  const liveGames = filteredGamesBySport
+    .filter((game) => getEffectiveGameStatus(game) === "inprogress")
+    .sort(sortGamesByStartAsc);
+  const upcomingGames = filteredGamesBySport
+    .filter((game) => getEffectiveGameStatus(game) === "scheduled")
+    .sort(sortGamesByStartAsc);
+  const finalGames = filteredGamesBySport
+    .filter((game) => {
+      const status = getEffectiveGameStatus(game);
+      return status === "completed" || status === "postponed";
+    })
+    .sort(sortGamesByStartDesc);
 
   // NASCAR race filtering
-  const liveRaces = races.filter((race: any) => race.status === "inprogress");
-  const upcomingRaces = races.filter((race: any) => race.status === "scheduled");
-  const completedRaces = races.filter((race: any) => race.status === "completed");
+  const liveRaces = races
+    .filter((race: any) => race.status === "inprogress")
+    .sort(sortRacesByDateAsc);
+  const upcomingRaces = races
+    .filter((race: any) => race.status === "scheduled")
+    .sort(sortRacesByDateAsc);
+  const completedRaces = races
+    .filter((race: any) => race.status === "completed")
+    .sort(sortRacesByDateDesc);
+  const isLoadingInsights = isNascar ? isLoadingRaces : isLoadingGames;
 
   // Navigation helpers with validation
   const goToPrevDay = () => {
@@ -347,6 +383,45 @@ export default function Dashboard() {
   };
 
   const formatCompactCurrency = (value: number) => compactCurrencyFormatter.format(value);
+
+  const standardCurrencyFormatter = new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 2,
+  });
+
+  const getEarningsDisplay = ({
+    value,
+    status,
+    canShow,
+  }: {
+    value: number | null | undefined;
+    status: string;
+    canShow: boolean;
+  }) => {
+    if (!canShow) {
+      return { label: "--", className: "text-muted-foreground" };
+    }
+
+    if (status === "scheduled" || status === "postponed") {
+      return { label: "--", className: "text-muted-foreground" };
+    }
+
+    const amount = typeof value === "number" ? value : 0;
+    const formatter =
+      Math.abs(amount) >= 1000 ? compactCurrencyFormatter : standardCurrencyFormatter;
+    const absolute = formatter.format(Math.abs(amount));
+
+    if (amount > 0) {
+      return { label: `+${absolute}`, className: "text-emerald-500" };
+    }
+
+    if (amount < 0) {
+      return { label: `-${absolute}`, className: "text-rose-500" };
+    }
+
+    return { label: "$0.00", className: "text-muted-foreground" };
+  };
 
   if (isLoading && !data) {
     return (
@@ -421,9 +496,18 @@ export default function Dashboard() {
             </div>
           )}
 
+          {/* Mobile portfolio snapshot trigger + bottom sheet */}
+          {isAuthenticated && data?.user && (
+            <MobilePortfolioStatsSheet
+              user={data.user}
+              onOpenPortfolio={() => setLocation("/portfolio")}
+              onOpenLeaderboard={(target) => setLocation(`/leaderboards#${target}`)}
+            />
+          )}
+
           {/* Balance Header - Only show for authenticated users */}
           {isAuthenticated && data?.user && (
-            <div className="p-1.5 sm:p-2 rounded-lg bg-card border shadow-sm relative overflow-hidden group">
+            <div className="hidden sm:block p-1.5 sm:p-2 rounded-lg bg-card border shadow-sm relative overflow-hidden group">
               {/* Background Pattern */}
               <BackgroundPattern variant="gradient-mesh" color="primary" opacity={0.05} />
 
@@ -532,12 +616,10 @@ export default function Dashboard() {
             <Card className="mb-3 sm:mb-6 relative overflow-hidden">
               <CardAccent variant="top" color="primary" intensity="medium" />
               <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 space-y-0 pb-2 relative z-10">
-                {/* Left side: Sport selector on mobile, Title + Sport on desktop */}
                 <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-start">
-                  <CardTitle className="text-sm font-medium uppercase tracking-wide hidden sm:block">
+                  <CardTitle className="text-sm font-medium uppercase tracking-wide">
                     Games
                   </CardTitle>
-                  <SportSelector size="sm" />
                 </div>
 
                 {/* Right side: Date controls */}
@@ -610,7 +692,28 @@ export default function Dashboard() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-6">
-                {isLoadingGames ? (
+                {!isLoadingInsights && !isNascar && availableGameSports.length > 0 && (
+                  <div className="flex items-center gap-1 overflow-x-auto pb-1">
+                    {(["ALL", ...availableGameSports] as string[]).map((sportOption) => {
+                      const isActive = selectedGameSportTab === sportOption;
+                      return (
+                        <button
+                          key={sportOption}
+                          type="button"
+                          onClick={() => setDashboardSportTab(sportOption)}
+                          className={`inline-flex items-center rounded-sm border px-2 py-1 text-[11px] font-semibold uppercase tracking-wide whitespace-nowrap transition-colors ${
+                            isActive
+                              ? "border-primary/60 bg-primary/10 text-primary"
+                              : "border-border/70 bg-background/40 text-muted-foreground hover:text-foreground"
+                          }`}
+                        >
+                          {sportOption === "ALL" ? "All" : sportOption}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                {isLoadingInsights ? (
                   <div className="space-y-3">
                     <ShimmerCard lines={3} />
                     <ShimmerCard lines={3} />
@@ -640,17 +743,137 @@ export default function Dashboard() {
                             <Badge variant="outline">{section.raceList.length}</Badge>
                           </div>
                           {section.raceList.length > 0 ? (
-                            <div className="grid grid-cols-1 gap-2">
-                              {section.raceList.map((race: any) => (
-                                <NascarRaceCard
-                                  key={race.raceId}
-                                  race={race}
-                                  boostSlotsRemaining={boostSlotsRemaining}
-                                  isAuthenticated={isAuthenticated}
-                                  userHoldings={userHoldings}
-                                  onOpen={() => setSelectedRace(race)}
-                                />
-                              ))}
+                            <div className="overflow-hidden rounded-md border border-border/70 bg-background/40">
+                              <table className="w-full table-fixed text-xs sm:text-sm">
+                                <thead>
+                                  <tr className="border-b border-border/70 bg-muted/20">
+                                    <th className="w-[22%] px-1.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-muted-foreground sm:px-2 sm:text-[11px]">
+                                      <span className="sm:hidden">Mkt</span>
+                                      <span className="hidden sm:inline">Market</span>
+                                    </th>
+                                    <th className="w-[36%] px-1.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-muted-foreground sm:px-2 sm:text-[11px]">
+                                      Race
+                                    </th>
+                                    <th className="w-[22%] px-1.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-muted-foreground sm:px-2 sm:text-[11px]">
+                                      <span className="sm:hidden">Prog</span>
+                                      <span className="hidden sm:inline">Progress</span>
+                                    </th>
+                                    <th className="w-[20%] px-1.5 py-1.5 text-right text-[10px] font-semibold uppercase tracking-wide text-muted-foreground sm:px-2 sm:text-[11px]">
+                                      <span className="sm:hidden">Earn</span>
+                                      <span className="hidden sm:inline">Live Earned</span>
+                                    </th>
+                                    <th className="hidden w-[12%] px-2 py-1.5 text-right text-[11px] font-semibold uppercase tracking-wide text-muted-foreground sm:table-cell">
+                                      Field
+                                    </th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {section.raceList.map((race: any, index: number) => {
+                                    const raceDate = new Date(race.raceDate);
+                                    const raceDateLabel = raceDate.toLocaleDateString([], {
+                                      month: "short",
+                                      day: "numeric",
+                                    });
+                                    const raceTimeLabel = raceDate.toLocaleTimeString([], {
+                                      hour: "numeric",
+                                      minute: "2-digit",
+                                    });
+                                    const raceMarketState =
+                                      race.status === "scheduled"
+                                        ? raceTimeLabel
+                                        : race.status === "inprogress"
+                                          ? "LIVE"
+                                          : "FINAL";
+                                    const raceMarketStateClass =
+                                      race.status === "inprogress"
+                                        ? "text-emerald-500"
+                                        : race.status === "completed"
+                                          ? "text-slate-300"
+                                          : "text-blue-400";
+                                    const leader = race.driverStandings?.[0];
+                                    const hasRaceLapProgress =
+                                      Boolean(race.lapInfo) &&
+                                      Number(race.lapInfo.currentLap || 0) > 0 &&
+                                      Number(race.lapInfo.totalLaps || 0) > 0;
+                                    const progressValue =
+                                      race.status === "inprogress" && hasRaceLapProgress
+                                        ? `L${race.lapInfo.currentLap}/${race.lapInfo.totalLaps}`
+                                        : race.status === "completed"
+                                          ? "Final"
+                                          : "--";
+                                    const progressMeta =
+                                      race.status === "inprogress" && hasRaceLapProgress
+                                        ? `${race.lapInfo.lapsToGo} to go`
+                                        : race.status === "completed"
+                                          ? "Closed"
+                                          : "--";
+                                    const earningsDisplay = getEarningsDisplay({
+                                      value: race.liveEarned,
+                                      status: race.status,
+                                      canShow: isAuthenticated,
+                                    });
+
+                                    return (
+                                      <tr
+                                        key={race.raceId}
+                                        role="button"
+                                        tabIndex={0}
+                                        onClick={() => setSelectedRace(race)}
+                                        onKeyDown={(event) => {
+                                          if (event.key === "Enter" || event.key === " ") {
+                                            event.preventDefault();
+                                            setSelectedRace(race);
+                                          }
+                                        }}
+                                        className={`cursor-pointer border-b border-border/60 hover:bg-muted/20 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60 ${index === section.raceList.length - 1 ? "border-b-0" : ""}`}
+                                      >
+                                        <td className="px-1.5 py-1.5 align-middle sm:px-2 sm:py-2">
+                                          <div className="truncate font-mono text-[10px] font-semibold uppercase tracking-wide sm:text-[11px]">
+                                            <span className="text-foreground">NASCAR</span>{" "}
+                                            <span className={raceMarketStateClass}>
+                                              {raceMarketState}
+                                            </span>
+                                          </div>
+                                          <div className="mt-1 truncate font-mono text-[10px] text-muted-foreground sm:text-[11px]">
+                                            {raceDateLabel}
+                                          </div>
+                                        </td>
+                                        <td className="px-1.5 py-1.5 align-middle sm:px-2 sm:py-2">
+                                          <div className="truncate font-semibold text-foreground text-xs sm:text-sm">
+                                            {race.trackName}
+                                          </div>
+                                          <div className="truncate text-[10px] text-muted-foreground sm:text-xs">
+                                            {race.series} Series
+                                          </div>
+                                        </td>
+                                        <td className="px-1.5 py-1.5 align-middle sm:px-2 sm:py-2">
+                                          <div className="truncate font-mono font-semibold text-foreground text-xs sm:text-sm">
+                                            {progressValue}
+                                          </div>
+                                          <div className="truncate text-[10px] text-muted-foreground sm:text-xs">
+                                            {progressMeta}
+                                          </div>
+                                        </td>
+                                        <td className="px-1.5 py-1.5 align-middle text-right sm:px-2 sm:py-2">
+                                          <div
+                                            className={`truncate font-mono font-semibold text-xs sm:text-sm ${earningsDisplay.className}`}
+                                          >
+                                            {earningsDisplay.label}
+                                          </div>
+                                        </td>
+                                        <td className="hidden px-2 py-2 align-middle text-right sm:table-cell">
+                                          <div className="font-mono text-xs font-semibold text-foreground">
+                                            {race.totalDrivers || 0}
+                                          </div>
+                                          <div className="truncate text-[11px] text-muted-foreground">
+                                            {leader ? `P1 ${leader.driverName}` : "TBD"}
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
                             </div>
                           ) : (
                             <div className="text-sm text-muted-foreground">{section.empty}</div>
@@ -660,10 +883,10 @@ export default function Dashboard() {
                     </>
                   ) : (
                     <div className="text-center py-8 text-sm text-muted-foreground">
-                      ⊡ No races scheduled for this date
+                      No races scheduled for this date
                     </div>
                   )
-                ) : games.length > 0 ? (
+                ) : filteredGamesBySport.length > 0 ? (
                   <>
                     {[
                       { title: "Live", games: liveGames, empty: "No live games right now." },
@@ -682,20 +905,178 @@ export default function Dashboard() {
                           <Badge variant="outline">{section.games.length}</Badge>
                         </div>
                         {section.games.length > 0 ? (
-                          <div className="grid grid-cols-2 gap-2">
-                            {section.games.map((game) => {
-                              const effectiveStatus = getEffectiveGameStatus(game);
-                              return (
-                                <GameCommandCenterCard
-                                  key={game.gameId}
-                                  game={game}
-                                  effectiveStatus={effectiveStatus}
-                                  boostSlotsRemaining={boostSlotsRemaining}
-                                  isAuthenticated={isAuthenticated}
-                                  onOpen={() => setActiveGame(game)}
-                                />
-                              );
-                            })}
+                          <div className="overflow-hidden rounded-md border border-border/70 bg-background/40">
+                            <table className="w-full table-fixed text-xs sm:text-sm">
+                              <thead>
+                                <tr className="border-b border-border/70 bg-muted/20">
+                                  <th className="w-[24%] px-1.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-muted-foreground sm:w-[20%] sm:px-2 sm:text-[11px]">
+                                    <span className="sm:hidden">Mkt</span>
+                                    <span className="hidden sm:inline">Market</span>
+                                  </th>
+                                  <th className="w-[28%] px-1.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-muted-foreground sm:hidden">
+                                    Match
+                                  </th>
+                                  <th className="hidden w-[13%] px-2 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground sm:table-cell">
+                                    Away
+                                  </th>
+                                  <th className="hidden w-[13%] px-2 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground sm:table-cell">
+                                    Home
+                                  </th>
+                                  <th className="w-[23%] px-1.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-muted-foreground sm:w-[18%] sm:px-2 sm:text-[11px]">
+                                    <span className="sm:hidden">Prog</span>
+                                    <span className="hidden sm:inline">Progress</span>
+                                  </th>
+                                  <th className="w-[25%] px-1.5 py-1.5 text-right text-[10px] font-semibold uppercase tracking-wide text-muted-foreground sm:w-[16%] sm:px-2 sm:text-[11px]">
+                                    <span className="sm:hidden">Earn</span>
+                                    <span className="hidden sm:inline">Live Earned</span>
+                                  </th>
+                                  <th className="hidden w-[16%] px-2 py-1.5 text-right text-[11px] font-semibold uppercase tracking-wide text-muted-foreground sm:table-cell">
+                                    Owned
+                                  </th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {section.games.map((game, index) => {
+                                  const effectiveStatus = getEffectiveGameStatus(game);
+                                  const startTime = new Date(game.startTime);
+                                  const dateLabel = startTime.toLocaleDateString([], {
+                                    month: "short",
+                                    day: "numeric",
+                                  });
+                                  const timeLabel = startTime.toLocaleTimeString([], {
+                                    hour: "numeric",
+                                    minute: "2-digit",
+                                  });
+                                  const liveMarketLabel = String(
+                                    game.liveMarketStatus || "",
+                                  ).trim();
+                                  const gameMarketState =
+                                    effectiveStatus === "scheduled"
+                                      ? "SCHED"
+                                      : effectiveStatus === "inprogress"
+                                        ? "LIVE"
+                                        : effectiveStatus === "completed"
+                                          ? "FINAL"
+                                          : "POST";
+                                  const gameMarketMeta =
+                                    effectiveStatus === "scheduled"
+                                      ? timeLabel
+                                      : effectiveStatus === "inprogress"
+                                        ? liveMarketLabel || "In Progress"
+                                        : dateLabel;
+                                  const gameMarketStateClass =
+                                    effectiveStatus === "inprogress"
+                                      ? "text-emerald-500"
+                                      : effectiveStatus === "completed"
+                                        ? "text-slate-300"
+                                        : effectiveStatus === "postponed"
+                                          ? "text-amber-500"
+                                          : "text-blue-400";
+                                  const progressValue =
+                                    effectiveStatus === "inprogress" ||
+                                    effectiveStatus === "completed"
+                                      ? `${game.awayScore ?? "-"}-${game.homeScore ?? "-"}`
+                                      : "--";
+                                  const progressMeta =
+                                    effectiveStatus === "inprogress"
+                                      ? "Live"
+                                      : effectiveStatus === "completed"
+                                        ? "Final"
+                                        : "--";
+                                  const ownedTeams = new Set(
+                                    [
+                                      ...(game.userContext?.ownedPlayers || []).map(
+                                        (player) => player.team,
+                                      ),
+                                      ...(game.userContext?.topPowerPlayers || []).map(
+                                        (player) => player.team,
+                                      ),
+                                    ].filter(Boolean),
+                                  );
+                                  const earningsDisplay = getEarningsDisplay({
+                                    value: game.userContext?.liveEarned,
+                                    status: game.userContext?.earningsStatus || effectiveStatus,
+                                    canShow: isAuthenticated && game.userContext !== null,
+                                  });
+                                  const ownedCount = game.userContext?.ownedPlayers?.length || 0;
+                                  const powerLeader = game.userContext?.topPowerPlayers?.[0];
+
+                                  return (
+                                    <tr
+                                      key={game.gameId}
+                                      role="button"
+                                      tabIndex={0}
+                                      onClick={() => setActiveGame(game)}
+                                      onKeyDown={(event) => {
+                                        if (event.key === "Enter" || event.key === " ") {
+                                          event.preventDefault();
+                                          setActiveGame(game);
+                                        }
+                                      }}
+                                      className={`cursor-pointer border-b border-border/60 hover:bg-muted/20 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60 ${index === section.games.length - 1 ? "border-b-0" : ""}`}
+                                    >
+                                      <td className="px-1.5 py-1.5 align-middle sm:px-2 sm:py-2">
+                                        <div className="truncate font-mono text-[10px] font-semibold uppercase tracking-wide sm:text-[11px]">
+                                          <span className="text-foreground">{game.sport}</span>{" "}
+                                          <span className={gameMarketStateClass}>
+                                            {gameMarketState}
+                                          </span>
+                                        </div>
+                                        <div className="mt-1 truncate font-mono text-[10px] text-muted-foreground sm:text-[11px]">
+                                          {gameMarketMeta}
+                                        </div>
+                                      </td>
+                                      <td className="px-1.5 py-1.5 align-middle sm:hidden">
+                                        <div className="truncate font-semibold text-foreground">
+                                          {game.awayTeam}
+                                          <span className="mx-1 text-muted-foreground">@</span>
+                                          {game.homeTeam}
+                                        </div>
+                                      </td>
+                                      <td className="hidden px-2 py-2 align-middle sm:table-cell">
+                                        <div
+                                          className={`truncate font-semibold ${ownedTeams.has(game.awayTeam) ? "text-primary" : "text-foreground"}`}
+                                        >
+                                          {game.awayTeam}
+                                        </div>
+                                      </td>
+                                      <td className="hidden px-2 py-2 align-middle sm:table-cell">
+                                        <div
+                                          className={`truncate font-semibold ${ownedTeams.has(game.homeTeam) ? "text-primary" : "text-foreground"}`}
+                                        >
+                                          {game.homeTeam}
+                                        </div>
+                                      </td>
+                                      <td className="px-1.5 py-1.5 align-middle sm:px-2 sm:py-2">
+                                        <div className="truncate font-mono font-semibold text-foreground text-xs sm:text-sm">
+                                          {progressValue}
+                                        </div>
+                                        <div className="truncate text-[10px] text-muted-foreground sm:text-xs">
+                                          {progressMeta}
+                                        </div>
+                                      </td>
+                                      <td className="px-1.5 py-1.5 align-middle text-right sm:px-2 sm:py-2">
+                                        <div
+                                          className={`truncate font-mono font-semibold text-xs sm:text-sm ${earningsDisplay.className}`}
+                                        >
+                                          {earningsDisplay.label}
+                                        </div>
+                                      </td>
+                                      <td className="hidden px-2 py-2 align-middle text-right sm:table-cell">
+                                        <div className="font-mono text-xs font-semibold text-foreground">
+                                          {isAuthenticated ? ownedCount : "--"}
+                                        </div>
+                                        <div className="truncate text-[11px] text-muted-foreground">
+                                          {isAuthenticated && powerLeader
+                                            ? `Pwr ${powerLeader.powerLevel.toFixed(1)}`
+                                            : "--"}
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
                           </div>
                         ) : (
                           <div className="text-sm text-muted-foreground">{section.empty}</div>
@@ -705,7 +1086,7 @@ export default function Dashboard() {
                   </>
                 ) : (
                   <div className="text-center py-8 text-sm text-muted-foreground">
-                    ⊡ No games scheduled for this date
+                    No games scheduled for this date
                   </div>
                 )}
               </CardContent>

@@ -120,10 +120,22 @@ interface ComparisonPlayer {
   ammVolumeHistory: { timestamp: string; volume: number }[];
 }
 
+interface SportBreakdown {
+  sport: string;
+  totalPlayers: number;
+  activePlayers: number;
+  totalVolume24h: number;
+  totalMarketCap: number;
+  avgPriceChange24h: number;
+  tradesInRange: number;
+  tradedVolumeInRange: number;
+}
+
 interface AnalyticsData {
   marketHealth: MarketHealth;
   powerRankings: PowerRanking[];
   positionRankings: PositionRanking[];
+  sportBreakdown?: SportBreakdown[];
   marketStats: {
     totalVolume24h: number;
     totalTrades24h: number;
@@ -242,6 +254,7 @@ export default function Analytics() {
   }
 
   const mh = analyticsData?.marketHealth;
+  const sportBreakdown = analyticsData?.sportBreakdown || [];
 
   return (
     <div className="min-h-screen bg-background p-3 sm:p-4">
@@ -428,6 +441,59 @@ export default function Analytics() {
             </CardContent>
           </Card>
         </div>
+
+        {sportBreakdown.length > 0 && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Sport Breakdown</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {sportBreakdown.map((sportStats) => (
+                  <div
+                    key={sportStats.sport}
+                    className="rounded-lg border p-3 space-y-2"
+                    data-testid={`card-sport-breakdown-${sportStats.sport.toLowerCase()}`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <Badge variant="outline">{sportStats.sport}</Badge>
+                      <span className="text-xs text-muted-foreground">
+                        {sportStats.activePlayers}/{sportStats.totalPlayers} active
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <div className="text-muted-foreground">24h Volume</div>
+                        <div className="font-mono font-semibold">
+                          {formatLargeNumber(sportStats.totalVolume24h)}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground">Market Cap</div>
+                        <div className="font-mono font-semibold">
+                          {formatLargeNumber(sportStats.totalMarketCap)}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground">Trades ({timeRange})</div>
+                        <div className="font-mono">{formatNumber(sportStats.tradesInRange)}</div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground">Avg Change</div>
+                        <div
+                          className={`font-mono ${getPriceChangeColor(sportStats.avgPriceChange24h)}`}
+                        >
+                          {sportStats.avgPriceChange24h >= 0 ? "+" : ""}
+                          {sportStats.avgPriceChange24h.toFixed(2)}%
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Dynamic Metric Chart - Based on Selected Metric */}
         <Card>

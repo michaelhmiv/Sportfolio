@@ -9,7 +9,7 @@ import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Activity, Calendar, Trophy, Zap, X, RefreshCw, Flag } from "lucide-react";
+import { Activity, Calendar, Trophy, Zap, X, RefreshCw } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -40,6 +40,7 @@ export interface NascarRace {
   status: "scheduled" | "inprogress" | "completed";
   venue: string;
   lapInfo: NascarLapInfo | null;
+  liveEarned?: number | null;
   driverStandings: NascarDriverStanding[];
   totalDrivers: number;
 }
@@ -65,6 +66,22 @@ const flagColorMap: Record<string, string> = {
   Checkered: "bg-black",
   White: "bg-white",
 };
+
+const compactCurrencyFormatter = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+
+const standardCurrencyFormatter = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  maximumFractionDigits: 2,
+});
+
+const listingGridClass =
+  "grid grid-cols-[minmax(74px,1fr)_minmax(90px,1fr)_minmax(90px,1fr)_minmax(86px,1fr)_minmax(88px,1fr)] items-start gap-x-2";
 
 export function NascarRaceCard({
   race,
@@ -131,6 +148,49 @@ export function NascarRaceCard({
 
   const showBoostPanel = isAuthenticated && eligibleDrivers.length > 0;
   const boostedDrivers = userDriversForRace.filter((h) => h.isBoosted);
+  const dateLabel = startTime.toLocaleDateString([], { month: "short", day: "numeric" });
+  const leader = race.driverStandings[0] || null;
+
+  const progressValue =
+    race.status === "inprogress" && race.lapInfo
+      ? `Lap ${race.lapInfo.currentLap}/${race.lapInfo.totalLaps}`
+      : race.status === "completed"
+        ? "Final"
+        : "--";
+
+  const progressMeta =
+    race.status === "inprogress" && race.lapInfo
+      ? `${race.lapInfo.lapsToGo} to go`
+      : race.status === "completed"
+        ? `${race.totalDrivers} finished`
+        : `Opens ${timeLabel}`;
+
+  const getLiveEarnedDisplay = () => {
+    if (!isAuthenticated) {
+      return { label: "--", toneClass: "text-muted-foreground", meta: "Sign in" };
+    }
+
+    if (race.status === "scheduled") {
+      return { label: "--", toneClass: "text-muted-foreground", meta: "Pre-race" };
+    }
+
+    const rawValue = typeof race.liveEarned === "number" ? race.liveEarned : 0;
+    const formatter =
+      Math.abs(rawValue) >= 1000 ? compactCurrencyFormatter : standardCurrencyFormatter;
+    const absValue = formatter.format(Math.abs(rawValue));
+
+    if (rawValue > 0) {
+      return { label: `+${absValue}`, toneClass: "text-emerald-500", meta: "Captured" };
+    }
+
+    if (rawValue < 0) {
+      return { label: `-${absValue}`, toneClass: "text-rose-500", meta: "Captured" };
+    }
+
+    return { label: "$0.00", toneClass: "text-muted-foreground", meta: "Captured" };
+  };
+
+  const liveEarnedDisplay = getLiveEarnedDisplay();
 
   return (
     <button
@@ -138,65 +198,61 @@ export function NascarRaceCard({
       onClick={onOpen}
       className="w-full text-left rounded-lg border-2 border-border/90 bg-card p-3 shadow-sm transition-all hover:border-border hover:shadow-md"
     >
-      {/* Header: Status and Time */}
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <Badge variant={status.variant} className="gap-1 text-[10px] uppercase">
-            <StatusIcon className="h-3 w-3" />
-            {status.label}
-          </Badge>
-          {race.status === "inprogress" && race.lapInfo && (
-            <div className="flex items-center gap-1">
-              <span
-                className={`w-2 h-2 rounded-full ${flagColorMap[race.lapInfo.flagState] || "bg-gray-500"}`}
-              />
-              <span className="text-xs text-muted-foreground">
-                Lap {race.lapInfo.currentLap}/{race.lapInfo.totalLaps}
-              </span>
+      <div className="rounded-md border border-border/70 bg-background/40 overflow-hidden">
+        <div
+          className={`${listingGridClass} border-b border-border/60 px-2 py-1 text-[10px] uppercase tracking-[0.08em] text-muted-foreground`}
+        >
+          <div>Market</div>
+          <div className="col-span-2">Race</div>
+          <div>Progress</div>
+          <div className="text-right">Live Earned</div>
+        </div>
+
+        <div className={`${listingGridClass} px-2 py-2`}>
+          <div className="min-w-0">
+            <div className="inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.08em]">
+              <StatusIcon className="h-3 w-3 text-muted-foreground" />
+              <span>{status.label}</span>
             </div>
-          )}
-          {race.status === "scheduled" && (
-            <span className="text-xs text-muted-foreground">{timeLabel}</span>
-          )}
-        </div>
-      </div>
-
-      {/* Race Info */}
-      <div className="mt-2">
-        <div className="text-lg font-bold">{race.trackName}</div>
-        <div className="text-sm text-muted-foreground">{race.series} Series</div>
-      </div>
-
-      {/* Driver Count / Lap Info */}
-      {race.status === "inprogress" && race.lapInfo && (
-        <div className="mt-2 text-xs text-muted-foreground">
-          {race.totalDrivers} drivers | {race.lapInfo.lapsToGo} laps to go
-        </div>
-      )}
-      {race.status === "completed" && (
-        <div className="mt-2 text-xs text-muted-foreground">
-          {race.totalDrivers} drivers finished
-        </div>
-      )}
-
-      {/* Top 3 Preview (if available) */}
-      {race.driverStandings.length > 0 && (
-        <div className="mt-3 space-y-1">
-          <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Leader</div>
-          <div className="flex items-center justify-between text-sm">
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-yellow-500">1</span>
-              <span className="font-medium">{race.driverStandings[0]?.driverName || "TBD"}</span>
-              <span className="text-muted-foreground text-xs">
-                #{race.driverStandings[0]?.carNumber}
-              </span>
+            <div className="text-[10px] text-muted-foreground mt-0.5 truncate">
+              {dateLabel} {timeLabel}
             </div>
-            <span className="font-mono text-purple-400">
-              {race.driverStandings[0]?.fantasyPoints.toFixed(1)} FP
-            </span>
+          </div>
+
+          <div className="col-span-2 min-w-0">
+            <div className="text-xs sm:text-sm font-semibold truncate">{race.trackName}</div>
+            <div className="text-[10px] text-muted-foreground mt-0.5 truncate">
+              {race.series} Series
+              {leader ? ` | P1 ${leader.driverName} #${leader.carNumber}` : ""}
+            </div>
+          </div>
+
+          <div className="min-w-0">
+            <div className="font-mono text-xs sm:text-sm font-semibold truncate">
+              {progressValue}
+            </div>
+            <div className="text-[10px] text-muted-foreground mt-0.5 truncate flex items-center gap-1">
+              {race.status === "inprogress" && race.lapInfo && (
+                <span
+                  className={`h-1.5 w-1.5 rounded-full ${flagColorMap[race.lapInfo.flagState] || "bg-gray-500"}`}
+                />
+              )}
+              <span>{progressMeta}</span>
+            </div>
+          </div>
+
+          <div className="text-right min-w-0">
+            <div
+              className={`font-mono text-xs sm:text-sm font-semibold truncate ${liveEarnedDisplay.toneClass}`}
+            >
+              {liveEarnedDisplay.label}
+            </div>
+            <div className="text-[10px] text-muted-foreground mt-0.5 truncate">
+              {liveEarnedDisplay.meta}
+            </div>
           </div>
         </div>
-      )}
+      </div>
 
       {/* Boost Panel */}
       {isAuthenticated && showBoostPanel && race.status === "scheduled" && (

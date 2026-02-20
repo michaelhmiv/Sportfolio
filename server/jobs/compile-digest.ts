@@ -77,6 +77,16 @@ const formatSignedCurrency = (value: number) =>
   `${value >= 0 ? "+" : "-"}$${Math.abs(value).toFixed(2)}`;
 const formatSignedPercent = (value: number) => `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`;
 
+let hasLoggedMissingSharePayoutsTable = false;
+
+function isMissingRelationError(error: unknown, relationName: string): boolean {
+  const message =
+    error && typeof error === "object" && "message" in error
+      ? String((error as { message: unknown }).message)
+      : String(error ?? "");
+  return message.includes(`relation "${relationName}" does not exist`);
+}
+
 function getDigestWindow(): DigestWindow {
   const todayET = getTodayET();
   const { startOfDay: todayStart } = getETDayBoundaries(todayET);
@@ -576,7 +586,7 @@ async function getEarningsBreakdownSection(
   userId: string,
   window: DigestWindow,
 ): Promise<{ section: DigestSection; totalCashEarnings: number }> {
-  const [boostResult, sharePayoutResult, vestingResult, userTrades] = await Promise.all([
+  const [boostResult, vestingResult, userTrades] = await Promise.all([
     db
       .select({
         total: sql<string>`COALESCE(SUM(${boostPayouts.payoutAmount}), 0)`.as("total"),
@@ -587,19 +597,6 @@ async function getEarningsBreakdownSection(
           eq(boostPayouts.userId, userId),
           gte(boostPayouts.createdAt, window.start),
           lt(boostPayouts.createdAt, window.end),
-        ),
-      ),
-    db
-      .select({
-        total: sql<string>`COALESCE(SUM(${sharePayouts.payoutAmount}), 0)`.as("total"),
-      })
-      .from(sharePayouts)
-      .where(
-        and(
-          eq(sharePayouts.userId, userId),
-          eq(sharePayouts.status, "processed"),
-          gte(sharePayouts.processedAt, window.start),
-          lt(sharePayouts.processedAt, window.end),
         ),
       ),
     db
@@ -632,7 +629,37 @@ async function getEarningsBreakdownSection(
   ]);
 
   const boostPayout = asNumber(boostResult[0]?.total);
-  const sharePayout = asNumber(sharePayoutResult[0]?.total);
+  let sharePayout = 0;
+
+  try {
+    const sharePayoutResult = await db
+      .select({
+        total: sql<string>`COALESCE(SUM(${sharePayouts.payoutAmount}), 0)`.as("total"),
+      })
+      .from(sharePayouts)
+      .where(
+        and(
+          eq(sharePayouts.userId, userId),
+          eq(sharePayouts.status, "processed"),
+          gte(sharePayouts.processedAt, window.start),
+          lt(sharePayouts.processedAt, window.end),
+        ),
+      );
+
+    sharePayout = asNumber(sharePayoutResult[0]?.total);
+  } catch (error: any) {
+    if (isMissingRelationError(error, "share_payouts")) {
+      if (!hasLoggedMissingSharePayoutsTable) {
+        console.warn(
+          "[Digest] share_payouts table missing; defaulting share payout digest metric to $0.",
+        );
+        hasLoggedMissingSharePayoutsTable = true;
+      }
+    } else {
+      throw error;
+    }
+  }
+
   const vestedShares = asNumber(vestingResult[0]?.totalShares);
   const tradeVolume = userTrades.reduce(
     (sum, trade) => sum + asNumber(trade.quantity) * asNumber(trade.price),

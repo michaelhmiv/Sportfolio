@@ -80,6 +80,21 @@ type LivePlayerStats = {
   receivingYards?: number | null;
   receivingTDs?: number | null;
   receptions?: number | null;
+  atBats?: number;
+  hits?: number;
+  doubles?: number;
+  triples?: number;
+  homeRuns?: number;
+  runs?: number;
+  runsBattedIn?: number;
+  walks?: number;
+  stolenBases?: number;
+  strikeoutsBatting?: number;
+  inningsPitched?: number;
+  pitchingStrikeouts?: number;
+  earnedRuns?: number;
+  wins?: number;
+  saves?: number;
   fantasyPoints?: number;
 };
 
@@ -178,11 +193,12 @@ const getPlayerIdVariants = (playerId: string, sport?: string) => {
   const variants = new Set<string>([rawId]);
   const normalizedSport = (sport || "").toUpperCase();
 
-  if (rawId.startsWith("nba_") || rawId.startsWith("nfl_")) {
+  if (rawId.startsWith("nba_") || rawId.startsWith("nfl_") || rawId.startsWith("mlb_")) {
     variants.add(rawId.slice(4));
   } else {
     if (normalizedSport === "NBA") variants.add(`nba_${rawId}`);
     if (normalizedSport === "NFL") variants.add(`nfl_${rawId}`);
+    if (normalizedSport === "MLB") variants.add(`mlb_${rawId}`);
   }
 
   return Array.from(variants);
@@ -228,6 +244,27 @@ const getAutoTab = (game?: Pick<GameInsight, "status" | "startTime"> | null): Co
 
 const hasMeaningfulLiveStats = (player: LivePlayerStats, sport: string): boolean => {
   const normalizedSport = (sport || "").toUpperCase();
+
+  if (normalizedSport === "MLB") {
+    const mlbStats = [
+      player.fantasyPoints,
+      player.atBats,
+      player.hits,
+      player.homeRuns,
+      player.runs,
+      player.runsBattedIn,
+      player.walks,
+      player.stolenBases,
+      player.strikeoutsBatting,
+      player.inningsPitched,
+      player.pitchingStrikeouts,
+      player.earnedRuns,
+      player.wins,
+      player.saves,
+    ];
+
+    return mlbStats.some((value) => (value ?? 0) !== 0);
+  }
 
   if (normalizedSport === "NFL") {
     const nflStats = [
@@ -1345,6 +1382,148 @@ export function GameCommandCenterModal({
                                         </td>
                                         <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
                                           {player.passingInterceptions ?? 0}
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            ) : liveSport === "MLB" ? (
+                              <table className="w-full min-w-[1020px] border-separate border-spacing-0 text-[10px]">
+                                <thead>
+                                  <tr className="text-muted-foreground">
+                                    <th className="sticky left-0 z-30 w-20 border-b border-border/60 bg-background px-1 py-1 text-left font-medium">
+                                      Player
+                                    </th>
+                                    <th className="sticky left-20 z-30 w-12 border-b border-border/60 bg-background px-1 py-1 text-right font-medium">
+                                      FP
+                                    </th>
+                                    <th className="sticky left-[8rem] z-30 w-14 border-b border-border/60 bg-background px-1 py-1 text-right font-medium">
+                                      $
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      Pos
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      H
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      R
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      RBI
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      HR
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      SB
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      BB
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      K
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      IP
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      P-K
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      ER
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      W
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      SV
+                                    </th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {section.players.map((player) => {
+                                    const earnings = getPlayerLiveEarnings(player, section.team);
+                                    const owned = earnings > 0;
+                                    const stickyCellBg = owned ? "bg-purple-500/10" : "bg-card";
+
+                                    return (
+                                      <tr
+                                        key={`${section.team}-${player.playerId || player.name}`}
+                                        className={owned ? "bg-purple-500/5" : ""}
+                                      >
+                                        <td
+                                          className={`sticky left-0 z-20 border-b border-border/40 px-1 py-1.5 ${stickyCellBg}`}
+                                        >
+                                          {player.playerId ? (
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                setSelectedLivePlayerId(
+                                                  resolveLivePlayerModalId(player, section.team),
+                                                )
+                                              }
+                                              className={`truncate text-left underline-offset-2 hover:underline ${owned ? "font-medium text-purple-500" : ""}`}
+                                            >
+                                              {formatCompactName(player.name)}
+                                            </button>
+                                          ) : (
+                                            <div
+                                              className={`truncate ${owned ? "font-medium text-purple-500" : ""}`}
+                                            >
+                                              {formatCompactName(player.name)}
+                                            </div>
+                                          )}
+                                        </td>
+                                        <td
+                                          className={`sticky left-20 z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono ${stickyCellBg}`}
+                                        >
+                                          {(player.fantasyPoints || 0).toFixed(1)}
+                                        </td>
+                                        <td
+                                          className={`sticky left-[8rem] z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono text-emerald-600 dark:text-emerald-400 ${stickyCellBg}`}
+                                        >
+                                          ${earnings.toFixed(2)}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.position || "-"}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.hits ?? 0}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.runs ?? 0}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.runsBattedIn ?? 0}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.homeRuns ?? 0}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.stolenBases ?? 0}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.walks ?? 0}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.strikeoutsBatting ?? 0}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {Number(player.inningsPitched ?? 0).toFixed(1)}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.pitchingStrikeouts ?? 0}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.earnedRuns ?? 0}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.wins ?? 0}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.saves ?? 0}
                                         </td>
                                       </tr>
                                     );

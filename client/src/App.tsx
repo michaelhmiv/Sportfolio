@@ -358,6 +358,7 @@ function Router() {
           {/* Canonical player route used across the app (some data uses prefixed ids like nba_123) */}
           <Route path="/player/nba_:id">{isAuthenticated ? <PlayerPage /> : <Dashboard />}</Route>
           <Route path="/player/nfl_:id">{isAuthenticated ? <PlayerPage /> : <Dashboard />}</Route>
+          <Route path="/player/mlb_:id">{isAuthenticated ? <PlayerPage /> : <Dashboard />}</Route>
           <Route path="/contest/:id/entry">
             {isAuthenticated ? <ContestEntry /> : <Dashboard />}
           </Route>

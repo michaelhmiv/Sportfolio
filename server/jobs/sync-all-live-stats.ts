@@ -7,11 +7,13 @@
  * Sports supported:
  * - NBA: Uses Ball Don't Lie API
  * - NFL: Uses Ball Don't Lie API
+ * - MLB: Uses Ball Don't Lie API
  */
 
 import { storage } from "../storage";
 import { syncStatsLive as syncNBAStatsLive } from "./sync-stats-live";
 import { syncNFLStats } from "./sync-nfl-stats";
+import { syncMLBStats } from "./sync-mlb-stats";
 import type { JobResult } from "./scheduler";
 import type { ProgressCallback } from "../lib/admin-stream";
 import { getTodayETBoundaries, getETDayBoundaries, getGameDay } from "../lib/time";
@@ -19,6 +21,7 @@ import { getTodayETBoundaries, getETDayBoundaries, getGameDay } from "../lib/tim
 interface UnifiedResult extends JobResult {
   nbaResult?: JobResult;
   nflResult?: JobResult;
+  mlbResult?: JobResult;
   gamesProcessed?: number;
 }
 
@@ -63,16 +66,17 @@ export async function syncAllLiveStats(
     // games stuck at "scheduled" never get updated because the updater only ran for
     // already-active games.
     const nflGames = allGames.filter((g) => g.sport === "NFL");
+    const mlbGames = allGames.filter((g) => g.sport === "MLB");
 
     console.log(
-      `[live_stats_sync] Games in window: NBA=${nbaGames.length}, NFL=${nflGames.length}`,
+      `[live_stats_sync] Games in window: NBA=${nbaGames.length}, NFL=${nflGames.length}, MLB=${mlbGames.length}`,
     );
 
     progressCallback?.({
       type: "info",
       timestamp: new Date().toISOString(),
-      message: `Games found: NBA=${nbaGames.length}, NFL=${nflGames.length}`,
-      data: { nbaCount: nbaGames.length, nflCount: nflGames.length },
+      message: `Games found: NBA=${nbaGames.length}, NFL=${nflGames.length}, MLB=${mlbGames.length}`,
+      data: { nbaCount: nbaGames.length, nflCount: nflGames.length, mlbCount: mlbGames.length },
     });
 
     // Process NBA games if any exist in the window.
@@ -91,7 +95,7 @@ export async function syncAllLiveStats(
     }
 
     // Process NFL games if any exist in the window.
-    // No in-process throttle needed — the cron cadence (*/5) is the throttle.
+    // No in-process throttle needed - the cron cadence (*/5) is the throttle.
     if (nflGames.length > 0) {
       console.log(`[live_stats_sync] Processing NFL live sync...`);
       try {
@@ -112,8 +116,28 @@ export async function syncAllLiveStats(
       }
     }
 
+    if (mlbGames.length > 0) {
+      console.log(`[live_stats_sync] Processing MLB live sync...`);
+      try {
+        const mlbResult = await syncMLBStats();
+        result.mlbResult = {
+          requestCount: 0,
+          recordsProcessed: mlbResult.statsProcessed,
+          errorCount: mlbResult.errors.length,
+        };
+        result.recordsProcessed += mlbResult.statsProcessed;
+        result.gamesProcessed = (result.gamesProcessed || 0) + mlbResult.gamesProcessed;
+        if (mlbResult.errors.length > 0) {
+          result.errorCount += mlbResult.errors.length;
+        }
+      } catch (error: any) {
+        console.error("[live_stats_sync] MLB sync failed:", error.message);
+        result.errorCount++;
+      }
+    }
+
     // If no games for any sport, short-circuit
-    if (nbaGames.length === 0 && nflGames.length === 0) {
+    if (nbaGames.length === 0 && nflGames.length === 0 && mlbGames.length === 0) {
       console.log("[live_stats_sync] No games in window for any sport, skipping");
 
       progressCallback?.({
@@ -135,7 +159,7 @@ export async function syncAllLiveStats(
     }
 
     console.log(
-      `[live_stats_sync] ✓ Completed: ${result.recordsProcessed} stats processed, ${result.errorCount} errors`,
+      `[live_stats_sync] Completed: ${result.recordsProcessed} stats processed, ${result.errorCount} errors`,
     );
 
     progressCallback?.({
@@ -153,6 +177,7 @@ export async function syncAllLiveStats(
           apiCalls: result.requestCount,
           nbaGames: nbaGames.length,
           nflGames: nflGames.length,
+          mlbGames: mlbGames.length,
         },
       },
     });

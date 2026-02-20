@@ -119,34 +119,29 @@ import { choosePreferredDailyGame } from "./lib/daily-game-dedupe";
 // - October: Preseason begins (new season, but EXCLUDED from competitive stats)
 // - October-April: Regular season (INCLUDED in competitive stats)
 // - April-June: Playoffs (INCLUDED in competitive stats, combines with regular)
-function getCurrentCompetitiveSeasons(): string[] {
+function getCurrentCompetitiveSeasons(sport: string = "NBA"): string[] {
+  const normalizedSport = (sport || "NBA").toUpperCase();
   const now = new Date();
-  const currentMonth = now.getMonth(); // 0-11 (0=Jan, 6=Jul, 9=Oct)
+  const currentMonth = now.getMonth();
   const currentYear = now.getFullYear();
 
-  // Determine season start year based on NBA calendar:
-  // - July-December (months 6-11): Use current year as season start
-  // - January-June (months 0-5): Use previous year as season start
-  //
-  // Examples:
-  // - Nov 2025 → 2025-2026 (current season in progress)
-  // - Feb 2025 → 2024-2025 (season started Oct 2024)
-  // - Jul 2025 → 2025-2026 (preparing for new season starting Oct 2025)
-  // - Jun 2025 → 2024-2025 (playoffs for season that started Oct 2024)
+  if (normalizedSport === "NFL") {
+    const seasonYear = currentMonth < 8 ? currentYear - 1 : currentYear;
+    return [String(seasonYear), String(seasonYear - 1)];
+  }
+
+  if (normalizedSport === "MLB" || normalizedSport === "NASCAR") {
+    return [String(currentYear), String(currentYear - 1)];
+  }
+
   const seasonStartYear = currentMonth >= 6 ? currentYear : currentYear - 1;
   const seasonEndYear = seasonStartYear + 1;
 
-  // Include both regular season and playoffs for rolling competitive average
-  // Preseason is explicitly EXCLUDED per user requirements
-  // Note: MySportsFeeds uses "playoff" (singular) not "playoffs"
   return [
     `${seasonStartYear}-${seasonEndYear}-regular`,
     `${seasonStartYear}-${seasonEndYear}-playoff`,
-    // Explicitly include 2025-2026-regular for NFL compatibility during transition
-    "2025-2026-regular",
-    // Fallback for data tagged with previous season (e.g. 2024-2025 data extending into 2026)
-    "2024-2025-regular",
-    "2024-2025-playoff",
+    `${seasonStartYear - 1}-${seasonStartYear}-regular`,
+    `${seasonStartYear - 1}-${seasonStartYear}-playoff`,
   ];
 }
 
@@ -1556,9 +1551,9 @@ export class DatabaseStorage implements IStorage {
     if (player) return player;
 
     // Backwards compatibility: allow passing raw numeric IDs and resolve to prefixed IDs.
-    // The canonical format is sport-prefixed (e.g., nba_12345, nfl_67890).
+    // The canonical format is sport-prefixed (e.g., nba_12345, nfl_67890, mlb_99999).
     if (/^\d+$/.test(trimmedId)) {
-      const candidates = [`nba_${trimmedId}`, `nfl_${trimmedId}`];
+      const candidates = [`nba_${trimmedId}`, `nfl_${trimmedId}`, `mlb_${trimmedId}`];
       const resolved = await db
         .select()
         .from(players)
@@ -3290,7 +3285,12 @@ export class DatabaseStorage implements IStorage {
 
   async getPlayerSeasonStatsFromLogs(playerId: string): Promise<any | null> {
     // Filter by current competitive season (regular + playoffs combined for rolling average)
-    const currentSeasons = getCurrentCompetitiveSeasons();
+    const [playerRow] = await db
+      .select({ sport: players.sport })
+      .from(players)
+      .where(eq(players.id, playerId))
+      .limit(1);
+    const currentSeasons = getCurrentCompetitiveSeasons(playerRow?.sport || "NBA");
 
     const gameLogs = await db
       .select()
@@ -3365,6 +3365,61 @@ export class DatabaseStorage implements IStorage {
         receivingTouchdowns: totalReceivingTouchdowns,
         receptions: totalReceptions,
       };
+    } else if (sport === "MLB") {
+      let totalAtBats = 0;
+      let totalHits = 0;
+      let totalRuns = 0;
+      let totalRunsBattedIn = 0;
+      let totalHomeRuns = 0;
+      let totalStolenBases = 0;
+      let totalWalks = 0;
+      let totalStrikeoutsBatting = 0;
+      let totalInningsPitched = 0;
+      let totalPitchingStrikeouts = 0;
+      let totalEarnedRuns = 0;
+      let totalWins = 0;
+      let totalSaves = 0;
+
+      for (const log of gameLogs) {
+        const stats = (log.statsJson as Record<string, any>) || {};
+        totalFantasyPoints += parseFloat(log.fantasyPoints);
+
+        totalAtBats += Number(stats.at_bats || 0);
+        totalHits += Number(stats.hits || 0);
+        totalRuns += Number(stats.runs || 0);
+        totalRunsBattedIn += Number(stats.runs_batted_in || 0);
+        totalHomeRuns += Number(stats.home_runs || 0);
+        totalStolenBases += Number(stats.stolen_bases || 0);
+        totalWalks += Number(stats.walks || 0);
+        totalStrikeoutsBatting += Number(stats.strikeouts_batting || 0);
+        totalInningsPitched += Number(stats.innings_pitched || 0);
+        totalPitchingStrikeouts += Number(stats.pitching_strikeouts || 0);
+        totalEarnedRuns += Number(stats.earned_runs || 0);
+        totalWins += Number(stats.wins || 0);
+        totalSaves += Number(stats.saves || 0);
+      }
+
+      const battingAverage = totalAtBats > 0 ? (totalHits / totalAtBats).toFixed(3) : "0.000";
+
+      return {
+        sport: "MLB",
+        gamesPlayed,
+        avgFantasyPointsPerGame: (totalFantasyPoints / gamesPlayed).toFixed(2),
+        battingAverage,
+        atBats: totalAtBats,
+        hits: totalHits,
+        runs: totalRuns,
+        runsBattedIn: totalRunsBattedIn,
+        homeRuns: totalHomeRuns,
+        stolenBases: totalStolenBases,
+        walks: totalWalks,
+        strikeouts: totalStrikeoutsBatting,
+        inningsPitched: Number(totalInningsPitched.toFixed(1)),
+        pitchingStrikeouts: totalPitchingStrikeouts,
+        earnedRuns: totalEarnedRuns,
+        wins: totalWins,
+        saves: totalSaves,
+      };
     } else {
       // NBA Logic (Existing)
       for (const log of gameLogs) {
@@ -3428,24 +3483,52 @@ export class DatabaseStorage implements IStorage {
       return new Map();
     }
 
-    const currentSeasons = getCurrentCompetitiveSeasons();
+    const playerRows = await db
+      .select({ id: players.id, sport: players.sport })
+      .from(players)
+      .where(inArray(players.id, playerIds));
+
+    const playerSportMap = new Map<string, string>();
+    for (const row of playerRows) {
+      playerSportMap.set(row.id, row.sport || "NBA");
+    }
+
+    const currentSeasonBySport = new Map<string, Set<string>>();
+    for (const sportName of new Set(Array.from(playerSportMap.values()))) {
+      currentSeasonBySport.set(
+        sportName.toUpperCase(),
+        new Set(getCurrentCompetitiveSeasons(sportName)),
+      );
+    }
 
     // Fetch game logs for ALL players in one query
     const allGameLogs = await db
       .select()
       .from(playerGameStats)
-      .where(
-        and(
-          inArray(playerGameStats.playerId, playerIds),
-          inArray(playerGameStats.season, currentSeasons),
-        ),
-      );
+      .where(inArray(playerGameStats.playerId, playerIds));
 
     // Group logs by player and compute stats
-    const statsMap = new Map();
+    const filteredGameLogs = allGameLogs.filter((log) => {
+      const playerSport = playerSportMap.get(log.playerId) || log.sport || "NBA";
+      const sportKey = playerSport.toUpperCase();
+      let seasons = currentSeasonBySport.get(sportKey);
+      if (!seasons) {
+        seasons = new Set(getCurrentCompetitiveSeasons(playerSport));
+        currentSeasonBySport.set(sportKey, seasons);
+      }
+      return seasons.has(log.season);
+    });
+
+    const statsMap = new Map<
+      string,
+      {
+        gamesPlayed: number;
+        avgFantasyPointsPerGame: string;
+      }
+    >();
 
     for (const playerId of playerIds) {
-      const playerLogs = allGameLogs.filter((log) => log.playerId === playerId);
+      const playerLogs = filteredGameLogs.filter((log) => log.playerId === playerId);
 
       if (playerLogs.length === 0) {
         statsMap.set(playerId, {
@@ -3481,7 +3564,14 @@ export class DatabaseStorage implements IStorage {
 
     return gameLogs.map((log) => ({
       game: {
-        id: parseInt(log.gameId),
+        id: (() => {
+          const rawGameId = String(log.gameId || "");
+          const numericId = rawGameId.includes("_")
+            ? rawGameId.split("_").pop() || rawGameId
+            : rawGameId;
+          const parsed = Number.parseInt(numericId, 10);
+          return Number.isFinite(parsed) ? parsed : 0;
+        })(),
         date: log.gameDate.toISOString(),
         opponent: log.opponentTeam || "UNK",
         isHome: log.homeAway === "home",
@@ -3498,18 +3588,36 @@ export class DatabaseStorage implements IStorage {
               receivingTouchdowns: (log.statsJson as any)?.receiving_touchdowns || 0,
               fantasyPoints: parseFloat(log.fantasyPoints),
             }
-          : {
-              // NBA Stats
-              points: log.points,
-              rebounds: log.rebounds,
-              assists: log.assists,
-              steals: log.steals,
-              blocks: log.blocks,
-              turnovers: log.turnovers,
-              threePointersMade: log.threePointersMade,
-              minutes: log.minutes,
-              fantasyPoints: parseFloat(log.fantasyPoints),
-            },
+          : log.sport === "MLB"
+            ? {
+                // MLB Stats
+                atBats: (log.statsJson as any)?.at_bats || 0,
+                hits: (log.statsJson as any)?.hits || 0,
+                runs: (log.statsJson as any)?.runs || 0,
+                runsBattedIn: (log.statsJson as any)?.runs_batted_in || 0,
+                homeRuns: (log.statsJson as any)?.home_runs || 0,
+                stolenBases: (log.statsJson as any)?.stolen_bases || 0,
+                walks: (log.statsJson as any)?.walks || 0,
+                strikeoutsBatting: (log.statsJson as any)?.strikeouts_batting || 0,
+                inningsPitched: (log.statsJson as any)?.innings_pitched || 0,
+                pitchingStrikeouts: (log.statsJson as any)?.pitching_strikeouts || 0,
+                earnedRuns: (log.statsJson as any)?.earned_runs || 0,
+                wins: (log.statsJson as any)?.wins || 0,
+                saves: (log.statsJson as any)?.saves || 0,
+                fantasyPoints: parseFloat(log.fantasyPoints),
+              }
+            : {
+                // NBA Stats
+                points: log.points,
+                rebounds: log.rebounds,
+                assists: log.assists,
+                steals: log.steals,
+                blocks: log.blocks,
+                turnovers: log.turnovers,
+                threePointersMade: log.threePointersMade,
+                minutes: log.minutes,
+                fantasyPoints: parseFloat(log.fantasyPoints),
+              },
       sport: log.sport,
     }));
   }

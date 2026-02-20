@@ -316,13 +316,18 @@ export function ScoutDashboardModal() {
   >({
     queryKey: ["/api/games/today"],
     queryFn: async () => {
-      // Fetch games for both NBA and NFL
-      const [nbaRes, nflRes] = await Promise.all([
+      // Fetch games for all supported Ball Don't Lie sports
+      const [nbaRes, nflRes, mlbRes] = await Promise.all([
         fetch("/api/games/today?sport=NBA"),
         fetch("/api/games/today?sport=NFL"),
+        fetch("/api/games/today?sport=MLB"),
       ]);
-      const [nbaGames, nflGames] = await Promise.all([nbaRes.json(), nflRes.json()]);
-      return [...(nbaGames || []), ...(nflGames || [])];
+      const [nbaGames, nflGames, mlbGames] = await Promise.all([
+        nbaRes.json(),
+        nflRes.json(),
+        mlbRes.json(),
+      ]);
+      return [...(nbaGames || []), ...(nflGames || []), ...(mlbGames || [])];
     },
     enabled: isScoutDashboardOpen,
     refetchInterval: 60000, // Refresh every minute
@@ -470,7 +475,12 @@ export function ScoutDashboardModal() {
   ): { status: "none" | "upcoming" | "live" | "ended"; startTime: string | null } => {
     if (!todaysGames) return { status: "none", startTime: null };
 
-    const game = todaysGames.find((g) => g.homeTeam === playerTeam || g.awayTeam === playerTeam);
+    const sportCode = (playerSport || "").toUpperCase();
+    const game = todaysGames.find(
+      (g) =>
+        (g.sport || "").toUpperCase() === sportCode &&
+        (g.homeTeam === playerTeam || g.awayTeam === playerTeam),
+    );
 
     if (!game) return { status: "none", startTime: null };
 
@@ -785,6 +795,7 @@ export function ScoutDashboardModal() {
                   <SelectItem value="all">All</SelectItem>
                   <SelectItem value="NBA">NBA</SelectItem>
                   <SelectItem value="NFL">NFL</SelectItem>
+                  <SelectItem value="MLB">MLB</SelectItem>
                   <SelectItem value="NASCAR">NASCAR</SelectItem>
                 </SelectContent>
               </Select>
