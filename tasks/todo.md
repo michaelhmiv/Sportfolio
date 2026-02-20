@@ -39,3 +39,11 @@
 - [x] Scope live-earned power alias matching by sport to avoid cross-league ID collisions
 - [x] Restore SQL-level season filtering in `getBatchPlayerSeasonStatsFromLogs` to avoid full historical scans
 - [x] Validate via `npm run check`, `npm run lint`, and `npm run test:run`
+
+## 2026-02-20 MLB Away Team Shows TBD on Dashboard
+
+- [x] Investigate MLB away-team field mapping from BallDontLie to `daily_games`
+- [x] Add compatibility parsing for both `visitor_team` and `away_team` payload shapes
+- [x] Update MLB schedule/stats sync paths to use compatibility helpers
+- [x] Add regression tests for away-team/away-score fallback behavior
+- [x] Validate via `npm run check`, `npm run lint`, `npm run test:run`

@@ -15,6 +15,8 @@ import {
   createMLBPlayerId,
   normalizeGameStatus,
   getCurrentMLBSeason,
+  getMLBAwayScore,
+  getMLBAwayTeam,
 } from "../balldontlie-mlb";
 import { getTodayETBoundaries, getGameDay, getETDayBoundaries } from "../lib/time";
 
@@ -67,12 +69,12 @@ export async function syncMLBStats(): Promise<SyncResult> {
 
         if (
           gameStatus !== "scheduled" &&
-          (apiGame.home_team_score != null || apiGame.visitor_team_score != null)
+          (apiGame.home_team_score != null || getMLBAwayScore(apiGame) != null)
         ) {
           await storage.updateDailyGameScore(
             gameId,
             apiGame.home_team_score ?? 0,
-            apiGame.visitor_team_score ?? 0,
+            getMLBAwayScore(apiGame) ?? 0,
             gameStatus,
           );
           gamesUpdated++;
@@ -118,7 +120,7 @@ export async function syncMLBStats(): Promise<SyncResult> {
         await storage.updateDailyGameScore(
           gameId,
           game.home_team_score ?? 0,
-          game.visitor_team_score ?? 0,
+          getMLBAwayScore(game) ?? 0,
           gameStatus,
         );
         result.gamesProcessed++;
@@ -138,8 +140,9 @@ export async function syncMLBStats(): Promise<SyncResult> {
         const statsJson = parseStatsToJson(apiStat);
 
         const isHome = apiStat.team.abbreviation === apiStat.game.home_team.abbreviation;
+        const awayTeam = getMLBAwayTeam(apiStat.game);
         const opponentTeam = isHome
-          ? apiStat.game.visitor_team.abbreviation
+          ? awayTeam?.abbreviation || "UNK"
           : apiStat.game.home_team.abbreviation;
 
         await storage.upsertPlayerGameStats({
