@@ -109,3 +109,10 @@
 - [x] Ensure dashboard always fetches complete game-sport set for the selected date
 - [x] Render stable sport tabs (`ALL`, `NBA`, `NFL`, `MLB`, `NASCAR`) regardless of current filtered payload
 - [x] Validate via `npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`
+
+## 2026-02-21 PR #74 Review Follow-up (Dashboard Sport Tabs)
+
+- [x] Attempt to fetch PR #74 inline comments and audit prior fix scope
+- [x] Keep dashboard sport tabs visible during loading and NASCAR mode
+- [x] Align dashboard tab source with canonical `SPORTS` config to prevent drift
+- [x] Validate via `npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`
