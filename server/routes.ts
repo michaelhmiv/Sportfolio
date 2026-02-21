@@ -8188,16 +8188,42 @@ ${posts
     try {
       const refresh = String(req.query.refresh || "false") === "true";
       let report = getLatestApiHealthReport();
+      let inProgress = false;
 
       if (refresh || !report) {
         try {
           await jobScheduler.triggerJob("api_health_check");
         } catch (error: any) {
-          if (error?.statusCode !== 409) {
-            throw error;
-          }
+          if (error?.statusCode === 409) inProgress = true;
+          else throw error;
         }
         report = getLatestApiHealthReport();
+      }
+
+      const staleThresholdMs = getApiHealthStaleThresholdMs();
+      const recentRuns = await storage.getRecentJobLogs("api_health_check", 14);
+
+      if (!report && inProgress) {
+        return res.status(202).json({
+          ok: true,
+          inProgress: true,
+          message: "API health check is already running",
+          report: null,
+          isStale: true,
+          staleThresholdMs,
+          recentRuns: recentRuns.map((run) => ({
+            id: run.id,
+            status: run.status,
+            scheduledFor: run.scheduledFor,
+            startedAt: run.startedAt,
+            finishedAt: run.finishedAt,
+            requestCount: run.requestCount,
+            recordsProcessed: run.recordsProcessed,
+            errorCount: run.errorCount,
+            errorMessage: run.errorMessage || null,
+          })),
+          recentReports: getRecentApiHealthReports(5),
+        });
       }
 
       if (!report) {
@@ -8206,13 +8232,12 @@ ${posts
         });
       }
 
-      const staleThresholdMs = getApiHealthStaleThresholdMs();
       const checkedAtMs = report?.checkedAt ? Date.parse(report.checkedAt) : 0;
       const isStale = !checkedAtMs || Date.now() - checkedAtMs > staleThresholdMs;
-      const recentRuns = await storage.getRecentJobLogs("api_health_check", 14);
 
       res.json({
         ok: true,
+        inProgress,
         report,
         isStale,
         staleThresholdMs,

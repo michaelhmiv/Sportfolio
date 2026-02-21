@@ -64,11 +64,32 @@ export type ApiHealthReport = {
   checks: ApiHealthCheckResult[];
 };
 
-const DEFAULT_TIMEOUT_MS = Math.max(1000, Number(process.env.API_HEALTH_CHECK_TIMEOUT_MS || 6000));
-const DEFAULT_DB_WARN_MS = Math.max(100, Number(process.env.API_HEALTH_DB_WARN_MS || 600));
-const DEFAULT_STALE_THRESHOLD_HOURS = Math.max(
-  6,
-  Number(process.env.API_HEALTH_STALE_THRESHOLD_HOURS || 30),
+function parseEnvNumber(
+  rawValue: string | undefined,
+  fallback: number,
+  options: { min?: number; max?: number } = {},
+): number {
+  if (!rawValue || !rawValue.trim()) return fallback;
+
+  const parsed = Number(rawValue);
+  if (!Number.isFinite(parsed)) return fallback;
+
+  let value = parsed;
+  if (typeof options.min === "number") value = Math.max(options.min, value);
+  if (typeof options.max === "number") value = Math.min(options.max, value);
+  return value;
+}
+
+const DEFAULT_TIMEOUT_MS = parseEnvNumber(process.env.API_HEALTH_CHECK_TIMEOUT_MS, 6000, {
+  min: 1000,
+});
+const DEFAULT_DB_WARN_MS = parseEnvNumber(process.env.API_HEALTH_DB_WARN_MS, 600, {
+  min: 100,
+});
+const DEFAULT_STALE_THRESHOLD_HOURS = parseEnvNumber(
+  process.env.API_HEALTH_STALE_THRESHOLD_HOURS,
+  30,
+  { min: 6 },
 );
 const STALE_THRESHOLD_MS = DEFAULT_STALE_THRESHOLD_HOURS * 60 * 60 * 1000;
 const MAX_REPORT_HISTORY = 20;

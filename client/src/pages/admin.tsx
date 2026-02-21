@@ -102,6 +102,8 @@ interface ApiHealthRun {
 
 interface ApiHealthResponse {
   ok: boolean;
+  inProgress?: boolean;
+  message?: string;
   report: ApiHealthReport | null;
   isStale: boolean;
   staleThresholdMs: number;
@@ -971,7 +973,9 @@ export default function Admin() {
               </>
             ) : (
               <div className="text-sm text-muted-foreground">
-                No API health report yet. Run a check now to initialize monitoring.
+                {apiHealth?.inProgress
+                  ? apiHealth.message || "API health check is running. Refresh in a moment."
+                  : "No API health report yet. Run a check now to initialize monitoring."}
               </div>
             )}
           </CardContent>
