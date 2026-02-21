@@ -154,6 +154,8 @@ test("onboarding CTA marks complete and navigates to pools", async ({ page }) =>
   await page.goto("/");
   await expect(page.getByTestId("onboarding-modal")).toBeVisible();
 
+  await page.getByTestId("dot-slide-1").click();
+  await expect(page.getByTestId("button-onboarding-cta-pools")).toBeVisible();
   await page.getByTestId("button-onboarding-cta-pools").click();
 
   await expect.poll(() => onboardingCompleteCalls).toBe(1);

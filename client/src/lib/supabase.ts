@@ -68,7 +68,7 @@ function debugLog(stage: string, message: string, data?: any) {
   console.log(`[SUPABASE ${elapsed}ms] ${stage}: ${message}`, data || "");
 }
 
-function getCachedConfig(): CachedConfig | null {
+function getCachedConfigFromV2(): CachedConfig | null {
   try {
     const cached = localStorage.getItem(CONFIG_CACHE_KEY);
     if (!cached) return null;
@@ -88,8 +88,49 @@ function getCachedConfig(): CachedConfig | null {
 
     return config;
   } catch {
+    localStorage.removeItem(CONFIG_CACHE_KEY);
     return null;
   }
+}
+
+function getCachedConfigFromLegacy(): CachedConfig | null {
+  try {
+    const cached = localStorage.getItem(LEGACY_CONFIG_CACHE_KEY);
+    if (!cached) return null;
+
+    const config = JSON.parse(cached) as Partial<CachedConfig>;
+    if (typeof config.url !== "string" || typeof config.anonKey !== "string") {
+      localStorage.removeItem(LEGACY_CONFIG_CACHE_KEY);
+      return null;
+    }
+
+    if (typeof config.cachedAt === "number") {
+      const age = Date.now() - config.cachedAt;
+      if (age > CONFIG_CACHE_TTL_MS) {
+        localStorage.removeItem(LEGACY_CONFIG_CACHE_KEY);
+        return null;
+      }
+    }
+
+    const migratedConfig: CachedConfig = {
+      url: config.url,
+      anonKey: config.anonKey,
+      configVersion: typeof config.configVersion === "string" ? config.configVersion : undefined,
+      cachedAt: typeof config.cachedAt === "number" ? config.cachedAt : Date.now(),
+      origin: window.location.origin,
+    };
+    localStorage.setItem(CONFIG_CACHE_KEY, JSON.stringify(migratedConfig));
+    localStorage.removeItem(LEGACY_CONFIG_CACHE_KEY);
+    debugLog("CONFIG", "Using legacy Supabase config cache fallback");
+    return migratedConfig;
+  } catch {
+    localStorage.removeItem(LEGACY_CONFIG_CACHE_KEY);
+    return null;
+  }
+}
+
+function getCachedConfig(): CachedConfig | null {
+  return getCachedConfigFromV2() ?? getCachedConfigFromLegacy();
 }
 
 function setCachedConfig(config: SupabaseConfigResponse): void {

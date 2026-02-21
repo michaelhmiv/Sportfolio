@@ -100,13 +100,18 @@ export function OnboardingModal({ open, onComplete }: OnboardingModalProps) {
   useEffect(() => {
     if (!api) return;
 
-    setCurrent(api.selectedScrollSnap());
-
-    api.on("select", () => {
+    const handleSelect = () => {
       const index = api.selectedScrollSnap();
       setCurrent(index);
       trackOnboardingEvent("slide_viewed", { slide: slides[index]?.id || "unknown", index });
-    });
+    };
+
+    setCurrent(api.selectedScrollSnap());
+    api.on("select", handleSelect);
+
+    return () => {
+      api.off("select", handleSelect);
+    };
   }, [api]);
 
   useEffect(() => {
