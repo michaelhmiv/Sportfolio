@@ -53,6 +53,13 @@ import { getOrCompute } from "./cache";
 import { registerAmmRoutes } from "./routes/amm";
 import { registerLpRoutes } from "./routes/lp";
 import { getOrCreatePool, initializePool } from "./amm/pool";
+import {
+  getApiHealthStaleThresholdMs,
+  getLatestApiHealthReport,
+  getRecentApiHealthReports,
+  runApiHealthCheck,
+  toApiHealthJobResult,
+} from "./health/api-health-check";
 
 // Feature flags - set to false to disable features
 const CONTESTS_ENABLED = false; // DISABLED - contests feature removed
@@ -8067,6 +8074,7 @@ ${posts
               "weekly_roundup",
               "refresh_player_metrics",
               "refresh_player_volume_24h",
+              "api_health_check",
               "update_collections",
               "check_milestones",
               "cleanup_job_logs",
@@ -8173,6 +8181,111 @@ ${posts
     } catch (error: any) {
       console.error("[ADMIN] Failed to get stats:", error.message);
       res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/admin/api-health", adminAuth, async (req, res) => {
+    try {
+      const refresh = String(req.query.refresh || "false") === "true";
+      let report = getLatestApiHealthReport();
+      let inProgress = false;
+
+      if (refresh || !report) {
+        try {
+          await jobScheduler.triggerJob("api_health_check");
+        } catch (error: any) {
+          if (error?.statusCode === 409) inProgress = true;
+          else throw error;
+        }
+        report = getLatestApiHealthReport();
+      }
+
+      const staleThresholdMs = getApiHealthStaleThresholdMs();
+      const recentRuns = await storage.getRecentJobLogs("api_health_check", 14);
+
+      if (!report && inProgress) {
+        return res.status(202).json({
+          ok: true,
+          inProgress: true,
+          message: "API health check is already running",
+          report: null,
+          isStale: true,
+          staleThresholdMs,
+          recentRuns: recentRuns.map((run) => ({
+            id: run.id,
+            status: run.status,
+            scheduledFor: run.scheduledFor,
+            startedAt: run.startedAt,
+            finishedAt: run.finishedAt,
+            requestCount: run.requestCount,
+            recordsProcessed: run.recordsProcessed,
+            errorCount: run.errorCount,
+            errorMessage: run.errorMessage || null,
+          })),
+          recentReports: getRecentApiHealthReports(5),
+        });
+      }
+
+      if (!report) {
+        report = await runApiHealthCheck({
+          reason: refresh ? "admin_refresh_fallback" : "admin_initial_fetch",
+        });
+      }
+
+      const checkedAtMs = report?.checkedAt ? Date.parse(report.checkedAt) : 0;
+      const isStale = !checkedAtMs || Date.now() - checkedAtMs > staleThresholdMs;
+
+      res.json({
+        ok: true,
+        inProgress,
+        report,
+        isStale,
+        staleThresholdMs,
+        recentRuns: recentRuns.map((run) => ({
+          id: run.id,
+          status: run.status,
+          scheduledFor: run.scheduledFor,
+          startedAt: run.startedAt,
+          finishedAt: run.finishedAt,
+          requestCount: run.requestCount,
+          recordsProcessed: run.recordsProcessed,
+          errorCount: run.errorCount,
+          errorMessage: run.errorMessage || null,
+        })),
+        recentReports: getRecentApiHealthReports(5),
+      });
+    } catch (error: any) {
+      console.error("[ADMIN] Failed to load API health report:", error.message);
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  app.post("/api/admin/api-health/run", adminAuth, async (_req, res) => {
+    try {
+      let jobResult: { requestCount: number; recordsProcessed: number; errorCount: number } | null =
+        null;
+      try {
+        jobResult = await jobScheduler.triggerJob("api_health_check");
+      } catch (error: any) {
+        if (error?.statusCode === 409) {
+          return res.status(409).json({ ok: false, error: error.message });
+        }
+        throw error;
+      }
+
+      const report =
+        getLatestApiHealthReport() || (await runApiHealthCheck({ reason: "manual_run_fallback" }));
+      const normalizedJobResult = toApiHealthJobResult(report);
+
+      res.json({
+        ok: report.status === "success",
+        status: report.status,
+        report,
+        result: jobResult || normalizedJobResult,
+      });
+    } catch (error: any) {
+      console.error("[ADMIN] Failed to run API health check:", error.message);
+      res.status(500).json({ ok: false, error: error.message });
     }
   });
 

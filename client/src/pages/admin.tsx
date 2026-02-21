@@ -58,6 +58,58 @@ interface SystemStats {
   }[];
 }
 
+type ApiHealthStatus = "success" | "degraded" | "failed";
+
+interface ApiHealthCheckResult {
+  id: string;
+  label: string;
+  category: "dependency" | "jobs" | "route";
+  status: ApiHealthStatus;
+  details: string;
+  durationMs: number;
+  checkedAt: string;
+  path?: string;
+}
+
+interface ApiHealthReport {
+  runId: string;
+  status: ApiHealthStatus;
+  checkedAt: string;
+  durationMs: number;
+  baseUrl: string;
+  reason: string;
+  summary: {
+    total: number;
+    success: number;
+    degraded: number;
+    failed: number;
+    routeChecks: number;
+  };
+  checks: ApiHealthCheckResult[];
+}
+
+interface ApiHealthRun {
+  id: string;
+  status: ApiHealthStatus;
+  scheduledFor: string;
+  startedAt: string;
+  finishedAt: string | null;
+  requestCount: number;
+  recordsProcessed: number;
+  errorCount: number;
+  errorMessage: string | null;
+}
+
+interface ApiHealthResponse {
+  ok: boolean;
+  inProgress?: boolean;
+  message?: string;
+  report: ApiHealthReport | null;
+  isStale: boolean;
+  staleThresholdMs: number;
+  recentRuns: ApiHealthRun[];
+}
+
 const SPORTS = ["NBA", "NFL", "MLB", "NASCAR"] as const;
 
 const jobDescriptions = {
@@ -70,6 +122,7 @@ const jobDescriptions = {
   settle_boosts: "Settle locked boosts and credit payouts",
   settle_share_payouts: "Settle pending game-based share payouts",
   settle_community_boosts: "Settle community boost multipliers and payouts",
+  api_health_check: "Run API dependency and route smoke checks",
   // NFL jobs
   nfl_roster_sync: "Sync NFL player roster",
   nfl_schedule_sync: "Sync NFL schedule",
@@ -163,11 +216,44 @@ export default function Admin() {
   const [grantQuantity, setGrantQuantity] = useState("");
 
   const adminStatsRefetchMs = runningJobs.size > 0 || isBackfilling ? 15000 : 120000;
+  const apiHealthRefetchMs = runningJobs.size > 0 ? 30000 : 120000;
 
   const { data: stats, isLoading } = useQuery<SystemStats>({
     queryKey: ["/api/admin/stats"],
     refetchInterval: adminStatsRefetchMs,
     staleTime: 10000,
+  });
+
+  const { data: apiHealth, refetch: refetchApiHealth } = useQuery<ApiHealthResponse>({
+    queryKey: ["/api/admin/api-health"],
+    refetchInterval: apiHealthRefetchMs,
+    staleTime: 10000,
+  });
+
+  const runApiHealthMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/admin/api-health/run", {});
+      return await res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/api-health"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] });
+      toast({
+        title: data.status === "success" ? "API health check passed" : "API health check completed",
+        description:
+          data.status === "success"
+            ? `${data.report?.summary?.total ?? 0} checks passed`
+            : `${data.report?.summary?.failed ?? 0} failed, ${data.report?.summary?.degraded ?? 0} degraded`,
+        variant: data.status === "failed" ? "destructive" : undefined,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "API health check failed",
+        description: error.message || "Unable to run API health checker",
+        variant: "destructive",
+      });
+    },
   });
 
   const triggerJobMutation = useMutation({
@@ -739,6 +825,161 @@ export default function Admin() {
             </Card>
           ))}
         </div>
+
+        <Card data-testid="card-api-health-monitor">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Activity className="w-5 h-5" />
+                  API Health Monitor
+                </CardTitle>
+                <CardDescription>
+                  Daily automated checks with on-demand smoke testing for core API flows.
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => refetchApiHealth()}
+                  disabled={runApiHealthMutation.isPending}
+                  data-testid="button-refresh-api-health"
+                >
+                  Refresh
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => runApiHealthMutation.mutate()}
+                  disabled={runApiHealthMutation.isPending}
+                  data-testid="button-run-api-health"
+                >
+                  {runApiHealthMutation.isPending ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-1 animate-spin" />
+                      Running...
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-4 h-4 mr-1" />
+                      Run now
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {apiHealth?.report ? (
+              <>
+                <div className="flex flex-wrap items-center gap-2">
+                  {getStatusBadge(apiHealth.report.status)}
+                  {apiHealth.isStale && (
+                    <Badge className="bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-500/20">
+                      Stale
+                    </Badge>
+                  )}
+                  <span className="text-xs text-muted-foreground">
+                    Last checked {new Date(apiHealth.report.checkedAt).toLocaleString()}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    Duration {apiHealth.report.durationMs}ms
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                  <div className="rounded-lg border p-2">
+                    <div className="text-xs text-muted-foreground">Total checks</div>
+                    <div className="text-lg font-semibold">{apiHealth.report.summary.total}</div>
+                  </div>
+                  <div className="rounded-lg border p-2">
+                    <div className="text-xs text-muted-foreground">Success</div>
+                    <div className="text-lg font-semibold text-positive">
+                      {apiHealth.report.summary.success}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border p-2">
+                    <div className="text-xs text-muted-foreground">Degraded</div>
+                    <div className="text-lg font-semibold text-yellow-600 dark:text-yellow-400">
+                      {apiHealth.report.summary.degraded}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border p-2">
+                    <div className="text-xs text-muted-foreground">Failed</div>
+                    <div className="text-lg font-semibold text-destructive">
+                      {apiHealth.report.summary.failed}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border p-2">
+                    <div className="text-xs text-muted-foreground">Route checks</div>
+                    <div className="text-lg font-semibold">
+                      {apiHealth.report.summary.routeChecks}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  {apiHealth.report.checks.map((check) => (
+                    <div
+                      key={check.id}
+                      className="flex items-start justify-between gap-3 rounded-lg border p-3"
+                      data-testid={`api-health-check-${check.id}`}
+                    >
+                      <div className="flex items-start gap-2">
+                        {getStatusIcon(check.status)}
+                        <div>
+                          <div className="text-sm font-semibold">{check.label}</div>
+                          <div className="text-xs text-muted-foreground">{check.details}</div>
+                          {check.path && (
+                            <div className="text-[11px] text-muted-foreground font-mono mt-1">
+                              {check.path}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-xs text-muted-foreground whitespace-nowrap">
+                        {check.durationMs}ms
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {apiHealth.recentRuns.length > 0 && (
+                  <div className="pt-2 border-t">
+                    <div className="text-sm font-semibold mb-2">Recent Daily Runs</div>
+                    <div className="space-y-1">
+                      {apiHealth.recentRuns.slice(0, 5).map((run) => (
+                        <div
+                          key={run.id}
+                          className="flex items-center justify-between text-xs rounded border px-2 py-1.5"
+                        >
+                          <div className="flex items-center gap-2">
+                            {getStatusIcon(run.status)}
+                            <span className="font-mono">{run.status}</span>
+                            <span className="text-muted-foreground">
+                              {run.finishedAt
+                                ? new Date(run.finishedAt).toLocaleString()
+                                : new Date(run.startedAt).toLocaleString()}
+                            </span>
+                          </div>
+                          <span className="text-muted-foreground">
+                            {run.errorCount} errors, {run.recordsProcessed} checks
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="text-sm text-muted-foreground">
+                {apiHealth?.inProgress
+                  ? apiHealth.message || "API health check is running. Refresh in a moment."
+                  : "No API health report yet. Run a check now to initialize monitoring."}
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Premium Shares Grant */}
         <Card>

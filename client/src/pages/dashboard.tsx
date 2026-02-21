@@ -258,7 +258,7 @@ export default function Dashboard() {
   const { data: raceInsights, isLoading: isLoadingRaces } = useQuery<any>({
     queryKey: ["/api/races/insights", formattedDate],
     queryFn: async () => {
-      const res = await fetch(`/api/races/insights?date=${formattedDate}`);
+      const res = await authenticatedFetch(`/api/races/insights?date=${formattedDate}`);
       if (!res.ok) throw new Error("Failed to fetch race insights");
       return res.json();
     },
@@ -271,7 +271,9 @@ export default function Dashboard() {
   const { data: gameInsights, isLoading: isLoadingGames } = useQuery<GameInsightsResponse>({
     queryKey: ["/api/games/insights", sport, formattedDate],
     queryFn: async () => {
-      const res = await fetch(`/api/games/insights?sport=${sport}&date=${formattedDate}`);
+      const res = await authenticatedFetch(
+        `/api/games/insights?sport=${sport}&date=${formattedDate}`,
+      );
       if (!res.ok) throw new Error("Failed to fetch game insights");
       return res.json();
     },

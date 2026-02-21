@@ -53,6 +53,7 @@ import { refreshPlayerMarketMetricsJob } from "./refresh-player-metrics";
 import { refreshPlayerVolume24hJob } from "./refresh-player-volume-24h";
 import { runBotEngineTick } from "../bot/bot-engine";
 import type { ProgressCallback } from "../lib/admin-stream";
+import { runApiHealthCheck, toApiHealthJobResult } from "../health/api-health-check";
 
 export interface JobResult {
   requestCount: number;
@@ -273,6 +274,15 @@ export class JobScheduler {
         schedule: "0 3 * * 0", // Weekly on Sunday at 3 AM - prune old price history
         enabled: true,
         handler: prunePriceHistory,
+      },
+      {
+        name: "api_health_check",
+        schedule: "15 7 * * *", // Daily at 7:15 AM ET - run API dependency and route checks
+        enabled: true,
+        handler: async () => {
+          const report = await runApiHealthCheck({ reason: "scheduled" });
+          return toApiHealthJobResult(report);
+        },
       },
       // Collection and milestone jobs
       {
@@ -627,6 +637,10 @@ export class JobScheduler {
       },
       refresh_player_metrics: (callback) => refreshPlayerMarketMetricsJob(callback),
       refresh_player_volume_24h: (callback) => refreshPlayerVolume24hJob(callback),
+      api_health_check: async () => {
+        const report = await runApiHealthCheck({ reason: "manual_trigger" });
+        return toApiHealthJobResult(report);
+      },
       bot_engine: async () => {
         const result = await runBotEngineTick();
         return {
@@ -846,6 +860,7 @@ export class JobScheduler {
       "check_milestones",
       "refresh_player_metrics",
       "refresh_player_volume_24h",
+      "api_health_check",
       "nfl_schedule_sync",
       "nfl_stats_sync",
       "nfl_roster_sync",

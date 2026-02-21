@@ -34,6 +34,26 @@ const authTelemetryEvents = new client.Counter({
   registers: enabled ? [register] : [],
 });
 
+const apiHealthRuns = new client.Counter({
+  name: "api_health_runs_total",
+  help: "API health-check run outcomes",
+  labelNames: ["status"],
+  registers: enabled ? [register] : [],
+});
+
+const apiHealthChecks = new client.Counter({
+  name: "api_health_checks_total",
+  help: "Individual API health check outcomes",
+  labelNames: ["check", "status"],
+  registers: enabled ? [register] : [],
+});
+
+const apiHealthLastRunTimestamp = new client.Gauge({
+  name: "api_health_last_run_timestamp_seconds",
+  help: "Unix timestamp of the latest API health-check run",
+  registers: enabled ? [register] : [],
+});
+
 export function observeExternalHttpRequest(args: {
   host: string;
   status: string;
@@ -46,6 +66,23 @@ export function observeExternalHttpRequest(args: {
 export function observeAuthTelemetryEvent(args: { event: string; code?: string }) {
   if (!enabled) return;
   authTelemetryEvents.labels(args.event, args.code || "none").inc();
+}
+
+export function observeApiHealthCheckRun(args: {
+  status: string;
+  checkedAt?: string;
+  checks: Array<{ id: string; status: string }>;
+}) {
+  if (!enabled) return;
+  apiHealthRuns.labels(args.status).inc();
+  for (const check of args.checks) {
+    apiHealthChecks.labels(check.id, check.status).inc();
+  }
+
+  const tsSeconds = args.checkedAt ? Date.parse(args.checkedAt) / 1000 : Date.now() / 1000;
+  if (Number.isFinite(tsSeconds)) {
+    apiHealthLastRunTimestamp.set(tsSeconds);
+  }
 }
 
 export const metricsMiddleware: RequestHandler = (req, res, next) => {
