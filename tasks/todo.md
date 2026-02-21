@@ -116,3 +116,10 @@
 - [x] Keep dashboard sport tabs visible during loading and NASCAR mode
 - [x] Align dashboard tab source with canonical `SPORTS` config to prevent drift
 - [x] Validate via `npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`
+
+## 2026-02-21 PR #74 Inline Comment Resolution (Boost Context Regression)
+
+- [x] Pull PR #74 inline comments using provided classic PAT
+- [x] Restore sport-aligned `/api/games/insights` requests to preserve boost/eligibility context
+- [x] Keep stable dashboard sport tabs independent from payload-derived sport lists
+- [x] Validate via `npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`

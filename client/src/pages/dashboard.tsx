@@ -269,13 +269,15 @@ export default function Dashboard() {
 
   // NBA/NFL query using /api/games/insights
   const { data: gameInsights, isLoading: isLoadingGames } = useQuery<GameInsightsResponse>({
-    queryKey: ["/api/games/insights", "ALL", formattedDate],
+    queryKey: ["/api/games/insights", sport, formattedDate],
     queryFn: async () => {
-      const res = await authenticatedFetch(`/api/games/insights?sport=ALL&date=${formattedDate}`);
+      const res = await authenticatedFetch(
+        `/api/games/insights?sport=${sport}&date=${formattedDate}`,
+      );
       if (!res.ok) throw new Error("Failed to fetch game insights");
       return res.json();
     },
-    enabled: true,
+    enabled: !isNascar,
     refetchInterval: isToday(selectedDate) ? pollingInterval : false,
     refetchIntervalInBackground: false,
   });
