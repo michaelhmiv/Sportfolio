@@ -94,3 +94,11 @@
 - [x] Add auth telemetry ingestion endpoint and metrics counters for signup/login outcome codes
 - [x] Validate via `npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`
 - [x] Validate targeted e2e via `npx playwright test tests/e2e/auth-onboarding.spec.ts`
+
+## 2026-02-21 API Health Checker + Admin Monitoring
+
+- [x] Add reusable server-side API health checker (DB ping, critical job freshness, route smoke checks)
+- [x] Add scheduled daily `api_health_check` job and manual trigger support in scheduler
+- [x] Expose admin API health endpoints (`GET /api/admin/api-health`, `POST /api/admin/api-health/run`)
+- [x] Add API health monitor card in admin dashboard with per-check status and run history
+- [x] Validate via `npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`
