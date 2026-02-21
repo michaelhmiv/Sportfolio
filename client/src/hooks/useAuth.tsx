@@ -10,6 +10,7 @@ import {
 } from "react";
 import type { User } from "@shared/schema";
 import { getSupabase, resetSupabase } from "@/lib/supabase";
+import { isValidEmail, normalizeEmail } from "@/lib/auth-input";
 import { useToast } from "@/hooks/use-toast";
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import { Capacitor } from "@capacitor/core";
@@ -18,9 +19,129 @@ import { Browser } from "@capacitor/browser";
 const MOBILE_AUTH_REDIRECT_URL = "sportfolio://auth/callback";
 
 function debugLog(stage: string, message: string, data?: any) {
-  const timestamp = new Date().toISOString();
   const elapsed = performance.now().toFixed(0);
   console.log(`[AUTH ${elapsed}ms] ${stage}: ${message}`, data || "");
+}
+
+function trackAuthEvent(event: string, data?: Record<string, unknown>) {
+  console.info(`[AUTH_EVENT] ${event}`, data || {});
+  const payload = {
+    event,
+    code: typeof data?.code === "string" ? data.code : undefined,
+  };
+
+  void fetch("/api/auth/telemetry", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+    keepalive: true,
+  }).catch(() => undefined);
+}
+
+type AuthErrorCode =
+  | "invalid_email"
+  | "email_exists"
+  | "invalid_credentials"
+  | "email_unconfirmed"
+  | "rate_limited"
+  | "service_unavailable"
+  | "signup_disabled"
+  | "unknown";
+
+interface AuthFailureResult {
+  success: false;
+  error: string;
+  code: AuthErrorCode;
+}
+
+interface AuthSuccessResult {
+  success: true;
+}
+
+type AuthResult = AuthSuccessResult | AuthFailureResult;
+
+function mapAuthError(
+  error: unknown,
+  context: "login" | "signup" | "resend" | "oauth",
+): AuthFailureResult {
+  const rawMessage = error instanceof Error ? error.message : String(error || "Unknown error");
+  const message = rawMessage.toLowerCase();
+
+  if (message.includes("invalid email")) {
+    return { success: false, code: "invalid_email", error: "Please enter a valid email address." };
+  }
+
+  if (message.includes("already registered") || message.includes("already exists")) {
+    return {
+      success: false,
+      code: "email_exists",
+      error: "An account with this email already exists. Try signing in instead.",
+    };
+  }
+
+  if (message.includes("invalid login credentials")) {
+    return {
+      success: false,
+      code: "invalid_credentials",
+      error: "Invalid email or password.",
+    };
+  }
+
+  if (message.includes("email not confirmed")) {
+    return {
+      success: false,
+      code: "email_unconfirmed",
+      error: "Please verify your email before signing in.",
+    };
+  }
+
+  if (
+    message.includes("too many requests") ||
+    message.includes("rate limit") ||
+    message.includes("for security purposes")
+  ) {
+    return {
+      success: false,
+      code: "rate_limited",
+      error: "Too many attempts right now. Please wait a minute and try again.",
+    };
+  }
+
+  if (message.includes("signups not allowed") || message.includes("signup is disabled")) {
+    return {
+      success: false,
+      code: "signup_disabled",
+      error: "Sign up is temporarily unavailable. Please try again shortly.",
+    };
+  }
+
+  if (
+    message.includes("failed to fetch") ||
+    message.includes("network") ||
+    message.includes("service unavailable")
+  ) {
+    return {
+      success: false,
+      code: "service_unavailable",
+      error: "Unable to reach authentication service. Please try again.",
+    };
+  }
+
+  if (context === "oauth") {
+    return {
+      success: false,
+      code: "unknown",
+      error: "Could not complete Google sign in. Please try again.",
+    };
+  }
+
+  return {
+    success: false,
+    code: "unknown",
+    error: rawMessage || "Authentication request failed.",
+  };
 }
 
 interface AuthUserResponse extends User {
@@ -238,11 +359,7 @@ export function useAuth() {
     }
   }, [session, supabaseClient]);
 
-  const {
-    data: user,
-    isLoading: isQueryLoading,
-    error: queryError,
-  } = useQuery<AuthUserResponse | null>({
+  const { data: user, isLoading: isQueryLoading } = useQuery<AuthUserResponse | null>({
     queryKey: ["/api/auth/user"],
     queryFn: fetchUserWithToken,
     // In dev mode, always enable the query; in production, require session
@@ -263,48 +380,123 @@ export function useAuth() {
   }, [user?.whopSync?.credited, toast]);
 
   const login = useCallback(
-    async (email: string, password: string) => {
-      debugLog("LOGIN", "Login attempt", { email });
+    async (email: string, password: string): Promise<AuthResult> => {
+      const normalizedEmail = normalizeEmail(email);
+      debugLog("LOGIN", "Login attempt", { email: normalizedEmail });
+      trackAuthEvent("login_submit", { emailDomain: normalizedEmail.split("@")[1] || "unknown" });
       try {
         if (!supabaseClient) {
           throw new Error("Auth not initialized");
         }
 
+        if (!isValidEmail(normalizedEmail)) {
+          return {
+            success: false,
+            code: "invalid_email" as const,
+            error: "Please enter a valid email address.",
+          };
+        }
+
         const { error } = await supabaseClient.auth.signInWithPassword({
-          email,
+          email: normalizedEmail,
           password,
         });
 
         if (error) throw error;
         debugLog("LOGIN", "Login successful");
+        trackAuthEvent("login_success");
         return { success: true };
-      } catch (error: any) {
-        debugLog("LOGIN", "Login failed", { error: error.message });
-        return { success: false, error: error.message };
+      } catch (error: unknown) {
+        const mapped = mapAuthError(error, "login");
+        debugLog("LOGIN", "Login failed", { error: mapped.error, code: mapped.code });
+        trackAuthEvent("login_failure", { code: mapped.code });
+        return mapped;
       }
     },
     [supabaseClient],
   );
 
   const signup = useCallback(
-    async (email: string, password: string) => {
-      debugLog("SIGNUP", "Signup attempt", { email });
+    async (email: string, password: string): Promise<AuthResult> => {
+      const normalizedEmail = normalizeEmail(email);
+      debugLog("SIGNUP", "Signup attempt", { email: normalizedEmail });
+      trackAuthEvent("signup_submit", { emailDomain: normalizedEmail.split("@")[1] || "unknown" });
       try {
         if (!supabaseClient) {
           throw new Error("Auth not initialized");
         }
 
+        if (!isValidEmail(normalizedEmail)) {
+          return {
+            success: false,
+            code: "invalid_email" as const,
+            error: "Please enter a valid email address.",
+          };
+        }
+
         const { error } = await supabaseClient.auth.signUp({
-          email,
+          email: normalizedEmail,
           password,
         });
 
         if (error) throw error;
         debugLog("SIGNUP", "Signup successful");
+        trackAuthEvent("signup_success");
         return { success: true };
-      } catch (error: any) {
-        debugLog("SIGNUP", "Signup failed", { error: error.message });
-        return { success: false, error: error.message };
+      } catch (error: unknown) {
+        const mapped = mapAuthError(error, "signup");
+        debugLog("SIGNUP", "Signup failed", { error: mapped.error, code: mapped.code });
+        trackAuthEvent("signup_failure", { code: mapped.code });
+        return mapped;
+      }
+    },
+    [supabaseClient],
+  );
+
+  const resendVerification = useCallback(
+    async (email: string): Promise<AuthResult> => {
+      const normalizedEmail = normalizeEmail(email);
+      debugLog("RESEND", "Verification resend requested", { email: normalizedEmail });
+      trackAuthEvent("signup_resend_clicked", {
+        emailDomain: normalizedEmail.split("@")[1] || "unknown",
+      });
+
+      try {
+        if (!supabaseClient) {
+          throw new Error("Auth not initialized");
+        }
+
+        if (!isValidEmail(normalizedEmail)) {
+          return {
+            success: false,
+            code: "invalid_email" as const,
+            error: "Please enter a valid email address.",
+          };
+        }
+
+        const emailRedirectTo =
+          typeof window !== "undefined" ? `${window.location.origin}/auth/callback` : undefined;
+
+        const { error } = await supabaseClient.auth.resend({
+          type: "signup",
+          email: normalizedEmail,
+          options: {
+            emailRedirectTo,
+          },
+        });
+
+        if (error) throw error;
+        debugLog("RESEND", "Verification resend successful");
+        trackAuthEvent("signup_resend_success");
+        return { success: true };
+      } catch (error: unknown) {
+        const mapped = mapAuthError(error, "resend");
+        debugLog("RESEND", "Verification resend failed", {
+          error: mapped.error,
+          code: mapped.code,
+        });
+        trackAuthEvent("signup_resend_failure", { code: mapped.code });
+        return mapped;
       }
     },
     [supabaseClient],
@@ -345,7 +537,7 @@ export function useAuth() {
     }
   }, [supabaseClient, queryClient]);
 
-  const loginWithGoogle = useCallback(async () => {
+  const loginWithGoogle = useCallback(async (): Promise<AuthResult> => {
     debugLog("GOOGLE_LOGIN", "Google login attempt");
     try {
       if (!supabaseClient) {
@@ -382,10 +574,13 @@ export function useAuth() {
       }
 
       debugLog("GOOGLE_LOGIN", "Google OAuth initiated");
+      trackAuthEvent("google_oauth_started");
       return { success: true };
-    } catch (error: any) {
-      debugLog("GOOGLE_LOGIN", "Google login failed", { error: error.message });
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      const mapped = mapAuthError(error, "oauth");
+      debugLog("GOOGLE_LOGIN", "Google login failed", { error: mapped.error, code: mapped.code });
+      trackAuthEvent("google_oauth_failure", { code: mapped.code });
+      return mapped;
     }
   }, [supabaseClient]);
 
@@ -400,6 +595,7 @@ export function useAuth() {
     isAuthenticated: DEV_BYPASS_ENABLED ? !!user : !!session && !!user,
     login,
     signup,
+    resendVerification,
     logout,
     loginWithGoogle,
     initError,

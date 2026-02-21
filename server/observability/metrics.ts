@@ -27,6 +27,13 @@ const httpExternalRequestDuration = new client.Histogram({
   registers: enabled ? [register] : [],
 });
 
+const authTelemetryEvents = new client.Counter({
+  name: "auth_telemetry_events_total",
+  help: "Client-reported auth lifecycle events",
+  labelNames: ["event", "code"],
+  registers: enabled ? [register] : [],
+});
+
 export function observeExternalHttpRequest(args: {
   host: string;
   status: string;
@@ -34,6 +41,11 @@ export function observeExternalHttpRequest(args: {
 }) {
   if (!enabled) return;
   httpExternalRequestDuration.labels(args.host, args.status).observe(args.durationMs);
+}
+
+export function observeAuthTelemetryEvent(args: { event: string; code?: string }) {
+  if (!enabled) return;
+  authTelemetryEvents.labels(args.event, args.code || "none").inc();
 }
 
 export const metricsMiddleware: RequestHandler = (req, res, next) => {

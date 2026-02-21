@@ -1,12 +1,43 @@
 import type { Express, Request, Response, NextFunction } from "express";
+import { createHash } from "crypto";
 import { createClient, User as SupabaseUser } from "@supabase/supabase-js";
 import { storage } from "./storage";
+import { observeAuthTelemetryEvent } from "./observability/metrics";
 
 // Fallback to SUPABASE_KEY if specific keys are missing
 // This handles cases where only the generic SUPABASE_KEY (usually anon) is provided
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY;
 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY;
+const supabaseConfigVersion = supabaseUrl
+  ? createHash("sha256").update(supabaseUrl).digest("hex").slice(0, 12)
+  : "unconfigured";
+
+const allowedTelemetryEvents = new Set([
+  "login_submit",
+  "login_success",
+  "login_failure",
+  "signup_submit",
+  "signup_success",
+  "signup_failure",
+  "signup_resend_clicked",
+  "signup_resend_success",
+  "signup_resend_failure",
+  "google_oauth_started",
+  "google_oauth_failure",
+]);
+
+const allowedTelemetryCodes = new Set([
+  "invalid_email",
+  "email_exists",
+  "invalid_credentials",
+  "email_unconfirmed",
+  "rate_limited",
+  "service_unavailable",
+  "signup_disabled",
+  "unknown",
+  "none",
+]);
 
 if (!supabaseUrl || !supabaseServiceRoleKey) {
   console.warn("[SUPABASE_AUTH] Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY/SUPABASE_KEY");
@@ -243,14 +274,45 @@ export async function setupAuth(app: Express): Promise<void> {
       return;
     }
 
+    console.log("[SUPABASE_AUTH] Serving auth config", {
+      configVersion: supabaseConfigVersion,
+      hasSupabaseUrl: !!supabaseUrl,
+      hasAnonKey: !!supabaseAnonKey,
+    });
+
     res.json({
       url: supabaseUrl,
       anonKey: supabaseAnonKey,
+      configVersion: supabaseConfigVersion,
     });
   });
 
   app.post("/api/auth/logout", (_req: Request, res: Response) => {
     res.json({ success: true, message: "Logged out successfully" });
+  });
+
+  app.post("/api/auth/telemetry", (req: Request, res: Response) => {
+    const event = typeof req.body?.event === "string" ? req.body.event.trim() : "";
+    const eventCode = typeof req.body?.code === "string" ? req.body.code.trim() : "none";
+    const normalizedEvent = event.toLowerCase();
+    const normalizedCode = eventCode.toLowerCase();
+
+    if (!normalizedEvent || !allowedTelemetryEvents.has(normalizedEvent)) {
+      return res.status(202).json({ success: true, ignored: true });
+    }
+
+    const metricCode = allowedTelemetryCodes.has(normalizedCode) ? normalizedCode : "none";
+    observeAuthTelemetryEvent({
+      event: normalizedEvent,
+      code: metricCode,
+    });
+
+    console.log("[SUPABASE_AUTH] Auth telemetry", {
+      event: normalizedEvent,
+      code: metricCode,
+    });
+
+    return res.json({ success: true });
   });
 
   console.log("[SUPABASE_AUTH] Authentication setup completed");
