@@ -102,3 +102,10 @@
 - [x] Expose admin API health endpoints (`GET /api/admin/api-health`, `POST /api/admin/api-health/run`)
 - [x] Add API health monitor card in admin dashboard with per-check status and run history
 - [x] Validate via `npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`
+
+## 2026-02-21 Dashboard Sport Filter Tab Audit + Fix
+
+- [x] Audit dashboard sport tab/filter state transitions for NASCAR lock-in and disappearing tabs
+- [x] Ensure dashboard always fetches complete game-sport set for the selected date
+- [x] Render stable sport tabs (`ALL`, `NBA`, `NFL`, `MLB`, `NASCAR`) regardless of current filtered payload
+- [x] Validate via `npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`

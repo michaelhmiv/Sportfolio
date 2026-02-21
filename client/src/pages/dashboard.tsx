@@ -269,32 +269,21 @@ export default function Dashboard() {
 
   // NBA/NFL query using /api/games/insights
   const { data: gameInsights, isLoading: isLoadingGames } = useQuery<GameInsightsResponse>({
-    queryKey: ["/api/games/insights", sport, formattedDate],
+    queryKey: ["/api/games/insights", "ALL", formattedDate],
     queryFn: async () => {
-      const res = await authenticatedFetch(
-        `/api/games/insights?sport=${sport}&date=${formattedDate}`,
-      );
+      const res = await authenticatedFetch(`/api/games/insights?sport=ALL&date=${formattedDate}`);
       if (!res.ok) throw new Error("Failed to fetch game insights");
       return res.json();
     },
-    enabled: !isNascar,
+    enabled: true,
     refetchInterval: isToday(selectedDate) ? pollingInterval : false,
     refetchIntervalInBackground: false,
   });
 
   const games = gameInsights?.games || [];
   const races = raceInsights?.races || [];
-  const sportPriority = ["NBA", "NFL", "MLB", "NASCAR"];
-  const availableGameSports = Array.from(
-    new Set(games.map((game) => (game.sport || "").toUpperCase()).filter(Boolean)),
-  ).sort((a, b) => {
-    const aIndex = sportPriority.indexOf(a);
-    const bIndex = sportPriority.indexOf(b);
-    if (aIndex === -1 && bIndex === -1) return a.localeCompare(b);
-    if (aIndex === -1) return 1;
-    if (bIndex === -1) return -1;
-    return aIndex - bIndex;
-  });
+  const sportPriority = ["NBA", "NFL", "MLB", "NASCAR"] as const;
+  const filterTabs = ["ALL", ...sportPriority] as const;
   // Use global sport context for filtering (syncs with other pages)
   const globalSportFilter = sport === "ALL" ? "ALL" : sport;
   const filteredGamesBySport =
@@ -702,9 +691,9 @@ export default function Dashboard() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-6">
-                {!isLoadingInsights && !isNascar && availableGameSports.length > 0 && (
+                {!isLoadingInsights && (
                   <div className="flex items-center gap-1 overflow-x-auto pb-1">
-                    {(["ALL", ...availableGameSports] as string[]).map((sportOption) => {
+                    {filterTabs.map((sportOption) => {
                       const isActive = sport === sportOption;
                       return (
                         <button
