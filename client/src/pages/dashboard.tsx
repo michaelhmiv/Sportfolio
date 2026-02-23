@@ -50,7 +50,7 @@ import { DashboardScanners } from "@/components/marketplace-scanners";
 import { PlayerName } from "@/components/player-name";
 import { SportSelector } from "@/components/sport-selector";
 import { Shimmer, ShimmerCard, ScrollReveal } from "@/components/ui/animations";
-import { useSport } from "@/lib/sport-context";
+import { SPORTS, useSport } from "@/lib/sport-context";
 import { authenticatedFetch } from "@/lib/queryClient";
 import { OnboardingMissions } from "@/components/onboarding-missions";
 import { MarketTicker } from "@/components/market-ticker";
@@ -284,17 +284,7 @@ export default function Dashboard() {
 
   const games = gameInsights?.games || [];
   const races = raceInsights?.races || [];
-  const sportPriority = ["NBA", "NFL", "MLB", "NASCAR"];
-  const availableGameSports = Array.from(
-    new Set(games.map((game) => (game.sport || "").toUpperCase()).filter(Boolean)),
-  ).sort((a, b) => {
-    const aIndex = sportPriority.indexOf(a);
-    const bIndex = sportPriority.indexOf(b);
-    if (aIndex === -1 && bIndex === -1) return a.localeCompare(b);
-    if (aIndex === -1) return 1;
-    if (bIndex === -1) return -1;
-    return aIndex - bIndex;
-  });
+  const filterTabs = ["ALL", ...SPORTS.filter((sportOption) => sportOption !== "ALL")] as const;
   // Use global sport context for filtering (syncs with other pages)
   const globalSportFilter = sport === "ALL" ? "ALL" : sport;
   const filteredGamesBySport =
@@ -702,27 +692,25 @@ export default function Dashboard() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-6">
-                {!isLoadingInsights && !isNascar && availableGameSports.length > 0 && (
-                  <div className="flex items-center gap-1 overflow-x-auto pb-1">
-                    {(["ALL", ...availableGameSports] as string[]).map((sportOption) => {
-                      const isActive = sport === sportOption;
-                      return (
-                        <button
-                          key={sportOption}
-                          type="button"
-                          onClick={() => setSport(sportOption as typeof sport)}
-                          className={`inline-flex items-center rounded-sm border px-2 py-1 text-[11px] font-semibold uppercase tracking-wide whitespace-nowrap transition-colors ${
-                            isActive
-                              ? "border-primary/60 bg-primary/10 text-primary"
-                              : "border-border/70 bg-background/40 text-muted-foreground hover:text-foreground"
-                          }`}
-                        >
-                          {sportOption === "ALL" ? "All" : sportOption}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
+                <div className="flex items-center gap-1 overflow-x-auto pb-1">
+                  {filterTabs.map((sportOption) => {
+                    const isActive = sport === sportOption;
+                    return (
+                      <button
+                        key={sportOption}
+                        type="button"
+                        onClick={() => setSport(sportOption as typeof sport)}
+                        className={`inline-flex items-center rounded-sm border px-2 py-1 text-[11px] font-semibold uppercase tracking-wide whitespace-nowrap transition-colors ${
+                          isActive
+                            ? "border-primary/60 bg-primary/10 text-primary"
+                            : "border-border/70 bg-background/40 text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        {sportOption === "ALL" ? "All" : sportOption}
+                      </button>
+                    );
+                  })}
+                </div>
                 {isLoadingInsights ? (
                   <div className="space-y-3">
                     <ShimmerCard lines={3} />
