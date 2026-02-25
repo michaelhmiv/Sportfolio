@@ -1,8 +1,11 @@
 import { useEffect } from "react";
+import { normalizeSiteUrl } from "@shared/seo";
 
 interface SchemaOrgProps {
   schema: Record<string, any> | Record<string, any>[];
 }
+
+const SITE_URL = normalizeSiteUrl(import.meta.env.VITE_PUBLIC_SITE_URL);
 
 // Simple hash function for generating stable script IDs
 function hashString(str: string): string {
@@ -31,6 +34,15 @@ export function SchemaOrg({ schema }: SchemaOrgProps) {
     script.id = scriptId;
     script.type = "application/ld+json";
     script.text = schemaArray.length === 1 ? JSON.stringify(schemaArray[0]) : schemaString;
+
+    // Avoid duplicate payloads when the server already injected matching JSON-LD.
+    const duplicateScript = Array.from(
+      document.querySelectorAll<HTMLScriptElement>('script[type="application/ld+json"]'),
+    ).find((existing) => existing.text === script.text);
+    if (duplicateScript) {
+      return;
+    }
+
     document.head.appendChild(script);
 
     return () => {
@@ -51,8 +63,8 @@ export const schemas = {
     name: "Sportfolio",
     description:
       "Fantasy sports stock market platform where you can trade player shares like stocks, vest shares, and compete in contests.",
-    url: "https://sportfolio.replit.app",
-    logo: "https://sportfolio.replit.app/favicon.png",
+    url: SITE_URL,
+    logo: `${SITE_URL}/favicon.png`,
     sameAs: [],
   },
 
@@ -62,10 +74,10 @@ export const schemas = {
     name: "Sportfolio",
     description:
       "Trade player shares like stocks. Vest, trade, and compete in fantasy sports contests with real-time pricing.",
-    url: "https://sportfolio.replit.app",
+    url: SITE_URL,
     potentialAction: {
       "@type": "SearchAction",
-      target: "https://sportfolio.replit.app/pools?search={search_term_string}",
+      target: `${SITE_URL}/pools?search={search_term_string}`,
       "query-input": "required name=search_term_string",
     },
   },
@@ -107,12 +119,12 @@ export const schemas = {
       name: "Sportfolio",
       logo: {
         "@type": "ImageObject",
-        url: "https://sportfolio.replit.app/favicon.png",
+        url: `${SITE_URL}/favicon.png`,
       },
     },
     mainEntityOfPage: {
       "@type": "WebPage",
-      "@id": `https://sportfolio.replit.app/blog/${post.slug}`,
+      "@id": `${SITE_URL}/blog/${post.slug}`,
     },
   }),
 
@@ -125,7 +137,7 @@ export const schemas = {
       "@type": "SportsTeam",
       name: player.team,
     },
-    url: `https://sportfolio.replit.app/player/${player.id}`,
+    url: `${SITE_URL}/player/${player.id}`,
   }),
 
   createSportsEvent: (contest: {
@@ -144,7 +156,7 @@ export const schemas = {
       price: contest.entryFee,
       priceCurrency: "USD",
     },
-    url: `https://sportfolio.replit.app/contest/${contest.id}/leaderboard`,
+    url: `${SITE_URL}/contest/${contest.id}/leaderboard`,
   }),
 
   faqPage: (faqs: Array<{ question: string; answer: string }>) => ({

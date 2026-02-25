@@ -1,4 +1,4 @@
-import express, { type Express } from "express";
+import express, { type Express, type Request, type Response } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer } from "ws";
 import { performance } from "node:perf_hooks";
@@ -53,6 +53,7 @@ import { getOrCompute } from "./cache";
 import { registerAmmRoutes } from "./routes/amm";
 import { registerLpRoutes } from "./routes/lp";
 import { getOrCreatePool, initializePool } from "./amm/pool";
+import { normalizeSiteUrl } from "@shared/seo";
 import {
   getApiHealthStaleThresholdMs,
   getLatestApiHealthReport,
@@ -221,6 +222,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Legacy player order-book mode is archived; player trading is AMM-only.
   const isAmmOnlyMode = true;
+  const configuredSiteUrl = normalizeSiteUrl(
+    process.env.PUBLIC_SITE_URL?.trim() ||
+      process.env.SITE_URL?.trim() ||
+      process.env.VITE_PUBLIC_SITE_URL?.trim(),
+  );
+  const publicApiVersion =
+    process.env.PUBLIC_API_VERSION?.trim() ||
+    process.env.APP_VERSION?.trim() ||
+    process.env.npm_package_version?.trim() ||
+    "2026-02-25";
+
+  const getCanonicalSiteUrl = (req: Request): string => {
+    if (
+      process.env.PUBLIC_SITE_URL?.trim() ||
+      process.env.SITE_URL?.trim() ||
+      process.env.VITE_PUBLIC_SITE_URL?.trim()
+    ) {
+      return configuredSiteUrl;
+    }
+
+    if (process.env.NODE_ENV === "production") {
+      return "https://www.sportfolio.market";
+    }
+
+    const forwardedProto = req.header("x-forwarded-proto")?.split(",")[0]?.trim();
+    const forwardedHost = req.header("x-forwarded-host")?.split(",")[0]?.trim();
+    const host = forwardedHost || req.get("host");
+    const proto = forwardedProto || req.protocol || "https";
+
+    if (!host) return configuredSiteUrl;
+    return normalizeSiteUrl(`${proto}://${host}`);
+  };
+
+  const setPublicDataHeaders = (
+    res: Response,
+    options?: {
+      generatedAt?: Date;
+      lastModifiedAt?: Date;
+      maxAgeSeconds?: number;
+      sharedMaxAgeSeconds?: number;
+    },
+  ) => {
+    const generatedAt = options?.generatedAt || new Date();
+    const lastModifiedAt = options?.lastModifiedAt || generatedAt;
+    const maxAge = options?.maxAgeSeconds ?? 60;
+    const sharedMaxAge = options?.sharedMaxAgeSeconds ?? maxAge;
+
+    res.setHeader("Cache-Control", `public, max-age=${maxAge}, s-maxage=${sharedMaxAge}`);
+    res.setHeader("Last-Modified", lastModifiedAt.toUTCString());
+    res.setHeader("X-Public-Data-Version", publicApiVersion);
+    res.setHeader("X-Data-Generated-At", generatedAt.toISOString());
+  };
 
   // Best-effort: ensure LP fee-growth columns exist.
   // This project historically applies SQL migrations manually; if prod misses a migration,
@@ -1762,26 +1815,143 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.redirect(301, "https://srv.adstxtmanager.com/19390/sportfolio.market");
   });
 
-  // SEO: Dynamic Sitemap XML
-  app.get("/sitemap.xml", async (_req, res) => {
+  // Canonicalize legacy marketplace route for crawlers and users.
+  app.get("/marketplace", (req, res) => {
+    const queryIndex = req.originalUrl.indexOf("?");
+    const query = queryIndex >= 0 ? req.originalUrl.slice(queryIndex) : "";
+    res.redirect(301, `/pools${query}`);
+  });
+
+  // RSS feed for published blog content.
+  app.get("/feed.xml", async (req, res) => {
     try {
-      const baseUrl = "https://sportfolio.replit.app";
+      const baseUrl = getCanonicalSiteUrl(req);
+      const { posts } = await storage.getBlogPosts({
+        limit: 200,
+        offset: 0,
+        publishedOnly: true,
+      });
+
+      const latest = posts[0]?.updatedAt || posts[0]?.publishedAt || new Date();
+      const lastModifiedDate = new Date(latest);
+      const items = posts
+        .map((post) => {
+          const published = new Date(post.publishedAt || post.createdAt).toUTCString();
+          const description = String(post.excerpt || "")
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;");
+          const title = String(post.title || "")
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;");
+
+          return `<item>
+  <title>${title}</title>
+  <link>${baseUrl}/blog/${post.slug}</link>
+  <guid isPermaLink="true">${baseUrl}/blog/${post.slug}</guid>
+  <pubDate>${published}</pubDate>
+  <description>${description}</description>
+</item>`;
+        })
+        .join("\n");
+
+      const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+<channel>
+  <title>Sportfolio Blog</title>
+  <link>${baseUrl}/blog</link>
+  <description>Sportfolio market analysis, strategy guides, and platform updates.</description>
+  <language>en-us</language>
+  <lastBuildDate>${lastModifiedDate.toUTCString()}</lastBuildDate>
+  <atom:link href="${baseUrl}/feed.xml" rel="self" type="application/rss+xml" />
+${items}
+</channel>
+</rss>`;
+
+      setPublicDataHeaders(res, {
+        generatedAt: new Date(),
+        lastModifiedAt: lastModifiedDate,
+        maxAgeSeconds: 300,
+        sharedMaxAgeSeconds: 900,
+      });
+      res.setHeader("Content-Type", "application/rss+xml; charset=utf-8");
+      res.send(xml);
+    } catch (error: any) {
+      console.error("[feed.xml] Error generating feed:", error);
+      res.status(500).send("Error generating feed");
+    }
+  });
+
+  // JSON feed for machine consumers.
+  app.get("/feed.json", async (req, res) => {
+    try {
+      const baseUrl = getCanonicalSiteUrl(req);
+      const { posts } = await storage.getBlogPosts({
+        limit: 200,
+        offset: 0,
+        publishedOnly: true,
+      });
+
+      const lastModifiedDate = new Date(posts[0]?.updatedAt || posts[0]?.publishedAt || new Date());
+      const payload = {
+        version: "https://jsonfeed.org/version/1.1",
+        title: "Sportfolio Blog",
+        home_page_url: `${baseUrl}/blog`,
+        feed_url: `${baseUrl}/feed.json`,
+        description: "Sportfolio market analysis, strategy guides, and platform updates.",
+        icon: `${baseUrl}/favicon.png`,
+        items: posts.map((post) => ({
+          id: `${baseUrl}/blog/${post.slug}`,
+          url: `${baseUrl}/blog/${post.slug}`,
+          title: post.title,
+          summary: post.excerpt,
+          date_published: new Date(post.publishedAt || post.createdAt).toISOString(),
+          date_modified: new Date(
+            post.updatedAt || post.publishedAt || post.createdAt,
+          ).toISOString(),
+        })),
+      };
+
+      setPublicDataHeaders(res, {
+        generatedAt: new Date(),
+        lastModifiedAt: lastModifiedDate,
+        maxAgeSeconds: 300,
+        sharedMaxAgeSeconds: 900,
+      });
+      res.setHeader("Content-Type", "application/feed+json; charset=utf-8");
+      res.json(payload);
+    } catch (error: any) {
+      console.error("[feed.json] Error generating JSON feed:", error);
+      res.status(500).json({ error: "Error generating feed" });
+    }
+  });
+
+  // SEO: Dynamic Sitemap XML
+  app.get("/sitemap.xml", async (req, res) => {
+    try {
+      const baseUrl = getCanonicalSiteUrl(req);
       const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD format
 
       // Fetch limited dynamic content for performance
-      const [topPlayersByVolume, activeContests, blogPosts] = await Promise.all([
-        storage.getTopPlayersByVolume(200), // Top 200 players only
+      const [activeContests, blogPosts] = await Promise.all([
         storage.getContests(), // Active contests
         storage.getBlogPosts({ limit: 100, offset: 0, publishedOnly: true }),
       ]);
 
-      // Static pages with realistic lastmod dates
+      // Only include routes that are public and indexable.
       const staticPages = [
         { url: "", lastmod: today, changefreq: "daily", priority: "1.0" },
-        { url: "marketplace", lastmod: today, changefreq: "hourly", priority: "0.9" },
+        { url: "pools", lastmod: today, changefreq: "hourly", priority: "0.9" },
         { url: "contests", lastmod: today, changefreq: "daily", priority: "0.9" },
         { url: "leaderboards", lastmod: today, changefreq: "daily", priority: "0.8" },
         { url: "blog", lastmod: today, changefreq: "weekly", priority: "0.8" },
+        { url: "news", lastmod: today, changefreq: "hourly", priority: "0.8" },
+        { url: "analytics", lastmod: today, changefreq: "daily", priority: "0.6" },
+        { url: "feed.xml", lastmod: today, changefreq: "hourly", priority: "0.5" },
+        { url: "feed.json", lastmod: today, changefreq: "hourly", priority: "0.5" },
+        { url: "llms.txt", lastmod: today, changefreq: "weekly", priority: "0.5" },
+        { url: "llms-full.md", lastmod: today, changefreq: "weekly", priority: "0.5" },
         { url: "how-it-works", lastmod: "2025-11-23", changefreq: "monthly", priority: "0.7" },
         { url: "about", lastmod: "2025-11-23", changefreq: "monthly", priority: "0.6" },
         { url: "contact", lastmod: "2025-11-23", changefreq: "monthly", priority: "0.6" },
@@ -1803,30 +1973,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         xml += `  </url>\n`;
       });
 
-      // Add player pages (already sorted by volume from storage)
-      topPlayersByVolume.forEach((player: Player) => {
-        const playerLastMod = player.lastUpdated
-          ? new Date(player.lastUpdated).toISOString().split("T")[0]
-          : today;
-        xml += `  <url>\n`;
-        xml += `    <loc>${baseUrl}/player/${player.id}</loc>\n`;
-        xml += `    <lastmod>${playerLastMod}</lastmod>\n`;
-        xml += `    <changefreq>daily</changefreq>\n`;
-        xml += `    <priority>0.7</priority>\n`;
-        xml += `  </url>\n`;
-      });
-
-      // Add contest detail and leaderboard pages
+      // Add public contest leaderboard pages.
       activeContests.forEach((contest: (typeof activeContests)[0]) => {
-        // Main contest detail page
-        xml += `  <url>\n`;
-        xml += `    <loc>${baseUrl}/contest/${contest.id}</loc>\n`;
-        xml += `    <lastmod>${today}</lastmod>\n`;
-        xml += `    <changefreq>hourly</changefreq>\n`;
-        xml += `    <priority>0.6</priority>\n`;
-        xml += `  </url>\n`;
-
-        // Contest leaderboard page
         xml += `  <url>\n`;
         xml += `    <loc>${baseUrl}/contest/${contest.id}/leaderboard</loc>\n`;
         xml += `    <lastmod>${today}</lastmod>\n`;
@@ -4020,7 +4168,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let watchlistUserId: string | undefined = undefined;
       let scopedWatchlistId: string | undefined = undefined;
       if (isWatchlist === "true" || typeof watchlistId === "string") {
-        // Support both Passport session user (req.user.id) and raw Auth0 profile (req.user.claims.sub)
+        // Support both session user (req.user.id) and token claims user (req.user.claims.sub)
         const user = req.user as any;
         const userId = user?.id || user?.claims?.sub;
 
@@ -6689,6 +6837,140 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // AI/retrieval-friendly public market summary.
+  app.get("/api/public/market-summary", async (req, res) => {
+    try {
+      const parsedLimit = req.query.limit ? parseInt(String(req.query.limit), 10) : 25;
+      const safeLimit = Number.isNaN(parsedLimit) ? 25 : Math.max(1, Math.min(parsedLimit, 50));
+
+      const topPlayers = await storage.getTopPlayersByVolume(safeLimit);
+      const generatedAt = new Date();
+      const mostRecentUpdate = topPlayers
+        .map((player) => (player.lastUpdated ? new Date(player.lastUpdated) : null))
+        .filter((value): value is Date => value instanceof Date && !Number.isNaN(value.getTime()))
+        .sort((a, b) => b.getTime() - a.getTime())[0];
+      const players = topPlayers.map((player) => ({
+        id: player.id,
+        name: `${player.firstName} ${player.lastName}`,
+        team: player.team,
+        sport: player.sport,
+        price: player.lastTradePrice,
+        volume24h: player.volume24h,
+        marketCap: player.marketCap,
+        lastUpdated: player.lastUpdated,
+        canonicalUrl: `/player/${player.id}`,
+      }));
+
+      setPublicDataHeaders(res, {
+        generatedAt,
+        lastModifiedAt: mostRecentUpdate || generatedAt,
+        maxAgeSeconds: 60,
+        sharedMaxAgeSeconds: 120,
+      });
+      res.json({
+        generatedAt: generatedAt.toISOString(),
+        version: publicApiVersion,
+        count: players.length,
+        players,
+      });
+    } catch (error: any) {
+      console.error("[public/market-summary] Error:", error);
+      res.status(500).json({ error: "Failed to fetch market summary" });
+    }
+  });
+
+  // AI/retrieval-friendly published blog listing.
+  app.get("/api/public/blog", async (req, res) => {
+    try {
+      const parsedLimit = req.query.limit ? parseInt(String(req.query.limit), 10) : 25;
+      const parsedOffset = req.query.offset ? parseInt(String(req.query.offset), 10) : 0;
+      const safeLimit = Number.isNaN(parsedLimit) ? 25 : Math.max(1, Math.min(parsedLimit, 100));
+      const safeOffset = Number.isNaN(parsedOffset) ? 0 : Math.max(0, parsedOffset);
+      const generatedAt = new Date();
+
+      const { posts, total } = await storage.getBlogPosts({
+        limit: safeLimit,
+        offset: safeOffset,
+        publishedOnly: true,
+      });
+      const mostRecentUpdate = posts
+        .map((post) => new Date(post.updatedAt || post.publishedAt || post.createdAt))
+        .filter((value) => !Number.isNaN(value.getTime()))
+        .sort((a, b) => b.getTime() - a.getTime())[0];
+
+      setPublicDataHeaders(res, {
+        generatedAt,
+        lastModifiedAt: mostRecentUpdate || generatedAt,
+        maxAgeSeconds: 300,
+        sharedMaxAgeSeconds: 600,
+      });
+      res.json({
+        generatedAt: generatedAt.toISOString(),
+        version: publicApiVersion,
+        total,
+        limit: safeLimit,
+        offset: safeOffset,
+        posts: posts.map((post) => ({
+          id: post.id,
+          title: post.title,
+          slug: post.slug,
+          excerpt: post.excerpt,
+          publishedAt: post.publishedAt,
+          updatedAt: post.updatedAt,
+          canonicalUrl: `/blog/${post.slug}`,
+        })),
+      });
+    } catch (error: any) {
+      console.error("[public/blog] Error:", error);
+      res.status(500).json({ error: "Failed to fetch public blog feed" });
+    }
+  });
+
+  // AI/retrieval-friendly contest listing.
+  app.get("/api/public/contests", async (req, res) => {
+    try {
+      const parsedLimit = req.query.limit ? parseInt(String(req.query.limit), 10) : 50;
+      const safeLimit = Number.isNaN(parsedLimit) ? 50 : Math.max(1, Math.min(parsedLimit, 100));
+      const contests = await storage.getContests();
+      const generatedAt = new Date();
+      const mostRecentUpdate = contests
+        .map((contest) => new Date(contest.startsAt || contest.createdAt))
+        .filter((value) => !Number.isNaN(value.getTime()))
+        .sort((a, b) => b.getTime() - a.getTime())[0];
+
+      const payload = contests.slice(0, safeLimit).map((contest) => ({
+        id: contest.id,
+        name: contest.name,
+        sport: contest.sport,
+        status: contest.status,
+        contestType: contest.contestType,
+        gameDate: contest.gameDate,
+        startsAt: contest.startsAt,
+        endsAt: contest.endsAt,
+        entryFee: contest.entryFee,
+        totalPrizePool: contest.totalPrizePool,
+        entryCount: contest.entryCount,
+        leaderboardUrl: `/contest/${contest.id}/leaderboard`,
+      }));
+
+      setPublicDataHeaders(res, {
+        generatedAt,
+        lastModifiedAt: mostRecentUpdate || generatedAt,
+        maxAgeSeconds: 60,
+        sharedMaxAgeSeconds: 120,
+      });
+      res.json({
+        generatedAt: generatedAt.toISOString(),
+        version: publicApiVersion,
+        count: payload.length,
+        contests: payload,
+      });
+    } catch (error: any) {
+      console.error("[public/contests] Error:", error);
+      res.status(500).json({ error: "Failed to fetch public contests" });
+    }
+  });
+
   // Blog post detail - public (by slug)
   app.get("/api/blog/:slug", async (req, res) => {
     try {
@@ -6721,76 +7003,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("[blog] Error fetching post:", error);
       res.status(500).json({ error: error.message });
-    }
-  });
-
-  // Sitemap.xml for Google Search Console
-  app.get("/sitemap.xml", async (req, res) => {
-    try {
-      const baseUrl = req.protocol + "://" + req.get("host");
-
-      // Get all published blog posts
-      const { posts } = await storage.getBlogPosts({
-        limit: 1000,
-        offset: 0,
-        publishedOnly: true,
-      });
-
-      // Generate sitemap XML
-      const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url>
-    <loc>${baseUrl}/</loc>
-    <changefreq>daily</changefreq>
-    <priority>1.0</priority>
-  </url>
-  <url>
-    <loc>${baseUrl}/blog</loc>
-    <changefreq>daily</changefreq>
-    <priority>0.9</priority>
-  </url>
-  <url>
-    <loc>${baseUrl}/about</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>${baseUrl}/how-it-works</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>${baseUrl}/contact</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  <url>
-    <loc>${baseUrl}/privacy</loc>
-    <changefreq>yearly</changefreq>
-    <priority>0.3</priority>
-  </url>
-  <url>
-    <loc>${baseUrl}/terms</loc>
-    <changefreq>yearly</changefreq>
-    <priority>0.3</priority>
-  </url>
-${posts
-  .map(
-    (post) => `  <url>
-    <loc>${baseUrl}/blog/${post.slug}</loc>
-    <lastmod>${new Date(post.publishedAt || post.createdAt).toISOString()}</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
-  </url>`,
-  )
-  .join("\n")}
-</urlset>`;
-
-      res.header("Content-Type", "application/xml");
-      res.send(sitemap);
-    } catch (error: any) {
-      console.error("[sitemap] Error generating sitemap:", error);
-      res.status(500).send("Error generating sitemap");
     }
   });
 

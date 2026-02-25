@@ -4,7 +4,7 @@ This guide explains how to set up external cron jobs for your published Sportfol
 
 ## Why External Cron Jobs?
 
-Replit deployments don't automatically run background cron jobs. To keep your production site running smoothly, you need to set up external cron triggers that call your admin API endpoints on a schedule.
+Railway deployments should run scheduled jobs via external triggers (or Railway scheduled jobs). This keeps production jobs running consistently even if app instances restart.
 
 ## Required Background Jobs
 
@@ -16,13 +16,14 @@ Your Sportfolio app requires these automated jobs:
 4. **stats_sync** - Syncs completed game statistics
 5. **roster_sync** - Updates NBA player roster
 6. **sync_player_game_logs** - Caches player game logs with pre-calculated fantasy points (reduces API calls by ~95%)
+7. **bot_engine** - Executes AMM bot scouting/trading/liquidity actions
 
 ## Setup Instructions
 
 ### Step 1: Get Your Admin API Token
 
-1. Open your Replit project
-2. Go to "Secrets" (lock icon in left sidebar)
+1. Open your Railway project
+2. Go to service Variables
 3. Find `ADMIN_API_TOKEN` and copy its value
 4. Save this somewhere secure - you'll need it for cron-job.org
 
@@ -31,10 +32,10 @@ Your Sportfolio app requires these automated jobs:
 Your published site URL should be something like:
 
 ```
-https://your-repl-name.replit.app
+https://your-domain.com
 ```
 
-Find this in your Replit deployment settings.
+Find this in your Railway service settings.
 
 ### Step 3: Create Account on cron-job.org
 
@@ -49,7 +50,7 @@ For each job below, create a new cron job in cron-job.org:
 #### Job 1: Create Contests (Daily at Midnight UTC)
 
 - **Title:** Sportfolio - Create Contests
-- **URL:** `https://your-repl-name.replit.app/api/admin/jobs/trigger`
+- **URL:** `https://your-domain.com/api/admin/jobs/trigger`
 - **Schedule:** Daily at 00:00 (midnight UTC)
   - Use cron expression: `0 0 * * *`
 - **Request Method:** POST
@@ -64,7 +65,7 @@ For each job below, create a new cron job in cron-job.org:
 #### Job 2: Settle Contests (Every 5 Minutes)
 
 - **Title:** Sportfolio - Settle Contests
-- **URL:** `https://your-repl-name.replit.app/api/admin/jobs/trigger`
+- **URL:** `https://your-domain.com/api/admin/jobs/trigger`
 - **Schedule:** Every 5 minutes
   - Use cron expression: `*/5 * * * *`
 - **Request Method:** POST
@@ -79,7 +80,7 @@ For each job below, create a new cron job in cron-job.org:
 #### Job 3: Schedule Sync (Every Minute)
 
 - **Title:** Sportfolio - Schedule Sync
-- **URL:** `https://your-repl-name.replit.app/api/admin/jobs/trigger`
+- **URL:** `https://your-domain.com/api/admin/jobs/trigger`
 - **Schedule:** Every minute
   - Use cron expression: `* * * * *`
 - **Request Method:** POST
@@ -94,7 +95,7 @@ For each job below, create a new cron job in cron-job.org:
 #### Job 4: Stats Sync (Every Hour)
 
 - **Title:** Sportfolio - Stats Sync
-- **URL:** `https://your-repl-name.replit.app/api/admin/jobs/trigger`
+- **URL:** `https://your-domain.com/api/admin/jobs/trigger`
 - **Schedule:** Every hour
   - Use cron expression: `0 * * * *`
 - **Request Method:** POST
@@ -109,7 +110,7 @@ For each job below, create a new cron job in cron-job.org:
 #### Job 5: Roster Sync (Daily at 5 AM UTC)
 
 - **Title:** Sportfolio - Roster Sync
-- **URL:** `https://your-repl-name.replit.app/api/admin/jobs/trigger`
+- **URL:** `https://your-domain.com/api/admin/jobs/trigger`
 - **Schedule:** Daily at 05:00 (5 AM UTC)
   - Use cron expression: `0 5 * * *`
 - **Request Method:** POST
@@ -124,7 +125,7 @@ For each job below, create a new cron job in cron-job.org:
 #### Job 6: Player Game Logs Sync (Daily at 6 AM ET)
 
 - **Title:** Sportfolio - Sync Player Game Logs
-- **URL:** `https://your-repl-name.replit.app/api/admin/jobs/trigger`
+- **URL:** `https://your-domain.com/api/admin/jobs/trigger`
 - **Schedule:** Daily at 06:00 AM Eastern Time (11:00 UTC during DST, 10:00 UTC otherwise)
   - Use cron expression: `0 10 * * *` (adjust for your timezone)
 - **Request Method:** POST
@@ -140,6 +141,21 @@ For each job below, create a new cron job in cron-job.org:
   - Reduces MySportsFeeds API calls by ~95%
   - First run will backfill entire season (~15 minutes)
   - Uses conservative rate limiting (150 req/5min, 2s delay between players)
+
+#### Job 7: Bot Engine (Every 15 Minutes)
+
+- **Title:** Sportfolio - Bot Engine
+- **URL:** `https://your-domain.com/api/admin/jobs/trigger`
+- **Schedule:** Every 15 minutes
+  - Use cron expression: `*/15 * * * *`
+- **Request Method:** POST
+- **Request Body:**
+  ```json
+  { "jobName": "bot_engine" }
+  ```
+- **Headers:**
+  - Name: `Content-Type`, Value: `application/json`
+  - Name: `Authorization`, Value: `Bearer YOUR_ADMIN_API_TOKEN`
 
 ### Step 5: Test Your Setup
 
@@ -185,8 +201,8 @@ Admin users can access the admin panel for manual job triggers and system monito
 
 ### Job Returns 503 Service Unavailable
 
-- Your `ADMIN_API_TOKEN` environment variable is not set in Replit
-- Add it in Secrets (or environment variables in deployment) and redeploy
+- Your `ADMIN_API_TOKEN` variable is missing in Railway
+- Add it in Railway Variables and redeploy
 
 ### Contests Not Appearing
 
@@ -201,12 +217,12 @@ Admin users can access the admin panel for manual job triggers and system monito
 
 ## Cost
 
-cron-job.org is completely free for up to 50 cron jobs. Sportfolio only needs 5, so you're well within the limits.
+cron-job.org is completely free for up to 50 cron jobs. Sportfolio currently uses 7, so you're well within the limits.
 
 ## Security
 
 Your `ADMIN_API_TOKEN` acts as authentication for these endpoints. Keep it secure:
 
 - Don't share it publicly
-- Rotate it periodically (update in both Replit Secrets and cron-job.org)
-- Only use HTTPS URLs (Replit provides this automatically)
+- Rotate it periodically (update in both Railway Variables and cron-job.org)
+- Only use HTTPS URLs (your platform provides this automatically)

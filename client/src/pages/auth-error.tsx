@@ -87,7 +87,7 @@ export default function AuthError() {
           message: "We were unable to complete your login.",
           suggestion: isMobile
             ? "Please try again. If using an in-app browser (like from Twitter or Discord), try opening in Safari or Chrome instead."
-            : "Please try again. Make sure you're using a valid Replit account.",
+            : "Please try again. Make sure you're using a valid account.",
           canAutoRetry: true,
           isMobileIssue: isMobile,
         };

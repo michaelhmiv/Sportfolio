@@ -5,6 +5,49 @@
 - [x] 2026-02-12: Stagger high-frequency cron jobs and lower non-critical refresh frequencies
 - [x] 2026-02-12: Reduce admin page polling cadence (faster only while jobs/backfill are running)
 
+## 2026-02-25 SEO Phase 1 (Search + AI Crawlers)
+
+- [x] Consolidate duplicate `/sitemap.xml` handlers into a single canonical source
+- [x] Remove non-indexable URLs from sitemap (`/player/:id`, nonexistent contest detail pages)
+- [x] Add server-side 301 redirect from legacy `/marketplace` to canonical `/pools`
+- [x] Standardize canonical site URL configuration across server sitemap + client metadata/schema
+- [x] Add route-level canonical + robots metadata for public vs private routes
+- [x] Update `robots.txt` for canonical sitemap URL and explicit AI crawler directives
+- [x] Validate via `npm run check`, `npm run lint`, `npm run test:run`
+
+## 2026-02-25 SEO Phase 2 (Server Rendering + Index Quality)
+
+- [x] Add shared SEO route policy utilities for consistent metadata across client/server
+- [x] Inject server-rendered SEO head tags (title, description, canonical, robots, OG/Twitter) in dev and prod
+- [x] Add server-rendered JSON-LD payloads for core site routes and blog articles
+- [x] Return HTTP 404 for unknown non-asset app routes while preserving SPA routing for known paths
+- [x] Ensure unknown `/api/*` routes return JSON 404 instead of SPA HTML fallback
+- [x] Add social preview image for stable OG/Twitter cards
+
+## 2026-02-25 SEO Phase 3 (AI Discoverability + Public Retrieval)
+
+- [x] Add `llms.txt` and extended LLM context document under public assets
+- [x] Add crawler-safe `/api/public/*` endpoints for market summary, blog feed, and contest summaries
+- [x] Update robots policy to explicitly allow `/llms.txt` and `/api/public/*` for AI crawlers
+
+## 2026-02-25 SEO Phase 4 (Performance + Indexing Operations)
+
+- [x] Implement route-level code-splitting with lazy-loaded page modules and suspense fallback
+- [x] Add idle-time preloading for high-traffic public routes
+- [x] Add feed endpoints (`/feed.xml`, `/feed.json`) and include them in discoverability surfaces
+- [x] Add richer server-side structured data (breadcrumbs + article schema on blog detail)
+- [x] Enforce canonical host redirects in production (configurable via env)
+- [x] Add SEO operations runbook and automated `seo:check` script
+
+## 2026-02-25 Bot Market Activity Investigation
+
+- [x] Investigate bot activity staleness using `job_execution_logs`, `bot_profiles`, and `bot_actions_log`
+- [x] Confirm root causes for low movement (scheduler inactivity window + low trade execution yield)
+- [x] Enable `bot_engine` in manual/admin trigger allowlist for external cron compatibility
+- [x] Improve bot trade execution by ensuring pools exist before bot buy/sell/LP actions
+- [x] Improve bot LP targeting to choose players the bot actually holds (avoid near-certain LP failures)
+- [x] Validate via `npm run check`, `npm run lint`, `npm run test:run`
+
 - [ ] Rename Marketplace to Player Pools (canonical route `/pools`, redirect legacy `/marketplace`)
 - [ ] Fix AMM trade panel to use authenticated requests in production (buy + sell)
 - [ ] Add Player Pool contribution UI on player page (add/remove liquidity + zap shares-only)
