@@ -56,10 +56,22 @@ app.use(
 );
 
 const canonicalSiteUrlRaw = process.env.PUBLIC_SITE_URL || process.env.SITE_URL;
-const canonicalSiteUrl = canonicalSiteUrlRaw?.trim()
-  ? normalizeSiteUrl(canonicalSiteUrlRaw)
-  : undefined;
-const canonicalHost = canonicalSiteUrl ? new URL(canonicalSiteUrl).host.toLowerCase() : undefined;
+let canonicalSiteUrl: string | undefined;
+let canonicalHost: string | undefined;
+
+if (canonicalSiteUrlRaw?.trim()) {
+  const normalizedCanonicalSiteUrl = normalizeSiteUrl(canonicalSiteUrlRaw);
+  try {
+    const parsedCanonicalUrl = new URL(normalizedCanonicalSiteUrl);
+    canonicalSiteUrl = normalizeSiteUrl(parsedCanonicalUrl.toString());
+    canonicalHost = parsedCanonicalUrl.host.toLowerCase();
+  } catch {
+    logger.warn(
+      { publicSiteUrl: canonicalSiteUrlRaw },
+      "Ignoring malformed PUBLIC_SITE_URL/SITE_URL; canonical host redirect disabled",
+    );
+  }
+}
 const enforceCanonicalHost =
   app.get("env") === "production" &&
   canonicalHost &&
@@ -88,7 +100,10 @@ if (enforceCanonicalHost && canonicalSiteUrl && canonicalHost) {
 }
 
 // Avoid API endpoint indexing while still permitting crawler access as needed.
-app.use("/api", (_req, res, next) => {
+app.use("/api", (req, res, next) => {
+  if (req.path.startsWith("/public/")) {
+    return next();
+  }
   res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
   next();
 });

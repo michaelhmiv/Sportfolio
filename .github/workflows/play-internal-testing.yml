@@ -77,11 +77,16 @@ jobs:
         env:
           INPUT_RELEASE_NAME: ${{ github.event.inputs.release_name }}
         run: |
-          VERSION_CODE=$((200000 + GITHUB_RUN_NUMBER))
+          VERSION_CODE=$((200000 + ${GITHUB_RUN_NUMBER}))
           echo "MOBILE_VERSION_CODE=$VERSION_CODE" >> "$GITHUB_ENV"
 
           if [ -n "$INPUT_RELEASE_NAME" ]; then
-            echo "PLAY_RELEASE_NAME=$INPUT_RELEASE_NAME" >> "$GITHUB_ENV"
+            SANITIZED_RELEASE_NAME="$(printf '%s' "$INPUT_RELEASE_NAME" | tr '\r\n' '-' | tr -cd '[:alnum:]._-' | cut -c1-50)"
+            if [ -z "$SANITIZED_RELEASE_NAME" ]; then
+              echo "::error::release_name must contain at least one alphanumeric character after sanitization."
+              exit 1
+            fi
+            echo "PLAY_RELEASE_NAME=$SANITIZED_RELEASE_NAME" >> "$GITHUB_ENV"
           else
             SHORT_SHA="${GITHUB_SHA:0:7}"
             echo "PLAY_RELEASE_NAME=internal-${SHORT_SHA}" >> "$GITHUB_ENV"
