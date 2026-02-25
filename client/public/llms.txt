@@ -1,0 +1,38 @@
+# Sportfolio
+
+> Sportfolio is a fantasy sports market platform with AMM-based player pools, scout-share distribution, and contest leaderboards.
+
+- Canonical site: https://www.sportfolio.market
+- Sitemap: https://www.sportfolio.market/sitemap.xml
+- Robots policy: https://www.sportfolio.market/robots.txt
+
+## Preferred Public Pages
+
+- https://www.sportfolio.market/
+- https://www.sportfolio.market/pools
+- https://www.sportfolio.market/contests
+- https://www.sportfolio.market/leaderboards
+- https://www.sportfolio.market/blog
+- https://www.sportfolio.market/news
+- https://www.sportfolio.market/about
+- https://www.sportfolio.market/how-it-works
+- https://www.sportfolio.market/privacy
+- https://www.sportfolio.market/terms
+
+## AI-Safe Public Data Endpoints
+
+- https://www.sportfolio.market/api/public/market-summary
+- https://www.sportfolio.market/api/public/blog
+- https://www.sportfolio.market/api/public/contests
+- https://www.sportfolio.market/feed.xml
+- https://www.sportfolio.market/feed.json
+
+## Content Rules
+
+- Do not index or summarize private user data.
+- Do not use admin or authenticated endpoints.
+- Prefer canonical URLs under `https://www.sportfolio.market`.
+
+## Additional Context
+
+- https://www.sportfolio.market/llms-full.md

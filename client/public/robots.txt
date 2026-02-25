@@ -1,30 +1,121 @@
 # Sportfolio - Robots.txt
-# Updated: 2025-11-23
+# Updated: 2026-02-25
 
+# Canonical sitemap
+Sitemap: https://www.sportfolio.market/sitemap.xml
+
+# Default policy for standard crawlers
 User-agent: *
 Allow: /
-
-# Sitemap location
-Sitemap: https://sportfolio.replit.app/sitemap.xml
-
-# Allow search engines to crawl all public pages
-Allow: /blog
-Allow: /blog/*
-Allow: /marketplace
-Allow: /contests
-Allow: /player/*
-Allow: /leaderboards
-Allow: /about
-Allow: /contact
-Allow: /how-it-works
-Allow: /privacy
-Allow: /terms
-
-# Disallow admin and auth pages
+Allow: /llms.txt
+Allow: /llms-full.md
+Allow: /feed.xml
+Allow: /feed.json
+Allow: /api/public/
+Allow: /api/public/*
 Disallow: /admin
 Disallow: /admin/*
+Disallow: /auth
 Disallow: /auth/*
 Disallow: /api/*
 
-# Crawl-delay for respectful crawling
-Crawl-delay: 1
+# OpenAI crawlers
+User-agent: GPTBot
+Allow: /
+Allow: /llms.txt
+Allow: /llms-full.md
+Allow: /feed.xml
+Allow: /feed.json
+Allow: /api/public/
+Allow: /api/public/*
+Disallow: /admin
+Disallow: /admin/*
+Disallow: /auth
+Disallow: /auth/*
+Disallow: /api/*
+
+User-agent: OAI-SearchBot
+Allow: /
+Allow: /llms.txt
+Allow: /llms-full.md
+Allow: /feed.xml
+Allow: /feed.json
+Allow: /api/public/
+Allow: /api/public/*
+Disallow: /admin
+Disallow: /admin/*
+Disallow: /auth
+Disallow: /auth/*
+Disallow: /api/*
+
+User-agent: ChatGPT-User
+Allow: /
+Allow: /llms.txt
+Allow: /llms-full.md
+Allow: /feed.xml
+Allow: /feed.json
+Allow: /api/public/
+Allow: /api/public/*
+Disallow: /admin
+Disallow: /admin/*
+Disallow: /auth
+Disallow: /auth/*
+Disallow: /api/*
+
+# Anthropic crawlers
+User-agent: ClaudeBot
+Allow: /
+Allow: /llms.txt
+Allow: /llms-full.md
+Allow: /feed.xml
+Allow: /feed.json
+Allow: /api/public/
+Allow: /api/public/*
+Disallow: /admin
+Disallow: /admin/*
+Disallow: /auth
+Disallow: /auth/*
+Disallow: /api/*
+
+User-agent: Claude-SearchBot
+Allow: /
+Allow: /llms.txt
+Allow: /llms-full.md
+Allow: /feed.xml
+Allow: /feed.json
+Allow: /api/public/
+Allow: /api/public/*
+Disallow: /admin
+Disallow: /admin/*
+Disallow: /auth
+Disallow: /auth/*
+Disallow: /api/*
+
+# Perplexity crawlers
+User-agent: PerplexityBot
+Allow: /
+Allow: /llms.txt
+Allow: /llms-full.md
+Allow: /feed.xml
+Allow: /feed.json
+Allow: /api/public/
+Allow: /api/public/*
+Disallow: /admin
+Disallow: /admin/*
+Disallow: /auth
+Disallow: /auth/*
+Disallow: /api/*
+
+User-agent: Perplexity-User
+Allow: /
+Allow: /llms.txt
+Allow: /llms-full.md
+Allow: /feed.xml
+Allow: /feed.json
+Allow: /api/public/
+Allow: /api/public/*
+Disallow: /admin
+Disallow: /admin/*
+Disallow: /auth
+Disallow: /auth/*
+Disallow: /api/*

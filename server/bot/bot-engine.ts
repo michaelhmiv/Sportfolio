@@ -157,6 +157,9 @@ export async function updateBotCounters(
   ordersPlaced: number,
   volumeTraded: number,
 ): Promise<void> {
+  const safeOrdersPlaced = Math.max(0, Math.round(ordersPlaced));
+  const safeVolumeTraded = Math.max(0, Math.round(volumeTraded));
+
   const [current] = await db
     .select({ ordersToday: botProfiles.ordersToday, volumeToday: botProfiles.volumeToday })
     .from(botProfiles)
@@ -166,8 +169,8 @@ export async function updateBotCounters(
     await db
       .update(botProfiles)
       .set({
-        ordersToday: current.ordersToday + ordersPlaced,
-        volumeToday: current.volumeToday + volumeTraded,
+        ordersToday: current.ordersToday + safeOrdersPlaced,
+        volumeToday: current.volumeToday + safeVolumeTraded,
         updatedAt: new Date(),
       })
       .where(eq(botProfiles.id, profileId));
@@ -178,6 +181,8 @@ export async function updateBotCounters(
  * Update bot's daily trading volume
  */
 export async function updateBotVolume(profileId: string, volumeAdded: number): Promise<void> {
+  const safeVolumeAdded = Math.max(0, Math.round(volumeAdded));
+
   const [current] = await db
     .select({ volumeToday: botProfiles.volumeToday })
     .from(botProfiles)
@@ -187,7 +192,7 @@ export async function updateBotVolume(profileId: string, volumeAdded: number): P
     await db
       .update(botProfiles)
       .set({
-        volumeToday: current.volumeToday + volumeAdded,
+        volumeToday: current.volumeToday + safeVolumeAdded,
         updatedAt: new Date(),
       })
       .where(eq(botProfiles.id, profileId));

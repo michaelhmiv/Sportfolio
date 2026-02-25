@@ -1,6 +1,6 @@
 import { Switch, Route, Link, useLocation } from "wouter";
-import { useEffect, useState } from "react";
-import { queryClient, apiRequest } from "./lib/queryClient";
+import { lazy, Suspense, useEffect, useState } from "react";
+import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -11,48 +11,19 @@ import { HelpDialog } from "@/components/help-dialog";
 import { Footer } from "@/components/footer";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { invalidatePortfolioQueries } from "@/lib/cache-invalidation";
 import { WebSocketProvider, useWebSocket } from "@/lib/websocket";
 import { ConnectionStatus } from "@/components/connection-status";
 import { NotificationProvider } from "@/lib/notification-context";
 import { useAuth, AuthProvider } from "@/hooks/useAuth";
 import { OnboardingModal } from "@/components/onboarding-modal";
 import { AnimatePresence, motion } from "framer-motion";
-import Dashboard from "@/pages/dashboard";
-import PlayerPools from "@/pages/marketplace";
-import PlayerPage from "@/pages/player";
-import Contests from "@/pages/contests";
-import ContestEntry from "@/pages/contest-entry";
-import ContestLeaderboard from "@/pages/contest-leaderboard";
-import Portfolio from "@/pages/portfolio";
-import UserProfile from "@/pages/user-profile";
-import Leaderboards from "@/pages/leaderboards";
-import Admin from "@/pages/admin";
-import Landing from "@/pages/landing";
-import AuthError from "@/pages/auth-error";
-import NotFound from "@/pages/not-found";
-import Blog from "@/pages/blog";
-import BlogPost from "@/pages/blog-post";
-import Privacy from "@/pages/privacy";
-import Terms from "@/pages/terms";
-import About from "@/pages/about";
-import Contact from "@/pages/contact";
-import HowItWorks from "@/pages/how-it-works";
-import Analytics from "@/pages/analytics";
-import News from "@/pages/news";
-import Premium from "@/pages/premium";
-import Watchlists from "@/pages/watchlists";
-import Power from "@/pages/power";
-import Login from "@/pages/Login";
-import AuthCallback from "@/pages/AuthCallback";
-import CheckoutSuccess from "@/pages/checkout-success";
 import logoUrl from "@assets/Sportfolio png_1763227952318.png";
 import { LogOut, User } from "lucide-react";
 import { SiDiscord } from "react-icons/si";
 import { SchemaOrg, schemas } from "@/components/schema-org";
 import { ScoutWidget } from "@/components/scout-widget";
 import { ScoutDashboardModal } from "@/components/scout-dashboard-modal";
-import { ScoutProvider, useScout } from "@/lib/scout-context";
+import { ScoutProvider } from "@/lib/scout-context";
 import { SportProvider } from "@/lib/sport-context";
 import { NewsNotificationProvider } from "@/lib/news-notification-context";
 import { InjuryProvider } from "@/lib/injury-context";
@@ -64,6 +35,95 @@ import { Capacitor } from "@capacitor/core";
 import { App as CapacitorApp } from "@capacitor/app";
 import { Browser } from "@capacitor/browser";
 import { getSupabase } from "@/lib/supabase";
+import {
+  getRouteSeoMeta,
+  normalizeSiteUrl,
+  toCanonicalUrl as toAbsoluteCanonicalUrl,
+} from "@shared/seo";
+
+const CANONICAL_SITE_URL = normalizeSiteUrl(
+  import.meta.env.VITE_PUBLIC_SITE_URL || import.meta.env.PUBLIC_SITE_URL,
+);
+
+const loadDashboardPage = () => import("@/pages/dashboard");
+const loadPlayerPoolsPage = () => import("@/pages/marketplace");
+const loadPlayerPage = () => import("@/pages/player");
+const loadContestsPage = () => import("@/pages/contests");
+const loadContestEntryPage = () => import("@/pages/contest-entry");
+const loadContestLeaderboardPage = () => import("@/pages/contest-leaderboard");
+const loadPortfolioPage = () => import("@/pages/portfolio");
+const loadUserProfilePage = () => import("@/pages/user-profile");
+const loadLeaderboardsPage = () => import("@/pages/leaderboards");
+const loadAdminPage = () => import("@/pages/admin");
+const loadAuthErrorPage = () => import("@/pages/auth-error");
+const loadNotFoundPage = () => import("@/pages/not-found");
+const loadBlogPage = () => import("@/pages/blog");
+const loadBlogPostPage = () => import("@/pages/blog-post");
+const loadPrivacyPage = () => import("@/pages/privacy");
+const loadTermsPage = () => import("@/pages/terms");
+const loadAboutPage = () => import("@/pages/about");
+const loadContactPage = () => import("@/pages/contact");
+const loadHowItWorksPage = () => import("@/pages/how-it-works");
+const loadAnalyticsPage = () => import("@/pages/analytics");
+const loadNewsPage = () => import("@/pages/news");
+const loadPremiumPage = () => import("@/pages/premium");
+const loadWatchlistsPage = () => import("@/pages/watchlists");
+const loadPowerPage = () => import("@/pages/power");
+const loadLoginPage = () => import("@/pages/Login");
+const loadAuthCallbackPage = () => import("@/pages/AuthCallback");
+const loadCheckoutSuccessPage = () => import("@/pages/checkout-success");
+
+const Dashboard = lazy(loadDashboardPage);
+const PlayerPools = lazy(loadPlayerPoolsPage);
+const PlayerPage = lazy(loadPlayerPage);
+const Contests = lazy(loadContestsPage);
+const ContestEntry = lazy(loadContestEntryPage);
+const ContestLeaderboard = lazy(loadContestLeaderboardPage);
+const Portfolio = lazy(loadPortfolioPage);
+const UserProfile = lazy(loadUserProfilePage);
+const Leaderboards = lazy(loadLeaderboardsPage);
+const Admin = lazy(loadAdminPage);
+const AuthError = lazy(loadAuthErrorPage);
+const NotFound = lazy(loadNotFoundPage);
+const Blog = lazy(loadBlogPage);
+const BlogPost = lazy(loadBlogPostPage);
+const Privacy = lazy(loadPrivacyPage);
+const Terms = lazy(loadTermsPage);
+const About = lazy(loadAboutPage);
+const Contact = lazy(loadContactPage);
+const HowItWorks = lazy(loadHowItWorksPage);
+const Analytics = lazy(loadAnalyticsPage);
+const News = lazy(loadNewsPage);
+const Premium = lazy(loadPremiumPage);
+const Watchlists = lazy(loadWatchlistsPage);
+const Power = lazy(loadPowerPage);
+const Login = lazy(loadLoginPage);
+const AuthCallback = lazy(loadAuthCallbackPage);
+const CheckoutSuccess = lazy(loadCheckoutSuccessPage);
+
+function upsertMetaTag(attribute: "name" | "property", value: string): HTMLMetaElement {
+  let tag = document.head.querySelector(`meta[${attribute}="${value}"]`) as HTMLMetaElement | null;
+  if (!tag) {
+    tag = document.createElement("meta");
+    tag.setAttribute(attribute, value);
+    document.head.appendChild(tag);
+  }
+  return tag;
+}
+
+function upsertCanonicalLink(): HTMLLinkElement {
+  let link = document.head.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
+  if (!link) {
+    link = document.createElement("link");
+    link.setAttribute("rel", "canonical");
+    document.head.appendChild(link);
+  }
+  return link;
+}
+
+function toCanonicalUrl(path: string): string {
+  return toAbsoluteCanonicalUrl(CANONICAL_SITE_URL, path);
+}
 
 function LegacyMarketplaceRedirect() {
   const [, setLocation] = useLocation();
@@ -104,6 +164,17 @@ const pageTransitionSettings = {
   ease: "easeOut" as const,
 };
 
+function RouteLoadingState() {
+  return (
+    <div className="flex items-center justify-center h-[40vh]">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-3" />
+        <p className="text-sm text-muted-foreground">Loading page...</p>
+      </div>
+    </div>
+  );
+}
+
 function ProfileRedirect({ userId }: { userId: string }) {
   const [, navigate] = useLocation();
   useEffect(() => {
@@ -116,6 +187,26 @@ function Router() {
   const { user, isAuthenticated, isLoading, initError, retryInit } = useAuth();
   const [location, navigate] = useLocation();
   const [loadingTime, setLoadingTime] = useState(0);
+
+  // Keep canonical + robots metadata aligned with the active route.
+  useEffect(() => {
+    const seoMeta = getRouteSeoMeta(location);
+    const canonicalUrl = toCanonicalUrl(seoMeta.canonicalPath);
+
+    document.title = seoMeta.title;
+
+    const descriptionTag = upsertMetaTag("name", "description");
+    descriptionTag.setAttribute("content", seoMeta.description);
+
+    const robotsTag = upsertMetaTag("name", "robots");
+    robotsTag.setAttribute("content", seoMeta.robots);
+
+    const canonicalLink = upsertCanonicalLink();
+    canonicalLink.setAttribute("href", canonicalUrl);
+
+    const ogUrlTag = upsertMetaTag("property", "og:url");
+    ogUrlTag.setAttribute("content", canonicalUrl);
+  }, [location]);
 
   // Handle OAuth redirect hash tokens - redirect to /auth/callback if access_token is in hash
   useEffect(() => {
@@ -204,6 +295,26 @@ function Router() {
     return () => {
       void listener?.remove();
     };
+  }, []);
+
+  // Warm likely next-route chunks during idle time to improve transition latency.
+  useEffect(() => {
+    const preload = () => {
+      void loadPlayerPoolsPage();
+      void loadContestsPage();
+      void loadBlogPage();
+      void loadLeaderboardsPage();
+      void loadNewsPage();
+    };
+
+    const globalObject = globalThis as any;
+    if (typeof globalObject.requestIdleCallback === "function") {
+      const id = globalObject.requestIdleCallback(preload, { timeout: 2000 });
+      return () => globalObject.cancelIdleCallback?.(id);
+    }
+
+    const timer = globalThis.setTimeout(preload, 1200);
+    return () => globalThis.clearTimeout(timer);
   }, []);
 
   // Track how long we've been loading
@@ -320,65 +431,67 @@ function Router() {
         transition={pageTransitionSettings}
         className="w-full"
       >
-        <Switch>
-          {/* Auth routes */}
-          <Route path="/login" component={Login} />
-          <Route path="/auth/callback" component={AuthCallback} />
-          <Route path="/checkout/success" component={CheckoutSuccess} />
+        <Suspense fallback={<RouteLoadingState />}>
+          <Switch>
+            {/* Auth routes */}
+            <Route path="/login" component={Login} />
+            <Route path="/auth/callback" component={AuthCallback} />
+            <Route path="/checkout/success" component={CheckoutSuccess} />
 
-          {/* Dashboard is now public - shows live data with login CTAs for non-authenticated users */}
-          <Route path="/" component={Dashboard} />
+            {/* Dashboard is now public - shows live data with login CTAs for non-authenticated users */}
+            <Route path="/" component={Dashboard} />
 
-          {/* Public routes - contests and leaderboards */}
-          <Route path="/contests" component={Contests} />
-          <Route path="/contest/:id/leaderboard" component={ContestLeaderboard} />
-          <Route path="/leaderboards" component={Leaderboards} />
-          <Route path="/user/:id" component={UserProfile} />
-          <Route path="/pools" component={PlayerPools} />
-          <Route path="/marketplace" component={LegacyMarketplaceRedirect} />
-          <Route path="/blog" component={Blog} />
-          <Route path="/blog/:slug" component={BlogPost} />
-          <Route path="/privacy" component={Privacy} />
-          <Route path="/terms" component={Terms} />
-          <Route path="/about" component={About} />
-          <Route path="/contact" component={Contact} />
-          <Route path="/how-it-works" component={HowItWorks} />
-          <Route path="/analytics" component={Analytics} />
-          <Route path="/news" component={News} />
+            {/* Public routes - contests and leaderboards */}
+            <Route path="/contests" component={Contests} />
+            <Route path="/contest/:id/leaderboard" component={ContestLeaderboard} />
+            <Route path="/leaderboards" component={Leaderboards} />
+            <Route path="/user/:id" component={UserProfile} />
+            <Route path="/pools" component={PlayerPools} />
+            <Route path="/marketplace" component={LegacyMarketplaceRedirect} />
+            <Route path="/blog" component={Blog} />
+            <Route path="/blog/:slug" component={BlogPost} />
+            <Route path="/privacy" component={Privacy} />
+            <Route path="/terms" component={Terms} />
+            <Route path="/about" component={About} />
+            <Route path="/contact" component={Contact} />
+            <Route path="/how-it-works" component={HowItWorks} />
+            <Route path="/analytics" component={Analytics} />
+            <Route path="/news" component={News} />
 
-          {/* Power / Boosts - requires authentication */}
-          <Route path="/power">{isAuthenticated ? <Power /> : <Dashboard />}</Route>
+            {/* Power / Boosts - requires authentication */}
+            <Route path="/power">{isAuthenticated ? <Power /> : <Dashboard />}</Route>
 
-          {/* Legacy route for backwards compatibility */}
-          <Route path="/boosts">{isAuthenticated ? <Power /> : <Dashboard />}</Route>
+            {/* Legacy route for backwards compatibility */}
+            <Route path="/boosts">{isAuthenticated ? <Power /> : <Dashboard />}</Route>
 
-          {/* Protected routes - require authentication, redirect to dashboard if not logged in */}
-          <Route path="/player/:id">{isAuthenticated ? <PlayerPage /> : <Dashboard />}</Route>
+            {/* Protected routes - require authentication, redirect to dashboard if not logged in */}
+            <Route path="/player/:id">{isAuthenticated ? <PlayerPage /> : <Dashboard />}</Route>
 
-          {/* Canonical player route used across the app (some data uses prefixed ids like nba_123) */}
-          <Route path="/player/nba_:id">{isAuthenticated ? <PlayerPage /> : <Dashboard />}</Route>
-          <Route path="/player/nfl_:id">{isAuthenticated ? <PlayerPage /> : <Dashboard />}</Route>
-          <Route path="/player/mlb_:id">{isAuthenticated ? <PlayerPage /> : <Dashboard />}</Route>
-          <Route path="/contest/:id/entry">
-            {isAuthenticated ? <ContestEntry /> : <Dashboard />}
-          </Route>
-          <Route path="/contest/:id/entry/:entryId">
-            {isAuthenticated ? <ContestEntry /> : <Dashboard />}
-          </Route>
-          <Route path="/portfolio">{isAuthenticated ? <Portfolio /> : <Dashboard />}</Route>
-          <Route path="/admin">{isAuthenticated ? <Admin /> : <Dashboard />}</Route>
-          <Route path="/premium">{isAuthenticated ? <Premium /> : <Dashboard />}</Route>
-          {/* Premium share trading removed; premium shares are redeemed for premium access */}
-          <Route path="/watchlists">{isAuthenticated ? <Watchlists /> : <Dashboard />}</Route>
-          <Route path="/profile">
-            {isAuthenticated && user ? <ProfileRedirect userId={user.id} /> : <Dashboard />}
-          </Route>
+            {/* Canonical player route used across the app (some data uses prefixed ids like nba_123) */}
+            <Route path="/player/nba_:id">{isAuthenticated ? <PlayerPage /> : <Dashboard />}</Route>
+            <Route path="/player/nfl_:id">{isAuthenticated ? <PlayerPage /> : <Dashboard />}</Route>
+            <Route path="/player/mlb_:id">{isAuthenticated ? <PlayerPage /> : <Dashboard />}</Route>
+            <Route path="/contest/:id/entry">
+              {isAuthenticated ? <ContestEntry /> : <Dashboard />}
+            </Route>
+            <Route path="/contest/:id/entry/:entryId">
+              {isAuthenticated ? <ContestEntry /> : <Dashboard />}
+            </Route>
+            <Route path="/portfolio">{isAuthenticated ? <Portfolio /> : <Dashboard />}</Route>
+            <Route path="/admin">{isAuthenticated ? <Admin /> : <Dashboard />}</Route>
+            <Route path="/premium">{isAuthenticated ? <Premium /> : <Dashboard />}</Route>
+            {/* Premium share trading removed; premium shares are redeemed for premium access */}
+            <Route path="/watchlists">{isAuthenticated ? <Watchlists /> : <Dashboard />}</Route>
+            <Route path="/profile">
+              {isAuthenticated && user ? <ProfileRedirect userId={user.id} /> : <Dashboard />}
+            </Route>
 
-          {/* Auth error page - public, always accessible */}
-          <Route path="/auth/error" component={AuthError} />
+            {/* Auth error page - public, always accessible */}
+            <Route path="/auth/error" component={AuthError} />
 
-          <Route component={NotFound} />
-        </Switch>
+            <Route component={NotFound} />
+          </Switch>
+        </Suspense>
       </motion.div>
     </AnimatePresence>
   );

@@ -8,15 +8,9 @@
 
 import { db } from "../db";
 import { players, holdings } from "@shared/schema";
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { logBotAction, updateBotVolume, type BotProfile } from "./bot-engine";
-import {
-  executeBuy,
-  executeSell,
-  addLiquidityOptimal,
-  getBuyQuote,
-  getSellQuote,
-} from "../amm/pool";
+import { executeBuy, executeSell, addLiquidityOptimal, getOrCreatePool } from "../amm/pool";
 
 interface TradeConfig {
   userId: string;
@@ -95,6 +89,8 @@ async function executeTrade(
   amount: number,
 ): Promise<boolean> {
   try {
+    await getOrCreatePool(playerId);
+
     if (isBuy) {
       const result = await executeBuy(playerId, userId, amount);
       return result.success;
@@ -139,6 +135,8 @@ async function executeAddLiquidity(
   maxPlayMoney: number,
 ): Promise<boolean> {
   try {
+    await getOrCreatePool(playerId);
+
     const result = await addLiquidityOptimal(playerId, userId, maxShares, maxPlayMoney);
     return result.success;
   } catch (error: any) {
@@ -203,8 +201,13 @@ export async function executeTradingStrategy(
     let tradeValue = 0;
 
     if (isAddLiquidity) {
-      // For adding liquidity: pick a random player to add pool liquidity
-      targetPlayer = allPlayers[Math.floor(Math.random() * allPlayers.length)];
+      // For adding liquidity: only pick players where this bot actually has shares.
+      // Randomly selecting from all active players causes near-certain LP failures.
+      const playersWithPosition = allPlayers.filter((p) => (holdingsMap.get(p.id) || 0) > 0);
+      if (playersWithPosition.length === 0) {
+        return;
+      }
+      targetPlayer = playersWithPosition[Math.floor(Math.random() * playersWithPosition.length)];
       const fairPrice = getFairPrice(targetPlayer);
 
       // Calculate liquidity amounts (equal value of shares + play money)

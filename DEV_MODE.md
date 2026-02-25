@@ -2,7 +2,7 @@
 
 ## Overview
 
-This app includes a development mode bypass that allows you to test the application without going through the OAuth login flow. This is useful for testing on the `.replit.dev` domain where OAuth callback URLs may not be registered.
+This app includes a development mode bypass that allows you to test the application without going through the OAuth login flow.
 
 ## How to Enable
 
@@ -35,11 +35,11 @@ It will **never** work in production, ensuring your production app remains secur
 
 If you want to test the real OAuth flow in development:
 
-1. Set the environment variable `DEV_BYPASS_AUTH=false` in Replit Secrets
+1. Set the environment variable `DEV_BYPASS_AUTH=false`
 
 2. Restart the server
 
-3. Make sure your OAuth application has the `.replit.dev` callback URL registered
+3. Make sure your OAuth application has your development callback URL registered
 
 ## Troubleshooting
 
@@ -61,9 +61,9 @@ When the dev bypass is active, you'll see this message in the console:
 
 To test the normal OAuth flow in production:
 
-1. The app is published at a `.replit.app` URL
-2. OAuth callback URLs must be registered in your Replit OAuth application settings
-3. Users log in with their real Replit accounts
+1. The app is published at your production domain
+2. OAuth callback URLs must be registered in your identity provider settings
+3. Users log in with their real accounts
 
 ---
 

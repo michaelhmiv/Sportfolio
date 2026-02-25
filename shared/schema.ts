@@ -14,7 +14,7 @@ import {
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-// Session storage table (required for Replit Auth)
+// Session storage table (for optional session-backed auth flows)
 export const sessions = pgTable(
   "sessions",
   {
@@ -32,7 +32,7 @@ export const users = pgTable(
     id: varchar("id")
       .primaryKey()
       .default(sql`gen_random_uuid()`),
-    // Replit Auth fields
+    // Auth provider fields
     email: varchar("email").unique(),
     firstName: varchar("first_name"),
     lastName: varchar("last_name"),
@@ -1580,7 +1580,7 @@ export const insertScoutHistorySchema = createInsertSchema(scoutHistory).omit({
 // Select types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
-export type UpsertUser = typeof users.$inferInsert; // For Replit Auth upsert operation
+export type UpsertUser = typeof users.$inferInsert; // For auth upsert operation
 
 export type Player = typeof players.$inferSelect;
 export type InsertPlayer = z.infer<typeof insertPlayerSchema>;

@@ -18,10 +18,10 @@ import { setupVite, serveStatic, log } from "./vite";
 import { jobScheduler } from "./jobs/scheduler.js";
 import { db } from "./db";
 import { botProfiles } from "@shared/schema";
-import { sql } from "drizzle-orm";
 import pinoHttp from "pino-http";
 import { logger } from "./lib/logger";
 import { nanoid } from "nanoid";
+import { normalizeSiteUrl } from "@shared/seo";
 
 const serverStartTime = Date.now();
 let serverReady = false;
@@ -54,6 +54,59 @@ app.use(
     },
   }),
 );
+
+const canonicalSiteUrlRaw = process.env.PUBLIC_SITE_URL || process.env.SITE_URL;
+let canonicalSiteUrl: string | undefined;
+let canonicalHost: string | undefined;
+
+if (canonicalSiteUrlRaw?.trim()) {
+  const normalizedCanonicalSiteUrl = normalizeSiteUrl(canonicalSiteUrlRaw);
+  try {
+    const parsedCanonicalUrl = new URL(normalizedCanonicalSiteUrl);
+    canonicalSiteUrl = normalizeSiteUrl(parsedCanonicalUrl.toString());
+    canonicalHost = parsedCanonicalUrl.host.toLowerCase();
+  } catch {
+    logger.warn(
+      { publicSiteUrl: canonicalSiteUrlRaw },
+      "Ignoring malformed PUBLIC_SITE_URL/SITE_URL; canonical host redirect disabled",
+    );
+  }
+}
+const enforceCanonicalHost =
+  app.get("env") === "production" &&
+  canonicalHost &&
+  process.env.ENFORCE_CANONICAL_HOST_REDIRECT !== "false";
+
+if (enforceCanonicalHost && canonicalSiteUrl && canonicalHost) {
+  app.use((req, res, next) => {
+    if (req.method !== "GET" && req.method !== "HEAD") {
+      return next();
+    }
+    if (req.path === "/api/health" || req.path === "/api/metrics") {
+      return next();
+    }
+
+    const forwardedHost = req.header("x-forwarded-host")?.split(",")[0]?.trim();
+    const requestHost = (forwardedHost || req.get("host") || "").toLowerCase();
+    const normalizedRequestHost = requestHost.replace(/:443$|:80$/, "");
+
+    if (!normalizedRequestHost || normalizedRequestHost === canonicalHost) {
+      return next();
+    }
+
+    const redirectTarget = `${canonicalSiteUrl}${req.originalUrl || req.url || "/"}`;
+    return res.redirect(301, redirectTarget);
+  });
+}
+
+// Avoid API endpoint indexing while still permitting crawler access as needed.
+app.use("/api", (req, res, next) => {
+  if (req.path.startsWith("/public/")) {
+    return next();
+  }
+  res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
+  next();
+});
 
 // Health check endpoint - always available, even during startup
 app.get("/api/health", (_req, res) => {
@@ -160,6 +213,11 @@ app.use((req, res, next) => {
     }
   });
 
+  // Keep unknown API paths from falling through to the SPA index shell.
+  app.use("/api", (_req, res) => {
+    res.status(404).json({ error: "Not found" });
+  });
+
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
@@ -173,10 +231,8 @@ app.use((req, res, next) => {
     startupLog("STATIC", "Static file serving ready");
   }
 
-  // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 5000 if not specified.
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
+  // Bind to the platform-provided PORT (Railway, etc); default to 5000 for local runs.
+  // This single HTTP server handles both API endpoints and client assets.
   const port = parseInt(process.env.PORT || "5000", 10);
   startupLog("LISTEN", `Starting server on port ${port}...`);
   server.listen(

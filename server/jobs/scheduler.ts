@@ -860,6 +860,7 @@ export class JobScheduler {
       "check_milestones",
       "refresh_player_metrics",
       "refresh_player_volume_24h",
+      "bot_engine",
       "api_health_check",
       "nfl_schedule_sync",
       "nfl_stats_sync",
