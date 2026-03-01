@@ -1094,6 +1094,16 @@ export const tweetSettings = pgTable("tweet_settings", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// Agent system settings - singleton config for the platform-managed AI provider
+export const agentSystemSettings = pgTable("agent_system_settings", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  managedProvider: text("managed_provider").notNull().default("chutes"),
+  managedModel: text("managed_model"),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 // Tweet history table - logs of all tweets sent
 export const tweetHistory = pgTable(
   "tweet_history",
@@ -1112,6 +1122,281 @@ export const tweetHistory = pgTable(
   (table) => ({
     statusIdx: index("tweet_history_status_idx").on(table.status),
     createdAtIdx: index("tweet_history_created_idx").on(table.createdAt),
+  }),
+);
+
+// User agent profiles - one scout copilot configuration per user
+export const userAgentProfiles = pgTable(
+  "user_agent_profiles",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    enabled: boolean("enabled").notNull().default(true),
+    displayName: text("display_name").notNull().default("My Scout Agent"),
+    providerMode: text("provider_mode").notNull().default("managed"), // "managed" | "byok"
+    providerType: text("provider_type").notNull().default("openai_compatible"),
+    model: text("model").notNull().default("managed-default"),
+    baseUrl: text("base_url"),
+    systemPrompt: text("system_prompt")
+      .notNull()
+      .default(
+        "Operate like a sharp Sportfolio scout strategist. Stay grounded in the provided Sportfolio context, focus on scouting only, surface the strongest opportunity and risk tradeoffs clearly, and never invent players, schedules, or actions outside scout_set_count.",
+      ),
+    userPromptTemplate: text("user_prompt_template")
+      .notNull()
+      .default(
+        "Act like my scout GM. Give me clear, curated reads on my current scout setup, call out concentration risk and missed opportunities, and when I ask for a move, translate that into the highest-leverage scout reallocation you can support with the current Sportfolio context.",
+      ),
+    temperature: decimal("temperature", { precision: 3, scale: 2 }).notNull().default("0.20"),
+    maxTokens: integer("max_tokens").notNull().default(1200),
+    analysisWindowMinutes: integer("analysis_window_minutes").notNull().default(1440),
+    defaultSport: text("default_sport"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    userIdx: uniqueIndex("user_agent_profiles_user_idx").on(table.userId),
+    providerModeIdx: index("user_agent_profiles_provider_mode_idx").on(table.providerMode),
+    updatedAtIdx: index("user_agent_profiles_updated_at_idx").on(table.updatedAt),
+  }),
+);
+
+// User agent secrets - encrypted BYOK storage
+export const userAgentSecrets = pgTable(
+  "user_agent_secrets",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    apiKeyCiphertext: text("api_key_ciphertext").notNull(),
+    apiKeyIv: text("api_key_iv").notNull(),
+    apiKeyAuthTag: text("api_key_auth_tag").notNull(),
+    keyLast4: text("key_last4").notNull(),
+    encryptionVersion: text("encryption_version").notNull().default("aes-256-gcm:v1"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+    rotatedAt: timestamp("rotated_at"),
+  },
+  (table) => ({
+    userIdx: uniqueIndex("user_agent_secrets_user_idx").on(table.userId),
+    updatedAtIdx: index("user_agent_secrets_updated_at_idx").on(table.updatedAt),
+  }),
+);
+
+// User agent threads - conversation containers across in-app and future external channels
+export const userAgentThreads = pgTable(
+  "user_agent_threads",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    channel: text("channel").notNull().default("in_app"), // "in_app" | "sms"
+    domain: text("domain").notNull().default("scouting"),
+    status: text("status").notNull().default("active"), // "active" | "archived"
+    title: text("title"),
+    externalThreadKey: text("external_thread_key"),
+    lastMessageAt: timestamp("last_message_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    userUpdatedIdx: index("user_agent_threads_user_updated_idx").on(table.userId, table.updatedAt),
+    userStatusIdx: index("user_agent_threads_user_status_idx").on(table.userId, table.status),
+    channelIdx: index("user_agent_threads_channel_idx").on(table.channel),
+  }),
+);
+
+// User agent runs - audit log of analysis invocations
+export const userAgentRuns = pgTable(
+  "user_agent_runs",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    threadId: varchar("thread_id").references(() => userAgentThreads.id, { onDelete: "set null" }),
+    triggerSource: text("trigger_source").notNull().default("manual"), // "manual" | "scheduled_preview" | "retry"
+    status: text("status").notNull().default("pending"), // "pending" | "completed" | "failed" | "rejected"
+    providerMode: text("provider_mode").notNull().default("managed"),
+    model: text("model").notNull(),
+    contextSnapshot: jsonb("context_snapshot").notNull(),
+    promptSnapshot: jsonb("prompt_snapshot").notNull(),
+    rawResponse: jsonb("raw_response"),
+    parsedSummary: text("parsed_summary"),
+    errorMessage: text("error_message"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    completedAt: timestamp("completed_at"),
+  },
+  (table) => ({
+    userCreatedIdx: index("user_agent_runs_user_created_idx").on(table.userId, table.createdAt),
+    statusIdx: index("user_agent_runs_status_idx").on(table.status),
+    threadCreatedIdx: index("user_agent_runs_thread_created_idx").on(
+      table.threadId,
+      table.createdAt,
+    ),
+  }),
+);
+
+// User agent proposals - structured scout actions generated by runs
+export const userAgentProposals = pgTable(
+  "user_agent_proposals",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    runId: varchar("run_id")
+      .notNull()
+      .references(() => userAgentRuns.id, { onDelete: "cascade" }),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    actionType: text("action_type").notNull().default("scout_set_count"),
+    status: text("status").notNull().default("proposed"), // "proposed" | "approved" | "applied" | "rejected" | "failed" | "expired"
+    playerId: varchar("player_id").references(() => players.id),
+    targetCount: integer("target_count"),
+    currentCount: integer("current_count"),
+    reasoning: text("reasoning").notNull(),
+    confidence: decimal("confidence", { precision: 4, scale: 3 }).notNull().default("0.500"),
+    evidence: jsonb("evidence").notNull(),
+    riskFlags: jsonb("risk_flags").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    approvedAt: timestamp("approved_at"),
+    appliedAt: timestamp("applied_at"),
+    errorMessage: text("error_message"),
+  },
+  (table) => ({
+    runIdx: index("user_agent_proposals_run_idx").on(table.runId),
+    userStatusCreatedIdx: index("user_agent_proposals_user_status_created_idx").on(
+      table.userId,
+      table.status,
+      table.createdAt,
+    ),
+  }),
+);
+
+// User agent action bundles - UI-facing pending/apply state for structured actions
+export const userAgentActionBundles = pgTable(
+  "user_agent_action_bundles",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    threadId: varchar("thread_id")
+      .notNull()
+      .references(() => userAgentThreads.id, { onDelete: "cascade" }),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    domain: text("domain").notNull().default("scouting"),
+    runId: varchar("run_id").references(() => userAgentRuns.id, { onDelete: "set null" }),
+    status: text("status").notNull().default("pending_confirmation"),
+    summary: text("summary").notNull(),
+    warnings: jsonb("warnings").notNull(),
+    actionPayload: jsonb("action_payload").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    confirmedAt: timestamp("confirmed_at"),
+    appliedAt: timestamp("applied_at"),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    threadStatusIdx: index("user_agent_action_bundles_thread_status_idx").on(
+      table.threadId,
+      table.status,
+      table.createdAt,
+    ),
+    userCreatedIdx: index("user_agent_action_bundles_user_created_idx").on(
+      table.userId,
+      table.createdAt,
+    ),
+  }),
+);
+
+// User agent messages - persisted chat transcript across channels
+export const userAgentMessages = pgTable(
+  "user_agent_messages",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    threadId: varchar("thread_id")
+      .notNull()
+      .references(() => userAgentThreads.id, { onDelete: "cascade" }),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    role: text("role").notNull(), // "user" | "assistant" | "system"
+    messageType: text("message_type").notNull().default("chat"),
+    contentText: text("content_text").notNull(),
+    structuredPayload: jsonb("structured_payload"),
+    runId: varchar("run_id").references(() => userAgentRuns.id, { onDelete: "set null" }),
+    actionBundleId: varchar("action_bundle_id").references(() => userAgentActionBundles.id, {
+      onDelete: "set null",
+    }),
+    externalMessageKey: text("external_message_key"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    threadCreatedIdx: index("user_agent_messages_thread_created_idx").on(
+      table.threadId,
+      table.createdAt,
+    ),
+    userCreatedIdx: index("user_agent_messages_user_created_idx").on(table.userId, table.createdAt),
+    bundleIdx: index("user_agent_messages_action_bundle_idx").on(table.actionBundleId),
+  }),
+);
+
+// User agent message embeddings - vectorized user prompts for semantic routing and analytics
+export const userAgentMessageEmbeddings = pgTable(
+  "user_agent_message_embeddings",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    messageId: varchar("message_id")
+      .notNull()
+      .references(() => userAgentMessages.id, { onDelete: "cascade" }),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    threadId: varchar("thread_id")
+      .notNull()
+      .references(() => userAgentThreads.id, { onDelete: "cascade" }),
+    role: text("role").notNull().default("user"),
+    messageType: text("message_type").notNull().default("chat"),
+    normalizedText: text("normalized_text").notNull(),
+    semanticRouteHint: text("semantic_route_hint"),
+    embeddingProvider: text("embedding_provider").notNull().default("local_hash"),
+    embeddingModel: text("embedding_model").notNull().default("sportfolio-hash-384"),
+    embeddingVersion: text("embedding_version").notNull().default("2026-03-01"),
+    embedding: jsonb("embedding").$type<number[]>().notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    messageUniqueIdx: uniqueIndex("user_agent_message_embeddings_message_idx").on(table.messageId),
+    userCreatedIdx: index("user_agent_message_embeddings_user_created_idx").on(
+      table.userId,
+      table.createdAt,
+    ),
+    threadCreatedIdx: index("user_agent_message_embeddings_thread_created_idx").on(
+      table.threadId,
+      table.createdAt,
+    ),
+    routeCreatedIdx: index("user_agent_message_embeddings_route_created_idx").on(
+      table.semanticRouteHint,
+      table.createdAt,
+    ),
   }),
 );
 
@@ -1337,6 +1622,13 @@ export const usersRelations = relations(users, ({ many }) => ({
   boostPayouts: many(boostPayouts),
   sharePayouts: many(sharePayouts),
   communityBoosts: many(communityBoosts),
+  agentProfiles: many(userAgentProfiles),
+  agentSecrets: many(userAgentSecrets),
+  agentThreads: many(userAgentThreads),
+  agentRuns: many(userAgentRuns),
+  agentProposals: many(userAgentProposals),
+  agentActionBundles: many(userAgentActionBundles),
+  agentMessages: many(userAgentMessages),
   collections: many(userCollections),
   milestones: many(userMilestones),
 }));
@@ -1385,6 +1677,7 @@ export const playersRelations = relations(players, ({ many }) => ({
   gameStats: many(playerGameStats),
   priceHistory: many(priceHistory),
   sharePayouts: many(sharePayouts),
+  agentProposals: many(userAgentProposals),
 }));
 
 export const holdingsRelations = relations(holdings, ({ one }) => ({
@@ -1468,6 +1761,119 @@ export const sharePayoutsRelations = relations(sharePayouts, ({ one }) => ({
     references: [players.id],
   }),
 }));
+
+export const userAgentProfilesRelations = relations(userAgentProfiles, ({ one }) => ({
+  user: one(users, {
+    fields: [userAgentProfiles.userId],
+    references: [users.id],
+  }),
+}));
+
+export const userAgentSecretsRelations = relations(userAgentSecrets, ({ one }) => ({
+  user: one(users, {
+    fields: [userAgentSecrets.userId],
+    references: [users.id],
+  }),
+}));
+
+export const userAgentThreadsRelations = relations(userAgentThreads, ({ one, many }) => ({
+  user: one(users, {
+    fields: [userAgentThreads.userId],
+    references: [users.id],
+  }),
+  runs: many(userAgentRuns),
+  actionBundles: many(userAgentActionBundles),
+  messages: many(userAgentMessages),
+}));
+
+export const userAgentRunsRelations = relations(userAgentRuns, ({ one, many }) => ({
+  user: one(users, {
+    fields: [userAgentRuns.userId],
+    references: [users.id],
+  }),
+  thread: one(userAgentThreads, {
+    fields: [userAgentRuns.threadId],
+    references: [userAgentThreads.id],
+  }),
+  proposals: many(userAgentProposals),
+  actionBundles: many(userAgentActionBundles),
+  messages: many(userAgentMessages),
+}));
+
+export const userAgentProposalsRelations = relations(userAgentProposals, ({ one }) => ({
+  run: one(userAgentRuns, {
+    fields: [userAgentProposals.runId],
+    references: [userAgentRuns.id],
+  }),
+  user: one(users, {
+    fields: [userAgentProposals.userId],
+    references: [users.id],
+  }),
+  player: one(players, {
+    fields: [userAgentProposals.playerId],
+    references: [players.id],
+  }),
+}));
+
+export const userAgentActionBundlesRelations = relations(
+  userAgentActionBundles,
+  ({ one, many }) => ({
+    thread: one(userAgentThreads, {
+      fields: [userAgentActionBundles.threadId],
+      references: [userAgentThreads.id],
+    }),
+    user: one(users, {
+      fields: [userAgentActionBundles.userId],
+      references: [users.id],
+    }),
+    run: one(userAgentRuns, {
+      fields: [userAgentActionBundles.runId],
+      references: [userAgentRuns.id],
+    }),
+    messages: many(userAgentMessages),
+  }),
+);
+
+export const userAgentMessagesRelations = relations(userAgentMessages, ({ one }) => ({
+  thread: one(userAgentThreads, {
+    fields: [userAgentMessages.threadId],
+    references: [userAgentThreads.id],
+  }),
+  user: one(users, {
+    fields: [userAgentMessages.userId],
+    references: [users.id],
+  }),
+  run: one(userAgentRuns, {
+    fields: [userAgentMessages.runId],
+    references: [userAgentRuns.id],
+  }),
+  actionBundle: one(userAgentActionBundles, {
+    fields: [userAgentMessages.actionBundleId],
+    references: [userAgentActionBundles.id],
+  }),
+  embedding: one(userAgentMessageEmbeddings, {
+    fields: [userAgentMessages.id],
+    references: [userAgentMessageEmbeddings.messageId],
+  }),
+}));
+
+export const userAgentMessageEmbeddingsRelations = relations(
+  userAgentMessageEmbeddings,
+  ({ one }) => ({
+    message: one(userAgentMessages, {
+      fields: [userAgentMessageEmbeddings.messageId],
+      references: [userAgentMessages.id],
+    }),
+    thread: one(userAgentThreads, {
+      fields: [userAgentMessageEmbeddings.threadId],
+      references: [userAgentThreads.id],
+    }),
+    user: one(users, {
+      fields: [userAgentMessageEmbeddings.userId],
+      references: [users.id],
+    }),
+  }),
+);
 
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).pick({
@@ -1777,14 +2183,133 @@ export const insertTweetSettingsSchema = createInsertSchema(tweetSettings).omit(
 export type TweetSettings = typeof tweetSettings.$inferSelect;
 export type InsertTweetSettings = z.infer<typeof insertTweetSettingsSchema>;
 
+export const insertAgentSystemSettingsSchema = createInsertSchema(agentSystemSettings).omit({
+  id: true,
+  updatedAt: true,
+});
+
 // Tweet history schemas and types
 export const insertTweetHistorySchema = createInsertSchema(tweetHistory).omit({
   id: true,
   createdAt: true,
 });
 
+export const insertUserAgentProfileSchema = createInsertSchema(userAgentProfiles).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertUserAgentSecretSchema = createInsertSchema(userAgentSecrets).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  rotatedAt: true,
+});
+
+export const insertUserAgentThreadSchema = createInsertSchema(userAgentThreads).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  lastMessageAt: true,
+});
+
+export const insertUserAgentRunSchema = createInsertSchema(userAgentRuns).omit({
+  id: true,
+  createdAt: true,
+  completedAt: true,
+});
+
+export const insertUserAgentProposalSchema = createInsertSchema(userAgentProposals).omit({
+  id: true,
+  createdAt: true,
+  approvedAt: true,
+  appliedAt: true,
+});
+
+export const insertUserAgentActionBundleSchema = createInsertSchema(userAgentActionBundles).omit({
+  id: true,
+  createdAt: true,
+  confirmedAt: true,
+  appliedAt: true,
+  updatedAt: true,
+});
+
+export const insertUserAgentMessageSchema = createInsertSchema(userAgentMessages).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertUserAgentMessageEmbeddingSchema = createInsertSchema(
+  userAgentMessageEmbeddings,
+).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const updateUserAgentProfileInputSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    displayName: z.string().trim().min(1).max(80).optional(),
+    providerMode: z.enum(["managed", "byok"]).optional(),
+    model: z.string().trim().min(1).max(120).optional(),
+    systemPrompt: z.string().trim().min(1).max(4000).optional(),
+    userPromptTemplate: z.string().trim().min(1).max(4000).optional(),
+    temperature: z.number().min(0).max(1).optional(),
+    maxTokens: z.number().int().min(200).max(4000).optional(),
+    analysisWindowMinutes: z.number().int().min(60).max(10080).optional(),
+    defaultSport: z.enum(["NBA", "NFL", "MLB", "NASCAR"]).nullable().optional(),
+  })
+  .strict();
+
+export const userAgentByokInputSchema = z
+  .object({
+    apiKey: z.string().trim().min(1).max(500),
+    baseUrl: z.string().trim().min(1).max(512),
+    model: z.string().trim().min(1).max(120),
+  })
+  .strict();
+
+export const updateAgentSystemSettingsInputSchema = z
+  .object({
+    managedProvider: z.enum(["chutes", "minimax", "openrouter"]),
+    managedModel: z.string().trim().min(1).max(160).nullable().optional(),
+  })
+  .strict();
+
 export type TweetHistory = typeof tweetHistory.$inferSelect;
 export type InsertTweetHistory = z.infer<typeof insertTweetHistorySchema>;
+
+export type AgentSystemSettings = typeof agentSystemSettings.$inferSelect;
+export type InsertAgentSystemSettings = z.infer<typeof insertAgentSystemSettingsSchema>;
+
+export type UserAgentProfile = typeof userAgentProfiles.$inferSelect;
+export type InsertUserAgentProfile = z.infer<typeof insertUserAgentProfileSchema>;
+
+export type UserAgentSecret = typeof userAgentSecrets.$inferSelect;
+export type InsertUserAgentSecret = z.infer<typeof insertUserAgentSecretSchema>;
+
+export type UserAgentThread = typeof userAgentThreads.$inferSelect;
+export type InsertUserAgentThread = z.infer<typeof insertUserAgentThreadSchema>;
+
+export type UserAgentRun = typeof userAgentRuns.$inferSelect;
+export type InsertUserAgentRun = z.infer<typeof insertUserAgentRunSchema>;
+
+export type UserAgentProposal = typeof userAgentProposals.$inferSelect;
+export type InsertUserAgentProposal = z.infer<typeof insertUserAgentProposalSchema>;
+
+export type UserAgentActionBundle = typeof userAgentActionBundles.$inferSelect;
+export type InsertUserAgentActionBundle = z.infer<typeof insertUserAgentActionBundleSchema>;
+
+export type UserAgentMessage = typeof userAgentMessages.$inferSelect;
+export type InsertUserAgentMessage = z.infer<typeof insertUserAgentMessageSchema>;
+
+export type UserAgentMessageEmbedding = typeof userAgentMessageEmbeddings.$inferSelect;
+export type InsertUserAgentMessageEmbedding = z.infer<typeof insertUserAgentMessageEmbeddingSchema>;
+
+export type UpdateUserAgentProfileInput = z.infer<typeof updateUserAgentProfileInputSchema>;
+export type UserAgentByokInput = z.infer<typeof userAgentByokInputSchema>;
+export type UpdateAgentSystemSettingsInput = z.infer<typeof updateAgentSystemSettingsInputSchema>;
 
 // News feed types
 export type NewsFeed = typeof newsFeed.$inferSelect;

@@ -8,7 +8,7 @@ Sportfolio combines:
 
 1. Instant sports-player trading (AMM pools)
 2. Passive share generation (scouts + vesting)
-3. Competitive outcomes (contests + boosts)
+3. Competitive outcomes (daily boosts + community boosts)
 
 Primary user outcome: grow portfolio value and cash balance through better player/game decisions.
 
@@ -16,7 +16,7 @@ Primary user outcome: grow portfolio value and cash balance through better playe
 
 - Server job schedules run in `America/New_York`.
 - Game-day boundaries use ET helpers (`getETDayBoundaries`, `getGameDay`).
-- Many daily mechanics (boosts, contests) are date-sensitive to ET day windows.
+- Many daily mechanics (boosts, community boosts) are date-sensitive to ET day windows.
 
 ## Core Loops
 
@@ -96,23 +96,7 @@ Critical invariants:
 - Respect cap limits and residual handling.
 - Reset/advance accrual baselines carefully on claim/redeem/start.
 
-## 5) Contest Loop
-
-Source: `server/routes.ts` (`/api/contest*`, `/api/contests*`), `server/contest-scoring.ts`
-
-- Entry requires available shares and burns entered shares from holdings.
-- Contest score per lineup row is proportional ownership of player fantasy points:
-  - `earnedScore = (sharesEntered / totalSharesForPlayerInContest) * fantasyPoints`
-- Settlement currently targets 50/50 structure:
-  - winners = `ceil(totalEntries / 2)`
-  - each winner receives equal split of prize pool.
-
-Critical invariants:
-
-- Never settle if all scores are zero (guard against unsynced stats).
-- Keep entry lock/start-time and status transitions (`open -> live -> completed`) intact.
-
-## 6) Daily Boost Loop
+## 5) Daily Boost Loop
 
 Source: `server/routes.ts` (`/api/daily-boosts*`), `server/jobs/lock-boost-shares.ts`, `server/jobs/settle-boosts.ts`, `server/storage.ts`
 
@@ -131,7 +115,7 @@ Critical invariants:
 - Do not allow multi-share boost entries.
 - Do not settle before game completion/stats availability.
 
-## 7) Community Boost Loop
+## 6) Community Boost Loop
 
 Source: `server/routes.ts` (`/api/community-boosts*`), `server/jobs/settle-community-boosts.ts`, `shared/schema.ts`
 
@@ -158,3 +142,4 @@ Critical invariants:
 
 - If mechanics in UI copy conflict with backend behavior, backend route/job code is authoritative.
 - Any change to formulas, burn/credit behavior, or caps requires runbook validation in `docs/agent/runbooks.md`.
+- Legacy contest code still exists in the repo, but contests are archived and not part of the active product or the agent capability surface.

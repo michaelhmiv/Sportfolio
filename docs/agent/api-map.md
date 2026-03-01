@@ -106,23 +106,9 @@ Source: `server/routes/lp.ts`
 | GET    | `/api/scouts/velocity/:playerId` | Public          | Velocity signal by player       |
 | GET    | `/api/scouts/trending`           | Public          | Trending scout player IDs       |
 
-## Contest Endpoints
+## Legacy Contest Endpoints (Archived)
 
-| Method | Path                                       | Auth            | Purpose                                    |
-| ------ | ------------------------------------------ | --------------- | ------------------------------------------ |
-| GET    | `/api/contests`                            | optionalAuth    | Contest list + user context when logged in |
-| GET    | `/api/contests/entries`                    | isAuthenticated | Current user's contest entries             |
-| GET    | `/api/contest/:id/entry`                   | isAuthenticated | Eligibility + entry prep data              |
-| POST   | `/api/contest/:id/enter`                   | isAuthenticated | Submit contest lineup                      |
-| GET    | `/api/contest/:contestId/entry/:entryId`   | isAuthenticated | Editable entry payload                     |
-| PUT    | `/api/contest/:contestId/entry/:entryId`   | isAuthenticated | Edit existing entry                        |
-| GET    | `/api/contest/:contestId/entries/:entryId` | Public          | Entry details endpoint                     |
-| GET    | `/api/contest/:id/leaderboard`             | optionalAuth    | Contest leaderboard                        |
-| GET    | `/api/leaderboards`                        | Public          | Cross-user leaderboards                    |
-
-Important behavior:
-
-- Contest entry flow validates available shares and burns entered shares from holdings.
+Contest routes still exist in the codebase as legacy paths, but contests are archived and are out of the active product surface and agent scope.
 
 ## Daily & Community Boost Endpoints
 
@@ -163,12 +149,16 @@ Important behavior:
 
 Representative endpoints (not exhaustive):
 
+- `GET /api/admin/agent/settings` (adminAuth)
+- `PATCH /api/admin/agent/settings` (adminAuth)
+- `GET /api/admin/agent/providers/:provider/models` (adminAuth)
+- `GET /api/admin/agent/question-logs` (adminAuth, returns recent prompts plus exact-frequency rollups, semantic route counts, and semantic clusters)
 - `POST /api/admin/jobs/trigger` (adminAuth)
 - `POST /api/admin/jobs/:jobName/trigger` (isAuthenticated + admin checks in handler path)
 - `GET /api/admin/diagnostics` (adminAuth)
 - `GET /api/admin/route-smoke` (adminAuth)
 - `POST /api/admin/backfill` (adminAuth)
-- `POST /api/admin/contests/:id/rescore` (adminAuth)
+- Legacy archived contest admin paths still exist in code but are out of current agent scope
 
 Treat admin endpoints as production-impacting operations.
 
@@ -182,8 +172,6 @@ Published event types include:
 - `scouts`
 - `trade`
 - `liveStats`
-- `contestUpdate`
-- `contestSettled`
 - `scout_payout`
 - `boost_settled`
 - `COMMUNITY_BOOST_SETTLED`
@@ -195,3 +183,5 @@ Published event types include:
 - `trending_players_update`
 
 Reference: `server/websocket.ts`.
+
+Legacy contest websocket event names still exist in the server code, but contests are archived and should not be treated as an active agent capability.

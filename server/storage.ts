@@ -987,87 +987,99 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Scout Engine methods
-  async assignScouts(userId: string, playerId: string, count: number): Promise<void> {
-    // Use transaction to ensure atomic check-and-update
-    await db.transaction(async (tx) => {
-      // Get user to check premium status
-      const [user] = await tx.select().from(users).where(eq(users.id, userId));
-      if (!user) {
-        throw new Error("User not found");
-      }
+  private async assignScoutsInTransaction(
+    tx: any,
+    userId: string,
+    playerId: string,
+    count: number,
+  ): Promise<void> {
+    const [user] = await tx.select().from(users).where(eq(users.id, userId));
+    if (!user) {
+      throw new Error("User not found");
+    }
 
-      const maxScouts = user.isPremium ? 10 : 5;
+    const maxScouts = user.isPremium ? 10 : 5;
 
-      // Get current total scouts for user (excluding current player if exists)
-      const currentAssignments = await tx
-        .select({ totalScouts: sql<number>`COALESCE(SUM(${scoutAssignments.scoutCount}), 0)` })
-        .from(scoutAssignments)
-        .where(
-          and(
-            eq(scoutAssignments.userId, userId),
-            sql`${scoutAssignments.playerId} != ${playerId}`,
-          ),
-        );
+    const currentAssignments = await tx
+      .select({ totalScouts: sql<number>`COALESCE(SUM(${scoutAssignments.scoutCount}), 0)` })
+      .from(scoutAssignments)
+      .where(
+        and(eq(scoutAssignments.userId, userId), sql`${scoutAssignments.playerId} != ${playerId}`),
+      );
 
-      const currentTotal = Number(currentAssignments[0]?.totalScouts || 0);
-      const newTotal = currentTotal + count;
+    const currentTotal = Number(currentAssignments[0]?.totalScouts || 0);
+    const newTotal = currentTotal + count;
 
-      // Validate scout limit
-      if (newTotal > maxScouts) {
-        throw new Error(
-          `Scout limit exceeded. Maximum: ${maxScouts}, Current: ${currentTotal}, Requested: ${count}`,
-        );
-      }
+    if (newTotal > maxScouts) {
+      throw new Error(
+        `Scout limit exceeded. Maximum: ${maxScouts}, Current: ${currentTotal}, Requested: ${count}`,
+      );
+    }
 
-      if (count === 0) {
-        // Delete assignment if count is 0
-        await tx
-          .delete(scoutAssignments)
-          .where(and(eq(scoutAssignments.userId, userId), eq(scoutAssignments.playerId, playerId)));
-      } else {
-        // Upsert: insert or update
-        await tx
-          .insert(scoutAssignments)
-          .values({
-            userId,
-            playerId,
-            scoutCount: count,
-          })
-          .onConflictDoUpdate({
-            target: [scoutAssignments.userId, scoutAssignments.playerId],
-            set: {
-              scoutCount: count,
-              updatedAt: new Date(),
-            },
-          });
-      }
-
-      // HISTORY LOGGING (Time-Weighted Scouts)
-      // 1. Close any currently active history for this user/player
+    if (count === 0) {
       await tx
-        .update(scoutHistory)
-        .set({ endedAt: new Date() })
-        .where(
-          and(
-            eq(scoutHistory.userId, userId),
-            eq(scoutHistory.playerId, playerId),
-            sql`${scoutHistory.endedAt} IS NULL`,
-          ),
-        );
-
-      // 2. Open new history record if count > 0
-      if (count > 0) {
-        await tx.insert(scoutHistory).values({
+        .delete(scoutAssignments)
+        .where(and(eq(scoutAssignments.userId, userId), eq(scoutAssignments.playerId, playerId)));
+    } else {
+      await tx
+        .insert(scoutAssignments)
+        .values({
           userId,
           playerId,
           scoutCount: count,
-          startedAt: new Date(), // Defaults to NOW(), explicit for clarity
+        })
+        .onConflictDoUpdate({
+          target: [scoutAssignments.userId, scoutAssignments.playerId],
+          set: {
+            scoutCount: count,
+            updatedAt: new Date(),
+          },
         });
-      }
+    }
 
-      // Update user's lastActiveAt to prevent 24h cleanup kill-switch
-      // This ensures users who assign scouts stay eligible for distributions
-      await tx.update(users).set({ lastActiveAt: new Date() }).where(eq(users.id, userId));
+    await tx
+      .update(scoutHistory)
+      .set({ endedAt: new Date() })
+      .where(
+        and(
+          eq(scoutHistory.userId, userId),
+          eq(scoutHistory.playerId, playerId),
+          sql`${scoutHistory.endedAt} IS NULL`,
+        ),
+      );
+
+    if (count > 0) {
+      await tx.insert(scoutHistory).values({
+        userId,
+        playerId,
+        scoutCount: count,
+        startedAt: new Date(),
+      });
+    }
+
+    await tx.update(users).set({ lastActiveAt: new Date() }).where(eq(users.id, userId));
+  }
+
+  async assignScouts(userId: string, playerId: string, count: number): Promise<void> {
+    await db.transaction(async (tx) => {
+      await this.assignScoutsInTransaction(tx, userId, playerId, count);
+    });
+  }
+
+  async applyScoutAssignments(
+    userId: string,
+    assignments: Array<{ playerId: string; count: number }>,
+  ): Promise<void> {
+    if (assignments.length === 0) {
+      return;
+    }
+
+    const orderedAssignments = [...assignments].sort((a, b) => a.count - b.count);
+
+    await db.transaction(async (tx) => {
+      for (const assignment of orderedAssignments) {
+        await this.assignScoutsInTransaction(tx, userId, assignment.playerId, assignment.count);
+      }
     });
   }
 

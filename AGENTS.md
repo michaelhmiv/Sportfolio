@@ -78,8 +78,8 @@ Power is modeled per holding row and directly impacts boost payouts.
 ### Condense mechanic
 
 - Route: `POST /api/holdings/condense`
-- Rule: `sharesToCondense` must be `>= 5` and divisible by `5`.
-- Conversion ratio: `5 raw shares -> +1 power gained`.
+- Rule: `sharesToCondense` must be `>= 2` and divisible by `2`.
+- Conversion ratio: `2 raw shares -> +1 power gained`.
 - Storage behavior (`condenseShares`):
   - debits regular shares (`power=1`) after lock checks,
   - creates/updates powered row (`power > 1`),

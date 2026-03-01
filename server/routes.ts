@@ -61,6 +61,33 @@ import {
   runApiHealthCheck,
   toApiHealthJobResult,
 } from "./health/api-health-check";
+import {
+  clearScoutAgentByok,
+  getAgentCapabilities,
+  getScoutAgentProfile,
+  saveScoutAgentByok,
+  updateScoutAgentProfile,
+} from "./agent/service";
+import {
+  cancelAgentThread,
+  confirmAgentThread,
+  createAgentThread,
+  ensureAgentThreadSchema,
+  getAgentThread,
+  getAgentQuestionLogs,
+  listAgentThreadResearchSources,
+  listAgentThreadMessages,
+  listAgentThreads,
+  sendAgentThreadMessage,
+} from "./agent/thread-service";
+import {
+  ensureAgentSystemSettingsSchema,
+  getAgentSystemSettings,
+  updateAgentSystemSettings,
+} from "./agent/system-settings";
+import { getManagedProviderModelCatalog } from "./agent/model-catalog";
+import { isManagedProviderKey } from "./agent/provider-registry";
+import { ensureAgentSemanticSchema } from "./agent/semantic-router";
 
 // Feature flags - set to false to disable features
 const CONTESTS_ENABLED = false; // DISABLED - contests feature removed
@@ -301,6 +328,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   await ensureLpFeeGrowthColumns();
 
+  try {
+    await ensureAgentThreadSchema();
+  } catch (err: any) {
+    console.warn("[DB] Could not ensure agent thread schema:", err?.message || err);
+  }
+
+  try {
+    await ensureAgentSemanticSchema();
+  } catch (err: any) {
+    console.warn("[DB] Could not ensure agent semantic schema:", err?.message || err);
+  }
+
+  try {
+    await ensureAgentSystemSettingsSchema();
+  } catch (err: any) {
+    console.warn("[DB] Could not ensure agent system settings schema:", err?.message || err);
+  }
+
   // Scout Status Endpoint (Placed early to avoid shadowing)
   app.get("/api/scouts/status", isAuthenticated, async (req, res) => {
     try {
@@ -364,6 +409,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
       throw new Error("User not authenticated");
     }
     return req.user.claims.sub;
+  };
+
+  const normalizeAgentErrorMessage = (error: any): string => {
+    const message = String(error?.message || "Agent request failed");
+    const normalized = message.toLowerCase();
+
+    if (
+      (normalized.includes("relation") || normalized.includes("column")) &&
+      normalized.includes("does not exist")
+    ) {
+      return "Agent database schema is missing or outdated. Apply the latest migration and restart the server.";
+    }
+
+    return message;
+  };
+
+  const getAgentErrorStatus = (error: any): number => {
+    const message = normalizeAgentErrorMessage(error).toLowerCase();
+
+    if (message.includes("not found")) {
+      return 404;
+    }
+
+    if (message.includes("schema is missing or outdated")) {
+      return 503;
+    }
+
+    if (
+      message.includes("rate limit") ||
+      message.includes("already running") ||
+      message.includes("disabled") ||
+      message.includes("configured") ||
+      message.includes("missing a default model") ||
+      message.includes("invalid") ||
+      message.includes("must") ||
+      message.includes("exceeds") ||
+      message.includes("duplicate") ||
+      message.includes("unsupported") ||
+      message.includes("no pending") ||
+      message.includes("only completed")
+    ) {
+      return 400;
+    }
+
+    return 500;
   };
 
   const buildGameInsights = async ({
@@ -2616,6 +2706,7 @@ ${items}
         lapsCompleted?: number;
         lapsLedCount?: number;
         lapsLed?: number;
+        flagState?: number;
         flagStateDescription?: string;
         lapsToGo?: number;
         lapNumber?: number;
@@ -2739,14 +2830,17 @@ ${items}
             // Get lap info from stats for flag state check
             const mostRecentStat = raceStats[0];
             const latestStats = mostRecentStat ? getNascarStats(mostRecentStat.statsJson) : {};
+            const numericFlagState =
+              typeof latestStats.flagState === "number" ? latestStats.flagState : null;
             const flagState = latestStats.flagStateDescription;
             const lapsToGo = latestStats.lapsToGo;
 
-            // Check if race is finished (checkered flag or 0 laps to go)
+            // Check if race is finished (terminal flag state or 0 laps to go)
             const isRaceFinished =
+              numericFlagState === 4 ||
+              numericFlagState === 9 ||
               flagState === "Checkered" ||
-              flagState === "FINISHED" ||
-              flagState === "White" ||
+              flagState === "Final" ||
               lapsToGo === 0;
 
             if (isRaceFinished) {
@@ -6048,6 +6142,216 @@ ${items}
     } catch (err: any) {
       console.error("Debug check failed:", err);
       res.status(500).json({ error: err.message });
+    }
+  });
+
+  // =====================
+  // User Agent API Routes
+  // =====================
+  app.get("/api/agent/profile", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const profile = await getScoutAgentProfile(userId);
+      res.json(profile);
+    } catch (error: any) {
+      const message = normalizeAgentErrorMessage(error);
+      console.error("[Agent API] Error fetching profile:", message);
+      res.status(getAgentErrorStatus(error)).json({ error: message });
+    }
+  });
+
+  app.get("/api/agent/capabilities", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const capabilities = await getAgentCapabilities(userId);
+      res.json(capabilities);
+    } catch (error: any) {
+      const message = normalizeAgentErrorMessage(error);
+      console.error("[Agent API] Error fetching capabilities:", message);
+      res.status(getAgentErrorStatus(error)).json({ error: message });
+    }
+  });
+
+  app.put("/api/agent/profile", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const profile = await updateScoutAgentProfile(userId, req.body);
+      res.json(profile);
+    } catch (error: any) {
+      const message = normalizeAgentErrorMessage(error);
+      console.error("[Agent API] Error updating profile:", message);
+      res.status(getAgentErrorStatus(error)).json({ error: message });
+    }
+  });
+
+  app.put("/api/agent/byok-key", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const profile = await saveScoutAgentByok(userId, req.body);
+      res.json(profile);
+    } catch (error: any) {
+      const message = normalizeAgentErrorMessage(error);
+      console.error("[Agent API] Error saving BYOK:", message);
+      res.status(getAgentErrorStatus(error)).json({ error: message });
+    }
+  });
+
+  app.delete("/api/agent/byok-key", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const profile = await clearScoutAgentByok(userId);
+      res.json(profile);
+    } catch (error: any) {
+      const message = normalizeAgentErrorMessage(error);
+      console.error("[Agent API] Error clearing BYOK:", message);
+      res.status(getAgentErrorStatus(error)).json({ error: message });
+    }
+  });
+
+  app.get("/api/agent/threads", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const threads = await listAgentThreads(userId);
+      res.json(threads);
+    } catch (error: any) {
+      const message = normalizeAgentErrorMessage(error);
+      console.error("[Agent API] Error listing threads:", message);
+      res.status(getAgentErrorStatus(error)).json({ error: message });
+    }
+  });
+
+  app.post("/api/agent/threads", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const thread = await createAgentThread(userId, req.body ?? {});
+      res.json(thread);
+    } catch (error: any) {
+      const message = normalizeAgentErrorMessage(error);
+      console.error("[Agent API] Error creating thread:", message);
+      res.status(getAgentErrorStatus(error)).json({ error: message });
+    }
+  });
+
+  app.get("/api/agent/threads/:threadId", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const thread = await getAgentThread(userId, req.params.threadId);
+      res.json(thread);
+    } catch (error: any) {
+      const message = normalizeAgentErrorMessage(error);
+      console.error("[Agent API] Error fetching thread:", message);
+      res.status(getAgentErrorStatus(error)).json({ error: message });
+    }
+  });
+
+  app.get("/api/agent/threads/:threadId/messages", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const messages = await listAgentThreadMessages(userId, req.params.threadId);
+      res.json(messages);
+    } catch (error: any) {
+      const message = normalizeAgentErrorMessage(error);
+      console.error("[Agent API] Error listing thread messages:", message);
+      res.status(getAgentErrorStatus(error)).json({ error: message });
+    }
+  });
+
+  app.get("/api/agent/threads/:threadId/research-sources", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const citations = await listAgentThreadResearchSources(userId, req.params.threadId);
+      res.json(citations);
+    } catch (error: any) {
+      const message = normalizeAgentErrorMessage(error);
+      console.error("[Agent API] Error listing thread research sources:", message);
+      res.status(getAgentErrorStatus(error)).json({ error: message });
+    }
+  });
+
+  app.post("/api/agent/threads/:threadId/messages", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const result = await sendAgentThreadMessage(userId, req.params.threadId, req.body ?? {});
+      res.json(result);
+    } catch (error: any) {
+      const message = normalizeAgentErrorMessage(error);
+      console.error("[Agent API] Error sending thread message:", message);
+      res.status(getAgentErrorStatus(error)).json({ error: message });
+    }
+  });
+
+  app.post("/api/agent/threads/:threadId/confirm", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const result = await confirmAgentThread(userId, req.params.threadId);
+      res.json(result);
+    } catch (error: any) {
+      const message = normalizeAgentErrorMessage(error);
+      console.error("[Agent API] Error confirming thread plan:", message);
+      res.status(getAgentErrorStatus(error)).json({ error: message });
+    }
+  });
+
+  app.post("/api/agent/threads/:threadId/cancel", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const result = await cancelAgentThread(userId, req.params.threadId);
+      res.json(result);
+    } catch (error: any) {
+      const message = normalizeAgentErrorMessage(error);
+      console.error("[Agent API] Error canceling thread plan:", message);
+      res.status(getAgentErrorStatus(error)).json({ error: message });
+    }
+  });
+
+  app.get("/api/admin/agent/settings", adminAuth, async (_req, res) => {
+    try {
+      const settings = await getAgentSystemSettings();
+      res.json(settings);
+    } catch (error: any) {
+      const message = normalizeAgentErrorMessage(error);
+      console.error("[Admin Agent API] Error fetching settings:", message);
+      res.status(getAgentErrorStatus(error)).json({ error: message });
+    }
+  });
+
+  app.patch("/api/admin/agent/settings", adminAuth, async (req, res) => {
+    try {
+      const settings = await updateAgentSystemSettings(req.body ?? {});
+      res.json(settings);
+    } catch (error: any) {
+      const message = normalizeAgentErrorMessage(error);
+      console.error("[Admin Agent API] Error updating settings:", message);
+      res.status(getAgentErrorStatus(error)).json({ error: message });
+    }
+  });
+
+  app.get("/api/admin/agent/providers/:provider/models", adminAuth, async (req, res) => {
+    try {
+      const providerKey = String(req.params.provider || "")
+        .trim()
+        .toLowerCase();
+      if (!isManagedProviderKey(providerKey)) {
+        return res.status(400).json({ error: "Invalid managed provider" });
+      }
+
+      const catalog = await getManagedProviderModelCatalog(providerKey);
+      res.json(catalog);
+    } catch (error: any) {
+      const message = normalizeAgentErrorMessage(error);
+      console.error("[Admin Agent API] Error fetching provider models:", message);
+      res.status(getAgentErrorStatus(error)).json({ error: message });
+    }
+  });
+
+  app.get("/api/admin/agent/question-logs", adminAuth, async (_req, res) => {
+    try {
+      const logs = await getAgentQuestionLogs();
+      res.json(logs);
+    } catch (error: any) {
+      const message = normalizeAgentErrorMessage(error);
+      console.error("[Admin Agent API] Error fetching question logs:", message);
+      res.status(getAgentErrorStatus(error)).json({ error: message });
     }
   });
 

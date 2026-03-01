@@ -16,35 +16,30 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/hooks/useAuth";
 import { useScout } from "@/lib/scout-context";
 import { useWebSocket } from "@/lib/websocket";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
 import {
   Binoculars,
-  Crown,
   TrendingUp,
   Search,
   Plus,
   Minus,
   ArrowUpDown,
-  Filter,
   Loader2,
   Info,
   ChevronDown,
   ChevronUp,
-  Users,
-  Clock,
+  Sparkles,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Select,
@@ -54,6 +49,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { format } from "date-fns";
+import { useLocation } from "wouter";
 import type { Player } from "@shared/schema";
 import { PlayerName } from "@/components/player-name";
 
@@ -229,9 +225,9 @@ function HowItWorks() {
 // --- Main Component ---
 export function ScoutDashboardModal() {
   const { isScoutDashboardOpen, closeScoutDashboard } = useScout();
-  const { user } = useAuth();
   const { toast } = useToast();
   const { subscribe } = useWebSocket();
+  const [, navigate] = useLocation();
 
   // Listen for real-time scout updates
   useEffect(() => {
@@ -271,7 +267,7 @@ export function ScoutDashboardModal() {
   // State
   const [searchQuery, setSearchQuery] = useState("");
   const [sportFilter, setSportFilter] = useState<string>("all");
-  const [positionFilter, setPositionFilter] = useState<string>("ALL");
+  const [positionFilter] = useState<string>("ALL");
   const [gameStatusFilter, setGameStatusFilter] = useState<string>("all"); // Filter by game status
   const [sortField, setSortField] = useState<SortField>("volume");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
@@ -333,28 +329,8 @@ export function ScoutDashboardModal() {
     refetchInterval: 60000, // Refresh every minute
   });
 
-  const [timeLeft, setTimeLeft] = useState("");
-
-  useEffect(() => {
-    if (!scoutStatus?.nextDistribution) return;
-    const interval = setInterval(() => {
-      const now = new Date();
-      const target = new Date(scoutStatus.nextDistribution);
-      const diff = target.getTime() - now.getTime();
-
-      if (diff <= 0) {
-        setTimeLeft("Distributing...");
-      } else {
-        const minutes = Math.floor(diff / 60000);
-        const seconds = Math.floor((diff % 60000) / 1000);
-        setTimeLeft(`${minutes}:${seconds.toString().padStart(2, "0")}`);
-      }
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [scoutStatus?.nextDistribution]);
-
   // 2. Fetch User Portfolio
-  const { data: portfolioData, isLoading: isLoadingPortfolio } = useQuery<{ holdings: Holding[] }>({
+  const { data: portfolioData } = useQuery<{ holdings: Holding[] }>({
     queryKey: ["/api/portfolio"],
     enabled: isScoutDashboardOpen,
   });
@@ -461,12 +437,6 @@ export function ScoutDashboardModal() {
   const remaining = scoutData?.remaining || 0;
   const isPremium = scoutData?.isPremium || false;
   const assignments = scoutData?.assignments || [];
-  const estimatedSharesPerHour = assignments
-    .reduce((acc, curr) => {
-      if (curr.globalScoutCount === 0) return acc;
-      return acc + (curr.scoutCount / curr.globalScoutCount) * 60;
-    }, 0)
-    .toFixed(1);
 
   // Helper to compute game status for a player
   const getGameStatusForPlayer = (
@@ -711,6 +681,18 @@ export function ScoutDashboardModal() {
                 </DialogDescription>
               </div>
             </div>
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-2"
+              onClick={() => {
+                closeScoutDashboard();
+                navigate("/agent");
+              }}
+            >
+              <Sparkles className="h-4 w-4" />
+              Open Agent
+            </Button>
           </div>
           {/* Compact Capacity Bar & Status */}
           <div className="bg-card border rounded-md p-2 shadow-sm space-y-2">

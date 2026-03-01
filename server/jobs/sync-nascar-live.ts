@@ -16,6 +16,7 @@ import {
   NascarSeriesId,
   NascarLiveFeed,
   getFlagStateDescription,
+  isNascarRaceFinished,
 } from "../nascar-api";
 import type { JobResult } from "./scheduler";
 import type { ProgressCallback } from "../lib/admin-stream";
@@ -189,7 +190,7 @@ export async function syncNascarLiveForSeries(
 
     isLive = true;
     const flagStateDesc = getFlagStateDescription(liveFeed.flag_state);
-    const isRaceFinished = liveFeed.flag_state === 4; // 4 = Checkered flag = race finished
+    const isRaceFinished = isNascarRaceFinished(liveFeed);
 
     // Update the dailyGames status - mark as completed if checkered flag, otherwise inprogress
     const gameId = createNascarGameId(liveFeed.race_id, seriesId);

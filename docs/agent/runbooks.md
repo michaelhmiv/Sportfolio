@@ -40,26 +40,11 @@ Must-verify behaviors:
 - Buy and sell fees reconcile with pool and burn fee fields.
 - LP add/remove and zap paths still produce valid ownership and outputs.
 
-## Runbook B: Contest Scoring / Settlement Changes
+## Runbook B: Legacy Contest Code (Archived)
 
-Primary files:
+Contest code still exists in the repo, but contests are archived and not part of the active product or agent capability surface.
 
-- `server/contest-scoring.ts`
-- `server/jobs/settle-contests.ts`
-- `server/routes.ts` (`/api/contest*`, `/api/contests*`)
-
-Checklist:
-
-1. Preserve proportional scoring model unless explicitly changing game design.
-2. Keep status gating (`open/live/completed`) and lock-time rules.
-3. Keep zero-score settlement safety guard (stats not synced case).
-4. Re-validate share burn behavior on entry/update flows.
-
-Must-verify behaviors:
-
-- Leaderboard ranking is deterministic by total score.
-- Winner count/payout split remains internally consistent.
-- Settlement remains idempotent (no double-pay on rerun).
+Do not expand contest behavior for the agent. If legacy contest code must be touched for maintenance, treat it as archival compatibility work only.
 
 ## Runbook C: Boost Eligibility / Payout Changes
 
@@ -121,21 +106,19 @@ Checklist:
 
 ## Validation Matrix by Change Type
 
-| Change Type     | Required Checks                                                               |
-| --------------- | ----------------------------------------------------------------------------- |
-| AMM/LP math     | unit tests touching pool math, quote-vs-execution sanity, lint/typecheck      |
-| Contest scoring | settlement path tests, status transition tests, zero-score guard verification |
-| Boost mechanics | assignment constraints, lock job behavior, payout formula reconciliation      |
-| Vesting logic   | accrual utility behavior, cap behavior, claim/redeem state updates            |
-| Auth changes    | route protection audit + negative-path auth checks                            |
+| Change Type     | Required Checks                                                          |
+| --------------- | ------------------------------------------------------------------------ |
+| AMM/LP math     | unit tests touching pool math, quote-vs-execution sanity, lint/typecheck |
+| Boost mechanics | assignment constraints, lock job behavior, payout formula reconciliation |
+| Vesting logic   | accrual utility behavior, cap behavior, claim/redeem state updates       |
+| Auth changes    | route protection audit + negative-path auth checks                       |
 
 ## Manual Smoke Scenarios (Recommended)
 
 1. Buy/sell one player, verify portfolio and pool updates.
 2. Assign scouts, trigger/await distribution window, verify new shares.
-3. Enter contest, verify shares decrease and leaderboard updates after settlement.
-4. Create daily boost before game, verify lock + settle lifecycle.
-5. Claim/redeem vesting shares and verify holdings + vesting reset behavior.
+3. Create daily boost before game, verify lock + settle lifecycle.
+4. Claim/redeem vesting shares and verify holdings + vesting reset behavior.
 
 ## Documentation Sync Rule
 

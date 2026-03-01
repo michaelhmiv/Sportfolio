@@ -1,19 +1,18 @@
-import { defineConfig } from "vitest/config";
+import react from "@vitejs/plugin-react";
 import path from "path";
+import { configDefaults, defineConfig } from "vitest/config";
 
 export default defineConfig({
+  plugins: [react()],
+  resolve: {
+    alias: {
+      "@": path.resolve(import.meta.dirname, "client", "src"),
+      "@shared": path.resolve(import.meta.dirname, "shared"),
+      "@assets": path.resolve(import.meta.dirname, "attached_assets"),
+    },
+  },
   test: {
     globals: true,
-    environment: "node",
-    include: ["**/*.test.ts", "**/*.spec.ts"],
-    exclude: ["node_modules", "dist", "tests/e2e"],
-    coverage: {
-      reporter: ["text", "html"],
-      exclude: ["node_modules/", "dist/", "**/*.test.ts", "**/*.spec.ts"],
-    },
-    // Alias resolution matching main project
-    alias: {
-      "@shared": path.resolve(__dirname, "./shared"),
-    },
+    exclude: [...configDefaults.exclude, "vendor/**", "**/vendor/**", "tests/e2e/**"],
   },
 });
