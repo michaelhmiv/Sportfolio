@@ -13,9 +13,9 @@ surface: web,cli,agent
 searchKeywords: agent,operator,confirmation,brave search,byok
 ---
 
-# Thin operator model
+# Hermes-backed operator model
 
-The Sportfolio agent is an operating partner, not an autonomous trader. It can analyze, explain, research current information, and stage supported actions. Mutations still require explicit confirmation.
+The Sportfolio agent is an operating partner, not an autonomous trader. Hermes now orchestrates the live user-agent runtime for memory, continuity, scheduling, and tool use, while Sportfolio still owns validation and execution. The agent can analyze, explain, research current information, and stage supported actions. Mutations still require explicit confirmation.
 
 # Canonical knowledge source
 

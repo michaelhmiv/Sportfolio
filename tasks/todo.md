@@ -364,3 +364,25 @@
 - [x] Harden SMS consent and dedupe handling for unknown STOP/START flows and missing provider event ids
 - [x] Limit guest SMS/wiki agent grounding to public-only knowledge while preserving authenticated agent context
 - [x] Validate via `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`
+
+## 2026-03-02 Hermes Orchestrator Cutover
+
+- [x] Add Hermes runtime fields and durable agent-memory persistence to the canonical schema and startup guards
+- [x] Replace the live PI reasoning path with a Hermes orchestrator client while preserving the current deterministic staging and confirmation/execution backend
+- [x] Add internal tool routes and auth so an external Hermes sidecar can call approved Sportfolio tools only
+- [x] Keep the live app deployable by using a local compatibility bridge behind the Hermes contract until an external Hermes sidecar is configured
+- [x] Validate via `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`
+
+## 2026-03-02 Production Display Investigation
+
+- [x] Inspect linked Railway production service status and recent deploy/runtime logs
+- [x] Identify the concrete runtime or deploy failure preventing the production app from rendering
+- [x] Apply a targeted fix if it is caused by repo code/config, or document the external/platform root cause
+- [x] Record investigation outcome and any required follow-up
+
+Review:
+
+- Root cause was a production redirect loop, not a failed deploy. `PUBLIC_SITE_URL` on Railway was set to `https://sportfolio.market` while `VITE_PUBLIC_SITE_URL` (and repo defaults) were already `https://www.sportfolio.market`.
+- The backend canonical-host middleware in `server/index.ts` used `PUBLIC_SITE_URL` and redirected `www.sportfolio.market` to the apex host, while the apex host was already redirecting back to `www`, creating an infinite 301 loop.
+- Fixed by updating Railway `PUBLIC_SITE_URL` to `https://www.sportfolio.market`, which triggered a successful redeploy.
+- Verified after deploy: `https://www.sportfolio.market/` now returns `200 OK`; the apex host still redirects to `www`, which now resolves normally instead of looping.

@@ -6,6 +6,7 @@ import type {
 } from "@shared/schema";
 
 export type AgentProviderMode = "managed" | "byok";
+export type AgentRuntime = "pi" | "hermes";
 export type AgentDomain =
   | "scouting"
   | "player_pools"
@@ -74,6 +75,9 @@ export interface AgentProfileView {
     canAutoExecute: boolean;
     canUseWebResearch: boolean;
     webResearchProvider: "brave" | null;
+    runtime: AgentRuntime;
+    hasDurableMemory: boolean;
+    canScheduleAdvisories: boolean;
   };
 }
 
@@ -85,6 +89,9 @@ export interface AgentCapabilitiesView {
   canUseWebResearch: boolean;
   webResearchProvider: "brave" | null;
   providerMode: AgentProviderMode;
+  runtime: AgentRuntime;
+  hasDurableMemory: boolean;
+  canScheduleAdvisories: boolean;
 }
 
 export interface ManagedProviderStatus {
@@ -208,6 +215,120 @@ export interface AgentCitation {
   retrievedAt: string;
   factSummary: string;
   relevanceScore: number;
+}
+
+export type AgentMemoryScope = "profile" | "episodic" | "semantic";
+export type AgentMemoryKind =
+  | "preference"
+  | "goal"
+  | "risk_tolerance"
+  | "favorite_entities"
+  | "habit"
+  | "interaction_style";
+
+export interface AgentMemoryRecord {
+  id: string;
+  userId: string;
+  threadId: string | null;
+  scope: AgentMemoryScope;
+  kind: AgentMemoryKind;
+  summary: string;
+  content: Record<string, unknown>;
+  confidence: number;
+  source: "user_explicit" | "agent_inferred" | "system_derived";
+  embedding: number[] | null;
+  createdAt: Date;
+  updatedAt: Date;
+  archivedAt: Date | null;
+}
+
+export interface ProposedMemoryWrite {
+  scope: AgentMemoryScope;
+  kind: AgentMemoryKind;
+  summary: string;
+  content: Record<string, unknown>;
+  confidence: number;
+  reason: string;
+}
+
+export interface AgentToolTrace {
+  toolName: string;
+  phase: "read" | "plan" | "memory" | "research";
+  status: "ok" | "failed" | "skipped";
+  latencyMs: number;
+  summary: string;
+}
+
+export interface AgentModelRuntimeConfig {
+  providerMode: AgentProviderMode;
+  providerKey?: ManagedProviderKey;
+  model: string;
+  baseUrl?: string | null;
+  apiKey?: string | null;
+  authMode?: "standard" | "raw";
+  headers?: Record<string, string> | null;
+  payloadDefaults?: Record<string, unknown> | null;
+}
+
+export interface HermesRespondRequest {
+  userId: string;
+  threadId: string | null;
+  channel: AgentChannel;
+  message: string;
+  requestMode: "auto" | "discussion" | "plan" | "clarification_resume";
+  profile: {
+    displayName: string;
+    providerMode: AgentProviderMode;
+    model: string;
+    baseUrl: string | null;
+    systemPrompt: string;
+    userPromptTemplate: string;
+    temperature: number;
+    maxTokens: number;
+  };
+  modelRuntime: AgentModelRuntimeConfig;
+  canonicalState: {
+    threadId: string | null;
+    pendingBundleId: string | null;
+    operatorOverview: ScoutAgentOperatorOverview;
+    capabilities: Pick<
+      AgentCapabilitiesView,
+      | "domains"
+      | "actionTypes"
+      | "canAnalyze"
+      | "canAutoExecute"
+      | "canUseWebResearch"
+      | "runtime"
+      | "hasDurableMemory"
+      | "canScheduleAdvisories"
+    >;
+  };
+  memoryContext: {
+    profile: AgentMemoryRecord[];
+    episodic: AgentMemoryRecord[];
+    semantic: AgentMemoryRecord[];
+  };
+  externalContext: {
+    canonicalKnowledge: ScoutAgentKnowledgeBriefItem[];
+    research: AgentCitation[];
+  };
+  conversationHistory: Array<{
+    role: "user" | "assistant";
+    contentText: string;
+  }>;
+  semanticRouteHint?: AgentSemanticRoute | null;
+}
+
+export interface HermesRespondResult {
+  outcome: "advisory" | "staged_plan" | "clarification" | "unsupported" | "error";
+  assistantText: string;
+  summary: string | null;
+  warnings: string[];
+  proposedActions: AgentAction[];
+  pendingClarification: AgentPendingClarification | null;
+  citations: AgentCitation[];
+  proposedMemoryWrites: ProposedMemoryWrite[];
+  toolTrace: AgentToolTrace[];
 }
 
 export interface ScoutProposalAction {
@@ -455,6 +576,8 @@ export interface AgentAnalysisResult {
   actions: AgentAction[];
   citations?: AgentCitation[];
   pendingClarification?: AgentPendingClarification | null;
+  proposedMemoryWrites?: ProposedMemoryWrite[];
+  toolTrace?: AgentToolTrace[];
   errorMessage?: string | null;
 }
 

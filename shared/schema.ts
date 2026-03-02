@@ -1216,6 +1216,7 @@ export const userAgentProfiles = pgTable(
     displayName: text("display_name").notNull().default("My Scout Agent"),
     providerMode: text("provider_mode").notNull().default("managed"), // "managed" | "byok"
     providerType: text("provider_type").notNull().default("openai_compatible"),
+    runtime: text("runtime").notNull().default("hermes"), // "pi" | "hermes"
     model: text("model").notNull().default("managed-default"),
     baseUrl: text("base_url"),
     systemPrompt: text("system_prompt")
@@ -1238,6 +1239,7 @@ export const userAgentProfiles = pgTable(
   (table) => ({
     userIdx: uniqueIndex("user_agent_profiles_user_idx").on(table.userId),
     providerModeIdx: index("user_agent_profiles_provider_mode_idx").on(table.providerMode),
+    runtimeIdx: index("user_agent_profiles_runtime_idx").on(table.runtime),
     updatedAtIdx: index("user_agent_profiles_updated_at_idx").on(table.updatedAt),
   }),
 );
@@ -1462,6 +1464,75 @@ export const smsMessageEvents = pgTable(
       table.createdAt,
     ),
     userCreatedIdx: index("sms_message_events_user_created_idx").on(table.userId, table.createdAt),
+  }),
+);
+
+export const userAgentMemories = pgTable(
+  "user_agent_memories",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    threadId: varchar("thread_id").references(() => userAgentThreads.id, { onDelete: "set null" }),
+    scope: text("scope").notNull(), // "profile" | "episodic" | "semantic"
+    kind: text("kind").notNull(),
+    summary: text("summary").notNull(),
+    content: jsonb("content").notNull(),
+    confidence: decimal("confidence", { precision: 4, scale: 3 }).notNull().default("0.500"),
+    source: text("source").notNull(),
+    embedding: jsonb("embedding"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+    archivedAt: timestamp("archived_at"),
+  },
+  (table) => ({
+    userScopeUpdatedIdx: index("user_agent_memories_user_scope_updated_idx").on(
+      table.userId,
+      table.scope,
+      table.updatedAt,
+    ),
+    userKindUpdatedIdx: index("user_agent_memories_user_kind_updated_idx").on(
+      table.userId,
+      table.kind,
+      table.updatedAt,
+    ),
+    threadIdx: index("user_agent_memories_thread_idx").on(table.threadId),
+    activeIdx: index("user_agent_memories_active_idx").on(table.userId, table.archivedAt),
+  }),
+);
+
+export const agentRuntimeSessions = pgTable(
+  "agent_runtime_sessions",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id").references(() => users.id, { onDelete: "set null" }),
+    threadId: varchar("thread_id").references(() => userAgentThreads.id, { onDelete: "set null" }),
+    runtime: text("runtime").notNull(),
+    status: text("status").notNull(),
+    requestPayload: jsonb("request_payload"),
+    responsePayload: jsonb("response_payload"),
+    toolTrace: jsonb("tool_trace"),
+    latencyMs: integer("latency_ms"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    userCreatedIdx: index("agent_runtime_sessions_user_created_idx").on(
+      table.userId,
+      table.createdAt,
+    ),
+    threadCreatedIdx: index("agent_runtime_sessions_thread_created_idx").on(
+      table.threadId,
+      table.createdAt,
+    ),
+    runtimeCreatedIdx: index("agent_runtime_sessions_runtime_created_idx").on(
+      table.runtime,
+      table.createdAt,
+    ),
   }),
 );
 
@@ -2348,6 +2419,18 @@ export const insertUserAgentMessageSchema = createInsertSchema(userAgentMessages
   createdAt: true,
 });
 
+export const insertUserAgentMemorySchema = createInsertSchema(userAgentMemories).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  archivedAt: true,
+});
+
+export const insertAgentRuntimeSessionSchema = createInsertSchema(agentRuntimeSessions).omit({
+  id: true,
+  createdAt: true,
+});
+
 export const insertUserAgentMessageEmbeddingSchema = createInsertSchema(
   userAgentMessageEmbeddings,
 ).omit({
@@ -2411,6 +2494,12 @@ export type InsertUserAgentActionBundle = z.infer<typeof insertUserAgentActionBu
 
 export type UserAgentMessage = typeof userAgentMessages.$inferSelect;
 export type InsertUserAgentMessage = z.infer<typeof insertUserAgentMessageSchema>;
+
+export type UserAgentMemory = typeof userAgentMemories.$inferSelect;
+export type InsertUserAgentMemory = z.infer<typeof insertUserAgentMemorySchema>;
+
+export type AgentRuntimeSession = typeof agentRuntimeSessions.$inferSelect;
+export type InsertAgentRuntimeSession = z.infer<typeof insertAgentRuntimeSessionSchema>;
 
 export type UserAgentMessageEmbedding = typeof userAgentMessageEmbeddings.$inferSelect;
 export type InsertUserAgentMessageEmbedding = z.infer<typeof insertUserAgentMessageEmbeddingSchema>;
