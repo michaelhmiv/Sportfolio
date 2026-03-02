@@ -97,6 +97,16 @@ function buildContextBase() {
         reason: "scheduled in the requested window, lighter scout competition",
       },
     ],
+    knowledgeBrief: [
+      {
+        id: "feature-agent-operator",
+        title: "Sportfolio Agent",
+        summary: "Canonical agent capability guidance.",
+        urlPath: "/wiki/features/agent-operator",
+        lastReviewedAt: "2026-03-02",
+        notes: ["The agent stages supported actions and still requires confirmation."],
+      },
+    ],
   };
 }
 
@@ -315,9 +325,11 @@ describe("scout-agent-core", () => {
     );
     expect(seenSystemPrompt).toContain("Do not ask the user to say 'confirm' in discussion mode");
     expect(seenUserPrompt).toContain("<request_mode>");
+    expect(seenUserPrompt).toContain("<canonical_knowledge>");
     expect(seenUserPrompt).toContain("<operator_state>");
     expect(seenUserPrompt).toContain("<analyst_brief>");
     expect(seenUserPrompt).toContain("<recommended_targets>");
+    expect(seenUserPrompt).toContain("/wiki/features/agent-operator");
   });
 
   it("short-circuits semantic general scouting prompts into a deterministic discussion read", async () => {

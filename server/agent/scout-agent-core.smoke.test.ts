@@ -63,6 +63,7 @@ function buildContext() {
     ],
     selectionWindow: null,
     recommendedTargets: [],
+    knowledgeBrief: [],
   };
 }
 

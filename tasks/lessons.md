@@ -42,3 +42,4 @@
 - When evolving persisted agent bundle payloads, keep bundle readers backward-compatible with older payload shapes so existing pending plans and history continue to render while the new workflow format rolls out.
 - When a user wants external web research inside the in-app agent, keep the search provider hosted and server-controlled so managed and BYOK models share the same tool contract and query policy.
 - When PI is only the runtime/tool-call substrate, stop at a thin-PI testable milestone instead of layering a framework-shaped architecture over deterministic product logic before real user testing.
+- When the same mechanics or capability explanation is needed in both the product UI and the agent, make `docs/wiki` the canonical source and feed the agent from wiki articles marked with `surface: agent` instead of duplicating prompt copy in multiple places.

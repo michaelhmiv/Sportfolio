@@ -39,6 +39,8 @@ import type { Player } from "@shared/schema";
 import { PlayerName } from "@/components/player-name";
 import { EmptyState } from "@/components/ui/empty-state";
 import { getSupabase } from "@/lib/supabase";
+import { CliAccessCard } from "@/components/cli-access-card";
+import { SmsAccessCard } from "@/components/sms-access-card";
 
 interface UserProfile {
   user: {
@@ -533,6 +535,9 @@ export default function UserProfile() {
         </div>
 
         {/* Holdings */}
+        {isOwnProfile && <SmsAccessCard />}
+        {isOwnProfile && <CliAccessCard />}
+
         <Card data-testid="card-holdings">
           <CardHeader>
             <CardTitle className="text-lg sm:text-xl">Public Holdings</CardTitle>

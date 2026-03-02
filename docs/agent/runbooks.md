@@ -128,3 +128,13 @@ If you change any of these, update docs in the same PR:
 - formulas or payout rules,
 - schema fields used by core loops,
 - job schedules affecting game lifecycle.
+
+## Canonical Knowledge Sync Rule
+
+When user-facing product behavior, mechanics copy, or agent guidance changes:
+
+1. Update the canonical article in `docs/wiki/*` first.
+2. If that article should inform the agent directly, keep `agent` in its `surface` metadata.
+3. Do not duplicate the same explainer copy in multiple prompts or pages unless there is a rendering-only reason.
+
+The agent now reads a compact knowledge brief from wiki articles marked with `surface: agent`, so those docs are the shared source for both the public wiki and agent-facing product guidance.

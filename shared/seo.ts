@@ -48,6 +48,10 @@ const knownRoutePatterns = [
   /^\/about$/,
   /^\/contact$/,
   /^\/how-it-works$/,
+  /^\/wiki$/,
+  /^\/wiki\/[^/]+$/,
+  /^\/wiki\/[^/]+\/[^/]+$/,
+  /^\/sms\/link$/,
   /^\/analytics$/,
   /^\/news$/,
   /^\/power$/,
@@ -67,6 +71,7 @@ const privateRoutePatterns = [
   /^\/admin(?:\/.*)?$/,
   /^\/auth(?:\/.*)?$/,
   /^\/login$/,
+  /^\/sms\/link$/,
   /^\/checkout\/success$/,
   /^\/power$/,
   /^\/boosts$/,
@@ -90,6 +95,15 @@ export function isPrivateAppRoute(rawPath: string): boolean {
 
 export function getRouteSeoMeta(rawPath: string): RouteSeoMeta {
   const path = normalizeRoutePath(rawPath);
+
+  if (path === "/sms/link") {
+    return {
+      title: "Link SMS Agent | Sportfolio",
+      description: "Complete secure phone linking for the Sportfolio SMS agent.",
+      canonicalPath: "/sms/link",
+      robots: "noindex,nofollow",
+    };
+  }
 
   if (privateRoutePatterns.some((pattern) => pattern.test(path))) {
     return {
@@ -172,6 +186,30 @@ export function getRouteSeoMeta(rawPath: string): RouteSeoMeta {
       title: "How It Works | Sportfolio",
       description: "Understand trading, contests, and scoring mechanics in Sportfolio.",
       canonicalPath: "/how-it-works",
+      robots: "index,follow",
+    };
+  }
+  if (path === "/wiki") {
+    return {
+      title: "Sportfolio Wiki | Sportfolio",
+      description: "Browse gameplay mechanics, product guides, FAQs, and changelog updates.",
+      canonicalPath: "/wiki",
+      robots: "index,follow",
+    };
+  }
+  if (/^\/wiki\/[^/]+$/.test(path)) {
+    return {
+      title: "Sportfolio Wiki | Sportfolio",
+      description: "Browse the Sportfolio knowledge hub by section.",
+      canonicalPath: path,
+      robots: "index,follow",
+    };
+  }
+  if (/^\/wiki\/[^/]+\/[^/]+$/.test(path)) {
+    return {
+      title: "Sportfolio Wiki Article | Sportfolio",
+      description: "Read a Sportfolio product or gameplay article from the knowledge hub.",
+      canonicalPath: path,
       robots: "index,follow",
     };
   }

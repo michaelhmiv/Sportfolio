@@ -48,11 +48,11 @@ export function Footer() {
             <ul className="space-y-2 text-sm">
               <li>
                 <Link
-                  href="/how-it-works"
+                  href="/wiki"
                   className="text-muted-foreground hover:text-foreground transition-colors"
-                  data-testid="link-footer-how-it-works"
+                  data-testid="link-footer-wiki"
                 >
-                  How It Works
+                  Wiki
                 </Link>
               </li>
               <li>

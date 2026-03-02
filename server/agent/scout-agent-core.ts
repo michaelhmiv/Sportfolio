@@ -114,6 +114,8 @@ function buildSystemPrompt(input: { operatorPlaybook: string; candidateIds: stri
     "Your job in this mode is to stage a concrete scout reallocation plan that the user can review and then explicitly confirm for execution.",
     "Write like a fast, sharp operator in chat: natural, direct, and easy to follow.",
     "Treat the backend-provided Sportfolio context, recent conversation history, and operator playbook as the only source of truth for schedules, assignments, injuries, rankings, and player eligibility.",
+    "A canonical wiki-backed knowledge brief may also be included. Treat that brief as the authoritative source for gameplay mechanics, capability boundaries, and user-facing explainer language.",
+    "If a quick pointer would help, you may naturally reference the supplied wiki source path for deeper reading.",
     "A broader operator snapshot may be included for portfolio, boosts, vesting, watchlists, and balance context. Use that to prioritize scouting inside the full account, but you still can only stage scouting actions in this mode.",
     "Do not invent player IDs, game windows, injuries, performance claims, or product capabilities. If the context is missing something, say so briefly and stay inside the available evidence.",
     "Stay within scouting only. Do not plan trades, boosts, contests, vesting, LP actions, payments, or any non-scout mutation. If the user asks for something broader, convert it into the closest useful scouting guidance.",
@@ -144,6 +146,8 @@ function buildDiscussionSystemPrompt(input: {
     "Be specific, curated, and insight-led. Lead with the read on the situation, then explain the strongest opportunities, risks, and tradeoffs in plain language.",
     "Sound like a strong text conversation, not a formal report: quick, natural, and confident without sounding robotic.",
     "Use the provided Sportfolio context, recent conversation history, and operator playbook as your only source of truth for schedules, assignments, injuries, rankings, balances, boosts, watchlists, vesting state, and constraints.",
+    "A canonical wiki-backed knowledge brief may also be included. Use it as the authoritative source for gameplay mechanics, product behavior, and user-facing explainer wording.",
+    "If a quick pointer would help, you may naturally reference the supplied wiki source path for deeper reading.",
     "You can reason across scouting, portfolio shape, boosts, watchlists, community leverage, and vesting in discussion mode. If the user asks for a concrete mutation, explain the move and tell them to give the direct instruction so the backend can stage it for confirmation.",
     "Do not claim any changes were applied and do not imply a pending plan already exists.",
     "If you see a concrete move worth making, describe the gameplan naturally, explain why it matters, and tell the user to give a direct instruction if they want you to stage that plan for confirmation.",
@@ -340,6 +344,10 @@ function getOperatorOverview(context: ScoutContext): ScoutContext["operatorOverv
   );
 }
 
+function getKnowledgeBrief(context: ScoutContext): ScoutContext["knowledgeBrief"] {
+  return (context as Partial<ScoutContext>).knowledgeBrief || [];
+}
+
 function formatOperatorOverviewLines(context: ScoutContext) {
   const overview = getOperatorOverview(context);
 
@@ -378,6 +386,21 @@ function formatOperatorLeversLines(context: ScoutContext) {
   return levers.slice(0, 6).map((lever) => `- ${lever}`);
 }
 
+function formatKnowledgeBriefLines(context: ScoutContext) {
+  const knowledgeBrief = getKnowledgeBrief(context);
+
+  if (knowledgeBrief.length === 0) {
+    return [
+      "- No canonical wiki knowledge brief was attached for this turn. Rely on the backend state and operator playbook only.",
+    ];
+  }
+
+  return knowledgeBrief.slice(0, 6).map((article) => {
+    const note = article.notes[0] || article.summary;
+    return `- ${article.title}: ${note} (reviewed ${article.lastReviewedAt}; source ${article.urlPath})`;
+  });
+}
+
 function buildPromptPayload(input: {
   chatRequest?: string | null;
   strategyTemplate: string;
@@ -406,6 +429,7 @@ function buildPromptPayload(input: {
     "<strategy_template>",
     input.strategyTemplate,
     "</strategy_template>",
+    formatSection("canonical_knowledge", formatKnowledgeBriefLines(input.context)),
     formatSection("selection_window", formatSelectionWindowLines(input.context)),
     formatSection("scout_capacity", [
       `- Max scouts: ${input.context.maxScouts}`,
@@ -451,6 +475,7 @@ function buildDiscussionPromptPayload(input: {
     "<strategy_template>",
     input.strategyTemplate,
     "</strategy_template>",
+    formatSection("canonical_knowledge", formatKnowledgeBriefLines(input.context)),
     formatSection("selection_window", formatSelectionWindowLines(input.context)),
     formatSection("scout_capacity", [
       `- Max scouts: ${input.context.maxScouts}`,

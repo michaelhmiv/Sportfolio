@@ -2,6 +2,7 @@ import { and, asc, desc, eq, gte, inArray, lte } from "drizzle-orm";
 import { dailyGames, players } from "@shared/schema";
 import type { UserAgentProfile } from "@shared/schema";
 import { db } from "../db";
+import { listAgentKnowledgeArticles } from "../docs-service";
 import { getETDayBoundaries, getTodayET } from "../lib/time";
 import { storage } from "../storage";
 import type { ScoutAgentContext, ScoutAgentSelectionWindow } from "./types";
@@ -408,6 +409,7 @@ export async function loadScoutAgentContext(
       };
     });
   const nextBestLevers: string[] = [];
+  const knowledgeBrief = listAgentKnowledgeArticles(true);
 
   if (vestingPreview) {
     nextBestLevers.push(
@@ -479,5 +481,6 @@ export async function loadScoutAgentContext(
       topHoldings,
       nextBestLevers,
     },
+    knowledgeBrief,
   };
 }

@@ -65,6 +65,9 @@ const loadTermsPage = () => import("@/pages/terms");
 const loadAboutPage = () => import("@/pages/about");
 const loadContactPage = () => import("@/pages/contact");
 const loadHowItWorksPage = () => import("@/pages/how-it-works");
+const loadWikiPage = () => import("@/pages/wiki");
+const loadWikiArticlePage = () => import("@/pages/wiki-article");
+const loadSmsLinkPage = () => import("@/pages/sms-link");
 const loadAnalyticsPage = () => import("@/pages/analytics");
 const loadAgentPage = () => import("@/pages/agent");
 const loadNewsPage = () => import("@/pages/news");
@@ -94,6 +97,9 @@ const Terms = lazy(loadTermsPage);
 const About = lazy(loadAboutPage);
 const Contact = lazy(loadContactPage);
 const HowItWorks = lazy(loadHowItWorksPage);
+const Wiki = lazy(loadWikiPage);
+const WikiArticle = lazy(loadWikiArticlePage);
+const SmsLink = lazy(loadSmsLinkPage);
 const Analytics = lazy(loadAnalyticsPage);
 const Agent = lazy(loadAgentPage);
 const News = lazy(loadNewsPage);
@@ -459,6 +465,10 @@ function Router() {
             <Route path="/about" component={About} />
             <Route path="/contact" component={Contact} />
             <Route path="/how-it-works" component={HowItWorks} />
+            <Route path="/wiki" component={Wiki} />
+            <Route path="/wiki/:section" component={Wiki} />
+            <Route path="/wiki/:section/:slug" component={WikiArticle} />
+            <Route path="/sms/link" component={SmsLink} />
             <Route path="/analytics" component={Analytics} />
             <Route path="/news" component={News} />
             <Route path="/agent">{isAuthenticated ? <Agent /> : <Dashboard />}</Route>

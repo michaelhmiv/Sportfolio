@@ -38,8 +38,10 @@ import {
   playerPools,
   lpPositions,
   lpTransactions,
+  userApiTokens,
   type User,
   type InsertUser,
+  type InsertUserApiToken,
   type UpsertUser,
   type Player,
   type InsertPlayer,
@@ -87,6 +89,7 @@ import {
   type CommunityBoost,
   type InsertCommunityBoost,
   type CommunityCheckoutSession,
+  type UserApiToken,
 } from "@shared/schema";
 import { db } from "./db";
 import {
@@ -186,6 +189,11 @@ export interface IStorage {
     isPremium: boolean,
     premiumExpiresAt: Date | null,
   ): Promise<void>;
+  listUserApiTokens(userId: string): Promise<UserApiToken[]>;
+  createUserApiToken(token: InsertUserApiToken): Promise<UserApiToken>;
+  getUserApiTokenByHash(tokenHash: string): Promise<UserApiToken | undefined>;
+  markUserApiTokenUsed(tokenId: string): Promise<void>;
+  revokeUserApiToken(userId: string, tokenId: string): Promise<boolean>;
 
   // Player methods
   getPlayers(filters?: { search?: string; team?: string; position?: string }): Promise<Player[]>;
@@ -935,6 +943,51 @@ export class DatabaseStorage implements IStorage {
     }
 
     return user;
+  }
+
+  async listUserApiTokens(userId: string): Promise<UserApiToken[]> {
+    return db
+      .select()
+      .from(userApiTokens)
+      .where(eq(userApiTokens.userId, userId))
+      .orderBy(desc(userApiTokens.createdAt));
+  }
+
+  async createUserApiToken(token: InsertUserApiToken): Promise<UserApiToken> {
+    const [created] = await db.insert(userApiTokens).values(token).returning();
+    return created;
+  }
+
+  async getUserApiTokenByHash(tokenHash: string): Promise<UserApiToken | undefined> {
+    const [token] = await db
+      .select()
+      .from(userApiTokens)
+      .where(and(eq(userApiTokens.tokenHash, tokenHash), isNull(userApiTokens.revokedAt)));
+
+    return token || undefined;
+  }
+
+  async markUserApiTokenUsed(tokenId: string): Promise<void> {
+    await db
+      .update(userApiTokens)
+      .set({ lastUsedAt: new Date() })
+      .where(eq(userApiTokens.id, tokenId));
+  }
+
+  async revokeUserApiToken(userId: string, tokenId: string): Promise<boolean> {
+    const [revoked] = await db
+      .update(userApiTokens)
+      .set({ revokedAt: new Date() })
+      .where(
+        and(
+          eq(userApiTokens.id, tokenId),
+          eq(userApiTokens.userId, userId),
+          isNull(userApiTokens.revokedAt),
+        ),
+      )
+      .returning({ id: userApiTokens.id });
+
+    return Boolean(revoked);
   }
 
   async updateUserBalance(userId: string, amount: string): Promise<void> {

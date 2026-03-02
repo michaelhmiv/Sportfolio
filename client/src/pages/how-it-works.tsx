@@ -1,6 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { TrendingUp, Trophy, Clock, BarChart3, Users, CheckCircle2 } from "lucide-react";
 import { SchemaOrg, schemas } from "@/components/schema-org";
+import { Link } from "wouter";
 
 const faqs = [
   {
@@ -41,6 +43,25 @@ export default function HowItWorks() {
         <p className="text-lg text-muted-foreground mb-12">
           Learn how to trade NBA player shares and compete in fantasy contests
         </p>
+
+        <Card className="mb-8 border-primary/20 bg-card">
+          <CardContent className="flex flex-col gap-4 p-6 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-sm font-medium text-foreground">
+                The Sportfolio wiki is now live.
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Use the wiki for deeper gameplay guides, agent docs, FAQ coverage, and changelog
+                entries.
+              </p>
+            </div>
+            <Link href="/wiki">
+              <Button variant="outline" data-testid="button-open-wiki">
+                Open Wiki
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
 
         <div className="space-y-6">
           <Card>
