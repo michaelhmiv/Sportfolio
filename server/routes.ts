@@ -51,9 +51,13 @@ import { setupAuth, isAuthenticated, optionalAuth } from "./supabaseAuth";
 import { getGameDay, getETDayBoundaries, getTodayETBoundaries, getTodayET } from "./lib/time";
 import { getOrCompute } from "./cache";
 import { registerAmmRoutes } from "./routes/amm";
+import { registerCliRoutes } from "./routes/cli";
+import { registerDocsRoutes } from "./routes/docs";
 import { registerLpRoutes } from "./routes/lp";
+import { registerSmsRoutes } from "./routes/sms";
 import { getOrCreatePool, initializePool } from "./amm/pool";
 import { normalizeSiteUrl } from "@shared/seo";
+import { ensureSmsSchema } from "./sms-service";
 import {
   getApiHealthStaleThresholdMs,
   getLatestApiHealthReport,
@@ -89,6 +93,7 @@ import { getManagedProviderModelCatalog } from "./agent/model-catalog";
 import { isManagedProviderKey } from "./agent/provider-registry";
 import { ensureAgentSemanticSchema } from "./agent/semantic-router";
 import { claimVestingShares as claimAgentVestingShares } from "./agent/vesting-claim";
+import { ensureUserApiTokenSchema } from "./api-token-auth";
 
 // Feature flags - set to false to disable features
 const CONTESTS_ENABLED = false; // DISABLED - contests feature removed
@@ -329,6 +334,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   await ensureLpFeeGrowthColumns();
 
+  await ensureUserApiTokenSchema();
+
   try {
     await ensureAgentThreadSchema();
   } catch (err: any) {
@@ -345,6 +352,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     await ensureAgentSystemSettingsSchema();
   } catch (err: any) {
     console.warn("[DB] Could not ensure agent system settings schema:", err?.message || err);
+  }
+
+  try {
+    await ensureSmsSchema();
+  } catch (err: any) {
+    console.warn("[DB] Could not ensure SMS schema:", err?.message || err);
   }
 
   // Scout Status Endpoint (Placed early to avoid shadowing)
@@ -11871,6 +11884,11 @@ ${items}
 
   // Register LP routes for liquidity provider functionality
   registerLpRoutes(app);
+
+  // Register public docs and CLI routes after core APIs are available
+  registerDocsRoutes(app);
+  registerCliRoutes(app);
+  registerSmsRoutes(app);
 
   return httpServer;
 }

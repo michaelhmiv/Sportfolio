@@ -340,3 +340,19 @@
 - [ ] Configure the local `.env` for hosted Brave search and run live non-destructive smoke checks against the Brave-backed agent research path
 - [ ] Validate with `npm run check`, `npm run lint`, `npm run format:check`, plus targeted smoke scripts for the new hosted-research flow
 - [ ] Follow through on the remaining broad-operator rollout beyond the hosted research layer (deeper multi-domain tooling, broader model orchestration, and fuller non-destructive smoke coverage)
+
+## 2026-03-02 Knowledge Hub + CLI Foundation
+
+- [x] Add canonical markdown docs under `docs/wiki` with frontmatter metadata
+- [x] Add shared docs types plus docs index/article/search APIs
+- [x] Ship an in-app `/wiki` route with a browsable index and article pages
+- [x] Add user API tokens plus CLI-only authenticated endpoints
+- [x] Add a standalone `packages/sportfolio-cli` package with auth, docs, portfolio, and agent commands
+- [ ] Expand authenticated docs and add a first in-app token-management UI
+- [x] Mark canonical wiki articles with `surface: agent` and inject a wiki-backed knowledge brief into the agent prompt so product guidance stays sourced from one place
+
+## 2026-03-02 SMS Agent Foundation
+
+- [x] Reuse canonical wiki articles for guest SMS concierge guidance so unknown numbers get a conversational first reply instead of a hard signup wall
+- [x] Add SMS account routes, Telnyx webhook routes, and a `/sms/link` completion page so the phone-link flow is fully wired
+- [x] Add a profile-level SMS access card and internal Telnyx setup documentation so the SMS channel has one maintained setup path

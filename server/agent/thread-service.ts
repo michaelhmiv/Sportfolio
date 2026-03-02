@@ -1049,6 +1049,47 @@ export async function createAgentThread(
   return summary;
 }
 
+export async function getOrCreateSmsAgentThread(
+  userId: string,
+  externalThreadKey: string,
+): Promise<AgentThreadSummary> {
+  const normalizedExternalThreadKey = externalThreadKey.trim();
+
+  const [existingThread] = await db
+    .select()
+    .from(userAgentThreads)
+    .where(
+      and(
+        eq(userAgentThreads.userId, userId),
+        eq(userAgentThreads.channel, "sms"),
+        eq(userAgentThreads.status, "active"),
+        eq(userAgentThreads.externalThreadKey, normalizedExternalThreadKey),
+      ),
+    )
+    .orderBy(desc(userAgentThreads.updatedAt))
+    .limit(1);
+
+  if (existingThread) {
+    const [summary] = await getThreadSummariesFromRows(userId, [existingThread]);
+    return summary;
+  }
+
+  const [thread] = await db
+    .insert(userAgentThreads)
+    .values({
+      userId,
+      channel: "sms",
+      domain: "sportfolio",
+      status: "active",
+      title: "SMS Agent",
+      externalThreadKey: normalizedExternalThreadKey,
+    })
+    .returning();
+
+  const [summary] = await getThreadSummariesFromRows(userId, [thread]);
+  return summary;
+}
+
 export async function listAgentThreads(userId: string): Promise<AgentThreadSummary[]> {
   const rows = await db
     .select()

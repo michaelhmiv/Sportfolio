@@ -254,6 +254,16 @@ function buildPrerenderedBody({
     `;
   }
 
+  if (normalizedPath === "/wiki" || /^\/wiki\/[^/]+(?:\/[^/]+)?$/.test(normalizedPath)) {
+    return `
+      <main style="max-width:56rem;margin:2rem auto;padding:0 1rem;">
+        <h1>${escapeHtml(meta.title)}</h1>
+        <p>${escapeHtml(meta.description)}</p>
+        <p><a href="/wiki">Open the Sportfolio wiki</a></p>
+      </main>
+    `;
+  }
+
   if (normalizedPath === "/") {
     return `
       <main style="max-width:56rem;margin:2rem auto;padding:0 1rem;">

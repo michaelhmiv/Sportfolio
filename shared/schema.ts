@@ -62,6 +62,83 @@ export const users = pgTable(
   }),
 );
 
+export const userApiTokens = pgTable(
+  "user_api_tokens",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    label: text("label").notNull(),
+    tokenHash: text("token_hash").notNull(),
+    tokenPrefix: varchar("token_prefix", { length: 32 }).notNull(),
+    tokenLast4: varchar("token_last4", { length: 4 }).notNull(),
+    lastUsedAt: timestamp("last_used_at"),
+    revokedAt: timestamp("revoked_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    userIdx: index("user_api_tokens_user_idx").on(table.userId),
+    hashIdx: uniqueIndex("user_api_tokens_hash_idx").on(table.tokenHash),
+    activeIdx: index("user_api_tokens_active_idx").on(table.userId, table.revokedAt),
+  }),
+);
+
+export const userPhoneLinks = pgTable(
+  "user_phone_links",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    phoneE164: varchar("phone_e164", { length: 20 }).notNull(),
+    normalizedPhone: varchar("normalized_phone", { length: 20 }).notNull(),
+    verifiedAt: timestamp("verified_at"),
+    linkedAt: timestamp("linked_at").notNull().defaultNow(),
+    lastInboundAt: timestamp("last_inbound_at"),
+    lastOutboundAt: timestamp("last_outbound_at"),
+    smsEnabled: boolean("sms_enabled").notNull().default(true),
+    smsOptInStatus: text("sms_opt_in_status").notNull().default("pending"),
+    smsOptInSource: text("sms_opt_in_source"),
+    smsOptedOutAt: timestamp("sms_opted_out_at"),
+    smsLastStopAt: timestamp("sms_last_stop_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    userIdx: uniqueIndex("user_phone_links_user_idx").on(table.userId),
+    phoneIdx: uniqueIndex("user_phone_links_phone_idx").on(table.normalizedPhone),
+    statusIdx: index("user_phone_links_status_idx").on(table.smsOptInStatus, table.smsEnabled),
+  }),
+);
+
+export const userPhoneLinkTokens = pgTable(
+  "user_phone_link_tokens",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    phoneE164: varchar("phone_e164", { length: 20 }).notNull(),
+    tokenHash: text("token_hash").notNull(),
+    purpose: text("purpose").notNull().default("signup_or_link"),
+    expiresAt: timestamp("expires_at").notNull(),
+    claimedByUserId: varchar("claimed_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    consumedAt: timestamp("consumed_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    hashIdx: uniqueIndex("user_phone_link_tokens_hash_idx").on(table.tokenHash),
+    phoneIdx: index("user_phone_link_tokens_phone_idx").on(table.phoneE164),
+    expiryIdx: index("user_phone_link_tokens_expiry_idx").on(table.expiresAt),
+  }),
+);
+
 // Players table - players from all sports (NBA, NFL, etc.)
 // Player IDs are prefixed with sport: nba_12345, nfl_67890
 export const players = pgTable(
@@ -1357,6 +1434,37 @@ export const userAgentMessages = pgTable(
   }),
 );
 
+export const smsMessageEvents = pgTable(
+  "sms_message_events",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    phoneE164: varchar("phone_e164", { length: 20 }).notNull(),
+    direction: text("direction").notNull(), // "inbound" | "outbound"
+    provider: text("provider").notNull().default("telnyx"),
+    providerEventId: text("provider_event_id"),
+    providerMessageId: text("provider_message_id"),
+    userId: varchar("user_id").references(() => users.id, { onDelete: "set null" }),
+    agentThreadId: varchar("agent_thread_id").references(() => userAgentThreads.id, {
+      onDelete: "set null",
+    }),
+    eventType: text("event_type").notNull().default("message"),
+    messageText: text("message_text"),
+    structuredPayload: jsonb("structured_payload"),
+    status: text("status").notNull().default("received"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    eventIdx: uniqueIndex("sms_message_events_provider_event_idx").on(table.providerEventId),
+    phoneCreatedIdx: index("sms_message_events_phone_created_idx").on(
+      table.phoneE164,
+      table.createdAt,
+    ),
+    userCreatedIdx: index("sms_message_events_user_created_idx").on(table.userId, table.createdAt),
+  }),
+);
+
 // User agent message embeddings - vectorized user prompts for semantic routing and analytics
 export const userAgentMessageEmbeddings = pgTable(
   "user_agent_message_embeddings",
@@ -2462,3 +2570,45 @@ export type InsertLpPosition = z.infer<typeof insertLpPositionSchema>;
 
 export type LpTransaction = typeof lpTransactions.$inferSelect;
 export type InsertLpTransaction = z.infer<typeof insertLpTransactionSchema>;
+
+export const insertUserApiTokenSchema = createInsertSchema(userApiTokens).omit({
+  id: true,
+  lastUsedAt: true,
+  revokedAt: true,
+  createdAt: true,
+});
+
+export type UserApiToken = typeof userApiTokens.$inferSelect;
+export type InsertUserApiToken = z.infer<typeof insertUserApiTokenSchema>;
+
+export const insertUserPhoneLinkSchema = createInsertSchema(userPhoneLinks).omit({
+  id: true,
+  verifiedAt: true,
+  linkedAt: true,
+  lastInboundAt: true,
+  lastOutboundAt: true,
+  smsOptedOutAt: true,
+  smsLastStopAt: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertUserPhoneLinkTokenSchema = createInsertSchema(userPhoneLinkTokens).omit({
+  id: true,
+  consumedAt: true,
+  createdAt: true,
+});
+
+export const insertSmsMessageEventSchema = createInsertSchema(smsMessageEvents).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type UserPhoneLink = typeof userPhoneLinks.$inferSelect;
+export type InsertUserPhoneLink = z.infer<typeof insertUserPhoneLinkSchema>;
+
+export type UserPhoneLinkToken = typeof userPhoneLinkTokens.$inferSelect;
+export type InsertUserPhoneLinkToken = z.infer<typeof insertUserPhoneLinkTokenSchema>;
+
+export type SmsMessageEvent = typeof smsMessageEvents.$inferSelect;
+export type InsertSmsMessageEvent = z.infer<typeof insertSmsMessageEventSchema>;

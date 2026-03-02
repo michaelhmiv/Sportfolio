@@ -1,4 +1,14 @@
-import { BarChart3, Bot, Crown, Home, Newspaper, TrendingUp, User, Zap } from "lucide-react";
+import {
+  BarChart3,
+  BookOpen,
+  Bot,
+  Crown,
+  Home,
+  Newspaper,
+  TrendingUp,
+  User,
+  Zap,
+} from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -31,6 +41,11 @@ const menuItems = [
     title: "Analytics",
     url: "/analytics",
     icon: BarChart3,
+  },
+  {
+    title: "Wiki",
+    url: "/wiki",
+    icon: BookOpen,
   },
   {
     title: "Power",

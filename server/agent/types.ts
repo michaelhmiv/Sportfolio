@@ -162,6 +162,15 @@ export interface ScoutAgentOperatorOverview {
   nextBestLevers: string[];
 }
 
+export interface ScoutAgentKnowledgeBriefItem {
+  id: string;
+  title: string;
+  summary: string;
+  urlPath: string;
+  lastReviewedAt: string;
+  notes: string[];
+}
+
 export interface ScoutAgentContext {
   generatedAt: string;
   analysisWindowMinutes: number;
@@ -181,6 +190,7 @@ export interface ScoutAgentContext {
   selectionWindow: ScoutAgentSelectionWindow | null;
   recommendedTargets: ScoutAgentRecommendedTarget[];
   operatorOverview: ScoutAgentOperatorOverview;
+  knowledgeBrief: ScoutAgentKnowledgeBriefItem[];
 }
 
 export interface AgentModelUsage {
