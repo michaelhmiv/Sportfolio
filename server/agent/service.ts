@@ -352,6 +352,24 @@ export async function getScoutAgentProfile(userId: string): Promise<AgentProfile
   };
 }
 
+export async function getScoutAgentRuntimeProfile(userId: string): Promise<{
+  profile: UserAgentProfile;
+  secret?: UserAgentSecret;
+  managedProvider: ManagedProviderStatus;
+}> {
+  const [managedProvider, secret] = await Promise.all([
+    getActiveManagedProviderStatus(),
+    getSecret(userId),
+  ]);
+  const profile = await ensureProfile(userId, managedProvider);
+
+  return {
+    profile,
+    secret,
+    managedProvider,
+  };
+}
+
 export async function getAgentCapabilities(userId: string): Promise<AgentCapabilitiesView> {
   const profileView = await getScoutAgentProfile(userId);
 

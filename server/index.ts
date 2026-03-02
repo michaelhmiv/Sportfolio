@@ -14,6 +14,8 @@ import {
   metricsMiddleware,
 } from "./observability/metrics";
 import { registerRoutes } from "./routes";
+import { registerHermesSidecarRoutes } from "./hermes-sidecar";
+import { isHermesSidecarMode } from "./service-role";
 import { setupVite, serveStatic, log } from "./vite";
 import { jobScheduler } from "./jobs/scheduler.js";
 import { db } from "./db";
@@ -34,6 +36,7 @@ function startupLog(stage: string, message: string) {
 startupLog("INIT", "Server starting...");
 
 const app = express();
+const hermesSidecarMode = isHermesSidecarMode();
 
 initSentry();
 
@@ -75,7 +78,8 @@ if (canonicalSiteUrlRaw?.trim()) {
 const enforceCanonicalHost =
   app.get("env") === "production" &&
   canonicalHost &&
-  process.env.ENFORCE_CANONICAL_HOST_REDIRECT !== "false";
+  process.env.ENFORCE_CANONICAL_HOST_REDIRECT !== "false" &&
+  !hermesSidecarMode;
 
 if (enforceCanonicalHost && canonicalSiteUrl && canonicalHost) {
   app.use((req, res, next) => {
@@ -190,6 +194,28 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  if (hermesSidecarMode) {
+    startupLog("HERMES", "Starting Hermes sidecar mode");
+    registerHermesSidecarRoutes(app);
+
+    const port = parseInt(process.env.PORT || "5000", 10);
+    startupLog("LISTEN", `Starting Hermes sidecar on port ${port}...`);
+
+    const server = app.listen(
+      {
+        port,
+        host: "0.0.0.0",
+      },
+      () => {
+        serverReady = true;
+        startupLog("READY", `Hermes sidecar listening on port ${port}`);
+        log(`hermes sidecar listening on port ${port}`);
+      },
+    );
+
+    return;
+  }
+
   startupLog("ROUTES", "Registering routes...");
   const server = await registerRoutes(app);
   startupLog("ROUTES", "Routes registered");

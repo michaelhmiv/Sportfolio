@@ -6,6 +6,7 @@ This document defines the current in-app agent surface that is considered stable
 
 - Hermes is now the primary user-facing agent orchestrator.
 - When an external Hermes sidecar is not configured, the app uses an in-process compatibility bridge behind the same Hermes contract so the live agent path still routes through the Hermes interface.
+- The same repo can now run as a dedicated self-hosted Hermes sidecar by setting `SPORTFOLIO_SERVICE_ROLE=hermes-sidecar` on a separate service and pointing `HERMES_AGENT_URL` at that service's base URL.
 - Sportfolio business logic, validation, and execution remain server-owned and deterministic.
 - All economic mutations remain confirmation-gated.
 - Hosted web research is server-side and provider-agnostic, using Brave Search when configured.
