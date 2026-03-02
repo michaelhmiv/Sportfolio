@@ -15,8 +15,23 @@ import { useToast } from "@/hooks/use-toast";
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import { Capacitor } from "@capacitor/core";
 import { Browser } from "@capacitor/browser";
+import { normalizeSiteUrl } from "@shared/seo";
 
 const MOBILE_AUTH_REDIRECT_URL = "sportfolio://auth/callback";
+
+function getWebAuthRedirectUrl(): string | undefined {
+  if (typeof window === "undefined") {
+    return undefined;
+  }
+
+  const configuredSiteUrl = normalizeSiteUrl(
+    import.meta.env.VITE_PUBLIC_SITE_URL ||
+      import.meta.env.PUBLIC_SITE_URL ||
+      window.location.origin,
+  );
+
+  return `${configuredSiteUrl}/auth/callback`;
+}
 
 function debugLog(stage: string, message: string, data?: any) {
   const elapsed = performance.now().toFixed(0);
@@ -474,8 +489,7 @@ export function useAuth() {
           };
         }
 
-        const emailRedirectTo =
-          typeof window !== "undefined" ? `${window.location.origin}/auth/callback` : undefined;
+        const emailRedirectTo = getWebAuthRedirectUrl();
 
         const { error } = await supabaseClient.auth.resend({
           type: "signup",
@@ -563,10 +577,11 @@ export function useAuth() {
           windowName: "_self",
         });
       } else {
+        const redirectTo = getWebAuthRedirectUrl();
         const { error } = await supabaseClient.auth.signInWithOAuth({
           provider: "google",
           options: {
-            redirectTo: `${window.location.origin}/auth/callback`,
+            redirectTo,
           },
         });
 

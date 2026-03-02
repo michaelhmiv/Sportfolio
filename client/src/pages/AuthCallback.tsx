@@ -8,6 +8,14 @@ export default function AuthCallback() {
 
   useEffect(() => {
     async function handleCallback() {
+      const redirectToError = (error: string, description: string) => {
+        const params = new URLSearchParams({
+          error,
+          description,
+        });
+        navigate(`/auth/error?${params.toString()}`, { replace: true });
+      };
+
       try {
         const supabase = await getSupabase();
 
@@ -20,24 +28,60 @@ export default function AuthCallback() {
         if (authCode) {
           const { error } = await supabase.auth.exchangeCodeForSession(authCode);
           if (error) {
-            console.error("[AUTH_CALLBACK] Code exchange error:", error);
+            throw error;
           }
         } else if (accessToken && refreshToken) {
-          await supabase.auth.setSession({
+          const { error } = await supabase.auth.setSession({
             access_token: accessToken,
             refresh_token: refreshToken,
           });
-        } else {
-          const { error } = await supabase.auth.getSession();
           if (error) {
-            console.error("[AUTH_CALLBACK] Session error:", error);
+            throw error;
+          }
+        } else {
+          const {
+            data: { session },
+            error,
+          } = await supabase.auth.getSession();
+          if (error) {
+            throw error;
+          }
+          if (!session) {
+            redirectToError("session_lost", "We could not find a login session to complete.");
+            return;
           }
         }
 
-        navigate("/");
+        const {
+          data: { session },
+          error,
+        } = await supabase.auth.getSession();
+
+        if (error) {
+          throw error;
+        }
+
+        if (!session) {
+          redirectToError("login_failed", "We could not establish your login session.");
+          return;
+        }
+
+        navigate("/", { replace: true });
       } catch (error) {
         console.error("[AUTH_CALLBACK] Error:", error);
-        navigate("/login");
+        const description =
+          error instanceof Error ? error.message : "We could not complete your sign-in.";
+        const normalizedDescription = description.toLowerCase();
+
+        if (
+          normalizedDescription.includes("code verifier") ||
+          normalizedDescription.includes("both auth code and code verifier should be non-empty")
+        ) {
+          redirectToError("session_lost", description);
+          return;
+        }
+
+        redirectToError("callback_failed", description);
       }
     }
 
