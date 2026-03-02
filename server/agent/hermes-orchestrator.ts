@@ -69,6 +69,119 @@ function summarizeMemoryContext(request: HermesRespondRequest): string | null {
   return topMemory ? topMemory.summary : null;
 }
 
+function isFollowUpExplanationRequest(message: string): boolean {
+  const normalized = message.trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+
+  return /^(?:what(?:\s+do)?\s+you\s+mean(?:\s+by\s+that)?|explain(?:\s+that)?|tell\s+me\s+more|why(?:\s+that|\s+though)?|how\s+so)\??$/.test(
+    normalized,
+  );
+}
+
+function getLastAssistantMessage(request: HermesRespondRequest): string | null {
+  for (let index = request.conversationHistory.length - 1; index >= 0; index -= 1) {
+    const entry = request.conversationHistory[index];
+    if (entry?.role === "assistant" && entry.contentText.trim()) {
+      return entry.contentText.trim();
+    }
+  }
+
+  return null;
+}
+
+function explainLever(lever: string, context: ScoutAgentContext): string {
+  const normalized = lever.toLowerCase();
+
+  if (normalized.includes("daily boost slot")) {
+    return `That means you still have ${context.operatorOverview.openDailyBoostSlots} open daily boost slot${context.operatorOverview.openDailyBoostSlots === 1 ? "" : "s"} and are leaving a payout multiplier unused. The practical move is to choose an eligible player with a game in the current window and assign exactly one share before lock.`;
+  }
+
+  if (normalized.includes("unassigned scout")) {
+    return `That means you still have ${context.remainingScouts} scout${context.remainingScouts === 1 ? "" : "s"} not doing anything. Assigning them puts passive share generation back to work instead of leaving that capacity idle.`;
+  }
+
+  if (normalized.includes("community share")) {
+    return `That means you have ${context.operatorOverview.communitySharesAvailable} community share${context.operatorOverview.communitySharesAvailable === 1 ? "" : "s"} available that could be converted into a live community boost if you want more multiplier leverage on a player.`;
+  }
+
+  if (normalized.includes("condense")) {
+    return `That means you have raw holding rows that can be condensed into powered shares, which makes each share hit harder in boost payouts without increasing share count.`;
+  }
+
+  if (normalized.includes("idle play-money balance")) {
+    return `That means your balance is high enough that some of it is probably sitting unused. Instead of leaving all of it idle, you can deploy part of it into a cleaner position once you pick the player or market angle you want to lean into.`;
+  }
+
+  return `That lever means: ${lever}.`;
+}
+
+function buildFollowUpExplanation(
+  request: HermesRespondRequest,
+  context: ScoutAgentContext,
+  citations: AgentCitation[],
+): Pick<
+  HermesRespondResult,
+  | "assistantText"
+  | "summary"
+  | "warnings"
+  | "citations"
+  | "outcome"
+  | "proposedActions"
+  | "pendingClarification"
+  | "requiresConfirmation"
+  | "confirmationPreview"
+> | null {
+  if (!isFollowUpExplanationRequest(request.message)) {
+    return null;
+  }
+
+  const lastAssistantMessage = getLastAssistantMessage(request);
+  if (!lastAssistantMessage) {
+    return null;
+  }
+
+  const lead = context.operatorOverview.nextBestLevers.slice(0, 2);
+  if (lead.length === 0) {
+    return {
+      outcome: "advisory",
+      assistantText:
+        "I mean there is no single urgent lever right now. If you want, name the workflow you want to focus on and I will break it down into a concrete next move.",
+      summary: "Explained the previous guidance.",
+      warnings: [],
+      citations,
+      proposedActions: [],
+      pendingClarification: null,
+      requiresConfirmation: false,
+      confirmationPreview: null,
+    };
+  }
+
+  const explanations = lead.map((entry) => explainLever(entry, context));
+  const leadLine =
+    lead.length === 1
+      ? `The main lever I was pointing at is ${lead[0]}.`
+      : `The two levers I was pointing at are ${lead[0]} and ${lead[1]}.`;
+  const close = lead[0].toLowerCase().includes("daily boost")
+    ? "If you want, I can next show you the best eligible boost candidates or stage a specific boost assignment."
+    : lead[0].toLowerCase().includes("scout")
+      ? "If you want, I can next show you the best scout targets or stage a scout reallocation."
+      : "If you want, I can turn that into a concrete staged move for you.";
+
+  return {
+    outcome: "advisory",
+    assistantText: [leadLine, ...explanations, close].join(" "),
+    summary: "Explained the previous guidance.",
+    warnings: [],
+    citations,
+    proposedActions: [],
+    pendingClarification: null,
+    requiresConfirmation: false,
+    confirmationPreview: null,
+  };
+}
+
 function buildFallbackAdvisory(
   request: HermesRespondRequest,
   context: ScoutAgentContext,
@@ -85,6 +198,11 @@ function buildFallbackAdvisory(
   | "requiresConfirmation"
   | "confirmationPreview"
 > {
+  const explanationReply = buildFollowUpExplanation(request, context, citations);
+  if (explanationReply) {
+    return explanationReply;
+  }
+
   const overview = request.canonicalState.operatorOverview;
   const lead = context.operatorOverview.nextBestLevers.slice(0, 2);
   const rememberedPreference = summarizeMemoryContext(request);

@@ -166,6 +166,43 @@ describe("hermes-orchestrator", () => {
     expect(result.requiresConfirmation).toBe(false);
   });
 
+  it("explains the previous recommendation on a conversational follow-up", async () => {
+    mocks.planDirectAgentOperation.mockResolvedValue(null);
+    mocks.planHostedWebResearch.mockResolvedValue(null);
+
+    const result = await runHermesOrchestrationTurn({
+      ...baseInput,
+      context: {
+        ...baseInput.context,
+        remainingScouts: 5,
+        operatorOverview: {
+          ...baseInput.context.operatorOverview,
+          openDailyBoostSlots: 4,
+          nextBestLevers: ["fill a daily boost slot before lock", "deploy the 5 unassigned scouts"],
+        },
+      } as any,
+      request: {
+        ...baseInput.request,
+        message: "what you mean?",
+        requestMode: "discussion",
+        toolAllowlist: [],
+        conversationHistory: [
+          {
+            role: "assistant",
+            contentText:
+              "You have $125.00 available. Right now the cleanest next lever is fill a daily boost slot before lock then deploy the 5 unassigned scouts.",
+          },
+        ],
+      },
+    });
+
+    expect(result.outcome).toBe("advisory");
+    expect(result.summary).toBe("Explained the previous guidance.");
+    expect(result.assistantText).toContain("The two levers I was pointing at are");
+    expect(result.assistantText).toContain("leaving a payout multiplier unused");
+    expect(result.assistantText).toContain("passive share generation back to work");
+  });
+
   it("falls back to the legacy compatibility bridge if orchestration throws", async () => {
     mocks.planDirectAgentOperation.mockRejectedValue(new Error("planner failed"));
     mocks.runLocalHermesCompatibilityTurn.mockResolvedValue({
