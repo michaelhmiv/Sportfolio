@@ -217,13 +217,19 @@ function Router() {
     ogUrlTag.setAttribute("content", canonicalUrl);
   }, [location]);
 
-  // Handle OAuth redirect hash tokens - redirect to /auth/callback if access_token is in hash
+  // Some providers fall back to `/` and attach auth params there; route those into the callback handler.
   useEffect(() => {
     const hash = window.location.hash;
-    if (hash && hash.includes("access_token=")) {
-      // Preserve the hash and redirect to auth callback
-      navigate(`/auth/callback${hash}`, { replace: true });
-    }
+    const search = window.location.search;
+    const pathname = window.location.pathname;
+    const queryParams = new URLSearchParams(search);
+    const hasPkceCode = queryParams.has("code");
+    const hasTokenHash = hash.includes("access_token=");
+
+    if (pathname === "/auth/callback") return;
+    if (!hasPkceCode && !hasTokenHash) return;
+
+    navigate(`/auth/callback${search}${hash}`, { replace: true });
   }, [navigate]);
 
   useEffect(() => {
