@@ -17,6 +17,30 @@ import type {
 
 const DEFAULT_HERMES_TIMEOUT_MS = 20_000;
 
+const proposedMemoryWriteSchema = z.object({
+  scope: z.enum(["profile", "episodic", "semantic"]),
+  kind: z.enum([
+    "preference",
+    "goal",
+    "risk_tolerance",
+    "favorite_entities",
+    "habit",
+    "interaction_style",
+  ]),
+  summary: z.string().trim().min(1),
+  content: z.record(z.unknown()),
+  confidence: z.number().finite().min(0).max(1),
+  reason: z.string().trim().min(1),
+});
+
+const agentToolTraceSchema = z.object({
+  toolName: z.string().trim().min(1),
+  phase: z.enum(["read", "plan", "memory", "research"]),
+  status: z.enum(["ok", "failed", "skipped"]),
+  latencyMs: z.number().finite().min(0),
+  summary: z.string().trim().min(1),
+});
+
 const hermesResponseSchema = z.object({
   outcome: z.enum(["advisory", "staged_plan", "clarification", "unsupported", "error"]),
   assistantText: z.string().trim().min(1),
@@ -25,8 +49,8 @@ const hermesResponseSchema = z.object({
   proposedActions: z.array(z.record(z.any())).optional(),
   pendingClarification: z.record(z.any()).nullable().optional(),
   citations: z.array(z.record(z.any())).optional(),
-  proposedMemoryWrites: z.array(z.record(z.any())).optional(),
-  toolTrace: z.array(z.record(z.any())).optional(),
+  proposedMemoryWrites: z.array(proposedMemoryWriteSchema).optional(),
+  toolTrace: z.array(agentToolTraceSchema).optional(),
 });
 
 function getHermesAgentUrl(): string | null {
@@ -120,6 +144,19 @@ export function normalizeHermesTurnResponse(payload: unknown): HermesRespondResu
       ? (parsed.toolTrace as HermesRespondResult["toolTrace"])
       : [],
   };
+}
+
+async function readHermesResponsePayload(response: Response): Promise<unknown> {
+  const rawBody = await response.text();
+  if (!rawBody.trim()) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(rawBody) as unknown;
+  } catch {
+    return rawBody;
+  }
 }
 
 async function logRuntimeSession(input: {
@@ -244,12 +281,14 @@ export async function runHermesAgentTurn(input: {
       signal: controller.signal,
     });
 
-    const payload = (await response.json()) as unknown;
+    const payload = await readHermesResponsePayload(response);
     if (!response.ok) {
       throw new Error(
         payload && typeof payload === "object" && "message" in (payload as Record<string, unknown>)
           ? String((payload as Record<string, unknown>).message)
-          : `Hermes returned ${response.status}`,
+          : typeof payload === "string" && payload.trim()
+            ? `Hermes returned ${response.status}: ${payload.trim()}`
+            : `Hermes returned ${response.status}`,
       );
     }
 

@@ -1,4 +1,7 @@
 import type { Express, Request, Response } from "express";
+import { eq } from "drizzle-orm";
+import { users } from "@shared/schema";
+import { db } from "../db";
 import { requireHermesInternalRequest } from "../agent/internal-auth";
 import { runHermesMemoryTool, runHermesPlanTool, runHermesReadTool } from "../agent/hermes-tools";
 
@@ -18,6 +21,11 @@ function getBodyObject(body: unknown): Record<string, unknown> {
   return body && typeof body === "object" ? (body as Record<string, unknown>) : {};
 }
 
+async function ensureUserExists(userId: string): Promise<boolean> {
+  const [user] = await db.select({ id: users.id }).from(users).where(eq(users.id, userId)).limit(1);
+  return Boolean(user);
+}
+
 export function registerInternalAgentToolRoutes(app: Express): void {
   app.post(
     "/internal/agent-tools/read",
@@ -31,6 +39,10 @@ export function registerInternalAgentToolRoutes(app: Express): void {
 
         if (!toolName || !userId) {
           res.status(400).json({ message: "toolName and userId are required" });
+          return;
+        }
+        if (!(await ensureUserExists(userId))) {
+          res.status(404).json({ message: "userId was not found" });
           return;
         }
 
@@ -62,6 +74,10 @@ export function registerInternalAgentToolRoutes(app: Express): void {
           res.status(400).json({ message: "toolName and userId are required" });
           return;
         }
+        if (!(await ensureUserExists(userId))) {
+          res.status(404).json({ message: "userId was not found" });
+          return;
+        }
 
         res.json({
           ok: true,
@@ -89,6 +105,10 @@ export function registerInternalAgentToolRoutes(app: Express): void {
 
         if (!toolName || !userId) {
           res.status(400).json({ message: "toolName and userId are required" });
+          return;
+        }
+        if (!(await ensureUserExists(userId))) {
+          res.status(404).json({ message: "userId was not found" });
           return;
         }
 

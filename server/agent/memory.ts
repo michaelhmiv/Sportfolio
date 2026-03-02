@@ -22,6 +22,9 @@ const LOW_SIGNAL_TERMS = new Set([
   "the",
   "to",
 ]);
+const DEFAULT_MEMORY_CONFIDENCE = 0.5;
+const MIN_MEMORY_CONFIDENCE = 0;
+const MAX_MEMORY_CONFIDENCE = 1;
 
 function normalizeSummary(summary: string): string {
   return summary.replace(/\s+/g, " ").trim().slice(0, 240);
@@ -29,6 +32,14 @@ function normalizeSummary(summary: string): string {
 
 function normalizeContent(value: Record<string, unknown>): Record<string, unknown> {
   return JSON.parse(JSON.stringify(value)) as Record<string, unknown>;
+}
+
+function normalizeConfidence(value: unknown): string {
+  const parsed =
+    typeof value === "number" && Number.isFinite(value) ? value : DEFAULT_MEMORY_CONFIDENCE;
+  const bounded = Math.max(MIN_MEMORY_CONFIDENCE, Math.min(parsed, MAX_MEMORY_CONFIDENCE));
+
+  return bounded.toFixed(3);
 }
 
 function tokenize(text: string): string[] {
@@ -233,12 +244,13 @@ export async function persistProposedMemoryWrites(input: {
       .limit(1);
 
     if (existing) {
+      const normalizedConfidence = normalizeConfidence(write.confidence);
       const [updated] = await db
         .update(userAgentMemories)
         .set({
           threadId: input.threadId,
           content: normalizeContent(write.content),
-          confidence: write.confidence.toFixed(3),
+          confidence: normalizedConfidence,
           updatedAt: new Date(),
         })
         .where(eq(userAgentMemories.id, existing.id))
@@ -250,6 +262,7 @@ export async function persistProposedMemoryWrites(input: {
       continue;
     }
 
+    const normalizedConfidence = normalizeConfidence(write.confidence);
     const [created] = await db
       .insert(userAgentMemories)
       .values({
@@ -259,7 +272,7 @@ export async function persistProposedMemoryWrites(input: {
         kind: write.kind,
         summary,
         content: normalizeContent(write.content),
-        confidence: write.confidence.toFixed(3),
+        confidence: normalizedConfidence,
         source: "agent_inferred",
       })
       .returning();

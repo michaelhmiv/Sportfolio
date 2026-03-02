@@ -33,6 +33,14 @@ function resolveAnalysisMaxTokens(profile: UserAgentProfile): number {
   return Math.max(200, Math.min(profile.maxTokens, 4000));
 }
 
+function safeInferMemoryWrites(message: string) {
+  try {
+    return inferMemoryWritesFromMessage(message);
+  } catch {
+    return [];
+  }
+}
+
 async function resolveLocalCompatibilityRuntime(
   profile: UserAgentProfile,
   secret: UserAgentSecret | undefined,
@@ -73,11 +81,11 @@ export async function runLocalHermesCompatibilityTurn(input: {
   conversationHistory?: HermesRespondRequest["conversationHistory"];
   requestedMode?: HermesRespondRequest["requestMode"];
 }): Promise<HermesRespondResult> {
-  const memoryWrites = inferMemoryWritesFromMessage(input.chatRequest);
   const toolTrace: HermesRespondResult["toolTrace"] = [];
   const startedAt = Date.now();
 
   try {
+    const memoryWrites = safeInferMemoryWrites(input.chatRequest);
     const runtime = await resolveLocalCompatibilityRuntime(input.profile, input.secret);
     const modeResolution =
       input.requestedMode &&
@@ -185,6 +193,7 @@ export async function runLocalHermesCompatibilityTurn(input: {
       toolTrace,
     };
   } catch (error: any) {
+    const memoryWrites = safeInferMemoryWrites(input.chatRequest);
     toolTrace.push({
       toolName: "local_compatibility_bridge",
       phase: "plan",

@@ -15,4 +15,23 @@ describe("hermes-client", () => {
     expect(result.proposedMemoryWrites).toEqual([]);
     expect(result.toolTrace).toEqual([]);
   });
+
+  it("rejects malformed proposed memory writes from the sidecar payload", () => {
+    expect(() =>
+      normalizeHermesTurnResponse({
+        outcome: "advisory",
+        assistantText: "Here is your setup review.",
+        proposedMemoryWrites: [
+          {
+            scope: "unknown",
+            kind: "preference",
+            summary: "I prefer same-day moves.",
+            content: { statement: "I prefer same-day moves." },
+            confidence: 0.8,
+            reason: "Captured a durable preference.",
+          },
+        ],
+      }),
+    ).toThrow();
+  });
 });

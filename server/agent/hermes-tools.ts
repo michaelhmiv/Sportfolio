@@ -1,6 +1,7 @@
 import { getAgentCapabilities, getScoutAgentProfile } from "./service";
 import { loadScoutAgentContext } from "./context-loader";
 import { listAgentKnowledgeArticles } from "../docs-service";
+import { z } from "zod";
 import {
   buildHermesMemoryContext,
   persistProposedMemoryWrites,
@@ -11,8 +12,34 @@ import { planDirectAgentOperation } from "./operations-planner";
 import { planHostedWebResearch } from "./research";
 import type { ProposedMemoryWrite } from "./types";
 
+const proposedMemoryWritesSchema = z.array(
+  z.object({
+    scope: z.enum(["profile", "episodic", "semantic"]),
+    kind: z.enum([
+      "preference",
+      "goal",
+      "risk_tolerance",
+      "favorite_entities",
+      "habit",
+      "interaction_style",
+    ]),
+    summary: z.string().trim().min(1),
+    content: z.record(z.unknown()),
+    confidence: z.number().finite().min(0).max(1),
+    reason: z.string().trim().min(1),
+  }),
+);
+
 function toStringValue(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function parseProposedMemoryWrites(value: unknown): ProposedMemoryWrite[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return proposedMemoryWritesSchema.parse(value);
 }
 
 export async function runHermesReadTool(input: {
@@ -101,9 +128,7 @@ export async function runHermesMemoryTool(input: {
 }): Promise<unknown> {
   switch (input.toolName) {
     case "write_user_memory": {
-      const writes = Array.isArray(input.args?.writes)
-        ? (input.args?.writes as ProposedMemoryWrite[])
-        : [];
+      const writes = parseProposedMemoryWrites(input.args?.writes);
 
       return persistProposedMemoryWrites({
         userId: input.userId,
