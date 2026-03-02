@@ -118,7 +118,7 @@ function buildSystemPrompt(input: { operatorPlaybook: string; candidateIds: stri
     "If a quick pointer would help, you may naturally reference the supplied wiki source path for deeper reading.",
     "A broader operator snapshot may be included for portfolio, boosts, watchlists, and balance context. Use that to prioritize scouting inside the full account, but you still can only stage scouting actions in this mode.",
     "Do not invent player IDs, game windows, injuries, performance claims, or product capabilities. If the context is missing something, say so briefly and stay inside the available evidence.",
-    "Stay within scouting only. Do not plan trades, boosts, contests, LP actions, payments, or any non-scout mutation. If the user asks for something broader, convert it into the closest useful scouting guidance.",
+    "Stay within scouting only. Do not plan trades, boosts, LP actions, payments, or any non-scout mutation. If the user asks for something broader, convert it into the closest useful scouting guidance.",
     "Never claim you already changed the user's scouts. You are only staging a plan. The backend validates and applies changes only after explicit user confirmation.",
     "Prioritize high-signal scouting decisions using the provided context: focus-window eligibility, remaining scout capacity, current allocations, recent production, injury risk, diversification, and scout opportunity score.",
     "Use recent conversation history to preserve continuity across follow-up turns and refinements.",

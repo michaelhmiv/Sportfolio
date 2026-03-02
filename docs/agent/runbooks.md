@@ -40,13 +40,7 @@ Must-verify behaviors:
 - Buy and sell fees reconcile with pool and burn fee fields.
 - LP add/remove and zap paths still produce valid ownership and outputs.
 
-## Runbook B: Legacy Contest Code (Archived)
-
-Contest code still exists in the repo, but contests are archived and not part of the active product or agent capability surface.
-
-Do not expand contest behavior for the agent. If legacy contest code must be touched for maintenance, treat it as archival compatibility work only.
-
-## Runbook C: Boost Eligibility / Payout Changes
+## Runbook B: Boost Eligibility / Payout Changes
 
 Primary files:
 
@@ -69,7 +63,7 @@ Must-verify behaviors:
 - Locked boost burns exactly one share from correct holding row.
 - Settlement waits for completed game + available stats.
 
-## Runbook D: Legacy Vesting Maintenance (Retired)
+## Runbook C: Legacy Vesting Maintenance (Retired)
 
 Vesting is retired and out of the active product and agent surface. These notes apply only if legacy vesting code must be touched for compatibility maintenance.
 
@@ -92,7 +86,7 @@ Must-verify behaviors:
 - Partial redeem updates remaining shares correctly.
 - Claim/redeem emits expected portfolio/vesting websocket updates.
 
-## Runbook E: Auth / Access Boundary Changes
+## Runbook D: Auth / Access Boundary Changes
 
 Primary files:
 
@@ -122,7 +116,7 @@ Checklist:
 3. Create daily boost before game, verify lock + settle lifecycle.
 4. If legacy vesting code was touched, verify claim/redeem state updates in a maintenance-only test path.
 
-## Runbook F: Hermes Runtime / Agent Schedule Changes
+## Runbook E: Hermes Runtime / Agent Schedule Changes
 
 Primary files:
 

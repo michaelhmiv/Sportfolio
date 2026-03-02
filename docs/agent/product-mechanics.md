@@ -129,4 +129,3 @@ Critical invariants:
 
 - If mechanics in UI copy conflict with backend behavior, backend route/job code is authoritative.
 - Any change to formulas, burn/credit behavior, or caps requires runbook validation in `docs/agent/runbooks.md`.
-- Legacy contest code still exists in the repo, but contests are archived and not part of the active product or the agent capability surface.

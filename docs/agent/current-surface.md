@@ -56,7 +56,6 @@ These are staged first and are only executed after an explicit confirm action fr
 
 - autonomous execution without confirmation
 - generalized multi-domain LLM-authored economic planning as the source of truth
-- contests as an active agent capability surface
 - admin or destructive operational flows
 - guaranteed coverage for every website path a human can perform
 

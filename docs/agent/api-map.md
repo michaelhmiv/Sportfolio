@@ -97,10 +97,6 @@ Vesting routes still exist in the codebase for archival compatibility, but vesti
 | GET    | `/api/scouts/velocity/:playerId` | Public          | Velocity signal by player       |
 | GET    | `/api/scouts/trending`           | Public          | Trending scout player IDs       |
 
-## Legacy Contest Endpoints (Archived)
-
-Contest routes still exist in the codebase as legacy paths, but contests are archived and are out of the active product surface and agent scope.
-
 ## Daily & Community Boost Endpoints
 
 | Method | Path                                     | Auth            | Purpose                              |
@@ -149,9 +145,7 @@ Representative endpoints (not exhaustive):
 - `GET /api/admin/diagnostics` (adminAuth)
 - `GET /api/admin/route-smoke` (adminAuth)
 - `POST /api/admin/backfill` (adminAuth)
-- Legacy archived contest admin paths still exist in code but are out of current agent scope
-
-Treat admin endpoints as production-impacting operations.
+  Treat admin endpoints as production-impacting operations.
 
 ## WebSocket Interface
 
@@ -173,5 +167,3 @@ Published event types include:
 - `trending_players_update`
 
 Reference: `server/websocket.ts`.
-
-Legacy contest websocket event names still exist in the server code, but contests are archived and should not be treated as an active agent capability.

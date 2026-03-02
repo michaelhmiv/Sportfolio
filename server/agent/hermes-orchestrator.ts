@@ -29,7 +29,6 @@ const ACTION_TOOL_ALIASES = new Set([
   "preview_community_boost_create",
   "preview_scout_adjustment",
   "preview_multi_action_bundle",
-  "preview_contest_action",
 ]);
 
 function buildToolTraceEntry(input: {

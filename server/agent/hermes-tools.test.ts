@@ -241,13 +241,12 @@ describe("hermes-tools", () => {
     });
   });
 
-  it("reports contests as disabled through the read tool", async () => {
-    const result = (await runHermesReadTool({
-      toolName: "get_contests",
-      userId: "user_1",
-    })) as any;
-
-    expect(result.supported).toBe(false);
-    expect(result.reason).toContain("Contests");
+  it("rejects removed contest tools", async () => {
+    await expect(
+      runHermesReadTool({
+        toolName: "get_contests",
+        userId: "user_1",
+      }),
+    ).rejects.toThrow("Unsupported Hermes read tool");
   });
 });

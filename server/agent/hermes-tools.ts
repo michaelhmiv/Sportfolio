@@ -1107,10 +1107,6 @@ export async function runHermesReadTool(input: {
         pendingActionBundle: (await getAgentThread(input.userId, input.threadId))
           .pendingActionBundle,
       };
-    case "get_contests":
-    case "get_contest_state":
-    case "get_contest_entry_state":
-      return buildDisabledWorkflowResult("Contests");
     default:
       throw new Error(`Unsupported Hermes read tool: ${input.toolName}`);
   }
@@ -1134,8 +1130,6 @@ export async function runHermesPlanTool(input: {
       return buildLpRemovePreview(input);
     case "preview_lp_zap":
       return buildLpZapPreview(input);
-    case "preview_contest_action":
-      return buildDisabledWorkflowResult("Contests");
     case "preview_direct_operation":
     case "preview_condense":
     case "preview_daily_boost_assign":
@@ -1295,8 +1289,6 @@ export async function runHermesActionTool(input: {
       }
       return removeUserAgentSchedule(input.userId, jobType);
     }
-    case "run_contest_action":
-      return buildDisabledWorkflowResult("Contests");
     default:
       throw new Error(`Unsupported Hermes action tool: ${input.toolName}`);
   }

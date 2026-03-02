@@ -46,14 +46,6 @@ Use this when changing share supply, balances, boost settlement, or portfolio ac
 
 The `vesting*` tables remain in the schema for legacy compatibility, but vesting is retired and out of the active product and current agent scope.
 
-## Legacy Contests (Archived)
-
-- `contests`
-- `contest_entries`
-- `contest_lineups`
-
-These remain in the schema as legacy archived data and are out of the active product and agent scope.
-
 ## Boosts & Premium/Community Economy
 
 - `daily_boosts`
