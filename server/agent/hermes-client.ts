@@ -241,8 +241,10 @@ export async function runHermesAgentTurn(input: {
 
   const startedAt = Date.now();
   const hermesUrl = getHermesAgentUrl();
-
-  if (!hermesUrl) {
+  const runLocalFallback = async (
+    fallbackReason: string | null,
+    externalError?: unknown,
+  ): Promise<HermesRespondResult> => {
     const localResult = await runLocalHermesCompatibilityTurn({
       userId: input.userId,
       channel: input.channel,
@@ -254,18 +256,42 @@ export async function runHermesAgentTurn(input: {
       conversationHistory: input.conversationHistory,
       requestedMode: input.requestMode,
     });
+    const toolTrace = [...localResult.toolTrace];
+
+    if (fallbackReason) {
+      toolTrace.unshift({
+        toolName: "external_hermes_fallback",
+        phase: "plan",
+        status: "failed",
+        latencyMs: Math.max(0, Date.now() - startedAt),
+        summary: `External Hermes sidecar failed (${fallbackReason}); used the in-process compatibility bridge.`,
+      });
+      console.warn(
+        "[Hermes] External sidecar request failed; using local compatibility bridge:",
+        externalError instanceof Error ? externalError.message : externalError || fallbackReason,
+      );
+    }
+
+    const fallbackResult: HermesRespondResult = {
+      ...localResult,
+      toolTrace,
+    };
 
     await logRuntimeSession({
       userId: input.userId,
       threadId: input.threadId,
-      status: localResult.outcome,
+      status: fallbackResult.outcome === "error" ? "failed" : fallbackResult.outcome,
       requestPayload,
-      responsePayload: localResult,
-      toolTrace: localResult.toolTrace,
+      responsePayload: fallbackResult,
+      toolTrace: fallbackResult.toolTrace,
       latencyMs: Math.max(0, Date.now() - startedAt),
     });
 
-    return localResult;
+    return fallbackResult;
+  };
+
+  if (!hermesUrl) {
+    return runLocalFallback(null);
   }
 
   const controller = new AbortController();
@@ -306,18 +332,7 @@ export async function runHermesAgentTurn(input: {
 
     return normalized;
   } catch (error: any) {
-    await logRuntimeSession({
-      userId: input.userId,
-      threadId: input.threadId,
-      status: "error",
-      requestPayload,
-      responsePayload: {
-        message: error?.message || "Hermes request failed",
-      },
-      toolTrace: [],
-      latencyMs: Math.max(0, Date.now() - startedAt),
-    });
-    throw error;
+    return runLocalFallback(error?.message || "Hermes request failed", error);
   } finally {
     clearTimeout(timeout);
   }
