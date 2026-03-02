@@ -168,7 +168,7 @@ export interface NascarLiveFeed {
   run_name: string;
   run_type: number;
   // Race state
-  flag_state: number; // 1=Green, 2=Yellow, 3=Red
+  flag_state: number; // Provider uses additional terminal values after the race ends
   number_of_caution_segments: number;
   number_of_lead_changes: number;
   number_of_leaders: number;
@@ -498,7 +498,7 @@ export async function fetchRaceResults(
             runId: liveFeed.run_id,
             runName: liveFeed.run_name,
             runType: liveFeed.run_type,
-            status: liveFeed.flag_state === 4 ? "completed" : "inprogress",
+            status: isNascarRaceFinished(liveFeed) ? "completed" : "inprogress",
             scheduledStartTime: "",
             laps: liveFeed.laps_in_race,
             vehicles: liveFeed.vehicles.map((v) => ({
@@ -866,6 +866,20 @@ export function calculateFantasyPoints(result: NascarRaceResult): number {
 }
 
 /**
+ * Determine whether a live feed represents a race that has already finished.
+ */
+export function isNascarRaceFinished(
+  feed: Pick<NascarLiveFeed, "flag_state" | "laps_to_go">,
+): boolean {
+  if (feed.laps_to_go <= 0) {
+    return true;
+  }
+
+  // The feed can stay published after the race ends and switch to a terminal flag state.
+  return feed.flag_state === 4 || feed.flag_state === 9;
+}
+
+/**
  * Get flag state description
  */
 export function getFlagStateDescription(flagState: number): string {
@@ -875,6 +889,7 @@ export function getFlagStateDescription(flagState: number): string {
     3: "Red",
     4: "Checkered",
     5: "White",
+    9: "Final",
   };
   return flagStates[flagState] || "Unknown";
 }

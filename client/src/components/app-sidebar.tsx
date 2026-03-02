@@ -1,4 +1,4 @@
-import { Home, TrendingUp, Zap, User, Settings, BarChart3, Crown, Newspaper } from "lucide-react";
+import { BarChart3, Bot, Crown, Home, Newspaper, TrendingUp, User, Zap } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -48,6 +48,11 @@ const menuItems = [
     icon: Crown,
   },
   {
+    title: "Agent",
+    url: "/agent",
+    icon: Bot,
+  },
+  {
     title: "News",
     url: "/news",
     icon: Newspaper,
@@ -63,15 +68,18 @@ export function AppSidebar() {
   const isPremium = user?.isPremium || false;
 
   const handleNavigation = (item: (typeof menuItems)[0], e: React.MouseEvent) => {
-    // Portfolio and Premium tabs require authentication
-    if ((item.url === "/portfolio" || item.url === "/premium") && !isAuthenticated) {
+    const requiresAuth =
+      item.url === "/portfolio" || item.url === "/premium" || item.url === "/agent";
+    if (requiresAuth && !isAuthenticated) {
       e.preventDefault();
       toast({
         title: "Authentication Required",
         description:
           item.url === "/premium"
             ? "Please create an account or log in to access Premium features."
-            : "Please create an account or log in to view your portfolio.",
+            : item.url === "/agent"
+              ? "Please create an account or log in to use your agent."
+              : "Please create an account or log in to view your portfolio.",
         variant: "destructive",
       });
     }

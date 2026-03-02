@@ -2,7 +2,7 @@
 
 Primary source: `shared/schema.ts`.
 
-Use this when changing share supply, balances, contest payouts, boost settlement, or portfolio accounting.
+Use this when changing share supply, balances, boost settlement, or portfolio accounting.
 
 ## Core Entity Groups
 
@@ -44,11 +44,13 @@ Use this when changing share supply, balances, contest payouts, boost settlement
 - `scout_history`
 - `scout_distributions`
 
-## Contests
+## Legacy Contests (Archived)
 
 - `contests`
 - `contest_entries`
 - `contest_lineups`
+
+These remain in the schema as legacy archived data and are out of the active product and agent scope.
 
 ## Boosts & Premium/Community Economy
 
@@ -67,19 +69,17 @@ Use this when changing share supply, balances, contest payouts, boost settlement
 
 ## Economy Mutation Matrix
 
-| Event                  | Balance                                                         | Holdings                                     | Pools                                     | Ledgers                        |
-| ---------------------- | --------------------------------------------------------------- | -------------------------------------------- | ----------------------------------------- | ------------------------------ |
-| AMM buy                | user balance decreases                                          | user player shares increase                  | pool shares/playMoney change, fees accrue | trade + pool metrics           |
-| AMM sell               | user balance increases (net of fees)                            | user player shares decrease                  | pool shares/playMoney change, fees accrue | trade + pool metrics           |
-| LP add                 | user balance/shares decrease                                    | user LP position increases                   | pool reserves increase                    | `lp_transactions`              |
-| LP remove              | user receives shares + balance value                            | user LP position decreases                   | pool reserves decrease                    | `lp_transactions`              |
-| Vesting claim/redeem   | no direct cash mint                                             | player holdings increase at zero basis       | no direct pool mutation                   | `vesting_claims`               |
-| Scout distribution     | no direct cash mint                                             | player holdings increase                     | no direct pool mutation                   | `scout_distributions`          |
-| Contest entry          | no immediate cash payout; entry fee contributes to contest pool | entered shares are burned from user holdings | no direct pool mutation                   | contest lineup/entry rows      |
-| Contest settlement     | winners' balance increases                                      | none                                         | none                                      | contest payout fields          |
-| Daily boost lock       | none                                                            | one selected share burned on lock            | none                                      | daily boost status             |
-| Daily boost settle     | user balance increases by payout                                | none                                         | none                                      | `boost_payouts` + boost status |
-| Community boost create | community share consumed                                        | community holding decreases                  | none                                      | community boost row            |
+| Event                  | Balance                              | Holdings                               | Pools                                     | Ledgers                        |
+| ---------------------- | ------------------------------------ | -------------------------------------- | ----------------------------------------- | ------------------------------ |
+| AMM buy                | user balance decreases               | user player shares increase            | pool shares/playMoney change, fees accrue | trade + pool metrics           |
+| AMM sell               | user balance increases (net of fees) | user player shares decrease            | pool shares/playMoney change, fees accrue | trade + pool metrics           |
+| LP add                 | user balance/shares decrease         | user LP position increases             | pool reserves increase                    | `lp_transactions`              |
+| LP remove              | user receives shares + balance value | user LP position decreases             | pool reserves decrease                    | `lp_transactions`              |
+| Vesting claim/redeem   | no direct cash mint                  | player holdings increase at zero basis | no direct pool mutation                   | `vesting_claims`               |
+| Scout distribution     | no direct cash mint                  | player holdings increase               | no direct pool mutation                   | `scout_distributions`          |
+| Daily boost lock       | none                                 | one selected share burned on lock      | none                                      | daily boost status             |
+| Daily boost settle     | user balance increases by payout     | none                                   | none                                      | `boost_payouts` + boost status |
+| Community boost create | community share consumed             | community holding decreases            | none                                      | community boost row            |
 
 ## Economic Invariants
 
@@ -90,7 +90,7 @@ Use this when changing share supply, balances, contest payouts, boost settlement
 3. **Power consistency**
    - `powerLevel` must remain aligned with quantity/power semantics.
 4. **Status-gated settlement**
-   - contests/boosts settle only after completion conditions are met.
+   - boosts settle only after completion conditions are met.
 5. **Idempotent settlement paths**
    - repeated job execution must not double credit users.
 
@@ -101,7 +101,6 @@ Use this when changing share supply, balances, contest payouts, boost settlement
 - `holdings.powerLevel`
 - `player_pools.shares`
 - `player_pools.playMoney`
-- `contests.status`
 - `daily_boosts.status`
 - `community_boosts.status`
 
@@ -111,7 +110,7 @@ Reference: `server/websocket.ts`
 
 Key event types used by economic/gameplay flows:
 
-- `portfolio`, `trade`, `contestUpdate`, `contestSettled`, `scout_payout`, `boost_settled`, `COMMUNITY_BOOST_SETTLED`, `vesting`, `whale_alert`.
+- `portfolio`, `trade`, `scout_payout`, `boost_settled`, `COMMUNITY_BOOST_SETTLED`, `vesting`, `whale_alert`.
 
 Event emissions are used for UX freshness; they do not replace DB source-of-truth.
 

@@ -10,6 +10,7 @@ import { BottomNav } from "@/components/bottom-nav";
 import { HelpDialog } from "@/components/help-dialog";
 import { Footer } from "@/components/footer";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { WebSocketProvider, useWebSocket } from "@/lib/websocket";
 import { ConnectionStatus } from "@/components/connection-status";
@@ -18,14 +19,14 @@ import { useAuth, AuthProvider } from "@/hooks/useAuth";
 import { OnboardingModal } from "@/components/onboarding-modal";
 import { AnimatePresence, motion } from "framer-motion";
 import logoUrl from "@assets/Sportfolio png_1763227952318.png";
-import { LogOut, User } from "lucide-react";
+import { Bot, LogOut, Newspaper, User } from "lucide-react";
 import { SiDiscord } from "react-icons/si";
 import { SchemaOrg, schemas } from "@/components/schema-org";
 import { ScoutWidget } from "@/components/scout-widget";
 import { ScoutDashboardModal } from "@/components/scout-dashboard-modal";
 import { ScoutProvider } from "@/lib/scout-context";
 import { SportProvider } from "@/lib/sport-context";
-import { NewsNotificationProvider } from "@/lib/news-notification-context";
+import { NewsNotificationProvider, useNewsNotifications } from "@/lib/news-notification-context";
 import { InjuryProvider } from "@/lib/injury-context";
 import { ScoutCeremonyOverlay } from "@/components/ceremonies/scout-ceremony-overlay";
 import { ScoutReadyBanner } from "@/components/ceremonies/scout-ready-banner";
@@ -65,6 +66,7 @@ const loadAboutPage = () => import("@/pages/about");
 const loadContactPage = () => import("@/pages/contact");
 const loadHowItWorksPage = () => import("@/pages/how-it-works");
 const loadAnalyticsPage = () => import("@/pages/analytics");
+const loadAgentPage = () => import("@/pages/agent");
 const loadNewsPage = () => import("@/pages/news");
 const loadPremiumPage = () => import("@/pages/premium");
 const loadWatchlistsPage = () => import("@/pages/watchlists");
@@ -93,6 +95,7 @@ const About = lazy(loadAboutPage);
 const Contact = lazy(loadContactPage);
 const HowItWorks = lazy(loadHowItWorksPage);
 const Analytics = lazy(loadAnalyticsPage);
+const Agent = lazy(loadAgentPage);
 const News = lazy(loadNewsPage);
 const Premium = lazy(loadPremiumPage);
 const Watchlists = lazy(loadWatchlistsPage);
@@ -304,6 +307,7 @@ function Router() {
       void loadContestsPage();
       void loadBlogPage();
       void loadLeaderboardsPage();
+      void loadAgentPage();
       void loadNewsPage();
     };
 
@@ -457,6 +461,7 @@ function Router() {
             <Route path="/how-it-works" component={HowItWorks} />
             <Route path="/analytics" component={Analytics} />
             <Route path="/news" component={News} />
+            <Route path="/agent">{isAuthenticated ? <Agent /> : <Dashboard />}</Route>
 
             {/* Power / Boosts - requires authentication */}
             <Route path="/power">{isAuthenticated ? <Power /> : <Dashboard />}</Route>
@@ -501,6 +506,7 @@ function Header() {
   const { user, isAuthenticated, logout } = useAuth();
   const [location, navigate] = useLocation();
   const { subscribe } = useWebSocket();
+  const { unreadNewsCount, hasUnreadDigest } = useNewsNotifications();
   const { data: dashboardData } = useQuery<{ user: { balance: string; portfolioValue: string } }>({
     queryKey: ["/api/dashboard"],
   });
@@ -554,8 +560,38 @@ function Header() {
         </div>
       </div>
       <div className="flex items-center gap-2">
+        <Button
+          variant="ghost"
+          size="icon"
+          asChild
+          className="relative"
+          data-testid="button-news-header"
+        >
+          <Link href="/news">
+            <Newspaper className="h-4 w-4" />
+            {hasUnreadDigest && (
+              <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-red-500" />
+            )}
+            {unreadNewsCount > 0 && (
+              <Badge className="absolute -right-1 -top-1 h-5 min-w-5 px-1 text-[10px] bg-blue-600 hover:bg-blue-600">
+                {unreadNewsCount}
+              </Badge>
+            )}
+          </Link>
+        </Button>
         {isAuthenticated ? (
           <>
+            <Button
+              size="icon"
+              variant="ghost"
+              asChild
+              data-testid="button-agent-header"
+              title="Agent"
+            >
+              <Link href="/agent">
+                <Bot className="h-4 w-4" />
+              </Link>
+            </Button>
             <Link
               href={user?.id ? `/user/${user.id}` : "/profile"}
               className="hidden sm:block"

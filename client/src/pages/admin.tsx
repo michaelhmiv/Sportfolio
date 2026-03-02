@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -22,7 +22,6 @@ import { Switch } from "@/components/ui/switch";
 import {
   Settings,
   RefreshCw,
-  Calendar,
   TrendingUp,
   Users,
   Database,
@@ -185,6 +184,40 @@ interface TweetPreview {
   settings: TweetSettings;
 }
 
+type ManagedProviderKey = "chutes" | "minimax" | "openrouter";
+
+interface ManagedProviderStatus {
+  key: ManagedProviderKey;
+  label: string;
+  configured: boolean;
+  baseUrl: string;
+  defaultModel: string | null;
+  models: string[];
+}
+
+interface AgentSystemSettingsResponse {
+  settings: {
+    id: string;
+    managedProvider: ManagedProviderKey;
+    managedModel: string | null;
+    updatedAt: string;
+  };
+  managedProvider: ManagedProviderStatus;
+  managedProviders: ManagedProviderStatus[];
+}
+
+interface AgentProviderModelCatalogResponse {
+  provider: ManagedProviderKey;
+  source: "configured" | "remote" | "configured+remote";
+  warning: string | null;
+  fetchedAt: string;
+  models: Array<{
+    id: string;
+    name: string;
+    contextLength: number | null;
+  }>;
+}
+
 export default function Admin() {
   const { toast } = useToast();
   const [runningJobs, setRunningJobs] = useState<Set<string>>(new Set());
@@ -210,6 +243,9 @@ export default function Admin() {
   const [customPrompt, setCustomPrompt] = useState("");
   const [customDraft, setCustomDraft] = useState<string | null>(null);
   const [isDrafting, setIsDrafting] = useState(false);
+  const [agentManagedProviderDraft, setAgentManagedProviderDraft] =
+    useState<ManagedProviderKey>("chutes");
+  const [agentManagedModelDraft, setAgentManagedModelDraft] = useState("");
 
   // Premium grant state
   const [grantUsername, setGrantUsername] = useState("");
@@ -229,6 +265,42 @@ export default function Admin() {
     refetchInterval: apiHealthRefetchMs,
     staleTime: 10000,
   });
+
+  const { data: agentSystemSettings } = useQuery<AgentSystemSettingsResponse>({
+    queryKey: ["/api/admin/agent/settings"],
+    staleTime: 10000,
+  });
+
+  const {
+    data: agentProviderModelCatalog,
+    isLoading: isAgentProviderModelCatalogLoading,
+    refetch: refetchAgentProviderModelCatalog,
+  } = useQuery<AgentProviderModelCatalogResponse>({
+    queryKey: ["/api/admin/agent/providers", agentManagedProviderDraft, "models"],
+    staleTime: 300000,
+    enabled: Boolean(agentSystemSettings),
+  });
+
+  useEffect(() => {
+    if (!agentSystemSettings) {
+      return;
+    }
+
+    setAgentManagedProviderDraft(agentSystemSettings.settings.managedProvider);
+    setAgentManagedModelDraft(agentSystemSettings.settings.managedModel || "");
+  }, [agentSystemSettings]);
+
+  const selectedAgentManagedProvider =
+    agentSystemSettings?.managedProviders.find(
+      (provider) => provider.key === agentManagedProviderDraft,
+    ) || null;
+  const agentModelSuggestions = agentProviderModelCatalog?.models || [];
+  const agentModelSourceDescription =
+    agentProviderModelCatalog?.source === "configured+remote"
+      ? "configured defaults and the live provider catalog"
+      : agentProviderModelCatalog?.source === "remote"
+        ? "the live provider catalog"
+        : "configured defaults";
 
   const runApiHealthMutation = useMutation({
     mutationFn: async () => {
@@ -289,6 +361,37 @@ export default function Admin() {
     },
   });
 
+  const updateAgentSystemSettingsMutation = useMutation({
+    mutationFn: async ({
+      managedProvider,
+      managedModel,
+    }: {
+      managedProvider: ManagedProviderKey;
+      managedModel: string | null;
+    }) => {
+      const res = await apiRequest("PATCH", "/api/admin/agent/settings", {
+        managedProvider,
+        managedModel,
+      });
+      return (await res.json()) as AgentSystemSettingsResponse;
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(["/api/admin/agent/settings"], data);
+      queryClient.invalidateQueries({ queryKey: ["/api/agent/profile"] });
+      toast({
+        title: "Agent provider updated",
+        description: `${data.managedProvider.label} is now the default system AI.`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to update agent provider",
+        description: error.message || "Unable to update the default system AI provider",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleTriggerJob = (jobName: string) => {
     const operationId = `job-${jobName}-${Date.now()}`;
     triggerJobMutation.mutate({ jobName, operationId });
@@ -317,8 +420,6 @@ export default function Admin() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] });
-
-      const variant = data.status === "degraded" ? "default" : "default";
       toast({
         title: data.status === "degraded" ? "Backfill completed with errors" : "Backfill completed",
         description: `${data.result.recordsProcessed} game logs cached, ${data.result.errorCount} errors, ${data.result.requestCount} API requests`,
@@ -595,6 +696,45 @@ export default function Admin() {
     }
   };
 
+  const handleSaveAgentSystemSettings = () => {
+    const selectedProvider = selectedAgentManagedProvider;
+
+    if (!selectedProvider) {
+      toast({
+        title: "Provider unavailable",
+        description: "Select a valid managed AI provider first",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const normalizedModel = agentManagedModelDraft.trim();
+    const effectiveModel = normalizedModel || selectedProvider.defaultModel || "";
+
+    if (!selectedProvider.configured) {
+      toast({
+        title: "Provider not configured",
+        description: `${selectedProvider.label} is missing credentials in the server environment`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!effectiveModel) {
+      toast({
+        title: "Model required",
+        description: `Set a model for ${selectedProvider.label} before saving`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    updateAgentSystemSettingsMutation.mutate({
+      managedProvider: agentManagedProviderDraft,
+      managedModel: normalizedModel || null,
+    });
+  };
+
   // Blog mutations
   const createBlogPostMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -825,6 +965,181 @@ export default function Admin() {
             </Card>
           ))}
         </div>
+
+        <Card data-testid="card-agent-system-provider">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5" />
+              Agent System AI
+            </CardTitle>
+            <CardDescription>
+              Switch the default managed provider used by Sportfolio AI while keeping BYOK support
+              unchanged.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {agentSystemSettings ? (
+              <>
+                <div className="flex flex-wrap gap-2">
+                  {agentSystemSettings.managedProviders.map((provider) => (
+                    <Badge
+                      key={provider.key}
+                      variant={
+                        provider.key === agentSystemSettings.settings.managedProvider
+                          ? "default"
+                          : "outline"
+                      }
+                    >
+                      {provider.label}
+                      {!provider.configured ? " (Not configured)" : ""}
+                    </Badge>
+                  ))}
+                </div>
+
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="agent-managed-provider">Managed Provider</Label>
+                    <select
+                      id="agent-managed-provider"
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      value={agentManagedProviderDraft}
+                      onChange={(event) => {
+                        const nextProvider = event.target.value as ManagedProviderKey;
+                        const nextProviderStatus = agentSystemSettings.managedProviders.find(
+                          (provider) => provider.key === nextProvider,
+                        );
+                        setAgentManagedProviderDraft(nextProvider);
+                        setAgentManagedModelDraft(nextProviderStatus?.defaultModel || "");
+                      }}
+                      data-testid="select-agent-managed-provider"
+                    >
+                      {agentSystemSettings.managedProviders.map((provider) => (
+                        <option key={provider.key} value={provider.key}>
+                          {provider.label}
+                          {!provider.configured ? " (not configured)" : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="agent-managed-model">Managed Model Override</Label>
+                    <Input
+                      id="agent-managed-model"
+                      list="agent-managed-model-options"
+                      value={agentManagedModelDraft}
+                      onChange={(event) => setAgentManagedModelDraft(event.target.value)}
+                      placeholder={
+                        selectedAgentManagedProvider?.defaultModel || "Enter any supported model id"
+                      }
+                      data-testid="input-agent-managed-model"
+                    />
+                    <datalist id="agent-managed-model-options">
+                      {agentModelSuggestions.map((model) => (
+                        <option key={model.id} value={model.id} label={model.name} />
+                      ))}
+                    </datalist>
+                    <p className="text-xs text-muted-foreground">
+                      Leave blank to use the provider default. For OpenRouter, you can enter any
+                      supported model id even if it is not shown in the suggestion list.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="rounded-lg border p-3 text-sm space-y-3">
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div>
+                      <div className="font-medium">Available models</div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {isAgentProviderModelCatalogLoading
+                          ? "Loading model catalog..."
+                          : agentModelSuggestions.length > 0
+                            ? `${agentModelSuggestions.length.toLocaleString()} models loaded from ${agentModelSourceDescription}.`
+                            : "No model suggestions available. You can still enter a model id manually."}
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        void refetchAgentProviderModelCatalog();
+                      }}
+                      disabled={isAgentProviderModelCatalogLoading}
+                      data-testid="button-refresh-agent-model-catalog"
+                    >
+                      {isAgentProviderModelCatalogLoading ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 mr-1 animate-spin" />
+                          Refreshing...
+                        </>
+                      ) : (
+                        "Refresh Models"
+                      )}
+                    </Button>
+                  </div>
+                  {agentProviderModelCatalog?.warning ? (
+                    <div className="text-xs text-yellow-600 dark:text-yellow-400">
+                      {agentProviderModelCatalog.warning}
+                    </div>
+                  ) : null}
+                </div>
+
+                {selectedAgentManagedProvider?.models.length ? (
+                  <div className="space-y-2">
+                    <div className="text-xs font-medium text-muted-foreground">Quick picks</div>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedAgentManagedProvider.models.map((model) => (
+                        <Button
+                          key={model}
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setAgentManagedModelDraft(model)}
+                          data-testid={`button-agent-model-${model.replace(/[^a-zA-Z0-9_-]/g, "-")}`}
+                        >
+                          {model}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                <div className="rounded-lg border p-3 text-sm">
+                  <div className="font-medium">
+                    Active: {agentSystemSettings.managedProvider.label}
+                  </div>
+                  <div className="mt-1 text-muted-foreground">
+                    Base URL: {agentSystemSettings.managedProvider.baseUrl}
+                  </div>
+                  <div className="mt-1 text-muted-foreground">
+                    Model: {agentSystemSettings.managedProvider.defaultModel || "Not set"}
+                  </div>
+                  <div className="mt-1 text-muted-foreground">
+                    Updated: {new Date(agentSystemSettings.settings.updatedAt).toLocaleString()}
+                  </div>
+                </div>
+
+                <Button
+                  onClick={handleSaveAgentSystemSettings}
+                  disabled={updateAgentSystemSettingsMutation.isPending}
+                  data-testid="button-save-agent-system-settings"
+                >
+                  {updateAgentSystemSettingsMutation.isPending ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-1 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save Agent AI"
+                  )}
+                </Button>
+              </>
+            ) : (
+              <div className="text-sm text-muted-foreground">Loading agent system settings...</div>
+            )}
+          </CardContent>
+        </Card>
 
         <Card data-testid="card-api-health-monitor">
           <CardHeader className="pb-3">

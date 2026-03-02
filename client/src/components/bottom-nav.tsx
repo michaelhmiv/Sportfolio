@@ -1,11 +1,10 @@
-import { Home, TrendingUp, Zap, Briefcase, Newspaper } from "lucide-react";
+import { Bot, Briefcase, Home, TrendingUp, Zap } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { useNotifications } from "@/lib/notification-context";
-import { useNewsNotifications } from "@/lib/news-notification-context";
 import { motion, AnimatePresence } from "framer-motion";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useSport, SPORTS, Sport } from "@/lib/sport-context";
 import {
@@ -14,8 +13,6 @@ import {
   DrawerHeader,
   DrawerTitle,
   DrawerDescription,
-  DrawerFooter,
-  DrawerClose,
 } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 
@@ -41,16 +38,15 @@ const navItems = [
     icon: Briefcase,
   },
   {
-    title: "News",
-    url: "/news",
-    icon: Newspaper,
+    title: "Agent",
+    url: "/agent",
+    icon: Bot,
   },
 ];
 
 export function BottomNav() {
   const [location] = useLocation();
   const { unreadCount } = useNotifications();
-  const { unreadNewsCount, hasUnreadDigest } = useNewsNotifications();
   const { user } = useAuth();
   const isPremium = user?.isPremium || false;
   const [previousLocation, setPreviousLocation] = useState(location);
@@ -233,35 +229,6 @@ export function BottomNav() {
                         >
                           {unreadCount}
                         </Badge>
-                      </motion.div>
-                    )}
-
-                    {item.title === "News" && unreadNewsCount > 0 && (
-                      <motion.div
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        transition={{ type: "spring", stiffness: 500, damping: 25 }}
-                        className="absolute top-1 right-2 z-[51]"
-                      >
-                        <Badge
-                          variant="default"
-                          className="min-w-5 h-5 flex items-center justify-center px-1.5 text-xs bg-blue-600"
-                          data-testid="badge-news-count-mobile"
-                        >
-                          {unreadNewsCount}
-                        </Badge>
-                      </motion.div>
-                    )}
-
-                    {item.title === "News" && hasUnreadDigest && (
-                      <motion.div
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        transition={{ type: "spring", stiffness: 500, damping: 25 }}
-                        className="absolute top-1 right-8 z-[51]"
-                        data-testid="dot-digest-unread-mobile"
-                      >
-                        <span className="inline-block h-2.5 w-2.5 rounded-full bg-red-500" />
                       </motion.div>
                     )}
                   </motion.div>

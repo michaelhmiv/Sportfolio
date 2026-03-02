@@ -57,6 +57,75 @@
 
 - [ ] Fix 24h volume accuracy: compute rolling 24h shares volume from `trades` and stop roster sync from clobbering market fields
 
+## 2026-02-28 Agent Route Loading + Cleanup
+
+- [x] Diagnose why `/agent` appears stuck on loading
+- [x] Harden agent thread schema bootstrap so the route works even if the latest migration was not applied yet
+- [x] Add explicit frontend error/retry states for agent profile, thread list, and conversation loading
+- [x] Remove remaining unused legacy agent surface that is no longer part of the canonical flow
+- [x] Validate via `npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`
+
+## 2026-02-28 Managed Agent Provider Switching
+
+- [x] Add persistent system-level agent managed-provider settings for Chutes, MiniMax, and OpenRouter
+- [x] Refactor the agent provider registry to resolve the active managed provider from admin settings while preserving BYOK behavior
+- [x] Add admin API endpoints to read/update the active managed provider
+- [x] Add live provider-model catalog support for admin OpenRouter selection while still allowing manual model IDs
+- [x] Add an admin UI control to switch the default system AI provider
+- [x] Validate via `npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`
+
+## 2026-02-28 Scout Agents (BYOK + Managed AI)
+
+- [x] Add user agent schema/storage foundations (profiles, secrets, runs, proposals)
+- [x] Implement backend agent service (encryption, provider adapters, context loading, proposal validation, execution)
+- [x] Add authenticated `/api/agent/*` routes
+- [x] Add scout dashboard agent UI (config, analyze, review, approve/reject)
+- [x] Validate via `npm run check`, `npm run lint`, `npm run test:run`
+
+## 2026-02-28 Scout Agents Managed Provider (Chutes)
+
+- [x] Confirm Chutes managed-provider contract (`https://llm.chutes.ai/v1/chat/completions`, raw `Authorization` header)
+- [x] Switch managed agent defaults/env handling from OpenAI to Chutes
+- [x] Enable managed Chutes JSON mode (`response_format: { type: "json_object" }`) for reliable structured agent output
+- [x] Preserve generic BYOK OpenAI-compatible behavior while adding Chutes-specific auth handling
+- [x] Validate via `npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`
+- [x] Configure dev `.env`, push schema to local dev DB, and smoke test managed analyze + approve flow
+
+## 2026-02-28 Agent Foundation Migration (pi-mono / pi-ai)
+
+- [x] Install `@mariozechner/pi-ai` and `@mariozechner/pi-agent-core` as the upstream agent foundation
+- [x] Replace the custom managed/BYOK provider execution layer with a single `pi-ai` adapter
+- [x] Move MiniMax onto the `pi-ai` Anthropic-compatible transport instead of the old OpenAI-style path
+- [x] Keep Chutes support via a custom `pi-ai` OpenAI-compatible model while preserving raw auth override behavior
+- [x] Keep OpenRouter support on the `pi-ai` execution path while preserving live remote model discovery
+- [x] Remove obsolete custom provider adapter files so there is one canonical runtime path
+- [x] Add targeted adapter regression tests for Chutes raw auth, MiniMax transport, and BYOK base URL normalization
+- [x] Add root `vitest.config.ts` and exclude the local `vendor/` reference clone plus Playwright specs from app unit tests
+- [x] Exclude `vendor/` from Prettier so local reference material does not break repo validation
+- [x] Validate via `npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`
+
+## 2026-02-28 Agent Planning Migration (pi-agent-core Tool Calls)
+
+- [x] Replace the scout agent's JSON-only prompt/parse loop with a `pi-agent-core` tool-call planning turn
+- [x] Reuse the same pi runtime resolution for managed and BYOK providers so tool calls run through the canonical provider path
+- [x] Remove obsolete JSON-only planner code paths (`prompt-builder`, text parser, unused completion wrappers)
+- [x] Validate via `npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`
+
+## 2026-02-28 Agent Tool-Call Stabilization
+
+- [x] Force provider-level tool choice so scout planning turns cannot silently ignore `submit_scout_plan`
+- [x] Persist failed-turn traces for tool-call misses so agent run diagnostics remain useful
+- [x] Add a single stricter retry when the first model response skips the required tool call
+- [x] Validate via `npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`
+
+## 2026-02-28 Agent Provider Transport Hardening
+
+- [x] Move managed MiniMax execution off the failing Anthropic path and onto the OpenAI-compatible transport
+- [x] Add MiniMax-specific OpenAI compatibility overrides (`max_tokens`, no `stream_options`, no `strict`, `reasoning_split`)
+- [x] Strip stray `<think>` tags from assistant reply text before it reaches the chat UI
+- [x] Add a real local end-to-end smoke test that exercises the `pi-agent-core` tool loop against mock Chutes, MiniMax, and OpenRouter providers
+- [x] Validate via `npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`, `npm run build`
+
 ## 2026-02-20 Dashboard Listing Redesign
 
 - [x] Add `liveEarned` to game and race insights payloads for authenticated users
@@ -166,3 +235,108 @@
 - [x] Restore sport-aligned `/api/games/insights` requests to preserve boost/eligibility context
 - [x] Keep stable dashboard sport tabs independent from payload-derived sport lists
 - [x] Validate via `npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`
+
+## 2026-02-28 Agent Runtime Stabilization
+
+- [x] Replace the slow multi-turn scout planning path with deterministic fast paths for direct slate commands and one-adjustment reviews
+- [x] Add provider-specific timeouts plus deterministic emergency fallback so slow providers return usable plans instead of hard errors
+- [x] Live-test `/api/agent/threads` end to end against MiniMax, Chutes, and OpenRouter through the running dev server
+- [x] Validate via `npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`
+
+## 2026-03-01 Agent Semantic Routing + Embeddings
+
+- [x] Add DB-backed agent question embedding storage with startup schema guards and migration
+- [x] Add a fast local embedding path for per-message semantic routing without increasing chat latency
+- [x] Add optional non-blocking Perplexity embedding upgrades for the stored semantic index when `PERPLEXITY_API_KEY` is configured
+- [x] Use semantic route hints to widen deterministic scout fast paths for paraphrased prompts
+- [x] Expand `/api/admin/agent/question-logs` with semantic route counts and semantic clusters
+- [x] Validate via `npm run check`, targeted agent tests, and full repo validation
+
+## 2026-03-01 Agent Conversation Quality + Intent Routing
+
+- [x] Replace the rigid JSON-shaped advisory payload with a richer analyst-style prompt payload that uses stable, structured sections
+- [x] Improve the discussion system prompt so advisory answers are insight-led and do not incorrectly ask the user to "confirm" before a plan exists
+- [x] Add a lightweight ambiguity-only LLM intent classifier fallback so unclear phrasing can resolve to discussion vs commit without slowing obvious turns
+- [x] Respect the user's configured temperature/max token settings for agent analysis instead of only platform constants
+- [x] Validate via `npm run check`, targeted agent tests, `npm run lint`, `npm run test:run`, and `npm run format:check`
+
+## 2026-03-01 Agent Expansion (Player Pools + Daily Boosts)
+
+- [x] Audit the current pool, LP, and daily boost execution flows and map the safe action surface the agent can stage and confirm
+- [x] Generalize agent action bundles beyond scout-only payloads while preserving the existing scout proposal audit path
+- [x] Add deterministic parsing, planning, and confirmed execution for pool trading / LP actions and daily boost assign/remove commands
+- [x] Update the agent UI/types so non-scout plans render cleanly and confirmation copy stays accurate
+- [x] Add targeted automated coverage for the new parsing/execution paths and run full repo validation plus live local smoke tests
+
+## 2026-03-01 Agent Conversational Parser Hardening
+
+- [x] Broaden advisory-vs-directive detection so exploratory phrasing stays conversational while operational asks like "can you buy..." still stage actions
+- [x] Normalize conversational preambles in the pool and daily-boost parsers so natural text-message phrasing still resolves to the right operation
+- [x] Add deterministic strategy-chat replies for common gameplay tradeoffs (boost vs pool, buy vs LP) so those asks do not need to hit the model
+- [x] Expand agent intent/planner tests for conversational phrasing and harden the slow cold-import test path for full-suite stability
+- [x] Validate via `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`
+
+## 2026-03-01 Agent Market Intelligence + Power Workflow
+
+- [x] Archive active contest references from the canonical agent docs so contests are treated as legacy, not part of the current agent surface
+- [x] Add deterministic market-intelligence replies for schedule/trending questions so broad asks do not collapse into scout-only framing
+- [x] Add share-count pool buy parsing so commands like "buy 16 Jokic shares" stage the correct pool action instead of being treated like dollar buys
+- [x] Add a multi-step buy -> power-up -> daily boost workflow planner for direct commands
+- [x] Add `holdings_condense` as a first-class agent action and execution path
+- [x] Validate via `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`
+
+## 2026-03-01 Agent Clarification + Market Read Expansion
+
+- [x] Correct the canonical condense rule reference back to the live 2-for-1 product mechanic
+- [x] Add structured player-name clarification payloads so blocked operations can preserve resumable state
+- [x] Resume blocked direct operations from a short follow-up reply (for example a full player name) instead of treating the next message as a brand-new request
+- [x] Skip semantic-question embedding writes for clarification-only replies so question logs stay useful
+- [x] Broaden deterministic market reads to cover portfolio-specific value questions and next-two-day setup language using existing market/schedule data
+- [x] Add targeted regression coverage for clarification helpers and the new planner paths
+- [x] Validate via `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`
+
+## 2026-03-01 Agent UI Backlog
+
+- [ ] Redesign the agent interface on mobile and desktop to use a simpler ChatGPT-style chat shell (clean history, minimal chrome, no clutter like live/status noise)
+- [ ] Align the agent route visual language with the dashboard aesthetic (font, color, spacing, card treatment)
+- [ ] Redesign the Daily Digest to match the dashboard aesthetic instead of using a separate visual style
+
+## 2026-03-01 Agent Action Surface Expansion
+
+- [x] Extend the confirmation-gated agent action model into watchlist add/remove commands
+- [x] Add deterministic community-boost staging and execution with the same live eligibility checks the route uses
+- [x] Add deterministic vesting-claim staging and execution using shared vesting accrual math
+- [x] Add a minimal in-chat clarification card so blocked operations show a simple “waiting on one detail” state
+- [x] Expand planner and executor coverage for the new action families
+- [x] Validate via `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`
+- [x] Next: lift these flat action bundles into true workflow bundles so multi-step clarifications and follow-up edits can persist across more than one blocked field
+
+## 2026-03-01 Agent Workflow Bundles
+
+- [x] Add a workflow-bundle payload shape with step-level metadata so action bundles can persist richer multi-step state
+- [x] Treat `pending_clarification` as a first-class bundle status and keep the latest active clarification visible in thread summaries and cancel flow
+- [x] Preserve workflow preview steps inside clarification payloads so blocked multi-step plans still show the intended sequence
+- [x] Keep backward-compatible readers for legacy array-based bundle payloads while migrating the new workflow shape
+- [x] Update the agent page to render workflow steps and clarification details instead of only flat action rows
+- [x] Add targeted workflow-bundle coverage and validate via `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`
+
+## 2026-03-01 NASCAR Race Status Investigation
+
+- [x] Trace the NASCAR schedule/status ingestion path from upstream source to dashboard payload
+- [x] Confirm the upstream status for the race on 2026-03-01 and compare it to stored/app status handling
+- [x] Fix the status normalization if a local mapping bug is confirmed
+- [x] Validate via targeted inspection and relevant checks
+
+## 2026-03-01 Broad Operator Rollout (Hosted Brave Search + Agent Surface)
+
+- [x] Promote hosted Brave Search from a pre-router path into a first-class server-executed tool in the model discussion loop
+- [x] Keep Brave search provider-agnostic so managed and BYOK users share the same hosted web-research capability
+- [x] Add agent capability/research endpoints that expose supported surface area and thread research sources
+- [x] Add deterministic broad-operator setup reviews and a capability guide so open-ended asks use cross-domain state instead of falling back to scout-only framing
+- [x] Broaden the model-visible operator context (portfolio, boosts, vesting, watchlists, balance) and add more deterministic cross-domain operator reads
+- [x] Tag stored agent run traces with lightweight outcome categories (`staged_plan`, `advisory_only`, `blocked_*`, `research_only`, `failed`) for easier testing triage
+- [x] Add a lightweight internal `scripts/agent-smoke.ts` harness for capability, advisory, action-plan, and optional hosted-research smoke passes
+- [x] Document the current thin-PI test milestone capability surface in `docs/agent/current-surface.md`
+- [ ] Configure the local `.env` for hosted Brave search and run live non-destructive smoke checks against the Brave-backed agent research path
+- [ ] Validate with `npm run check`, `npm run lint`, `npm run format:check`, plus targeted smoke scripts for the new hosted-research flow
+- [ ] Follow through on the remaining broad-operator rollout beyond the hosted research layer (deeper multi-domain tooling, broader model orchestration, and fuller non-destructive smoke coverage)
