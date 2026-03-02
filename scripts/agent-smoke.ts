@@ -151,7 +151,6 @@ async function main() {
             label: "community_create",
             message: `create a community boost for ${samplePlayerName} today`,
           },
-          { label: "vesting_claim", message: "claim my vesting shares" },
         ]
       : [];
 
@@ -197,7 +196,6 @@ async function main() {
         portfolioPlayerCount: context.operatorOverview.portfolioPlayerCount,
         activeDailyBoostSlots: context.operatorOverview.activeDailyBoostSlots,
         openDailyBoostSlots: context.operatorOverview.openDailyBoostSlots,
-        claimableVestingShares: context.operatorOverview.claimableVestingShares,
         nextBestLevers: context.operatorOverview.nextBestLevers,
       },
     },

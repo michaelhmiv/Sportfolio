@@ -20,6 +20,7 @@ import {
   markAgentRunRejected,
   rejectScoutAgentRun,
 } from "./service";
+import { ensureDefaultUserAgentSchedules } from "./schedules";
 import {
   backfillRecentAgentMessageEmbeddings,
   buildAgentQuestionRouteCounts,
@@ -48,7 +49,7 @@ import type {
 
 const createThreadInputSchema = z
   .object({
-    channel: z.enum(["in_app", "sms"]).optional(),
+    channel: z.enum(["in_app", "sms", "cli"]).optional(),
     domain: z
       .enum([
         "scouting",
@@ -56,7 +57,6 @@ const createThreadInputSchema = z
         "daily_boosts",
         "community_boosts",
         "watchlists",
-        "vesting",
         "sportfolio",
       ])
       .optional(),
@@ -240,6 +240,22 @@ export async function ensureAgentThreadSchema() {
   `);
 
   await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS "user_agent_schedules" (
+      "id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+      "user_id" varchar NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+      "job_type" text NOT NULL,
+      "enabled" boolean NOT NULL DEFAULT true,
+      "schedule_cron" text NOT NULL,
+      "channel_targets" jsonb NOT NULL DEFAULT '["in_app"]'::jsonb,
+      "policy" jsonb NOT NULL DEFAULT '{}'::jsonb,
+      "last_run_at" timestamp,
+      "next_run_at" timestamp,
+      "created_at" timestamp NOT NULL DEFAULT now(),
+      "updated_at" timestamp NOT NULL DEFAULT now()
+    );
+  `);
+
+  await db.execute(sql`
     CREATE UNIQUE INDEX IF NOT EXISTS "user_agent_profiles_user_idx"
       ON "user_agent_profiles" ("user_id");
   `);
@@ -342,6 +358,18 @@ export async function ensureAgentThreadSchema() {
   await db.execute(sql`
     CREATE INDEX IF NOT EXISTS "agent_runtime_sessions_runtime_created_idx"
       ON "agent_runtime_sessions" ("runtime", "created_at");
+  `);
+  await db.execute(sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS "user_agent_schedules_user_job_idx"
+      ON "user_agent_schedules" ("user_id", "job_type");
+  `);
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS "user_agent_schedules_due_run_idx"
+      ON "user_agent_schedules" ("enabled", "next_run_at");
+  `);
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS "user_agent_schedules_user_updated_idx"
+      ON "user_agent_schedules" ("user_id", "updated_at");
   `);
 }
 
@@ -1504,6 +1532,7 @@ export async function sendAgentThreadMessage(
       ? hydrateClarificationMessage(pendingClarification, messageText) || messageText
       : messageText;
   const conversationHistory = await getRecentConversationHistory(userId, threadId);
+  await ensureDefaultUserAgentSchedules(userId);
   const userMessage = await createThreadMessage({
     threadId,
     userId,

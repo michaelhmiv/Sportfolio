@@ -43,3 +43,5 @@
 - When a user wants external web research inside the in-app agent, keep the search provider hosted and server-controlled so managed and BYOK models share the same tool contract and query policy.
 - When PI is only the runtime/tool-call substrate, stop at a thin-PI testable milestone instead of layering a framework-shaped architecture over deterministic product logic before real user testing.
 - When the same mechanics or capability explanation is needed in both the product UI and the agent, make `docs/wiki` the canonical source and feed the agent from wiki articles marked with `surface: agent` instead of duplicating prompt copy in multiple places.
+- When the user says a legacy mechanic is no longer part of the live product (for example vesting), remove it from the active agent surface and schedules first instead of expanding tooling around a deprecated path.
+- When adding new Hermes-backed persistence like agent schedules, bootstrap the minimal schema on first tool use as well as via migrations so the sidecar and local smokes do not fail on an environment that has not applied the latest migration yet.

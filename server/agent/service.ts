@@ -61,7 +61,6 @@ const SUPPORTED_AGENT_DOMAINS: AgentCapabilitiesView["domains"] = [
   "daily_boosts",
   "community_boosts",
   "watchlists",
-  "vesting",
   "sportfolio",
 ];
 const SUPPORTED_AGENT_ACTION_TYPES: AgentCapabilitiesView["actionTypes"] = [
@@ -79,7 +78,6 @@ const SUPPORTED_AGENT_ACTION_TYPES: AgentCapabilitiesView["actionTypes"] = [
   "watchlist_add_player",
   "watchlist_remove_player",
   "community_boost_create",
-  "vesting_claim",
 ];
 
 type AgentRunOutcomeCategory =
@@ -697,7 +695,7 @@ export async function analyzeScoutAgent(
       model: executionModel,
       contextSnapshot: context,
       promptSnapshot: {
-        framework: "pi-agent-core",
+        framework: "hermes-sidecar-request",
         requestedMode: data.mode || null,
         requestMessage,
         semanticRouteHint,
@@ -806,6 +804,9 @@ export async function analyzeScoutAgent(
             pendingClarification: hermesResult.pendingClarification,
             proposedMemoryWrites: hermesResult.proposedMemoryWrites,
             toolTrace: hermesResult.toolTrace,
+            toolCallsUsed: hermesResult.toolCallsUsed,
+            requiresConfirmation: hermesResult.requiresConfirmation,
+            confirmationPreview: hermesResult.confirmationPreview,
             outcomeCategory,
           },
         },

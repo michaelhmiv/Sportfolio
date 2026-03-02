@@ -393,3 +393,34 @@ Review:
 - [ ] Pull recent Railway auth-related logs to identify where the login state is lost
 - [ ] Apply a targeted fix if the issue is in repo code/config
 - [ ] Validate the fix and record any required production follow-up
+
+## 2026-03-02 Seamless Hermes User-Agent Cutover
+
+- [x] Replace the PI-backed Hermes compatibility bridge as the normal sidecar path with a true in-repo Hermes orchestration flow
+- [x] Expand Hermes request/response contracts and internal tool coverage toward broader user action parity
+- [x] Strengthen durable memory writes with supersede/archive behavior instead of append-only duplicates
+- [x] Add per-user agent advisory schedule persistence and a scheduler job to run due advisory prompts
+- [x] Validate via `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`
+
+Review:
+
+- The Hermes sidecar now uses an in-repo orchestration layer first: deterministic operation planning, hosted research, and stateful operator advisories are the normal path, with the PI bridge retained only as fallback.
+- Hermes request/response contracts now carry tool policy, confirmation policy, tool usage, and standardized confirmation preview metadata.
+- Durable memory writes now supersede older single-profile preference memories instead of stacking contradictory active records.
+- A new `user_agent_schedules` table plus the `agent_advisory_schedules` cron job now enable proactive in-app Hermes advisory messages for active users, seeded with a default daily setup review schedule.
+- Remaining gap: the internal tool surface is broader, but not yet exhaustive for every authenticated website workflow; this is a meaningful expansion, not complete full parity.
+
+## 2026-03-02 Hermes Tooling Parity + Vesting Surface Removal
+
+- [x] Audit the remaining active non-USD user workflows and map them to Hermes tool gaps
+- [x] Add structured Hermes read/preview/action tools for AMM/LP details, player detail/history, watchlist CRUD, schedule CRUD, and explicit stage/confirm/cancel flows
+- [x] Remove vesting from the Hermes-facing agent surface, schedules, capabilities, and docs
+- [x] Add targeted coverage for the expanded Hermes tool surface and run local smoke validation
+- [ ] Create a clean PR with only the Hermes parity follow-up changes
+
+Validation notes:
+
+- `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check` all pass on the final worktree.
+- `railway run --service Sportfolio-Replit -- npx tsx scripts/agent-smoke.ts --user aa6b3061-d164-44fe-9dfc-b61326903d23 --include-action-plans --live-research` completed successfully without executing any confirmation-gated mutations.
+- `npm run cli:smoke` passed.
+- Direct Hermes read/plan tool smokes succeeded against the Railway service environment, including the hardened schedule path and structured pool-buy preview.

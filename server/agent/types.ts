@@ -225,6 +225,12 @@ export type AgentMemoryKind =
   | "favorite_entities"
   | "habit"
   | "interaction_style";
+export type AgentScheduleJobType =
+  | "daily_setup_review"
+  | "pre_lock_nudge"
+  | "injury_watch"
+  | "idle_balance_nudge"
+  | "boost_window";
 
 export interface AgentMemoryRecord {
   id: string;
@@ -259,6 +265,29 @@ export interface AgentToolTrace {
   summary: string;
 }
 
+export interface AgentConfirmationPreview {
+  actionSummary: string;
+  beforeState: Record<string, unknown>;
+  afterState: Record<string, unknown>;
+  estimatedImpact: string | null;
+  warnings: string[];
+  riskClass: "low" | "medium" | "high";
+}
+
+export interface AgentUserSchedule {
+  id: string;
+  userId: string;
+  jobType: AgentScheduleJobType;
+  enabled: boolean;
+  scheduleCron: string;
+  channelTargets: AgentChannel[];
+  policy: Record<string, unknown>;
+  lastRunAt: Date | null;
+  nextRunAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface AgentModelRuntimeConfig {
   providerMode: AgentProviderMode;
   providerKey?: ManagedProviderKey;
@@ -276,6 +305,16 @@ export interface HermesRespondRequest {
   channel: AgentChannel;
   message: string;
   requestMode: "auto" | "discussion" | "plan" | "clarification_resume";
+  toolAllowlist: string[];
+  memoryMode: "off" | "read_only" | "read_write";
+  autoExecutionPolicy: {
+    allowAdvisoryJobs: boolean;
+    allowRiskyActions: boolean;
+  };
+  confirmationPolicy: {
+    requireExplicitConfirmation: boolean;
+    preferredChannel: AgentChannel;
+  };
   profile: {
     displayName: string;
     providerMode: AgentProviderMode;
@@ -329,6 +368,9 @@ export interface HermesRespondResult {
   citations: AgentCitation[];
   proposedMemoryWrites: ProposedMemoryWrite[];
   toolTrace: AgentToolTrace[];
+  toolCallsUsed: string[];
+  requiresConfirmation: boolean;
+  confirmationPreview: AgentConfirmationPreview | null;
 }
 
 export interface ScoutProposalAction {

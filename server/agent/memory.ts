@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { userAgentMemories } from "@shared/schema";
 import { db } from "../db";
 import type {
@@ -32,6 +32,16 @@ function normalizeSummary(summary: string): string {
 
 function normalizeContent(value: Record<string, unknown>): Record<string, unknown> {
   return JSON.parse(JSON.stringify(value)) as Record<string, unknown>;
+}
+
+function resolveMemorySource(write: ProposedMemoryWrite): AgentMemoryRecord["source"] {
+  const capturedFrom =
+    typeof write.content?.capturedFrom === "string" ? write.content.capturedFrom : "";
+  if (capturedFrom === "user_message") {
+    return "user_explicit";
+  }
+
+  return "agent_inferred";
 }
 
 function normalizeConfidence(value: unknown): string {
@@ -82,6 +92,14 @@ function inferMemoryScope(kind: AgentMemoryKind): AgentMemoryScope {
   }
 
   return "profile";
+}
+
+function shouldSupersedeExistingMemories(write: ProposedMemoryWrite): boolean {
+  if (write.scope !== "profile") {
+    return false;
+  }
+
+  return write.kind !== "favorite_entities";
 }
 
 function scoreMemory(record: AgentMemoryRecord, query: string): number {
@@ -229,6 +247,24 @@ export async function persistProposedMemoryWrites(input: {
       continue;
     }
 
+    if (shouldSupersedeExistingMemories(write)) {
+      await db
+        .update(userAgentMemories)
+        .set({
+          archivedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(userAgentMemories.userId, input.userId),
+            eq(userAgentMemories.scope, write.scope),
+            eq(userAgentMemories.kind, write.kind),
+            isNull(userAgentMemories.archivedAt),
+            sql`${userAgentMemories.summary} <> ${summary}`,
+          ),
+        );
+    }
+
     const [existing] = await db
       .select()
       .from(userAgentMemories)
@@ -251,6 +287,7 @@ export async function persistProposedMemoryWrites(input: {
           threadId: input.threadId,
           content: normalizeContent(write.content),
           confidence: normalizedConfidence,
+          source: resolveMemorySource(write),
           updatedAt: new Date(),
         })
         .where(eq(userAgentMemories.id, existing.id))
@@ -273,7 +310,7 @@ export async function persistProposedMemoryWrites(input: {
         summary,
         content: normalizeContent(write.content),
         confidence: normalizedConfidence,
-        source: "agent_inferred",
+        source: resolveMemorySource(write),
       })
       .returning();
 

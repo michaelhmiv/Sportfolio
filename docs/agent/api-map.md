@@ -82,18 +82,9 @@ Source: `server/routes/lp.ts`
 | GET    | `/api/lp/:playerId/history`     | isAuthenticated | LP tx history by player                       |
 | GET    | `/api/lp/history`               | isAuthenticated | LP tx history across pools                    |
 
-## Vesting Endpoints
+## Legacy Vesting Endpoints (Retired)
 
-| Method | Path                       | Auth            | Purpose                                        |
-| ------ | -------------------------- | --------------- | ---------------------------------------------- |
-| GET    | `/api/vesting/status`      | isAuthenticated | Returns accrued vesting state + splits         |
-| POST   | `/api/vesting/start`       | isAuthenticated | Set vesting player split (auto-claims first)   |
-| POST   | `/api/vesting/claim`       | isAuthenticated | Claim accumulated shares                       |
-| POST   | `/api/vesting/redeem`      | isAuthenticated | Redeem pooled shares to explicit distributions |
-| GET    | `/api/vesting/presets`     | isAuthenticated | List saved presets                             |
-| POST   | `/api/vesting/presets`     | isAuthenticated | Create preset                                  |
-| PUT    | `/api/vesting/presets/:id` | isAuthenticated | Update preset                                  |
-| DELETE | `/api/vesting/presets/:id` | isAuthenticated | Delete preset                                  |
+Vesting routes still exist in the codebase for archival compatibility, but vesting is retired and out of the active product and current agent scope.
 
 ## Scout Endpoints
 
@@ -175,7 +166,6 @@ Published event types include:
 - `scout_payout`
 - `boost_settled`
 - `COMMUNITY_BOOST_SETTLED`
-- `vesting`
 - `scout_update`
 - `scout_ready`
 - `whale_alert`
