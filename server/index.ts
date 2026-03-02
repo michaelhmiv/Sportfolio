@@ -33,6 +33,23 @@ function startupLog(stage: string, message: string) {
   logger.info({ stage, elapsedMs: elapsed }, message);
 }
 
+function registerGlobalErrorHandlers(app: express.Express) {
+  setupSentryExpressErrorHandler(app);
+
+  app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
+    const status = err.status || err.statusCode || 500;
+    const message = err.message || "Internal Server Error";
+
+    try {
+      if (res.headersSent) return next(err);
+
+      res.status(status).json({ message });
+    } finally {
+      console.error("[Express Error]", err);
+    }
+  });
+}
+
 startupLog("INIT", "Server starting...");
 
 const app = express();
@@ -197,6 +214,7 @@ app.use((req, res, next) => {
   if (hermesSidecarMode) {
     startupLog("HERMES", "Starting Hermes sidecar mode");
     registerHermesSidecarRoutes(app);
+    registerGlobalErrorHandlers(app);
 
     const port = parseInt(process.env.PORT || "5000", 10);
     startupLog("LISTEN", `Starting Hermes sidecar on port ${port}...`);
@@ -220,24 +238,7 @@ app.use((req, res, next) => {
   const server = await registerRoutes(app);
   startupLog("ROUTES", "Routes registered");
 
-  setupSentryExpressErrorHandler(app);
-
-  app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
-
-    // Never crash the process on a request error.
-    // In production we still want a clean JSON error response.
-    try {
-      if (res.headersSent) return next(err);
-
-      res.status(status).json({ message });
-    } finally {
-      // Always log the underlying error for debugging.
-      // Avoid throwing here; crashes cause restart loops in prod.
-      console.error("[Express Error]", err);
-    }
-  });
+  registerGlobalErrorHandlers(app);
 
   // Keep unknown API paths from falling through to the SPA index shell.
   app.use("/api", (_req, res) => {

@@ -32,8 +32,10 @@ function normalizeSemanticRouteHint(value: AgentSemanticRoute | null | undefined
 
 function handleHermesSidecarError(res: Response, error: unknown) {
   console.error("[Hermes Sidecar] Request failed:", error);
-  res.status(500).json({
-    message: "Hermes sidecar request failed",
+  const isValidationError = error instanceof z.ZodError;
+
+  res.status(isValidationError ? 400 : 500).json({
+    message: isValidationError ? "Invalid Hermes sidecar request" : "Hermes sidecar request failed",
     ...(process.env.NODE_ENV !== "production"
       ? {
           error: error instanceof Error ? error.message : String(error),
@@ -63,6 +65,7 @@ export function registerHermesSidecarRoutes(app: Express): void {
 
         const result = await runLocalHermesCompatibilityTurn({
           userId: parsed.userId,
+          channel: parsed.channel,
           profile,
           secret,
           context,
