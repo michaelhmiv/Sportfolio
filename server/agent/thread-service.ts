@@ -79,6 +79,7 @@ export async function ensureAgentThreadSchema() {
       "display_name" text NOT NULL DEFAULT 'My Scout Agent',
       "provider_mode" text NOT NULL DEFAULT 'managed',
       "provider_type" text NOT NULL DEFAULT 'openai_compatible',
+      "runtime" text NOT NULL DEFAULT 'hermes',
       "model" text NOT NULL DEFAULT 'managed-default',
       "base_url" text,
       "system_prompt" text NOT NULL DEFAULT 'Operate like a sharp Sportfolio scout strategist. Stay grounded in the provided Sportfolio context, focus on scouting only, surface the strongest opportunity and risk tradeoffs clearly, and never invent players, schedules, or actions outside scout_set_count.',
@@ -90,6 +91,11 @@ export async function ensureAgentThreadSchema() {
       "created_at" timestamp NOT NULL DEFAULT now(),
       "updated_at" timestamp NOT NULL DEFAULT now()
     );
+  `);
+
+  await db.execute(sql`
+    ALTER TABLE "user_agent_profiles"
+      ADD COLUMN IF NOT EXISTS "runtime" text NOT NULL DEFAULT 'hermes';
   `);
 
   await db.execute(sql`
@@ -201,12 +207,49 @@ export async function ensureAgentThreadSchema() {
   `);
 
   await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS "user_agent_memories" (
+      "id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+      "user_id" varchar NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+      "thread_id" varchar REFERENCES "user_agent_threads"("id") ON DELETE SET NULL,
+      "scope" text NOT NULL,
+      "kind" text NOT NULL,
+      "summary" text NOT NULL,
+      "content" jsonb NOT NULL,
+      "confidence" numeric(4, 3) NOT NULL DEFAULT 0.500,
+      "source" text NOT NULL,
+      "embedding" jsonb,
+      "created_at" timestamp NOT NULL DEFAULT now(),
+      "updated_at" timestamp NOT NULL DEFAULT now(),
+      "archived_at" timestamp
+    );
+  `);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS "agent_runtime_sessions" (
+      "id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+      "user_id" varchar REFERENCES "users"("id") ON DELETE SET NULL,
+      "thread_id" varchar REFERENCES "user_agent_threads"("id") ON DELETE SET NULL,
+      "runtime" text NOT NULL,
+      "status" text NOT NULL,
+      "request_payload" jsonb,
+      "response_payload" jsonb,
+      "tool_trace" jsonb,
+      "latency_ms" integer,
+      "created_at" timestamp NOT NULL DEFAULT now()
+    );
+  `);
+
+  await db.execute(sql`
     CREATE UNIQUE INDEX IF NOT EXISTS "user_agent_profiles_user_idx"
       ON "user_agent_profiles" ("user_id");
   `);
   await db.execute(sql`
     CREATE INDEX IF NOT EXISTS "user_agent_profiles_provider_mode_idx"
       ON "user_agent_profiles" ("provider_mode");
+  `);
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS "user_agent_profiles_runtime_idx"
+      ON "user_agent_profiles" ("runtime");
   `);
   await db.execute(sql`
     CREATE INDEX IF NOT EXISTS "user_agent_profiles_updated_at_idx"
@@ -271,6 +314,34 @@ export async function ensureAgentThreadSchema() {
   await db.execute(sql`
     CREATE INDEX IF NOT EXISTS "user_agent_messages_action_bundle_idx"
       ON "user_agent_messages" ("action_bundle_id");
+  `);
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS "user_agent_memories_user_scope_updated_idx"
+      ON "user_agent_memories" ("user_id", "scope", "updated_at");
+  `);
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS "user_agent_memories_user_kind_updated_idx"
+      ON "user_agent_memories" ("user_id", "kind", "updated_at");
+  `);
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS "user_agent_memories_thread_idx"
+      ON "user_agent_memories" ("thread_id");
+  `);
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS "user_agent_memories_active_idx"
+      ON "user_agent_memories" ("user_id", "archived_at");
+  `);
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS "agent_runtime_sessions_user_created_idx"
+      ON "agent_runtime_sessions" ("user_id", "created_at");
+  `);
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS "agent_runtime_sessions_thread_created_idx"
+      ON "agent_runtime_sessions" ("thread_id", "created_at");
+  `);
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS "agent_runtime_sessions_runtime_created_idx"
+      ON "agent_runtime_sessions" ("runtime", "created_at");
   `);
 }
 
@@ -1527,6 +1598,8 @@ export async function sendAgentThreadMessage(
       warnings: analysis.warnings,
       actions: analysis.actions,
       citations: analysis.citations || [],
+      proposedMemoryWrites: analysis.proposedMemoryWrites || [],
+      toolTrace: analysis.toolTrace || [],
       status: analysis.status,
       pendingClarification: analysis.pendingClarification || null,
     },

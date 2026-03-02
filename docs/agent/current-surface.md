@@ -4,10 +4,12 @@ This document defines the current in-app agent surface that is considered stable
 
 ## Operating Model
 
-- `pi-ai` / `pi-agent-core` are used as a thin reasoning and tool-call layer.
+- Hermes is now the primary user-facing agent orchestrator.
+- When an external Hermes sidecar is not configured, the app uses an in-process compatibility bridge behind the same Hermes contract so the live agent path still routes through the Hermes interface.
 - Sportfolio business logic, validation, and execution remain server-owned and deterministic.
 - All economic mutations remain confirmation-gated.
 - Hosted web research is server-side and provider-agnostic, using Brave Search when configured.
+- Durable per-user agent memory is stored in the Sportfolio database and injected into agent turns before reasoning.
 
 ## Supported Advisory Coverage
 

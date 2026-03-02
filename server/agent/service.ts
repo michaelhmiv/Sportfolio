@@ -12,20 +12,15 @@ import {
 import { and, desc, eq, gte, lt, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db";
-import { decryptText, encryptText, getEncryptionVersion } from "../lib/encryption";
+import { encryptText, getEncryptionVersion } from "../lib/encryption";
 import { loadScoutAgentContext } from "./context-loader";
 import { executeScoutProposalActions } from "./executor";
-import { resolveAgentRequestModeWithFallback } from "./intent-router";
+import { runHermesAgentTurn } from "./hermes-client";
+import { buildHermesMemoryContext, persistProposedMemoryWrites } from "./memory";
 import { planDirectAgentOperation } from "./operations-planner";
-import {
-  normalizeOpenAICompatibleBaseUrl,
-  resolveManagedPiRuntime,
-  resolveOpenAICompatiblePiRuntime,
-} from "./pi-provider";
-import { validateScoutPlanAgainstContext } from "./policy-engine";
+import { normalizeOpenAICompatibleBaseUrl } from "./pi-provider";
 import { getManagedProviderStatus } from "./provider-registry";
 import { isHostedWebResearchAvailable, planHostedWebResearch } from "./research";
-import { runScoutDiscussionTurn, runScoutPlanningTurn } from "./scout-agent-core";
 import { getActiveManagedProviderSelection } from "./system-settings";
 import { MANAGED_MODEL_PLACEHOLDER } from "./types";
 import type {
@@ -58,10 +53,34 @@ const analyzeScoutAgentInputSchema = z
   })
   .strict();
 
-const PLATFORM_ANALYSIS_TEMPERATURE = 0.4;
-const PLATFORM_ANALYSIS_MAX_TOKENS = 512;
 const STALE_PENDING_RUN_TIMEOUT_MS = 90_000;
 const MAX_AGENT_ANALYSES_PER_HOUR = 60;
+const SUPPORTED_AGENT_DOMAINS: AgentCapabilitiesView["domains"] = [
+  "scouting",
+  "player_pools",
+  "daily_boosts",
+  "community_boosts",
+  "watchlists",
+  "vesting",
+  "sportfolio",
+];
+const SUPPORTED_AGENT_ACTION_TYPES: AgentCapabilitiesView["actionTypes"] = [
+  "scout_set_count",
+  "pool_buy",
+  "pool_sell",
+  "pool_add_liquidity",
+  "pool_add_liquidity_optimal",
+  "pool_zap_add_shares",
+  "pool_zap_add_sb",
+  "pool_remove_liquidity",
+  "holdings_condense",
+  "daily_boost_assign",
+  "daily_boost_remove",
+  "watchlist_add_player",
+  "watchlist_remove_player",
+  "community_boost_create",
+  "vesting_claim",
+];
 
 type AgentRunOutcomeCategory =
   | "staged_plan"
@@ -104,28 +123,14 @@ function buildCapabilities(
     canAutoExecute: false,
     canUseWebResearch: isHostedWebResearchAvailable(),
     webResearchProvider: isHostedWebResearchAvailable() ? ("brave" as const) : null,
+    runtime: "hermes" as const,
+    hasDurableMemory: true,
+    canScheduleAdvisories: true,
   };
 }
 
 function toNumberString(value: number, digits: number): string {
   return value.toFixed(digits);
-}
-
-function resolveAnalysisTemperature(profile: UserAgentProfile): number {
-  const parsed = Number(profile.temperature);
-  if (!Number.isFinite(parsed)) {
-    return PLATFORM_ANALYSIS_TEMPERATURE;
-  }
-
-  return Math.max(0, Math.min(parsed, 1));
-}
-
-function resolveAnalysisMaxTokens(profile: UserAgentProfile): number {
-  if (!Number.isFinite(profile.maxTokens)) {
-    return PLATFORM_ANALYSIS_MAX_TOKENS;
-  }
-
-  return Math.max(200, Math.min(profile.maxTokens, 4000));
 }
 
 function classifyAgentRunOutcome(input: {
@@ -229,6 +234,7 @@ async function ensureProfile(
     .insert(userAgentProfiles)
     .values({
       userId,
+      runtime: "hermes",
       model: managedProvider.defaultModel || MANAGED_MODEL_PLACEHOLDER,
     })
     .onConflictDoNothing({ target: userAgentProfiles.userId });
@@ -249,19 +255,40 @@ async function ensureProfile(
     profile.model !== managedProvider.defaultModel
   ) {
     const migratedModel = managedProvider.defaultModel || MANAGED_MODEL_PLACEHOLDER;
+    const nextUpdatedAt = new Date();
 
     await db
       .update(userAgentProfiles)
       .set({
+        runtime: "hermes",
         model: migratedModel,
-        updatedAt: new Date(),
+        updatedAt: nextUpdatedAt,
       })
       .where(eq(userAgentProfiles.id, profile.id));
 
     return {
       ...profile,
+      runtime: "hermes",
       model: migratedModel,
-      updatedAt: new Date(),
+      updatedAt: nextUpdatedAt,
+    };
+  }
+
+  if ((profile.runtime || "pi") !== "hermes") {
+    const nextUpdatedAt = new Date();
+
+    await db
+      .update(userAgentProfiles)
+      .set({
+        runtime: "hermes",
+        updatedAt: nextUpdatedAt,
+      })
+      .where(eq(userAgentProfiles.id, profile.id));
+
+    return {
+      ...profile,
+      runtime: "hermes",
+      updatedAt: nextUpdatedAt,
     };
   }
 
@@ -311,36 +338,6 @@ async function expireStalePendingRuns(userId: string) {
     );
 }
 
-async function resolveRuntimeForProfile(
-  profile: UserAgentProfile,
-  secret: UserAgentSecret | undefined,
-) {
-  if (profile.providerMode === "byok") {
-    if (!secret) {
-      throw new Error("BYOK is selected but no API key is configured");
-    }
-    if (!profile.baseUrl) {
-      throw new Error("BYOK is selected but no base URL is configured");
-    }
-
-    const apiKey = decryptText({
-      ciphertext: secret.apiKeyCiphertext,
-      iv: secret.apiKeyIv,
-      authTag: secret.apiKeyAuthTag,
-    });
-
-    return resolveOpenAICompatiblePiRuntime({
-      apiKey,
-      baseUrl: profile.baseUrl,
-      model: profile.model,
-    });
-  }
-
-  return resolveManagedPiRuntime({
-    model: profile.model,
-  });
-}
-
 export async function getScoutAgentProfile(userId: string): Promise<AgentProfileView> {
   const [managedProvider, secret] = await Promise.all([
     getActiveManagedProviderStatus(),
@@ -359,37 +356,16 @@ export async function getAgentCapabilities(userId: string): Promise<AgentCapabil
   const profileView = await getScoutAgentProfile(userId);
 
   return {
-    domains: [
-      "scouting",
-      "player_pools",
-      "daily_boosts",
-      "community_boosts",
-      "watchlists",
-      "vesting",
-      "sportfolio",
-    ],
-    actionTypes: [
-      "scout_set_count",
-      "pool_buy",
-      "pool_sell",
-      "pool_add_liquidity",
-      "pool_add_liquidity_optimal",
-      "pool_zap_add_shares",
-      "pool_zap_add_sb",
-      "pool_remove_liquidity",
-      "holdings_condense",
-      "daily_boost_assign",
-      "daily_boost_remove",
-      "watchlist_add_player",
-      "watchlist_remove_player",
-      "community_boost_create",
-      "vesting_claim",
-    ],
+    domains: SUPPORTED_AGENT_DOMAINS,
+    actionTypes: SUPPORTED_AGENT_ACTION_TYPES,
     canAnalyze: profileView.capabilities.canAnalyze,
     canAutoExecute: profileView.capabilities.canAutoExecute,
     canUseWebResearch: profileView.capabilities.canUseWebResearch,
     webResearchProvider: profileView.capabilities.webResearchProvider,
     providerMode: profileView.profile.providerMode as AgentCapabilitiesView["providerMode"],
+    runtime: profileView.capabilities.runtime,
+    hasDurableMemory: profileView.capabilities.hasDurableMemory,
+    canScheduleAdvisories: profileView.capabilities.canScheduleAdvisories,
   };
 }
 
@@ -714,128 +690,50 @@ export async function analyzeScoutAgent(
     })
     .returning();
 
-  let planningResult: Awaited<ReturnType<typeof runScoutPlanningTurn>> | null = null;
-  let discussionResult: Awaited<ReturnType<typeof runScoutDiscussionTurn>> | null = null;
-  let modeSource: "caller" | "heuristic" | "model" | "fallback" = "caller";
-  let classifierLabel: "discussion" | "commit" | null = null;
-  let heuristicMode: "discussion" | "commit" | null = null;
-  let heuristicConfidence: "high" | "low" | null = null;
-
   try {
-    const runtime = await resolveRuntimeForProfile(profile, secret);
-    const modeResolution = data.mode
-      ? {
-          mode: data.mode,
-          source: "caller" as const,
-          heuristicMode: null,
-          heuristicConfidence: null,
-          classifierLabel: null,
-        }
-      : await resolveAgentRequestModeWithFallback({
-          runtime,
-          message: requestMessage,
-          semanticRoute: semanticRouteHint,
-          conversationHistory: data.conversationHistory,
-        });
-    const mode = modeResolution.mode;
-    modeSource = modeResolution.source;
-    heuristicMode = modeResolution.heuristicMode;
-    heuristicConfidence = modeResolution.heuristicConfidence;
-    classifierLabel = modeResolution.classifierLabel;
-    const analysisTemperature = resolveAnalysisTemperature(profile);
-    const analysisMaxTokens = resolveAnalysisMaxTokens(profile);
-
-    await db
-      .update(userAgentRuns)
-      .set({
-        promptSnapshot: {
-          framework: "pi-agent-core",
-          mode,
-          modeSource,
-          heuristicMode,
-          heuristicConfidence,
-          classifierLabel,
-          requestMessage,
-          semanticRouteHint,
-          conversationHistory: data.conversationHistory || [],
-          operatorPlaybook: profile.systemPrompt,
-          strategyTemplate: profile.userPromptTemplate,
-        },
-      })
-      .where(eq(userAgentRuns.id, run.id));
-
-    if (mode === "discussion") {
-      discussionResult = await runScoutDiscussionTurn({
-        runtime,
-        context,
-        chatRequest: requestMessage,
-        semanticRouteHint,
-        conversationHistory: data.conversationHistory,
-        operatorPlaybook: profile.systemPrompt,
-        strategyTemplate: profile.userPromptTemplate,
-        temperature: analysisTemperature,
-        maxTokens: analysisMaxTokens,
-      });
-      const outcomeCategory = classifyAgentRunOutcome({
-        actions: [],
-        pendingClarification: null,
-        citations: discussionResult.citations,
-        summary: discussionResult.summary,
-        replyText: discussionResult.replyText,
-        errorMessage: null,
-      });
-
-      await db
-        .update(userAgentRuns)
-        .set({
-          status: "completed",
-          rawResponse: {
-            trace: attachOutcomeCategoryToTrace(discussionResult.rawTrace, outcomeCategory),
-            usage: discussionResult.usage,
-            parsed: {
-              replyText: discussionResult.replyText,
-              draftPlan: discussionResult.draftPlan,
-              citations: discussionResult.citations,
-              outcomeCategory,
-            },
-          },
-          parsedSummary: discussionResult.summary,
-          completedAt: new Date(),
-        })
-        .where(eq(userAgentRuns.id, run.id));
-
-      return {
-        runId: run.id,
-        status: "completed",
-        domain: "scouting",
-        requestMessage,
-        replyText: discussionResult.replyText,
-        summary: discussionResult.summary,
-        observations: discussionResult.draftPlan?.observations || [],
-        warnings: discussionResult.warnings,
-        actions: [],
-        citations: discussionResult.citations,
-        pendingClarification: null,
-        errorMessage: null,
-      };
-    }
-
-    planningResult = await runScoutPlanningTurn({
-      runtime,
+    const hermesResult = await runHermesAgentTurn({
+      userId,
+      threadId: data.threadId || null,
+      channel: "in_app",
+      message: requestMessage || "",
+      requestMode:
+        data.mode === "commit" ? "plan" : data.mode === "discussion" ? "discussion" : "auto",
+      profile,
+      secret,
       context,
-      chatRequest: requestMessage,
+      capabilities: {
+        domains: SUPPORTED_AGENT_DOMAINS,
+        actionTypes: SUPPORTED_AGENT_ACTION_TYPES,
+        canAnalyze: true,
+        canAutoExecute: false,
+        canUseWebResearch: isHostedWebResearchAvailable(),
+        runtime: "hermes",
+        hasDurableMemory: true,
+        canScheduleAdvisories: true,
+      },
+      memoryContext: await buildHermesMemoryContext({
+        userId,
+        query: requestMessage || "",
+      }),
+      conversationHistory: data.conversationHistory || [],
       semanticRouteHint,
-      conversationHistory: data.conversationHistory,
-      operatorPlaybook: profile.systemPrompt,
-      strategyTemplate: profile.userPromptTemplate,
-      temperature: analysisTemperature,
-      maxTokens: analysisMaxTokens,
     });
-    const validated = validateScoutPlanAgainstContext(planningResult.output, context);
+    const normalizedStatus = hermesResult.outcome === "error" ? "failed" : "completed";
+    const outcomeCategory = classifyAgentRunOutcome({
+      actions: hermesResult.proposedActions,
+      pendingClarification: hermesResult.pendingClarification,
+      citations: hermesResult.citations,
+      summary: hermesResult.summary,
+      replyText: hermesResult.assistantText,
+      errorMessage: hermesResult.outcome === "error" ? hermesResult.assistantText : null,
+    });
+    const scoutActions = hermesResult.proposedActions.filter(
+      (action): action is ScoutProposalAction => action.actionType === "scout_set_count",
+    );
 
-    if (validated.actions.length > 0) {
+    if (scoutActions.length > 0) {
       await db.insert(userAgentProposals).values(
-        validated.actions.map((action) => ({
+        scoutActions.map((action) => ({
           runId: run.id,
           userId,
           actionType: action.actionType,
@@ -850,58 +748,73 @@ export async function analyzeScoutAgent(
         })),
       );
     }
-    const outcomeCategory = classifyAgentRunOutcome({
-      actions: validated.actions,
-      pendingClarification: null,
-      citations: planningResult.citations,
-      summary: validated.summary,
-      replyText: validated.replyText,
-      errorMessage: null,
-    });
+
+    if (hermesResult.proposedMemoryWrites.length > 0) {
+      await persistProposedMemoryWrites({
+        userId,
+        threadId: data.threadId || null,
+        writes: hermesResult.proposedMemoryWrites,
+      });
+    }
 
     await db
       .update(userAgentRuns)
       .set({
-        status: "completed",
+        promptSnapshot: {
+          framework: "hermes-orchestrator",
+          runtime: "hermes",
+          requestedMode: data.mode || null,
+          requestMessage,
+          semanticRouteHint,
+          conversationHistory: data.conversationHistory || [],
+          operatorPlaybook: profile.systemPrompt,
+          strategyTemplate: profile.userPromptTemplate,
+        },
+        status: normalizedStatus,
         rawResponse: {
-          trace: attachOutcomeCategoryToTrace(planningResult.rawTrace, outcomeCategory),
-          usage: planningResult.usage,
+          trace: attachOutcomeCategoryToTrace(
+            {
+              toolTrace: hermesResult.toolTrace,
+            },
+            outcomeCategory,
+          ),
           parsed: {
-            ...validated,
+            outcome: hermesResult.outcome,
+            replyText: hermesResult.assistantText,
+            summary: hermesResult.summary,
+            warnings: hermesResult.warnings,
+            actions: hermesResult.proposedActions,
+            citations: hermesResult.citations,
+            pendingClarification: hermesResult.pendingClarification,
+            proposedMemoryWrites: hermesResult.proposedMemoryWrites,
+            toolTrace: hermesResult.toolTrace,
             outcomeCategory,
           },
         },
-        parsedSummary: validated.summary,
+        parsedSummary: hermesResult.summary,
+        errorMessage: hermesResult.outcome === "error" ? hermesResult.assistantText : null,
         completedAt: new Date(),
       })
       .where(eq(userAgentRuns.id, run.id));
 
     return {
       runId: run.id,
-      status: "completed",
+      status: normalizedStatus,
       domain: "scouting",
       requestMessage,
-      replyText: validated.replyText,
-      summary: validated.summary,
-      observations: validated.observations,
-      warnings: validated.warnings,
-      actions: validated.actions,
-      citations: planningResult.citations || [],
-      pendingClarification: null,
-      errorMessage: null,
+      replyText: hermesResult.assistantText,
+      summary: hermesResult.summary,
+      observations: [],
+      warnings: hermesResult.warnings,
+      actions: hermesResult.proposedActions,
+      citations: hermesResult.citations,
+      pendingClarification: hermesResult.pendingClarification,
+      proposedMemoryWrites: hermesResult.proposedMemoryWrites,
+      toolTrace: hermesResult.toolTrace,
+      errorMessage: hermesResult.outcome === "error" ? hermesResult.assistantText : null,
     };
   } catch (error: any) {
     const errorMessage = error?.message || "Agent analysis failed";
-    const normalizedError = errorMessage.toLowerCase();
-    const status =
-      normalizedError.includes("structured scout plan") ||
-      normalizedError.includes("proposed scout plan") ||
-      normalizedError.includes("submitted multiple scout plans")
-        ? "rejected"
-        : "failed";
-    const failureTrace =
-      error?.rawTrace ?? planningResult?.rawTrace ?? discussionResult?.rawTrace ?? null;
-    const failureUsage = error?.usage ?? planningResult?.usage ?? discussionResult?.usage ?? null;
     const outcomeCategory = classifyAgentRunOutcome({
       errorMessage,
     });
@@ -909,15 +822,10 @@ export async function analyzeScoutAgent(
     await db
       .update(userAgentRuns)
       .set({
-        status,
-        rawResponse: failureTrace
-          ? {
-              trace: attachOutcomeCategoryToTrace(failureTrace, outcomeCategory),
-              ...(failureUsage ? { usage: failureUsage } : {}),
-            }
-          : {
-              trace: attachOutcomeCategoryToTrace(null, outcomeCategory),
-            },
+        status: "failed",
+        rawResponse: {
+          trace: attachOutcomeCategoryToTrace(null, outcomeCategory),
+        },
         errorMessage,
         completedAt: new Date(),
       })
@@ -925,7 +833,7 @@ export async function analyzeScoutAgent(
 
     return {
       runId: run.id,
-      status,
+      status: "failed",
       domain: "scouting",
       requestMessage,
       replyText: null,

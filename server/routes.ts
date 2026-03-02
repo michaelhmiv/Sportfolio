@@ -53,6 +53,7 @@ import { getOrCompute } from "./cache";
 import { registerAmmRoutes } from "./routes/amm";
 import { registerCliRoutes } from "./routes/cli";
 import { registerDocsRoutes } from "./routes/docs";
+import { registerInternalAgentToolRoutes } from "./routes/internal-agent-tools";
 import { registerLpRoutes } from "./routes/lp";
 import { registerSmsRoutes } from "./routes/sms";
 import { getOrCreatePool, initializePool } from "./amm/pool";
@@ -11889,6 +11890,7 @@ ${items}
   registerDocsRoutes(app);
   registerCliRoutes(app);
   registerSmsRoutes(app);
+  registerInternalAgentToolRoutes(app);
 
   return httpServer;
 }

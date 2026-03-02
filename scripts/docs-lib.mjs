@@ -28,12 +28,19 @@ function walkMarkdownFiles(dirPath) {
 
   for (const entry of entries) {
     const fullPath = path.join(dirPath, entry.name);
-    if (entry.isDirectory()) {
+    let stats;
+    try {
+      stats = fs.statSync(fullPath);
+    } catch {
+      continue;
+    }
+
+    if (stats.isDirectory()) {
       files.push(...walkMarkdownFiles(fullPath));
       continue;
     }
 
-    if (entry.isFile() && entry.name.endsWith(".md")) {
+    if (stats.isFile() && entry.name.endsWith(".md")) {
       files.push(fullPath);
     }
   }
