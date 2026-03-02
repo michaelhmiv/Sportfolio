@@ -1,16 +1,18 @@
-# Agent Current Surface (Thin PI Test Milestone)
+# Agent Current Surface (Hermes Runtime Milestone)
 
 This document defines the current in-app agent surface that is considered stable enough for human testing and curation.
 
 ## Operating Model
 
 - Hermes is now the primary user-facing agent orchestrator.
-- When an external Hermes sidecar is not configured, the app uses an in-process compatibility bridge behind the same Hermes contract so the live agent path still routes through the Hermes interface.
+- The normal Hermes path is now an in-repo orchestration flow that first uses deterministic action planning, hosted research, and account-state synthesis before falling back to the legacy PI-backed compatibility bridge.
+- When an external Hermes sidecar is not configured, the app uses the same in-process Hermes orchestration path instead of dropping straight to PI.
 - The same repo can now run as a dedicated self-hosted Hermes sidecar by setting `SPORTFOLIO_SERVICE_ROLE=hermes-sidecar` on a separate service and pointing `HERMES_AGENT_URL` at that service's base URL.
 - Sportfolio business logic, validation, and execution remain server-owned and deterministic.
 - All economic mutations remain confirmation-gated.
 - Hosted web research is server-side and provider-agnostic, using Brave Search when configured.
 - Durable per-user agent memory is stored in the Sportfolio database and injected into agent turns before reasoning.
+- Active users are now auto-seeded with a default daily in-app advisory schedule, and the main cron scheduler runs due Hermes advisory jobs without auto-executing risky actions.
 
 ## Supported Advisory Coverage
 
@@ -36,7 +38,6 @@ The agent can currently stage, for confirmation:
 - daily boost assign and remove
 - watchlist add and remove
 - community boost creation
-- vesting claim
 
 These are staged first and are only executed after an explicit confirm action from the user.
 
@@ -55,7 +56,6 @@ These are staged first and are only executed after an explicit confirm action fr
 
 - autonomous execution without confirmation
 - generalized multi-domain LLM-authored economic planning as the source of truth
-- contests as an active agent capability surface
 - admin or destructive operational flows
 - guaranteed coverage for every website path a human can perform
 
@@ -71,7 +71,6 @@ Use these prompts as the baseline manual test set:
 - `buy $25 of <player>`
 - `put <player> in my 2x boost slot today`
 - `add <player> to my watchlist`
-- `claim my vesting shares`
 - `research the latest injury news on <player>`
 
 ## Smoke Harness

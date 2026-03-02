@@ -1536,6 +1536,39 @@ export const agentRuntimeSessions = pgTable(
   }),
 );
 
+export const userAgentSchedules = pgTable(
+  "user_agent_schedules",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    jobType: text("job_type").notNull(),
+    enabled: boolean("enabled").notNull().default(true),
+    scheduleCron: text("schedule_cron").notNull(),
+    channelTargets: jsonb("channel_targets")
+      .notNull()
+      .default(sql`'["in_app"]'::jsonb`),
+    policy: jsonb("policy")
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    lastRunAt: timestamp("last_run_at"),
+    nextRunAt: timestamp("next_run_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    userJobIdx: uniqueIndex("user_agent_schedules_user_job_idx").on(table.userId, table.jobType),
+    dueRunIdx: index("user_agent_schedules_due_run_idx").on(table.enabled, table.nextRunAt),
+    userUpdatedIdx: index("user_agent_schedules_user_updated_idx").on(
+      table.userId,
+      table.updatedAt,
+    ),
+  }),
+);
+
 // User agent message embeddings - vectorized user prompts for semantic routing and analytics
 export const userAgentMessageEmbeddings = pgTable(
   "user_agent_message_embeddings",
@@ -2431,6 +2464,14 @@ export const insertAgentRuntimeSessionSchema = createInsertSchema(agentRuntimeSe
   createdAt: true,
 });
 
+export const insertUserAgentScheduleSchema = createInsertSchema(userAgentSchedules).omit({
+  id: true,
+  lastRunAt: true,
+  nextRunAt: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const insertUserAgentMessageEmbeddingSchema = createInsertSchema(
   userAgentMessageEmbeddings,
 ).omit({
@@ -2500,6 +2541,9 @@ export type InsertUserAgentMemory = z.infer<typeof insertUserAgentMemorySchema>;
 
 export type AgentRuntimeSession = typeof agentRuntimeSessions.$inferSelect;
 export type InsertAgentRuntimeSession = z.infer<typeof insertAgentRuntimeSessionSchema>;
+
+export type UserAgentSchedule = typeof userAgentSchedules.$inferSelect;
+export type InsertUserAgentSchedule = z.infer<typeof insertUserAgentScheduleSchema>;
 
 export type UserAgentMessageEmbedding = typeof userAgentMessageEmbeddings.$inferSelect;
 export type InsertUserAgentMessageEmbedding = z.infer<typeof insertUserAgentMessageEmbeddingSchema>;

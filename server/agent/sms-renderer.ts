@@ -56,7 +56,7 @@ export function renderGuestSmsConciergeReply(input: {
   const topicalNote =
     input.matchedTopicTitle && input.matchedTopicNote
       ? `${input.matchedTopicTitle}: ${input.matchedTopicNote}`
-      : "I can break down player pools, scouts, boosts, vesting, and account setup.";
+      : "I can break down player pools, scouts, boosts, watchlists, and account setup.";
 
   return truncateSms(
     `${opening} ${topicalNote} If you want account-specific reads or in-game actions, link your account here: ${input.linkUrl}`,
@@ -66,7 +66,7 @@ export function renderGuestSmsConciergeReply(input: {
 export function renderSmsHelpReply(linkUrl: string, topicHint?: string | null): string {
   const hint = topicHint?.trim()
     ? `Start with: ${topicHint.trim()} `
-    : "Text a normal question about shares, scouts, boosts, or vesting. ";
+    : "Text a normal question about shares, scouts, boosts, or watchlists. ";
 
   return truncateSms(
     `Sportfolio SMS help: ${hint}Use CONFIRM or CANCEL for pending actions. Need to create or link an account? ${linkUrl}`,

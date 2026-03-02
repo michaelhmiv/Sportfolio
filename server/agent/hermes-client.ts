@@ -4,7 +4,7 @@ import { db } from "../db";
 import { decryptText } from "../lib/encryption";
 import { getManagedProviderRuntimeConfig } from "./provider-registry";
 import { buildHermesInternalHeaders } from "./internal-auth";
-import { runLocalHermesCompatibilityTurn } from "./hermes-local";
+import { runHermesOrchestrationTurn } from "./hermes-orchestrator";
 import { getActiveManagedProviderSelection } from "./system-settings";
 import type {
   AgentChannel,
@@ -51,6 +51,9 @@ const hermesResponseSchema = z.object({
   citations: z.array(z.record(z.any())).optional(),
   proposedMemoryWrites: z.array(proposedMemoryWriteSchema).optional(),
   toolTrace: z.array(agentToolTraceSchema).optional(),
+  toolCallsUsed: z.array(z.string()).optional(),
+  requiresConfirmation: z.boolean().optional(),
+  confirmationPreview: z.record(z.unknown()).nullable().optional(),
 });
 
 function getHermesAgentUrl(): string | null {
@@ -143,6 +146,12 @@ export function normalizeHermesTurnResponse(payload: unknown): HermesRespondResu
     toolTrace: Array.isArray(parsed.toolTrace)
       ? (parsed.toolTrace as HermesRespondResult["toolTrace"])
       : [],
+    toolCallsUsed: Array.isArray(parsed.toolCallsUsed)
+      ? parsed.toolCallsUsed.filter((entry): entry is string => typeof entry === "string")
+      : [],
+    requiresConfirmation: Boolean(parsed.requiresConfirmation),
+    confirmationPreview: (parsed.confirmationPreview ||
+      null) as HermesRespondResult["confirmationPreview"],
   };
 }
 
@@ -213,6 +222,22 @@ export async function runHermesAgentTurn(input: {
     channel: input.channel,
     message: input.message,
     requestMode: input.requestMode,
+    toolAllowlist: [
+      "preview_direct_operation",
+      "get_hosted_research",
+      "get_portfolio_summary",
+      "get_canonical_knowledge",
+      "list_user_memories",
+    ],
+    memoryMode: "read_write",
+    autoExecutionPolicy: {
+      allowAdvisoryJobs: true,
+      allowRiskyActions: false,
+    },
+    confirmationPolicy: {
+      requireExplicitConfirmation: true,
+      preferredChannel: input.channel,
+    },
     profile: {
       displayName: input.profile.displayName,
       providerMode: input.profile.providerMode as HermesRespondRequest["profile"]["providerMode"],
@@ -245,16 +270,12 @@ export async function runHermesAgentTurn(input: {
     fallbackReason: string | null,
     externalError?: unknown,
   ): Promise<HermesRespondResult> => {
-    const localResult = await runLocalHermesCompatibilityTurn({
+    const localResult = await runHermesOrchestrationTurn({
       userId: input.userId,
-      channel: input.channel,
       profile: input.profile,
       secret: input.secret,
       context: input.context,
-      chatRequest: input.message,
-      semanticRouteHint: input.semanticRouteHint,
-      conversationHistory: input.conversationHistory,
-      requestedMode: input.requestMode,
+      request: requestPayload,
     });
     const toolTrace = [...localResult.toolTrace];
 
@@ -264,10 +285,10 @@ export async function runHermesAgentTurn(input: {
         phase: "plan",
         status: "failed",
         latencyMs: Math.max(0, Date.now() - startedAt),
-        summary: `External Hermes sidecar failed (${fallbackReason}); used the in-process compatibility bridge.`,
+        summary: `External Hermes sidecar failed (${fallbackReason}); used the in-process Hermes engine.`,
       });
       console.warn(
-        "[Hermes] External sidecar request failed; using local compatibility bridge:",
+        "[Hermes] External sidecar request failed; using the in-process Hermes engine:",
         externalError instanceof Error ? externalError.message : externalError || fallbackReason,
       );
     }

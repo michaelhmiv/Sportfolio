@@ -535,7 +535,7 @@ describe("planDirectAgentOperation", () => {
     expect(result?.actions).toHaveLength(0);
     expect(result?.summary).toContain("Broad operator review");
     expect(result?.replyText).toContain("broad operator read");
-    expect(result?.replyText).toContain("vested shares ready to claim");
+    expect(result?.replyText).toContain("community shares available");
   });
 
   it("explains the broad operator capability surface", async () => {
@@ -681,7 +681,7 @@ describe("planDirectAgentOperation", () => {
     });
   });
 
-  it("stages a vesting claim", async () => {
+  it("does not stage vesting because it is no longer in the active agent surface", async () => {
     const { planDirectAgentOperation } = await import("./operations-planner");
 
     const result = await planDirectAgentOperation({
@@ -690,13 +690,6 @@ describe("planDirectAgentOperation", () => {
       profile,
     });
 
-    expect(result).not.toBeNull();
-    expect(result?.domain).toBe("vesting");
-    expect(result?.actions).toHaveLength(1);
-    expect(result?.actions[0]).toMatchObject({
-      actionType: "vesting_claim",
-      claimableShares: 8,
-      distributionCount: 1,
-    });
+    expect(result).toBeNull();
   });
 });

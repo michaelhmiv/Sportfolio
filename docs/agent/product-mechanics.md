@@ -7,7 +7,7 @@ This document explains the current gameplay/economic loops as implemented in cod
 Sportfolio combines:
 
 1. Instant sports-player trading (AMM pools)
-2. Passive share generation (scouts + vesting)
+2. Passive share generation (scouts)
 3. Competitive outcomes (daily boosts + community boosts)
 
 Primary user outcome: grow portfolio value and cash balance through better player/game decisions.
@@ -77,24 +77,11 @@ Critical invariants:
 - Keep time-weighted history logic intact (`scout_history`).
 - Avoid direct assignment mutations that skip history updates.
 
-## 4) Vesting Loop
+## 4) Legacy Vesting (Retired)
 
-Source: `server/routes.ts` (`/api/vesting*`), `shared/vesting-utils.ts`, `shared/schema.ts`
+Vesting code still exists in the repo for archival compatibility, but vesting is no longer part of the active gameplay loop or current agent scope.
 
-- Accrual rates:
-  - standard: `100 shares/hour`, cap `2400`
-  - premium: `200 shares/hour`, cap `4800`
-- Accrual uses `lastAccruedAt + residualMs` to avoid drift.
-- Users can:
-  - start/split vesting across players,
-  - claim accumulated shares,
-  - redeem pooled shares via explicit distributions,
-  - manage vesting presets.
-
-Critical invariants:
-
-- Respect cap limits and residual handling.
-- Reset/advance accrual baselines carefully on claim/redeem/start.
+If legacy vesting code must be touched, treat it as maintenance only and do not reintroduce it into active user flows without an explicit product decision.
 
 ## 5) Daily Boost Loop
 
@@ -142,4 +129,3 @@ Critical invariants:
 
 - If mechanics in UI copy conflict with backend behavior, backend route/job code is authoritative.
 - Any change to formulas, burn/credit behavior, or caps requires runbook validation in `docs/agent/runbooks.md`.
-- Legacy contest code still exists in the repo, but contests are archived and not part of the active product or the agent capability surface.

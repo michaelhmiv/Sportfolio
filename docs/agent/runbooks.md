@@ -40,13 +40,7 @@ Must-verify behaviors:
 - Buy and sell fees reconcile with pool and burn fee fields.
 - LP add/remove and zap paths still produce valid ownership and outputs.
 
-## Runbook B: Legacy Contest Code (Archived)
-
-Contest code still exists in the repo, but contests are archived and not part of the active product or agent capability surface.
-
-Do not expand contest behavior for the agent. If legacy contest code must be touched for maintenance, treat it as archival compatibility work only.
-
-## Runbook C: Boost Eligibility / Payout Changes
+## Runbook B: Boost Eligibility / Payout Changes
 
 Primary files:
 
@@ -69,7 +63,9 @@ Must-verify behaviors:
 - Locked boost burns exactly one share from correct holding row.
 - Settlement waits for completed game + available stats.
 
-## Runbook D: Vesting Accrual / Redeem Logic Changes
+## Runbook C: Legacy Vesting Maintenance (Retired)
+
+Vesting is retired and out of the active product and agent surface. These notes apply only if legacy vesting code must be touched for compatibility maintenance.
 
 Primary files:
 
@@ -90,7 +86,7 @@ Must-verify behaviors:
 - Partial redeem updates remaining shares correctly.
 - Claim/redeem emits expected portfolio/vesting websocket updates.
 
-## Runbook E: Auth / Access Boundary Changes
+## Runbook D: Auth / Access Boundary Changes
 
 Primary files:
 
@@ -110,7 +106,7 @@ Checklist:
 | --------------- | ------------------------------------------------------------------------ |
 | AMM/LP math     | unit tests touching pool math, quote-vs-execution sanity, lint/typecheck |
 | Boost mechanics | assignment constraints, lock job behavior, payout formula reconciliation |
-| Vesting logic   | accrual utility behavior, cap behavior, claim/redeem state updates       |
+| Legacy vesting  | accrual utility behavior, cap behavior, claim/redeem state updates       |
 | Auth changes    | route protection audit + negative-path auth checks                       |
 
 ## Manual Smoke Scenarios (Recommended)
@@ -118,7 +114,33 @@ Checklist:
 1. Buy/sell one player, verify portfolio and pool updates.
 2. Assign scouts, trigger/await distribution window, verify new shares.
 3. Create daily boost before game, verify lock + settle lifecycle.
-4. Claim/redeem vesting shares and verify holdings + vesting reset behavior.
+4. If legacy vesting code was touched, verify claim/redeem state updates in a maintenance-only test path.
+
+## Runbook E: Hermes Runtime / Agent Schedule Changes
+
+Primary files:
+
+- `server/agent/hermes-client.ts`
+- `server/agent/hermes-orchestrator.ts`
+- `server/hermes-sidecar.ts`
+- `server/agent/hermes-tools.ts`
+- `server/agent/memory.ts`
+- `server/agent/schedules.ts`
+- `server/jobs/scheduler.ts`
+
+Checklist:
+
+1. Keep Hermes as the primary orchestrator and PI as fallback-only.
+2. Keep all risky portfolio mutations confirmation-gated.
+3. Preserve strict per-user memory isolation and do not widen scope across users or channels.
+4. Keep scheduled Hermes jobs advisory-only unless a separate explicit auto-execution policy is introduced.
+5. Re-run the full validation stack after changing request/response contracts, tool names, or schedule defaults.
+
+Must-verify behaviors:
+
+- A normal `/agent` message resolves through Hermes without requiring the PI fallback path.
+- External Hermes failures degrade to the in-process Hermes engine, then only to PI compatibility if needed.
+- Scheduled advisory runs write assistant messages only and never auto-confirm or auto-apply economic actions.
 
 ## Documentation Sync Rule
 

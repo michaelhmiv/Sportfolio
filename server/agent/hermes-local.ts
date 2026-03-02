@@ -152,6 +152,9 @@ export async function runLocalHermesCompatibilityTurn(input: {
         citations: discussionResult.citations || [],
         proposedMemoryWrites: memoryWrites,
         toolTrace,
+        toolCallsUsed: toolTrace.map((entry) => entry.toolName),
+        requiresConfirmation: false,
+        confirmationPreview: null,
       };
     }
 
@@ -192,6 +195,9 @@ export async function runLocalHermesCompatibilityTurn(input: {
       citations: planningResult.citations || [],
       proposedMemoryWrites: memoryWrites,
       toolTrace,
+      toolCallsUsed: toolTrace.map((entry) => entry.toolName),
+      requiresConfirmation: validated.actions.length > 0,
+      confirmationPreview: null,
     };
   } catch (error: any) {
     const memoryWrites = safeInferMemoryWrites(input.chatRequest);
@@ -213,6 +219,9 @@ export async function runLocalHermesCompatibilityTurn(input: {
       citations: [],
       proposedMemoryWrites: memoryWrites,
       toolTrace,
+      toolCallsUsed: toolTrace.map((entry) => entry.toolName),
+      requiresConfirmation: false,
+      confirmationPreview: null,
     };
   }
 }

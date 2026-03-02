@@ -14,6 +14,9 @@ describe("hermes-client", () => {
     expect(result.proposedActions).toEqual([]);
     expect(result.proposedMemoryWrites).toEqual([]);
     expect(result.toolTrace).toEqual([]);
+    expect(result.toolCallsUsed).toEqual([]);
+    expect(result.requiresConfirmation).toBe(false);
+    expect(result.confirmationPreview).toBeNull();
   });
 
   it("rejects malformed proposed memory writes from the sidecar payload", () => {

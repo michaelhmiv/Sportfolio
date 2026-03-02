@@ -82,18 +82,9 @@ Source: `server/routes/lp.ts`
 | GET    | `/api/lp/:playerId/history`     | isAuthenticated | LP tx history by player                       |
 | GET    | `/api/lp/history`               | isAuthenticated | LP tx history across pools                    |
 
-## Vesting Endpoints
+## Legacy Vesting Endpoints (Retired)
 
-| Method | Path                       | Auth            | Purpose                                        |
-| ------ | -------------------------- | --------------- | ---------------------------------------------- |
-| GET    | `/api/vesting/status`      | isAuthenticated | Returns accrued vesting state + splits         |
-| POST   | `/api/vesting/start`       | isAuthenticated | Set vesting player split (auto-claims first)   |
-| POST   | `/api/vesting/claim`       | isAuthenticated | Claim accumulated shares                       |
-| POST   | `/api/vesting/redeem`      | isAuthenticated | Redeem pooled shares to explicit distributions |
-| GET    | `/api/vesting/presets`     | isAuthenticated | List saved presets                             |
-| POST   | `/api/vesting/presets`     | isAuthenticated | Create preset                                  |
-| PUT    | `/api/vesting/presets/:id` | isAuthenticated | Update preset                                  |
-| DELETE | `/api/vesting/presets/:id` | isAuthenticated | Delete preset                                  |
+Vesting routes still exist in the codebase for archival compatibility, but vesting is retired and out of the active product and current agent scope.
 
 ## Scout Endpoints
 
@@ -105,10 +96,6 @@ Source: `server/routes/lp.ts`
 | GET    | `/api/scouts/status`             | isAuthenticated | Status snapshot endpoint        |
 | GET    | `/api/scouts/velocity/:playerId` | Public          | Velocity signal by player       |
 | GET    | `/api/scouts/trending`           | Public          | Trending scout player IDs       |
-
-## Legacy Contest Endpoints (Archived)
-
-Contest routes still exist in the codebase as legacy paths, but contests are archived and are out of the active product surface and agent scope.
 
 ## Daily & Community Boost Endpoints
 
@@ -158,9 +145,7 @@ Representative endpoints (not exhaustive):
 - `GET /api/admin/diagnostics` (adminAuth)
 - `GET /api/admin/route-smoke` (adminAuth)
 - `POST /api/admin/backfill` (adminAuth)
-- Legacy archived contest admin paths still exist in code but are out of current agent scope
-
-Treat admin endpoints as production-impacting operations.
+  Treat admin endpoints as production-impacting operations.
 
 ## WebSocket Interface
 
@@ -175,7 +160,6 @@ Published event types include:
 - `scout_payout`
 - `boost_settled`
 - `COMMUNITY_BOOST_SETTLED`
-- `vesting`
 - `scout_update`
 - `scout_ready`
 - `whale_alert`
@@ -183,5 +167,3 @@ Published event types include:
 - `trending_players_update`
 
 Reference: `server/websocket.ts`.
-
-Legacy contest websocket event names still exist in the server code, but contests are archived and should not be treated as an active agent capability.

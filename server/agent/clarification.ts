@@ -106,9 +106,7 @@ export function shouldTreatAsClarificationReply(
   }
 
   if (
-    /\b(?:buy|sell|zap|boost|slot|lp|liquidity|scout|condense|power|watchlist|vesting)\b/i.test(
-      normalized,
-    )
+    /\b(?:buy|sell|zap|boost|slot|lp|liquidity|scout|condense|power|watchlist)\b/i.test(normalized)
   ) {
     return false;
   }

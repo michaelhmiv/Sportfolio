@@ -3,7 +3,12 @@ import { eq } from "drizzle-orm";
 import { users } from "@shared/schema";
 import { db } from "../db";
 import { requireHermesInternalRequest } from "../agent/internal-auth";
-import { runHermesMemoryTool, runHermesPlanTool, runHermesReadTool } from "../agent/hermes-tools";
+import {
+  runHermesActionTool,
+  runHermesMemoryTool,
+  runHermesPlanTool,
+  runHermesReadTool,
+} from "../agent/hermes-tools";
 
 function handleInternalToolError(res: Response, error: unknown, fallbackMessage: string) {
   console.error("[Hermes Tools] Route error:", error);
@@ -123,6 +128,40 @@ export function registerInternalAgentToolRoutes(app: Express): void {
         });
       } catch (error) {
         handleInternalToolError(res, error, "Could not run Hermes memory tool");
+      }
+    },
+  );
+
+  app.post(
+    "/internal/agent-tools/action",
+    requireHermesInternalRequest,
+    async (req: Request, res: Response) => {
+      try {
+        const body = getBodyObject(req.body);
+        const toolName = typeof body.toolName === "string" ? body.toolName.trim() : "";
+        const userId = typeof body.userId === "string" ? body.userId.trim() : "";
+        const threadId = typeof body.threadId === "string" ? body.threadId.trim() : "";
+
+        if (!toolName || !userId) {
+          res.status(400).json({ message: "toolName and userId are required" });
+          return;
+        }
+        if (!(await ensureUserExists(userId))) {
+          res.status(404).json({ message: "userId was not found" });
+          return;
+        }
+
+        res.json({
+          ok: true,
+          result: await runHermesActionTool({
+            toolName,
+            userId,
+            threadId: threadId || null,
+            args: getBodyObject(body.args),
+          }),
+        });
+      } catch (error) {
+        handleInternalToolError(res, error, "Could not run Hermes action tool");
       }
     },
   );

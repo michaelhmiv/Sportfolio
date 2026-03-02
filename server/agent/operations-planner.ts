@@ -14,7 +14,6 @@ import { storage } from "../storage";
 import type { UserAgentProfile } from "@shared/schema";
 import { buildPlayerNameClarification } from "./clarification";
 import { isHostedWebResearchAvailable } from "./research";
-import { previewVestingClaim } from "./vesting-claim";
 import type {
   AgentAnalysisResult,
   AgentDomain,
@@ -28,7 +27,6 @@ import type {
   PoolSellAction,
   PoolZapSbAction,
   PoolZapSharesAction,
-  VestingClaimAction,
   WatchlistAddPlayerAction,
   WatchlistRemovePlayerAction,
 } from "./types";
@@ -541,10 +539,10 @@ async function buildCapabilityGuidePlan(
     domain: "sportfolio",
     requestMessage: message,
     replyText: webResearchEnabled
-      ? "I can operate across the main user-facing Sportfolio loops: scouting, player-pool buys and sells, liquidity adds and removals, zaps, condense/power-up flows, daily boosts, watchlists, community boosts, and vesting claims. I can also pull current outside context through the hosted Brave search path when you ask for latest news, injuries, or other time-sensitive external info. For any live mutation, I still stage the move first and wait for your confirmation before execution."
-      : "I can operate across the main user-facing Sportfolio loops: scouting, player-pool buys and sells, liquidity adds and removals, zaps, condense/power-up flows, daily boosts, watchlists, community boosts, and vesting claims. For any live mutation, I still stage the move first and wait for your confirmation before execution.",
+      ? "I can operate across the main user-facing Sportfolio loops: scouting, player-pool buys and sells, liquidity adds and removals, zaps, condense/power-up flows, daily boosts, watchlists, and community boosts. I can also pull current outside context through the hosted Brave search path when you ask for latest news, injuries, or other time-sensitive external info. For any live mutation, I still stage the move first and wait for your confirmation before execution."
+      : "I can operate across the main user-facing Sportfolio loops: scouting, player-pool buys and sells, liquidity adds and removals, zaps, condense/power-up flows, daily boosts, watchlists, and community boosts. For any live mutation, I still stage the move first and wait for your confirmation before execution.",
     summary:
-      "Broad operator coverage across scouting, markets, boosts, watchlists, community boosts, and vesting.",
+      "Broad operator coverage across scouting, markets, boosts, watchlists, and community boosts.",
     observations: [
       "Direct commands stage confirmation-gated actions instead of executing immediately.",
       "Broad advisory asks can return a cross-domain setup read before any plan is queued.",
@@ -929,7 +927,6 @@ async function buildBroadOperatorReviewPlan(
     watchlists,
     communitySharesAvailable,
     activeBoosts,
-    vestingPreview,
   ] = await Promise.all([
     storage.getUser(userId),
     storage.getTotalScoutsForUser(userId),
@@ -938,7 +935,6 @@ async function buildBroadOperatorReviewPlan(
     storage.getWatchlists(userId),
     storage.getUserCommunityBoostShares(userId),
     storage.getDailyBoostsAllSports(userId, new Date()),
-    previewVestingClaim(userId),
   ]);
 
   if (!user) {
@@ -972,11 +968,6 @@ async function buildBroadOperatorReviewPlan(
   const openScoutSlots = Math.max(0, maxScouts - totalScouts);
   const nextLevers: string[] = [];
 
-  if (vestingPreview) {
-    nextLevers.push(
-      `claim ${vestingPreview.claimableShares} vested share${vestingPreview.claimableShares === 1 ? "" : "s"}`,
-    );
-  }
   if (openBoostSlots > 0 && playerHoldings.length > 0) {
     nextLevers.push(
       filledBoostSlots === 0
@@ -1027,10 +1018,6 @@ async function buildBroadOperatorReviewPlan(
       totalPlayerShares,
       0,
     )} total shares), ${filledBoostSlots}/${DAILY_BOOST_SLOT_COUNT} daily boost slots filled for today, and ${totalScouts}/${maxScouts} scouts assigned. ${
-      vestingPreview
-        ? `There are ${vestingPreview.claimableShares} vested share${vestingPreview.claimableShares === 1 ? "" : "s"} ready to claim.`
-        : "There are no vested shares ready to claim right now."
-    } ${
       communitySharesAvailable > 0
         ? `You also have ${communitySharesAvailable} community share${communitySharesAvailable === 1 ? "" : "s"} available.`
         : "You do not have a spare community share right now."
@@ -1062,7 +1049,7 @@ async function buildBroadOperatorReviewPlan(
       maxScouts,
       openScoutSlots,
       communitySharesAvailable,
-      claimableVestingShares: vestingPreview?.claimableShares || 0,
+      claimableVestingShares: 0,
     },
     trace: {
       framework: "deterministic-agent-operations",
@@ -2187,93 +2174,6 @@ async function buildCommunityBoostPlan(
   };
 }
 
-async function buildVestingClaimPlan(
-  userId: string,
-  _profile: UserAgentProfile,
-  message: string,
-  requestMode: "discussion" | "commit",
-): Promise<DirectOperationPlan | null> {
-  const parserMessage = normalizeOperationalParserMessage(message);
-  const isClaimRequest =
-    /\b(?:claim|collect|take)\s+(?:my\s+)?(?:vesting|vested\s+shares?|vesting\s+shares?)\b/i.test(
-      parserMessage,
-    ) || /\bclaim\b.*\bvesting\b/i.test(parserMessage);
-
-  if (!isClaimRequest) {
-    return null;
-  }
-
-  const preview = await previewVestingClaim(userId);
-  if (!preview) {
-    return buildUnavailableResponse({
-      domain: "vesting",
-      requestMessage: message,
-      summary: "There are no vested shares ready to claim right now.",
-      replyText:
-        "I checked your vesting state and there are no vested shares ready to claim right now.",
-      contextSnapshot: {
-        intent: "vesting_claim",
-        claimableShares: 0,
-      },
-      trace: {
-        framework: "deterministic-agent-operations",
-        intent: "vesting_claim",
-        reason: "nothing_to_claim",
-      },
-    });
-  }
-
-  const action: VestingClaimAction = {
-    actionType: "vesting_claim",
-    playerId: preview.primaryPlayerId,
-    playerName: preview.primaryPlayerName || undefined,
-    claimableShares: preview.claimableShares,
-    distributionCount: preview.distributionCount,
-    targetDescription: preview.targetDescription,
-    reasoning:
-      requestMode === "discussion"
-        ? "Previewing the current vesting claim so you can decide whether to pull it now."
-        : "This stages claiming the vested shares that are currently available.",
-    confidence: 0.95,
-  };
-
-  return {
-    domain: "vesting",
-    requestMessage: message,
-    replyText:
-      requestMode === "discussion"
-        ? `You have ${preview.claimableShares} vested share${preview.claimableShares === 1 ? "" : "s"} ready to claim, which would route ${preview.targetDescription}. ${buildStageNudge(requestMode)}`
-        : `I staged your vesting claim for ${preview.claimableShares} share${preview.claimableShares === 1 ? "" : "s"}, routing ${preview.targetDescription}. ${buildStageNudge(requestMode)}`,
-    summary: `Claim ${preview.claimableShares} vested share${preview.claimableShares === 1 ? "" : "s"}`,
-    observations: preview.distributions
-      .slice(0, 3)
-      .map(
-        (entry) =>
-          `${entry.playerName || entry.playerId}: ${entry.shares} share${entry.shares === 1 ? "" : "s"}.`,
-      ),
-    warnings: preview.usingSplits
-      ? [
-          "Split vesting claims distribute across your configured targets using the current vesting split ratios.",
-        ]
-      : [
-          "Claimed vesting shares land with a $0.00 cost basis and reset your accumulated vesting counter.",
-        ],
-    actions: requestMode === "commit" ? [action] : [],
-    errorMessage: null,
-    contextSnapshot: {
-      intent: "vesting_claim",
-      claimableShares: preview.claimableShares,
-      distributionCount: preview.distributionCount,
-      usingSplits: preview.usingSplits,
-    },
-    trace: {
-      framework: "deterministic-agent-operations",
-      intent: "vesting_claim",
-      requestMode,
-    },
-  };
-}
-
 export async function planDirectAgentOperation(input: {
   userId: string;
   message: string | null;
@@ -2293,7 +2193,6 @@ export async function planDirectAgentOperation(input: {
     buildCommunityBoostOpportunityScanPlan,
     buildBroadOperatorReviewPlan,
     buildMarketIntelligencePlan,
-    buildVestingClaimPlan,
     buildBuyPowerBoostWorkflowPlan,
     buildCommunityBoostPlan,
     buildWatchlistPlan,

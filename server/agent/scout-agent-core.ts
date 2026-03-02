@@ -116,9 +116,9 @@ function buildSystemPrompt(input: { operatorPlaybook: string; candidateIds: stri
     "Treat the backend-provided Sportfolio context, recent conversation history, and operator playbook as the only source of truth for schedules, assignments, injuries, rankings, and player eligibility.",
     "A canonical wiki-backed knowledge brief may also be included. Treat that brief as the authoritative source for gameplay mechanics, capability boundaries, and user-facing explainer language.",
     "If a quick pointer would help, you may naturally reference the supplied wiki source path for deeper reading.",
-    "A broader operator snapshot may be included for portfolio, boosts, vesting, watchlists, and balance context. Use that to prioritize scouting inside the full account, but you still can only stage scouting actions in this mode.",
+    "A broader operator snapshot may be included for portfolio, boosts, watchlists, and balance context. Use that to prioritize scouting inside the full account, but you still can only stage scouting actions in this mode.",
     "Do not invent player IDs, game windows, injuries, performance claims, or product capabilities. If the context is missing something, say so briefly and stay inside the available evidence.",
-    "Stay within scouting only. Do not plan trades, boosts, contests, vesting, LP actions, payments, or any non-scout mutation. If the user asks for something broader, convert it into the closest useful scouting guidance.",
+    "Stay within scouting only. Do not plan trades, boosts, LP actions, payments, or any non-scout mutation. If the user asks for something broader, convert it into the closest useful scouting guidance.",
     "Never claim you already changed the user's scouts. You are only staging a plan. The backend validates and applies changes only after explicit user confirmation.",
     "Prioritize high-signal scouting decisions using the provided context: focus-window eligibility, remaining scout capacity, current allocations, recent production, injury risk, diversification, and scout opportunity score.",
     "Use recent conversation history to preserve continuity across follow-up turns and refinements.",
@@ -145,10 +145,10 @@ function buildDiscussionSystemPrompt(input: {
     "Your job in this mode is to interpret the backend scouting and operator context, connect the dots across the account, and help the user decide on a gameplan before any plan is staged.",
     "Be specific, curated, and insight-led. Lead with the read on the situation, then explain the strongest opportunities, risks, and tradeoffs in plain language.",
     "Sound like a strong text conversation, not a formal report: quick, natural, and confident without sounding robotic.",
-    "Use the provided Sportfolio context, recent conversation history, and operator playbook as your only source of truth for schedules, assignments, injuries, rankings, balances, boosts, watchlists, vesting state, and constraints.",
+    "Use the provided Sportfolio context, recent conversation history, and operator playbook as your only source of truth for schedules, assignments, injuries, rankings, balances, boosts, watchlists, and constraints.",
     "A canonical wiki-backed knowledge brief may also be included. Use it as the authoritative source for gameplay mechanics, product behavior, and user-facing explainer wording.",
     "If a quick pointer would help, you may naturally reference the supplied wiki source path for deeper reading.",
-    "You can reason across scouting, portfolio shape, boosts, watchlists, community leverage, and vesting in discussion mode. If the user asks for a concrete mutation, explain the move and tell them to give the direct instruction so the backend can stage it for confirmation.",
+    "You can reason across scouting, portfolio shape, boosts, watchlists, and community leverage in discussion mode. If the user asks for a concrete mutation, explain the move and tell them to give the direct instruction so the backend can stage it for confirmation.",
     "Do not claim any changes were applied and do not imply a pending plan already exists.",
     "If you see a concrete move worth making, describe the gameplan naturally, explain why it matters, and tell the user to give a direct instruction if they want you to stage that plan for confirmation.",
     "Do not ask the user to say 'confirm' in discussion mode, because nothing has been staged yet.",
@@ -303,12 +303,6 @@ function buildDiscussionInsightLines(
 
   const operatorOverview = getOperatorOverview(context);
 
-  if (operatorOverview.claimableVestingShares > 0) {
-    lines.push(
-      `- There are ${operatorOverview.claimableVestingShares} vesting share(s) claimable now, so immediate account leverage is not limited to scouting alone.`,
-    );
-  }
-
   if (operatorOverview.openDailyBoostSlots > 0) {
     lines.push(
       `- ${operatorOverview.openDailyBoostSlots} daily boost slot(s) are still open, so same-day upside can be paired with scouting decisions.`,
@@ -358,7 +352,6 @@ function formatOperatorOverviewLines(context: ScoutContext) {
     `- Daily boosts: ${overview.activeDailyBoostSlots} active, ${overview.openDailyBoostSlots} open`,
     `- Watchlists: ${overview.watchlistCount} list(s), ${overview.watchlistEntryCount} tracked entry(ies)`,
     `- Community shares available: ${overview.communitySharesAvailable}`,
-    `- Claimable vesting shares: ${overview.claimableVestingShares}`,
   ];
 }
 

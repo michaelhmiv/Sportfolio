@@ -1,8 +1,8 @@
 import type { Express, Request, Response } from "express";
 import { z } from "zod";
 import { loadScoutAgentContext } from "./agent/context-loader";
+import { runHermesOrchestrationTurn } from "./agent/hermes-orchestrator";
 import { requireHermesInternalRequest } from "./agent/internal-auth";
-import { runLocalHermesCompatibilityTurn } from "./agent/hermes-local";
 import { getScoutAgentRuntimeProfile } from "./agent/service";
 import type { AgentSemanticRoute, HermesRespondRequest } from "./agent/types";
 import { storage } from "./storage";
@@ -12,6 +12,59 @@ const hermesSidecarRequestSchema = z.object({
   channel: z.enum(["in_app", "sms", "cli"]).default("in_app"),
   message: z.string().trim().min(1),
   requestMode: z.enum(["auto", "discussion", "plan", "clarification_resume"]).default("auto"),
+  toolAllowlist: z.array(z.string().trim().min(1)).default([]),
+  memoryMode: z.enum(["off", "read_only", "read_write"]).default("read_write"),
+  autoExecutionPolicy: z
+    .object({
+      allowAdvisoryJobs: z.boolean().default(true),
+      allowRiskyActions: z.boolean().default(false),
+    })
+    .default({
+      allowAdvisoryJobs: true,
+      allowRiskyActions: false,
+    }),
+  confirmationPolicy: z
+    .object({
+      requireExplicitConfirmation: z.boolean().default(true),
+      preferredChannel: z.enum(["in_app", "sms", "cli"]).default("in_app"),
+    })
+    .default({
+      requireExplicitConfirmation: true,
+      preferredChannel: "in_app",
+    }),
+  canonicalState: z
+    .object({
+      threadId: z.string().trim().min(1).nullable().default(null),
+      pendingBundleId: z.string().trim().min(1).nullable().default(null),
+      operatorOverview: z.record(z.unknown()).default({}),
+      capabilities: z.record(z.unknown()).default({}),
+    })
+    .default({
+      threadId: null,
+      pendingBundleId: null,
+      operatorOverview: {},
+      capabilities: {},
+    }),
+  memoryContext: z
+    .object({
+      profile: z.array(z.record(z.unknown())).default([]),
+      episodic: z.array(z.record(z.unknown())).default([]),
+      semantic: z.array(z.record(z.unknown())).default([]),
+    })
+    .default({
+      profile: [],
+      episodic: [],
+      semantic: [],
+    }),
+  externalContext: z
+    .object({
+      canonicalKnowledge: z.array(z.record(z.unknown())).default([]),
+      research: z.array(z.record(z.unknown())).default([]),
+    })
+    .default({
+      canonicalKnowledge: [],
+      research: [],
+    }),
   conversationHistory: z
     .array(
       z.object({
@@ -63,16 +116,60 @@ export function registerHermesSidecarRoutes(app: Express): void {
           chatRequest: parsed.message,
         });
 
-        const result = await runLocalHermesCompatibilityTurn({
+        const result = await runHermesOrchestrationTurn({
           userId: parsed.userId,
-          channel: parsed.channel,
           profile,
           secret,
           context,
-          chatRequest: parsed.message,
-          semanticRouteHint: normalizeSemanticRouteHint(parsed.semanticRouteHint),
-          conversationHistory: parsed.conversationHistory,
-          requestedMode: parsed.requestMode as HermesRespondRequest["requestMode"],
+          request: {
+            userId: parsed.userId,
+            threadId: parsed.canonicalState.threadId,
+            channel: parsed.channel,
+            message: parsed.message,
+            requestMode: parsed.requestMode as HermesRespondRequest["requestMode"],
+            toolAllowlist: parsed.toolAllowlist,
+            memoryMode: parsed.memoryMode,
+            autoExecutionPolicy: parsed.autoExecutionPolicy,
+            confirmationPolicy: {
+              requireExplicitConfirmation: parsed.confirmationPolicy.requireExplicitConfirmation,
+              preferredChannel: parsed.channel,
+            },
+            profile: {
+              displayName: profile.displayName,
+              providerMode: profile.providerMode as HermesRespondRequest["profile"]["providerMode"],
+              model: profile.model,
+              baseUrl: profile.baseUrl,
+              systemPrompt: profile.systemPrompt,
+              userPromptTemplate: profile.userPromptTemplate,
+              temperature: Number(profile.temperature) || 0.4,
+              maxTokens: profile.maxTokens,
+            },
+            modelRuntime: {
+              providerMode:
+                profile.providerMode as HermesRespondRequest["modelRuntime"]["providerMode"],
+              model: profile.model,
+              baseUrl: profile.baseUrl,
+            },
+            canonicalState: {
+              threadId: parsed.canonicalState.threadId,
+              pendingBundleId: parsed.canonicalState.pendingBundleId,
+              operatorOverview: context.operatorOverview,
+              capabilities: parsed.canonicalState
+                .capabilities as unknown as HermesRespondRequest["canonicalState"]["capabilities"],
+            },
+            memoryContext: parsed.memoryContext as unknown as HermesRespondRequest["memoryContext"],
+            externalContext: {
+              canonicalKnowledge:
+                parsed.externalContext.canonicalKnowledge.length > 0
+                  ? (parsed.externalContext
+                      .canonicalKnowledge as unknown as HermesRespondRequest["externalContext"]["canonicalKnowledge"])
+                  : context.knowledgeBrief,
+              research: parsed.externalContext
+                .research as unknown as HermesRespondRequest["externalContext"]["research"],
+            },
+            conversationHistory: parsed.conversationHistory,
+            semanticRouteHint: normalizeSemanticRouteHint(parsed.semanticRouteHint),
+          },
         });
 
         res.json(result);

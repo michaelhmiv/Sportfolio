@@ -54,6 +54,7 @@ import { refreshPlayerVolume24hJob } from "./refresh-player-volume-24h";
 import { runBotEngineTick } from "../bot/bot-engine";
 import type { ProgressCallback } from "../lib/admin-stream";
 import { runApiHealthCheck, toApiHealthJobResult } from "../health/api-health-check";
+import { runDueUserAgentSchedules } from "../agent/schedules";
 
 export interface JobResult {
   requestCount: number;
@@ -230,6 +231,14 @@ export class JobScheduler {
             recordsProcessed: result.usersProcessed,
             errorCount: result.errors,
           };
+        },
+      },
+      {
+        name: "agent_advisory_schedules",
+        schedule: "*/15 * * * *", // Every 15 minutes - run due per-user Hermes advisory jobs
+        enabled: true,
+        handler: async () => {
+          return runDueUserAgentSchedules();
         },
       },
       {
@@ -612,6 +621,9 @@ export class JobScheduler {
           errorCount: result.errors,
         };
       },
+      agent_advisory_schedules: async () => {
+        return runDueUserAgentSchedules();
+      },
       lock_boost_shares: (callback) => lockBoostShares(callback),
       snapshot_share_payouts: (callback) => snapshotSharePayouts(callback),
       settle_boosts: (callback) => settleBoosts(callback),
@@ -849,6 +861,7 @@ export class JobScheduler {
       "scout_distribution",
       "news_fetch",
       "compile_digest",
+      "agent_advisory_schedules",
       "lock_boost_shares",
       "snapshot_share_payouts",
       "settle_boosts",

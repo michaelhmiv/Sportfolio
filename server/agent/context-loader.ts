@@ -6,7 +6,6 @@ import { listAgentKnowledgeArticles } from "../docs-service";
 import { getETDayBoundaries, getTodayET } from "../lib/time";
 import { storage } from "../storage";
 import type { ScoutAgentContext, ScoutAgentSelectionWindow } from "./types";
-import { previewVestingClaim } from "./vesting-claim";
 
 const SUPPORTED_SPORTS = ["NBA", "NFL", "MLB", "NASCAR"] as const;
 const MAX_CANDIDATES = 40;
@@ -166,7 +165,6 @@ export async function loadScoutAgentContext(
     watchlists,
     communitySharesAvailable,
     activeBoosts,
-    vestingPreview,
   ] = await Promise.all([
     storage.getUserScoutAssignments(userId),
     storage.getTotalScoutsForUser(userId),
@@ -181,7 +179,6 @@ export async function loadScoutAgentContext(
     storage.getWatchlists(userId),
     storage.getUserCommunityBoostShares(userId),
     storage.getDailyBoostsAllSports(userId, new Date()),
-    previewVestingClaim(userId),
   ]);
 
   const maxScouts = user.isPremium ? 10 : 5;
@@ -411,12 +408,6 @@ export async function loadScoutAgentContext(
   const nextBestLevers: string[] = [];
   const knowledgeBrief = listAgentKnowledgeArticles(true);
 
-  if (vestingPreview) {
-    nextBestLevers.push(
-      `claim ${vestingPreview.claimableShares} vested share${vestingPreview.claimableShares === 1 ? "" : "s"}`,
-    );
-  }
-
   if (openDailyBoostSlots > 0 && playerHoldings.length > 0) {
     nextBestLevers.push(
       activeDailyBoostSlots === 0
@@ -477,7 +468,7 @@ export async function loadScoutAgentContext(
       communitySharesAvailable,
       activeDailyBoostSlots,
       openDailyBoostSlots,
-      claimableVestingShares: vestingPreview?.claimableShares || 0,
+      claimableVestingShares: 0,
       topHoldings,
       nextBestLevers,
     },
