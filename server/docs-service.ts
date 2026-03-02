@@ -312,6 +312,19 @@ function canReadArticle(article: DocsArticle, isAuthenticated: boolean): boolean
   return true;
 }
 
+function canUseAgentKnowledgeArticle(article: DocsArticle, isAuthenticated: boolean): boolean {
+  return canReadArticle(article, isAuthenticated) && article.surface.includes("agent");
+}
+
+type AgentKnowledgeArticleSummary = {
+  id: string;
+  title: string;
+  summary: string;
+  urlPath: string;
+  lastReviewedAt: string;
+  notes: string[];
+};
+
 export function listDocsArticles(isAuthenticated = false): DocsArticleSummary[] {
   return getAllArticles()
     .filter((article) => canReadArticle(article, isAuthenticated))
@@ -395,21 +408,11 @@ export function validateDocsContent(): {
   };
 }
 
-export function listAgentKnowledgeArticles(): Array<{
-  id: string;
-  title: string;
-  summary: string;
-  urlPath: string;
-  lastReviewedAt: string;
-  notes: string[];
-}> {
+export function listAgentKnowledgeArticles(
+  isAuthenticated = false,
+): AgentKnowledgeArticleSummary[] {
   return getAllArticles()
-    .filter(
-      (article) =>
-        article.status === "published" &&
-        article.audience !== "internal" &&
-        article.surface.includes("agent"),
-    )
+    .filter((article) => canUseAgentKnowledgeArticle(article, isAuthenticated))
     .sort((left, right) => {
       const leftCategoryIndex = docsCategories.indexOf(left.category);
       const rightCategoryIndex = docsCategories.indexOf(right.category);
@@ -430,14 +433,10 @@ export function listAgentKnowledgeArticles(): Array<{
     }));
 }
 
-export function findBestAgentKnowledgeArticle(query: string): {
-  id: string;
-  title: string;
-  summary: string;
-  urlPath: string;
-  lastReviewedAt: string;
-  notes: string[];
-} | null {
+export function findBestAgentKnowledgeArticle(
+  query: string,
+  isAuthenticated = false,
+): AgentKnowledgeArticleSummary | null {
   const normalizedQuery = query.trim().toLowerCase();
   if (!normalizedQuery) {
     return null;
@@ -452,17 +451,13 @@ export function findBestAgentKnowledgeArticle(query: string): {
     return null;
   }
   let bestMatch:
-    | (ReturnType<typeof listAgentKnowledgeArticles>[number] & {
+    | (AgentKnowledgeArticleSummary & {
         score: number;
       })
     | null = null;
 
   for (const article of getAllArticles()) {
-    if (
-      article.status !== "published" ||
-      article.audience === "internal" ||
-      !article.surface.includes("agent")
-    ) {
+    if (!canUseAgentKnowledgeArticle(article, isAuthenticated)) {
       continue;
     }
 

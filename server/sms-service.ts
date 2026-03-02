@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import {
   smsMessageEvents,
   userPhoneLinks,
@@ -76,6 +76,38 @@ function buildAppAgentUrl(): string {
   return `${getPublicSiteUrl()}/agent`;
 }
 
+function normalizeProviderEventId(providerEventId?: string | null): string | null {
+  const normalized = providerEventId?.trim() || "";
+  return normalized || null;
+}
+
+function buildSmsEventDedupeKey(input: {
+  phoneE164: string;
+  direction: "inbound" | "outbound";
+  providerEventId?: string | null;
+  providerMessageId?: string | null;
+  eventType?: string;
+  status?: string;
+  dedupeOnProviderEventId?: boolean;
+}): string | null {
+  const explicitProviderEventId = normalizeProviderEventId(input.providerEventId);
+  if (explicitProviderEventId) {
+    return explicitProviderEventId;
+  }
+
+  if (!input.dedupeOnProviderEventId) {
+    return null;
+  }
+
+  const providerMessageId = input.providerMessageId?.trim() || "none";
+  const eventType = (input.eventType || "message").trim().toLowerCase() || "message";
+  const status = (input.status || "received").trim().toLowerCase() || "received";
+
+  return ["synthetic", input.direction, eventType, providerMessageId, input.phoneE164, status].join(
+    ":",
+  );
+}
+
 async function createOnboardingTokenLink(phoneE164: string): Promise<{
   linkUrl: string;
   expiresAt: Date;
@@ -118,11 +150,12 @@ async function insertSmsEvent(input: {
   status?: string;
   dedupeOnProviderEventId?: boolean;
 }): Promise<{ inserted: boolean }> {
+  const providerEventId = buildSmsEventDedupeKey(input);
   const values = {
     phoneE164: input.phoneE164,
     direction: input.direction,
     provider: "telnyx",
-    providerEventId: input.providerEventId ?? null,
+    providerEventId,
     providerMessageId: input.providerMessageId ?? null,
     userId: input.userId ?? null,
     agentThreadId: input.agentThreadId ?? null,
@@ -187,6 +220,35 @@ async function findPhoneLinkByPhone(phoneE164: string): Promise<UserPhoneLink | 
     .where(eq(userPhoneLinks.normalizedPhone, phoneE164));
 
   return link || undefined;
+}
+
+async function getLatestSmsConsentEvent(phoneE164: string): Promise<{
+  eventType: string;
+  createdAt: Date;
+} | null> {
+  const [event] = await db
+    .select({
+      eventType: smsMessageEvents.eventType,
+      createdAt: smsMessageEvents.createdAt,
+    })
+    .from(smsMessageEvents)
+    .where(
+      and(
+        eq(smsMessageEvents.phoneE164, phoneE164),
+        inArray(smsMessageEvents.eventType, ["opt_in", "opt_out"]),
+      ),
+    )
+    .orderBy(desc(smsMessageEvents.createdAt))
+    .limit(1);
+
+  if (!event) {
+    return null;
+  }
+
+  return {
+    eventType: event.eventType,
+    createdAt: event.createdAt ?? new Date(),
+  };
 }
 
 export async function getSmsSettings(userId: string): Promise<UserPhoneLink | null> {
@@ -288,33 +350,56 @@ export async function completeSmsPhoneLink(userId: string, token: string): Promi
     throw new Error("That phone number is already linked to another account");
   }
 
-  const [linked] = await db
-    .insert(userPhoneLinks)
-    .values({
-      userId,
-      phoneE164: tokenRow.phoneE164,
-      normalizedPhone: tokenRow.phoneE164,
-      verifiedAt: new Date(),
-      linkedAt: new Date(),
-      smsEnabled: true,
-      smsOptInStatus: "opted_in",
-      smsOptInSource: "web_link",
-      updatedAt: new Date(),
-    })
-    .onConflictDoUpdate({
-      target: userPhoneLinks.userId,
-      set: {
+  const latestConsentEvent = await getLatestSmsConsentEvent(tokenRow.phoneE164);
+  const now = new Date();
+  const isOptedOut = latestConsentEvent?.eventType === "opt_out";
+  const optInSource =
+    latestConsentEvent?.eventType === "opt_in"
+      ? "sms_start"
+      : latestConsentEvent?.eventType === "opt_out"
+        ? "sms_stop"
+        : "web_link";
+
+  let linked: UserPhoneLink | undefined;
+
+  try {
+    [linked] = await db
+      .insert(userPhoneLinks)
+      .values({
+        userId,
         phoneE164: tokenRow.phoneE164,
         normalizedPhone: tokenRow.phoneE164,
-        verifiedAt: new Date(),
-        linkedAt: new Date(),
-        smsEnabled: true,
-        smsOptInStatus: "opted_in",
-        smsOptInSource: "web_link",
-        updatedAt: new Date(),
-      },
-    })
-    .returning();
+        verifiedAt: now,
+        linkedAt: now,
+        smsEnabled: !isOptedOut,
+        smsOptInStatus: isOptedOut ? "opted_out" : "opted_in",
+        smsOptInSource: optInSource,
+        smsOptedOutAt: isOptedOut ? (latestConsentEvent?.createdAt ?? now) : null,
+        smsLastStopAt: isOptedOut ? (latestConsentEvent?.createdAt ?? now) : null,
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: userPhoneLinks.userId,
+        set: {
+          phoneE164: tokenRow.phoneE164,
+          normalizedPhone: tokenRow.phoneE164,
+          verifiedAt: now,
+          linkedAt: now,
+          smsEnabled: !isOptedOut,
+          smsOptInStatus: isOptedOut ? "opted_out" : "opted_in",
+          smsOptInSource: optInSource,
+          smsOptedOutAt: isOptedOut ? (latestConsentEvent?.createdAt ?? now) : null,
+          smsLastStopAt: isOptedOut ? (latestConsentEvent?.createdAt ?? now) : null,
+          updatedAt: now,
+        },
+      })
+      .returning();
+  } catch (error: any) {
+    if (error?.code === "23505") {
+      throw new Error("That phone number is already linked to another account");
+    }
+    throw error;
+  }
 
   await db
     .update(userPhoneLinkTokens)
@@ -324,6 +409,10 @@ export async function completeSmsPhoneLink(userId: string, token: string): Promi
     })
     .where(eq(userPhoneLinkTokens.id, tokenRow.id));
 
+  if (!linked) {
+    throw new Error("Could not complete SMS phone link");
+  }
+
   return linked;
 }
 
@@ -331,9 +420,10 @@ function getDefaultGuestKnowledgeLine(): {
   title: string | null;
   note: string | null;
 } {
+  const guestKnowledgeArticles = listAgentKnowledgeArticles(false);
   const defaultArticle =
-    listAgentKnowledgeArticles().find((article) => article.id === "getting-started-overview") ||
-    listAgentKnowledgeArticles()[0] ||
+    guestKnowledgeArticles.find((article) => article.id === "getting-started-overview") ||
+    guestKnowledgeArticles[0] ||
     null;
 
   return {
@@ -350,7 +440,7 @@ async function createUnknownSenderOnboardingReply(
   expiresAt: Date;
 }> {
   const { linkUrl, expiresAt } = await createOnboardingTokenLink(phoneE164);
-  const matchedArticle = findBestAgentKnowledgeArticle(messageText);
+  const matchedArticle = findBestAgentKnowledgeArticle(messageText, false);
   const fallbackLine = getDefaultGuestKnowledgeLine();
 
   const text =
@@ -387,7 +477,9 @@ async function markPhoneOptOut(link: UserPhoneLink): Promise<void> {
   await db
     .update(userPhoneLinks)
     .set({
+      smsEnabled: false,
       smsOptInStatus: "opted_out",
+      smsOptInSource: "sms_stop",
       smsOptedOutAt: new Date(),
       smsLastStopAt: new Date(),
       updatedAt: new Date(),
@@ -400,13 +492,33 @@ async function markPhoneOptIn(link: UserPhoneLink): Promise<UserPhoneLink> {
     .update(userPhoneLinks)
     .set({
       smsOptInStatus: "opted_in",
+      smsOptInSource: "sms_start",
       smsEnabled: true,
+      smsOptedOutAt: null,
       updatedAt: new Date(),
     })
     .where(eq(userPhoneLinks.id, link.id))
     .returning();
 
   return updated;
+}
+
+async function recordSmsConsentEvent(input: {
+  phoneE164: string;
+  userId?: string | null;
+  providerMessageId?: string | null;
+  eventType: "opt_in" | "opt_out";
+  messageText: string;
+}): Promise<void> {
+  await insertSmsEvent({
+    phoneE164: input.phoneE164,
+    direction: "inbound",
+    providerMessageId: input.providerMessageId,
+    userId: input.userId,
+    eventType: input.eventType,
+    messageText: input.messageText,
+    status: "received",
+  });
 }
 
 function isStopMessage(message: string): boolean {
@@ -443,22 +555,56 @@ export async function handleVerifiedInboundSmsWebhook(
   }
 
   const existingLink = await findPhoneLinkByPhone(normalizedFrom);
+  const latestGuestConsentEvent = existingLink
+    ? null
+    : await getLatestSmsConsentEvent(normalizedFrom);
   const messageText = inbound.text || "";
 
   if (isStopMessage(messageText)) {
+    await recordSmsConsentEvent({
+      phoneE164: normalizedFrom,
+      userId: existingLink?.userId || null,
+      providerMessageId: inbound.providerMessageId,
+      eventType: "opt_out",
+      messageText,
+    });
+
     if (existingLink) {
       await markPhoneOptOut(existingLink);
-      await sendAndLogSms({
-        to: normalizedFrom,
-        text: "Sportfolio SMS is paused. Reply START to resume.",
-        userId: existingLink.userId,
-        eventType: "opt_out",
-      });
     }
+
+    await sendAndLogSms({
+      to: normalizedFrom,
+      text: "Sportfolio SMS is paused. Reply START to resume.",
+      userId: existingLink?.userId || null,
+      eventType: "opt_out",
+    });
     return;
   }
 
-  if (isStartMessage(messageText) && existingLink) {
+  if (isStartMessage(messageText)) {
+    await recordSmsConsentEvent({
+      phoneE164: normalizedFrom,
+      userId: existingLink?.userId || null,
+      providerMessageId: inbound.providerMessageId,
+      eventType: "opt_in",
+      messageText,
+    });
+
+    if (!existingLink) {
+      const guestHelp = await createUnlinkedHelpReply(normalizedFrom);
+      await sendAndLogSms({
+        to: normalizedFrom,
+        text: guestHelp.text,
+        eventType: "opt_in",
+        structuredPayload: {
+          linked: false,
+          expiresAt: guestHelp.expiresAt.toISOString(),
+        },
+      });
+      return;
+    }
+
     const updatedLink = await markPhoneOptIn(existingLink);
     await sendAndLogSms({
       to: normalizedFrom,
@@ -466,6 +612,14 @@ export async function handleVerifiedInboundSmsWebhook(
       userId: updatedLink.userId,
       eventType: "opt_in",
     });
+    return;
+  }
+
+  if (
+    !existingLink &&
+    latestGuestConsentEvent?.eventType === "opt_out" &&
+    !isHelpMessage(messageText)
+  ) {
     return;
   }
 

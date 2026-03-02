@@ -31,6 +31,15 @@ export type TelnyxDeliveryEvent = {
   raw: Record<string, any>;
 };
 
+export function isTelnyxInboundMessageEventType(eventType: string): boolean {
+  return eventType.trim().toLowerCase() === "message.received";
+}
+
+export function isTelnyxDeliveryEventType(eventType: string): boolean {
+  const normalized = eventType.trim().toLowerCase();
+  return normalized.startsWith("message.") && normalized !== "message.received";
+}
+
 function requireTelnyxPublicKey(): string {
   const publicKey = process.env.TELNYX_PUBLIC_KEY?.trim() || "";
   if (!publicKey) {

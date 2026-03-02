@@ -409,7 +409,7 @@ export async function loadScoutAgentContext(
       };
     });
   const nextBestLevers: string[] = [];
-  const knowledgeBrief = listAgentKnowledgeArticles();
+  const knowledgeBrief = listAgentKnowledgeArticles(true);
 
   if (vestingPreview) {
     nextBestLevers.push(

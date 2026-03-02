@@ -356,3 +356,11 @@
 - [x] Reuse canonical wiki articles for guest SMS concierge guidance so unknown numbers get a conversational first reply instead of a hard signup wall
 - [x] Add SMS account routes, Telnyx webhook routes, and a `/sms/link` completion page so the phone-link flow is fully wired
 - [x] Add a profile-level SMS access card and internal Telnyx setup documentation so the SMS channel has one maintained setup path
+
+## 2026-03-02 PR #77 Review Fixes
+
+- [x] Remove raw internal error leakage from the new CLI and SMS routes
+- [x] Tighten Telnyx webhook routing and classify inbound vs delivery events before background processing
+- [x] Harden SMS consent and dedupe handling for unknown STOP/START flows and missing provider event ids
+- [x] Limit guest SMS/wiki agent grounding to public-only knowledge while preserving authenticated agent context
+- [x] Validate via `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`

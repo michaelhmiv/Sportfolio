@@ -31,9 +31,16 @@ function toTokenView(token: UserApiToken) {
 
 function handleCliRouteError(res: Response, error: unknown, fallbackMessage: string) {
   console.error("[CLI] Route error:", error);
+  const errorDetail =
+    process.env.NODE_ENV !== "production"
+      ? error instanceof Error
+        ? error.message
+        : String(error)
+      : undefined;
+
   res.status(500).json({
     message: fallbackMessage,
-    error: error instanceof Error ? error.message : String(error),
+    ...(errorDetail ? { error: errorDetail } : {}),
   });
 }
 

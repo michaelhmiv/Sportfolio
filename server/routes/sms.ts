@@ -9,7 +9,11 @@ import {
   startSmsPhoneLink,
   updateSmsSettings,
 } from "../sms-service";
-import { verifyTelnyxWebhookSignature } from "../services/telnyx-sms";
+import {
+  isTelnyxDeliveryEventType,
+  isTelnyxInboundMessageEventType,
+  verifyTelnyxWebhookSignature,
+} from "../services/telnyx-sms";
 
 type RawBodyRequest = Request & {
   rawBody?: Buffer;
@@ -46,9 +50,16 @@ function hasValidTelnyxSignature(req: RawBodyRequest): boolean {
 
 function handleSmsRouteError(res: Response, error: unknown, fallbackMessage: string) {
   console.error("[SMS] Route error:", error);
+  const errorDetail =
+    process.env.NODE_ENV !== "production"
+      ? error instanceof Error
+        ? error.message
+        : String(error)
+      : undefined;
+
   res.status(500).json({
     message: fallbackMessage,
-    error: error instanceof Error ? error.message : String(error),
+    ...(errorDetail ? { error: errorDetail } : {}),
   });
 }
 
@@ -109,7 +120,10 @@ export function registerSmsRoutes(app: Express): void {
     } catch (error: any) {
       const message = error?.message || "Could not start SMS phone link";
       const status = /already linked|valid/i.test(message) ? 400 : 500;
-      res.status(status).json({ message });
+      res.status(status).json({
+        message: status === 400 ? message : "Could not start SMS phone link",
+        ...(status === 500 && process.env.NODE_ENV !== "production" ? { error: message } : {}),
+      });
     }
   });
 
@@ -128,7 +142,10 @@ export function registerSmsRoutes(app: Express): void {
     } catch (error: any) {
       const message = error?.message || "Could not complete SMS phone link";
       const status = /expired|invalid|already linked/i.test(message) ? 400 : 500;
-      res.status(status).json({ message });
+      res.status(status).json({
+        message: status === 400 ? message : "Could not complete SMS phone link",
+        ...(status === 500 && process.env.NODE_ENV !== "production" ? { error: message } : {}),
+      });
     }
   });
 
@@ -140,10 +157,22 @@ export function registerSmsRoutes(app: Express): void {
       return;
     }
 
+    let webhook: ReturnType<typeof parseTelnyxWebhookPayload>;
+    try {
+      webhook = parseTelnyxWebhookPayload(req.body);
+    } catch {
+      res.status(400).json({ message: "Invalid Telnyx payload" });
+      return;
+    }
+
+    if (!isTelnyxInboundMessageEventType(webhook.eventType)) {
+      res.json({ received: true, ignored: true });
+      return;
+    }
+
     res.json({ received: true });
 
     runInBackground(async () => {
-      const webhook = parseTelnyxWebhookPayload(req.body);
       await handleVerifiedInboundSmsWebhook(webhook);
     });
   });
@@ -156,10 +185,22 @@ export function registerSmsRoutes(app: Express): void {
       return;
     }
 
+    let webhook: ReturnType<typeof parseTelnyxWebhookPayload>;
+    try {
+      webhook = parseTelnyxWebhookPayload(req.body);
+    } catch {
+      res.status(400).json({ message: "Invalid Telnyx payload" });
+      return;
+    }
+
+    if (!isTelnyxDeliveryEventType(webhook.eventType)) {
+      res.json({ received: true, ignored: true });
+      return;
+    }
+
     res.json({ received: true });
 
     runInBackground(async () => {
-      const webhook = parseTelnyxWebhookPayload(req.body);
       await recordVerifiedSmsStatusWebhook(webhook);
     });
   });

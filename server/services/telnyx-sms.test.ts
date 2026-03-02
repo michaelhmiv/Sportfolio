@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { generateKeyPairSync, sign } from "node:crypto";
-import { verifyTelnyxWebhookSignature } from "./telnyx-sms";
+import {
+  isTelnyxDeliveryEventType,
+  isTelnyxInboundMessageEventType,
+  verifyTelnyxWebhookSignature,
+} from "./telnyx-sms";
 
 const ORIGINAL_PUBLIC_KEY = process.env.TELNYX_PUBLIC_KEY;
 
@@ -99,5 +103,12 @@ describe("telnyx-sms", () => {
     });
 
     expect(result).toBe(false);
+  });
+
+  it("classifies inbound and delivery event types explicitly", () => {
+    expect(isTelnyxInboundMessageEventType("message.received")).toBe(true);
+    expect(isTelnyxInboundMessageEventType("message.sent")).toBe(false);
+    expect(isTelnyxDeliveryEventType("message.sent")).toBe(true);
+    expect(isTelnyxDeliveryEventType("message.received")).toBe(false);
   });
 });
