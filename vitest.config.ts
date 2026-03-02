@@ -14,5 +14,8 @@ export default defineConfig({
   test: {
     globals: true,
     exclude: [...configDefaults.exclude, "vendor/**", "**/vendor/**", "tests/e2e/**"],
+    coverage: {
+      reporter: ["text", "html"],
+    },
   },
 });

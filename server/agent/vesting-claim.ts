@@ -1,5 +1,6 @@
 import { calculateAccrualUpdate } from "@shared/vesting-utils";
 import { storage } from "../storage";
+import { broadcastToUser } from "../websocket";
 
 export interface AgentVestingClaimDistribution {
   playerId: string;
@@ -52,6 +53,65 @@ async function loadCurrentVestingState(userId: string) {
     now,
     claimableShares: update.sharesAccumulated,
   };
+}
+
+async function accrueClaimableVestingShares(userId: string): Promise<void> {
+  const user = await storage.getUser(userId);
+  if (!user) {
+    throw new Error("User not found");
+  }
+
+  const vestingData = await storage.getVesting(userId);
+  if (!vestingData) {
+    return;
+  }
+
+  const now = new Date();
+  const isPremium = user.isPremium || false;
+  const capLimit = isPremium ? 4800 : 2400;
+  const totalSharesPerHour = isPremium ? 200 : 100;
+
+  if (vestingData.sharesAccumulated >= capLimit) {
+    if (!vestingData.capReachedAt || vestingData.residualMs !== 0) {
+      await storage.updateVesting(userId, {
+        capReachedAt: now,
+        residualMs: 0,
+        updatedAt: now,
+      });
+    }
+    return;
+  }
+
+  const effectiveLastAccruedAt = vestingData.lastAccruedAt || vestingData.updatedAt || now;
+
+  if (!vestingData.lastAccruedAt) {
+    await storage.updateVesting(userId, {
+      lastAccruedAt: effectiveLastAccruedAt,
+      updatedAt: now,
+    });
+  }
+
+  const update = calculateAccrualUpdate(
+    {
+      sharesAccumulated: vestingData.sharesAccumulated,
+      residualMs: vestingData.residualMs || 0,
+      lastAccruedAt: effectiveLastAccruedAt,
+      sharesPerHour: totalSharesPerHour,
+      capLimit,
+    },
+    now,
+  );
+
+  const sharesEarned = update.sharesAccumulated - vestingData.sharesAccumulated;
+  if (sharesEarned > 0) {
+    await storage.updateVesting(userId, {
+      sharesAccumulated: update.sharesAccumulated,
+      residualMs: update.residualMs,
+      lastAccruedAt: update.lastAccruedAt,
+      updatedAt: now,
+      capReachedAt: update.capReached ? now : null,
+    });
+  }
 }
 
 function buildSplitDistributions(
@@ -152,6 +212,8 @@ export async function previewVestingClaim(
 }
 
 export async function claimVestingShares(userId: string): Promise<AgentVestingClaimPreview> {
+  await accrueClaimableVestingShares(userId);
+
   const preview = await previewVestingClaim(userId);
   if (!preview) {
     throw new Error("No shares to claim");
@@ -204,6 +266,9 @@ export async function claimVestingShares(userId: string): Promise<AgentVestingCl
     residualMs: 0,
     capReachedAt: null,
   });
+
+  broadcastToUser(userId, { type: "portfolio", userId });
+  broadcastToUser(userId, { type: "vesting", userId, claimed: preview.claimableShares });
 
   return preview;
 }

@@ -161,8 +161,10 @@ async function executeDailyBoostAssign(userId: string, action: DailyBoostAssignA
 }
 
 async function executeDailyBoostRemove(userId: string, action: DailyBoostRemoveAction) {
-  const boosts = await storage.getDailyBoostsByStatus("active");
-  const boost = boosts.find((entry) => entry.id === action.boostId && entry.userId === userId);
+  const { startOfDay } = getETDayBoundaries(action.boostDate);
+  const targetDate = new Date(startOfDay.getTime() + 12 * 60 * 60 * 1000);
+  const boosts = await storage.getDailyBoostsAllSports(userId, targetDate);
+  const boost = boosts.find((entry) => entry.id === action.boostId);
 
   if (!boost) {
     throw new Error("Boost not found or not owned by you");

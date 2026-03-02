@@ -1074,9 +1074,27 @@ export class DatabaseStorage implements IStorage {
       return;
     }
 
-    const orderedAssignments = [...assignments].sort((a, b) => a.count - b.count);
-
     await db.transaction(async (tx) => {
+      const playerIds = assignments.map((assignment) => assignment.playerId);
+      const existingAssignments = await tx
+        .select({
+          playerId: scoutAssignments.playerId,
+          scoutCount: scoutAssignments.scoutCount,
+        })
+        .from(scoutAssignments)
+        .where(
+          and(eq(scoutAssignments.userId, userId), inArray(scoutAssignments.playerId, playerIds)),
+        );
+
+      const currentCounts = new Map(
+        existingAssignments.map((assignment) => [assignment.playerId, assignment.scoutCount]),
+      );
+      const orderedAssignments = [...assignments].sort((left, right) => {
+        const leftDelta = left.count - (currentCounts.get(left.playerId) || 0);
+        const rightDelta = right.count - (currentCounts.get(right.playerId) || 0);
+        return leftDelta - rightDelta;
+      });
+
       for (const assignment of orderedAssignments) {
         await this.assignScoutsInTransaction(tx, userId, assignment.playerId, assignment.count);
       }

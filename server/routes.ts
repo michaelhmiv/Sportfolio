@@ -88,6 +88,7 @@ import {
 import { getManagedProviderModelCatalog } from "./agent/model-catalog";
 import { isManagedProviderKey } from "./agent/provider-registry";
 import { ensureAgentSemanticSchema } from "./agent/semantic-router";
+import { claimVestingShares as claimAgentVestingShares } from "./agent/vesting-claim";
 
 // Feature flags - set to false to disable features
 const CONTESTS_ENABLED = false; // DISABLED - contests feature removed
@@ -437,11 +438,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     if (
+      message.includes("user_agent_secret_key is not configured") ||
+      (message.includes("managed ") && message.includes(" provider is not configured")) ||
+      message.includes("agent provider is not fully configured") ||
+      message.includes("hosted brave search is not configured") ||
+      message.includes("missing a default model")
+    ) {
+      return 503;
+    }
+
+    if (
+      message.includes("byok is selected but no api key is configured") ||
+      message.includes("byok is selected but no base url is configured")
+    ) {
+      return 400;
+    }
+
+    if (
       message.includes("rate limit") ||
       message.includes("already running") ||
       message.includes("disabled") ||
-      message.includes("configured") ||
-      message.includes("missing a default model") ||
       message.includes("invalid") ||
       message.includes("must") ||
       message.includes("exceeds") ||
@@ -5543,178 +5559,37 @@ ${items}
         return res.status(404).json({ error: "User not found" });
       }
 
-      // Accrue any final shares before claiming
-      await accrueVestingShares(user.id);
-
-      const vestingData = await storage.getVesting(user.id);
-
-      if (!vestingData || vestingData.sharesAccumulated === 0) {
-        return res.status(400).json({ error: "No shares to claim" });
+      let claim;
+      try {
+        claim = await claimAgentVestingShares(user.id);
+      } catch (error: any) {
+        if (String(error?.message || "") === "No shares to claim") {
+          return res.status(400).json({ error: "No shares to claim" });
+        }
+        throw error;
       }
 
-      // Check if using multi-player vesting (splits)
-      const splits = await storage.getVestingSplits(user.id);
-      const usingSplits = splits.length > 0;
-
-      if (!usingSplits) {
-        // Legacy single-player vesting - use batched queries for consistency
-        if (!vestingData.playerId) {
-          return res.status(400).json({ error: "No player selected for vesting" });
-        }
-
-        const [players, holdings] = await Promise.all([
-          storage.getPlayersByIds([vestingData.playerId]),
-          storage.getBatchHoldings(user.id, "player", [vestingData.playerId]),
-        ]);
-
-        const player = players[0];
+      if (!claim.usingSplits) {
+        const player = await storage.getPlayer(claim.primaryPlayerId);
         if (!player) {
           return res.status(400).json({ error: "Player not found" });
         }
 
-        // Add shares to holdings (cost basis $0)
-        const holding = holdings.get(vestingData.playerId);
-        if (holding) {
-          const newQuantity = parseFloat(holding.quantity) + vestingData.sharesAccumulated;
-          const newTotalCost = parseFloat(holding.totalCostBasis); // Vested shares have $0 cost
-          const newAvgCost = newTotalCost / newQuantity;
-          await storage.updateHolding(
-            user.id,
-            "player",
-            vestingData.playerId,
-            newQuantity,
-            newAvgCost.toFixed(4),
-          );
-        } else {
-          await storage.updateHolding(
-            user.id,
-            "player",
-            vestingData.playerId,
-            vestingData.sharesAccumulated,
-            "0.0000",
-          );
-        }
-
-        // Increment total shares vested counter
-        await storage.incrementTotalSharesVested(user.id, vestingData.sharesAccumulated);
-
-        // Record vesting claim for activity timeline
-        await storage.createVestingClaim({
-          userId: user.id,
-          playerId: vestingData.playerId,
-          sharesClaimed: vestingData.sharesAccumulated,
-        });
-
-        // Reset vesting
-        const now = new Date();
-        await storage.updateVesting(user.id, {
-          sharesAccumulated: 0,
-          lastClaimedAt: now,
-          lastAccruedAt: now,
-          updatedAt: now,
-          residualMs: 0,
-          capReachedAt: null,
-        });
-
-        broadcast({ type: "portfolio", userId: user.id });
-        broadcast({ type: "vesting", userId: user.id, claimed: vestingData.sharesAccumulated });
-
         return res.json({
           success: true,
-          sharesClaimed: vestingData.sharesAccumulated,
+          sharesClaimed: claim.claimableShares,
           player,
         });
       }
 
-      // Multi-player vesting: distribute shares proportionally
-      const totalAccumulated = vestingData.sharesAccumulated;
-      const totalRate = 100;
-      const claimedPlayers = [];
-      let totalDistributed = 0;
-
-      // Calculate shares for each player proportionally
-      const distributions = splits.map((split) => {
-        const proportion = split.sharesPerHour / totalRate;
-        const shares = Math.floor(proportion * totalAccumulated);
-        return { ...split, shares };
-      });
-
-      // Distribute remainder deterministically (to players with highest sharesPerHour)
-      const remainder = totalAccumulated - distributions.reduce((sum, d) => sum + d.shares, 0);
-      const sortedByRate = [...distributions].sort((a, b) => b.sharesPerHour - a.sharesPerHour);
-      for (let i = 0; i < remainder; i++) {
-        sortedByRate[i].shares += 1;
-      }
-
-      // PERFORMANCE OPTIMIZATION: Batch fetch players and holdings in parallel
-      const playerIdsForClaim = distributions.filter((d) => d.shares > 0).map((d) => d.playerId);
-      const [claimPlayers, claimHoldings] = await Promise.all([
-        storage.getPlayersByIds(playerIdsForClaim),
-        storage.getBatchHoldings(user.id, "player", playerIdsForClaim),
-      ]);
-
-      // Create lookup maps for fast access
-      const playersMap = new Map(claimPlayers.map((p) => [p.id, p]));
-
-      // Add shares to holdings for each player
-      for (const dist of distributions) {
-        if (dist.shares === 0) continue;
-
-        const player = playersMap.get(dist.playerId);
-        if (!player) continue;
-
-        const holding = claimHoldings.get(dist.playerId);
-        if (holding) {
-          const newQuantity = parseFloat(holding.quantity) + dist.shares;
-          const newTotalCost = parseFloat(holding.totalCostBasis); // Mined shares have $0 cost
-          const newAvgCost = newTotalCost / newQuantity;
-          await storage.updateHolding(
-            user.id,
-            "player",
-            dist.playerId,
-            newQuantity,
-            newAvgCost.toFixed(4),
-          );
-        } else {
-          await storage.updateHolding(user.id, "player", dist.playerId, dist.shares, "0.0000");
-        }
-
-        // Record vesting claim for activity timeline
-        await storage.createVestingClaim({
-          userId: user.id,
-          playerId: dist.playerId,
-          sharesClaimed: dist.shares,
-        });
-
-        claimedPlayers.push({
-          playerId: dist.playerId,
-          playerName: `${player.firstName} ${player.lastName}`,
-          sharesClaimed: dist.shares,
-        });
-        totalDistributed += dist.shares;
-      }
-
-      // Increment total shares vested counter
-      await storage.incrementTotalSharesVested(user.id, totalDistributed);
-
-      // Reset vesting (keep splits intact)
-      const now = new Date();
-      await storage.updateVesting(user.id, {
-        sharesAccumulated: 0,
-        lastClaimedAt: now,
-        lastAccruedAt: now,
-        updatedAt: now,
-        residualMs: 0,
-        capReachedAt: null,
-      });
-
-      broadcast({ type: "portfolio", userId: user.id });
-      broadcast({ type: "vesting", userId: user.id, claimed: totalDistributed });
-
       res.json({
         success: true,
-        totalSharesClaimed: totalDistributed,
-        players: claimedPlayers,
+        totalSharesClaimed: claim.claimableShares,
+        players: claim.distributions.map((distribution) => ({
+          playerId: distribution.playerId,
+          playerName: distribution.playerName || distribution.playerId,
+          sharesClaimed: distribution.shares,
+        })),
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message });

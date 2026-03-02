@@ -7,6 +7,7 @@ const storageMocks = vi.hoisted(() => ({
   condenseShares: vi.fn(),
   createCommunityBoost: vi.fn(),
   getDailyBoosts: vi.fn(),
+  getDailyBoostsAllSports: vi.fn(),
   getPlayerGameForDate: vi.fn(),
   getAvailableShares: vi.fn(),
   getHoldingsWithPowerBreakdown: vi.fn(),
@@ -27,6 +28,10 @@ const storageMocks = vi.hoisted(() => ({
   updateVesting: vi.fn(),
 }));
 
+const websocketMocks = vi.hoisted(() => ({
+  broadcastToUser: vi.fn(),
+}));
+
 const poolMocks = vi.hoisted(() => ({
   executeBuy: vi.fn(),
   executeSell: vi.fn(),
@@ -39,6 +44,10 @@ const poolMocks = vi.hoisted(() => ({
 
 vi.mock("../storage", () => ({
   storage: storageMocks,
+}));
+
+vi.mock("../websocket", () => ({
+  broadcastToUser: websocketMocks.broadcastToUser,
 }));
 
 vi.mock("../amm/pool", () => ({
@@ -83,6 +92,14 @@ describe("executeAgentActions", () => {
       powered: [],
     });
     storageMocks.createDailyBoost.mockResolvedValue({});
+    storageMocks.getDailyBoostsAllSports.mockResolvedValue([
+      {
+        id: "boost_1",
+        userId: "user_1",
+        status: "active",
+        gameId: "game_1",
+      },
+    ]);
     storageMocks.getDailyBoostsByStatus.mockResolvedValue([
       {
         id: "boost_1",
@@ -117,6 +134,7 @@ describe("executeAgentActions", () => {
     storageMocks.createVestingClaim.mockResolvedValue({});
     storageMocks.incrementTotalSharesVested.mockResolvedValue(undefined);
     storageMocks.updateVesting.mockResolvedValue(undefined);
+    websocketMocks.broadcastToUser.mockReset();
   });
 
   it("executes a pool buy through the AMM runtime", async () => {
@@ -307,6 +325,7 @@ describe("executeAgentActions", () => {
       },
     ] as any);
 
+    expect(storageMocks.getDailyBoostsAllSports).toHaveBeenCalledWith("user_1", expect.any(Date));
     expect(storageMocks.deleteDailyBoost).toHaveBeenCalledWith("boost_1");
   });
 
@@ -400,5 +419,14 @@ describe("executeAgentActions", () => {
     });
     expect(storageMocks.incrementTotalSharesVested).toHaveBeenCalledWith("user_1", 8);
     expect(storageMocks.updateVesting).toHaveBeenCalled();
+    expect(websocketMocks.broadcastToUser).toHaveBeenCalledWith("user_1", {
+      type: "portfolio",
+      userId: "user_1",
+    });
+    expect(websocketMocks.broadcastToUser).toHaveBeenCalledWith("user_1", {
+      type: "vesting",
+      userId: "user_1",
+      claimed: 8,
+    });
   });
 });
