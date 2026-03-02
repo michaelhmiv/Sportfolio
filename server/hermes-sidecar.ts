@@ -9,7 +9,7 @@ import { storage } from "./storage";
 
 const hermesSidecarRequestSchema = z.object({
   userId: z.string().trim().min(1),
-  channel: z.enum(["in_app", "sms"]).default("in_app"),
+  channel: z.enum(["in_app", "sms", "cli"]).default("in_app"),
   message: z.string().trim().min(1),
   requestMode: z.enum(["auto", "discussion", "plan", "clarification_resume"]).default("auto"),
   conversationHistory: z

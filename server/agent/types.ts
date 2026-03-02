@@ -15,7 +15,7 @@ export type AgentDomain =
   | "watchlists"
   | "vesting"
   | "sportfolio";
-export type AgentChannel = "in_app" | "sms";
+export type AgentChannel = "in_app" | "sms" | "cli";
 export type ManagedProviderKey = "chutes" | "minimax" | "openrouter";
 export type AgentMessageRole = "user" | "assistant" | "system";
 export type AgentMessageType = "chat" | "plan" | "confirmation" | "result" | "error";
