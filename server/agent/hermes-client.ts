@@ -245,6 +245,7 @@ export async function runHermesAgentTurn(input: {
   if (!hermesUrl) {
     const localResult = await runLocalHermesCompatibilityTurn({
       userId: input.userId,
+      channel: input.channel,
       profile: input.profile,
       secret: input.secret,
       context: input.context,

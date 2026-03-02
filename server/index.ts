@@ -14,6 +14,8 @@ import {
   metricsMiddleware,
 } from "./observability/metrics";
 import { registerRoutes } from "./routes";
+import { registerHermesSidecarRoutes } from "./hermes-sidecar";
+import { isHermesSidecarMode } from "./service-role";
 import { setupVite, serveStatic, log } from "./vite";
 import { jobScheduler } from "./jobs/scheduler.js";
 import { db } from "./db";
@@ -31,9 +33,27 @@ function startupLog(stage: string, message: string) {
   logger.info({ stage, elapsedMs: elapsed }, message);
 }
 
+function registerGlobalErrorHandlers(app: express.Express) {
+  setupSentryExpressErrorHandler(app);
+
+  app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
+    const status = err.status || err.statusCode || 500;
+    const message = err.message || "Internal Server Error";
+
+    try {
+      if (res.headersSent) return next(err);
+
+      res.status(status).json({ message });
+    } finally {
+      console.error("[Express Error]", err);
+    }
+  });
+}
+
 startupLog("INIT", "Server starting...");
 
 const app = express();
+const hermesSidecarMode = isHermesSidecarMode();
 
 initSentry();
 
@@ -75,7 +95,8 @@ if (canonicalSiteUrlRaw?.trim()) {
 const enforceCanonicalHost =
   app.get("env") === "production" &&
   canonicalHost &&
-  process.env.ENFORCE_CANONICAL_HOST_REDIRECT !== "false";
+  process.env.ENFORCE_CANONICAL_HOST_REDIRECT !== "false" &&
+  !hermesSidecarMode;
 
 if (enforceCanonicalHost && canonicalSiteUrl && canonicalHost) {
   app.use((req, res, next) => {
@@ -190,28 +211,34 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  if (hermesSidecarMode) {
+    startupLog("HERMES", "Starting Hermes sidecar mode");
+    registerHermesSidecarRoutes(app);
+    registerGlobalErrorHandlers(app);
+
+    const port = parseInt(process.env.PORT || "5000", 10);
+    startupLog("LISTEN", `Starting Hermes sidecar on port ${port}...`);
+
+    const server = app.listen(
+      {
+        port,
+        host: "0.0.0.0",
+      },
+      () => {
+        serverReady = true;
+        startupLog("READY", `Hermes sidecar listening on port ${port}`);
+        log(`hermes sidecar listening on port ${port}`);
+      },
+    );
+
+    return;
+  }
+
   startupLog("ROUTES", "Registering routes...");
   const server = await registerRoutes(app);
   startupLog("ROUTES", "Routes registered");
 
-  setupSentryExpressErrorHandler(app);
-
-  app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
-
-    // Never crash the process on a request error.
-    // In production we still want a clean JSON error response.
-    try {
-      if (res.headersSent) return next(err);
-
-      res.status(status).json({ message });
-    } finally {
-      // Always log the underlying error for debugging.
-      // Avoid throwing here; crashes cause restart loops in prod.
-      console.error("[Express Error]", err);
-    }
-  });
+  registerGlobalErrorHandlers(app);
 
   // Keep unknown API paths from falling through to the SPA index shell.
   app.use("/api", (_req, res) => {

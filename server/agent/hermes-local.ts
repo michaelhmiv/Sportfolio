@@ -73,6 +73,7 @@ async function resolveLocalCompatibilityRuntime(
 
 export async function runLocalHermesCompatibilityTurn(input: {
   userId: string;
+  channel?: HermesRespondRequest["channel"];
   profile: UserAgentProfile;
   secret?: UserAgentSecret;
   context: ScoutAgentContext;
@@ -83,6 +84,7 @@ export async function runLocalHermesCompatibilityTurn(input: {
 }): Promise<HermesRespondResult> {
   const toolTrace: HermesRespondResult["toolTrace"] = [];
   const startedAt = Date.now();
+  const channel = input.channel || "in_app";
 
   try {
     const memoryWrites = safeInferMemoryWrites(input.chatRequest);
@@ -110,7 +112,7 @@ export async function runLocalHermesCompatibilityTurn(input: {
       phase: "plan",
       status: "ok",
       latencyMs: Date.now() - startedAt,
-      summary: `Resolved ${modeResolution.mode} mode via ${modeResolution.source}.`,
+      summary: `Resolved ${modeResolution.mode} mode via ${modeResolution.source} for ${channel}.`,
     });
 
     const temperature = resolveAnalysisTemperature(input.profile);
@@ -134,8 +136,7 @@ export async function runLocalHermesCompatibilityTurn(input: {
         phase: "plan",
         status: "ok",
         latencyMs: Math.max(0, Date.now() - startedAt),
-        summary:
-          "Used the in-process compatibility bridge while the external Hermes service is not configured.",
+        summary: `Used the in-process compatibility bridge for ${channel} while the external Hermes service is not configured.`,
       });
 
       return {
@@ -172,7 +173,7 @@ export async function runLocalHermesCompatibilityTurn(input: {
       phase: "plan",
       status: "ok",
       latencyMs: Math.max(0, Date.now() - startedAt),
-      summary: `Validated ${validated.actions.length} scout action(s) through the compatibility bridge.`,
+      summary: `Validated ${validated.actions.length} scout action(s) for ${channel} through the compatibility bridge.`,
     });
 
     return {
