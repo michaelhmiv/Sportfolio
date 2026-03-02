@@ -386,3 +386,10 @@ Review:
 - The backend canonical-host middleware in `server/index.ts` used `PUBLIC_SITE_URL` and redirected `www.sportfolio.market` to the apex host, while the apex host was already redirecting back to `www`, creating an infinite 301 loop.
 - Fixed by updating Railway `PUBLIC_SITE_URL` to `https://www.sportfolio.market`, which triggered a successful redeploy.
 - Verified after deploy: `https://www.sportfolio.market/` now returns `200 OK`; the apex host still redirects to `www`, which now resolves normally instead of looping.
+
+## 2026-03-02 Google Sign-In Investigation
+
+- [ ] Inspect the client/server Google auth flow and callback handling
+- [ ] Pull recent Railway auth-related logs to identify where the login state is lost
+- [ ] Apply a targeted fix if the issue is in repo code/config
+- [ ] Validate the fix and record any required production follow-up
