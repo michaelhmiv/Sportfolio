@@ -304,6 +304,50 @@ describe("hermes-orchestrator", () => {
     expect(result.createdSkillCandidates).toEqual(["skill_user_1", "skill_global_candidate_1"]);
   });
 
+  it("keeps a valid compound plan when runtime skill persistence fails", async () => {
+    mocks.runHermesPlanTool.mockResolvedValue({
+      replyText: "I can stage that compound workflow.",
+      summary: "Compound boost workflow",
+      warnings: [],
+      actions: [
+        {
+          actionType: "holdings_condense",
+          playerId: "nba_1",
+          playerName: "Amen Thompson",
+          sharesToCondense: 2,
+          expectedPowerGained: 1,
+          availableSharesBefore: 4,
+          availableSharesAfter: 2,
+          reasoning: "Condense before boosting",
+        },
+      ],
+    });
+    mocks.createOrUpdateUserSkill.mockRejectedValue(new Error("db write failed"));
+
+    const result = await runHermesOrchestrationTurn({
+      ...baseInput,
+      request: {
+        ...baseInput.request,
+        message: "power up amen and then put him at 4x",
+        requestMode: "plan",
+        toolAllowlist: ["preview_multi_action_bundle"],
+      },
+    });
+
+    expect(result.outcome).toBe("staged_plan");
+    expect(result.createdSkillCandidates).toEqual([]);
+    expect(result.toolTrace).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          toolName: "create_runtime_skill",
+          phase: "memory",
+          status: "failed",
+        }),
+      ]),
+    );
+    expect(mocks.runLocalHermesCompatibilityTurn).not.toHaveBeenCalled();
+  });
+
   it("uses a matched runtime skill before generic model fallback", async () => {
     mocks.matchAgentSkill.mockReturnValue({
       matched: true,

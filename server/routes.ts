@@ -431,6 +431,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return req.user.claims.sub;
   };
 
+  const resolveAdminReviewerId = async (req: any): Promise<string> => {
+    const directReviewerId =
+      (typeof req?.user?.claims?.sub === "string" && req.user.claims.sub) ||
+      (typeof req?.user?.id === "string" && req.user.id) ||
+      (typeof req?.adminContext?.userId === "string" && req.adminContext.userId) ||
+      null;
+
+    if (directReviewerId) {
+      return directReviewerId;
+    }
+
+    const [fallbackAdmin] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.isAdmin, true))
+      .limit(1);
+
+    if (fallbackAdmin?.id) {
+      return fallbackAdmin.id;
+    }
+
+    throw new Error("No admin reviewer identity is available for this action.");
+  };
+
   const normalizeAgentErrorMessage = (error: any): string => {
     const message = String(error?.message || "Agent request failed");
     const normalized = message.toLowerCase();
@@ -6279,9 +6303,10 @@ ${items}
 
   app.post("/api/admin/agent/skills/:skillId/approve", adminAuth, async (req: any, res) => {
     try {
+      const reviewedBy = await resolveAdminReviewerId(req);
       const skill = await approveAgentSkillCandidate({
         skillId: req.params.skillId,
-        reviewedBy: req.user.claims.sub,
+        reviewedBy,
         notes: typeof req.body?.notes === "string" ? req.body.notes.trim() : null,
       });
 
@@ -6299,9 +6324,10 @@ ${items}
 
   app.post("/api/admin/agent/skills/:skillId/reject", adminAuth, async (req: any, res) => {
     try {
+      const reviewedBy = await resolveAdminReviewerId(req);
       const skill = await rejectAgentSkillCandidate({
         skillId: req.params.skillId,
-        reviewedBy: req.user.claims.sub,
+        reviewedBy,
         notes: typeof req.body?.notes === "string" ? req.body.notes.trim() : null,
       });
 

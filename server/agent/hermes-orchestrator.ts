@@ -667,29 +667,42 @@ async function maybeCreateRuntimeSkill(input: {
   if (toolSequence.length === 0) {
     return;
   }
+  const skillStartedAt = Date.now();
 
-  const userSkill = await createOrUpdateUserSkill({
-    userId: input.userId,
-    threadId: input.threadId,
-    name: input.name,
-    description: input.description,
-    triggerExamples: [input.request.message],
-    toolSequence,
-    confidence: 0.72,
-  });
+  try {
+    const userSkill = await createOrUpdateUserSkill({
+      userId: input.userId,
+      threadId: input.threadId,
+      name: input.name,
+      description: input.description,
+      triggerExamples: [input.request.message],
+      toolSequence,
+      confidence: 0.72,
+    });
 
-  if (!userSkill) {
-    return;
-  }
+    if (!userSkill) {
+      return;
+    }
 
-  input.createdSkillCandidates.push(userSkill.id);
+    input.createdSkillCandidates.push(userSkill.id);
 
-  const globalCandidate = await proposeGlobalSkillCandidate({
-    sourceSkill: userSkill,
-  });
+    const globalCandidate = await proposeGlobalSkillCandidate({
+      sourceSkill: userSkill,
+    });
 
-  if (globalCandidate) {
-    input.createdSkillCandidates.push(globalCandidate.id);
+    if (globalCandidate) {
+      input.createdSkillCandidates.push(globalCandidate.id);
+    }
+  } catch (error: any) {
+    input.toolTrace.push(
+      buildToolTraceEntry({
+        toolName: "create_runtime_skill",
+        phase: "memory",
+        status: "failed",
+        startedAt: skillStartedAt,
+        summary: `Runtime skill persistence failed after planning succeeded: ${String(error?.message || "Unknown error")}`,
+      }),
+    );
   }
 }
 

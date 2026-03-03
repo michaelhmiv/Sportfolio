@@ -1109,7 +1109,7 @@ async function buildMultiActionBundlePreview(input: {
       /\b(?:put|assign)\s+(?:him|them|it|([a-z .'-]+))?.*?\b(?:at|in(?:to)?)\s+(?:my\s+)?([2-5])x\b/i,
     );
     if (slotMatch) {
-      let playerName = lastResolvedPlayerName;
+      let playerName = slotMatch[1] ? null : lastResolvedPlayerName;
       if (slotMatch[1]) {
         const holding = await findPlayerHoldingByName({
           userId: input.userId,
@@ -1118,6 +1118,11 @@ async function buildMultiActionBundlePreview(input: {
         if (holding) {
           playerName = holding.playerName;
           lastResolvedPlayerId = holding.playerId;
+        } else {
+          blockingReasons.push(
+            `I could not find an unlocked holding for "${slotMatch[1].trim()}" to place in a boost slot.`,
+          );
+          continue;
         }
       }
 
