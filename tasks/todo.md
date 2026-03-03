@@ -468,3 +468,15 @@ Review:
 - Hermes is now the single front door for normal user turns; deterministic planners still exist, but only behind Hermes-selected tools.
 - Runtime skills are constrained macros over existing approved tools. They can be created automatically for a single user, but shared/global promotion still requires admin approval.
 - The highest-value compound regression is now handled through `preview_multi_action_bundle`, which lets Hermes decompose linked requests without bouncing into scout-biased fallback.
+
+## 2026-03-03 PR #83 CI Fix
+
+- [x] Reproduce the failing `Validate Code` check locally and confirm the exact import path
+- [x] Patch the test-time DB bootstrap so unit tests can import DB-backed modules without a real `DATABASE_URL`
+- [x] Validate with repo checks, then push the fix to the PR branch
+
+Review:
+
+- Root cause: Vitest runs with `NODE_ENV=test`, and several agent/auth tests import DB-backed modules at module load. `server/db.ts` threw immediately when neither `DATABASE_URL` nor `DEV_DATABASE_URL` was present in CI.
+- Fix: keep the runtime guard for normal environments, but allow test imports to construct the shared `pg` pool with a placeholder Postgres URL when running under Vitest/`NODE_ENV=test`.
+- Validation passed after the fix: `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`.
