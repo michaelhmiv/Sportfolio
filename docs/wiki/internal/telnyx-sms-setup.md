@@ -23,10 +23,12 @@ searchKeywords: telnyx,sms,webhook,env,setup
 
 # Webhook endpoints
 
-- `POST /api/webhooks/telnyx/sms`
-- `POST /api/webhooks/telnyx/sms/status`
+- Primary Telnyx messaging profile webhook: `POST https://www.sportfolio.market/api/webhooks/telnyx/sms`
+- Legacy status alias (optional/backward-compatible): `POST /api/webhooks/telnyx/sms/status`
 
+The primary `/api/webhooks/telnyx/sms` route accepts both inbound `message.received` events and delivery/status events, which matches Telnyx's single messaging-profile webhook URL model.
 Both routes require a valid Telnyx Ed25519 signature using the `telnyx-signature-ed25519` and `telnyx-timestamp` headers.
+Do not configure the apex `https://sportfolio.market/...` URL for webhook delivery; non-GET requests there are rejected before they reach the app.
 Sportfolio acknowledges these webhook requests immediately, then processes the agent work in the background to reduce duplicate retries.
 
 # Linking flow

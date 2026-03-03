@@ -480,3 +480,18 @@ Review:
 - Root cause: Vitest runs with `NODE_ENV=test`, and several agent/auth tests import DB-backed modules at module load. `server/db.ts` threw immediately when neither `DATABASE_URL` nor `DEV_DATABASE_URL` was present in CI.
 - Fix: keep the runtime guard for normal environments, but allow test imports to construct the shared `pg` pool with a placeholder Postgres URL when running under Vitest/`NODE_ENV=test`.
 - Validation passed after the fix: `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`.
+
+## 2026-03-03 Telnyx SMS Intake Investigation
+
+- [x] Trace the SMS route, webhook verification, and production DB/log state
+- [x] Patch webhook handling so the primary Telnyx webhook endpoint can process both inbound and delivery events
+- [x] Correct the live Telnyx messaging profile webhook URL and verify the updated configuration
+- [x] Validate locally and document the root cause plus any remaining operational follow-up
+
+Review:
+
+- Root cause was production configuration drift: the live Telnyx messaging profile webhook was set to `https://sportfolio.market/api/webhooks/telnyx/sms`, but non-GET requests to the apex host return `405 Method Not Allowed` before they reach the Express app. The working route lives on `https://www.sportfolio.market/api/webhooks/telnyx/sms`.
+- Production evidence matched that diagnosis: the public `www` webhook route responds from Express, while the production database had zero `sms_message_events` rows and zero `user_phone_links`, so the app had never successfully processed an inbound SMS or completed SMS linking.
+- Fixed the live Telnyx messaging profile to use the canonical `www` webhook URL.
+- Also hardened the repo route so the primary `/api/webhooks/telnyx/sms` endpoint now accepts both inbound and delivery events, which matches Telnyx's single messaging-profile webhook model; the `/api/webhooks/telnyx/sms/status` route remains as a backward-compatible alias.
+- Local validation passed: `npm run check`, `npm run lint`, `npm run test:run -- server/services/telnyx-sms.test.ts`. `npm run format:check` required a follow-up Prettier pass on this task log after the initial note was added.

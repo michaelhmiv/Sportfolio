@@ -165,15 +165,17 @@ export function registerSmsRoutes(app: Express): void {
       return;
     }
 
-    if (!isTelnyxInboundMessageEventType(webhook.eventType)) {
-      res.json({ received: true, ignored: true });
-      return;
-    }
-
     res.json({ received: true });
 
     runInBackground(async () => {
-      await handleVerifiedInboundSmsWebhook(webhook);
+      if (isTelnyxInboundMessageEventType(webhook.eventType)) {
+        await handleVerifiedInboundSmsWebhook(webhook);
+        return;
+      }
+
+      if (isTelnyxDeliveryEventType(webhook.eventType)) {
+        await recordVerifiedSmsStatusWebhook(webhook);
+      }
     });
   });
 
