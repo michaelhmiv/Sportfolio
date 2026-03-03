@@ -186,6 +186,25 @@ function formatSection(tag: string, lines: string[]) {
   return [`<${tag}>`, ...(lines.length > 0 ? lines : ["- none"]), `</${tag}>`].join("\n");
 }
 
+function buildLatestUserMessageAnchor(input: {
+  task: string;
+  mode: "discussion" | "commit";
+}): string {
+  const immediateInstruction =
+    input.mode === "discussion"
+      ? "Now respond to the latest user message above in discussion mode. Anchor the answer on what the user just asked, not only the standing account overview."
+      : "Now respond to the latest user message above by staging the best confirmation-ready scout plan that fits the supplied backend context.";
+
+  return [
+    "<current_user_message>",
+    input.task,
+    "</current_user_message>",
+    "<response_instruction>",
+    immediateInstruction,
+    "</response_instruction>",
+  ].join("\n");
+}
+
 function formatSelectionWindowLines(context: ScoutContext) {
   if (!context.selectionWindow) {
     return ["- No explicit focus window was detected for this request."];
@@ -437,6 +456,10 @@ function buildPromptPayload(input: {
     formatSection("recommended_targets", formatRecommendedTargetLines(input.context)),
     formatSection("candidate_allowlist", formatCandidateLines(input.planningCandidates)),
     formatSection("recent_conversation", formatConversationHistoryLines(input.conversationHistory)),
+    buildLatestUserMessageAnchor({
+      task,
+      mode: "commit",
+    }),
   ].join("\n");
 }
 
@@ -487,6 +510,10 @@ function buildDiscussionPromptPayload(input: {
     formatSection("recommended_targets", formatRecommendedTargetLines(input.context)),
     formatSection("candidate_snapshot", formatCandidateLines(input.planningCandidates).slice(0, 6)),
     formatSection("recent_conversation", formatConversationHistoryLines(input.conversationHistory)),
+    buildLatestUserMessageAnchor({
+      task,
+      mode: "discussion",
+    }),
   ].join("\n");
 }
 

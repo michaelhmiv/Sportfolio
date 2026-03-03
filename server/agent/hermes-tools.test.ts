@@ -52,6 +52,11 @@ const mocks = vi.hoisted(() => ({
   listUserAgentSchedules: vi.fn(),
   removeUserAgentSchedule: vi.fn(),
   upsertUserAgentSchedule: vi.fn(),
+  archiveAgentSkill: vi.fn(),
+  createOrUpdateUserSkill: vi.fn(),
+  listAgentSkillCandidates: vi.fn(),
+  listAvailableAgentSkills: vi.fn(),
+  proposeGlobalSkillCandidate: vi.fn(),
 }));
 
 vi.mock("./service", () => ({
@@ -118,7 +123,20 @@ vi.mock("./schedules", () => ({
   upsertUserAgentSchedule: mocks.upsertUserAgentSchedule,
 }));
 
-import { runHermesActionTool, runHermesPlanTool, runHermesReadTool } from "./hermes-tools";
+vi.mock("./skills", () => ({
+  archiveAgentSkill: mocks.archiveAgentSkill,
+  createOrUpdateUserSkill: mocks.createOrUpdateUserSkill,
+  listAgentSkillCandidates: mocks.listAgentSkillCandidates,
+  listAvailableAgentSkills: mocks.listAvailableAgentSkills,
+  proposeGlobalSkillCandidate: mocks.proposeGlobalSkillCandidate,
+}));
+
+import {
+  runHermesActionTool,
+  runHermesPlanTool,
+  runHermesReadTool,
+  runHermesScanTool,
+} from "./hermes-tools";
 
 describe("hermes-tools", () => {
   beforeEach(() => {
@@ -144,6 +162,8 @@ describe("hermes-tools", () => {
       marketCap: "500.00",
       lastTradePrice: "5.00",
     });
+    mocks.listAvailableAgentSkills.mockResolvedValue([]);
+    mocks.listAgentSkillCandidates.mockResolvedValue([]);
   });
 
   it("builds a native pool buy preview", async () => {
@@ -193,6 +213,44 @@ describe("hermes-tools", () => {
     });
   });
 
+  it("scans daily boost candidates through the dedicated scan tool", async () => {
+    mocks.getScoutAgentProfile.mockResolvedValue({
+      profile: {
+        displayName: "Agent",
+        defaultSport: "NBA",
+      },
+    });
+    mocks.storage.getEligiblePlayersForBoost.mockResolvedValue([
+      {
+        player: {
+          id: "nba_1",
+          firstName: "Jalen",
+          lastName: "Brunson",
+        },
+        availableShares: 2,
+        powerLevel: "3.00",
+        gameStartTime: new Date("2026-03-03T00:30:00.000Z"),
+      },
+    ]);
+    mocks.storage.getDailyBoostsAllSports.mockResolvedValue([
+      {
+        slotTier: 5,
+        playerId: "nba_9",
+      },
+    ]);
+
+    const result = (await runHermesScanTool({
+      toolName: "scan_daily_boost_candidates",
+      userId: "user_1",
+      args: {},
+    })) as any;
+
+    expect(result.toolName).toBe("scan_daily_boost_candidates");
+    expect(result.replyText).toContain("open daily boost slot");
+    expect(result.context.openSlots).toEqual([4, 3, 2]);
+    expect(result.context.candidates[0].playerName).toBe("Jalen Brunson");
+  });
+
   it("creates a thread and stages an action bundle through the action tool", async () => {
     mocks.createAgentThread.mockResolvedValue({
       id: "thread_new",
@@ -216,6 +274,118 @@ describe("hermes-tools", () => {
       message: "buy $10 of Jalen Brunson",
     });
     expect(result.threadId).toBe("thread_new");
+  });
+
+  it("builds a multi-action bundle preview for chained condense and boost requests", async () => {
+    mocks.planDirectAgentOperation
+      .mockResolvedValueOnce({
+        replyText: "Condense Amen",
+        summary: "Condense Amen",
+        warnings: [],
+        observations: [],
+        actions: [
+          {
+            actionType: "holdings_condense",
+            playerId: "nba_amen",
+            playerName: "Amen Thompson",
+            sharesToCondense: 2,
+            expectedPowerGained: 1,
+            reasoning: "Condense first",
+          },
+        ],
+        trace: [],
+      })
+      .mockResolvedValueOnce({
+        replyText: "Boost Amen",
+        summary: "Boost Amen",
+        warnings: [],
+        observations: [],
+        actions: [
+          {
+            actionType: "daily_boost_assign",
+            playerId: "nba_amen",
+            playerName: "Amen Thompson",
+            slotTier: 4,
+            boostDate: "2026-03-02",
+            reasoning: "Boost next",
+          },
+        ],
+        trace: [],
+      });
+    mocks.storage.getUserHoldingsWithPlayers.mockResolvedValue([
+      {
+        holding: {
+          quantity: 4,
+        },
+        player: {
+          id: "nba_amen",
+          firstName: "Amen",
+          lastName: "Thompson",
+        },
+        totalLocked: 0,
+      },
+    ]);
+
+    const result = (await runHermesPlanTool({
+      toolName: "preview_multi_action_bundle",
+      userId: "user_1",
+      args: {
+        message: "power up Amen and then put him at 4x",
+      },
+    })) as any;
+
+    expect(result.actions).toHaveLength(2);
+    expect(result.generatedMessages).toEqual([
+      "condense 4 Amen Thompson shares",
+      "put Amen Thompson in my 4x boost slot today",
+    ]);
+  });
+
+  it("does not reuse the previous player when an explicit boost target cannot be resolved", async () => {
+    mocks.planDirectAgentOperation.mockResolvedValueOnce({
+      replyText: "Condense Amen",
+      summary: "Condense Amen",
+      warnings: [],
+      observations: [],
+      actions: [
+        {
+          actionType: "holdings_condense",
+          playerId: "nba_amen",
+          playerName: "Amen Thompson",
+          sharesToCondense: 2,
+          expectedPowerGained: 1,
+          reasoning: "Condense first",
+        },
+      ],
+      trace: [],
+    });
+    mocks.storage.getUserHoldingsWithPlayers.mockResolvedValue([
+      {
+        holding: {
+          quantity: 4,
+        },
+        player: {
+          id: "nba_amen",
+          firstName: "Amen",
+          lastName: "Thompson",
+        },
+        totalLocked: 0,
+      },
+    ]);
+
+    const result = (await runHermesPlanTool({
+      toolName: "preview_multi_action_bundle",
+      userId: "user_1",
+      args: {
+        message: "power up Amen and then put unknown guy at 4x",
+      },
+    })) as any;
+
+    expect(mocks.planDirectAgentOperation).toHaveBeenCalledTimes(1);
+    expect(result.generatedMessages).toEqual(["condense 4 Amen Thompson shares"]);
+    expect(result.warnings).toContain(
+      'I could not find an unlocked holding for "unknown guy" to place in a boost slot.',
+    );
   });
 
   it("upserts a user schedule through the action tool", async () => {

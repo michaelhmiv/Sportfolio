@@ -17,10 +17,9 @@ import { loadScoutAgentContext } from "./context-loader";
 import { executeScoutProposalActions } from "./executor";
 import { runHermesAgentTurn } from "./hermes-client";
 import { buildHermesMemoryContext, persistProposedMemoryWrites } from "./memory";
-import { planDirectAgentOperation } from "./operations-planner";
 import { normalizeOpenAICompatibleBaseUrl } from "./pi-provider";
 import { getManagedProviderStatus } from "./provider-registry";
-import { isHostedWebResearchAvailable, planHostedWebResearch } from "./research";
+import { isHostedWebResearchAvailable } from "./research";
 import { getActiveManagedProviderSelection } from "./system-settings";
 import { MANAGED_MODEL_PLACEHOLDER } from "./types";
 import type {
@@ -546,139 +545,6 @@ export async function analyzeScoutAgent(
     profile.providerMode === "managed"
       ? managedProvider.defaultModel || profile.model
       : profile.model;
-  const directOperationPlan = requestMessage
-    ? await planDirectAgentOperation({
-        userId,
-        message: requestMessage,
-        profile,
-      })
-    : null;
-
-  if (directOperationPlan) {
-    const outcomeCategory = classifyAgentRunOutcome({
-      actions: directOperationPlan.actions,
-      pendingClarification: directOperationPlan.pendingClarification,
-      citations: directOperationPlan.citations,
-      summary: directOperationPlan.summary,
-      replyText: directOperationPlan.replyText,
-      errorMessage: directOperationPlan.errorMessage,
-    });
-    const [run] = await db
-      .insert(userAgentRuns)
-      .values({
-        userId,
-        threadId: data.threadId || null,
-        triggerSource: "manual",
-        status: "completed",
-        providerMode: profile.providerMode,
-        model: executionModel,
-        contextSnapshot: directOperationPlan.contextSnapshot,
-        promptSnapshot: {
-          framework: "deterministic-agent-operations",
-          requestMessage,
-          semanticRouteHint,
-          conversationHistory: data.conversationHistory || [],
-        },
-        rawResponse: {
-          trace: attachOutcomeCategoryToTrace(directOperationPlan.trace, outcomeCategory),
-          parsed: {
-            domain: directOperationPlan.domain,
-            replyText: directOperationPlan.replyText,
-            summary: directOperationPlan.summary,
-            observations: directOperationPlan.observations,
-            warnings: directOperationPlan.warnings,
-            actions: directOperationPlan.actions,
-            citations: directOperationPlan.citations || [],
-            pendingClarification: directOperationPlan.pendingClarification || null,
-            outcomeCategory,
-          },
-        },
-        parsedSummary: directOperationPlan.summary,
-        completedAt: new Date(),
-      })
-      .returning();
-
-    return {
-      runId: run.id,
-      status: "completed",
-      domain: directOperationPlan.domain,
-      requestMessage,
-      replyText: directOperationPlan.replyText,
-      summary: directOperationPlan.summary,
-      observations: directOperationPlan.observations,
-      warnings: directOperationPlan.warnings,
-      actions: directOperationPlan.actions,
-      citations: directOperationPlan.citations || [],
-      pendingClarification: directOperationPlan.pendingClarification || null,
-      errorMessage: null,
-    };
-  }
-
-  const hostedResearchPlan = requestMessage
-    ? await planHostedWebResearch({
-        message: requestMessage,
-        profile,
-      })
-    : null;
-
-  if (hostedResearchPlan) {
-    const outcomeCategory = classifyAgentRunOutcome({
-      actions: hostedResearchPlan.actions,
-      pendingClarification: hostedResearchPlan.pendingClarification,
-      citations: hostedResearchPlan.citations,
-      summary: hostedResearchPlan.summary,
-      replyText: hostedResearchPlan.replyText,
-      errorMessage: hostedResearchPlan.errorMessage,
-    });
-    const [run] = await db
-      .insert(userAgentRuns)
-      .values({
-        userId,
-        threadId: data.threadId || null,
-        triggerSource: "manual",
-        status: "completed",
-        providerMode: profile.providerMode,
-        model: executionModel,
-        contextSnapshot: hostedResearchPlan.contextSnapshot,
-        promptSnapshot: {
-          framework: "hosted-brave-search",
-          requestMessage,
-          semanticRouteHint,
-          conversationHistory: data.conversationHistory || [],
-        },
-        rawResponse: {
-          trace: attachOutcomeCategoryToTrace(hostedResearchPlan.trace, outcomeCategory),
-          parsed: {
-            domain: hostedResearchPlan.domain,
-            replyText: hostedResearchPlan.replyText,
-            summary: hostedResearchPlan.summary,
-            observations: hostedResearchPlan.observations,
-            warnings: hostedResearchPlan.warnings,
-            actions: hostedResearchPlan.actions,
-            citations: hostedResearchPlan.citations || [],
-            outcomeCategory,
-          },
-        },
-        parsedSummary: hostedResearchPlan.summary,
-        completedAt: new Date(),
-      })
-      .returning();
-
-    return {
-      runId: run.id,
-      status: "completed",
-      domain: hostedResearchPlan.domain,
-      requestMessage,
-      replyText: hostedResearchPlan.replyText,
-      summary: hostedResearchPlan.summary,
-      observations: hostedResearchPlan.observations,
-      warnings: hostedResearchPlan.warnings,
-      actions: hostedResearchPlan.actions,
-      citations: hostedResearchPlan.citations || [],
-      pendingClarification: hostedResearchPlan.pendingClarification || null,
-      errorMessage: null,
-    };
-  }
 
   const context = await loadScoutAgentContext(userId, profile, {
     chatRequest: requestMessage,
@@ -805,6 +671,10 @@ export async function analyzeScoutAgent(
             proposedMemoryWrites: hermesResult.proposedMemoryWrites,
             toolTrace: hermesResult.toolTrace,
             toolCallsUsed: hermesResult.toolCallsUsed,
+            skillsUsed: hermesResult.skillsUsed,
+            createdSkillCandidates: hermesResult.createdSkillCandidates,
+            skillMatchRationale: hermesResult.skillMatchRationale,
+            fallbackUsed: hermesResult.fallbackUsed,
             requiresConfirmation: hermesResult.requiresConfirmation,
             confirmationPreview: hermesResult.confirmationPreview,
             outcomeCategory,
@@ -819,7 +689,7 @@ export async function analyzeScoutAgent(
     return {
       runId: run.id,
       status: normalizedStatus,
-      domain: "scouting",
+      domain: "sportfolio",
       requestMessage,
       replyText: hermesResult.assistantText,
       summary: hermesResult.summary,
@@ -830,6 +700,8 @@ export async function analyzeScoutAgent(
       pendingClarification: hermesResult.pendingClarification,
       proposedMemoryWrites: hermesResult.proposedMemoryWrites,
       toolTrace: hermesResult.toolTrace,
+      skillsUsed: hermesResult.skillsUsed,
+      createdSkillCandidates: hermesResult.createdSkillCandidates,
       errorMessage: hermesResult.outcome === "error" ? hermesResult.assistantText : null,
     };
   } catch (error: any) {

@@ -330,6 +330,13 @@ describe("scout-agent-core", () => {
     expect(seenUserPrompt).toContain("<analyst_brief>");
     expect(seenUserPrompt).toContain("<recommended_targets>");
     expect(seenUserPrompt).toContain("/wiki/features/agent-operator");
+    expect(seenUserPrompt).toContain("<current_user_message>");
+    expect(seenUserPrompt).toContain(
+      "Now respond to the latest user message above in discussion mode.",
+    );
+    expect(seenUserPrompt).toContain(
+      "How do you read momentum versus stability when a slate has mixed injury signals?",
+    );
   });
 
   it("short-circuits semantic general scouting prompts into a deterministic discussion read", async () => {

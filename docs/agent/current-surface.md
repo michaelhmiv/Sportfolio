@@ -59,6 +59,18 @@ These are staged first and are only executed after an explicit confirm action fr
 - admin or destructive operational flows
 - guaranteed coverage for every website path a human can perform
 
+## Hermes-First Routing
+
+- Normal user turns now enter the Hermes orchestrator first across web, SMS, and CLI.
+- Deterministic planners still exist, but only as internal Hermes plan tools.
+- PI remains installed only as fallback if the Hermes orchestration path fails.
+
+## Runtime Skills
+
+- Hermes may create user-scoped runtime skills over existing approved tools after it resolves a reusable workflow.
+- These skills do not add any new backend capabilities or bypass confirmation.
+- Shared/global skill reuse requires admin approval before promotion.
+
 ## Testing Prompts
 
 Use these prompts as the baseline manual test set:

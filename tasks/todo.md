@@ -424,3 +424,59 @@ Validation notes:
 - `railway run --service Sportfolio-Replit -- npx tsx scripts/agent-smoke.ts --user aa6b3061-d164-44fe-9dfc-b61326903d23 --include-action-plans --live-research` completed successfully without executing any confirmation-gated mutations.
 - `npm run cli:smoke` passed.
 - Direct Hermes read/plan tool smokes succeeded against the Railway service environment, including the hardened schedule path and structured pool-buy preview.
+
+## 2026-03-02 Hermes Conversational Grounding
+
+- [x] Inspect the live Hermes prompt/request path to verify how the latest user message is passed into the runtime
+- [x] Route non-deterministic Hermes advisory turns through a model-backed response before falling back to static operator text
+- [x] Explicitly anchor the latest user message at the end of the advisory/planning prompt payload so the model answers the current turn directly
+- [x] Validate locally via targeted agent tests, full repo validation, and a local `/agent` smoke turn
+
+Review:
+
+- The main disconnect was real: the current message was passed into the Hermes request object, but the normal Hermes-first advisory path often answered with a static operator overview instead of taking a model turn, so short follow-ups could feel ignored.
+- Fixed by letting the Hermes orchestrator use a model-backed operator turn for non-deterministic requests before dropping to static fallback copy, while still keeping the explicit deterministic planner and hosted research paths first.
+- The advisory and planning prompt payloads now end with a dedicated `<current_user_message>` block and a direct response instruction so the latest turn is explicitly the final thing the model sees before responding.
+- Validation passed: targeted agent tests, `npm run check`, `npm run lint`, full `npm run test:run`, and `npm run format:check`.
+- The workstation's local `.env` still has a stale local Postgres password, so the smoke harness failed against that local secret; the same smoke succeeded when run locally with the active Railway Sportfolio env injected, and the targeted Hermes follow-up flow now returns an actual explanation instead of repeating the generic overview.
+
+## 2026-03-03 Hermes Agent-First Tool Routing
+
+- [x] Add a first-class Hermes tool catalog and expose it through the internal tool surface
+- [x] Add dedicated Hermes scan tools for ambiguous advisory asks, including daily boost candidate scans
+- [x] Route ambiguous Hermes turns through tool-first scan selection before the generic model fallback
+- [x] Add regression coverage for the exact boost-slot advisory prompt and validate the new scan path
+- [x] Validate via `npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`, `npm run cli:smoke`, and Railway-backed agent smoke checks
+
+Review:
+
+- Hermes now keeps the narrow direct-operation fast path for explicit commands, but ambiguous advisory turns try scan tools first.
+- The new `scan_daily_boost_candidates` path fixes the exact production misroute where boost-slot questions were falling into scout-style replies.
+- Hermes tool traces now show `tool_first_router` plus the concrete scan tool used, which makes future transcript review and missing-tool audits easier.
+- Local `scripts/agent-smoke.ts` still fails against the stale workstation `.env` database password, but the same smoke passed when run through `railway run --service Sportfolio-Replit ...` with live service env injected.
+
+## 2026-03-03 Hermes-First Skill Cutover
+
+- [x] Remove the remaining top-level parser-first split so normal user turns always flow through Hermes first
+- [x] Add persistent admin-governed runtime skills with user-scoped reuse and admin-reviewed global promotion
+- [x] Upgrade compound operational handling so Hermes can use `preview_multi_action_bundle` before falling into generic fallback
+- [x] Extend internal/admin surfaces for skill review and update Hermes runtime contracts to carry tool catalog + available skills
+- [ ] Run the full validation and smoke suite, then create a fresh PR with all unpushed local changes
+
+Review:
+
+- Hermes is now the single front door for normal user turns; deterministic planners still exist, but only behind Hermes-selected tools.
+- Runtime skills are constrained macros over existing approved tools. They can be created automatically for a single user, but shared/global promotion still requires admin approval.
+- The highest-value compound regression is now handled through `preview_multi_action_bundle`, which lets Hermes decompose linked requests without bouncing into scout-biased fallback.
+
+## 2026-03-03 PR #83 CI Fix
+
+- [x] Reproduce the failing `Validate Code` check locally and confirm the exact import path
+- [x] Patch the test-time DB bootstrap so unit tests can import DB-backed modules without a real `DATABASE_URL`
+- [x] Validate with repo checks, then push the fix to the PR branch
+
+Review:
+
+- Root cause: Vitest runs with `NODE_ENV=test`, and several agent/auth tests import DB-backed modules at module load. `server/db.ts` threw immediately when neither `DATABASE_URL` nor `DEV_DATABASE_URL` was present in CI.
+- Fix: keep the runtime guard for normal environments, but allow test imports to construct the shared `pg` pool with a placeholder Postgres URL when running under Vitest/`NODE_ENV=test`.
+- Validation passed after the fix: `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`.

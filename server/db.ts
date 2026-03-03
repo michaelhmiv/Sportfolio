@@ -4,9 +4,13 @@ import * as schema from "@shared/schema";
 
 // Determine which database to use based on environment
 const isProduction = process.env.NODE_ENV === "production";
-const databaseUrl = isProduction
+const isTestEnvironment = process.env.NODE_ENV === "test" || process.env.VITEST === "true";
+const configuredDatabaseUrl = isProduction
   ? process.env.DATABASE_URL
   : process.env.DEV_DATABASE_URL || process.env.DATABASE_URL;
+const databaseUrl =
+  configuredDatabaseUrl ||
+  (isTestEnvironment ? "postgresql://postgres:postgres@127.0.0.1:5432/sportfolio_test" : null);
 
 console.log(`[DB] Environment: ${process.env.NODE_ENV || "development"}`);
 console.log(`[DB] Using ${isProduction ? "PRODUCTION" : "DEVELOPMENT"} database`);

@@ -12,7 +12,19 @@ const hermesSidecarRequestSchema = z.object({
   channel: z.enum(["in_app", "sms", "cli"]).default("in_app"),
   message: z.string().trim().min(1),
   requestMode: z.enum(["auto", "discussion", "plan", "clarification_resume"]).default("auto"),
+  orchestrationMode: z.enum(["hermes_first"]).optional(),
   toolAllowlist: z.array(z.string().trim().min(1)).default([]),
+  toolCatalog: z.array(z.record(z.unknown())).default([]),
+  availableSkills: z.array(z.record(z.unknown())).default([]),
+  skillPolicy: z
+    .object({
+      allowRuntimeSkillCreation: z.boolean().default(true),
+      requireAdminApprovalForGlobalSkills: z.boolean().default(true),
+    })
+    .default({
+      allowRuntimeSkillCreation: true,
+      requireAdminApprovalForGlobalSkills: true,
+    }),
   memoryMode: z.enum(["off", "read_only", "read_write"]).default("read_write"),
   autoExecutionPolicy: z
     .object({
@@ -127,7 +139,12 @@ export function registerHermesSidecarRoutes(app: Express): void {
             channel: parsed.channel,
             message: parsed.message,
             requestMode: parsed.requestMode as HermesRespondRequest["requestMode"],
+            orchestrationMode: parsed.orchestrationMode || "hermes_first",
             toolAllowlist: parsed.toolAllowlist,
+            toolCatalog: parsed.toolCatalog as unknown as HermesRespondRequest["toolCatalog"],
+            availableSkills:
+              parsed.availableSkills as unknown as HermesRespondRequest["availableSkills"],
+            skillPolicy: parsed.skillPolicy,
             memoryMode: parsed.memoryMode,
             autoExecutionPolicy: parsed.autoExecutionPolicy,
             confirmationPolicy: {

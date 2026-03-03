@@ -1,35 +1,43 @@
 import type { UserAgentProfile, UserAgentSecret } from "@shared/schema";
 import { inferMemoryWritesFromMessage } from "./memory";
-import { planDirectAgentOperation } from "./operations-planner";
-import { planHostedWebResearch } from "./research";
+import { runHermesPlanTool, runHermesReadTool, runHermesScanTool } from "./hermes-tools";
+import { createOrUpdateUserSkill, matchAgentSkill, proposeGlobalSkillCandidate } from "./skills";
 import { runLocalHermesCompatibilityTurn } from "./hermes-local";
 import type {
   AgentAction,
   AgentCitation,
   AgentConfirmationPreview,
+  AgentSkillStep,
   AgentToolTrace,
   HermesRespondRequest,
   HermesRespondResult,
   ScoutAgentContext,
 } from "./types";
 
-const ACTION_TOOL_ALIASES = new Set([
-  "preview_direct_operation",
-  "preview_pool_buy",
-  "preview_pool_sell",
-  "preview_lp_add",
-  "preview_lp_add_optimal",
-  "preview_lp_remove",
-  "preview_lp_zap",
-  "preview_condense",
-  "preview_daily_boost_assign",
-  "preview_daily_boost_remove",
-  "preview_watchlist_add",
-  "preview_watchlist_remove",
-  "preview_community_boost_create",
-  "preview_scout_adjustment",
-  "preview_multi_action_bundle",
+const MODEL_CONVERSATION_TOOL = "respond_to_user_turn";
+const SCAN_TOOL_ALIASES = new Set([
+  "scan_daily_boost_candidates",
+  "scan_open_boost_slots",
+  "scan_scout_opportunities",
+  "scan_idle_balance_options",
+  "scan_portfolio_cleanup_levers",
+  "scan_watchlist_targets",
+  "scan_community_boost_candidates",
+  "scan_news_impact",
+  "scan_top_market_opportunities",
 ]);
+
+function looksLikeCompoundOperation(message: string): boolean {
+  const normalized = message.toLowerCase();
+  if (!looksLikeExplicitOperation(normalized)) {
+    return false;
+  }
+
+  return (
+    /\b(?:and|then)\b/.test(normalized) &&
+    /\b(?:put|assign|condense|power up|buy|sell|add|remove|set|move)\b/.test(normalized)
+  );
+}
 
 function buildToolTraceEntry(input: {
   toolName: string;
@@ -57,6 +65,111 @@ function wantsHostedResearch(message: string): boolean {
   );
 }
 
+function looksLikeExplicitOperation(message: string): boolean {
+  const normalized = message.trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+
+  return (
+    /^(?:please\s+)?(?:buy|sell|put|assign|remove|add|create|delete|rename|set|move|confirm|cancel|condense|zap|power up)\b/.test(
+      normalized,
+    ) ||
+    /^(?:can you|could you|please)\s+(?:buy|sell|put|assign|remove|add|create|delete|rename|set|move|confirm|cancel|condense|zap|power up)\b/.test(
+      normalized,
+    )
+  );
+}
+
+function inferScanTools(message: string): string[] {
+  const normalized = message.trim().toLowerCase();
+  if (!normalized || looksLikeExplicitOperation(normalized)) {
+    return [];
+  }
+
+  const requested: string[] = [];
+  const push = (toolName: string) => {
+    if (!requested.includes(toolName)) {
+      requested.push(toolName);
+    }
+  };
+
+  if (normalized.includes("community boost")) {
+    push("scan_community_boost_candidates");
+    return requested;
+  }
+
+  if (
+    normalized.includes("boost") &&
+    /\b(slot|slots|eligible|who can|who should|which player|which players|open)\b/.test(normalized)
+  ) {
+    if (
+      /\b(open|how many)\b/.test(normalized) &&
+      !/\bwho can|who should|eligible|which player/.test(normalized)
+    ) {
+      push("scan_open_boost_slots");
+    } else {
+      push("scan_daily_boost_candidates");
+    }
+  }
+
+  if (
+    normalized.includes("scout") &&
+    /\b(who|what|best|target|targets|tonight|today)\b/.test(normalized)
+  ) {
+    push("scan_scout_opportunities");
+  }
+
+  if (
+    /\b(idle balance|extra cash|unused cash|idle cash|idle balance|extra balance)\b/.test(
+      normalized,
+    )
+  ) {
+    push("scan_idle_balance_options");
+  }
+
+  if (
+    /\b(clean up|cleanup|overexposed|over exposed|stale|trim this|trim that)\b/.test(normalized)
+  ) {
+    push("scan_portfolio_cleanup_levers");
+  }
+
+  if (
+    normalized.includes("watchlist") &&
+    /\b(who|what|track|tracking|stale|cleanup)\b/.test(normalized)
+  ) {
+    push("scan_watchlist_targets");
+  }
+
+  if (
+    /\b(what changed|any news|news that affects|injury|injuries|headline|headlines|digest)\b/.test(
+      normalized,
+    )
+  ) {
+    push("scan_news_impact");
+  }
+
+  if (
+    /\b(who is worth buying|worth buying|start a position|best market|market opportunity|market opportunities)\b/.test(
+      normalized,
+    )
+  ) {
+    push("scan_top_market_opportunities");
+  }
+
+  if (
+    /\b(open slots)\b/.test(normalized) &&
+    /\b(extra cash|idle balance|unused cash|idle cash)\b/.test(normalized)
+  ) {
+    push("scan_idle_balance_options");
+    if (!requested.includes("scan_daily_boost_candidates")) {
+      push("scan_open_boost_slots");
+    }
+  }
+
+  return requested;
+}
+
 function summarizeMemoryContext(request: HermesRespondRequest): string | null {
   const topMemory =
     request.memoryMode === "off"
@@ -67,6 +180,119 @@ function summarizeMemoryContext(request: HermesRespondRequest): string | null {
         null;
 
   return topMemory ? topMemory.summary : null;
+}
+
+function isFollowUpExplanationRequest(message: string): boolean {
+  const normalized = message.trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+
+  return /^(?:what(?:\s+do)?\s+you\s+mean(?:\s+by\s+that)?|explain(?:\s+that)?|tell\s+me\s+more|why(?:\s+that|\s+though)?|how\s+so)\??$/.test(
+    normalized,
+  );
+}
+
+function getLastAssistantMessage(request: HermesRespondRequest): string | null {
+  for (let index = request.conversationHistory.length - 1; index >= 0; index -= 1) {
+    const entry = request.conversationHistory[index];
+    if (entry?.role === "assistant" && entry.contentText.trim()) {
+      return entry.contentText.trim();
+    }
+  }
+
+  return null;
+}
+
+function explainLever(lever: string, context: ScoutAgentContext): string {
+  const normalized = lever.toLowerCase();
+
+  if (normalized.includes("daily boost slot")) {
+    return `That means you still have ${context.operatorOverview.openDailyBoostSlots} open daily boost slot${context.operatorOverview.openDailyBoostSlots === 1 ? "" : "s"} and are leaving a payout multiplier unused. The practical move is to choose an eligible player with a game in the current window and assign exactly one share before lock.`;
+  }
+
+  if (normalized.includes("unassigned scout")) {
+    return `That means you still have ${context.remainingScouts} scout${context.remainingScouts === 1 ? "" : "s"} not doing anything. Assigning them puts passive share generation back to work instead of leaving that capacity idle.`;
+  }
+
+  if (normalized.includes("community share")) {
+    return `That means you have ${context.operatorOverview.communitySharesAvailable} community share${context.operatorOverview.communitySharesAvailable === 1 ? "" : "s"} available that could be converted into a live community boost if you want more multiplier leverage on a player.`;
+  }
+
+  if (normalized.includes("condense")) {
+    return `That means you have raw holding rows that can be condensed into powered shares, which makes each share hit harder in boost payouts without increasing share count.`;
+  }
+
+  if (normalized.includes("idle play-money balance")) {
+    return `That means your balance is high enough that some of it is probably sitting unused. Instead of leaving all of it idle, you can deploy part of it into a cleaner position once you pick the player or market angle you want to lean into.`;
+  }
+
+  return `That lever means: ${lever}.`;
+}
+
+function buildFollowUpExplanation(
+  request: HermesRespondRequest,
+  context: ScoutAgentContext,
+  citations: AgentCitation[],
+): Pick<
+  HermesRespondResult,
+  | "assistantText"
+  | "summary"
+  | "warnings"
+  | "citations"
+  | "outcome"
+  | "proposedActions"
+  | "pendingClarification"
+  | "requiresConfirmation"
+  | "confirmationPreview"
+> | null {
+  if (!isFollowUpExplanationRequest(request.message)) {
+    return null;
+  }
+
+  const lastAssistantMessage = getLastAssistantMessage(request);
+  if (!lastAssistantMessage) {
+    return null;
+  }
+
+  const lead = context.operatorOverview.nextBestLevers.slice(0, 2);
+  if (lead.length === 0) {
+    return {
+      outcome: "advisory",
+      assistantText:
+        "I mean there is no single urgent lever right now. If you want, name the workflow you want to focus on and I will break it down into a concrete next move.",
+      summary: "Explained the previous guidance.",
+      warnings: [],
+      citations,
+      proposedActions: [],
+      pendingClarification: null,
+      requiresConfirmation: false,
+      confirmationPreview: null,
+    };
+  }
+
+  const explanations = lead.map((entry) => explainLever(entry, context));
+  const leadLine =
+    lead.length === 1
+      ? `The main lever I was pointing at is ${lead[0]}.`
+      : `The two levers I was pointing at are ${lead[0]} and ${lead[1]}.`;
+  const close = lead[0].toLowerCase().includes("daily boost")
+    ? "If you want, I can next show you the best eligible boost candidates or stage a specific boost assignment."
+    : lead[0].toLowerCase().includes("scout")
+      ? "If you want, I can next show you the best scout targets or stage a scout reallocation."
+      : "If you want, I can turn that into a concrete staged move for you.";
+
+  return {
+    outcome: "advisory",
+    assistantText: [leadLine, ...explanations, close].join(" "),
+    summary: "Explained the previous guidance.",
+    warnings: [],
+    citations,
+    proposedActions: [],
+    pendingClarification: null,
+    requiresConfirmation: false,
+    confirmationPreview: null,
+  };
 }
 
 function buildFallbackAdvisory(
@@ -85,6 +311,11 @@ function buildFallbackAdvisory(
   | "requiresConfirmation"
   | "confirmationPreview"
 > {
+  const explanationReply = buildFollowUpExplanation(request, context, citations);
+  if (explanationReply) {
+    return explanationReply;
+  }
+
   const overview = request.canonicalState.operatorOverview;
   const lead = context.operatorOverview.nextBestLevers.slice(0, 2);
   const rememberedPreference = summarizeMemoryContext(request);
@@ -303,6 +534,10 @@ function normalizePlannerOutcome(
   result: any,
   proposedMemoryWrites: HermesRespondResult["proposedMemoryWrites"],
   toolTrace: AgentToolTrace[],
+  skillsUsed: string[] = [],
+  createdSkillCandidates: string[] = [],
+  skillMatchRationale: string | null = null,
+  fallbackUsed = false,
 ): HermesRespondResult {
   const proposedActions = Array.isArray(result.actions) ? (result.actions as AgentAction[]) : [];
   const warnings = Array.isArray(result.warnings)
@@ -331,9 +566,144 @@ function normalizePlannerOutcome(
     proposedMemoryWrites,
     toolTrace,
     toolCallsUsed: toolTrace.map((entry) => entry.toolName),
+    skillsUsed,
+    createdSkillCandidates,
+    skillMatchRationale,
+    fallbackUsed,
     requiresConfirmation: proposedActions.length > 0,
     confirmationPreview,
   };
+}
+
+function normalizeScanOutcome(
+  scanResults: Array<{
+    toolName: string;
+    summary: string;
+    replyText: string;
+    warnings: string[];
+    context?: { citations?: AgentCitation[] } | Record<string, unknown>;
+  }>,
+  proposedMemoryWrites: HermesRespondResult["proposedMemoryWrites"],
+  toolTrace: AgentToolTrace[],
+  skillsUsed: string[] = [],
+  createdSkillCandidates: string[] = [],
+  skillMatchRationale: string | null = null,
+  fallbackUsed = false,
+): HermesRespondResult {
+  const citations = scanResults.flatMap((entry) => {
+    const candidate = entry.context;
+    if (
+      candidate &&
+      typeof candidate === "object" &&
+      Array.isArray((candidate as { citations?: unknown }).citations)
+    ) {
+      return (candidate as { citations: AgentCitation[] }).citations;
+    }
+
+    return [];
+  });
+
+  return {
+    outcome: "advisory",
+    assistantText: scanResults.map((entry) => entry.replyText).join(" "),
+    summary:
+      scanResults.length === 1
+        ? scanResults[0].summary
+        : `Used ${scanResults.length} advisory scans to answer the request.`,
+    warnings: scanResults.flatMap((entry) => entry.warnings || []),
+    proposedActions: [],
+    pendingClarification: null,
+    citations,
+    proposedMemoryWrites,
+    toolTrace,
+    toolCallsUsed: toolTrace.map((entry) => entry.toolName),
+    skillsUsed,
+    createdSkillCandidates,
+    skillMatchRationale,
+    fallbackUsed,
+    requiresConfirmation: false,
+    confirmationPreview: null,
+  };
+}
+
+function buildSkillStepsFromTrace(toolTrace: AgentToolTrace[]): AgentSkillStep[] {
+  return toolTrace
+    .filter(
+      (entry) =>
+        entry.status === "ok" &&
+        entry.toolName !== "tool_first_router" &&
+        entry.toolName !== "infer_memory_writes" &&
+        entry.toolName !== "external_hermes_fallback",
+    )
+    .map((entry) => ({
+      stepType: "tool_call" as const,
+      toolCategory:
+        entry.phase === "scan" || entry.phase === "research"
+          ? entry.phase
+          : entry.phase === "memory"
+            ? "memory"
+            : entry.phase === "read"
+              ? "read"
+              : "plan",
+      toolName: entry.toolName,
+      argumentTemplate: {},
+    }));
+}
+
+async function maybeCreateRuntimeSkill(input: {
+  userId: string;
+  threadId: string | null;
+  request: HermesRespondRequest;
+  toolTrace: AgentToolTrace[];
+  createdSkillCandidates: string[];
+  name: string;
+  description: string;
+}): Promise<void> {
+  if (!input.request.skillPolicy?.allowRuntimeSkillCreation) {
+    return;
+  }
+
+  const toolSequence = buildSkillStepsFromTrace(input.toolTrace);
+  if (toolSequence.length === 0) {
+    return;
+  }
+  const skillStartedAt = Date.now();
+
+  try {
+    const userSkill = await createOrUpdateUserSkill({
+      userId: input.userId,
+      threadId: input.threadId,
+      name: input.name,
+      description: input.description,
+      triggerExamples: [input.request.message],
+      toolSequence,
+      confidence: 0.72,
+    });
+
+    if (!userSkill) {
+      return;
+    }
+
+    input.createdSkillCandidates.push(userSkill.id);
+
+    const globalCandidate = await proposeGlobalSkillCandidate({
+      sourceSkill: userSkill,
+    });
+
+    if (globalCandidate) {
+      input.createdSkillCandidates.push(globalCandidate.id);
+    }
+  } catch (error: any) {
+    input.toolTrace.push(
+      buildToolTraceEntry({
+        toolName: "create_runtime_skill",
+        phase: "memory",
+        status: "failed",
+        startedAt: skillStartedAt,
+        summary: `Runtime skill persistence failed after planning succeeded: ${String(error?.message || "Unknown error")}`,
+      }),
+    );
+  }
 }
 
 export async function runHermesOrchestrationTurn(input: {
@@ -347,6 +717,9 @@ export async function runHermesOrchestrationTurn(input: {
   const startedAt = Date.now();
   const toolAllowlist = normalizeToolAllowlist(input.request);
   const proposedMemoryWrites = buildMemoryWrites(input.request);
+  const skillsUsed: string[] = [];
+  const createdSkillCandidates: string[] = [];
+  let skillMatchRationale: string | null = null;
 
   try {
     if (proposedMemoryWrites.length > 0) {
@@ -361,43 +734,210 @@ export async function runHermesOrchestrationTurn(input: {
       );
     }
 
-    if (
-      toolAllowlist.size === 0 ||
-      [...toolAllowlist].some((toolName) => ACTION_TOOL_ALIASES.has(toolName))
-    ) {
-      const planStartedAt = Date.now();
-      const directOperationPlan = await planDirectAgentOperation({
-        userId: input.userId,
-        message: input.request.message,
-        profile: input.profile,
-      });
+    const matchedSkillResult = matchAgentSkill(
+      input.request.message,
+      input.request.availableSkills || [],
+    );
+    const matchedSkill = matchedSkillResult?.skillId
+      ? (input.request.availableSkills || []).find(
+          (skill) => skill.id === matchedSkillResult.skillId,
+        )
+      : null;
 
-      if (directOperationPlan) {
-        toolTrace.push(
-          buildToolTraceEntry({
-            toolName: "preview_direct_operation",
-            phase: "plan",
-            status: "ok",
-            startedAt: planStartedAt,
-            summary:
-              directOperationPlan.actions.length > 0
-                ? `Prepared ${directOperationPlan.actions.length} confirmation-gated action(s).`
-                : "Resolved the request through deterministic agent planning.",
-          }),
-        );
-
-        return normalizePlannerOutcome(directOperationPlan, proposedMemoryWrites, toolTrace);
-      }
-
+    if (matchedSkill) {
+      skillsUsed.push(matchedSkill.id);
+      skillMatchRationale = matchedSkillResult?.reason || null;
       toolTrace.push(
         buildToolTraceEntry({
-          toolName: "preview_direct_operation",
-          phase: "plan",
-          status: "skipped",
-          startedAt: planStartedAt,
-          summary: "No deterministic action or advisory route matched the request.",
+          toolName: "match_runtime_skill",
+          phase: "memory",
+          status: "ok",
+          startedAt: Date.now(),
+          summary: skillMatchRationale || `Matched the ${matchedSkill.name} runtime skill.`,
         }),
       );
+    }
+
+    let requestedScanTools = inferScanTools(input.request.message).filter(
+      (toolName) => toolAllowlist.size === 0 || toolAllowlist.has(toolName),
+    );
+
+    if (matchedSkill) {
+      const preferredScanTools = matchedSkill.toolSequence
+        .filter(
+          (step) =>
+            step.toolCategory === "scan" &&
+            (toolAllowlist.size === 0 || toolAllowlist.has(step.toolName)),
+        )
+        .map((step) => step.toolName);
+      if (preferredScanTools.length > 0) {
+        requestedScanTools = preferredScanTools;
+      }
+    }
+
+    const preferredPlanTool =
+      matchedSkill?.toolSequence.find(
+        (step) =>
+          step.toolCategory === "plan" &&
+          (toolAllowlist.size === 0 || toolAllowlist.has(step.toolName)),
+      )?.toolName || null;
+    const isExplicitOperation = looksLikeExplicitOperation(input.request.message);
+    const selectedPlanTool =
+      preferredPlanTool ||
+      (isExplicitOperation
+        ? looksLikeCompoundOperation(input.request.message)
+          ? "preview_multi_action_bundle"
+          : "preview_direct_operation"
+        : null);
+
+    if (selectedPlanTool && (toolAllowlist.size === 0 || toolAllowlist.has(selectedPlanTool))) {
+      const planStartedAt = Date.now();
+
+      try {
+        const planResult = await runHermesPlanTool({
+          toolName: selectedPlanTool,
+          userId: input.userId,
+          args: {
+            message: input.request.message,
+          },
+        });
+
+        if (!planResult) {
+          toolTrace.push(
+            buildToolTraceEntry({
+              toolName: selectedPlanTool,
+              phase: "plan",
+              status: "skipped",
+              startedAt: planStartedAt,
+              summary: "The selected planning tool did not return a usable plan for this turn.",
+            }),
+          );
+        } else {
+          toolTrace.push(
+            buildToolTraceEntry({
+              toolName: selectedPlanTool,
+              phase: "plan",
+              status: "ok",
+              startedAt: planStartedAt,
+              summary:
+                planResult &&
+                typeof planResult === "object" &&
+                Array.isArray((planResult as { actions?: unknown[] }).actions)
+                  ? `Prepared ${((planResult as { actions?: unknown[] }).actions || []).length} confirmation-gated action(s).`
+                  : "Resolved the request through a Hermes-selected planning tool.",
+            }),
+          );
+
+          if (
+            looksLikeCompoundOperation(input.request.message) &&
+            typeof planResult === "object" &&
+            Array.isArray((planResult as { actions?: unknown[] }).actions) &&
+            ((planResult as { actions?: unknown[] }).actions || []).length > 0
+          ) {
+            await maybeCreateRuntimeSkill({
+              userId: input.userId,
+              threadId: input.request.threadId,
+              request: input.request,
+              toolTrace,
+              createdSkillCandidates,
+              name: "compound operation bundle",
+              description:
+                "Reuses the multi-action bundle planner for compound portfolio requests over approved tools.",
+            });
+          }
+
+          return normalizePlannerOutcome(
+            planResult,
+            proposedMemoryWrites,
+            toolTrace,
+            skillsUsed,
+            createdSkillCandidates,
+            skillMatchRationale,
+          );
+        }
+      } catch (error: any) {
+        toolTrace.push(
+          buildToolTraceEntry({
+            toolName: selectedPlanTool,
+            phase: "plan",
+            status: "failed",
+            startedAt: planStartedAt,
+            summary:
+              error?.message ||
+              `${selectedPlanTool} failed and Hermes is moving to the next routing path.`,
+          }),
+        );
+      }
+    }
+
+    if (
+      requestedScanTools.length > 0 &&
+      (toolAllowlist.size === 0 ||
+        [...toolAllowlist].some((toolName) => SCAN_TOOL_ALIASES.has(toolName)))
+    ) {
+      const routerStartedAt = Date.now();
+      toolTrace.push(
+        buildToolTraceEntry({
+          toolName: "tool_first_router",
+          phase: "scan",
+          status: "ok",
+          startedAt: routerStartedAt,
+          summary: `Selected ${requestedScanTools.length} advisory scan tool(s) for an ambiguous request.`,
+        }),
+      );
+
+      const scanResults: Array<{
+        toolName: string;
+        summary: string;
+        replyText: string;
+        warnings: string[];
+        context?: { citations?: AgentCitation[] } | Record<string, unknown>;
+      }> = [];
+
+      for (const toolName of requestedScanTools) {
+        const scanStartedAt = Date.now();
+        try {
+          const scanResult = await runHermesScanTool({
+            toolName,
+            userId: input.userId,
+            args: {
+              message: input.request.message,
+            },
+          });
+          toolTrace.push(
+            buildToolTraceEntry({
+              toolName,
+              phase: "scan",
+              status: "ok",
+              startedAt: scanStartedAt,
+              summary: scanResult.summary,
+            }),
+          );
+          scanResults.push(scanResult);
+        } catch (error: any) {
+          toolTrace.push(
+            buildToolTraceEntry({
+              toolName,
+              phase: "scan",
+              status: "failed",
+              startedAt: scanStartedAt,
+              summary:
+                error?.message || `The ${toolName} scan failed and Hermes moved to the next path.`,
+            }),
+          );
+        }
+      }
+
+      if (scanResults.length > 0) {
+        return normalizeScanOutcome(
+          scanResults,
+          proposedMemoryWrites,
+          toolTrace,
+          skillsUsed,
+          createdSkillCandidates,
+          skillMatchRationale,
+        );
+      }
     }
 
     const canUseResearch =
@@ -405,33 +945,137 @@ export async function runHermesOrchestrationTurn(input: {
       (toolAllowlist.size === 0 || toolAllowlist.has("get_hosted_research"));
     if (canUseResearch && wantsHostedResearch(input.request.message)) {
       const researchStartedAt = Date.now();
-      const researchPlan = await planHostedWebResearch({
-        message: input.request.message,
-        profile: input.profile,
-      });
 
-      if (researchPlan) {
+      try {
+        const researchPlan = await runHermesReadTool({
+          toolName: "get_hosted_research",
+          userId: input.userId,
+          args: {
+            message: input.request.message,
+          },
+        });
+
+        if (researchPlan) {
+          toolTrace.push(
+            buildToolTraceEntry({
+              toolName: "get_hosted_research",
+              phase: "research",
+              status: "ok",
+              startedAt: researchStartedAt,
+              summary: "Pulled hosted Brave research context for the request.",
+            }),
+          );
+
+          return normalizePlannerOutcome(
+            researchPlan,
+            proposedMemoryWrites,
+            toolTrace,
+            skillsUsed,
+            createdSkillCandidates,
+            skillMatchRationale,
+          );
+        }
+      } catch (error: any) {
         toolTrace.push(
           buildToolTraceEntry({
             toolName: "get_hosted_research",
             phase: "research",
-            status: "ok",
+            status: "failed",
             startedAt: researchStartedAt,
-            summary: `Pulled ${researchPlan.citations?.length || 0} hosted citation(s) for the request.`,
+            summary:
+              error?.message ||
+              "The request hinted at live research, but the hosted research path failed.",
+          }),
+        );
+      }
+    }
+
+    const explanationReply = buildFollowUpExplanation(
+      input.request,
+      input.context,
+      input.request.externalContext.research || [],
+    );
+    if (explanationReply) {
+      toolTrace.push(
+        buildToolTraceEntry({
+          toolName: "explain_previous_guidance",
+          phase: "read",
+          status: "ok",
+          startedAt: Date.now(),
+          summary:
+            "Expanded the prior operator guidance into a direct follow-up explanation for the latest user turn.",
+        }),
+      );
+
+      return {
+        ...explanationReply,
+        proposedMemoryWrites,
+        toolTrace,
+        toolCallsUsed: toolTrace.map((entry) => entry.toolName),
+        skillsUsed,
+        createdSkillCandidates,
+        skillMatchRationale,
+        fallbackUsed: false,
+      };
+    }
+
+    if (toolAllowlist.size === 0 || toolAllowlist.has(MODEL_CONVERSATION_TOOL)) {
+      const modelStartedAt = Date.now();
+      const modelConversation = await runLocalHermesCompatibilityTurn({
+        userId: input.userId,
+        channel: input.request.channel,
+        profile: input.profile,
+        secret: input.secret,
+        context: input.context,
+        chatRequest: input.request.message,
+        semanticRouteHint: input.request.semanticRouteHint,
+        conversationHistory: input.request.conversationHistory,
+        requestedMode:
+          input.request.requestMode === "plan" ? "discussion" : input.request.requestMode,
+      });
+
+      if (modelConversation.outcome !== "error" && modelConversation.outcome !== "unsupported") {
+        toolTrace.push(
+          buildToolTraceEntry({
+            toolName: MODEL_CONVERSATION_TOOL,
+            phase: "plan",
+            status: "ok",
+            startedAt: modelStartedAt,
+            summary:
+              "Used the model-backed operator turn to answer the latest user message directly.",
           }),
         );
 
-        return normalizePlannerOutcome(researchPlan, proposedMemoryWrites, toolTrace);
+        const mergedToolTrace = [...toolTrace, ...modelConversation.toolTrace];
+
+        return {
+          ...modelConversation,
+          proposedMemoryWrites,
+          toolTrace: mergedToolTrace,
+          toolCallsUsed: mergedToolTrace.map((entry) => entry.toolName),
+          skillsUsed,
+          createdSkillCandidates,
+          skillMatchRationale,
+          fallbackUsed: false,
+          requiresConfirmation: modelConversation.proposedActions.length > 0,
+          confirmationPreview:
+            modelConversation.confirmationPreview ||
+            (modelConversation.proposedActions.length > 0
+              ? buildActionDeltaPreview(modelConversation.proposedActions[0])
+              : null),
+        };
       }
 
       toolTrace.push(
         buildToolTraceEntry({
-          toolName: "get_hosted_research",
-          phase: "research",
-          status: "skipped",
-          startedAt: researchStartedAt,
+          toolName: MODEL_CONVERSATION_TOOL,
+          phase: "plan",
+          status: "failed",
+          startedAt: modelStartedAt,
           summary:
-            "The request hinted at live research, but no hosted research result was available.",
+            modelConversation.outcome === "unsupported"
+              ? "The model-backed operator turn did not return a usable response, so Hermes fell back to a deterministic operator advisory."
+              : "The model-backed operator turn failed, so Hermes fell back to a deterministic operator advisory.",
         }),
       );
     }
@@ -458,6 +1102,10 @@ export async function runHermesOrchestrationTurn(input: {
       proposedMemoryWrites,
       toolTrace,
       toolCallsUsed: toolTrace.map((entry) => entry.toolName),
+      skillsUsed,
+      createdSkillCandidates,
+      skillMatchRationale,
+      fallbackUsed: false,
     };
   } catch (error: any) {
     toolTrace.push(
@@ -490,6 +1138,10 @@ export async function runHermesOrchestrationTurn(input: {
         ...toolTrace.map((entry) => entry.toolName),
         ...fallback.toolTrace.map((entry) => entry.toolName),
       ],
+      skillsUsed,
+      createdSkillCandidates,
+      skillMatchRationale,
+      fallbackUsed: true,
       requiresConfirmation: fallback.proposedActions.length > 0,
       confirmationPreview:
         fallback.proposedActions.length > 0
