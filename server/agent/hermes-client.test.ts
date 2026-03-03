@@ -15,6 +15,10 @@ describe("hermes-client", () => {
     expect(result.proposedMemoryWrites).toEqual([]);
     expect(result.toolTrace).toEqual([]);
     expect(result.toolCallsUsed).toEqual([]);
+    expect(result.skillsUsed).toEqual([]);
+    expect(result.createdSkillCandidates).toEqual([]);
+    expect(result.skillMatchRationale).toBeNull();
+    expect(result.fallbackUsed).toBe(false);
     expect(result.requiresConfirmation).toBe(false);
     expect(result.confirmationPreview).toBeNull();
   });

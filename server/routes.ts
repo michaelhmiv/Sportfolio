@@ -86,6 +86,11 @@ import {
   sendAgentThreadMessage,
 } from "./agent/thread-service";
 import {
+  approveAgentSkillCandidate,
+  listAdminAgentSkills,
+  rejectAgentSkillCandidate,
+} from "./agent/skills";
+import {
   ensureAgentSystemSettingsSchema,
   getAgentSystemSettings,
   updateAgentSystemSettings,
@@ -6240,6 +6245,74 @@ ${items}
     } catch (error: any) {
       const message = normalizeAgentErrorMessage(error);
       console.error("[Admin Agent API] Error fetching question logs:", message);
+      res.status(getAgentErrorStatus(error)).json({ error: message });
+    }
+  });
+
+  app.get("/api/admin/agent/skills", adminAuth, async (req, res) => {
+    try {
+      const rawScope = typeof req.query.scope === "string" ? req.query.scope.trim() : "";
+      const rawStatus = typeof req.query.status === "string" ? req.query.status.trim() : "";
+      const scope =
+        rawScope === "user" || rawScope === "global_candidate" || rawScope === "global_approved"
+          ? rawScope
+          : undefined;
+      const status =
+        rawStatus === "active" ||
+        rawStatus === "candidate" ||
+        rawStatus === "approved" ||
+        rawStatus === "archived" ||
+        rawStatus === "rejected"
+          ? rawStatus
+          : undefined;
+      const skills = await listAdminAgentSkills({
+        scope,
+        status,
+      });
+      res.json(skills);
+    } catch (error: any) {
+      const message = normalizeAgentErrorMessage(error);
+      console.error("[Admin Agent API] Error fetching skills:", message);
+      res.status(getAgentErrorStatus(error)).json({ error: message });
+    }
+  });
+
+  app.post("/api/admin/agent/skills/:skillId/approve", adminAuth, async (req: any, res) => {
+    try {
+      const skill = await approveAgentSkillCandidate({
+        skillId: req.params.skillId,
+        reviewedBy: req.user.claims.sub,
+        notes: typeof req.body?.notes === "string" ? req.body.notes.trim() : null,
+      });
+
+      if (!skill) {
+        return res.status(404).json({ error: "Skill candidate not found" });
+      }
+
+      res.json(skill);
+    } catch (error: any) {
+      const message = normalizeAgentErrorMessage(error);
+      console.error("[Admin Agent API] Error approving skill:", message);
+      res.status(getAgentErrorStatus(error)).json({ error: message });
+    }
+  });
+
+  app.post("/api/admin/agent/skills/:skillId/reject", adminAuth, async (req: any, res) => {
+    try {
+      const skill = await rejectAgentSkillCandidate({
+        skillId: req.params.skillId,
+        reviewedBy: req.user.claims.sub,
+        notes: typeof req.body?.notes === "string" ? req.body.notes.trim() : null,
+      });
+
+      if (!skill) {
+        return res.status(404).json({ error: "Skill candidate not found" });
+      }
+
+      res.json(skill);
+    } catch (error: any) {
+      const message = normalizeAgentErrorMessage(error);
+      console.error("[Admin Agent API] Error rejecting skill:", message);
       res.status(getAgentErrorStatus(error)).json({ error: message });
     }
   });

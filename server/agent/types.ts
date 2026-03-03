@@ -231,6 +231,55 @@ export type AgentScheduleJobType =
   | "injury_watch"
   | "idle_balance_nudge"
   | "boost_window";
+export type AgentToolCategory = "read" | "scan" | "plan" | "action" | "memory" | "research";
+
+export interface AgentToolDefinition {
+  toolName: string;
+  category: AgentToolCategory;
+  description: string;
+  whenToUse: string[];
+  whenNotToUse: string[];
+  examplePrompts: string[];
+  requiresConfirmation: boolean;
+  riskLevel: "low" | "medium" | "high";
+}
+
+export type AgentSkillScope = "user" | "global_candidate" | "global_approved";
+export type AgentSkillStatus = "active" | "candidate" | "approved" | "archived" | "rejected";
+
+export interface AgentSkillStep {
+  stepType: "tool_call" | "clarify" | "decision";
+  toolCategory: AgentToolCategory;
+  toolName: string;
+  argumentTemplate: Record<string, unknown>;
+  stopIf?: string | null;
+  requiresUserInput?: boolean;
+}
+
+export interface AgentSkillDefinition {
+  id: string;
+  scope: AgentSkillScope;
+  status: AgentSkillStatus;
+  userId: string | null;
+  name: string;
+  description: string;
+  triggerExamples: string[];
+  toolSequence: AgentSkillStep[];
+  clarificationStrategy: Record<string, unknown>;
+  constraints: Record<string, unknown>;
+  confidence: number;
+  sourceThreadId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  archivedAt: Date | null;
+}
+
+export interface AgentSkillMatchResult {
+  matched: boolean;
+  skillId: string | null;
+  confidence: number;
+  reason: string | null;
+}
 
 export interface AgentMemoryRecord {
   id: string;
@@ -259,7 +308,7 @@ export interface ProposedMemoryWrite {
 
 export interface AgentToolTrace {
   toolName: string;
-  phase: "read" | "plan" | "memory" | "research";
+  phase: "read" | "scan" | "plan" | "memory" | "research";
   status: "ok" | "failed" | "skipped";
   latencyMs: number;
   summary: string;
@@ -305,7 +354,14 @@ export interface HermesRespondRequest {
   channel: AgentChannel;
   message: string;
   requestMode: "auto" | "discussion" | "plan" | "clarification_resume";
+  orchestrationMode?: "hermes_first";
   toolAllowlist: string[];
+  toolCatalog: AgentToolDefinition[];
+  availableSkills: AgentSkillDefinition[];
+  skillPolicy?: {
+    allowRuntimeSkillCreation: boolean;
+    requireAdminApprovalForGlobalSkills: boolean;
+  };
   memoryMode: "off" | "read_only" | "read_write";
   autoExecutionPolicy: {
     allowAdvisoryJobs: boolean;
@@ -369,6 +425,10 @@ export interface HermesRespondResult {
   proposedMemoryWrites: ProposedMemoryWrite[];
   toolTrace: AgentToolTrace[];
   toolCallsUsed: string[];
+  skillsUsed: string[];
+  createdSkillCandidates: string[];
+  skillMatchRationale?: string | null;
+  fallbackUsed?: boolean;
   requiresConfirmation: boolean;
   confirmationPreview: AgentConfirmationPreview | null;
 }
@@ -620,6 +680,8 @@ export interface AgentAnalysisResult {
   pendingClarification?: AgentPendingClarification | null;
   proposedMemoryWrites?: ProposedMemoryWrite[];
   toolTrace?: AgentToolTrace[];
+  skillsUsed?: string[];
+  createdSkillCandidates?: string[];
   errorMessage?: string | null;
 }
 

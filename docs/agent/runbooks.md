@@ -135,12 +135,15 @@ Checklist:
 3. Preserve strict per-user memory isolation and do not widen scope across users or channels.
 4. Keep scheduled Hermes jobs advisory-only unless a separate explicit auto-execution policy is introduced.
 5. Re-run the full validation stack after changing request/response contracts, tool names, or schedule defaults.
+6. If you change Hermes routing, verify that normal user turns still enter Hermes first and that parser logic only runs behind explicit plan tools.
+7. Treat runtime skills as constrained macros over approved tools only; do not add unreviewed tool access under the banner of "learning."
 
 Must-verify behaviors:
 
 - A normal `/agent` message resolves through Hermes without requiring the PI fallback path.
 - External Hermes failures degrade to the in-process Hermes engine, then only to PI compatibility if needed.
 - Scheduled advisory runs write assistant messages only and never auto-confirm or auto-apply economic actions.
+- Global skill candidates stay inert until an admin explicitly approves them.
 
 ## Documentation Sync Rule
 

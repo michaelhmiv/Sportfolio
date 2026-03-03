@@ -8,6 +8,7 @@ import {
   runHermesMemoryTool,
   runHermesPlanTool,
   runHermesReadTool,
+  runHermesScanTool,
 } from "../agent/hermes-tools";
 
 function handleInternalToolError(res: Response, error: unknown, fallbackMessage: string) {
@@ -32,6 +33,38 @@ async function ensureUserExists(userId: string): Promise<boolean> {
 }
 
 export function registerInternalAgentToolRoutes(app: Express): void {
+  app.post(
+    "/internal/agent-tools/scan",
+    requireHermesInternalRequest,
+    async (req: Request, res: Response) => {
+      try {
+        const body = getBodyObject(req.body);
+        const toolName = typeof body.toolName === "string" ? body.toolName.trim() : "";
+        const userId = typeof body.userId === "string" ? body.userId.trim() : "";
+
+        if (!toolName || !userId) {
+          res.status(400).json({ message: "toolName and userId are required" });
+          return;
+        }
+        if (!(await ensureUserExists(userId))) {
+          res.status(404).json({ message: "userId was not found" });
+          return;
+        }
+
+        res.json({
+          ok: true,
+          result: await runHermesScanTool({
+            toolName,
+            userId,
+            args: getBodyObject(body.args),
+          }),
+        });
+      } catch (error) {
+        handleInternalToolError(res, error, "Could not run Hermes scan tool");
+      }
+    },
+  );
+
   app.post(
     "/internal/agent-tools/read",
     requireHermesInternalRequest,

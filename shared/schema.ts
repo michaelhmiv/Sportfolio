@@ -1569,6 +1569,74 @@ export const userAgentSchedules = pgTable(
   }),
 );
 
+export const agentSkills = pgTable(
+  "agent_skills",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    scope: text("scope").notNull(),
+    userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    description: text("description").notNull(),
+    triggerExamples: jsonb("trigger_examples")
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    toolSequence: jsonb("tool_sequence")
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    clarificationStrategy: jsonb("clarification_strategy")
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    constraints: jsonb("constraints")
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    confidence: decimal("confidence", { precision: 4, scale: 3 }).notNull().default("0.500"),
+    status: text("status").notNull(),
+    sourceThreadId: varchar("source_thread_id").references(() => userAgentThreads.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+    archivedAt: timestamp("archived_at"),
+  },
+  (table) => ({
+    userStatusUpdatedIdx: index("agent_skills_user_status_updated_idx").on(
+      table.userId,
+      table.status,
+      table.updatedAt,
+    ),
+    scopeStatusUpdatedIdx: index("agent_skills_scope_status_updated_idx").on(
+      table.scope,
+      table.status,
+      table.updatedAt,
+    ),
+    statusUpdatedIdx: index("agent_skills_status_updated_idx").on(table.status, table.updatedAt),
+  }),
+);
+
+export const agentSkillReviews = pgTable(
+  "agent_skill_reviews",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    skillId: varchar("skill_id")
+      .notNull()
+      .references(() => agentSkills.id, { onDelete: "cascade" }),
+    reviewedBy: varchar("reviewed_by")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    decision: text("decision").notNull(),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    skillIdx: index("agent_skill_reviews_skill_idx").on(table.skillId),
+    reviewerIdx: index("agent_skill_reviews_reviewer_idx").on(table.reviewedBy, table.createdAt),
+  }),
+);
+
 // User agent message embeddings - vectorized user prompts for semantic routing and analytics
 export const userAgentMessageEmbeddings = pgTable(
   "user_agent_message_embeddings",
@@ -2472,6 +2540,18 @@ export const insertUserAgentScheduleSchema = createInsertSchema(userAgentSchedul
   updatedAt: true,
 });
 
+export const insertAgentSkillSchema = createInsertSchema(agentSkills).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  archivedAt: true,
+});
+
+export const insertAgentSkillReviewSchema = createInsertSchema(agentSkillReviews).omit({
+  id: true,
+  createdAt: true,
+});
+
 export const insertUserAgentMessageEmbeddingSchema = createInsertSchema(
   userAgentMessageEmbeddings,
 ).omit({
@@ -2544,6 +2624,12 @@ export type InsertAgentRuntimeSession = z.infer<typeof insertAgentRuntimeSession
 
 export type UserAgentSchedule = typeof userAgentSchedules.$inferSelect;
 export type InsertUserAgentSchedule = z.infer<typeof insertUserAgentScheduleSchema>;
+
+export type AgentSkill = typeof agentSkills.$inferSelect;
+export type InsertAgentSkill = z.infer<typeof insertAgentSkillSchema>;
+
+export type AgentSkillReview = typeof agentSkillReviews.$inferSelect;
+export type InsertAgentSkillReview = z.infer<typeof insertAgentSkillReviewSchema>;
 
 export type UserAgentMessageEmbedding = typeof userAgentMessageEmbeddings.$inferSelect;
 export type InsertUserAgentMessageEmbedding = z.infer<typeof insertUserAgentMessageEmbeddingSchema>;

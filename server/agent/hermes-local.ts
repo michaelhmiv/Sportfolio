@@ -153,6 +153,10 @@ export async function runLocalHermesCompatibilityTurn(input: {
         proposedMemoryWrites: memoryWrites,
         toolTrace,
         toolCallsUsed: toolTrace.map((entry) => entry.toolName),
+        skillsUsed: [],
+        createdSkillCandidates: [],
+        skillMatchRationale: null,
+        fallbackUsed: false,
         requiresConfirmation: false,
         confirmationPreview: null,
       };
@@ -196,6 +200,10 @@ export async function runLocalHermesCompatibilityTurn(input: {
       proposedMemoryWrites: memoryWrites,
       toolTrace,
       toolCallsUsed: toolTrace.map((entry) => entry.toolName),
+      skillsUsed: [],
+      createdSkillCandidates: [],
+      skillMatchRationale: null,
+      fallbackUsed: false,
       requiresConfirmation: validated.actions.length > 0,
       confirmationPreview: null,
     };
@@ -220,6 +228,10 @@ export async function runLocalHermesCompatibilityTurn(input: {
       proposedMemoryWrites: memoryWrites,
       toolTrace,
       toolCallsUsed: toolTrace.map((entry) => entry.toolName),
+      skillsUsed: [],
+      createdSkillCandidates: [],
+      skillMatchRationale: null,
+      fallbackUsed: false,
       requiresConfirmation: false,
       confirmationPreview: null,
     };

@@ -5,6 +5,8 @@ import { decryptText } from "../lib/encryption";
 import { getManagedProviderRuntimeConfig } from "./provider-registry";
 import { buildHermesInternalHeaders } from "./internal-auth";
 import { runHermesOrchestrationTurn } from "./hermes-orchestrator";
+import { getAgentToolCatalog } from "./hermes-tools";
+import { listAvailableAgentSkills } from "./skills";
 import { getActiveManagedProviderSelection } from "./system-settings";
 import type {
   AgentChannel,
@@ -35,7 +37,7 @@ const proposedMemoryWriteSchema = z.object({
 
 const agentToolTraceSchema = z.object({
   toolName: z.string().trim().min(1),
-  phase: z.enum(["read", "plan", "memory", "research"]),
+  phase: z.enum(["read", "scan", "plan", "memory", "research"]),
   status: z.enum(["ok", "failed", "skipped"]),
   latencyMs: z.number().finite().min(0),
   summary: z.string().trim().min(1),
@@ -52,6 +54,10 @@ const hermesResponseSchema = z.object({
   proposedMemoryWrites: z.array(proposedMemoryWriteSchema).optional(),
   toolTrace: z.array(agentToolTraceSchema).optional(),
   toolCallsUsed: z.array(z.string()).optional(),
+  skillsUsed: z.array(z.string()).optional(),
+  createdSkillCandidates: z.array(z.string()).optional(),
+  skillMatchRationale: z.string().trim().nullable().optional(),
+  fallbackUsed: z.boolean().optional(),
   requiresConfirmation: z.boolean().optional(),
   confirmationPreview: z.record(z.unknown()).nullable().optional(),
 });
@@ -149,6 +155,14 @@ export function normalizeHermesTurnResponse(payload: unknown): HermesRespondResu
     toolCallsUsed: Array.isArray(parsed.toolCallsUsed)
       ? parsed.toolCallsUsed.filter((entry): entry is string => typeof entry === "string")
       : [],
+    skillsUsed: Array.isArray(parsed.skillsUsed)
+      ? parsed.skillsUsed.filter((entry): entry is string => typeof entry === "string")
+      : [],
+    createdSkillCandidates: Array.isArray(parsed.createdSkillCandidates)
+      ? parsed.createdSkillCandidates.filter((entry): entry is string => typeof entry === "string")
+      : [],
+    skillMatchRationale: parsed.skillMatchRationale ?? null,
+    fallbackUsed: Boolean(parsed.fallbackUsed),
     requiresConfirmation: Boolean(parsed.requiresConfirmation),
     confirmationPreview: (parsed.confirmationPreview ||
       null) as HermesRespondResult["confirmationPreview"],
@@ -216,19 +230,54 @@ export async function runHermesAgentTurn(input: {
   semanticRouteHint?: AgentSemanticRoute | null;
 }): Promise<HermesRespondResult> {
   const modelRuntime = await buildModelRuntimeConfig(input.profile, input.secret);
+  const availableSkills = await listAvailableAgentSkills(input.userId);
   const requestPayload: HermesRespondRequest = {
     userId: input.userId,
     threadId: input.threadId,
     channel: input.channel,
     message: input.message,
     requestMode: input.requestMode,
+    orchestrationMode: "hermes_first",
     toolAllowlist: [
-      "preview_direct_operation",
-      "get_hosted_research",
+      "get_tool_catalog",
       "get_portfolio_summary",
+      "get_operator_overview",
+      "get_balance_state",
+      "get_holdings",
+      "get_daily_boost_state",
+      "get_daily_boost_eligibility",
+      "get_community_boost_state",
+      "get_watchlists",
+      "get_pending_bundle",
       "get_canonical_knowledge",
+      "get_hosted_research",
       "list_user_memories",
+      "list_runtime_skills",
+      "scan_daily_boost_candidates",
+      "scan_open_boost_slots",
+      "scan_scout_opportunities",
+      "scan_idle_balance_options",
+      "scan_portfolio_cleanup_levers",
+      "scan_watchlist_targets",
+      "scan_community_boost_candidates",
+      "scan_news_impact",
+      "scan_top_market_opportunities",
+      "preview_direct_operation",
+      "preview_multi_action_bundle",
+      "stage_action_bundle",
+      "confirm_pending_bundle",
+      "cancel_pending_bundle",
+      "create_runtime_skill",
+      "archive_runtime_skill",
+      "propose_global_pattern",
+      "respond_to_user_turn",
     ],
+    toolCatalog: getAgentToolCatalog(),
+    availableSkills,
+    skillPolicy: {
+      allowRuntimeSkillCreation: true,
+      requireAdminApprovalForGlobalSkills: true,
+    },
     memoryMode: "read_write",
     autoExecutionPolicy: {
       allowAdvisoryJobs: true,
@@ -296,6 +345,7 @@ export async function runHermesAgentTurn(input: {
     const fallbackResult: HermesRespondResult = {
       ...localResult,
       toolTrace,
+      fallbackUsed: Boolean(fallbackReason),
     };
 
     await logRuntimeSession({
