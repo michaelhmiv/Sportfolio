@@ -480,19 +480,28 @@ async function getProviderLiveEarningsPlayersForGame(
 }
 
 async function getLiveEarningsPlayersForGame(game: DailyGame): Promise<LiveEarningsPlayer[]> {
-  try {
-    const providerPlayers = await getProviderLiveEarningsPlayersForGame(game);
-    if (providerPlayers.length > 0) {
-      return providerPlayers;
-    }
-  } catch (error: any) {
-    console.warn(
-      `[live-earnings] Provider player stats unavailable for ${game.gameId}:`,
-      error?.message || error,
-    );
-  }
+  const cacheKey = `live_earnings:players:${String(game.sport || "").toUpperCase()}:${game.gameId}`;
+  const LIVE_EARNINGS_PROVIDER_CACHE_TTL_MS = 15 * 1000;
 
-  return getStoredLiveEarningsPlayersForGame(game);
+  return getOrCompute(
+    cacheKey,
+    async () => {
+      try {
+        const providerPlayers = await getProviderLiveEarningsPlayersForGame(game);
+        if (providerPlayers.length > 0) {
+          return providerPlayers;
+        }
+      } catch (error: any) {
+        console.warn(
+          `[live-earnings] Provider player stats unavailable for ${game.gameId}:`,
+          error?.message || error,
+        );
+      }
+
+      return getStoredLiveEarningsPlayersForGame(game);
+    },
+    LIVE_EARNINGS_PROVIDER_CACHE_TTL_MS,
+  );
 }
 
 async function buildUserLiveEarningsSummary(params: {
