@@ -40,6 +40,7 @@ import { BoostCeremonyOverlay } from "@/components/ceremonies/boost-ceremony-ove
 import { BoostResultsPodium } from "@/components/ceremonies/boost-results-podium";
 import { LiveFantasyPoints } from "@/components/boost/live-fantasy-points";
 import { useBoostNearMissDetector } from "@/components/boost/boost-near-miss";
+import { SPORTS as GLOBAL_SPORTS } from "@/lib/sport-context";
 
 interface BoostCeremonyData {
   playerName: string;
@@ -152,7 +153,7 @@ const MULTIPLIER_SLOTS = [
   { tier: 2, label: "2x", color: "bg-blue-500", icon: TrendingUp },
 ];
 
-const SPORTS = ["All", "NBA", "NFL", "MLB"];
+const COMMUNITY_FILTER_SPORTS = ["All", ...GLOBAL_SPORTS.filter((sport) => sport !== "ALL")];
 
 // Helper to get today's date in Eastern Time
 function getTodayET(): Date {
@@ -482,24 +483,24 @@ export default function Power() {
             </div>
 
             {/* Quick stats */}
-            <div className="grid gap-1.5 text-xs sm:gap-2 sm:grid-cols-3 xl:grid-cols-4">
-              <div className="terminal-shell px-2.5 py-1.5 sm:px-3 sm:py-2">
+            <div className="flex gap-1.5 overflow-x-auto pb-1 text-xs sm:grid sm:overflow-visible sm:pb-0 sm:gap-2 sm:grid-cols-3 xl:grid-cols-4">
+              <div className="terminal-shell min-w-[8rem] px-2.5 py-1.5 sm:min-w-0 sm:px-3 sm:py-2">
                 <p className="terminal-label">Active Slots</p>
                 <p className="terminal-value text-sm">{activeBoosts}/4</p>
               </div>
               {lockedBoosts > 0 && (
-                <div className="terminal-shell px-2.5 py-1.5 sm:px-3 sm:py-2">
+                <div className="terminal-shell min-w-[8rem] px-2.5 py-1.5 sm:min-w-0 sm:px-3 sm:py-2">
                   <p className="terminal-label">Live Slots</p>
                   <p className="terminal-value text-sm">{lockedBoosts}</p>
                 </div>
               )}
               {userPremiumShares > 0 && (
-                <div className="terminal-shell px-2.5 py-1.5 sm:px-3 sm:py-2">
+                <div className="terminal-shell min-w-[8rem] px-2.5 py-1.5 sm:min-w-0 sm:px-3 sm:py-2">
                   <p className="terminal-label">Premium Shares</p>
                   <p className="terminal-value text-sm">{userPremiumShares}</p>
                 </div>
               )}
-              <div className="terminal-shell px-2.5 py-1.5 sm:px-3 sm:py-2">
+              <div className="terminal-shell min-w-[8rem] px-2.5 py-1.5 sm:min-w-0 sm:px-3 sm:py-2">
                 <p className="terminal-label">Est. Payout</p>
                 <p className="terminal-value text-sm">${totalEstimated}</p>
               </div>
@@ -703,7 +704,7 @@ export default function Power() {
                     <Plus className="h-3 w-3 mr-1" />
                     Add
                   </Button>
-                  {SPORTS.map((sport) => (
+                  {COMMUNITY_FILTER_SPORTS.map((sport) => (
                     <Button
                       key={sport}
                       size="sm"
