@@ -94,9 +94,9 @@ export default function BlogPost() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background p-6 md:p-12">
+      <div className="terminal-page p-6 md:p-12">
         <div className="max-w-3xl mx-auto">
-          <div className="text-center">Loading...</div>
+          <div className="terminal-subtle text-center">Loading...</div>
         </div>
       </div>
     );
@@ -104,16 +104,16 @@ export default function BlogPost() {
 
   if (error || !data) {
     return (
-      <div className="min-h-screen bg-background p-6 md:p-12">
+      <div className="terminal-page p-6 md:p-12">
         <div className="max-w-3xl mx-auto">
-          <Card>
+          <Card variant="terminal">
             <CardContent className="py-12 text-center">
-              <h2 className="text-2xl font-bold mb-4">Blog Post Not Found</h2>
-              <p className="text-muted-foreground mb-6">
+              <h2 className="terminal-heading mb-4 text-lg">Blog Post Not Found</h2>
+              <p className="terminal-subtle mb-6">
                 The blog post you're looking for doesn't exist or has been removed.
               </p>
               <Link href="/blog">
-                <Button>
+                <Button variant="terminal">
                   <ArrowLeft className="w-4 h-4 mr-2" />
                   Back to Blog
                 </Button>
@@ -128,7 +128,7 @@ export default function BlogPost() {
   const { post, author } = data;
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="terminal-page">
       <SchemaOrg
         schema={schemas.createArticle({
           title: post.title,
@@ -142,7 +142,11 @@ export default function BlogPost() {
       <div className="max-w-3xl mx-auto p-6 md:p-12">
         {/* Back Button */}
         <Link href="/blog">
-          <Button variant="ghost" className="gap-2 mb-6" data-testid="button-back-to-blog">
+          <Button
+            variant="terminalOutline"
+            className="gap-2 mb-6"
+            data-testid="button-back-to-blog"
+          >
             <ArrowLeft className="w-4 h-4" />
             Back to Blog
           </Button>
@@ -150,11 +154,15 @@ export default function BlogPost() {
 
         {/* Article */}
         <article data-testid="article-blog-post">
-          <header className="mb-6">
-            <h1 className="text-2xl font-bold mb-3" data-testid="heading-blog-post-title">
+          <header className="terminal-shell mb-6 p-6">
+            <div className="terminal-strip mb-4">Market Briefing</div>
+            <h1
+              className="text-2xl font-bold mb-3 terminal-heading"
+              data-testid="heading-blog-post-title"
+            >
               {post.title}
             </h1>
-            <div className="flex items-center gap-4 text-sm text-muted-foreground">
+            <div className="terminal-subtle flex flex-wrap items-center gap-4 text-sm">
               <div className="flex items-center gap-1">
                 <Calendar className="w-4 h-4" />
                 {new Date(post.publishedAt).toLocaleDateString("en-US", {
@@ -176,8 +184,8 @@ export default function BlogPost() {
             </div>
           </header>
 
-          <Card>
-            <CardContent className="p-6 prose-sm dark:prose-invert max-w-none">
+          <Card variant="terminal">
+            <CardContent className="prose prose-sm max-w-none p-6 dark:prose-invert">
               <ReactMarkdown remarkPlugins={[remarkGfm]} data-testid="content-blog-post">
                 {post.content}
               </ReactMarkdown>
@@ -188,7 +196,7 @@ export default function BlogPost() {
         {/* Back Button (bottom) */}
         <div className="mt-12">
           <Link href="/blog">
-            <Button variant="outline" className="gap-2">
+            <Button variant="terminalOutline" className="gap-2">
               <ArrowLeft className="w-4 h-4" />
               Back to Blog
             </Button>

@@ -16,7 +16,6 @@ import {
   Crown,
   Clock,
   ShoppingCart,
-  Trophy,
   ArrowUpRight,
   ArrowDownRight,
   ArrowUpDown,
@@ -96,7 +95,7 @@ interface PortfolioData {
 interface UserActivity {
   id: string;
   timestamp: string;
-  category: "scout" | "market" | "contest";
+  category: "scout" | "market";
   type: string;
   description: string;
   cashDelta?: string;
@@ -105,15 +104,11 @@ interface UserActivity {
   metadata: {
     playerName?: string;
     playerId?: number;
-    contestId?: string;
-    contestName?: string;
     tradePrice?: string;
     orderType?: string;
     side?: string;
     quantity?: number;
     shares?: number;
-    entryFee?: string;
-    payout?: string;
     rank?: number;
     totalEntries?: number;
   };
@@ -674,7 +669,7 @@ export default function Portfolio() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background p-3 sm:p-4">
+      <div className="terminal-page p-3 sm:p-4">
         <div className="max-w-7xl mx-auto">
           <Shimmer height="36px" width="150px" className="mb-6 hidden sm:block" />
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
@@ -690,7 +685,7 @@ export default function Portfolio() {
   }
 
   return (
-    <div className="min-h-screen bg-background p-3 sm:p-4">
+    <div className="terminal-page p-3 sm:p-4">
       <div className="max-w-7xl mx-auto">
         <div className="mb-3">
           <div className="flex items-center justify-between mb-3">
@@ -813,7 +808,8 @@ export default function Portfolio() {
               </Card>
 
               <Card
-                className={`${data?.isPremium ? "border-yellow-500/50 bg-gradient-to-br from-yellow-500/5 to-amber-500/5" : ""} hover-elevate cursor-pointer`}
+                variant="terminal"
+                className={`${data?.isPremium ? "border-yellow-500/30 bg-yellow-500/5" : ""} hover-elevate cursor-pointer`}
               >
                 <Link href="/premium">
                   <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
@@ -844,7 +840,7 @@ export default function Portfolio() {
                     {!data?.isPremium && (data?.premiumShares || 0) > 0 && (
                       <Button
                         size="sm"
-                        variant="outline"
+                        variant="terminalOutline"
                         className="mt-2 h-7 text-xs border-yellow-500/50 text-yellow-600 hover:bg-yellow-500/10"
                         onClick={(e) => {
                           e.preventDefault();
@@ -865,7 +861,7 @@ export default function Portfolio() {
         </div>
 
         {/* Portfolio Value Chart */}
-        <Card className="mb-4 sm:mb-4 relative overflow-hidden">
+        <Card variant="terminal" className="mb-4 sm:mb-4 relative overflow-hidden">
           <CardAccent variant="top" color="primary" intensity="medium" />
           <BackgroundPattern variant="grid" color="primary" opacity={0.02} />
           <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2 relative z-10">
@@ -876,7 +872,7 @@ export default function Portfolio() {
               {["1D", "7D", "1M", "1Y", "ALL"].map((range) => (
                 <Button
                   key={range}
-                  variant={chartTimeRange === range ? "default" : "outline"}
+                  variant={chartTimeRange === range ? "terminal" : "terminalOutline"}
                   size="sm"
                   onClick={() => setChartTimeRange(range)}
                   className="h-7 px-2 text-xs"
@@ -947,14 +943,15 @@ export default function Portfolio() {
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-3 sm:space-y-3">
           <div className="flex items-center justify-between gap-2">
-            <TabsList>
-              <TabsTrigger value="holdings" data-testid="tab-holdings">
+            <TabsList variant="terminal">
+              <TabsTrigger variant="terminal" value="holdings" data-testid="tab-holdings">
                 Holdings
               </TabsTrigger>
-              <TabsTrigger value="liquidity" data-testid="tab-liquidity">
+              <TabsTrigger variant="terminal" value="liquidity" data-testid="tab-liquidity">
                 Liquidity
               </TabsTrigger>
               <TabsTrigger
+                variant="terminal"
                 value="activity"
                 data-testid="tab-activity"
                 className={
@@ -988,9 +985,9 @@ export default function Portfolio() {
             <div className="flex items-center gap-2">
               {/* View Toggle - Holdings only */}
               {activeTab === "holdings" && (
-                <div className="flex items-center bg-muted rounded-lg p-1">
+                <div className="terminal-shell flex items-center p-1">
                   <Button
-                    variant={viewMode === "card" ? "secondary" : "ghost"}
+                    variant={viewMode === "card" ? "terminal" : "terminalOutline"}
                     size="sm"
                     className="h-7 px-2"
                     onClick={() => handleViewModeChange("card")}
@@ -999,7 +996,7 @@ export default function Portfolio() {
                     <LayoutGrid className="w-4 h-4" />
                   </Button>
                   <Button
-                    variant={viewMode === "list" ? "secondary" : "ghost"}
+                    variant={viewMode === "list" ? "terminal" : "terminalOutline"}
                     size="sm"
                     className="h-7 px-2"
                     onClick={() => handleViewModeChange("list")}
@@ -1011,7 +1008,7 @@ export default function Portfolio() {
               )}
               <Link href="/analytics">
                 <Button
-                  variant="outline"
+                  variant="terminalOutline"
                   size="sm"
                   className="gap-2 bg-primary/5 border-primary/30 hover:bg-primary/10"
                   data-testid="button-analytics-portfolio"
@@ -1167,14 +1164,14 @@ export default function Portfolio() {
                       <tbody>
                         {(data?.premiumShares ?? 0) > 0 && data && (
                           <tr
-                            className="border-b hover-elevate bg-gradient-to-r from-yellow-500/5 to-amber-500/5"
+                            className="border-b border-border bg-yellow-500/5 hover-elevate"
                             data-testid="row-premium-shares"
                           >
                             {/* Mobile layout */}
                             <td className="px-2 py-2 sm:hidden" colSpan={7}>
                               <div className="flex items-center justify-between gap-2">
                                 <div className="flex items-center gap-2 min-w-0 flex-1">
-                                  <div className="w-8 h-8 rounded-full bg-yellow-500/20 flex items-center justify-center flex-shrink-0">
+                                  <div className="terminal-avatar flex-shrink-0 border-yellow-500/20 bg-yellow-500/10 text-yellow-300">
                                     <Crown className="w-4 h-4 text-yellow-500" />
                                   </div>
                                   <div className="min-w-0 flex-1">
@@ -1210,7 +1207,8 @@ export default function Portfolio() {
                                     size="sm"
                                     onClick={() => redeemPremiumMutation.mutate()}
                                     disabled={redeemPremiumMutation.isPending || data.isPremium}
-                                    className="bg-yellow-500 hover:bg-yellow-600 text-black"
+                                    variant="terminal"
+                                    className="border-yellow-500/30 bg-yellow-500/20 text-yellow-200 hover:bg-yellow-500/25"
                                     data-testid="button-redeem-premium"
                                   >
                                     {data.isPremium ? "Active" : "Redeem"}
@@ -1222,7 +1220,7 @@ export default function Portfolio() {
                             {/* Desktop layout */}
                             <td className="px-2 py-1.5 hidden sm:table-cell">
                               <div className="flex items-center gap-2">
-                                <div className="w-8 h-8 rounded-full bg-yellow-500/20 flex items-center justify-center flex-shrink-0">
+                                <div className="terminal-avatar flex-shrink-0 border-yellow-500/20 bg-yellow-500/10 text-yellow-300">
                                   <Crown className="w-4 h-4 text-yellow-500" />
                                 </div>
                                 <div>
@@ -1257,7 +1255,8 @@ export default function Portfolio() {
                                   size="sm"
                                   onClick={() => redeemPremiumMutation.mutate()}
                                   disabled={redeemPremiumMutation.isPending || data.isPremium}
-                                  className="bg-yellow-500 hover:bg-yellow-600 text-black"
+                                  variant="terminal"
+                                  className="border-yellow-500/30 bg-yellow-500/20 text-yellow-200 hover:bg-yellow-500/25"
                                   data-testid="button-redeem-premium-desktop"
                                 >
                                   {data.isPremium ? "Active" : "Redeem"}
@@ -1282,7 +1281,7 @@ export default function Portfolio() {
                                   <td className="px-2 py-2 sm:hidden" colSpan={7}>
                                     <div className="flex items-center justify-between gap-2">
                                       <div className="flex items-center gap-2 min-w-0 flex-1">
-                                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                                        <div className="terminal-avatar flex-shrink-0">
                                           <span className="font-bold text-xs">
                                             {group.player.firstName[0]}
                                             {group.player.lastName[0]}
@@ -1365,7 +1364,7 @@ export default function Portfolio() {
                                       </div>
                                       <div className="flex items-center gap-1 flex-shrink-0">
                                         <Button
-                                          variant="outline"
+                                          variant="terminalOutline"
                                           size="sm"
                                           className="h-7 px-2 text-xs"
                                           onClick={(e) => {
@@ -1381,7 +1380,7 @@ export default function Portfolio() {
                                         </Button>
                                         <CollapsibleTrigger asChild>
                                           <Button
-                                            variant="ghost"
+                                            variant="terminalOutline"
                                             size="sm"
                                             className="flex-shrink-0"
                                             data-testid={`button-expand-${group.player.id}`}
@@ -1398,7 +1397,7 @@ export default function Portfolio() {
                                     <div className="flex items-center gap-2">
                                       <CollapsibleTrigger asChild>
                                         <Button
-                                          variant="ghost"
+                                          variant="terminalOutline"
                                           size="sm"
                                           className="p-0 hover:bg-transparent"
                                           data-testid={`button-expand-${group.player.id}`}
@@ -1406,7 +1405,7 @@ export default function Portfolio() {
                                           <ChevronRight className="w-4 h-4 mr-1 transition-transform data-[state=open]:rotate-90" />
                                         </Button>
                                       </CollapsibleTrigger>
-                                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                                      <div className="terminal-avatar flex-shrink-0">
                                         <span className="font-bold text-xs">
                                           {group.player.firstName[0]}
                                           {group.player.lastName[0]}
@@ -1797,12 +1796,8 @@ export default function Portfolio() {
                   /* Loading state */
                   <div className="space-y-3">
                     {[1, 2, 3].map((i) => (
-                      <div key={i} className="flex items-center gap-3 p-3 rounded-md border">
-                        <Shimmer
-                          width="40px"
-                          height="40px"
-                          className="rounded-full flex-shrink-0"
-                        />
+                      <div key={i} className="terminal-shell flex items-center gap-3 p-3">
+                        <Shimmer width="40px" height="40px" className="rounded-sm flex-shrink-0" />
                         <div className="flex-1 space-y-2">
                           <Shimmer height="14px" width="60%" />
                           <Shimmer height="12px" width="80%" />
@@ -1819,7 +1814,7 @@ export default function Portfolio() {
                     </div>
                     <Button
                       size="sm"
-                      variant="outline"
+                      variant="terminalOutline"
                       onClick={() => lpRefetch()}
                       className="gap-2"
                     >
@@ -1844,7 +1839,7 @@ export default function Portfolio() {
                 ) : (
                   <>
                     {/* Aggregate totals */}
-                    <div className="grid grid-cols-2 gap-3 p-3 bg-muted/50 rounded-lg">
+                    <div className="terminal-shell grid grid-cols-2 gap-3 p-3">
                       <div>
                         <div className="text-xs text-muted-foreground uppercase tracking-wide">
                           Total Value
@@ -1947,7 +1942,7 @@ export default function Portfolio() {
 
         {/* Power Up Dialog */}
         <Dialog open={condenseDialogOpen} onOpenChange={setCondenseDialogOpen}>
-          <DialogContent className="sm:max-w-md">
+          <DialogContent className="sm:max-w-md rounded-sm border border-border bg-card">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Zap className="w-5 h-5 text-purple-400" />
@@ -1961,7 +1956,7 @@ export default function Portfolio() {
             {selectedPlayerForCondense && data?.holdings && (
               <div className="space-y-4 py-4">
                 {/* Player info */}
-                <div className="p-3 bg-muted/50 rounded-lg">
+                <div className="terminal-shell p-3">
                   <div className="font-medium">{selectedPlayerForCondense.name}</div>
                   {(() => {
                     const holding = data.holdings.find(
@@ -1991,6 +1986,7 @@ export default function Portfolio() {
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Shares to Power Up</label>
                   <Input
+                    variant="terminal"
                     type="number"
                     value={sharesToCondenseInput}
                     onChange={(e) => setSharesToCondenseInput(e.target.value)}
@@ -2018,7 +2014,7 @@ export default function Portfolio() {
                   const remainingShares = parseFloat(holding.quantity) - shares;
 
                   return (
-                    <div className="p-3 bg-purple-500/10 border border-purple-500/20 rounded-lg space-y-2">
+                    <div className="terminal-shell space-y-2 border-purple-500/20 bg-purple-500/10 p-3">
                       <div className="text-sm font-medium text-purple-400">Conversion Result</div>
                       <div className="flex justify-between text-sm">
                         <span>Regular shares consumed:</span>
@@ -2040,13 +2036,14 @@ export default function Portfolio() {
               </div>
             )}
             <DialogFooter>
-              <Button variant="outline" onClick={() => setCondenseDialogOpen(false)}>
+              <Button variant="terminalOutline" onClick={() => setCondenseDialogOpen(false)}>
                 Cancel
               </Button>
               <Button
+                variant="terminal"
                 onClick={handleCondenseFromDialog}
                 disabled={condenseSharesMutation.isPending}
-                className="bg-purple-500 hover:bg-purple-600"
+                className="border-purple-500/30 bg-purple-500/20 text-purple-200 hover:bg-purple-500/25"
               >
                 {condenseSharesMutation.isPending ? "Powering Up..." : "Power Up Shares"}
               </Button>
@@ -2072,11 +2069,11 @@ function ActivityFeed() {
 
   if (isLoading) {
     return (
-      <Card>
+      <Card variant="terminal">
         <CardContent className="p-4 space-y-3">
           {[85, 75, 90, 70, 80].map((width, i) => (
             <div key={i} className="flex items-center gap-3">
-              <Shimmer width="40px" height="40px" className="rounded-full flex-shrink-0" />
+              <Shimmer width="40px" height="40px" className="rounded-sm flex-shrink-0" />
               <div className="flex-1 space-y-2">
                 <Shimmer height="14px" width={`${width}%`} />
                 <Shimmer height="12px" width="120px" />
@@ -2091,7 +2088,7 @@ function ActivityFeed() {
 
   if (!activityData || activityData.activities.length === 0) {
     return (
-      <Card>
+      <Card variant="terminal">
         <CardHeader>
           <CardTitle className="text-sm font-medium uppercase tracking-wide">
             Activity History
@@ -2101,7 +2098,7 @@ function ActivityFeed() {
           <EmptyState
             icon="inbox"
             title="No activity yet"
-            description="Start trading, scouting, or entering contests to see your activity here."
+            description="Start trading or scouting to see your activity here."
             size="sm"
             className="py-8"
             data-testid="empty-activity"
@@ -2111,22 +2108,20 @@ function ActivityFeed() {
     );
   }
 
-  const getActivityIcon = (category: string, type: string) => {
+  const getActivityIcon = (category: string) => {
     if (category === "scout") return <Clock className="w-4 h-4" />;
     if (category === "market") return <ShoppingCart className="w-4 h-4" />;
-    if (category === "contest") return <Trophy className="w-4 h-4" />;
     return null;
   };
 
   const getCategoryColor = (category: string) => {
     if (category === "scout") return "text-yellow-500";
     if (category === "market") return "text-blue-500";
-    if (category === "contest") return "text-purple-500";
     return "text-muted-foreground";
   };
 
   return (
-    <Card>
+    <Card variant="terminal">
       <CardHeader>
         <CardTitle className="text-sm font-medium uppercase tracking-wide">
           Activity History
@@ -2147,9 +2142,9 @@ function ActivityFeed() {
               >
                 {/* Icon */}
                 <div
-                  className={`flex-shrink-0 w-8 h-8 rounded-full bg-muted flex items-center justify-center ${getCategoryColor(activity.category)}`}
+                  className={`terminal-avatar flex-shrink-0 ${getCategoryColor(activity.category)}`}
                 >
-                  {getActivityIcon(activity.category, activity.type)}
+                  {getActivityIcon(activity.category)}
                 </div>
 
                 {/* Content */}
@@ -2159,13 +2154,6 @@ function ActivityFeed() {
                     {activity.metadata.playerId ? (
                       <Link
                         href={`/player/${activity.metadata.playerId}`}
-                        className="hover:underline"
-                      >
-                        {activity.description}
-                      </Link>
-                    ) : activity.metadata.contestId ? (
-                      <Link
-                        href={`/contest/${activity.metadata.contestId}`}
                         className="hover:underline"
                       >
                         {activity.description}
@@ -2209,7 +2197,7 @@ function ActivityFeed() {
                       </>
                     )}
 
-                    {/* Show rank for contest payouts */}
+                    {/* Show ranking metadata when available */}
                     {activity.metadata.rank && activity.metadata.totalEntries && (
                       <>
                         <span>•</span>

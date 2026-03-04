@@ -131,21 +131,24 @@ export function OnboardingMissions() {
   if (completedCount === missions.length) return null;
 
   return (
-    <Card className="border border-primary/20 bg-card overflow-hidden relative shadow-lg rounded-lg">
+    <Card
+      variant="terminal"
+      className="relative overflow-hidden border-primary/20 shadow-[0_10px_30px_rgba(2,6,23,0.22)]"
+    >
       <CardHeader
         className="py-3 px-4 cursor-pointer select-none"
         onClick={() => setIsExpanded(!isExpanded)}
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="p-1 rounded-lg bg-primary/10 text-primary">
+            <div className="terminal-avatar h-7 w-7 border-primary/20 bg-primary/10 text-primary">
               <Star className="w-4 h-4 fill-primary" />
             </div>
-            <CardTitle className="text-sm font-bold tracking-tight">Rookie Missions</CardTitle>
+            <CardTitle className="terminal-heading text-sm">Rookie Missions</CardTitle>
           </div>
           <div className="flex items-center gap-2">
             <Button
-              variant="ghost"
+              variant="terminalOutline"
               size="sm"
               className="h-5 px-1.5 text-[10px]"
               onClick={(event) => {
@@ -194,7 +197,7 @@ export function OnboardingMissions() {
           >
             <CardContent className="px-4 pb-4 pt-0 space-y-3">
               <div className="space-y-1">
-                <div className="flex justify-between text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">
+                <div className="flex justify-between font-mono text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">
                   <span>Career Progress</span>
                   <span>{Math.round(progress)}%</span>
                 </div>
@@ -216,7 +219,7 @@ export function OnboardingMissions() {
                   >
                     <Link href={mission.link}>
                       <div
-                        className={`group p-2.5 rounded-lg border transition-all cursor-pointer flex items-center justify-between ${
+                        className={`terminal-shell group flex cursor-pointer items-center justify-between p-2.5 transition-all ${
                           mission.completed
                             ? "bg-primary/5 border-primary/10 opacity-70"
                             : "bg-muted/20 border-white/5 hover:border-primary/30 hover:bg-muted/30"
@@ -224,10 +227,10 @@ export function OnboardingMissions() {
                       >
                         <div className="flex items-center gap-2.5">
                           <div
-                            className={`p-1.5 rounded-md ${
+                            className={`flex h-8 w-8 items-center justify-center rounded-sm border ${
                               mission.completed
-                                ? "bg-primary/15 text-primary"
-                                : "bg-card text-muted-foreground group-hover:text-primary transition-colors border border-white/5"
+                                ? "border-primary/15 bg-primary/15 text-primary"
+                                : "border-white/5 bg-card text-muted-foreground group-hover:text-primary transition-colors"
                             }`}
                           >
                             {mission.icon}

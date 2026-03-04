@@ -41,6 +41,7 @@ import {
   listAvailableAgentSkills,
   proposeGlobalSkillCandidate,
 } from "./skills";
+import { getCoreHermesToolCatalog } from "./hermes-tool-registry";
 import type {
   AgentChannel,
   AgentSkillStep,
@@ -320,12 +321,22 @@ const AGENT_TOOL_CATALOG: AgentToolDefinition[] = [
 const BOOST_SLOT_TIERS = [5, 4, 3, 2] as const;
 
 export function getAgentToolCatalog(): AgentToolDefinition[] {
-  return AGENT_TOOL_CATALOG.map((entry) => ({
-    ...entry,
-    whenToUse: [...entry.whenToUse],
-    whenNotToUse: [...entry.whenNotToUse],
-    examplePrompts: [...entry.examplePrompts],
-  }));
+  const merged = new Map<string, AgentToolDefinition>();
+
+  for (const entry of AGENT_TOOL_CATALOG) {
+    merged.set(entry.toolName, {
+      ...entry,
+      whenToUse: [...entry.whenToUse],
+      whenNotToUse: [...entry.whenNotToUse],
+      examplePrompts: [...entry.examplePrompts],
+    });
+  }
+
+  for (const entry of getCoreHermesToolCatalog()) {
+    merged.set(entry.toolName, entry);
+  }
+
+  return [...merged.values()];
 }
 
 function toStringValue(value: unknown): string {
@@ -419,10 +430,12 @@ function parseProposedMemoryWrites(value: unknown): ProposedMemoryWrite[] {
   return proposedMemoryWritesSchema.parse(value);
 }
 
-async function loadOperatorToolContext(userId: string, message: string) {
+async function loadOperatorToolContext(userId: string, message: string, rawSport?: unknown) {
   const profile = (await getScoutAgentProfile(userId)).profile;
+  const sportOverride = toStringValue(rawSport).toUpperCase() || null;
   const context = await loadScoutAgentContext(userId, profile, {
     chatRequest: message,
+    sportOverride,
   });
 
   return {
@@ -644,6 +657,7 @@ async function buildOperatorScan(
   const { context } = await loadOperatorToolContext(
     input.userId,
     toStringValue(input.args?.message),
+    input.args?.sport,
   );
   const assignedScouts = Math.max(0, context.maxScouts - context.remainingScouts);
   const candidateNames = context.recommendedTargets
@@ -1706,6 +1720,7 @@ export async function runHermesReadTool(input: {
       const { context } = await loadOperatorToolContext(
         input.userId,
         toStringValue(input.args?.message),
+        input.args?.sport,
       );
 
       return {
@@ -1729,6 +1744,7 @@ export async function runHermesReadTool(input: {
       const { context } = await loadOperatorToolContext(
         input.userId,
         toStringValue(input.args?.message),
+        input.args?.sport,
       );
       return context.operatorOverview;
     }
@@ -1736,6 +1752,7 @@ export async function runHermesReadTool(input: {
       const { context } = await loadOperatorToolContext(
         input.userId,
         toStringValue(input.args?.message),
+        input.args?.sport,
       );
       return {
         availableBalance: context.operatorOverview.availableBalance,
@@ -1745,9 +1762,13 @@ export async function runHermesReadTool(input: {
     }
     case "get_holdings": {
       const limit = toPositiveInteger(input.args?.limit) || 25;
+      const requestedSport = toOptionalString(input.args?.sport)?.toUpperCase() || null;
       const holdings = await storage.getUserHoldingsWithPlayers(input.userId);
       return holdings
         .filter((entry) => entry?.holding?.assetType === "player" && entry?.player?.id)
+        .filter((entry) =>
+          requestedSport ? (entry.player.sport || "").toUpperCase() === requestedSport : true,
+        )
         .slice(0, limit)
         .map((entry) => ({
           playerId: entry.player.id,

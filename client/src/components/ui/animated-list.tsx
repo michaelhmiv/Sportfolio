@@ -83,7 +83,7 @@ export function AnimatedActivityItem({
       transition={{ duration: 0.3 }}
       onClick={onClick}
       className={cn(
-        "relative rounded-lg hover:bg-muted/50 transition-colors",
+        "relative rounded-sm transition-colors hover:bg-muted/50",
         onClick && "cursor-pointer",
         className,
       )}
@@ -93,7 +93,7 @@ export function AnimatedActivityItem({
           initial={{ opacity: 1 }}
           animate={{ opacity: 0 }}
           transition={{ duration: 2, delay: 0.5 }}
-          className="absolute inset-0 bg-primary/10 rounded-lg pointer-events-none"
+          className="pointer-events-none absolute inset-0 rounded-sm bg-primary/10"
         />
       )}
       {children}

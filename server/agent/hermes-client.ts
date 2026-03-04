@@ -6,6 +6,7 @@ import { getManagedProviderRuntimeConfig } from "./provider-registry";
 import { buildHermesInternalHeaders } from "./internal-auth";
 import { runHermesOrchestrationTurn } from "./hermes-orchestrator";
 import { getAgentToolCatalog } from "./hermes-tools";
+import { getDefaultHermesToolAllowlist } from "./hermes-tool-registry";
 import { listAvailableAgentSkills } from "./skills";
 import { getActiveManagedProviderSelection } from "./system-settings";
 import type {
@@ -37,7 +38,7 @@ const proposedMemoryWriteSchema = z.object({
 
 const agentToolTraceSchema = z.object({
   toolName: z.string().trim().min(1),
-  phase: z.enum(["read", "scan", "plan", "memory", "research"]),
+  phase: z.enum(["read", "scan", "plan", "action", "memory", "research"]),
   status: z.enum(["ok", "failed", "skipped"]),
   latencyMs: z.number().finite().min(0),
   summary: z.string().trim().min(1),
@@ -231,6 +232,7 @@ export async function runHermesAgentTurn(input: {
 }): Promise<HermesRespondResult> {
   const modelRuntime = await buildModelRuntimeConfig(input.profile, input.secret);
   const availableSkills = await listAvailableAgentSkills(input.userId);
+  const toolCatalog = getAgentToolCatalog();
   const requestPayload: HermesRespondRequest = {
     userId: input.userId,
     threadId: input.threadId,
@@ -239,40 +241,45 @@ export async function runHermesAgentTurn(input: {
     requestMode: input.requestMode,
     orchestrationMode: "hermes_first",
     toolAllowlist: [
-      "get_tool_catalog",
-      "get_portfolio_summary",
-      "get_operator_overview",
-      "get_balance_state",
-      "get_holdings",
-      "get_daily_boost_state",
-      "get_daily_boost_eligibility",
-      "get_community_boost_state",
-      "get_watchlists",
-      "get_pending_bundle",
-      "get_canonical_knowledge",
-      "get_hosted_research",
-      "list_user_memories",
-      "list_runtime_skills",
-      "scan_daily_boost_candidates",
-      "scan_open_boost_slots",
-      "scan_scout_opportunities",
-      "scan_idle_balance_options",
-      "scan_portfolio_cleanup_levers",
-      "scan_watchlist_targets",
-      "scan_community_boost_candidates",
-      "scan_news_impact",
-      "scan_top_market_opportunities",
-      "preview_direct_operation",
-      "preview_multi_action_bundle",
-      "stage_action_bundle",
-      "confirm_pending_bundle",
-      "cancel_pending_bundle",
-      "create_runtime_skill",
+      ...getDefaultHermesToolAllowlist(),
+      ...toolCatalog.map((entry) => entry.toolName),
+      "get_agent_capabilities",
+      "get_user_profile_summary",
+      "get_watchlist_items",
+      "get_player_watchlists",
+      "get_player_stats",
+      "get_daily_boost_history",
+      "get_community_boosts_all",
+      "list_pattern_candidates",
+      "preview_pool_buy",
+      "preview_pool_sell",
+      "preview_lp_add",
+      "preview_lp_add_optimal",
+      "preview_lp_remove",
+      "preview_lp_zap",
+      "preview_condense",
+      "preview_daily_boost_assign",
+      "preview_daily_boost_remove",
+      "preview_watchlist_add",
+      "preview_watchlist_remove",
+      "preview_community_boost_create",
+      "preview_scout_adjustment",
+      "create_agent_thread",
+      "create_watchlist",
+      "update_watchlist",
+      "delete_watchlist",
+      "add_watchlist_player",
+      "remove_watchlist_player",
+      "upsert_user_schedule",
+      "delete_user_schedule",
+      "search_user_memories",
+      "get_user_memory_context",
+      "write_user_memory",
+      "supersede_user_memory",
+      "archive_user_memory",
       "archive_runtime_skill",
-      "propose_global_pattern",
-      "respond_to_user_turn",
     ],
-    toolCatalog: getAgentToolCatalog(),
+    toolCatalog,
     availableSkills,
     skillPolicy: {
       allowRuntimeSkillCreation: true,

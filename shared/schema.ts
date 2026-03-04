@@ -256,8 +256,8 @@ export const holdingsLocks = pgTable(
       .references(() => users.id, { onDelete: "cascade" }),
     assetType: text("asset_type").notNull(), // "player" or "premium"
     assetId: text("asset_id").notNull(), // player ID or "premium"
-    lockType: text("lock_type").notNull(), // "order", "contest", "vesting"
-    lockReferenceId: varchar("lock_reference_id").notNull(), // order ID, contest entry ID, or vesting record ID
+    lockType: text("lock_type").notNull(), // "order" or "vesting"
+    lockReferenceId: varchar("lock_reference_id").notNull(), // order ID or vesting record ID
     lockedQuantity: integer("locked_quantity").notNull().default(0),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
@@ -622,84 +622,6 @@ export const scoutHistory = pgTable(
   }),
 );
 
-// Contests table
-export const contests = pgTable(
-  "contests",
-  {
-    id: varchar("id")
-      .primaryKey()
-      .default(sql`gen_random_uuid()`),
-    name: text("name").notNull(),
-    sport: text("sport").notNull().default("NBA"),
-    contestType: text("contest_type").notNull().default("50/50"),
-    gameDate: timestamp("game_date").notNull(), // Date of games this contest covers
-    week: integer("week"), // NFL week number (null for NBA)
-    gameDay: text("game_day"), // NFL: "thursday", "sunday", "monday" (null for NBA)
-    status: text("status").notNull().default("open"), // "open", "live", "completed"
-    entryFee: decimal("entry_fee", { precision: 20, scale: 2 }).notNull().default("0.00"), // Entry fee per contest
-    totalSharesEntered: integer("total_shares_entered").notNull().default(0),
-    totalPrizePool: decimal("total_prize_pool", { precision: 20, scale: 2 })
-      .notNull()
-      .default("0.00"),
-    entryCount: integer("entry_count").notNull().default(0),
-    startsAt: timestamp("starts_at").notNull(),
-    endsAt: timestamp("ends_at"),
-    createdAt: timestamp("created_at").notNull().defaultNow(),
-  },
-  (table) => ({
-    sportIdx: index("contest_sport_idx").on(table.sport),
-    sportStatusIdx: index("contest_sport_status_idx").on(table.sport, table.status),
-    sportWeekIdx: index("contest_sport_week_idx").on(table.sport, table.week),
-    statusIdx: index("contest_status_idx").on(table.status),
-  }),
-);
-
-// Contest entries table
-export const contestEntries = pgTable(
-  "contest_entries",
-  {
-    id: varchar("id")
-      .primaryKey()
-      .default(sql`gen_random_uuid()`),
-    contestId: varchar("contest_id")
-      .notNull()
-      .references(() => contests.id, { onDelete: "cascade" }),
-    userId: varchar("user_id")
-      .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
-    totalSharesEntered: integer("total_shares_entered").notNull().default(0),
-    totalScore: decimal("total_score", { precision: 10, scale: 2 }).notNull().default("0.00"),
-    rank: integer("rank"),
-    payout: decimal("payout", { precision: 20, scale: 2 }).notNull().default("0.00"),
-    createdAt: timestamp("created_at").notNull().defaultNow(),
-  },
-  (table) => ({
-    contestUserIdx: index("contest_user_idx").on(table.contestId, table.userId),
-  }),
-);
-
-// Contest lineup table - specific player shares entered in a contest
-export const contestLineups = pgTable(
-  "contest_lineups",
-  {
-    id: varchar("id")
-      .primaryKey()
-      .default(sql`gen_random_uuid()`),
-    entryId: varchar("entry_id")
-      .notNull()
-      .references(() => contestEntries.id, { onDelete: "cascade" }),
-    playerId: varchar("player_id")
-      .notNull()
-      .references(() => players.id),
-    sharesEntered: integer("shares_entered").notNull(),
-    fantasyPoints: decimal("fantasy_points", { precision: 10, scale: 2 }).notNull().default("0.00"),
-    earnedScore: decimal("earned_score", { precision: 10, scale: 2 }).notNull().default("0.00"), // Pro-rated score
-  },
-  (table) => ({
-    entryIdx: index("entry_idx").on(table.entryId),
-  }),
-);
-
 // Player game stats table - for all sports
 // NBA: uses dedicated columns for backwards compatibility
 // NFL: uses statsJson for flexible stat storage
@@ -883,7 +805,7 @@ export const marketSnapshots = pgTable(
     transactionsCount: integer("transactions_count").notNull().default(0), // Number of trades that day
     volume: decimal("volume", { precision: 20, scale: 2 }).notNull().default("0"), // Total trading volume that day
     sharesVested: integer("shares_vested").notNull().default(0), // Shares vested that day
-    sharesBurned: integer("shares_burned").notNull().default(0), // Shares used in contests that day
+    sharesBurned: integer("shares_burned").notNull().default(0), // Shares burned by boost participation that day
     totalShares: integer("total_shares").notNull().default(0), // Total shares in economy (snapshot)
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
@@ -904,7 +826,7 @@ export const botProfiles = pgTable(
       .references(() => users.id, { onDelete: "cascade" })
       .unique(),
     botName: text("bot_name").notNull(), // Human-readable name like "MarketMaker_Alpha"
-    botRole: text("bot_role").notNull(), // "market_maker", "trader", "contest", "vester", "casual"
+    botRole: text("bot_role").notNull(), // "market_maker", "trader", "vester", "casual"
     isActive: boolean("is_active").notNull().default(true), // Enable/disable this bot
     // Trading configuration
     aggressiveness: decimal("aggressiveness", { precision: 3, scale: 2 }).notNull().default("0.50"), // 0.0-1.0 scale
@@ -919,9 +841,6 @@ export const botProfiles = pgTable(
       .notNull()
       .default("0.85"), // Claim at 85% of cap
     maxPlayersToVest: integer("max_players_to_vest").notNull().default(5), // Max players to split vesting across
-    // Contest configuration
-    maxContestEntriesPerDay: integer("max_contest_entries_per_day").notNull().default(2),
-    contestEntryBudget: integer("contest_entry_budget").notNull().default(500), // Max shares per entry
     // Timing configuration
     minActionCooldownMs: integer("min_action_cooldown_ms").notNull().default(60000), // 1 minute minimum between actions
     maxActionCooldownMs: integer("max_action_cooldown_ms").notNull().default(300000), // 5 minute max cooldown
@@ -931,7 +850,6 @@ export const botProfiles = pgTable(
     lastActionAt: timestamp("last_action_at"),
     ordersToday: integer("orders_today").notNull().default(0),
     volumeToday: integer("volume_today").notNull().default(0),
-    contestEntriesToday: integer("contest_entries_today").notNull().default(0),
     lastResetDate: timestamp("last_reset_date").notNull().defaultNow(), // Reset daily counters
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -952,7 +870,7 @@ export const botActionsLog = pgTable(
     botUserId: varchar("bot_user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    actionType: text("action_type").notNull(), // "order_placed", "order_cancelled", "vesting_claim", "contest_entry", "vesting_selection"
+    actionType: text("action_type").notNull(), // "order_placed", "order_cancelled", "vesting_claim", "vesting_selection"
     actionDetails: jsonb("action_details").notNull(), // JSON with specific details (order ID, player ID, amounts, etc.)
     triggerReason: text("trigger_reason").notNull(), // Why this action was taken
     success: boolean("success").notNull().default(true),
@@ -1324,6 +1242,48 @@ export const userAgentRuns = pgTable(
     threadCreatedIdx: index("user_agent_runs_thread_created_idx").on(
       table.threadId,
       table.createdAt,
+    ),
+  }),
+);
+
+export const userAgentImprovementCandidates = pgTable(
+  "user_agent_improvement_candidates",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    signature: text("signature").notNull(),
+    userId: varchar("user_id").references(() => users.id, { onDelete: "set null" }),
+    sourceRunId: varchar("source_run_id").references(() => userAgentRuns.id, {
+      onDelete: "set null",
+    }),
+    status: text("status").notNull().default("new"),
+    failureClass: text("failure_class").notNull(),
+    recommendedChangeType: text("recommended_change_type").notNull(),
+    recommendedChange: text("recommended_change").notNull(),
+    affectedTools: jsonb("affected_tools")
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    evidence: jsonb("evidence")
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    confidence: decimal("confidence", { precision: 4, scale: 3 }).notNull().default("0.500"),
+    occurrenceCount: integer("occurrence_count").notNull().default(1),
+    lastSeenAt: timestamp("last_seen_at").notNull().defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    signatureIdx: uniqueIndex("user_agent_improvement_candidates_signature_idx").on(
+      table.signature,
+    ),
+    statusSeenIdx: index("user_agent_improvement_candidates_status_seen_idx").on(
+      table.status,
+      table.lastSeenAt,
+    ),
+    failureSeenIdx: index("user_agent_improvement_candidates_failure_seen_idx").on(
+      table.failureClass,
+      table.lastSeenAt,
     ),
   }),
 );
@@ -1748,7 +1708,7 @@ export const newsFeed = pgTable(
   }),
 );
 
-// Daily Boosts table - replaces contests with daily multiplier-based payouts
+// Daily Boosts table - daily multiplier-based payouts
 // Users select 4 players from their holdings each day for performance multipliers
 export const dailyBoosts = pgTable(
   "daily_boosts",
@@ -1890,7 +1850,6 @@ export const communityBoosts = pgTable(
 export const usersRelations = relations(users, ({ many }) => ({
   holdings: many(holdings),
   orders: many(orders),
-  contestEntries: many(contestEntries),
   blogPosts: many(blogPosts),
   portfolioSnapshots: many(portfolioSnapshots),
   vestingItems: many(vesting),
@@ -1974,33 +1933,6 @@ export const ordersRelations = relations(orders, ({ one }) => ({
   }),
   player: one(players, {
     fields: [orders.playerId],
-    references: [players.id],
-  }),
-}));
-
-export const contestsRelations = relations(contests, ({ many }) => ({
-  entries: many(contestEntries),
-}));
-
-export const contestEntriesRelations = relations(contestEntries, ({ one, many }) => ({
-  contest: one(contests, {
-    fields: [contestEntries.contestId],
-    references: [contests.id],
-  }),
-  user: one(users, {
-    fields: [contestEntries.userId],
-    references: [users.id],
-  }),
-  lineups: many(contestLineups),
-}));
-
-export const contestLineupsRelations = relations(contestLineups, ({ one }) => ({
-  entry: one(contestEntries, {
-    fields: [contestLineups.entryId],
-    references: [contestEntries.id],
-  }),
-  player: one(players, {
-    fields: [contestLineups.playerId],
     references: [players.id],
   }),
 }));
@@ -2190,27 +2122,6 @@ export const insertOrderSchema = createInsertSchema(orders)
     limitPrice: z.string().optional(),
   });
 
-export const insertContestSchema = createInsertSchema(contests).omit({
-  id: true,
-  createdAt: true,
-  entryCount: true,
-  totalSharesEntered: true,
-});
-
-export const insertContestEntrySchema = createInsertSchema(contestEntries).omit({
-  id: true,
-  createdAt: true,
-  totalScore: true,
-  rank: true,
-  payout: true,
-});
-
-export const insertContestLineupSchema = createInsertSchema(contestLineups).omit({
-  id: true,
-  fantasyPoints: true,
-  earnedScore: true,
-});
-
 export const insertDailyGameSchema = createInsertSchema(dailyGames).omit({
   id: true,
   lastFetchedAt: true,
@@ -2318,15 +2229,7 @@ export type InsertJobExecutionLog = z.infer<typeof insertJobExecutionLogSchema>;
 export type PlayerGameStats = typeof playerGameStats.$inferSelect;
 export type InsertPlayerGameStats = z.infer<typeof insertPlayerGameStatsSchema>;
 
-export type Contest = typeof contests.$inferSelect;
-export type InsertContest = z.infer<typeof insertContestSchema>;
-export type ContestEntry = typeof contestEntries.$inferSelect;
-export type ContestLineup = typeof contestLineups.$inferSelect;
-
 export type PriceHistory = typeof priceHistory.$inferSelect;
-
-export type InsertContestEntry = z.infer<typeof insertContestEntrySchema>;
-export type InsertContestLineup = z.infer<typeof insertContestLineupSchema>;
 
 export const insertBlogPostSchema = createInsertSchema(blogPosts).omit({
   id: true,
@@ -2359,7 +2262,6 @@ export const insertBotProfileSchema = createInsertSchema(botProfiles).omit({
   lastActionAt: true,
   ordersToday: true,
   volumeToday: true,
-  contestEntriesToday: true,
   lastResetDate: true,
   createdAt: true,
   updatedAt: true,

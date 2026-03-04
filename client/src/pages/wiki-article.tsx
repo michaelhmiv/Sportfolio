@@ -60,27 +60,23 @@ export default function WikiArticlePage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background p-6 md:p-10">
-        <div className="max-w-5xl mx-auto text-center text-muted-foreground">
-          Loading article...
-        </div>
+      <div className="terminal-page p-6 md:p-10">
+        <div className="terminal-subtle max-w-5xl mx-auto text-center">Loading article...</div>
       </div>
     );
   }
 
   if (error || !data?.article) {
     return (
-      <div className="min-h-screen bg-background p-6 md:p-10">
+      <div className="terminal-page p-6 md:p-10">
         <div className="max-w-5xl mx-auto">
-          <Card>
+          <Card variant="terminal">
             <CardContent className="py-10 text-center">
-              <p className="text-lg font-semibold">Article not found</p>
-              <p className="mt-2 text-sm text-muted-foreground">
-                The requested wiki article is unavailable.
-              </p>
+              <p className="terminal-heading text-sm">Article not found</p>
+              <p className="terminal-subtle mt-2">The requested wiki article is unavailable.</p>
               <div className="mt-6">
                 <Link href="/wiki">
-                  <Button variant="outline">Back to wiki</Button>
+                  <Button variant="terminalOutline">Back to wiki</Button>
                 </Link>
               </div>
             </CardContent>
@@ -96,9 +92,9 @@ export default function WikiArticlePage() {
   );
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="terminal-page">
       <div className="max-w-5xl mx-auto px-4 py-6 md:px-8 md:py-10">
-        <div className="mb-6 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+        <div className="terminal-subtle mb-6 flex flex-wrap items-center gap-2 text-sm">
           <Link href="/wiki" className="inline-flex items-center gap-1 hover:text-foreground">
             <BookOpen className="h-4 w-4" />
             Wiki
@@ -118,35 +114,35 @@ export default function WikiArticlePage() {
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_260px]">
           <div>
             <Link href="/wiki">
-              <Button variant="ghost" className="mb-4 gap-2" data-testid="button-wiki-back">
+              <Button
+                variant="terminalOutline"
+                className="mb-4 gap-2"
+                data-testid="button-wiki-back"
+              >
                 <ArrowLeft className="h-4 w-4" />
                 Back to wiki
               </Button>
             </Link>
 
-            <Card>
+            <Card variant="terminal">
               <CardHeader className="space-y-4">
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="outline">
+                  <Badge
+                    variant="outline"
+                    className="rounded-sm font-mono text-[11px] uppercase tracking-[0.08em]"
+                  >
                     {sectionLabels[article.section] || article.section}
                   </Badge>
-                  <span className="text-xs text-muted-foreground">
-                    Reviewed {article.lastReviewedAt}
-                  </span>
+                  <span className="terminal-subtle">Reviewed {article.lastReviewedAt}</span>
                 </div>
                 <div>
-                  <h1
-                    className="text-3xl font-bold tracking-tight"
-                    data-testid="heading-wiki-article"
-                  >
+                  <h1 className="terminal-heading text-3xl" data-testid="heading-wiki-article">
                     {article.title}
                   </h1>
-                  <p className="mt-3 text-sm text-muted-foreground md:text-base">
-                    {article.summary}
-                  </p>
+                  <p className="terminal-subtle mt-3 md:text-sm">{article.summary}</p>
                 </div>
               </CardHeader>
-              <CardContent className="prose prose-sm max-w-none">
+              <CardContent className="prose prose-sm max-w-none dark:prose-invert">
                 <ReactMarkdown
                   remarkPlugins={[remarkGfm]}
                   components={{
@@ -171,16 +167,16 @@ export default function WikiArticlePage() {
           </div>
 
           <div className="space-y-4">
-            <Card>
+            <Card variant="terminal">
               <CardHeader>
-                <CardTitle className="text-base">On this page</CardTitle>
+                <CardTitle className="terminal-heading text-sm">On this page</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
                 {article.headings.map((heading) => (
                   <a
                     key={heading.id}
                     href={`#${heading.id}`}
-                    className={`block text-sm text-muted-foreground hover:text-foreground ${
+                    className={`block font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground hover:text-foreground ${
                       heading.depth > 1 ? "pl-3" : ""
                     }`}
                   >
@@ -188,25 +184,25 @@ export default function WikiArticlePage() {
                   </a>
                 ))}
                 {article.headings.length === 0 && (
-                  <p className="text-sm text-muted-foreground">No sections listed.</p>
+                  <p className="terminal-subtle">No sections listed.</p>
                 )}
               </CardContent>
             </Card>
 
             {relatedArticles.length > 0 && (
-              <Card>
+              <Card variant="terminal">
                 <CardHeader>
-                  <CardTitle className="text-base">Related articles</CardTitle>
+                  <CardTitle className="terminal-heading text-sm">Related articles</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {relatedArticles.map((related) => (
                     <Link
                       key={related.id}
                       href={related.urlPath}
-                      className="block rounded-lg border px-3 py-2 text-sm transition-colors hover:border-primary/40"
+                      className="block rounded-sm border px-3 py-2 transition-colors hover:border-primary/40"
                     >
                       <div className="font-medium">{related.title}</div>
-                      <div className="mt-1 text-xs text-muted-foreground">{related.summary}</div>
+                      <div className="terminal-subtle mt-1">{related.summary}</div>
                     </Link>
                   ))}
                 </CardContent>

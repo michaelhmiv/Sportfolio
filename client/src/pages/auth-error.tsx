@@ -162,31 +162,35 @@ export default function AuthError() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-background to-muted">
-      <Card className="w-full max-w-lg">
+    <div className="terminal-page flex items-center justify-center p-4">
+      <Card variant="terminal" className="w-full max-w-lg">
         <CardHeader className="text-center space-y-2">
-          <div className="mx-auto w-12 h-12 bg-destructive/10 rounded-full flex items-center justify-center mb-4">
+          <div className="terminal-avatar mx-auto mb-4 h-12 w-12 border-red-500/20 bg-destructive/10">
             <AlertCircle className="w-6 h-6 text-destructive" data-testid="icon-error" />
           </div>
-          <CardTitle className="text-2xl" data-testid="text-error-title">
+          <div className="terminal-kicker">Authentication Status</div>
+          <CardTitle className="terminal-heading text-xl" data-testid="text-error-title">
             {errorInfo.title}
           </CardTitle>
-          <CardDescription className="text-base" data-testid="text-error-message">
+          <CardDescription
+            className="text-sm text-muted-foreground"
+            data-testid="text-error-message"
+          >
             {errorInfo.message}
           </CardDescription>
         </CardHeader>
 
         <CardContent className="space-y-4">
           {countdown > 0 && (
-            <Alert className="border-primary/50 bg-primary/5">
+            <Alert className="rounded-sm border-primary/30 bg-primary/5">
               <Clock className="h-4 w-4" />
-              <AlertTitle>Retrying automatically...</AlertTitle>
+              <AlertTitle className="terminal-label text-[10px]">Retrying Automatically</AlertTitle>
               <AlertDescription className="flex items-center justify-between">
-                <span>
+                <span className="font-mono text-[11px]">
                   Trying again in {countdown} second{countdown !== 1 ? "s" : ""}...
                 </span>
                 <Button
-                  variant="ghost"
+                  variant="terminalOutline"
                   size="sm"
                   onClick={cancelAutoRetry}
                   data-testid="button-cancel-retry"
@@ -197,18 +201,21 @@ export default function AuthError() {
             </Alert>
           )}
 
-          <Alert>
-            <AlertTitle>What you can do:</AlertTitle>
-            <AlertDescription data-testid="text-error-suggestion">
+          <Alert className="rounded-sm border-border bg-card/70">
+            <AlertTitle className="terminal-label text-[10px]">What You Can Do</AlertTitle>
+            <AlertDescription
+              className="text-sm text-muted-foreground"
+              data-testid="text-error-suggestion"
+            >
               {errorInfo.suggestion}
             </AlertDescription>
           </Alert>
 
           {isMobile && errorInfo.isMobileIssue && (
-            <Alert className="border-amber-500/50 bg-amber-500/5">
+            <Alert className="rounded-sm border-amber-500/30 bg-amber-500/5">
               <Smartphone className="h-4 w-4" />
-              <AlertTitle>Mobile Browser Tip</AlertTitle>
-              <AlertDescription>
+              <AlertTitle className="terminal-label text-[10px]">Mobile Browser Tip</AlertTitle>
+              <AlertDescription className="text-sm text-muted-foreground">
                 If you're having trouble logging in on mobile, try these steps:
                 <ul className="list-disc list-inside mt-2 space-y-1 text-sm">
                   <li>Use Safari (iPhone) or Chrome (Android) directly</li>
@@ -220,20 +227,26 @@ export default function AuthError() {
           )}
 
           {error !== "access_denied" && (
-            <div className="text-sm text-muted-foreground text-center">
+            <div className="text-center text-sm text-muted-foreground">
               <p>
                 Error Code:{" "}
-                <code className="bg-muted px-2 py-1 rounded" data-testid="text-error-code">
+                <code
+                  className="border border-border bg-muted/50 px-2 py-1 font-mono text-[11px]"
+                  data-testid="text-error-code"
+                >
                   {error}
                 </code>
               </p>
-              {hasAutoRetried && <p className="mt-1">Auto-retry was attempted</p>}
+              {hasAutoRetried && (
+                <p className="mt-1 font-mono text-[11px]">Auto-retry was attempted</p>
+              )}
             </div>
           )}
         </CardContent>
 
         <CardFooter className="flex flex-col sm:flex-row gap-3">
           <Button
+            variant="terminal"
             onClick={handleRetry}
             className="w-full sm:w-auto flex-1"
             data-testid="button-retry-login"
@@ -243,7 +256,7 @@ export default function AuthError() {
             Try Again
           </Button>
           <Button
-            variant="outline"
+            variant="terminalOutline"
             onClick={handleGoHome}
             className="w-full sm:w-auto flex-1"
             data-testid="button-go-home"

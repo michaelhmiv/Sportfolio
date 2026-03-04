@@ -5,21 +5,20 @@
  * Uses raw database queries - NO AI API calls.
  *
  * Content includes:
- * - Contest Results: Settled contests in last 24h
+ * - Scout Activity: Share output and utilization from the last game day
+ * - Boost Performance: Yesterday's slot results and payouts
  * - Portfolio Health: 24h net worth change, top 3 movers
- * - Vesting Stats: 7-day totals and rolling average
- * - Global Market Movers: Top 5 biggest price changes
+ * - Portfolio Attribution: Estimated impact from held positions
+ * - Earnings Breakdown: Cash results and trade activity
+ * - Global Market Movers: Top active-player price changes
  */
 
 import { db } from "../db";
 import {
   users,
-  contests,
-  contestEntries,
   portfolioSnapshots,
   holdings,
   players,
-  vestingClaims,
   scoutDistributions,
   scoutAssignments,
   dailyBoosts,
@@ -109,42 +108,6 @@ function getDigestWindow(): DigestWindow {
 }
 
 /**
- * Get contest results for a user from the last 24 hours
- */
-async function getUserContestResults(userId: string, since: Date): Promise<DigestSection | null> {
-  const entries = await db
-    .select({
-      contestName: contests.name,
-      rank: contestEntries.rank,
-      payout: contestEntries.payout,
-      totalSharesEntered: contestEntries.totalSharesEntered,
-      entryCount: contests.entryCount,
-    })
-    .from(contestEntries)
-    .innerJoin(contests, eq(contestEntries.contestId, contests.id))
-    .where(
-      and(
-        eq(contestEntries.userId, userId),
-        eq(contests.status, "completed"),
-        gte(contests.endsAt, since),
-      ),
-    )
-    .limit(10);
-
-  if (entries.length === 0) return null;
-
-  return {
-    title: "Contest Results",
-    items: entries.map((e) => ({
-      label: e.contestName,
-      value: `Rank #${e.rank || "?"} of ${e.entryCount}`,
-      change: e.payout ? `+$${parseFloat(e.payout).toFixed(2)}` : undefined,
-      isPositive: parseFloat(e.payout || "0") > 0,
-    })),
-  };
-}
-
-/**
  * Get portfolio health metrics for a user
  */
 async function getPortfolioHealth(userId: string): Promise<DigestSection | null> {
@@ -207,41 +170,6 @@ async function getPortfolioHealth(userId: string): Promise<DigestSection | null>
   return {
     title: "Portfolio Health",
     items,
-  };
-}
-
-/**
- * Get vesting stats for a user
- */
-async function getVestingStats(userId: string): Promise<DigestSection | null> {
-  const sevenDaysAgo = new Date();
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-  const claims = await db
-    .select({
-      totalClaimed: sql<number>`COALESCE(SUM(${vestingClaims.sharesClaimed}), 0)`,
-      claimCount: sql<number>`COUNT(*)`,
-    })
-    .from(vestingClaims)
-    .where(and(eq(vestingClaims.userId, userId), gte(vestingClaims.claimedAt, sevenDaysAgo)));
-
-  const stats = claims[0];
-  if (!stats || stats.totalClaimed === 0) return null;
-
-  const avgPerHour = stats.totalClaimed / (7 * 24);
-
-  return {
-    title: "Vesting Activity",
-    items: [
-      {
-        label: "7-Day Shares Vested",
-        value: `${stats.totalClaimed.toLocaleString()} shares`,
-      },
-      {
-        label: "Average Rate",
-        value: `${avgPerHour.toFixed(1)} shares/hour`,
-      },
-    ],
   };
 }
 
@@ -586,7 +514,7 @@ async function getEarningsBreakdownSection(
   userId: string,
   window: DigestWindow,
 ): Promise<{ section: DigestSection; totalCashEarnings: number }> {
-  const [boostResult, vestingResult, userTrades] = await Promise.all([
+  const [boostResult, userTrades] = await Promise.all([
     db
       .select({
         total: sql<string>`COALESCE(SUM(${boostPayouts.payoutAmount}), 0)`.as("total"),
@@ -597,20 +525,6 @@ async function getEarningsBreakdownSection(
           eq(boostPayouts.userId, userId),
           gte(boostPayouts.createdAt, window.start),
           lt(boostPayouts.createdAt, window.end),
-        ),
-      ),
-    db
-      .select({
-        totalShares: sql<number>`COALESCE(SUM(${vestingClaims.sharesClaimed}), 0)`.as(
-          "total_shares",
-        ),
-      })
-      .from(vestingClaims)
-      .where(
-        and(
-          eq(vestingClaims.userId, userId),
-          gte(vestingClaims.claimedAt, window.start),
-          lt(vestingClaims.claimedAt, window.end),
         ),
       ),
     db
@@ -660,7 +574,6 @@ async function getEarningsBreakdownSection(
     }
   }
 
-  const vestedShares = asNumber(vestingResult[0]?.totalShares);
   const tradeVolume = userTrades.reduce(
     (sum, trade) => sum + asNumber(trade.quantity) * asNumber(trade.price),
     0,
@@ -689,10 +602,6 @@ async function getEarningsBreakdownSection(
           isPositive: sharePayout >= 0,
         },
         {
-          label: "Shares Vested",
-          value: `${Math.round(vestedShares).toLocaleString()} shares`,
-        },
-        {
           label: "Trades Executed",
           value: userTrades.length.toString(),
         },
@@ -712,25 +621,15 @@ async function getEarningsBreakdownSection(
 export async function compileUserDigest(userId: string): Promise<UserDigest> {
   const window = getDigestWindow();
 
-  const [
-    contestResults,
-    portfolioHealth,
-    vestingStats,
-    scoutActivity,
-    boostPerformance,
-    earnings,
-    attribution,
-    marketMovers,
-  ] = await Promise.all([
-    getUserContestResults(userId, window.start),
-    getPortfolioHealth(userId),
-    getVestingStats(userId),
-    getScoutActivitySection(userId, window),
-    getBoostPerformanceSection(userId, window),
-    getEarningsBreakdownSection(userId, window),
-    getPortfolioAttributionSection(userId),
-    getGlobalMarketMovers(),
-  ]);
+  const [portfolioHealth, scoutActivity, boostPerformance, earnings, attribution, marketMovers] =
+    await Promise.all([
+      getPortfolioHealth(userId),
+      getScoutActivitySection(userId, window),
+      getBoostPerformanceSection(userId, window),
+      getEarningsBreakdownSection(userId, window),
+      getPortfolioAttributionSection(userId),
+      getGlobalMarketMovers(),
+    ]);
 
   const latestSnapshots = await db
     .select({
@@ -803,9 +702,7 @@ export async function compileUserDigest(userId: string): Promise<UserDigest> {
     earnings.section,
   ];
 
-  if (contestResults) sections.push(contestResults);
   if (portfolioHealth) sections.push(portfolioHealth);
-  if (vestingStats) sections.push(vestingStats);
   sections.push(marketMovers);
 
   return {

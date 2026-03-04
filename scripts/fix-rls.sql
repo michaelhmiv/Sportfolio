@@ -15,9 +15,6 @@ ALTER TABLE vesting ENABLE ROW LEVEL SECURITY;
 ALTER TABLE vesting_splits ENABLE ROW LEVEL SECURITY;
 ALTER TABLE vesting_claims ENABLE ROW LEVEL SECURITY;
 ALTER TABLE vesting_presets ENABLE ROW LEVEL SECURITY;
-ALTER TABLE contests ENABLE ROW LEVEL SECURITY;
-ALTER TABLE contest_entries ENABLE ROW LEVEL SECURITY;
-ALTER TABLE contest_lineups ENABLE ROW LEVEL SECURITY;
 ALTER TABLE player_game_stats ENABLE ROW LEVEL SECURITY;
 ALTER TABLE price_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE daily_games ENABLE ROW LEVEL SECURITY;
@@ -57,7 +54,6 @@ DROP POLICY IF EXISTS "Public read access" ON daily_games;
 DROP POLICY IF EXISTS "Public read access" ON market_snapshots;
 DROP POLICY IF EXISTS "Public read access" ON price_history;
 DROP POLICY IF EXISTS "Public read access" ON blog_posts;
-DROP POLICY IF EXISTS "Public read access" ON contests;
 DROP POLICY IF EXISTS "Public read access" ON player_game_stats;
 -- Holdings
 DROP POLICY IF EXISTS "Users can view own holdings" ON holdings;
@@ -78,11 +74,6 @@ DROP POLICY IF EXISTS "Users can view own vesting splits" ON vesting_splits;
 DROP POLICY IF EXISTS "Users can view own vesting claims" ON vesting_claims;
 DROP POLICY IF EXISTS "Users can view own vesting presets" ON vesting_presets;
 DROP POLICY IF EXISTS "Users can manage own vesting presets" ON vesting_presets;
--- Contest Entries
-DROP POLICY IF EXISTS "Users can view own entries" ON contest_entries;
-DROP POLICY IF EXISTS "Users can create own entries" ON contest_entries;
--- Contest Lineups
-DROP POLICY IF EXISTS "Users can view own lineups" ON contest_lineups;
 -- Portfolio Snapshots
 DROP POLICY IF EXISTS "Users can view own snapshots" ON portfolio_snapshots;
 -- Premium
@@ -106,7 +97,6 @@ CREATE POLICY "Public read access" ON daily_games FOR SELECT USING (true);
 CREATE POLICY "Public read access" ON market_snapshots FOR SELECT USING (true);
 CREATE POLICY "Public read access" ON price_history FOR SELECT USING (true);
 CREATE POLICY "Public read access" ON blog_posts FOR SELECT USING (true);
-CREATE POLICY "Public read access" ON contests FOR SELECT USING (true);
 CREATE POLICY "Public read access" ON player_game_stats FOR SELECT USING (true);
 
 -- User-Specific Data (Own Data Only)
@@ -135,19 +125,6 @@ CREATE POLICY "Users can view own vesting splits" ON vesting_splits FOR SELECT U
 CREATE POLICY "Users can view own vesting claims" ON vesting_claims FOR SELECT USING (auth.uid()::text = user_id);
 CREATE POLICY "Users can view own vesting presets" ON vesting_presets FOR SELECT USING (auth.uid()::text = user_id);
 CREATE POLICY "Users can manage own vesting presets" ON vesting_presets FOR ALL USING (auth.uid()::text = user_id);
-
--- Contest Entries
-CREATE POLICY "Users can view own entries" ON contest_entries FOR SELECT USING (auth.uid()::text = user_id);
-CREATE POLICY "Users can create own entries" ON contest_entries FOR INSERT WITH CHECK (auth.uid()::text = user_id);
-
--- Lineups (linked to entries)
-CREATE POLICY "Users can view own lineups" ON contest_lineups FOR SELECT USING (
-    EXISTS (
-        SELECT 1 FROM contest_entries 
-        WHERE contest_entries.id = contest_lineups.entry_id 
-        AND contest_entries.user_id = auth.uid()::text
-    )
-);
 
 -- Portfolio Snapshots
 CREATE POLICY "Users can view own snapshots" ON portfolio_snapshots FOR SELECT USING (auth.uid()::text = user_id);

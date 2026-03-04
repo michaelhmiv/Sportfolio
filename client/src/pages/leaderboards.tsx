@@ -120,13 +120,14 @@ export default function Leaderboards() {
 
     if (!data || data.leaderboard.length === 0) {
       return (
-        <Card>
+        <Card variant="terminal">
           <CardContent className="p-0">
             <EmptyState
               icon="users"
               title="No rankings yet"
               description="Be the first to make your mark! Start trading and competing to appear on the leaderboard."
               size="md"
+              variant="terminal"
               data-testid="empty-leaderboard"
             />
           </CardContent>
@@ -145,6 +146,7 @@ export default function Leaderboards() {
             return (
               <Card
                 key={entry.userId}
+                variant="terminal"
                 className={`hover-elevate ${isCurrentUser ? "border-primary border-2" : ""}`}
                 data-testid={`card-leaderboard-${entry.rank}`}
               >
@@ -192,11 +194,9 @@ export default function Leaderboards() {
 
         {/* Desktop: Table Layout */}
         <div className="hidden sm:block overflow-x-auto">
-          <Card>
+          <Card variant="terminal">
             <CardHeader>
-              <CardTitle className="text-sm font-medium uppercase tracking-wide">
-                Global Rankings
-              </CardTitle>
+              <CardTitle className="terminal-heading text-sm">Global Rankings</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               <table className="w-full">
@@ -273,36 +273,41 @@ export default function Leaderboards() {
   };
 
   return (
-    <div className="min-h-screen bg-background p-3 sm:p-4">
+    <div className="terminal-page p-3 sm:p-4">
       <div className="max-w-7xl mx-auto">
-        <div className="mb-3">
-          <h1 className="hidden sm:block text-xl font-bold mb-1">Global Leaderboards</h1>
-          <p className="text-xs text-muted-foreground">See how you rank against all players</p>
+        <div className="terminal-shell mb-4 p-4">
+          <div className="terminal-strip mb-3">Global Rankings</div>
+          <h1 className="terminal-heading hidden text-xl sm:block">Global Leaderboards</h1>
+          <p className="terminal-subtle mt-2">See how you rank against all players</p>
         </div>
 
         <Tabs value={category} onValueChange={handleTabChange} className="space-y-3 sm:space-y-3">
-          <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="netWorth" data-testid="tab-net-worth">
+          <TabsList variant="terminal" className="grid w-full grid-cols-5">
+            <TabsTrigger variant="terminal" value="netWorth" data-testid="tab-net-worth">
               <DollarSign className="w-4 h-4 mr-1 sm:mr-2" />
               <span className="hidden sm:inline">Net Worth</span>
               <span className="sm:hidden text-xs">Worth</span>
             </TabsTrigger>
-            <TabsTrigger value="cashBalance" data-testid="tab-cash-balance">
+            <TabsTrigger variant="terminal" value="cashBalance" data-testid="tab-cash-balance">
               <Wallet className="w-4 h-4 mr-1 sm:mr-2" />
               <span className="hidden sm:inline">Cash</span>
               <span className="sm:hidden text-xs">Cash</span>
             </TabsTrigger>
-            <TabsTrigger value="portfolioValue" data-testid="tab-portfolio-value">
+            <TabsTrigger
+              variant="terminal"
+              value="portfolioValue"
+              data-testid="tab-portfolio-value"
+            >
               <PieChart className="w-4 h-4 mr-1 sm:mr-2" />
               <span className="hidden sm:inline">Portfolio</span>
               <span className="sm:hidden text-xs">Port</span>
             </TabsTrigger>
-            <TabsTrigger value="sharesMined" data-testid="tab-shares-vested">
+            <TabsTrigger variant="terminal" value="sharesMined" data-testid="tab-shares-vested">
               <TrendingUp className="w-4 h-4 mr-1 sm:mr-2" />
               <span className="hidden sm:inline">Shares Vested</span>
               <span className="sm:hidden text-xs">Vest</span>
             </TabsTrigger>
-            <TabsTrigger value="marketOrders" data-testid="tab-market-orders">
+            <TabsTrigger variant="terminal" value="marketOrders" data-testid="tab-market-orders">
               <ShoppingCart className="w-4 h-4 mr-1 sm:mr-2" />
               <span className="hidden sm:inline">Market Orders</span>
               <span className="sm:hidden text-xs">Ords</span>

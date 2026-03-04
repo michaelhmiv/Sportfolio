@@ -2,7 +2,7 @@
  * Stats Sync Job
  *
  * Fetches player game statistics from BallDontLie API for completed games.
- * Used for contest scoring and performance tracking.
+ * Used for historical performance tracking and settlements.
  */
 
 import { storage } from "../storage";

@@ -105,10 +105,10 @@ export function ScoutWidget({ className, compact = false }: ScoutWidgetProps) {
   // Full desktop version
   return (
     <Button
-      variant="ghost"
+      variant="terminalOutline"
       onClick={openScoutDashboard}
       className={cn(
-        "flex items-center gap-2 h-auto py-1.5 px-3 bg-gradient-to-r from-amber-500/10 to-orange-500/10 hover:from-amber-500/20 hover:to-orange-500/20 border border-amber-500/20",
+        "h-auto gap-2 border border-amber-500/30 bg-amber-500/10 py-1.5 px-3 font-mono text-[11px] font-semibold uppercase tracking-[0.08em] text-amber-200 hover:bg-amber-500/15",
         className,
       )}
       data-testid="button-scout-widget"

@@ -251,7 +251,7 @@ export default function UserProfile() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background p-3 sm:p-4 flex items-center justify-center">
+      <div className="terminal-page flex items-center justify-center p-3 sm:p-4">
         <div className="text-muted-foreground">Loading profile...</div>
       </div>
     );
@@ -259,8 +259,8 @@ export default function UserProfile() {
 
   if (!profile) {
     return (
-      <div className="min-h-screen bg-background p-3 sm:p-4 flex items-center justify-center">
-        <Card>
+      <div className="terminal-page flex items-center justify-center p-3 sm:p-4">
+        <Card variant="terminal">
           <CardContent className="py-6 text-center">
             <p className="text-muted-foreground">User not found</p>
           </CardContent>
@@ -279,10 +279,10 @@ export default function UserProfile() {
   const isOwnProfile = currentUser?.id === user.id;
 
   return (
-    <div className="min-h-screen bg-background p-3 sm:p-4">
+    <div className="terminal-page p-3 sm:p-4">
       <div className="max-w-6xl mx-auto space-y-4 sm:space-y-3">
         {/* Profile Header */}
-        <Card data-testid="card-profile-header">
+        <Card variant="terminal" data-testid="card-profile-header">
           <CardContent className="p-4 sm:p-6">
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
               {/* Avatar with optional change overlay */}
@@ -295,12 +295,12 @@ export default function UserProfile() {
                         <AvatarFallback className="text-2xl">{initials}</AvatarFallback>
                       </Avatar>
                       {/* Camera overlay on hover */}
-                      <div className="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="absolute inset-0 rounded-sm bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                         <Camera className="w-6 h-6 text-white" />
                       </div>
                     </button>
                   </DialogTrigger>
-                  <DialogContent className="sm:max-w-sm">
+                  <DialogContent className="sm:max-w-sm rounded-sm border border-border bg-card">
                     <DialogHeader>
                       <DialogTitle>Change Profile Picture</DialogTitle>
                       <DialogDescription>
@@ -326,7 +326,7 @@ export default function UserProfile() {
                       />
 
                       <Button
-                        variant="outline"
+                        variant="terminalOutline"
                         className="w-full gap-2 h-12"
                         onClick={() => fileInputRef.current?.click()}
                         disabled={isUploading}
@@ -340,7 +340,7 @@ export default function UserProfile() {
                       </Button>
 
                       <Button
-                        variant="outline"
+                        variant="terminalOutline"
                         className="w-full gap-2 h-12"
                         onClick={() => cameraInputRef.current?.click()}
                         disabled={isUploading}
@@ -354,7 +354,10 @@ export default function UserProfile() {
                       </Button>
                     </div>
                     <DialogFooter>
-                      <Button variant="ghost" onClick={() => setIsAvatarDialogOpen(false)}>
+                      <Button
+                        variant="terminalOutline"
+                        onClick={() => setIsAvatarDialogOpen(false)}
+                      >
                         Cancel
                       </Button>
                     </DialogFooter>
@@ -465,7 +468,11 @@ export default function UserProfile() {
         {/* Stats Grid */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <Link href="/leaderboards#netWorth">
-            <Card className="hover-elevate cursor-pointer" data-testid="card-net-worth">
+            <Card
+              variant="terminal"
+              className="hover-elevate cursor-pointer"
+              data-testid="card-net-worth"
+            >
               <CardContent className="p-4">
                 <div className="flex items-center gap-2 mb-2">
                   <DollarSign className="w-4 h-4 text-positive" />
@@ -485,7 +492,11 @@ export default function UserProfile() {
           </Link>
 
           <Link href="/leaderboards#sharesVested">
-            <Card className="hover-elevate cursor-pointer" data-testid="card-shares-mined">
+            <Card
+              variant="terminal"
+              className="hover-elevate cursor-pointer"
+              data-testid="card-shares-mined"
+            >
               <CardContent className="p-4">
                 <div className="flex items-center gap-2 mb-2">
                   <Award className="w-4 h-4 text-primary" />
@@ -502,7 +513,11 @@ export default function UserProfile() {
           </Link>
 
           <Link href="/leaderboards#marketOrders">
-            <Card className="hover-elevate cursor-pointer" data-testid="card-market-orders">
+            <Card
+              variant="terminal"
+              className="hover-elevate cursor-pointer"
+              data-testid="card-market-orders"
+            >
               <CardContent className="p-4">
                 <div className="flex items-center gap-2 mb-2">
                   <TrendingUp className="w-4 h-4 text-primary" />
@@ -518,7 +533,7 @@ export default function UserProfile() {
             </Card>
           </Link>
 
-          <Card className="hover-elevate" data-testid="card-trades-executed">
+          <Card variant="terminal" className="hover-elevate" data-testid="card-trades-executed">
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-2">
                 <Activity className="w-4 h-4 text-primary" />
@@ -538,7 +553,7 @@ export default function UserProfile() {
         {isOwnProfile && <SmsAccessCard />}
         {isOwnProfile && <CliAccessCard />}
 
-        <Card data-testid="card-holdings">
+        <Card variant="terminal" data-testid="card-holdings">
           <CardHeader>
             <CardTitle className="text-lg sm:text-xl">Public Holdings</CardTitle>
           </CardHeader>
@@ -561,7 +576,7 @@ export default function UserProfile() {
                   return (
                     <Link key={holding.id} href={`/player/${holding.assetId}`}>
                       <div
-                        className="flex items-center justify-between p-3 rounded-lg hover-elevate border"
+                        className="terminal-shell flex items-center justify-between p-3 hover-elevate"
                         data-testid={`holding-${holding.assetId}`}
                       >
                         <div className="flex items-center gap-3">

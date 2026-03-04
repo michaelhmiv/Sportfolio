@@ -10,7 +10,7 @@
  * This job:
  * 1) Refreshes yesterday+today NBA games from `/games` and upserts into `daily_games`
  * 2) Fetches live player stats from `/stats` for active games and upserts into `player_game_stats`
- * 3) Broadcasts `liveStats` + `contestUpdate` via WebSocket for affected games
+ * 3) Broadcasts `liveStats` via WebSocket for affected games
  */
 
 import { storage } from "../storage";
@@ -195,7 +195,6 @@ export async function syncStatsLive(progressCallback?: ProgressCallback): Promis
       if (gamesToBroadcast.size > 0) {
         for (const gameId of gamesToBroadcast) {
           broadcast({ type: "liveStats", gameId, timestamp: new Date().toISOString() });
-          broadcast({ type: "contestUpdate", gameId, timestamp: new Date().toISOString() });
         }
       }
 
@@ -338,7 +337,6 @@ export async function syncStatsLive(progressCallback?: ProgressCallback): Promis
     if (gamesToBroadcast.size > 0) {
       for (const gameId of gamesToBroadcast) {
         broadcast({ type: "liveStats", gameId, timestamp: new Date().toISOString() });
-        broadcast({ type: "contestUpdate", gameId, timestamp: new Date().toISOString() });
       }
     }
 

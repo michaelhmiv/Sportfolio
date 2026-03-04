@@ -196,7 +196,7 @@ export function NascarRaceCard({
     <button
       type="button"
       onClick={onOpen}
-      className="w-full text-left rounded-lg border-2 border-border/90 bg-card p-3 shadow-sm transition-all hover:border-border hover:shadow-md"
+      className="w-full text-left rounded-sm border-2 border-border/90 bg-card p-3 shadow-none transition-all hover:border-border hover:shadow-none"
     >
       <div className="rounded-md border border-border/70 bg-background/40 overflow-hidden">
         <div
@@ -234,7 +234,7 @@ export function NascarRaceCard({
             <div className="text-[10px] text-muted-foreground mt-0.5 truncate flex items-center gap-1">
               {race.status === "inprogress" && race.lapInfo && (
                 <span
-                  className={`h-1.5 w-1.5 rounded-full ${flagColorMap[race.lapInfo.flagState] || "bg-gray-500"}`}
+                  className={`h-1.5 w-1.5 rounded-sm ${flagColorMap[race.lapInfo.flagState] || "bg-gray-500"}`}
                 />
               )}
               <span>{progressMeta}</span>
@@ -300,7 +300,7 @@ export function NascarRaceCard({
           {/* Boost Selector */}
           {showBoostSelector && boostSlotsRemaining !== null && boostSlotsRemaining > 0 && (
             <div
-              className="mt-3 p-3 rounded-lg border-2 border-purple-400 bg-purple-50"
+              className="mt-3 rounded-sm border-2 border-purple-400 bg-purple-50 p-3"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="text-[11px] font-medium text-purple-700 mb-2">

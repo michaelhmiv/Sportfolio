@@ -21,8 +21,6 @@ export interface BotProfile {
   maxDailyVolume: number;
   vestingClaimThreshold: string;
   maxPlayersToVest: number;
-  maxContestEntriesPerDay: number;
-  contestEntryBudget: number;
   minActionCooldownMs: number;
   maxActionCooldownMs: number;
   activeHoursStart: number;
@@ -30,7 +28,6 @@ export interface BotProfile {
   lastActionAt: Date | null;
   ordersToday: number;
   volumeToday: number;
-  contestEntriesToday: number;
   lastResetDate: Date;
 }
 
@@ -101,7 +98,6 @@ async function maybeResetDailyCounters(profile: BotProfile): Promise<BotProfile>
       .set({
         ordersToday: 0,
         volumeToday: 0,
-        contestEntriesToday: 0,
         lastResetDate: now,
         updatedAt: now,
       })
@@ -111,7 +107,6 @@ async function maybeResetDailyCounters(profile: BotProfile): Promise<BotProfile>
       ...profile,
       ordersToday: 0,
       volumeToday: 0,
-      contestEntriesToday: 0,
       lastResetDate: now,
     };
   }
@@ -239,7 +234,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, name: string): Promise<
 const STRATEGY_TIMEOUT_MS = 30000; // 30 seconds max per strategy
 
 /**
- * Execute bot strategies: scouting + trading (no more contests)
+ * Execute bot strategies: scouting + trading.
  * Each bot's individual settings (aggressiveness, limits, budgets) determine their behavior
  * Bots provide liquidity across ALL players, not just popular ones
  */

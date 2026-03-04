@@ -12,7 +12,6 @@ const checks = [
   { name: "feed-json", path: "/feed.json", status: 200 },
   { name: "public-market", path: "/api/public/market-summary", status: 200 },
   { name: "public-blog", path: "/api/public/blog", status: 200 },
-  { name: "public-contests", path: "/api/public/contests", status: 200 },
 ];
 
 async function checkEndpoint({ name, path, status }) {

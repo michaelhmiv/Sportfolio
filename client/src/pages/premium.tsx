@@ -160,313 +160,330 @@ export default function Premium() {
 
   if (!isAuthenticated) {
     return (
-      <div className="container max-w-4xl mx-auto p-4 md:p-6">
-        <Card className="text-center p-8">
-          <Crown className="h-16 w-16 mx-auto mb-4 text-yellow-500" />
-          <CardTitle className="mb-4">Unlock Premium Features</CardTitle>
-          <CardDescription className="mb-6">
-            Sign in to purchase Premium Shares and access exclusive features.
-          </CardDescription>
-          <Link href="/">
-            <Button data-testid="button-signin-premium">Sign In to Continue</Button>
-          </Link>
-        </Card>
+      <div className="terminal-page">
+        <div className="container max-w-4xl mx-auto p-4 md:p-6">
+          <Card variant="terminal" className="p-8 text-center">
+            <Crown className="h-16 w-16 mx-auto mb-4 text-yellow-500" />
+            <CardTitle className="terminal-heading mb-4 text-lg">Unlock Premium Features</CardTitle>
+            <CardDescription className="mb-6">
+              Sign in to purchase Premium Shares and access exclusive features.
+            </CardDescription>
+            <Link href="/">
+              <Button variant="terminal" data-testid="button-signin-premium">
+                Sign In to Continue
+              </Button>
+            </Link>
+          </Card>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="container max-w-4xl mx-auto p-4 md:p-6 space-y-6">
-      {/* Header */}
-      <div className="text-center mb-8">
-        <Crown className="h-12 w-12 mx-auto mb-3 text-yellow-500" />
-        <h1 className="text-3xl font-bold mb-2" data-testid="text-premium-title">
-          Premium Shares
-        </h1>
-        <p className="text-muted-foreground max-w-xl mx-auto">
-          Purchase tradeable Premium Shares for $5 each. Redeem for 30 days of premium access or
-          trade them on the marketplace.
-        </p>
-      </div>
+    <div className="terminal-page">
+      <div className="container max-w-4xl mx-auto space-y-6 p-4 md:p-6">
+        {/* Header */}
+        <div className="terminal-shell mb-8 p-5 text-center">
+          <div className="terminal-strip mx-auto w-fit">
+            <Crown className="h-3.5 w-3.5 text-yellow-400" />
+            Premium Desk
+          </div>
+          <h1 className="terminal-heading mt-4 text-3xl" data-testid="text-premium-title">
+            Premium Shares
+          </h1>
+          <p className="mx-auto mt-3 max-w-xl text-sm text-muted-foreground">
+            Purchase tradeable Premium Shares for $5 each. Redeem for 30 days of premium access or
+            hold them for later use.
+          </p>
+        </div>
 
-      {/* Premium Status Card */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-          <CardTitle className="text-lg">Your Premium Status</CardTitle>
-          {premiumStatus?.isPremium && (
-            <Badge
-              variant="default"
-              className="bg-yellow-500 text-black"
-              data-testid="badge-premium-active"
-            >
-              <Crown className="h-3 w-3 mr-1" />
-              Active
-            </Badge>
-          )}
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin" />
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-card border rounded-lg p-4">
-                <div className="flex items-center justify-between mb-1">
-                  <div className="text-sm text-muted-foreground">Premium Shares Owned</div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => syncWhopMutation.mutate()}
-                    disabled={syncWhopMutation.isPending}
-                    data-testid="button-sync-whop"
-                    className="h-6 px-2 text-xs"
-                    title="Sync purchases from Whop"
-                  >
-                    {syncWhopMutation.isPending ? (
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                    ) : (
-                      <RefreshCw className="h-3 w-3" />
-                    )}
-                    <span className="ml-1">Sync</span>
-                  </Button>
-                </div>
-                <div className="text-3xl font-bold" data-testid="text-premium-shares">
-                  {premiumStatus?.premiumShares || 0}
-                </div>
-                <div className="text-xs text-muted-foreground mt-1">
-                  Worth ${((premiumStatus?.premiumShares || 0) * PRICE_PER_SHARE).toFixed(2)}
-                </div>
-              </div>
-
-              <div className="bg-card border rounded-lg p-4">
-                <div className="text-sm text-muted-foreground mb-1">Premium Status</div>
-                {premiumStatus?.isPremium ? (
-                  <>
-                    <div className="text-lg font-semibold text-green-500">Active</div>
-                    {premiumStatus.premiumExpiresAt && (
-                      <div className="text-xs text-muted-foreground mt-1">
-                        Expires{" "}
-                        {formatDistanceToNow(new Date(premiumStatus.premiumExpiresAt), {
-                          addSuffix: true,
-                        })}
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    <div className="text-lg font-semibold text-muted-foreground">Inactive</div>
-                    <div className="text-xs text-muted-foreground mt-1">
-                      Redeem a share to activate
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-          )}
-
-          {(premiumStatus?.premiumShares || 0) > 0 && (
-            <div className="flex justify-center">
-              <Button
-                onClick={() => redeemMutation.mutate()}
-                disabled={redeemMutation.isPending || premiumStatus?.isPremium}
-                data-testid="button-redeem-premium"
-                className="bg-yellow-500 hover:bg-yellow-600 text-black"
+        {/* Premium Status Card */}
+        <Card variant="terminal">
+          <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+            <CardTitle className="terminal-heading text-sm">Your Premium Status</CardTitle>
+            {premiumStatus?.isPremium && (
+              <Badge
+                variant="default"
+                className="border-yellow-500/30 bg-yellow-500/20 font-mono text-[10px] uppercase text-yellow-200"
+                data-testid="badge-premium-active"
               >
-                {redeemMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <Crown className="h-4 w-4 mr-2" />
-                )}
-                Redeem 1 Share for 30 Days Premium
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Purchase Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ShoppingCart className="h-5 w-5" />
-            Buy Premium Shares
-          </CardTitle>
-          <CardDescription>
-            $5 per share - Tradeable on the marketplace or redeemable for premium access
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Quantity selector */}
-          <div className="flex items-center justify-center gap-4">
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => setQuantity(Math.max(1, quantity - 1))}
-              disabled={quantity <= 1}
-              data-testid="button-decrease-quantity"
-            >
-              <Minus className="h-4 w-4" />
-            </Button>
-
-            <div className="text-center min-w-[120px]">
-              <div className="text-4xl font-bold" data-testid="text-quantity">
-                {quantity}
-              </div>
-              <div className="text-sm text-muted-foreground">shares</div>
-            </div>
-
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => setQuantity(quantity + 1)}
-              data-testid="button-increase-quantity"
-            >
-              <Plus className="h-4 w-4" />
-            </Button>
-          </div>
-
-          {/* Total */}
-          <div className="text-center">
-            <div className="text-2xl font-bold" data-testid="text-total-price">
-              ${(quantity * PRICE_PER_SHARE).toFixed(2)}
-            </div>
-            <div className="text-sm text-muted-foreground">Total</div>
-          </div>
-
-          {/* Checkout button */}
-          <Button
-            className="w-full"
-            size="lg"
-            onClick={handleCheckout}
-            disabled={checkoutLoading}
-            data-testid="button-checkout"
-          >
-            {checkoutLoading ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <ShoppingCart className="h-4 w-4 mr-2" />
+                <Crown className="h-3 w-3 mr-1" />
+                Active
+              </Badge>
             )}
-            Purchase via Whop
-          </Button>
-
-          {showCheckout && (
-            <div className="text-center text-sm text-muted-foreground">
-              <p>Checkout opened in a new tab.</p>
-              <p>Your shares will be credited automatically after payment.</p>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => queryClient.invalidateQueries({ queryKey: ["/api/premium/status"] })}
-                data-testid="button-refresh-status"
-              >
-                Refresh status
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Benefits */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Premium Benefits</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {premiumBenefits.map((benefit, index) => (
-              <div key={index} className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg">
-                <div className="p-2 bg-yellow-500/10 rounded-lg">
-                  <benefit.icon className="h-5 w-5 text-yellow-500" />
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {isLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin" />
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="terminal-shell p-4">
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="terminal-label">Premium Shares Owned</div>
+                    <Button
+                      variant="terminalOutline"
+                      size="sm"
+                      onClick={() => syncWhopMutation.mutate()}
+                      disabled={syncWhopMutation.isPending}
+                      data-testid="button-sync-whop"
+                      className="h-6 px-2 text-xs"
+                      title="Sync purchases from Whop"
+                    >
+                      {syncWhopMutation.isPending ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-3 w-3" />
+                      )}
+                      <span className="ml-1">Sync</span>
+                    </Button>
+                  </div>
+                  <div className="text-3xl font-bold" data-testid="text-premium-shares">
+                    {premiumStatus?.premiumShares || 0}
+                  </div>
+                  <div className="mt-1 font-mono text-[11px] text-muted-foreground">
+                    Worth ${((premiumStatus?.premiumShares || 0) * PRICE_PER_SHARE).toFixed(2)}
+                  </div>
                 </div>
-                <div>
-                  <div className="font-medium">{benefit.title}</div>
-                  <div className="text-sm text-muted-foreground">{benefit.description}</div>
+
+                <div className="terminal-shell p-4">
+                  <div className="terminal-label mb-1">Premium Status</div>
+                  {premiumStatus?.isPremium ? (
+                    <>
+                      <div className="text-lg font-semibold text-green-500">Active</div>
+                      {premiumStatus.premiumExpiresAt && (
+                        <div className="mt-1 font-mono text-[11px] text-muted-foreground">
+                          Expires{" "}
+                          {formatDistanceToNow(new Date(premiumStatus.premiumExpiresAt), {
+                            addSuffix: true,
+                          })}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-lg font-semibold text-muted-foreground">Inactive</div>
+                      <div className="mt-1 font-mono text-[11px] text-muted-foreground">
+                        Redeem a share to activate
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+            )}
 
-      {/* Premium share trading removed */}
+            {(premiumStatus?.premiumShares || 0) > 0 && (
+              <div className="flex justify-center">
+                <Button
+                  variant="terminal"
+                  onClick={() => redeemMutation.mutate()}
+                  disabled={redeemMutation.isPending || premiumStatus?.isPremium}
+                  data-testid="button-redeem-premium"
+                  className="border-yellow-500/30 bg-yellow-500/20 text-yellow-200 hover:bg-yellow-500/25"
+                >
+                  {redeemMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Crown className="h-4 w-4 mr-2" />
+                  )}
+                  Redeem 1 Share for 30 Days Premium
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
-      {/* Recent Purchases */}
-      {premiumStatus?.recentPurchases && premiumStatus.recentPurchases.length > 0 && (
-        <Card>
+        {/* Purchase Card */}
+        <Card variant="terminal">
           <CardHeader>
-            <CardTitle>Recent Purchases</CardTitle>
+            <CardTitle className="terminal-heading flex items-center gap-2 text-sm">
+              <ShoppingCart className="h-5 w-5" />
+              Buy Premium Shares
+            </CardTitle>
+            <CardDescription>
+              $5 per share - Tradeable on the marketplace or redeemable for premium access
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Quantity selector */}
+            <div className="flex items-center justify-center gap-4">
+              <Button
+                variant="terminalOutline"
+                size="icon"
+                onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                disabled={quantity <= 1}
+                data-testid="button-decrease-quantity"
+              >
+                <Minus className="h-4 w-4" />
+              </Button>
+
+              <div className="min-w-[120px] text-center">
+                <div className="terminal-value text-4xl" data-testid="text-quantity">
+                  {quantity}
+                </div>
+                <div className="terminal-label mt-1">Shares</div>
+              </div>
+
+              <Button
+                variant="terminalOutline"
+                size="icon"
+                onClick={() => setQuantity(quantity + 1)}
+                data-testid="button-increase-quantity"
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
+
+            {/* Total */}
+            <div className="text-center">
+              <div className="terminal-value text-2xl" data-testid="text-total-price">
+                ${(quantity * PRICE_PER_SHARE).toFixed(2)}
+              </div>
+              <div className="terminal-label mt-1">Total</div>
+            </div>
+
+            {/* Checkout button */}
+            <Button
+              variant="terminal"
+              className="w-full"
+              size="lg"
+              onClick={handleCheckout}
+              disabled={checkoutLoading}
+              data-testid="button-checkout"
+            >
+              {checkoutLoading ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <ShoppingCart className="h-4 w-4 mr-2" />
+              )}
+              Purchase via Whop
+            </Button>
+
+            {showCheckout && (
+              <div className="terminal-empty text-center text-sm text-muted-foreground p-3">
+                <p>Checkout opened in a new tab.</p>
+                <p>Your shares will be credited automatically after payment.</p>
+                <Button
+                  variant="terminalOutline"
+                  size="sm"
+                  onClick={() =>
+                    queryClient.invalidateQueries({ queryKey: ["/api/premium/status"] })
+                  }
+                  data-testid="button-refresh-status"
+                >
+                  Refresh status
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Benefits */}
+        <Card variant="terminal">
+          <CardHeader>
+            <CardTitle className="terminal-heading text-sm">Premium Benefits</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2">
-              {premiumStatus.recentPurchases.map((purchase) => (
-                <div
-                  key={purchase.id}
-                  className="flex items-center justify-between p-3 bg-muted/50 rounded-lg"
-                >
-                  <div>
-                    <div className="font-medium">
-                      {purchase.quantity} Premium Share{purchase.quantity > 1 ? "s" : ""}
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      {formatDistanceToNow(new Date(purchase.completedAt || purchase.createdAt), {
-                        addSuffix: true,
-                      })}
-                    </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {premiumBenefits.map((benefit, index) => (
+                <div key={index} className="terminal-shell flex items-start gap-3 p-3">
+                  <div className="terminal-avatar border-yellow-500/20 bg-yellow-500/10 text-yellow-300">
+                    <benefit.icon className="h-5 w-5 text-yellow-500" />
                   </div>
-                  <div className="text-right">
-                    <div className="font-medium">${(purchase.amountCents / 100).toFixed(2)}</div>
-                    <Badge variant="outline" className="text-green-500">
-                      <Check className="h-3 w-3 mr-1" />
-                      Completed
-                    </Badge>
+                  <div>
+                    <div className="font-medium">{benefit.title}</div>
+                    <div className="text-sm text-muted-foreground">{benefit.description}</div>
                   </div>
                 </div>
               ))}
             </div>
           </CardContent>
         </Card>
-      )}
 
-      {/* Post-Purchase Modal */}
-      <Dialog open={showPostPurchaseModal} onOpenChange={setShowPostPurchaseModal}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-center justify-center">
-              <Crown className="h-6 w-6 text-yellow-500" />
-              Purchase Complete!
-            </DialogTitle>
-            <DialogDescription className="text-center">
-              You now have {purchasedQuantity} new Premium Share{purchasedQuantity > 1 ? "s" : ""}.
-              What would you like to do?
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-3 mt-4">
-            <Button
-              className="w-full bg-yellow-500 hover:bg-yellow-600 text-black"
-              onClick={() => {
-                setShowPostPurchaseModal(false);
-                redeemMutation.mutate();
-              }}
-              disabled={redeemMutation.isPending || premiumStatus?.isPremium}
-              data-testid="button-modal-redeem"
-            >
-              <Crown className="h-4 w-4 mr-2" />
-              Redeem for 30 Days Premium
-            </Button>
-            {/* Premium share trading removed */}
-            <Button
-              variant="ghost"
-              className="w-full"
-              onClick={() => setShowPostPurchaseModal(false)}
-              data-testid="button-modal-hold"
-            >
-              <X className="h-4 w-4 mr-2" />
-              Hold for Later
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+        {/* Premium share trading removed */}
+
+        {/* Recent Purchases */}
+        {premiumStatus?.recentPurchases && premiumStatus.recentPurchases.length > 0 && (
+          <Card variant="terminal">
+            <CardHeader>
+              <CardTitle className="terminal-heading text-sm">Recent Purchases</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {premiumStatus.recentPurchases.map((purchase) => (
+                  <div
+                    key={purchase.id}
+                    className="terminal-shell flex items-center justify-between p-3"
+                  >
+                    <div>
+                      <div className="font-medium">
+                        {purchase.quantity} Premium Share{purchase.quantity > 1 ? "s" : ""}
+                      </div>
+                      <div className="font-mono text-[11px] text-muted-foreground">
+                        {formatDistanceToNow(new Date(purchase.completedAt || purchase.createdAt), {
+                          addSuffix: true,
+                        })}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-medium">${(purchase.amountCents / 100).toFixed(2)}</div>
+                      <Badge
+                        variant="outline"
+                        className="font-mono text-[10px] uppercase text-green-500"
+                      >
+                        <Check className="h-3 w-3 mr-1" />
+                        Completed
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Post-Purchase Modal */}
+        <Dialog open={showPostPurchaseModal} onOpenChange={setShowPostPurchaseModal}>
+          <DialogContent className="sm:max-w-md rounded-sm border border-border bg-card">
+            <DialogHeader>
+              <DialogTitle className="terminal-heading flex items-center justify-center gap-2 text-center text-base">
+                <Crown className="h-6 w-6 text-yellow-500" />
+                Purchase Complete!
+              </DialogTitle>
+              <DialogDescription className="text-center">
+                You now have {purchasedQuantity} new Premium Share{purchasedQuantity > 1 ? "s" : ""}
+                . What would you like to do?
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-3 mt-4">
+              <Button
+                variant="terminal"
+                className="w-full border-yellow-500/30 bg-yellow-500/20 text-yellow-200 hover:bg-yellow-500/25"
+                onClick={() => {
+                  setShowPostPurchaseModal(false);
+                  redeemMutation.mutate();
+                }}
+                disabled={redeemMutation.isPending || premiumStatus?.isPremium}
+                data-testid="button-modal-redeem"
+              >
+                <Crown className="h-4 w-4 mr-2" />
+                Redeem for 30 Days Premium
+              </Button>
+              {/* Premium share trading removed */}
+              <Button
+                variant="terminalOutline"
+                className="w-full"
+                onClick={() => setShowPostPurchaseModal(false)}
+                data-testid="button-modal-hold"
+              >
+                <X className="h-4 w-4 mr-2" />
+                Hold for Later
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
     </div>
   );
 }

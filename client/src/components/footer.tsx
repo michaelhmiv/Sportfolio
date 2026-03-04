@@ -63,14 +63,6 @@ export function Footer() {
                   Player Pools
                 </Link>
               </li>
-              <li>
-                <Link
-                  href="/contests"
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  Contests
-                </Link>
-              </li>
             </ul>
           </div>
 
@@ -131,7 +123,7 @@ export function Footer() {
           <div className="flex flex-col md:flex-row justify-between items-center gap-4 text-sm text-muted-foreground">
             <p>© {currentYear} Sportfolio. All rights reserved.</p>
             <p className="text-center md:text-right">
-              Trade NBA player shares like stocks. Compete in fantasy contests.
+              Trade NBA player shares like stocks. Scout, boost, and build a stronger portfolio.
             </p>
           </div>
         </div>

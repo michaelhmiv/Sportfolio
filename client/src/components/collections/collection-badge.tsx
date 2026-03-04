@@ -83,13 +83,13 @@ export function CollectionBadge({ collection, size = "md", onClick }: Collection
       whileTap={{ scale: 0.98 }}
       onClick={onClick}
       className={cn(
-        "relative rounded-lg border cursor-pointer overflow-hidden",
+        "relative rounded-sm border cursor-pointer overflow-hidden",
         sizeClasses[size],
         colors.bg,
         colors.border,
         isCompleted && "ring-2 ring-offset-2 ring-offset-background",
         isCompleted && colors.border.replace("/30", ""),
-        onClick && "hover:shadow-md transition-shadow",
+        onClick && "transition-colors hover:bg-background/20",
       )}
     >
       {/* Holographic shimmer effect for completed badges */}
@@ -118,7 +118,7 @@ export function CollectionBadge({ collection, size = "md", onClick }: Collection
         <motion.div
           animate={isCompleted ? { scale: [1, 1.1, 1] } : {}}
           transition={{ duration: 0.5, repeat: isCompleted ? Infinity : 0, repeatDelay: 2 }}
-          className={cn("p-1.5 rounded-full", colors.bg, colors.text)}
+          className={cn("rounded-sm p-1.5", colors.bg, colors.text)}
         >
           <Icon className={iconSizes[size]} />
         </motion.div>
@@ -136,12 +136,12 @@ export function CollectionBadge({ collection, size = "md", onClick }: Collection
         {/* Progress bar for incomplete */}
         {!isCompleted && (
           <div className="w-full mt-1">
-            <div className="h-1.5 w-full bg-background/50 rounded-full overflow-hidden">
+            <div className="h-1.5 w-full rounded-sm bg-background/50 overflow-hidden">
               <motion.div
                 initial={{ width: 0 }}
                 animate={{ width: `${progressPercent}%` }}
                 transition={{ duration: 0.5, delay: 0.2 }}
-                className={cn("h-full rounded-full", colors.text.replace("text-", "bg-"))}
+                className={cn("h-full rounded-sm", colors.text.replace("text-", "bg-"))}
               />
             </div>
             <p className={cn("text-center mt-0.5 text-muted-foreground", textSizes[size])}>
@@ -157,12 +157,12 @@ export function CollectionBadge({ collection, size = "md", onClick }: Collection
             animate={{ scale: 1 }}
             transition={{ type: "spring", stiffness: 500, damping: 30 }}
             className={cn(
-              "absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center",
+              "absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-sm",
               colors.text.replace("text-", "bg-"),
               "text-white text-xs font-bold",
             )}
           >
-            ✓
+            OK
           </motion.div>
         )}
       </div>

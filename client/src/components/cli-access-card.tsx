@@ -115,11 +115,12 @@ export function CliAccessCard() {
 
   return (
     <>
-      <Card data-testid="card-cli-access">
+      <Card variant="terminal" data-testid="card-cli-access">
         <CardHeader className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <CardTitle className="flex items-center gap-2 text-lg">
+              <p className="terminal-kicker">Developer Access</p>
+              <CardTitle className="terminal-heading mt-2 flex items-center gap-2 text-base">
                 <Terminal className="h-5 w-5 text-primary" />
                 CLI Access
               </CardTitle>
@@ -129,6 +130,7 @@ export function CliAccessCard() {
               </p>
             </div>
             <Button
+              variant="terminal"
               onClick={() => {
                 setCreatedToken(null);
                 setCreateDialogOpen(true);
@@ -139,23 +141,25 @@ export function CliAccessCard() {
             </Button>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="secondary">
+            <Badge variant="secondary" className="font-mono text-[10px] uppercase">
               {activeTokenCount}/{data?.maxActiveTokens || 0} active
             </Badge>
-            <span className="text-xs text-muted-foreground">
+            <span className="font-mono text-[11px] text-muted-foreground">
               Prefer one token per device or automation workflow so you can revoke cleanly.
             </span>
           </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="text-sm text-muted-foreground">Loading CLI tokens...</div>
+            <div className="terminal-empty px-4 py-4 text-sm text-muted-foreground">
+              Loading CLI tokens...
+            </div>
           ) : data?.tokens?.length ? (
             <div className="space-y-3">
               {data.tokens.map((token) => (
                 <div
                   key={token.id}
-                  className="rounded-xl border p-4"
+                  className="terminal-shell p-4"
                   data-testid={`cli-token-${token.id}`}
                 >
                   <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -163,9 +167,13 @@ export function CliAccessCard() {
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-medium">{token.label}</span>
                         {token.revokedAt ? (
-                          <Badge variant="outline">Revoked</Badge>
+                          <Badge variant="outline" className="font-mono text-[10px] uppercase">
+                            Revoked
+                          </Badge>
                         ) : (
-                          <Badge variant="outline">Active</Badge>
+                          <Badge variant="outline" className="font-mono text-[10px] uppercase">
+                            Active
+                          </Badge>
                         )}
                       </div>
                       <div className="mt-1 font-mono text-sm text-muted-foreground">
@@ -181,7 +189,7 @@ export function CliAccessCard() {
                     </div>
                     {!token.revokedAt && (
                       <Button
-                        variant="outline"
+                        variant="terminalOutline"
                         size="sm"
                         className="gap-2"
                         onClick={() => revokeTokenMutation.mutate(token.id)}
@@ -201,7 +209,7 @@ export function CliAccessCard() {
               ))}
             </div>
           ) : (
-            <div className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">
+            <div className="terminal-empty border border-dashed border-border p-6 text-sm text-muted-foreground">
               No CLI tokens yet. Create one when you are ready to use the Sportfolio CLI.
             </div>
           )}
@@ -209,9 +217,9 @@ export function CliAccessCard() {
       </Card>
 
       <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-        <DialogContent>
+        <DialogContent className="rounded-sm border border-border bg-card">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
+            <DialogTitle className="terminal-heading flex items-center gap-2 text-base">
               <KeyRound className="h-5 w-5" />
               Create CLI Token
             </DialogTitle>
@@ -223,8 +231,13 @@ export function CliAccessCard() {
                 This token is shown once. Store it in a password manager or paste it into
                 `sportfolio auth login --token ...`.
               </p>
-              <Input value={createdToken} readOnly className="font-mono text-xs" />
-              <Button variant="outline" className="w-full gap-2" onClick={handleCopyToken}>
+              <Input
+                variant="terminal"
+                value={createdToken}
+                readOnly
+                className="font-mono text-xs"
+              />
+              <Button variant="terminalOutline" className="w-full gap-2" onClick={handleCopyToken}>
                 <Copy className="h-4 w-4" />
                 Copy Token
               </Button>
@@ -235,6 +248,7 @@ export function CliAccessCard() {
                 Use a specific label like `laptop`, `ci-bot`, or `home-server`.
               </p>
               <Input
+                variant="terminal"
                 value={label}
                 onChange={(event) => setLabel(event.target.value)}
                 placeholder="Token label"
@@ -245,11 +259,12 @@ export function CliAccessCard() {
           )}
 
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setCreateDialogOpen(false)}>
+            <Button variant="terminalOutline" onClick={() => setCreateDialogOpen(false)}>
               Close
             </Button>
             {!createdToken && (
               <Button
+                variant="terminal"
                 onClick={() => createTokenMutation.mutate()}
                 disabled={createTokenMutation.isPending || label.trim().length === 0}
                 data-testid="button-create-cli-token"

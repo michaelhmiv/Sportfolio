@@ -57,9 +57,9 @@ const slides: OnboardingSlide[] = [
     id: "power",
     icon: Trophy,
     title: "BOOST GAME OUTCOMES",
-    subtitle: "Use power slots and contests",
+    subtitle: "Use power slots with intent",
     description:
-      "Deploy one share per daily boost slot and combine it with contests to convert game performance into portfolio upside.",
+      "Deploy one share per daily boost slot, manage power carefully, and turn strong game outcomes into portfolio upside.",
     color: "text-sky-500",
     ctaLabel: "Open Power",
     ctaPath: "/power",
@@ -145,7 +145,7 @@ export function OnboardingModal({ open, onComplete }: OnboardingModalProps) {
   return (
     <Dialog open={open} onOpenChange={() => {}}>
       <DialogContent
-        className="w-[92vw] max-w-[430px] sm:max-w-[460px] p-0 gap-0 border border-border shadow-2xl overflow-hidden rounded-lg"
+        className="w-[92vw] max-w-[430px] overflow-hidden rounded-sm border border-border p-0 shadow-2xl sm:max-w-[460px]"
         onPointerDownOutside={(e) => e.preventDefault()}
         onEscapeKeyDown={(e) => e.preventDefault()}
         data-testid="onboarding-modal"
@@ -155,7 +155,7 @@ export function OnboardingModal({ open, onComplete }: OnboardingModalProps) {
           <DialogTitle>Welcome to Sportfolio</DialogTitle>
         </VisuallyHidden>
 
-        <div className="h-1 bg-gradient-to-r from-primary via-emerald-400 to-sky-400" />
+        <div className="h-1 bg-primary" />
 
         <div className="w-full overflow-hidden bg-card">
           <Carousel
@@ -168,20 +168,17 @@ export function OnboardingModal({ open, onComplete }: OnboardingModalProps) {
                 const Icon = slide.icon;
                 return (
                   <CarouselItem key={slide.id} className="pl-0 basis-full">
-                    <div className="flex flex-col items-center justify-center px-6 sm:px-8 py-8 text-center min-h-[320px]">
-                      <div
-                        className={`mb-5 ${slide.color} bg-muted/40 border border-border rounded-full h-16 w-16 flex items-center justify-center`}
-                      >
+                    <div className="flex min-h-[320px] flex-col items-center justify-center px-6 py-8 text-center sm:px-8">
+                      <div className={`terminal-avatar mb-5 h-16 w-16 ${slide.color} bg-muted/40`}>
                         <Icon className="w-8 h-8" />
                       </div>
-                      <h2 className="text-xl font-semibold tracking-tight mb-2">{slide.title}</h2>
-                      <p className="text-xs text-muted-foreground uppercase tracking-wider mb-4">
-                        {slide.subtitle}
-                      </p>
-                      <p className="text-sm text-foreground/80 leading-relaxed max-w-[320px]">
+                      <h2 className="terminal-heading mb-2 text-lg">{slide.title}</h2>
+                      <p className="terminal-label mb-4 text-[10px]">{slide.subtitle}</p>
+                      <p className="max-w-[320px] text-sm leading-relaxed text-foreground/80">
                         {slide.description}
                       </p>
                       <Button
+                        variant="terminal"
                         className="mt-6 w-full sm:w-auto"
                         onClick={() => handleSlideAction(slide)}
                         disabled={completeOnboarding.isPending}
@@ -197,13 +194,13 @@ export function OnboardingModal({ open, onComplete }: OnboardingModalProps) {
           </Carousel>
         </div>
 
-        <div className="flex flex-col gap-3 p-4 border-t border-border bg-muted/20">
+        <div className="flex flex-col gap-3 border-t border-border bg-muted/20 p-4">
           <div className="flex items-center justify-between gap-3">
             <a
               href="https://discord.gg/r8MsduNvXG"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              className="inline-flex items-center gap-2 font-mono text-[11px] text-muted-foreground transition-colors hover:text-foreground"
               data-testid="link-discord"
             >
               <SiDiscord className="w-3.5 h-3.5" />
@@ -214,7 +211,7 @@ export function OnboardingModal({ open, onComplete }: OnboardingModalProps) {
                 <button
                   key={index}
                   onClick={() => api?.scrollTo(index)}
-                  className={`w-2.5 h-2.5 rounded-full transition-colors ${
+                  className={`h-2.5 w-2.5 rounded-sm transition-colors ${
                     index === current ? "bg-primary" : "bg-muted-foreground/30"
                   }`}
                   aria-label={`Go to slide ${index + 1}`}
@@ -225,7 +222,7 @@ export function OnboardingModal({ open, onComplete }: OnboardingModalProps) {
           </div>
           <div className="flex items-center justify-between gap-2">
             <Button
-              variant="ghost"
+              variant="terminalOutline"
               size="sm"
               onClick={handleSkip}
               className="text-muted-foreground"
@@ -234,6 +231,7 @@ export function OnboardingModal({ open, onComplete }: OnboardingModalProps) {
               Skip
             </Button>
             <Button
+              variant="terminal"
               size="sm"
               onClick={handleNext}
               disabled={completeOnboarding.isPending}

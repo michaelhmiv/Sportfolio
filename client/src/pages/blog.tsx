@@ -27,7 +27,7 @@ export default function Blog() {
     if (metaDescription) {
       metaDescription.setAttribute(
         "content",
-        "Latest insights on fantasy sports, NBA player trading strategies, contest tips, and Sportfolio platform updates. Expert analysis for fantasy basketball enthusiasts.",
+        "Latest insights on fantasy sports, NBA player trading strategies, boost tactics, and Sportfolio platform updates. Expert analysis for fantasy basketball enthusiasts.",
       );
     }
 
@@ -38,9 +38,9 @@ export default function Blog() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background p-6 md:p-12">
+      <div className="terminal-page p-6 md:p-12">
         <div className="max-w-4xl mx-auto">
-          <div className="text-center">Loading blog posts...</div>
+          <div className="terminal-subtle text-center">Loading blog posts...</div>
         </div>
       </div>
     );
@@ -49,14 +49,15 @@ export default function Blog() {
   const posts = data?.posts || [];
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="terminal-page">
       <div className="max-w-4xl mx-auto p-6 md:p-12">
         {/* Header */}
-        <div className="mb-12 text-center">
-          <h1 className="hidden sm:block text-4xl font-bold mb-4" data-testid="heading-blog">
+        <div className="terminal-shell mb-8 p-6">
+          <div className="terminal-strip mb-4">Market Analysis Feed</div>
+          <h1 className="terminal-heading text-3xl sm:text-4xl" data-testid="heading-blog">
             Sportfolio Blog
           </h1>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+          <p className="terminal-subtle mt-3 max-w-2xl">
             News, insights, and updates about fantasy sports, NBA player trading, and the Sportfolio
             platform
           </p>
@@ -68,7 +69,10 @@ export default function Blog() {
             {posts.map((post) => (
               <Link key={post.id} href={`/blog/${post.slug}`}>
                 <a data-testid={`blog-post-card-${post.slug}`}>
-                  <Card className="hover-elevate active-elevate-2 transition-all">
+                  <Card
+                    variant="terminal"
+                    className="hover-elevate active-elevate-2 transition-colors hover:border-primary/40"
+                  >
                     <CardHeader className="pb-3">
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1">
@@ -81,7 +85,7 @@ export default function Blog() {
                       </div>
                     </CardHeader>
                     <CardContent className="pt-0">
-                      <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                      <div className="terminal-subtle flex items-center gap-4">
                         <div className="flex items-center gap-1">
                           <Calendar className="w-3 h-3" />
                           {new Date(post.publishedAt).toLocaleDateString()}
@@ -94,8 +98,8 @@ export default function Blog() {
             ))}
           </div>
         ) : (
-          <Card>
-            <CardContent className="py-12 text-center text-muted-foreground">
+          <Card variant="terminal">
+            <CardContent className="terminal-subtle py-12 text-center">
               No blog posts published yet. Check back soon for updates!
             </CardContent>
           </Card>

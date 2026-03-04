@@ -142,6 +142,7 @@ export async function loadScoutAgentContext(
   profile: UserAgentProfile,
   options?: {
     chatRequest?: string | null;
+    sportOverride?: string | null;
   },
 ): Promise<ScoutAgentContext> {
   const user = await storage.getUser(userId);
@@ -150,11 +151,18 @@ export async function loadScoutAgentContext(
   }
 
   const requestMessage = options?.chatRequest || null;
-  const { selectionWindow, sportScope } = resolveSelectionWindow(
+  const normalizedSportOverride =
+    typeof options?.sportOverride === "string" && options.sportOverride.trim()
+      ? options.sportOverride.trim().toUpperCase()
+      : null;
+  const { selectionWindow, sportScope: inferredSportScope } = resolveSelectionWindow(
     requestMessage,
     profile.defaultSport,
   );
-  const marketSport = sportScope.length === 1 ? sportScope[0] : profile.defaultSport || "ALL";
+  const sportScope = normalizedSportOverride ? [normalizedSportOverride] : inferredSportScope;
+  const marketSport =
+    normalizedSportOverride ||
+    (sportScope.length === 1 ? sportScope[0] : profile.defaultSport || "ALL");
 
   const [
     assignments,
@@ -193,6 +201,10 @@ export async function loadScoutAgentContext(
   }> = [];
 
   if (selectionWindow) {
+    if (normalizedSportOverride) {
+      selectionWindow.sportScope = [normalizedSportOverride];
+    }
+
     const { startOfDay, endOfDay } = getETDayBoundaries(selectionWindow.date);
     focusGames = await db
       .select({
@@ -349,6 +361,7 @@ export async function loadScoutAgentContext(
   const recommendedTargets = candidates.slice(0, 5).map((candidate) => ({
     playerId: candidate.playerId,
     name: candidate.name,
+    sport: candidate.sport,
     score: candidate.scoutOpportunityScore,
     reason: buildRecommendationReason({
       hasGameInFocusWindow: candidate.hasGameInFocusWindow,

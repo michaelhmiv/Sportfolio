@@ -1,43 +1,143 @@
 ---
 id: gameplay-player-pools
 title: Player Pools
-summary: How AMM trading, pricing, and liquidity work in Sportfolio player markets.
+summary: A detailed guide to AMM trading, pricing, liquidity, and the signals that matter in Sportfolio player markets.
 audience: public
 category: gameplay
 status: published
 owner: product-engineering
-lastReviewedAt: 2026-03-02
-changeTriggers: server/routes/amm.ts,server/amm/pool.ts,shared/schema.ts
+lastReviewedAt: 2026-03-04
+changeTriggers: server/routes/amm.ts,server/routes/lp.ts,server/amm/pool.ts,client/src/pages/marketplace.tsx,client/src/pages/player.tsx,shared/schema.ts
 slug: player-pools
 surface: web,cli,agent
-searchKeywords: amm,pools,buy,sell,liquidity,quotes
+searchKeywords: amm,pools,buy,sell,liquidity,quotes,slippage,lp
 ---
 
-# AMM-backed trading
+# What a player pool is
 
-Player pools use an automated market maker. You buy from or sell into the pool instantly instead of waiting on another user to take the other side.
+Every tradeable player sits in an automated market maker (AMM) pool. You do not wait for another user to place the opposite order. You trade directly against pooled liquidity.
 
-# Prices move with flow
+That has three important consequences:
 
-When users buy more of a player, the price moves up. When users sell into the pool, the price moves down. Quotes are path-dependent, so larger orders move price more than smaller orders.
+- execution is immediate
+- price moves as your order moves the pool
+- liquidity depth matters as much as the displayed spot price
 
-# What matters before you buy
+## The pricing model
 
-- current quote
-- slippage on your order size
-- your available cash after the trade
-- how concentrated your portfolio becomes
+Sportfolio's AMM uses a constant-product model:
 
-# What matters before you sell
+`x * y = k`
+
+- `x` is player-share reserve in the pool
+- `y` is Sportfolio Bucks in the pool
+- the implied spot price is `y / x`
+
+When users buy shares:
+
+- the pool gives up shares
+- the pool receives more SB
+- the share price rises
+
+When users sell shares:
+
+- the pool receives shares
+- the pool gives up SB
+- the share price falls
+
+Larger orders move the price more than smaller orders. That is why quotes are path-dependent and why size discipline matters.
+
+## Fees and slippage
+
+Current AMM trading logic applies a 2% total trade fee:
+
+- `1%` pool fee that benefits LP economics
+- `1%` burn fee
+
+Before execution, the API can quote the trade and enforce slippage bounds. In practice, you should think about:
+
+- how much your order will move the pool
+- whether the quoted average execution price is still acceptable
+- whether urgency is worth the extra price impact
+
+Sell flows use whole-share quantities. Buy flows use SB amount.
+
+## What the market screens show you
+
+The Player Pools and player-detail surfaces expose more than just price. Common market signals include:
+
+- **price**: current share price
+- **24h change**: recent percentage move
+- **volume**: recent trading activity
+- **market cap**: aggregate notional value signal
+- **TVL / pool size**: depth of liquidity
+- **buy pressure / sentiment**: directional flow signal
+- **value index**: a composite relative-value signal
+- **fantasy output metrics**: context for why the market may care
+
+These are not guarantees. They are context clues for whether a move looks crowded, quiet, expensive, or potentially underpriced.
+
+## Buying shares
+
+Use buying when you want direct exposure to a player's future market value and downstream utility.
+
+A buy decision should usually check:
+
+- current quote and expected slippage
+- how much cash remains after the trade
+- whether you are over-concentrating in one player, team, or sport
+- whether you may want to keep cash for boosts, liquidity adds, or a later dip
+
+Buying is the simplest way to gain inventory for future trades, boosts, or condense paths.
+
+## Selling shares
+
+Selling realizes liquidity and reduces exposure, but the real cost is not always obvious.
+
+Before you sell, check:
 
 - available shares after lock checks
-- whether you are giving up boost-ready or powered inventory
-- whether the sale reduces or increases risk
+- whether the shares are raw or powered
+- whether the player is relevant for an imminent boost window
+- whether you are selling into a weak pool and paying avoidable slippage
 
-# Liquidity provider context
+The highest-cost sale is often the one that quietly removes your best boost-ready inventory.
 
-Some users provide liquidity instead of only directional trading. LP positions are a different exposure than a normal buy because you are warehousing both sides of the pool and earning fees over time.
+## Liquidity provider exposure
 
-# Practical advice
+You can also become a liquidity provider instead of only a directional trader.
 
-Use smaller entries when price discovery is active. If you are reacting to news, check the quote, then decide whether you want immediate execution or to wait for the market to settle.
+LP flows include:
+
+- adding liquidity
+- optimal add flows
+- single-sided zap adds
+- removing liquidity
+
+An LP position is different from owning normal shares:
+
+- you are exposed to both sides of the pool
+- your ownership is represented as LP shares
+- fee value accrues through pool fee growth and position snapshots
+
+LP is for users who want to warehouse liquidity and collect fee exposure, not only speculate on one-way price movement.
+
+## Practical risk checks
+
+Healthy habits in player pools:
+
+- size up slowly in thin pools
+- re-check quotes when news breaks
+- separate "I like this player" from "this trade still prices well"
+- decide whether the position is for holding, boosting, LP, or a short-term reaction
+- remember that immediate execution is convenient, but convenience has a cost when the pool is shallow
+
+## What player pools are not
+
+Player pools are not:
+
+- an order book with resting bids and asks
+- a guaranteed low-slippage environment
+- a promise that fantasy performance and market price always move together
+
+They are instant, transparent liquidity surfaces. Use them accordingly.

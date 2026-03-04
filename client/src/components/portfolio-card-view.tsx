@@ -247,9 +247,9 @@ export function PortfolioCardView({
               <div className="space-y-2 max-h-[300px] overflow-y-auto">
                 {/* Regular Shares */}
                 {selectedPlayer.regular && selectedPlayer.regular.quantity > 0 && (
-                  <div className="flex items-center justify-between p-3 bg-green-500/10 rounded-lg border border-green-500/20">
+                  <div className="flex items-center justify-between rounded-sm border border-green-500/20 bg-green-500/10 p-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-3 h-3 rounded-full bg-green-500" />
+                      <div className="h-3 w-3 rounded-sm bg-green-500" />
                       <div>
                         <div className="font-medium">Regular Shares</div>
                         <div className="text-sm text-muted-foreground">1x power each</div>
@@ -270,11 +270,11 @@ export function PortfolioCardView({
                 {selectedPlayer.powered.map((share, idx) => (
                   <div
                     key={idx}
-                    className={`flex items-center justify-between p-3 rounded-lg border ${getPowerTierBg(share.power)} border-purple-500/30`}
+                    className={`flex items-center justify-between rounded-sm border p-3 ${getPowerTierBg(share.power)} border-purple-500/30`}
                   >
                     <div className="flex items-center gap-3">
                       <div
-                        className={`w-3 h-3 rounded-full ${getPowerTierColor(share.power).split(" ")[0]}`}
+                        className={`h-3 w-3 rounded-sm ${getPowerTierColor(share.power).split(" ")[0]}`}
                       />
                       <div>
                         <div className="font-medium text-purple-700">

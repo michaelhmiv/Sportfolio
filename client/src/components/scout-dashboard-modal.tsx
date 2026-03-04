@@ -668,7 +668,7 @@ export function ScoutDashboardModal() {
         <DialogHeader className="p-4 pb-2 border-b bg-muted/10 shrink-0">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
-              <div className="bg-amber-100 p-1.5 rounded-full">
+              <div className="rounded-sm border border-amber-500/30 bg-amber-500/10 p-1.5">
                 <Binoculars className="h-5 w-5 text-amber-600" />
               </div>
               <div>
@@ -879,7 +879,7 @@ export function ScoutDashboardModal() {
                 </div>
               ) : displayedPlayers.length === 0 ? (
                 <div className="py-20 text-center text-muted-foreground flex flex-col items-center gap-3 bg-muted/10 shrink-0 border-b">
-                  <div className="p-3 rounded-full bg-background border shadow-sm">
+                  <div className="rounded-sm border bg-background p-3 shadow-none">
                     <Search className="h-5 w-5 opacity-40" />
                   </div>
                   <div className="space-y-1">

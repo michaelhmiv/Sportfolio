@@ -110,11 +110,11 @@ export function HelpDialog() {
                     </div>
 
                     <div>
-                      <p className="font-medium mb-1">Option B: Enter Contests</p>
+                      <p className="font-medium mb-1">Option B: Use Daily Boosts</p>
                       <p className="text-muted-foreground">
-                        Use your shares to enter daily 50/50 contests. Draft players from that day's
-                        games and earn fantasy points based on real NBA performance. Top half of
-                        contestants win prizes.
+                        Commit an eligible share to a boost slot for short-horizon payouts tied to
+                        real game outcomes. Slot tier, share power, and community multipliers drive
+                        the final result.
                       </p>
                     </div>
                   </div>
@@ -125,8 +125,8 @@ export function HelpDialog() {
                   <p className="mb-2">This keeps the economy balanced:</p>
                   <ul className="list-disc pl-6 space-y-1">
                     <li>
-                      When you enter a contest, your entry fee is used to create new "money" in the
-                      game (prizes for winners).
+                      When you assign a share to a started boost, that share is removed from your
+                      liquid holdings for the duration of the boost lifecycle.
                     </li>
                     <li>
                       This creation is balanced by the continuous flow of shares through scouting,
@@ -161,8 +161,8 @@ export function HelpDialog() {
 
             <p className="text-center font-medium pt-4">
               In short, your goal is to <strong>Accumulate</strong> shares through scouting,{" "}
-              <strong>Trade</strong> them for profit, or <strong>Compete</strong> with them in
-              contests to win prizes.
+              <strong>Trade</strong> them for profit, and <strong>Deploy</strong> them into boosts
+              with discipline.
             </p>
           </div>
         </DialogContent>

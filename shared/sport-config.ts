@@ -2,8 +2,7 @@
  * Sport Configuration
  *
  * Central configuration for all supported sports in Sportfolio.
- * This file defines sport-specific settings like positions, seasons,
- * fantasy scoring rules, and contest frequencies.
+ * This file defines sport-specific settings like positions and seasons.
  */
 
 export const SPORTS = ["NBA", "NFL", "MLB", "NASCAR"] as const;
@@ -17,7 +16,6 @@ export interface SportConfig {
   positions: string[];
   positionLabels: Record<string, string>;
   seasonType: string;
-  contestFrequency: "daily" | "weekly";
   apiProvider: string;
   /** Get current API season string for this sport */
   getApiSeason: () => string;
@@ -110,7 +108,6 @@ export const SPORT_CONFIGS: Record<Sport, SportConfig> = {
       F: "Forward",
     },
     seasonType: "october-june",
-    contestFrequency: "daily",
     apiProvider: "balldontlie",
     getApiSeason: getNBASeason,
     getSeasonYear: getNBASeasonYear,
@@ -134,7 +131,6 @@ export const SPORT_CONFIGS: Record<Sport, SportConfig> = {
       OL: "Offensive Line",
     },
     seasonType: "september-february",
-    contestFrequency: "weekly",
     apiProvider: "balldontlie",
     getApiSeason: getNFLSeason,
     getSeasonYear: getNFLSeasonYear,
@@ -157,7 +153,6 @@ export const SPORT_CONFIGS: Record<Sport, SportConfig> = {
       UTIL: "Utility",
     },
     seasonType: "march-october",
-    contestFrequency: "daily",
     apiProvider: "balldontlie",
     getApiSeason: getMLBSeason,
     getSeasonYear: getMLBSeasonYear,
@@ -172,7 +167,6 @@ export const SPORT_CONFIGS: Record<Sport, SportConfig> = {
       DRV: "Driver",
     },
     seasonType: "february-november",
-    contestFrequency: "weekly",
     apiProvider: "nascar-api",
     getApiSeason: getNASCARSeason,
     getSeasonYear: getNASCARSeasonYear,

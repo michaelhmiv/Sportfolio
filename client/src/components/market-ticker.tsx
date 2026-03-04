@@ -44,8 +44,14 @@ export function MarketTicker() {
 
   return (
     <div className="border-b bg-card/80 backdrop-blur-sm relative z-40">
-      <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-card to-transparent z-10 pointer-events-none" />
-      <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-card to-transparent z-10 pointer-events-none" />
+      <div
+        className="pointer-events-none absolute bottom-0 left-0 top-0 z-10 w-8"
+        style={{ background: "linear-gradient(to right, hsl(var(--card)), transparent)" }}
+      />
+      <div
+        className="pointer-events-none absolute bottom-0 right-0 top-0 z-10 w-8"
+        style={{ background: "linear-gradient(to left, hsl(var(--card)), transparent)" }}
+      />
 
       <div className="h-10 flex items-center overflow-hidden bg-black/40 border-y border-white/5">
         <div className="flex items-center px-4 border-r border-white/10 h-full mr-2 z-20 bg-background/50 backdrop-blur shrink-0">

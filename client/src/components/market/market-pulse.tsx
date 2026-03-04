@@ -145,7 +145,7 @@ export function ActivityIndicator({ className }: ActivityIndicatorProps) {
   return (
     <div className={cn("flex items-center gap-2", className)}>
       <motion.div
-        className={cn("w-2 h-2 rounded-full", getActivityColor())}
+        className={cn("h-2 w-2 rounded-sm", getActivityColor())}
         animate={{
           scale: [1, 1.2, 1],
           opacity: [0.7, 1, 0.7],

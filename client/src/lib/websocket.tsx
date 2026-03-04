@@ -5,7 +5,6 @@ import {
   debouncedInvalidateScouts,
   debouncedInvalidatePlayer,
   debouncedInvalidateMarketActivity,
-  debouncedInvalidateContests,
 } from "@/lib/cache-invalidation";
 
 function debugLog(stage: string, message: string, data?: any) {
@@ -83,10 +82,6 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
                 // Also invalidate boosts to update live fantasy points
                 queryClient.invalidateQueries({ queryKey: ["/api/daily-boosts/all"] });
               }
-              break;
-
-            case "contestUpdate":
-              debouncedInvalidateContests(message.contestId);
               break;
 
             case "scout_ready":

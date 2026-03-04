@@ -139,6 +139,7 @@ export interface ScoutAgentSelectionWindow {
 export interface ScoutAgentRecommendedTarget {
   playerId: string;
   name: string;
+  sport: string;
   score: number;
   reason: string;
 }
@@ -232,6 +233,25 @@ export type AgentScheduleJobType =
   | "idle_balance_nudge"
   | "boost_window";
 export type AgentToolCategory = "read" | "scan" | "plan" | "action" | "memory" | "research";
+export type AgentToolExposure = "default" | "advanced" | "hidden_fallback" | "internal_only";
+export type AgentFailureClass =
+  | "malformed_tool_call"
+  | "tool_not_selected_when_needed"
+  | "wrong_tool_selected"
+  | "insufficient_tool_chain"
+  | "tool_execution_error"
+  | "overeager_direct_answer"
+  | "fallback_triggered"
+  | "legacy_compatibility_used";
+export type AgentImprovementCandidateStatus = "new" | "reviewed" | "implemented" | "rejected";
+export type AgentImprovementChangeType =
+  | "tool_schema"
+  | "tool_coverage"
+  | "loop_budget"
+  | "executor_reliability"
+  | "prompt_policy"
+  | "fallback_policy"
+  | "compatibility_isolation";
 
 export interface AgentToolDefinition {
   toolName: string;
@@ -242,6 +262,30 @@ export interface AgentToolDefinition {
   examplePrompts: string[];
   requiresConfirmation: boolean;
   riskLevel: "low" | "medium" | "high";
+  inputSchema?: Record<string, unknown> | null;
+  resultShapeHint?: string | null;
+  autoContextArgs?: string[];
+  exposure?: AgentToolExposure;
+  supportsSequentialUse?: boolean;
+  auditPriority?: "critical" | "high" | "normal";
+}
+
+export interface AgentImprovementCandidate {
+  id: string;
+  signature: string;
+  userId: string | null;
+  sourceRunId: string | null;
+  status: AgentImprovementCandidateStatus;
+  failureClass: AgentFailureClass;
+  recommendedChangeType: AgentImprovementChangeType;
+  recommendedChange: string;
+  affectedTools: string[];
+  evidence: Record<string, unknown>;
+  confidence: number;
+  occurrenceCount: number;
+  lastSeenAt: Date;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export type AgentSkillScope = "user" | "global_candidate" | "global_approved";
@@ -308,7 +352,7 @@ export interface ProposedMemoryWrite {
 
 export interface AgentToolTrace {
   toolName: string;
-  phase: "read" | "scan" | "plan" | "memory" | "research";
+  phase: "read" | "scan" | "plan" | "action" | "memory" | "research";
   status: "ok" | "failed" | "skipped";
   latencyMs: number;
   summary: string;

@@ -139,7 +139,7 @@ export function AppSidebar() {
                         <div className="ml-auto flex items-center gap-2">
                           {hasUnreadDigest && (
                             <span
-                              className="inline-block h-2.5 w-2.5 rounded-full bg-red-500"
+                              className="inline-block h-2.5 w-2.5 rounded-sm bg-red-500"
                               data-testid="dot-digest-unread"
                             />
                           )}

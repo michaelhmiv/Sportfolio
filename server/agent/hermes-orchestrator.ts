@@ -1,8 +1,9 @@
 import type { UserAgentProfile, UserAgentSecret } from "@shared/schema";
 import { inferMemoryWritesFromMessage } from "./memory";
-import { runHermesPlanTool, runHermesReadTool, runHermesScanTool } from "./hermes-tools";
+import { runHermesPlanTool } from "./hermes-tools";
 import { createOrUpdateUserSkill, matchAgentSkill, proposeGlobalSkillCandidate } from "./skills";
 import { runLocalHermesCompatibilityTurn } from "./hermes-local";
+import { runHermesModelToolLoop } from "./model-first-router";
 import type {
   AgentAction,
   AgentCitation,
@@ -13,31 +14,6 @@ import type {
   HermesRespondResult,
   ScoutAgentContext,
 } from "./types";
-
-const MODEL_CONVERSATION_TOOL = "respond_to_user_turn";
-const SCAN_TOOL_ALIASES = new Set([
-  "scan_daily_boost_candidates",
-  "scan_open_boost_slots",
-  "scan_scout_opportunities",
-  "scan_idle_balance_options",
-  "scan_portfolio_cleanup_levers",
-  "scan_watchlist_targets",
-  "scan_community_boost_candidates",
-  "scan_news_impact",
-  "scan_top_market_opportunities",
-]);
-
-function looksLikeCompoundOperation(message: string): boolean {
-  const normalized = message.toLowerCase();
-  if (!looksLikeExplicitOperation(normalized)) {
-    return false;
-  }
-
-  return (
-    /\b(?:and|then)\b/.test(normalized) &&
-    /\b(?:put|assign|condense|power up|buy|sell|add|remove|set|move)\b/.test(normalized)
-  );
-}
 
 function buildToolTraceEntry(input: {
   toolName: string;
@@ -53,121 +29,6 @@ function buildToolTraceEntry(input: {
     latencyMs: Math.max(0, Date.now() - input.startedAt),
     summary: input.summary,
   };
-}
-
-function wantsHostedResearch(message: string): boolean {
-  const normalized = message.toLowerCase();
-
-  return (
-    /\b(latest|today|news|injury|injuries|updated|update|what changed|research|headline|report)\b/.test(
-      normalized,
-    ) || /\b(search|look up|browse|web)\b/.test(normalized)
-  );
-}
-
-function looksLikeExplicitOperation(message: string): boolean {
-  const normalized = message.trim().toLowerCase();
-  if (!normalized) {
-    return false;
-  }
-
-  return (
-    /^(?:please\s+)?(?:buy|sell|put|assign|remove|add|create|delete|rename|set|move|confirm|cancel|condense|zap|power up)\b/.test(
-      normalized,
-    ) ||
-    /^(?:can you|could you|please)\s+(?:buy|sell|put|assign|remove|add|create|delete|rename|set|move|confirm|cancel|condense|zap|power up)\b/.test(
-      normalized,
-    )
-  );
-}
-
-function inferScanTools(message: string): string[] {
-  const normalized = message.trim().toLowerCase();
-  if (!normalized || looksLikeExplicitOperation(normalized)) {
-    return [];
-  }
-
-  const requested: string[] = [];
-  const push = (toolName: string) => {
-    if (!requested.includes(toolName)) {
-      requested.push(toolName);
-    }
-  };
-
-  if (normalized.includes("community boost")) {
-    push("scan_community_boost_candidates");
-    return requested;
-  }
-
-  if (
-    normalized.includes("boost") &&
-    /\b(slot|slots|eligible|who can|who should|which player|which players|open)\b/.test(normalized)
-  ) {
-    if (
-      /\b(open|how many)\b/.test(normalized) &&
-      !/\bwho can|who should|eligible|which player/.test(normalized)
-    ) {
-      push("scan_open_boost_slots");
-    } else {
-      push("scan_daily_boost_candidates");
-    }
-  }
-
-  if (
-    normalized.includes("scout") &&
-    /\b(who|what|best|target|targets|tonight|today)\b/.test(normalized)
-  ) {
-    push("scan_scout_opportunities");
-  }
-
-  if (
-    /\b(idle balance|extra cash|unused cash|idle cash|idle balance|extra balance)\b/.test(
-      normalized,
-    )
-  ) {
-    push("scan_idle_balance_options");
-  }
-
-  if (
-    /\b(clean up|cleanup|overexposed|over exposed|stale|trim this|trim that)\b/.test(normalized)
-  ) {
-    push("scan_portfolio_cleanup_levers");
-  }
-
-  if (
-    normalized.includes("watchlist") &&
-    /\b(who|what|track|tracking|stale|cleanup)\b/.test(normalized)
-  ) {
-    push("scan_watchlist_targets");
-  }
-
-  if (
-    /\b(what changed|any news|news that affects|injury|injuries|headline|headlines|digest)\b/.test(
-      normalized,
-    )
-  ) {
-    push("scan_news_impact");
-  }
-
-  if (
-    /\b(who is worth buying|worth buying|start a position|best market|market opportunity|market opportunities)\b/.test(
-      normalized,
-    )
-  ) {
-    push("scan_top_market_opportunities");
-  }
-
-  if (
-    /\b(open slots)\b/.test(normalized) &&
-    /\b(extra cash|idle balance|unused cash|idle cash)\b/.test(normalized)
-  ) {
-    push("scan_idle_balance_options");
-    if (!requested.includes("scan_daily_boost_candidates")) {
-      push("scan_open_boost_slots");
-    }
-  }
-
-  return requested;
 }
 
 function summarizeMemoryContext(request: HermesRespondRequest): string | null {
@@ -295,9 +156,7 @@ function buildFollowUpExplanation(
   };
 }
 
-function buildFallbackAdvisory(
-  request: HermesRespondRequest,
-  context: ScoutAgentContext,
+function buildNeutralModelFallback(
   citations: AgentCitation[],
 ): Pick<
   HermesRespondResult,
@@ -311,47 +170,12 @@ function buildFallbackAdvisory(
   | "requiresConfirmation"
   | "confirmationPreview"
 > {
-  const explanationReply = buildFollowUpExplanation(request, context, citations);
-  if (explanationReply) {
-    return explanationReply;
-  }
-
-  const overview = request.canonicalState.operatorOverview;
-  const lead = context.operatorOverview.nextBestLevers.slice(0, 2);
-  const rememberedPreference = summarizeMemoryContext(request);
-  const parts = [
-    `You have $${overview.availableBalance.toFixed(2)} available across ${overview.portfolioPlayerCount} player position${overview.portfolioPlayerCount === 1 ? "" : "s"}.`,
-  ];
-
-  if (overview.openDailyBoostSlots > 0) {
-    parts.push(
-      `You still have ${overview.openDailyBoostSlots} open daily boost slot${overview.openDailyBoostSlots === 1 ? "" : "s"} in this window.`,
-    );
-  }
-
-  if (rememberedPreference) {
-    parts.push(`I am still factoring in that you said: "${rememberedPreference}".`);
-  }
-
-  if (lead.length > 0) {
-    parts.push(`Right now the cleanest next lever is ${lead.join(" then ")}.`);
-  } else {
-    parts.push(
-      "If you want a concrete move, tell me the player or workflow and I will stage it with a before-and-after confirmation preview.",
-    );
-  }
-
-  if (citations.length > 0) {
-    parts.push(
-      "I also pulled current external context so the read is grounded in live information.",
-    );
-  }
-
   return {
     outcome: "advisory",
-    assistantText: parts.join(" "),
-    summary: "Hermes operator overview based on current account state.",
-    warnings: [],
+    assistantText:
+      "Hermes could not complete the direct tool loop for that turn. I did not ignore your request, but the system did not finish with a usable answer.",
+    summary: "Hermes could not complete the direct tool loop for the latest turn.",
+    warnings: ["The direct Hermes tool loop did not return a usable answer or plan."],
     citations,
     proposedActions: [],
     pendingClarification: null,
@@ -516,10 +340,6 @@ function buildActionDeltaPreview(action: AgentAction): AgentConfirmationPreview 
   }
 }
 
-function normalizeToolAllowlist(request: HermesRespondRequest): Set<string> {
-  return new Set(request.toolAllowlist || []);
-}
-
 function buildMemoryWrites(
   request: HermesRespondRequest,
 ): HermesRespondResult["proposedMemoryWrites"] {
@@ -575,55 +395,27 @@ function normalizePlannerOutcome(
   };
 }
 
-function normalizeScanOutcome(
-  scanResults: Array<{
-    toolName: string;
-    summary: string;
-    replyText: string;
-    warnings: string[];
-    context?: { citations?: AgentCitation[] } | Record<string, unknown>;
-  }>,
-  proposedMemoryWrites: HermesRespondResult["proposedMemoryWrites"],
-  toolTrace: AgentToolTrace[],
-  skillsUsed: string[] = [],
-  createdSkillCandidates: string[] = [],
-  skillMatchRationale: string | null = null,
-  fallbackUsed = false,
-): HermesRespondResult {
-  const citations = scanResults.flatMap((entry) => {
-    const candidate = entry.context;
-    if (
-      candidate &&
-      typeof candidate === "object" &&
-      Array.isArray((candidate as { citations?: unknown }).citations)
-    ) {
-      return (candidate as { citations: AgentCitation[] }).citations;
-    }
+function buildModelSelectedToolArgs(input: {
+  request: HermesRespondRequest;
+  toolName: string;
+  toolArgs: Record<string, unknown>;
+}) {
+  const args = { ...input.toolArgs };
 
-    return [];
-  });
+  if (typeof args.message !== "string" || !args.message.trim()) {
+    args.message = input.request.message;
+  }
 
-  return {
-    outcome: "advisory",
-    assistantText: scanResults.map((entry) => entry.replyText).join(" "),
-    summary:
-      scanResults.length === 1
-        ? scanResults[0].summary
-        : `Used ${scanResults.length} advisory scans to answer the request.`,
-    warnings: scanResults.flatMap((entry) => entry.warnings || []),
-    proposedActions: [],
-    pendingClarification: null,
-    citations,
-    proposedMemoryWrites,
-    toolTrace,
-    toolCallsUsed: toolTrace.map((entry) => entry.toolName),
-    skillsUsed,
-    createdSkillCandidates,
-    skillMatchRationale,
-    fallbackUsed,
-    requiresConfirmation: false,
-    confirmationPreview: null,
-  };
+  if (
+    (input.toolName === "list_user_memories" ||
+      input.toolName === "search_user_memories" ||
+      input.toolName === "get_user_memory_context") &&
+    (typeof args.query !== "string" || !args.query.trim())
+  ) {
+    args.query = input.request.message;
+  }
+
+  return args;
 }
 
 function buildSkillStepsFromTrace(toolTrace: AgentToolTrace[]): AgentSkillStep[] {
@@ -632,6 +424,11 @@ function buildSkillStepsFromTrace(toolTrace: AgentToolTrace[]): AgentSkillStep[]
       (entry) =>
         entry.status === "ok" &&
         entry.toolName !== "tool_first_router" &&
+        entry.toolName !== "model_first_router" &&
+        entry.toolName !== "model_tool_loop" &&
+        entry.toolName !== "model_tool_repair_retry" &&
+        entry.toolName !== "model_first_read_summary" &&
+        entry.toolName !== "model_first_fallback" &&
         entry.toolName !== "infer_memory_writes" &&
         entry.toolName !== "external_hermes_fallback",
     )
@@ -640,11 +437,13 @@ function buildSkillStepsFromTrace(toolTrace: AgentToolTrace[]): AgentSkillStep[]
       toolCategory:
         entry.phase === "scan" || entry.phase === "research"
           ? entry.phase
-          : entry.phase === "memory"
-            ? "memory"
-            : entry.phase === "read"
-              ? "read"
-              : "plan",
+          : entry.phase === "action"
+            ? "action"
+            : entry.phase === "memory"
+              ? "memory"
+              : entry.phase === "read"
+                ? "read"
+                : "plan",
       toolName: entry.toolName,
       argumentTemplate: {},
     }));
@@ -715,7 +514,6 @@ export async function runHermesOrchestrationTurn(input: {
 }): Promise<HermesRespondResult> {
   const toolTrace: AgentToolTrace[] = [];
   const startedAt = Date.now();
-  const toolAllowlist = normalizeToolAllowlist(input.request);
   const proposedMemoryWrites = buildMemoryWrites(input.request);
   const skillsUsed: string[] = [];
   const createdSkillCandidates: string[] = [];
@@ -758,238 +556,6 @@ export async function runHermesOrchestrationTurn(input: {
       );
     }
 
-    let requestedScanTools = inferScanTools(input.request.message).filter(
-      (toolName) => toolAllowlist.size === 0 || toolAllowlist.has(toolName),
-    );
-
-    if (matchedSkill) {
-      const preferredScanTools = matchedSkill.toolSequence
-        .filter(
-          (step) =>
-            step.toolCategory === "scan" &&
-            (toolAllowlist.size === 0 || toolAllowlist.has(step.toolName)),
-        )
-        .map((step) => step.toolName);
-      if (preferredScanTools.length > 0) {
-        requestedScanTools = preferredScanTools;
-      }
-    }
-
-    const preferredPlanTool =
-      matchedSkill?.toolSequence.find(
-        (step) =>
-          step.toolCategory === "plan" &&
-          (toolAllowlist.size === 0 || toolAllowlist.has(step.toolName)),
-      )?.toolName || null;
-    const isExplicitOperation = looksLikeExplicitOperation(input.request.message);
-    const selectedPlanTool =
-      preferredPlanTool ||
-      (isExplicitOperation
-        ? looksLikeCompoundOperation(input.request.message)
-          ? "preview_multi_action_bundle"
-          : "preview_direct_operation"
-        : null);
-
-    if (selectedPlanTool && (toolAllowlist.size === 0 || toolAllowlist.has(selectedPlanTool))) {
-      const planStartedAt = Date.now();
-
-      try {
-        const planResult = await runHermesPlanTool({
-          toolName: selectedPlanTool,
-          userId: input.userId,
-          args: {
-            message: input.request.message,
-          },
-        });
-
-        if (!planResult) {
-          toolTrace.push(
-            buildToolTraceEntry({
-              toolName: selectedPlanTool,
-              phase: "plan",
-              status: "skipped",
-              startedAt: planStartedAt,
-              summary: "The selected planning tool did not return a usable plan for this turn.",
-            }),
-          );
-        } else {
-          toolTrace.push(
-            buildToolTraceEntry({
-              toolName: selectedPlanTool,
-              phase: "plan",
-              status: "ok",
-              startedAt: planStartedAt,
-              summary:
-                planResult &&
-                typeof planResult === "object" &&
-                Array.isArray((planResult as { actions?: unknown[] }).actions)
-                  ? `Prepared ${((planResult as { actions?: unknown[] }).actions || []).length} confirmation-gated action(s).`
-                  : "Resolved the request through a Hermes-selected planning tool.",
-            }),
-          );
-
-          if (
-            looksLikeCompoundOperation(input.request.message) &&
-            typeof planResult === "object" &&
-            Array.isArray((planResult as { actions?: unknown[] }).actions) &&
-            ((planResult as { actions?: unknown[] }).actions || []).length > 0
-          ) {
-            await maybeCreateRuntimeSkill({
-              userId: input.userId,
-              threadId: input.request.threadId,
-              request: input.request,
-              toolTrace,
-              createdSkillCandidates,
-              name: "compound operation bundle",
-              description:
-                "Reuses the multi-action bundle planner for compound portfolio requests over approved tools.",
-            });
-          }
-
-          return normalizePlannerOutcome(
-            planResult,
-            proposedMemoryWrites,
-            toolTrace,
-            skillsUsed,
-            createdSkillCandidates,
-            skillMatchRationale,
-          );
-        }
-      } catch (error: any) {
-        toolTrace.push(
-          buildToolTraceEntry({
-            toolName: selectedPlanTool,
-            phase: "plan",
-            status: "failed",
-            startedAt: planStartedAt,
-            summary:
-              error?.message ||
-              `${selectedPlanTool} failed and Hermes is moving to the next routing path.`,
-          }),
-        );
-      }
-    }
-
-    if (
-      requestedScanTools.length > 0 &&
-      (toolAllowlist.size === 0 ||
-        [...toolAllowlist].some((toolName) => SCAN_TOOL_ALIASES.has(toolName)))
-    ) {
-      const routerStartedAt = Date.now();
-      toolTrace.push(
-        buildToolTraceEntry({
-          toolName: "tool_first_router",
-          phase: "scan",
-          status: "ok",
-          startedAt: routerStartedAt,
-          summary: `Selected ${requestedScanTools.length} advisory scan tool(s) for an ambiguous request.`,
-        }),
-      );
-
-      const scanResults: Array<{
-        toolName: string;
-        summary: string;
-        replyText: string;
-        warnings: string[];
-        context?: { citations?: AgentCitation[] } | Record<string, unknown>;
-      }> = [];
-
-      for (const toolName of requestedScanTools) {
-        const scanStartedAt = Date.now();
-        try {
-          const scanResult = await runHermesScanTool({
-            toolName,
-            userId: input.userId,
-            args: {
-              message: input.request.message,
-            },
-          });
-          toolTrace.push(
-            buildToolTraceEntry({
-              toolName,
-              phase: "scan",
-              status: "ok",
-              startedAt: scanStartedAt,
-              summary: scanResult.summary,
-            }),
-          );
-          scanResults.push(scanResult);
-        } catch (error: any) {
-          toolTrace.push(
-            buildToolTraceEntry({
-              toolName,
-              phase: "scan",
-              status: "failed",
-              startedAt: scanStartedAt,
-              summary:
-                error?.message || `The ${toolName} scan failed and Hermes moved to the next path.`,
-            }),
-          );
-        }
-      }
-
-      if (scanResults.length > 0) {
-        return normalizeScanOutcome(
-          scanResults,
-          proposedMemoryWrites,
-          toolTrace,
-          skillsUsed,
-          createdSkillCandidates,
-          skillMatchRationale,
-        );
-      }
-    }
-
-    const canUseResearch =
-      input.request.canonicalState.capabilities.canUseWebResearch &&
-      (toolAllowlist.size === 0 || toolAllowlist.has("get_hosted_research"));
-    if (canUseResearch && wantsHostedResearch(input.request.message)) {
-      const researchStartedAt = Date.now();
-
-      try {
-        const researchPlan = await runHermesReadTool({
-          toolName: "get_hosted_research",
-          userId: input.userId,
-          args: {
-            message: input.request.message,
-          },
-        });
-
-        if (researchPlan) {
-          toolTrace.push(
-            buildToolTraceEntry({
-              toolName: "get_hosted_research",
-              phase: "research",
-              status: "ok",
-              startedAt: researchStartedAt,
-              summary: "Pulled hosted Brave research context for the request.",
-            }),
-          );
-
-          return normalizePlannerOutcome(
-            researchPlan,
-            proposedMemoryWrites,
-            toolTrace,
-            skillsUsed,
-            createdSkillCandidates,
-            skillMatchRationale,
-          );
-        }
-      } catch (error: any) {
-        toolTrace.push(
-          buildToolTraceEntry({
-            toolName: "get_hosted_research",
-            phase: "research",
-            status: "failed",
-            startedAt: researchStartedAt,
-            summary:
-              error?.message ||
-              "The request hinted at live research, but the hosted research path failed.",
-          }),
-        );
-      }
-    }
-
     const explanationReply = buildFollowUpExplanation(
       input.request,
       input.context,
@@ -1019,81 +585,148 @@ export async function runHermesOrchestrationTurn(input: {
       };
     }
 
-    if (toolAllowlist.size === 0 || toolAllowlist.has(MODEL_CONVERSATION_TOOL)) {
-      const modelStartedAt = Date.now();
-      const modelConversation = await runLocalHermesCompatibilityTurn({
-        userId: input.userId,
-        channel: input.request.channel,
-        profile: input.profile,
-        secret: input.secret,
-        context: input.context,
-        chatRequest: input.request.message,
-        semanticRouteHint: input.request.semanticRouteHint,
-        conversationHistory: input.request.conversationHistory,
-        requestedMode:
-          input.request.requestMode === "plan" ? "discussion" : input.request.requestMode,
-      });
+    const routedTurn = await runHermesModelToolLoop({
+      profile: input.profile,
+      secret: input.secret,
+      request: input.request,
+      matchedSkill: matchedSkill || null,
+    });
+    toolTrace.push(...routedTurn.toolTrace);
 
-      if (modelConversation.outcome !== "error" && modelConversation.outcome !== "unsupported") {
+    if (routedTurn.outcome === "answer") {
+      return {
+        outcome: "advisory",
+        assistantText: routedTurn.replyText,
+        summary: routedTurn.summary || "Model-first operator reply.",
+        warnings: routedTurn.warnings,
+        proposedActions: [],
+        pendingClarification: null,
+        citations: routedTurn.citations,
+        proposedMemoryWrites,
+        toolTrace,
+        toolCallsUsed: toolTrace.map((entry) => entry.toolName),
+        skillsUsed,
+        createdSkillCandidates,
+        skillMatchRationale,
+        fallbackUsed: false,
+        requiresConfirmation: false,
+        confirmationPreview: null,
+      };
+    }
+
+    if (routedTurn.outcome === "tool" && routedTurn.toolCategory === "plan") {
+      const selectedToolArgs = buildModelSelectedToolArgs({
+        request: input.request,
+        toolName: routedTurn.toolName,
+        toolArgs: routedTurn.toolArgs,
+      });
+      const planStartedAt = Date.now();
+
+      try {
+        const planResult = await runHermesPlanTool({
+          toolName: routedTurn.toolName,
+          userId: input.userId,
+          args: selectedToolArgs,
+        });
+
+        if (!planResult) {
+          toolTrace.push(
+            buildToolTraceEntry({
+              toolName: routedTurn.toolName,
+              phase: "plan",
+              status: "skipped",
+              startedAt: planStartedAt,
+              summary:
+                "The model-selected planning tool did not return a usable plan for this turn.",
+            }),
+          );
+        } else {
+          toolTrace.push(
+            buildToolTraceEntry({
+              toolName: routedTurn.toolName,
+              phase: "plan",
+              status: "ok",
+              startedAt: planStartedAt,
+              summary:
+                planResult &&
+                typeof planResult === "object" &&
+                Array.isArray((planResult as { actions?: unknown[] }).actions)
+                  ? `Prepared ${((planResult as { actions?: unknown[] }).actions || []).length} confirmation-gated action(s).`
+                  : "Resolved the request through a model-selected planning tool.",
+            }),
+          );
+
+          if (
+            routedTurn.toolName === "preview_multi_action_bundle" &&
+            typeof planResult === "object" &&
+            Array.isArray((planResult as { actions?: unknown[] }).actions) &&
+            ((planResult as { actions?: unknown[] }).actions || []).length > 0
+          ) {
+            await maybeCreateRuntimeSkill({
+              userId: input.userId,
+              threadId: input.request.threadId,
+              request: input.request,
+              toolTrace,
+              createdSkillCandidates,
+              name: "compound operation bundle",
+              description:
+                "Reuses the multi-action bundle planner for compound portfolio requests over approved tools.",
+            });
+          }
+
+          return normalizePlannerOutcome(
+            planResult,
+            proposedMemoryWrites,
+            toolTrace,
+            skillsUsed,
+            createdSkillCandidates,
+            skillMatchRationale,
+          );
+        }
+      } catch (error: any) {
         toolTrace.push(
           buildToolTraceEntry({
-            toolName: MODEL_CONVERSATION_TOOL,
+            toolName: routedTurn.toolName,
             phase: "plan",
-            status: "ok",
-            startedAt: modelStartedAt,
+            status: "failed",
+            startedAt: planStartedAt,
             summary:
-              "Used the model-backed operator turn to answer the latest user message directly.",
+              error?.message ||
+              `${routedTurn.toolName} failed after the model selected it for this turn.`,
           }),
         );
-
-        const mergedToolTrace = [...toolTrace, ...modelConversation.toolTrace];
-
-        return {
-          ...modelConversation,
-          proposedMemoryWrites,
-          toolTrace: mergedToolTrace,
-          toolCallsUsed: mergedToolTrace.map((entry) => entry.toolName),
-          skillsUsed,
-          createdSkillCandidates,
-          skillMatchRationale,
-          fallbackUsed: false,
-          requiresConfirmation: modelConversation.proposedActions.length > 0,
-          confirmationPreview:
-            modelConversation.confirmationPreview ||
-            (modelConversation.proposedActions.length > 0
-              ? buildActionDeltaPreview(modelConversation.proposedActions[0])
-              : null),
-        };
       }
-
-      toolTrace.push(
-        buildToolTraceEntry({
-          toolName: MODEL_CONVERSATION_TOOL,
-          phase: "plan",
-          status: "failed",
-          startedAt: modelStartedAt,
-          summary:
-            modelConversation.outcome === "unsupported"
-              ? "The model-backed operator turn did not return a usable response, so Hermes fell back to a deterministic operator advisory."
-              : "The model-backed operator turn failed, so Hermes fell back to a deterministic operator advisory.",
-        }),
-      );
+    } else if (routedTurn.outcome === "unsupported" && routedTurn.replyText) {
+      return {
+        outcome: "advisory",
+        assistantText: routedTurn.replyText,
+        summary: routedTurn.summary,
+        warnings: routedTurn.warnings,
+        proposedActions: [],
+        pendingClarification: null,
+        citations: routedTurn.citations,
+        proposedMemoryWrites,
+        toolTrace,
+        toolCallsUsed: toolTrace.map((entry) => entry.toolName),
+        skillsUsed,
+        createdSkillCandidates,
+        skillMatchRationale,
+        fallbackUsed: false,
+        requiresConfirmation: false,
+        confirmationPreview: null,
+      };
     }
 
     const advisoryStartedAt = Date.now();
-    const advisory = buildFallbackAdvisory(
-      input.request,
-      input.context,
-      input.request.externalContext.research || [],
-    );
+    const advisory = buildNeutralModelFallback(routedTurn.citations);
     toolTrace.push(
       buildToolTraceEntry({
-        toolName: "build_operator_advisory",
+        toolName: "model_first_fallback",
         phase: "read",
         status: "ok",
         startedAt: advisoryStartedAt,
         summary:
-          "Built a Hermes advisory response from operator state, memory, and canonical knowledge.",
+          "Returned a transparent fallback because the direct Hermes tool loop did not produce a usable answer or plan.",
       }),
     );
 

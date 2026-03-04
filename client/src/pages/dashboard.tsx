@@ -1,5 +1,5 @@
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -51,7 +51,7 @@ import { PlayerName } from "@/components/player-name";
 import { SportSelector } from "@/components/sport-selector";
 import { Shimmer, ShimmerCard, ScrollReveal } from "@/components/ui/animations";
 import { SPORTS, useSport } from "@/lib/sport-context";
-import { authenticatedFetch } from "@/lib/queryClient";
+import { authenticatedFetch, queryClient } from "@/lib/queryClient";
 import { OnboardingMissions } from "@/components/onboarding-missions";
 import { MarketTicker } from "@/components/market-ticker";
 import { GameCommandCenterModal } from "@/components/game-command-center-modal";
@@ -164,6 +164,7 @@ const getEffectiveGameStatus = (
 export default function Dashboard() {
   const { isAuthenticated } = useAuth();
   const [, setLocation] = useLocation();
+  const authStateRef = useRef(isAuthenticated);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const { sport, setSport } = useSport();
@@ -184,9 +185,14 @@ export default function Dashboard() {
       }, 10000);
 
       try {
-        const res = await authenticatedFetch("/api/dashboard", {
-          signal: controller.signal,
-        });
+        const res = isAuthenticated
+          ? await authenticatedFetch("/api/dashboard", {
+              signal: controller.signal,
+            })
+          : await fetch("/api/dashboard", {
+              credentials: "include",
+              signal: controller.signal,
+            });
         clearTimeout(timeoutId);
 
         if (!res.ok) {
@@ -207,6 +213,14 @@ export default function Dashboard() {
     refetchIntervalInBackground: false,
     placeholderData: (previousData) => previousData,
   });
+
+  useEffect(() => {
+    if (!authStateRef.current && isAuthenticated) {
+      void queryClient.invalidateQueries({ queryKey: ["/api/dashboard"] });
+    }
+
+    authStateRef.current = isAuthenticated;
+  }, [isAuthenticated]);
 
   // Format date as YYYY-MM-DD
   const formatDateForAPI = (date: Date) => {
@@ -425,7 +439,7 @@ export default function Dashboard() {
 
   if (isLoading && !data) {
     return (
-      <div className="min-h-screen bg-background p-3 sm:p-4">
+      <div className="terminal-page p-3 sm:p-4">
         <div className="mb-4">
           <div className="flex flex-row justify-between gap-3">
             <div className="flex-1">
@@ -454,7 +468,7 @@ export default function Dashboard() {
 
   return (
     <>
-      <div className="min-h-screen bg-background overflow-x-hidden max-w-full">
+      <div className="terminal-page max-w-full overflow-x-hidden">
         {/* Login Banner for Non-Authenticated Users */}
         {!isAuthenticated && (
           <div className="bg-primary text-primary-foreground border-b border-primary/20">
@@ -507,7 +521,7 @@ export default function Dashboard() {
 
           {/* Balance Header - Only show for authenticated users */}
           {isAuthenticated && data?.user && (
-            <div className="hidden sm:block p-1.5 sm:p-2 rounded-lg bg-card border shadow-sm relative overflow-hidden group">
+            <div className="terminal-shell group relative hidden p-1.5 shadow-sm sm:block sm:p-2">
               {/* Background Pattern */}
               <BackgroundPattern variant="gradient-mesh" color="primary" opacity={0.05} />
 
@@ -527,7 +541,7 @@ export default function Dashboard() {
                     {data?.user?.portfolioRank && data?.user.portfolioRank > 0 && (
                       <button
                         onClick={() => setLocation("/leaderboards#portfolioValue")}
-                        className="inline-flex items-center gap-0.5 border border-border px-1 py-0 rounded-full text-[9px] hover:bg-secondary transition-colors cursor-pointer flex-shrink-0"
+                        className="inline-flex flex-shrink-0 items-center gap-0.5 rounded-sm border border-border px-1 py-0 text-[9px] transition-colors hover:bg-secondary"
                         data-testid="badge-portfolio-rank"
                         aria-label={`Portfolio value rank #${data?.user.portfolioRank}, click to view leaderboard`}
                       >
@@ -1123,7 +1137,7 @@ export default function Dashboard() {
                         </div>
                         <div className="p-2 bg-yellow-500/10 rounded-md">
                           <div className="flex items-center gap-1 mb-1">
-                            <span className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" />
+                            <span className="h-2 w-2 rounded-sm bg-yellow-500 animate-pulse" />
                             <span className="text-xs text-muted-foreground">Live</span>
                           </div>
                           <div className="text-lg font-bold">{data.power.lockedBoosts}</div>

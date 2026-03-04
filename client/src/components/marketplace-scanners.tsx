@@ -166,18 +166,18 @@ export function DashboardScanners() {
         {sections.map((section, idx) => (
           <div
             key={idx}
-            className={`border rounded-lg overflow-hidden bg-card h-full flex flex-col ${section.color.border}`}
+            className={`terminal-shell h-full overflow-hidden ${section.color.border} flex flex-col`}
           >
             <div className={`p-3 border-b flex items-center justify-between ${section.color.bg}`}>
-              <div className="flex items-center gap-2 font-bold text-sm">
+              <div className="terminal-heading flex items-center gap-2 text-sm">
                 {section.icon}
                 {section.title}
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
-                      variant="ghost"
+                      variant="terminalOutline"
                       size="icon"
-                      className="h-4 w-4 rounded-full p-0 hover:bg-transparent"
+                      className="h-4 w-4 p-0 hover:bg-transparent"
                     >
                       <HelpCircle className="w-3 h-3 text-muted-foreground/50 hover:text-muted-foreground transition-colors cursor-pointer" />
                     </Button>
@@ -231,7 +231,7 @@ export function DashboardScanners() {
             <div className="p-2 border-t bg-muted/20 text-center">
               <Link href="/pools">
                 <Button
-                  variant="ghost"
+                  variant="terminalOutline"
                   size="sm"
                   className="w-full h-6 text-[10px] uppercase text-muted-foreground"
                 >
@@ -275,19 +275,17 @@ function ScannerCarousel({
 
     return (
       <CarouselItem className={`${isExpanded ? "basis-[95%] lg:basis-[48%]" : "basis-[85%]"} pl-4`}>
-        <div
-          className={`border rounded-lg overflow-hidden bg-card h-full flex flex-col ${color.border}`}
-        >
+        <div className={`terminal-shell h-full overflow-hidden ${color.border} flex flex-col`}>
           <div className={`p-3 border-b flex items-center justify-between ${color.bg}`}>
-            <div className="flex items-center gap-2 font-bold text-sm">
+            <div className="terminal-heading flex items-center gap-2 text-sm">
               {icon}
               {title}
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
-                    variant="ghost"
+                    variant="terminalOutline"
                     size="icon"
-                    className="h-4 w-4 rounded-full p-0 hover:bg-transparent"
+                    className="h-4 w-4 p-0 hover:bg-transparent"
                   >
                     <HelpCircle className="w-3 h-3 text-muted-foreground/50 hover:text-muted-foreground transition-colors cursor-pointer" />
                   </Button>
@@ -551,7 +549,7 @@ function DesktopScannerGrid({
 function ScannerRowExpanded({ rank, player, label, value, color, type }: any) {
   return (
     <Link href={`/player/${player.id}`}>
-      <div className="flex items-center justify-between p-2 hover:bg-muted/50 rounded cursor-pointer transition-colors group/row border border-transparent hover:border-border/50">
+      <div className="group/row flex cursor-pointer items-center justify-between border border-transparent p-2 transition-colors hover:border-border/50 hover:bg-muted/30">
         <div className="flex items-center gap-3 overflow-hidden min-w-0 flex-1">
           <span className="text-xs font-mono font-bold w-5 text-muted-foreground/50 text-center">
             {rank}
@@ -563,7 +561,7 @@ function ScannerRowExpanded({ rank, player, label, value, color, type }: any) {
               {player.firstName} {player.lastName}
             </span>
             <div className="flex items-center gap-2">
-              <Badge variant="outline" className="text-[10px] h-4 px-1 py-0">
+              <Badge variant="outline" className="h-4 px-1 py-0 font-mono text-[10px] uppercase">
                 {player.team}
               </Badge>
               <span className="text-[10px] text-muted-foreground">{player.position}</span>
@@ -598,7 +596,7 @@ function ScannerRowExpanded({ rank, player, label, value, color, type }: any) {
 function ScannerRowCompact({ rank, player, label, value, color }: any) {
   return (
     <Link href={`/player/${player.id}`}>
-      <div className="flex items-center gap-2 bg-muted/20 rounded p-1.5 hover:bg-muted cursor-pointer transition-colors border border-transparent hover:border-border h-full">
+      <div className="flex h-full cursor-pointer items-center gap-2 border border-transparent bg-muted/20 p-1.5 transition-colors hover:border-border hover:bg-muted/30">
         <span className="text-[9px] font-mono text-muted-foreground w-3 text-center flex-shrink-0">
           {rank}
         </span>
@@ -624,11 +622,12 @@ function ScannerRowCompact({ rank, player, label, value, color }: any) {
 function ScannerCard({ title, icon, colorConfig, children }: any) {
   return (
     <Card
-      className={`transition-all duration-300 ${colorConfig.border} ${colorConfig.hover} overflow-hidden group rounded-lg`}
+      variant="terminal"
+      className={`group overflow-hidden transition-all duration-300 ${colorConfig.border} ${colorConfig.hover}`}
     >
       <CardHeader className="p-3 pb-2 border-b border-border/50">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-sm font-bold flex items-center gap-2">
+          <CardTitle className="terminal-heading flex items-center gap-2 text-sm">
             {icon}
             {title}
           </CardTitle>
@@ -645,7 +644,7 @@ function ScannerCard({ title, icon, colorConfig, children }: any) {
 function ScannerRow({ rank, player, metricLabel, metricValue, metricColor }: any) {
   return (
     <Link href={`/player/${player.id}`}>
-      <div className="flex items-center justify-between p-2 hover:bg-muted/50 cursor-pointer transition-colors group/row">
+      <div className="group/row flex cursor-pointer items-center justify-between p-2 transition-colors hover:bg-muted/30">
         <div className="flex items-center gap-3 overflow-hidden">
           <span className={`text-xs font-mono font-bold w-4 text-muted-foreground/50`}>{rank}</span>
           <div className="flex flex-col min-w-0">
@@ -673,7 +672,7 @@ function ScannerSkeleton() {
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
       {[1, 2, 3].map((i) => (
-        <Card key={i} className="h-48">
+        <Card key={i} variant="terminal" className="h-48">
           <CardHeader className="p-3">
             <Skeleton className="h-4 w-24" />
           </CardHeader>

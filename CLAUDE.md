@@ -16,7 +16,7 @@ Review issues before making changes to understand what needs fixing. Reference i
 
 ## Project Overview
 
-Sportfolio - A sports trading platform with real-time game scores, player stocks, and contests.
+Sportfolio - A sports trading platform with real-time game scores, player markets, scouts, boosts, and leaderboards.
 
 ## Key Patterns
 

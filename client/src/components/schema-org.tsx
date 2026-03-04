@@ -62,7 +62,7 @@ export const schemas = {
     "@type": "Organization",
     name: "Sportfolio",
     description:
-      "Fantasy sports stock market platform where you can trade player shares like stocks, vest shares, and compete in contests.",
+      "Fantasy sports stock market platform where you can trade player shares like stocks, vest shares, and use boost mechanics.",
     url: SITE_URL,
     logo: `${SITE_URL}/favicon.png`,
     sameAs: [],
@@ -73,7 +73,7 @@ export const schemas = {
     "@type": "WebSite",
     name: "Sportfolio",
     description:
-      "Trade player shares like stocks. Vest, trade, and compete in fantasy sports contests with real-time pricing.",
+      "Trade player shares like stocks. Vest, trade, and use daily boosts with real-time pricing.",
     url: SITE_URL,
     potentialAction: {
       "@type": "SearchAction",
@@ -138,25 +138,6 @@ export const schemas = {
       name: player.team,
     },
     url: `${SITE_URL}/player/${player.id}`,
-  }),
-
-  createSportsEvent: (contest: {
-    title: string;
-    gameDate: string;
-    entryFee: string;
-    prizePool: string;
-    id: string;
-  }) => ({
-    "@context": "https://schema.org",
-    "@type": "SportsEvent",
-    name: contest.title,
-    startDate: contest.gameDate,
-    offers: {
-      "@type": "Offer",
-      price: contest.entryFee,
-      priceCurrency: "USD",
-    },
-    url: `${SITE_URL}/contest/${contest.id}/leaderboard`,
   }),
 
   faqPage: (faqs: Array<{ question: string; answer: string }>) => ({

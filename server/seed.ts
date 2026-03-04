@@ -1,11 +1,9 @@
 import { db } from "./db";
-import { users, players, vesting, contests, holdings, dailyGames } from "@shared/schema";
-import { sql, and, gte, lte, asc } from "drizzle-orm";
+import { users, players, vesting, holdings, dailyGames } from "@shared/schema";
 
 async function seed() {
   console.log("Seeding database...");
 
-  // Create demo user
   const [user] = await db
     .insert(users)
     .values({
@@ -20,7 +18,6 @@ async function seed() {
 
   console.log("Created user:", user.username);
 
-  // Seed players first (before vesting references them)
   const mockPlayers = [
     {
       id: "lebron-james",
@@ -55,6 +52,7 @@ async function seed() {
       jerseyNumber: "34",
     },
   ];
+
   for (const player of mockPlayers) {
     await db
       .insert(players)
@@ -83,7 +81,6 @@ async function seed() {
 
   console.log(`Seeded ${mockPlayers.length} players`);
 
-  // Create vesting record (after players exist)
   await db
     .insert(vesting)
     .values({
@@ -98,7 +95,6 @@ async function seed() {
 
   console.log("Created vesting record");
 
-  // Give user some shares
   const someShares = [
     { playerId: "lebron-james", quantity: 50, avgCost: "12.50" },
     { playerId: "stephen-curry", quantity: 30, avgCost: "15.00" },
@@ -121,26 +117,13 @@ async function seed() {
 
   console.log("Created holdings");
 
-  // Seed mock games for today (before creating contest)
-  // Use ET timezone logic (same as /api/games/today endpoint)
   const now = new Date();
-  const etOffset = -5; // ET is UTC-5 (EST) or UTC-4 (EDT), using -5 for simplicity
+  const etOffset = -5;
   const nowET = new Date(now.getTime() + etOffset * 60 * 60 * 1000);
-
-  // Get start and end of day in ET, then convert back to UTC for database
   const startOfDayET = new Date(nowET.getFullYear(), nowET.getMonth(), nowET.getDate(), 0, 0, 0);
-  const endOfDayET = new Date(nowET.getFullYear(), nowET.getMonth(), nowET.getDate(), 23, 59, 59);
 
-  // Convert ET boundaries to UTC for database query
-  const startOfDayUTC = new Date(startOfDayET.getTime() - etOffset * 60 * 60 * 1000);
-  const endOfDayUTC = new Date(endOfDayET.getTime() - etOffset * 60 * 60 * 1000);
-
-  // Create a pure date for gameDate field (midnight ET in local timezone representation)
-  const todayDate = new Date(nowET.getFullYear(), nowET.getMonth(), nowET.getDate(), 0, 0, 0);
-
-  // Create some mock games at different times today (in ET timezone)
-  const game1StartET = new Date(nowET.getFullYear(), nowET.getMonth(), nowET.getDate(), 17, 0, 0); // 5:00 PM ET
-  const game2StartET = new Date(nowET.getFullYear(), nowET.getMonth(), nowET.getDate(), 18, 30, 0); // 6:30 PM ET
+  const game1StartET = new Date(nowET.getFullYear(), nowET.getMonth(), nowET.getDate(), 17, 0, 0);
+  const game2StartET = new Date(nowET.getFullYear(), nowET.getMonth(), nowET.getDate(), 18, 30, 0);
 
   const mockGames = [
     {
@@ -148,7 +131,7 @@ async function seed() {
       homeTeam: "LAL",
       awayTeam: "GSW",
       date: new Date(startOfDayET.getTime() - etOffset * 60 * 60 * 1000),
-      startTime: new Date(game1StartET.getTime() - etOffset * 60 * 60 * 1000), // Convert to UTC
+      startTime: new Date(game1StartET.getTime() - etOffset * 60 * 60 * 1000),
       status: "scheduled" as const,
     },
     {
@@ -156,7 +139,7 @@ async function seed() {
       homeTeam: "MIL",
       awayTeam: "PHX",
       date: new Date(startOfDayET.getTime() - etOffset * 60 * 60 * 1000),
-      startTime: new Date(game2StartET.getTime() - etOffset * 60 * 60 * 1000), // Convert to UTC
+      startTime: new Date(game2StartET.getTime() - etOffset * 60 * 60 * 1000),
       status: "scheduled" as const,
     },
   ];
@@ -169,38 +152,7 @@ async function seed() {
   }
 
   console.log("Created mock games for today (ET timezone)");
-
-  // Fetch games for today (using ET boundaries) to find the earliest start time
-  const todayGames = await db
-    .select()
-    .from(dailyGames)
-    .where(and(gte(dailyGames.startTime, startOfDayUTC), lte(dailyGames.startTime, endOfDayUTC)))
-    .orderBy(asc(dailyGames.startTime));
-
-  // Set contest start time to earliest game time, or default to 7pm ET if no games
-  const defaultStartET = new Date(nowET.getFullYear(), nowET.getMonth(), nowET.getDate(), 19, 0, 0);
-  const defaultStartTime = new Date(defaultStartET.getTime() - etOffset * 60 * 60 * 1000);
-
-  const contestStartTime = todayGames.length > 0 ? todayGames[0].startTime : defaultStartTime;
-
-  await db
-    .insert(contests)
-    .values({
-      name: "NBA 50/50 - Today's Games",
-      sport: "NBA",
-      contestType: "50/50",
-      gameDate: todayDate,
-      status: "open",
-      totalSharesEntered: 0,
-      totalPrizePool: "0.00",
-      entryCount: 0,
-      startsAt: contestStartTime,
-    })
-    .onConflictDoNothing();
-
-  console.log("Created contest");
-
-  console.log("✓ Seeding complete!");
+  console.log("Seeding complete.");
 }
 
 seed()

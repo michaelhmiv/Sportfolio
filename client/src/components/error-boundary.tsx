@@ -38,8 +38,8 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
       return (
         <div className="min-h-[400px] flex items-center justify-center p-4">
-          <div className="text-center max-w-md">
-            <div className="w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center mx-auto mb-4">
+          <div className="terminal-shell max-w-md p-6 text-center">
+            <div className="terminal-avatar mx-auto mb-4 h-12 w-12 border-red-500/20 bg-destructive/10">
               <svg
                 className="w-6 h-6 text-destructive"
                 fill="none"
@@ -54,11 +54,11 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
                 />
               </svg>
             </div>
-            <h2 className="text-lg font-semibold mb-2">Something went wrong</h2>
-            <p className="text-sm text-muted-foreground mb-4">
+            <h2 className="terminal-heading mb-2 text-base">Something went wrong</h2>
+            <p className="mb-4 text-sm text-muted-foreground">
               An unexpected error occurred. Please try again.
             </p>
-            <Button onClick={() => this.handleRetry()} variant="outline">
+            <Button onClick={() => this.handleRetry()} variant="terminalOutline">
               <RefreshCw className="w-4 h-4 mr-2" />
               Try Again
             </Button>

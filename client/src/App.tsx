@@ -10,13 +10,13 @@ import { BottomNav } from "@/components/bottom-nav";
 import { HelpDialog } from "@/components/help-dialog";
 import { Footer } from "@/components/footer";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { WebSocketProvider, useWebSocket } from "@/lib/websocket";
 import { ConnectionStatus } from "@/components/connection-status";
 import { NotificationProvider } from "@/lib/notification-context";
 import { useAuth, AuthProvider } from "@/hooks/useAuth";
 import { OnboardingModal } from "@/components/onboarding-modal";
+import Dashboard from "@/pages/dashboard";
 import { AnimatePresence, motion } from "framer-motion";
 import logoUrl from "@assets/Sportfolio png_1763227952318.png";
 import { Bot, LogOut, Newspaper, User } from "lucide-react";
@@ -46,12 +46,8 @@ const CANONICAL_SITE_URL = normalizeSiteUrl(
   import.meta.env.VITE_PUBLIC_SITE_URL || import.meta.env.PUBLIC_SITE_URL,
 );
 
-const loadDashboardPage = () => import("@/pages/dashboard");
 const loadPlayerPoolsPage = () => import("@/pages/marketplace");
 const loadPlayerPage = () => import("@/pages/player");
-const loadContestsPage = () => import("@/pages/contests");
-const loadContestEntryPage = () => import("@/pages/contest-entry");
-const loadContestLeaderboardPage = () => import("@/pages/contest-leaderboard");
 const loadPortfolioPage = () => import("@/pages/portfolio");
 const loadUserProfilePage = () => import("@/pages/user-profile");
 const loadLeaderboardsPage = () => import("@/pages/leaderboards");
@@ -78,12 +74,8 @@ const loadLoginPage = () => import("@/pages/Login");
 const loadAuthCallbackPage = () => import("@/pages/AuthCallback");
 const loadCheckoutSuccessPage = () => import("@/pages/checkout-success");
 
-const Dashboard = lazy(loadDashboardPage);
 const PlayerPools = lazy(loadPlayerPoolsPage);
 const PlayerPage = lazy(loadPlayerPage);
-const Contests = lazy(loadContestsPage);
-const ContestEntry = lazy(loadContestEntryPage);
-const ContestLeaderboard = lazy(loadContestLeaderboardPage);
 const Portfolio = lazy(loadPortfolioPage);
 const UserProfile = lazy(loadUserProfilePage);
 const Leaderboards = lazy(loadLeaderboardsPage);
@@ -184,6 +176,41 @@ function RouteLoadingState() {
   );
 }
 
+const AUTH_BOOTSTRAP_REQUIRED_PREFIXES = [
+  "/login",
+  "/auth/callback",
+  "/agent",
+  "/power",
+  "/boosts",
+  "/player/",
+  "/portfolio",
+  "/admin",
+  "/premium",
+  "/watchlists",
+  "/profile",
+];
+
+function routeRequiresAuthBootstrap(path: string) {
+  if (
+    AUTH_BOOTSTRAP_REQUIRED_PREFIXES.some(
+      (prefix) => path === prefix || (prefix.endsWith("/") ? path.startsWith(prefix) : false),
+    )
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+function hasInlineAuthCallbackPayload() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  const queryParams = new URLSearchParams(window.location.search);
+  return queryParams.has("code") || window.location.hash.includes("access_token=");
+}
+
 function ProfileRedirect({ userId }: { userId: string }) {
   const [, navigate] = useLocation();
   useEffect(() => {
@@ -196,6 +223,11 @@ function Router() {
   const { user, isAuthenticated, isLoading, initError, retryInit } = useAuth();
   const [location, navigate] = useLocation();
   const [loadingTime, setLoadingTime] = useState(0);
+  const requiresAuthBootstrap =
+    routeRequiresAuthBootstrap(location) ||
+    (location !== "/auth/callback" && hasInlineAuthCallbackPayload());
+  const shouldShowAuthBootstrapLoading = isLoading && requiresAuthBootstrap;
+  const shouldShowAuthBootstrapError = Boolean(initError) && requiresAuthBootstrap;
 
   // Keep canonical + robots metadata aligned with the active route.
   useEffect(() => {
@@ -316,7 +348,6 @@ function Router() {
   useEffect(() => {
     const preload = () => {
       void loadPlayerPoolsPage();
-      void loadContestsPage();
       void loadBlogPage();
       void loadLeaderboardsPage();
       void loadAgentPage();
@@ -335,7 +366,7 @@ function Router() {
 
   // Track how long we've been loading
   useEffect(() => {
-    if (isLoading) {
+    if (shouldShowAuthBootstrapLoading) {
       const startTime = Date.now();
       const interval = setInterval(() => {
         setLoadingTime(Math.floor((Date.now() - startTime) / 1000));
@@ -344,7 +375,7 @@ function Router() {
     } else {
       setLoadingTime(0);
     }
-  }, [isLoading]);
+  }, [shouldShowAuthBootstrapLoading]);
 
   // Ensure viewport is properly set after OAuth redirect on mobile
   useEffect(() => {
@@ -369,7 +400,7 @@ function Router() {
   }, []);
 
   // Show error state with retry option
-  if (initError) {
+  if (shouldShowAuthBootstrapError) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="text-center max-w-md px-4">
@@ -408,7 +439,7 @@ function Router() {
     );
   }
 
-  if (isLoading) {
+  if (shouldShowAuthBootstrapLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="text-center">
@@ -457,9 +488,7 @@ function Router() {
             {/* Dashboard is now public - shows live data with login CTAs for non-authenticated users */}
             <Route path="/" component={Dashboard} />
 
-            {/* Public routes - contests and leaderboards */}
-            <Route path="/contests" component={Contests} />
-            <Route path="/contest/:id/leaderboard" component={ContestLeaderboard} />
+            {/* Public routes */}
             <Route path="/leaderboards" component={Leaderboards} />
             <Route path="/user/:id" component={UserProfile} />
             <Route path="/pools" component={PlayerPools} />
@@ -492,12 +521,6 @@ function Router() {
             <Route path="/player/nba_:id">{isAuthenticated ? <PlayerPage /> : <Dashboard />}</Route>
             <Route path="/player/nfl_:id">{isAuthenticated ? <PlayerPage /> : <Dashboard />}</Route>
             <Route path="/player/mlb_:id">{isAuthenticated ? <PlayerPage /> : <Dashboard />}</Route>
-            <Route path="/contest/:id/entry">
-              {isAuthenticated ? <ContestEntry /> : <Dashboard />}
-            </Route>
-            <Route path="/contest/:id/entry/:entryId">
-              {isAuthenticated ? <ContestEntry /> : <Dashboard />}
-            </Route>
             <Route path="/portfolio">{isAuthenticated ? <Portfolio /> : <Dashboard />}</Route>
             <Route path="/admin">{isAuthenticated ? <Admin /> : <Dashboard />}</Route>
             <Route path="/premium">{isAuthenticated ? <Premium /> : <Dashboard />}</Route>
@@ -525,6 +548,7 @@ function Header() {
   const { unreadNewsCount, hasUnreadDigest } = useNewsNotifications();
   const { data: dashboardData } = useQuery<{ user: { balance: string; portfolioValue: string } }>({
     queryKey: ["/api/dashboard"],
+    enabled: isAuthenticated,
   });
 
   // Detect if we're on a user profile page
@@ -585,13 +609,8 @@ function Header() {
         >
           <Link href="/news">
             <Newspaper className="h-4 w-4" />
-            {hasUnreadDigest && (
-              <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-red-500" />
-            )}
-            {unreadNewsCount > 0 && (
-              <Badge className="absolute -right-1 -top-1 h-5 min-w-5 px-1 text-[10px] bg-blue-600 hover:bg-blue-600">
-                {unreadNewsCount}
-              </Badge>
+            {(hasUnreadDigest || unreadNewsCount > 0) && (
+              <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-red-500" />
             )}
           </Link>
         </Button>
@@ -700,6 +719,8 @@ function ScoutCeremonyManager() {
 }
 
 function AppContent() {
+  const [location] = useLocation();
+  const isAgentRoute = location === "/agent" || location.startsWith("/agent/");
   const style = {
     "--sidebar-width": "16rem",
     "--sidebar-width-icon": "3rem",
@@ -709,21 +730,29 @@ function AppContent() {
 
   return (
     <SidebarProvider style={style as React.CSSProperties}>
-      <div className="flex h-screen w-full overflow-x-hidden">
-        <div className="hidden sm:flex">
-          <AppSidebar />
-        </div>
-        <div className="flex flex-col flex-1 overflow-x-hidden">
-          <Header />
-          <main className="flex-1 overflow-y-auto overflow-x-hidden pb-0 sm:pb-0 flex flex-col">
-            <div className="pb-20 sm:pb-0 flex-1">
-              <Router />
-            </div>
-            <Footer />
+      {isAgentRoute ? (
+        <div className="h-screen w-full overflow-hidden">
+          <main className="h-full min-h-0 overflow-hidden">
+            <Router />
           </main>
         </div>
-      </div>
-      <BottomNav />
+      ) : (
+        <div className="flex h-screen w-full overflow-x-hidden">
+          <div className="hidden sm:flex">
+            <AppSidebar />
+          </div>
+          <div className="flex flex-col flex-1 overflow-x-hidden">
+            <Header />
+            <main className="flex flex-1 flex-col overflow-x-hidden overflow-y-auto pb-0 sm:pb-0">
+              <div className="flex-1 pb-20 sm:pb-0">
+                <Router />
+              </div>
+              <Footer />
+            </main>
+          </div>
+        </div>
+      )}
+      {!isAgentRoute && <BottomNav />}
       <OnboardingCheck />
       <ScoutDashboardModal />
       <ScoutCeremonyManager />

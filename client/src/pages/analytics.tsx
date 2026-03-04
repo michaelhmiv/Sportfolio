@@ -243,10 +243,10 @@ export default function Analytics() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background p-3 sm:p-4">
+      <div className="terminal-page p-3 sm:p-4">
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+            <div className="animate-spin rounded-sm h-12 w-12 border-b-2 border-primary"></div>
           </div>
         </div>
       </div>
@@ -257,7 +257,7 @@ export default function Analytics() {
   const sportBreakdown = analyticsData?.sportBreakdown || [];
 
   return (
-    <div className="min-h-screen bg-background p-3 sm:p-4">
+    <div className="terminal-page p-3 sm:p-4">
       <div className="max-w-7xl mx-auto space-y-4">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -452,7 +452,7 @@ export default function Analytics() {
                 {sportBreakdown.map((sportStats) => (
                   <div
                     key={sportStats.sport}
-                    className="rounded-lg border p-3 space-y-2"
+                    className="terminal-shell p-3 space-y-2"
                     data-testid={`card-sport-breakdown-${sportStats.sport.toLowerCase()}`}
                   >
                     <div className="flex items-center justify-between">
@@ -987,7 +987,7 @@ export default function Analytics() {
 
                 {comparisonLoading && selectedPlayers.length > 0 && (
                   <div className="flex justify-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                    <div className="animate-spin rounded-sm h-8 w-8 border-b-2 border-primary"></div>
                   </div>
                 )}
 
@@ -1029,7 +1029,7 @@ export default function Analytics() {
                               <td className="py-2 px-2">
                                 <div className="flex items-center gap-2">
                                   <div
-                                    className="w-3 h-3 rounded-full"
+                                    className="w-3 h-3 rounded-sm"
                                     style={{ backgroundColor: chartColors[idx] }}
                                   ></div>
                                   <div>

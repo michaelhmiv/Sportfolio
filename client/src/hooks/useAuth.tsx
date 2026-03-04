@@ -536,7 +536,6 @@ export function useAuth() {
             "/api/portfolio",
             "/api/mining",
             "/api/admin",
-            "/api/contest",
             "/api/whop",
           ];
           return userScopedPaths.some((path) => key.startsWith(path));

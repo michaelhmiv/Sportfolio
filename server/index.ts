@@ -282,13 +282,13 @@ app.use((req, res, next) => {
         console.error("Failed to update bot profiles:", error.message);
       }
 
-      // Always initialize contest jobs (database-only, no API required)
+      // Always initialize core jobs (database-only, no sports API required)
       try {
-        await jobScheduler.initializeContestJobs();
+        await jobScheduler.initializeCoreJobs();
         jobScheduler.start();
-        log("Contest jobs initialized and started");
+        log("Core jobs initialized and started");
       } catch (error: any) {
-        console.error("Failed to initialize contest jobs:", error.message);
+        console.error("Failed to initialize core jobs:", error.message);
       }
 
       // Initialize sports API-dependent jobs if the Ball Don't Lie key is available
@@ -301,7 +301,7 @@ app.use((req, res, next) => {
         }
       } else {
         log("Skipping API-dependent jobs - BALLDONTLIE_API_KEY not set");
-        log("Contest jobs will still process data from the database when available");
+        log("Core jobs will continue running without sports API sync access");
       }
 
       // Mark server as fully ready

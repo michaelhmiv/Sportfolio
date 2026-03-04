@@ -73,7 +73,7 @@ export function PremiumPriceChart() {
 
   if (isLoading) {
     return (
-      <Card>
+      <Card variant="terminal">
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -95,7 +95,7 @@ export function PremiumPriceChart() {
   }
 
   return (
-    <Card>
+    <Card variant="terminal">
       <CardHeader className="pb-2">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div className="flex items-center gap-2">
@@ -108,7 +108,7 @@ export function PremiumPriceChart() {
             {periods.map((p) => (
               <Button
                 key={p}
-                variant={period === p ? "default" : "outline"}
+                variant={period === p ? "terminal" : "terminalOutline"}
                 size="sm"
                 onClick={() => setPeriod(p)}
                 data-testid={`button-period-${p}`}
@@ -136,7 +136,10 @@ export function PremiumPriceChart() {
               {data?.circulation ?? 0} shares
             </span>
           </div>
-          <Badge variant="secondary" className="font-mono">
+          <Badge
+            variant="secondary"
+            className="rounded-sm border border-border bg-secondary/60 font-mono text-[11px] uppercase tracking-[0.08em]"
+          >
             {data?.totalTrades ?? 0} trades
           </Badge>
         </div>
@@ -144,7 +147,7 @@ export function PremiumPriceChart() {
 
       <CardContent>
         {!hasData ? (
-          <div className="h-[250px] flex items-center justify-center border border-dashed rounded-lg">
+          <div className="terminal-empty flex h-[250px] items-center justify-center rounded-sm border border-dashed">
             <div className="text-center text-muted-foreground">
               <Crown className="h-12 w-12 mx-auto mb-2 opacity-20" />
               <p className="font-medium">No trade history available</p>

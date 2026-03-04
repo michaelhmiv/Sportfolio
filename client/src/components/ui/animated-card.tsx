@@ -49,7 +49,7 @@ export const AnimatedCard = forwardRef<HTMLDivElement, AnimatedCardProps>(
         whileTap={clickable ? { scale: 0.98 } : undefined}
         className={cn(
           "transition-shadow duration-300",
-          hoverLift && "hover:shadow-lg",
+          hoverLift && "hover:shadow-none",
           hoverGlow && glowColors[glowColor],
           clickable && "cursor-pointer",
         )}
@@ -115,8 +115,8 @@ interface GlowCardProps extends HTMLAttributes<HTMLDivElement> {
 export const GlowCard = forwardRef<HTMLDivElement, GlowCardProps>(
   ({ children, className, glowIntensity = "medium", animated = true, ...props }, ref) => {
     const intensityClasses = {
-      low: "shadow-lg shadow-primary/5",
-      medium: "shadow-xl shadow-primary/10",
+      low: "shadow-none",
+      medium: "shadow-sm shadow-primary/5",
       high: "shadow-2xl shadow-primary/20",
     };
 

@@ -135,7 +135,7 @@ export function BottomNav() {
                   <span className="text-2xl">{getSportIcon(s)}</span>
                   <span className="font-bold">{getSportLabel(s)}</span>
                   {sport === s && (
-                    <div className="absolute right-4 w-3 h-3 rounded-full bg-primary-foreground animate-pulse" />
+                    <div className="absolute right-4 h-3 w-3 rounded-sm bg-primary-foreground animate-pulse" />
                   )}
                 </Button>
               ))}
@@ -200,7 +200,7 @@ export function BottomNav() {
                       {isActive && (
                         <motion.div
                           layoutId="activeTab"
-                          className="absolute inset-x-1 inset-y-1 bg-primary/10 rounded-lg -z-10 flex items-center justify-center overflow-hidden"
+                          className="absolute inset-x-1 inset-y-1 -z-10 flex items-center justify-center overflow-hidden rounded-sm bg-primary/10"
                           initial={{ opacity: 0, scale: 0.9 }}
                           animate={{ opacity: 1, scale: 1 }}
                           exit={{ opacity: 0, scale: 0.9 }}

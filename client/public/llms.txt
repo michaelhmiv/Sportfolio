@@ -1,6 +1,6 @@
 # Sportfolio
 
-> Sportfolio is a fantasy sports market platform with AMM-based player pools, scout-share distribution, and contest leaderboards.
+> Sportfolio is a fantasy sports market platform with AMM-based player pools, scout-share distribution, daily boosts, and public leaderboards.
 
 - Canonical site: https://www.sportfolio.market
 - Sitemap: https://www.sportfolio.market/sitemap.xml
@@ -10,7 +10,6 @@
 
 - https://www.sportfolio.market/
 - https://www.sportfolio.market/pools
-- https://www.sportfolio.market/contests
 - https://www.sportfolio.market/leaderboards
 - https://www.sportfolio.market/blog
 - https://www.sportfolio.market/news
@@ -23,7 +22,6 @@
 
 - https://www.sportfolio.market/api/public/market-summary
 - https://www.sportfolio.market/api/public/blog
-- https://www.sportfolio.market/api/public/contests
 - https://www.sportfolio.market/feed.xml
 - https://www.sportfolio.market/feed.json
 

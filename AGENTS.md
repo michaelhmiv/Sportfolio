@@ -46,7 +46,7 @@ Primary source-of-truth code:
 
 - API surface: `server/routes.ts`, `server/routes/amm.ts`, `server/routes/lp.ts`
 - Domain model: `shared/schema.ts`
-- Core economics: `server/amm/pool.ts`, `server/contest-scoring.ts`, `shared/vesting-utils.ts`
+- Core economics: `server/amm/pool.ts`, `shared/vesting-utils.ts`
 - Background loops: `server/jobs/`
 
 ## Product-Critical Mechanics (Do Not Break)
@@ -58,10 +58,7 @@ Primary source-of-truth code:
    - Hourly distribution is proportional to scout-minutes (time-weighted).
 3. **Vesting accrual**
    - Accrual uses elapsed time + residual milliseconds with hard caps.
-4. **Contest scoring/settlement**
-   - Score is proportional share ownership of player fantasy output.
-   - Settlement is status-gated and must not double-pay.
-5. **Boost lifecycle**
+4. **Boost lifecycle**
    - Daily boosts lock/burn shares at game start and settle post-game.
    - Community boosts modify daily boost multipliers.
 
