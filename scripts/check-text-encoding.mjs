@@ -22,13 +22,6 @@ const textExtensions = new Set([
 ]);
 
 const textNames = new Set(["CODEOWNERS", ".gitattributes", ".gitignore"]);
-const legacyBinaryAllowlist = new Set([
-  "README.md",
-  "CODEOWNERS",
-  "pr_comments.json",
-  "pr_review.json",
-  ".github/PULL_REQUEST_TEMPLATE.md",
-]);
 
 const problems = [];
 
@@ -37,7 +30,6 @@ for (const file of tracked.stdout.split("\n").filter(Boolean)) {
   const ext = path.extname(file).toLowerCase();
   const isTextCandidate = textExtensions.has(ext) || textNames.has(base);
   if (!isTextCandidate) continue;
-  if (legacyBinaryAllowlist.has(file)) continue;
 
   const bytes = readFileSync(file);
 

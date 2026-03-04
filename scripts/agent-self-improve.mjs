@@ -1,6 +1,12 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 
-const report = JSON.parse(readFileSync("tmp/agent-debug/latest.json", "utf8"));
+const reportPath = "tmp/agent-debug/latest.json";
+if (!existsSync(reportPath)) {
+  console.error(`Self-improve: missing ${reportPath}. Run \`npm run agent:debug\` first.`);
+  process.exit(1);
+}
+
+const report = JSON.parse(readFileSync(reportPath, "utf8"));
 const failed = report.results.find((r) => r.exitCode !== 0);
 
 if (!failed) {

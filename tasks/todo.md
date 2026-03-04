@@ -1,3 +1,17 @@
+## 2026-03-04 PR #87 Comment Fix Pass (Manual)
+
+- [x] Sync `main` with `origin/main` and check out PR `#87`
+- [x] Reproduce and address actionable PR comments in `agent-self-improve` and `check-text-encoding`
+- [x] Normalize previously exempted tracked text files to valid UTF-8 so encoding checks are enforceable
+- [x] Validate via `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`
+
+Review:
+
+- Added a missing-artifact guard in `scripts/agent-self-improve.mjs` so a fresh checkout no longer throws `ENOENT` and instead gives clear remediation (`npm run agent:debug` first).
+- Removed the permanent `legacyBinaryAllowlist` bypass in `scripts/check-text-encoding.mjs` so high-value tracked text files are checked consistently.
+- Re-encoded `README.md`, `CODEOWNERS`, `.github/PULL_REQUEST_TEMPLATE.md`, `pr_comments.json`, and `pr_review.json` to clean UTF-8 text and removed embedded NUL bytes/replacement-char prefix artifacts.
+- Validation now passes for `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`.
+
 ## 2026-03-04 User UI Terminal Compliance (Phase 3)
 
 - [x] Finish the remaining route and shared-component cleanup so the repo-wide user UI no longer relies on soft rounded/gradient defaults
