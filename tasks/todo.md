@@ -718,3 +718,16 @@ Review:
 - Fixed the live Telnyx messaging profile to use the canonical `www` webhook URL.
 - Also hardened the repo route so the primary `/api/webhooks/telnyx/sms` endpoint now accepts both inbound and delivery events, which matches Telnyx's single messaging-profile webhook model; the `/api/webhooks/telnyx/sms/status` route remains as a backward-compatible alias.
 - Local validation passed: `npm run check`, `npm run lint`, `npm run test:run -- server/services/telnyx-sms.test.ts`. `npm run format:check` required a follow-up Prettier pass on this task log after the initial note was added.
+
+## 2026-03-04 Power Page Mobile Stats + Community Boost Sport Filter Consistency
+
+- [x] Keep Power page mobile quick stats (Active Slots, Live Slots, Premium Shares, Est. Payout) consolidated into a single horizontal row to maximize small-screen space.
+- [x] Investigate NASCAR missing from Power page Community Boost filters and align filter options to the shared sports source used across the app.
+- [x] Validate via `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`.
+
+Review:
+
+- Root cause for NASCAR missing on the Power page was a page-local hard-coded filter array (`["All", "NBA", "NFL", "MLB"]`) that had drifted from the app's shared sports definition.
+- Power now builds community boost filter tabs from the shared `SPORTS` export in `client/src/lib/sport-context.tsx` (mapped to include `All` and exclude only `ALL`), which keeps this page aligned with cross-site sport options and avoids piecemeal filter lists.
+- Mobile quick stats were switched to a horizontal flex strip with small-screen min-width cards and horizontal scrolling, so Active Slots, Live Slots, Premium Shares, and Est. Payout stay on one compact row instead of wrapping into multiple rows.
+- Validation ran successfully: `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check` all pass.
