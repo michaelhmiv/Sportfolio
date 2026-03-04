@@ -7,8 +7,7 @@ const cardVariants = cva("shadcn-card border text-card-foreground", {
   variants: {
     variant: {
       default: "rounded-md bg-card shadow-sm",
-      terminal:
-        "terminal-panel rounded-sm bg-[linear-gradient(180deg,hsl(var(--card))_0%,hsl(var(--background))_100%)] shadow-none",
+      terminal: "terminal-panel rounded-sm bg-card shadow-none",
     },
   },
   defaultVariants: {

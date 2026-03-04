@@ -437,13 +437,13 @@ export default function Power() {
   };
 
   return (
-    <div className="terminal-page p-3">
-      <div className="mx-auto max-w-5xl py-1">
+    <div className="terminal-page px-2 py-3 sm:p-3">
+      <div className="mx-auto max-w-5xl py-1 space-y-3">
         <ErrorBoundary>
           {/* Header */}
-          <div className="terminal-shell mb-3 p-3 sm:p-4">
-            <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div className="space-y-2">
+          <div className="terminal-shell mb-2 p-2.5 sm:mb-3 sm:p-4">
+            <div className="mb-2 flex flex-col gap-2.5 sm:mb-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="space-y-1.5 sm:space-y-2">
                 <div className="terminal-strip">
                   <Zap className="h-3.5 w-3.5 text-amber-300" />
                   Boost Desk
@@ -452,12 +452,12 @@ export default function Power() {
                   <p className="terminal-kicker">Daily Power Slots</p>
                   <h1 className="terminal-heading mt-1 text-xl sm:text-2xl">Power</h1>
                 </div>
-                <p className="max-w-2xl text-sm text-muted-foreground">
+                <p className="max-w-2xl text-xs text-muted-foreground sm:text-sm">
                   Queue one share per slot, lock in power before tipoff, and monitor live boost
                   settlement from a single board.
                 </p>
               </div>
-              <div className="flex items-center gap-2 sm:self-center">
+              <div className="flex items-center gap-1.5 sm:gap-2 sm:self-center">
                 <Button
                   variant="terminalOutline"
                   size="icon"
@@ -466,7 +466,7 @@ export default function Power() {
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </Button>
-                <div className="terminal-shell min-w-[10rem] px-3 py-2 text-center">
+                <div className="terminal-shell min-w-[9rem] px-2 py-1.5 text-center sm:min-w-[10rem] sm:px-3 sm:py-2">
                   <p className="terminal-label">Session Date</p>
                   <p className="terminal-value text-sm">{format(selectedDate, "EEE, MMM d")}</p>
                 </div>
@@ -482,24 +482,24 @@ export default function Power() {
             </div>
 
             {/* Quick stats */}
-            <div className="grid gap-2 text-xs sm:grid-cols-3 xl:grid-cols-4">
-              <div className="terminal-shell px-3 py-2">
+            <div className="grid gap-1.5 text-xs sm:gap-2 sm:grid-cols-3 xl:grid-cols-4">
+              <div className="terminal-shell px-2.5 py-1.5 sm:px-3 sm:py-2">
                 <p className="terminal-label">Active Slots</p>
                 <p className="terminal-value text-sm">{activeBoosts}/4</p>
               </div>
               {lockedBoosts > 0 && (
-                <div className="terminal-shell px-3 py-2">
+                <div className="terminal-shell px-2.5 py-1.5 sm:px-3 sm:py-2">
                   <p className="terminal-label">Live Slots</p>
                   <p className="terminal-value text-sm">{lockedBoosts}</p>
                 </div>
               )}
               {userPremiumShares > 0 && (
-                <div className="terminal-shell px-3 py-2">
+                <div className="terminal-shell px-2.5 py-1.5 sm:px-3 sm:py-2">
                   <p className="terminal-label">Premium Shares</p>
                   <p className="terminal-value text-sm">{userPremiumShares}</p>
                 </div>
               )}
-              <div className="terminal-shell px-3 py-2">
+              <div className="terminal-shell px-2.5 py-1.5 sm:px-3 sm:py-2">
                 <p className="terminal-label">Est. Payout</p>
                 <p className="terminal-value text-sm">${totalEstimated}</p>
               </div>
@@ -520,11 +520,11 @@ export default function Power() {
           </Card>
 
           {/* Boost Slots */}
-          <div className="mb-3">
-            <div className="mb-2 flex items-center gap-2">
+          <div className="mb-2 sm:mb-3">
+            <div className="mb-1.5 flex items-center gap-2 sm:mb-2">
               <div className="terminal-strip">Boost Slots</div>
             </div>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div className="grid grid-cols-2 gap-1.5 sm:gap-2 sm:grid-cols-4">
               {MULTIPLIER_SLOTS.map(({ tier, label, color }) => {
                 const boost = getSlotBoost(tier);
                 const isAvailable = boostsData?.availableSlots?.includes(tier);
@@ -548,9 +548,9 @@ export default function Power() {
                     >
                       {label}
                     </div>
-                    <CardContent className="p-2">
+                    <CardContent className="p-1.5 sm:p-2">
                       {boost ? (
-                        <div className="space-y-2">
+                        <div className="space-y-1.5 sm:space-y-2">
                           <div className="flex items-center gap-1 mb-1">
                             <Badge
                               variant="outline"
@@ -561,7 +561,7 @@ export default function Power() {
                           </div>
                           <div className="flex items-start justify-between gap-1 min-w-0">
                             <div className="min-w-0">
-                              <div className="font-medium text-sm truncate">
+                              <div className="font-medium text-xs sm:text-sm truncate">
                                 {boost.player && (
                                   <PlayerName
                                     playerId={boost.player.id}
@@ -627,7 +627,7 @@ export default function Power() {
                           {boost.status === "locked" &&
                             boost.liveFantasyPoints !== null &&
                             boost.liveFantasyPoints !== undefined && (
-                              <div className="space-y-2">
+                              <div className="space-y-1.5 sm:space-y-2">
                                 <Badge className="terminal-status-warning w-full justify-center font-mono text-[10px] uppercase animate-pulse">
                                   Live
                                 </Badge>
@@ -686,7 +686,7 @@ export default function Power() {
           </div>
 
           {/* Community Boosts List */}
-          <Card variant="terminal" className="mb-3">
+          <Card variant="terminal" className="mb-2 sm:mb-3">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <CardTitle className="terminal-heading text-sm flex items-center gap-2">
@@ -734,7 +734,7 @@ export default function Power() {
                           </span>
                         </div>
                         <div className="min-w-0">
-                          <div className="font-medium text-sm truncate">
+                          <div className="font-medium text-xs sm:text-sm truncate">
                             <PlayerName
                               playerId={cb.player.id}
                               firstName={cb.player.firstName}
@@ -790,7 +790,7 @@ export default function Power() {
                   {historyData.payouts.map((payout) => (
                     <div key={payout.id} className="p-3 flex items-center justify-between gap-2">
                       <div className="min-w-0">
-                        <div className="font-medium text-sm truncate">
+                        <div className="font-medium text-xs sm:text-sm truncate">
                           {payout.player && (
                             <PlayerName
                               playerId={payout.player.id}
@@ -914,7 +914,7 @@ export default function Power() {
                               </span>
                             </div>
                             <div className="min-w-0">
-                              <div className="font-medium text-sm truncate">
+                              <div className="font-medium text-xs sm:text-sm truncate">
                                 <PlayerName
                                   playerId={ep.player.id}
                                   firstName={ep.player.firstName}

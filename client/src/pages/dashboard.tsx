@@ -476,10 +476,7 @@ export default function Dashboard() {
               <div className="flex items-center gap-2 text-sm sm:text-base">
                 <LogIn className="w-4 h-4 flex-shrink-0" />
                 <span className="font-medium">
-                  See live NBA trading in action.{" "}
-                  <span className="hidden sm:inline">
-                    Sign in to start trading, scouting, and competing.
-                  </span>
+                  Sign in to start trading, scouting, and competing.
                 </span>
               </div>
               <Button
