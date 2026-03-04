@@ -1,0 +1,40 @@
+openapi: 3.1.0
+info:
+  title: Sportfolio Internal API (Core Surface)
+  version: 0.1.0
+  description: >-
+    Agent-focused API contract snapshot for critical endpoints. This file is intended
+    to be expanded as routes are modularized.
+servers:
+  - url: http://localhost:5000
+paths:
+  /api/health:
+    get:
+      summary: Service health
+      responses:
+        "200":
+          description: Health payload
+  /api/amm/{playerId}:
+    get:
+      summary: AMM pool state
+      parameters:
+        - name: playerId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Pool data
+  /api/lp/positions:
+    get:
+      summary: User LP positions
+      responses:
+        "200":
+          description: LP positions for authenticated user
+  /api/holdings/condense:
+    post:
+      summary: Condense regular shares into powered shares
+      responses:
+        "200":
+          description: Condense result

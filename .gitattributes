@@ -1,0 +1,12 @@
+* text=auto eol=lf
+
+# Always diff key repo docs/config as text
+*.md text diff=markdown
+CODEOWNERS text
+*.yml text
+*.yaml text
+*.ts text
+*.tsx text
+*.js text
+*.mjs text
+*.json text

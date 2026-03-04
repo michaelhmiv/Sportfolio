@@ -16,6 +16,12 @@ export default defineConfig({
     exclude: [...configDefaults.exclude, "vendor/**", "**/vendor/**", "tests/e2e/**"],
     coverage: {
       reporter: ["text", "html"],
+      thresholds: {
+        lines: 30,
+        functions: 35,
+        statements: 30,
+        branches: 25,
+      },
     },
   },
 });
