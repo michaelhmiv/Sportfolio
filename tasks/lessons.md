@@ -1,5 +1,20 @@
 # Lessons Learned
 
+## 2026-03-04
+
+- If a UI-compliance pass is supposed to cover the whole app, stop only after the shared `ui/*` layer is scanned too; route-level cleanup alone can look complete while generic primitives still reintroduce the old visual language underneath.
+- For cross-site UI aesthetic shifts, add additive visual variants to shared primitives and migrate routed surfaces onto them incrementally; do not flip global defaults first or you will destabilize already-good screens.
+- When legacy mojibake separators leak into touched UI files, normalize the underlying Unicode glyphs to ASCII before the visual pass is complete; otherwise terminal-style cleanup can still ship obvious garbage characters in status lines and metadata rows.
+- In tall chat layouts, fixing the outer app shell is not enough; the inner transcript flex item also needs `min-h-0` or it will expand to content height and push the composer off-screen as soon as messages load.
+- For a dedicated immersive route like `/agent`, hiding one shared chrome element is not enough; if the route is meant to own the viewport, remove the full shared app frame (header/sidebar/footer/nav) and provide route-local navigation instead.
+- For full-height chat routes inside the shared app shell, do not use viewport-based `min-h-screen` sizing or `scrollIntoView` on transcript sentinels; fit the route to its parent container and scroll the inner chat viewport directly.
+- When a user says a gameplay loop is retired, treat every active runtime, support script, seed artifact, and player-facing doc reference to that loop as stale until proven otherwise; do not leave it documented as current.
+- When the user wants Hermes to feel fully agentic, do not let regex scan routing or direct-operation shortcuts outrank the model; use a model-first router to choose between direct replies, supported read/research tools, and confirmation-gated plan tools.
+- If a generic model-routed turn fails, prefer a neutral fallback over a scout-biased canned reply so unrelated prompts do not look ignored.
+- If the live Hermes allowlist is broader than the curated tool catalog, supplement missing tool metadata at routing time or the model-first router will silently cover only a subset of the real tool surface.
+- Self-improvement should create durable remediation candidates, but candidate persistence must never be allowed to break the user-facing turn; if that write fails, degrade silently and keep the answer path intact.
+- Agent audit tooling needs a true static mode that can run without a live user id or working local DB credentials; otherwise the evaluation loop disappears in the exact broken environments where it is most useful.
+
 ## 2026-02-09
 
 - Before deep debugging/investigation, sync to the latest upstream (`origin/main`) and eliminate local noise:
@@ -49,3 +64,5 @@
 - When a user wants Hermes to feel genuinely agentic, bias ambiguous turns toward a small, well-described scan/read tool loop before broad fallback prompts; improving tool selection usually beats stuffing more generic context into the model.
 - If Hermes is supposed to feel like the real front man, do not keep a hidden parser-first branch above it; let every normal turn enter Hermes first, and keep deterministic planners behind explicit plan tools instead.
 - Self-improving agent behavior should come from constrained reusable skills over approved tools, not from auto-creating new backend tools or widening capability without admin review.
+- If Hermes is supposed to reason over Sportfolio state, do not spend the model pass on a synthetic meta-router; expose real tools directly, let the model chain them, and only bubble out confirmation-gated planners when needed.
+- "Continuous improvement" is not satisfied by memory writes alone; every agent turn needs structured traces plus an audit/remediation loop, or the system only remembers user preferences without actually improving its own behavior.

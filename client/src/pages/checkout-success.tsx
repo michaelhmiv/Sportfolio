@@ -132,17 +132,18 @@ export default function CheckoutSuccess() {
   const isCredited = state === "credited";
 
   return (
-    <div className="min-h-screen bg-background p-4 flex items-center justify-center">
+    <div className="terminal-page flex items-center justify-center p-4">
       <div className="max-w-md w-full">
-        <Card className="border-2">
+        <Card variant="terminal" className="border-border">
           <CardHeader className="text-center pb-2">
-            <div className="mx-auto w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center mb-4">
+            <div className="terminal-avatar mx-auto mb-4 h-16 w-16">
               {state === "processing" && <Loader2 className="w-8 h-8 text-primary animate-spin" />}
               {state === "credited" && <CheckCircle className="w-8 h-8 text-green-500" />}
               {state === "pending" && <Clock3 className="w-8 h-8 text-amber-500" />}
               {state === "error" && <AlertCircle className="w-8 h-8 text-red-500" />}
             </div>
-            <CardTitle className="text-2xl">
+            <div className="terminal-kicker">Payment Status</div>
+            <CardTitle className="terminal-heading text-xl">
               {state === "processing" && "Processing Payment..."}
               {state === "credited" && "Payment Confirmed!"}
               {state === "pending" && "Payment Pending"}
@@ -160,19 +161,28 @@ export default function CheckoutSuccess() {
             {isCredited ? (
               <>
                 <div className="space-y-3">
-                  <Button onClick={() => navigate("/power")} className="w-full" size="lg">
+                  <Button
+                    variant="terminal"
+                    onClick={() => navigate("/power")}
+                    className="w-full"
+                    size="lg"
+                  >
                     <Zap className="w-4 h-4 mr-2" />
                     Go to Power Page
                     <ArrowRight className="w-4 h-4 ml-2" />
                   </Button>
 
-                  <Button onClick={() => navigate("/premium")} variant="outline" className="w-full">
+                  <Button
+                    onClick={() => navigate("/premium")}
+                    variant="terminalOutline"
+                    className="w-full"
+                  >
                     View Premium Shares
                   </Button>
                 </div>
 
                 <div className="text-center">
-                  <Badge variant="outline" className="text-xs">
+                  <Badge variant="outline" className="font-mono text-[10px] uppercase">
                     You can now use your shares for boosts.
                   </Badge>
                 </div>
@@ -180,11 +190,11 @@ export default function CheckoutSuccess() {
             ) : (
               <div className="text-center">
                 {showManualCheck ? (
-                  <Button onClick={() => window.location.reload()} variant="outline">
+                  <Button onClick={() => window.location.reload()} variant="terminalOutline">
                     Check Again
                   </Button>
                 ) : (
-                  <Button onClick={() => window.location.reload()} variant="outline">
+                  <Button onClick={() => window.location.reload()} variant="terminalOutline">
                     Try Again
                   </Button>
                 )}
@@ -192,8 +202,8 @@ export default function CheckoutSuccess() {
             )}
 
             {process.env.NODE_ENV === "development" && searchParams && (
-              <div className="mt-6 p-3 bg-muted rounded text-xs font-mono overflow-x-auto">
-                <p className="font-semibold mb-1">Debug Info:</p>
+              <div className="terminal-shell mt-6 overflow-x-auto p-3 text-xs font-mono">
+                <p className="mb-1 font-semibold">Debug Info:</p>
                 {Array.from(searchParams.entries()).map(([key, value]) => (
                   <div key={key} className="truncate">
                     {key}: {value}
@@ -205,7 +215,7 @@ export default function CheckoutSuccess() {
         </Card>
 
         <div className="mt-6 text-center">
-          <Link href="/" className="text-sm text-muted-foreground hover:text-primary">
+          <Link href="/" className="terminal-subtle hover:text-primary">
             Return to Dashboard
           </Link>
         </div>

@@ -774,7 +774,7 @@ export function GameCommandCenterModal({
             ) : (
               <>
                 {/* Compact Leaders Row */}
-                <div className="flex items-center justify-between gap-2 rounded-lg border border-border/60 p-2 text-[11px]">
+                <div className="flex items-center justify-between gap-2 rounded-sm border border-border/60 p-2 text-[11px]">
                   <div className="flex-1 text-center">
                     <div className="text-muted-foreground">FP Leader</div>
                     <div className="font-semibold truncate">{leaders?.fantasy?.name || "—"}</div>
@@ -802,7 +802,7 @@ export function GameCommandCenterModal({
 
                 {/* Team Rosters - Top 5 by Season Avg Fantasy Points */}
                 <div className="grid gap-3 md:grid-cols-2">
-                  <div className="rounded-lg border border-border/60 p-3">
+                  <div className="rounded-sm border border-border/60 p-3">
                     <div className="mb-2 flex items-center justify-between">
                       <div className="text-sm font-semibold">{game?.awayTeam}</div>
                       <Badge variant="outline" className="text-[10px]">
@@ -836,7 +836,7 @@ export function GameCommandCenterModal({
                     )}
                   </div>
 
-                  <div className="rounded-lg border border-border/60 p-3">
+                  <div className="rounded-sm border border-border/60 p-3">
                     <div className="mb-2 flex items-center justify-between">
                       <div className="text-sm font-semibold">{game?.homeTeam}</div>
                       <Badge variant="outline" className="text-[10px]">
@@ -872,7 +872,7 @@ export function GameCommandCenterModal({
                 </div>
 
                 {/* Your Power Players - Interactive with Quick Boost */}
-                <div className="rounded-lg border-2 border-purple-500/40 bg-purple-500/5 p-3">
+                <div className="rounded-sm border-2 border-purple-500/40 bg-purple-500/5 p-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <Zap className="h-4 w-4 text-purple-500" />
@@ -952,7 +952,7 @@ export function GameCommandCenterModal({
                   )}
 
                   {showBoostSelector && boostSlotsRemaining !== null && boostSlotsRemaining > 0 && (
-                    <div className="mt-3 rounded-lg border-2 border-purple-400 bg-background/80 p-3">
+                    <div className="mt-3 rounded-sm border-2 border-purple-400 bg-background/80 p-3">
                       <div className="mb-2 text-[11px] font-medium text-purple-700 dark:text-purple-400">
                         Select tier & player to boost:
                       </div>
@@ -1037,7 +1037,7 @@ export function GameCommandCenterModal({
                 </div>
 
                 {/* Quick Scout - mobile-first command center action */}
-                <div className="rounded-lg border-2 border-amber-500/40 bg-amber-500/5 p-3">
+                <div className="rounded-sm border-2 border-amber-500/40 bg-amber-500/5 p-3">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                       <Binoculars className="h-4 w-4 text-amber-600" />
@@ -1141,7 +1141,7 @@ export function GameCommandCenterModal({
                 </div>
 
                 {/* Injuries - Compact */}
-                <div className="rounded-lg border border-border/60 p-3">
+                <div className="rounded-sm border border-border/60 p-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <AlertTriangle className="h-3 w-3 text-amber-500" />
@@ -1220,7 +1220,7 @@ export function GameCommandCenterModal({
               <div className="text-sm text-muted-foreground">{liveStatsErrorMessage}</div>
             ) : (
               <>
-                <div className="space-y-3 rounded-lg border border-border/60 p-3">
+                <div className="space-y-3 rounded-sm border border-border/60 p-3">
                   <div className="flex items-center justify-between text-sm font-semibold">
                     <span>
                       {liveStats.awayTeam} {liveStats.awayScore}
@@ -1269,7 +1269,7 @@ export function GameCommandCenterModal({
                   {liveTeamSections.map((section) => (
                     <div
                       key={section.team}
-                      className="min-w-0 rounded-lg border border-border/70 p-3"
+                      className="min-w-0 rounded-sm border border-border/70 p-3"
                     >
                       <div className="mb-2 flex items-center justify-between">
                         <div className="text-sm font-semibold">{section.team} Box</div>
@@ -1681,7 +1681,7 @@ export function GameCommandCenterModal({
                   ))}
                 </div>
 
-                <div className="rounded-lg border border-border/70 p-3">
+                <div className="rounded-sm border border-border/70 p-3">
                   <div className="flex items-center gap-2">
                     <AlertTriangle className="h-3 w-3 text-amber-500" />
                     <span className="text-xs text-muted-foreground">Injuries</span>
@@ -1719,7 +1719,7 @@ export function GameCommandCenterModal({
                   )}
                 </div>
 
-                <div className="rounded-lg border-2 border-emerald-500/35 bg-emerald-500/5 p-3">
+                <div className="rounded-sm border-2 border-emerald-500/35 bg-emerald-500/5 p-3">
                   <div className="flex items-center justify-between gap-2">
                     <div className="text-sm font-semibold">Live Earnings</div>
                     {isAuthenticated ? (
@@ -1803,14 +1803,14 @@ export function GameCommandCenterModal({
               <div className="space-y-4">
                 {gameStats.topPerformers && (
                   <div className="grid gap-3 md:grid-cols-3">
-                    <div className="rounded-lg border border-border/60 p-3 text-xs">
+                    <div className="rounded-sm border border-border/60 p-3 text-xs">
                       <div className="text-muted-foreground">Top Scorer</div>
                       <div className="mt-1 font-semibold">
                         {gameStats.topPerformers.topScorer.playerName}
                       </div>
                       <div className="mt-1">{gameStats.topPerformers.topScorer.points} pts</div>
                     </div>
-                    <div className="rounded-lg border border-border/60 p-3 text-xs">
+                    <div className="rounded-sm border border-border/60 p-3 text-xs">
                       <div className="text-muted-foreground">Top Rebounder</div>
                       <div className="mt-1 font-semibold">
                         {gameStats.topPerformers.topRebounder.playerName}
@@ -1819,7 +1819,7 @@ export function GameCommandCenterModal({
                         {gameStats.topPerformers.topRebounder.rebounds} reb
                       </div>
                     </div>
-                    <div className="rounded-lg border border-border/60 p-3 text-xs">
+                    <div className="rounded-sm border border-border/60 p-3 text-xs">
                       <div className="text-muted-foreground">Top Assister</div>
                       <div className="mt-1 font-semibold">
                         {gameStats.topPerformers.topAssister.playerName}
@@ -1829,7 +1829,7 @@ export function GameCommandCenterModal({
                   </div>
                 )}
 
-                <div className="rounded-lg border border-border/60 p-3">
+                <div className="rounded-sm border border-border/60 p-3">
                   <div className="text-xs text-muted-foreground">Fantasy Points Leaders</div>
                   <div className="mt-2 space-y-2 text-xs">
                     {topFantasy.map((player) => (

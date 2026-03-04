@@ -314,7 +314,7 @@ export function AmmTradePanel({
 
   if (!isAuthenticated) {
     return (
-      <div className="p-4 border rounded-lg bg-muted/50 text-center">
+      <div className="p-4 border rounded-sm bg-muted/40 text-center">
         <p className="text-sm text-muted-foreground">Sign in to trade shares</p>
       </div>
     );
@@ -411,7 +411,7 @@ export function AmmTradePanel({
 
       {/* Quote Display */}
       {quote && (
-        <div className="p-4 border rounded-lg bg-accent/5 space-y-4">
+        <div className="p-4 border rounded-sm bg-accent/5 space-y-4">
           {/* Primary Trade Info */}
           <div className="text-center pb-3 border-b border-border/50">
             <div className="text-3xl font-bold text-foreground">
@@ -499,7 +499,7 @@ export function AmmTradePanel({
 
       {/* Advanced Settings */}
       {showAdvanced && (
-        <div className="space-y-2 p-3 border rounded-lg bg-muted/30">
+        <div className="space-y-2 p-3 border rounded-sm bg-muted/30">
           <Label htmlFor="maxSlippage" className="text-sm">
             Max Slippage Tolerance (%)
           </Label>

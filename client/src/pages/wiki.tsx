@@ -74,9 +74,9 @@ export default function WikiPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background p-6 md:p-10">
+      <div className="terminal-page p-6 md:p-10">
         <div className="max-w-6xl mx-auto">
-          <div className="text-center text-muted-foreground">Loading Sportfolio wiki...</div>
+          <div className="terminal-subtle text-center">Loading Sportfolio wiki...</div>
         </div>
       </div>
     );
@@ -84,14 +84,12 @@ export default function WikiPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-background p-6 md:p-10">
+      <div className="terminal-page p-6 md:p-10">
         <div className="max-w-6xl mx-auto">
-          <Card>
+          <Card variant="terminal">
             <CardContent className="py-10 text-center">
-              <p className="text-lg font-semibold">Wiki unavailable</p>
-              <p className="mt-2 text-sm text-muted-foreground">
-                The documentation index could not be loaded.
-              </p>
+              <p className="terminal-heading text-sm">Wiki unavailable</p>
+              <p className="terminal-subtle mt-2">The documentation index could not be loaded.</p>
             </CardContent>
           </Card>
         </div>
@@ -100,19 +98,19 @@ export default function WikiPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="terminal-page">
       <div className="max-w-6xl mx-auto px-4 py-6 md:px-8 md:py-10">
-        <div className="mb-8 rounded-2xl border bg-card p-6 md:p-8">
+        <div className="terminal-shell mb-8 p-6 md:p-8">
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
-              <div className="mb-3 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium text-muted-foreground">
+              <div className="terminal-strip mb-3">
                 <BookOpen className="h-3.5 w-3.5" />
                 Canonical Sportfolio docs
               </div>
-              <h1 className="text-3xl font-bold tracking-tight" data-testid="heading-wiki">
+              <h1 className="terminal-heading text-3xl" data-testid="heading-wiki">
                 Sportfolio Wiki
               </h1>
-              <p className="mt-2 max-w-2xl text-sm text-muted-foreground md:text-base">
+              <p className="terminal-subtle mt-2 max-w-2xl md:text-sm">
                 Gameplay mechanics, product guides, agent usage, FAQs, and release notes now live in
                 one versioned hub.
               </p>
@@ -121,6 +119,7 @@ export default function WikiPage() {
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
+                  variant="terminal"
                   value={searchValue}
                   onChange={(event) => setSearchValue(event.target.value)}
                   placeholder="Search docs"
@@ -133,14 +132,14 @@ export default function WikiPage() {
         </div>
 
         <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
-          <Card className="h-fit">
+          <Card variant="terminal" className="h-fit">
             <CardHeader>
-              <CardTitle className="text-base">Sections</CardTitle>
+              <CardTitle className="terminal-heading text-sm">Sections</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
               <Link
                 href="/wiki"
-                className={`block rounded-lg border px-3 py-2 text-sm transition-colors ${
+                className={`block rounded-sm border px-3 py-2 font-mono text-[11px] uppercase tracking-[0.08em] transition-colors ${
                   !selectedSection
                     ? "border-primary bg-primary/5 text-foreground"
                     : "border-border text-muted-foreground hover:text-foreground"
@@ -152,7 +151,7 @@ export default function WikiPage() {
                 <Link
                   key={section}
                   href={`/wiki/${section}`}
-                  className={`block rounded-lg border px-3 py-2 text-sm transition-colors ${
+                  className={`block rounded-sm border px-3 py-2 font-mono text-[11px] uppercase tracking-[0.08em] transition-colors ${
                     selectedSection === section
                       ? "border-primary bg-primary/5 text-foreground"
                       : "border-border text-muted-foreground hover:text-foreground"
@@ -170,27 +169,40 @@ export default function WikiPage() {
               .map(([section, articles]) => (
                 <section key={section}>
                   <div className="mb-3 flex items-center gap-2">
-                    <h2 className="text-lg font-semibold">{sectionLabels[section] || section}</h2>
-                    <Badge variant="secondary">{articles.length}</Badge>
+                    <h2 className="terminal-heading text-lg">
+                      {sectionLabels[section] || section}
+                    </h2>
+                    <Badge
+                      variant="secondary"
+                      className="rounded-sm border border-border bg-[hsl(var(--sidebar)/0.45)] font-mono text-[11px]"
+                    >
+                      {articles.length}
+                    </Badge>
                   </div>
                   <div className="grid gap-4 md:grid-cols-2">
                     {articles.map((article) => (
                       <Link key={article.id} href={article.urlPath}>
-                        <Card className="h-full border transition-colors hover:border-primary/40">
+                        <Card
+                          variant="terminal"
+                          className="h-full border transition-colors hover:border-primary/40"
+                        >
                           <CardHeader className="space-y-3">
                             <div className="flex items-center justify-between gap-3">
-                              <Badge variant="outline">
+                              <Badge
+                                variant="outline"
+                                className="rounded-sm font-mono text-[11px] uppercase tracking-[0.08em]"
+                              >
                                 {sectionLabels[article.section] || article.section}
                               </Badge>
-                              <span className="text-xs text-muted-foreground">
+                              <span className="terminal-subtle">
                                 Reviewed {article.lastReviewedAt}
                               </span>
                             </div>
                             <CardTitle className="text-lg leading-tight">{article.title}</CardTitle>
                           </CardHeader>
                           <CardContent>
-                            <p className="text-sm text-muted-foreground">{article.summary}</p>
-                            <div className="mt-4 flex items-center gap-2 text-sm font-medium">
+                            <p className="terminal-subtle text-sm">{article.summary}</p>
+                            <div className="terminal-label mt-4 flex items-center gap-2 text-[11px]">
                               Read article
                               <ChevronRight className="h-4 w-4" />
                             </div>
@@ -203,10 +215,10 @@ export default function WikiPage() {
               ))}
 
             {filteredArticles.length === 0 && (
-              <Card>
+              <Card variant="terminal">
                 <CardContent className="py-10 text-center">
-                  <p className="text-base font-medium">No matching docs</p>
-                  <p className="mt-2 text-sm text-muted-foreground">
+                  <p className="terminal-heading text-sm">No matching docs</p>
+                  <p className="terminal-subtle mt-2">
                     Try a broader search or switch back to all sections.
                   </p>
                 </CardContent>

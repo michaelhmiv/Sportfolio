@@ -19,13 +19,9 @@ import { syncSchedule } from "./sync-schedule";
 import { syncStats } from "./sync-stats";
 import { syncAllLiveStats } from "./sync-all-live-stats";
 import { syncPlayerGameLogs } from "./sync-player-game-logs";
-import { settleContests } from "./settle-contests";
-import { createContests } from "./create-contests";
-import { updateContestStatuses } from "./update-contest-statuses";
 
 import { distributeScoutShares } from "./scout-distribution";
 import { dailySnapshot } from "./daily-snapshot";
-import { backfillContestStats } from "./backfill-contest-stats";
 import { generateWeeklyRoundup } from "./weekly-roundup";
 import { backfillMarketSnapshots } from "./market-snapshot";
 import { syncNFLSchedule } from "./sync-nfl-schedule";
@@ -170,24 +166,12 @@ export class JobScheduler {
   }
 
   /**
-   * Initialize contest-related jobs (database-only, no API required)
+   * Initialize background jobs that do not depend on the sports API.
    */
-  async initializeContestJobs() {
-    info("Initializing contest jobs...");
+  async initializeCoreJobs() {
+    info("Initializing core jobs...");
 
-    const contestJobs: JobConfig[] = [
-      {
-        name: "update_contest_statuses",
-        schedule: "1-59/5 * * * *", // Every 5 minutes (offset 1m) - transition contests from open to live
-        enabled: false, // DISABLED - contests feature removed
-        handler: updateContestStatuses,
-      },
-      {
-        name: "settle_contests",
-        schedule: "2-59/5 * * * *", // Every 5 minutes (offset 2m) - check for contests to settle
-        enabled: false, // DISABLED - contests feature removed
-        handler: settleContests,
-      },
+    const coreJobs: JobConfig[] = [
       {
         name: "scout_distribution",
         schedule: "0 * * * *", // Every hour at :00 - distribute scout shares based on Scout-Minute ratio
@@ -334,7 +318,7 @@ export class JobScheduler {
       },
     ];
 
-    for (const jobConfig of contestJobs) {
+    for (const jobConfig of coreJobs) {
       this.scheduleJob(jobConfig);
     }
 
@@ -343,7 +327,7 @@ export class JobScheduler {
       warn("[refresh_player_metrics] Startup warm-up failed:", err?.message || err);
     });
 
-    info("Contest jobs initialized successfully");
+    info("Core jobs initialized successfully");
   }
 
   /**
@@ -401,14 +385,8 @@ export class JobScheduler {
         },
       },
       {
-        name: "create_contests",
-        schedule: "20 0 * * *", // Daily at 00:20 - create contests for upcoming games
-        enabled: false, // DISABLED - contests feature removed
-        handler: createContests,
-      },
-      {
         name: "daily_snapshot",
-        schedule: "30 1 * * *", // Daily at 1:30 AM ET - after contests are created
+        schedule: "30 1 * * *", // Daily at 1:30 AM ET
         enabled: true,
         handler: dailySnapshot,
       },
@@ -545,7 +523,7 @@ export class JobScheduler {
 
     info("Initializing job scheduler...");
 
-    await this.initializeContestJobs();
+    await this.initializeCoreJobs();
     await this.initializeApiJobs();
 
     this.isInitialized = true;
@@ -594,8 +572,6 @@ export class JobScheduler {
         const result = await syncPlayerInjuries();
         return { requestCount: 1, recordsProcessed: result.synced + result.cleared, errorCount: 0 };
       },
-      // Contest jobs disabled - feature removed
-      // create_contests, update_contest_statuses, settle_contests, backfill_contest_stats
       daily_snapshot: (callback) => dailySnapshot(callback),
       weekly_roundup: (callback) => generateWeeklyRoundup(callback),
       backfill_market_snapshots: (callback) => backfillMarketSnapshots(callback),
@@ -854,7 +830,6 @@ export class JobScheduler {
       "schedule_sync",
       "stats_sync",
       "stats_sync_live",
-      // Contest jobs removed - feature disabled
       "daily_snapshot",
       "weekly_roundup",
       "backfill_market_snapshots",

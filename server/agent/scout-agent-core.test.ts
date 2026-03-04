@@ -411,7 +411,7 @@ describe("scout-agent-core", () => {
     expect(result.replyText).toContain("The sharper approach right now is");
   });
 
-  it("falls back to a deterministic discussion read when the provider returns a truncated reply", async () => {
+  it("keeps the provider text for a truncated generic discussion instead of forcing a scout review", async () => {
     completeSimpleMock.mockResolvedValue({
       role: "assistant" as const,
       content: [{ type: "text" as const, text: "Partial answer that cuts off" }],
@@ -438,9 +438,8 @@ describe("scout-agent-core", () => {
       maxTokens: 256,
     });
 
-    expect(result.rawTrace.resolution).toBe("deterministic_discussion_fallback");
-    expect(result.replyText).toContain("The read:");
-    expect(result.rawTrace.attempts[0]?.errorMessage).toContain("truncated reply");
+    expect(result.rawTrace.resolution).toBe("model_discussion");
+    expect(result.replyText).toContain("Partial answer that cuts off");
   });
 
   it("captures the structured scout plan from a single forced tool call", async () => {

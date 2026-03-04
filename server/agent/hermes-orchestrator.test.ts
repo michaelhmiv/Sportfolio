@@ -2,9 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   runHermesPlanTool: vi.fn(),
-  runHermesReadTool: vi.fn(),
+  runHermesModelToolLoop: vi.fn(),
   runLocalHermesCompatibilityTurn: vi.fn(),
-  runHermesScanTool: vi.fn(),
   inferMemoryWritesFromMessage: vi.fn(),
   matchAgentSkill: vi.fn(),
   createOrUpdateUserSkill: vi.fn(),
@@ -13,8 +12,10 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("./hermes-tools", () => ({
   runHermesPlanTool: mocks.runHermesPlanTool,
-  runHermesReadTool: mocks.runHermesReadTool,
-  runHermesScanTool: mocks.runHermesScanTool,
+}));
+
+vi.mock("./model-first-router", () => ({
+  runHermesModelToolLoop: mocks.runHermesModelToolLoop,
 }));
 
 vi.mock("./hermes-local", () => ({
@@ -36,9 +37,8 @@ import { runHermesOrchestrationTurn } from "./hermes-orchestrator";
 describe("hermes-orchestrator", () => {
   beforeEach(() => {
     mocks.runHermesPlanTool.mockReset();
-    mocks.runHermesReadTool.mockReset();
+    mocks.runHermesModelToolLoop.mockReset();
     mocks.runLocalHermesCompatibilityTurn.mockReset();
-    mocks.runHermesScanTool.mockReset();
     mocks.inferMemoryWritesFromMessage.mockReset();
     mocks.matchAgentSkill.mockReset();
     mocks.createOrUpdateUserSkill.mockReset();
@@ -63,6 +63,7 @@ describe("hermes-orchestrator", () => {
     } as any,
     secret: undefined,
     context: {
+      remainingScouts: 3,
       operatorOverview: {
         availableBalance: 125,
         portfolioPlayerCount: 3,
@@ -141,7 +142,61 @@ describe("hermes-orchestrator", () => {
     } as any,
   };
 
-  it("returns a staged plan with confirmation metadata when the direct planner matches", async () => {
+  it("returns an advisory reply from the direct Hermes tool loop", async () => {
+    mocks.runHermesModelToolLoop.mockResolvedValue({
+      outcome: "answer",
+      replyText:
+        "The cleanest next step is a measured NASCAR entry and keeping some cash for boosts.",
+      summary: "Model answered after tool use.",
+      warnings: [],
+      citations: [],
+      toolTrace: [
+        {
+          toolName: "get_balance_state",
+          phase: "read",
+          status: "ok",
+          latencyMs: 3,
+          summary: "Executed get_balance_state in the model tool loop.",
+        },
+      ],
+    });
+
+    const result = await runHermesOrchestrationTurn({
+      ...baseInput,
+      request: {
+        ...baseInput.request,
+        message: "what nascar drivers should i spend my cash on?",
+        requestMode: "discussion",
+      },
+    });
+
+    expect(result.outcome).toBe("advisory");
+    expect(result.assistantText).toContain("NASCAR");
+    expect(result.toolCallsUsed).toContain("get_balance_state");
+    expect(mocks.runLocalHermesCompatibilityTurn).not.toHaveBeenCalled();
+  });
+
+  it("runs the selected planning tool when the direct loop escalates to a plan tool", async () => {
+    mocks.runHermesModelToolLoop.mockResolvedValue({
+      outcome: "tool",
+      toolName: "preview_direct_operation",
+      toolCategory: "plan",
+      toolArgs: {
+        message: "buy $25 of Jalen Brunson",
+      },
+      summary: "The model selected preview_direct_operation.",
+      warnings: [],
+      citations: [],
+      toolTrace: [
+        {
+          toolName: "model_tool_loop",
+          phase: "plan",
+          status: "ok",
+          latencyMs: 4,
+          summary: "The model selected preview_direct_operation for confirmation-gated planning.",
+        },
+      ],
+    });
     mocks.runHermesPlanTool.mockResolvedValue({
       replyText: "I can stage that buy.",
       summary: "Buy $25 of Jalen Brunson",
@@ -165,7 +220,6 @@ describe("hermes-orchestrator", () => {
     expect(result.outcome).toBe("staged_plan");
     expect(result.requiresConfirmation).toBe(true);
     expect(result.confirmationPreview?.actionSummary).toContain("Buy");
-    expect(result.toolCallsUsed).toContain("preview_direct_operation");
     expect(mocks.runHermesPlanTool).toHaveBeenCalledWith({
       toolName: "preview_direct_operation",
       userId: "user_1",
@@ -173,76 +227,30 @@ describe("hermes-orchestrator", () => {
         message: "buy $25 of Jalen Brunson",
       },
     });
-    expect(mocks.runLocalHermesCompatibilityTurn).not.toHaveBeenCalled();
   });
 
-  it("uses the model-backed operator turn before falling back to static advisory text", async () => {
-    mocks.runHermesPlanTool.mockRejectedValue(new Error("No direct plan"));
-    mocks.runHermesReadTool.mockResolvedValue(null);
-    mocks.runLocalHermesCompatibilityTurn.mockResolvedValue({
-      outcome: "advisory",
-      assistantText:
-        "The main read is that your current setup is solid, but you should tighten one boost slot before lock.",
-      summary: "Model-backed operator read.",
+  it("keeps runtime skill creation for successful multi-action bundle previews", async () => {
+    mocks.runHermesModelToolLoop.mockResolvedValue({
+      outcome: "tool",
+      toolName: "preview_multi_action_bundle",
+      toolCategory: "plan",
+      toolArgs: {
+        message: "buy, condense, then boost this player",
+      },
+      summary: "The model selected preview_multi_action_bundle.",
       warnings: [],
-      proposedActions: [],
-      pendingClarification: null,
       citations: [],
-      proposedMemoryWrites: [],
-      toolTrace: [],
-      toolCallsUsed: [],
-      requiresConfirmation: false,
-      confirmationPreview: null,
+      toolTrace: [
+        {
+          toolName: "model_tool_loop",
+          phase: "plan",
+          status: "ok",
+          latencyMs: 4,
+          summary:
+            "The model selected preview_multi_action_bundle for confirmation-gated planning.",
+        },
+      ],
     });
-
-    const result = await runHermesOrchestrationTurn({
-      ...baseInput,
-      request: {
-        ...baseInput.request,
-        message: "talk me through tonight's setup",
-        requestMode: "discussion",
-        toolAllowlist: [],
-      },
-    });
-
-    expect(result.outcome).toBe("advisory");
-    expect(result.assistantText).toContain("tighten one boost slot before lock");
-    expect(result.requiresConfirmation).toBe(false);
-    expect(mocks.runLocalHermesCompatibilityTurn).toHaveBeenCalledTimes(1);
-    expect(result.toolCallsUsed).toContain("respond_to_user_turn");
-  });
-
-  it("routes ambiguous boost-slot questions through the boost scan before the scout fallback", async () => {
-    mocks.runHermesPlanTool.mockRejectedValue(new Error("No explicit plan"));
-    mocks.runHermesReadTool.mockResolvedValue(null);
-    mocks.runHermesScanTool.mockResolvedValue({
-      toolName: "scan_daily_boost_candidates",
-      domain: "daily_boosts",
-      summary: "Scanned boost eligibility.",
-      replyText:
-        "You have 3 open daily boost slots. The best candidates right now are Jalen Brunson and Anthony Edwards.",
-      observations: [],
-      warnings: [],
-      context: {},
-    });
-
-    const result = await runHermesOrchestrationTurn({
-      ...baseInput,
-      request: {
-        ...baseInput.request,
-        message: "who can i put in my boost slots for tonight?",
-        requestMode: "discussion",
-        toolAllowlist: [],
-      },
-    });
-
-    expect(result.outcome).toBe("advisory");
-    expect(result.assistantText).toContain("open daily boost slots");
-    expect(result.toolCallsUsed).toContain("scan_daily_boost_candidates");
-    expect(mocks.runLocalHermesCompatibilityTurn).not.toHaveBeenCalled();
-  });
-
-  it("uses the multi-action bundle planner for compound operational turns", async () => {
     mocks.runHermesPlanTool.mockResolvedValue({
       replyText: "I can stage that compound workflow.",
       summary: "Compound boost workflow",
@@ -281,181 +289,44 @@ describe("hermes-orchestrator", () => {
       id: "skill_global_candidate_1",
     });
 
-    const result = await runHermesOrchestrationTurn({
-      ...baseInput,
-      request: {
-        ...baseInput.request,
-        message:
-          "can you power up amen and then put him at 4x and condense jokic and put him at 5x?",
-        requestMode: "plan",
-        toolAllowlist: ["preview_multi_action_bundle"],
-      },
-    });
+    const result = await runHermesOrchestrationTurn(baseInput);
 
-    expect(mocks.runHermesPlanTool).toHaveBeenCalledWith({
-      toolName: "preview_multi_action_bundle",
-      userId: "user_1",
-      args: {
-        message:
-          "can you power up amen and then put him at 4x and condense jokic and put him at 5x?",
-      },
-    });
     expect(result.outcome).toBe("staged_plan");
     expect(result.createdSkillCandidates).toEqual(["skill_user_1", "skill_global_candidate_1"]);
   });
 
-  it("keeps a valid compound plan when runtime skill persistence fails", async () => {
-    mocks.runHermesPlanTool.mockResolvedValue({
-      replyText: "I can stage that compound workflow.",
-      summary: "Compound boost workflow",
-      warnings: [],
-      actions: [
-        {
-          actionType: "holdings_condense",
-          playerId: "nba_1",
-          playerName: "Amen Thompson",
-          sharesToCondense: 2,
-          expectedPowerGained: 1,
-          availableSharesBefore: 4,
-          availableSharesAfter: 2,
-          reasoning: "Condense before boosting",
-        },
-      ],
-    });
-    mocks.createOrUpdateUserSkill.mockRejectedValue(new Error("db write failed"));
-
-    const result = await runHermesOrchestrationTurn({
-      ...baseInput,
-      request: {
-        ...baseInput.request,
-        message: "power up amen and then put him at 4x",
-        requestMode: "plan",
-        toolAllowlist: ["preview_multi_action_bundle"],
-      },
-    });
-
-    expect(result.outcome).toBe("staged_plan");
-    expect(result.createdSkillCandidates).toEqual([]);
-    expect(result.toolTrace).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          toolName: "create_runtime_skill",
-          phase: "memory",
-          status: "failed",
-        }),
-      ]),
-    );
-    expect(mocks.runLocalHermesCompatibilityTurn).not.toHaveBeenCalled();
-  });
-
-  it("uses a matched runtime skill before generic model fallback", async () => {
-    mocks.matchAgentSkill.mockReturnValue({
-      matched: true,
-      skillId: "skill_user_1",
-      confidence: 0.9,
-      reason: "Matched a prior boost workflow",
-    });
-    mocks.runHermesPlanTool.mockResolvedValue({
-      replyText: "I can stage that from the saved workflow.",
-      summary: "Saved boost workflow",
-      warnings: [],
-      actions: [],
+  it("uses an unsupported direct-loop reply when the model provides one", async () => {
+    mocks.runHermesModelToolLoop.mockResolvedValue({
+      outcome: "unsupported",
+      replyText: "I need a player name before I can narrow this down.",
+      summary: "Need a narrower target.",
+      warnings: ["The prompt was too broad for a concrete recommendation."],
+      citations: [],
+      toolTrace: [],
     });
 
     const result = await runHermesOrchestrationTurn({
       ...baseInput,
       request: {
         ...baseInput.request,
-        message: "run that same boost workflow again",
-        requestMode: "plan",
-        availableSkills: [
-          {
-            id: "skill_user_1",
-            scope: "user",
-            status: "active",
-            userId: "user_1",
-            name: "repeat boost workflow",
-            description: "reuses the multi-action boost planner",
-            triggerExamples: ["run that same boost workflow again"],
-            toolSequence: [
-              {
-                stepType: "tool_call",
-                toolCategory: "plan",
-                toolName: "preview_multi_action_bundle",
-                argumentTemplate: {},
-              },
-            ],
-            clarificationStrategy: {},
-            constraints: { signature: "sig" },
-            confidence: 0.9,
-            sourceThreadId: "thread_1",
-            createdAt: new Date(),
-            updatedAt: new Date(),
-            archivedAt: null,
-          },
-        ],
-      },
-    });
-
-    expect(result.skillsUsed).toEqual(["skill_user_1"]);
-    expect(result.skillMatchRationale).toContain("Matched");
-    expect(mocks.runLocalHermesCompatibilityTurn).not.toHaveBeenCalled();
-  });
-
-  it("explains the previous recommendation on a conversational follow-up", async () => {
-    mocks.runHermesPlanTool.mockRejectedValue(new Error("No explicit plan"));
-    mocks.runHermesReadTool.mockResolvedValue(null);
-
-    const result = await runHermesOrchestrationTurn({
-      ...baseInput,
-      context: {
-        ...baseInput.context,
-        remainingScouts: 5,
-        operatorOverview: {
-          ...baseInput.context.operatorOverview,
-          openDailyBoostSlots: 4,
-          nextBestLevers: ["fill a daily boost slot before lock", "deploy the 5 unassigned scouts"],
-        },
-      } as any,
-      request: {
-        ...baseInput.request,
-        message: "what you mean?",
+        message: "which one?",
         requestMode: "discussion",
-        toolAllowlist: [],
-        conversationHistory: [
-          {
-            role: "assistant",
-            contentText:
-              "You have $125.00 available. Right now the cleanest next lever is fill a daily boost slot before lock then deploy the 5 unassigned scouts.",
-          },
-        ],
       },
     });
 
     expect(result.outcome).toBe("advisory");
-    expect(result.summary).toBe("Explained the previous guidance.");
-    expect(result.assistantText).toContain("The two levers I was pointing at are");
-    expect(result.assistantText).toContain("leaving a payout multiplier unused");
-    expect(result.assistantText).toContain("passive share generation back to work");
-    expect(mocks.runLocalHermesCompatibilityTurn).not.toHaveBeenCalled();
+    expect(result.assistantText).toContain("player name");
+    expect(result.warnings).toContain("The prompt was too broad for a concrete recommendation.");
   });
 
-  it("falls back to a deterministic operator advisory when the model-backed turn is unusable", async () => {
-    mocks.runHermesPlanTool.mockRejectedValue(new Error("No explicit plan"));
-    mocks.runHermesReadTool.mockResolvedValue(null);
-    mocks.runLocalHermesCompatibilityTurn.mockResolvedValue({
+  it("falls back to a transparent advisory when the direct loop returns nothing usable", async () => {
+    mocks.runHermesModelToolLoop.mockResolvedValue({
       outcome: "unsupported",
-      assistantText: "I could not complete that request.",
-      summary: null,
-      warnings: [],
-      proposedActions: [],
-      pendingClarification: null,
+      replyText: null,
+      summary: "No usable answer.",
+      warnings: ["The direct Hermes tool loop did not return a usable answer."],
       citations: [],
-      proposedMemoryWrites: [],
       toolTrace: [],
-      toolCallsUsed: [],
-      requiresConfirmation: false,
-      confirmationPreview: null,
     });
 
     const result = await runHermesOrchestrationTurn({
@@ -464,16 +335,15 @@ describe("hermes-orchestrator", () => {
         ...baseInput.request,
         message: "talk me through tonight's setup",
         requestMode: "discussion",
-        toolAllowlist: ["respond_to_user_turn"],
       },
     });
 
     expect(result.outcome).toBe("advisory");
-    expect(result.assistantText).toContain("You have $125.00 available");
-    expect(result.toolCallsUsed).toContain("respond_to_user_turn");
+    expect(result.assistantText).toContain("direct tool loop");
+    expect(result.toolCallsUsed).toContain("model_first_fallback");
   });
 
-  it("falls back to the legacy compatibility bridge if orchestration throws", async () => {
+  it("falls back to the local compatibility bridge if orchestration throws", async () => {
     mocks.matchAgentSkill.mockImplementation(() => {
       throw new Error("skill matcher failed");
     });

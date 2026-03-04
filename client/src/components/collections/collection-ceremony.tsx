@@ -124,7 +124,7 @@ export function CollectionCeremony({ isOpen, collection, onClose }: CollectionCe
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.5 }}
-          className="absolute top-4 right-4 p-2 text-muted-foreground hover:text-foreground transition-colors"
+          className="absolute top-4 right-4 rounded-sm border border-border/60 p-2 text-muted-foreground transition-colors hover:text-foreground"
           onClick={(e) => {
             e.stopPropagation();
             handleSkip();
@@ -145,7 +145,7 @@ export function CollectionCeremony({ isOpen, collection, onClose }: CollectionCe
               animate={phase === "complete" ? { scale: [1, 1.1, 1] } : {}}
               transition={{ duration: 0.5, repeat: Infinity, repeatDelay: 1 }}
               className={cn(
-                "inline-flex items-center gap-2 px-4 py-2 rounded-full border",
+                "inline-flex items-center gap-2 rounded-sm px-4 py-2 border",
                 colors.bg,
                 colors.border,
               )}
@@ -171,9 +171,7 @@ export function CollectionCeremony({ isOpen, collection, onClose }: CollectionCe
               }}
               style={{ transformStyle: "preserve-3d" }}
               className={cn(
-                "p-8 rounded-2xl border-2 text-center relative overflow-hidden",
-                "bg-gradient-to-br",
-                colors.gradient,
+                "relative overflow-hidden rounded-sm border-2 bg-card p-8 text-center",
                 colors.border,
               )}
             >
@@ -202,7 +200,7 @@ export function CollectionCeremony({ isOpen, collection, onClose }: CollectionCe
                 animate={{ scale: phase === "complete" ? 1 : 0 }}
                 transition={{ type: "spring", stiffness: 500, damping: 30, delay: 0.5 }}
                 className={cn(
-                  "w-20 h-20 rounded-full mx-auto mb-4 flex items-center justify-center",
+                  "mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-sm",
                   colors.bg,
                   colors.border,
                   "border-2",
@@ -242,7 +240,7 @@ export function CollectionCeremony({ isOpen, collection, onClose }: CollectionCe
                   scale: phase === "complete" ? 1 : 0.9,
                 }}
                 transition={{ delay: 0.8 }}
-                className={cn("inline-flex items-center gap-2 px-4 py-2 rounded-full", colors.bg)}
+                className={cn("inline-flex items-center gap-2 rounded-sm px-4 py-2", colors.bg)}
               >
                 <span className={cn("font-bold", colors.text)}>
                   {collection.progress}/{collection.total}
@@ -260,7 +258,7 @@ export function CollectionCeremony({ isOpen, collection, onClose }: CollectionCe
             className="mt-8 flex justify-center"
           >
             <Button
-              variant="outline"
+              variant="terminalOutline"
               className="gap-2"
               onClick={() => {
                 // Share functionality

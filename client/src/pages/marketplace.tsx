@@ -334,14 +334,15 @@ export default function PlayerPools() {
   };
 
   return (
-    <div className="min-h-screen bg-background p-3 sm:p-4">
+    <div className="terminal-page p-3 sm:p-4">
       <div className="max-w-7xl mx-auto space-y-4">
         {/* Header with Background Pattern */}
-        <div className="hidden sm:block relative overflow-hidden rounded-xl bg-card border p-4 sm:p-6">
+        <div className="terminal-shell relative hidden overflow-hidden p-4 sm:block sm:p-6">
           <BackgroundPattern variant="circuit" color="primary" opacity={0.04} />
           <div className="relative z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
-              <h1 className="text-xl sm:text-2xl font-bold">Player Pools</h1>
+              <div className="terminal-strip mb-3">Market Directory</div>
+              <h1 className="terminal-heading text-xl sm:text-2xl">Player Pools</h1>
               <p className="text-sm text-muted-foreground">Instant buy/sell</p>
             </div>
             <div className="flex items-center gap-2">
@@ -352,12 +353,15 @@ export default function PlayerPools() {
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <div className="flex items-center gap-2">
-            <TabsList className="grid flex-1 grid-cols-2 sm:w-auto sm:inline-flex sm:flex-none">
-              <TabsTrigger value="players" className="gap-2">
+            <TabsList
+              variant="terminal"
+              className="grid flex-1 grid-cols-2 sm:w-auto sm:inline-flex sm:flex-none"
+            >
+              <TabsTrigger variant="terminal" value="players" className="gap-2">
                 <Activity className="w-4 h-4" />
                 Players
               </TabsTrigger>
-              <TabsTrigger value="activity" className="gap-2">
+              <TabsTrigger variant="terminal" value="activity" className="gap-2">
                 <TrendingUp className="w-4 h-4" />
                 Activity
               </TabsTrigger>
@@ -370,13 +374,14 @@ export default function PlayerPools() {
             <MarketplaceScanners />
 
             {/* Search and Filters */}
-            <Card className="relative overflow-hidden">
+            <Card variant="terminal" className="relative overflow-hidden">
               <CardAccent variant="left" color="primary" intensity="low" />
               <CardContent className="p-3 space-y-3 relative z-10">
                 {/* Search */}
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
+                    variant="terminal"
                     placeholder="Search players..."
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
@@ -384,7 +389,7 @@ export default function PlayerPools() {
                   />
                   {search && (
                     <Button
-                      variant="ghost"
+                      variant="terminalOutline"
                       size="sm"
                       className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
                       onClick={() => setSearch("")}
@@ -397,7 +402,7 @@ export default function PlayerPools() {
                 {/* Filter + Sort Controls */}
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <Button
-                    variant="outline"
+                    variant="terminalOutline"
                     size="sm"
                     onClick={() => setShowFilters(!showFilters)}
                     className="gap-2"
@@ -405,7 +410,7 @@ export default function PlayerPools() {
                     <Filter className="w-4 h-4" />
                     Filters
                     {hasActiveFilters && (
-                      <Badge variant="secondary" className="ml-1">
+                      <Badge variant="secondary" className="ml-1 font-mono text-[10px] uppercase">
                         Active
                       </Badge>
                     )}
@@ -415,7 +420,7 @@ export default function PlayerPools() {
                     <select
                       value={sortField}
                       onChange={(e) => setSortFieldFromSelector(e.target.value as SortField)}
-                      className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                      className="h-9 rounded-sm border border-border bg-[hsl(var(--card)/0.85)] px-3 font-mono text-sm"
                     >
                       <option value="volume">Volume</option>
                       <option value="marketCap">Mkt Cap</option>
@@ -430,7 +435,7 @@ export default function PlayerPools() {
                     </select>
 
                     <Button
-                      variant="outline"
+                      variant="terminalOutline"
                       size="sm"
                       onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
                       className="gap-2"
@@ -443,13 +448,13 @@ export default function PlayerPools() {
 
                 {/* Expanded Filters */}
                 {showFilters && (
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 border-t">
+                  <div className="grid grid-cols-1 gap-3 border-t border-border pt-3 sm:grid-cols-3">
                     <div className="space-y-1">
-                      <label className="text-xs font-medium">Team</label>
+                      <label className="terminal-label">Team</label>
                       <select
                         value={teamFilter}
                         onChange={(e) => setTeamFilter(e.target.value)}
-                        className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                        className="h-9 w-full rounded-sm border border-border bg-[hsl(var(--card)/0.85)] px-3 font-mono text-sm"
                       >
                         <option value="all">All Teams</option>
                         {teams.map((team) => (
@@ -461,11 +466,11 @@ export default function PlayerPools() {
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-xs font-medium">Position</label>
+                      <label className="terminal-label">Position</label>
                       <select
                         value={positionFilter}
                         onChange={(e) => setPositionFilter(e.target.value)}
-                        className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                        className="h-9 w-full rounded-sm border border-border bg-[hsl(var(--card)/0.85)] px-3 font-mono text-sm"
                       >
                         <option value="all">All Positions</option>
                         {positions.map((pos) => (
@@ -477,11 +482,11 @@ export default function PlayerPools() {
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-xs font-medium">Watchlist</label>
+                      <label className="terminal-label">Watchlist</label>
                       <select
                         value={filterWatchlistId}
                         onChange={(e) => setFilterWatchlistId(e.target.value)}
-                        className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                        className="h-9 w-full rounded-sm border border-border bg-[hsl(var(--card)/0.85)] px-3 font-mono text-sm"
                       >
                         <option value="none">All Players</option>
                         <option value="all">My Watchlists</option>
@@ -496,7 +501,7 @@ export default function PlayerPools() {
                     {hasActiveFilters && (
                       <div className="sm:col-span-3 flex justify-end">
                         <Button
-                          variant="ghost"
+                          variant="terminalOutline"
                           size="sm"
                           onClick={() => {
                             setTeamFilter("all");
@@ -515,17 +520,19 @@ export default function PlayerPools() {
             </Card>
 
             {/* Players Table */}
-            <Card className="relative overflow-hidden">
+            <Card variant="terminal" className="relative overflow-hidden">
               <CardAccent variant="top" color="primary" intensity="low" />
               <CardContent className="p-0 relative z-10">
                 {isLoading ? (
-                  <div className="p-8 text-center text-muted-foreground">Loading players...</div>
+                  <div className="terminal-empty p-8 text-center text-muted-foreground">
+                    Loading players...
+                  </div>
                 ) : players.length === 0 ? (
-                  <div className="p-8 text-center">
+                  <div className="terminal-empty p-8 text-center">
                     <p className="text-muted-foreground">No players found</p>
                     {hasActiveFilters && (
                       <Button
-                        variant="outline"
+                        variant="terminalOutline"
                         size="sm"
                         className="mt-2"
                         onClick={() => {
@@ -544,7 +551,7 @@ export default function PlayerPools() {
                     {/* Desktop Table */}
                     <div className="hidden md:block overflow-x-auto">
                       <table className="w-full">
-                        <thead className="border-b bg-muted/50">
+                        <thead className="border-b border-border bg-muted/30">
                           <tr>
                             <th className="text-left p-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                               Player
@@ -592,7 +599,10 @@ export default function PlayerPools() {
                         </thead>
                         <tbody>
                           {players.map((player) => (
-                            <tr key={player.id} className="border-b hover:bg-muted/30">
+                            <tr
+                              key={player.id}
+                              className="border-b border-border hover:bg-muted/20"
+                            >
                               <td className="p-3">
                                 <button
                                   type="button"
@@ -602,7 +612,7 @@ export default function PlayerPools() {
                                     setPlayerModalOpen(true);
                                   }}
                                 >
-                                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                                  <div className="terminal-avatar flex-shrink-0">
                                     <span className="text-xs font-bold">
                                       {player.firstName[0]}
                                       {player.lastName[0]}
@@ -616,7 +626,7 @@ export default function PlayerPools() {
                                         lastName={player.lastName}
                                       />
                                     </div>
-                                    <div className="text-xs text-muted-foreground">
+                                    <div className="font-mono text-[11px] text-muted-foreground">
                                       {player.team} • {player.position}
                                     </div>
                                   </div>
@@ -649,7 +659,7 @@ export default function PlayerPools() {
                               <td className="p-3 text-center">
                                 <Button
                                   size="sm"
-                                  variant="default"
+                                  variant="terminal"
                                   className="h-8 px-3"
                                   onClick={(e) => {
                                     e.stopPropagation();
@@ -669,14 +679,14 @@ export default function PlayerPools() {
                     </div>
 
                     {/* Mobile Cards */}
-                    <div className="md:hidden divide-y">
+                    <div className="divide-y divide-border md:hidden">
                       {players.map((player) => {
                         const mobileSortMetric = getMobileSortMetric(player, sortField);
 
                         return (
                           <div
                             key={player.id}
-                            className="p-3 flex items-center justify-between hover:bg-muted/30"
+                            className="flex items-center justify-between p-3 hover:bg-muted/20"
                           >
                             <button
                               type="button"
@@ -687,7 +697,7 @@ export default function PlayerPools() {
                               }}
                             >
                               <div className="flex items-center gap-2 cursor-pointer text-left">
-                                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                                <div className="terminal-avatar flex-shrink-0">
                                   <span className="text-xs font-bold">
                                     {player.firstName[0]}
                                     {player.lastName[0]}
@@ -701,7 +711,7 @@ export default function PlayerPools() {
                                       lastName={player.lastName}
                                     />
                                   </div>
-                                  <div className="text-xs text-muted-foreground flex items-center gap-1.5 flex-wrap">
+                                  <div className="flex flex-wrap items-center gap-1.5 font-mono text-[11px] text-muted-foreground">
                                     <span>{player.team}</span>
                                     <span>•</span>
                                     <span className="font-mono">
@@ -718,7 +728,7 @@ export default function PlayerPools() {
                             <div className="flex items-center ml-2">
                               <Button
                                 size="sm"
-                                variant="default"
+                                variant="terminal"
                                 className="h-7 px-3 text-xs"
                                 onClick={() => {
                                   const pid = String(player.id || "").trim();
@@ -736,13 +746,13 @@ export default function PlayerPools() {
 
                     {/* Pagination */}
                     {totalPages > 1 && (
-                      <div className="p-3 border-t flex items-center justify-between">
-                        <div className="text-sm text-muted-foreground">
+                      <div className="flex items-center justify-between border-t border-border p-3">
+                        <div className="font-mono text-[11px] text-muted-foreground">
                           Page {page} of {totalPages}
                         </div>
                         <div className="flex gap-2">
                           <Button
-                            variant="outline"
+                            variant="terminalOutline"
                             size="sm"
                             onClick={() => setPage(page - 1)}
                             disabled={page <= 1}
@@ -750,7 +760,7 @@ export default function PlayerPools() {
                             <ChevronLeft className="w-4 h-4" />
                           </Button>
                           <Button
-                            variant="outline"
+                            variant="terminalOutline"
                             size="sm"
                             onClick={() => setPage(page + 1)}
                             disabled={page >= totalPages}

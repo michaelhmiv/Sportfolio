@@ -57,7 +57,7 @@ export function ScoutReadyBanner({
         transition={{ type: "spring", stiffness: 400, damping: 30 }}
         className="fixed bottom-20 sm:bottom-4 left-3 right-3 z-50 sm:left-auto sm:right-4 sm:w-96"
       >
-        <div className="relative overflow-hidden rounded-lg border bg-card shadow-lg">
+        <div className="relative overflow-hidden rounded-sm border bg-card shadow-none">
           {/* Progress bar */}
           <div
             className="absolute bottom-0 left-0 h-1 bg-amber-500 transition-all duration-100 ease-linear"
@@ -66,7 +66,7 @@ export function ScoutReadyBanner({
 
           <div className="p-3 sm:p-4 flex items-center gap-2 sm:gap-3">
             {/* Icon */}
-            <div className="flex-shrink-0 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-amber-500/10 flex items-center justify-center">
+            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-sm border border-amber-500/20 bg-amber-500/10 sm:h-10 sm:w-10">
               <Binoculars className="w-4 h-4 sm:w-5 sm:h-5 text-amber-500" />
             </div>
 
@@ -82,7 +82,7 @@ export function ScoutReadyBanner({
             <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
               <Button
                 size="sm"
-                variant="outline"
+                variant="terminalOutline"
                 onClick={onView}
                 className="h-7 sm:h-8 text-xs px-2 sm:px-3 bg-amber-500/10 border-amber-500/20 text-amber-500 hover:bg-amber-500/20"
               >
@@ -91,7 +91,7 @@ export function ScoutReadyBanner({
               {onViewPortfolio && (
                 <Button
                   size="sm"
-                  variant="outline"
+                  variant="terminalOutline"
                   onClick={onViewPortfolio}
                   className="h-7 sm:h-8 text-xs px-2 sm:px-3 gap-1 hidden sm:inline-flex"
                 >
@@ -101,7 +101,7 @@ export function ScoutReadyBanner({
               )}
               <button
                 onClick={onDismiss}
-                className="p-1.5 sm:p-1 text-muted-foreground hover:text-foreground transition-colors"
+                className="rounded-sm border border-border/60 p-1.5 text-muted-foreground transition-colors hover:text-foreground sm:p-1"
               >
                 <X className="w-4 h-4" />
               </button>

@@ -205,16 +205,16 @@ export default function Watchlists() {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-background p-4">
+      <div className="terminal-page p-4">
         <div className="max-w-4xl mx-auto">
-          <Card>
+          <Card variant="terminal">
             <CardContent className="p-8 text-center">
               <Star className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-              <h2 className="text-xl font-bold mb-2">Sign in to view your watchlists</h2>
-              <p className="text-muted-foreground mb-4">
+              <h2 className="terminal-heading mb-2 text-lg">Sign in to view your watchlists</h2>
+              <p className="font-mono text-xs uppercase tracking-[0.04em] text-muted-foreground mb-4">
                 Create and manage custom watchlists to track your favorite players.
               </p>
-              <Button asChild>
+              <Button variant="terminal" asChild>
                 <Link href="/login">Sign In</Link>
               </Button>
             </CardContent>
@@ -225,71 +225,87 @@ export default function Watchlists() {
   }
 
   return (
-    <div className="min-h-screen bg-background p-3 sm:p-4">
+    <div className="terminal-page p-3 sm:p-4">
       <div className="max-w-4xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-2">
-            <Star className="w-6 h-6 text-primary" />
-            <h1 className="text-xl sm:text-2xl font-bold">Your Watchlists</h1>
-          </div>
-
-          <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-            <DialogTrigger asChild>
-              <Button size="sm">
-                <Plus className="w-4 h-4 mr-2" />
-                New List
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Create New Watchlist</DialogTitle>
-              </DialogHeader>
-              <div className="py-4">
-                <Input
-                  placeholder="Watchlist name"
-                  value={newListName}
-                  onChange={(e) => setNewListName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && newListName.trim()) {
-                      createMutation.mutate(newListName.trim());
-                    }
-                  }}
-                />
+        <div className="terminal-shell mb-6 p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="space-y-2">
+              <div className="terminal-strip">
+                <Star className="h-3.5 w-3.5 text-primary" />
+                Watchlist Desk
               </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>
-                  Cancel
+              <div>
+                <p className="terminal-kicker">Tracked Market Sets</p>
+                <h1 className="terminal-heading text-xl sm:text-2xl">Your Watchlists</h1>
+              </div>
+              <p className="max-w-2xl text-sm text-muted-foreground">
+                Group players into focused lists so you can scan favorites, themes, and trade ideas
+                without losing the dashboard rhythm.
+              </p>
+            </div>
+
+            <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="terminal" size="sm">
+                  <Plus className="w-4 h-4 mr-2" />
+                  New List
                 </Button>
-                <Button
-                  onClick={() => createMutation.mutate(newListName.trim())}
-                  disabled={!newListName.trim() || createMutation.isPending}
-                >
-                  {createMutation.isPending ? "Creating..." : "Create"}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+              </DialogTrigger>
+              <DialogContent className="rounded-sm border border-border bg-card">
+                <DialogHeader>
+                  <DialogTitle className="terminal-heading text-base">
+                    Create New Watchlist
+                  </DialogTitle>
+                </DialogHeader>
+                <div className="py-4">
+                  <Input
+                    variant="terminal"
+                    placeholder="Watchlist name"
+                    value={newListName}
+                    onChange={(e) => setNewListName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && newListName.trim()) {
+                        createMutation.mutate(newListName.trim());
+                      }
+                    }}
+                  />
+                </div>
+                <DialogFooter>
+                  <Button variant="terminalOutline" onClick={() => setCreateDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="terminal"
+                    onClick={() => createMutation.mutate(newListName.trim())}
+                    disabled={!newListName.trim() || createMutation.isPending}
+                  >
+                    {createMutation.isPending ? "Creating..." : "Create"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
 
         {isLoading ? (
           <div className="space-y-3">
             {[1, 2, 3].map((i) => (
-              <Card key={i} className="animate-pulse">
+              <Card key={i} variant="terminal" className="animate-pulse">
                 <CardContent className="p-4">
-                  <div className="h-6 bg-muted rounded w-32" />
+                  <div className="h-6 w-32 border border-border bg-muted/50" />
                 </CardContent>
               </Card>
             ))}
           </div>
         ) : !watchlists?.length ? (
-          <Card>
+          <Card variant="terminal">
             <CardContent className="p-8 text-center">
               <Star className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-              <h2 className="text-lg font-bold mb-2">No watchlists yet</h2>
-              <p className="text-muted-foreground mb-4">
+              <h2 className="terminal-heading mb-2 text-base">No watchlists yet</h2>
+              <p className="font-mono text-xs uppercase tracking-[0.04em] text-muted-foreground mb-4">
                 Create your first watchlist to start tracking players.
               </p>
-              <Button onClick={() => setCreateDialogOpen(true)}>
+              <Button variant="terminal" onClick={() => setCreateDialogOpen(true)}>
                 <Plus className="w-4 h-4 mr-2" />
                 Create Watchlist
               </Button>
@@ -298,30 +314,32 @@ export default function Watchlists() {
         ) : (
           <div className="space-y-3">
             {watchlists.map((list) => (
-              <Card key={list.id} className={list.isDefault ? "border-primary/30" : ""}>
+              <Card
+                key={list.id}
+                variant="terminal"
+                className={list.isDefault ? "border-primary/30" : ""}
+              >
                 <CardHeader className="p-4 pb-0">
                   <div className="flex items-center justify-between">
                     <div
                       className="flex items-center gap-3 flex-1 cursor-pointer"
                       onClick={() => setExpandedListId(expandedListId === list.id ? null : list.id)}
                     >
-                      <div
-                        className={`p-2 rounded-lg ${list.isDefault ? "bg-primary/10" : "bg-muted"}`}
-                      >
+                      <div className="terminal-avatar">
                         <Star
                           className={`w-4 h-4 ${list.isDefault ? "text-primary fill-primary" : "text-muted-foreground"}`}
                         />
                       </div>
                       <div>
-                        <CardTitle className="text-base flex items-center gap-2">
+                        <CardTitle className="terminal-heading text-sm flex items-center gap-2">
                           {list.name}
                           {list.isDefault && (
-                            <Badge variant="outline" className="text-xs">
+                            <Badge variant="outline" className="font-mono text-[10px] uppercase">
                               Default
                             </Badge>
                           )}
                         </CardTitle>
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
+                        <div className="mt-0.5 flex items-center gap-1 font-mono text-[11px] text-muted-foreground">
                           <Users className="w-3 h-3" />
                           <span>
                             {list.itemCount} player{list.itemCount !== 1 ? "s" : ""}
@@ -335,7 +353,7 @@ export default function Watchlists() {
 
                     <div className="flex items-center gap-1 ml-2">
                       <Button
-                        variant="ghost"
+                        variant="terminalOutline"
                         size="icon"
                         className="h-8 w-8"
                         title="Add player"
@@ -347,7 +365,7 @@ export default function Watchlists() {
                         <UserPlus className="w-4 h-4" />
                       </Button>
                       <Button
-                        variant="ghost"
+                        variant="terminalOutline"
                         size="icon"
                         className="h-8 w-8"
                         onClick={(e) => {
@@ -361,7 +379,7 @@ export default function Watchlists() {
                       </Button>
                       {!list.isDefault && (
                         <Button
-                          variant="ghost"
+                          variant="terminalOutline"
                           size="icon"
                           className="h-8 w-8 text-destructive hover:text-destructive"
                           onClick={(e) => {
@@ -379,7 +397,7 @@ export default function Watchlists() {
                 {expandedListId === list.id && (
                   <CardContent className="p-4 pt-3">
                     {!expandedPlayers?.length ? (
-                      <div className="text-center py-4 text-sm text-muted-foreground">
+                      <div className="terminal-empty py-4 text-center text-sm text-muted-foreground">
                         No players in this watchlist.{" "}
                         <button
                           onClick={() => openAddPlayerDialog(list.id)}
@@ -393,13 +411,13 @@ export default function Watchlists() {
                         {expandedPlayers.map((player) => (
                           <div
                             key={player.id}
-                            className="flex items-center justify-between p-2 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
+                            className="terminal-shell flex items-center justify-between gap-2 p-2 transition-colors hover:border-primary/30"
                           >
                             <Link
                               href={`/player/${player.id}`}
                               className="flex items-center gap-3 flex-1"
                             >
-                              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                              <div className="terminal-avatar">
                                 <span className="font-bold text-xs">
                                   {player.firstName?.[0]}
                                   {player.lastName?.[0]}
@@ -412,13 +430,13 @@ export default function Watchlists() {
                                   lastName={player.lastName}
                                   className="text-sm font-medium"
                                 />
-                                <div className="text-xs text-muted-foreground">
-                                  {player.team} • {player.position}
+                                <div className="font-mono text-[11px] text-muted-foreground">
+                                  {player.team} | {player.position}
                                 </div>
                               </div>
                             </Link>
                             <Button
-                              variant="ghost"
+                              variant="terminalOutline"
                               size="icon"
                               className="h-8 w-8"
                               onClick={() =>
@@ -433,7 +451,7 @@ export default function Watchlists() {
                           </div>
                         ))}
                         <Button
-                          variant="outline"
+                          variant="terminalOutline"
                           size="sm"
                           className="w-full mt-2"
                           onClick={() => openAddPlayerDialog(list.id)}
@@ -452,12 +470,13 @@ export default function Watchlists() {
 
         {/* Edit Dialog */}
         <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-          <DialogContent>
+          <DialogContent className="rounded-sm border border-border bg-card">
             <DialogHeader>
-              <DialogTitle>Edit Watchlist</DialogTitle>
+              <DialogTitle className="terminal-heading text-base">Edit Watchlist</DialogTitle>
             </DialogHeader>
             <div className="py-4">
               <Input
+                variant="terminal"
                 placeholder="Watchlist name"
                 value={editName}
                 onChange={(e) => setEditName(e.target.value)}
@@ -469,10 +488,11 @@ export default function Watchlists() {
               />
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+              <Button variant="terminalOutline" onClick={() => setEditDialogOpen(false)}>
                 Cancel
               </Button>
               <Button
+                variant="terminal"
                 onClick={() =>
                   editingList &&
                   updateMutation.mutate({ id: editingList.id, name: editName.trim() })
@@ -487,14 +507,17 @@ export default function Watchlists() {
 
         {/* Add Player Dialog */}
         <Dialog open={addPlayerDialogOpen} onOpenChange={setAddPlayerDialogOpen}>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-md rounded-sm border border-border bg-card">
             <DialogHeader>
-              <DialogTitle>Add Player to Watchlist</DialogTitle>
+              <DialogTitle className="terminal-heading text-base">
+                Add Player to Watchlist
+              </DialogTitle>
             </DialogHeader>
             <div className="py-2">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
+                  variant="terminal"
                   placeholder="Search players..."
                   value={playerSearch}
                   onChange={(e) => setPlayerSearch(e.target.value)}
@@ -505,16 +528,18 @@ export default function Watchlists() {
 
               <div className="mt-3 max-h-64 overflow-y-auto space-y-1">
                 {playerSearch.trim() === "" ? (
-                  <p className="text-center text-sm text-muted-foreground py-4">
+                  <p className="terminal-empty py-4 text-center text-sm text-muted-foreground">
                     Type to search for players
                   </p>
                 ) : searchResults.length === 0 ? (
-                  <p className="text-center text-sm text-muted-foreground py-4">No players found</p>
+                  <p className="terminal-empty py-4 text-center text-sm text-muted-foreground">
+                    No players found
+                  </p>
                 ) : (
                   searchResults.map((player) => (
                     <div
                       key={player.id}
-                      className="flex items-center justify-between p-2 rounded-lg hover:bg-muted transition-colors cursor-pointer"
+                      className="terminal-shell flex cursor-pointer items-center justify-between gap-2 p-2 transition-colors hover:border-primary/30"
                       onClick={() => {
                         if (addToWatchlistId) {
                           addPlayerMutation.mutate({
@@ -525,7 +550,7 @@ export default function Watchlists() {
                       }}
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                        <div className="terminal-avatar">
                           <span className="font-bold text-xs">
                             {player.firstName?.[0]}
                             {player.lastName?.[0]}
@@ -540,8 +565,8 @@ export default function Watchlists() {
                               className="text-sm"
                             />
                           </div>
-                          <div className="text-xs text-muted-foreground">
-                            {player.team} • {player.position} • {player.sport}
+                          <div className="font-mono text-[11px] text-muted-foreground">
+                            {player.team} | {player.position} | {player.sport}
                           </div>
                         </div>
                       </div>
@@ -552,7 +577,7 @@ export default function Watchlists() {
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setAddPlayerDialogOpen(false)}>
+              <Button variant="terminalOutline" onClick={() => setAddPlayerDialogOpen(false)}>
                 Done
               </Button>
             </DialogFooter>

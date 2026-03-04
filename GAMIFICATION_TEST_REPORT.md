@@ -16,7 +16,7 @@
 - Complete state with total shares and player count
 - Spring physics animations (stiffness: 300, damping: 25)
 
-**Integration**: Added to `contest-entry.tsx` for new entries
+**Integration**: Added to the retired lineup-entry flow for new entries
 
 ### 3.2 Boost Threshold Warning (The Bubble)
 
@@ -147,7 +147,7 @@
 
 ### Integration Tests
 
-- [x] EntryDraftAnimation integrated in contest-entry.tsx
+- [x] EntryDraftAnimation integrated in the retired lineup-entry flow
 - [x] LiveFantasyPoints integrated in power.tsx
 - [x] BoostThresholdWarning integrated in power.tsx
 - [x] WhaleAlertBanner integrated in App.tsx
@@ -189,7 +189,7 @@
 
 ### Modified Files (6 files)
 
-1. `client/src/pages/contest-entry.tsx` - Added EntryDraftAnimation
+1. Retired lineup-entry flow route - Added EntryDraftAnimation
 2. `client/src/pages/power.tsx` - Added LiveFantasyPoints, BoostThresholdWarning
 3. `client/src/App.tsx` - Added WhaleAlertBanner
 4. `client/src/lib/websocket.tsx` - Added handlers for new events

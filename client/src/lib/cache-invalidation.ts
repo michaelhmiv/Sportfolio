@@ -106,27 +106,12 @@ export function debouncedInvalidateMarketActivity(): void {
 }
 
 /**
- * Throttled contest invalidation.
- */
-export function debouncedInvalidateContests(contestId?: string): void {
-  throttledExecute("contests", () => {
-    queryClient.invalidateQueries({ queryKey: ["/api/contests"] });
-  });
-
-  if (contestId) {
-    queryClient.invalidateQueries({ queryKey: ["/api/contest", contestId] });
-    queryClient.invalidateQueries({ queryKey: ["/api/contest", contestId, "leaderboard"] });
-  }
-}
-
-/**
  * Invalidate all portfolio-related queries across the entire application.
  * Call this for user-initiated actions (trades, claims, etc.) - NOT for WebSocket events.
  *
  * This ensures ALL pages show updated data after any portfolio change:
  * - Cash balance updates everywhere
  * - Holdings reflect across dashboard, portfolio, player pages
- * - Contest eligibility updates instantly
  * - Player prices and order books refresh
  *
  * Returns a Promise that resolves when all invalidations complete.
@@ -139,23 +124,7 @@ export async function invalidatePortfolioQueries(): Promise<void> {
     queryClient.invalidateQueries({ queryKey: ["/api/scouts"] }),
     queryClient.invalidateQueries({ queryKey: ["/api/players"] }),
     queryClient.invalidateQueries({ queryKey: ["/api/player"] }),
-    queryClient.invalidateQueries({ queryKey: ["/api/contests"] }),
-    queryClient.invalidateQueries({ queryKey: ["/api/contest"] }),
     queryClient.invalidateQueries({ queryKey: ["/api/trades/history"] }),
-  ]);
-}
-
-/**
- * Invalidate all contest-related queries.
- * Call this when contests are updated, entries are made, or contest status changes.
- *
- * Returns a Promise that resolves when all invalidations complete.
- */
-export async function invalidateContestQueries(): Promise<void> {
-  await Promise.all([
-    queryClient.invalidateQueries({ queryKey: ["/api/contests"] }),
-    queryClient.invalidateQueries({ queryKey: ["/api/contest"] }),
-    queryClient.invalidateQueries({ queryKey: ["/api/contests/entries"] }),
   ]);
 }
 
@@ -166,5 +135,5 @@ export async function invalidateContestQueries(): Promise<void> {
  * Returns a Promise that resolves when all invalidations complete.
  */
 export async function invalidateAll(): Promise<void> {
-  await Promise.all([invalidatePortfolioQueries(), invalidateContestQueries()]);
+  await invalidatePortfolioQueries();
 }

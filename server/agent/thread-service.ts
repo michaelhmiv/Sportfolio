@@ -153,6 +153,26 @@ export async function ensureAgentThreadSchema() {
   `);
 
   await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS "user_agent_improvement_candidates" (
+      "id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+      "signature" text NOT NULL,
+      "user_id" varchar REFERENCES "users"("id") ON DELETE SET NULL,
+      "source_run_id" varchar REFERENCES "user_agent_runs"("id") ON DELETE SET NULL,
+      "status" text NOT NULL DEFAULT 'new',
+      "failure_class" text NOT NULL,
+      "recommended_change_type" text NOT NULL,
+      "recommended_change" text NOT NULL,
+      "affected_tools" jsonb NOT NULL DEFAULT '[]'::jsonb,
+      "evidence" jsonb NOT NULL DEFAULT '{}'::jsonb,
+      "confidence" numeric(4, 3) NOT NULL DEFAULT 0.500,
+      "occurrence_count" integer NOT NULL DEFAULT 1,
+      "last_seen_at" timestamp NOT NULL DEFAULT now(),
+      "created_at" timestamp NOT NULL DEFAULT now(),
+      "updated_at" timestamp NOT NULL DEFAULT now()
+    );
+  `);
+
+  await db.execute(sql`
     CREATE TABLE IF NOT EXISTS "user_agent_threads" (
       "id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
       "user_id" varchar NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
@@ -306,6 +326,18 @@ export async function ensureAgentThreadSchema() {
   await db.execute(sql`
     CREATE INDEX IF NOT EXISTS "user_agent_proposals_run_idx"
       ON "user_agent_proposals" ("run_id");
+  `);
+  await db.execute(sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS "user_agent_improvement_candidates_signature_idx"
+      ON "user_agent_improvement_candidates" ("signature");
+  `);
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS "user_agent_improvement_candidates_status_seen_idx"
+      ON "user_agent_improvement_candidates" ("status", "last_seen_at");
+  `);
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS "user_agent_improvement_candidates_failure_seen_idx"
+      ON "user_agent_improvement_candidates" ("failure_class", "last_seen_at");
   `);
   await db.execute(sql`
     CREATE INDEX IF NOT EXISTS "user_agent_proposals_user_status_created_idx"

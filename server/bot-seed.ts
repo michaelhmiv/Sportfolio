@@ -5,7 +5,7 @@ import { eq } from "drizzle-orm";
 interface BotConfig {
   username: string;
   botName: string;
-  botRole: "market_maker" | "trader" | "contest" | "vester" | "casual";
+  botRole: "market_maker" | "trader" | "vester" | "casual";
   balance: string;
   aggressiveness: string;
   spreadPercent: string;
@@ -15,8 +15,6 @@ interface BotConfig {
   maxDailyVolume: number;
   vestingClaimThreshold: string;
   maxPlayersToVest: number;
-  maxContestEntriesPerDay: number;
-  contestEntryBudget: number;
   minActionCooldownMs: number;
   maxActionCooldownMs: number;
   activeHoursStart: number;
@@ -37,8 +35,6 @@ const BOT_CONFIGS: BotConfig[] = [
     maxDailyVolume: 999999,
     vestingClaimThreshold: "0.90",
     maxPlayersToVest: 8,
-    maxContestEntriesPerDay: 1,
-    contestEntryBudget: 300,
     minActionCooldownMs: 30000,
     maxActionCooldownMs: 120000,
     activeHoursStart: 6,
@@ -57,8 +53,6 @@ const BOT_CONFIGS: BotConfig[] = [
     maxDailyVolume: 999999,
     vestingClaimThreshold: "0.85",
     maxPlayersToVest: 6,
-    maxContestEntriesPerDay: 1,
-    contestEntryBudget: 400,
     minActionCooldownMs: 60000,
     maxActionCooldownMs: 240000,
     activeHoursStart: 8,
@@ -77,8 +71,6 @@ const BOT_CONFIGS: BotConfig[] = [
     maxDailyVolume: 999999,
     vestingClaimThreshold: "0.80",
     maxPlayersToVest: 4,
-    maxContestEntriesPerDay: 2,
-    contestEntryBudget: 350,
     minActionCooldownMs: 120000,
     maxActionCooldownMs: 600000,
     activeHoursStart: 9,
@@ -97,17 +89,15 @@ const BOT_CONFIGS: BotConfig[] = [
     maxDailyVolume: 999999,
     vestingClaimThreshold: "0.95",
     maxPlayersToVest: 3,
-    maxContestEntriesPerDay: 3,
-    contestEntryBudget: 600,
     minActionCooldownMs: 20000,
     maxActionCooldownMs: 90000,
     activeHoursStart: 7,
     activeHoursEnd: 23,
   },
   {
-    username: "ContestKing",
-    botName: "Contest King",
-    botRole: "contest",
+    username: "SignalHunter",
+    botName: "Signal Hunter",
+    botRole: "trader",
     balance: "20000.00",
     aggressiveness: "0.60",
     spreadPercent: "2.00",
@@ -117,8 +107,6 @@ const BOT_CONFIGS: BotConfig[] = [
     maxDailyVolume: 999999,
     vestingClaimThreshold: "0.75",
     maxPlayersToVest: 10,
-    maxContestEntriesPerDay: 5,
-    contestEntryBudget: 800,
     minActionCooldownMs: 60000,
     maxActionCooldownMs: 300000,
     activeHoursStart: 10,
@@ -137,8 +125,6 @@ const BOT_CONFIGS: BotConfig[] = [
     maxDailyVolume: 999999,
     vestingClaimThreshold: "0.70",
     maxPlayersToVest: 3,
-    maxContestEntriesPerDay: 1,
-    contestEntryBudget: 200,
     minActionCooldownMs: 300000,
     maxActionCooldownMs: 900000,
     activeHoursStart: 12,
@@ -157,8 +143,6 @@ const BOT_CONFIGS: BotConfig[] = [
     maxDailyVolume: 999999,
     vestingClaimThreshold: "0.85",
     maxPlayersToVest: 5,
-    maxContestEntriesPerDay: 1,
-    contestEntryBudget: 250,
     minActionCooldownMs: 180000,
     maxActionCooldownMs: 600000,
     activeHoursStart: 9,
@@ -177,8 +161,6 @@ const BOT_CONFIGS: BotConfig[] = [
     maxDailyVolume: 999999,
     vestingClaimThreshold: "0.95",
     maxPlayersToVest: 3,
-    maxContestEntriesPerDay: 1,
-    contestEntryBudget: 1000,
     minActionCooldownMs: 600000,
     maxActionCooldownMs: 1800000,
     activeHoursStart: 10,
@@ -197,8 +179,6 @@ const BOT_CONFIGS: BotConfig[] = [
     maxDailyVolume: 999999,
     vestingClaimThreshold: "0.60",
     maxPlayersToVest: 2,
-    maxContestEntriesPerDay: 2,
-    contestEntryBudget: 150,
     minActionCooldownMs: 120000,
     maxActionCooldownMs: 480000,
     activeHoursStart: 14,
@@ -217,8 +197,6 @@ const BOT_CONFIGS: BotConfig[] = [
     maxDailyVolume: 999999,
     vestingClaimThreshold: "0.80",
     maxPlayersToVest: 10,
-    maxContestEntriesPerDay: 2,
-    contestEntryBudget: 400,
     minActionCooldownMs: 90000,
     maxActionCooldownMs: 360000,
     activeHoursStart: 8,
@@ -269,8 +247,6 @@ export async function seedBots(): Promise<{ created: number; skipped: number }> 
       maxDailyVolume: config.maxDailyVolume,
       vestingClaimThreshold: config.vestingClaimThreshold,
       maxPlayersToVest: config.maxPlayersToVest,
-      maxContestEntriesPerDay: config.maxContestEntriesPerDay,
-      contestEntryBudget: config.contestEntryBudget,
       minActionCooldownMs: config.minActionCooldownMs,
       maxActionCooldownMs: config.maxActionCooldownMs,
       activeHoursStart: config.activeHoursStart,

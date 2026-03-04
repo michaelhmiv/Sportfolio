@@ -7,11 +7,332 @@
     <title>Sportfolio - Fantasy Sports Stock Market</title>
     <meta
       name="description"
-      content="Trade player shares like stocks. Mine, trade, and compete in fantasy sports contests with real-time pricing and professional-grade trading tools."
+      content="Trade player shares like stocks. Scout, trade, and use boost mechanics with real-time pricing and professional-grade trading tools."
     />
     <meta name="robots" content="index,follow" />
     <link rel="canonical" href="https://www.sportfolio.market/" />
     <!-- SEO_HEAD -->
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        background-color: #0f1420;
+        color: #e5e7eb;
+        font-family:
+          "Inter",
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+      }
+
+      body {
+        line-height: 1.5;
+        background-image:
+          linear-gradient(180deg, rgba(19, 23, 34, 0.94), rgba(15, 20, 32, 0.98)),
+          radial-gradient(circle at top right, rgba(16, 185, 129, 0.08), transparent 30%);
+      }
+
+      #root {
+        min-height: 100vh;
+      }
+
+      .sf-boot {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .sf-boot::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background-image:
+          linear-gradient(rgba(71, 85, 105, 0.18) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(71, 85, 105, 0.18) 1px, transparent 1px);
+        background-size: 36px 36px;
+        opacity: 0.18;
+        pointer-events: none;
+      }
+
+      .sf-boot::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(180deg, rgba(16, 185, 129, 0.04), transparent 22%);
+        pointer-events: none;
+      }
+
+      .sf-boot__panel {
+        position: relative;
+        z-index: 1;
+        width: min(100%, 640px);
+        border: 1px solid rgba(51, 65, 85, 0.92);
+        border-radius: 4px;
+        background: #131722;
+        box-shadow:
+          0 20px 64px rgba(2, 6, 23, 0.42),
+          inset 0 1px 0 rgba(255, 255, 255, 0.02);
+        overflow: hidden;
+      }
+
+      .sf-boot__topline {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 10px 14px;
+        border-bottom: 1px solid rgba(51, 65, 85, 0.9);
+        background: rgba(10, 15, 25, 0.9);
+        color: #94a3b8;
+        font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.7rem;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .sf-boot__topline-value {
+        color: #6ee7b7;
+      }
+
+      .sf-boot__body {
+        padding: 22px 24px 20px;
+      }
+
+      .sf-boot__eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin: 0;
+        padding: 5px 8px;
+        border: 1px solid rgba(16, 185, 129, 0.22);
+        border-radius: 3px;
+        background: rgba(16, 185, 129, 0.06);
+        color: #6ee7b7;
+        font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.7rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .sf-boot__eyebrow::before {
+        content: "";
+        width: 7px;
+        height: 7px;
+        background: currentColor;
+        border-radius: 2px;
+        box-shadow: 0 0 12px rgba(16, 185, 129, 0.28);
+        animation: sf-boot-pulse 1.6s ease-in-out infinite;
+      }
+
+      .sf-boot__title {
+        margin: 14px 0 0 0;
+        color: #f8fafc;
+        font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: clamp(2.05rem, 7vw, 3.3rem);
+        font-weight: 700;
+        line-height: 0.96;
+        letter-spacing: -0.04em;
+        text-transform: uppercase;
+      }
+
+      .sf-boot__status {
+        margin: 14px 0 0 0;
+        color: #f8fafc;
+        font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: clamp(0.92rem, 2.7vw, 1.05rem);
+        font-weight: 600;
+        letter-spacing: 0.07em;
+        text-transform: uppercase;
+      }
+
+      .sf-boot__copy {
+        margin: 10px 0 0 0;
+        max-width: 52ch;
+        color: #94a3b8;
+        font-size: 0.92rem;
+      }
+
+      .sf-boot__board {
+        margin-top: 18px;
+        border: 1px solid rgba(51, 65, 85, 0.9);
+        border-radius: 3px;
+        background: rgba(15, 20, 32, 0.86);
+        overflow: hidden;
+      }
+
+      .sf-boot__row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        padding: 10px 12px;
+      }
+
+      .sf-boot__row + .sf-boot__row {
+        border-top: 1px solid rgba(51, 65, 85, 0.72);
+      }
+
+      .sf-boot__label,
+      .sf-boot__value,
+      .sf-boot__chip,
+      .sf-boot__footer-text,
+      .sf-boot__noscript-links a {
+        font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      }
+
+      .sf-boot__label {
+        color: #7c8aa0;
+        font-size: 0.7rem;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .sf-boot__value {
+        color: #dbe3ea;
+        font-size: 0.76rem;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        text-align: right;
+        text-transform: uppercase;
+      }
+
+      .sf-boot__value--positive {
+        color: #6ee7b7;
+      }
+
+      .sf-boot__chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin: 16px 0 0 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .sf-boot__chip {
+        padding: 6px 8px;
+        border: 1px solid rgba(51, 65, 85, 0.9);
+        border-radius: 3px;
+        background: rgba(17, 24, 39, 0.88);
+        color: #cbd5e1;
+        font-size: 0.7rem;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .sf-boot__footer {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-top: 18px;
+        padding-top: 14px;
+        border-top: 1px solid rgba(51, 65, 85, 0.72);
+      }
+
+      .sf-boot__spinner {
+        width: 10px;
+        height: 10px;
+        flex: 0 0 auto;
+        border-radius: 2px;
+        background: #10b981;
+        box-shadow: 0 0 12px rgba(16, 185, 129, 0.3);
+        animation: sf-boot-pulse 1.1s ease-in-out infinite;
+      }
+
+      .sf-boot__footer-text {
+        color: #9aa8b8;
+        font-size: 0.74rem;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .sf-boot__noscript {
+        margin-top: 16px;
+        padding-top: 14px;
+        border-top: 1px solid rgba(51, 65, 85, 0.72);
+        color: #cbd5e1;
+        font-size: 0.88rem;
+      }
+
+      .sf-boot__noscript p {
+        margin: 0 0 10px 0;
+      }
+
+      .sf-boot__noscript-links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .sf-boot__noscript-links a {
+        color: #6ee7b7;
+        text-decoration: none;
+        font-size: 0.76rem;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+
+      .sf-boot__noscript-links a:hover,
+      .sf-boot__noscript-links a:focus-visible {
+        text-decoration: underline;
+      }
+
+      @keyframes sf-boot-pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+
+        50% {
+          opacity: 0.45;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .sf-boot__spinner,
+        .sf-boot__eyebrow::before {
+          animation: none;
+        }
+      }
+
+      @media (max-width: 640px) {
+        .sf-boot {
+          padding: 14px;
+        }
+
+        .sf-boot__topline,
+        .sf-boot__row {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+
+        .sf-boot__body {
+          padding: 18px;
+        }
+
+        .sf-boot__value {
+          text-align: left;
+        }
+      }
+    </style>
 
     <!-- Preconnect for fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />

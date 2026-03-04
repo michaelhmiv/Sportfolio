@@ -1,11 +1,5 @@
 /**
- * Bot Import Script - Creates bot users and profiles from CSV data
- *
- * Improvements Made:
- * 1. Realistic usernames that look like real user accounts
- * 2. Proper user creation with isBot=true flag
- * 3. Vesting records created for each bot
- * 4. Fresh UUIDs to avoid conflicts
+ * Bot Import Script - Creates bot users and profiles from static config data.
  */
 
 import { Pool } from "pg";
@@ -13,22 +7,6 @@ import { randomUUID } from "crypto";
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
-// Realistic usernames that look like real users would create
-const REALISTIC_USERNAMES = [
-  "hoopsdynasty23",
-  "jayson_trader",
-  "ballin_investor",
-  "dunk_master_99",
-  "courtside_capital",
-  "fantasy_baller",
-  "swish_portfolios",
-  "triple_double_dave",
-  "nba_stonks",
-  "bucket_hunter",
-  "fast_break_frank",
-];
-
-// Bot profile configurations (from your CSV, with some optimizations)
 const BOT_CONFIGS = [
   {
     username: "hoopsdynasty23",
@@ -40,11 +18,9 @@ const BOT_CONFIGS = [
     minOrderSize: 10,
     vestingClaimThreshold: "0.90",
     maxPlayersToVest: 8,
-    maxContestEntriesPerDay: 1,
-    contestEntryBudget: 300,
     minActionCooldownMs: 30000,
     maxActionCooldownMs: 120000,
-    targetTiers: [1, 2], // Top players - high volume market making
+    targetTiers: [1, 2],
   },
   {
     username: "jayson_trader",
@@ -56,11 +32,9 @@ const BOT_CONFIGS = [
     minOrderSize: 20,
     vestingClaimThreshold: "0.85",
     maxPlayersToVest: 6,
-    maxContestEntriesPerDay: 1,
-    contestEntryBudget: 400,
     minActionCooldownMs: 60000,
     maxActionCooldownMs: 240000,
-    targetTiers: [2, 3], // Mid-tier market making
+    targetTiers: [2, 3],
   },
   {
     username: "ballin_investor",
@@ -72,11 +46,9 @@ const BOT_CONFIGS = [
     minOrderSize: 50,
     vestingClaimThreshold: "0.95",
     maxPlayersToVest: 3,
-    maxContestEntriesPerDay: 1,
-    contestEntryBudget: 1000,
-    minActionCooldownMs: 600000, // 10 min - patient whale
-    maxActionCooldownMs: 1800000, // 30 min
-    targetTiers: [2, 4], // Premium/high value players
+    minActionCooldownMs: 600000,
+    maxActionCooldownMs: 1800000,
+    targetTiers: [2, 4],
   },
   {
     username: "dunk_master_99",
@@ -88,11 +60,9 @@ const BOT_CONFIGS = [
     minOrderSize: 5,
     vestingClaimThreshold: "0.80",
     maxPlayersToVest: 4,
-    maxContestEntriesPerDay: 2,
-    contestEntryBudget: 350,
     minActionCooldownMs: 120000,
     maxActionCooldownMs: 600000,
-    targetTiers: [1, 3, 5], // Wide range value seeker
+    targetTiers: [1, 3, 5],
   },
   {
     username: "courtside_capital",
@@ -104,24 +74,20 @@ const BOT_CONFIGS = [
     minOrderSize: 5,
     vestingClaimThreshold: "0.85",
     maxPlayersToVest: 5,
-    maxContestEntriesPerDay: 1,
-    contestEntryBudget: 250,
     minActionCooldownMs: 180000,
     maxActionCooldownMs: 600000,
     targetTiers: null,
   },
   {
     username: "fantasy_baller",
-    botName: "Contest King",
-    botRole: "contest",
+    botName: "Signal Hunter",
+    botRole: "trader",
     aggressiveness: "0.60",
     spreadPercent: "2.00",
     maxOrderSize: 50,
     minOrderSize: 5,
     vestingClaimThreshold: "0.75",
     maxPlayersToVest: 10,
-    maxContestEntriesPerDay: 5, // Enters lots of contests
-    contestEntryBudget: 800,
     minActionCooldownMs: 60000,
     maxActionCooldownMs: 300000,
     targetTiers: null,
@@ -136,9 +102,7 @@ const BOT_CONFIGS = [
     minOrderSize: 1,
     vestingClaimThreshold: "0.85",
     maxPlayersToVest: 5,
-    maxContestEntriesPerDay: 0, // Pure taker, no contests
-    contestEntryBudget: 0,
-    minActionCooldownMs: 30000, // Fast taker
+    minActionCooldownMs: 30000,
     maxActionCooldownMs: 60000,
     targetTiers: null,
   },
@@ -152,11 +116,9 @@ const BOT_CONFIGS = [
     minOrderSize: 10,
     vestingClaimThreshold: "0.95",
     maxPlayersToVest: 3,
-    maxContestEntriesPerDay: 3,
-    contestEntryBudget: 600,
-    minActionCooldownMs: 20000, // Very fast
+    minActionCooldownMs: 20000,
     maxActionCooldownMs: 90000,
-    targetTiers: [3, 4], // Mid-high momentum plays
+    targetTiers: [3, 4],
   },
   {
     username: "nba_stonks",
@@ -167,9 +129,7 @@ const BOT_CONFIGS = [
     maxOrderSize: 60,
     minOrderSize: 5,
     vestingClaimThreshold: "0.80",
-    maxPlayersToVest: 10, // Vesting many players
-    maxContestEntriesPerDay: 2,
-    contestEntryBudget: 400,
+    maxPlayersToVest: 10,
     minActionCooldownMs: 90000,
     maxActionCooldownMs: 360000,
     targetTiers: null,
@@ -184,11 +144,9 @@ const BOT_CONFIGS = [
     minOrderSize: 2,
     vestingClaimThreshold: "0.70",
     maxPlayersToVest: 3,
-    maxContestEntriesPerDay: 1,
-    contestEntryBudget: 200,
-    minActionCooldownMs: 300000, // Casual - slow
+    minActionCooldownMs: 300000,
     maxActionCooldownMs: 900000,
-    targetTiers: [4, 5], // Lower tier value plays
+    targetTiers: [4, 5],
   },
   {
     username: "fast_break_frank",
@@ -200,8 +158,6 @@ const BOT_CONFIGS = [
     minOrderSize: 1,
     vestingClaimThreshold: "0.60",
     maxPlayersToVest: 2,
-    maxContestEntriesPerDay: 2,
-    contestEntryBudget: 150,
     minActionCooldownMs: 120000,
     maxActionCooldownMs: 480000,
     targetTiers: null,
@@ -209,9 +165,8 @@ const BOT_CONFIGS = [
 ];
 
 async function createBots() {
-  console.log("Creating bot users and profiles...\n");
+  console.log("Creating bot users and profiles...");
 
-  const now = new Date();
   let created = 0;
 
   for (const config of BOT_CONFIGS) {
@@ -219,12 +174,11 @@ async function createBots() {
     const profileId = randomUUID();
 
     try {
-      // 1. Create user account
       await pool.query(
         `
         INSERT INTO users (
-          id, email, username, first_name, last_name, balance, 
-          is_admin, is_premium, is_bot, has_seen_onboarding, 
+          id, email, username, first_name, last_name, balance,
+          is_admin, is_premium, is_bot, has_seen_onboarding,
           total_shares_vested, total_market_orders, total_trades_executed,
           created_at, updated_at
         ) VALUES (
@@ -243,7 +197,6 @@ async function createBots() {
         ],
       );
 
-      // 2. Create vesting record (with lastAccruedAt so vesting works)
       await pool.query(
         `
         INSERT INTO vesting (user_id, shares_accumulated, last_accrued_at, updated_at)
@@ -252,7 +205,6 @@ async function createBots() {
         [userId],
       );
 
-      // 3. Create bot profile
       await pool.query(
         `
         INSERT INTO bot_profiles (
@@ -260,10 +212,9 @@ async function createBots() {
           aggressiveness, spread_percent, max_order_size, min_order_size,
           max_daily_orders, max_daily_volume,
           vesting_claim_threshold, max_players_to_vest,
-          max_contest_entries_per_day, contest_entry_budget,
           min_action_cooldown_ms, max_action_cooldown_ms,
           active_hours_start, active_hours_end,
-          orders_today, volume_today, contest_entries_today,
+          orders_today, volume_today,
           last_reset_date, created_at, updated_at, target_tiers
         ) VALUES (
           $1, $2, $3, $4, true,
@@ -271,10 +222,9 @@ async function createBots() {
           999999, 999999,
           $9, $10,
           $11, $12,
-          $13, $14,
           0, 24,
-          0, 0, 0,
-          NOW(), NOW(), NOW(), $15
+          0, 0,
+          NOW(), NOW(), NOW(), $13
         )
       `,
         [
@@ -288,22 +238,20 @@ async function createBots() {
           config.minOrderSize,
           config.vestingClaimThreshold,
           config.maxPlayersToVest,
-          config.maxContestEntriesPerDay,
-          config.contestEntryBudget,
           config.minActionCooldownMs,
           config.maxActionCooldownMs,
           config.targetTiers ? `{${config.targetTiers.join(",")}}` : null,
         ],
       );
 
-      console.log(`✅ Created: ${config.username} (${config.botRole})`);
+      console.log(`Created ${config.username} (${config.botRole})`);
       created++;
     } catch (e: any) {
-      console.error(`❌ Failed ${config.username}:`, e.message);
+      console.error(`Failed ${config.username}:`, e.message);
     }
   }
 
-  console.log(`\n📊 Created ${created}/${BOT_CONFIGS.length} bots`);
+  console.log(`Created ${created}/${BOT_CONFIGS.length} bots`);
   await pool.end();
 }
 

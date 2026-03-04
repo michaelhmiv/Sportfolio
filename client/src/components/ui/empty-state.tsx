@@ -32,6 +32,7 @@ interface EmptyStateProps extends React.HTMLAttributes<HTMLDivElement> {
     onClick: () => void;
   };
   size?: "sm" | "md" | "lg";
+  variant?: "default" | "terminal";
 }
 
 const iconMap = {
@@ -53,8 +54,10 @@ export function EmptyState({
   action,
   className,
   size = "md",
+  variant = "default",
   ...props
 }: EmptyStateProps) {
+  const isTerminal = variant === "terminal";
   const sizeClasses = {
     sm: {
       container: "py-6",
@@ -87,37 +90,57 @@ export function EmptyState({
       transition={{ duration: 0.5, ease: "easeOut" }}
       className={cn(
         "flex flex-col items-center justify-center text-center",
+        isTerminal && "terminal-empty rounded-sm border border-border bg-card px-5 py-5",
         sizes.container,
         className,
       )}
       {...(props as any)}
     >
       <motion.div
-        animate={{
-          y: [0, -8, 0],
-          scale: [1, 1.02, 1],
-        }}
-        transition={{
-          duration: 3,
-          repeat: Infinity,
-          ease: "easeInOut",
-        }}
-        className="relative mb-4"
+        animate={
+          isTerminal
+            ? { opacity: 1 }
+            : {
+                y: [0, -8, 0],
+                scale: [1, 1.02, 1],
+              }
+        }
+        transition={
+          isTerminal
+            ? undefined
+            : {
+                duration: 3,
+                repeat: Infinity,
+                ease: "easeInOut",
+              }
+        }
+        className={cn(
+          "relative mb-4",
+          isTerminal && "mb-3 rounded-sm border border-border bg-[hsl(var(--sidebar)/0.4)] p-3",
+        )}
       >
-        <motion.div
-          animate={{
-            scale: [1, 1.2, 1],
-            opacity: [0.1, 0.2, 0.1],
-          }}
-          transition={{
-            duration: 3,
-            repeat: Infinity,
-            ease: "easeInOut",
-          }}
-          className="absolute inset-0 bg-primary/10 rounded-full blur-xl"
-        />
+        {!isTerminal ? (
+          <motion.div
+            animate={{
+              scale: [1, 1.2, 1],
+              opacity: [0.1, 0.2, 0.1],
+            }}
+            transition={{
+              duration: 3,
+              repeat: Infinity,
+              ease: "easeInOut",
+            }}
+            className="absolute inset-0 rounded-sm bg-primary/10 blur-xl"
+          />
+        ) : null}
         {IconComponent ? (
-          <IconComponent className={cn("text-muted-foreground/50 relative z-10", sizes.icon)} />
+          <IconComponent
+            className={cn(
+              "relative z-10 text-muted-foreground/50",
+              sizes.icon,
+              isTerminal && "h-8 w-8 text-primary",
+            )}
+          />
         ) : (
           <div className={cn("relative z-10", sizes.icon)}>{icon}</div>
         )}
@@ -127,7 +150,13 @@ export function EmptyState({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.1 }}
-        className={cn("font-semibold text-foreground mb-1", sizes.title)}
+        className={cn(
+          "mb-1 text-foreground",
+          sizes.title,
+          isTerminal
+            ? "font-mono text-sm font-semibold uppercase tracking-[0.1em]"
+            : "font-semibold",
+        )}
       >
         {title}
       </motion.h3>
@@ -137,7 +166,11 @@ export function EmptyState({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.2 }}
-          className={cn("text-muted-foreground max-w-sm mb-4", sizes.description)}
+          className={cn(
+            "mb-4 max-w-sm text-muted-foreground",
+            sizes.description,
+            isTerminal && "font-mono text-[11px] leading-6 uppercase tracking-[0.04em]",
+          )}
         >
           {description}
         </motion.p>
@@ -150,22 +183,34 @@ export function EmptyState({
           transition={{ delay: 0.3 }}
         >
           <motion.div
-            animate={{
-              scale: [1, 1.02, 1],
-              boxShadow: [
-                "0 0 0 0 rgba(var(--primary), 0)",
-                "0 0 0 8px rgba(var(--primary), 0.1)",
-                "0 0 0 0 rgba(var(--primary), 0)",
-              ],
-            }}
-            transition={{
-              duration: 2,
-              repeat: Infinity,
-              ease: "easeInOut",
-            }}
+            animate={
+              isTerminal
+                ? { opacity: 1 }
+                : {
+                    scale: [1, 1.02, 1],
+                    boxShadow: [
+                      "0 0 0 0 rgba(var(--primary), 0)",
+                      "0 0 0 8px rgba(var(--primary), 0.1)",
+                      "0 0 0 0 rgba(var(--primary), 0)",
+                    ],
+                  }
+            }
+            transition={
+              isTerminal
+                ? undefined
+                : {
+                    duration: 2,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                  }
+            }
             className="rounded-md"
           >
-            <Button onClick={action.onClick} size={size === "sm" ? "sm" : "default"}>
+            <Button
+              onClick={action.onClick}
+              size={size === "sm" ? "sm" : "default"}
+              variant={isTerminal ? "terminalOutline" : "default"}
+            >
               {action.label}
             </Button>
           </motion.div>
@@ -212,23 +257,6 @@ export function EmptyPortfolio({ onBrowse, className }: EmptyPortfolioProps) {
   );
 }
 
-interface EmptyContestsProps {
-  onBrowse?: () => void;
-  className?: string;
-}
-
-export function EmptyContests({ onBrowse, className }: EmptyContestsProps) {
-  return (
-    <EmptyState
-      icon="trophy"
-      title="No contests available"
-      description="Check back soon for new contests, or explore other ways to trade."
-      action={onBrowse ? { label: "View Past Contests", onClick: onBrowse } : undefined}
-      className={className}
-    />
-  );
-}
-
 interface LoadingEmptyStateProps {
   className?: string;
 }
@@ -239,7 +267,7 @@ export function LoadingEmptyState({ className }: LoadingEmptyStateProps) {
       <motion.div
         animate={{ rotate: 360 }}
         transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-        className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full"
+        className="h-8 w-8 rounded-sm border-2 border-primary border-t-transparent"
       />
       <motion.p
         initial={{ opacity: 0 }}

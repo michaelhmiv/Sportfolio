@@ -17,9 +17,7 @@ export type SubscriptionType =
   | "scouts" // Scout assignment changes
   | "trade" // Order/trade updates
   | "liveStats" // Game stats updates
-  | "contestUpdate" // Contest status changes
   | "marketActivity" // Market-wide activity
-  | "contestSettled" // Contest settlement notifications
   | "scout_payout" // Scout distribution notifications
   | "boost_settled" // Boost settlement notifications
   | "COMMUNITY_BOOST_SETTLED" // Community boost settlement

@@ -14,9 +14,6 @@ import {
   scoutAssignments,
   scoutDistributions,
   scoutHistory,
-  contests,
-  contestEntries,
-  contestLineups,
   playerGameStats,
   priceHistory,
   dailyGames,
@@ -59,11 +56,6 @@ import {
   type InsertVestingPreset,
   type ScoutAssignment,
   type InsertScoutAssignment,
-  type Contest,
-  type InsertContest,
-  type ContestEntry,
-  type InsertContestEntry,
-  type InsertContestLineup,
   type DailyGame,
   type InsertDailyGame,
   type JobExecutionLog,
@@ -386,20 +378,6 @@ export interface IStorage {
     userId: string,
     filters?: { types?: string[]; limit?: number; offset?: number },
   ): Promise<any[]>;
-
-  // Contest methods
-  getContests(status?: string): Promise<Contest[]>;
-  getContest(id: string): Promise<Contest | undefined>;
-  createContest(contest: InsertContest): Promise<Contest>;
-  updateContest(contestId: string, updates: Partial<Contest>): Promise<void>;
-  createContestEntry(entry: InsertContestEntry): Promise<ContestEntry>;
-  getContestEntries(contestId: string): Promise<ContestEntry[]>;
-  getUserContestEntries(userId: string): Promise<ContestEntry[]>;
-  createContestLineup(lineup: InsertContestLineup): Promise<void>;
-  getContestLineups(entryId: string): Promise<any[]>;
-  updateContestLineup(lineupId: string, updates: any): Promise<void>;
-  updateContestEntry(entryId: string, updates: Partial<ContestEntry>): Promise<void>;
-  getContestEntryDetail(contestId: string, entryId: string): Promise<any>;
 
   // Daily games methods
   upsertDailyGame(game: InsertDailyGame): Promise<DailyGame>;
@@ -855,12 +833,6 @@ export class DatabaseStorage implements IStorage {
           .update(vestingPresets)
           .set({ userId: newId })
           .where(eq(vestingPresets.userId, oldId));
-
-        // Update contest entries
-        await tx
-          .update(contestEntries)
-          .set({ userId: newId })
-          .where(eq(contestEntries.userId, oldId));
 
         // Update portfolio snapshots
         await tx
@@ -2632,7 +2604,7 @@ export class DatabaseStorage implements IStorage {
   ): Promise<any[]> {
     const limit = filters?.limit || 50;
     const offset = filters?.offset || 0;
-    const types = filters?.types || ["vesting", "market", "contest", "scout"];
+    const types = filters?.types || ["vesting", "market", "scout"];
 
     const activities: any[] = [];
 
@@ -2754,69 +2726,7 @@ export class DatabaseStorage implements IStorage {
       });
     }
 
-    // 4. Contest entries (entry fee + payout)
-    if (types.includes("contest")) {
-      const userEntries = await db
-        .select({
-          id: contestEntries.id,
-          contestId: contestEntries.contestId,
-          contestName: contests.name,
-          contestStatus: contests.status,
-          contestEndsAt: contests.endsAt,
-          entryFee: contests.entryFee,
-          totalSharesEntered: contestEntries.totalSharesEntered,
-          totalScore: contestEntries.totalScore,
-          rank: contestEntries.rank,
-          payout: contestEntries.payout,
-          createdAt: contestEntries.createdAt,
-        })
-        .from(contestEntries)
-        .innerJoin(contests, eq(contestEntries.contestId, contests.id))
-        .where(eq(contestEntries.userId, userId))
-        .orderBy(desc(contestEntries.createdAt))
-        .limit(limit);
-
-      userEntries.forEach((entry) => {
-        // Entry creation (fee charged)
-        activities.push({
-          id: `contest-entry-${entry.id}`,
-          userId,
-          occurredAt: entry.createdAt,
-          category: "contest",
-          subtype: "contest_entry",
-          cashDelta: "0.00", // Contests use shares, not cash
-          sharesDelta: 0,
-          metadata: {
-            contestId: entry.contestId,
-            contestName: entry.contestName,
-            entryFee: entry.entryFee,
-            totalSharesEntered: entry.totalSharesEntered,
-          },
-        });
-
-        // Contest completion (payout received) - only if contest is completed and payout > 0
-        if (entry.contestStatus === "completed" && parseFloat(entry.payout) > 0) {
-          activities.push({
-            id: `contest-payout-${entry.id}`,
-            userId,
-            occurredAt: entry.contestEndsAt || entry.createdAt, // Use contest end time for payout timestamp
-            category: "contest",
-            subtype: "contest_payout",
-            cashDelta: `${entry.payout}`,
-            sharesDelta: 0,
-            metadata: {
-              contestId: entry.contestId,
-              contestName: entry.contestName,
-              rank: entry.rank,
-              payout: entry.payout,
-              totalScore: entry.totalScore,
-            },
-          });
-        }
-      });
-    }
-
-    // 5. Scout distributions (hourly share earnings)
+    // 4. Scout distributions (hourly share earnings)
     if (types.includes("scout")) {
       const distributions = await db
         .select({
@@ -2886,12 +2796,6 @@ export class DatabaseStorage implements IStorage {
         } else if (activity.subtype === "trade_sell") {
           description = `Sold ${meta.quantity} shares of ${meta.playerName} @ $${meta.tradePrice}`;
         }
-      } else if (activity.category === "contest") {
-        if (activity.subtype === "contest_entry") {
-          description = `Entered ${meta.contestName}`;
-        } else if (activity.subtype === "contest_payout") {
-          description = `${meta.contestName} - Rank ${meta.rank} Payout`;
-        }
       } else if (activity.category === "scout") {
         description = `Scouting reward: ${meta.sharesEarned} shares of ${meta.playerName}`;
       }
@@ -2910,215 +2814,6 @@ export class DatabaseStorage implements IStorage {
     });
 
     return enrichedActivities;
-  }
-
-  // Contest methods
-  async getContests(status?: string): Promise<Contest[]> {
-    if (status) {
-      return await db
-        .select()
-        .from(contests)
-        .where(eq(contests.status, status))
-        .orderBy(desc(contests.startsAt));
-    }
-    return await db.select().from(contests).orderBy(desc(contests.startsAt));
-  }
-
-  async getContest(id: string): Promise<Contest | undefined> {
-    const [contest] = await db.select().from(contests).where(eq(contests.id, id));
-    return contest || undefined;
-  }
-
-  async createContest(contest: InsertContest): Promise<Contest> {
-    const [created] = await db.insert(contests).values(contest).returning();
-    return created;
-  }
-
-  async createContestEntry(entry: InsertContestEntry): Promise<ContestEntry> {
-    const [created] = await db.insert(contestEntries).values(entry).returning();
-    return created;
-  }
-
-  async getContestEntries(contestId: string): Promise<ContestEntry[]> {
-    return await db
-      .select()
-      .from(contestEntries)
-      .where(eq(contestEntries.contestId, contestId))
-      .orderBy(asc(contestEntries.rank));
-  }
-
-  async getUserContestEntries(userId: string): Promise<ContestEntry[]> {
-    return await db
-      .select()
-      .from(contestEntries)
-      .where(eq(contestEntries.userId, userId))
-      .orderBy(desc(contestEntries.createdAt));
-  }
-
-  async createContestLineup(lineup: InsertContestLineup): Promise<void> {
-    await db.insert(contestLineups).values(lineup);
-  }
-
-  async updateContestEntry(entryId: string, updates: Partial<ContestEntry>): Promise<void> {
-    await db.update(contestEntries).set(updates).where(eq(contestEntries.id, entryId));
-  }
-
-  async updateContest(contestId: string, updates: Partial<Contest>): Promise<void> {
-    await db.update(contests).set(updates).where(eq(contests.id, contestId));
-  }
-
-  async getContestLineups(entryId: string): Promise<any[]> {
-    return await db.select().from(contestLineups).where(eq(contestLineups.entryId, entryId));
-  }
-
-  async updateContestLineup(lineupId: string, updates: any): Promise<void> {
-    await db.update(contestLineups).set(updates).where(eq(contestLineups.id, lineupId));
-  }
-
-  async updateContestMetrics(
-    contestId: string,
-    totalShares: number,
-    entryFee: string,
-  ): Promise<void> {
-    // Fetch current contest to calculate new values
-    const [current] = await db.select().from(contests).where(eq(contests.id, contestId));
-
-    if (!current) return;
-
-    // Calculate new values
-    const newEntryCount = current.entryCount + 1;
-    const newTotalShares = current.totalSharesEntered + totalShares;
-    // Prize pool equals total shares (1 share = $1)
-    const newPrizePool = newTotalShares;
-
-    // Update with calculated values
-    await db
-      .update(contests)
-      .set({
-        entryCount: newEntryCount,
-        totalSharesEntered: newTotalShares,
-        totalPrizePool: newPrizePool.toFixed(2),
-      })
-      .where(eq(contests.id, contestId));
-  }
-
-  async getContestEntryWithLineup(
-    entryId: string,
-    userId: string,
-  ): Promise<{ entry: ContestEntry; lineup: any[] } | null> {
-    const [entry] = await db
-      .select()
-      .from(contestEntries)
-      .where(and(eq(contestEntries.id, entryId), eq(contestEntries.userId, userId)));
-
-    if (!entry) return null;
-
-    const lineup = await this.getContestLineups(entryId);
-    return { entry, lineup };
-  }
-
-  async deleteContestLineup(entryId: string): Promise<void> {
-    await db.delete(contestLineups).where(eq(contestLineups.entryId, entryId));
-  }
-
-  async getContestEntryDetail(contestId: string, entryId: string): Promise<any> {
-    // Get the entry with user information
-    const [entry] = await db
-      .select({
-        id: contestEntries.id,
-        contestId: contestEntries.contestId,
-        userId: contestEntries.userId,
-        username: users.username,
-        totalSharesEntered: contestEntries.totalSharesEntered,
-        totalScore: contestEntries.totalScore,
-        rank: contestEntries.rank,
-        payout: contestEntries.payout,
-        createdAt: contestEntries.createdAt,
-      })
-      .from(contestEntries)
-      .innerJoin(users, eq(contestEntries.userId, users.id))
-      .where(and(eq(contestEntries.id, entryId), eq(contestEntries.contestId, contestId)));
-
-    if (!entry) {
-      return null;
-    }
-
-    // Get contest details for entry fee
-    const contest = await this.getContest(contestId);
-    if (!contest) {
-      return null;
-    }
-
-    // Only show lineups after contest locks (status is "live" or "completed")
-    // Before that, return empty lineup to hide other users' entries
-    let lineupWithPercentages: any[] = [];
-
-    if (contest.status === "live" || contest.status === "completed") {
-      // Get the lineup with player details
-      const lineup = await db
-        .select({
-          id: contestLineups.id,
-          playerId: contestLineups.playerId,
-          playerFirstName: players.firstName,
-          playerLastName: players.lastName,
-          playerTeam: players.team,
-          playerPosition: players.position,
-          sharesEntered: contestLineups.sharesEntered,
-          fantasyPoints: contestLineups.fantasyPoints,
-          earnedScore: contestLineups.earnedScore,
-        })
-        .from(contestLineups)
-        .innerJoin(players, eq(contestLineups.playerId, players.id))
-        .where(eq(contestLineups.entryId, entryId));
-
-      // For each player, calculate percentage of total shares entered for that player in this contest
-      lineupWithPercentages = await Promise.all(
-        lineup.map(async (lineupItem) => {
-          // Sum all shares entered for this player across all entries in the contest
-          const [totalSharesResult] = await db
-            .select({
-              totalShares: sql<number>`CAST(COALESCE(SUM(${contestLineups.sharesEntered}), 0) AS INTEGER)`,
-            })
-            .from(contestLineups)
-            .leftJoin(contestEntries, eq(contestLineups.entryId, contestEntries.id))
-            .where(
-              and(
-                eq(contestEntries.contestId, contestId),
-                eq(contestLineups.playerId, lineupItem.playerId),
-              ),
-            );
-
-          const totalPlayerShares = totalSharesResult?.totalShares || 0;
-          const percentage =
-            totalPlayerShares > 0
-              ? ((lineupItem.sharesEntered / totalPlayerShares) * 100).toFixed(2)
-              : "0.00";
-
-          return {
-            ...lineupItem,
-            totalPlayerSharesInContest: totalPlayerShares,
-            ownershipPercentage: percentage,
-          };
-        }),
-      );
-    }
-
-    // Net winnings equals payout (no entry fees in this system)
-    const payout = parseFloat(entry.payout);
-
-    return {
-      entry: {
-        ...entry,
-        netWinnings: payout.toFixed(2),
-      },
-      lineup: lineupWithPercentages,
-      contest: {
-        id: contest.id,
-        name: contest.name,
-        status: contest.status,
-        totalPrizePool: contest.totalPrizePool,
-      },
-    };
   }
 
   // Daily games methods
@@ -4206,25 +3901,14 @@ export class DatabaseStorage implements IStorage {
       .where(eq(holdings.assetType, "player"));
     const totalSharesInEconomy = parseInt(totalHoldingsResult[0]?.total || "0");
 
-    // Total shares burned = shares used in Daily Boosts that have started processing
-    // Include locked+processed boosts (current system) plus legacy contest burns during transition.
+    // Total shares burned = shares used in Daily Boosts that have started processing.
     const totalBurnedBoostsResult = await db
       .select({
         total: sql<string>`COALESCE(SUM(${dailyBoosts.sharesEntered}), 0)`.as("total"),
       })
       .from(dailyBoosts)
       .where(inArray(dailyBoosts.status, ["locked", "processed"]));
-
-    const totalBurnedLegacyContestsResult = await db
-      .select({
-        total: sql<string>`COALESCE(SUM(${contestEntries.totalSharesEntered}), 0)`.as("total"),
-      })
-      .from(contestEntries)
-      .innerJoin(contests, eq(contestEntries.contestId, contests.id))
-      .where(sql`${contests.status} IN ('live', 'completed')`);
-    const totalSharesBurned =
-      parseInt(totalBurnedBoostsResult[0]?.total || "0") +
-      parseInt(totalBurnedLegacyContestsResult[0]?.total || "0");
+    const totalSharesBurned = parseInt(totalBurnedBoostsResult[0]?.total || "0");
 
     // Period stats (if dates provided)
     let periodSharesVested = 0;
@@ -4266,16 +3950,7 @@ export class DatabaseStorage implements IStorage {
           ),
         );
 
-      const periodBurnedLegacyContestsResult = await db
-        .select({
-          total: sql<string>`COALESCE(SUM(${contestEntries.totalSharesEntered}), 0)`.as("total"),
-        })
-        .from(contestEntries)
-        .innerJoin(contests, eq(contestEntries.contestId, contests.id))
-        .where(and(gte(contests.startsAt, startDate), lte(contests.startsAt, endDate)));
-      periodSharesBurned =
-        parseInt(periodBurnedBoostsResult[0]?.total || "0") +
-        parseInt(periodBurnedLegacyContestsResult[0]?.total || "0");
+      periodSharesBurned = parseInt(periodBurnedBoostsResult[0]?.total || "0");
     }
 
     return {
@@ -4345,24 +4020,6 @@ export class DatabaseStorage implements IStorage {
       .groupBy(sql`DATE(${dailyBoosts.boostDate})`)
       .orderBy(sql`DATE(${dailyBoosts.boostDate})`);
 
-    // Legacy contest burn series (transition support)
-    const legacyBurnedByDate = await db
-      .select({
-        date: sql<string>`DATE(${contests.gameDate})`.as("date"),
-        shares: sql<string>`COALESCE(SUM(${contestEntries.totalSharesEntered}), 0)`.as("shares"),
-      })
-      .from(contestEntries)
-      .innerJoin(contests, eq(contestEntries.contestId, contests.id))
-      .where(
-        and(
-          gte(contests.gameDate, startDate),
-          lte(contests.gameDate, endDate),
-          sql`${contests.status} IN ('live', 'completed')`,
-        ),
-      )
-      .groupBy(sql`DATE(${contests.gameDate})`)
-      .orderBy(sql`DATE(${contests.gameDate})`);
-
     // Add all vested dates
     const dateMap = new Map<
       string,
@@ -4391,18 +4048,6 @@ export class DatabaseStorage implements IStorage {
 
     // Add/merge burned dates
     for (const row of burnedByDate) {
-      const dateStr = row.date;
-      const existing = dateMap.get(dateStr) || {
-        sharesVested: 0,
-        sharesScouted: 0,
-        sharesBurned: 0,
-      };
-      existing.sharesBurned += parseInt(row.shares || "0");
-      dateMap.set(dateStr, existing);
-    }
-
-    // Add/merge legacy burned dates
-    for (const row of legacyBurnedByDate) {
       const dateStr = row.date;
       const existing = dateMap.get(dateStr) || {
         sharesVested: 0,

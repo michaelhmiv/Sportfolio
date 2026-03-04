@@ -6,7 +6,7 @@
  * - Transactions Count: Number of trades that day
  * - Volume: Total trading volume that day
  * - Shares Vested: Shares vested that day
- * - Shares Burned: Shares used in contests that day
+ * - Shares Burned: Shares committed to daily boosts that day
  * - Total Shares: Total shares in economy (snapshot)
  *
  * Runs daily as part of the daily_snapshot job
@@ -17,7 +17,6 @@ import {
   trades,
   vestingClaims,
   dailyBoosts,
-  contestEntries,
   holdings,
   players,
   marketSnapshots,
@@ -99,17 +98,7 @@ async function calculateMetricsForDate(targetDate: Date): Promise<DailyMetrics> 
       ),
     );
 
-  // Legacy contest burn support during migration window
-  const burnedLegacyContestStats = await db
-    .select({
-      total: sql<string>`COALESCE(SUM(${contestEntries.totalSharesEntered}), 0)`,
-    })
-    .from(contestEntries)
-    .where(and(gte(contestEntries.createdAt, startOfDay), lte(contestEntries.createdAt, endOfDay)));
-
-  const sharesBurned =
-    parseInt(burnedBoostStats[0]?.total || "0") +
-    parseInt(burnedLegacyContestStats[0]?.total || "0");
+  const sharesBurned = parseInt(burnedBoostStats[0]?.total || "0");
 
   // 4. Total shares in economy (current snapshot from holdings)
   const totalSharesResult = await db

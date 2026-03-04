@@ -133,7 +133,7 @@ export function GameStatsModal({ gameId, sport, onClose }: GameStatsModalProps) 
             </DialogTitle>
             <button
               onClick={onClose}
-              className="p-1 hover:bg-secondary rounded-full transition-colors"
+              className="rounded-sm p-1 transition-colors hover:bg-secondary"
             >
               <X className="w-5 h-5" />
             </button>
@@ -160,7 +160,7 @@ export function GameStatsModal({ gameId, sport, onClose }: GameStatsModalProps) 
           ) : liveStats ? (
             <div className="space-y-4">
               {/* Score Header */}
-              <div className="flex items-center justify-center gap-6 py-2 bg-muted/50 rounded-lg">
+              <div className="flex items-center justify-center gap-6 rounded-sm border border-border/60 bg-muted/50 py-2">
                 <div className="text-center">
                   <div className="text-sm font-medium">{liveStats.awayTeam}</div>
                   <div className="text-xl font-mono font-bold">{liveStats.awayScore}</div>
@@ -220,7 +220,7 @@ function NBAStatsTable({ liveStats }: { liveStats: NBALiveStats }) {
   }) => (
     <div>
       <h4 className="text-xs font-semibold text-muted-foreground mb-1">{teamName}</h4>
-      <div className="border rounded-lg overflow-hidden">
+      <div className="overflow-hidden rounded-sm border">
         {/* Header */}
         <div className="grid grid-cols-8 gap-1 px-2 py-1.5 bg-muted/50 text-[10px] font-medium text-muted-foreground">
           <div className="col-span-3">PLAYER</div>
@@ -271,7 +271,7 @@ function NFLStatsTable({ liveStats }: { liveStats: NFLLiveStats }) {
   const PlayerTable = ({ players, teamName }: { players: NFLPlayerStats[]; teamName: string }) => (
     <div>
       <h4 className="text-xs font-semibold text-muted-foreground mb-1">{teamName}</h4>
-      <div className="border rounded-lg overflow-hidden">
+      <div className="overflow-hidden rounded-sm border">
         {/* Header */}
         <div className="grid grid-cols-7 gap-1 px-2 py-1.5 bg-muted/50 text-[10px] font-medium text-muted-foreground">
           <div className="col-span-2">PLAYER</div>
@@ -343,7 +343,7 @@ function MLBStatsTable({ liveStats }: { liveStats: MLBLiveStats }) {
   const PlayerTable = ({ players, teamName }: { players: MLBPlayerStats[]; teamName: string }) => (
     <div>
       <h4 className="text-xs font-semibold text-muted-foreground mb-1">{teamName}</h4>
-      <div className="border rounded-lg overflow-hidden">
+      <div className="overflow-hidden rounded-sm border">
         <div className="grid grid-cols-10 gap-1 px-2 py-1.5 bg-muted/50 text-[10px] font-medium text-muted-foreground">
           <div className="col-span-2">PLAYER</div>
           <div className="text-center">H</div>

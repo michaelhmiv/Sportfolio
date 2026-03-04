@@ -553,7 +553,7 @@ export default function PlayerPage() {
   })();
 
   return (
-    <div className="min-h-screen bg-background p-2 sm:p-3 lg:p-4">
+    <div className="terminal-page p-2 sm:p-3 lg:p-4">
       {celebrationKey > 0 && (
         <>
           <Confetti
@@ -579,7 +579,7 @@ export default function PlayerPage() {
         <div className="mb-4">
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-3">
             <div className="flex items-center gap-2">
-              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+              <div className="terminal-avatar h-10 w-10 flex-shrink-0 sm:h-12 sm:w-12">
                 <span className="text-sm sm:text-base font-bold">
                   {player.firstName[0]}
                   {player.lastName[0]}
@@ -601,7 +601,7 @@ export default function PlayerPage() {
                     <span className="text-xs text-muted-foreground">#{player.jerseyNumber}</span>
                   )}
                   <Button
-                    variant="ghost"
+                    variant="terminalOutline"
                     size="sm"
                     className="h-6 px-2 text-xs"
                     onClick={() => setStatsModalOpen(true)}

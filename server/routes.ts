@@ -14,9 +14,6 @@ import type {
   DailyGame,
 } from "@shared/schema";
 import {
-  contestLineups,
-  contestEntries,
-  contests,
   holdings,
   marketSnapshots,
   portfolioSnapshots,
@@ -45,8 +42,6 @@ import { sql, eq, desc, and, gte, lte, inArray, lt, like, or } from "drizzle-orm
 import { jobScheduler } from "./jobs/scheduler";
 import { addClient, removeClient, broadcast, getWebSocketStats } from "./websocket";
 import { calculateAccrualUpdate } from "@shared/vesting-utils";
-import { createContests } from "./jobs/create-contests";
-import { calculateContestLeaderboard } from "./contest-scoring";
 import { setupAuth, isAuthenticated, optionalAuth } from "./supabaseAuth";
 import { getGameDay, getETDayBoundaries, getTodayETBoundaries, getTodayET } from "./lib/time";
 import { getOrCompute } from "./cache";
@@ -101,8 +96,6 @@ import { ensureAgentSemanticSchema } from "./agent/semantic-router";
 import { claimVestingShares as claimAgentVestingShares } from "./agent/vesting-claim";
 import { ensureUserApiTokenSchema } from "./api-token-auth";
 
-// Feature flags - set to false to disable features
-const CONTESTS_ENABLED = false; // DISABLED - contests feature removed
 const SUPPORTED_SPORTS = ["NBA", "NFL", "MLB", "NASCAR"] as const;
 const LEGACY_POOL_SHARES = 1000;
 const LEGACY_POOL_PLAY_MONEY = 10000;
@@ -254,6 +247,368 @@ type GameInsight = {
   userContext: GameInsightUserContext | null;
   liveMarketStatus?: string | null;
 };
+
+type LiveEarningsPlayer = {
+  playerId: string;
+  fantasyPoints: number;
+  name?: string;
+  team?: string;
+};
+
+type UserLiveEarningsSummary = {
+  totalEstimatedEarnings: number;
+  ownedPlayers: Array<{
+    playerId: string;
+    name: string;
+    team: string;
+    quantity: number;
+    powerLevel: number;
+    fantasyPoints: number;
+    estimatedEarnings: number;
+  }>;
+};
+
+const parseLiveEarningsNumber = (value: unknown): number => {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  if (typeof value === "string") {
+    const parsed = Number.parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  return 0;
+};
+
+const normalizeLiveEarningsName = (name: string) =>
+  String(name || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const getLiveEarningsNameTeamKey = (name: string, team?: string) =>
+  `${String(team || "")
+    .trim()
+    .toUpperCase()}|${normalizeLiveEarningsName(name)}`;
+
+const getLiveEarningsPlayerIdCandidates = (playerId: string, gameSport: string): string[] => {
+  const rawId = String(playerId || "").trim();
+  if (!rawId) return [];
+
+  const ids = new Set<string>([rawId]);
+  if (/^(nba_|nfl_|mlb_|nascar_)/i.test(rawId)) {
+    ids.add(rawId.replace(/^(nba_|nfl_|mlb_|nascar_)/i, ""));
+  } else {
+    ids.add(`${String(gameSport || "NBA").toLowerCase()}_${rawId}`);
+  }
+
+  return Array.from(ids);
+};
+
+async function getStoredLiveEarningsPlayersForGame(game: Pick<DailyGame, "gameId" | "sport">) {
+  let gameStats = await storage.getGameStatsByGameId(game.gameId);
+  if ((!gameStats || gameStats.length === 0) && game.gameId.includes("_")) {
+    const fallbackGameId = game.gameId.split("_").slice(1).join("_");
+    if (fallbackGameId) {
+      gameStats = await storage.getGameStatsByGameId(fallbackGameId);
+    }
+  }
+
+  if (!gameStats || gameStats.length === 0) return [] as LiveEarningsPlayer[];
+
+  return gameStats
+    .map((stat) => ({
+      playerId: String(stat.playerId || "").trim(),
+      fantasyPoints: parseLiveEarningsNumber(stat.fantasyPoints),
+    }))
+    .filter((player) => player.playerId && Number.isFinite(player.fantasyPoints));
+}
+
+async function getProviderLiveEarningsPlayersForGame(
+  game: DailyGame,
+): Promise<LiveEarningsPlayer[]> {
+  if (game.sport === "NBA") {
+    const nbaGameIdStr = game.gameId.startsWith("nba_") ? game.gameId.slice(4) : game.gameId;
+    const gameIdNum = Number(nbaGameIdStr);
+    if (!Number.isSafeInteger(gameIdNum) || gameIdNum <= 0) return [];
+
+    const { fetchPlayerGameStats, calculateFantasyPoints, convertToGameStats, createNBAPlayerId } =
+      await import("./balldontlie-nba");
+    const playerStats = await fetchPlayerGameStats(gameIdNum);
+
+    return playerStats.map((stat) => ({
+      playerId: createNBAPlayerId(stat.player.id),
+      name: `${stat.player.first_name} ${stat.player.last_name}`.trim(),
+      team: stat.team.abbreviation,
+      fantasyPoints: calculateFantasyPoints(convertToGameStats(stat)),
+    }));
+  }
+
+  if (game.sport === "NFL") {
+    const nflGameIdStr = game.gameId.startsWith("nfl_") ? game.gameId.slice(4) : game.gameId;
+    const nflGameIdNum = Number(nflGameIdStr);
+    if (!Number.isSafeInteger(nflGameIdNum) || nflGameIdNum <= 0) return [];
+
+    const { fetchGameStats, calculateNFLFantasyPoints, createNFLPlayerId } =
+      await import("./balldontlie-nfl");
+    const nflStats = await fetchGameStats([nflGameIdNum]);
+
+    return nflStats.map((stat) => ({
+      playerId: createNFLPlayerId(stat.player.id),
+      name: `${stat.player.first_name} ${stat.player.last_name}`.trim(),
+      team: stat.team.abbreviation,
+      fantasyPoints: calculateNFLFantasyPoints(stat),
+    }));
+  }
+
+  if (game.sport === "MLB") {
+    const mlbGameIdStr = game.gameId.startsWith("mlb_") ? game.gameId.slice(4) : game.gameId;
+    const mlbGameIdNum = Number(mlbGameIdStr);
+    if (!Number.isSafeInteger(mlbGameIdNum) || mlbGameIdNum <= 0) return [];
+
+    const normalizeTeamKey = (value: string | null | undefined): string =>
+      String(value || "")
+        .trim()
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, "");
+
+    const {
+      fetchGames,
+      fetchGameStats,
+      calculateMLBFantasyPoints,
+      createMLBPlayerId,
+      getMLBAwayTeam,
+      getMLBHomeTeamName,
+      getMLBAwayTeamName,
+      getMLBTeamDisplayName,
+      getMLBStatGameId,
+      getMLBStatTeamAbbreviation,
+      getMLBStatTeamName,
+    } = await import("./balldontlie-mlb");
+
+    const gameStartTime = new Date(game.startTime);
+    const lookupDates = Array.from(
+      new Set([
+        getGameDay(new Date(gameStartTime.getTime() - 24 * 60 * 60 * 1000)),
+        getGameDay(gameStartTime),
+        getGameDay(new Date(gameStartTime.getTime() + 24 * 60 * 60 * 1000)),
+      ]),
+    );
+
+    const [mlbStats, mlbGames] = await Promise.all([
+      fetchGameStats([mlbGameIdNum]),
+      fetchGames({ dates: lookupDates }),
+    ]);
+    if (mlbStats.length === 0) return [];
+
+    const apiGame =
+      mlbGames.find((candidateGame: any) => Number(candidateGame.id) === mlbGameIdNum) || null;
+    const liveHomeTeam = apiGame?.home_team?.abbreviation
+      ? String(apiGame.home_team.abbreviation).toUpperCase()
+      : game.homeTeam;
+    const apiAwayTeam = apiGame ? getMLBAwayTeam(apiGame) : null;
+    const liveAwayTeam = apiAwayTeam?.abbreviation
+      ? String(apiAwayTeam.abbreviation).toUpperCase()
+      : game.awayTeam;
+    const homeAbbreviation = normalizeTeamKey(apiGame?.home_team?.abbreviation || liveHomeTeam);
+    const awayAbbreviation = normalizeTeamKey(apiAwayTeam?.abbreviation || liveAwayTeam);
+
+    const homeNameKeys = new Set(
+      [
+        game.homeTeam,
+        liveHomeTeam,
+        apiGame ? getMLBHomeTeamName(apiGame) : null,
+        apiGame ? getMLBTeamDisplayName(apiGame.home_team) : null,
+        apiGame?.home_team?.name,
+        apiGame?.home_team?.display_name,
+        apiGame?.home_team?.short_display_name,
+      ]
+        .map(normalizeTeamKey)
+        .filter(Boolean),
+    );
+    const awayNameKeys = new Set(
+      [
+        game.awayTeam,
+        liveAwayTeam,
+        apiGame ? getMLBAwayTeamName(apiGame) : null,
+        getMLBTeamDisplayName(apiAwayTeam),
+        apiAwayTeam?.name,
+        apiAwayTeam?.display_name,
+        apiAwayTeam?.short_display_name,
+      ]
+        .map(normalizeTeamKey)
+        .filter(Boolean),
+    );
+
+    const getStatSide = (stat: (typeof mlbStats)[number]): "home" | "away" | null => {
+      const statGameId = getMLBStatGameId(stat);
+      if (statGameId != null && statGameId !== mlbGameIdNum) return null;
+
+      const statAbbreviation = normalizeTeamKey(getMLBStatTeamAbbreviation(stat));
+      if (statAbbreviation) {
+        if (homeAbbreviation && statAbbreviation === homeAbbreviation) return "home";
+        if (awayAbbreviation && statAbbreviation === awayAbbreviation) return "away";
+      }
+
+      const statTeamName = normalizeTeamKey(getMLBStatTeamName(stat));
+      if (!statTeamName) return null;
+      if (homeNameKeys.has(statTeamName)) return "home";
+      if (awayNameKeys.has(statTeamName)) return "away";
+
+      return null;
+    };
+
+    return mlbStats.map((stat) => {
+      const side = getStatSide(stat);
+      return {
+        playerId: createMLBPlayerId(stat.player.id),
+        name: `${stat.player.first_name} ${stat.player.last_name}`.trim(),
+        team:
+          side === "home"
+            ? liveHomeTeam || game.homeTeam
+            : side === "away"
+              ? liveAwayTeam || game.awayTeam
+              : getMLBStatTeamAbbreviation(stat) || getMLBStatTeamName(stat) || "UNK",
+        fantasyPoints: calculateMLBFantasyPoints(stat),
+      };
+    });
+  }
+
+  return [];
+}
+
+async function getLiveEarningsPlayersForGame(game: DailyGame): Promise<LiveEarningsPlayer[]> {
+  try {
+    const providerPlayers = await getProviderLiveEarningsPlayersForGame(game);
+    if (providerPlayers.length > 0) {
+      return providerPlayers;
+    }
+  } catch (error: any) {
+    console.warn(
+      `[live-earnings] Provider player stats unavailable for ${game.gameId}:`,
+      error?.message || error,
+    );
+  }
+
+  return getStoredLiveEarningsPlayersForGame(game);
+}
+
+async function buildUserLiveEarningsSummary(params: {
+  game: Pick<DailyGame, "sport" | "homeTeam" | "awayTeam">;
+  userId?: string | null;
+  livePlayers: LiveEarningsPlayer[];
+  preloadedHoldings?: any[];
+}): Promise<UserLiveEarningsSummary | null> {
+  const { game, userId, livePlayers, preloadedHoldings } = params;
+  if (!userId) return null;
+
+  const holdingsWithPlayers =
+    preloadedHoldings ?? (await storage.getAllHoldingsWithPlayers(userId));
+  const liveByPlayerId = new Map<string, number>();
+  const liveByNameAndTeam = new Map<string, number>();
+
+  livePlayers.forEach((player) => {
+    const rawId = String(player.playerId || "").trim();
+    if (rawId) {
+      getLiveEarningsPlayerIdCandidates(rawId, game.sport).forEach((candidateId) => {
+        const existing = liveByPlayerId.get(candidateId) || 0;
+        if (player.fantasyPoints > existing) {
+          liveByPlayerId.set(candidateId, player.fantasyPoints);
+        }
+      });
+    }
+
+    if (player.name && player.team) {
+      const key = getLiveEarningsNameTeamKey(player.name, player.team);
+      const existing = liveByNameAndTeam.get(key) || 0;
+      if (player.fantasyPoints > existing) {
+        liveByNameAndTeam.set(key, player.fantasyPoints);
+      }
+    }
+  });
+
+  const aggregatedOwnedPlayers = holdingsWithPlayers
+    .filter((entry: any) => {
+      const holding = entry?.holding ?? entry;
+      const player = entry?.player;
+      if (!holding || !player) return false;
+      if ((holding.assetType || "player") !== "player") return false;
+      if ((player.sport || "").toUpperCase() !== String(game.sport || "").toUpperCase())
+        return false;
+      if (player.team !== game.homeTeam && player.team !== game.awayTeam) return false;
+      return parseLiveEarningsNumber(holding.quantity) > 0;
+    })
+    .reduce((map: Map<string, any>, entry: any) => {
+      const holding = entry?.holding ?? entry;
+      const player = entry?.player;
+      const playerId = String(player?.id || "").trim();
+      if (!playerId) return map;
+
+      const playerName = `${player?.firstName || ""} ${player?.lastName || ""}`.trim();
+      const fantasyPointsById =
+        getLiveEarningsPlayerIdCandidates(playerId, game.sport)
+          .map((candidateId) => liveByPlayerId.get(candidateId) || 0)
+          .find((value) => value > 0) || 0;
+      const fantasyPointsByName =
+        liveByNameAndTeam.get(getLiveEarningsNameTeamKey(playerName, player?.team)) || 0;
+      const fantasyPoints = fantasyPointsById || fantasyPointsByName;
+      const quantity = parseLiveEarningsNumber(holding.quantity);
+      const powerLevel = parseLiveEarningsNumber(holding.powerLevel);
+
+      const existing = map.get(playerId);
+      if (!existing) {
+        map.set(playerId, {
+          playerId,
+          name: playerName,
+          team: player.team,
+          quantity,
+          powerLevel,
+          fantasyPoints,
+        });
+        return map;
+      }
+
+      existing.quantity += quantity;
+      existing.powerLevel += powerLevel;
+      return map;
+    }, new Map<string, any>());
+
+  const ownedPlayers = Array.from(aggregatedOwnedPlayers.values())
+    .map((player) => {
+      const estimatedEarnings = player.fantasyPoints * player.powerLevel;
+
+      return {
+        playerId: player.playerId,
+        name: player.name,
+        team: player.team,
+        quantity: parseFloat(player.quantity.toFixed(4)),
+        powerLevel: parseFloat(player.powerLevel.toFixed(2)),
+        fantasyPoints: parseFloat(player.fantasyPoints.toFixed(2)),
+        estimatedEarnings: parseFloat(estimatedEarnings.toFixed(2)),
+      };
+    })
+    .sort((a, b) => {
+      if (b.estimatedEarnings !== a.estimatedEarnings) {
+        return b.estimatedEarnings - a.estimatedEarnings;
+      }
+      if (b.fantasyPoints !== a.fantasyPoints) {
+        return b.fantasyPoints - a.fantasyPoints;
+      }
+      return a.name.localeCompare(b.name);
+    });
+
+  const totalEstimatedEarnings = ownedPlayers.reduce(
+    (sum, player) => sum + player.estimatedEarnings,
+    0,
+  );
+
+  return {
+    totalEstimatedEarnings: parseFloat(totalEstimatedEarnings.toFixed(2)),
+    ownedPlayers,
+  };
+}
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Setup authentication middleware
@@ -736,22 +1091,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       return statusText;
     };
-    const getPlayerIdCandidates = (playerId: string, gameSport: string): string[] => {
-      const rawId = String(playerId || "").trim();
-      if (!rawId) return [];
-
-      const ids = new Set<string>();
-      ids.add(rawId);
-
-      if (/^(nba_|nfl_|mlb_|nascar_)/i.test(rawId)) {
-        ids.add(rawId.replace(/^(nba_|nfl_|mlb_|nascar_)/i, ""));
-      } else {
-        ids.add(`${gameSport.toLowerCase()}_${rawId}`);
-      }
-
-      return Array.from(ids);
-    };
-
     games.forEach((game) => {
       const gameSport = (normalizedSport === "ALL" ? game.sport : normalizedSport).toUpperCase();
       const teams = teamsBySport.get(gameSport) || new Set<string>();
@@ -1310,106 +1649,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       });
 
-      const powerByPlayerIdBySport = new Map<string, Map<string, number>>();
-      const getSportPowerMap = (sportCode: string) => {
-        const normalizedSport = (sportCode || "NBA").toUpperCase();
-        const existingMap = powerByPlayerIdBySport.get(normalizedSport);
-        if (existingMap) return existingMap;
-
-        const newMap = new Map<string, number>();
-        powerByPlayerIdBySport.set(normalizedSport, newMap);
-        return newMap;
-      };
-      const addPowerForPlayerId = (
-        rawPlayerId: string,
-        powerLevel: number,
-        playerSport: string,
-      ) => {
-        if (!rawPlayerId || !Number.isFinite(powerLevel) || powerLevel <= 0) return;
-
-        const playerId = rawPlayerId.trim();
-        if (!playerId) return;
-
-        const normalizedSport = (playerSport || "NBA").toUpperCase();
-        const sportPowerMap = getSportPowerMap(normalizedSport);
-
-        const existingPower = sportPowerMap.get(playerId) || 0;
-        sportPowerMap.set(playerId, existingPower + powerLevel);
-
-        if (/^(nba_|nfl_|mlb_|nascar_)/i.test(playerId)) {
-          const unprefixed = playerId.replace(/^(nba_|nfl_|mlb_|nascar_)/i, "");
-          const existingUnprefixedPower = sportPowerMap.get(unprefixed) || 0;
-          sportPowerMap.set(unprefixed, existingUnprefixedPower + powerLevel);
-        } else {
-          const prefixed = `${normalizedSport.toLowerCase()}_${playerId}`;
-          const existingPrefixedPower = sportPowerMap.get(prefixed) || 0;
-          sportPowerMap.set(prefixed, existingPrefixedPower + powerLevel);
-        }
-      };
-
-      allHoldings.forEach((holding) => {
-        const quantity = parseFloat(holding.quantity || "0");
-        const powerLevel = parseFloat(holding.powerLevel || "0");
-
-        if (
-          !Number.isFinite(quantity) ||
-          quantity <= 0 ||
-          !Number.isFinite(powerLevel) ||
-          powerLevel <= 0
-        ) {
-          return;
-        }
-
-        addPowerForPlayerId(
-          String(holding.player.id || ""),
-          powerLevel,
-          holding.player.sport || "NBA",
-        );
-      });
-
       await Promise.all(
         games.map(async (game) => {
-          const status = normalizeInsightStatus(game.status);
+          const providerStatus =
+            providerStatusByGameId.get(game.gameId) ||
+            providerStatusByGameId.get(toUnprefixedGameId(game.gameId)) ||
+            null;
+          const status = providerStatus || normalizeInsightStatus(game.status);
+
           if (status === "scheduled" || status === "postponed") {
             gameLiveEarnedById.set(game.gameId, null);
             return;
           }
 
-          let gameStats = await storage.getGameStatsByGameId(game.gameId);
-          if ((!gameStats || gameStats.length === 0) && game.gameId.includes("_")) {
-            const fallbackGameId = game.gameId.split("_").slice(1).join("_");
-            if (fallbackGameId) {
-              gameStats = await storage.getGameStatsByGameId(fallbackGameId);
-            }
-          }
+          const livePlayers =
+            status === "inprogress"
+              ? await getLiveEarningsPlayersForGame(game)
+              : await getStoredLiveEarningsPlayersForGame(game);
+          const liveEarnings = await buildUserLiveEarningsSummary({
+            game,
+            userId,
+            livePlayers,
+            preloadedHoldings: allHoldings,
+          });
 
-          if (!gameStats || gameStats.length === 0) {
-            gameLiveEarnedById.set(game.gameId, 0);
-            return;
-          }
-
-          let liveEarned = 0;
-          const gameSport = (game.sport || normalizedSport).toUpperCase();
-          const sportPowerByPlayerId = powerByPlayerIdBySport.get(gameSport);
-
-          for (const stat of gameStats) {
-            const fantasyPoints = parseFloat(stat.fantasyPoints || "0");
-            if (!Number.isFinite(fantasyPoints) || fantasyPoints === 0) continue;
-
-            const playerIdCandidates = getPlayerIdCandidates(stat.playerId, game.sport || "NBA");
-            let powerLevel = 0;
-            for (const candidateId of playerIdCandidates) {
-              const candidatePower = sportPowerByPlayerId?.get(candidateId) || 0;
-              if (candidatePower > powerLevel) {
-                powerLevel = candidatePower;
-              }
-            }
-
-            if (powerLevel <= 0) continue;
-            liveEarned += fantasyPoints * powerLevel;
-          }
-
-          gameLiveEarnedById.set(game.gameId, roundToTwo(liveEarned));
+          gameLiveEarnedById.set(
+            game.gameId,
+            roundToTwo(liveEarnings?.totalEstimatedEarnings || 0),
+          );
         }),
       );
     }
@@ -2083,8 +2350,7 @@ ${items}
       const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD format
 
       // Fetch limited dynamic content for performance
-      const [activeContests, blogPosts] = await Promise.all([
-        storage.getContests(), // Active contests
+      const [blogPosts] = await Promise.all([
         storage.getBlogPosts({ limit: 100, offset: 0, publishedOnly: true }),
       ]);
 
@@ -2092,7 +2358,6 @@ ${items}
       const staticPages = [
         { url: "", lastmod: today, changefreq: "daily", priority: "1.0" },
         { url: "pools", lastmod: today, changefreq: "hourly", priority: "0.9" },
-        { url: "contests", lastmod: today, changefreq: "daily", priority: "0.9" },
         { url: "leaderboards", lastmod: today, changefreq: "daily", priority: "0.8" },
         { url: "blog", lastmod: today, changefreq: "weekly", priority: "0.8" },
         { url: "news", lastmod: today, changefreq: "hourly", priority: "0.8" },
@@ -2119,16 +2384,6 @@ ${items}
         xml += `    <lastmod>${page.lastmod}</lastmod>\n`;
         xml += `    <changefreq>${page.changefreq}</changefreq>\n`;
         xml += `    <priority>${page.priority}</priority>\n`;
-        xml += `  </url>\n`;
-      });
-
-      // Add public contest leaderboard pages.
-      activeContests.forEach((contest: (typeof activeContests)[0]) => {
-        xml += `  <url>\n`;
-        xml += `    <loc>${baseUrl}/contest/${contest.id}/leaderboard</loc>\n`;
-        xml += `    <lastmod>${today}</lastmod>\n`;
-        xml += `    <changefreq>hourly</changefreq>\n`;
-        xml += `    <priority>0.6</priority>\n`;
         xml += `  </url>\n`;
       });
 
@@ -3197,139 +3452,14 @@ ${items}
         return res.status(404).json({ error: "Game not found" });
       }
 
-      const getPlayerNumericValue = (value: unknown): number => {
-        const numeric = Number(value);
-        return Number.isFinite(numeric) ? numeric : 0;
-      };
-
-      const buildUserLiveEarnings = async (
-        livePlayers: Array<{
-          playerId: string;
-          fantasyPoints: number;
-          name?: string;
-          team?: string;
-        }>,
-      ) => {
-        const userId =
-          (typeof req?.user?.claims?.sub === "string" && req.user.claims.sub) ||
-          (typeof req?.user?.id === "string" && req.user.id) ||
-          (typeof req?.userId === "string" && req.userId) ||
-          null;
-
-        if (!userId) return null;
-
-        const holdingsWithPlayers = await storage.getUserHoldingsWithPlayers(userId);
-        const liveByPlayerId = new Map<string, { playerId: string; fantasyPoints: number }>();
-        const liveByNameAndTeam = new Map<string, number>();
-
-        const normalizeName = (name: string) =>
-          name
-            .toLowerCase()
-            .replace(/[^a-z0-9\s]/g, "")
-            .replace(/\s+/g, " ")
-            .trim();
-
-        livePlayers.forEach((player) => {
-          const rawId = String(player.playerId || "").trim();
-          if (!rawId) return;
-
-          liveByPlayerId.set(rawId, player);
-
-          if (/^(nba_|nfl_|mlb_)/i.test(rawId)) {
-            liveByPlayerId.set(rawId.slice(4), player);
-          } else {
-            const sportPrefixByCode: Record<string, string> = {
-              NBA: "nba_",
-              NFL: "nfl_",
-              MLB: "mlb_",
-            };
-            const prefix = sportPrefixByCode[(game.sport || "").toUpperCase()];
-            if (prefix) {
-              liveByPlayerId.set(`${prefix}${rawId}`, player);
-            }
-          }
-
-          if (player.name && player.team) {
-            const key = `${player.team}|${normalizeName(player.name)}`;
-            const existing = liveByNameAndTeam.get(key) || 0;
-            if ((player.fantasyPoints || 0) > existing) {
-              liveByNameAndTeam.set(key, player.fantasyPoints || 0);
-            }
-          }
-        });
-
-        const aggregatedOwnedPlayers = holdingsWithPlayers
-          .filter((entry: any) => {
-            if (!entry?.holding || !entry?.player) return false;
-            if (entry.holding.assetType !== "player") return false;
-            if ((entry.player.sport || "").toUpperCase() !== game.sport.toUpperCase()) return false;
-            if (entry.player.team !== game.homeTeam && entry.player.team !== game.awayTeam)
-              return false;
-            return getPlayerNumericValue(entry.holding.quantity) > 0;
-          })
-          .reduce((map: Map<string, any>, entry: any) => {
-            const playerId = String(entry.player.id || "").trim();
-            const playerName =
-              `${entry.player.firstName || ""} ${entry.player.lastName || ""}`.trim();
-            const fantasyPointsById = liveByPlayerId.get(playerId)?.fantasyPoints || 0;
-            const fantasyPointsByName =
-              liveByNameAndTeam.get(`${entry.player.team}|${normalizeName(playerName)}`) || 0;
-            const fantasyPoints = fantasyPointsById || fantasyPointsByName;
-            const quantity = getPlayerNumericValue(entry.holding.quantity);
-            const powerLevel = getPlayerNumericValue(entry.holding.powerLevel);
-
-            const existing = map.get(playerId);
-            if (!existing) {
-              map.set(playerId, {
-                playerId,
-                name: playerName,
-                team: entry.player.team,
-                quantity,
-                powerLevel,
-                fantasyPoints,
-              });
-              return map;
-            }
-
-            existing.quantity += quantity;
-            existing.powerLevel += powerLevel;
-            return map;
-          }, new Map<string, any>());
-
-        const ownedPlayers = Array.from(aggregatedOwnedPlayers.values())
-          .map((player) => {
-            const estimatedEarnings = player.fantasyPoints * player.powerLevel;
-
-            return {
-              playerId: player.playerId,
-              name: player.name,
-              team: player.team,
-              quantity: parseFloat(player.quantity.toFixed(4)),
-              powerLevel: parseFloat(player.powerLevel.toFixed(2)),
-              fantasyPoints: parseFloat(player.fantasyPoints.toFixed(2)),
-              estimatedEarnings: parseFloat(estimatedEarnings.toFixed(2)),
-            };
-          })
-          .sort((a: any, b: any) => {
-            if (b.estimatedEarnings !== a.estimatedEarnings) {
-              return b.estimatedEarnings - a.estimatedEarnings;
-            }
-            if (b.fantasyPoints !== a.fantasyPoints) {
-              return b.fantasyPoints - a.fantasyPoints;
-            }
-            return a.name.localeCompare(b.name);
-          });
-
-        const totalEstimatedEarnings = ownedPlayers.reduce(
-          (sum: number, player: any) => sum + player.estimatedEarnings,
-          0,
-        );
-
-        return {
-          totalEstimatedEarnings: parseFloat(totalEstimatedEarnings.toFixed(2)),
-          ownedPlayers,
-        };
-      };
+      const userId =
+        (typeof req?.user?.claims?.sub === "string" && req.user.claims.sub) ||
+        (typeof req?.user?.id === "string" && req.user.id) ||
+        (typeof req?.userId === "string" && req.userId) ||
+        null;
+      const userHoldingsWithPlayers = userId
+        ? await storage.getAllHoldingsWithPlayers(userId)
+        : null;
 
       if (game.sport === "NBA") {
         const nbaGameIdStr = gameId.startsWith("nba_") ? gameId.slice(4) : gameId;
@@ -3442,7 +3572,12 @@ ${items}
             fantasyPoints: calculateFantasyPoints(convertToGameStats(s)),
           }));
 
-          const userEarnings = await buildUserLiveEarnings([...homePlayers, ...awayPlayers]);
+          const userEarnings = await buildUserLiveEarningsSummary({
+            game,
+            userId,
+            livePlayers: [...homePlayers, ...awayPlayers],
+            preloadedHoldings: userHoldingsWithPlayers || undefined,
+          });
 
           return res.json({
             gameId,
@@ -3481,7 +3616,12 @@ ${items}
           message = "Live stats not available yet";
         }
 
-        const userEarnings = await buildUserLiveEarnings([]);
+        const userEarnings = await buildUserLiveEarningsSummary({
+          game,
+          userId,
+          livePlayers: await getStoredLiveEarningsPlayersForGame(game),
+          preloadedHoldings: userHoldingsWithPlayers || undefined,
+        });
 
         return res.json({
           gameId,
@@ -3560,7 +3700,12 @@ ${items}
             fantasyPoints: calculateNFLFantasyPoints(s),
           }));
 
-          const userEarnings = await buildUserLiveEarnings([...homePlayers, ...awayPlayers]);
+          const userEarnings = await buildUserLiveEarningsSummary({
+            game,
+            userId,
+            livePlayers: [...homePlayers, ...awayPlayers],
+            preloadedHoldings: userHoldingsWithPlayers || undefined,
+          });
 
           return res.json({
             gameId,
@@ -3579,7 +3724,12 @@ ${items}
 
         console.log(`[live-stats] No NFL live stats available for ${gameId}`);
 
-        const userEarnings = await buildUserLiveEarnings([]);
+        const userEarnings = await buildUserLiveEarningsSummary({
+          game,
+          userId,
+          livePlayers: await getStoredLiveEarningsPlayersForGame(game),
+          preloadedHoldings: userHoldingsWithPlayers || undefined,
+        });
 
         // Return cached scores if no player stats available
         return res.json({
@@ -3801,7 +3951,12 @@ ${items}
           const homePlayers = homeStats.map(mapPlayer);
           const awayPlayers = awayStats.map(mapPlayer);
 
-          const userEarnings = await buildUserLiveEarnings([...homePlayers, ...awayPlayers]);
+          const userEarnings = await buildUserLiveEarningsSummary({
+            game,
+            userId,
+            livePlayers: [...homePlayers, ...awayPlayers],
+            preloadedHoldings: userHoldingsWithPlayers || undefined,
+          });
 
           return res.json({
             gameId,
@@ -3820,7 +3975,12 @@ ${items}
 
         console.log(`[live-stats] No MLB live stats available for ${gameId}`);
 
-        const userEarnings = await buildUserLiveEarnings([]);
+        const userEarnings = await buildUserLiveEarningsSummary({
+          game,
+          userId,
+          livePlayers: await getStoredLiveEarningsPlayersForGame(game),
+          preloadedHoldings: userHoldingsWithPlayers || undefined,
+        });
         return res.json({
           gameId,
           status: liveStatus,
@@ -5026,102 +5186,6 @@ ${items}
     }
   });
 
-  // Player contest earnings and performance
-  app.get("/api/player/:id/contest-earnings", async (req, res) => {
-    if (!CONTESTS_ENABLED) {
-      return res.status(410).json({ error: "Contests feature has been disabled" });
-    }
-    try {
-      const player = await storage.getPlayer(req.params.id);
-
-      if (!player) {
-        return res.status(404).json({ error: "Player not found" });
-      }
-
-      // Query contest lineups for this player across all completed contests
-      const playerContestLineups = await db
-        .select({
-          contestId: contests.id,
-          entryId: contestLineups.entryId,
-          sharesEntered: contestLineups.sharesEntered,
-          fantasyPoints: contestLineups.fantasyPoints,
-          earnedScore: contestLineups.earnedScore,
-          contestName: contests.name,
-          contestDate: contests.gameDate,
-          contestStatus: contests.status,
-          entryRank: contestEntries.rank,
-          entryPayout: contestEntries.payout,
-          totalEntries: contests.entryCount,
-        })
-        .from(contestLineups)
-        .innerJoin(contestEntries, eq(contestLineups.entryId, contestEntries.id))
-        .innerJoin(contests, eq(contestEntries.contestId, contests.id))
-        .where(eq(contestLineups.playerId, player.id))
-        .orderBy(desc(contests.gameDate));
-
-      // Calculate aggregate stats
-      const totalAppearances = playerContestLineups.length;
-      const completedContests = playerContestLineups.filter(
-        (c: any) => c.contestStatus === "completed",
-      );
-
-      // Calculate total earnings (sum of payouts from entries where this player was used)
-      // Note: This counts the full entry payout, which might include other players
-      const totalEarnings = completedContests.reduce((sum: number, c: any) => {
-        return sum + parseFloat(c.entryPayout || "0");
-      }, 0);
-
-      // Calculate average fantasy points from contest performances
-      const avgFantasyPoints =
-        completedContests.length > 0
-          ? completedContests.reduce(
-              (sum: number, c: any) => sum + parseFloat(c.fantasyPoints || "0"),
-              0,
-            ) / completedContests.length
-          : 0;
-
-      // Calculate win rate (entries that finished in the top 50%)
-      const winningEntries = completedContests.filter((c: any) => {
-        if (!c.entryRank || !c.totalEntries) return false;
-        return c.entryRank <= Math.ceil(c.totalEntries / 2);
-      });
-      const winRate =
-        completedContests.length > 0 ? (winningEntries.length / completedContests.length) * 100 : 0;
-
-      res.json({
-        player: {
-          id: player.id,
-          firstName: player.firstName,
-          lastName: player.lastName,
-        },
-        contestPerformance: {
-          totalAppearances,
-          completedContests: completedContests.length,
-          totalEarnings: totalEarnings.toFixed(2),
-          avgFantasyPoints: avgFantasyPoints.toFixed(2),
-          winRate: winRate.toFixed(1),
-        },
-        recentContests: playerContestLineups.slice(0, 10).map((c: any) => ({
-          contestName: c.contestName,
-          contestDate: c.contestDate,
-          status: c.contestStatus,
-          fantasyPoints: c.fantasyPoints,
-          earnedScore: c.earnedScore,
-          sharesEntered: c.sharesEntered,
-          entryRank: c.entryRank,
-          entryPayout: c.entryPayout,
-        })),
-      });
-    } catch (error: any) {
-      console.error("[API] Error fetching contest earnings:", error.message);
-      res.json({
-        contestPerformance: null,
-        recentContests: [],
-        error: "Contest data temporarily unavailable",
-      });
-    }
-  });
-
   // Player shares info (total shares outstanding and market cap)
   app.get("/api/player/:id/shares-info", async (req, res) => {
     try {
@@ -5313,9 +5377,7 @@ ${items}
       // Parse types filter (comma-separated string to array)
       let typesArray: string[] | undefined;
       if (types && typeof types === "string") {
-        typesArray = types
-          .split(",")
-          .filter((t) => ["vesting", "market", "contest", "scout"].includes(t));
+        typesArray = types.split(",").filter((t) => ["vesting", "market", "scout"].includes(t));
       }
 
       const filters = {
@@ -6344,648 +6406,6 @@ ${items}
   });
 
   // =====================
-  // Watchlist Routes
-  app.get("/api/contests/entries", isAuthenticated, async (req: any, res) => {
-    if (!CONTESTS_ENABLED) {
-      return res.status(410).json({ error: "Contests feature has been disabled" });
-    }
-    try {
-      const userId = req.user.claims.sub;
-      const entries = await storage.getUserContestEntries(userId);
-      res.json(entries);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // Contests (public - anyone can view, optionalAuth to check for user entries)
-  app.get("/api/contests", optionalAuth, async (req: any, res) => {
-    if (!CONTESTS_ENABLED) {
-      return res.status(410).json({ error: "Contests feature has been disabled" });
-    }
-    try {
-      const { date, sport } = req.query;
-
-      // Fetch ALL contests when date filter is provided, otherwise just open ones
-      const allContests = date ? await storage.getContests() : await storage.getContests("open");
-
-      // Filter contests based on date
-      const now = new Date();
-      let filteredContests = allContests;
-
-      if (date && typeof date === "string") {
-        // Filter by gameDate (the actual day of the games, not when contest starts)
-        // Filter contests where gameDate matches the selected date
-        filteredContests = allContests.filter((contest) => {
-          const gameDate = new Date(contest.gameDate);
-          const gameDateStr = gameDate.toISOString().split("T")[0];
-          return gameDateStr === date;
-        });
-      }
-
-      // Filter by sport if provided (case-insensitive check for "ALL")
-      if (sport && typeof sport === "string" && sport.toUpperCase() !== "ALL") {
-        filteredContests = filteredContests.filter(
-          (contest) => contest.sport.toUpperCase() === sport.toUpperCase(),
-        );
-      }
-
-      // If user is authenticated, include their entries
-      let enrichedEntries: any[] = [];
-      if (req.user?.claims?.sub) {
-        try {
-          const userId = (req.user as any).claims.sub;
-          const user = await storage.getUser(userId);
-          if (user) {
-            const myEntries = await storage.getUserContestEntries(user.id);
-            enrichedEntries = await Promise.all(
-              myEntries.map(async (entry) => ({
-                ...entry,
-                contest: await storage.getContest(entry.contestId),
-              })),
-            );
-          }
-        } catch (error) {
-          // Ignore auth errors, just don't include entries
-          console.log("[contests] Could not fetch user entries:", error);
-        }
-      }
-
-      res.json({
-        contests: filteredContests,
-        myEntries: enrichedEntries,
-      });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // Admin endpoint to manually trigger contest creation (for testing)
-  app.post("/api/admin/create-contests", isAuthenticated, async (req, res) => {
-    if (!CONTESTS_ENABLED) {
-      return res.status(410).json({ error: "Contests feature has been disabled" });
-    }
-    try {
-      console.log("[admin] Manually triggering contest creation...");
-      const result = await createContests();
-      res.json(result);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // Admin endpoint to re-score a contest without redistributing payouts
-  app.post("/api/admin/contests/:id/rescore", adminAuth, async (req, res) => {
-    if (!CONTESTS_ENABLED) {
-      return res.status(410).json({ error: "Contests feature has been disabled" });
-    }
-    try {
-      const contestId = req.params.id;
-      console.log(`[admin] Manually re-scoring contest ${contestId}...`);
-
-      const contest = await storage.getContest(contestId);
-      if (!contest) {
-        return res.status(404).json({ error: "Contest not found" });
-      }
-
-      // Only allow re-scoring of completed contests
-      if (contest.status !== "completed") {
-        return res.status(400).json({
-          error: `Cannot re-score contest with status "${contest.status}". Only completed contests can be re-scored.`,
-        });
-      }
-
-      // Recalculate leaderboard (updates scores, ranks, and lineup fantasy points)
-      // This does NOT redistribute payouts
-      const leaderboard = await calculateContestLeaderboard(contestId);
-
-      console.log(
-        `[admin] Contest ${contestId} re-scored successfully. ${leaderboard.length} entries processed.`,
-      );
-
-      res.json({
-        success: true,
-        contestId,
-        contestName: contest.name,
-        entriesProcessed: leaderboard.length,
-        leaderboard: leaderboard.slice(0, 10), // Return top 10 for verification
-      });
-    } catch (error: any) {
-      console.error("[admin] Error re-scoring contest:", error.message);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // Contest entry form
-  app.get("/api/contest/:id/entry", isAuthenticated, async (req, res) => {
-    if (!CONTESTS_ENABLED) {
-      return res.status(410).json({ error: "Contests feature has been disabled" });
-    }
-    try {
-      const userId = getUserId(req);
-      const user = await storage.getUser(userId);
-      if (!user) {
-        return res.status(404).json({ error: "User not found" });
-      }
-      const contest = await storage.getContest(req.params.id);
-
-      if (!contest) {
-        return res.status(404).json({ error: "Contest not found" });
-      }
-
-      const userHoldings = await storage.getUserHoldings(user.id);
-      const eligiblePlayers = (
-        await Promise.all(
-          userHoldings
-            .filter((h) => h.assetType === "player")
-            .map(async (holding) => {
-              const player = await storage.getPlayer(holding.assetId);
-              // Skip players not matching contest sport
-              if (!player || player.sport.toUpperCase() !== contest.sport.toUpperCase()) {
-                return null;
-              }
-              const availableShares = await storage.getAvailableShares(
-                user.id,
-                "player",
-                holding.assetId,
-              );
-              return {
-                ...holding,
-                availableShares, // Available shares (unlocked)
-                player,
-                isEligible: true, // Simplified - would check game schedule
-              };
-            }),
-        )
-      ).filter(Boolean);
-
-      res.json({
-        contest: {
-          id: contest.id,
-          name: contest.name,
-          sport: contest.sport,
-          startsAt: contest.startsAt,
-          gameDate: contest.gameDate,
-        },
-        eligiblePlayers,
-      });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // Submit contest entry
-  app.post("/api/contest/:id/enter", isAuthenticated, async (req, res) => {
-    if (!CONTESTS_ENABLED) {
-      return res.status(410).json({ error: "Contests feature has been disabled" });
-    }
-    try {
-      const userId = getUserId(req);
-      const user = await storage.getUser(userId);
-      if (!user) {
-        return res.status(404).json({ error: "User not found" });
-      }
-      const contest = await storage.getContest(req.params.id);
-
-      if (!contest) {
-        return res.status(404).json({ error: "Contest not found" });
-      }
-
-      // Check if contest is locked (started)
-      if (new Date() >= new Date(contest.startsAt)) {
-        return res.status(400).json({ error: "Contest has already started and is locked" });
-      }
-
-      const { lineup } = req.body;
-
-      if (!lineup || lineup.length === 0) {
-        return res.status(400).json({ error: "Lineup cannot be empty" });
-      }
-
-      // VALIDATE: Ensure all player IDs are in valid format
-      // Accept both pure numeric IDs and sport-prefixed IDs (e.g., nba_12345)
-      for (const item of lineup) {
-        if (!/^(nba_|nfl_|mlb_)?\d+$/.test(item.playerId)) {
-          return res.status(400).json({
-            error: `Invalid player ID format: ${item.playerId}. Expected numeric or sport-prefixed format (e.g., nba_12345).`,
-          });
-        }
-      }
-
-      // VALIDATE: Check user has enough available shares BEFORE creating entry
-      // Available shares = total - locked (in orders, other contests, vesting)
-      const playerIds = lineup.map((item: any) => item.playerId);
-      const players = await storage.getPlayersByIds(playerIds);
-      const playerMap = new Map(players.map((p) => [p.id, p]));
-
-      // VALIDATE: All players must match contest sport
-      for (const item of lineup) {
-        const player = playerMap.get(item.playerId);
-        if (!player) {
-          return res.status(400).json({ error: `Player ${item.playerId} not found` });
-        }
-        if (player.sport.toUpperCase() !== contest.sport.toUpperCase()) {
-          return res.status(400).json({
-            error: `Player ${player.firstName} ${player.lastName} is a ${player.sport} player and cannot be entered in a ${contest.sport} contest`,
-          });
-        }
-      }
-
-      for (const item of lineup) {
-        const availableShares = await storage.getAvailableShares(user.id, "player", item.playerId);
-        if (availableShares < item.sharesEntered) {
-          const player = playerMap.get(item.playerId);
-          const playerName = player ? `${player.firstName} ${player.lastName}` : item.playerId;
-          return res.status(400).json({
-            error: `Insufficient available shares for ${playerName}. Required: ${item.sharesEntered}, Available: ${availableShares}`,
-          });
-        }
-      }
-
-      // Calculate total shares
-      const totalShares = lineup.reduce((sum: number, item: any) => sum + item.sharesEntered, 0);
-
-      // Create entry
-      const entry = await storage.createContestEntry({
-        contestId: req.params.id,
-        userId: user.id,
-        totalSharesEntered: totalShares,
-      });
-
-      // Create lineup items and burn shares from holdings
-      for (const item of lineup) {
-        await storage.createContestLineup({
-          entryId: entry.id,
-          playerId: item.playerId,
-          sharesEntered: item.sharesEntered,
-        });
-
-        const holding = await storage.getHolding(user.id, "player", item.playerId);
-        // Safe to burn now - already validated above
-        if (holding) {
-          await storage.updateHolding(
-            user.id,
-            "player",
-            item.playerId,
-            parseFloat(holding.quantity) - item.sharesEntered,
-            holding.avgCostBasis,
-          );
-        }
-      }
-
-      // Update contest metrics atomically
-      await storage.updateContestMetrics(req.params.id, totalShares, contest.entryFee);
-
-      // Broadcast contest update
-      broadcast({ type: "contestUpdate", contestId: req.params.id });
-
-      res.json({ success: true, entry });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // Get existing contest entry for editing
-  app.get("/api/contest/:contestId/entry/:entryId", isAuthenticated, async (req, res) => {
-    if (!CONTESTS_ENABLED) {
-      return res.status(410).json({ error: "Contests feature has been disabled" });
-    }
-    try {
-      const userId = getUserId(req);
-      const user = await storage.getUser(userId);
-      if (!user) {
-        return res.status(404).json({ error: "User not found" });
-      }
-      const { contestId, entryId } = req.params;
-
-      const contest = await storage.getContest(contestId);
-      if (!contest) {
-        return res.status(404).json({ error: "Contest not found" });
-      }
-
-      // Check if contest is locked
-      if (new Date() >= new Date(contest.startsAt)) {
-        return res.status(400).json({ error: "Contest has started and is locked for editing" });
-      }
-
-      const result = await storage.getContestEntryWithLineup(entryId, user.id);
-      if (!result) {
-        return res.status(404).json({ error: "Entry not found or unauthorized" });
-      }
-
-      // Get player details for lineup
-      const enrichedLineup = await Promise.all(
-        result.lineup.map(async (item: any) => ({
-          ...item,
-          player: await storage.getPlayer(item.playerId),
-        })),
-      );
-
-      // Get ALL eligible players: current holdings (including new acquisitions) + lineup players
-      const userHoldings = await storage.getUserHoldings(user.id);
-      const holdingsMap = new Map(
-        userHoldings.filter((h) => h.assetType === "player").map((h) => [h.assetId, h]),
-      );
-
-      // Build eligible players from all holdings and lineup players
-      const allPlayerIds = new Set([
-        ...userHoldings.filter((h) => h.assetType === "player").map((h) => h.assetId),
-        ...result.lineup.map((l: any) => l.playerId),
-      ]);
-
-      const eligiblePlayers = (
-        await Promise.all(
-          Array.from(allPlayerIds).map(async (playerId) => {
-            const holding = holdingsMap.get(playerId);
-            const lineupItem = result.lineup.find((l: any) => l.playerId === playerId);
-            const player = await storage.getPlayer(playerId);
-
-            // Skip players not matching contest sport
-            if (!player || player.sport.toUpperCase() !== contest.sport.toUpperCase()) {
-              return null;
-            }
-
-            // Total available = current holding + shares in lineup
-            const currentQuantity = holding?.quantity || 0;
-            const lineupShares = lineupItem?.sharesEntered || 0;
-            const totalAvailable = currentQuantity + lineupShares;
-
-            return {
-              assetId: playerId,
-              assetType: "player" as const,
-              quantity: totalAvailable,
-              userId: user.id,
-              avgCostBasis: holding?.avgCostBasis || "0.0000",
-              player,
-              isEligible: true,
-            };
-          }),
-        )
-      ).filter(Boolean);
-
-      res.json({
-        contest: {
-          id: contest.id,
-          name: contest.name,
-          sport: contest.sport,
-          startsAt: contest.startsAt,
-          gameDate: contest.gameDate,
-        },
-        entry: result.entry,
-        lineup: enrichedLineup,
-        eligiblePlayers,
-      });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // Update contest entry (edit lineup before lock)
-  app.put("/api/contest/:contestId/entry/:entryId", isAuthenticated, async (req, res) => {
-    if (!CONTESTS_ENABLED) {
-      return res.status(410).json({ error: "Contests feature has been disabled" });
-    }
-    try {
-      const userId = getUserId(req);
-      const user = await storage.getUser(userId);
-      if (!user) {
-        return res.status(404).json({ error: "User not found" });
-      }
-      const { contestId, entryId } = req.params;
-      const { lineup } = req.body;
-
-      const contest = await storage.getContest(contestId);
-      if (!contest) {
-        return res.status(404).json({ error: "Contest not found" });
-      }
-
-      // Check if contest is locked
-      if (new Date() >= new Date(contest.startsAt)) {
-        return res.status(400).json({ error: "Contest has started and is locked for editing" });
-      }
-
-      if (!lineup || lineup.length === 0) {
-        return res.status(400).json({ error: "Lineup cannot be empty" });
-      }
-
-      // VALIDATE: Ensure all player IDs are in valid format
-      // Accept both pure numeric IDs and sport-prefixed IDs (e.g., nba_12345)
-      for (const item of lineup) {
-        if (!/^(nba_|nfl_|mlb_)?\d+$/.test(item.playerId)) {
-          return res.status(400).json({
-            error: `Invalid player ID format: ${item.playerId}. Expected numeric or sport-prefixed format (e.g., nba_12345).`,
-          });
-        }
-      }
-
-      // Get existing entry
-      const existing = await storage.getContestEntryWithLineup(entryId, user.id);
-      if (!existing) {
-        return res.status(404).json({ error: "Entry not found or unauthorized" });
-      }
-
-      // Get current user holdings for validation
-      const userHoldings = await storage.getUserHoldings(user.id);
-      const holdingsMap = new Map(
-        userHoldings.filter((h) => h.assetType === "player").map((h) => [h.assetId, h.quantity]),
-      );
-
-      // Calculate share differences and validate
-      const oldLineupMap = new Map<string, number>(
-        existing.lineup.map((item: any) => [item.playerId, item.sharesEntered]),
-      );
-      const newLineupMap = new Map<string, number>(
-        lineup.map((item: any) => [item.playerId, item.sharesEntered]),
-      );
-
-      // Fetch player data for error messages
-      const allPlayerIds = Array.from(newLineupMap.keys());
-      const playersForUpdate = await storage.getPlayersByIds(allPlayerIds);
-      const playerMapForUpdate = new Map(playersForUpdate.map((p) => [p.id, p]));
-
-      // VALIDATE: All players must match contest sport
-      for (const [playerId] of Array.from(newLineupMap.entries())) {
-        const player = playerMapForUpdate.get(playerId);
-        if (!player) {
-          return res.status(400).json({ error: `Player ${playerId} not found` });
-        }
-        if (player.sport.toUpperCase() !== contest.sport.toUpperCase()) {
-          return res.status(400).json({
-            error: `Player ${player.firstName} ${player.lastName} is a ${player.sport} player and cannot be entered in a ${contest.sport} contest`,
-          });
-        }
-      }
-
-      // Validate that user has sufficient shares for the new lineup
-      for (const [playerId, newShares] of Array.from(newLineupMap.entries())) {
-        const oldShares = oldLineupMap.get(playerId) || 0;
-        const currentHolding = holdingsMap.get(playerId) || 0;
-        const availableShares = Number(currentHolding) + Number(oldShares); // Current holdings + shares currently in lineup
-
-        if (newShares > availableShares) {
-          const player = playerMapForUpdate.get(playerId);
-          const playerName = player ? `${player.firstName} ${player.lastName}` : playerId;
-          return res.status(400).json({
-            error: `Insufficient shares for ${playerName}. Available: ${availableShares}, Requested: ${newShares}`,
-          });
-        }
-      }
-
-      // Return shares that were removed or reduced
-      for (const [playerId, oldShares] of Array.from(oldLineupMap.entries())) {
-        const newShares = newLineupMap.get(playerId) || 0;
-        if (newShares < oldShares) {
-          const sharesToReturn = Number(oldShares) - Number(newShares);
-          const holding = await storage.getHolding(user.id, "player", playerId);
-          if (holding) {
-            await storage.updateHolding(
-              user.id,
-              "player",
-              playerId,
-              parseFloat(holding.quantity) + sharesToReturn,
-              holding.avgCostBasis,
-            );
-          } else {
-            // Create new holding if user didn't have any
-            await storage.updateHolding(user.id, "player", playerId, sharesToReturn, "0.0000");
-          }
-        }
-      }
-
-      // VALIDATE AND BURN: Check holdings AFTER returns, then burn additional shares
-      for (const [playerId, newShares] of Array.from(newLineupMap.entries())) {
-        const oldShares = oldLineupMap.get(playerId) || 0;
-        if (newShares > oldShares) {
-          const sharesToBurn = Number(newShares) - Number(oldShares);
-          // Re-fetch holding after share returns to get current state
-          const holding = await storage.getHolding(user.id, "player", playerId);
-
-          // CRITICAL: Validate user has enough shares AFTER returns
-          if (!holding || parseFloat(holding.quantity) < sharesToBurn) {
-            return res.status(400).json({
-              error: `Insufficient shares for player ${playerId}. Required: ${sharesToBurn}, Available: ${holding?.quantity || 0}`,
-            });
-          }
-
-          // Safe to burn now - validated above
-          await storage.updateHolding(
-            user.id,
-            "player",
-            playerId,
-            parseFloat(holding.quantity) - sharesToBurn,
-            holding.avgCostBasis,
-          );
-        }
-      }
-
-      // Calculate new total shares
-      const totalShares = lineup.reduce((sum: number, item: any) => sum + item.sharesEntered, 0);
-      const oldTotalShares = existing.entry.totalSharesEntered;
-
-      // Delete old lineup and create new one
-      await storage.deleteContestLineup(entryId);
-      for (const item of lineup) {
-        await storage.createContestLineup({
-          entryId,
-          playerId: item.playerId,
-          sharesEntered: item.sharesEntered,
-        });
-      }
-
-      // Update entry total shares
-      await storage.updateContestEntry(entryId, { totalSharesEntered: totalShares });
-
-      // Update contest metrics with the share difference (not entry count)
-      const shareDifference = totalShares - oldTotalShares;
-      if (shareDifference !== 0) {
-        // Fetch current contest to calculate new total shares
-        const currentContest = await storage.getContest(contestId);
-        if (currentContest) {
-          const newTotalShares = currentContest.totalSharesEntered + shareDifference;
-          await storage.updateContest(contestId, {
-            totalSharesEntered: newTotalShares,
-          });
-        }
-      }
-
-      // Broadcast contest update
-      broadcast({ type: "contestUpdate", contestId });
-
-      // Fetch updated entry to return fresh data
-      const updatedEntry = await storage.getContestEntryWithLineup(entryId, user.id);
-
-      res.json({
-        success: true,
-        entry: updatedEntry?.entry,
-        totalShares,
-      });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // Get detailed contest entry information (public - anyone can view)
-  app.get("/api/contest/:contestId/entries/:entryId", async (req, res) => {
-    if (!CONTESTS_ENABLED) {
-      return res.status(410).json({ error: "Contests feature has been disabled" });
-    }
-    try {
-      const { contestId, entryId } = req.params;
-      const entryDetails = await storage.getContestEntryDetail(contestId, entryId);
-
-      if (!entryDetails) {
-        return res.status(404).json({ error: "Entry not found" });
-      }
-
-      res.json(entryDetails);
-    } catch (error: any) {
-      console.error("[entry-detail] Error:", error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // Contest leaderboard with proportional scoring (public - anyone can view)
-  app.get("/api/contest/:id/leaderboard", optionalAuth, async (req: any, res) => {
-    if (!CONTESTS_ENABLED) {
-      return res.status(410).json({ error: "Contests feature has been disabled" });
-    }
-    try {
-      const contest = await storage.getContest(req.params.id);
-
-      if (!contest) {
-        return res.status(404).json({ error: "Contest not found" });
-      }
-
-      // Calculate real-time leaderboard with proportional scoring
-      const { calculateContestLeaderboard } = await import("./contest-scoring");
-      const leaderboard = await calculateContestLeaderboard(req.params.id);
-
-      // If user is authenticated, find their entry
-      let myEntry = undefined;
-      if (req.user?.claims?.sub) {
-        try {
-          const userId = (req.user as any).claims.sub;
-          const user = await storage.getUser(userId);
-          if (user) {
-            myEntry = leaderboard.find((e) => e.userId === user.id);
-          }
-        } catch (error) {
-          // Ignore auth errors
-          console.log("[leaderboard] Could not fetch user entry:", error);
-        }
-      }
-
-      res.json({
-        contest,
-        leaderboard,
-        myEntry,
-      });
-    } catch (error: any) {
-      console.error("[leaderboard] Error:", error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
   // Global leaderboards (public) - cached for 60s
   app.get("/api/leaderboards", async (req, res) => {
     try {
@@ -7215,51 +6635,6 @@ ${items}
     } catch (error: any) {
       console.error("[public/blog] Error:", error);
       res.status(500).json({ error: "Failed to fetch public blog feed" });
-    }
-  });
-
-  // AI/retrieval-friendly contest listing.
-  app.get("/api/public/contests", async (req, res) => {
-    try {
-      const parsedLimit = req.query.limit ? parseInt(String(req.query.limit), 10) : 50;
-      const safeLimit = Number.isNaN(parsedLimit) ? 50 : Math.max(1, Math.min(parsedLimit, 100));
-      const contests = await storage.getContests();
-      const generatedAt = new Date();
-      const mostRecentUpdate = contests
-        .map((contest) => new Date(contest.startsAt || contest.createdAt))
-        .filter((value) => !Number.isNaN(value.getTime()))
-        .sort((a, b) => b.getTime() - a.getTime())[0];
-
-      const payload = contests.slice(0, safeLimit).map((contest) => ({
-        id: contest.id,
-        name: contest.name,
-        sport: contest.sport,
-        status: contest.status,
-        contestType: contest.contestType,
-        gameDate: contest.gameDate,
-        startsAt: contest.startsAt,
-        endsAt: contest.endsAt,
-        entryFee: contest.entryFee,
-        totalPrizePool: contest.totalPrizePool,
-        entryCount: contest.entryCount,
-        leaderboardUrl: `/contest/${contest.id}/leaderboard`,
-      }));
-
-      setPublicDataHeaders(res, {
-        generatedAt,
-        lastModifiedAt: mostRecentUpdate || generatedAt,
-        maxAgeSeconds: 60,
-        sharedMaxAgeSeconds: 120,
-      });
-      res.json({
-        generatedAt: generatedAt.toISOString(),
-        version: publicApiVersion,
-        count: payload.length,
-        contests: payload,
-      });
-    } catch (error: any) {
-      console.error("[public/contests] Error:", error);
-      res.status(500).json({ error: "Failed to fetch public contests" });
     }
   });
 
@@ -8571,9 +7946,6 @@ ${items}
               "schedule_sync",
               "stats_sync",
               "stats_sync_live",
-              "create_contests",
-              "update_contest_statuses",
-              "settle_contests",
               "daily_snapshot",
               "weekly_roundup",
               "refresh_player_metrics",
@@ -8592,7 +7964,6 @@ ${items}
         userCountResult,
         playerCountResult,
         playersBySportResult,
-        contestCountsResult,
         apiRequestsResult,
         latestJobLogs,
       ] = await Promise.all([
@@ -8607,14 +7978,6 @@ ${items}
           .groupBy(players.sport),
         db
           .select({
-            total: sql<number>`COUNT(*)::int`,
-            open: sql<number>`COUNT(*) FILTER (WHERE ${contests.status} = 'open')::int`,
-            live: sql<number>`COUNT(*) FILTER (WHERE ${contests.status} = 'live')::int`,
-            completed: sql<number>`COUNT(*) FILTER (WHERE ${contests.status} = 'completed')::int`,
-          })
-          .from(contests),
-        db
-          .select({
             requestCount: sql<number>`COALESCE(SUM(${jobExecutionLogs.requestCount}), 0)::int`,
           })
           .from(jobExecutionLogs)
@@ -8624,12 +7987,6 @@ ${items}
 
       const userCount = userCountResult[0]?.count || 0;
       const playerCount = playerCountResult[0]?.count || 0;
-      const contestCounts = contestCountsResult[0] || {
-        total: 0,
-        open: 0,
-        live: 0,
-        completed: 0,
-      };
       const apiRequestsToday = apiRequestsResult[0]?.requestCount || 0;
       const playersBySport: Record<string, number> = Object.fromEntries(
         SUPPORTED_SPORTS.map((sport) => [sport, 0]),
@@ -8660,10 +8017,6 @@ ${items}
         totalUsers: userCount,
         totalPlayers: playerCount,
         playersBySport,
-        totalContests: contestCounts.total,
-        openContests: contestCounts.open,
-        liveContests: contestCounts.live,
-        completedContests: contestCounts.completed,
         apiRequestsToday,
         lastJobRuns,
         websocket: getWebSocketStats(),

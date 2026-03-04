@@ -78,7 +78,7 @@ export function CommunityBoostIndicator({ count, className }: CommunityBoostIndi
       animate={{ scale: 1, opacity: 1 }}
       transition={{ type: "spring", stiffness: 400, damping: 20 }}
       className={cn(
-        "inline-flex items-center gap-1.5 px-2 py-1 rounded-full",
+        "inline-flex items-center gap-1.5 rounded-sm px-2 py-1",
         "bg-violet-500/10 border border-violet-500/20",
         "text-violet-500 text-xs font-medium",
         className,

@@ -11,7 +11,7 @@ export function ConnectionStatus() {
 
   return (
     <div
-      className="fixed bottom-4 right-4 z-50 flex items-center gap-2 bg-background/95 backdrop-blur border rounded-md px-3 py-2 shadow-lg"
+      className="fixed bottom-4 right-4 z-50 flex items-center gap-2 border border-border bg-background/95 px-3 py-2 font-mono text-[11px] uppercase tracking-[0.08em] backdrop-blur rounded-sm shadow-none"
       data-testid="connection-status"
     >
       {connectionState === "connecting" ? (

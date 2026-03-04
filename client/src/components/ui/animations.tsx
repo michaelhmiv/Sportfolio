@@ -297,7 +297,7 @@ export function Shimmer({ className, width = "100%", height = "20px" }: ShimmerP
       style={{ width, height }}
     >
       <motion.div
-        className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/10 to-transparent"
+        className="absolute inset-0 -translate-x-full bg-primary/10"
         animate={{ x: ["0%", "200%"] }}
         transition={{
           duration: 1.5,
@@ -316,7 +316,7 @@ interface ShimmerCardProps {
 
 export function ShimmerCard({ className, lines = 3 }: ShimmerCardProps) {
   return (
-    <div className={cn("space-y-3 p-4 rounded-lg border bg-card", className)}>
+    <div className={cn("space-y-3 rounded-sm border bg-card p-4", className)}>
       <Shimmer height="24px" width="60%" />
       {Array.from({ length: lines }).map((_, i) => (
         <Shimmer key={i} height="16px" width={`${85 - i * 10}%`} />
@@ -749,7 +749,7 @@ export function PullToRefreshIndicator({
       transition={{ duration: 0.2 }}
     >
       <motion.div
-        className="w-6 h-6 rounded-full border-2 border-primary/30 border-t-primary"
+        className="h-6 w-6 rounded-sm border-2 border-primary/30 border-t-primary"
         animate={isRefreshing ? { rotate: 360 } : { rotate: rotation }}
         transition={
           isRefreshing ? { duration: 0.8, repeat: Infinity, ease: "linear" } : { duration: 0 }
@@ -796,7 +796,7 @@ export function SwipeHint({ direction = "both", className, show = true }: SwipeH
           animate={{ x: [-2, 2, -2] }}
           transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
         >
-          ←
+          {"<"}
         </motion.span>
       )}
       <span>Swipe</span>
@@ -805,7 +805,7 @@ export function SwipeHint({ direction = "both", className, show = true }: SwipeH
           animate={{ x: [2, -2, 2] }}
           transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
         >
-          →
+          {">"}
         </motion.span>
       )}
     </motion.div>
@@ -830,7 +830,7 @@ export function TapHint({ className, show = true, label = "Tap" }: TapHintProps)
       transition={{ delay: 1.5, duration: 0.5 }}
     >
       <motion.div
-        className="w-8 h-8 rounded-full border-2 border-dashed border-muted-foreground/30 flex items-center justify-center"
+        className="flex h-8 w-8 items-center justify-center rounded-sm border-2 border-dashed border-muted-foreground/30"
         animate={{
           scale: [1, 0.9, 1],
           borderColor: [
@@ -842,7 +842,7 @@ export function TapHint({ className, show = true, label = "Tap" }: TapHintProps)
         transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
       >
         <motion.div
-          className="w-3 h-3 rounded-full bg-muted-foreground/20"
+          className="h-3 w-3 rounded-sm bg-muted-foreground/20"
           animate={{ scale: [1, 1.2, 1] }}
           transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
         />
@@ -886,12 +886,12 @@ export function ScrollIndicator({ className, show = true }: ScrollIndicatorProps
       transition={{ delay: 2, duration: 0.5 }}
     >
       <motion.div
-        className="w-6 h-10 rounded-full border-2 border-muted-foreground/30 flex justify-center pt-2"
+        className="flex h-10 w-6 justify-center rounded-sm border-2 border-muted-foreground/30 pt-2"
         animate={{ opacity: [0.5, 1, 0.5] }}
         transition={{ duration: 2, repeat: Infinity }}
       >
         <motion.div
-          className="w-1.5 h-2 rounded-full bg-muted-foreground/40"
+          className="h-2 w-1.5 rounded-sm bg-muted-foreground/40"
           animate={{ y: [0, 12, 0] }}
           transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
         />

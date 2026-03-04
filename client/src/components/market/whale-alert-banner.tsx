@@ -98,8 +98,8 @@ export function WhaleAlertBanner({ className }: WhaleAlertBannerProps) {
       >
         <div
           className={cn(
-            "relative overflow-hidden rounded-xl border p-4",
-            "bg-gradient-to-r from-slate-900/95 to-slate-800/95",
+            "terminal-shell relative overflow-hidden p-4",
+            "bg-[linear-gradient(90deg,rgba(15,23,42,0.98),rgba(30,41,59,0.94))]",
             "backdrop-blur-sm shadow-2xl",
             isBuy
               ? "border-emerald-500/50 shadow-emerald-500/20"
@@ -132,7 +132,7 @@ export function WhaleAlertBanner({ className }: WhaleAlertBannerProps) {
               animate={{ scale: 1, rotate: 0 }}
               transition={{ type: "spring", stiffness: 400, damping: 20, delay: 0.1 }}
               className={cn(
-                "w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center shrink-0",
+                "flex h-10 w-10 shrink-0 items-center justify-center rounded-sm border sm:h-12 sm:w-12",
                 isBuy ? "bg-emerald-500/20" : "bg-red-500/20",
               )}
             >
@@ -149,14 +149,12 @@ export function WhaleAlertBanner({ className }: WhaleAlertBannerProps) {
                 transition={{ delay: 0.15 }}
                 className="flex items-center gap-2"
               >
-                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  Whale Alert
-                </span>
+                <span className="terminal-label">Whale Alert</span>
                 <motion.div
                   animate={{ scale: [1, 1.2, 1] }}
                   transition={{ duration: 1, repeat: 3 }}
                   className={cn(
-                    "w-2 h-2 rounded-full shrink-0",
+                    "h-2 w-2 shrink-0 rounded-sm",
                     isBuy ? "bg-emerald-500" : "bg-red-500",
                   )}
                 />
@@ -208,7 +206,7 @@ export function WhaleAlertBanner({ className }: WhaleAlertBannerProps) {
               >
                 <Button
                   size="sm"
-                  variant="outline"
+                  variant="terminalOutline"
                   onClick={handleViewPlayer}
                   className={cn(
                     "h-7 sm:h-8 text-xs gap-1 px-2 sm:px-3",
@@ -228,7 +226,7 @@ export function WhaleAlertBanner({ className }: WhaleAlertBannerProps) {
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 0.3 }}
                 onClick={dismissAlert}
-                className="p-1 sm:p-1.5 rounded-full hover:bg-white/10 transition-colors shrink-0"
+                className="shrink-0 border border-border p-1 transition-colors hover:bg-white/10 sm:p-1.5"
               >
                 <X className="w-4 h-4 text-muted-foreground" />
               </motion.button>

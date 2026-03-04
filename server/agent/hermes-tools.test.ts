@@ -410,13 +410,4 @@ describe("hermes-tools", () => {
       jobType: "pre_lock_nudge",
     });
   });
-
-  it("rejects removed contest tools", async () => {
-    await expect(
-      runHermesReadTool({
-        toolName: "get_contests",
-        userId: "user_1",
-      }),
-    ).rejects.toThrow("Unsupported Hermes read tool");
-  });
 });

@@ -2,7 +2,7 @@
  * Schedule Sync Job
  *
  * Fetches daily NBA game schedules from BallDontLie API.
- * Caches game data for contest eligibility checking.
+ * Caches game data for slate and boost timing.
  * Broadcasts updates when game scores change.
  */
 
@@ -29,7 +29,7 @@ export async function syncSchedule(progressCallback?: ProgressCallback): Promise
   const gamesWithUpdates = new Set<string>(); // Track games that had score updates
 
   try {
-    // Fetch games for a wider range: 7 days back to 14 days forward (covers contests and historical data)
+    // Fetch games for a wider range: 7 days back to 14 days forward (covers current and upcoming slates)
     const today = new Date();
     const dates: string[] = [];
 
@@ -143,13 +143,6 @@ export async function syncSchedule(progressCallback?: ProgressCallback): Promise
       for (const gameId of gameIds) {
         broadcast({
           type: "liveStats",
-          gameId,
-          timestamp: new Date().toISOString(),
-        });
-
-        // Also broadcast contest update since scores affect contest rankings
-        broadcast({
-          type: "contestUpdate",
           gameId,
           timestamp: new Date().toISOString(),
         });

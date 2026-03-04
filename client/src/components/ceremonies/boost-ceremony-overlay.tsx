@@ -23,7 +23,7 @@ interface BoostCeremonyOverlayProps {
 function EnergyBeam({ color, delay }: { color: string; delay: number }) {
   return (
     <motion.div
-      className="absolute h-1 rounded-full"
+      className="absolute h-1 rounded-sm"
       style={{ backgroundColor: color, boxShadow: `0 0 10px ${color}` }}
       initial={{ width: 0, opacity: 0 }}
       animate={{ width: "100%", opacity: [0, 1, 1, 0] }}
@@ -46,7 +46,7 @@ function ParticleBurst({ color, count = 8 }: { color: string; count?: number }) 
         return (
           <motion.div
             key={i}
-            className="absolute w-1.5 h-1.5 rounded-full"
+            className="absolute h-1.5 w-1.5 rounded-sm"
             style={{ backgroundColor: color }}
             initial={{
               x: 0,
@@ -155,7 +155,7 @@ export function BoostCeremonyOverlay({ isOpen, data, onClose }: BoostCeremonyOve
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.5 }}
-          className="absolute top-4 right-4 p-2 text-muted-foreground hover:text-foreground transition-colors"
+          className="absolute top-4 right-4 rounded-sm border border-border/60 p-2 text-muted-foreground transition-colors hover:text-foreground"
           onClick={(e) => {
             e.stopPropagation();
             onClose();
@@ -174,7 +174,7 @@ export function BoostCeremonyOverlay({ isOpen, data, onClose }: BoostCeremonyOve
           >
             <div
               className={cn(
-                "inline-flex items-center gap-2 px-4 py-2 rounded-full border",
+                "inline-flex items-center gap-2 rounded-sm px-4 py-2 border",
                 visuals.bgColor,
                 visuals.borderColor,
               )}
@@ -192,7 +192,7 @@ export function BoostCeremonyOverlay({ isOpen, data, onClose }: BoostCeremonyOve
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.3, delay: 0.1 }}
               className={cn(
-                "p-4 rounded-lg border bg-card mb-4 relative overflow-hidden",
+                "relative mb-4 overflow-hidden rounded-sm border bg-card p-4",
                 phase === "charge" && "ring-2",
                 phase === "charge" && visuals.borderColor,
               )}
@@ -237,7 +237,7 @@ export function BoostCeremonyOverlay({ isOpen, data, onClose }: BoostCeremonyOve
                 animate={phase === "boost" ? { scale: [1, 1.2, 1] } : {}}
                 transition={{ duration: 0.3 }}
                 className={cn(
-                  "w-8 h-8 rounded-full flex items-center justify-center z-10",
+                  "z-10 flex h-8 w-8 items-center justify-center rounded-sm",
                   visuals.bgColor,
                 )}
               >
@@ -258,10 +258,10 @@ export function BoostCeremonyOverlay({ isOpen, data, onClose }: BoostCeremonyOve
                 scale: { duration: 0.4, delay: 0 },
               }}
               className={cn(
-                "p-6 rounded-lg border text-center relative overflow-hidden mt-4",
+                "relative mt-4 overflow-hidden rounded-sm border p-6 text-center",
                 visuals.bgColor,
                 visuals.borderColor,
-                phase === "complete" && cn("shadow-lg", visuals.glowColor),
+                phase === "complete" && cn("ring-1", visuals.borderColor),
               )}
             >
               <motion.div
@@ -292,12 +292,12 @@ export function BoostCeremonyOverlay({ isOpen, data, onClose }: BoostCeremonyOve
               transition={{ delay: 0.3 }}
               className="mt-6 grid grid-cols-2 gap-4"
             >
-              <div className="text-center p-3 rounded-lg bg-muted">
+              <div className="rounded-sm bg-muted p-3 text-center">
                 <TrendingUp className="w-4 h-4 mx-auto mb-1 text-muted-foreground" />
                 <p className="text-xs text-muted-foreground">Share Power</p>
                 <p className="font-mono font-semibold">{data.sharePower}</p>
               </div>
-              <div className="text-center p-3 rounded-lg bg-muted">
+              <div className="rounded-sm bg-muted p-3 text-center">
                 <Zap className="w-4 h-4 mx-auto mb-1 text-muted-foreground" />
                 <p className="text-xs text-muted-foreground">Shares Burned</p>
                 <p className="font-mono font-semibold">{data.sharesBurned}</p>

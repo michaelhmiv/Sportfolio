@@ -89,11 +89,12 @@ export function SmsAccessCard() {
   const link = data?.link || null;
 
   return (
-    <Card data-testid="card-sms-access">
+    <Card variant="terminal" data-testid="card-sms-access">
       <CardHeader className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <CardTitle className="flex items-center gap-2 text-lg">
+            <p className="terminal-kicker">Agent Transport</p>
+            <CardTitle className="terminal-heading mt-2 flex items-center gap-2 text-base">
               <MessageSquareText className="h-5 w-5 text-primary" />
               SMS Agent
             </CardTitle>
@@ -102,15 +103,22 @@ export function SmsAccessCard() {
               a conversation, but account-specific reads and actions still require linking first.
             </p>
           </div>
-          <Badge variant={link ? "secondary" : "outline"}>{link ? "Linked" : "Not linked"}</Badge>
+          <Badge
+            variant={link ? "secondary" : "outline"}
+            className="font-mono text-[10px] uppercase"
+          >
+            {link ? "Linked" : "Not linked"}
+          </Badge>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
         {isLoading ? (
-          <div className="text-sm text-muted-foreground">Loading SMS settings...</div>
+          <div className="terminal-empty px-4 py-4 text-sm text-muted-foreground">
+            Loading SMS settings...
+          </div>
         ) : link ? (
           <div className="space-y-4">
-            <div className="rounded-xl border p-4">
+            <div className="terminal-shell p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <div className="flex items-center gap-2 font-medium">
@@ -140,25 +148,27 @@ export function SmsAccessCard() {
                 </div>
               </div>
             </div>
-            <p className="text-xs text-muted-foreground">
+            <p className="font-mono text-[11px] text-muted-foreground">
               Text normal questions, setup requests, and supported in-game commands. Premium and
               purchase flows remain web-only.
             </p>
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
+            <div className="terminal-empty border border-dashed border-border p-4 text-sm text-muted-foreground">
               Enter the phone number you want to use. We will text a secure link to that device,
               then you finish linking in the browser.
             </div>
             <div className="flex flex-col gap-3 sm:flex-row">
               <Input
+                variant="terminal"
                 value={phone}
                 onChange={(event) => setPhone(event.target.value)}
                 placeholder="+1 555 123 4567"
                 data-testid="input-sms-phone"
               />
               <Button
+                variant="terminal"
                 onClick={() => linkStartMutation.mutate()}
                 disabled={linkStartMutation.isPending || phone.trim().length === 0}
                 data-testid="button-start-sms-link"

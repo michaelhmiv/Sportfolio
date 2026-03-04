@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   docsAudiences,
   docsCategories,
@@ -14,7 +15,7 @@ import {
 
 type ParsedFrontmatter = Record<string, string>;
 
-const DOCS_ROOT = path.resolve(process.cwd(), "docs", "wiki");
+const DOCS_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "docs", "wiki");
 const CACHE_TTL_MS = 15_000;
 const arrayKeys = new Set(["changeTriggers", "surface", "searchKeywords"]);
 const categorySet = new Set<string>(docsCategories);
@@ -71,11 +72,22 @@ function walkMarkdownFiles(dirPath: string): string[] {
 
   for (const entry of entries) {
     const fullPath = path.join(dirPath, entry.name);
-    if (entry.isDirectory()) {
+    let resolvedStats: fs.Stats | null = null;
+    const getStats = () => {
+      if (!resolvedStats) {
+        resolvedStats = fs.statSync(fullPath);
+      }
+      return resolvedStats;
+    };
+
+    const isDirectory = entry.isDirectory() || (!entry.isFile() && getStats().isDirectory());
+    if (isDirectory) {
       files.push(...walkMarkdownFiles(fullPath));
       continue;
     }
-    if (entry.isFile() && entry.name.endsWith(".md")) {
+
+    const isFile = entry.isFile() || (!entry.isDirectory() && getStats().isFile());
+    if (isFile && entry.name.endsWith(".md")) {
       files.push(fullPath);
     }
   }

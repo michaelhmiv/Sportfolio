@@ -437,70 +437,83 @@ export default function Power() {
   };
 
   return (
-    <div className="min-h-screen bg-background p-3">
-      <div className="max-w-5xl mx-auto">
+    <div className="terminal-page p-3">
+      <div className="mx-auto max-w-5xl py-1">
         <ErrorBoundary>
           {/* Header */}
-          <div className="mb-3">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <Zap className="w-5 h-5 text-yellow-500" />
-                <h1 className="text-lg font-bold">Power</h1>
+          <div className="terminal-shell mb-3 p-3 sm:p-4">
+            <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="space-y-2">
+                <div className="terminal-strip">
+                  <Zap className="h-3.5 w-3.5 text-amber-300" />
+                  Boost Desk
+                </div>
+                <div>
+                  <p className="terminal-kicker">Daily Power Slots</p>
+                  <h1 className="terminal-heading mt-1 text-xl sm:text-2xl">Power</h1>
+                </div>
+                <p className="max-w-2xl text-sm text-muted-foreground">
+                  Queue one share per slot, lock in power before tipoff, and monitor live boost
+                  settlement from a single board.
+                </p>
               </div>
-            </div>
-
-            {/* Date selector */}
-            <div className="flex items-center gap-2 mb-3">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setSelectedDate(subDays(selectedDate, 1))}
-                className="h-8 w-8"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </Button>
-              <div className="flex-1 text-center text-sm font-medium">
-                {format(selectedDate, "EEE, MMM d")}
+              <div className="flex items-center gap-2 sm:self-center">
+                <Button
+                  variant="terminalOutline"
+                  size="icon"
+                  onClick={() => setSelectedDate(subDays(selectedDate, 1))}
+                  className="h-8 w-8"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+                <div className="terminal-shell min-w-[10rem] px-3 py-2 text-center">
+                  <p className="terminal-label">Session Date</p>
+                  <p className="terminal-value text-sm">{format(selectedDate, "EEE, MMM d")}</p>
+                </div>
+                <Button
+                  variant="terminalOutline"
+                  size="icon"
+                  onClick={() => setSelectedDate(addDays(selectedDate, 1))}
+                  className="h-8 w-8"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
               </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setSelectedDate(addDays(selectedDate, 1))}
-                className="h-8 w-8"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </Button>
             </div>
 
             {/* Quick stats */}
-            <div className="flex items-center gap-2 text-xs flex-wrap">
-              <Badge variant="outline" className="gap-1">
-                <span className="w-2 h-2 rounded-full bg-green-500" />
-                {activeBoosts}/4 active
-              </Badge>
+            <div className="grid gap-2 text-xs sm:grid-cols-3 xl:grid-cols-4">
+              <div className="terminal-shell px-3 py-2">
+                <p className="terminal-label">Active Slots</p>
+                <p className="terminal-value text-sm">{activeBoosts}/4</p>
+              </div>
               {lockedBoosts > 0 && (
-                <Badge variant="outline" className="gap-1">
-                  <span className="w-2 h-2 rounded-full bg-yellow-500" />
-                  {lockedBoosts} live
-                </Badge>
+                <div className="terminal-shell px-3 py-2">
+                  <p className="terminal-label">Live Slots</p>
+                  <p className="terminal-value text-sm">{lockedBoosts}</p>
+                </div>
               )}
               {userPremiumShares > 0 && (
-                <Badge className="gap-1 bg-amber-500/20 text-amber-500 border-amber-500/30">
-                  <Star className="w-3 h-3" />
-                  {userPremiumShares} Premium
-                </Badge>
+                <div className="terminal-shell px-3 py-2">
+                  <p className="terminal-label">Premium Shares</p>
+                  <p className="terminal-value text-sm">{userPremiumShares}</p>
+                </div>
               )}
+              <div className="terminal-shell px-3 py-2">
+                <p className="terminal-label">Est. Payout</p>
+                <p className="terminal-value text-sm">${totalEstimated}</p>
+              </div>
             </div>
           </div>
 
           {/* Warning */}
-          <Card className="mb-3 bg-destructive/5 border-destructive/20">
+          <Card variant="terminal" className="mb-3 border-red-500/20 bg-red-500/5">
             <CardContent className="p-3">
               <div className="flex items-start gap-2">
                 <AlertTriangle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
-                <p className="text-xs text-muted-foreground">
-                  Shares are <span className="text-destructive font-medium">burned</span> when games
-                  start.
+                <p className="terminal-subtle">
+                  Shares are <span className="font-semibold text-red-300">burned</span> when games
+                  begin. Only assign slots you intend to settle.
                 </p>
               </div>
             </CardContent>
@@ -508,7 +521,9 @@ export default function Power() {
 
           {/* Boost Slots */}
           <div className="mb-3">
-            <h2 className="text-sm font-semibold uppercase tracking-wide mb-2">Boost Slots</h2>
+            <div className="mb-2 flex items-center gap-2">
+              <div className="terminal-strip">Boost Slots</div>
+            </div>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               {MULTIPLIER_SLOTS.map(({ tier, label, color }) => {
                 const boost = getSlotBoost(tier);
@@ -517,16 +532,17 @@ export default function Power() {
                 return (
                   <Card
                     key={tier}
+                    variant="terminal"
                     className={cn(
-                      "relative overflow-hidden cursor-pointer transition-all",
-                      !boost && isAvailable && "hover:border-primary/50 hover:bg-primary/5",
-                      boost && "border-primary/50",
+                      "relative cursor-pointer overflow-hidden transition-all",
+                      !boost && isAvailable && "hover:border-primary/40 hover:bg-primary/5",
+                      boost && "border-primary/35",
                     )}
                     onClick={() => handleSlotClick(tier)}
                   >
                     <div
                       className={cn(
-                        "absolute top-0 right-0 px-2 py-0.5 text-white text-xs font-bold",
+                        "absolute right-0 top-0 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-white",
                         color,
                       )}
                     >
@@ -536,7 +552,10 @@ export default function Power() {
                       {boost ? (
                         <div className="space-y-2">
                           <div className="flex items-center gap-1 mb-1">
-                            <Badge variant="outline" className="text-[10px] px-1 py-0 h-5">
+                            <Badge
+                              variant="outline"
+                              className="h-5 px-1.5 font-mono text-[10px] uppercase"
+                            >
                               {boost.sport}
                             </Badge>
                           </div>
@@ -553,13 +572,13 @@ export default function Power() {
                                 )}
                               </div>
                               <div className="flex items-center gap-1.5 text-xs">
-                                <span className="text-muted-foreground">Power</span>
+                                <span className="terminal-label text-[10px]">Power</span>
                                 <span className="font-mono text-purple-400 font-medium">
                                   {boost.powerLevel}
                                 </span>
                               </div>
                               <div className="flex items-center gap-1.5 text-xs">
-                                <span className="text-muted-foreground">Total</span>
+                                <span className="terminal-label text-[10px]">Total</span>
                                 <span className="font-mono font-bold text-primary">
                                   {(
                                     parseFloat(boost.powerLevel) *
@@ -567,7 +586,7 @@ export default function Power() {
                                   ).toFixed(2)}
                                 </span>
                                 {boost.communityBoostCount > 0 && (
-                                  <span className="text-xs text-amber-500">
+                                  <span className="font-mono text-[10px] text-amber-300">
                                     ({tier}+{boost.communityBoostCount}x)
                                   </span>
                                 )}
@@ -576,7 +595,7 @@ export default function Power() {
                             {boost.status === "active" && (
                               <Button
                                 size="icon"
-                                variant="ghost"
+                                variant="terminalOutline"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   removeBoostMutation.mutate(boost.id);
@@ -590,14 +609,17 @@ export default function Power() {
                           </div>
                           {boost.communityBoostCount > 0 && (
                             <div className="flex items-center gap-1">
-                              <Badge className="bg-amber-500/20 text-amber-500 border-amber-500/30 text-xs">
+                              <Badge className="terminal-status-warning h-5 px-1.5 font-mono text-[10px] uppercase">
                                 <Zap className="w-3 h-3 mr-0.5" />+{boost.communityBoostCount}
                               </Badge>
                             </div>
                           )}
                           {/* Status and Live Fantasy Points */}
                           {boost.status === "active" && (
-                            <Badge variant="secondary" className="w-full justify-center text-xs">
+                            <Badge
+                              variant="secondary"
+                              className="w-full justify-center font-mono text-[10px] uppercase"
+                            >
                               <Clock className="w-3 h-3 mr-1" />
                               Waiting
                             </Badge>
@@ -606,8 +628,8 @@ export default function Power() {
                             boost.liveFantasyPoints !== null &&
                             boost.liveFantasyPoints !== undefined && (
                               <div className="space-y-2">
-                                <Badge className="w-full justify-center text-xs bg-yellow-500/20 text-yellow-600 border-yellow-500/30 animate-pulse">
-                                  <span className="animate-pulse">●</span> Live
+                                <Badge className="terminal-status-warning w-full justify-center font-mono text-[10px] uppercase animate-pulse">
+                                  Live
                                 </Badge>
 
                                 {/* Enhanced Live Fantasy Points Display */}
@@ -623,9 +645,9 @@ export default function Power() {
                                 {boost.liveGameStats && (
                                   <div className="flex items-center justify-center gap-2 text-[10px] text-muted-foreground pt-1">
                                     <span>{boost.liveGameStats.points} pts</span>
-                                    <span>•</span>
+                                    <span>|</span>
                                     <span>{boost.liveGameStats.rebounds} reb</span>
-                                    <span>•</span>
+                                    <span>|</span>
                                     <span>{boost.liveGameStats.assists} ast</span>
                                   </div>
                                 )}
@@ -634,25 +656,25 @@ export default function Power() {
                           {boost.status === "locked" &&
                             (boost.liveFantasyPoints === null ||
                               boost.liveFantasyPoints === undefined) && (
-                              <Badge className="w-full justify-center text-xs bg-yellow-500/20 text-yellow-600 border-yellow-500/30">
-                                <span className="animate-pulse">●</span> Live
+                              <Badge className="terminal-status-warning w-full justify-center font-mono text-[10px] uppercase">
+                                Live
                               </Badge>
                             )}
                           {boost.status === "processed" && (
-                            <Badge className="w-full justify-center text-xs bg-green-500/20 text-green-600 border-green-500/30">
+                            <Badge className="terminal-status-positive w-full justify-center font-mono text-[10px] uppercase">
                               ${boost.payout}
                             </Badge>
                           )}
                         </div>
                       ) : (
-                        <div className="text-center py-3">
+                        <div className="py-3 text-center">
                           {isAvailable ? (
-                            <div className="text-xs text-muted-foreground">
+                            <div className="terminal-subtle">
                               <Zap className="w-4 h-4 mx-auto mb-1 opacity-50" />
                               Tap to add
                             </div>
                           ) : (
-                            <span className="text-xs text-muted-foreground">Filled</span>
+                            <span className="terminal-subtle">Filled</span>
                           )}
                         </div>
                       )}
@@ -664,19 +686,19 @@ export default function Power() {
           </div>
 
           {/* Community Boosts List */}
-          <Card className="mb-3">
+          <Card variant="terminal" className="mb-3">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-sm flex items-center gap-2">
+                <CardTitle className="terminal-heading text-sm flex items-center gap-2">
                   <Users className="w-4 h-4" />
                   Community Boosts
                 </CardTitle>
                 <div className="flex items-center gap-1">
                   <Button
                     size="sm"
-                    variant="outline"
+                    variant="terminal"
                     onClick={() => setCommunityBoostSelectorOpen(true)}
-                    className="h-6 text-xs px-2 bg-amber-500/10 border-amber-500/30 text-amber-600 hover:bg-amber-500/20"
+                    className="h-7 px-2"
                   >
                     <Plus className="h-3 w-3 mr-1" />
                     Add
@@ -685,9 +707,9 @@ export default function Power() {
                     <Button
                       key={sport}
                       size="sm"
-                      variant={communitySportFilter === sport ? "default" : "ghost"}
+                      variant={communitySportFilter === sport ? "terminal" : "terminalOutline"}
                       onClick={() => setCommunitySportFilter(sport)}
-                      className="h-6 text-xs px-2"
+                      className="h-7 px-2"
                     >
                       {sport}
                     </Button>
@@ -697,16 +719,16 @@ export default function Power() {
             </CardHeader>
             <CardContent className="p-0">
               {filteredCommunityBoosts.length === 0 ? (
-                <div className="py-6 text-center text-muted-foreground text-sm">
+                <div className="terminal-empty py-6 text-center text-sm text-muted-foreground">
                   No community boosts today
                 </div>
               ) : (
-                <div className="divide-y">
+                <div className="divide-y divide-border">
                   {filteredCommunityBoosts.map((cb) => (
                     <div key={cb.playerId} className="p-3 flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 min-w-0 flex-1">
-                        <div className="w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center shrink-0">
-                          <span className="text-xs font-bold text-amber-500">
+                        <div className="terminal-avatar shrink-0 text-amber-300">
+                          <span>
                             {cb.player.firstName[0]}
                             {cb.player.lastName[0]}
                           </span>
@@ -720,14 +742,17 @@ export default function Power() {
                               className="text-sm"
                             />
                           </div>
-                          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <div className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
                             <span>{cb.player.team}</span>
-                            <span>•</span>
-                            <Badge variant="outline" className="text-[10px] px-1 py-0 h-4">
+                            <span>|</span>
+                            <Badge
+                              variant="outline"
+                              className="h-4 px-1 font-mono text-[10px] uppercase"
+                            >
                               {cb.sport}
                             </Badge>
-                            <span>•</span>
-                            <Badge className="bg-amber-500/20 text-amber-500 border-amber-500/30 text-[10px] px-1.5 py-0 h-5">
+                            <span>|</span>
+                            <Badge className="terminal-status-warning h-5 px-1.5 font-mono text-[10px] uppercase">
                               <Zap className="w-2.5 h-2.5 mr-0.5" />+{cb.communityBoostCount}
                             </Badge>
                           </div>
@@ -741,21 +766,27 @@ export default function Power() {
           </Card>
 
           {/* History */}
-          <Card>
+          <Card variant="terminal">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-sm flex items-center gap-2">
+                <CardTitle className="terminal-heading text-sm flex items-center gap-2">
                   <History className="w-4 h-4" />
                   Payouts
                 </CardTitle>
-                {historyData && <Badge variant="outline">Total: ${historyData.totalEarned}</Badge>}
+                {historyData && (
+                  <Badge variant="outline" className="font-mono text-[10px] uppercase">
+                    Total: ${historyData.totalEarned}
+                  </Badge>
+                )}
               </div>
             </CardHeader>
             <CardContent className="p-0">
               {!historyData?.payouts || historyData.payouts.length === 0 ? (
-                <div className="py-8 text-center text-muted-foreground text-sm">No payouts yet</div>
+                <div className="terminal-empty py-8 text-center text-sm text-muted-foreground">
+                  No payouts yet
+                </div>
               ) : (
-                <div className="divide-y max-h-[300px] overflow-y-auto">
+                <div className="max-h-[300px] divide-y divide-border overflow-y-auto">
                   {historyData.payouts.map((payout) => (
                     <div key={payout.id} className="p-3 flex items-center justify-between gap-2">
                       <div className="min-w-0">
@@ -769,8 +800,8 @@ export default function Power() {
                             />
                           )}
                         </div>
-                        <div className="text-xs text-muted-foreground">
-                          {payout.sharesUsed} × {payout.fantasyPoints} FP × {payout.multiplier}x •{" "}
+                        <div className="font-mono text-[11px] text-muted-foreground">
+                          {payout.sharesUsed} x {payout.fantasyPoints} FP x {payout.multiplier}x |{" "}
                           {format(new Date(payout.createdAt), "MMM d")}
                         </div>
                       </div>
@@ -797,12 +828,12 @@ export default function Power() {
             }}
           >
             <DialogContent
-              className="max-w-md max-h-[80vh] flex flex-col"
+              className="max-h-[80vh] max-w-md rounded-sm border border-border bg-card flex flex-col"
               onClick={(e) => e.stopPropagation()}
             >
               <DialogHeader>
-                <DialogTitle>Select Player</DialogTitle>
-                <DialogDescription>
+                <DialogTitle className="terminal-heading text-base">Select Player</DialogTitle>
+                <DialogDescription className="terminal-subtle text-[11px] uppercase">
                   Choose a player for {MULTIPLIER_SLOTS.find((s) => s.tier === selectedSlot)?.label}{" "}
                   slot
                 </DialogDescription>
@@ -811,6 +842,7 @@ export default function Power() {
               <div className="relative mb-2">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
+                  variant="terminal"
                   placeholder="Search players..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
@@ -824,12 +856,12 @@ export default function Power() {
                 ) : eligibleError ? (
                   <div className="py-8 text-center text-destructive text-sm">
                     <div className="font-medium mb-2">Server Error</div>
-                    <div className="text-xs font-mono bg-destructive/10 p-2 rounded mb-2 overflow-auto max-h-32">
+                    <div className="mb-2 max-h-32 overflow-auto border border-red-500/20 bg-destructive/10 p-2 font-mono text-xs">
                       {eligibleError.message}
                     </div>
                     <Button
                       size="sm"
-                      variant="outline"
+                      variant="terminalOutline"
                       onClick={() => refetchEligible()}
                       className="mt-2"
                     >
@@ -837,12 +869,12 @@ export default function Power() {
                     </Button>
                   </div>
                 ) : !eligibleData?.eligiblePlayers || eligibleData.eligiblePlayers.length === 0 ? (
-                  <div className="py-8 text-center text-muted-foreground text-sm">
+                  <div className="terminal-empty py-8 text-center text-sm text-muted-foreground">
                     No players held
                     <br />
                     <Button
                       size="sm"
-                      variant="outline"
+                      variant="terminalOutline"
                       onClick={() => refetchEligible()}
                       className="mt-2"
                     >
@@ -850,11 +882,11 @@ export default function Power() {
                     </Button>
                   </div>
                 ) : filteredPlayers.length === 0 ? (
-                  <div className="py-8 text-center text-muted-foreground text-sm">
+                  <div className="terminal-empty py-8 text-center text-sm text-muted-foreground">
                     {search ? `No players match "${search}"` : "No players available for boosting"}
                   </div>
                 ) : (
-                  <div className="divide-y">
+                  <div className="divide-y divide-border">
                     {filteredPlayers.map((ep) => {
                       const hasPowerLevel = parseFloat(ep.powerLevel || "0") > 0;
                       const playerBoost = boostsData?.boosts?.find(
@@ -869,18 +901,13 @@ export default function Power() {
                         <div
                           key={ep.holdingId || ep.playerId}
                           className={cn(
-                            "p-3 flex items-center justify-between gap-2",
+                            "flex items-center justify-between gap-2 p-3",
                             ep.gameStatus === "live" && "bg-yellow-500/5",
-                            ep.gameStatus === "ended" && "bg-muted/30",
+                            ep.gameStatus === "ended" && "bg-muted/20",
                           )}
                         >
                           <div className="flex items-center gap-2 min-w-0 flex-1">
-                            <div
-                              className={cn(
-                                "w-8 h-8 rounded-full flex items-center justify-center shrink-0",
-                                ep.hasGameToday ? "bg-primary/10" : "bg-muted",
-                              )}
-                            >
+                            <div className="terminal-avatar shrink-0">
                               <span className="text-xs font-bold">
                                 {ep.player.firstName[0]}
                                 {ep.player.lastName[0]}
@@ -896,29 +923,32 @@ export default function Power() {
                                 />
                               </div>
                               <div className="flex items-center gap-1 text-xs text-muted-foreground flex-wrap">
-                                <Badge variant="outline" className="text-[10px] px-1 py-0 h-4">
+                                <Badge
+                                  variant="outline"
+                                  className="h-4 px-1 font-mono text-[10px] uppercase"
+                                >
                                   {ep.sport}
                                 </Badge>
                                 <span>{ep.player.team}</span>
-                                <span>•</span>
-                                <span className="text-muted-foreground">
+                                <span>|</span>
+                                <span className="font-mono text-[11px] text-muted-foreground">
                                   {ep.totalShares} shares ({ep.availableShares} avail)
                                 </span>
                                 {hasPowerLevel && (
                                   <>
-                                    <span>•</span>
-                                    <span className="text-purple-400">
-                                      ⚡{ep.bestSharePower}/share
+                                    <span>|</span>
+                                    <span className="font-mono text-[11px] text-purple-300">
+                                      PWR {ep.bestSharePower}/share
                                     </span>
                                   </>
                                 )}
                                 {/* Game status indicator */}
                                 {!ep.hasGameToday && (
                                   <>
-                                    <span>•</span>
+                                    <span>|</span>
                                     <Badge
                                       variant="secondary"
-                                      className="text-[10px] px-1 py-0 h-4"
+                                      className="h-4 px-1 font-mono text-[10px] uppercase"
                                     >
                                       No game
                                     </Badge>
@@ -928,29 +958,26 @@ export default function Power() {
                                   ep.gameStatus === "upcoming" &&
                                   ep.gameStartTime && (
                                     <>
-                                      <span>•</span>
-                                      <Badge className="bg-blue-500/20 text-blue-500 border-blue-500/30 text-[10px] px-1 py-0 h-4">
+                                      <span>|</span>
+                                      <Badge className="h-4 border border-blue-500/30 bg-blue-500/10 px-1 font-mono text-[10px] uppercase text-blue-300">
                                         {format(new Date(ep.gameStartTime), "h:mm a")}
                                       </Badge>
                                     </>
                                   )}
                                 {ep.hasGameToday && ep.gameStatus === "live" && (
                                   <>
-                                    <span>•</span>
-                                    <Badge
-                                      variant="destructive"
-                                      className="text-[10px] px-1 py-0 h-4 animate-pulse"
-                                    >
+                                    <span>|</span>
+                                    <Badge className="terminal-status-warning h-4 px-1 font-mono text-[10px] uppercase animate-pulse">
                                       Live
                                     </Badge>
                                   </>
                                 )}
                                 {ep.hasGameToday && ep.gameStatus === "ended" && (
                                   <>
-                                    <span>•</span>
+                                    <span>|</span>
                                     <Badge
                                       variant="secondary"
-                                      className="text-[10px] px-1 py-0 h-4"
+                                      className="h-4 px-1 font-mono text-[10px] uppercase"
                                     >
                                       Ended
                                     </Badge>
@@ -961,13 +988,14 @@ export default function Power() {
                           </div>
                           <div className="flex items-center gap-1 shrink-0">
                             {playerBoost ? (
-                              <Badge className="bg-green-500/20 text-green-500 border-green-500/30 text-xs">
+                              <Badge className="terminal-status-positive px-1.5 font-mono text-[10px] uppercase">
                                 <Zap className="w-3 h-3 mr-0.5" />
                                 Boosted
                               </Badge>
                             ) : canBoost ? (
                               <Button
                                 size="sm"
+                                variant="terminal"
                                 onClick={() => handleAssignBoost(ep.playerId, ep.sport)}
                                 disabled={assignBoostMutation.isPending}
                                 className="h-8"
@@ -976,15 +1004,21 @@ export default function Power() {
                                 {MULTIPLIER_SLOTS.find((s) => s.tier === selectedSlot)?.label}
                               </Button>
                             ) : ep.hasGameToday && ep.gameStatus === "live" ? (
-                              <Badge variant="destructive" className="text-xs">
+                              <Badge className="terminal-status-warning px-1.5 font-mono text-[10px] uppercase">
                                 Live
                               </Badge>
                             ) : ep.hasGameToday && ep.gameStatus === "ended" ? (
-                              <Badge variant="secondary" className="text-xs">
+                              <Badge
+                                variant="secondary"
+                                className="px-1.5 font-mono text-[10px] uppercase"
+                              >
                                 Ended
                               </Badge>
                             ) : (
-                              <Badge variant="outline" className="text-xs text-muted-foreground">
+                              <Badge
+                                variant="outline"
+                                className="px-1.5 font-mono text-[10px] uppercase text-muted-foreground"
+                              >
                                 No game
                               </Badge>
                             )}

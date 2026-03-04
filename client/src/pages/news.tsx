@@ -69,7 +69,7 @@ function GeneralNewsTab({ newsLoading, news }: { newsLoading: boolean; news?: Ne
     return (
       <div className="space-y-4">
         {[...Array(3)].map((_, i) => (
-          <Card key={i}>
+          <Card key={i} variant="terminal">
             <CardHeader>
               <Skeleton className="h-4 w-3/4" />
               <Skeleton className="h-3 w-1/2" />
@@ -85,13 +85,11 @@ function GeneralNewsTab({ newsLoading, news }: { newsLoading: boolean; news?: Ne
 
   if (!news?.length) {
     return (
-      <Card>
+      <Card variant="terminal">
         <CardContent className="py-12 text-center">
           <Newspaper className="mx-auto mb-4 h-12 w-12 text-muted-foreground/50" />
-          <h3 className="mb-1 font-semibold">No News Yet</h3>
-          <p className="text-sm text-muted-foreground">
-            Breaking sports news will appear here. Check back soon!
-          </p>
+          <h3 className="terminal-heading mb-1 text-sm">No News Yet</h3>
+          <p className="terminal-subtle">Breaking sports news will appear here. Check back soon!</p>
         </CardContent>
       </Card>
     );
@@ -106,7 +104,7 @@ function GeneralNewsTab({ newsLoading, news }: { newsLoading: boolean; news?: Ne
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: index * 0.05 }}
         >
-          <Card className="transition-shadow hover:shadow-md">
+          <Card variant="terminal" className="transition-colors hover:border-primary/30">
             <CardHeader className="pb-2">
               <div className="flex items-start justify-between gap-2">
                 <div className="space-y-1">
@@ -115,8 +113,8 @@ function GeneralNewsTab({ newsLoading, news }: { newsLoading: boolean; news?: Ne
                       variant="secondary"
                       className={
                         item.sport === "NFL"
-                          ? "bg-orange-500/10 text-orange-500"
-                          : "bg-blue-500/10 text-blue-500"
+                          ? "rounded-sm border border-orange-500/20 bg-orange-500/10 font-mono text-[11px] uppercase tracking-[0.08em] text-orange-500"
+                          : "rounded-sm border border-blue-500/20 bg-blue-500/10 font-mono text-[11px] uppercase tracking-[0.08em] text-blue-500"
                       }
                     >
                       {item.sport}
@@ -184,6 +182,11 @@ export default function NewsPage() {
     enabled: isAuthenticated,
   });
 
+  const { data: dashboardData } = useQuery<{ user: { balance: string; portfolioValue: string } }>({
+    queryKey: ["/api/dashboard"],
+    enabled: isAuthenticated,
+  });
+
   const triggerNewsFetch = useMutation({
     mutationFn: async (): Promise<NewsFetchResponse> => {
       const response = await authenticatedFetch("/api/admin/jobs/news_fetch/trigger", {
@@ -219,76 +222,84 @@ export default function NewsPage() {
   };
 
   return (
-    <div className="container mx-auto max-w-4xl px-4 py-6">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="space-y-6"
-      >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="rounded-lg bg-blue-500/10 p-2">
-              <Newspaper className="h-6 w-6 text-blue-500" />
+    <div className="terminal-page">
+      <div className="container mx-auto max-w-4xl px-4 py-6">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="space-y-6"
+        >
+          <div className="terminal-shell flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <div>
+                <div className="terminal-strip mb-3">
+                  <Newspaper className="h-3.5 w-3.5" />
+                  Market News Desk
+                </div>
+                <h1 className="terminal-heading text-2xl">News Hub</h1>
+                <p className="terminal-subtle mt-2">Breaking sports news and your daily brief</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-2xl font-bold">News Hub</h1>
-              <p className="text-sm text-muted-foreground">
-                Breaking sports news and your personalized digest
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {isAdmin && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => triggerNewsFetch.mutate()}
-                disabled={triggerNewsFetch.isPending}
-                className="gap-2 border-yellow-500/50 text-yellow-600 hover:bg-yellow-500/10"
-              >
-                {triggerNewsFetch.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Zap className="h-4 w-4" />
-                )}
-                Fetch Now
-              </Button>
-            )}
-            <Button variant="outline" size="sm" onClick={handleRefresh} className="gap-2">
-              <RefreshCw className="h-4 w-4" />
-              Refresh
-            </Button>
-          </div>
-        </div>
-
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="general" className="gap-2">
-              <Newspaper className="h-4 w-4" />
-              General News
-            </TabsTrigger>
-            <TabsTrigger value="digest" className="gap-2" disabled={!isAuthenticated}>
-              <BarChart3 className="h-4 w-4" />
-              Daily Digest
-              {hasUnreadDigest && (
-                <span className="ml-1 inline-block h-2.5 w-2.5 rounded-full bg-red-500" />
+            <div className="flex items-center gap-2">
+              {isAdmin && (
+                <Button
+                  variant="terminalOutline"
+                  size="sm"
+                  onClick={() => triggerNewsFetch.mutate()}
+                  disabled={triggerNewsFetch.isPending}
+                  className="gap-2 border-yellow-500/30 text-yellow-500 hover:bg-yellow-500/10"
+                >
+                  {triggerNewsFetch.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Zap className="h-4 w-4" />
+                  )}
+                  Fetch Now
+                </Button>
               )}
-            </TabsTrigger>
-          </TabsList>
+              <Button variant="terminalOutline" size="sm" onClick={handleRefresh} className="gap-2">
+                <RefreshCw className="h-4 w-4" />
+                Refresh
+              </Button>
+            </div>
+          </div>
 
-          <TabsContent value="general" className="space-y-4">
-            <GeneralNewsTab newsLoading={newsLoading} news={newsData?.news} />
-          </TabsContent>
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList variant="terminal" className="grid w-full grid-cols-2">
+              <TabsTrigger variant="terminal" value="general" className="gap-2">
+                <Newspaper className="h-4 w-4" />
+                General News
+              </TabsTrigger>
+              <TabsTrigger
+                variant="terminal"
+                value="digest"
+                className="gap-2"
+                disabled={!isAuthenticated}
+              >
+                <BarChart3 className="h-4 w-4" />
+                Daily Brief
+                {hasUnreadDigest && (
+                  <span className="ml-1 inline-block h-2.5 w-2.5 rounded-sm bg-red-500" />
+                )}
+              </TabsTrigger>
+            </TabsList>
 
-          <TabsContent value="digest" className="space-y-4">
-            <DailyDigestTab
-              isAuthenticated={isAuthenticated}
-              digestLoading={digestLoading}
-              digest={digestData?.digest}
-            />
-          </TabsContent>
-        </Tabs>
-      </motion.div>
+            <TabsContent value="general" className="space-y-4">
+              <GeneralNewsTab newsLoading={newsLoading} news={newsData?.news} />
+            </TabsContent>
+
+            <TabsContent value="digest" className="space-y-4">
+              <DailyDigestTab
+                isAuthenticated={isAuthenticated}
+                digestLoading={digestLoading}
+                digest={digestData?.digest}
+                isPremium={user?.isPremium || false}
+                availableBalance={dashboardData?.user?.balance}
+              />
+            </TabsContent>
+          </Tabs>
+        </motion.div>
+      </div>
     </div>
   );
 }

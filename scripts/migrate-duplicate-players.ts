@@ -16,7 +16,6 @@ import {
   trades,
   playerGameStats,
   priceHistory,
-  contestLineups,
   scoutAssignments,
   scoutDistributions,
   scoutHistory,
@@ -101,7 +100,6 @@ async function migrateDuplicatePlayers() {
       trades: 0,
       playerGameStats: 0,
       priceHistory: 0,
-      contestLineups: 0,
       scoutAssignments: 0,
       scoutDistributions: 0,
       scoutHistory: 0,
@@ -164,16 +162,6 @@ async function migrateDuplicatePlayers() {
         .where(eq(priceHistory.playerId, oldId))
         .returning();
       migrationResults.priceHistory += result.length;
-    }
-
-    console.log("Migrating contestLineups...");
-    for (const [oldId, newId] of idMap.entries()) {
-      const result = await db
-        .update(contestLineups)
-        .set({ playerId: newId })
-        .where(eq(contestLineups.playerId, oldId))
-        .returning();
-      migrationResults.contestLineups += result.length;
     }
 
     console.log("Migrating scoutAssignments...");
@@ -322,7 +310,6 @@ async function migrateDuplicatePlayers() {
     console.log(`  - trades: ${migrationResults.trades}`);
     console.log(`  - playerGameStats: ${migrationResults.playerGameStats}`);
     console.log(`  - priceHistory: ${migrationResults.priceHistory}`);
-    console.log(`  - contestLineups: ${migrationResults.contestLineups}`);
     console.log(`  - scoutAssignments: ${migrationResults.scoutAssignments}`);
     console.log(`  - scoutDistributions: ${migrationResults.scoutDistributions}`);
     console.log(`  - scoutHistory: ${migrationResults.scoutHistory}`);

@@ -631,7 +631,7 @@ Create `client/src/components/market/breaking-news-banner.tsx`:
 // Top banner for significant market events
 // - Large trades (>$50k)
 // - Player price movements (>20% in 1 hour)
-// - New contests available
+// - New slates or boosts available
 // - Auto-dismiss after 10 seconds
 // - Manual close button
 ```

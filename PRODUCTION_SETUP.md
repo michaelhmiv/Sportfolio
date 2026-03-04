@@ -10,13 +10,14 @@ Railway deployments should run scheduled jobs via external triggers (or Railway 
 
 Your Sportfolio app requires these automated jobs:
 
-1. **create_contests** - Creates new contests daily for upcoming NBA games
-2. **settle_contests** - Settles completed contests and distributes winnings
-3. **schedule_sync** - Updates game schedules and live scores
-4. **stats_sync** - Syncs completed game statistics
-5. **roster_sync** - Updates NBA player roster
-6. **sync_player_game_logs** - Caches player game logs with pre-calculated fantasy points (reduces API calls by ~95%)
-7. **bot_engine** - Executes AMM bot scouting/trading/liquidity actions
+1. **schedule_sync** - Updates game schedules and slate readiness
+2. **stats_sync** - Syncs completed game statistics
+3. **stats_sync_live** - Syncs live in-progress statistics across supported sports
+4. **roster_sync** - Updates NBA player roster
+5. **sync_player_game_logs** - Caches player game logs with pre-calculated fantasy points (reduces API calls by ~95%)
+6. **bot_engine** - Executes AMM bot scouting/trading/liquidity actions
+
+For the full multi-sport job matrix, use `docs/CRON_JOBS.md` as the canonical reference.
 
 ## Setup Instructions
 
@@ -47,37 +48,7 @@ Find this in your Railway service settings.
 
 For each job below, create a new cron job in cron-job.org:
 
-#### Job 1: Create Contests (Daily at Midnight UTC)
-
-- **Title:** Sportfolio - Create Contests
-- **URL:** `https://your-domain.com/api/admin/jobs/trigger`
-- **Schedule:** Daily at 00:00 (midnight UTC)
-  - Use cron expression: `0 0 * * *`
-- **Request Method:** POST
-- **Request Body:**
-  ```json
-  { "jobName": "create_contests" }
-  ```
-- **Headers:**
-  - Name: `Content-Type`, Value: `application/json`
-  - Name: `Authorization`, Value: `Bearer YOUR_ADMIN_API_TOKEN`
-
-#### Job 2: Settle Contests (Every 5 Minutes)
-
-- **Title:** Sportfolio - Settle Contests
-- **URL:** `https://your-domain.com/api/admin/jobs/trigger`
-- **Schedule:** Every 5 minutes
-  - Use cron expression: `*/5 * * * *`
-- **Request Method:** POST
-- **Request Body:**
-  ```json
-  { "jobName": "settle_contests" }
-  ```
-- **Headers:**
-  - Name: `Content-Type`, Value: `application/json`
-  - Name: `Authorization`, Value: `Bearer YOUR_ADMIN_API_TOKEN`
-
-#### Job 3: Schedule Sync (Every Minute)
+#### Job 1: Schedule Sync (Every Minute)
 
 - **Title:** Sportfolio - Schedule Sync
 - **URL:** `https://your-domain.com/api/admin/jobs/trigger`
@@ -92,7 +63,7 @@ For each job below, create a new cron job in cron-job.org:
   - Name: `Content-Type`, Value: `application/json`
   - Name: `Authorization`, Value: `Bearer YOUR_ADMIN_API_TOKEN`
 
-#### Job 4: Stats Sync (Every Hour)
+#### Job 2: Stats Sync (Every Hour)
 
 - **Title:** Sportfolio - Stats Sync
 - **URL:** `https://your-domain.com/api/admin/jobs/trigger`
@@ -107,7 +78,22 @@ For each job below, create a new cron job in cron-job.org:
   - Name: `Content-Type`, Value: `application/json`
   - Name: `Authorization`, Value: `Bearer YOUR_ADMIN_API_TOKEN`
 
-#### Job 5: Roster Sync (Daily at 5 AM UTC)
+#### Job 3: Live Stats Sync (Every 5 Minutes)
+
+- **Title:** Sportfolio - Live Stats Sync
+- **URL:** `https://your-domain.com/api/admin/jobs/trigger`
+- **Schedule:** Every 5 minutes
+  - Use cron expression: `*/5 * * * *`
+- **Request Method:** POST
+- **Request Body:**
+  ```json
+  { "jobName": "stats_sync_live" }
+  ```
+- **Headers:**
+  - Name: `Content-Type`, Value: `application/json`
+  - Name: `Authorization`, Value: `Bearer YOUR_ADMIN_API_TOKEN`
+
+#### Job 4: Roster Sync (Daily at 5 AM UTC)
 
 - **Title:** Sportfolio - Roster Sync
 - **URL:** `https://your-domain.com/api/admin/jobs/trigger`
@@ -122,7 +108,7 @@ For each job below, create a new cron job in cron-job.org:
   - Name: `Content-Type`, Value: `application/json`
   - Name: `Authorization`, Value: `Bearer YOUR_ADMIN_API_TOKEN`
 
-#### Job 6: Player Game Logs Sync (Daily at 6 AM ET)
+#### Job 5: Player Game Logs Sync (Daily at 6 AM ET)
 
 - **Title:** Sportfolio - Sync Player Game Logs
 - **URL:** `https://your-domain.com/api/admin/jobs/trigger`
@@ -142,7 +128,7 @@ For each job below, create a new cron job in cron-job.org:
   - First run will backfill entire season (~15 minutes)
   - Uses conservative rate limiting (150 req/5min, 2s delay between players)
 
-#### Job 7: Bot Engine (Every 15 Minutes)
+#### Job 6: Bot Engine (Every 15 Minutes)
 
 - **Title:** Sportfolio - Bot Engine
 - **URL:** `https://your-domain.com/api/admin/jobs/trigger`
@@ -204,11 +190,11 @@ Admin users can access the admin panel for manual job triggers and system monito
 - Your `ADMIN_API_TOKEN` variable is missing in Railway
 - Add it in Railway Variables and redeploy
 
-### Contests Not Appearing
+### Live Stats Not Updating
 
-- Run `create_contests` job manually first
-- Check that MySportsFeeds API is accessible from your deployed site
-- Verify `MYSPORTSFEEDS_API_KEY` is set in production secrets
+- Make sure `stats_sync_live` is running every 5 minutes
+- Check job execution logs in cron-job.org for errors
+- Verify your upstream sports API credentials are still valid
 
 ### Games Not Updating
 
@@ -217,7 +203,7 @@ Admin users can access the admin panel for manual job triggers and system monito
 
 ## Cost
 
-cron-job.org is completely free for up to 50 cron jobs. Sportfolio currently uses 7, so you're well within the limits.
+cron-job.org is completely free for up to 50 cron jobs. Sportfolio currently uses 6 in this baseline setup, so you're well within the limits.
 
 ## Security
 

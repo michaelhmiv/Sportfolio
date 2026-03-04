@@ -3,37 +3,40 @@ import { TrendingUp, Trophy, Users, Zap } from "lucide-react";
 
 export default function About() {
   return (
-    <div className="min-h-screen bg-background">
-      <div className="max-w-4xl mx-auto p-6 md:p-12">
-        <h1 className="text-4xl font-bold mb-4" data-testid="heading-about">
-          About Sportfolio
-        </h1>
-        <p className="text-lg text-muted-foreground mb-12">
-          Where fantasy sports meets stock market trading
-        </p>
+    <div className="terminal-page">
+      <div className="mx-auto max-w-4xl p-6 md:p-12">
+        <div className="terminal-shell mb-8 p-5 md:p-6">
+          <div className="terminal-strip">Company Brief</div>
+          <h1 className="terminal-heading mt-4 text-3xl md:text-4xl" data-testid="heading-about">
+            About Sportfolio
+          </h1>
+          <p className="mt-3 text-sm text-muted-foreground md:text-base">
+            Where fantasy sports meets stock market trading
+          </p>
+        </div>
 
         <div className="space-y-6">
-          <Card>
+          <Card variant="terminal">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Zap className="w-5 h-5 text-primary" />
+              <CardTitle className="terminal-heading flex items-center gap-2 text-sm">
+                <Zap className="h-5 w-5 text-primary" />
                 Our Mission
               </CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-muted-foreground">
                 Sportfolio revolutionizes fantasy sports by combining the excitement of NBA player
-                performance with the dynamics of stock market trading. We've created a platform
-                where sports knowledge meets strategic investing, giving fans a new way to engage
-                with basketball beyond traditional fantasy leagues.
+                performance with the dynamics of stock market trading. We created a platform where
+                sports knowledge meets strategic investing, giving fans a new way to engage with
+                basketball beyond traditional fantasy leagues.
               </p>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card variant="terminal">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <TrendingUp className="w-5 h-5 text-primary" />
+              <CardTitle className="terminal-heading flex items-center gap-2 text-sm">
+                <TrendingUp className="h-5 w-5 text-primary" />
                 How It Works
               </CardTitle>
             </CardHeader>
@@ -42,69 +45,62 @@ export default function About() {
                 On Sportfolio, NBA players are represented as tradable shares with prices that
                 fluctuate based on market activity. You can buy and sell player shares, build a
                 diversified portfolio, and watch your portfolio value change as the market moves.
-                Real NBA performance data drives engagement and adds a layer of skill to the trading
-                experience.
               </p>
               <p className="text-muted-foreground">
-                Beyond trading, Sportfolio offers daily fantasy contests where you compete against
-                other users by drafting optimal lineups. Prizes are awarded based on actual NBA
-                player performance, creating a skill-based competitive environment.
+                Beyond trading, Sportfolio layers in scouting, powered shares, daily boosts, and
+                public leaderboards so your edge can come from both long-term market positioning and
+                short-horizon game-day decisions.
               </p>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card variant="terminal">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Trophy className="w-5 h-5 text-primary" />
+              <CardTitle className="terminal-heading flex items-center gap-2 text-sm">
+                <Trophy className="h-5 w-5 text-primary" />
                 Key Features
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <ul className="space-y-2 text-muted-foreground">
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-1">•</span>
-                  <span>
-                    <strong>Player Share Trading:</strong> Buy and sell NBA player shares with
-                    real-time market pricing
-                  </span>
+              <ul className="space-y-2">
+                <li className="terminal-shell px-3 py-2">
+                  <p className="terminal-label">Player Share Trading</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Buy and sell NBA player shares with real-time market pricing.
+                  </p>
                 </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-1">•</span>
-                  <span>
-                    <strong>Scout Rewards:</strong> Assign scouts to players to earn free shares
-                    hourly
-                  </span>
+                <li className="terminal-shell px-3 py-2">
+                  <p className="terminal-label">Scout Rewards</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Assign scouts to players to earn free shares on an hourly cadence.
+                  </p>
                 </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-1">•</span>
-                  <span>
-                    <strong>Daily Contests:</strong> Compete in skill-based fantasy contests with
-                    lineup building and strategy
-                  </span>
+                <li className="terminal-shell px-3 py-2">
+                  <p className="terminal-label">Daily Boosts</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Commit eligible shares to slot-based payouts tied to real game outcomes.
+                  </p>
                 </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-1">•</span>
-                  <span>
-                    <strong>Live Leaderboards:</strong> Track your performance against other users
-                    across multiple categories
-                  </span>
+                <li className="terminal-shell px-3 py-2">
+                  <p className="terminal-label">Live Leaderboards</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Track your performance against other users across multiple categories.
+                  </p>
                 </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-1">•</span>
-                  <span>
-                    <strong>Real NBA Data:</strong> All player statistics powered by MySportsFeeds
-                    API
-                  </span>
+                <li className="terminal-shell px-3 py-2">
+                  <p className="terminal-label">Real NBA Data</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Player performance and schedule data power the live market experience.
+                  </p>
                 </li>
               </ul>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card variant="terminal">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="w-5 h-5 text-primary" />
+              <CardTitle className="terminal-heading flex items-center gap-2 text-sm">
+                <Users className="h-5 w-5 text-primary" />
                 Join Our Community
               </CardTitle>
             </CardHeader>
@@ -112,8 +108,7 @@ export default function About() {
               <p className="text-muted-foreground">
                 Sportfolio is built by sports fans, for sports fans. Join our growing community on
                 Discord to connect with other users, share trading strategies, discuss NBA matchups,
-                and stay updated on platform developments. Whether you're a seasoned fantasy player
-                or new to the game, there's a place for you in the Sportfolio community.
+                and stay updated on platform developments.
               </p>
             </CardContent>
           </Card>

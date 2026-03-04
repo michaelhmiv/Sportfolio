@@ -116,7 +116,7 @@ export function ScoutSelector({ playerId }: ScoutSelectorProps) {
   }
 
   return (
-    <div className="border rounded-md p-2 bg-gradient-to-br from-amber-500/5 to-orange-500/5">
+    <div className="border border-amber-500/20 rounded-sm bg-amber-500/5 p-2">
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-1.5">
           <Binoculars className="h-3.5 w-3.5 text-amber-600" />

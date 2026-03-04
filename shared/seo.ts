@@ -10,7 +10,7 @@ export const DEFAULT_SITE_URL = "https://www.sportfolio.market";
 export const DEFAULT_ROUTE_META: RouteSeoMeta = {
   title: "Sportfolio - Fantasy Sports Stock Market",
   description:
-    "Trade player shares like stocks. Mine, trade, and compete in fantasy sports contests with real-time pricing and professional-grade trading tools.",
+    "Trade player shares like stocks, build inventory through scouts, and manage live AMM positions with real-time pricing and professional-grade trading tools.",
   canonicalPath: "/",
   robots: "index,follow",
 };
@@ -34,9 +34,6 @@ const knownRoutePatterns = [
   /^\/auth\/callback$/,
   /^\/auth\/error$/,
   /^\/checkout\/success$/,
-  /^\/contests$/,
-  /^\/contest\/[^/]+\/leaderboard$/,
-  /^\/contest\/[^/]+\/entry(?:\/[^/]+)?$/,
   /^\/leaderboards$/,
   /^\/user\/[^/]+$/,
   /^\/pools$/,
@@ -76,7 +73,6 @@ const privateRoutePatterns = [
   /^\/power$/,
   /^\/boosts$/,
   /^\/player\/.+/,
-  /^\/contest\/[^/]+\/entry(?:\/[^/]+)?$/,
   /^\/portfolio$/,
   /^\/premium$/,
   /^\/watchlists$/,
@@ -124,22 +120,6 @@ export function getRouteSeoMeta(rawPath: string): RouteSeoMeta {
       robots: "index,follow",
     };
   }
-  if (path === "/contests") {
-    return {
-      title: "Contests | Sportfolio",
-      description: "Join fantasy contests and compete on real-time player performance.",
-      canonicalPath: "/contests",
-      robots: "index,follow",
-    };
-  }
-  if (/^\/contest\/[^/]+\/leaderboard$/.test(path)) {
-    return {
-      title: "Contest Leaderboard | Sportfolio",
-      description: "Track live standings and payout positions for Sportfolio contests.",
-      canonicalPath: path,
-      robots: "index,follow",
-    };
-  }
   if (path === "/leaderboards") {
     return {
       title: "Leaderboards | Sportfolio",
@@ -152,7 +132,7 @@ export function getRouteSeoMeta(rawPath: string): RouteSeoMeta {
     return {
       title: "Blog - Fantasy Sports Insights & NBA Trading Strategies | Sportfolio",
       description:
-        "Latest insights on fantasy sports, player trading strategies, contest tips, and Sportfolio platform updates.",
+        "Latest insights on fantasy sports, player trading strategies, and Sportfolio platform updates.",
       canonicalPath: "/blog",
       robots: "index,follow",
     };
@@ -184,7 +164,7 @@ export function getRouteSeoMeta(rawPath: string): RouteSeoMeta {
   if (path === "/how-it-works") {
     return {
       title: "How It Works | Sportfolio",
-      description: "Understand trading, contests, and scoring mechanics in Sportfolio.",
+      description: "Understand trading, scouts, boosts, and core Sportfolio mechanics.",
       canonicalPath: "/how-it-works",
       robots: "index,follow",
     };
@@ -277,11 +257,6 @@ export const HOW_IT_WORKS_FAQS = [
     question: "What is the scout system?",
     answer:
       "Scouts are assignable agents that distribute free shares hourly based on time-weighted participation.",
-  },
-  {
-    question: "How do contests settle?",
-    answer:
-      "Contest outcomes use real game performance. Settlement is status-gated and prizes are distributed automatically after completion.",
   },
   {
     question: "How are boosts handled?",

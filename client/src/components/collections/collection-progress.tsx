@@ -43,7 +43,7 @@ export function CollectionProgress({
 
   return (
     <div className={cn("w-full", className)}>
-      <div className={cn("w-full rounded-full overflow-hidden", heightClasses[size], colors.bg)}>
+      <div className={cn("w-full rounded-sm overflow-hidden", heightClasses[size], colors.bg)}>
         <motion.div
           initial={{ width: 0 }}
           animate={{ width: `${percentage}%` }}
@@ -53,7 +53,7 @@ export function CollectionProgress({
             damping: 20,
             delay: 0.1,
           }}
-          className={cn("h-full rounded-full", colors.fill)}
+          className={cn("h-full rounded-sm", colors.fill)}
         />
       </div>
 

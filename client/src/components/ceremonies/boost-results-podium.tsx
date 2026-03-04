@@ -90,7 +90,7 @@ function ResultCard({
         delay,
       }}
       className={cn(
-        "flex flex-col items-center p-4 rounded-xl border",
+        "flex flex-col items-center rounded-sm border p-4",
         visuals.bgColor,
         visuals.borderColor,
       )}
@@ -101,7 +101,7 @@ function ResultCard({
         animate={{ scale: 1 }}
         transition={{ type: "spring", stiffness: 400, damping: 20, delay: delay + 0.2 }}
         className={cn(
-          "w-12 h-12 rounded-full flex items-center justify-center mb-3",
+          "mb-3 flex h-12 w-12 items-center justify-center rounded-sm",
           "bg-card border-2",
           visuals.borderColor,
         )}
@@ -117,11 +117,11 @@ function ResultCard({
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-2 w-full text-center">
-        <div className="p-2 rounded bg-card/50">
+        <div className="rounded-sm bg-card/50 p-2">
           <p className="text-[10px] text-muted-foreground">FP</p>
           <p className="font-mono font-bold text-sm">{result.fantasyPoints.toFixed(1)}</p>
         </div>
-        <div className="p-2 rounded bg-card/50">
+        <div className="rounded-sm bg-card/50 p-2">
           <p className="text-[10px] text-muted-foreground">Mult</p>
           <p className={cn("font-mono font-bold text-sm", visuals.textColor)}>
             {result.multiplier}x
@@ -186,7 +186,7 @@ export function BoostResultsPodium({
             animate={{ opacity: 1, y: 0 }}
             className="text-center mb-8"
           >
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-500/10 border border-emerald-500/20 mb-4">
+            <div className="mb-4 inline-flex items-center gap-2 rounded-sm border border-emerald-500/20 bg-emerald-500/10 px-4 py-2">
               <Trophy className="w-5 h-5 text-emerald-500" />
               <span className="font-medium text-emerald-500">Boost Results</span>
             </div>
@@ -208,7 +208,7 @@ export function BoostResultsPodium({
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 transition={{ type: "spring", stiffness: 300, damping: 25 }}
                 className={cn(
-                  "p-6 rounded-xl border text-center",
+                  "rounded-sm border p-6 text-center",
                   totalPayout > 0
                     ? "bg-emerald-500/10 border-emerald-500/30"
                     : "bg-muted border-border",
@@ -249,7 +249,9 @@ export function BoostResultsPodium({
             transition={{ delay: 0.5 }}
             className="text-center mt-6"
           >
-            <Button onClick={onClose}>Continue</Button>
+            <Button onClick={onClose} variant="terminal">
+              Continue
+            </Button>
           </motion.div>
 
           {/* Close hint */}

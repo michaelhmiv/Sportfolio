@@ -771,9 +771,6 @@ Add to imports (around line 9):
 
 ```typescript
 import {
-  contestLineups,
-  contestEntries,
-  contests,
   holdings,
   marketSnapshots,
   premiumCheckoutSessions,

@@ -43,18 +43,18 @@ export function LiveFantasyPoints({
   return (
     <div
       className={cn(
-        "inline-flex flex-col items-center p-4 rounded-xl border bg-card",
+        "terminal-shell relative inline-flex flex-col items-center p-4",
         isUpdating &&
           trend === "up" &&
-          "border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.2)]",
-        isUpdating && trend === "down" && "border-red-500/50 shadow-[0_0_15px_rgba(239,68,68,0.2)]",
+          "border-emerald-500/35 shadow-[0_0_15px_rgba(16,185,129,0.15)]",
+        isUpdating &&
+          trend === "down" &&
+          "border-red-500/35 shadow-[0_0_15px_rgba(239,68,68,0.15)]",
         className,
       )}
     >
       <div className="flex items-center gap-2 mb-2">
-        <span className="text-xs text-muted-foreground uppercase tracking-wide">
-          Fantasy Points
-        </span>
+        <span className="terminal-label">Fantasy Points</span>
         {trend && (
           <motion.div
             initial={{ opacity: 0, scale: 0 }}
@@ -94,7 +94,7 @@ export function LiveFantasyPoints({
       </motion.div>
 
       <div className="mt-2 text-center">
-        <p className="text-xs text-muted-foreground">Est. Payout</p>
+        <p className="terminal-label">Est. Payout</p>
         <motion.p
           key={estimatedPayout}
           initial={{ opacity: 0, y: -10 }}
@@ -109,7 +109,7 @@ export function LiveFantasyPoints({
       {isUpdating && (
         <motion.div
           className={cn(
-            "absolute inset-0 rounded-xl border-2",
+            "absolute inset-0 rounded-sm border-2",
             trend === "up" ? "border-emerald-500" : "border-red-500",
           )}
           initial={{ opacity: 0.5, scale: 1 }}

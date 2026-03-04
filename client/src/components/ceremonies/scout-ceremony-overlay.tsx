@@ -89,13 +89,13 @@ function ScoutPlayerCard({
         delay: index * 0.05,
       }}
       className={cn(
-        "relative p-2 sm:p-3 rounded-lg border bg-card",
+        "relative rounded-sm border bg-card p-2 sm:p-3",
         isHighlight && "ring-2 ring-emerald-500/50",
       )}
     >
       {/* Efficiency indicator */}
       <div
-        className="absolute top-2 right-2 w-2 h-2 rounded-full"
+        className="absolute top-2 right-2 h-2 w-2 rounded-sm"
         style={{ backgroundColor: efficiencyColor }}
       />
 
@@ -110,7 +110,7 @@ function ScoutPlayerCard({
         <div className="flex-1 min-w-0 overflow-hidden">
           <p className="text-xs sm:text-sm font-medium truncate">{distribution.playerName}</p>
           <p className="text-[10px] sm:text-xs text-muted-foreground">
-            {distribution.playerTeam} • {distribution.sport}
+            {distribution.playerTeam} | {distribution.sport}
           </p>
         </div>
       </div>
@@ -255,7 +255,7 @@ export function ScoutCeremonyOverlay({
             transition={{ duration: 0.3 }}
             className="text-center mb-6"
           >
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-amber-500/10 border border-amber-500/20">
+            <div className="inline-flex items-center gap-2 rounded-sm border border-amber-500/20 bg-amber-500/10 px-4 py-2">
               <Binoculars className="w-4 h-4 text-amber-500" />
               <span className="text-sm font-medium text-amber-500">Scout Data Harvested</span>
             </div>
@@ -276,7 +276,7 @@ export function ScoutCeremonyOverlay({
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.4 }}
-                className="p-2 sm:p-3 rounded-lg border bg-card/50 flex items-center justify-center"
+                className="flex items-center justify-center rounded-sm border bg-card/50 p-2 sm:p-3"
               >
                 <span className="text-xs sm:text-sm text-muted-foreground">
                   +{data.distributions.length - 8} more
@@ -295,7 +295,7 @@ export function ScoutCeremonyOverlay({
             transition={{ type: "spring", stiffness: 400, damping: 20 }}
             className="text-center"
           >
-            <div className="inline-flex flex-col items-center p-6 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+            <div className="inline-flex flex-col items-center rounded-sm border border-emerald-500/20 bg-emerald-500/10 p-6">
               <span className="text-sm text-muted-foreground mb-1">Total Shares Earned</span>
               <div className="text-4xl font-bold text-emerald-500">
                 <AnimatedCounter value={data.totalShares} duration={2} />

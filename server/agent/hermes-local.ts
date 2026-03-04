@@ -41,7 +41,7 @@ function safeInferMemoryWrites(message: string) {
   }
 }
 
-async function resolveLocalCompatibilityRuntime(
+export async function resolveLocalCompatibilityRuntime(
   profile: UserAgentProfile,
   secret: UserAgentSecret | undefined,
 ) {

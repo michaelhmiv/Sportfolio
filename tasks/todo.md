@@ -1,3 +1,194 @@
+## 2026-03-04 User UI Terminal Compliance (Phase 3)
+
+- [x] Finish the remaining route and shared-component cleanup so the repo-wide user UI no longer relies on soft rounded/gradient defaults
+- [x] Push the terminal aesthetic through the shared `ui/*` layer where rounded/shadowed defaults were still leaking back into product surfaces
+- [x] Re-run repo-wide UI scans to confirm the main `pages` and `components` trees are clear of the tracked soft-style patterns
+- [x] Validate via `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`
+
+Review:
+
+- This completion sweep finished the residual product-facing hotspots that were still soft after the earlier phases: analytics/dashboard/portfolio micro-elements, market and scouting widgets, command-center surfaces, celebration overlays, collection and milestone badges, and the remaining shell indicators.
+- The final pass also moved the shared `ui/*` primitives themselves onto the same flatter visual language where they were still reintroducing rounded/full or heavy-shadow defaults, so the design system now reinforces the terminal aesthetic instead of working against it.
+- Repo-wide pattern scans for the targeted drift now come back clean across both `client/src/pages` and `client/src/components` (excluding intentionally out-of-scope `admin` and unrouted `landing` surfaces), which means the visible app is no longer hiding obvious soft-card regressions behind shared primitives.
+- Validation results: `npm run check`, `npm run lint`, and `npm run format:check` all pass. `npm run test:run` currently fails in untouched `server/docs-service.test.ts` because the docs-service agent-knowledge list is returning zero articles; that failure is outside this UI sweep and should be treated as a separate docs/runtime issue rather than a regression from the terminal-aesthetic work.
+
+## 2026-03-04 User UI Terminal Compliance (Phase 2)
+
+- [x] Restyle the next high-impact soft user-facing surfaces (`/power`, `/watchlists`, CLI access, SMS access)
+- [x] Convert the main public long-form reference pages (`/about`, `/how-it-works`, `/privacy`, `/terms`) onto the same terminal shell
+- [x] Run a second repo-wide UI compliance scan and capture the remaining non-compliant user-facing hotspots
+- [x] Validate via `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`
+
+Review:
+
+- This pass moved the last obviously soft high-traffic account surfaces onto the same terminal system: square avatars, mono metadata, flatter dialogs, and bordered shell panels are now consistent on Power, Watchlists, and the account access cards.
+- The main informational routes no longer fall back to generic marketing-card layouts; they now render as documentation-style terminal panels with the same dark shell and uppercase strip language as the trading surfaces.
+- Second-pass scan confirms the biggest remaining user-facing gaps are still `client/src/pages/contact.tsx`, `client/src/pages/auth-error.tsx`, `client/src/pages/checkout-success.tsx`, `client/src/pages/marketplace.tsx`, `client/src/pages/premium.tsx`, plus several celebratory/secondary components (boost/scout ceremonies, whale alert, onboarding, some portfolio/player subviews). `client/src/pages/admin.tsx` also remains soft, but it is outside the main user-facing scope.
+- Validation results: `npm run lint`, `npm run test:run`, and `npm run check` all passed. `npm run format:check` still fails, but only because of pre-existing formatting drift in untouched documentation files (`design_guidelines.md`, `GAMIFICATION_TEST_REPORT.md`, `IMPLEMENTATION_INSTRUCTIONS.md`, `PHASE_5_6_PROMPT.md`, `PRODUCTION_SETUP.md`) and this task log before reformatting.
+
+## 2026-03-04 User UI Terminal Compliance (Phase 1)
+
+- [x] Add opt-in terminal variants to shared UI primitives (`Card`, `Button`, `Tabs`, `Input`, `EmptyState`) plus shared terminal utility classes
+- [x] Restyle the highest-traffic soft user-facing routes (`/login`, `/news`, daily digest, `/wiki`, wiki article, `/blog`, blog post, `/leaderboards`) onto the terminal design layer
+- [ ] Follow through on the remaining user-facing routes and secondary components (power, watchlists, long-form content pages, CLI/SMS cards, and other soft surfaces)
+- [x] Validate via `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`
+
+Review:
+
+- This pass keeps the existing dark dashboard surfaces as the visual anchor and adds additive terminal variants instead of globally restyling every primitive by default.
+- The strongest immediate changes land on the public/auth shell pages that were furthest from the desired Bloomberg-terminal feel, so the site now reads more consistently across entry points.
+- Validation results: `npm run lint` and `npm run test:run` passed. `npm run check` is still blocked by pre-existing server type errors in untouched bot/jobs files, and `npm run format:check` is still blocked by unrelated formatting drift in untouched files outside this UI pass.
+- Remaining gap: several lower-traffic user pages and secondary components still need to be migrated onto the same terminal layer for full site-wide consistency.
+
+## 2026-03-04 Agent Composer Visibility Follow-Up
+
+- [x] Fix the inner agent chat column sizing so the transcript can shrink instead of pushing the composer off-screen
+- [x] Validate via `npm run lint`, and confirm `npm run check` / `npm run test:run` are currently blocked by unrelated server issues
+
+Review:
+
+- The dedicated full-screen route removed the outer shell conflict, but the inner transcript pane still lacked `min-h-0` on the relevant flex items.
+- Once messages appeared, the scroll area expanded to content height instead of shrinking, which pushed the composer below the visible frame.
+- Fixed by converting the shell interior to flex-based height sharing end-to-end and adding `min-h-0` to the transcript container and `ScrollArea`.
+- `npm run lint` passed. `npm run check` currently fails in untouched server files (`server/agent/model-first-router.ts`, `server/contest-scoring.ts`, several `server/jobs/*`) and `npm run test:run` currently fails on unrelated server test timeouts (`server/agent/*`, `server/jobs/settle-boosts.test.ts`), so neither failure is tied to this client layout patch.
+
+## 2026-03-04 Daily Digest Brief Redesign
+
+- [x] Audit the current Daily Digest UI against the live gameplay loops and mobile usage
+- [x] Replace the digest's multi-panel explorer UI with a mobile-first Daily Brief layout
+- [x] Normalize the existing digest payload into action-first sections while hiding retired or low-signal sections by default
+- [x] Validate via `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`
+
+Review:
+
+- Rebuilt the News tab's digest into a mobile-first Daily Brief with a compact header, fixed stat grid, action-first "What Mattered" and "Today's Setup" sections, and simple vertical lists for user holdings and market context.
+- Kept the existing digest API contract and added a client-side normalization layer so the UI now promotes active loops (boosts, scouting, holdings, market context), plus direct shortcut buttons into boosts, pools, and the scout dashboard flow.
+- Trimmed the backend digest generator so it no longer emits contest or vesting sections, and removed the vesting-specific earnings row so the payload itself stays aligned with the active product loops.
+- Wired the brief to the existing dashboard balance query so the setup section can show real available cash when it is loaded, and aligned the News page copy from "Daily Digest" to "Daily Brief".
+- `npm run lint` passed. `npm run check` still fails on unrelated pre-existing type errors in `server/agent/model-first-router.ts` plus existing bot/contest-related server files. `npm run test:run` still fails on unrelated pre-existing timeout issues in `server/agent/executor.test.ts`, `server/agent/operations-planner.test.ts`, and `server/jobs/settle-boosts.test.ts`. `npm run format:check` still fails on pre-existing formatting drift in many untouched files, but a targeted Prettier check passed for the files changed in this task.
+
+## 2026-03-04 Agent Full-Screen Shell Follow-Up
+
+- [x] Remove the remaining shared app chrome from `/agent` so the route owns the full viewport
+- [x] Keep an explicit in-route exit path after hiding the shared header/sidebar on the agent tab
+- [x] Validate via `npm run lint` and `npm run test:run`, and confirm `npm run check` is blocked by an unrelated server type error
+
+Review:
+
+- Hiding only the footer/nav was not enough; the agent route still lived inside the shared header/sidebar frame, which could leave the chat shell feeling squeezed and made the full-height composer math too brittle.
+- Fixed by rendering `/agent` in a dedicated full-screen app-shell branch and adding a direct Dashboard button inside the agent header so the route remains easy to exit.
+- `npm run lint` and `npm run test:run` passed. `npm run check` currently fails in untouched `server/agent/context-loader.ts` because `ScoutAgentRecommendedTarget` now requires `sport`, and that pre-existing server compile error is outside this UI fix.
+
+## 2026-03-04 Agent Route Scroll Anchoring
+
+- [x] Keep the agent transcript auto-scroll inside the chat viewport instead of scrolling the app shell
+- [x] Make the `/agent` route a full-height shell without the global footer or bottom nav beneath it
+- [x] Validate via `npm run check`, `npm run lint`, and `npm run test:run`
+
+Review:
+
+- Root cause was a nested layout mismatch: the agent route lived inside the app shell but still used viewport-based min heights, and the transcript end marker used `scrollIntoView`, which pulled the outer page container to the footer instead of just scrolling the chat pane.
+- Fixed by making `/agent` fill its parent container, hiding the global footer/bottom nav on that route, and scrolling the Radix scroll-area viewport directly.
+- `npm run format:check` still reports unrelated formatting drift in the already-modified `server/vite.ts`, which was outside this fix.
+
+## 2026-03-04 Contest Removal
+
+- [x] Remove contest routes, pages, and UI references from the live client surface
+- [x] Remove contest API handlers, jobs, and supporting backend code paths
+- [x] Remove contest-specific schema/storage/runtime references where they are no longer used
+- [x] Revise the wiki and user-facing copy so contests are no longer described as part of active gameplay
+- [x] Validate the repo and document any pre-existing failures separately from this change
+
+Review:
+
+- Removed contest routes, page components, WebSocket events, invalidation paths, storage methods, schema exports, scheduler hooks, seed utilities, and contest-only scripts so the live app no longer exposes contests as a product surface.
+- Replaced contest documentation with boost- and leaderboard-based explanations across the wiki, public metadata, and operational docs, and cleaned leftover support artifacts (ops docs, design notes, RLS helpers, and the bot profile seed CSV) so active repo guidance no longer treats contests as live.
+- Validation passed for `npm run docs:build`, `npm run docs:check`, `npm run check`, `npm run lint`, and `npm run test:run` (the full suite was briefly flaky once in `server/agent/improvement.test.ts` earlier in the pass but passed on immediate re-run and on the latest full run).
+- `npm run dev` reaches normal initialization, route registration, and Vite setup, but a second local launch still hits `EADDRINUSE` on port `5000` because an existing local `node ... server/index.ts` dev process was already bound there; the current listener on `http://127.0.0.1:5000` responds with `200`.
+- Final formatting validation passed: `npm run format:check` now clears repo-wide after reformating the touched markdown/task files.
+
+## 2026-03-04 Wiki Coverage Overhaul
+
+- [x] Audit the live web/API surface and compare it to current `docs/wiki` coverage
+- [x] Expand the existing public wiki articles so they explain core Sportfolio loops in detail
+- [x] Add new canonical wiki articles for missing product areas (feature map, sports coverage, portfolio, contests, glossary, and auxiliary features)
+- [x] Validate the docs surface and run repo checks (`npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`)
+
+Review:
+
+- Expanded the public wiki from 11 total articles to 18 total articles, adding dedicated coverage for platform navigation, portfolio mechanics, contests, sports coverage, platform systems, a glossary, and a deeper agent runtime explainer.
+- Rewrote the short core articles for getting started, player pools, scouts, power, the agent, SMS, FAQ, and CLI so they now match the live AMM-first product and retire outdated vesting-first guidance.
+- `npm run docs:check`, `npm run check`, `npm run lint`, and `npm run test:run` all passed.
+- `npm run format:check` failed only because of the pre-existing formatting issue in `client/src/App.tsx`; a docs-only Prettier check on `docs/wiki/**/*.md` passed.
+
+## 2026-03-04 Hermes Model-First Routing
+
+- [x] Remove heuristic scan and direct-operation pre-routing from the primary Hermes turn path
+- [x] Add a model-first router that decides between direct reply, supported read/research tools, and confirmation-gated plan tools
+- [x] Expand the model-first router to cover the full current Hermes live-tool allowlist (read, scan, plan, action, memory, and compatibility tools)
+- [x] Keep runtime skills as routing hints only instead of hard-selecting tools ahead of the model
+- [x] Stop generic discussion fallbacks from forcing a scout-review reply on non-scout prompts
+- [x] Fix the new agent chat shell ref typing so `npm run check` is green again
+- [x] Update Hermes docs/runbooks to reflect the new model-first routing contract
+- [x] Validate via targeted agent tests, `npm run check`, `npm run lint`, and full `npm run test:run`
+- [x] Run `npm run format:check` and confirm the only remaining failure is the pre-existing formatting drift in `client/src/App.tsx`
+
+Review:
+
+- Normal Hermes turns no longer auto-run regex-selected scan tools or jump straight into direct planners before the model sees the message.
+- The model-first router now covers the full current live tool allowlist, including scan, action, memory, and compatibility tools in addition to the earlier read/plan path.
+- The scout compatibility path no longer injects a forced `review_setup` fallback for generic discussion errors, so non-scout prompts do not collapse into the canned scout review reply.
+- Fixed the new chat-shell ref typing issue in the extracted agent feature so `npm run check` now passes.
+- Validation passed for `npm run check`, `npm run lint`, targeted agent tests, and full `npm run test:run`.
+- `npm run format:check` still fails because of pre-existing formatting drift in `client/src/App.tsx`, which was already modified outside this task.
+
+- [x] 2026-03-04: Investigate the extra pre-dashboard loading screen on initial app load
+- [x] 2026-03-04: Stop blocking public routes on auth bootstrap and remove the redundant pre-dashboard gate
+- [x] 2026-03-04: Reduce landing-path fetch overhead so the dashboard can load without waiting on auth setup
+- [x] 2026-03-04: Validate via `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`
+
+Review:
+
+- Root cause was two-stage client bootstrapping on `/`: the router blocked the entire page on auth initialization, then the landing route still lazy-loaded the dashboard page.
+- The public dashboard request also waited on Supabase auth setup because it always used `authenticatedFetch`, which added avoidable startup latency for unauthenticated and still-initializing sessions.
+- Fixed by eagerly importing the dashboard route, limiting auth-bootstrap blocking/error states to auth-dependent routes only, and letting the dashboard fetch public data immediately before refreshing once auth becomes available.
+- Also gated the header balance query behind `isAuthenticated` so the header no longer triggers a dashboard fetch during anonymous startup.
+- Validation passed: `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`.
+
+- [x] 2026-03-04: Replace the monolithic `/agent` page with a split feature shell (chat shell + drawers + shared view helpers)
+- [x] 2026-03-04: Redesign the agent route around a conversation-first mobile/desktop chat shell
+- [x] 2026-03-04: Remove automatic empty-thread creation and create new threads only from explicit fresh-chat/send actions
+- [x] 2026-03-04: Add focused unit coverage for the extracted agent view helpers
+- [x] 2026-03-04: Validate via `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`
+
+Review:
+
+- Replaced the old 1,900-line single-file route with a thin page wrapper plus a dedicated `client/src/features/agent/` feature module.
+- The new UI is a conversation-first shell on both desktop and mobile: one main chat surface, a left history drawer, and a right settings drawer instead of a persistent split dashboard.
+- New chats now open as a draft state and only hit `POST /api/agent/threads` when the user explicitly starts fresh and sends the first message, which removes the old auto-bootstrap side effect.
+- Proposal cards are now compact by default, with a shorter staged-move summary up front and expandable details for full step-by-step review.
+- Added direct unit coverage for the new shared agent view helpers so the split formatting/comparison logic is not only validated indirectly through route compilation.
+
+- [x] 2026-03-04: Restyle the new agent shell to a darker, flatter dashboard-like visual language
+- [x] 2026-03-04: Replace the bright rounded agent cards with darker blocky chat surfaces and darker drawers
+- [x] 2026-03-04: Validate via `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`
+
+Review:
+
+- Shifted the new agent shell from the bright soft-card look into a darker local route theme with `#131722`/`#0f1420` panel backgrounds and stronger border contrast.
+- Replaced the oversized rounded chat cards with flatter `rounded-md` cards/buttons so the page reads closer to the dashboard and other in-product control surfaces.
+- Updated the drawers, proposal cards, message bubbles, empty state, and composer together so the route now feels visually cohesive instead of mixing a dark shell with bright interior cards.
+
+- [x] 2026-03-04: Tighten the agent shell into a denser terminal-like layout
+- [x] 2026-03-04: Restyle execution confirmation to use dashboard-style card chrome inside the chat flow
+- [x] 2026-03-04: Validate the updated agent UI via targeted checks
+
+Review:
+
+- Reduced spacing across the shell, drawers, messages, and composer so the route now reads more like a compact terminal pane than a roomy chat card layout.
+- Applied a monospace-forward treatment to the main shell and controls, which pushes the route closer to a terminal/operator feel without changing behavior.
+- Swapped the confirmation block from the amber chat-panel look into a neutral card treatment (`bg-card`/border/shadow) so staged execution reads more like a dashboard control surface embedded in the transcript.
+
 - [x] 2026-02-12: Profile admin and scheduler hot paths tied to prod DB pressure
 - [x] 2026-02-12: Replace `/api/admin/stats` full-table fetches with aggregate count queries
 - [x] 2026-02-12: Add short TTL cache for `/api/admin/stats` and invalidate on admin-triggered job/backfill completion
@@ -297,9 +488,9 @@
 
 ## 2026-03-01 Agent UI Backlog
 
-- [ ] Redesign the agent interface on mobile and desktop to use a simpler ChatGPT-style chat shell (clean history, minimal chrome, no clutter like live/status noise)
-- [ ] Align the agent route visual language with the dashboard aesthetic (font, color, spacing, card treatment)
-- [ ] Redesign the Daily Digest to match the dashboard aesthetic instead of using a separate visual style
+- [x] Redesign the agent interface on mobile and desktop to use a simpler ChatGPT-style chat shell (clean history, minimal chrome, no clutter like live/status noise)
+- [x] Align the agent route visual language with the dashboard aesthetic (font, color, spacing, card treatment)
+- [x] Redesign the Daily Digest to match the dashboard aesthetic instead of using a separate visual style
 
 ## 2026-03-01 Agent Action Surface Expansion
 
@@ -454,6 +645,38 @@ Review:
 - The new `scan_daily_boost_candidates` path fixes the exact production misroute where boost-slot questions were falling into scout-style replies.
 - Hermes tool traces now show `tool_first_router` plus the concrete scan tool used, which makes future transcript review and missing-tool audits easier.
 - Local `scripts/agent-smoke.ts` still fails against the stale workstation `.env` database password, but the same smoke passed when run through `railway run --service Sportfolio-Replit ...` with live service env injected.
+
+## 2026-03-03 Hermes Direct Tool Loop + Audit Foundation
+
+- [x] Replace the synthetic `route_user_turn` meta-router path with a direct Hermes model tool loop over real tools
+- [x] Expand the default Hermes tool surface toward primitive read/market/portfolio capabilities and remove `respond_to_user_turn` from the normal allowlist
+- [x] Add executable tool metadata (`inputSchema`, `autoContextArgs`, exposure) and sport-aware context plumbing for tool-driven requests
+- [x] Add a first-pass `agent-audit` script that audits the tool surface and can run safe live advisory turns against a test user
+- [x] Re-run validation on the Hermes changes and document any remaining repo-wide failures outside this scope
+
+Review:
+
+- Hermes now uses a bounded direct tool loop in `server/agent/model-first-router.ts` for normal turns. The model can call real Hermes tools sequentially and only bubbles a plan tool back out when a confirmation-gated preview is needed.
+- The default request payload now exposes a much broader primitive tool surface through Hermes, while the legacy `respond_to_user_turn` compatibility tool is no longer part of the normal allowlist.
+- The new `scripts/agent-audit.ts` script gives the repo a concrete starting point for tool-surface audits and safe live-turn smoke testing.
+- Validation status after this change: `npm run lint` passed, `npm run test:run` passed, `npm run check` still fails because of unrelated pre-existing type errors in contest/bot/server files outside the Hermes scope, and `npm run format:check` still fails because of unrelated pre-existing formatting drift in other files.
+
+## 2026-03-03 Hermes Improvement Loop + Audit Hardening
+
+- [x] Add a durable `user_agent_improvement_candidates` persistence surface for structured remediation candidates
+- [x] Classify weak/failed Hermes turns into concrete failure classes and record remediation candidates without blocking the user-facing turn
+- [x] Expand `scripts/agent-audit.ts` so static coverage audits can run without a live user or DB access and so live audits emit weak-turn flags and simple scores
+- [x] Validate the new improvement loop with targeted tests, full repo tests, and static audit output
+- [x] Attempt live non-destructive audits against the existing smoke user and record the runtime blocker if local env is still misconfigured
+
+Review:
+
+- Hermes now persists clustered remediation candidates in `user_agent_improvement_candidates` instead of leaving failure patterns buried only in `user_agent_runs.raw_response`.
+- Agent runs now attach `failureClass` and `improvementCandidateId` into the stored trace metadata whenever the direct loop, fallback path, or an obviously weak advisory turn indicates a concrete remediation opportunity.
+- `scripts/agent-audit.ts` now has a real static coverage mode that does not require a user id, and live audits now score/flag weak turns using the same failure classifier used for persisted improvement candidates.
+- Validation passed for `npm run check`, `npm run lint`, targeted agent tests, and full `npm run test:run` (`32` files, `172` tests).
+- `npm run format:check` still fails because of unrelated pre-existing formatting drift in many untouched files across the repo.
+- Live non-destructive audit attempts against the prior smoke user still fail locally because the workstation development DB credentials are stale (`password authentication failed for user "postgres"`), so the static audit and test suite passed, but local live audit remains environment-blocked until the DB connection is corrected.
 
 ## 2026-03-03 Hermes-First Skill Cutover
 

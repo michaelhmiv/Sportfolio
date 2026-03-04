@@ -375,7 +375,7 @@ export function PlayerModal({ playerId, open, onOpenChange }: PlayerModalProps) 
                 <Progress
                   value={financialMetrics.sentiment?.buyPressure || 0}
                   className="h-1.5 bg-red-100 dark:bg-red-950/30"
-                  indicatorClassName="bg-gradient-to-r from-red-500 via-yellow-400 to-green-500"
+                  indicatorClassName="bg-amber-500"
                 />
                 <div className="flex justify-between mt-1">
                   <span className="text-[8px] text-muted-foreground">Bearish</span>

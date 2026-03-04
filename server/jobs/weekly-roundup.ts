@@ -5,7 +5,6 @@
  * - Top gainers and losers of the week
  * - Most traded players
  * - Market statistics and trends
- * - Contest highlights
  * - Power rankings changes
  *
  * Runs weekly on Monday at 6 AM ET
@@ -15,8 +14,8 @@ import { storage } from "../storage";
 import { db } from "../db";
 import type { JobResult } from "./scheduler";
 import type { ProgressCallback } from "../lib/admin-stream";
-import { players, trades, contests, contestEntries, users, priceHistory } from "@shared/schema";
-import { sql, desc, eq, gte, and, count, sum } from "drizzle-orm";
+import { trades, users } from "@shared/schema";
+import { desc, eq, gte } from "drizzle-orm";
 import type { Player, Trade } from "@shared/schema";
 
 interface WeeklyStats {
@@ -27,9 +26,6 @@ interface WeeklyStats {
   topGainers: { player: Player; priceChange: number }[];
   topLosers: { player: Player; priceChange: number }[];
   mostTraded: { player: Player; volume: number }[];
-  contestsCompleted: number;
-  totalPrizePool: string;
-  topContestWinner: { username: string; payout: string } | null;
   marketMoverOfWeek: { player: Player; reason: string } | null;
 }
 
@@ -72,7 +68,7 @@ export async function generateWeeklyRoundup(
     progressCallback?.({
       type: "info",
       timestamp: new Date().toISOString(),
-      message: `Found ${weeklyStats.totalTrades} trades and ${weeklyStats.contestsCompleted} completed contests`,
+      message: `Found ${weeklyStats.totalTrades} trades across the last week`,
     });
 
     // Generate the blog post content
@@ -129,7 +125,7 @@ export async function generateWeeklyRoundup(
           slug,
           stats: {
             totalTrades: weeklyStats.totalTrades,
-            contestsCompleted: weeklyStats.contestsCompleted,
+            topGainers: weeklyStats.topGainers.length,
           },
         },
       },
@@ -229,39 +225,6 @@ async function gatherWeeklyStats(startDate: Date, endDate: Date): Promise<Weekly
   });
   const mostActiveTeam = Object.entries(teamVolumes).sort((a, b) => b[1] - a[1])[0]?.[0] || "N/A";
 
-  // Contest stats
-  const completedContests = await db
-    .select()
-    .from(contests)
-    .where(and(eq(contests.status, "completed"), gte(contests.createdAt, startDate)));
-
-  const contestsCompleted = completedContests.length;
-  const totalPrizePool = completedContests
-    .reduce((sum: number, c: any) => sum + parseFloat(c.totalPrizePool || "0"), 0)
-    .toFixed(2);
-
-  // Top contest winner
-  let topContestWinner: { username: string; payout: string } | null = null;
-  if (contestsCompleted > 0) {
-    const topEntry = await db
-      .select({
-        payout: contestEntries.payout,
-        username: users.username,
-      })
-      .from(contestEntries)
-      .innerJoin(users, eq(contestEntries.userId, users.id))
-      .where(gte(contestEntries.createdAt, startDate))
-      .orderBy(desc(contestEntries.payout))
-      .limit(1);
-
-    if (topEntry[0] && parseFloat(topEntry[0].payout) > 0) {
-      topContestWinner = {
-        username: topEntry[0].username || "Anonymous",
-        payout: topEntry[0].payout,
-      };
-    }
-  }
-
   // Market mover of the week
   let marketMoverOfWeek: { player: Player; reason: string } | null = null;
   if (topGainers.length > 0 && topGainers[0].priceChange > 10) {
@@ -284,9 +247,6 @@ async function gatherWeeklyStats(startDate: Date, endDate: Date): Promise<Weekly
     topGainers,
     topLosers,
     mostTraded,
-    contestsCompleted,
-    totalPrizePool,
-    topContestWinner,
     marketMoverOfWeek,
   };
 }
@@ -368,17 +328,6 @@ function generateBlogContent(
     stats.mostTraded.forEach(({ player, volume }) => {
       content += `| ${player.firstName} ${player.lastName} | ${player.team} | $${volume.toFixed(2)} |\n`;
     });
-    content += `\n`;
-  }
-
-  // Contest Highlights
-  if (stats.contestsCompleted > 0) {
-    content += `## Contest Highlights\n\n`;
-    content += `- **Contests Completed:** ${stats.contestsCompleted}\n`;
-    content += `- **Total Prize Pool:** $${stats.totalPrizePool}\n`;
-    if (stats.topContestWinner) {
-      content += `- **Top Winner:** @${stats.topContestWinner.username} won $${stats.topContestWinner.payout}\n`;
-    }
     content += `\n`;
   }
 

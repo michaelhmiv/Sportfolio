@@ -19,7 +19,6 @@
 
 - `/api/public/market-summary`
 - `/api/public/blog`
-- `/api/public/contests`
 
 These endpoints include:
 
@@ -43,7 +42,6 @@ npm run seo:check -- https://www.sportfolio.market
 3. Inspect representative URLs:
    - `/`
    - `/pools`
-   - `/contests`
    - `/blog`
    - `/blog/<slug>`
 4. Confirm unknown routes return 404.

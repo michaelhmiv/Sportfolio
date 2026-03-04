@@ -2,7 +2,7 @@
  * NASCAR Schedule Sync Job
  *
  * Fetches NASCAR race schedules from NASCAR API and updates the database.
- * Stores race information for contest eligibility checking.
+ * Stores race information for slate and boost timing.
  * Supports all 3 series: Cup, Xfinity, and Trucks.
  */
 

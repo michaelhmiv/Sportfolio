@@ -8,7 +8,7 @@ async function boostBots() {
 
   // 1. Boost Market Makers, Traders, and Specialists (High Activity)
   // Cooldown: 10s - 60s (Average 35s per action)
-  const highActivityRoles = ["market_maker", "trader", "contest", "specialist", "taker"];
+  const highActivityRoles = ["market_maker", "trader", "specialist", "taker"];
 
   await db
     .update(botProfiles)

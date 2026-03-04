@@ -76,7 +76,7 @@ function buildBaseJsonLd(siteUrl: string): Array<Record<string, unknown>> {
       "@type": "Organization",
       name: "Sportfolio",
       description:
-        "Fantasy sports stock market platform where users trade player shares, scout players, and compete in contests.",
+        "Fantasy sports stock market platform where users trade player shares, scout players, and use boost mechanics.",
       url: siteUrl,
       logo: `${siteUrl}/favicon.png`,
     },
@@ -137,12 +137,6 @@ function buildBreadcrumbJsonLd(
   } else if (/^\/blog\/[^/]+$/.test(normalizedPath)) {
     breadcrumbs.push({ name: "Blog", url: `${siteUrl}/blog` });
     breadcrumbs.push({ name: pageTitle, url: `${siteUrl}/blog/${slug}` });
-  } else if (normalizedPath === "/contests") {
-    breadcrumbs.push({ name: "Contests", url: `${siteUrl}/contests` });
-  } else if (/^\/contest\/[^/]+\/leaderboard$/.test(normalizedPath)) {
-    const contestId = normalizedPath.split("/")[2] || "";
-    breadcrumbs.push({ name: "Contests", url: `${siteUrl}/contests` });
-    breadcrumbs.push({ name: "Leaderboard", url: `${siteUrl}/contest/${contestId}/leaderboard` });
   } else if (normalizedPath !== "/") {
     breadcrumbs.push({ name: pageTitle, url: `${siteUrl}${normalizedPath}` });
   }
@@ -266,26 +260,57 @@ function buildPrerenderedBody({
 
   if (normalizedPath === "/") {
     return `
-      <main style="max-width:56rem;margin:2rem auto;padding:0 1rem;">
-        <h1>Sportfolio</h1>
-        <p>${escapeHtml(meta.description)}</p>
-        <ul>
-          <li><a href="/pools">Explore player pools</a></li>
-          <li><a href="/contests">Browse contests</a></li>
-          <li><a href="/leaderboards">View leaderboards</a></li>
-          <li><a href="/blog">Read the latest analysis</a></li>
-        </ul>
-      </main>
-    `;
-  }
-
-  if (normalizedPath === "/contests") {
-    return `
-      <main style="max-width:56rem;margin:2rem auto;padding:0 1rem;">
-        <h1>Contests</h1>
-        <p>${escapeHtml(meta.description)}</p>
-        <p>See active and upcoming contests with leaderboard tracking and settlement updates.</p>
-      </main>
+      <div class="sf-boot">
+        <main class="sf-boot__panel" aria-labelledby="sf-boot-title">
+          <div class="sf-boot__topline">
+            <span>System</span>
+            <span class="sf-boot__topline-value">Public Market Terminal</span>
+          </div>
+          <div class="sf-boot__body">
+            <p class="sf-boot__eyebrow">Live Market Boot</p>
+            <h1 id="sf-boot-title" class="sf-boot__title">Sportfolio</h1>
+            <p class="sf-boot__status">Loading live markets, boosts, and leaderboards</p>
+            <p class="sf-boot__copy">
+              Real-time pricing, player pools, and boost systems are initializing now.
+            </p>
+            <div class="sf-boot__board" aria-label="Startup status">
+              <div class="sf-boot__row">
+                <span class="sf-boot__label">Surface</span>
+                <span class="sf-boot__value">Public Dashboard</span>
+              </div>
+              <div class="sf-boot__row">
+                <span class="sf-boot__label">Modules</span>
+                <span class="sf-boot__value">Pools | Boosts | Leaders</span>
+              </div>
+              <div class="sf-boot__row">
+                <span class="sf-boot__label">State</span>
+                <span class="sf-boot__value sf-boot__value--positive">Syncing Live Market Data</span>
+              </div>
+            </div>
+            <ul class="sf-boot__chips" aria-label="Core product areas">
+              <li class="sf-boot__chip">Player Pools</li>
+              <li class="sf-boot__chip">Daily Boosts</li>
+              <li class="sf-boot__chip">Leaderboards</li>
+              <li class="sf-boot__chip">Analysis</li>
+            </ul>
+            <div class="sf-boot__footer" role="status" aria-live="polite">
+              <span class="sf-boot__spinner" aria-hidden="true"></span>
+              <span class="sf-boot__footer-text">Fetching live game and market data...</span>
+            </div>
+            <noscript>
+              <div class="sf-boot__noscript">
+                <p>JavaScript is required for the live Sportfolio app. You can still browse the public sections below.</p>
+                <div class="sf-boot__noscript-links">
+                  <a href="/pools">Player Pools</a>
+                  <a href="/wiki">Wiki</a>
+                  <a href="/leaderboards">Leaderboards</a>
+                  <a href="/blog">Analysis</a>
+                </div>
+              </div>
+            </noscript>
+          </div>
+        </main>
+      </div>
     `;
   }
 
@@ -294,7 +319,7 @@ function buildPrerenderedBody({
       <main style="max-width:56rem;margin:2rem auto;padding:0 1rem;">
         <h1>Leaderboards</h1>
         <p>${escapeHtml(meta.description)}</p>
-        <p>Track top portfolios, contest outcomes, and active traders.</p>
+        <p>Track top portfolios, boost performance, and active traders.</p>
       </main>
     `;
   }

@@ -305,9 +305,9 @@ Players can be specified as:
 
 ---
 
-## Integration Example for Grading Contests
+## Integration Example for Grading Game Outcomes
 
-To fetch player gamelogs for grading contests:
+To fetch player gamelogs for grading game-based mechanics:
 
 ```javascript
 // Example: Get all player stats for a specific game

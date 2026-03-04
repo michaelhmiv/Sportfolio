@@ -2,6 +2,7 @@ import {
   userAgentProfiles,
   userAgentSecrets,
   userAgentRuns,
+  userAgentImprovementCandidates,
   userAgentProposals,
   players,
   updateUserAgentProfileInputSchema,
@@ -16,6 +17,7 @@ import { encryptText, getEncryptionVersion } from "../lib/encryption";
 import { loadScoutAgentContext } from "./context-loader";
 import { executeScoutProposalActions } from "./executor";
 import { runHermesAgentTurn } from "./hermes-client";
+import { buildAgentImprovementCandidate } from "./improvement";
 import { buildHermesMemoryContext, persistProposedMemoryWrites } from "./memory";
 import { normalizeOpenAICompatibleBaseUrl } from "./pi-provider";
 import { getManagedProviderStatus } from "./provider-registry";
@@ -25,9 +27,12 @@ import { MANAGED_MODEL_PLACEHOLDER } from "./types";
 import type {
   AgentAnalysisResult,
   AgentCapabilitiesView,
+  AgentImprovementCandidate,
   AgentProfileView,
   AgentSecretMetadata,
   AgentSemanticRoute,
+  AgentToolTrace,
+  HermesRespondResult,
   ManagedProviderStatus,
   ScoutProposalAction,
 } from "./types";
@@ -169,14 +174,107 @@ function classifyAgentRunOutcome(input: {
 function attachOutcomeCategoryToTrace(
   trace: Record<string, unknown> | null | undefined,
   outcomeCategory: AgentRunOutcomeCategory,
+  extras: Record<string, unknown> = {},
 ): Record<string, unknown> {
   if (!trace) {
-    return { outcomeCategory };
+    return {
+      outcomeCategory,
+      ...extras,
+    };
   }
 
   return {
     ...trace,
     outcomeCategory,
+    ...extras,
+  };
+}
+
+async function recordImprovementCandidate(input: {
+  userId: string;
+  runId: string;
+  requestMessage: string | null;
+  outcome: HermesRespondResult["outcome"] | "error";
+  assistantText: string;
+  summary: string | null;
+  warnings: string[];
+  toolTrace: AgentToolTrace[];
+  toolCallsUsed: string[];
+  fallbackUsed?: boolean;
+}): Promise<{
+  id: string;
+  failureClass: AgentImprovementCandidate["failureClass"];
+} | null> {
+  const candidate = buildAgentImprovementCandidate({
+    requestMessage: input.requestMessage,
+    outcome: input.outcome,
+    assistantText: input.assistantText,
+    summary: input.summary,
+    warnings: input.warnings,
+    toolTrace: input.toolTrace,
+    toolCallsUsed: input.toolCallsUsed,
+    fallbackUsed: input.fallbackUsed,
+  });
+
+  if (!candidate) {
+    return null;
+  }
+
+  let row:
+    | {
+        id: string;
+        failureClass: string;
+      }
+    | undefined;
+
+  try {
+    [row] = await db
+      .insert(userAgentImprovementCandidates)
+      .values({
+        signature: candidate.signature,
+        userId: input.userId,
+        sourceRunId: input.runId,
+        status: "new",
+        failureClass: candidate.failureClass,
+        recommendedChangeType: candidate.recommendedChangeType,
+        recommendedChange: candidate.recommendedChange,
+        affectedTools: candidate.affectedTools,
+        evidence: candidate.evidence,
+        confidence: toNumberString(candidate.confidence, 3),
+        lastSeenAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: userAgentImprovementCandidates.signature,
+        set: {
+          userId: input.userId,
+          sourceRunId: input.runId,
+          failureClass: candidate.failureClass,
+          recommendedChangeType: candidate.recommendedChangeType,
+          recommendedChange: candidate.recommendedChange,
+          affectedTools: candidate.affectedTools,
+          evidence: candidate.evidence,
+          confidence: toNumberString(candidate.confidence, 3),
+          occurrenceCount: sql`${userAgentImprovementCandidates.occurrenceCount} + 1`,
+          lastSeenAt: new Date(),
+          updatedAt: new Date(),
+        },
+      })
+      .returning({
+        id: userAgentImprovementCandidates.id,
+        failureClass: userAgentImprovementCandidates.failureClass,
+      });
+  } catch {
+    return null;
+  }
+
+  if (!row) {
+    return null;
+  }
+
+  return {
+    id: row.id,
+    failureClass: row.failureClass as AgentImprovementCandidate["failureClass"],
   };
 }
 
@@ -300,6 +398,55 @@ async function getRunById(userId: string, runId: string) {
     .limit(1);
 
   return run;
+}
+
+export async function listAgentImprovementCandidates(input?: {
+  userId?: string;
+  status?: AgentImprovementCandidate["status"];
+  limit?: number;
+}): Promise<AgentImprovementCandidate[]> {
+  const limit = Math.max(1, Math.min(input?.limit || 10, 100));
+  const conditions = [];
+
+  if (input?.userId) {
+    conditions.push(eq(userAgentImprovementCandidates.userId, input.userId));
+  }
+
+  if (input?.status) {
+    conditions.push(eq(userAgentImprovementCandidates.status, input.status));
+  }
+
+  const baseQuery = db.select().from(userAgentImprovementCandidates);
+  const rows = await (conditions.length > 0 ? baseQuery.where(and(...conditions)) : baseQuery)
+    .orderBy(
+      desc(userAgentImprovementCandidates.occurrenceCount),
+      desc(userAgentImprovementCandidates.lastSeenAt),
+    )
+    .limit(limit);
+
+  return rows.map((row) => ({
+    id: row.id,
+    signature: row.signature,
+    userId: row.userId,
+    sourceRunId: row.sourceRunId,
+    status: row.status as AgentImprovementCandidate["status"],
+    failureClass: row.failureClass as AgentImprovementCandidate["failureClass"],
+    recommendedChangeType:
+      row.recommendedChangeType as AgentImprovementCandidate["recommendedChangeType"],
+    recommendedChange: row.recommendedChange,
+    affectedTools: Array.isArray(row.affectedTools)
+      ? row.affectedTools.filter((entry): entry is string => typeof entry === "string")
+      : [],
+    evidence:
+      row.evidence && typeof row.evidence === "object"
+        ? (row.evidence as Record<string, unknown>)
+        : {},
+    confidence: Number(row.confidence || "0"),
+    occurrenceCount: row.occurrenceCount || 0,
+    lastSeenAt: row.lastSeenAt,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  }));
 }
 
 async function getProposalRowsForRun(userId: string, runId: string) {
@@ -639,6 +786,19 @@ export async function analyzeScoutAgent(
       });
     }
 
+    const improvementCandidateRecord = await recordImprovementCandidate({
+      userId,
+      runId: run.id,
+      requestMessage,
+      outcome: hermesResult.outcome,
+      assistantText: hermesResult.assistantText,
+      summary: hermesResult.summary,
+      warnings: hermesResult.warnings,
+      toolTrace: hermesResult.toolTrace,
+      toolCallsUsed: hermesResult.toolCallsUsed,
+      fallbackUsed: hermesResult.fallbackUsed,
+    });
+
     await db
       .update(userAgentRuns)
       .set({
@@ -659,6 +819,10 @@ export async function analyzeScoutAgent(
               toolTrace: hermesResult.toolTrace,
             },
             outcomeCategory,
+            {
+              failureClass: improvementCandidateRecord?.failureClass || null,
+              improvementCandidateId: improvementCandidateRecord?.id || null,
+            },
           ),
           parsed: {
             outcome: hermesResult.outcome,
@@ -678,6 +842,8 @@ export async function analyzeScoutAgent(
             requiresConfirmation: hermesResult.requiresConfirmation,
             confirmationPreview: hermesResult.confirmationPreview,
             outcomeCategory,
+            failureClass: improvementCandidateRecord?.failureClass || null,
+            improvementCandidateId: improvementCandidateRecord?.id || null,
           },
         },
         parsedSummary: hermesResult.summary,
@@ -709,13 +875,28 @@ export async function analyzeScoutAgent(
     const outcomeCategory = classifyAgentRunOutcome({
       errorMessage,
     });
+    const improvementCandidateRecord = await recordImprovementCandidate({
+      userId,
+      runId: run.id,
+      requestMessage,
+      outcome: "error",
+      assistantText: errorMessage,
+      summary: null,
+      warnings: [errorMessage],
+      toolTrace: [],
+      toolCallsUsed: [],
+      fallbackUsed: false,
+    });
 
     await db
       .update(userAgentRuns)
       .set({
         status: "failed",
         rawResponse: {
-          trace: attachOutcomeCategoryToTrace(null, outcomeCategory),
+          trace: attachOutcomeCategoryToTrace(null, outcomeCategory, {
+            failureClass: improvementCandidateRecord?.failureClass || null,
+            improvementCandidateId: improvementCandidateRecord?.id || null,
+          }),
         },
         errorMessage,
         completedAt: new Date(),

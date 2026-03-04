@@ -1380,19 +1380,12 @@ export async function runScoutDiscussionTurn(input: {
     semanticRouteHint: input.semanticRouteHint,
     source: "fast_path",
   });
-  const fallbackDraftPlan =
-    buildDeterministicPlan({
-      context: input.context,
-      chatRequest: input.chatRequest,
-      semanticRouteHint: input.semanticRouteHint,
-      source: "fallback",
-    }) ||
-    buildDeterministicReviewPlan({
-      context: input.context,
-      chatRequest: input.chatRequest,
-      semanticRouteHint: "review_setup",
-      source: "fallback",
-    });
+  const fallbackDraftPlan = buildDeterministicPlan({
+    context: input.context,
+    chatRequest: input.chatRequest,
+    semanticRouteHint: input.semanticRouteHint,
+    source: "fallback",
+  });
   const allowWebResearchTool = Boolean(
     input.chatRequest &&
     shouldUseHostedWebResearch(input.chatRequest) &&
@@ -1547,7 +1540,7 @@ export async function runScoutDiscussionTurn(input: {
           query: searchQuery,
           citations,
         })
-      : "I can talk through the scouting tradeoffs, but I need a clearer angle before I recommend a concrete move.");
+      : "I can help with that, but I need a clearer angle before I recommend a concrete move.");
 
   if ((errorMessage || wasProviderTruncated) && fallbackDraftPlan && citations.length === 0) {
     return {

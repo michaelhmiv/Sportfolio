@@ -29,12 +29,6 @@ CREATE POLICY "Allow public read on player_game_stats"
   FOR SELECT 
   USING (true);
 
--- Contests - public contest listings
-CREATE POLICY "Allow public read on contests" 
-  ON contests 
-  FOR SELECT 
-  USING (true);
-
 -- Price history - public market data
 CREATE POLICY "Allow public read on price_history" 
   ON price_history 
@@ -69,8 +63,8 @@ CREATE POLICY "Allow public read on trades"
 -- SERVICE-ONLY TABLES (already protected by no policies - leave as is)
 -- ============================================================================
 -- users, sessions, holdings, holdings_locks, balance_locks, vesting, 
--- vesting_splits, vesting_claims, vesting_presets, contest_entries,
--- contest_lineups, job_execution_logs, portfolio_snapshots, bot_profiles,
+-- vesting_splits, vesting_claims, vesting_presets, job_execution_logs,
+-- portfolio_snapshots, bot_profiles,
 -- bot_actions_log, premium_checkout_sessions, premium_orders, premium_trades,
 -- whop_payments, tweet_settings, tweet_history
 

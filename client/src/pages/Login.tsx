@@ -187,36 +187,47 @@ export default function Login() {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen p-4" data-testid="login-page">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl" data-testid="login-title">
-            Welcome
-          </CardTitle>
-          <CardDescription>Sign in to your account or create a new one</CardDescription>
+    <div
+      className="terminal-page flex min-h-screen items-center justify-center p-4"
+      data-testid="login-page"
+    >
+      <Card variant="terminal" className="terminal-shell w-full max-w-md">
+        <CardHeader className="space-y-3 border-b border-border pb-4 text-left">
+          <div className="terminal-strip">Account Access</div>
+          <div>
+            <CardTitle className="terminal-heading text-2xl" data-testid="login-title">
+              User Terminal
+            </CardTitle>
+            <CardDescription className="terminal-subtle mt-2">
+              Sign in to your account or create a new one.
+            </CardDescription>
+          </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-4">
           <Tabs
             value={activeTab}
             onValueChange={(value) => setActiveTab(value as AuthTab)}
             className="w-full"
           >
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="login" data-testid="tab-login">
+            <TabsList variant="terminal" className="grid w-full grid-cols-2">
+              <TabsTrigger variant="terminal" value="login" data-testid="tab-login">
                 Login
               </TabsTrigger>
-              <TabsTrigger value="signup" data-testid="tab-signup">
+              <TabsTrigger variant="terminal" value="signup" data-testid="tab-signup">
                 Sign Up
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="login">
+            <TabsContent value="login" className="mt-4">
               <form onSubmit={handleLogin} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="login-email">Email</Label>
+                  <Label htmlFor="login-email" className="terminal-label">
+                    Email
+                  </Label>
                   <Input
                     id="login-email"
                     type="email"
+                    variant="terminal"
                     placeholder="you@example.com"
                     value={email}
                     onChange={(e) => handleEmailChange(e.target.value)}
@@ -233,10 +244,13 @@ export default function Login() {
                   )}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="login-password">Password</Label>
+                  <Label htmlFor="login-password" className="terminal-label">
+                    Password
+                  </Label>
                   <Input
                     id="login-password"
                     type="password"
+                    variant="terminal"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
@@ -245,6 +259,7 @@ export default function Login() {
                 </div>
                 <Button
                   type="submit"
+                  variant="terminal"
                   className="w-full"
                   disabled={isLoading || !emailIsValid || password.length === 0}
                   data-testid="button-login-submit"
@@ -261,25 +276,23 @@ export default function Login() {
               </form>
             </TabsContent>
 
-            <TabsContent value="signup">
+            <TabsContent value="signup" className="mt-4">
               {signupSuccessEmail ? (
-                <div className="space-y-4 rounded-lg border border-primary/30 bg-primary/5 p-4">
+                <div className="terminal-shell space-y-4 rounded-sm border border-primary/20 bg-primary/5 p-4">
                   <div className="flex items-start gap-3">
                     <CheckCircle2 className="h-5 w-5 text-primary mt-0.5" />
                     <div>
-                      <p className="font-medium">Verification email sent</p>
-                      <p className="text-sm text-muted-foreground break-all">
-                        {signupSuccessEmail}
-                      </p>
+                      <p className="terminal-label text-primary">Verification Sent</p>
+                      <p className="terminal-value mt-1 break-all text-sm">{signupSuccessEmail}</p>
                     </div>
                   </div>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="terminal-subtle">
                     Open your inbox and click the verification link before signing in.
                   </p>
                   <div className="flex items-center gap-2">
                     <Button
                       type="button"
-                      variant="outline"
+                      variant="terminalOutline"
                       className="flex-1"
                       onClick={handleResendVerification}
                       disabled={isResendingVerification}
@@ -293,6 +306,7 @@ export default function Login() {
                     </Button>
                     <Button
                       type="button"
+                      variant="terminal"
                       className="flex-1"
                       onClick={() => setActiveTab("login")}
                       data-testid="button-back-to-signin"
@@ -304,10 +318,13 @@ export default function Login() {
               ) : (
                 <form onSubmit={handleSignup} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="signup-email">Email</Label>
+                    <Label htmlFor="signup-email" className="terminal-label">
+                      Email
+                    </Label>
                     <Input
                       id="signup-email"
                       type="email"
+                      variant="terminal"
                       placeholder="you@example.com"
                       value={email}
                       onChange={(e) => handleEmailChange(e.target.value)}
@@ -324,10 +341,13 @@ export default function Login() {
                     )}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="signup-password">Password</Label>
+                    <Label htmlFor="signup-password" className="terminal-label">
+                      Password
+                    </Label>
                     <Input
                       id="signup-password"
                       type="password"
+                      variant="terminal"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       required
@@ -335,10 +355,13 @@ export default function Login() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="confirm-password">Confirm Password</Label>
+                    <Label htmlFor="confirm-password" className="terminal-label">
+                      Confirm Password
+                    </Label>
                     <Input
                       id="confirm-password"
                       type="password"
+                      variant="terminal"
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       required
@@ -347,6 +370,7 @@ export default function Login() {
                   </div>
                   <Button
                     type="submit"
+                    variant="terminal"
                     className="w-full"
                     disabled={isLoading || !emailIsValid}
                     data-testid="button-signup-submit"
@@ -367,16 +391,18 @@ export default function Login() {
 
           <div className="relative my-6">
             <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t" />
+              <span className="w-full border-t border-border" />
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
+              <span className="bg-card px-2 font-mono text-[11px] tracking-[0.08em] text-muted-foreground">
+                Or continue with
+              </span>
             </div>
           </div>
 
           <Button
             type="button"
-            variant="outline"
+            variant="terminalOutline"
             className="w-full"
             onClick={handleGoogleLogin}
             disabled={isLoading}

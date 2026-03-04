@@ -134,7 +134,7 @@ export function CardAccent({
     success: "bg-emerald-500",
     warning: "bg-yellow-500",
     destructive: "bg-red-500",
-    premium: "bg-gradient-to-r from-yellow-400 to-amber-500",
+    premium: "bg-amber-500",
   };
 
   const intensityMap = {
@@ -183,13 +183,12 @@ export function DecorativeIcon({
     success: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
     warning: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20",
     destructive: "bg-red-500/10 text-red-500 border-red-500/20",
-    premium:
-      "bg-gradient-to-br from-yellow-400/20 to-amber-500/20 text-yellow-500 border-yellow-500/30",
+    premium: "bg-amber-500/15 text-yellow-500 border-yellow-500/30",
     muted: "bg-muted text-muted-foreground border-border",
   };
 
   const variantMap = {
-    circle: "rounded-full",
+    circle: "rounded-sm",
     square: "rounded-md",
     diamond: "rounded-md rotate-45",
   };
@@ -201,7 +200,7 @@ export function DecorativeIcon({
         sizeMap[size],
         colorMap[color],
         variantMap[variant],
-        glow && "shadow-lg",
+        glow && "ring-1 ring-border/60",
         className,
       )}
     >
@@ -262,10 +261,10 @@ export function StatusIndicator({
   return (
     <div className={cn("flex items-center gap-2", className)}>
       <div className={cn("relative", sizeMap[size])}>
-        <div className={cn("rounded-full", color, sizeMap[size])} />
+        <div className={cn("rounded-sm", color, sizeMap[size])} />
         {pulse && (
           <div
-            className={cn("absolute inset-0 rounded-full animate-ping", color, sizeMap[size])}
+            className={cn("absolute inset-0 rounded-sm animate-ping", color, sizeMap[size])}
             style={{ opacity: 0.4 }}
           />
         )}
@@ -307,7 +306,7 @@ export function TierBadge({ tier, size = "md", className }: TierBadgeProps) {
         className,
       )}
     >
-      {tier >= 4 && "⚡"}
+      {tier >= 4 && "+"}
       {label}
     </span>
   );
@@ -327,9 +326,9 @@ export function Medal({ rank, size = "md", className }: MedalProps) {
   };
 
   const medalMap = {
-    1: { color: "bg-gradient-to-br from-yellow-300 to-yellow-600 text-yellow-950", icon: "🥇" },
-    2: { color: "bg-gradient-to-br from-gray-300 to-gray-500 text-gray-950", icon: "🥈" },
-    3: { color: "bg-gradient-to-br from-amber-600 to-amber-800 text-amber-100", icon: "🥉" },
+    1: { color: "bg-yellow-500/20 text-yellow-200", icon: "1" },
+    2: { color: "bg-slate-400/20 text-slate-200", icon: "2" },
+    3: { color: "bg-amber-700/20 text-amber-100", icon: "3" },
   };
 
   const { color, icon } = medalMap[rank];
@@ -337,7 +336,7 @@ export function Medal({ rank, size = "md", className }: MedalProps) {
   return (
     <div
       className={cn(
-        "flex items-center justify-center rounded-full font-bold shadow-lg",
+        "flex items-center justify-center rounded-sm font-bold shadow-none",
         sizeMap[size],
         color,
         className,
@@ -377,13 +376,13 @@ export function GradientBorder({
   return (
     <div
       className={cn(
-        "rounded-lg bg-gradient-to-r",
+        "rounded-sm border border-border bg-card",
         gradientMap[variant],
         intensityMap[intensity],
         className,
       )}
     >
-      <div className="h-full w-full rounded-lg bg-card">{children}</div>
+      <div className="h-full w-full rounded-sm bg-card">{children}</div>
     </div>
   );
 }

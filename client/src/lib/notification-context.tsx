@@ -46,19 +46,9 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       }
     });
 
-    // 3. Contest settlements (you won/placed in a contest)
-    // contestSettled events are user-specific
-    const unsubContestSettled = subscribe("contestSettled", (data: { userId?: string }) => {
-      // Only increment if this settlement is for the current user
-      if (!data.userId || (user?.id && data.userId === user.id)) {
-        setUnreadCount((prev) => prev + 1);
-      }
-    });
-
     return () => {
       unsubPortfolio();
       unsubTrade();
-      unsubContestSettled();
     };
   }, [subscribe, user?.id]);
 

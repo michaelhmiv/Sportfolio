@@ -65,12 +65,12 @@ export function MilestoneBadge({ milestone, size = "md", onClick }: MilestoneBad
       whileTap={{ scale: 0.95 }}
       onClick={onClick}
       className={cn(
-        "relative rounded-full flex items-center justify-center cursor-pointer",
+        "relative rounded-sm flex items-center justify-center cursor-pointer",
         "border-2 transition-all duration-200",
         sizeClasses[size],
         colors.bg,
         colors.border,
-        onClick && "hover:shadow-md",
+        onClick && "hover:border-border/80",
       )}
       title={`${milestone.milestoneType}: ${formatMilestoneValue(value)}`}
     >
@@ -83,7 +83,7 @@ export function MilestoneBadge({ milestone, size = "md", onClick }: MilestoneBad
 
       {/* Shine effect */}
       <motion.div
-        className="absolute inset-0 rounded-full pointer-events-none"
+        className="absolute inset-0 rounded-sm pointer-events-none"
         animate={{
           background: [
             "linear-gradient(135deg, transparent 40%, rgba(255,255,255,0.2) 50%, transparent 60%)",
@@ -144,7 +144,7 @@ export function MilestoneBadgeList({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           className={cn(
-            "flex items-center justify-center rounded-full bg-muted text-muted-foreground font-medium",
+            "flex items-center justify-center rounded-sm bg-muted font-medium text-muted-foreground",
             size === "sm" && "w-8 h-8 text-xs",
             size === "md" && "w-10 h-10 text-sm",
             size === "lg" && "w-12 h-12 text-base",

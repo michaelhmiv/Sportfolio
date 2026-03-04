@@ -106,7 +106,7 @@ export function Confetti({
           >
             {particle.type === "coin" ? (
               <div
-                className="w-6 h-6 rounded-full border-2 flex items-center justify-center font-bold text-xs"
+                className="flex h-6 w-6 items-center justify-center rounded-sm border-2 font-bold text-xs"
                 style={{
                   backgroundColor: particle.color,
                   borderColor: "#8B6914",
@@ -116,7 +116,7 @@ export function Confetti({
                 $
               </div>
             ) : particle.type === "circle" ? (
-              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: particle.color }} />
+              <div className="h-3 w-3 rounded-sm" style={{ backgroundColor: particle.color }} />
             ) : (
               <div className="w-3 h-3" style={{ backgroundColor: particle.color }} />
             )}
@@ -162,13 +162,13 @@ export function CelebrationBurst({ active, onComplete }: CelebrationBurstProps) 
               opacity: [0.5, 0.2, 0],
             }}
             transition={{ duration: 0.8, ease: "easeOut" }}
-            className="absolute w-32 h-32 rounded-full bg-emerald-500/30"
+            className="absolute h-32 w-32 rounded-sm bg-emerald-500/30"
           />
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ type: "spring", stiffness: 400, damping: 20, delay: 0.1 }}
-            className="relative z-10 bg-emerald-500 text-white p-4 rounded-full shadow-xl"
+            className="relative z-10 rounded-sm bg-emerald-500 p-4 text-white shadow-none"
           >
             <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <motion.path
@@ -221,7 +221,7 @@ export function Sparkle({ active, className }: SparkleProps) {
               }}
               className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
             >
-              <div className="w-2 h-2 bg-yellow-400 rounded-full" />
+              <div className="h-2 w-2 rounded-sm bg-yellow-400" />
             </motion.div>
           ))}
         </div>

@@ -87,12 +87,12 @@
 - Player avatar(s) being vested with small badges
 - Prominent "Claim All" button (full-width, primary CTA)
 
-**Contest Cards:**
+**Slate Cards:**
 
-- Card format: Sport badge + Contest name + Prize pool (large $) + Shares entered
-- Live indicator dot for active contests
-- Progress bar showing fill percentage
-- "Enter" CTA button (secondary style)
+- Card format: Sport badge + slate name + game count + key market summary
+- Live indicator dot for active slates
+- Progress bar showing games completed
+- "Open Markets" CTA button (secondary style)
 
 ### Trading Interface
 
@@ -129,19 +129,19 @@
 - "Cancel" button (text link, red) on each row
 - Real-time status updates via WebSocket
 
-### Contest Interface
+### Progress Interface
 
-**Contest Slate Builder:**
+**Boost Assignment Panel:**
 
-- Split view: Left panel (Available shares), Right panel (Selected lineup)
-- Left: Search bar + filters (Team, Position) + scrollable player list
-- Player rows: Avatar + Name + Shares owned + "Add" button
-- Right: Selected players table with quantity inputs + "Submit Entry" button
-- Live total shares counter at bottom of right panel
+- Split view: Left panel (Eligible holdings), Right panel (Active boost slots)
+- Left: Search bar + sport filters + scrollable player list
+- Player rows: Avatar + Name + Shares owned + "Assign" button
+- Right: Assigned players with slot labels, power tier, and lock status
+- Live remaining-slot counter at the bottom of the right panel
 
 **Live Leaderboard:**
 
-- Sticky header: User's current rank (large) + total contestants
+- Sticky header: User's current rank (large) + total ranked users
 - Table: Rank | User | Total Points | Details (expand)
 - User's row highlighted with subtle background
 - Expandable details show per-player breakdown
@@ -180,7 +180,7 @@
 **Icon Usage:**
 
 - Sport icons (basketball, etc.) as small badges
-- Status indicators (vesting active, contest live)
+- Status indicators (market live, boost locked)
 - Trade type icons (buy/sell arrows)
 - Premium feature icon (crown/star badge)
   Use Heroicons via CDN for all UI icons.
@@ -214,10 +214,10 @@
 - Sortable columns for price/volume/change
 - Click row to navigate to player page
 
-**Contest Entry Flow:**
+**Boost Assignment Flow:**
 
 - Multi-step wizard feel without actual steps
-- Inline validation (can't enter more shares than owned)
+- Inline validation (can't assign locked or unavailable shares)
 - Real-time eligible player filtering based on game schedule
 
 This design prioritizes trader efficiency, data clarity, and real-time information flow above all aesthetic concerns.
