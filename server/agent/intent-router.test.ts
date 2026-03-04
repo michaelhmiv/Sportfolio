@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PiRuntime } from "./pi-provider";
+import { sandboxThreadFixture } from "../../tests/fixtures/agent/sandbox-thread";
 
 const completeSimpleMock = vi.fn();
 
@@ -50,6 +51,19 @@ describe("intent-router", () => {
     });
 
     expect(completeSimpleMock).not.toHaveBeenCalled();
+    expect(result.mode).toBe("discussion");
+    expect(result.source).toBe("heuristic");
+  });
+
+  it("supports sandbox fixture phrasing for deterministic advisory mode", async () => {
+    const { resolveAgentRequestModeWithFallback } = await import("./intent-router");
+
+    const result = await resolveAgentRequestModeWithFallback({
+      runtime: buildRuntime(),
+      message: sandboxThreadFixture.messages[0].content,
+      semanticRoute: sandboxThreadFixture.metadata.semanticRoute,
+    });
+
     expect(result.mode).toBe("discussion");
     expect(result.source).toBe("heuristic");
   });

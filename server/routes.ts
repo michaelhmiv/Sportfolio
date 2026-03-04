@@ -45,12 +45,7 @@ import { calculateAccrualUpdate } from "@shared/vesting-utils";
 import { setupAuth, isAuthenticated, optionalAuth } from "./supabaseAuth";
 import { getGameDay, getETDayBoundaries, getTodayETBoundaries, getTodayET } from "./lib/time";
 import { getOrCompute } from "./cache";
-import { registerAmmRoutes } from "./routes/amm";
-import { registerCliRoutes } from "./routes/cli";
-import { registerDocsRoutes } from "./routes/docs";
-import { registerInternalAgentToolRoutes } from "./routes/internal-agent-tools";
-import { registerLpRoutes } from "./routes/lp";
-import { registerSmsRoutes } from "./routes/sms";
+import { registerDomainRoutes } from "./routes/register-domain-routes";
 import { getOrCreatePool, initializePool } from "./amm/pool";
 import { normalizeSiteUrl } from "@shared/seo";
 import { ensureSmsSchema } from "./sms-service";
@@ -11341,17 +11336,8 @@ ${items}
   // Initialize data
   await initializePlayers();
 
-  // Register AMM routes for instant trading
-  registerAmmRoutes(app);
-
-  // Register LP routes for liquidity provider functionality
-  registerLpRoutes(app);
-
-  // Register public docs and CLI routes after core APIs are available
-  registerDocsRoutes(app);
-  registerCliRoutes(app);
-  registerSmsRoutes(app);
-  registerInternalAgentToolRoutes(app);
+  // Register secondary domain route modules after core APIs are available
+  registerDomainRoutes(app);
 
   return httpServer;
 }

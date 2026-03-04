@@ -32,7 +32,13 @@
     "mobile:build:android": "node scripts/run-gradle-wrapper.mjs assembleRelease",
     "mobile:install:android": "node scripts/run-gradle-wrapper.mjs installDebug",
     "build:client": "vite build",
-    "prepare": "husky"
+    "prepare": "husky",
+    "openapi:check": "node scripts/openapi-check.mjs",
+    "invariants:check": "node scripts/check-agent-invariants.mjs",
+    "qa:smoke": "node scripts/agent-readiness-smoke.mjs",
+    "agent:debug": "node scripts/agent-debug-loop.mjs",
+    "agent:improve": "node scripts/agent-self-improve.mjs",
+    "text:check": "node scripts/check-text-encoding.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.0.2",

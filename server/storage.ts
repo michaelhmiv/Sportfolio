@@ -105,40 +105,7 @@ import { alias, unionAll } from "drizzle-orm/pg-core";
 import { randomUUID } from "crypto";
 import { getETDayBoundaries, getGameDay } from "./lib/time";
 import { choosePreferredDailyGame } from "./lib/daily-game-dedupe";
-
-// Season helper: Get current competitive season patterns (regular + playoffs, exclude preseason)
-// Returns array of season strings to include in queries
-//
-// NBA Calendar:
-// - July-September: Offseason (no games, but prepare for upcoming season)
-// - October: Preseason begins (new season, but EXCLUDED from competitive stats)
-// - October-April: Regular season (INCLUDED in competitive stats)
-// - April-June: Playoffs (INCLUDED in competitive stats, combines with regular)
-function getCurrentCompetitiveSeasons(sport: string = "NBA"): string[] {
-  const normalizedSport = (sport || "NBA").toUpperCase();
-  const now = new Date();
-  const currentMonth = now.getMonth();
-  const currentYear = now.getFullYear();
-
-  if (normalizedSport === "NFL") {
-    const seasonYear = currentMonth < 8 ? currentYear - 1 : currentYear;
-    return [String(seasonYear), String(seasonYear - 1)];
-  }
-
-  if (normalizedSport === "MLB" || normalizedSport === "NASCAR") {
-    return [String(currentYear), String(currentYear - 1)];
-  }
-
-  const seasonStartYear = currentMonth >= 6 ? currentYear : currentYear - 1;
-  const seasonEndYear = seasonStartYear + 1;
-
-  return [
-    `${seasonStartYear}-${seasonEndYear}-regular`,
-    `${seasonStartYear}-${seasonEndYear}-playoff`,
-    `${seasonStartYear - 1}-${seasonStartYear}-regular`,
-    `${seasonStartYear - 1}-${seasonStartYear}-playoff`,
-  ];
-}
+import { getCurrentCompetitiveSeasons } from "./storage/season-utils";
 
 export interface PlayerFinancialMetrics {
   peRatio: number;
