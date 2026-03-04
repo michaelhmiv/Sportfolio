@@ -108,7 +108,7 @@ function GeneralNewsTab({ newsLoading, news }: { newsLoading: boolean; news?: Ne
             <CardHeader className="pb-2">
               <div className="flex items-start justify-between gap-2">
                 <div className="space-y-1">
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <Badge
                       variant="secondary"
                       className={
@@ -124,7 +124,7 @@ function GeneralNewsTab({ newsLoading, news }: { newsLoading: boolean; news?: Ne
                       {formatDistanceToNow(new Date(item.createdAt), { addSuffix: true })}
                     </span>
                   </div>
-                  <CardTitle className="text-lg leading-tight">
+                  <CardTitle className="text-base leading-tight sm:text-lg">
                     <PlayerLinkedText text={item.headline} />
                   </CardTitle>
                 </div>
@@ -133,7 +133,7 @@ function GeneralNewsTab({ newsLoading, news }: { newsLoading: boolean; news?: Ne
             <CardContent className="pt-2">
               <PlayerLinkedText
                 text={item.briefing}
-                className="mb-3 block text-sm text-muted-foreground"
+                className="mb-2 block text-xs text-muted-foreground sm:text-sm"
               />
               {item.sourceUrl && (
                 <a
@@ -223,24 +223,24 @@ export default function NewsPage() {
 
   return (
     <div className="terminal-page">
-      <div className="container mx-auto max-w-4xl px-4 py-6">
+      <div className="container mx-auto max-w-4xl px-3 py-4 sm:px-4 sm:py-6">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="space-y-6"
+          className="space-y-4 sm:space-y-6"
         >
-          <div className="terminal-shell flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="terminal-shell flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4">
             <div className="flex items-center gap-3">
               <div>
                 <div className="terminal-strip mb-3">
                   <Newspaper className="h-3.5 w-3.5" />
                   Market News Desk
                 </div>
-                <h1 className="terminal-heading text-2xl">News Hub</h1>
+                <h1 className="terminal-heading text-xl sm:text-2xl">News Hub</h1>
                 <p className="terminal-subtle mt-2">Breaking sports news and your daily brief</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {isAdmin && (
                 <Button
                   variant="terminalOutline"
@@ -265,18 +265,22 @@ export default function NewsPage() {
           </div>
 
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList variant="terminal" className="grid w-full grid-cols-2">
-              <TabsTrigger variant="terminal" value="general" className="gap-2">
-                <Newspaper className="h-4 w-4" />
+            <TabsList variant="terminal" className="grid w-full grid-cols-2 gap-1">
+              <TabsTrigger
+                variant="terminal"
+                value="general"
+                className="gap-1.5 text-xs sm:text-sm"
+              >
+                <Newspaper className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 General News
               </TabsTrigger>
               <TabsTrigger
                 variant="terminal"
                 value="digest"
-                className="gap-2"
+                className="gap-1.5 text-xs sm:text-sm"
                 disabled={!isAuthenticated}
               >
-                <BarChart3 className="h-4 w-4" />
+                <BarChart3 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 Daily Brief
                 {hasUnreadDigest && (
                   <span className="ml-1 inline-block h-2.5 w-2.5 rounded-sm bg-red-500" />

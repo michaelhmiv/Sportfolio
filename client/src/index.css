@@ -484,11 +484,9 @@
     min-height: 100vh;
     background-color: hsl(var(--background));
     background-image:
-      linear-gradient(180deg, hsl(var(--background)) 0%, hsl(var(--card)) 100%),
       linear-gradient(rgba(148, 163, 184, 0.05) 1px, transparent 1px),
       linear-gradient(90deg, rgba(148, 163, 184, 0.05) 1px, transparent 1px);
     background-size:
-      auto,
       36px 36px,
       36px 36px;
   }
@@ -501,7 +499,7 @@
   .terminal-shell {
     border: 1px solid hsl(var(--border));
     border-radius: 0.25rem;
-    background: linear-gradient(180deg, hsl(var(--card)) 0%, hsl(var(--background)) 100%);
+    background-color: hsl(var(--card));
     box-shadow: none;
   }
 
@@ -566,7 +564,7 @@
   }
 
   .terminal-empty {
-    background: linear-gradient(180deg, hsl(var(--card)) 0%, hsl(var(--background)) 100%);
+    background-color: hsl(var(--card));
   }
 
   .terminal-avatar {
