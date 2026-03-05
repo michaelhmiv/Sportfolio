@@ -19,6 +19,7 @@ import { queryClient, authenticatedFetch } from "@/lib/queryClient";
 import { Link } from "wouter";
 import { PlayerName } from "@/components/player-name";
 import type { Player } from "@shared/schema";
+import { appendPlayerSearchParam, normalizePlayerSearchQuery } from "@/lib/player-search";
 
 interface Watchlist {
   id: string;
@@ -40,6 +41,8 @@ export default function Watchlists() {
   const [addPlayerDialogOpen, setAddPlayerDialogOpen] = useState(false);
   const [addToWatchlistId, setAddToWatchlistId] = useState<string | null>(null);
   const [playerSearch, setPlayerSearch] = useState("");
+  const normalizedPlayerSearch = normalizePlayerSearchQuery(playerSearch);
+  const shouldSearchPlayers = addPlayerDialogOpen && normalizedPlayerSearch.length >= 2;
 
   // Fetch all watchlists
   const {
@@ -51,46 +54,52 @@ export default function Watchlists() {
     enabled: isAuthenticated,
   });
 
-  // Fetch player IDs in expanded watchlist
-  const { data: watchlistPlayerIds, refetch: refetchPlayerIds } = useQuery<string[]>({
-    queryKey: ["/api/watchlists", expandedListId, "items"],
+  // Fetch full player rows for expanded watchlist
+  const { data: expandedPlayersData, refetch: refetchExpandedPlayers } = useQuery<{
+    players: Player[];
+    total: number;
+  }>({
+    queryKey: ["/api/players", "watchlist", expandedListId],
     queryFn: async () => {
-      if (!expandedListId) return [];
-      const res = await authenticatedFetch(`/api/watchlists/${expandedListId}/items`);
-      if (!res.ok) return [];
+      if (!expandedListId) return { players: [], total: 0 };
+      const params = new URLSearchParams();
+      params.set("isWatchlist", "true");
+      params.set("watchlistId", expandedListId);
+      params.set("limit", "5000");
+      params.set("sortBy", "name");
+      params.set("sortOrder", "asc");
+      const res = await authenticatedFetch(`/api/players?${params.toString()}`);
+      if (!res.ok) return { players: [], total: 0 };
       return res.json();
     },
-    enabled: !!expandedListId,
+    enabled: isAuthenticated && !!expandedListId,
   });
 
-  // Fetch all players (for display and search)
-  const { data: allPlayersData } = useQuery<{ players: Player[] }>({
-    queryKey: ["/api/players", { limit: 500 }],
+  // Search players from the server when adding to a watchlist
+  const { data: searchPlayersData, isFetching: isSearchingPlayers } = useQuery<{
+    players: Player[];
+    total: number;
+  }>({
+    queryKey: ["/api/players", "search", normalizedPlayerSearch],
     queryFn: async () => {
-      const res = await fetch("/api/players?limit=500");
-      if (!res.ok) return { players: [] };
+      const params = new URLSearchParams();
+      appendPlayerSearchParam(params, normalizedPlayerSearch);
+      params.set("limit", "20");
+      params.set("sortBy", "volume");
+      params.set("sortOrder", "desc");
+      const res = await fetch(`/api/players?${params.toString()}`);
+      if (!res.ok) return { players: [], total: 0 };
       return res.json();
     },
+    enabled: shouldSearchPlayers,
   });
 
-  // Get players that are in the expanded watchlist
-  const expandedPlayers = useMemo(() => {
-    if (!watchlistPlayerIds?.length || !allPlayersData?.players) return [];
-    return allPlayersData.players.filter((p) => watchlistPlayerIds.includes(p.id));
-  }, [watchlistPlayerIds, allPlayersData?.players]);
+  const expandedPlayers = expandedPlayersData?.players || [];
 
-  // Filtered players for add dialog
-  const searchResults = useMemo(() => {
-    if (!playerSearch.trim() || !allPlayersData?.players) return [];
-    const search = playerSearch.toLowerCase();
-    return allPlayersData.players
-      .filter(
-        (p) =>
-          `${p.firstName} ${p.lastName}`.toLowerCase().includes(search) ||
-          p.team?.toLowerCase().includes(search),
-      )
-      .slice(0, 10);
-  }, [playerSearch, allPlayersData?.players]);
+  const searchResults = useMemo(
+    () => searchPlayersData?.players || [],
+    [searchPlayersData?.players],
+  );
 
   // Create watchlist mutation
   const createMutation = useMutation({
@@ -166,8 +175,9 @@ export default function Watchlists() {
     },
     onSuccess: () => {
       refetch();
-      refetchPlayerIds();
+      refetchExpandedPlayers();
       queryClient.invalidateQueries({ queryKey: ["/api/watchlist"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/players", "watchlist"] });
       toast({ title: "Player added to watchlist" });
     },
     onError: () => {
@@ -188,8 +198,9 @@ export default function Watchlists() {
     },
     onSuccess: () => {
       refetch();
-      refetchPlayerIds();
+      refetchExpandedPlayers();
       queryClient.invalidateQueries({ queryKey: ["/api/watchlist"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/players", "watchlist"] });
       toast({ title: "Player removed from watchlist" });
     },
     onError: () => {
@@ -530,6 +541,14 @@ export default function Watchlists() {
                 {playerSearch.trim() === "" ? (
                   <p className="terminal-empty py-4 text-center text-sm text-muted-foreground">
                     Type to search for players
+                  </p>
+                ) : normalizedPlayerSearch.length < 2 ? (
+                  <p className="terminal-empty py-4 text-center text-sm text-muted-foreground">
+                    Enter at least 2 characters
+                  </p>
+                ) : isSearchingPlayers ? (
+                  <p className="terminal-empty py-4 text-center text-sm text-muted-foreground">
+                    Searching players...
                   </p>
                 ) : searchResults.length === 0 ? (
                   <p className="terminal-empty py-4 text-center text-sm text-muted-foreground">

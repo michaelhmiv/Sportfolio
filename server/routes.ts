@@ -4228,7 +4228,11 @@ ${items}
   // Players / Marketplace
   app.get("/api/teams", async (req, res) => {
     try {
-      const teams = await storage.getDistinctTeams();
+      const requestedSport = ((req.query.sport as string) || "").trim().toUpperCase();
+      const teams =
+        requestedSport && requestedSport !== "ALL"
+          ? await storage.getDistinctTeamsBySport(requestedSport)
+          : await storage.getDistinctTeams();
       res.json(teams);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -4450,22 +4454,11 @@ ${items}
     }
   });
 
-  // Get distinct teams for a sport
-  app.get("/api/teams", async (req, res) => {
-    try {
-      const { sport } = req.query;
-      const sportFilter = (sport as string) || "NBA";
-      const teams = await storage.getDistinctTeamsBySport(sportFilter);
-      res.json(teams);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
   // Get all players with advanced filtering
   app.get("/api/players", async (req, res) => {
     try {
       const {
+        q,
         search,
         team,
         position,
@@ -4479,6 +4472,7 @@ ${items}
         isWatchlist,
         watchlistId,
       } = req.query;
+      const rawSearch = typeof q === "string" && q.trim().length > 0 ? q : (search as string);
 
       // Handle watchlist filtering
       // If isWatchlist=true or a specific watchlistId is provided, we need authentication
@@ -4586,7 +4580,7 @@ ${items}
       }
 
       const { players: playersRaw, total } = await storage.getPlayersPaginated({
-        search: search as string,
+        search: rawSearch,
         team: team as string,
         position: position as string,
         sport: sport as string,

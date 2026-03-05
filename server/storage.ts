@@ -1331,6 +1331,22 @@ export class DatabaseStorage implements IStorage {
       .where(eq(users.id, userId));
   }
 
+  private normalizePlayerSearchInput(search?: string): {
+    normalized: string;
+    normalizedLower: string;
+    compactLower: string;
+    tokens: string[];
+  } | null {
+    const normalized = (search || "").trim().replace(/\s+/g, " ");
+    if (!normalized) return null;
+
+    const normalizedLower = normalized.toLowerCase();
+    const compactLower = normalizedLower.replace(/\s+/g, "");
+    const tokens = normalizedLower.split(" ").filter(Boolean).slice(0, 6);
+
+    return { normalized, normalizedLower, compactLower, tokens };
+  }
+
   // Helper: Build player query conditions (reused by getPlayers and getPlayersPaginated)
   private buildPlayerQueryConditions(filters?: {
     search?: string;
@@ -1351,11 +1367,42 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(players.position, filters.position));
     }
     if (filters?.search) {
-      // Use SQL ILIKE for case-insensitive search on first/last name
-      const searchTerm = `%${filters.search}%`;
-      conditions.push(
-        sql`(${players.firstName} ILIKE ${searchTerm} OR ${players.lastName} ILIKE ${searchTerm})`,
-      );
+      const normalizedSearch = this.normalizePlayerSearchInput(filters.search);
+      if (normalizedSearch) {
+        const fullNameExpr = sql`LOWER(CONCAT_WS(' ', ${players.firstName}, ${players.lastName}))`;
+        const compactFullNameExpr = sql`REPLACE(${fullNameExpr}, ' ', '')`;
+        const searchPattern = `%${normalizedSearch.normalizedLower}%`;
+        const compactSearchPattern = `%${normalizedSearch.compactLower}%`;
+
+        const tokenConditions = normalizedSearch.tokens.map((token) => {
+          const tokenPattern = `%${token}%`;
+          return sql`(
+            LOWER(${players.firstName}) LIKE ${tokenPattern}
+            OR LOWER(${players.lastName}) LIKE ${tokenPattern}
+            OR LOWER(${players.team}) LIKE ${tokenPattern}
+            OR LOWER(COALESCE(${players.position}, '')) LIKE ${tokenPattern}
+            OR LOWER(${players.id}) LIKE ${tokenPattern}
+          )`;
+        });
+        const allTokenMatchCondition =
+          tokenConditions.length > 0 ? and(...tokenConditions) : undefined;
+
+        const broadMatchCondition = sql`(
+          ${fullNameExpr} LIKE ${searchPattern}
+          OR ${compactFullNameExpr} LIKE ${compactSearchPattern}
+          OR LOWER(${players.firstName}) LIKE ${searchPattern}
+          OR LOWER(${players.lastName}) LIKE ${searchPattern}
+          OR LOWER(${players.team}) LIKE ${searchPattern}
+          OR LOWER(COALESCE(${players.position}, '')) LIKE ${searchPattern}
+          OR LOWER(${players.id}) LIKE ${searchPattern}
+        )`;
+
+        conditions.push(
+          allTokenMatchCondition
+            ? sql`(${broadMatchCondition} OR ${allTokenMatchCondition})`
+            : broadMatchCondition,
+        );
+      }
     }
 
     return conditions;
@@ -1431,6 +1478,7 @@ export class DatabaseStorage implements IStorage {
       | "name"
       | "team";
     const sortBySafe: PlayerSortBy = sortBy as PlayerSortBy;
+    const normalizedSearch = this.normalizePlayerSearchInput(search);
 
     // Build conditions using the helper
     const conditions = this.buildPlayerQueryConditions({ search, team, position, sport });
@@ -1507,6 +1555,46 @@ export class DatabaseStorage implements IStorage {
         orderByClause = desc(players.volume24h);
     }
 
+    let finalOrderByClause: any = orderByClause;
+    if (normalizedSearch) {
+      const fullNameExpr = sql`LOWER(CONCAT_WS(' ', ${players.firstName}, ${players.lastName}))`;
+      const compactFullNameExpr = sql`REPLACE(${fullNameExpr}, ' ', '')`;
+      const searchPrefix = `${normalizedSearch.normalizedLower}%`;
+      const searchPattern = `%${normalizedSearch.normalizedLower}%`;
+
+      const tokenConditions = normalizedSearch.tokens.map((token) => {
+        const tokenPattern = `%${token}%`;
+        return sql`(
+          LOWER(${players.firstName}) LIKE ${tokenPattern}
+          OR LOWER(${players.lastName}) LIKE ${tokenPattern}
+          OR LOWER(${players.team}) LIKE ${tokenPattern}
+          OR LOWER(COALESCE(${players.position}, '')) LIKE ${tokenPattern}
+          OR LOWER(${players.id}) LIKE ${tokenPattern}
+        )`;
+      });
+      const allTokenMatchCondition = tokenConditions.length > 0 ? and(...tokenConditions) : null;
+
+      const relevanceScoreExpr = sql<number>`CASE
+        WHEN LOWER(${players.id}) = ${normalizedSearch.normalizedLower} THEN 120
+        WHEN ${fullNameExpr} = ${normalizedSearch.normalizedLower} THEN 115
+        WHEN ${compactFullNameExpr} = ${normalizedSearch.compactLower} THEN 112
+        WHEN ${fullNameExpr} LIKE ${searchPrefix} THEN 105
+        WHEN LOWER(${players.lastName}) LIKE ${searchPrefix} THEN 100
+        WHEN LOWER(${players.firstName}) LIKE ${searchPrefix} THEN 98
+        WHEN LOWER(${players.team}) LIKE ${searchPrefix} THEN 95
+        WHEN ${fullNameExpr} LIKE ${searchPattern} THEN 90
+        WHEN LOWER(${players.firstName}) LIKE ${searchPattern}
+          OR LOWER(${players.lastName}) LIKE ${searchPattern} THEN 85
+        WHEN LOWER(${players.team}) LIKE ${searchPattern}
+          OR LOWER(COALESCE(${players.position}, '')) LIKE ${searchPattern}
+          OR LOWER(${players.id}) LIKE ${searchPattern} THEN 80
+        ${allTokenMatchCondition ? sql`WHEN ${allTokenMatchCondition} THEN 75` : sql``}
+        ELSE 0
+      END`;
+
+      finalOrderByClause = sql`${relevanceScoreExpr} DESC, ${orderByClause}, ${players.id} ASC`;
+    }
+
     // Execute count and data queries in parallel
     const countQuery = db
       .select({ count: sql<number>`COUNT(*)::int` })
@@ -1524,7 +1612,7 @@ export class DatabaseStorage implements IStorage {
           .from(players)
           .leftJoin(playerMarketMetrics, eq(playerMarketMetrics.playerId, players.id))
           .where(and(...conditions))
-          .orderBy(orderByClause)
+          .orderBy(finalOrderByClause)
           .limit(limit)
           .offset(offset)
       : sortBySafe === "tvl"
@@ -1533,14 +1621,14 @@ export class DatabaseStorage implements IStorage {
             .from(players)
             .leftJoin(playerPools, eq(playerPools.playerId, players.id))
             .where(and(...conditions))
-            .orderBy(orderByClause)
+            .orderBy(finalOrderByClause)
             .limit(limit)
             .offset(offset)
         : db
             .select({ player: players })
             .from(players)
             .where(and(...conditions))
-            .orderBy(orderByClause)
+            .orderBy(finalOrderByClause)
             .limit(limit)
             .offset(offset);
 

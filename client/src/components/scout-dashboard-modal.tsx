@@ -52,6 +52,7 @@ import { format } from "date-fns";
 import { useLocation } from "wouter";
 import type { Player } from "@shared/schema";
 import { PlayerName } from "@/components/player-name";
+import { appendPlayerSearchParam, matchesPlayerSearch } from "@/lib/player-search";
 
 // --- Types ---
 interface ScoutAssignment {
@@ -344,7 +345,7 @@ export function ScoutDashboardModal() {
     // Game status is filtered client-side, so fetch full set to avoid subset-only results.
     params.set("limit", needsFullMarketSet ? "5000" : limit.toString());
 
-    if (searchQuery.length > 0) params.set("search", searchQuery);
+    appendPlayerSearchParam(params, searchQuery);
     if (sportFilter !== "all") params.set("sport", sportFilter);
     if (positionFilter !== "ALL") params.set("position", positionFilter);
 
@@ -500,14 +501,7 @@ export function ScoutDashboardModal() {
       rawList = scoutedPlayers.filter((p) => {
         if (sportFilter !== "all" && p.sport !== sportFilter) return false;
         if (positionFilter !== "ALL" && p.position !== positionFilter) return false;
-        if (searchQuery) {
-          const q = searchQuery.toLowerCase();
-          return (
-            p.firstName.toLowerCase().includes(q) ||
-            p.lastName.toLowerCase().includes(q) ||
-            p.team.toLowerCase().includes(q)
-          );
-        }
+        if (!matchesPlayerSearch(p, searchQuery)) return false;
         return true;
       });
 
@@ -566,14 +560,7 @@ export function ScoutDashboardModal() {
         rawList = heldPlayers.filter((p) => {
           if (sportFilter !== "all" && p.sport !== sportFilter) return false;
           if (positionFilter !== "ALL" && p.position !== positionFilter) return false;
-          if (searchQuery) {
-            const q = searchQuery.toLowerCase();
-            return (
-              p.firstName.toLowerCase().includes(q) ||
-              p.lastName.toLowerCase().includes(q) ||
-              p.team.toLowerCase().includes(q)
-            );
-          }
+          if (!matchesPlayerSearch(p, searchQuery)) return false;
           return true;
         });
 

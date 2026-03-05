@@ -29,6 +29,7 @@ import { MarketplaceScanners } from "@/components/marketplace-scanners";
 import { cn } from "@/lib/utils";
 import { BackgroundPattern, CardAccent } from "@/components/ui/decorative-elements";
 import { PlayerModal } from "@/components/player-modal";
+import { appendPlayerSearchParam } from "@/lib/player-search";
 
 type PlayerWithPool = Player & {
   poolLiquidity?: number;
@@ -233,7 +234,7 @@ export default function PlayerPools() {
     queryFn: async () => {
       const params = new URLSearchParams();
       if (sport && sport !== "ALL") params.append("sport", sport);
-      if (debouncedSearch) params.append("search", debouncedSearch);
+      appendPlayerSearchParam(params, debouncedSearch);
       if (teamFilter !== "all") params.append("team", teamFilter);
       if (positionFilter !== "all") params.append("position", positionFilter);
       if (sortField) params.append("sortBy", sortField);

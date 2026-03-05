@@ -36,6 +36,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { PlayerName } from "@/components/player-name";
+import { appendPlayerSearchParam } from "@/lib/player-search";
 
 interface CommunityBoostSelectorProps {
   open: boolean;
@@ -155,7 +156,7 @@ export function CommunityBoostSelector({
     const params = new URLSearchParams();
     // When custom sorting/filtering is active, fetch full set for accurate results.
     params.set("limit", usePagination ? limit.toString() : "5000");
-    if (search.length > 0) params.set("search", search);
+    appendPlayerSearchParam(params, search);
     if (sportFilter !== "all") params.set("sport", sportFilter);
     params.set("sortBy", "volume");
     params.set("sortOrder", "desc");
