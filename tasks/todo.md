@@ -12,6 +12,24 @@ Review:
 - Re-encoded `README.md`, `CODEOWNERS`, `.github/PULL_REQUEST_TEMPLATE.md`, `pr_comments.json`, and `pr_review.json` to clean UTF-8 text and removed embedded NUL bytes/replacement-char prefix artifacts.
 - Validation now passes for `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`.
 
+## 2026-03-04 Player Search Reliability Hardening
+
+- [x] Unify `/api/players` search contract to accept canonical `q` with backward-compatible `search` alias
+- [x] Harden backend player matching to include full name, compact full name, team, position, ID, and token-aware matching
+- [x] Add search relevance ranking so exact/prefix hits rank above broad substring matches
+- [x] Remove duplicate `/api/teams` route registration and keep one handler with optional sport filter
+- [x] Migrate player-searching UI surfaces (`marketplace`, `scout dashboard`, `watchlists`, `community boost`, `power`) to shared search logic
+- [x] Replace watchlist add-player subset search (`limit=500` local filtering) with server-driven query search
+- [x] Validate via `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`
+
+Review:
+
+- Root cause for "player sometimes doesn’t appear" was confirmed in backend logic: only `firstName OR lastName` search matching, which misses common full-name queries.
+- Backend now normalizes search input and matches across full name, compact full name, team, position, and ID with token fallback, then ranks by explicit relevance before secondary sort fields.
+- `/api/teams` had two route definitions; this is now a single route that optionally filters by `sport`, removing registration-order ambiguity.
+- Watchlists no longer depend on the top 500 player subset for search; add-player dialog now queries `/api/players` directly with canonical search and returns live server results.
+- Validation status: `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check` all pass.
+
 ## 2026-03-04 User UI Terminal Compliance (Phase 3)
 
 - [x] Finish the remaining route and shared-component cleanup so the repo-wide user UI no longer relies on soft rounded/gradient defaults

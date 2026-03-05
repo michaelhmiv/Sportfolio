@@ -41,6 +41,7 @@ import { BoostResultsPodium } from "@/components/ceremonies/boost-results-podium
 import { LiveFantasyPoints } from "@/components/boost/live-fantasy-points";
 import { useBoostNearMissDetector } from "@/components/boost/boost-near-miss";
 import { SPORTS as GLOBAL_SPORTS } from "@/lib/sport-context";
+import { matchesPlayerSearch } from "@/lib/player-search";
 
 interface BoostCeremonyData {
   playerName: string;
@@ -386,9 +387,7 @@ export default function Power() {
 
   const filteredPlayers =
     eligibleData?.eligiblePlayers?.filter((ep) => {
-      const name = `${ep.player.firstName} ${ep.player.lastName}`.toLowerCase();
-      const matchesSearch = name.includes(search.toLowerCase());
-      return matchesSearch;
+      return matchesPlayerSearch(ep.player, search);
     }) || [];
 
   // Debug logging
