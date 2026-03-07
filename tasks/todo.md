@@ -1,3 +1,19 @@
+## 2026-03-07 MCP Review Fixes
+
+- [x] Bind MCP confirm/cancel flows to the validated `pendingBundleId` in thread-service
+- [x] Fix `stage_lp_add_optimal` to pass the preview contract's `maxShares`/`maxPlayMoney` fields
+- [x] Sort community-boost eligible players before applying the MCP tool limit
+- [x] Tighten MCP mocks/tests so the reviewed regressions are covered
+- [x] Validate via targeted MCP/Hermes tests plus `npm run check`, `npm run lint`, and `npm run test:run`
+
+Review:
+
+- `confirm_pending_action` and `cancel_pending_action` now pass the validated bundle id into thread-service, and thread-service applies/rejects that exact bundle instead of whichever pending bundle is latest on the thread.
+- `stage_lp_add_optimal` now maps to the preview contract's `maxShares` and `maxPlayMoney` fields, with backward-compatible aliases retained in the MCP schema.
+- Community boost eligibility now mirrors the existing route ordering by sorting on `communityBoostCount` and player name before applying the MCP limit.
+- The MCP mock harness now enforces bundle-id forwarding and the LP-optimal preview contract, and `server/mcp/mcp-server.test.ts` adds an ordering regression test for community boost candidates.
+- Validation passed for targeted MCP/Hermes tests, `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`.
+
 ## 2026-03-07 Full Gameplay MCP Parity + Exhaustive Verification
 
 - [ ] Build a canonical gameplay capability matrix that enumerates every included gameplay workflow and every explicit MCP v1 exclusion

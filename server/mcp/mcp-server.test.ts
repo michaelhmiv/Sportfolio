@@ -123,6 +123,31 @@ describe("sportfolio MCP server", () => {
     }
   });
 
+  it("sorts community boost candidates by boost count before applying the limit", async () => {
+    const server = await startMockMcpHttpServer();
+    let openClient: OpenClient | null = null;
+
+    try {
+      openClient = await connectClient(server.url, server.authToken);
+      const result = await openClient.client.callTool({
+        name: "list_community_boost_eligible_players",
+        arguments: {
+          limit: 2,
+        },
+      });
+
+      expect(result.isError).not.toBe(true);
+      const structuredContent = (result.structuredContent || {}) as Record<string, unknown>;
+      const players = Array.isArray(structuredContent.players)
+        ? (structuredContent.players as Array<Record<string, unknown>>)
+        : [];
+      expect(players.map((entry) => entry.playerId)).toEqual(["player_2", "player_1"]);
+    } finally {
+      await closeClient(openClient);
+      await server.close();
+    }
+  });
+
   it("returns a safe error result when bundle identity does not match", async () => {
     const server = await startMockMcpHttpServer();
     let openClient: OpenClient | null = null;

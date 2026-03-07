@@ -649,14 +649,23 @@ async function listCommunityBoostEligiblePlayers(
     userHoldings.find((holding) => holding.assetType === "community")?.quantity || 0;
   const eligiblePlayers = players
     .filter((player) => player.isActive && player.team && gameByTeam.has(player.team))
-    .slice(0, toPositiveInteger(args.limit) || 150)
     .map((player) => ({
       playerId: player.id,
       player,
       game: gameByTeam.get(player.team) || null,
       communityBoostCount: boostCountByPlayer.get(player.id) || 0,
       alreadyBoostedByUser: userBoostedPlayerIds.has(player.id),
-    }));
+    }))
+    .sort((left, right) => {
+      if (right.communityBoostCount !== left.communityBoostCount) {
+        return right.communityBoostCount - left.communityBoostCount;
+      }
+
+      const leftName = `${left.player.firstName} ${left.player.lastName}`;
+      const rightName = `${right.player.firstName} ${right.player.lastName}`;
+      return leftName.localeCompare(rightName);
+    })
+    .slice(0, toPositiveInteger(args.limit) || 150);
 
   return {
     summary: `Loaded ${eligiblePlayers.length} community boost candidate(s).`,
@@ -744,7 +753,7 @@ async function confirmPendingAction(
   }
 
   await ensurePendingBundleMatch(context, threadId, pendingBundleId);
-  const result = await context.deps.confirmAgentThread(context.userId, threadId);
+  const result = await context.deps.confirmAgentThread(context.userId, threadId, pendingBundleId);
   return {
     summary: "Confirmed pending action bundle.",
     threadId,
@@ -761,7 +770,7 @@ async function cancelPendingAction(context: PublicMcpServerContext, args: Record
   }
 
   await ensurePendingBundleMatch(context, threadId, pendingBundleId);
-  const result = await context.deps.cancelAgentThread(context.userId, threadId);
+  const result = await context.deps.cancelAgentThread(context.userId, threadId, pendingBundleId);
   return {
     summary: "Cancelled pending action bundle.",
     threadId,
@@ -849,6 +858,8 @@ const stageLpAddSchema: RawSchema = {
 };
 const stageLpAddOptimalSchema: RawSchema = {
   playerId: z.string().min(1),
+  maxShares: z.number().positive().optional(),
+  maxPlayMoney: z.number().positive().optional(),
   shares: z.number().positive().optional(),
   playMoney: z.number().positive().optional(),
   threadId: z.string().min(1).optional(),
@@ -1526,15 +1537,15 @@ const CUSTOM_TOOLS: PublicMcpToolDefinition[] = [
     domain: "liquidity",
     readOnly: false,
     inputSchema: stageLpAddOptimalSchema,
-    fixtureArgs: { playerId: "player_1", shares: 4, playMoney: 25 },
+    fixtureArgs: { playerId: "player_1", maxShares: 4, maxPlayMoney: 25 },
     execute: (context, args) =>
       stagePreviewedAction({
         context,
         previewToolName: "preview_lp_add_optimal",
         previewArgs: {
           playerId: args.playerId,
-          shares: args.shares,
-          playMoney: args.playMoney,
+          maxShares: args.maxShares ?? args.shares,
+          maxPlayMoney: args.maxPlayMoney ?? args.playMoney,
         },
         threadId: toOptionalString(args.threadId),
       }),

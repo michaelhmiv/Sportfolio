@@ -604,14 +604,22 @@ export function createMockPublicMcpDependencies(): MockMcpHarness {
     }: {
       toolName: string;
       args?: Record<string, unknown>;
-    }) => ({
-      summary: `Preview ready for ${toolName}.`,
-      canStage: true,
-      stageMessage:
-        `stage ${toolName} ${typeof args?.playerId === "string" ? args.playerId : ""}`.trim(),
-      warnings: [],
-      preview: args || {},
-    }),
+    }) => {
+      if (toolName === "preview_lp_add_optimal") {
+        if (typeof args?.maxShares !== "number" || typeof args?.maxPlayMoney !== "number") {
+          throw new Error("preview_lp_add_optimal requires maxShares and maxPlayMoney");
+        }
+      }
+
+      return {
+        summary: `Preview ready for ${toolName}.`,
+        canStage: true,
+        stageMessage:
+          `stage ${toolName} ${typeof args?.playerId === "string" ? args.playerId : ""}`.trim(),
+        warnings: [],
+        preview: args || {},
+      };
+    },
     runHermesActionTool: async ({
       toolName,
       args,
@@ -807,9 +815,20 @@ export function createMockPublicMcpDependencies(): MockMcpHarness {
         pendingClarification: null,
       };
     },
-    confirmAgentThread: async (_userId: string, threadId: string) => {
+    confirmAgentThread: async (
+      _userId: string,
+      threadId: string,
+      pendingBundleId?: string | null,
+    ) => {
       const thread = state.threads.get(threadId);
-      if (!thread || !thread.pendingActionBundle) {
+      if (!pendingBundleId) {
+        throw new Error("pendingBundleId is required for confirmAgentThread");
+      }
+      if (
+        !thread ||
+        !thread.pendingActionBundle ||
+        thread.pendingActionBundle.id !== pendingBundleId
+      ) {
         throw new Error("No pending plan remains on this thread");
       }
 
@@ -830,9 +849,20 @@ export function createMockPublicMcpDependencies(): MockMcpHarness {
         pendingActionBundle: null,
       };
     },
-    cancelAgentThread: async (_userId: string, threadId: string) => {
+    cancelAgentThread: async (
+      _userId: string,
+      threadId: string,
+      pendingBundleId?: string | null,
+    ) => {
       const thread = state.threads.get(threadId);
-      if (!thread || !thread.pendingActionBundle) {
+      if (!pendingBundleId) {
+        throw new Error("pendingBundleId is required for cancelAgentThread");
+      }
+      if (
+        !thread ||
+        !thread.pendingActionBundle ||
+        thread.pendingActionBundle.id !== pendingBundleId
+      ) {
         throw new Error("No pending plan remains on this thread");
       }
 

@@ -19,6 +19,9 @@
 
 - When scoping MCP parity for Sportfolio, separate gameplay actions from external purchase and account-management flows: community boost creation, market trades, LP actions, boosts, condense, scouts, watchlists, schedules, and agent threads are gameplay; checkout, add-cash, premium/community purchase flows, profile/settings, and admin routes are not.
 - If a user asks what to do with idle cash, treat that as a cash-deployment intent first and keep the response domain-limited unless they explicitly ask for a broad setup review.
+- For MCP wrappers over existing Hermes previews, keep the public input schema aligned with the underlying preview contract and make the smoke harness validate those exact field names so arg drift cannot pass on permissive mocks.
+- If an MCP confirm/cancel surface asks the caller for both `threadId` and `pendingBundleId`, enforce the bundle id inside the thread-service mutation itself; a pre-check alone is still race-prone once new thread messages can expire and replace pending bundles.
+- When mirroring an existing route in MCP, preserve its ranking semantics before applying any MCP-side limit or the tool will silently diverge from the site surface on larger result sets.
 
 ## 2026-02-09
 
