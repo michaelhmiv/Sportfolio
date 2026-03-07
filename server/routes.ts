@@ -90,11 +90,36 @@ import { isManagedProviderKey } from "./agent/provider-registry";
 import { ensureAgentSemanticSchema } from "./agent/semantic-router";
 import { claimVestingShares as claimAgentVestingShares } from "./agent/vesting-claim";
 import { ensureUserApiTokenSchema } from "./api-token-auth";
+import {
+  buildLeaderboardWindow,
+  getLeaderboardMeta,
+  getLeaderboardRankChange,
+  normalizeLeaderboardCategory,
+  type LeaderboardCategory,
+  type LeaderboardEntry,
+} from "./leaderboards";
 
 const SUPPORTED_SPORTS = ["NBA", "NFL", "MLB", "NASCAR"] as const;
 const LEGACY_POOL_SHARES = 1000;
 const LEGACY_POOL_PLAY_MONEY = 10000;
 const LEGACY_POOL_LP_SHARES = 1000;
+
+function toNumber(value: string | number | null | undefined): number {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  if (typeof value === "string") {
+    const parsed = parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  return 0;
+}
+
+function roundToTwo(value: number): number {
+  return Math.round(value * 100) / 100;
+}
 
 /**
  * Get power/boosts data for the dashboard
@@ -6404,120 +6429,126 @@ ${items}
   });
 
   // =====================
-  // Global leaderboards (public) - cached for 60s
-  app.get("/api/leaderboards", async (req, res) => {
+  // Global leaderboards (public) - cached and enriched with current-user context when available
+  app.get("/api/leaderboards", optionalAuth, async (req, res) => {
     try {
-      const category = (req.query.category as string) || "netWorth";
-      const cacheKey = `leaderboard:${category}`;
-
-      // Use cache for all leaderboard categories (60s TTL)
-      const result = await getOrCompute(
-        cacheKey,
-        async () => {
-          if (category === "sharesVested") {
-            const allUsers = await storage.getUsers();
-            return {
-              category: "sharesVested",
-              leaderboard: allUsers
-                .sort((a: User, b: User) => b.totalSharesVested - a.totalSharesVested)
-                .map((u: User, index: number) => ({
-                  rank: index + 1,
-                  userId: u.id,
-                  username: u.username,
-                  profileImageUrl: u.profileImageUrl,
-                  value: u.totalSharesVested,
-                })),
-            };
-          }
-
-          if (category === "marketOrders") {
-            const allUsers = await storage.getUsers();
-            return {
-              category: "marketOrders",
-              leaderboard: allUsers
-                .sort((a: User, b: User) => b.totalMarketOrders - a.totalMarketOrders)
-                .map((u: User, index: number) => ({
-                  rank: index + 1,
-                  userId: u.id,
-                  username: u.username,
-                  profileImageUrl: u.profileImageUrl,
-                  value: u.totalMarketOrders,
-                })),
-            };
-          }
-
-          if (
-            category === "cashBalance" ||
-            category === "portfolioValue" ||
-            category === "netWorth"
-          ) {
-            const [usersWithPortfolio, allUsers] = await Promise.all([
-              storage.getAllUsersForRanking(),
-              storage.getUsers(),
-            ]);
-            const userMap = new Map(allUsers.map((u) => [u.id, u]));
-
-            let sortedUsers: any[];
-
-            if (category === "cashBalance") {
-              sortedUsers = usersWithPortfolio
-                .sort((a, b) => parseFloat(b.balance) - parseFloat(a.balance))
-                .map((data, index) => {
-                  const user = userMap.get(data.userId);
-                  return {
-                    rank: index + 1,
-                    userId: data.userId,
-                    username: user?.username || "Unknown",
-                    profileImageUrl: user?.profileImageUrl || null,
-                    value: parseFloat(data.balance).toFixed(2),
-                  };
-                });
-            } else if (category === "portfolioValue") {
-              sortedUsers = usersWithPortfolio
-                .sort((a, b) => b.portfolioValue - a.portfolioValue)
-                .map((data, index) => {
-                  const user = userMap.get(data.userId);
-                  return {
-                    rank: index + 1,
-                    userId: data.userId,
-                    username: user?.username || "Unknown",
-                    profileImageUrl: user?.profileImageUrl || null,
-                    value: data.portfolioValue.toFixed(2),
-                  };
-                });
-            } else {
-              // netWorth
-              sortedUsers = usersWithPortfolio
-                .map((data) => ({
-                  ...data,
-                  netWorth: parseFloat(data.balance) + data.portfolioValue,
-                }))
-                .sort((a, b) => b.netWorth - a.netWorth)
-                .map((data, index) => {
-                  const user = userMap.get(data.userId);
-                  return {
-                    rank: index + 1,
-                    userId: data.userId,
-                    username: user?.username || "Unknown",
-                    profileImageUrl: user?.profileImageUrl || null,
-                    value: data.netWorth.toFixed(2),
-                  };
-                });
-            }
-
-            return { category, leaderboard: sortedUsers };
-          }
-
-          return null;
-        },
-        60_000,
+      const category = normalizeLeaderboardCategory(
+        typeof req.query.category === "string" ? req.query.category : null,
       );
-
-      if (result === null) {
+      if (!category) {
         return res.status(400).json({ error: "Invalid category" });
       }
 
-      res.json(result);
+      const currentUserId =
+        typeof (req as any).user?.claims?.sub === "string" ? (req as any).user.claims.sub : null;
+      const cacheKey = `leaderboard:v2:${category}`;
+
+      const result = await getOrCompute(
+        cacheKey,
+        async () => {
+          const meta = getLeaderboardMeta(category);
+          const allUsers = await storage.getUsers();
+          const rankEntries = (
+            entries: Array<Omit<LeaderboardEntry, "rank">>,
+          ): LeaderboardEntry[] =>
+            entries
+              .sort((a, b) => b.value - a.value || a.username.localeCompare(b.username))
+              .map((entry, index) => ({
+                ...entry,
+                rank: index + 1,
+                value: roundToTwo(entry.value),
+              }));
+
+          let leaderboard: LeaderboardEntry[] = [];
+
+          if (category === "marketOrders") {
+            leaderboard = rankEntries(
+              allUsers.map((user) => ({
+                userId: user.id,
+                username: user.username || "Unknown",
+                profileImageUrl: user.profileImageUrl || null,
+                value: user.totalMarketOrders,
+                rankChange: null,
+              })),
+            );
+          } else if (category === "tradingVolume24h") {
+            const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+            const volumeByUser = await storage.getUserTradingVolumeSince(since);
+
+            leaderboard = rankEntries(
+              allUsers.map((user) => ({
+                userId: user.id,
+                username: user.username || "Unknown",
+                profileImageUrl: user.profileImageUrl || null,
+                value: volumeByUser.get(user.id) || 0,
+                rankChange: null,
+              })),
+            );
+          } else {
+            const [usersForRanking, latestSnapshotRanks] = await Promise.all([
+              storage.getAllUsersForRanking(),
+              storage.getLatestSnapshotRanks(),
+            ]);
+            const userMap = new Map(allUsers.map((user) => [user.id, user]));
+
+            leaderboard = rankEntries(
+              usersForRanking.map((userData) => {
+                const user = userMap.get(userData.userId);
+                const snapshotRank = latestSnapshotRanks.get(userData.userId);
+                const cashValue = toNumber(userData.balance);
+                const portfolioValue = userData.portfolioValue;
+                const netWorthValue = cashValue + portfolioValue;
+
+                let value = netWorthValue;
+                let previousRank = snapshotRank?.netWorthRank;
+
+                if (category === "cashBalance") {
+                  value = cashValue;
+                  previousRank = snapshotRank?.cashRank;
+                } else if (category === "portfolioValue") {
+                  value = portfolioValue;
+                  previousRank = snapshotRank?.portfolioRank;
+                }
+
+                return {
+                  userId: userData.userId,
+                  username: user?.username || "Unknown",
+                  profileImageUrl: user?.profileImageUrl || null,
+                  value,
+                  rankChange: previousRank ?? null,
+                };
+              }),
+            ).map((entry) => ({
+              ...entry,
+              rankChange: getLeaderboardRankChange(entry.rankChange, entry.rank),
+            }));
+          }
+
+          return {
+            category,
+            categoryLabel: meta.label,
+            description: meta.description,
+            unit: meta.unit,
+            updatedAt: new Date().toISOString(),
+            totalEntries: leaderboard.length,
+            leaderboard,
+          };
+        },
+        30_000,
+      );
+
+      const currentUser =
+        currentUserId !== null
+          ? result.leaderboard.find((entry: LeaderboardEntry) => entry.userId === currentUserId) ||
+            null
+          : null;
+      const currentUserWindow = buildLeaderboardWindow(result.leaderboard, currentUserId, 2);
+
+      res.json({
+        ...result,
+        currentUser,
+        currentUserWindow,
+      });
     } catch (error: any) {
       console.error("[leaderboards] Error:", error);
       res.status(500).json({ error: error.message });
@@ -6892,69 +6923,264 @@ ${items}
         return res.status(404).json({ error: "User not found" });
       }
 
-      // Get user holdings with market values
-      const userHoldings = await storage.getUserHoldings(user.id);
+      const now = new Date();
+      const historyStart = new Date(now);
+      historyStart.setDate(historyStart.getDate() - 45);
 
-      // Batch fetch all players for holdings (avoids N+1 queries)
-      const playerIds = userHoldings.filter((h) => h.assetType === "player").map((h) => h.assetId);
-      const playersMap = new Map<string, any>();
-      if (playerIds.length > 0) {
-        const playersList = await storage.getPlayersByIds(playerIds);
-        for (const player of playersList) {
-          playersMap.set(player.id, player);
-        }
-      }
+      const [
+        userHoldings,
+        allUsers,
+        usersForRanking,
+        latestSnapshotRanks,
+        tradingVolume24hByUser,
+        recentActivity,
+        historySnapshots,
+      ] = await Promise.all([
+        storage.getUserHoldings(user.id),
+        storage.getUsers(),
+        storage.getAllUsersForRanking(),
+        storage.getLatestSnapshotRanks(),
+        storage.getUserTradingVolumeSince(new Date(now.getTime() - 24 * 60 * 60 * 1000)),
+        storage.getUserActivity(user.id, {
+          types: ["market", "scout"],
+          limit: 12,
+          includeBalanceAfter: false,
+        }),
+        storage.getPortfolioSnapshotsInRange(user.id, historyStart, now),
+      ]);
 
-      const enrichedHoldings = userHoldings.map((holding) => {
-        if (holding.assetType === "player") {
+      const playerIds = userHoldings
+        .filter((holding) => holding.assetType === "player")
+        .map((holding) => holding.assetId);
+      const playersList = playerIds.length > 0 ? await storage.getPlayersByIds(playerIds) : [];
+      const playersMap = new Map(playersList.map((player) => [player.id, player]));
+
+      const enrichedHoldings = userHoldings
+        .filter((holding) => holding.assetType === "player")
+        .map((holding) => {
           const player = playersMap.get(holding.assetId);
-          if (player) {
-            const marketValue = player.lastTradePrice
-              ? (parseFloat(player.lastTradePrice) * parseFloat(holding.quantity)).toFixed(2)
-              : null;
-            return {
-              ...holding,
-              player,
-              lastTradePrice: player.lastTradePrice,
-              marketValue,
-            };
+          if (!player) {
+            return null;
           }
-        }
-        return holding;
+
+          const quantity = toNumber(holding.quantity);
+          const lastTradePrice = toNumber(player.lastTradePrice);
+          const marketValue = roundToTwo(quantity * lastTradePrice);
+          const avgCostBasis = toNumber(holding.avgCostBasis);
+          const totalCostBasis = quantity * avgCostBasis;
+          const pnl = roundToTwo(marketValue - totalCostBasis);
+          const pnlPercent =
+            totalCostBasis > 0
+              ? roundToTwo(((marketValue - totalCostBasis) / totalCostBasis) * 100)
+              : 0;
+
+          return {
+            id: holding.id,
+            assetId: holding.assetId,
+            quantity,
+            avgCostBasis: roundToTwo(avgCostBasis),
+            lastTradePrice: roundToTwo(lastTradePrice),
+            marketValue,
+            pnl,
+            pnlPercent,
+            player,
+          };
+        })
+        .filter((holding): holding is NonNullable<typeof holding> => Boolean(holding))
+        .filter((holding) => holding.quantity > 0)
+        .sort(
+          (a, b) =>
+            b.marketValue - a.marketValue || a.player.lastName.localeCompare(b.player.lastName),
+        );
+
+      const holdingsValue = roundToTwo(
+        enrichedHoldings.reduce((sum, holding) => sum + holding.marketValue, 0),
+      );
+      const cashBalance = roundToTwo(toNumber(user.balance));
+      const currentNetWorth = roundToTwo(cashBalance + holdingsValue);
+      const tradingVolume24h = roundToTwo(tradingVolume24hByUser.get(user.id) || 0);
+
+      const userNameById = new Map(
+        allUsers.map((entry) => [entry.id, entry.username || "Unknown"]),
+      );
+      const buildRankMap = (
+        rows: Array<{ userId: string; value: number; previousRank?: number | null }>,
+      ) =>
+        new Map(
+          rows
+            .sort(
+              (a, b) =>
+                b.value - a.value ||
+                (userNameById.get(a.userId) || "").localeCompare(userNameById.get(b.userId) || ""),
+            )
+            .map((row, index) => {
+              const rank = index + 1;
+              return [
+                row.userId,
+                {
+                  rank,
+                  value: roundToTwo(row.value),
+                  rankChange: getLeaderboardRankChange(row.previousRank ?? null, rank),
+                },
+              ] as const;
+            }),
+        );
+
+      const netWorthRankMap = buildRankMap(
+        usersForRanking.map((entry) => ({
+          userId: entry.userId,
+          value: toNumber(entry.balance) + entry.portfolioValue,
+          previousRank: latestSnapshotRanks.get(entry.userId)?.netWorthRank,
+        })),
+      );
+      const cashRankMap = buildRankMap(
+        usersForRanking.map((entry) => ({
+          userId: entry.userId,
+          value: toNumber(entry.balance),
+          previousRank: latestSnapshotRanks.get(entry.userId)?.cashRank,
+        })),
+      );
+      const portfolioRankMap = buildRankMap(
+        usersForRanking.map((entry) => ({
+          userId: entry.userId,
+          value: entry.portfolioValue,
+          previousRank: latestSnapshotRanks.get(entry.userId)?.portfolioRank,
+        })),
+      );
+      const tradingVolumeRankMap = buildRankMap(
+        allUsers.map((entry) => ({
+          userId: entry.id,
+          value: tradingVolume24hByUser.get(entry.id) || 0,
+        })),
+      );
+      const marketOrdersRankMap = buildRankMap(
+        allUsers.map((entry) => ({
+          userId: entry.id,
+          value: entry.totalMarketOrders,
+        })),
+      );
+
+      const currentCashRank = cashRankMap.get(user.id)?.rank ?? null;
+      const currentPortfolioRank = portfolioRankMap.get(user.id)?.rank ?? null;
+      const currentNetWorthRank = netWorthRankMap.get(user.id)?.rank ?? null;
+
+      const performanceWindows = [1, 7, 30] as const;
+      const performance = Object.fromEntries(
+        performanceWindows.map((days) => {
+          const target = new Date(now);
+          target.setDate(target.getDate() - days);
+          const baseline = [...historySnapshots]
+            .reverse()
+            .find((snapshot) => snapshot.snapshotDate.getTime() <= target.getTime());
+
+          if (!baseline || currentNetWorthRank === null) {
+            return [
+              `change${days === 1 ? "24h" : `${days}d`}`,
+              { amount: null, percent: null, rankChange: null },
+            ] as const;
+          }
+
+          const baselineNetWorth = toNumber(baseline.totalNetWorth);
+          const amount = roundToTwo(currentNetWorth - baselineNetWorth);
+          const percent =
+            baselineNetWorth > 0
+              ? roundToTwo(((currentNetWorth - baselineNetWorth) / baselineNetWorth) * 100)
+              : null;
+
+          return [
+            `change${days === 1 ? "24h" : `${days}d`}`,
+            {
+              amount,
+              percent,
+              rankChange:
+                baseline.netWorthRank && baseline.netWorthRank > 0
+                  ? baseline.netWorthRank - currentNetWorthRank
+                  : null,
+            },
+          ] as const;
+        }),
+      );
+
+      const chartWindowStart = new Date(now);
+      chartWindowStart.setDate(chartWindowStart.getDate() - 30);
+      const historyPoints = historySnapshots
+        .filter((snapshot) => snapshot.snapshotDate.getTime() >= chartWindowStart.getTime())
+        .map((snapshot) => ({
+          date: snapshot.snapshotDate.toISOString(),
+          cashBalance: roundToTwo(toNumber(snapshot.cashBalance)),
+          portfolioValue: roundToTwo(toNumber(snapshot.portfolioValue)),
+          netWorth: roundToTwo(toNumber(snapshot.totalNetWorth)),
+          cashRank: snapshot.cashRank,
+          portfolioRank: snapshot.portfolioRank,
+          netWorthRank: snapshot.netWorthRank,
+        }));
+
+      historyPoints.push({
+        date: now.toISOString(),
+        cashBalance,
+        portfolioValue: holdingsValue,
+        netWorth: currentNetWorth,
+        cashRank: currentCashRank,
+        portfolioRank: currentPortfolioRank,
+        netWorthRank: currentNetWorthRank,
       });
 
-      // Calculate net worth (balance + total market value of holdings)
-      const holdingsValue = enrichedHoldings.reduce((sum: number, h: any) => {
-        return sum + (h.marketValue ? parseFloat(h.marketValue as string) : 0);
-      }, 0);
-      const netWorth = (parseFloat(user.balance) + holdingsValue).toFixed(2);
+      const sportExposureMap = new Map<string, number>();
+      for (const holding of enrichedHoldings) {
+        const sport = holding.player.sport || "Unknown";
+        sportExposureMap.set(sport, (sportExposureMap.get(sport) || 0) + holding.marketValue);
+      }
 
-      // Get leaderboard rankings
-      const allUsers = await storage.getUsers();
+      const sportExposure = Array.from(sportExposureMap.entries())
+        .map(([sport, value]) => ({
+          sport,
+          value: roundToTwo(value),
+          percentage: holdingsValue > 0 ? roundToTwo((value / holdingsValue) * 100) : 0,
+        }))
+        .sort((a, b) => b.value - a.value);
 
-      // Calculate simple rankings (fields directly on user row)
-      const sharesVestedRank =
-        allUsers
-          .sort((a, b) => b.totalSharesVested - a.totalSharesVested)
-          .findIndex((u) => u.id === user.id) + 1;
-
-      const marketOrdersRank =
-        allUsers
-          .sort((a, b) => b.totalMarketOrders - a.totalMarketOrders)
-          .findIndex((u) => u.id === user.id) + 1;
-
-      // Calculate net worth ranking (requires holdings + prices)
-      // Optimized: Single SQL query handles the aggregation
-      const usersWithNetWorthRaw = await storage.getAllUsersForRanking();
-      const usersWithNetWorth = usersWithNetWorthRaw.map((u) => ({
-        userId: u.userId,
-        netWorth: parseFloat(u.balance) + u.portfolioValue,
+      const holdingsWithShare = enrichedHoldings.map((holding) => ({
+        ...holding,
+        shareOfPortfolio:
+          holdingsValue > 0 ? roundToTwo((holding.marketValue / holdingsValue) * 100) : 0,
       }));
 
-      const netWorthRank =
-        usersWithNetWorth
-          .sort((a, b) => b.netWorth - a.netWorth)
-          .findIndex((u) => u.userId === user.id) + 1;
+      const rankingCategories: LeaderboardCategory[] = [
+        "netWorth",
+        "cashBalance",
+        "portfolioValue",
+        "tradingVolume24h",
+        "marketOrders",
+      ];
+
+      const rankingSources = {
+        netWorth: netWorthRankMap,
+        cashBalance: cashRankMap,
+        portfolioValue: portfolioRankMap,
+        tradingVolume24h: tradingVolumeRankMap,
+        marketOrders: marketOrdersRankMap,
+      };
+
+      const rankings = Object.fromEntries(
+        rankingCategories.map((category) => {
+          const ranking = rankingSources[category].get(user.id) || {
+            rank: null,
+            value: 0,
+            rankChange: null,
+          };
+          const meta = getLeaderboardMeta(category);
+          return [
+            category,
+            {
+              category,
+              label: meta.label,
+              rank: ranking.rank,
+              value: ranking.value,
+              rankChange: ranking.rankChange,
+            },
+          ] as const;
+        }),
+      );
 
       res.json({
         user: {
@@ -6967,21 +7193,29 @@ ${items}
           isPremium: user.isPremium,
           createdAt: user.createdAt,
         },
+        updatedAt: now.toISOString(),
         stats: {
-          netWorth,
-          totalSharesVested: user.totalSharesVested,
+          netWorth: currentNetWorth,
+          cashBalance,
+          portfolioValue: holdingsValue,
+          tradingVolume24h,
           totalMarketOrders: user.totalMarketOrders,
           totalTradesExecuted: user.totalTradesExecuted,
-          holdingsCount: enrichedHoldings.length,
+          holdingsCount: holdingsWithShare.length,
+          activeSports: sportExposure.length,
         },
-        rankings: {
-          sharesVested: sharesVestedRank,
-          marketOrders: marketOrdersRank,
-          netWorth: netWorthRank,
+        rankings,
+        performance,
+        history: {
+          timeRange: "30D",
+          points: historyPoints,
         },
-        holdings: enrichedHoldings.filter(
-          (h) => h.assetType === "player" && parseFloat(h.quantity) > 0,
-        ),
+        holdingsSummary: {
+          topHoldings: holdingsWithShare.slice(0, 5),
+          sportExposure,
+        },
+        activity: recentActivity,
+        holdings: holdingsWithShare,
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message });

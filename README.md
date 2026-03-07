@@ -1,476 +1,82 @@
-# Spotportfolio
+# Sportfolio
 
-A sports trading platform with real-time game scores, player stocks, and contests.
-
-## Quick Start
-
-```bash
-# Install dependencies
-npm install
-
-# Set up environment variables
-cp .env.example .env
-# Edit .env with your values
-
-# Run development server
-npm run dev
-
-# Run type checking
-npm run check
-
-# Run tests
-npm run test
-
-# Run linter
-npm run lint
-
-# Format code
-npm run format
-```
-
-## Available Scripts
-
-| Command                 | Description                    |
-| ----------------------- | ------------------------------ |
-| `npm run dev`           | Start development server       |
-| `npm run build`         | Build for production           |
-| `npm run start`         | Start production server        |
-| `npm run check`         | Run TypeScript type checking   |
-| `npm run lint`          | Run ESLint linter              |
-| `npm run format`        | Format code with Prettier      |
-| `npm run format:check`  | Check code formatting          |
-| `npm run test`          | Run tests in watch mode        |
-| `npm run test:run`      | Run tests once                 |
-| `npm run test:coverage` | Run tests with coverage report |
-| `npm run db:push`       | Push database schema changes   |
-| `npm run code:dead`     | Report unused files/exports    |
-| `npm run code:dup`      | Report duplicate code          |
-
-## Project Structure
-
-- `client/` - React frontend application
-- `server/` - Express.js backend API
-- `shared/` - Shared TypeScript schemas and utilities
-- `mobile/` - Capacitor mobile app (iOS/Android)
-
-## Tech Stack
-
-- **Frontend**: React 18, Vite, Tailwind CSS, Radix UI
-- **Backend**: Express.js, TypeScript
-- **Database**: PostgreSQL with Drizzle ORM
-- **Auth**: Supabase
-- **Testing**: Vitest
-- **Real-time**: WebSocket
-
-## Environment Variables
-
-See `.env.example` for required environment variables.
-
-## Health Check
-
-The server provides a health check endpoint at `/api/health` that returns:
-
-- Server status (ready/starting)
-- Uptime in milliseconds/seconds
-- Current timestamp
-
-## Development
-
-The project uses ESLint and Prettier for code quality and formatting. Pre-commit hooks ensure code quality before committing.
-
-Additional code quality checks:
-
-```bash
-npm run code:dead
-npm run code:dup
-```
-
-## Mobile Development
-
-```bash
-# Sync mobile app
-npm run mobile:sync
-
-# Open iOS project
-npm run mobile:ios
-
-# Open Android project
-npm run mobile:android
-```
-
-## License
-
-MIT�# Spotportfolio
-
-A sports trading platform with real-time game scores, player stocks, and contests.
+Sportfolio is a multi-sport player-share market with AMM trading, LP participation, scouts, power/boost mechanics, and a Hermes-backed operator across web, CLI, and SMS.
 
 ## Quick Start
 
 ```bash
-# Install dependencies
 npm install
-
-# Set up environment variables
 cp .env.example .env
-# Edit .env with your values
-
-# Run development server
 npm run dev
-
-# Run type checking
-npm run check
-
-# Run tests
-npm run test
-
-# Run linter
-npm run lint
-
-# Format code
-npm run format
 ```
 
-## Available Scripts
+Default development URL: `http://127.0.0.1:5000`
 
-| Command                 | Description                    |
-| ----------------------- | ------------------------------ |
-| `npm run dev`           | Start development server       |
-| `npm run build`         | Build for production           |
-| `npm run start`         | Start production server        |
-| `npm run check`         | Run TypeScript type checking   |
-| `npm run lint`          | Run ESLint linter              |
-| `npm run format`        | Format code with Prettier      |
-| `npm run format:check`  | Check code formatting          |
-| `npm run test`          | Run tests in watch mode        |
-| `npm run test:run`      | Run tests once                 |
-| `npm run test:coverage` | Run tests with coverage report |
-| `npm run db:push`       | Push database schema changes   |
+## Validation Commands
+
+```bash
+npm run check
+npm run lint
+npm run test:run
+npm run format:check
+```
+
+## CLI Quickstart
+
+1. Open your profile in the web app and create a token in **CLI Access**.
+2. Authenticate from this repo:
+
+```bash
+npm run cli -- auth login --token <your-token> --base-url https://www.sportfolio.market
+```
+
+3. Try core commands:
+
+```bash
+npm run cli -- auth whoami
+npm run cli -- docs search "power boosts"
+npm run cli -- portfolio summary
+npm run cli -- agent ask "review my setup"
+```
+
+For full syntax and troubleshooting:
+
+- `/wiki/cli/command-reference`
+- `/wiki/features/user-action-surface`
+
+## Common Scripts
+
+- `npm run dev` - start development server
+- `npm run build` - build client + server
+- `npm run start` - run production build
+- `npm run cli -- <args>` - run Sportfolio CLI from repo
+- `npm run docs:build` - regenerate docs manifest
+- `npm run docs:check` - validate docs metadata
+- `npm run cli:smoke` - run CLI smoke harness
+- `npm run e2e` - run Playwright tests
 
 ## Project Structure
 
-- `client/` - React frontend application
-- `server/` - Express.js backend API
-- `shared/` - Shared TypeScript schemas and utilities
-- `mobile/` - Capacitor mobile app (iOS/Android)
+- `client/` - React frontend
+- `server/` - Express API + jobs
+- `shared/` - shared types and schema
+- `packages/sportfolio-cli/` - CLI package
+- `docs/wiki/` - canonical user/internal docs
+- `tests/e2e/` - Playwright end-to-end tests
 
 ## Tech Stack
 
-- **Frontend**: React 18, Vite, Tailwind CSS, Radix UI
-- **Backend**: Express.js, TypeScript
-- **Database**: PostgreSQL with Drizzle ORM
-- **Auth**: Supabase
-- **Testing**: Vitest
-- **Real-time**: WebSocket
+- React + TanStack Query + Wouter
+- Express + TypeScript
+- PostgreSQL + Drizzle ORM
+- Supabase auth
+- WebSocket real-time updates
 
-## Environment Variables
-
-See `.env.example` for required environment variables.
-
-## Health Check
-
-The server provides a health check endpoint at `/api/health` that returns:
-
-- Server status (ready/starting)
-- Uptime in milliseconds/seconds
-- Current timestamp
-
-## Development
-
-The project uses ESLint and Prettier for code quality and formatting. Pre-commit hooks ensure code quality before committing.
-
-## Mobile Development
+## Mobile
 
 ```bash
-# Sync mobile app
 npm run mobile:sync
-
-# Open iOS project
 npm run mobile:ios
-
-# Open Android project
-npm run mobile:android
-```
-
-## License
-
-MIT
-
-# Spotportfolio
-
-A sports trading platform with real-time game scores, player stocks, and contests.
-
-## Quick Start
-
-```bash
-# Install dependencies
-npm install
-
-# Set up environment variables
-cp .env.example .env
-# Edit .env with your values
-
-# Run development server
-npm run dev
-
-# Run type checking
-npm run check
-
-# Run tests
-npm run test
-
-# Run linter
-npm run lint
-
-# Format code
-npm run format
-```
-
-## Available Scripts
-
-| Command                 | Description                    |
-| ----------------------- | ------------------------------ |
-| `npm run dev`           | Start development server       |
-| `npm run build`         | Build for production           |
-| `npm run start`         | Start production server        |
-| `npm run check`         | Run TypeScript type checking   |
-| `npm run lint`          | Run ESLint linter              |
-| `npm run format`        | Format code with Prettier      |
-| `npm run format:check`  | Check code formatting          |
-| `npm run test`          | Run tests in watch mode        |
-| `npm run test:run`      | Run tests once                 |
-| `npm run test:coverage` | Run tests with coverage report |
-| `npm run db:push`       | Push database schema changes   |
-
-## Project Structure
-
-- `client/` - React frontend application
-- `server/` - Express.js backend API
-- `shared/` - Shared TypeScript schemas and utilities
-- `mobile/` - Capacitor mobile app (iOS/Android)
-
-## Tech Stack
-
-- **Frontend**: React 18, Vite, Tailwind CSS, Radix UI
-- **Backend**: Express.js, TypeScript
-- **Database**: PostgreSQL with Drizzle ORM
-- **Auth**: Supabase
-- **Testing**: Vitest
-- **Real-time**: WebSocket
-
-## Environment Variables
-
-See `.env.example` for required environment variables.
-
-## Health Check
-
-The server provides a health check endpoint at `/api/health` that returns:
-
-- Server status (ready/starting)
-- Uptime in milliseconds/seconds
-- Current timestamp
-
-## Development
-
-The project uses ESLint and Prettier for code quality and formatting. Pre-commit hooks ensure code quality before committing.
-
-## Mobile Development
-
-```bash
-# Sync mobile app
-npm run mobile:sync
-
-# Open iOS project
-npm run mobile:ios
-
-# Open Android project
-npm run mobile:android
-```
-
-## License
-
-MIT# Spotportfolio
-
-A sports trading platform with real-time game scores, player stocks, and contests.
-
-## Quick Start
-
-```bash
-# Install dependencies
-npm install
-
-# Set up environment variables
-cp .env.example .env
-# Edit .env with your values
-
-# Run development server
-npm run dev
-
-# Run type checking
-npm run check
-
-# Run tests
-npm run test
-
-# Run linter
-npm run lint
-
-# Format code
-npm run format
-```
-
-## Available Scripts
-
-| Command                 | Description                    |
-| ----------------------- | ------------------------------ |
-| `npm run dev`           | Start development server       |
-| `npm run build`         | Build for production           |
-| `npm run start`         | Start production server        |
-| `npm run check`         | Run TypeScript type checking   |
-| `npm run lint`          | Run ESLint linter              |
-| `npm run format`        | Format code with Prettier      |
-| `npm run format:check`  | Check code formatting          |
-| `npm run test`          | Run tests in watch mode        |
-| `npm run test:run`      | Run tests once                 |
-| `npm run test:coverage` | Run tests with coverage report |
-| `npm run db:push`       | Push database schema changes   |
-
-## Project Structure
-
-- `client/` - React frontend application
-- `server/` - Express.js backend API
-- `shared/` - Shared TypeScript schemas and utilities
-- `mobile/` - Capacitor mobile app (iOS/Android)
-
-## Tech Stack
-
-- **Frontend**: React 18, Vite, Tailwind CSS, Radix UI
-- **Backend**: Express.js, TypeScript
-- **Database**: PostgreSQL with Drizzle ORM
-- **Auth**: Supabase
-- **Testing**: Vitest
-- **Real-time**: WebSocket
-
-## Environment Variables
-
-See `.env.example` for required environment variables.
-
-## Health Check
-
-The server provides a health check endpoint at `/api/health` that returns:
-
-- Server status (ready/starting)
-- Uptime in milliseconds/seconds
-- Current timestamp
-
-## Development
-
-The project uses ESLint and Prettier for code quality and formatting. Pre-commit hooks ensure code quality before committing.
-
-## Mobile Development
-
-```bash
-# Sync mobile app
-npm run mobile:sync
-
-# Open iOS project
-npm run mobile:ios
-
-# Open Android project
-npm run mobile:android
-```
-
-## License
-
-MIT
-
-# Spotportfolio
-
-A sports trading platform with real-time game scores, player stocks, and contests.
-
-## Quick Start
-
-```bash
-# Install dependencies
-npm install
-
-# Set up environment variables
-cp .env.example .env
-# Edit .env with your values
-
-# Run development server
-npm run dev
-
-# Run type checking
-npm run check
-
-# Run tests
-npm run test
-
-# Run linter
-npm run lint
-
-# Format code
-npm run format
-```
-
-## Available Scripts
-
-| Command                 | Description                    |
-| ----------------------- | ------------------------------ |
-| `npm run dev`           | Start development server       |
-| `npm run build`         | Build for production           |
-| `npm run start`         | Start production server        |
-| `npm run check`         | Run TypeScript type checking   |
-| `npm run lint`          | Run ESLint linter              |
-| `npm run format`        | Format code with Prettier      |
-| `npm run format:check`  | Check code formatting          |
-| `npm run test`          | Run tests in watch mode        |
-| `npm run test:run`      | Run tests once                 |
-| `npm run test:coverage` | Run tests with coverage report |
-| `npm run db:push`       | Push database schema changes   |
-
-## Project Structure
-
-- `client/` - React frontend application
-- `server/` - Express.js backend API
-- `shared/` - Shared TypeScript schemas and utilities
-- `mobile/` - Capacitor mobile app (iOS/Android)
-
-## Tech Stack
-
-- **Frontend**: React 18, Vite, Tailwind CSS, Radix UI
-- **Backend**: Express.js, TypeScript
-- **Database**: PostgreSQL with Drizzle ORM
-- **Auth**: Supabase
-- **Testing**: Vitest
-- **Real-time**: WebSocket
-
-## Environment Variables
-
-See `.env.example` for required environment variables.
-
-## Health Check
-
-The server provides a health check endpoint at `/api/health` that returns:
-
-- Server status (ready/starting)
-- Uptime in milliseconds/seconds
-- Current timestamp
-
-## Development
-
-The project uses ESLint and Prettier for code quality and formatting. Pre-commit hooks ensure code quality before committing.
-
-## Mobile Development
-
-```bash
-# Sync mobile app
-npm run mobile:sync
-
-# Open iOS project
-npm run mobile:ios
-
-# Open Android project
 npm run mobile:android
 ```
 

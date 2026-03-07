@@ -129,16 +129,21 @@ export function CliAccessCard() {
                 should be treated like passwords.
               </p>
             </div>
-            <Button
-              variant="terminal"
-              onClick={() => {
-                setCreatedToken(null);
-                setCreateDialogOpen(true);
-              }}
-              data-testid="button-open-create-cli-token"
-            >
-              Create Token
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="terminal"
+                onClick={() => {
+                  setCreatedToken(null);
+                  setCreateDialogOpen(true);
+                }}
+                data-testid="button-open-create-cli-token"
+              >
+                Create Token
+              </Button>
+              <Button variant="terminalOutline" asChild data-testid="link-cli-command-reference">
+                <a href="/wiki/cli/command-reference">Command Guide</a>
+              </Button>
+            </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="secondary" className="font-mono text-[10px] uppercase">
@@ -147,6 +152,13 @@ export function CliAccessCard() {
             <span className="font-mono text-[11px] text-muted-foreground">
               Prefer one token per device or automation workflow so you can revoke cleanly.
             </span>
+          </div>
+          <div className="terminal-shell p-3 font-mono text-[11px] leading-relaxed">
+            <div>
+              1) `npm run cli -- auth login --token &lt;token&gt; --base-url
+              https://www.sportfolio.market`
+            </div>
+            <div>2) `npm run cli -- docs open cli/command-reference`</div>
           </div>
         </CardHeader>
         <CardContent>
