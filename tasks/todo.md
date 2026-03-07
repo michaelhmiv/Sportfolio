@@ -65,6 +65,33 @@ Review:
 - Added regression coverage in `server/jobs/sync-nascar-live.test.ts` for both non-race and race session handling.
 - Validation passed: `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`.
 
+## 2026-03-07 MCP Review Fixes
+
+- [x] Bind MCP confirm/cancel flows to the validated `pendingBundleId` in thread-service
+- [x] Fix `stage_lp_add_optimal` to pass the preview contract's `maxShares`/`maxPlayMoney` fields
+- [x] Sort community-boost eligible players before applying the MCP tool limit
+- [x] Tighten MCP mocks/tests so the reviewed regressions are covered
+- [x] Validate via targeted MCP/Hermes tests plus `npm run check`, `npm run lint`, and `npm run test:run`
+
+Review:
+
+- `confirm_pending_action` and `cancel_pending_action` now pass the validated bundle id into thread-service, and thread-service applies/rejects that exact bundle instead of whichever pending bundle is latest on the thread.
+- `stage_lp_add_optimal` now maps to the preview contract's `maxShares` and `maxPlayMoney` fields, with backward-compatible aliases retained in the MCP schema.
+- Community boost eligibility now mirrors the existing route ordering by sorting on `communityBoostCount` and player name before applying the MCP limit.
+- The MCP mock harness now enforces bundle-id forwarding and the LP-optimal preview contract, and `server/mcp/mcp-server.test.ts` adds an ordering regression test for community boost candidates.
+- Validation passed for targeted MCP/Hermes tests, `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`.
+
+## 2026-03-07 Full Gameplay MCP Parity + Exhaustive Verification
+
+- [ ] Build a canonical gameplay capability matrix that enumerates every included gameplay workflow and every explicit MCP v1 exclusion
+- [ ] Add a stable public MCP tool registry over the existing Hermes/tool executor layer
+- [ ] Fix Hermes intent grounding so idle-cash asks stay in the cash-deployment domain and do not reuse generic cross-domain levers
+- [ ] Add a remote `/mcp` Streamable HTTP server with bearer-token auth using existing user API tokens
+- [ ] Harden staged confirmations so MCP confirm/cancel require both `threadId` and `pendingBundleId`
+- [ ] Expose typed gameplay read/state/mutation tools for the full non-billing gameplay surface
+- [ ] Add parity audit coverage, MCP protocol tests, and an exhaustive smoke harness that calls every public MCP tool at least once
+- [ ] Run `npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`, and the new MCP verification commands
+
 ## 2026-03-04 PR #87 Comment Fix Pass (Manual)
 
 - [x] Sync `main` with `origin/main` and check out PR `#87`

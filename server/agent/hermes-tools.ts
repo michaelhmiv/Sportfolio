@@ -72,6 +72,7 @@ type HermesScanResult = {
   observations: string[];
   warnings: string[];
   context: Record<string, unknown>;
+  intentFocus?: string;
 };
 
 const proposedMemoryWritesSchema = z.array(
@@ -649,7 +650,6 @@ async function buildOperatorScan(
   },
   toolName:
     | "scan_scout_opportunities"
-    | "scan_idle_balance_options"
     | "scan_portfolio_cleanup_levers"
     | "scan_watchlist_targets"
     | "scan_top_market_opportunities",
@@ -684,24 +684,6 @@ async function buildOperatorScan(
         context: {
           recommendedTargets: context.recommendedTargets.slice(0, 5),
           remainingScouts: context.remainingScouts,
-        },
-      });
-    case "scan_idle_balance_options":
-      return buildScanResult({
-        toolName,
-        domain: "portfolio",
-        summary: "Reviewed idle-balance deployment levers.",
-        replyText:
-          leadLevers.length > 0
-            ? `You have ${formatMoney(context.operatorOverview.availableBalance)} available. The best deployment levers right now are ${formatCandidateList(leadLevers)}.`
-            : `You have ${formatMoney(context.operatorOverview.availableBalance)} available, but there is no single urgent deployment lever right now. The next step is deciding whether you want more boost exposure, more scouting, or a fresh market position.`,
-        observations: [
-          `${formatMoney(context.operatorOverview.availableBalance)} available balance.`,
-        ],
-        warnings: [],
-        context: {
-          availableBalance: context.operatorOverview.availableBalance,
-          nextBestLevers: leadLevers,
         },
       });
     case "scan_portfolio_cleanup_levers":
@@ -763,6 +745,61 @@ async function buildOperatorScan(
         },
       });
   }
+}
+
+async function buildIdleBalanceDeploymentScan(input: {
+  userId: string;
+  args?: Record<string, unknown>;
+}): Promise<HermesScanResult> {
+  const profile = (await getScoutAgentProfile(input.userId)).profile;
+  const requestedSport = toStringValue(input.args?.sport).toUpperCase();
+  const message =
+    toStringValue(input.args?.message) ||
+    (requestedSport
+      ? `what should i do with my idle balance in ${requestedSport}?`
+      : "what should i do with my idle balance?");
+  const plan = await planDirectAgentOperation({
+    userId: input.userId,
+    profile,
+    message,
+  });
+
+  if (!plan) {
+    return buildScanResult({
+      toolName: "scan_idle_balance_options",
+      domain: "portfolio",
+      intentFocus: "cash_deployment",
+      summary: "No idle-capital deployment review was produced.",
+      replyText:
+        "I could not produce a cash-deployment review for that request. If you want, I can still review your balance state and current market windows directly.",
+      observations: [],
+      warnings: ["No idle-capital deployment plan was available for that request."],
+      context: {},
+    });
+  }
+
+  const planContext =
+    plan.contextSnapshot && typeof plan.contextSnapshot === "object"
+      ? (plan.contextSnapshot as Record<string, unknown>)
+      : {};
+
+  return buildScanResult({
+    toolName: "scan_idle_balance_options",
+    domain: "portfolio",
+    intentFocus: "cash_deployment",
+    summary: plan.summary || "Idle-capital deployment review.",
+    replyText: plan.replyText || plan.summary || "I reviewed your idle-capital deployment options.",
+    observations: plan.observations || [],
+    warnings: plan.warnings || [],
+    context: {
+      ...planContext,
+      availableBalance:
+        typeof planContext.availableBalance === "number" ? planContext.availableBalance : null,
+      candidatePlayerId: toOptionalString(planContext.candidatePlayerId),
+      actions: Array.isArray(plan.actions) ? plan.actions : [],
+      trace: plan.trace || {},
+    },
+  });
 }
 
 async function buildCommunityBoostCandidateScan(input: {
@@ -1681,8 +1718,9 @@ export async function runHermesScanTool(input: {
       return buildDailyBoostCandidateScan(input);
     case "scan_open_boost_slots":
       return buildOpenBoostSlotScan(input);
-    case "scan_scout_opportunities":
     case "scan_idle_balance_options":
+      return buildIdleBalanceDeploymentScan(input);
+    case "scan_scout_opportunities":
     case "scan_portfolio_cleanup_levers":
     case "scan_watchlist_targets":
     case "scan_top_market_opportunities":
