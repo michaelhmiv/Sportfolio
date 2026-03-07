@@ -1,3 +1,14 @@
+## 2026-03-07 Full Gameplay MCP Parity + Exhaustive Verification
+
+- [ ] Build a canonical gameplay capability matrix that enumerates every included gameplay workflow and every explicit MCP v1 exclusion
+- [ ] Add a stable public MCP tool registry over the existing Hermes/tool executor layer
+- [ ] Fix Hermes intent grounding so idle-cash asks stay in the cash-deployment domain and do not reuse generic cross-domain levers
+- [ ] Add a remote `/mcp` Streamable HTTP server with bearer-token auth using existing user API tokens
+- [ ] Harden staged confirmations so MCP confirm/cancel require both `threadId` and `pendingBundleId`
+- [ ] Expose typed gameplay read/state/mutation tools for the full non-billing gameplay surface
+- [ ] Add parity audit coverage, MCP protocol tests, and an exhaustive smoke harness that calls every public MCP tool at least once
+- [ ] Run `npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`, and the new MCP verification commands
+
 ## 2026-03-04 PR #87 Comment Fix Pass (Manual)
 
 - [x] Sync `main` with `origin/main` and check out PR `#87`

@@ -15,6 +15,11 @@
 - Self-improvement should create durable remediation candidates, but candidate persistence must never be allowed to break the user-facing turn; if that write fails, degrade silently and keep the answer path intact.
 - Agent audit tooling needs a true static mode that can run without a live user id or working local DB credentials; otherwise the evaluation loop disappears in the exact broken environments where it is most useful.
 
+## 2026-03-07
+
+- When scoping MCP parity for Sportfolio, separate gameplay actions from external purchase and account-management flows: community boost creation, market trades, LP actions, boosts, condense, scouts, watchlists, schedules, and agent threads are gameplay; checkout, add-cash, premium/community purchase flows, profile/settings, and admin routes are not.
+- If a user asks what to do with idle cash, treat that as a cash-deployment intent first and keep the response domain-limited unless they explicitly ask for a broad setup review.
+
 ## 2026-02-09
 
 - Before deep debugging/investigation, sync to the latest upstream (`origin/main`) and eliminate local noise:

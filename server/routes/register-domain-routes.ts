@@ -4,6 +4,7 @@ import { registerCliRoutes } from "./cli";
 import { registerDocsRoutes } from "./docs";
 import { registerInternalAgentToolRoutes } from "./internal-agent-tools";
 import { registerLpRoutes } from "./lp";
+import { registerMcpRoutes } from "./mcp";
 import { registerSmsRoutes } from "./sms";
 
 /**
@@ -17,4 +18,5 @@ export function registerDomainRoutes(app: Express) {
   registerCliRoutes(app);
   registerSmsRoutes(app);
   registerInternalAgentToolRoutes(app);
+  registerMcpRoutes(app);
 }

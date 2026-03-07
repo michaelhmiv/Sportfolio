@@ -38,6 +38,8 @@
     "qa:smoke": "node scripts/agent-readiness-smoke.mjs",
     "agent:debug": "node scripts/agent-debug-loop.mjs",
     "agent:improve": "node scripts/agent-self-improve.mjs",
+    "mcp:audit": "tsx scripts/mcp-audit.ts",
+    "mcp:smoke": "tsx scripts/mcp-smoke.ts",
     "text:check": "node scripts/check-text-encoding.mjs"
   },
   "dependencies": {
@@ -51,6 +53,7 @@
     "@jridgewell/trace-mapping": "^0.3.25",
     "@mariozechner/pi-agent-core": "^0.55.3",
     "@mariozechner/pi-ai": "^0.55.3",
+    "@modelcontextprotocol/sdk": "^1.27.1",
     "@neondatabase/serverless": "^0.10.4",
     "@octokit/rest": "^22.0.1",
     "@opentelemetry/api": "^1.9.0",
