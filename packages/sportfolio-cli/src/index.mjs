@@ -596,12 +596,12 @@ export async function runCli(rawArgs) {
     return;
   }
 
-  if (rest.includes("--help")) {
-    printCommandHelp(command);
-    return;
-  }
-
   try {
+    if (rest.includes("--help")) {
+      printCommandHelp(command);
+      return;
+    }
+
     if (command === "auth") {
       await handleAuth(rest, asJson);
       return;

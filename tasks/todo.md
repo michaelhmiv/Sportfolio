@@ -1,3 +1,14 @@
+## 2026-03-07 PR #89 Review Follow-up
+
+- [x] Pull the open review comments for PR `#89` and map the actionable feedback
+- [x] Route top-level command help through the CLI error handler so invalid `--help` requests fail cleanly
+- [x] Add regression coverage and validate the fix before pushing
+
+Review:
+
+- Fixed the CLI regression called out in PR `#89`: `sportfolio foo --help` now stays inside the existing `try/catch` path, so unknown command help requests use the normal `fail(...)` output instead of leaking a raw Node stack trace.
+- Added `packages/sportfolio-cli/src/index.test.ts` to lock in both the invalid-command help failure path and the supported-command help path, then re-ran `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`.
+
 ## 2026-03-07 Fresh PR Packaging
 
 - [x] Audit the local worktree and separate product changes from local-only artifacts before staging
