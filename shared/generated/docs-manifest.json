@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-04T04:41:01.016Z",
+  "generatedAt": "2026-03-07T13:16:49.668Z",
   "articles": [
     {
       "id": "agent-runtime-model",
@@ -46,6 +46,35 @@
       "surface": ["web", "cli"],
       "searchKeywords": ["changelog", "wiki", "docs", "cli", "api tokens"],
       "urlPath": "/wiki/changelog/2026-03-02-knowledge-hub"
+    },
+    {
+      "id": "cli-command-reference",
+      "title": "CLI Command Reference",
+      "summary": "End-to-end setup, command syntax, JSON automation mode, and troubleshooting for the Sportfolio CLI.",
+      "audience": "public",
+      "category": "cli",
+      "status": "published",
+      "owner": "product-engineering",
+      "lastReviewedAt": "2026-03-07",
+      "changeTriggers": [
+        "package.json",
+        "packages/sportfolio-cli/src/index.mjs",
+        "packages/sportfolio-cli/src/http.mjs",
+        "server/routes/cli.ts",
+        "client/src/components/cli-access-card.tsx"
+      ],
+      "slug": "command-reference",
+      "section": "cli",
+      "surface": ["web", "cli", "agent"],
+      "searchKeywords": [
+        "cli commands",
+        "quickstart",
+        "token",
+        "json",
+        "automation",
+        "troubleshooting"
+      ],
+      "urlPath": "/wiki/cli/command-reference"
     },
     {
       "id": "cli-overview",
@@ -209,6 +238,30 @@
         "linked account"
       ],
       "urlPath": "/wiki/features/sms-agent"
+    },
+    {
+      "id": "feature-user-action-surface",
+      "title": "User Action Surface",
+      "summary": "A practical map of what users can currently do across web, CLI, and SMS, including which flows are read-only versus confirmation-gated.",
+      "audience": "public",
+      "category": "features",
+      "status": "published",
+      "owner": "product-engineering",
+      "lastReviewedAt": "2026-03-07",
+      "changeTriggers": [
+        "client/src/App.tsx",
+        "client/src/components/app-sidebar.tsx",
+        "server/routes.ts",
+        "server/routes/amm.ts",
+        "server/routes/lp.ts",
+        "server/routes/cli.ts",
+        "server/routes/sms.ts"
+      ],
+      "slug": "user-action-surface",
+      "section": "features",
+      "surface": ["web", "cli", "agent"],
+      "searchKeywords": ["capabilities", "actions", "feature map", "web", "cli", "sms", "agent"],
+      "urlPath": "/wiki/features/user-action-surface"
     },
     {
       "id": "gameplay-leaderboards-progress",

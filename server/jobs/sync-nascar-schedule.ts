@@ -9,6 +9,7 @@
 import { storage } from "../storage";
 import {
   fetchRaceSchedule,
+  parseNascarEtDateTime,
   NASCAR_SERIES,
   NASCAR_SERIES_NAMES,
   NASCAR_SERIES_CODES,
@@ -50,18 +51,8 @@ async function convertToDailyGame(
   const seriesName = NASCAR_SERIES_CODES[seriesId];
   const trackName = race.track_name;
 
-  // Parse the race date/time (use race_date field)
-  // NASCAR API returns times in Eastern Time without timezone info
-  // So "13:30" means 1:30 PM ET, not UTC
-  // We need to convert ET to UTC (add 5 hours for EST, 4 for EDT)
-  const isEDT = () => {
-    const date = new Date(race.race_date);
-    const month = date.getMonth();
-    return month > 2 && month < 11; // April-October is EDT
-  };
-  const etOffset = isEDT() ? 4 : 5; // ET offset from UTC
-  const raceDateTimeET = new Date(race.race_date);
-  const raceDateTimeUTC = new Date(raceDateTimeET.getTime() + etOffset * 60 * 60 * 1000);
+  // NASCAR API returns schedule date/times in ET without timezone suffix.
+  const raceDateTimeUTC = parseNascarEtDateTime(race.race_date);
 
   // Calculate game day in Eastern Time
   const gameDay = getGameDay(raceDateTimeUTC);

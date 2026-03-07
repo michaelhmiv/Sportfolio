@@ -1,350 +1,561 @@
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useLocation, Link } from "wouter";
-import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Trophy, TrendingUp, ShoppingCart, DollarSign, Wallet, PieChart } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
+import { Link } from "wouter";
+import {
+  Activity,
+  ArrowDownRight,
+  ArrowUpRight,
+  DollarSign,
+  PieChart,
+  RefreshCw,
+  ShoppingCart,
+  Trophy,
+  Wallet,
+} from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useWebSocket } from "@/lib/websocket";
 import { queryClient } from "@/lib/queryClient";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+type LeaderboardCategory =
+  | "netWorth"
+  | "cashBalance"
+  | "portfolioValue"
+  | "tradingVolume24h"
+  | "marketOrders";
 
 interface LeaderboardEntry {
   rank: number;
   userId: string;
   username: string;
   profileImageUrl: string | null;
-  value: number | string;
+  value: number;
+  rankChange: number | null;
 }
 
-interface LeaderboardData {
-  category: string;
+interface LeaderboardResponse {
+  category: LeaderboardCategory;
+  categoryLabel: string;
+  description: string;
+  unit: "currency" | "count";
+  updatedAt: string;
+  totalEntries: number;
   leaderboard: LeaderboardEntry[];
+  currentUser: LeaderboardEntry | null;
+  currentUserWindow: LeaderboardEntry[];
+}
+
+const CATEGORY_TABS: Array<{
+  value: LeaderboardCategory;
+  label: string;
+  shortLabel: string;
+  icon: typeof DollarSign;
+}> = [
+  { value: "netWorth", label: "Net Worth", shortLabel: "Worth", icon: DollarSign },
+  { value: "portfolioValue", label: "Portfolio", shortLabel: "Port", icon: PieChart },
+  { value: "cashBalance", label: "Cash", shortLabel: "Cash", icon: Wallet },
+  { value: "tradingVolume24h", label: "24h Volume", shortLabel: "24h Vol", icon: Activity },
+  { value: "marketOrders", label: "Orders", shortLabel: "Orders", icon: ShoppingCart },
+];
+
+const LEGACY_CATEGORY_ALIASES: Record<string, LeaderboardCategory> = {
+  sharesMined: "tradingVolume24h",
+  sharesVested: "tradingVolume24h",
+  tradingVolume: "tradingVolume24h",
+  volume: "tradingVolume24h",
+};
+
+function normalizeHashCategory(rawHash: string): LeaderboardCategory {
+  if (!rawHash) {
+    return "netWorth";
+  }
+
+  if (CATEGORY_TABS.some((tab) => tab.value === rawHash)) {
+    return rawHash as LeaderboardCategory;
+  }
+
+  return LEGACY_CATEGORY_ALIASES[rawHash] || "netWorth";
+}
+
+function formatLeaderboardValue(category: LeaderboardCategory, value: number) {
+  if (category === "marketOrders") {
+    return `${Math.round(value).toLocaleString()} orders`;
+  }
+
+  return `$${value.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+function RankChangeBadge({ change }: { change: number | null }) {
+  if (change === null || change === 0) {
+    return <span className="text-xs text-muted-foreground">Flat</span>;
+  }
+
+  const isPositive = change > 0;
+  const Icon = isPositive ? ArrowUpRight : ArrowDownRight;
+
+  return (
+    <span
+      className={`inline-flex items-center gap-1 text-xs ${isPositive ? "text-positive" : "text-destructive"}`}
+    >
+      <Icon className="h-3 w-3" />
+      {isPositive ? "+" : ""}
+      {change}
+    </span>
+  );
 }
 
 export default function Leaderboards() {
-  const [, setLocation] = useLocation();
   const { user } = useAuth();
-  const { subscribe } = useWebSocket();
+  const { subscribe, connectionState, isConnected } = useWebSocket();
+  const boardRef = useRef<HTMLDivElement | null>(null);
 
-  // Get initial category from URL hash
-  const getHashCategory = () => {
-    const hash = window.location.hash.replace("#", "") || "netWorth";
-    return ["netWorth", "cashBalance", "portfolioValue", "sharesMined", "marketOrders"].includes(
-      hash,
-    )
-      ? hash
-      : "netWorth";
-  };
+  const getInitialCategory = () =>
+    normalizeHashCategory(
+      typeof window !== "undefined" ? window.location.hash.replace("#", "") : "",
+    );
 
-  // Track active category in state
-  const [category, setCategory] = useState(getHashCategory());
+  const [category, setCategory] = useState<LeaderboardCategory>(getInitialCategory);
+  const [boardMode, setBoardMode] = useState<"top" | "aroundMe">("top");
 
-  // Listen for hash changes
   useEffect(() => {
-    const handleHashChange = () => {
-      setCategory(getHashCategory());
+    const syncCategoryFromHash = () => {
+      const normalized = getInitialCategory();
+      setCategory(normalized);
+      if (window.location.hash !== `#${normalized}`) {
+        window.history.replaceState(null, "", `#${normalized}`);
+      }
     };
 
-    window.addEventListener("hashchange", handleHashChange);
-    return () => window.removeEventListener("hashchange", handleHashChange);
+    syncCategoryFromHash();
+    window.addEventListener("hashchange", syncCategoryFromHash);
+    return () => window.removeEventListener("hashchange", syncCategoryFromHash);
   }, []);
 
-  // Subscribe to WebSocket events for real-time leaderboard updates
   useEffect(() => {
-    // Scout events → update shares vested leaderboard
-    const unsubScouts = subscribe("scouts", () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/leaderboards?category=sharesMined"] });
-    });
+    const invalidate = (target: LeaderboardCategory) =>
+      queryClient.invalidateQueries({ queryKey: [`/api/leaderboards?category=${target}`] });
 
-    // Portfolio events → update net worth, cash balance, and portfolio value leaderboards
-    const unsubPortfolio = subscribe("portfolio", () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/leaderboards?category=netWorth"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/leaderboards?category=cashBalance"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/leaderboards?category=portfolioValue"] });
-    });
-
-    // Trade events → update all money-related leaderboards
     const unsubTrade = subscribe("trade", () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/leaderboards?category=marketOrders"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/leaderboards?category=netWorth"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/leaderboards?category=cashBalance"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/leaderboards?category=portfolioValue"] });
+      invalidate("tradingVolume24h");
+      invalidate("netWorth");
+      invalidate("cashBalance");
+      invalidate("portfolioValue");
+      invalidate("marketOrders");
+    });
+
+    const unsubPortfolio = subscribe("portfolio", () => {
+      invalidate("netWorth");
+      invalidate("cashBalance");
+      invalidate("portfolioValue");
     });
 
     return () => {
-      unsubScouts();
-      unsubPortfolio();
       unsubTrade();
+      unsubPortfolio();
     };
   }, [subscribe]);
 
-  const { data: netWorthData, isLoading: netWorthLoading } = useQuery<LeaderboardData>({
-    queryKey: ["/api/leaderboards?category=netWorth"],
-    enabled: category === "netWorth",
+  const { data, isLoading, refetch, isFetching } = useQuery<LeaderboardResponse>({
+    queryKey: [`/api/leaderboards?category=${category}`],
   });
 
-  const { data: cashBalanceData, isLoading: cashBalanceLoading } = useQuery<LeaderboardData>({
-    queryKey: ["/api/leaderboards?category=cashBalance"],
-    enabled: category === "cashBalance",
-  });
+  useEffect(() => {
+    if (!data?.currentUserWindow?.length && boardMode === "aroundMe") {
+      setBoardMode("top");
+    }
+  }, [boardMode, data?.currentUserWindow]);
 
-  const { data: portfolioValueData, isLoading: portfolioValueLoading } = useQuery<LeaderboardData>({
-    queryKey: ["/api/leaderboards?category=portfolioValue"],
-    enabled: category === "portfolioValue",
-  });
+  const displayedEntries = useMemo(() => {
+    if (!data) {
+      return [];
+    }
 
-  const { data: sharesMinedData, isLoading: sharesMinedLoading } = useQuery<LeaderboardData>({
-    queryKey: ["/api/leaderboards?category=sharesMined"],
-    enabled: category === "sharesMined",
-  });
+    if (boardMode === "aroundMe" && data.currentUserWindow.length > 0) {
+      return data.currentUserWindow;
+    }
 
-  const { data: marketOrdersData, isLoading: marketOrdersLoading } = useQuery<LeaderboardData>({
-    queryKey: ["/api/leaderboards?category=marketOrders"],
-    enabled: category === "marketOrders",
-  });
+    return data.leaderboard;
+  }, [boardMode, data]);
+
+  const featuredEntries = data?.leaderboard.slice(0, 3) || [];
 
   const handleTabChange = (value: string) => {
-    window.location.hash = value;
+    const nextCategory = value as LeaderboardCategory;
+    setCategory(nextCategory);
+    window.location.hash = nextCategory;
   };
 
-  const renderLeaderboard = (
-    data: LeaderboardData | undefined,
-    isLoading: boolean,
-    valueFormatter: (value: number | string) => string,
-  ) => {
-    if (isLoading) {
-      return <div className="text-center py-6 text-muted-foreground">Loading leaderboard...</div>;
-    }
-
-    if (!data || data.leaderboard.length === 0) {
-      return (
-        <Card variant="terminal">
-          <CardContent className="p-0">
-            <EmptyState
-              icon="users"
-              title="No rankings yet"
-              description="Be the first to make your mark! Start trading and competing to appear on the leaderboard."
-              size="md"
-              variant="terminal"
-              data-testid="empty-leaderboard"
-            />
-          </CardContent>
-        </Card>
-      );
-    }
-
-    return (
-      <>
-        {/* Mobile: Card Layout */}
-        <div className="sm:hidden space-y-3">
-          {data.leaderboard.map((entry) => {
-            const isCurrentUser = user?.id === entry.userId;
-            const displayName = entry.username;
-
-            return (
-              <Card
-                key={entry.userId}
-                variant="terminal"
-                className={`hover-elevate ${isCurrentUser ? "border-primary border-2" : ""}`}
-                data-testid={`card-leaderboard-${entry.rank}`}
-              >
-                <CardContent className="p-3">
-                  <Link href={`/user/${entry.userId}`}>
-                    <div className="flex items-center gap-2">
-                      <div className="flex items-center gap-1 flex-shrink-0">
-                        <span className="font-mono font-bold text-sm w-8 text-right">
-                          #{entry.rank}
-                        </span>
-                        {entry.rank <= 3 && (
-                          <Trophy
-                            className={`w-3 h-3 ${entry.rank === 1 ? "text-yellow-500" : "text-muted-foreground"}`}
-                          />
-                        )}
-                      </div>
-
-                      <Avatar className="w-7 h-7 flex-shrink-0">
-                        <AvatarImage src={entry.profileImageUrl || undefined} />
-                        <AvatarFallback className="text-xs">
-                          {entry.username[0].toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-
-                      <div className="flex-1 min-w-0">
-                        <div
-                          className={`font-semibold text-xs truncate ${isCurrentUser ? "text-primary" : ""}`}
-                        >
-                          @{entry.username}
-                        </div>
-                      </div>
-
-                      <div className="text-right flex-shrink-0">
-                        <div className="font-mono font-bold text-sm">
-                          {valueFormatter(entry.value)}
-                        </div>
-                      </div>
-                    </div>
-                  </Link>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-
-        {/* Desktop: Table Layout */}
-        <div className="hidden sm:block overflow-x-auto">
-          <Card variant="terminal">
-            <CardHeader>
-              <CardTitle className="terminal-heading text-sm">Global Rankings</CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              <table className="w-full">
-                <thead className="border-b bg-muted/50">
-                  <tr>
-                    <th className="text-left p-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Rank
-                    </th>
-                    <th className="text-left p-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      User
-                    </th>
-                    <th className="text-right p-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Value
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.leaderboard.map((entry) => {
-                    const isCurrentUser = user?.id === entry.userId;
-                    const displayName = entry.username;
-
-                    return (
-                      <tr
-                        key={entry.userId}
-                        className={`border-b hover-elevate ${isCurrentUser ? "bg-primary/5" : ""}`}
-                        data-testid={`row-leaderboard-${entry.rank}`}
-                      >
-                        <td className="p-3">
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-mono font-bold text-sm">#{entry.rank}</span>
-                            {entry.rank <= 3 && (
-                              <Trophy
-                                className={`w-3 h-3 ${entry.rank === 1 ? "text-yellow-500" : "text-muted-foreground"}`}
-                              />
-                            )}
-                          </div>
-                        </td>
-                        <td className="p-3">
-                          <Link href={`/user/${entry.userId}`}>
-                            <div className="flex items-center gap-2 hover:text-primary hover:underline cursor-pointer">
-                              <Avatar className="w-7 h-7">
-                                <AvatarImage src={entry.profileImageUrl || undefined} />
-                                <AvatarFallback className="text-xs">
-                                  {entry.username[0].toUpperCase()}
-                                </AvatarFallback>
-                              </Avatar>
-                              <div>
-                                <div className="font-semibold text-sm">{displayName}</div>
-                                <div className="text-[10px] text-muted-foreground">
-                                  @{entry.username}
-                                </div>
-                              </div>
-                            </div>
-                          </Link>
-                        </td>
-                        <td className="p-3 text-right">
-                          <div
-                            className="font-mono font-bold text-sm"
-                            data-testid={`text-value-${entry.userId}`}
-                          >
-                            {valueFormatter(entry.value)}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </CardContent>
-          </Card>
-        </div>
-      </>
-    );
+  const jumpToCurrentUser = () => {
+    setBoardMode("aroundMe");
+    boardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
+
+  const liveLabel =
+    connectionState === "connected"
+      ? "Live"
+      : connectionState === "connecting"
+        ? "Connecting"
+        : connectionState === "error"
+          ? "Connection issue"
+          : "Reconnecting";
 
   return (
     <div className="terminal-page p-3 sm:p-4">
-      <div className="max-w-7xl mx-auto">
-        <div className="terminal-shell mb-4 p-4">
-          <div className="terminal-strip mb-3">Global Rankings</div>
-          <h1 className="terminal-heading hidden text-xl sm:block">Global Leaderboards</h1>
-          <p className="terminal-subtle mt-2">See how you rank against all players</p>
+      <div className="mx-auto max-w-7xl space-y-4">
+        <div className="terminal-shell p-4 sm:p-5">
+          <div className="terminal-strip mb-3">Live Market Rankings</div>
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <h1 className="terminal-heading text-xl sm:text-2xl">Leaderboards</h1>
+              <p className="terminal-subtle mt-2 max-w-2xl">
+                Track live rank movement, jump straight to your window, and inspect public trader
+                status pages from the board.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant={isConnected ? "default" : "outline"} className="gap-1">
+                <span
+                  className={`h-2 w-2 rounded-full ${isConnected ? "bg-current" : "bg-muted-foreground"}`}
+                />
+                {liveLabel}
+              </Badge>
+              {data?.updatedAt && (
+                <Badge variant="outline">
+                  Updated {formatDistanceToNow(new Date(data.updatedAt), { addSuffix: true })}
+                </Badge>
+              )}
+              <Button
+                variant="terminalOutline"
+                size="sm"
+                onClick={() => refetch()}
+                disabled={isFetching}
+              >
+                <RefreshCw className={`mr-2 h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} />
+                Refresh
+              </Button>
+            </div>
+          </div>
         </div>
 
-        <Tabs value={category} onValueChange={handleTabChange} className="space-y-3 sm:space-y-3">
+        <Tabs value={category} onValueChange={handleTabChange} className="space-y-4">
           <TabsList variant="terminal" className="grid w-full grid-cols-5">
-            <TabsTrigger variant="terminal" value="netWorth" data-testid="tab-net-worth">
-              <DollarSign className="w-4 h-4 mr-1 sm:mr-2" />
-              <span className="hidden sm:inline">Net Worth</span>
-              <span className="sm:hidden text-xs">Worth</span>
-            </TabsTrigger>
-            <TabsTrigger variant="terminal" value="cashBalance" data-testid="tab-cash-balance">
-              <Wallet className="w-4 h-4 mr-1 sm:mr-2" />
-              <span className="hidden sm:inline">Cash</span>
-              <span className="sm:hidden text-xs">Cash</span>
-            </TabsTrigger>
-            <TabsTrigger
-              variant="terminal"
-              value="portfolioValue"
-              data-testid="tab-portfolio-value"
-            >
-              <PieChart className="w-4 h-4 mr-1 sm:mr-2" />
-              <span className="hidden sm:inline">Portfolio</span>
-              <span className="sm:hidden text-xs">Port</span>
-            </TabsTrigger>
-            <TabsTrigger variant="terminal" value="sharesMined" data-testid="tab-shares-vested">
-              <TrendingUp className="w-4 h-4 mr-1 sm:mr-2" />
-              <span className="hidden sm:inline">Shares Vested</span>
-              <span className="sm:hidden text-xs">Vest</span>
-            </TabsTrigger>
-            <TabsTrigger variant="terminal" value="marketOrders" data-testid="tab-market-orders">
-              <ShoppingCart className="w-4 h-4 mr-1 sm:mr-2" />
-              <span className="hidden sm:inline">Market Orders</span>
-              <span className="sm:hidden text-xs">Ords</span>
-            </TabsTrigger>
+            {CATEGORY_TABS.map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <TabsTrigger key={tab.value} value={tab.value} variant="terminal">
+                  <Icon className="mr-1 h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">{tab.label}</span>
+                  <span className="sm:hidden text-xs">{tab.shortLabel}</span>
+                </TabsTrigger>
+              );
+            })}
           </TabsList>
 
-          <TabsContent value="netWorth">
-            {renderLeaderboard(
-              netWorthData,
-              netWorthLoading,
-              (value) => `$${typeof value === "string" ? value : value.toFixed(2)}`,
-            )}
-          </TabsContent>
+          {CATEGORY_TABS.map((tab) => (
+            <TabsContent key={tab.value} value={tab.value} className="space-y-4">
+              <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+                <div className="space-y-4">
+                  <Card variant="terminal">
+                    <CardContent className="grid gap-3 p-4 sm:grid-cols-3">
+                      <div>
+                        <div className="terminal-label">Board</div>
+                        <div className="mt-2 text-lg font-semibold">
+                          {data?.categoryLabel || tab.label}
+                        </div>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {data?.description || "Live public market rankings."}
+                        </p>
+                      </div>
+                      <div>
+                        <div className="terminal-label">Competitors</div>
+                        <div className="mt-2 font-mono text-2xl font-bold">
+                          {data?.totalEntries?.toLocaleString() || "0"}
+                        </div>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          Public accounts currently on this board.
+                        </p>
+                      </div>
+                      <div>
+                        <div className="terminal-label">View</div>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <Button
+                            size="sm"
+                            variant={boardMode === "top" ? "terminal" : "terminalOutline"}
+                            onClick={() => setBoardMode("top")}
+                          >
+                            Top board
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={boardMode === "aroundMe" ? "terminal" : "terminalOutline"}
+                            onClick={() => setBoardMode("aroundMe")}
+                            disabled={!data?.currentUserWindow?.length}
+                          >
+                            Around me
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
 
-          <TabsContent value="cashBalance">
-            {renderLeaderboard(
-              cashBalanceData,
-              cashBalanceLoading,
-              (value) => `$${typeof value === "string" ? value : value.toFixed(2)}`,
-            )}
-          </TabsContent>
+                  <div className="grid gap-3 md:grid-cols-3">
+                    {featuredEntries.map((entry) => (
+                      <Link key={entry.userId} href={`/user/${entry.userId}`}>
+                        <Card variant="terminal" className="hover-elevate cursor-pointer">
+                          <CardContent className="p-4">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex items-center gap-3">
+                                <Avatar className="h-10 w-10">
+                                  <AvatarImage src={entry.profileImageUrl || undefined} />
+                                  <AvatarFallback>
+                                    {entry.username.slice(0, 2).toUpperCase()}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-mono text-sm text-muted-foreground">
+                                      #{entry.rank}
+                                    </span>
+                                    {entry.rank === 1 && (
+                                      <Trophy className="h-4 w-4 text-yellow-500" />
+                                    )}
+                                  </div>
+                                  <div className="font-semibold">@{entry.username}</div>
+                                </div>
+                              </div>
+                              <RankChangeBadge change={entry.rankChange} />
+                            </div>
+                            <div className="mt-4 font-mono text-2xl font-bold">
+                              {formatLeaderboardValue(tab.value, entry.value)}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </Link>
+                    ))}
+                  </div>
 
-          <TabsContent value="portfolioValue">
-            {renderLeaderboard(
-              portfolioValueData,
-              portfolioValueLoading,
-              (value) => `$${typeof value === "string" ? value : value.toFixed(2)}`,
-            )}
-          </TabsContent>
+                  <Card ref={boardRef} variant="terminal">
+                    <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <CardTitle className="text-sm uppercase tracking-wide">
+                          {boardMode === "aroundMe" ? "Your Rank Window" : "Full Board"}
+                        </CardTitle>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {boardMode === "aroundMe"
+                            ? "A focused slice around your current position."
+                            : "Click any trader to open their public market status page."}
+                        </p>
+                      </div>
+                      {user && data?.currentUser && boardMode === "aroundMe" && (
+                        <Button
+                          size="sm"
+                          variant="terminalOutline"
+                          onClick={() => setBoardMode("top")}
+                        >
+                          Back to top board
+                        </Button>
+                      )}
+                    </CardHeader>
+                    <CardContent className="p-0">
+                      {isLoading && !data ? (
+                        <div className="py-10 text-center text-muted-foreground">
+                          Loading leaderboard...
+                        </div>
+                      ) : !displayedEntries.length ? (
+                        <EmptyState
+                          icon="users"
+                          title="No rankings yet"
+                          description="Once public accounts have activity on this metric, they will appear here."
+                          size="md"
+                          variant="terminal"
+                          className="py-10"
+                        />
+                      ) : (
+                        <>
+                          <div className="hidden overflow-x-auto sm:block">
+                            <table className="w-full">
+                              <thead className="border-b bg-muted/40">
+                                <tr>
+                                  <th className="p-3 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                                    Rank
+                                  </th>
+                                  <th className="p-3 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                                    Trader
+                                  </th>
+                                  <th className="p-3 text-right text-xs uppercase tracking-wide text-muted-foreground">
+                                    Movement
+                                  </th>
+                                  <th className="p-3 text-right text-xs uppercase tracking-wide text-muted-foreground">
+                                    Value
+                                  </th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {displayedEntries.map((entry) => {
+                                  const isCurrentUser = user?.id === entry.userId;
+                                  return (
+                                    <tr
+                                      key={entry.userId}
+                                      className={`border-b ${isCurrentUser ? "bg-primary/5" : "hover:bg-muted/20"}`}
+                                    >
+                                      <td className="p-3 font-mono text-sm font-bold">
+                                        #{entry.rank}
+                                      </td>
+                                      <td className="p-3">
+                                        <Link href={`/user/${entry.userId}`}>
+                                          <div className="flex cursor-pointer items-center gap-3 hover:text-primary">
+                                            <Avatar className="h-8 w-8">
+                                              <AvatarImage
+                                                src={entry.profileImageUrl || undefined}
+                                              />
+                                              <AvatarFallback>
+                                                {entry.username.slice(0, 2).toUpperCase()}
+                                              </AvatarFallback>
+                                            </Avatar>
+                                            <div>
+                                              <div className="font-semibold">
+                                                {isCurrentUser
+                                                  ? `@${entry.username} (You)`
+                                                  : `@${entry.username}`}
+                                              </div>
+                                              <div className="text-xs text-muted-foreground">
+                                                Open public status page
+                                              </div>
+                                            </div>
+                                          </div>
+                                        </Link>
+                                      </td>
+                                      <td className="p-3 text-right">
+                                        <RankChangeBadge change={entry.rankChange} />
+                                      </td>
+                                      <td className="p-3 text-right font-mono font-bold">
+                                        {formatLeaderboardValue(tab.value, entry.value)}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
 
-          <TabsContent value="sharesMined">
-            {renderLeaderboard(sharesMinedData, sharesMinedLoading, (value) => `${value} shares`)}
-          </TabsContent>
+                          <div className="space-y-3 sm:hidden">
+                            {displayedEntries.map((entry) => {
+                              const isCurrentUser = user?.id === entry.userId;
+                              return (
+                                <Link key={entry.userId} href={`/user/${entry.userId}`}>
+                                  <div
+                                    className={`border-b p-3 last:border-b-0 ${isCurrentUser ? "bg-primary/5" : ""}`}
+                                  >
+                                    <div className="flex items-start justify-between gap-3">
+                                      <div className="flex items-center gap-3">
+                                        <Avatar className="h-9 w-9">
+                                          <AvatarImage src={entry.profileImageUrl || undefined} />
+                                          <AvatarFallback>
+                                            {entry.username.slice(0, 2).toUpperCase()}
+                                          </AvatarFallback>
+                                        </Avatar>
+                                        <div>
+                                          <div className="font-mono text-xs text-muted-foreground">
+                                            #{entry.rank}
+                                          </div>
+                                          <div className="font-semibold">
+                                            {isCurrentUser
+                                              ? `@${entry.username} (You)`
+                                              : `@${entry.username}`}
+                                          </div>
+                                        </div>
+                                      </div>
+                                      <RankChangeBadge change={entry.rankChange} />
+                                    </div>
+                                    <div className="mt-3 font-mono text-lg font-bold">
+                                      {formatLeaderboardValue(tab.value, entry.value)}
+                                    </div>
+                                  </div>
+                                </Link>
+                              );
+                            })}
+                          </div>
+                        </>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
 
-          <TabsContent value="marketOrders">
-            {renderLeaderboard(marketOrdersData, marketOrdersLoading, (value) => `${value} orders`)}
-          </TabsContent>
+                <div className="space-y-4">
+                  <Card variant="terminal">
+                    <CardHeader>
+                      <CardTitle className="text-sm uppercase tracking-wide">
+                        Your Position
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {!user ? (
+                        <p className="text-sm text-muted-foreground">
+                          Sign in to pin your own rank window and jump straight to your live spot on
+                          each board.
+                        </p>
+                      ) : !data?.currentUser ? (
+                        <p className="text-sm text-muted-foreground">
+                          Your account is not yet ranked on this metric. Once activity lands, this
+                          panel will pin your live position.
+                        </p>
+                      ) : (
+                        <div className="space-y-4">
+                          <div>
+                            <div className="terminal-label">Current Rank</div>
+                            <div className="mt-2 font-mono text-3xl font-bold">
+                              #{data.currentUser.rank}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="terminal-label">Current Value</div>
+                            <div className="mt-2 font-mono text-xl font-bold">
+                              {formatLeaderboardValue(tab.value, data.currentUser.value)}
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-muted-foreground">Rank movement</span>
+                            <RankChangeBadge change={data.currentUser.rankChange} />
+                          </div>
+                          <Button variant="terminal" className="w-full" onClick={jumpToCurrentUser}>
+                            Jump to my spot
+                          </Button>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  <Card variant="terminal">
+                    <CardHeader>
+                      <CardTitle className="text-sm uppercase tracking-wide">
+                        How To Read It
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3 text-sm text-muted-foreground">
+                      <p>
+                        {data?.description || "Each board is a different lens on trader behavior."}
+                      </p>
+                      <p>
+                        Rank movement is shown where reliable snapshot history exists. Public rows
+                        are clickable so you can inspect holdings, trends, and recent market
+                        activity behind the rank.
+                      </p>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            </TabsContent>
+          ))}
         </Tabs>
       </div>
     </div>

@@ -8,6 +8,33 @@ function toFiniteNumber(value: unknown, fallback: number): number {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function isSettlableNascarStats(
+  sport: unknown,
+  stats: { statsJson?: unknown } | null | undefined,
+): boolean {
+  if (String(sport || "").toUpperCase() !== "NASCAR") return true;
+
+  const statsJson = stats?.statsJson;
+  if (!statsJson || typeof statsJson !== "object") return true;
+
+  const runType = Number(
+    (statsJson as Record<string, unknown>).runType ??
+      (statsJson as Record<string, unknown>).run_type,
+  );
+  if (Number.isFinite(runType)) {
+    return runType === 3;
+  }
+
+  const runName = String(
+    (statsJson as Record<string, unknown>).runName ??
+      (statsJson as Record<string, unknown>).run_name ??
+      "",
+  ).toLowerCase();
+  if (!runName) return true;
+
+  return !runName.includes("qualifying") && !runName.includes("practice");
+}
+
 export async function settleSharePayouts(progressCallback?: ProgressCallback): Promise<JobResult> {
   let processed = 0;
   let requestCount = 0;
@@ -34,6 +61,7 @@ export async function settleSharePayouts(progressCallback?: ProgressCallback): P
 
         const stats = await storage.getPlayerGameStats(payout.playerId, payout.gameId);
         if (!stats) continue;
+        if (!isSettlableNascarStats(game.sport, stats)) continue;
 
         const fantasyPoints = toFiniteNumber(stats.fantasyPoints, 0);
         const sharePower = toFiniteNumber(payout.sharePower, 0);

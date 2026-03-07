@@ -26,9 +26,11 @@ import type { AgentProfileResponse, AgentThreadSummary, ProviderMode } from "../
 export function AgentStatusPill({
   label,
   tone = "default",
+  className,
 }: {
   label: string;
   tone?: "default" | "warning" | "muted";
+  className?: string;
 }) {
   const toneClassName =
     tone === "warning"
@@ -43,6 +45,7 @@ export function AgentStatusPill({
         "inline-flex items-center rounded-md border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em]",
         "font-mono",
         toneClassName,
+        className,
       )}
     >
       {label}
@@ -112,7 +115,10 @@ export function AgentThreadPanel({
         <Button
           className="mt-3 h-8 w-full rounded-sm border-[#2a2e39] bg-[#171c29] px-3 text-[11px] uppercase tracking-[0.08em] text-slate-100 hover:bg-[#202637]"
           variant="outline"
-          onClick={onStartFresh}
+          onClick={() => {
+            onStartFresh();
+            onClose();
+          }}
         >
           <Plus className="mr-2 h-4 w-4" />
           Start Fresh Chat

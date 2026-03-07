@@ -731,7 +731,7 @@ function AppContent() {
   return (
     <SidebarProvider style={style as React.CSSProperties}>
       {isAgentRoute ? (
-        <div className="h-screen w-full overflow-hidden">
+        <div className="h-[100dvh] w-full overflow-hidden">
           <main className="h-full min-h-0 overflow-hidden">
             <Router />
           </main>

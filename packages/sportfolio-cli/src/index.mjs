@@ -2,6 +2,62 @@ import { clearConfig, getConfigPath, loadConfig, normalizeBaseUrl, saveConfig } 
 import { requestJson } from "./http.mjs";
 import { fail, printJson, printList } from "./output.mjs";
 
+const COMMAND_HELP = {
+  auth: [
+    "Auth Commands",
+    "",
+    "Usage:",
+    "  auth login --token <token> [--base-url <url>]",
+    "  auth whoami",
+    "  auth logout",
+    "",
+    "Examples:",
+    "  sportfolio auth login --token <token>",
+    "  sportfolio auth login --token <token> --base-url http://127.0.0.1:5000",
+  ],
+  docs: [
+    "Docs Commands",
+    "",
+    "Usage:",
+    "  docs list",
+    "  docs search <query>",
+    "  docs open <section>/<slug>",
+    "",
+    "Examples:",
+    "  sportfolio docs search power boosts",
+    "  sportfolio docs open cli/command-reference",
+  ],
+  portfolio: ["Portfolio Commands", "", "Usage:", "  portfolio summary"],
+  agent: [
+    "Agent Commands",
+    "",
+    "Usage:",
+    "  agent threads",
+    "  agent ask <prompt> [--thread <threadId>]",
+    "  agent confirm <threadId>",
+    "  agent cancel <threadId>",
+    "",
+    "Examples:",
+    '  sportfolio agent ask "what is my current balance?"',
+    '  sportfolio agent ask "review my setup" --thread <threadId>',
+  ],
+  actions: [
+    "Action Staging Commands",
+    "",
+    "Usage:",
+    "  actions buy <player-name-or-id> --dollars <amount> [--thread <threadId>]",
+    "  actions sell <player-name-or-id> --shares <amount> [--thread <threadId>]",
+    "  actions watchlist add <player-name-or-id> [--thread <threadId>]",
+    "  actions watchlist remove <player-name-or-id> [--thread <threadId>]",
+    "  actions vesting claim [--thread <threadId>]",
+    "  actions community-boost <player-name> [--timing today|tomorrow] [--thread <threadId>]",
+    "",
+    "Notes:",
+    "  - Action commands stage a plan and still require explicit confirm.",
+    "  - For community boosts, prefer full player names for best resolution.",
+  ],
+};
+
 function readOption(args, name) {
   const index = args.indexOf(name);
   if (index === -1) {
@@ -34,6 +90,11 @@ function printHelp() {
   printList([
     "Sportfolio CLI",
     "",
+    "Global flags:",
+    "  --json    Output raw JSON",
+    "",
+    "Use `sportfolio <command> --help` for command-specific usage.",
+    "",
     "Commands:",
     "  auth login --token <token> [--base-url <url>]",
     "  auth whoami",
@@ -46,13 +107,24 @@ function printHelp() {
     "  agent ask <prompt> [--thread <threadId>]",
     "  agent confirm <threadId>",
     "  agent cancel <threadId>",
-    "  actions buy <player> --dollars <amount> [--thread <threadId>]",
-    "  actions sell <player> --shares <amount> [--thread <threadId>]",
-    "  actions watchlist add <player> [--thread <threadId>]",
-    "  actions watchlist remove <player> [--thread <threadId>]",
+    "  actions buy <player-name-or-id> --dollars <amount> [--thread <threadId>]",
+    "  actions sell <player-name-or-id> --shares <amount> [--thread <threadId>]",
+    "  actions watchlist add <player-name-or-id> [--thread <threadId>]",
+    "  actions watchlist remove <player-name-or-id> [--thread <threadId>]",
     "  actions vesting claim [--thread <threadId>]",
-    "  actions community-boost <player> [--timing today|tomorrow] [--thread <threadId>]",
+    "  actions community-boost <player-name> [--timing today|tomorrow] [--thread <threadId>]",
   ]);
+}
+
+function printCommandHelp(command) {
+  const lines = COMMAND_HELP[command];
+  if (!lines) {
+    throw Object.assign(new Error(`Unknown command '${command}'. Run \`sportfolio --help\`.`), {
+      exitCode: 1,
+    });
+  }
+
+  printList(lines);
 }
 
 function ensureToken(config) {
@@ -108,6 +180,11 @@ function renderAgentResult(result) {
 
 async function handleAuth(args, asJson) {
   const [subcommand] = args;
+
+  if (!subcommand || subcommand === "--help" || subcommand === "help") {
+    printCommandHelp("auth");
+    return;
+  }
 
   if (subcommand === "login") {
     const token = readOption(args, "--token");
@@ -182,11 +259,18 @@ async function handleAuth(args, asJson) {
     return;
   }
 
-  throw Object.assign(new Error("Unknown auth command"), { exitCode: 1 });
+  throw Object.assign(new Error("Unknown auth command. Run `sportfolio auth --help`."), {
+    exitCode: 1,
+  });
 }
 
 async function handleDocs(args, asJson) {
   const [subcommand, ...rest] = args;
+
+  if (!subcommand || subcommand === "--help" || subcommand === "help") {
+    printCommandHelp("docs");
+    return;
+  }
 
   if (subcommand === "list") {
     const config = loadConfig();
@@ -261,13 +345,26 @@ async function handleDocs(args, asJson) {
     return;
   }
 
-  throw Object.assign(new Error("Unknown docs command"), { exitCode: 1 });
+  throw Object.assign(new Error("Unknown docs command. Run `sportfolio docs --help`."), {
+    exitCode: 1,
+  });
 }
 
 async function handlePortfolio(args, asJson) {
   const [subcommand] = args;
+
+  if (!subcommand || subcommand === "--help" || subcommand === "help") {
+    printCommandHelp("portfolio");
+    return;
+  }
+
   if (subcommand !== "summary") {
-    throw Object.assign(new Error("Unknown portfolio command"), { exitCode: 1 });
+    throw Object.assign(
+      new Error("Unknown portfolio command. Run `sportfolio portfolio --help`."),
+      {
+        exitCode: 1,
+      },
+    );
   }
 
   const config = loadConfig();
@@ -307,6 +404,12 @@ async function handlePortfolio(args, asJson) {
 
 async function handleAgent(args, asJson) {
   const [subcommand, ...rest] = args;
+
+  if (!subcommand || subcommand === "--help" || subcommand === "help") {
+    printCommandHelp("agent");
+    return;
+  }
+
   const config = loadConfig();
   ensureToken(config);
 
@@ -381,11 +484,19 @@ async function handleAgent(args, asJson) {
     return;
   }
 
-  throw Object.assign(new Error("Unknown agent command"), { exitCode: 1 });
+  throw Object.assign(new Error("Unknown agent command. Run `sportfolio agent --help`."), {
+    exitCode: 1,
+  });
 }
 
 async function handleActions(args, asJson) {
   const [subcommand, ...rest] = args;
+
+  if (!subcommand || subcommand === "--help" || subcommand === "help") {
+    printCommandHelp("actions");
+    return;
+  }
+
   const config = loadConfig();
   ensureToken(config);
 
@@ -399,7 +510,7 @@ async function handleActions(args, asJson) {
     const player = actionArgs[0] || "";
     const dollars = Number(readOption(rest, "--dollars"));
     if (!player || !Number.isFinite(dollars) || dollars <= 0) {
-      throw Object.assign(new Error("Use `actions buy <player> --dollars <amount>`"), {
+      throw Object.assign(new Error("Use `actions buy <player-name-or-id> --dollars <amount>`"), {
         exitCode: 1,
       });
     }
@@ -410,7 +521,7 @@ async function handleActions(args, asJson) {
     const player = actionArgs[0] || "";
     const shares = Number(readOption(rest, "--shares"));
     if (!player || !Number.isFinite(shares) || shares <= 0) {
-      throw Object.assign(new Error("Use `actions sell <player> --shares <amount>`"), {
+      throw Object.assign(new Error("Use `actions sell <player-name-or-id> --shares <amount>`"), {
         exitCode: 1,
       });
     }
@@ -421,7 +532,7 @@ async function handleActions(args, asJson) {
     const verb = actionArgs[0] || "";
     const player = actionArgs[1] || "";
     if ((verb !== "add" && verb !== "remove") || !player) {
-      throw Object.assign(new Error("Use `actions watchlist add|remove <player>`"), {
+      throw Object.assign(new Error("Use `actions watchlist add|remove <player-name-or-id>`"), {
         exitCode: 1,
       });
     }
@@ -439,7 +550,9 @@ async function handleActions(args, asJson) {
   if (subcommand === "community-boost") {
     const player = actionArgs[0] || "";
     if (!player) {
-      throw Object.assign(new Error("Use `actions community-boost <player>`"), { exitCode: 1 });
+      throw Object.assign(new Error("Use `actions community-boost <player-name>`"), {
+        exitCode: 1,
+      });
     }
     payload = {
       action: "community_boost",
@@ -449,7 +562,9 @@ async function handleActions(args, asJson) {
   }
 
   if (!payload) {
-    throw Object.assign(new Error("Unknown actions command"), { exitCode: 1 });
+    throw Object.assign(new Error("Unknown actions command. Run `sportfolio actions --help`."), {
+      exitCode: 1,
+    });
   }
 
   const result = await requestJson({
@@ -481,6 +596,11 @@ export async function runCli(rawArgs) {
     return;
   }
 
+  if (rest.includes("--help")) {
+    printCommandHelp(command);
+    return;
+  }
+
   try {
     if (command === "auth") {
       await handleAuth(rest, asJson);
@@ -507,7 +627,7 @@ export async function runCli(rawArgs) {
       return;
     }
 
-    throw Object.assign(new Error("Unknown command"), { exitCode: 1 });
+    throw Object.assign(new Error("Unknown command. Run `sportfolio --help`."), { exitCode: 1 });
   } catch (error) {
     const exitCode =
       error && typeof error === "object" && "exitCode" in error
