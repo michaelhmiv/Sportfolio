@@ -1,12 +1,27 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Bot, Loader2, MessageSquare, Plus, Settings2 } from "lucide-react";
+import {
+  ArrowLeft,
+  Bot,
+  Loader2,
+  MoreHorizontal,
+  PanelLeft,
+  Settings2,
+  SquarePen,
+} from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { cn } from "@/lib/utils";
 import { AgentComposer } from "./components/agent-composer";
 import {
   AgentEmptyConversationState,
@@ -32,7 +47,7 @@ export default function AgentShell() {
   const { toast } = useToast();
   const threadEndRef = useRef<HTMLDivElement>(null);
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
-  const [isDraftConversation, setIsDraftConversation] = useState(false);
+  const [pendingThreadSelectionId, setPendingThreadSelectionId] = useState<string | null>(null);
   const [drawerState, setDrawerState] = useState<AgentDrawerState>(null);
   const [composerValue, setComposerValue] = useState("");
   const [pendingUserMessage, setPendingUserMessage] = useState<PendingUserMessage | null>(null);
@@ -68,9 +83,7 @@ export default function AgentShell() {
     error: messagesError,
     refetch: refetchMessages,
   } = useQuery<AgentThreadMessage[]>({
-    queryKey: activeThreadId
-      ? ["/api/agent/threads", activeThreadId, "messages"]
-      : ["/api/agent/threads", "draft", "messages"],
+    queryKey: ["/api/agent/threads", activeThreadId || "inactive", "messages"],
     enabled: Boolean(activeThreadId),
   });
 
@@ -92,24 +105,22 @@ export default function AgentShell() {
       return;
     }
 
-    if (activeThreadId && !threadsData.some((thread) => thread.id === activeThreadId)) {
-      if (threadsData.length > 0) {
-        setActiveThreadId(threadsData[0].id);
-        setIsDraftConversation(false);
-      } else {
-        setActiveThreadId(null);
+    if (pendingThreadSelectionId) {
+      if (threadsData.some((thread) => thread.id === pendingThreadSelectionId)) {
+        setPendingThreadSelectionId(null);
       }
       return;
     }
 
-    if (isDraftConversation) {
+    if (activeThreadId && !threadsData.some((thread) => thread.id === activeThreadId)) {
+      setActiveThreadId(threadsData[0]?.id || null);
       return;
     }
 
     if (!activeThreadId && threadsData.length > 0) {
       setActiveThreadId(threadsData[0].id);
     }
-  }, [activeThreadId, isDraftConversation, threadsData]);
+  }, [activeThreadId, pendingThreadSelectionId, threadsData]);
 
   useEffect(() => {
     const frameId = window.requestAnimationFrame(() => {
@@ -274,18 +285,40 @@ export default function AgentShell() {
   const createThread = async () => {
     const res = await apiRequest("POST", "/api/agent/threads", {});
     const thread = (await res.json()) as AgentThreadSummary;
+    setPendingThreadSelectionId(thread.id);
     setActiveThreadId(thread.id);
-    setIsDraftConversation(false);
     await queryClient.invalidateQueries({ queryKey: ["/api/agent/threads"] });
     return thread;
   };
 
-  const handleStartFreshChat = () => {
-    setDrawerState(null);
-    setIsDraftConversation(true);
-    setActiveThreadId(null);
+  const handleSelectThread = (threadId: string) => {
+    setPendingThreadSelectionId(null);
+    setActiveThreadId(threadId);
     setPendingUserMessage(null);
     setComposerValue("");
+  };
+
+  const handleStartFreshChat = async () => {
+    if (isCreatingThread) {
+      return;
+    }
+
+    setDrawerState(null);
+    setPendingUserMessage(null);
+    setComposerValue("");
+
+    try {
+      setIsCreatingThread(true);
+      await createThread();
+    } catch (error) {
+      toast({
+        title: "Failed to start a new chat",
+        description: getReadableAgentError(error, "A new conversation could not be started."),
+        variant: "destructive",
+      });
+    } finally {
+      setIsCreatingThread(false);
+    }
   };
 
   const handleSend = async () => {
@@ -324,13 +357,17 @@ export default function AgentShell() {
 
   const pendingBundle = activeThread?.pendingActionBundle || null;
   const canAnalyze = Boolean(profileData?.capabilities.canAnalyze);
-  const statusTone = profileError
-    ? "warning"
-    : pendingBundle
-      ? "warning"
-      : !enabled || !canAnalyze || sendMessageMutation.isPending || isCreatingThread
-        ? "muted"
-        : "default";
+  const statusTone =
+    profileError ||
+    pendingBundle ||
+    !enabled ||
+    !canAnalyze ||
+    sendMessageMutation.isPending ||
+    isCreatingThread
+      ? profileError || pendingBundle
+        ? "warning"
+        : "muted"
+      : "default";
   const statusLabel = profileError
     ? "Needs Attention"
     : pendingBundle
@@ -342,6 +379,12 @@ export default function AgentShell() {
           : sendMessageMutation.isPending || isCreatingThread
             ? "Sending"
             : "Ready";
+  const mobileStatusClassName =
+    statusTone === "warning"
+      ? "border-amber-500/40 bg-amber-500/10 text-amber-200"
+      : statusTone === "muted"
+        ? "border-slate-600 bg-slate-800/80 text-slate-300"
+        : "border-emerald-500/35 bg-emerald-500/10 text-emerald-200";
 
   const isSendDisabled =
     !enabled ||
@@ -358,14 +401,15 @@ export default function AgentShell() {
     "Who should get my community boost today?",
   ];
 
+  const activeThreadIndex = activeThread
+    ? (threadsData?.findIndex((thread) => thread.id === activeThread.id) ?? -1)
+    : -1;
   const title =
-    activeThread && threadsData
-      ? getThreadTitle(
-          activeThread,
-          threadsData.findIndex((thread) => thread.id === activeThread.id),
-        )
-      : "New Chat";
-
+    activeThread && !activeThread.lastMessageAt && !activeThread.title?.trim()
+      ? "New Chat"
+      : activeThread && activeThreadIndex >= 0
+        ? getThreadTitle(activeThread, activeThreadIndex)
+        : "New Chat";
   const subtitle = pendingBundle
     ? "Review the staged proposal below before anything executes."
     : !enabled
@@ -373,76 +417,183 @@ export default function AgentShell() {
       : !canAnalyze
         ? "Finish your setup to start a new conversation."
         : "Use plain language. The agent will stage any action for confirmation before it changes your account.";
-
-  const closeDrawer = () => setDrawerState(null);
+  const isFreshConversation = !activeThreadId || !activeThread?.lastMessageAt;
+  const shouldShowEmptyState = !messagesData || messagesData.length === 0;
+  const shellPaddingStyle = {
+    paddingTop: "max(env(safe-area-inset-top), 0.5rem)",
+    paddingLeft: "max(env(safe-area-inset-left), 0.5rem)",
+    paddingRight: "max(env(safe-area-inset-right), 0.5rem)",
+  };
+  const composerPaddingStyle = {
+    paddingBottom: "max(env(safe-area-inset-bottom), 0.75rem)",
+  };
 
   return (
     <>
-      <div className="flex h-full min-h-0 flex-col bg-[linear-gradient(180deg,#06080d_0%,#0b1120_48%,#080d18_100%)] px-2 py-2 sm:px-4 sm:py-4">
-        <div className="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col rounded-md border border-[#2a2e39] bg-[#131722] font-mono text-slate-100 shadow-[0_24px_70px_-30px_rgba(0,0,0,0.78)]">
-          <div className="border-b border-[#2a2e39] px-3 py-3 sm:px-4 sm:py-4">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2.5">
-                  <div className="rounded-sm border border-amber-500/30 bg-amber-500/10 p-2 text-amber-300">
-                    <Bot className="h-4 w-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                      Sportfolio Agent
-                    </div>
-                    <div className="mt-1 truncate text-lg font-semibold tracking-tight text-slate-50 sm:text-xl">
-                      {title}
-                    </div>
-                  </div>
-                  <AgentStatusPill label={statusLabel} tone={statusTone} />
-                </div>
-                <div className="mt-2 max-w-3xl text-xs leading-6 text-slate-400">{subtitle}</div>
-              </div>
+      <div
+        className="flex h-full min-h-0 flex-col bg-[linear-gradient(180deg,#06080d_0%,#0b1120_48%,#080d18_100%)]"
+        style={shellPaddingStyle}
+      >
+        <div className="mx-auto flex h-full min-h-0 w-full max-w-[92rem] flex-1 overflow-hidden rounded-md border border-[#2a2e39] bg-[#131722] font-mono text-slate-100 shadow-[0_24px_70px_-30px_rgba(0,0,0,0.78)]">
+          <aside className="hidden min-h-0 w-[320px] min-w-[320px] flex-col border-r border-[#2a2e39] bg-[#101521] md:flex">
+            <AgentThreadPanel
+              threads={threadsData || []}
+              activeThreadId={activeThreadId}
+              isLoading={isLoadingThreads}
+              error={threadsError}
+              onRetry={() => {
+                void refetchThreads();
+              }}
+              onSelect={handleSelectThread}
+              onStartFresh={() => {
+                void handleStartFreshChat();
+              }}
+              onClose={() => undefined}
+            />
+          </aside>
 
-              <div className="flex flex-wrap gap-2 sm:justify-end">
+          <section className="flex min-w-0 flex-1 flex-col overflow-hidden">
+            <header className="border-b border-[#2a2e39] bg-[#131722] px-3 py-3 sm:px-4">
+              <div className="flex items-center gap-2.5 sm:gap-3">
                 <Button
                   variant="outline"
-                  asChild
-                  className="h-9 rounded-sm border-[#2a2e39] bg-[#171c29] px-3 text-xs uppercase tracking-[0.12em] text-slate-100 hover:bg-[#202637] hover:text-slate-50"
-                >
-                  <Link href="/">
-                    <ArrowLeft className="mr-2 h-3.5 w-3.5" />
-                    Dashboard
-                  </Link>
-                </Button>
-                <Button
-                  variant="outline"
-                  className="h-9 rounded-sm border-[#2a2e39] bg-[#171c29] px-3 text-xs uppercase tracking-[0.12em] text-slate-100 hover:bg-[#202637] hover:text-slate-50"
+                  size="icon"
+                  className="h-9 w-9 rounded-sm border-[#2a2e39] bg-[#171c29] text-slate-100 hover:bg-[#202637] md:hidden"
                   onClick={() => setDrawerState("threads")}
                 >
-                  <MessageSquare className="mr-2 h-3.5 w-3.5" />
-                  History
+                  <PanelLeft className="h-4 w-4" />
+                  <span className="sr-only">Open conversation history</span>
                 </Button>
-                <Button
-                  variant="outline"
-                  className="h-9 rounded-sm border-[#2a2e39] bg-[#171c29] px-3 text-xs uppercase tracking-[0.12em] text-slate-100 hover:bg-[#202637] hover:text-slate-50"
-                  onClick={handleStartFreshChat}
-                >
-                  <Plus className="mr-2 h-3.5 w-3.5" />
-                  New Chat
-                </Button>
-                <Button
-                  variant="outline"
-                  className="h-9 rounded-sm border-[#2a2e39] bg-[#171c29] px-3 text-xs uppercase tracking-[0.12em] text-slate-100 hover:bg-[#202637] hover:text-slate-50"
-                  onClick={() => setDrawerState("settings")}
-                >
-                  <Settings2 className="mr-2 h-3.5 w-3.5" />
-                  Settings
-                </Button>
-              </div>
-            </div>
-          </div>
 
-          <div className="flex-1 min-h-0 overflow-hidden px-1.5 pb-1.5 pt-1.5 sm:px-2 sm:pb-2 sm:pt-2">
-            <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-sm border border-[#2a2e39] bg-[linear-gradient(180deg,#0f1726_0%,#0d1422_32%,#0f1625_100%)]">
+                <div className="flex min-w-0 flex-1 items-center gap-3">
+                  <div className="hidden h-9 w-9 items-center justify-center rounded-sm border border-amber-500/30 bg-amber-500/10 text-amber-300 sm:flex">
+                    <Bot className="h-4 w-4" />
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                      <span>Sportfolio Agent</span>
+                      <span
+                        className={cn(
+                          "inline-flex items-center rounded-sm border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] sm:hidden",
+                          mobileStatusClassName,
+                        )}
+                      >
+                        {statusLabel}
+                      </span>
+                    </div>
+                    <div
+                      data-testid="agent-thread-title"
+                      className="mt-1 truncate text-sm font-semibold tracking-tight text-slate-50 sm:text-lg"
+                    >
+                      {title}
+                    </div>
+                    <div className="mt-1 hidden max-w-3xl text-xs leading-5 text-slate-400 sm:block">
+                      {subtitle}
+                    </div>
+                  </div>
+                </div>
+
+                <AgentStatusPill
+                  label={statusLabel}
+                  tone={statusTone}
+                  className="hidden xl:inline-flex"
+                />
+
+                <div className="hidden items-center gap-2 md:flex">
+                  <Button
+                    variant="outline"
+                    className="h-9 rounded-sm border-[#2a2e39] bg-[#171c29] px-3 text-xs uppercase tracking-[0.12em] text-slate-100 hover:bg-[#202637] hover:text-slate-50"
+                    onClick={() => {
+                      void handleStartFreshChat();
+                    }}
+                    disabled={isCreatingThread}
+                  >
+                    {isCreatingThread ? (
+                      <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <SquarePen className="mr-2 h-3.5 w-3.5" />
+                    )}
+                    New Chat
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-9 rounded-sm border-[#2a2e39] bg-[#171c29] px-3 text-xs uppercase tracking-[0.12em] text-slate-100 hover:bg-[#202637] hover:text-slate-50"
+                    onClick={() => setDrawerState("settings")}
+                  >
+                    <Settings2 className="mr-2 h-3.5 w-3.5" />
+                    Settings
+                  </Button>
+                  <Button
+                    variant="outline"
+                    asChild
+                    className="h-9 rounded-sm border-[#2a2e39] bg-[#171c29] px-3 text-xs uppercase tracking-[0.12em] text-slate-100 hover:bg-[#202637] hover:text-slate-50"
+                  >
+                    <Link href="/">
+                      <ArrowLeft className="mr-2 h-3.5 w-3.5" />
+                      Dashboard
+                    </Link>
+                  </Button>
+                </div>
+
+                <div className="flex items-center gap-2 md:hidden">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-9 w-9 rounded-sm border-[#2a2e39] bg-[#171c29] text-slate-100 hover:bg-[#202637]"
+                    onClick={() => {
+                      void handleStartFreshChat();
+                    }}
+                    disabled={isCreatingThread}
+                  >
+                    {isCreatingThread ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <SquarePen className="h-4 w-4" />
+                    )}
+                    <span className="sr-only">Start a new chat</span>
+                  </Button>
+
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-9 w-9 rounded-sm border-[#2a2e39] bg-[#171c29] text-slate-100 hover:bg-[#202637]"
+                      >
+                        <MoreHorizontal className="h-4 w-4" />
+                        <span className="sr-only">Open agent actions</span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      align="end"
+                      className="border-[#2a2e39] bg-[#131722] p-1 text-slate-100"
+                    >
+                      <DropdownMenuItem
+                        className="rounded-sm px-2.5 py-2 text-xs uppercase tracking-[0.1em] focus:bg-[#202637] focus:text-slate-50"
+                        onSelect={() => setDrawerState("settings")}
+                      >
+                        <Settings2 className="h-4 w-4" />
+                        Settings
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        asChild
+                        className="rounded-sm px-2.5 py-2 text-xs uppercase tracking-[0.1em] focus:bg-[#202637] focus:text-slate-50"
+                      >
+                        <Link href="/">
+                          <ArrowLeft className="h-4 w-4" />
+                          Dashboard
+                        </Link>
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+            </header>
+
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-[linear-gradient(180deg,#0f1726_0%,#0d1422_32%,#0f1625_100%)]">
               <ScrollArea className="min-h-0 flex-1">
-                <div className="mx-auto flex min-h-full max-w-[54rem] flex-col px-3 py-3 sm:px-4 sm:py-4">
+                <div className="mx-auto flex min-h-full w-full max-w-[56rem] flex-col px-3 py-4 sm:px-5 sm:py-5">
                   {profileError && !profileData && !isLoadingProfile ? (
                     <AgentErrorState
                       title="Couldn't load agent settings"
@@ -477,9 +628,9 @@ export default function AgentShell() {
                       <Loader2 className="h-4 w-4 animate-spin" />
                       Loading conversation...
                     </div>
-                  ) : !messagesData || messagesData.length === 0 ? (
+                  ) : shouldShowEmptyState ? (
                     <AgentEmptyConversationState
-                      isDraftConversation={isDraftConversation || !activeThreadId}
+                      isDraftConversation={isFreshConversation}
                       enabled={enabled}
                       canAnalyze={canAnalyze}
                       starterPrompts={starterPrompts}
@@ -505,7 +656,7 @@ export default function AgentShell() {
                     />
                   )}
 
-                  {(!messagesData || messagesData.length === 0) && pendingUserMessage && (
+                  {shouldShowEmptyState && pendingUserMessage && (
                     <div className="mt-3">
                       <AgentMessageList
                         messages={[]}
@@ -521,8 +672,11 @@ export default function AgentShell() {
                 </div>
               </ScrollArea>
 
-              <div className="border-t border-[#2a2e39] bg-[#111522] px-3 py-3 sm:px-4">
-                <div className="mx-auto max-w-[54rem]">
+              <div
+                className="border-t border-[#2a2e39] bg-[#111522] px-3 pt-3 sm:px-4"
+                style={composerPaddingStyle}
+              >
+                <div className="mx-auto w-full max-w-[56rem]">
                   <AgentComposer
                     value={composerValue}
                     onChange={setComposerValue}
@@ -536,7 +690,7 @@ export default function AgentShell() {
                 </div>
               </div>
             </div>
-          </div>
+          </section>
         </div>
       </div>
 
@@ -546,7 +700,7 @@ export default function AgentShell() {
       >
         <SheetContent
           side="left"
-          className="w-full max-w-md border-[#2a2e39] bg-[#131722] p-0 text-slate-100"
+          className="w-full border-[#2a2e39] bg-[#131722] p-0 text-slate-100 md:max-w-md"
         >
           <AgentThreadPanel
             threads={threadsData || []}
@@ -556,13 +710,11 @@ export default function AgentShell() {
             onRetry={() => {
               void refetchThreads();
             }}
-            onSelect={(threadId) => {
-              setActiveThreadId(threadId);
-              setIsDraftConversation(false);
-              setPendingUserMessage(null);
+            onSelect={handleSelectThread}
+            onStartFresh={() => {
+              void handleStartFreshChat();
             }}
-            onStartFresh={handleStartFreshChat}
-            onClose={closeDrawer}
+            onClose={() => setDrawerState(null)}
           />
         </SheetContent>
       </Sheet>

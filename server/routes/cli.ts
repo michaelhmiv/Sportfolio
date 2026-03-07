@@ -29,8 +29,21 @@ function toTokenView(token: UserApiToken) {
   };
 }
 
+function extractErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+  return String(error || "");
+}
+
 function handleCliRouteError(res: Response, error: unknown, fallbackMessage: string) {
   console.error("[CLI] Route error:", error);
+  const errorMessage = extractErrorMessage(error);
+  const isAgentConcurrencyError = errorMessage.includes("An agent analysis is already running");
+  const statusCode = isAgentConcurrencyError ? 429 : 500;
+  const message = isAgentConcurrencyError
+    ? "Agent is currently processing another request for this account. Retry in a few seconds."
+    : fallbackMessage;
   const errorDetail =
     process.env.NODE_ENV !== "production"
       ? error instanceof Error
@@ -38,8 +51,9 @@ function handleCliRouteError(res: Response, error: unknown, fallbackMessage: str
         : String(error)
       : undefined;
 
-  res.status(500).json({
-    message: fallbackMessage,
+  res.status(statusCode).json({
+    message,
+    ...(isAgentConcurrencyError ? { retryable: true } : {}),
     ...(errorDetail ? { error: errorDetail } : {}),
   });
 }
