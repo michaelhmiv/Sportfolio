@@ -2,11 +2,12 @@
 
 - [x] Audit the local worktree and separate product changes from local-only artifacts before staging
 - [x] Create a fresh feature branch, stage the intended repo changes, and review the staged diff for secrets/junk
-- [ ] Commit, push, and open a GitHub PR for review
+- [x] Commit, push, and open a GitHub PR for review
 
 Review:
 
 - Bundling the current local batch into a fresh PR that includes the leaderboard/profile overhaul, NASCAR hardening, CLI/action-surface improvements, and the agent shell restructure while excluding `.codex*` audit artifacts from the PR.
+- Created branch `feat/agent-cli-leaderboards-nascar`, pushed commit `1d61a02`, and opened PR `#89` for review: `https://github.com/michaelhmiv/Sportfolio/pull/89`.
 
 ## 2026-03-07 Public Holdings Table + Mobile Type Scale Pass
 
