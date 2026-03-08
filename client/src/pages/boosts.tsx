@@ -47,7 +47,7 @@ interface BoostCeremonyData {
   playerName: string;
   playerTeam: string;
   slotTier: number;
-  sharePower: number; // Power per share (bestSharePower)
+  shareMultiplier: number; // Multiplier carried by the share used for the boost
   totalMultiplier: number;
   sharesBurned: number;
 }
@@ -94,7 +94,7 @@ interface BoostSlot {
   payout?: string;
   gameId?: string;
   player?: Player;
-  powerLevel: string;
+  shareMultiplier: string;
   communityBoostCount: number;
   sport: string;
   // Live stats (populated when game is in progress)
@@ -113,9 +113,10 @@ interface EligiblePlayer {
   playerId: string;
   player: Player;
   availableShares: number;
-  powerLevel: string; // Total power across all shares (quantity * power)
-  bestSharePower: number; // Power per share for the best share that will be used
-  totalShares: number;
+  effectiveShares: string;
+  multiplier: string;
+  bestShareMultiplier: number;
+  totalShares: string;
   gameId: string | null;
   gameStartTime: string | null;
   hasGameToday: boolean;
@@ -171,7 +172,7 @@ function formatDateET(date: Date): string {
   return format(et, "yyyy-MM-dd");
 }
 
-export default function Power() {
+export default function BoostsPage() {
   const { toast } = useToast();
   const { isAuthenticated } = useAuth();
 
@@ -220,13 +221,13 @@ export default function Power() {
     queryKey: ["/api/daily-boosts/eligible-all", formatDateET(selectedDate)],
     queryFn: async () => {
       const dateStr = formatDateET(selectedDate);
-      console.log("[Power] Fetching eligible players for date:", dateStr);
+      console.log("[Boosts] Fetching eligible players for date:", dateStr);
       const headers = await getAuthHeaders();
       const res = await fetch(`/api/daily-boosts/eligible-all?date=${dateStr}`, { headers });
-      console.log("[Power] Response status:", res.status);
+      console.log("[Boosts] Response status:", res.status);
       if (!res.ok) {
         const responseText = await res.text();
-        console.error("[Power] Eligible fetch failed:", res.status, responseText);
+        console.error("[Boosts] Eligible fetch failed:", res.status, responseText);
         try {
           const errorData = JSON.parse(responseText);
           throw new Error(`${errorData.error || "Unknown error"}`);
@@ -235,14 +236,14 @@ export default function Power() {
         }
       }
       const data = await res.json();
-      console.log("[Power] Eligible data received:", data.eligiblePlayers?.length, "players");
+      console.log("[Boosts] Eligible data received:", data.eligiblePlayers?.length, "players");
       return data;
     },
     refetchInterval: 60000,
   });
 
   if (eligibleError) {
-    console.error("[Power] Eligible query error:", eligibleError);
+    console.error("[Boosts] Eligible query error:", eligibleError);
   }
 
   // Debug query to test storage
@@ -318,7 +319,7 @@ export default function Power() {
           playerName: `${player.player.firstName} ${player.player.lastName}`,
           playerTeam: player.player.team,
           slotTier: variables.slotTier,
-          sharePower: player.bestSharePower || 1,
+          shareMultiplier: player.bestShareMultiplier || 1,
           totalMultiplier: totalMultiplier,
           sharesBurned: variables.sharesEntered,
         });
@@ -328,10 +329,10 @@ export default function Power() {
       const slotLabel =
         MULTIPLIER_SLOTS.find((s) => s.tier === variables.slotTier)?.label ||
         `${variables.slotTier}x`;
-      const sharePower = player?.bestSharePower || 1;
+      const shareMultiplier = player?.bestShareMultiplier || 1;
       toast({
         title: "Boost slot filled!",
-        description: `Added 1 share to the ${slotLabel} slot (share power ${sharePower}). Share will be burned when the game starts.`,
+        description: `Added 1 share to the ${slotLabel} slot (share multiplier ${shareMultiplier}). Share will be burned when the game starts.`,
       });
       refetchBoosts();
       refetchEligible();
@@ -391,14 +392,14 @@ export default function Power() {
     }) || [];
 
   // Debug logging
-  console.log(`[Power] eligibleData:`, eligibleData);
+  console.log(`[Boosts] eligibleData:`, eligibleData);
   if (eligibleData?.eligiblePlayers) {
     console.log(
-      `[Power] Total eligible: ${eligibleData.eligiblePlayers.length}, Filtered: ${filteredPlayers.length}, Search: "${search}"`,
+      `[Boosts] Total eligible: ${eligibleData.eligiblePlayers.length}, Filtered: ${filteredPlayers.length}, Search: "${search}"`,
     );
     eligibleData.eligiblePlayers.forEach((ep, i) => {
       console.log(
-        `[Power] ${i}: ${ep.player?.firstName} ${ep.player?.lastName} - qty: ${ep.totalShares}, pl: ${ep.powerLevel}`,
+        `[Boosts] ${i}: ${ep.player?.firstName} ${ep.player?.lastName} - effective: ${ep.effectiveShares}, multi: ${ep.multiplier}`,
       );
     });
   }
@@ -414,15 +415,15 @@ export default function Power() {
   const userPremiumShares = eligibleData?.eligiblePlayers?.[0]?.userPremiumShares || 0;
 
   const handleSlotClick = (tier: number) => {
-    console.log("[Power] handleSlotClick called for tier:", tier);
+    console.log("[Boosts] handleSlotClick called for tier:", tier);
     const boost = getSlotBoost(tier);
-    console.log("[Power] boost found:", boost);
+    console.log("[Boosts] boost found:", boost);
     if (!boost) {
-      console.log("[Power] Setting selectedSlot and opening dialog");
+      console.log("[Boosts] Setting selectedSlot and opening dialog");
       setSelectedSlot(tier);
       setPlayerSelectorOpen(true);
     } else {
-      console.log("[Power] Slot already has a boost, skipping");
+      console.log("[Boosts] Slot already has a boost, skipping");
     }
   };
 
@@ -431,7 +432,7 @@ export default function Power() {
     assignBoostMutation.mutate({
       playerId,
       slotTier: selectedSlot,
-      sharesEntered: 1, // Only 1 share per boost slot - power is added to that share
+      sharesEntered: 1, // Only 1 share per boost slot - that share's multiplier is used
       sport,
     });
   };
@@ -449,12 +450,12 @@ export default function Power() {
                   Boost Desk
                 </div>
                 <div>
-                  <p className="terminal-kicker">Daily Power Slots</p>
-                  <h1 className="terminal-heading mt-1 text-xl sm:text-2xl">Power</h1>
+                  <p className="terminal-kicker">Daily Boost Slots</p>
+                  <h1 className="terminal-heading mt-1 text-xl sm:text-2xl">Boosts</h1>
                 </div>
                 <p className="max-w-2xl text-xs text-muted-foreground sm:text-sm">
-                  Queue one share per slot, lock in power before tipoff, and monitor live boost
-                  settlement from a single board.
+                  Queue one share per slot, lock in your multiplier before tipoff, and monitor live
+                  boost settlement from a single board.
                 </p>
               </div>
               <div className="flex items-center gap-1.5 sm:gap-2 sm:self-center">
@@ -572,16 +573,16 @@ export default function Power() {
                                 )}
                               </div>
                               <div className="flex items-center gap-1.5 text-xs">
-                                <span className="terminal-label text-[10px]">Power</span>
+                                <span className="terminal-label text-[10px]">Boosts</span>
                                 <span className="font-mono text-purple-400 font-medium">
-                                  {boost.powerLevel}
+                                  {boost.shareMultiplier}
                                 </span>
                               </div>
                               <div className="flex items-center gap-1.5 text-xs">
                                 <span className="terminal-label text-[10px]">Total</span>
                                 <span className="font-mono font-bold text-primary">
                                   {(
-                                    parseFloat(boost.powerLevel) *
+                                    parseFloat(boost.shareMultiplier) *
                                     (tier + boost.communityBoostCount)
                                   ).toFixed(2)}
                                 </span>
@@ -637,7 +638,7 @@ export default function Power() {
                                   <LiveFantasyPoints
                                     points={boost.liveFantasyPoints}
                                     multiplier={tier + boost.communityBoostCount}
-                                    powerLevel={parseFloat(boost.powerLevel)}
+                                    shareMultiplier={parseFloat(boost.shareMultiplier)}
                                     className="w-full max-w-[180px]"
                                   />
                                 </div>
@@ -819,7 +820,7 @@ export default function Power() {
           <Dialog
             open={playerSelectorOpen}
             onOpenChange={(open) => {
-              console.log("[Power] Dialog onOpenChange:", open);
+              console.log("[Boosts] Dialog onOpenChange:", open);
               setPlayerSelectorOpen(open);
               if (!open) {
                 setSearch("");
@@ -888,7 +889,7 @@ export default function Power() {
                 ) : (
                   <div className="divide-y divide-border">
                     {filteredPlayers.map((ep) => {
-                      const hasPowerLevel = parseFloat(ep.powerLevel || "0") > 0;
+                      const hasStackedShare = parseFloat(ep.multiplier || "0") > 1;
                       const playerBoost = boostsData?.boosts?.find(
                         (b) => b.playerId === ep.playerId,
                       );
@@ -934,11 +935,11 @@ export default function Power() {
                                 <span className="font-mono text-[11px] text-muted-foreground">
                                   {ep.totalShares} shares ({ep.availableShares} avail)
                                 </span>
-                                {hasPowerLevel && (
+                                {hasStackedShare && (
                                   <>
                                     <span>|</span>
                                     <span className="font-mono text-[11px] text-purple-300">
-                                      PWR {ep.bestSharePower}/share
+                                      MULTI {ep.bestShareMultiplier}/share
                                     </span>
                                   </>
                                 )}
@@ -1058,7 +1059,7 @@ export default function Power() {
                   playerTeam: b.player?.team || "",
                   fantasyPoints: parseFloat(b.fantasyPoints || "0"),
                   multiplier: b.slotTier + b.communityBoostCount,
-                  powerLevel: parseFloat(b.powerLevel),
+                  shareMultiplier: parseFloat(b.shareMultiplier),
                   payout: parseFloat(b.payout || "0"),
                 })) || []
             }

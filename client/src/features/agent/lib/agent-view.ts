@@ -159,8 +159,8 @@ export function getActionMeta(action: AgentAction) {
       return `${formatCurrency(action.sb) || "$0.00"} single-sided`;
     case "pool_remove_liquidity":
       return `${action.lpShares || 0} LP shares`;
-    case "holdings_condense":
-      return `${action.sharesToCondense || 0} shares -> ${action.expectedPoweredShareCount || 0} powered share`;
+    case "holdings_stack_shares":
+      return `${action.sharesToStack || 0} shares -> ${action.expectedStackedShareCount || 0} stacked share`;
     case "daily_boost_assign":
       return `${action.slotTier || 0}x slot${action.boostDate ? ` | ${action.boostDate}` : ""}`;
     case "daily_boost_remove":
@@ -448,22 +448,22 @@ function getPoolRemoveLiquidityComparisonRows(action: AgentAction): ActionCompar
   ];
 }
 
-function getHoldingsCondenseComparisonRows(action: AgentAction): ActionComparisonRow[] {
+function getHoldingsStackSharesComparisonRows(action: AgentAction): ActionComparisonRow[] {
   const sharesBefore = formatShareCount(action.availableSharesBefore);
   const sharesAfter = formatShareCount(action.availableSharesAfter);
 
   return [
     {
       label: "Raw shares",
-      current: sharesBefore || `${action.sharesToCondense || 0} raw shares available to condense`,
-      proposed: sharesAfter || `${action.sharesToCondense || 0} raw shares consumed`,
+      current: sharesBefore || `${action.sharesToStack || 0} raw shares available to stack`,
+      proposed: sharesAfter || `${action.sharesToStack || 0} raw shares consumed by stacking`,
     },
     {
-      label: "Power outcome",
-      current: "No added power yet",
-      proposed: `${action.expectedPoweredShareCount || 0} powered share(s), +${
-        action.expectedPowerGained || 0
-      } power`,
+      label: "Stacked outcome",
+      current: "No stacked multiplier yet",
+      proposed: `${action.expectedStackedShareCount || 0} stacked share(s), +${
+        action.expectedMultiplierGained || 0
+      }x multiplier`,
     },
   ];
 }
@@ -490,11 +490,11 @@ function getDailyBoostAssignComparisonRows(action: AgentAction): ActionCompariso
           : "One eligible share reserved for the slot",
     },
     {
-      label: "Boost power",
+      label: "Boost multiplier",
       current: "No share locked into the slot yet",
       proposed:
-        action.powerLevel != null
-          ? `${formatNumericValue(action.powerLevel, 2) || action.powerLevel.toString()} power enters the slot`
+        action.shareMultiplier != null
+          ? `${formatNumericValue(action.shareMultiplier, 2) || action.shareMultiplier.toString()} x enters the slot`
           : "Best eligible share is used at confirm",
     },
     {
@@ -636,8 +636,8 @@ export function getActionComparisonRows(action: AgentAction): ActionComparisonRo
       return getPoolZapSbComparisonRows(action);
     case "pool_remove_liquidity":
       return getPoolRemoveLiquidityComparisonRows(action);
-    case "holdings_condense":
-      return getHoldingsCondenseComparisonRows(action);
+    case "holdings_stack_shares":
+      return getHoldingsStackSharesComparisonRows(action);
     case "daily_boost_assign":
       return getDailyBoostAssignComparisonRows(action);
     case "daily_boost_remove":

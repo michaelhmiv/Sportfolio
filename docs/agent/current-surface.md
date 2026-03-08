@@ -34,7 +34,7 @@ The agent can currently stage, for confirmation:
 - scout reallocations
 - player-pool buys and sells
 - LP add, remove, and zap flows
-- condense / power-up flows
+- stack-shares / multiplier flows
 - daily boost assign and remove
 - watchlist add and remove
 - community boost creation

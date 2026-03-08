@@ -56,15 +56,15 @@ export function GameCommandCenterCard({
   const startTime = new Date(game.startTime);
   const timeLabel = startTime.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
   const dateLabel = startTime.toLocaleDateString([], { month: "short", day: "numeric" });
-  const powerLeader = userContext?.topPowerPlayers?.[0];
+  const powerLeader = userContext?.topMultiplierPlayers?.[0];
   const showBoostPanel = Boolean(
-    userContext && (userContext.eligibleCount > 0 || userContext.topPowerPlayers.length > 0),
+    userContext && (userContext.eligibleCount > 0 || userContext.topMultiplierPlayers.length > 0),
   );
 
   const ownedTeams = new Set(
     [
       ...(userContext?.ownedPlayers || []).map((player) => player.team),
-      ...(userContext?.topPowerPlayers || []).map((player) => player.team),
+      ...(userContext?.topMultiplierPlayers || []).map((player) => player.team),
     ].filter(Boolean),
   );
 
@@ -262,14 +262,14 @@ export function GameCommandCenterCard({
               </Badge>
             )}
 
-            {/* Power badge - non clickable info */}
-            {powerLeader && powerLeader.powerLevel > 0 && (
+            {/* Multiplier badge - non-clickable info */}
+            {powerLeader && powerLeader.multiplier > 0 && (
               <Badge
                 variant="secondary"
                 className="gap-1 text-[10px] text-purple-500 border-border/80"
               >
                 <Zap className="h-3 w-3" />
-                Power {powerLeader.powerLevel.toFixed(2)}
+                Multi {powerLeader.multiplier.toFixed(2)}x
               </Badge>
             )}
           </div>
@@ -305,10 +305,10 @@ export function GameCommandCenterCard({
                 </div>
               </div>
 
-              {/* Player List - Each row represents ONE share with its power level */}
-              {userContext.topPowerPlayers.length > 0 ? (
+              {/* Player list: each row represents one share and its current multiplier. */}
+              {userContext.topMultiplierPlayers.length > 0 ? (
                 <div className="space-y-1 max-h-32 overflow-y-auto">
-                  {userContext.topPowerPlayers.map((player, idx) => (
+                  {userContext.topMultiplierPlayers.map((player, idx) => (
                     <div
                       key={`${player.playerId}-${idx}`}
                       className="flex items-center justify-between text-xs py-1.5 px-2 rounded bg-background/80"
@@ -317,7 +317,7 @@ export function GameCommandCenterCard({
                         <span className="font-medium truncate">{player.name}</span>
                         <span className="text-muted-foreground text-[10px]">{player.team}</span>
                         <span className="text-purple-500 font-mono text-[10px]">
-                          {player.powerLevel.toFixed(1)} power
+                          {player.multiplier.toFixed(1)}x
                         </span>
                       </div>
                       <Button
@@ -355,26 +355,24 @@ export function GameCommandCenterCard({
             </div>
           )}
 
-          {/* Collapsed power players list (shown when boost selector is closed) */}
-          {!showBoostSelector && userContext.topPowerPlayers.length > 0 && (
+          {/* Collapsed stacked-share list (shown when boost selector is closed) */}
+          {!showBoostSelector && userContext.topMultiplierPlayers.length > 0 && (
             <div className="mt-2 space-y-1 text-xs">
               <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                Your Power Shares
+                Your Stacked Shares
               </div>
-              {userContext.topPowerPlayers.slice(0, 3).map((player, idx) => (
+              {userContext.topMultiplierPlayers.slice(0, 3).map((player, idx) => (
                 <div
                   key={`${player.playerId}-${idx}`}
                   className="flex items-center justify-between"
                 >
                   <span className="truncate">{player.name}</span>
-                  <span className="font-mono text-purple-400">
-                    {player.powerLevel.toFixed(1)} power
-                  </span>
+                  <span className="font-mono text-purple-400">{player.multiplier.toFixed(1)}x</span>
                 </div>
               ))}
-              {userContext.topPowerPlayers.length > 3 && (
+              {userContext.topMultiplierPlayers.length > 3 && (
                 <div className="text-[10px] text-muted-foreground text-center">
-                  +{userContext.topPowerPlayers.length - 3} more
+                  +{userContext.topMultiplierPlayers.length - 3} more
                 </div>
               )}
             </div>

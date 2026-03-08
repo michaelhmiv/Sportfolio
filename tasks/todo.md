@@ -1,3 +1,65 @@
+## 2026-03-08 Multiplier Canonicalization Phase 2
+
+- [x] Drop legacy `holdings.power` / `holdings.powerLevel` and old boost/payout compatibility columns from the canonical schema
+- [x] Refactor storage, routes, jobs, and AMM flows so multiplier/effective-share accounting is the only live model
+- [x] Remove remaining `power` / `powerLevel` terminology and response fields from client, agent, CLI, SEO, and docs surfaces
+- [x] Run the full validation stack plus targeted reference scans and document any residual unrelated failures
+
+Review:
+
+- Added `migrations/0033_finalize_multiplier_canonicalization.sql` to collapse duplicate regular holdings, backfill boost/payout multiplier fields, enforce the canonical unique holdings index, and drop the live `holdings.power`, `holdings.powerLevel`, `daily_boosts.power_level`, and `share_payouts.share_power` columns.
+- Refactored storage, AMM, routes, jobs, agents, client pages/components, SEO, and docs so the live model is `tradeable shares + stacked-share multipliers`, with valuation and payouts driven by `effectiveShares`, `multiplier`, `shareMultiplier`, and `isStackedShare`.
+- Removed legacy public terminology and compatibility fields from active runtime/API/UI/docs surfaces; the only remaining legacy `power*` names are in old append-only migration history files, while the active schema/runtime no longer exposes them.
+- Validation passed for `npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`, and `npm run docs:build`.
+
+## 2026-03-08 Repo-wide Stacking Shares Terminology Alignment
+
+- [x] Inventory and replace remaining `condense` / `power` terminology in active server, agent, client, and docs flows
+- [x] Rename active helpers, route handlers, planner/tool copy, and UI labels to `stack shares` / `stacked share` / `multiplier`
+- [x] Preserve only deliberate compatibility contracts where old field names are still required temporarily
+- [x] Re-run full validation and document any remaining compatibility exceptions
+
+Review:
+
+- Active server, client, agent, CLI, SEO, and docs surfaces now consistently use `Stack Shares`, `stacked share`, `Multiplier`, `effectiveShares`, and `shareMultiplier`.
+- The boosts page and mobile market overview were updated to consume the canonical multiplier contracts, including the last stale `powerLevel` client references and the personal boost-context regression caused by stacked-share aggregation.
+- Targeted residue scans over `client/`, `server/`, `shared/`, and `docs/` found no active `powerLevel`, `Power Level`, `Power Up`, `/api/holdings/condense`, or raw legacy column references after the cleanup.
+- Historical migration files still mention old column names by design as migration history; no live code path or public product surface depends on them anymore.
+
+## 2026-03-08 Sportfoliobot Devvit Rebuild + Backend Integration
+
+- [x] Create a local canonical `sportfoliobot` Devvit package in `packages/` for the existing Reddit app/install footprint
+- [x] Add Sportfolio Reddit integration endpoints for preview/report plus runtime-backed Reddit post history persistence
+- [x] Extract reusable Reddit market-post builders from the current tweet/news/gameplay data sources and add optional image generation
+- [x] Add Devvit scheduler, settings/secrets, mod menu actions/forms, install/upgrade handling, and Redis dedupe/report flows
+- [x] Add focused backend tests and package docs/scripts, then run validation
+
+Review:
+
+- Added a dedicated Reddit integration backend with signed preview-image support, post-history persistence, ET-aware morning/pregame builders, and report recording through `server/reddit-market-posts.ts`, `server/routes/reddit-bot.ts`, and the `reddit_post_history` schema/migration.
+- Recreated the live `sportfoliobot` as a local Devvit package in `packages/sportfoliobot`, including installation/app settings, a 15-minute scheduler tick, install/upgrade triggers, Redis-backed disable/backoff state, mod-only preview/post/retry actions, and image-backed thread submission against the new Sportfolio endpoints.
+- Added root helper scripts for Devvit workflows, package docs, and focused backend route coverage for the Reddit endpoints, including the signed public preview-image route.
+- Validation passed for `npm run check`, `npm run lint`, `npm run test:run`, `npm run test:run -- server/routes/reddit-bot.test.ts`, `npm --prefix packages/sportfoliobot run typecheck`, and `npx devvit settings list --config devvit.json` from `packages/sportfoliobot`.
+- `npm run format:check` still fails on unrelated pre-existing formatting drift in `server/jobs/snapshot-share-payouts.ts` and `server/routes.ts`, which were left untouched because those files already had active worktree changes outside this Reddit bot implementation.
+- Deployed the additive Reddit backend endpoints to the live `Sportfolio-Replit` Railway service from a clean production-based worktree, then verified `https://www.sportfolio.market/api/integrations/reddit/preview-image.svg` now returns `400` instead of `404`, unauthenticated preview calls return `401`, and an authenticated preview call succeeds.
+- Added a dedicated `REDDIT_BOT_API_TOKEN` to the production `Sportfolio-Replit` Railway service, uploaded new `sportfoliobot` Devvit builds through `0.0.16`, normalized Devvit setting keys to lowercase slugs, and upgraded `r/sportfoliobot_dev` to `v0.0.16.1`.
+- The remaining operational gap is end-to-end Reddit post validation in `r/sportfoliobot_dev`; the backend and app are configured, but I have not yet forced a visible test thread through the Devvit UI/menu flow in the subreddit.
+
+## 2026-03-08 Analytics Command Center + Mobile Density Pass
+
+- [x] Rebuild `/analytics` into a command-center layout with a compact command bar and overflow-safe section rail
+- [x] Tighten analytics mobile typography to match the dashboard/profile compact scale
+- [x] Replace static metric cards with a selectable metric deck, market pulse hero, and sport momentum matrix
+- [x] Rework leaders, compare, and relationships into spotlight, compare lab, and correlation-radar sections
+- [x] Add helper coverage plus analytics E2E coverage, then run validation
+
+Review:
+
+- Rebuilt `client/src/pages/analytics.tsx` into a command-center view with an interactive metric deck, market pulse hero, sport filter matrix, player spotlight, compare lab, and relationship radar, while tightening the mobile type scale to match the denser dashboard/profile rhythm.
+- Added analytics view helpers plus focused Vitest coverage in `client/src/pages/analytics-helpers.ts` and `client/src/pages/analytics-helpers.test.ts`, and added `tests/e2e/analytics.spec.ts` to cover the desktop drill-down flow and mobile rail/title behavior with mocked analytics endpoints.
+- Validation passed for `npm run check`, `npm run lint`, `npm run test:run -- client/src/pages/analytics-helpers.test.ts`, and `npx playwright test tests/e2e/analytics.spec.ts --project=chromium`.
+- `npm run test:run` still fails in pre-existing mobile-market worktree changes at `server/market-mobile-overview.test.ts`, and `npm run format:check` is blocked by an unrelated syntax error in the untracked `client/src/components/market-mobile-home.tsx`.
+
 ## 2026-03-08 PR #91 Review Fixes
 
 - [x] Preserve legacy `/wiki/:section/:slug#heading` fragments when redirecting into handbook anchors
@@ -925,3 +987,28 @@ Review:
 - Mobile history now closes when starting a fresh chat, and the new Playwright spec locks in both the persistent desktop rail and the fixed mobile fresh-chat behavior.
 - Validation passed for `npm run check`, `npm run lint`, `npm run test:run`, `npx playwright test tests/e2e/agent-shell.spec.ts --project=chromium`, and targeted Prettier check on the touched files.
 - `npm run format:check` still fails, but only because of pre-existing formatting drift in untouched files: `client/src/pages/leaderboards.tsx`, `server/leaderboards.test.ts`, `server/leaderboards.ts`, `server/routes.ts`, `server/storage.ts`, and `tasks/todo.md`.
+
+## 2026-03-08 Handbook MCP Accuracy + Wiki Nav Rework
+
+- [x] Correct handbook MCP coverage so it reflects the live authenticated `/mcp` surface
+- [x] Add a dedicated public MCP handbook chapter and cross-link it from access surfaces
+- [x] Update docs-QA MCP fallback/model guidance and related tests
+- [x] Make the handbook chapter rail independently scrollable with per-section collapse on desktop
+- [x] Keep mobile handbook navigation as a collapsible sidebar drawer with per-section collapse inside it
+- [x] Validate via `npm run mcp:audit`, `npm run mcp:smoke`, `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`
+
+Review:
+
+- Replaced the stale handbook language that claimed MCP was undocumented and added a new canonical `/wiki/getting-started/mcp-access` chapter covering the live `/mcp` endpoint, bearer-token auth, public v1 surface, and exclusions.
+- Updated the access, CLI overview, and user action surface handbook chapters so public docs now point to MCP accurately instead of pushing every external-access question back to CLI only.
+- Reworked the handbook navigation so the desktop chapter rail is a sticky bounded panel with its own scroll area, while both desktop and mobile navigation now support per-section collapse and auto-open active/search-matching sections.
+- Updated docs-QA, docs-service, and docs-route tests to reflect the live MCP surface, and extended handbook helper tests to cover section expansion behavior and active-anchor ownership.
+- Validation passed for `npm run docs:build`, `npm run mcp:audit`, `npm run mcp:smoke`, `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`.
+
+## 2026-03-08 Mobile Player Pools Live Market Redesign
+
+- [ ] Add `GET /api/market/mobile-overview` with live pulse, ticker, narrative modules, and authenticated watchlist context built from existing market/boost/scout/game data
+- [ ] Extend the WebSocket client freshness model and marketplace polling fallback so mobile can show live/catching-up/offline states
+- [ ] Rebuild mobile `/pools` into a live-market scroll with sticky pulse strip, live tape, narrative modules, filter sheet, and richer player cards while preserving desktop behavior
+- [ ] Replace the mobile player modal with a trade-first bottom sheet and wire quick actions safely against existing buy/sell/boost/scout flows
+- [ ] Add targeted backend + Playwright coverage and validate via `npm run check`, `npm run lint`, `npm run test:run`, and targeted `npx playwright test`

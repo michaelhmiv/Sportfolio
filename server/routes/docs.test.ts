@@ -68,6 +68,11 @@ describe("docs routes", () => {
     expect(payload.handbook.title).toBe("Sportfolio Handbook");
     expect(payload.handbook.sections[0]?.id).toBe("getting-started");
     expect(payload.handbook.sections[0]?.chapters[0]?.slug).toBe("access");
+    expect(
+      payload.handbook.sections[0]?.chapters.some(
+        (chapter: { slug: string }) => chapter.slug === "mcp-access",
+      ),
+    ).toBe(true);
   });
 
   it("returns docs search results with handbook anchor ids", async () => {
@@ -77,6 +82,9 @@ describe("docs routes", () => {
     expect(response.status).toBe(200);
     expect(payload.results.length).toBeGreaterThan(0);
     expect(payload.results[0]?.anchorId).toMatch(/^chapter-/);
+    expect(payload.results.some((result: { slug: string }) => result.slug === "mcp-access")).toBe(
+      true,
+    );
   });
 
   it("answers docs questions through the public ask route", async () => {

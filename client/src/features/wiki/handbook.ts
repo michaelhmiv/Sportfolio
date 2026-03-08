@@ -20,8 +20,8 @@ export function flattenHandbookChapters(handbook: DocsHandbook): DocsHandbookCha
   return handbook.sections.flatMap((section) => section.chapters);
 }
 
-function normalizeLegacyHash(hash?: string): string {
-  return hash?.replace(/^#/, "").trim() || "";
+function normalizeAnchorId(anchorId?: string): string {
+  return anchorId?.replace(/^#/, "").trim() || "";
 }
 
 export function getLegacyWikiHref(section: string, slug?: string, hash?: string): string {
@@ -29,12 +29,74 @@ export function getLegacyWikiHref(section: string, slug?: string, hash?: string)
     return `/wiki#${getDocsSectionAnchorId(section)}`;
   }
 
-  const normalizedHash = normalizeLegacyHash(hash);
+  const normalizedHash = normalizeAnchorId(hash);
   const anchorId = normalizedHash
     ? getDocsChapterHeadingAnchorId(section, slug, normalizedHash)
     : getDocsChapterAnchorId(section, slug);
 
   return `/wiki#${anchorId}`;
+}
+
+export function getHandbookSectionIdForAnchor(
+  handbook: DocsHandbook,
+  anchorId?: string | null,
+): string | null {
+  const normalizedAnchorId = normalizeAnchorId(anchorId || undefined);
+  if (!normalizedAnchorId) {
+    return null;
+  }
+
+  for (const section of handbook.sections) {
+    if (section.anchorId === normalizedAnchorId) {
+      return section.id;
+    }
+
+    for (const chapter of section.chapters) {
+      if (chapter.chapterAnchorId === normalizedAnchorId) {
+        return section.id;
+      }
+
+      if (chapter.headings.some((heading) => heading.id === normalizedAnchorId)) {
+        return section.id;
+      }
+    }
+  }
+
+  return null;
+}
+
+export function getRequiredOpenHandbookSectionIds(
+  handbook: DocsHandbook,
+  activeAnchorId: string | null,
+  matchedSectionAnchors: Set<string>,
+): Set<string> {
+  const openSectionIds = new Set<string>();
+  const activeSectionId = getHandbookSectionIdForAnchor(handbook, activeAnchorId);
+
+  if (activeSectionId) {
+    openSectionIds.add(activeSectionId);
+  }
+
+  for (const section of handbook.sections) {
+    if (matchedSectionAnchors.has(section.anchorId)) {
+      openSectionIds.add(section.id);
+    }
+  }
+
+  return openSectionIds;
+}
+
+export function getDefaultOpenHandbookSectionIds(
+  handbook: DocsHandbook,
+  activeAnchorId: string | null,
+): Set<string> {
+  const openSectionIds = getRequiredOpenHandbookSectionIds(handbook, activeAnchorId, new Set());
+
+  if (openSectionIds.size === 0 && handbook.sections[0]) {
+    openSectionIds.add(handbook.sections[0].id);
+  }
+
+  return openSectionIds;
 }
 
 export function getHandbookMatchState(

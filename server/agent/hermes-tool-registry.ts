@@ -149,7 +149,7 @@ const CORE_TOOL_CATALOG: AgentToolDefinition[] = [
   defineTool({
     toolName: "get_holdings",
     category: "read",
-    description: "Read current holdings, power, and available shares.",
+    description: "Read current holdings, multiplier state, and available shares.",
     whenToUse: ["The user asks what they own or wants holdings-specific advice."],
     whenNotToUse: [],
     examplePrompts: ["what nascar holdings do i have right now?"],
@@ -461,7 +461,7 @@ const CORE_TOOL_CATALOG: AgentToolDefinition[] = [
     description: "Preview a compound multi-step workflow as one pending bundle.",
     whenToUse: ["The user asks for multiple linked actions in one request."],
     whenNotToUse: [],
-    examplePrompts: ["buy, condense, then boost this player"],
+    examplePrompts: ["buy, stack shares, then boost this player"],
     requiresConfirmation: true,
     riskLevel: "high",
     inputSchema: optionalMessageSchema,

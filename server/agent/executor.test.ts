@@ -4,13 +4,13 @@ const storageMocks = vi.hoisted(() => ({
   applyScoutAssignments: vi.fn(),
   addToWatchList: vi.fn(),
   removeFromWatchList: vi.fn(),
-  condenseShares: vi.fn(),
+  stackShares: vi.fn(),
   createCommunityBoost: vi.fn(),
   getDailyBoosts: vi.fn(),
   getDailyBoostsAllSports: vi.fn(),
   getPlayerGameForDate: vi.fn(),
   getAvailableShares: vi.fn(),
-  getHoldingsWithPowerBreakdown: vi.fn(),
+  getPlayerShareBreakdown: vi.fn(),
   createDailyBoost: vi.fn(),
   getDailyBoostsByStatus: vi.fn(),
   getDailyGameByGameId: vi.fn(),
@@ -73,10 +73,11 @@ describe("executeAgentActions", () => {
     storageMocks.applyScoutAssignments.mockResolvedValue(undefined);
     storageMocks.addToWatchList.mockResolvedValue(undefined);
     storageMocks.removeFromWatchList.mockResolvedValue(undefined);
-    storageMocks.condenseShares.mockResolvedValue({
-      newPowerLevel: "8.00",
-      sharesCondensed: 16,
-      poweredSharesCreated: 1,
+    storageMocks.stackShares.mockResolvedValue({
+      newMultiplier: "8.00",
+      sharesStacked: 16,
+      multiplier: "8.00",
+      effectiveSharesBurned: 8,
     });
     storageMocks.createCommunityBoost.mockResolvedValue({});
     storageMocks.getDailyBoosts.mockResolvedValue([]);
@@ -87,9 +88,9 @@ describe("executeAgentActions", () => {
       startTime: new Date(Date.now() + 60 * 60 * 1000),
     });
     storageMocks.getAvailableShares.mockResolvedValue(3);
-    storageMocks.getHoldingsWithPowerBreakdown.mockResolvedValue({
-      regular: { quantity: "1", power: 1 },
-      powered: [],
+    storageMocks.getPlayerShareBreakdown.mockResolvedValue({
+      regular: { quantity: "1" },
+      stacked: [],
     });
     storageMocks.createDailyBoost.mockResolvedValue({});
     storageMocks.getDailyBoostsAllSports.mockResolvedValue([
@@ -153,7 +154,7 @@ describe("executeAgentActions", () => {
     ] as any);
 
     expect(poolMocks.executeBuy).toHaveBeenCalledWith("nba_star", "user_1", 100, 0.05);
-  });
+  }, 10000);
 
   it("executes a daily boost assignment through storage", async () => {
     const { executeAgentActions } = await import("./executor");
@@ -289,23 +290,23 @@ describe("executeAgentActions", () => {
     expect(poolMocks.removeLiquidity).toHaveBeenCalledWith("nba_star", "user_1", 4);
   });
 
-  it("executes a holdings condense through storage", async () => {
+  it("executes a holdings stack shares through storage", async () => {
     const { executeAgentActions } = await import("./executor");
 
     await executeAgentActions("user_1", [
       {
-        actionType: "holdings_condense",
+        actionType: "holdings_stack_shares",
         playerId: "nba_star",
         playerName: "Nikola Jokic",
-        sharesToCondense: 16,
-        expectedPowerGained: 8,
-        expectedPoweredShareCount: 1,
+        sharesToStack: 16,
+        expectedMultiplierGained: 8,
+        expectedStackedShareCount: 1,
         reasoning: "test",
         confidence: 1,
       },
     ] as any);
 
-    expect(storageMocks.condenseShares).toHaveBeenCalledWith("user_1", "nba_star", 16);
+    expect(storageMocks.stackShares).toHaveBeenCalledWith("user_1", "nba_star", 16);
   });
 
   it("executes a daily boost removal through storage", async () => {

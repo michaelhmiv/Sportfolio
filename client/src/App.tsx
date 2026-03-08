@@ -69,7 +69,7 @@ const loadAgentPage = () => import("@/pages/agent");
 const loadNewsPage = () => import("@/pages/news");
 const loadPremiumPage = () => import("@/pages/premium");
 const loadWatchlistsPage = () => import("@/pages/watchlists");
-const loadPowerPage = () => import("@/pages/power");
+const loadBoostsPage = () => import("@/pages/boosts");
 const loadLoginPage = () => import("@/pages/Login");
 const loadAuthCallbackPage = () => import("@/pages/AuthCallback");
 const loadCheckoutSuccessPage = () => import("@/pages/checkout-success");
@@ -97,7 +97,7 @@ const Agent = lazy(loadAgentPage);
 const News = lazy(loadNewsPage);
 const Premium = lazy(loadPremiumPage);
 const Watchlists = lazy(loadWatchlistsPage);
-const Power = lazy(loadPowerPage);
+const Boosts = lazy(loadBoostsPage);
 const Login = lazy(loadLoginPage);
 const AuthCallback = lazy(loadAuthCallbackPage);
 const CheckoutSuccess = lazy(loadCheckoutSuccessPage);
@@ -180,7 +180,6 @@ const AUTH_BOOTSTRAP_REQUIRED_PREFIXES = [
   "/login",
   "/auth/callback",
   "/agent",
-  "/power",
   "/boosts",
   "/player/",
   "/portfolio",
@@ -508,11 +507,8 @@ function Router() {
             <Route path="/news" component={News} />
             <Route path="/agent">{isAuthenticated ? <Agent /> : <Dashboard />}</Route>
 
-            {/* Power / Boosts - requires authentication */}
-            <Route path="/power">{isAuthenticated ? <Power /> : <Dashboard />}</Route>
-
-            {/* Legacy route for backwards compatibility */}
-            <Route path="/boosts">{isAuthenticated ? <Power /> : <Dashboard />}</Route>
+            {/* Boosts - requires authentication */}
+            <Route path="/boosts">{isAuthenticated ? <Boosts /> : <Dashboard />}</Route>
 
             {/* Protected routes - require authentication, redirect to dashboard if not logged in */}
             <Route path="/player/:id">{isAuthenticated ? <PlayerPage /> : <Dashboard />}</Route>

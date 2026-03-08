@@ -272,10 +272,13 @@ export function registerCliRoutes(app: Express): void {
               ? `${entry.player.firstName} ${entry.player.lastName}`.trim()
               : entry.holding.assetId,
             quantity: entry.holding.quantity,
-            powerLevel: entry.holding.powerLevel,
+            effectiveShares: entry.holding.effectiveShares,
+            multiplier: entry.holding.multiplier,
             lockedQuantity: Number(entry.totalLocked || 0),
           }))
-          .sort((left, right) => Number(right.powerLevel || 0) - Number(left.powerLevel || 0))
+          .sort(
+            (left, right) => Number(right.effectiveShares || 0) - Number(left.effectiveShares || 0),
+          )
           .slice(0, 5);
 
         res.json({

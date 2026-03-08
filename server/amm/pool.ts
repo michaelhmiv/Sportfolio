@@ -336,7 +336,6 @@ export async function initializePool(playerId: string): Promise<Pool> {
             eq(holdings.userId, MARKET_MAKER_ID),
             eq(holdings.assetType, "player"),
             eq(holdings.assetId, playerId),
-            eq(holdings.power, 1),
           ),
         )
         .limit(1);
@@ -346,7 +345,6 @@ export async function initializePool(playerId: string): Promise<Pool> {
           .update(holdings)
           .set({
             quantity: INITIAL_POOL_SHARES.toString(),
-            powerLevel: INITIAL_POOL_SHARES.toString(),
             avgCostBasis: INITIAL_POOL_PRICE.toString(),
             totalCostBasis: INITIAL_POOL_PLAY_MONEY.toString(),
             lastUpdated: new Date(),
@@ -358,8 +356,6 @@ export async function initializePool(playerId: string): Promise<Pool> {
           assetType: "player",
           assetId: playerId,
           quantity: INITIAL_POOL_SHARES.toString(),
-          power: 1,
-          powerLevel: INITIAL_POOL_SHARES.toString(),
           avgCostBasis: INITIAL_POOL_PRICE.toString(),
           totalCostBasis: INITIAL_POOL_PLAY_MONEY.toString(),
         });
@@ -781,13 +777,11 @@ export async function executeBuy(
         const currentTotalCost = parseFloat(existingHolding.totalCostBasis);
         const newTotalCost = currentTotalCost + quote.totalCost;
         const newAvgCost = newTotalCost / newQuantity;
-        const holdingPower = existingHolding.power || 1;
 
         await tx
           .update(holdings)
           .set({
             quantity: Math.round(newQuantity).toString(),
-            powerLevel: (newQuantity * holdingPower).toFixed(2),
             avgCostBasis: newAvgCost.toFixed(4),
             totalCostBasis: newTotalCost.toFixed(2),
             lastUpdated: new Date(),
@@ -800,8 +794,6 @@ export async function executeBuy(
           assetType: "player",
           assetId: playerId,
           quantity: Math.round(newQuantity).toString(),
-          power: 1,
-          powerLevel: newQuantity.toFixed(2),
           avgCostBasis: quote.effectivePrice.toFixed(4),
           totalCostBasis: quote.totalCost.toFixed(2),
           lastUpdated: new Date(),
@@ -1000,12 +992,10 @@ export async function executeSell(
       // 6. Deduct shares from user holdings
       const newQuantity = holdingQuantity - sharesAmount;
       if (newQuantity > MIN_HOLDING_THRESHOLD) {
-        const holdingPower = holding.power || 1;
         await tx
           .update(holdings)
           .set({
             quantity: Math.round(newQuantity).toString(),
-            powerLevel: (newQuantity * holdingPower).toFixed(2),
             lastUpdated: new Date(),
           })
           .where(eq(holdings.id, holding.id));
@@ -1530,12 +1520,10 @@ export async function zapAddLiquiditySharesOnly(
       // Update holding after depositing remaining shares (may drop below threshold)
       const qtyAfterAdd = qtyAfterSell - sharesDeposited;
       if (qtyAfterAdd > MIN_HOLDING_THRESHOLD) {
-        const holdingPower = holding.power || 1;
         await tx
           .update(holdings)
           .set({
             quantity: Math.round(qtyAfterAdd).toString(),
-            powerLevel: (qtyAfterAdd * holdingPower).toFixed(2),
             lastUpdated: new Date(),
           })
           .where(eq(holdings.id, holding.id));
@@ -1963,12 +1951,10 @@ export async function addLiquidity(
       // 7. Deduct shares from user holdings
       const newQuantity = userHoldingQuantity - sharesToDeposit;
       if (newQuantity > MIN_HOLDING_THRESHOLD) {
-        const holdingPower = userHolding.power || 1;
         await tx
           .update(holdings)
           .set({
             quantity: Math.round(newQuantity).toString(),
-            powerLevel: (newQuantity * holdingPower).toFixed(2),
             lastUpdated: new Date(),
           })
           .where(eq(holdings.id, userHolding.id));
@@ -2160,12 +2146,10 @@ export async function removeLiquidity(
       if (existingHolding) {
         const existingQuantity = parseFloat(existingHolding.quantity);
         const newQuantity = existingQuantity + sharesToReturn;
-        const holdingPower = existingHolding.power || 1;
         await tx
           .update(holdings)
           .set({
             quantity: Math.round(newQuantity).toString(),
-            powerLevel: (newQuantity * holdingPower).toFixed(2),
             lastUpdated: new Date(),
           })
           .where(eq(holdings.id, existingHolding.id));
@@ -2175,8 +2159,6 @@ export async function removeLiquidity(
           assetType: "player",
           assetId: playerId,
           quantity: Math.round(sharesToReturn).toString(),
-          power: 1,
-          powerLevel: sharesToReturn.toFixed(2),
           avgCostBasis: poolData.currentPrice.toFixed(4),
           totalCostBasis: playMoneyToReturn.toFixed(2),
           lastUpdated: new Date(),
@@ -2380,12 +2362,10 @@ export async function addLiquidityOptimal(
       // 7. Deduct shares from user holdings
       const newQuantity = userHoldingQuantity - sharesToDeposit;
       if (newQuantity > MIN_HOLDING_THRESHOLD) {
-        const holdingPower = userHolding.power || 1;
         await tx
           .update(holdings)
           .set({
             quantity: Math.round(newQuantity).toString(),
-            powerLevel: (newQuantity * holdingPower).toFixed(2),
             lastUpdated: new Date(),
           })
           .where(eq(holdings.id, userHolding.id));

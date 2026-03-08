@@ -243,8 +243,8 @@ const AGENT_TOOL_CATALOG: AgentToolDefinition[] = [
       "The user only wants a single direct action preview.",
     ],
     examplePrompts: [
-      "power up Amen and put him at 4x, then condense Jokic and put him at 5x",
-      "buy 16 Austin Hill shares, power them up, then put the powered share in my 5x slot",
+      "stack shares Amen and put him at 4x, then stack Jokic and put him at 5x",
+      "buy 16 Austin Hill shares, stack them, then put the stacked share in my 5x slot",
     ],
     requiresConfirmation: true,
     riskLevel: "high",
@@ -503,25 +503,27 @@ function resolveTargetDate(rawDate: unknown): Date {
 }
 
 async function getHoldingAvailability(userId: string, playerId: string) {
-  const holding = await storage.getHoldingWithPowerLevel(userId, playerId);
+  const holding = await storage.getHoldingMultiplierState(userId, playerId);
   if (!holding) {
     return {
       hasHolding: false,
       quantity: 0,
-      powerLevel: "0.00",
+      effectiveShares: 0,
+      multiplier: "0.00",
       availableShares: 0,
-      canCondense: false,
-      maxCondensable: 0,
+      canStackShares: false,
+      maxStackable: 0,
     };
   }
 
   return {
     hasHolding: true,
     quantity: holding.quantity,
-    powerLevel: holding.powerLevel,
+    effectiveShares: holding.effectiveShares,
+    multiplier: holding.multiplier,
     availableShares: holding.availableShares,
-    canCondense: holding.availableShares >= 2,
-    maxCondensable: Math.floor(holding.availableShares / 2) * 2,
+    canStackShares: holding.canStackShares,
+    maxStackable: holding.maxStackable,
   };
 }
 
@@ -548,7 +550,7 @@ async function buildDailyBoostCandidateScan(input: {
       playerId: entry.player.id,
       playerName: buildPlayerLabel(entry.player, entry.player.id),
       availableShares: Number(entry.availableShares || 0),
-      powerLevel: Number(entry.powerLevel || 0),
+      multiplier: Number(entry.multiplier || 0),
       gameStartTime: entry.gameStartTime,
       alreadyBoosted: boostedPlayerIds.has(entry.player.id),
     }))
@@ -556,8 +558,8 @@ async function buildDailyBoostCandidateScan(input: {
       if (left.alreadyBoosted !== right.alreadyBoosted) {
         return left.alreadyBoosted ? 1 : -1;
       }
-      if (right.powerLevel !== left.powerLevel) {
-        return right.powerLevel - left.powerLevel;
+      if (right.multiplier !== left.multiplier) {
+        return right.multiplier - left.multiplier;
       }
       return right.availableShares - left.availableShares;
     })
@@ -573,7 +575,7 @@ async function buildDailyBoostCandidateScan(input: {
           })} ET`
         : "";
       const boosted = entry.alreadyBoosted ? ", already boosted" : "";
-      return `${entry.playerName} (${entry.availableShares.toFixed(2)} available, ${entry.powerLevel.toFixed(2)} power${timing}${boosted})`;
+      return `${entry.playerName} (${entry.availableShares.toFixed(2)} available, ${entry.multiplier.toFixed(2)}x multiplier${timing}${boosted})`;
     })
     .join("; ");
   const warnings: string[] = [];
@@ -950,9 +952,9 @@ function resolvePreviewMessage(input: {
         return `zap $${dollarAmount} into ${playerLabel} liquidity`;
       }
       break;
-    case "preview_condense":
+    case "preview_stack_shares":
       if (shares != null) {
-        return `condense ${shares} ${playerLabel} shares`;
+        return `stack shares ${shares} ${playerLabel} shares`;
       }
       break;
     case "preview_daily_boost_assign":
@@ -1099,9 +1101,9 @@ async function findPlayerHoldingByName(input: { userId: string; rawName: string 
     : null;
 }
 
-function inferMaxCondenseShareCount(availableShares: number): number | null {
+function inferMaxStackShareCount(availableShares: number): number | null {
   const maxEvenShares = Math.floor(Math.max(0, availableShares) / 2) * 2;
-  return maxEvenShares >= 2 ? maxEvenShares : null;
+  return maxEvenShares >= 4 ? maxEvenShares : null;
 }
 
 async function buildMultiActionBundlePreview(input: {
@@ -1129,28 +1131,28 @@ async function buildMultiActionBundlePreview(input: {
   let lastResolvedPlayerId: string | null = null;
 
   for (const clause of clauses) {
-    const condenseMatch = clause.match(/\b(?:power up|condense)\s+([a-z .'-]+)/i);
-    if (condenseMatch) {
+    const stackMatch = clause.match(/\bstack(?:\s+shares)?\s+([a-z .'-]+)/i);
+    if (stackMatch) {
       const holding = await findPlayerHoldingByName({
         userId: input.userId,
-        rawName: condenseMatch[1],
+        rawName: stackMatch[1],
       });
       if (!holding) {
         blockingReasons.push(
-          `I could not find an unlocked holding for "${condenseMatch[1].trim()}" to condense.`,
+          `I could not find an unlocked holding for "${stackMatch[1].trim()}" to stack.`,
         );
         continue;
       }
 
-      const sharesToCondense = inferMaxCondenseShareCount(holding.availableShares);
-      if (sharesToCondense == null) {
+      const sharesToStack = inferMaxStackShareCount(holding.availableShares);
+      if (sharesToStack == null) {
         blockingReasons.push(
-          `${holding.playerName} does not have at least 2 unlocked shares available to condense.`,
+          `${holding.playerName} does not have at least 4 unlocked shares available to stack.`,
         );
         continue;
       }
 
-      generatedMessages.push(`condense ${sharesToCondense} ${holding.playerName} shares`);
+      generatedMessages.push(`stack shares ${sharesToStack} ${holding.playerName} shares`);
       lastResolvedPlayerName = holding.playerName;
       lastResolvedPlayerId = holding.playerId;
       continue;
@@ -1358,7 +1360,7 @@ async function buildPoolSellPreview(input: {
   const [player, availableBalance, holdingInfo, quote] = await Promise.all([
     requirePlayer(playerId),
     storage.getAvailableBalance(input.userId),
-    storage.getHoldingWithPowerLevel(input.userId, playerId),
+    storage.getHoldingMultiplierState(input.userId, playerId),
     getSellQuote(playerId, sharesAmount),
   ]);
 
@@ -1386,7 +1388,8 @@ async function buildPoolSellPreview(input: {
     beforeState: {
       availableBalance,
       availableShares,
-      currentPowerLevel: holdingInfo?.powerLevel || "0.00",
+      currentEffectiveShares: holdingInfo?.effectiveShares?.toFixed(2) || "0.00",
+      currentMultiplier: holdingInfo?.multiplier || "0.00",
     },
     afterState: {
       availableBalance: availableBalance + quote.sellerReceives,
@@ -1414,7 +1417,7 @@ async function buildLpAddPreview(input: {
     requirePlayer(playerId),
     getOrCreatePool(playerId),
     storage.getAvailableBalance(input.userId),
-    storage.getHoldingWithPowerLevel(input.userId, playerId),
+    storage.getHoldingMultiplierState(input.userId, playerId),
     getLpPosition(playerId, input.userId),
   ]);
 
@@ -1490,7 +1493,7 @@ async function buildLpAddOptimalPreview(input: {
     requirePlayer(playerId),
     getOrCreatePool(playerId),
     storage.getAvailableBalance(input.userId),
-    storage.getHoldingWithPowerLevel(input.userId, playerId),
+    storage.getHoldingMultiplierState(input.userId, playerId),
     getLpPosition(playerId, input.userId),
   ]);
 
@@ -1619,7 +1622,7 @@ async function buildLpZapPreview(input: {
   const [player, availableBalance, holdingInfo] = await Promise.all([
     requirePlayer(playerId),
     storage.getAvailableBalance(input.userId),
-    storage.getHoldingWithPowerLevel(input.userId, playerId),
+    storage.getHoldingMultiplierState(input.userId, playerId),
   ]);
 
   const playerLabel = buildPlayerLabel(player, playerId);
@@ -1814,8 +1817,8 @@ export async function runHermesReadTool(input: {
           sport: entry.player.sport,
           team: entry.player.team,
           quantity: Number(entry.holding.quantity || 0),
-          power: Number(entry.holding.power || 1),
-          powerLevel: entry.holding.powerLevel,
+          multiplier: Number(entry.holding.multiplier || 1),
+          effectiveShares: entry.holding.effectiveShares,
           availableShares:
             Number(entry.holding.quantity || 0) - Math.max(0, Number(entry.totalLocked || 0)),
           avgCostBasis: entry.holding.avgCostBasis,
@@ -1930,10 +1933,10 @@ export async function runHermesReadTool(input: {
           lastTradePrice && marketCap ? Math.round((marketCap / lastTradePrice) * 100) / 100 : null,
       };
     }
-    case "get_holdings_power_level": {
+    case "get_holding_multiplier_state": {
       const playerId = toStringValue(input.args?.playerId);
       if (!playerId) {
-        throw new Error("playerId is required for get_holdings_power_level");
+        throw new Error("playerId is required for get_holding_multiplier_state");
       }
       return getHoldingAvailability(input.userId, playerId);
     }
@@ -2108,7 +2111,7 @@ export async function runHermesPlanTool(input: {
     case "preview_lp_zap":
       return buildLpZapPreview(input);
     case "preview_direct_operation":
-    case "preview_condense":
+    case "preview_stack_shares":
     case "preview_daily_boost_assign":
     case "preview_daily_boost_remove":
     case "preview_watchlist_add":

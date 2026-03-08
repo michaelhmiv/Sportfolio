@@ -198,10 +198,8 @@ export async function settleBoosts(progressCallback?: ProgressCallback): Promise
           communityCountCache.set(cacheKey, communityBoostCount);
         }
 
-        // Calculate payout: use powerLevel if available, otherwise fall back to sharesEntered
-        // Power Level represents condensed shares' effective power
-        const effectivePower = boost.powerLevel
-          ? parseFloat(boost.powerLevel.toString())
+        const effectivePower = boost.shareMultiplier
+          ? parseFloat(boost.shareMultiplier.toString())
           : boost.sharesEntered;
         const effectiveMultiplier = boost.slotTier + communityBoostCount;
         // Floor payout at 0 to prevent negative balances from poor player performance
@@ -209,7 +207,7 @@ export async function settleBoosts(progressCallback?: ProgressCallback): Promise
         const payout = Math.max(0, rawPayout);
 
         console.log(
-          `[settle_boosts] Boost ${boost.id}: ${effectivePower} power × ${fantasyPoints} FP × ${effectiveMultiplier}x (${boost.slotTier}+${communityBoostCount}) = $${payout.toFixed(2)}`,
+          `[settle_boosts] Boost ${boost.id}: ${effectivePower}x multiplier × ${fantasyPoints} FP × ${effectiveMultiplier}x (${boost.slotTier}+${communityBoostCount}) = $${payout.toFixed(2)}`,
         );
 
         // Credit user balance
@@ -344,15 +342,15 @@ export async function settleBoosts(progressCallback?: ProgressCallback): Promise
             }
 
             // Calculate payout
-            const effectivePower = boost.powerLevel
-              ? parseFloat(boost.powerLevel.toString())
+            const effectivePower = boost.shareMultiplier
+              ? parseFloat(boost.shareMultiplier.toString())
               : boost.sharesEntered;
             const effectiveMultiplier = boost.slotTier + communityBoostCount;
             const rawPayout = effectivePower * fantasyPoints * effectiveMultiplier;
             const payout = Math.max(0, rawPayout);
 
             console.log(
-              `[settle_boosts] Retry ${retry} - Boost ${boost.id}: ${effectivePower} power × ${fantasyPoints} FP × ${effectiveMultiplier}x = $${payout.toFixed(2)}`,
+              `[settle_boosts] Retry ${retry} - Boost ${boost.id}: ${effectivePower}x multiplier × ${fantasyPoints} FP × ${effectiveMultiplier}x = $${payout.toFixed(2)}`,
             );
 
             // Credit user balance

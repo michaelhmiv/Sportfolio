@@ -6,12 +6,12 @@ describe("sms-renderer", () => {
     const text = renderGuestSmsConciergeReply({
       linkUrl: "https://www.sportfolio.market/sms/link?token=abc",
       messageText: "How do boosts work?",
-      matchedTopicTitle: "Power and Boosts",
+      matchedTopicTitle: "Stacking Shares and Boosts",
       matchedTopicNote: "Daily boosts consume exactly one eligible share per slot.",
     });
 
     expect(text).toContain("I can talk that through with you.");
-    expect(text).toContain("Power and Boosts");
+    expect(text).toContain("Stacking Shares and Boosts");
     expect(text).toContain("link your account here");
   });
 

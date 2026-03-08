@@ -113,8 +113,8 @@ export function HelpDialog() {
                       <p className="font-medium mb-1">Option B: Use Daily Boosts</p>
                       <p className="text-muted-foreground">
                         Commit an eligible share to a boost slot for short-horizon payouts tied to
-                        real game outcomes. Slot tier, share power, and community multipliers drive
-                        the final result.
+                        real game outcomes. Slot tier, share multiplier, and community multipliers
+                        drive the final result.
                       </p>
                     </div>
                   </div>

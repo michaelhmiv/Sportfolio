@@ -217,7 +217,7 @@ export default function Landing() {
                 </div>
               </CardHeader>
               <CardContent className="text-xs sm:text-sm text-muted-foreground">
-                Burn one eligible share into a slot-based boost and let power, timing, and game
+                Burn one eligible share into a slot-based boost and let multiplier, timing, and game
                 performance drive the payout.
               </CardContent>
             </Card>

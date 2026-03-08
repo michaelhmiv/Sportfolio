@@ -51,7 +51,7 @@ describe("settleBoosts", () => {
         slotTier: 2,
         boostDate: new Date("2026-02-11T05:00:00.000Z"),
         sharesEntered: 1,
-        powerLevel: "2.00",
+        shareMultiplier: "2.00",
         gameId: "184471234",
         status: "locked",
       },

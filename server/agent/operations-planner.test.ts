@@ -21,7 +21,7 @@ const storageMocks = vi.hoisted(() => ({
   getDailyBoosts: vi.fn(),
   getDailyBoostsAllSports: vi.fn(),
   getPlayerGameForDate: vi.fn(),
-  getHoldingsWithPowerBreakdown: vi.fn(),
+  getPlayerShareBreakdown: vi.fn(),
   getDailyGameByGameId: vi.fn(),
 }));
 
@@ -176,12 +176,11 @@ describe("planDirectAgentOperation", () => {
       homeTeam: "DEN",
       awayTeam: "LAL",
     });
-    storageMocks.getHoldingsWithPowerBreakdown.mockResolvedValue({
+    storageMocks.getPlayerShareBreakdown.mockResolvedValue({
       regular: {
         quantity: "2",
-        power: 1,
       },
-      powered: [],
+      stacked: [],
     });
     storageMocks.getDailyGameByGameId.mockResolvedValue({
       gameId: "game_1",
@@ -289,13 +288,13 @@ describe("planDirectAgentOperation", () => {
     expect(result?.actions[0]?.sbAmount).toBeGreaterThan(0);
   });
 
-  it("stages a combined buy, power-up, and boost workflow", async () => {
+  it("stages a combined buy, stack-shares, and boost workflow", async () => {
     const { planDirectAgentOperation } = await import("./operations-planner");
 
     const result = await planDirectAgentOperation({
       userId: "user_1",
       message:
-        "buy 16 nba_star shares, power them all up and put that share into my 5x boost slot tomorrow",
+        "buy 16 nba_star shares, stack them all and put that share into my 5x boost slot tomorrow",
       profile,
     });
 
@@ -304,7 +303,7 @@ describe("planDirectAgentOperation", () => {
     expect(result?.actions).toHaveLength(3);
     expect(result?.actions.map((action) => action.actionType)).toEqual([
       "pool_buy",
-      "holdings_condense",
+      "holdings_stack_shares",
       "daily_boost_assign",
     ]);
   });
@@ -609,7 +608,7 @@ describe("planDirectAgentOperation", () => {
     const result = await planDirectAgentOperation({
       userId: "user_1",
       message:
-        "buy 16 nba_unknown shares, power them all up and put that share into my 5x boost slot tomorrow",
+        "buy 16 nba_unknown shares, stack them all and put that share into my 5x boost slot tomorrow",
       profile,
     });
 
@@ -622,8 +621,8 @@ describe("planDirectAgentOperation", () => {
     expect(result?.pendingClarification?.resumeMessageTemplate).toContain("{player}");
     expect(result?.pendingClarification?.workflowPreviewSteps).toEqual([
       "Buy 16 shares",
-      "Power up the new position",
-      "Assign the top powered share to the 5x boost slot",
+      "Stack the new position",
+      "Assign the top stacked share to the 5x boost slot",
     ]);
   });
 

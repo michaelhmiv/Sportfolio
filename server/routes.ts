@@ -46,6 +46,7 @@ import { setupAuth, isAuthenticated, optionalAuth } from "./supabaseAuth";
 import { getGameDay, getETDayBoundaries, getTodayETBoundaries, getTodayET } from "./lib/time";
 import { getOrCompute } from "./cache";
 import { registerDomainRoutes } from "./routes/register-domain-routes";
+import { registerMarketMobileRoutes } from "./routes/market-mobile";
 import { getOrCreatePool, initializePool } from "./amm/pool";
 import { normalizeSiteUrl } from "@shared/seo";
 import { ensureSmsSchema } from "./sms-service";
@@ -121,10 +122,41 @@ function roundToTwo(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
+function getMarketplaceGameStatus(
+  game: Pick<DailyGame, "status" | "startTime"> | undefined,
+): "none" | "upcoming" | "live" | "ended" {
+  if (!game) {
+    return "none";
+  }
+
+  const now = new Date();
+  const startTime = new Date(game.startTime);
+  const timeSinceStart = now.getTime() - startTime.getTime();
+  const threeHoursMs = 3 * 60 * 60 * 1000;
+
+  if (game.status === "completed" || game.status === "ended") {
+    return "ended";
+  }
+
+  if (game.status === "inprogress") {
+    return "live";
+  }
+
+  if (game.status === "scheduled" && timeSinceStart > 0 && timeSinceStart < threeHoursMs) {
+    return "live";
+  }
+
+  if (game.status === "scheduled" && timeSinceStart >= threeHoursMs) {
+    return "ended";
+  }
+
+  return "upcoming";
+}
+
 /**
- * Get power/boosts data for the dashboard
+ * Get boosts summary data for the dashboard
  */
-async function getDashboardPowerData(userId: string) {
+async function getDashboardBoostData(userId: string) {
   try {
     const { startOfDay } = getTodayETBoundaries();
     const today = startOfDay;
@@ -184,7 +216,7 @@ async function getDashboardPowerData(userId: string) {
       boosts: boosts.slice(0, 4), // Include top boosts for preview
     };
   } catch (error: any) {
-    console.error("[getDashboardPowerData] Error:", error.message);
+    console.error("[getDashboardBoostData] Error:", error.message);
     return {
       activeBoosts: 0,
       lockedBoosts: 0,
@@ -226,11 +258,11 @@ function invalidateAdminStatsCache() {
 
 type GameInsightUserContext = {
   eligibleCount: number;
-  topPowerPlayers: Array<{
+  topMultiplierPlayers: Array<{
     playerId: string;
     name: string;
     team: string;
-    powerLevel: number;
+    multiplier: number;
     availableShares: number;
     totalShares: number;
     isBoosted: boolean;
@@ -239,7 +271,7 @@ type GameInsightUserContext = {
     playerId: string;
     name: string;
     team: string;
-    powerLevel: number;
+    multiplier: number;
     availableShares: number;
     totalShares: number;
     isBoosted: boolean;
@@ -282,7 +314,7 @@ type UserLiveEarningsSummary = {
     name: string;
     team: string;
     quantity: number;
-    powerLevel: number;
+    effectiveShares: number;
     fantasyPoints: number;
     estimatedEarnings: number;
   }>;
@@ -584,7 +616,7 @@ async function buildUserLiveEarningsSummary(params: {
         liveByNameAndTeam.get(getLiveEarningsNameTeamKey(playerName, player?.team)) || 0;
       const fantasyPoints = fantasyPointsById || fantasyPointsByName;
       const quantity = parseLiveEarningsNumber(holding.quantity);
-      const powerLevel = parseLiveEarningsNumber(holding.powerLevel);
+      const effectiveShares = parseLiveEarningsNumber(holding.effectiveShares || holding.quantity);
 
       const existing = map.get(playerId);
       if (!existing) {
@@ -593,27 +625,27 @@ async function buildUserLiveEarningsSummary(params: {
           name: playerName,
           team: player.team,
           quantity,
-          powerLevel,
+          effectiveShares,
           fantasyPoints,
         });
         return map;
       }
 
       existing.quantity += quantity;
-      existing.powerLevel += powerLevel;
+      existing.effectiveShares += effectiveShares;
       return map;
     }, new Map<string, any>());
 
   const ownedPlayers = Array.from(aggregatedOwnedPlayers.values())
     .map((player) => {
-      const estimatedEarnings = player.fantasyPoints * player.powerLevel;
+      const estimatedEarnings = player.fantasyPoints * player.effectiveShares;
 
       return {
         playerId: player.playerId,
         name: player.name,
         team: player.team,
         quantity: parseFloat(player.quantity.toFixed(4)),
-        powerLevel: parseFloat(player.powerLevel.toFixed(2)),
+        effectiveShares: parseFloat(player.effectiveShares.toFixed(2)),
         fantasyPoints: parseFloat(player.fantasyPoints.toFixed(2)),
         estimatedEarnings: parseFloat(estimatedEarnings.toFixed(2)),
       };
@@ -1535,7 +1567,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       ownedPlayers: GameInsightUserContext["ownedPlayers"],
     ): GameInsightUserContext["ownedPlayers"] =>
       [...ownedPlayers].sort((a, b) => {
-        if (b.powerLevel !== a.powerLevel) return b.powerLevel - a.powerLevel;
+        if (b.multiplier !== a.multiplier) return b.multiplier - a.multiplier;
         if (b.totalShares !== a.totalShares) return b.totalShares - a.totalShares;
         return a.name.localeCompare(b.name);
       });
@@ -1561,18 +1593,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       eligibleByGame.forEach((playersForGame, gameId) => {
-        // Each holding row represents a distinct share with its own power level
+        // Each holding row represents a distinct share with its own multiplier/effective-share state.
         // We show individual shares because only ONE share can be placed in a boost slot
-        const topPowerPlayers = [...playersForGame]
-          .sort((a, b) => parseFloat(b.powerLevel || "0") - parseFloat(a.powerLevel || "0"))
+        const topMultiplierPlayers = [...playersForGame]
+          .sort((a, b) => parseFloat(b.multiplier || "0") - parseFloat(a.multiplier || "0"))
           .slice(0, 2)
           .map((player) => ({
             playerId: player.player.id,
             name: `${player.player.firstName} ${player.player.lastName}`,
             team: player.player.team,
-            powerLevel: parseFloat(player.powerLevel || "0"),
+            multiplier: parseFloat(player.multiplier || "0"),
             availableShares: Number(player.availableShares || 0),
-            totalShares: Number(player.quantity || 0),
+            totalShares: Number(player.effectiveShares || player.quantity || 0),
             isBoosted: boostedPlayerIds.has(player.player.id),
           }));
 
@@ -1582,7 +1614,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             playerId: string;
             name: string;
             team: string;
-            powerLevel: number;
+            multiplier: number;
             availableShares: number;
             totalShares: number;
             isBoosted: boolean;
@@ -1591,9 +1623,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         playersForGame.forEach((player) => {
           const playerId = player.player.id;
-          const powerLevel = parseFloat(player.powerLevel || "0");
+          const multiplier = parseFloat(player.multiplier || "0");
           const availableShares = Number(player.availableShares || 0);
-          const totalShares = Number(player.quantity || 0);
+          const totalShares = Number(player.effectiveShares || player.quantity || 0);
           const existing = ownedPlayersById.get(playerId);
 
           if (!existing) {
@@ -1601,7 +1633,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               playerId,
               name: `${player.player.firstName} ${player.player.lastName}`,
               team: player.player.team,
-              powerLevel,
+              multiplier,
               availableShares,
               totalShares,
               isBoosted: boostedPlayerIds.has(playerId),
@@ -1609,7 +1641,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             return;
           }
 
-          existing.powerLevel = Math.max(existing.powerLevel, powerLevel);
+          existing.multiplier = Math.max(existing.multiplier, multiplier);
           existing.availableShares += availableShares;
           existing.totalShares += totalShares;
           existing.isBoosted = existing.isBoosted || boostedPlayerIds.has(playerId);
@@ -1619,13 +1651,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         userContextByGame.set(gameId, {
           eligibleCount: playersForGame.length,
-          topPowerPlayers,
+          topMultiplierPlayers,
           ownedPlayers,
         });
       });
 
       allHoldings.forEach((holding) => {
-        const totalShares = parseFloat(holding.quantity || "0");
+        const totalShares = parseFloat(holding.effectiveShares || holding.quantity || "0");
         if (totalShares <= 0) return;
 
         const teamKey = playerTeamKey(holding.player.sport, holding.player.team);
@@ -1637,7 +1669,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           playerId,
           name: `${holding.player.firstName} ${holding.player.lastName}`,
           team: holding.player.team,
-          powerLevel: parseFloat(holding.powerLevel || "0"),
+          multiplier: parseFloat(holding.multiplier || "0"),
           availableShares: 0,
           totalShares,
           isBoosted: boostedPlayerIds.has(playerId),
@@ -1648,7 +1680,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (!existingContext) {
             userContextByGame.set(gameId, {
               eligibleCount: 0,
-              topPowerPlayers: [],
+              topMultiplierPlayers: [],
               ownedPlayers: [fallbackOwnedPlayer],
             });
             return;
@@ -1664,9 +1696,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             return;
           }
 
-          existingOwnedPlayer.powerLevel = Math.max(
-            existingOwnedPlayer.powerLevel,
-            fallbackOwnedPlayer.powerLevel,
+          existingOwnedPlayer.multiplier = Math.max(
+            existingOwnedPlayer.multiplier,
+            fallbackOwnedPlayer.multiplier,
           );
           existingOwnedPlayer.totalShares = Math.max(
             existingOwnedPlayer.totalShares,
@@ -1734,7 +1766,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userContext = userId
         ? {
             eligibleCount: baseUserContext?.eligibleCount || 0,
-            topPowerPlayers: baseUserContext?.topPowerPlayers || [],
+            topMultiplierPlayers: baseUserContext?.topMultiplierPlayers || [],
             ownedPlayers: baseUserContext?.ownedPlayers || [],
             liveEarned:
               status === "scheduled" || status === "postponed"
@@ -2176,7 +2208,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .update(holdings)
           .set({
             quantity: newQty.toString(),
-            powerLevel: (newQty * (existingHolding.power || 1)).toFixed(2),
             avgCostBasis: resolvedAvgCost,
             totalCostBasis,
             lastUpdated: new Date(),
@@ -2188,8 +2219,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           assetType,
           assetId: assetType,
           quantity: newQty.toString(),
-          power: 1,
-          powerLevel: newQty.toFixed(2),
           avgCostBasis: resolvedAvgCost,
           totalCostBasis,
           lastUpdated: new Date(),
@@ -2685,7 +2714,7 @@ ${items}
           })),
           topHoldings: [],
           portfolioHistory: [],
-          power: null, // Power/boosts require authentication
+          boosts: null, // Boosts require authentication
         });
       }
 
@@ -2702,11 +2731,11 @@ ${items}
       );
 
       // Fetch user-specific data in parallel
-      const [userHoldings, vestingData, vestingSplits, powerData] = await Promise.all([
+      const [userHoldings, vestingData, vestingSplits, boostsData] = await Promise.all([
         storage.getUserHoldings(user.id),
         storage.getVesting(user.id),
         storage.getVestingSplits(user.id),
-        getDashboardPowerData(user.id), // Fetch power/boosts data
+        getDashboardBoostData(user.id),
       ]);
 
       // Collect all unique player IDs we need to fetch
@@ -2742,8 +2771,9 @@ ${items}
       for (const holding of userHoldings) {
         if (holding.assetType === "player") {
           const player = playerMap.get(holding.assetId);
+          const effectiveShares = parseFloat(holding.effectiveShares || holding.quantity);
           if (player && player.lastTradePrice) {
-            portfolioValue += parseFloat(holding.quantity) * parseFloat(player.lastTradePrice);
+            portfolioValue += effectiveShares * parseFloat(player.lastTradePrice);
           }
         }
       }
@@ -2758,14 +2788,16 @@ ${items}
           const player = playerMap.get(holding.assetId);
           if (player) {
             const enrichedPlayer = enrichPlayerWithMarketValue(player);
+            const effectiveShares = parseFloat(holding.effectiveShares || holding.quantity);
             const { currentValue, pnl, pnlPercent } = calculatePnL(
-              parseFloat(holding.quantity),
+              effectiveShares,
               holding.avgCostBasis,
               enrichedPlayer.lastTradePrice,
             );
             topHoldings.push({
               player: enrichedPlayer,
-              quantity: holding.quantity,
+              quantity: effectiveShares.toFixed(2),
+              effectiveShares: effectiveShares.toFixed(2),
               value: currentValue,
               pnl,
               pnlPercent,
@@ -2940,7 +2972,7 @@ ${items}
               sharesPerHour: user.isPremium ? 200 : 100,
             }
           : null,
-        power: powerData,
+        boosts: boostsData,
         recentTrades: recentTrades.map((trade) => ({
           ...trade,
           player: playerMap.get(trade.playerId),
@@ -3062,25 +3094,29 @@ ${items}
       // Get user's NASCAR holdings for boost eligibility and live earnings
       let userHoldings: any[] = [];
       let boostSlotsRemaining: number | null = null;
-      const holdingPowerByPlayerId = new Map<string, number>();
+      const holdingEffectiveSharesByPlayerId = new Map<string, number>();
 
-      const addHoldingPower = (rawPlayerId: string, powerLevel: number, holdingSport: string) => {
-        if (!rawPlayerId || !Number.isFinite(powerLevel) || powerLevel <= 0) return;
+      const addHoldingEffectiveShares = (
+        rawPlayerId: string,
+        effectiveShares: number,
+        holdingSport: string,
+      ) => {
+        if (!rawPlayerId || !Number.isFinite(effectiveShares) || effectiveShares <= 0) return;
 
         const playerId = rawPlayerId.trim();
         if (!playerId) return;
 
-        const existingPower = holdingPowerByPlayerId.get(playerId) || 0;
-        holdingPowerByPlayerId.set(playerId, existingPower + powerLevel);
+        const existingEffectiveShares = holdingEffectiveSharesByPlayerId.get(playerId) || 0;
+        holdingEffectiveSharesByPlayerId.set(playerId, existingEffectiveShares + effectiveShares);
 
         if (/^(nba_|nfl_|mlb_|nascar_)/i.test(playerId)) {
           const unprefixed = playerId.replace(/^(nba_|nfl_|mlb_|nascar_)/i, "");
-          const existingUnprefixed = holdingPowerByPlayerId.get(unprefixed) || 0;
-          holdingPowerByPlayerId.set(unprefixed, existingUnprefixed + powerLevel);
+          const existingUnprefixed = holdingEffectiveSharesByPlayerId.get(unprefixed) || 0;
+          holdingEffectiveSharesByPlayerId.set(unprefixed, existingUnprefixed + effectiveShares);
         } else {
           const prefixed = `${holdingSport.toLowerCase()}_${playerId}`;
-          const existingPrefixed = holdingPowerByPlayerId.get(prefixed) || 0;
-          holdingPowerByPlayerId.set(prefixed, existingPrefixed + powerLevel);
+          const existingPrefixed = holdingEffectiveSharesByPlayerId.get(prefixed) || 0;
+          holdingEffectiveSharesByPlayerId.set(prefixed, existingPrefixed + effectiveShares);
         }
       };
 
@@ -3102,8 +3138,8 @@ ${items}
           name: `${holding.player.firstName} ${holding.player.lastName}`.trim(),
           team: holding.player.team,
           availableShares: holding.availableShares,
-          totalShares: parseFloat(holding.quantity) || 0,
-          powerLevel: parseFloat(holding.powerLevel) || 0,
+          totalShares: parseFloat(holding.effectiveShares || holding.quantity) || 0,
+          multiplier: parseFloat(holding.multiplier) || 0,
           isBoosted: boostedPlayerIds.has(holding.player.id),
           gameId: holding.gameId,
         }));
@@ -3111,14 +3147,12 @@ ${items}
         allHoldings.forEach((holding) => {
           if ((holding.player.sport || "").toUpperCase() !== "NASCAR") return;
 
-          const quantity = parseFloat(holding.quantity || "0");
-          const powerLevel = parseFloat(holding.powerLevel || "0");
-          if (!Number.isFinite(quantity) || quantity <= 0) return;
-          if (!Number.isFinite(powerLevel) || powerLevel <= 0) return;
+          const effectiveShares = parseFloat(holding.effectiveShares || holding.quantity || "0");
+          if (!Number.isFinite(effectiveShares) || effectiveShares <= 0) return;
 
-          addHoldingPower(
+          addHoldingEffectiveShares(
             String(holding.player.id || ""),
-            powerLevel,
+            effectiveShares,
             holding.player.sport || "NASCAR",
           );
         });
@@ -3236,9 +3270,10 @@ ${items}
 
                 let matchedPowerLevel = 0;
                 playerIdCandidates.forEach((candidateId) => {
-                  const candidatePowerLevel = holdingPowerByPlayerId.get(candidateId) || 0;
-                  if (candidatePowerLevel > matchedPowerLevel) {
-                    matchedPowerLevel = candidatePowerLevel;
+                  const candidateEffectiveShares =
+                    holdingEffectiveSharesByPlayerId.get(candidateId) || 0;
+                  if (candidateEffectiveShares > matchedPowerLevel) {
+                    matchedPowerLevel = candidateEffectiveShares;
                   }
                 });
 
@@ -4620,14 +4655,48 @@ ${items}
 
       // Enrich only the returned page to keep response latency bounded.
       const playerIds = playersRaw.map((p) => p.id);
-      const [seasonStatsMap, sentimentMap, avgFantasyPointsMap, globalScoutMap, poolDataMap] =
-        await Promise.all([
-          storage.getBatchPlayerSeasonStatsFromLogs(playerIds),
-          storage.getBatchSentiment(playerIds),
-          storage.getBatchAllTimeAvgFantasyPoints(playerIds),
-          storage.getBatchActiveScoutCounts(playerIds),
-          storage.getBatchPoolData(playerIds),
-        ]);
+      const todayET = getTodayET();
+      const { startOfDay, endOfDay } = getETDayBoundaries(todayET);
+      const targetDate = new Date(startOfDay.getTime() + 12 * 60 * 60 * 1000);
+
+      const [
+        seasonStatsMap,
+        sentimentMap,
+        avgFantasyPointsMap,
+        globalScoutMap,
+        poolDataMap,
+        todaysGames,
+        communityBoosts,
+      ] = await Promise.all([
+        storage.getBatchPlayerSeasonStatsFromLogs(playerIds),
+        storage.getBatchSentiment(playerIds),
+        storage.getBatchAllTimeAvgFantasyPoints(playerIds),
+        storage.getBatchActiveScoutCounts(playerIds),
+        storage.getBatchPoolData(playerIds),
+        sport && typeof sport === "string" && sport.toUpperCase() !== "ALL"
+          ? storage.getDailyGamesBySport(sport.toUpperCase(), startOfDay, endOfDay)
+          : storage.getDailyGames(startOfDay, endOfDay),
+        storage.getCommunityBoostsAllSports(targetDate),
+      ]);
+
+      const teamGameMap = new Map<
+        string,
+        { status: "none" | "upcoming" | "live" | "ended"; startTime: string | null }
+      >();
+      todaysGames.forEach((game) => {
+        const gameContext = {
+          status: getMarketplaceGameStatus(game),
+          startTime: game.startTime ? new Date(game.startTime).toISOString() : null,
+        };
+        teamGameMap.set(game.homeTeam, gameContext);
+        teamGameMap.set(game.awayTeam, gameContext);
+      });
+
+      const communityBoostMap = new Map<string, number>();
+      communityBoosts.forEach((boost) => {
+        const current = communityBoostMap.get(boost.playerId) || 0;
+        communityBoostMap.set(boost.playerId, current + 1);
+      });
 
       const players = playersRaw.map((player: any) => {
         const enriched = enrichPlayerWithMarketValue(player);
@@ -4666,6 +4735,7 @@ ${items}
           poolData?.shares && poolData.shares > 0
             ? poolData.playMoney * 2
             : poolData?.playMoney || 0;
+        const gameContext = teamGameMap.get(player.team);
 
         return {
           ...enriched,
@@ -4689,6 +4759,10 @@ ${items}
           poolTvl,
           poolShares: poolData?.shares || 0,
           poolTotalTrades: poolData?.totalTrades || 0,
+          hasGameToday: Boolean(gameContext),
+          gameStatus: gameContext?.status || "none",
+          gameStartTime: gameContext?.startTime || null,
+          communityBoostCount: communityBoostMap.get(player.id) || 0,
         };
       });
 
@@ -4759,6 +4833,8 @@ ${items}
       res.status(500).json({ error: error.message });
     }
   });
+
+  registerMarketMobileRoutes(app);
 
   // User collections endpoint
   app.get("/api/collections", isAuthenticated, async (req, res) => {
@@ -5305,15 +5381,17 @@ ${items}
           ? await storage.getBatchActiveScoutCounts(playerHoldingIds)
           : new Map();
 
-      // Group holdings by player to calculate total power
-      const playerPowerMap = new Map<string, number>();
+      // Group holdings by player to calculate total effective shares
+      const playerEffectiveSharesMap = new Map<string, number>();
       holdingsWithData
         .filter((item: any) => item.holding.assetType === "player")
         .forEach((item: any) => {
           const playerId = item.holding.assetId;
-          const currentPower = playerPowerMap.get(playerId) || 0;
-          const holdingPower = parseFloat(item.holding.powerLevel || "0");
-          playerPowerMap.set(playerId, currentPower + holdingPower);
+          const currentEffectiveShares = playerEffectiveSharesMap.get(playerId) || 0;
+          const holdingEffectiveShares = parseFloat(
+            item.holding.effectiveShares || item.holding.quantity || "0",
+          );
+          playerEffectiveSharesMap.set(playerId, currentEffectiveShares + holdingEffectiveShares);
         });
 
       const enrichedHoldings = holdingsWithData.map((item: any) => {
@@ -5322,15 +5400,16 @@ ${items}
         const lockedQuantity = Number(item.totalLocked || 0);
 
         if (holding.assetType === "player" && player) {
+          const effectiveShares = parseFloat(holding.effectiveShares || holding.quantity || "0");
           const poolData = poolDataMap.get(player.id);
           const poolTvl =
             poolData?.shares && poolData.shares > 0
               ? poolData.playMoney * 2
               : poolData?.playMoney || 0;
 
-          // Use real market price only - never fall back to placeholder currentPrice
+          // Use effective shares for valuation so stacked shares carry their multiplier exposure.
           const { currentValue, pnl, pnlPercent } = calculatePnL(
-            holding.quantity,
+            effectiveShares,
             holding.avgCostBasis,
             player.lastTradePrice,
           );
@@ -5342,7 +5421,7 @@ ${items}
           }
 
           const globalScoutCount = globalScoutMap.get(player.id.toString()) || 0;
-          const totalPlayerPower = playerPowerMap.get(player.id) || 0;
+          const totalPlayerEffectiveShares = playerEffectiveSharesMap.get(player.id) || 0;
 
           return {
             ...holding,
@@ -5358,10 +5437,10 @@ ${items}
             pnlPercent,
             lockedQuantity,
             availableQuantity: Math.max(0, holding.quantity - lockedQuantity),
-            // Power fields
-            power: holding.power ?? 1,
-            powerLevel: holding.powerLevel ?? "0.00",
-            totalPlayerPower: totalPlayerPower.toFixed(2),
+            effectiveShares: effectiveShares.toFixed(2),
+            multiplier: holding.multiplier ?? "1.00",
+            hasStackedShare: Boolean(holding.isStackedShare),
+            totalPlayerEffectiveShares: totalPlayerEffectiveShares.toFixed(2),
             bestBid: null,
             bestAsk: null,
             bidSize: 0,
@@ -6964,10 +7043,11 @@ ${items}
           }
 
           const quantity = toNumber(holding.quantity);
+          const effectiveShares = toNumber(holding.effectiveShares || holding.quantity);
           const lastTradePrice = toNumber(player.lastTradePrice);
-          const marketValue = roundToTwo(quantity * lastTradePrice);
+          const marketValue = roundToTwo(effectiveShares * lastTradePrice);
           const avgCostBasis = toNumber(holding.avgCostBasis);
-          const totalCostBasis = quantity * avgCostBasis;
+          const totalCostBasis = effectiveShares * avgCostBasis;
           const pnl = roundToTwo(marketValue - totalCostBasis);
           const pnlPercent =
             totalCostBasis > 0
@@ -6978,6 +7058,7 @@ ${items}
             id: holding.id,
             assetId: holding.assetId,
             quantity,
+            effectiveShares,
             avgCostBasis: roundToTwo(avgCostBasis),
             lastTradePrice: roundToTwo(lastTradePrice),
             marketValue,
@@ -9822,7 +9903,7 @@ ${items}
         avgFantasyPoints: r.avgFantasyPoints,
       }));
 
-      // Get position rankings using power rankings data
+      // Get position rankings using the effective-share rankings data
       const positions = ["PG", "SG", "SF", "PF", "C"];
       const positionRankings = positions.map((position: string) => {
         const posPlayers = powerRankingsData
@@ -10269,42 +10350,39 @@ ${items}
   });
 
   // ============================================
-  // POWER LEVEL / CONDENSE ROUTES
+  // STACK SHARES ROUTES
   // ============================================
 
-  // Condense raw shares into Power Level (2:1 ratio)
-  // Power Level shares can be used in Daily Boost slots but don't earn scout dividends
-  app.post("/api/holdings/condense", isAuthenticated, async (req: any, res) => {
+  const handleStackShares = async (req: any, res: any) => {
     try {
       const userId = getUserId(req);
-      const { playerId, sharesToCondense } = req.body;
+      const { playerId, sharesToStack } = req.body;
 
       // Validate input
       if (!playerId) {
         return res.status(400).json({ error: "playerId is required" });
       }
 
-      const shares = parseInt(sharesToCondense);
-      if (isNaN(shares) || shares < 2) {
-        return res.status(400).json({ error: "Minimum 2 shares required to condense" });
+      const shares = parseInt(sharesToStack);
+      if (isNaN(shares) || shares < 4) {
+        return res.status(400).json({ error: "Minimum 4 shares required to stack" });
       }
 
       if (shares % 2 !== 0) {
-        return res.status(400).json({ error: "Share count must be divisible by 2" });
+        return res.status(400).json({ error: "Share count must be even" });
       }
 
-      // Perform the condense operation
-      const result = await storage.condenseShares(userId, playerId, shares);
-
-      // Get updated holding info
-      const holdingInfo = await storage.getHoldingWithPowerLevel(userId, playerId);
+      const result = await storage.stackShares(userId, playerId, shares);
+      const holdingInfo = await storage.getHoldingMultiplierState(userId, playerId);
       const player = await storage.getPlayer(playerId);
 
       res.json({
         success: true,
-        newPowerLevel: result.newPowerLevel,
-        sharesCondensed: result.sharesCondensed,
-        powerLevelGained: (shares / 2).toFixed(2),
+        multiplier: result.multiplier,
+        newMultiplier: result.newMultiplier,
+        sharesStacked: result.sharesStacked,
+        multiplierGained: (shares / 2).toFixed(2),
+        effectiveSharesBurned: result.effectiveSharesBurned,
         holding: holdingInfo,
         player: player
           ? {
@@ -10314,45 +10392,54 @@ ${items}
               team: player.team,
             }
           : null,
-        message: `Successfully condensed ${shares} shares into ${(shares / 2).toFixed(1)} Power Level for ${player?.firstName} ${player?.lastName}`,
+        message: `Successfully stacked ${shares} shares into a ${(shares / 2).toFixed(1)}x multiplier for ${player?.firstName} ${player?.lastName}`,
       });
     } catch (error: any) {
-      console.error("[holdings/condense] Error:", error);
+      console.error("[holdings/stack-shares] Error:", error);
       res.status(400).json({ error: error.message });
     }
-  });
+  };
 
-  // Get holding with power level info for a specific player
-  app.get("/api/holdings/:playerId/power-level", isAuthenticated, async (req: any, res) => {
+  app.post("/api/holdings/stack-shares", isAuthenticated, handleStackShares);
+
+  // Get holding with multiplier info for a specific player
+  const handleHoldingMultiplierState = async (req: any, res: any) => {
     try {
       const userId = getUserId(req);
       const { playerId } = req.params;
 
-      const holdingInfo = await storage.getHoldingWithPowerLevel(userId, playerId);
+      const holdingInfo = await storage.getHoldingMultiplierState(userId, playerId);
 
       if (!holdingInfo) {
         return res.json({
           hasHolding: false,
           quantity: 0,
-          powerLevel: "0.00",
           availableShares: 0,
-          canCondense: false,
+          effectiveShares: 0,
+          multiplier: "0.00",
+          hasStackedShare: false,
+          canStackShares: false,
+          maxStackable: 0,
         });
       }
-
-      const canCondense = holdingInfo.availableShares >= 2;
 
       res.json({
         hasHolding: true,
         ...holdingInfo,
-        canCondense,
-        maxCondensable: Math.floor(holdingInfo.availableShares / 2) * 2,
+        canStackShares: holdingInfo.canStackShares,
+        maxStackable: holdingInfo.maxStackable,
       });
     } catch (error: any) {
-      console.error("[holdings/power-level] Error:", error);
+      console.error("[holdings/multiplier-state] Error:", error);
       res.status(500).json({ error: error.message });
     }
-  });
+  };
+
+  app.get(
+    "/api/holdings/:playerId/multiplier-state",
+    isAuthenticated,
+    handleHoldingMultiplierState,
+  );
 
   // ============================================
   // DAILY BOOSTS ROUTES
@@ -10378,7 +10465,7 @@ ${items}
 
       const boosts = await storage.getDailyBoostsAllSports(userId, targetDate);
 
-      // Enrich with player data (powerLevel is now stored on the boost)
+      // Enrich with player data (share multiplier is stored on the boost)
       const playerIds = boosts.map((b) => b.playerId);
       const players = await storage.getPlayersByIds(playerIds);
       const playerMap = new Map(players.map((p) => [p.id, p]));
@@ -10547,7 +10634,8 @@ ${items}
           team: h.player.team,
           sport: h.player.sport,
           quantity: h.quantity,
-          powerLevel: h.powerLevel,
+          effectiveShares: h.effectiveShares,
+          multiplier: h.multiplier,
         })),
       });
     } catch (error: any) {
@@ -10642,7 +10730,7 @@ ${items}
       }
 
       // Aggregate holdings by playerId to avoid duplicates when user has multiple holding rows
-      // (e.g., regular shares + powered shares for the same player)
+      // (e.g., regular shares + stacked shares for the same player)
       const playerHoldingsMap = new Map<string, typeof allHoldings>();
       for (const holding of allHoldings) {
         if (!holding.player) continue;
@@ -10660,26 +10748,32 @@ ${items}
         const totalLocked = lockedQuantities.get(player.id) || 0;
 
         // Aggregate share counts across all holding rows
-        let totalShares = 0;
+        let regularShares = 0;
+        let stackedShares = 0;
         let availableShares = 0;
-        let totalPower = 0;
-        let bestSharePower = 1; // Default to 1 (regular share)
+        let totalEffectiveShares = 0;
+        let bestShareMultiplier = 1; // Default to 1 (regular share)
 
         for (const holding of holdings) {
           const qty = parseFloat(holding.quantity);
-          const power = holding.power || 1;
-          totalShares += qty;
-          totalPower += qty * power;
+          const multiplier = parseFloat(holding.multiplier || "1");
+          if (holding.isStackedShare) {
+            stackedShares += qty;
+          } else {
+            regularShares += qty;
+          }
+          totalEffectiveShares += parseFloat(holding.effectiveShares || holding.quantity || "0");
 
-          // Track the best (highest) share power among holdings with at least 1 share
-          if (qty >= 1 && power > bestSharePower) {
-            bestSharePower = power;
+          // Track the best (highest) share multiplier among holdings with at least 1 share.
+          if (qty >= 1 && multiplier > bestShareMultiplier) {
+            bestShareMultiplier = multiplier;
           }
         }
 
-        // Calculate available shares (subtract locked once per player, not per holding row)
-        availableShares = Math.max(0, totalShares - totalLocked);
-        const powerLevel = totalPower.toFixed(2);
+        // Tradeable availability only applies to regular shares; stacked shares count as one
+        // boost-eligible share each and are not locked via holdings_locks.
+        availableShares = Math.max(0, regularShares - totalLocked) + stackedShares;
+        const effectiveShares = totalEffectiveShares.toFixed(2);
 
         const gameStartTime = teamGame?.startTime;
         const hasGameToday = !!teamGame;
@@ -10715,9 +10809,11 @@ ${items}
           player: player,
           sport: player.sport,
           availableShares,
-          powerLevel,
-          bestSharePower,
-          totalShares: totalShares.toString(),
+          effectiveShares,
+          multiplier: bestShareMultiplier.toFixed(2),
+          bestShareMultiplier,
+          totalShares: totalEffectiveShares.toFixed(2),
+          hasStackedShare: stackedShares > 0,
           gameId: teamGame?.gameId || null,
           gameStartTime: gameStartTime || null,
           hasGameToday,
@@ -10788,8 +10884,10 @@ ${items}
         playerId: ep.player.id,
         player: ep.player,
         availableShares: ep.availableShares,
-        powerLevel: ep.powerLevel,
-        totalShares: ep.quantity,
+        effectiveShares: ep.effectiveShares,
+        multiplier: ep.multiplier,
+        totalShares: ep.effectiveShares,
+        hasStackedShare: ep.isStackedShare,
         gameId: ep.gameId,
         gameStartTime: ep.gameStartTime,
         isAlreadyBoosted: boostedPlayerIds.has(ep.player.id),
@@ -10882,21 +10980,31 @@ ${items}
       }
 
       // Verify only 1 share is entered per boost slot
-      // Power is added to the single share to increase its value
+      // Multiplier is added to the single share to increase its value
       if (shares !== 1) {
         return res.status(400).json({
-          error: `Only 1 share can be placed in a boost slot. You entered ${shares} shares. Use the Power feature to add more power to a single share.`,
+          error: `Only 1 share can be placed in a boost slot. You entered ${shares} shares. Use Stack Shares to roll more multiplier into a single share.`,
         });
       }
 
-      // Select a deterministic holding row and capture PER-SHARE power.
-      // Boost slots always burn exactly 1 share; "powerLevel" on the boost represents
-      // the power of that single share for payout calculations.
-      const breakdown = await storage.getHoldingsWithPowerBreakdown(userId, playerId);
+      // Select a deterministic holding row and capture the per-share multiplier.
+      // Boost slots always burn exactly 1 share.
+      // If a stacked share exists, prefer that multiplier; otherwise use a regular share.
+      const breakdown = await storage.getPlayerShareBreakdown(userId, playerId);
       const candidates = [
-        ...(breakdown.powered || []).filter((h) => parseFloat(h.quantity) >= 1),
+        ...(breakdown.stacked || [])
+          .filter((h) => parseFloat(h.quantity) >= 1)
+          .map((holding) => ({
+            multiplier: parseFloat(holding.multiplier || "1"),
+            isStackedShare: true,
+          })),
         ...(breakdown.regular && parseFloat(breakdown.regular.quantity) >= 1
-          ? [breakdown.regular]
+          ? [
+              {
+                multiplier: 1,
+                isStackedShare: false,
+              },
+            ]
           : []),
       ];
 
@@ -10904,12 +11012,10 @@ ${items}
         return res.status(400).json({ error: "No shares available for this player" });
       }
 
-      // Prefer powered share if it exists; otherwise regular. If multiple powered exist, use highest power.
-      const selectedHolding = candidates.sort(
-        (a: any, b: any) => (b.power || 1) - (a.power || 1),
-      )[0];
-      const powerPerShare = selectedHolding.power || 1;
-      const power = Number(powerPerShare).toFixed(2);
+      // Prefer a stacked share if it exists; otherwise use a regular share. If multiple stacked rows exist, use the highest multiplier.
+      const selectedHolding = candidates.sort((a, b) => b.multiplier - a.multiplier)[0];
+      const shareMultiplier = Number(selectedHolding.multiplier || 1).toFixed(2);
+      const shareSourceType = selectedHolding.isStackedShare ? "stacked" : "regular";
 
       // Create the boost on ET game day
       const boostDate = startOfDay;
@@ -10921,7 +11027,8 @@ ${items}
         slotTier: tierNum,
         boostDate,
         sharesEntered: shares,
-        powerLevel: power, // Power of the single burned share
+        shareMultiplier,
+        shareSourceType,
         gameId: game.gameId,
       });
 
@@ -11044,8 +11151,8 @@ ${items}
           }
         }
 
-        const parsedPowerLevel = Number(boost.powerLevel ?? 1);
-        const effectivePower = Number.isFinite(parsedPowerLevel) ? parsedPowerLevel : 1;
+        const parsedShareMultiplier = Number(boost.shareMultiplier ?? 1);
+        const effectivePower = Number.isFinite(parsedShareMultiplier) ? parsedShareMultiplier : 1;
         const parsedSlotTier = Number(boost.slotTier ?? 0);
         const slotTierMultiplier = Number.isFinite(parsedSlotTier) ? parsedSlotTier : 0;
         const estimatedPayoutValue = effectivePower * liveFantasyPoints * slotTierMultiplier;
@@ -11127,7 +11234,7 @@ ${items}
 
       const boosts = await storage.getDailyBoosts(userId, sport, targetDate);
 
-      // Enrich with player data (powerLevel is now stored on the boost)
+      // Enrich with player data (share multiplier is stored on the boost)
       const playerIds = boosts.map((b) => b.playerId);
       const players = await storage.getPlayersByIds(playerIds);
       const playerMap = new Map(players.map((p) => [p.id, p]));

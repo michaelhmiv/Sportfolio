@@ -49,7 +49,7 @@ The current staged mutation surface includes:
 
 - player-pool buys and sells
 - LP add, remove, and zap flows
-- condense / power-up flows
+- stack shares / stack-shares flows
 - daily boost assign and remove
 - watchlist add and remove
 - scout reallocations

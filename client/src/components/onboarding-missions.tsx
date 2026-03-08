@@ -105,11 +105,11 @@ export function OnboardingMissions() {
     },
     {
       id: "boost",
-      title: "Use Daily Power",
+      title: "Use Daily Boosts",
       description: "Place one share into a Daily Boost slot.",
       icon: <Zap className="w-4 h-4" />,
       completed: (boostsData?.boosts?.length || 0) > 0 || (boostHistory?.totalBoosts || 0) > 0,
-      link: "/power",
+      link: "/boosts",
     },
   ];
 

@@ -76,7 +76,7 @@ const SUPPORTED_AGENT_ACTION_TYPES: AgentCapabilitiesView["actionTypes"] = [
   "pool_zap_add_shares",
   "pool_zap_add_sb",
   "pool_remove_liquidity",
-  "holdings_condense",
+  "holdings_stack_shares",
   "daily_boost_assign",
   "daily_boost_remove",
   "watchlist_add_player",

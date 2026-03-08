@@ -58,8 +58,8 @@ function describeAction(action: AgentAction): string {
       return `Zap cash into ${action.playerName || action.playerId}`;
     case "pool_remove_liquidity":
       return `Remove liquidity from ${action.playerName || action.playerId}`;
-    case "holdings_condense":
-      return `Power up ${action.playerName || action.playerId}`;
+    case "holdings_stack_shares":
+      return `Stack Shares for ${action.playerName || action.playerId}`;
     case "daily_boost_assign":
       return `Assign ${action.playerName || action.playerId} to ${action.slotTier}x boost`;
     case "daily_boost_remove":

@@ -47,7 +47,7 @@ export default function About() {
                 diversified portfolio, and watch your portfolio value change as the market moves.
               </p>
               <p className="text-muted-foreground">
-                Beyond trading, Sportfolio layers in scouting, powered shares, daily boosts, and
+                Beyond trading, Sportfolio layers in scouting, stacked shares, daily boosts, and
                 public leaderboards so your edge can come from both long-term market positioning and
                 short-horizon game-day decisions.
               </p>

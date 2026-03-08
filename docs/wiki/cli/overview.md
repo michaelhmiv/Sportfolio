@@ -6,8 +6,8 @@ audience: public
 category: cli
 status: published
 owner: product-engineering
-lastReviewedAt: 2026-03-07
-changeTriggers: packages/sportfolio-cli,server/routes/cli.ts,server/api-token-auth.ts
+lastReviewedAt: 2026-03-08
+changeTriggers: packages/sportfolio-cli,server/routes/cli.ts,server/api-token-auth.ts,server/routes/mcp.ts
 slug: overview
 surface: web,cli
 searchKeywords: cli,api token,terminal,auth,actions,agent,docs,mcp,external access,model context protocol
@@ -95,12 +95,14 @@ If you need rich visual scanning, the web app remains the better primary surface
 
 ## MCP status
 
-The tracked Sportfolio repo does not currently document a first-party public MCP server, endpoint, or connection config.
+Sportfolio now exposes a public authenticated MCP endpoint at `/mcp`.
 
-So today:
+That means terminal-friendly access now has two public paths:
 
-- use the CLI for terminal and automation-friendly access
-- use the web agent for account-aware chat inside the app
-- use SMS after linking if you want a phone-based agent channel
+- use the CLI when you want the simplest shell workflow
+- use MCP when you are connecting through an MCP-aware client
+- use the web agent or SMS when you want a conversational surface instead of a protocol client
 
-Do not assume a public MCP endpoint exists until the tracked code and docs expose one directly.
+MCP uses the same user API tokens as the CLI and stays scoped to the public gameplay v1 surface. It is not full site parity and does not expose billing, bootstrap/token-management, SMS linking/settings, profile identity edits, agent settings/BYOK, or admin/internal routes.
+
+For the exact endpoint, auth model, and public MCP surface, read [MCP Access](/wiki/getting-started/mcp-access).

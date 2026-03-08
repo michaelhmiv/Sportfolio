@@ -226,8 +226,6 @@ export const holdings = pgTable(
     assetType: text("asset_type").notNull(), // "player" or "premium"
     assetId: text("asset_id").notNull(), // player ID or "premium"
     quantity: decimal("quantity", { precision: 12, scale: 4 }).notNull().default("0"),
-    power: integer("power").notNull().default(1), // Power level per share (1 = regular, 5 = condensed)
-    powerLevel: decimal("power_level", { precision: 10, scale: 2 }).notNull().default("0.00"), // Computed: quantity * power (for backwards compatibility)
     avgCostBasis: decimal("avg_cost_basis", { precision: 10, scale: 4 })
       .notNull()
       .default("0.0000"), // Average cost per share
@@ -237,9 +235,80 @@ export const holdings = pgTable(
     lastUpdated: timestamp("last_updated").notNull().defaultNow(),
   },
   (table) => ({
-    userAssetIdx: index("user_asset_idx").on(table.userId, table.assetType, table.assetId),
-    // Index for finding powered shares
-    powerIdx: index("holdings_power_idx").on(table.assetId, table.power),
+    userAssetIdx: uniqueIndex("holdings_user_asset_idx").on(
+      table.userId,
+      table.assetType,
+      table.assetId,
+    ),
+  }),
+);
+
+// Player multipliers table - one non-tradeable stacked-share record per user/player
+export const playerMultipliers = pgTable(
+  "player_multipliers",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    playerId: varchar("player_id")
+      .notNull()
+      .references(() => players.id, { onDelete: "cascade" }),
+    multiplier: integer("multiplier").notNull(),
+    avgCostBasis: decimal("avg_cost_basis", { precision: 10, scale: 4 })
+      .notNull()
+      .default("0.0000"),
+    totalCostBasis: decimal("total_cost_basis", { precision: 20, scale: 2 })
+      .notNull()
+      .default("0.00"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    userPlayerIdx: uniqueIndex("player_multiplier_user_player_idx").on(
+      table.userId,
+      table.playerId,
+    ),
+    playerIdx: index("player_multiplier_player_idx").on(table.playerId),
+  }),
+);
+
+// Immutable ledger for stacked-share lifecycle changes
+export const playerMultiplierEvents = pgTable(
+  "player_multiplier_events",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    playerId: varchar("player_id")
+      .notNull()
+      .references(() => players.id, { onDelete: "cascade" }),
+    eventType: text("event_type").notNull(), // stack_shares, boost_burn, migration_backfill
+    sharesConsumed: integer("shares_consumed").notNull().default(0),
+    effectiveSharesBurned: integer("effective_shares_burned").notNull().default(0),
+    multiplierDelta: integer("multiplier_delta").notNull().default(0),
+    multiplierAfter: integer("multiplier_after").notNull().default(0),
+    consumedTotalCostBasis: decimal("consumed_total_cost_basis", { precision: 20, scale: 2 })
+      .notNull()
+      .default("0.00"),
+    retainedTotalCostBasis: decimal("retained_total_cost_basis", { precision: 20, scale: 2 })
+      .notNull()
+      .default("0.00"),
+    boostId: varchar("boost_id"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    userPlayerCreatedIdx: index("player_multiplier_event_user_player_created_idx").on(
+      table.userId,
+      table.playerId,
+      table.createdAt,
+    ),
+    eventTypeIdx: index("player_multiplier_event_type_idx").on(table.eventType),
   }),
 );
 
@@ -1120,6 +1189,42 @@ export const tweetHistory = pgTable(
   }),
 );
 
+export const redditPostHistory = pgTable(
+  "reddit_post_history",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    subreddit: text("subreddit").notNull(),
+    postType: text("post_type").notNull(), // "morning_recap" | "pregame_preview"
+    marketDay: varchar("market_day", { length: 10 }).notNull(), // YYYY-MM-DD in ET
+    title: text("title").notNull(),
+    markdown: text("markdown").notNull(),
+    contentHash: varchar("content_hash", { length: 64 }).notNull(),
+    status: text("status").notNull().default("pending"), // "pending" | "posted" | "failed" | "skipped"
+    redditPostId: varchar("reddit_post_id"),
+    redditPostUrl: text("reddit_post_url"),
+    imageUrl: text("image_url"),
+    attemptCount: integer("attempt_count").notNull().default(0),
+    errorMessage: text("error_message"),
+    metadata: jsonb("metadata"),
+    postedAt: timestamp("posted_at"),
+    lastAttemptAt: timestamp("last_attempt_at").notNull().defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    subredditSlotIdx: uniqueIndex("reddit_post_history_subreddit_slot_idx").on(
+      table.subreddit,
+      table.postType,
+      table.marketDay,
+    ),
+    statusIdx: index("reddit_post_history_status_idx").on(table.status),
+    createdAtIdx: index("reddit_post_history_created_at_idx").on(table.createdAt),
+    lastAttemptIdx: index("reddit_post_history_last_attempt_idx").on(table.lastAttemptAt),
+  }),
+);
+
 // User agent profiles - one scout copilot configuration per user
 export const userAgentProfiles = pgTable(
   "user_agent_profiles",
@@ -1726,7 +1831,10 @@ export const dailyBoosts = pgTable(
     slotTier: integer("slot_tier").notNull(), // 2, 3, 4, or 5 (multiplier value)
     boostDate: timestamp("boost_date").notNull(), // The date this boost applies to
     sharesEntered: integer("shares_entered").notNull(), // Shares used for calculation
-    powerLevel: decimal("power_level", { precision: 10, scale: 2 }).notNull().default("0.00"), // Power of shares at time of boost
+    shareMultiplier: decimal("share_multiplier", { precision: 10, scale: 2 })
+      .notNull()
+      .default("1.00"),
+    shareSourceType: text("share_source_type").notNull().default("regular"), // regular or stacked
     gameId: text("game_id"), // API game ID for the player's game
     status: text("status").notNull().default("active"), // "active", "locked", "processed", "cancelled"
     fantasyPoints: decimal("fantasy_points", { precision: 10, scale: 2 }), // Final normalized FP after game
@@ -1792,11 +1900,13 @@ export const sharePayouts = pgTable(
       .notNull()
       .references(() => players.id),
     gameId: text("game_id").notNull(),
-    sharePower: decimal("share_power", { precision: 12, scale: 2 }).notNull(),
+    earningUnits: decimal("earning_units", { precision: 12, scale: 2 }).notNull().default("0.00"),
+    earningModel: text("earning_model").notNull().default("multiplier_only"),
     baseRate: decimal("base_rate", { precision: 10, scale: 4 }).notNull().default("1.0000"),
     fantasyPoints: decimal("fantasy_points", { precision: 10, scale: 2 }),
     payoutAmount: decimal("payout_amount", { precision: 20, scale: 2 }),
-    status: text("status").notNull().default("pending"), // pending, processed, cancelled
+    status: text("status").notNull().default("pending"), // pending, processed, cancelled, voided
+    voidReason: text("void_reason"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     processedAt: timestamp("processed_at"),
   },
@@ -1849,6 +1959,8 @@ export const communityBoosts = pgTable(
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   holdings: many(holdings),
+  playerMultipliers: many(playerMultipliers),
+  playerMultiplierEvents: many(playerMultiplierEvents),
   orders: many(orders),
   blogPosts: many(blogPosts),
   portfolioSnapshots: many(portfolioSnapshots),
@@ -1911,6 +2023,8 @@ export const portfolioSnapshotsRelations = relations(portfolioSnapshots, ({ one 
 
 export const playersRelations = relations(players, ({ many }) => ({
   holdings: many(holdings),
+  playerMultipliers: many(playerMultipliers),
+  playerMultiplierEvents: many(playerMultiplierEvents),
   orders: many(orders),
   trades: many(trades),
   gameStats: many(playerGameStats),
@@ -1923,6 +2037,28 @@ export const holdingsRelations = relations(holdings, ({ one }) => ({
   user: one(users, {
     fields: [holdings.userId],
     references: [users.id],
+  }),
+}));
+
+export const playerMultipliersRelations = relations(playerMultipliers, ({ one }) => ({
+  user: one(users, {
+    fields: [playerMultipliers.userId],
+    references: [users.id],
+  }),
+  player: one(players, {
+    fields: [playerMultipliers.playerId],
+    references: [players.id],
+  }),
+}));
+
+export const playerMultiplierEventsRelations = relations(playerMultiplierEvents, ({ one }) => ({
+  user: one(users, {
+    fields: [playerMultiplierEvents.userId],
+    references: [users.id],
+  }),
+  player: one(players, {
+    fields: [playerMultiplierEvents.playerId],
+    references: [players.id],
   }),
 }));
 
@@ -2105,6 +2241,17 @@ export const insertHoldingSchema = createInsertSchema(holdings).omit({
   lastUpdated: true,
 });
 
+export const insertPlayerMultiplierSchema = createInsertSchema(playerMultipliers).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertPlayerMultiplierEventSchema = createInsertSchema(playerMultiplierEvents).omit({
+  id: true,
+  createdAt: true,
+});
+
 export const insertHoldingsLockSchema = createInsertSchema(holdingsLocks).omit({
   id: true,
   createdAt: true,
@@ -2187,6 +2334,12 @@ export type InsertPlayerMarketMetrics = z.infer<typeof insertPlayerMarketMetrics
 
 export type Holding = typeof holdings.$inferSelect;
 export type InsertHolding = z.infer<typeof insertHoldingSchema>;
+
+export type PlayerMultiplier = typeof playerMultipliers.$inferSelect;
+export type InsertPlayerMultiplier = z.infer<typeof insertPlayerMultiplierSchema>;
+
+export type PlayerMultiplierEvent = typeof playerMultiplierEvents.$inferSelect;
+export type InsertPlayerMultiplierEvent = z.infer<typeof insertPlayerMultiplierEventSchema>;
 
 export type HoldingsLock = typeof holdingsLocks.$inferSelect;
 export type InsertHoldingsLock = z.infer<typeof insertHoldingsLockSchema>;
@@ -2376,6 +2529,14 @@ export const insertTweetHistorySchema = createInsertSchema(tweetHistory).omit({
   createdAt: true,
 });
 
+export const insertRedditPostHistorySchema = createInsertSchema(redditPostHistory).omit({
+  id: true,
+  postedAt: true,
+  lastAttemptAt: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const insertUserAgentProfileSchema = createInsertSchema(userAgentProfiles).omit({
   id: true,
   createdAt: true,
@@ -2493,6 +2654,9 @@ export const updateAgentSystemSettingsInputSchema = z
 
 export type TweetHistory = typeof tweetHistory.$inferSelect;
 export type InsertTweetHistory = z.infer<typeof insertTweetHistorySchema>;
+
+export type RedditPostHistory = typeof redditPostHistory.$inferSelect;
+export type InsertRedditPostHistory = z.infer<typeof insertRedditPostHistorySchema>;
 
 export type AgentSystemSettings = typeof agentSystemSettings.$inferSelect;
 export type InsertAgentSystemSettings = z.infer<typeof insertAgentSystemSettingsSchema>;

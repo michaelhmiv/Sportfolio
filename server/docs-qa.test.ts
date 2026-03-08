@@ -31,14 +31,15 @@ describe("docs-qa", () => {
     expect(result.answer.toLowerCase()).toContain("api token");
   });
 
-  it("states the missing public MCP surface clearly in fallback mode", async () => {
+  it("describes the live public MCP surface clearly in fallback mode", async () => {
     mocks.resolveManagedPiRuntime.mockRejectedValue(new Error("not configured"));
 
     const result = await answerDocsQuestion("how do i access the sportfolio mcp protocol");
 
     expect(result.fallbackUsed).toBe(true);
-    expect(result.answer.toLowerCase()).toContain("does not document a repo-tracked mcp");
-    expect(result.answer).toContain("/agent");
+    expect(result.answer).toContain("/mcp");
+    expect(result.answer.toLowerCase()).toContain("bearer");
+    expect(result.answer.toLowerCase()).toContain("gameplay-focused");
   });
 
   it("returns a model answer when the managed runtime succeeds", async () => {
@@ -50,7 +51,7 @@ describe("docs-qa", () => {
       content: [
         {
           type: "text",
-          text: "Use the CLI with a profile API token, and treat MCP as undocumented until the tracked repo exposes it.",
+          text: "Use a profile API token as a bearer token against /mcp when you need the public MCP surface.",
         },
       ],
     });
@@ -58,7 +59,7 @@ describe("docs-qa", () => {
     const result = await answerDocsQuestion("how do i access sportfolio from a terminal");
 
     expect(result.fallbackUsed).toBe(false);
-    expect(result.answer).toContain("CLI");
+    expect(result.answer).toContain("/mcp");
     expect(result.citations.length).toBeGreaterThan(0);
     expect(mocks.completeSimple).toHaveBeenCalledTimes(1);
   });

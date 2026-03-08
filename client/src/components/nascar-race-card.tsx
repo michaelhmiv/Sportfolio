@@ -103,7 +103,7 @@ export function NascarRaceCard({
   // Get user's drivers for this race's series
   const userDriversForRace = userHoldings.filter((h) => h.team === race.series);
   const eligibleDrivers = userDriversForRace.filter(
-    (h) => h.availableShares > 0 || parseFloat(h.powerLevel) > 0 || h.isBoosted,
+    (h) => h.availableShares > 0 || parseFloat(h.multiplier || "0") > 0 || h.isBoosted,
   );
 
   // Boost assignment mutation
@@ -339,8 +339,8 @@ export function NascarRaceCard({
                       <div className="flex items-center gap-1.5 min-w-0">
                         <span className="font-medium truncate">{driver.name}</span>
                         <span className="text-purple-500 font-mono text-[10px]">
-                          {driver.powerLevel > 0
-                            ? `${driver.powerLevel.toFixed(1)} power`
+                          {driver.multiplier > 0
+                            ? `${driver.multiplier.toFixed(1)}x`
                             : `${driver.availableShares} shares`}
                         </span>
                       </div>

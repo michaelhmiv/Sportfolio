@@ -93,19 +93,19 @@ The time-weighted basis used to determine your share of hourly scout distributio
 
 The practical user-facing idea of shares earned through the scout system over time.
 
-# Power and boost terms
+# Multiplier and boost terms
 
-## Power
+## Share Multiplier
 
-The per-share strength multiplier on a holding row.
+The strength value carried by a single share.
 
-## Power Level
+## Multiplier
 
-The effective total power for a row, derived from `quantity * power`.
+The effective-share value contributed by a stacked share or holding row.
 
-## Condense
+## Stack Shares
 
-The conversion flow that burns unlocked raw shares in exchange for higher per-share power.
+The conversion flow that burns unlocked raw shares in exchange for a stronger stacked-share multiplier.
 
 ## Daily Boost
 
@@ -155,4 +155,4 @@ A real-time server push used to keep pages fresh without waiting for manual refr
 
 If you want one summary sentence:
 
-Sportfolio is a multi-sport player-share market where you accumulate inventory, refine it into power, deploy it into slate-based mechanics, and manage the whole loop through live market, analytics, and agent surfaces.
+Sportfolio is a multi-sport player-share market where you accumulate inventory, refine it into multiplier strength, deploy it into slate-based mechanics, and manage the whole loop through live market, analytics, and agent surfaces.

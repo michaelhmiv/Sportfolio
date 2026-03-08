@@ -82,7 +82,7 @@ That inventory can then become:
 
 - a hold
 - a future sale
-- material for condense
+- material for stack shares
 - inventory for a daily boost
 
 So scouts are best understood as the upstream supply engine for the rest of your account.

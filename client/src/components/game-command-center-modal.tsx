@@ -116,7 +116,7 @@ interface LiveStatsResponse {
       name: string;
       team: string;
       quantity: number;
-      powerLevel: number;
+      effectiveShares: number;
       fantasyPoints: number;
       estimatedEarnings: number;
     }>;
@@ -397,13 +397,13 @@ export function GameCommandCenterModal({
   const liveEarningsByPlayerId = useMemo(() => {
     const map = new Map<
       string,
-      { estimatedEarnings: number; quantity: number; powerLevel: number }
+      { estimatedEarnings: number; quantity: number; effectiveShares: number }
     >();
     liveOwnedPlayers.forEach((player) => {
       const record = {
         estimatedEarnings: player.estimatedEarnings,
         quantity: player.quantity,
-        powerLevel: player.powerLevel,
+        effectiveShares: player.effectiveShares,
       };
 
       getPlayerIdVariants(player.playerId, liveSport).forEach((id) => {
@@ -416,7 +416,7 @@ export function GameCommandCenterModal({
   const liveEarningsByNameTeam = useMemo(() => {
     const map = new Map<
       string,
-      { estimatedEarnings: number; quantity: number; powerLevel: number }
+      { estimatedEarnings: number; quantity: number; effectiveShares: number }
     >();
 
     liveOwnedPlayers.forEach((player) => {
@@ -426,7 +426,7 @@ export function GameCommandCenterModal({
         map.set(key, {
           estimatedEarnings: player.estimatedEarnings,
           quantity: player.quantity,
-          powerLevel: player.powerLevel,
+          effectiveShares: player.effectiveShares,
         });
       }
     });
@@ -516,15 +516,15 @@ export function GameCommandCenterModal({
   const ownedPlayerData = useMemo(() => {
     const map = new Map<
       string,
-      { powerLevel: number; totalShares: number; availableShares: number }
+      { multiplier: number; totalShares: number; availableShares: number }
     >();
-    const ownedPlayers = userContext?.ownedPlayers || userContext?.topPowerPlayers || [];
+    const ownedPlayers = userContext?.ownedPlayers || userContext?.topMultiplierPlayers || [];
 
     ownedPlayers.forEach((player) => {
       const existing = map.get(player.playerId);
       if (!existing) {
         map.set(player.playerId, {
-          powerLevel: player.powerLevel,
+          multiplier: player.multiplier,
           totalShares: player.totalShares,
           availableShares: player.availableShares,
         });
@@ -532,14 +532,14 @@ export function GameCommandCenterModal({
       }
 
       map.set(player.playerId, {
-        powerLevel: Math.max(existing.powerLevel, player.powerLevel),
+        multiplier: Math.max(existing.multiplier, player.multiplier),
         totalShares: Math.max(existing.totalShares, player.totalShares),
         availableShares: Math.max(existing.availableShares, player.availableShares),
       });
     });
 
     return map;
-  }, [userContext?.ownedPlayers, userContext?.topPowerPlayers]);
+  }, [userContext?.ownedPlayers, userContext?.topMultiplierPlayers]);
 
   const ownedPlayerIds = useMemo(() => new Set(ownedPlayerData.keys()), [ownedPlayerData]);
 
@@ -871,15 +871,15 @@ export function GameCommandCenterModal({
                   </div>
                 </div>
 
-                {/* Your Power Players - Interactive with Quick Boost */}
+                {/* Your Multiplier Leaders - interactive quick-boost view */}
                 <div className="rounded-sm border-2 border-purple-500/40 bg-purple-500/5 p-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <Zap className="h-4 w-4 text-purple-500" />
-                      <div className="text-sm font-semibold">Your Power Players</div>
-                      {userContext?.topPowerPlayers?.length ? (
+                      <div className="text-sm font-semibold">Your Multiplier Leaders</div>
+                      {userContext?.topMultiplierPlayers?.length ? (
                         <Badge variant="secondary" className="text-[10px] border-border/80">
-                          {userContext.topPowerPlayers.length}
+                          {userContext.topMultiplierPlayers.length}
                         </Badge>
                       ) : null}
                     </div>
@@ -918,9 +918,9 @@ export function GameCommandCenterModal({
                     )}
                   </div>
 
-                  {!showBoostSelector && userContext?.topPowerPlayers?.length ? (
+                  {!showBoostSelector && userContext?.topMultiplierPlayers?.length ? (
                     <div className="mt-2 flex flex-wrap gap-2">
-                      {userContext.topPowerPlayers.slice(0, 4).map((player, idx) => (
+                      {userContext.topMultiplierPlayers.slice(0, 4).map((player, idx) => (
                         <Badge
                           key={`${player.playerId}-${idx}`}
                           variant="outline"
@@ -930,16 +930,16 @@ export function GameCommandCenterModal({
                             {formatName(player.name)}
                           </span>
                           <span className="text-purple-500 font-mono">
-                            {player.powerLevel.toFixed(1)}p
+                            {player.multiplier.toFixed(1)}x
                           </span>
                         </Badge>
                       ))}
-                      {userContext.topPowerPlayers.length > 4 && (
+                      {userContext.topMultiplierPlayers.length > 4 && (
                         <Badge
                           variant="outline"
                           className="text-[10px] text-muted-foreground border-border/80"
                         >
-                          +{userContext.topPowerPlayers.length - 4}
+                          +{userContext.topMultiplierPlayers.length - 4}
                         </Badge>
                       )}
                     </div>
@@ -978,9 +978,10 @@ export function GameCommandCenterModal({
                         </div>
                       </div>
 
-                      {userContext?.topPowerPlayers && userContext.topPowerPlayers.length > 0 ? (
+                      {userContext?.topMultiplierPlayers &&
+                      userContext.topMultiplierPlayers.length > 0 ? (
                         <div className="space-y-1 max-h-40 overflow-y-auto border border-border/60 rounded-md p-1">
-                          {userContext.topPowerPlayers.map((player, idx) => (
+                          {userContext.topMultiplierPlayers.map((player, idx) => (
                             <div
                               key={`${player.playerId}-${idx}`}
                               className="flex items-center justify-between text-xs py-2 px-2 rounded bg-muted/30 hover:bg-purple-500/10 transition-colors"
@@ -993,7 +994,7 @@ export function GameCommandCenterModal({
                                   {player.team}
                                 </span>
                                 <span className="text-purple-500 font-mono text-[10px]">
-                                  {player.powerLevel.toFixed(1)} power
+                                  {player.multiplier.toFixed(1)}x
                                 </span>
                               </div>
                               <Button
@@ -1087,7 +1088,7 @@ export function GameCommandCenterModal({
                                     <>
                                       <span>•</span>
                                       <span className="text-purple-500 font-medium">
-                                        Own {ownedData.powerLevel.toFixed(1)}p
+                                        Own {ownedData.multiplier.toFixed(1)}x
                                       </span>
                                     </>
                                   ) : null}
@@ -1758,7 +1759,7 @@ export function GameCommandCenterModal({
                                   <span>•</span>
                                   <span>{player.fantasyPoints.toFixed(1)} FP</span>
                                   <span>•</span>
-                                  <span>{player.powerLevel.toFixed(1)} power</span>
+                                  <span>{player.effectiveShares.toFixed(1)} effective</span>
                                 </div>
                               </div>
                               <div className="text-right">
@@ -1779,7 +1780,7 @@ export function GameCommandCenterModal({
                       )}
 
                       <div className="mt-2 text-[10px] text-muted-foreground">
-                        Estimated earnings = live fantasy points × total power level.
+                        Estimated earnings = live fantasy points x total effective shares.
                       </div>
                     </>
                   )}

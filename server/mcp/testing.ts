@@ -166,8 +166,8 @@ export function createMockPublicMcpDependencies(): MockMcpHarness {
       assetType: "player",
       quantity: 4,
       lockedQuantity: 0,
-      power: 1,
-      powerLevel: 4,
+      multiplier: 1,
+      effectiveShares: 4,
     },
     {
       id: "holding_community",
@@ -175,8 +175,8 @@ export function createMockPublicMcpDependencies(): MockMcpHarness {
       assetType: "community",
       quantity: 2,
       lockedQuantity: 0,
-      power: 1,
-      powerLevel: 2,
+      multiplier: 1,
+      effectiveShares: 2,
     },
   ];
 
@@ -363,7 +363,8 @@ export function createMockPublicMcpDependencies(): MockMcpHarness {
             playerId: args?.playerId,
             totalShares: 4,
             lockedShares: 0,
-            powerLevel: 4,
+            effectiveShares: 4,
+            multiplier: 1,
           };
         case "get_watchlists":
           return { watchlists: state.watchlists };
@@ -390,10 +391,11 @@ export function createMockPublicMcpDependencies(): MockMcpHarness {
               Array.isArray(entry.items) ? entry.items.includes(args?.playerId) : false,
             ),
           };
-        case "get_holdings_power_level":
+        case "get_holding_multiplier_state":
           return {
             playerId: args?.playerId,
-            powerLevel: 4,
+            effectiveShares: 4,
+            multiplier: 4,
           };
         case "get_daily_boost_state":
           return {
@@ -582,7 +584,7 @@ export function createMockPublicMcpDependencies(): MockMcpHarness {
             summary: "Reviewed portfolio cleanup levers.",
             replyText:
               "Your portfolio is fairly concentrated and could support condensing raw shares.",
-            observations: ["One holding row can be condensed right now."],
+            observations: ["One holding row can be stacked right now."],
             warnings: [],
             context: {},
           };

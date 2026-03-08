@@ -8,8 +8,11 @@ import {
 } from "@shared/docs";
 import {
   flattenHandbookChapters,
+  getDefaultOpenHandbookSectionIds,
   getHandbookMatchState,
+  getHandbookSectionIdForAnchor,
   getLegacyWikiHref,
+  getRequiredOpenHandbookSectionIds,
 } from "@/features/wiki/handbook";
 
 const handbook: DocsHandbook = {
@@ -88,6 +91,27 @@ describe("wiki handbook helpers", () => {
     ]);
   });
 
+  it("opens the first section by default when there is no active anchor", () => {
+    const openSectionIds = getDefaultOpenHandbookSectionIds(handbook, null);
+
+    expect(Array.from(openSectionIds)).toEqual(["getting-started"]);
+  });
+
+  it("maps section, chapter, and heading anchors back to the owning section", () => {
+    expect(getHandbookSectionIdForAnchor(handbook, getDocsSectionAnchorId("getting-started"))).toBe(
+      "getting-started",
+    );
+    expect(getHandbookSectionIdForAnchor(handbook, getDocsChapterAnchorId("cli", "overview"))).toBe(
+      "cli",
+    );
+    expect(
+      getHandbookSectionIdForAnchor(
+        handbook,
+        getDocsChapterHeadingAnchorId("getting-started", "access", "MCP status"),
+      ),
+    ).toBe("getting-started");
+  });
+
   it("marks matched sections, chapters, and headings from search state", () => {
     const searchResults: DocsSearchResult[] = [
       {
@@ -114,5 +138,15 @@ describe("wiki handbook helpers", () => {
         getDocsChapterHeadingAnchorId("getting-started", "access", "MCP status"),
       ),
     ).toBe(true);
+  });
+
+  it("keeps active and matched sections open", () => {
+    const openSectionIds = getRequiredOpenHandbookSectionIds(
+      handbook,
+      getDocsChapterHeadingAnchorId("getting-started", "access", "MCP status"),
+      new Set([getDocsSectionAnchorId("cli")]),
+    );
+
+    expect(openSectionIds).toEqual(new Set(["getting-started", "cli"]));
   });
 });
