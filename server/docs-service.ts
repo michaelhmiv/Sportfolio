@@ -4,27 +4,49 @@ import { fileURLToPath } from "node:url";
 import {
   docsAudiences,
   docsCategories,
+  docsSectionLabels,
+  docsSectionOrder,
   docsStatuses,
   docsSurfaces,
+  getDocsChapterAnchorId,
+  getDocsChapterHeadingAnchorId,
+  getDocsSectionAnchorId,
+  slugifyDocsFragment,
   type DocsArticle,
   type DocsArticleMeta,
   type DocsArticleSummary,
+  type DocsHandbook,
+  type DocsHandbookChapter,
+  type DocsHandbookSection,
   type DocsHeading,
   type DocsSearchResult,
 } from "@shared/docs";
 
 type ParsedFrontmatter = Record<string, string>;
 
+type AgentKnowledgeArticleSummary = {
+  id: string;
+  title: string;
+  summary: string;
+  urlPath: string;
+  lastReviewedAt: string;
+  notes: string[];
+};
+
 const DOCS_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "docs", "wiki");
 const CACHE_TTL_MS = 15_000;
-const arrayKeys = new Set(["changeTriggers", "surface", "searchKeywords"]);
 const categorySet = new Set<string>(docsCategories);
 const audienceSet = new Set<string>(docsAudiences);
 const statusSet = new Set<string>(docsStatuses);
 const surfaceSet = new Set<string>(docsSurfaces);
+const handbookSectionOrder = docsSectionOrder.filter(
+  (section) => section !== "troubleshooting" && section !== "internal",
+);
+const handbookSectionSet = new Set<string>(handbookSectionOrder);
 
 let cachedArticles: DocsArticle[] | null = null;
 let cachedAt = 0;
+
 const lowSignalSearchTerms = new Set([
   "a",
   "an",
@@ -51,15 +73,6 @@ function cleanMarkdownLine(value: string): string {
     .replace(/^\d+\.\s+/, "")
     .replace(/`/g, "")
     .trim();
-}
-
-function slugify(value: string): string {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, "")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-");
 }
 
 function walkMarkdownFiles(dirPath: string): string[] {
@@ -152,8 +165,66 @@ function extractHeadings(bodyMarkdown: string): DocsHeading[] {
     .map((match) => ({
       depth: match[1].length,
       text: match[2].trim(),
-      id: slugify(match[2]),
+      id: slugifyDocsFragment(match[2]),
     }));
+}
+
+function extractHandbookHeadings(
+  section: string,
+  slug: string,
+  bodyMarkdown: string,
+): DocsHeading[] {
+  return bodyMarkdown
+    .split("\n")
+    .map((line) => line.match(/^(#{1,3})\s+(.+)$/))
+    .filter((match): match is RegExpMatchArray => Boolean(match))
+    .map((match) => ({
+      depth: match[1].length,
+      text: match[2].trim(),
+      id: getDocsChapterHeadingAnchorId(section, slug, match[2].trim()),
+    }));
+}
+
+function normalizeHandbookBodyMarkdown(bodyMarkdown: string): string {
+  const lines = bodyMarkdown.replace(/\r\n/g, "\n").split("\n");
+  const firstContentIndex = lines.findIndex((line) => line.trim().length > 0);
+
+  if (firstContentIndex !== -1 && /^#\s+/.test(lines[firstContentIndex].trim())) {
+    lines.splice(firstContentIndex, 1);
+    if (firstContentIndex < lines.length && lines[firstContentIndex].trim() === "") {
+      lines.splice(firstContentIndex, 1);
+    }
+  }
+
+  return lines.join("\n").trim();
+}
+
+function buildHandbookExcerpt(bodyMarkdown: string, summary: string): string {
+  const notes: string[] = [];
+  const normalizedBody = normalizeHandbookBodyMarkdown(bodyMarkdown);
+
+  for (const rawLine of normalizedBody.split("\n")) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("```")) {
+      continue;
+    }
+
+    const cleaned = cleanMarkdownLine(line);
+    if (!cleaned) {
+      continue;
+    }
+
+    notes.push(cleaned);
+    if (notes.length >= 2) {
+      break;
+    }
+  }
+
+  if (notes.length === 0) {
+    return summary;
+  }
+
+  return notes.join(" ");
 }
 
 function toMeta(
@@ -282,27 +353,12 @@ function extractAgentKnowledgeNotes(bodyMarkdown: string): string[] {
       continue;
     }
 
-    if (
-      !line.startsWith("#") &&
-      !line.startsWith("-") &&
-      !line.startsWith("*") &&
-      !/^\d+\./.test(line)
-    ) {
-      const cleaned = cleanMarkdownLine(line);
-      if (cleaned) {
-        notes.push(cleaned);
-      }
-      if (notes.length >= 3) {
-        break;
-      }
+    const cleaned = cleanMarkdownLine(line);
+    if (!cleaned) {
       continue;
     }
 
-    const cleaned = cleanMarkdownLine(line);
-    if (cleaned) {
-      notes.push(cleaned);
-    }
-
+    notes.push(cleaned);
     if (notes.length >= 3) {
       break;
     }
@@ -328,14 +384,49 @@ function canUseAgentKnowledgeArticle(article: DocsArticle, isAuthenticated: bool
   return canReadArticle(article, isAuthenticated) && article.surface.includes("agent");
 }
 
-type AgentKnowledgeArticleSummary = {
-  id: string;
-  title: string;
-  summary: string;
-  urlPath: string;
-  lastReviewedAt: string;
-  notes: string[];
-};
+function toHandbookChapter(article: DocsArticle): DocsHandbookChapter {
+  const bodyMarkdown = normalizeHandbookBodyMarkdown(article.bodyMarkdown);
+
+  return {
+    id: article.id,
+    title: article.title,
+    summary: article.summary,
+    excerpt: buildHandbookExcerpt(article.bodyMarkdown, article.summary),
+    category: article.category,
+    section: article.section,
+    slug: article.slug,
+    urlPath: article.urlPath,
+    chapterAnchorId: getDocsChapterAnchorId(article.section, article.slug),
+    lastReviewedAt: article.lastReviewedAt,
+    headings: extractHandbookHeadings(article.section, article.slug, bodyMarkdown),
+    bodyMarkdown,
+    searchKeywords: article.searchKeywords,
+  };
+}
+
+function buildHandbookSections(articles: DocsArticle[]): DocsHandbookSection[] {
+  const sections = new Map<string, DocsHandbookChapter[]>();
+
+  for (const article of articles) {
+    const chapters = sections.get(article.section) || [];
+    chapters.push(toHandbookChapter(article));
+    sections.set(article.section, chapters);
+  }
+
+  const orderedSections = [
+    ...handbookSectionOrder,
+    ...Array.from(sections.keys()).filter((section) => !handbookSectionSet.has(section)),
+  ];
+
+  return orderedSections
+    .filter((section) => sections.has(section))
+    .map((section) => ({
+      id: section,
+      label: docsSectionLabels[section] || section,
+      anchorId: getDocsSectionAnchorId(section),
+      chapters: sections.get(section) || [],
+    }));
+}
 
 export function listDocsArticles(isAuthenticated = false): DocsArticleSummary[] {
   return getAllArticles()
@@ -361,6 +452,22 @@ export function getDocsArticle(
   return article;
 }
 
+export function getDocsHandbook(isAuthenticated = false): DocsHandbook {
+  const readableArticles = getAllArticles().filter((article) =>
+    canReadArticle(article, isAuthenticated),
+  );
+  const sections = buildHandbookSections(readableArticles);
+  const chapterCount = sections.reduce((total, section) => total + section.chapters.length, 0);
+
+  return {
+    title: "Sportfolio Handbook",
+    summary:
+      "One handbook for Sportfolio access, gameplay, agent behavior, CLI usage, FAQs, and release notes.",
+    chapterCount,
+    sections,
+  };
+}
+
 export function searchDocsArticles(query: string, isAuthenticated = false): DocsSearchResult[] {
   const normalizedQuery = query.trim().toLowerCase();
   if (!normalizedQuery) {
@@ -372,12 +479,15 @@ export function searchDocsArticles(query: string, isAuthenticated = false): Docs
   return getAllArticles()
     .filter((article) => canReadArticle(article, isAuthenticated))
     .map((article) => {
+      const handbookChapter = toHandbookChapter(article);
       const haystack = [
         article.title,
         article.summary,
         article.bodyMarkdown,
+        handbookChapter.excerpt,
         article.searchKeywords.join(" "),
         article.section,
+        handbookChapter.headings.map((heading) => heading.text).join(" "),
       ]
         .join(" ")
         .toLowerCase();
@@ -388,6 +498,9 @@ export function searchDocsArticles(query: string, isAuthenticated = false): Docs
         }
         if (article.searchKeywords.some((keyword) => keyword.toLowerCase().includes(term))) {
           return total + 3;
+        }
+        if (handbookChapter.headings.some((heading) => heading.text.toLowerCase().includes(term))) {
+          return total + 2;
         }
         return haystack.includes(term) ? total + 1 : total;
       }, 0);
@@ -400,6 +513,7 @@ export function searchDocsArticles(query: string, isAuthenticated = false): Docs
         section: article.section,
         slug: article.slug,
         urlPath: article.urlPath,
+        anchorId: handbookChapter.chapterAnchorId,
         score,
       } satisfies DocsSearchResult;
     })
@@ -412,11 +526,11 @@ export function validateDocsContent(): {
   sections: string[];
 } {
   const articles = listDocsArticles(true);
-  const sections = Array.from(new Set(articles.map((article) => article.section))).sort();
+  const handbook = getDocsHandbook(true);
 
   return {
     articles,
-    sections,
+    sections: handbook.sections.map((section) => section.id),
   };
 }
 
@@ -462,6 +576,7 @@ export function findBestAgentKnowledgeArticle(
   if (terms.length === 0) {
     return null;
   }
+
   let bestMatch:
     | (AgentKnowledgeArticleSummary & {
         score: number;

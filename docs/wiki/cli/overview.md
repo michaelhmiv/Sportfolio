@@ -1,19 +1,19 @@
 ---
 id: cli-overview
-title: Sportfolio CLI
-summary: How to use the Sportfolio CLI for documentation, account reads, and confirmation-gated agent workflows from a terminal.
+title: CLI and External Access
+summary: How to use the Sportfolio CLI for documentation, account reads, confirmation-gated agent workflows, and the current status of MCP-style external access.
 audience: public
 category: cli
 status: published
 owner: product-engineering
-lastReviewedAt: 2026-03-04
+lastReviewedAt: 2026-03-07
 changeTriggers: packages/sportfolio-cli,server/routes/cli.ts,server/api-token-auth.ts
 slug: overview
 surface: web,cli
-searchKeywords: cli,api token,terminal,auth,actions,agent,docs
+searchKeywords: cli,api token,terminal,auth,actions,agent,docs,mcp,external access,model context protocol
 ---
 
-# What the CLI is for
+# CLI and external access
 
 The Sportfolio CLI gives you a terminal-native way to read docs, inspect your account, and use the agent without opening the web app.
 
@@ -27,13 +27,13 @@ npm run cli -- auth login --token <your-token> --base-url https://www.sportfolio
 
 The token is user-specific, so the CLI inherits the same account boundary as the web app.
 
+## Command families
+
 If you are running against local development, use:
 
 ```bash
 npm run cli -- auth login --token <your-token> --base-url http://127.0.0.1:5000
 ```
-
-## What the current CLI supports
 
 - `docs list`, `docs search`, `docs open`
 - `portfolio summary`
@@ -47,6 +47,16 @@ In practice, the CLI is strongest when you want one of three things:
 - fast documentation access
 - quick account reads from a shell
 - agent-assisted workflows without opening the browser
+
+## Repo-local entrypoint
+
+The CLI package in this repo is private right now. If you are using this repository directly, run the local entrypoint instead of waiting for a published package:
+
+```bash
+node packages/sportfolio-cli/bin/sportfolio.mjs auth login --token <your-token>
+```
+
+From there you can use the same `docs`, `agent`, `portfolio`, and `actions` command families.
 
 ## Safety model
 
@@ -82,3 +92,15 @@ The CLI is especially useful for:
 If you want one cross-surface map of web, CLI, and SMS capabilities, read [User Action Surface](/wiki/features/user-action-surface).
 
 If you need rich visual scanning, the web app remains the better primary surface. If you need fast, scriptable access, the CLI is the right tool.
+
+## MCP status
+
+The tracked Sportfolio repo does not currently document a first-party public MCP server, endpoint, or connection config.
+
+So today:
+
+- use the CLI for terminal and automation-friendly access
+- use the web agent for account-aware chat inside the app
+- use SMS after linking if you want a phone-based agent channel
+
+Do not assume a public MCP endpoint exists until the tracked code and docs expose one directly.

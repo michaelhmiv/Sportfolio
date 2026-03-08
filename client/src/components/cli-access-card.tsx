@@ -162,6 +162,22 @@ export function CliAccessCard() {
           </div>
         </CardHeader>
         <CardContent>
+          <div className="mb-4 rounded-sm border border-border bg-[hsl(var(--sidebar)/0.25)] p-3">
+            <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
+              Login command
+            </p>
+            <p className="mt-2 text-xs text-foreground">
+              <code className="font-mono">sportfolio auth login --token &lt;your-token&gt;</code>
+            </p>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Working directly in this repo? Use{" "}
+              <span className="font-mono">
+                node packages/sportfolio-cli/bin/sportfolio.mjs auth login --token
+                &lt;your-token&gt;
+              </span>
+              .
+            </p>
+          </div>
           {isLoading ? (
             <div className="terminal-empty px-4 py-4 text-sm text-muted-foreground">
               Loading CLI tokens...
