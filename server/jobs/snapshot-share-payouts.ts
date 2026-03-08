@@ -4,6 +4,9 @@ import type { ProgressCallback } from "../lib/admin-stream";
 
 const SHARE_PAYOUT_BASE_RATE = "1.0000";
 const SNAPSHOT_LOOKBACK_HOURS = 36;
+const STACKED_SHARE_PAYOUT_CUTOVER_AT = process.env.STACKED_SHARE_PAYOUT_CUTOVER_AT
+  ? new Date(process.env.STACKED_SHARE_PAYOUT_CUTOVER_AT)
+  : null;
 
 export async function snapshotSharePayouts(
   progressCallback?: ProgressCallback,
@@ -36,6 +39,13 @@ export async function snapshotSharePayouts(
       }
 
       if (startTimeMs <= now.getTime()) {
+        if (
+          STACKED_SHARE_PAYOUT_CUTOVER_AT &&
+          Number.isFinite(STACKED_SHARE_PAYOUT_CUTOVER_AT.getTime()) &&
+          startTimeMs < STACKED_SHARE_PAYOUT_CUTOVER_AT.getTime()
+        ) {
+          continue;
+        }
         gamesToSnapshot.push(game);
       }
     }

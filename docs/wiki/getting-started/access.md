@@ -6,8 +6,8 @@ audience: public
 category: getting-started
 status: published
 owner: product-engineering
-lastReviewedAt: 2026-03-07
-changeTriggers: client/src/App.tsx,client/src/components/bottom-nav.tsx,client/src/components/cli-access-card.tsx,client/src/pages/wiki.tsx,packages/sportfolio-cli,server/routes/docs.ts
+lastReviewedAt: 2026-03-08
+changeTriggers: client/src/App.tsx,client/src/components/bottom-nav.tsx,client/src/components/cli-access-card.tsx,client/src/pages/wiki.tsx,packages/sportfolio-cli,server/routes/docs.ts,server/routes/mcp.ts
 slug: access
 surface: web,cli,agent
 searchKeywords: access,how do i access sportfolio,mcp,model context protocol,cli,api token,sms,agent,wiki,mobile
@@ -73,12 +73,20 @@ Once linked, SMS can use the same user-scoped agent context as the web flow, but
 
 ## MCP status
 
-The tracked Sportfolio repo does **not** currently document a first-party public MCP server, endpoint, or config path.
+Sportfolio now exposes a public authenticated MCP endpoint at `/mcp`.
 
-That means:
+Use MCP when you want to connect Sportfolio to an MCP-aware client instead of using the web app or CLI directly.
 
-- there is no documented repo-tracked MCP connection string to paste into an MCP client today
-- the supported documented access paths are web, wiki, SMS, and CLI
-- docs should not imply a public MCP endpoint exists until the tracked code actually exposes one
+Authentication uses the same user API tokens used by CLI access. Send the token as a bearer token to:
 
-If you need external or terminal-friendly access today, use the CLI path instead of assuming MCP is already available.
+- `https://www.sportfolio.market/mcp` in production
+- `http://127.0.0.1:5000/mcp` in local development
+
+The public MCP v1 surface is intentionally scoped:
+
+- gameplay and account reads are included
+- docs resources and prompts are included
+- state-changing gameplay flows are staged first and still require explicit confirmation
+- billing, funding, bootstrap/token-management, SMS linking/settings, profile identity edits, agent settings/BYOK, and admin/internal routes are excluded
+
+Read [MCP Access](/wiki/getting-started/mcp-access) for the exact endpoint contract, public surface, and exclusions.

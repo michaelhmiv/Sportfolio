@@ -21,7 +21,10 @@ Use this when changing share supply, balances, boost settlement, or portfolio ac
 - `holdings`
   - per-user asset quantity and basis
   - `assetType`: `player`, `premium`, `community` (used by feature flows)
-  - `power` + `powerLevel` for boosted-power semantics
+- `player_multipliers`
+  - canonical stacked-share multiplier state per `user + player`
+- `player_multiplier_events`
+  - immutable ledger for stacking-share and stacked-share burn events
 - `holdings_locks`
   - reserved shares for in-flight mechanics
 - `balance_locks`
@@ -80,8 +83,8 @@ The `vesting*` tables remain in the schema for legacy compatibility, but vesting
    - respect lock tables and available-share checks.
 2. **Cost basis integrity**
    - when updating holdings quantity, maintain consistent avg/total basis.
-3. **Power consistency**
-   - `powerLevel` must remain aligned with quantity/power semantics.
+3. **Multiplier consistency**
+   - stacked-share multiplier state must reconcile with holdings quantity, value, and burn ledgers.
 4. **Status-gated settlement**
    - boosts settle only after completion conditions are met.
 5. **Idempotent settlement paths**
@@ -91,7 +94,7 @@ The `vesting*` tables remain in the schema for legacy compatibility, but vesting
 
 - `users.balance`
 - `holdings.quantity`
-- `holdings.powerLevel`
+- `player_multipliers.multiplier`
 - `player_pools.shares`
 - `player_pools.playMoney`
 - `daily_boosts.status`

@@ -1,0 +1,20 @@
+{
+  "name": "sportfoliobot-devvit",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "playtest": "npx devvit playtest",
+    "upload": "npx devvit upload",
+    "settings:list": "npx devvit settings list",
+    "settings:set": "npx devvit settings set"
+  },
+  "dependencies": {
+    "@devvit/public-api": "0.12.13"
+  },
+  "devDependencies": {
+    "@types/node": "20.16.11",
+    "typescript": "5.6.3"
+  }
+}

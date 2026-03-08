@@ -7,7 +7,7 @@ category: getting-started
 status: published
 owner: product-engineering
 lastReviewedAt: 2026-03-04
-changeTriggers: client/src/App.tsx,client/src/components/app-sidebar.tsx,client/src/pages/dashboard.tsx,client/src/pages/marketplace.tsx,client/src/pages/portfolio.tsx,client/src/pages/power.tsx
+changeTriggers: client/src/App.tsx,client/src/components/app-sidebar.tsx,client/src/pages/dashboard.tsx,client/src/pages/marketplace.tsx,client/src/pages/portfolio.tsx,client/src/pages/boosts.tsx
 slug: platform-tour
 surface: web,agent
 searchKeywords: site map,platform tour,navigation,pages,features
@@ -21,7 +21,7 @@ Sportfolio's primary navigation is built around the pages most users touch every
 - Player Pools
 - Analytics
 - Wiki
-- Power
+- Boosts
 - Portfolio
 - Premium
 - Agent
@@ -40,7 +40,7 @@ On the dashboard you can:
 - review upcoming, live, or recently completed game windows
 - inspect market activity and featured names
 - open deeper game detail and command-center views
-- see balance, portfolio value, rankings, and power status when authenticated
+- see balance, portfolio value, rankings, and boost status when authenticated
 
 Because the dashboard is public, it doubles as the landing page for non-authenticated visitors and as the daily control room for active users.
 
@@ -80,24 +80,24 @@ Portfolio is your account ledger view.
 
 It is split between:
 
-- **Holdings**: player-share inventory, P&L, cost basis, powered rows, and account-level totals
+- **Holdings**: player-share inventory, P&L, cost basis, stacked-share multiplier state, and account-level totals
 - **Liquidity**: LP positions, fee accrual, and pool ownership exposure
 
 It also contains portfolio history, asset breakdowns, and recent account activity so you can understand not only what you own, but how you got there.
 
-## Power
+## Boosts
 
-Power is where inventory quality becomes active strategy.
+Boosts is where inventory quality becomes active strategy.
 
 This surface handles:
 
-- condensing raw shares into more powerful inventory
+- stacking raw shares into multiplier inventory
 - assigning daily boosts
 - tracking which boost slots are open, locked, or settled
 - creating community boosts
 - monitoring live and historical boost payouts
 
-If you treat the market as accumulation and the Power page as deployment, the product will make more sense.
+If you treat the market as accumulation and the Boosts page as deployment, the product will make more sense.
 
 ## Analytics
 

@@ -10,7 +10,7 @@ interface BoostResult {
   playerTeam: string;
   fantasyPoints: number;
   multiplier: number;
-  powerLevel: number;
+  shareMultiplier: number;
   payout: number;
 }
 

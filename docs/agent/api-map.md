@@ -27,17 +27,17 @@ This is a practical map of the API surface most likely to affect gameplay/econom
 
 ## Core Player/Portfolio Endpoints
 
-| Method | Path                                  | Auth            | Purpose                                   |
-| ------ | ------------------------------------- | --------------- | ----------------------------------------- |
-| GET    | `/api/dashboard`                      | optionalAuth    | Dashboard aggregates + user-context data  |
-| GET    | `/api/portfolio`                      | isAuthenticated | User holdings + portfolio metrics         |
-| GET    | `/api/activity`                       | isAuthenticated | User activity feed                        |
-| GET    | `/api/player/:id`                     | isAuthenticated | Player details with user-specific context |
-| GET    | `/api/player/:id/stats`               | Public          | Player stats                              |
-| GET    | `/api/player/:id/recent-games`        | Public          | Recent game logs                          |
-| GET    | `/api/player/:id/financials`          | Public          | Market/economic player data               |
-| POST   | `/api/holdings/condense`              | isAuthenticated | Consolidate share power representation    |
-| GET    | `/api/holdings/:playerId/power-level` | isAuthenticated | Power-level data for a player holding     |
+| Method | Path                                       | Auth            | Purpose                                    |
+| ------ | ------------------------------------------ | --------------- | ------------------------------------------ |
+| GET    | `/api/dashboard`                           | optionalAuth    | Dashboard aggregates + user-context data   |
+| GET    | `/api/portfolio`                           | isAuthenticated | User holdings + portfolio metrics          |
+| GET    | `/api/activity`                            | isAuthenticated | User activity feed                         |
+| GET    | `/api/player/:id`                          | isAuthenticated | Player details with user-specific context  |
+| GET    | `/api/player/:id/stats`                    | Public          | Player stats                               |
+| GET    | `/api/player/:id/recent-games`             | Public          | Recent game logs                           |
+| GET    | `/api/player/:id/financials`               | Public          | Market/economic player data                |
+| POST   | `/api/holdings/stack-shares`               | isAuthenticated | Create or grow a stacked-share multiplier  |
+| GET    | `/api/holdings/:playerId/multiplier-state` | isAuthenticated | Multiplier-state data for a player holding |
 
 ## Auth & User Endpoints
 

@@ -10,6 +10,7 @@ import { queryClient } from "@/lib/queryClient";
 import { PlayerName } from "@/components/player-name";
 import { UserName } from "@/components/user-name";
 import { AnimatedList } from "@/components/ui/animated-list";
+import { useAppState } from "@/hooks/use-app-state";
 
 interface MarketActivity {
   activityType: "trade";
@@ -27,16 +28,39 @@ interface MarketActivity {
   timestamp: string;
 }
 
-export function MarketActivityWidget() {
+interface MarketActivityWidgetProps {
+  sport?: string;
+  limit?: number;
+  title?: string;
+  className?: string;
+}
+
+export function MarketActivityWidget({
+  sport,
+  limit = 10,
+  title = "Market Activity",
+  className,
+}: MarketActivityWidgetProps = {}) {
   const { subscribe } = useWebSocket();
+  const { shouldPoll, isMobile } = useAppState();
+  const pollingInterval = shouldPoll ? (isMobile ? 20000 : 10000) : false;
 
   const { data: activity = [], isLoading } = useQuery<MarketActivity[]>({
-    queryKey: ["/api/market/activity"],
+    queryKey: ["/api/market/activity", sport || "ALL", limit],
     queryFn: async () => {
-      const response = await fetch("/api/market/activity?limit=10");
+      const params = new URLSearchParams();
+      params.set("limit", String(limit));
+      if (sport && sport !== "ALL") {
+        params.set("sport", sport);
+      }
+
+      const response = await fetch(`/api/market/activity?${params.toString()}`);
       if (!response.ok) throw new Error("Failed to fetch market activity");
       return response.json();
     },
+    refetchInterval: pollingInterval,
+    refetchIntervalInBackground: false,
+    placeholderData: (previousData) => previousData,
   });
 
   // Subscribe to WebSocket market activity events for real-time updates
@@ -80,11 +104,9 @@ export function MarketActivityWidget() {
 
   if (isLoading) {
     return (
-      <Card className="lg:col-span-3">
+      <Card className={className}>
         <CardHeader>
-          <CardTitle className="text-sm font-medium uppercase tracking-wide">
-            Market Activity
-          </CardTitle>
+          <CardTitle className="text-sm font-medium uppercase tracking-wide">{title}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="text-center py-4 text-muted-foreground text-sm">Loading...</div>
@@ -94,11 +116,9 @@ export function MarketActivityWidget() {
   }
 
   return (
-    <Card className="lg:col-span-3">
+    <Card className={className}>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium uppercase tracking-wide">
-          Market Activity
-        </CardTitle>
+        <CardTitle className="text-sm font-medium uppercase tracking-wide">{title}</CardTitle>
         <Clock className="w-4 h-4 text-muted-foreground" />
       </CardHeader>
       <CardContent className="space-y-2">

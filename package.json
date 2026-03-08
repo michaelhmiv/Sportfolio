@@ -41,7 +41,11 @@
     "agent:improve": "node scripts/agent-self-improve.mjs",
     "mcp:audit": "tsx scripts/mcp-audit.ts",
     "mcp:smoke": "tsx scripts/mcp-smoke.ts",
-    "text:check": "node scripts/check-text-encoding.mjs"
+    "text:check": "node scripts/check-text-encoding.mjs",
+    "redditbot:typecheck": "npm --prefix packages/sportfoliobot run typecheck",
+    "redditbot:playtest": "npm --prefix packages/sportfoliobot run playtest",
+    "redditbot:upload": "npm --prefix packages/sportfoliobot run upload",
+    "redditbot:settings:list": "npm --prefix packages/sportfoliobot run settings:list"
   },
   "dependencies": {
     "@capacitor/android": "^8.0.2",

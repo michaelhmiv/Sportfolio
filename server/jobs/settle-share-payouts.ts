@@ -64,9 +64,9 @@ export async function settleSharePayouts(progressCallback?: ProgressCallback): P
         if (!isSettlableNascarStats(game.sport, stats)) continue;
 
         const fantasyPoints = toFiniteNumber(stats.fantasyPoints, 0);
-        const sharePower = toFiniteNumber(payout.sharePower, 0);
+        const earningUnits = toFiniteNumber(payout.earningUnits, 0);
         const baseRate = toFiniteNumber(payout.baseRate, 1);
-        const amount = Math.max(0, sharePower * fantasyPoints * baseRate);
+        const amount = Math.max(0, earningUnits * fantasyPoints * baseRate);
 
         const credited = await storage.processSharePayoutCredit(
           payout.id,

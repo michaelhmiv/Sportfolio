@@ -519,17 +519,18 @@ function sanitizeAgentActions(value: unknown): AgentAction[] {
             estimatedPlayMoneyOut:
               typeof entry.estimatedPlayMoneyOut === "number" ? entry.estimatedPlayMoneyOut : null,
           } as const;
-        case "holdings_condense":
+        case "holdings_stack_shares":
           return {
             ...base,
             actionType,
-            sharesToCondense:
-              typeof entry.sharesToCondense === "number" ? entry.sharesToCondense : 0,
-            expectedPowerGained:
-              typeof entry.expectedPowerGained === "number" ? entry.expectedPowerGained : 0,
-            expectedPoweredShareCount:
-              typeof entry.expectedPoweredShareCount === "number"
-                ? entry.expectedPoweredShareCount
+            sharesToStack: typeof entry.sharesToStack === "number" ? entry.sharesToStack : 0,
+            expectedMultiplierGained:
+              typeof entry.expectedMultiplierGained === "number"
+                ? entry.expectedMultiplierGained
+                : 0,
+            expectedStackedShareCount:
+              typeof entry.expectedStackedShareCount === "number"
+                ? entry.expectedStackedShareCount
                 : 0,
           } as const;
         case "daily_boost_assign":

@@ -125,8 +125,7 @@ async function claimVestingShares(
     // Apply distributions to holdings
     for (const dist of distributions) {
       if (dist.shares > 0) {
-        // Vesting shares are minted (free). Always credit to regular holdings (power=1)
-        // and keep powerLevel consistent with quantity.
+        // Vesting shares are minted (free). Always credit them to regular-share holdings.
         const existing = await storage.getRegularHolding(userId, "player", dist.playerId);
 
         if (existing) {
@@ -141,7 +140,6 @@ async function claimVestingShares(
               quantity: newQty.toString(),
               avgCostBasis: newAvgCost,
               // totalCostBasis stays the same (new shares are free)
-              powerLevel: newQty.toFixed(2),
               lastUpdated: new Date(),
             })
             .where(eq(holdings.id, existing.id));
@@ -151,8 +149,6 @@ async function claimVestingShares(
             assetType: "player",
             assetId: dist.playerId,
             quantity: dist.shares.toString(),
-            power: 1,
-            powerLevel: dist.shares.toFixed(2),
             avgCostBasis: "0.0000",
             totalCostBasis: "0.00",
             lastUpdated: new Date(),
@@ -174,7 +170,6 @@ async function claimVestingShares(
         .set({
           quantity: newQty.toString(),
           avgCostBasis: newAvgCost,
-          powerLevel: newQty.toFixed(2),
           lastUpdated: new Date(),
         })
         .where(eq(holdings.id, existing.id));
@@ -184,8 +179,6 @@ async function claimVestingShares(
         assetType: "player",
         assetId: fallbackPlayerId,
         quantity: totalSharesClaimed.toString(),
-        power: 1,
-        powerLevel: totalSharesClaimed.toFixed(2),
         avgCostBasis: "0.0000",
         totalCostBasis: "0.00",
         lastUpdated: new Date(),

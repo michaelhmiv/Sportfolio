@@ -6,8 +6,8 @@ audience: public
 category: features
 status: published
 owner: product-engineering
-lastReviewedAt: 2026-03-07
-changeTriggers: client/src/App.tsx,client/src/components/app-sidebar.tsx,server/routes.ts,server/routes/amm.ts,server/routes/lp.ts,server/routes/cli.ts,server/routes/sms.ts
+lastReviewedAt: 2026-03-08
+changeTriggers: client/src/App.tsx,client/src/components/app-sidebar.tsx,server/routes.ts,server/routes/amm.ts,server/routes/lp.ts,server/routes/cli.ts,server/routes/mcp.ts,server/routes/sms.ts,server/mcp/public-tool-registry.ts
 slug: user-action-surface
 surface: web,cli,agent
 searchKeywords: capabilities,actions,feature map,web,cli,sms,agent
@@ -33,7 +33,7 @@ This page lists current user-facing capabilities by surface and clarifies what i
 - view holdings, net worth, and activity
 - manage watchlists (create/update/delete lists, add/remove players)
 - view and manage scouts
-- condense eligible shares into power
+- stack eligible shares into multiplier inventory
 
 ## Boost and Slate Flows
 
@@ -67,6 +67,27 @@ The CLI uses the same backend rules as web. It does not bypass confirmation requ
 All mutation-like CLI actions stage a plan first. You confirm or cancel explicitly.
 
 For exact syntax, read [CLI Command Reference](/wiki/cli/command-reference).
+
+# MCP Actions
+
+The public MCP server also uses user-scoped API tokens, but it is designed for MCP-aware clients rather than direct shell commands.
+
+## Included in MCP v1
+
+- gameplay and account reads across portfolio, players, pools, boosts, scouts, watchlists, schedules, docs, news, and thread state
+- public docs resources and prompts
+- confirmation-gated staging for market trades, LP flows, stack shares, daily boosts, community boosts, watchlists, scout assignments, schedules, and pending action confirm/cancel
+
+## Excluded from MCP v1
+
+- billing, funding, checkout, and premium purchase/redeem flows
+- bootstrap and token-management flows
+- SMS linking and SMS settings
+- profile identity edits
+- agent settings and BYOK configuration
+- admin and internal-only routes
+
+For connection details, read [MCP Access](/wiki/getting-started/mcp-access).
 
 # SMS Actions
 

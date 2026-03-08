@@ -90,7 +90,7 @@ Leaderboards are a scoreboard for the systems you already use:
 
 - trading
 - scouting
-- power management
+- multiplier management
 - boost deployment
 
 They reward sustained account quality more than one isolated action.

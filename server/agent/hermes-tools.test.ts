@@ -28,7 +28,7 @@ const mocks = vi.hoisted(() => ({
     getBoostPayoutHistory: vi.fn(),
     getCommunityBoostsAllSports: vi.fn(),
     getEligiblePlayersForBoost: vi.fn(),
-    getHoldingWithPowerLevel: vi.fn(),
+    getHoldingMultiplierState: vi.fn(),
     getLpTransactionHistory: vi.fn(),
     getMarketActivity: vi.fn(),
     getPlayer: vi.fn(),
@@ -228,7 +228,8 @@ describe("hermes-tools", () => {
           lastName: "Brunson",
         },
         availableShares: 2,
-        powerLevel: "3.00",
+        multiplier: "3.00",
+        effectiveShares: "3.00",
         gameStartTime: new Date("2026-03-03T00:30:00.000Z"),
       },
     ]);
@@ -324,21 +325,21 @@ describe("hermes-tools", () => {
     expect(result.threadId).toBe("thread_new");
   });
 
-  it("builds a multi-action bundle preview for chained condense and boost requests", async () => {
+  it("builds a multi-action bundle preview for chained stack shares and boost requests", async () => {
     mocks.planDirectAgentOperation
       .mockResolvedValueOnce({
-        replyText: "Condense Amen",
-        summary: "Condense Amen",
+        replyText: "Stack Shares Amen",
+        summary: "Stack Shares Amen",
         warnings: [],
         observations: [],
         actions: [
           {
-            actionType: "holdings_condense",
+            actionType: "holdings_stack_shares",
             playerId: "nba_amen",
             playerName: "Amen Thompson",
-            sharesToCondense: 2,
-            expectedPowerGained: 1,
-            reasoning: "Condense first",
+            sharesToStack: 2,
+            expectedMultiplierGained: 1,
+            reasoning: "Stack Shares first",
           },
         ],
         trace: [],
@@ -378,31 +379,31 @@ describe("hermes-tools", () => {
       toolName: "preview_multi_action_bundle",
       userId: "user_1",
       args: {
-        message: "power up Amen and then put him at 4x",
+        message: "stack shares Amen and then put him at 4x",
       },
     })) as any;
 
     expect(result.actions).toHaveLength(2);
     expect(result.generatedMessages).toEqual([
-      "condense 4 Amen Thompson shares",
+      "stack shares 4 Amen Thompson shares",
       "put Amen Thompson in my 4x boost slot today",
     ]);
   });
 
   it("does not reuse the previous player when an explicit boost target cannot be resolved", async () => {
     mocks.planDirectAgentOperation.mockResolvedValueOnce({
-      replyText: "Condense Amen",
-      summary: "Condense Amen",
+      replyText: "Stack Shares Amen",
+      summary: "Stack Shares Amen",
       warnings: [],
       observations: [],
       actions: [
         {
-          actionType: "holdings_condense",
+          actionType: "holdings_stack_shares",
           playerId: "nba_amen",
           playerName: "Amen Thompson",
-          sharesToCondense: 2,
-          expectedPowerGained: 1,
-          reasoning: "Condense first",
+          sharesToStack: 2,
+          expectedMultiplierGained: 1,
+          reasoning: "Stack Shares first",
         },
       ],
       trace: [],
@@ -425,12 +426,12 @@ describe("hermes-tools", () => {
       toolName: "preview_multi_action_bundle",
       userId: "user_1",
       args: {
-        message: "power up Amen and then put unknown guy at 4x",
+        message: "stack shares Amen and then put unknown guy at 4x",
       },
     })) as any;
 
     expect(mocks.planDirectAgentOperation).toHaveBeenCalledTimes(1);
-    expect(result.generatedMessages).toEqual(["condense 4 Amen Thompson shares"]);
+    expect(result.generatedMessages).toEqual(["stack shares 4 Amen Thompson shares"]);
     expect(result.warnings).toContain(
       'I could not find an unlocked holding for "unknown guy" to place in a boost slot.',
     );

@@ -68,14 +68,14 @@ function buildDocsContextBlock(citations: DocsAnswerCitation[]): string {
 }
 
 function buildMcpFallbackAnswer(citations: DocsAnswerCitation[]): string {
-  const accessLine = citations.length
-    ? `The documented paths today are ${citations.map((citation) => citation.title).join(", ")}.`
-    : "The documented paths today are the web agent, the wiki, SMS after linking, and the CLI.";
-
   return [
-    "The public Sportfolio handbook does not document a repo-tracked MCP server, endpoint, or config path.",
-    accessLine,
-    "Use `/agent`, `/wiki`, SMS after linking, or the CLI with a profile API token until a tracked MCP surface exists.",
+    "Sportfolio exposes a public authenticated MCP endpoint at `/mcp`.",
+    "Use a profile API token as `Authorization: Bearer <your-token>` against `https://www.sportfolio.market/mcp` or your local base URL plus `/mcp`.",
+    "The current MCP v1 surface is gameplay-focused: reads, public docs resources/prompts, and confirmation-gated staging.",
+    "Billing, funding, bootstrap/token-management, SMS linking/settings, profile identity edits, agent settings/BYOK, and admin/internal routes are excluded.",
+    citations.length > 0
+      ? `Read ${citations.map((citation) => citation.title).join(" and ")} for the handbook version of the current MCP contract.`
+      : "If you do not need an MCP client, the CLI remains the simplest terminal path.",
   ].join(" ");
 }
 
@@ -159,7 +159,9 @@ export async function answerDocsQuestion(query: string): Promise<DocsAnswerRespo
           "Only answer from the supplied Sportfolio handbook context.",
           "Do not use account context, memory, tools, or outside knowledge.",
           "If the handbook does not establish something, say that clearly.",
-          "If the user asks about MCP and the supplied context does not document a repo-tracked MCP surface, say that no public repo-tracked MCP server, endpoint, or config path is documented today.",
+          "If the user asks about MCP, answer strictly from the supplied handbook context.",
+          "When the supplied context documents a repo-tracked MCP surface, state the endpoint, auth model, v1 scope, and major exclusions plainly.",
+          "Only say MCP is undocumented if the supplied handbook context truly does not establish it.",
           "Keep the answer concise and practical.",
         ].join("\n"),
         messages: [promptMessage],

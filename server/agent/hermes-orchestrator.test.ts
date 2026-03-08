@@ -68,8 +68,8 @@ describe("hermes-orchestrator", () => {
         availableBalance: 125,
         portfolioPlayerCount: 3,
         totalPlayerShares: 12,
-        poweredHoldingRows: 1,
-        powerReadyHoldingRows: 1,
+        stackedHoldingRows: 1,
+        stackReadyHoldingRows: 1,
         watchlistCount: 1,
         watchlistEntryCount: 4,
         communitySharesAvailable: 2,
@@ -235,7 +235,7 @@ describe("hermes-orchestrator", () => {
       toolName: "preview_multi_action_bundle",
       toolCategory: "plan",
       toolArgs: {
-        message: "buy, condense, then boost this player",
+        message: "buy, stack shares, then boost this player",
       },
       summary: "The model selected preview_multi_action_bundle.",
       warnings: [],
@@ -257,14 +257,14 @@ describe("hermes-orchestrator", () => {
       warnings: [],
       actions: [
         {
-          actionType: "holdings_condense",
+          actionType: "holdings_stack_shares",
           playerId: "nba_1",
           playerName: "Amen Thompson",
-          sharesToCondense: 2,
-          expectedPowerGained: 1,
+          sharesToStack: 2,
+          expectedMultiplierGained: 1,
           availableSharesBefore: 4,
           availableSharesAfter: 2,
-          reasoning: "Condense before boosting",
+          reasoning: "Stack Shares before boosting",
         },
       ],
     });

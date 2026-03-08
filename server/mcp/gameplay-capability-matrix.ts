@@ -272,12 +272,12 @@ export const INCLUDED_GAMEPLAY_CAPABILITIES: GameplayCapabilityEntry[] = [
     source: "read:get_player_watchlists",
   },
   {
-    capabilityId: "get_holdings_power_level",
+    capabilityId: "get_holding_multiplier_state",
     kind: "tool",
     status: "included",
-    domain: "power",
-    toolName: "get_holdings_power_level",
-    source: "read:get_holdings_power_level",
+    domain: "portfolio",
+    toolName: "get_holding_multiplier_state",
+    source: "read:get_holding_multiplier_state",
   },
   {
     capabilityId: "list_daily_boosts",
@@ -472,12 +472,12 @@ export const INCLUDED_GAMEPLAY_CAPABILITIES: GameplayCapabilityEntry[] = [
     source: "plan:preview_scout_adjustment+thread",
   },
   {
-    capabilityId: "stage_condense",
+    capabilityId: "stage_stack_shares",
     kind: "tool",
     status: "included",
-    domain: "power",
-    toolName: "stage_condense",
-    source: "plan:preview_condense+thread",
+    domain: "portfolio",
+    toolName: "stage_stack_shares",
+    source: "plan:preview_stack_shares+thread",
   },
   {
     capabilityId: "stage_daily_boost_assign",

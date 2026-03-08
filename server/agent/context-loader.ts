@@ -374,14 +374,13 @@ export async function loadScoutAgentContext(
     (sum, watchlist) => sum + Math.max(0, Number(watchlist.itemCount || 0)),
     0,
   );
-  const poweredHoldingRows = playerHoldings.filter(
-    (entry: any) => toNumericString(entry?.holding?.power) > 1,
+  const stackedHoldingRows = playerHoldings.filter((entry: any) =>
+    Boolean(entry?.holding?.isStackedShare),
   ).length;
-  const powerReadyHoldingRows = playerHoldings.filter((entry: any) => {
-    const power = toNumericString(entry?.holding?.power);
+  const stackReadyHoldingRows = playerHoldings.filter((entry: any) => {
     const quantity = toNumericString(entry?.holding?.quantity);
 
-    return power === 1 && quantity >= 2;
+    return !entry?.holding?.isStackedShare && quantity >= 4;
   }).length;
   const totalPlayerShares = playerHoldings.reduce(
     (sum: number, entry: any) => sum + toNumericString(entry?.holding?.quantity),
@@ -397,7 +396,7 @@ export async function loadScoutAgentContext(
     .slice(0, 5)
     .map((entry: any) => {
       const quantity = toNumericString(entry?.holding?.quantity);
-      const power = toNumericString(entry?.holding?.power || "1");
+      const multiplier = toNumericString(entry?.holding?.multiplier || "1");
       const lockedQuantity =
         typeof entry?.totalLocked === "number"
           ? entry.totalLocked
@@ -413,7 +412,7 @@ export async function loadScoutAgentContext(
         name: `${entry.player.firstName} ${entry.player.lastName}`,
         sport: entry.player.sport,
         shares: quantity,
-        power,
+        multiplier,
         availableShares: Math.max(0, quantity - lockedQuantity),
         nextGameAt: nextGame ? new Date(nextGame.startTime).toISOString() : null,
       };
@@ -440,9 +439,9 @@ export async function loadScoutAgentContext(
     );
   }
 
-  if (powerReadyHoldingRows > 0) {
+  if (stackReadyHoldingRows > 0) {
     nextBestLevers.push(
-      `condense ${powerReadyHoldingRows} raw holding row${powerReadyHoldingRows === 1 ? "" : "s"} into powered shares`,
+      `stack shares ${stackReadyHoldingRows} raw holding row${stackReadyHoldingRows === 1 ? "" : "s"} into stacked shares`,
     );
   }
 
@@ -474,8 +473,8 @@ export async function loadScoutAgentContext(
       availableBalance,
       portfolioPlayerCount: playerHoldings.length,
       totalPlayerShares,
-      poweredHoldingRows,
-      powerReadyHoldingRows,
+      stackedHoldingRows,
+      stackReadyHoldingRows,
       watchlistCount: watchlists.length,
       watchlistEntryCount,
       communitySharesAvailable,

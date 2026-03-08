@@ -15,7 +15,7 @@ import type {
   CommunityBoostCreateAction,
   DailyBoostAssignAction,
   DailyBoostRemoveAction,
-  HoldingsCondenseAction,
+  HoldingsStackSharesAction,
   PoolAddLiquidityAction,
   PoolAddLiquidityOptimalAction,
   PoolBuyAction,
@@ -103,8 +103,8 @@ async function executePoolRemoveLiquidity(userId: string, action: PoolRemoveLiqu
   }
 }
 
-async function executeHoldingsCondense(userId: string, action: HoldingsCondenseAction) {
-  await storage.condenseShares(userId, action.playerId, action.sharesToCondense);
+async function executeHoldingsStackShares(userId: string, action: HoldingsStackSharesAction) {
+  await storage.stackShares(userId, action.playerId, action.sharesToStack);
 }
 
 async function executeDailyBoostAssign(userId: string, action: DailyBoostAssignAction) {
@@ -135,18 +135,30 @@ async function executeDailyBoostAssign(userId: string, action: DailyBoostAssignA
     throw new Error(`Not enough available shares. You have ${availableShares} available.`);
   }
 
-  const breakdown = await storage.getHoldingsWithPowerBreakdown(userId, action.playerId);
+  const breakdown = await storage.getPlayerShareBreakdown(userId, action.playerId);
   const candidates = [
-    ...(breakdown.powered || []).filter((holding) => Number.parseFloat(holding.quantity) >= 1),
+    ...(breakdown.stacked || [])
+      .filter((holding) => Number.parseFloat(holding.quantity) >= 1)
+      .map((holding) => ({
+        multiplier: Number.parseFloat(holding.multiplier || "1"),
+        isStackedShare: true,
+      })),
     ...(breakdown.regular && Number.parseFloat(breakdown.regular.quantity) >= 1
-      ? [breakdown.regular]
+      ? [
+          {
+            multiplier: 1,
+            isStackedShare: false,
+          },
+        ]
       : []),
-  ].sort((left, right) => (right.power || 1) - (left.power || 1));
+  ].sort((left, right) => right.multiplier - left.multiplier);
 
   const selectedHolding = candidates[0];
   if (!selectedHolding) {
     throw new Error("No shares available for this player");
   }
+  const shareMultiplier = selectedHolding.multiplier.toFixed(2);
+  const shareSourceType = selectedHolding.isStackedShare ? "stacked" : "regular";
 
   await storage.createDailyBoost({
     userId,
@@ -155,7 +167,8 @@ async function executeDailyBoostAssign(userId: string, action: DailyBoostAssignA
     slotTier: action.slotTier,
     boostDate: startOfDay,
     sharesEntered: 1,
-    powerLevel: Number(selectedHolding.power || 1).toFixed(2),
+    shareMultiplier,
+    shareSourceType,
     gameId: game.gameId,
   });
 }
@@ -266,8 +279,8 @@ export async function executeAgentActions(userId: string, actions: AgentAction[]
       case "pool_remove_liquidity":
         await executePoolRemoveLiquidity(userId, action);
         break;
-      case "holdings_condense":
-        await executeHoldingsCondense(userId, action);
+      case "holdings_stack_shares":
+        await executeHoldingsStackShares(userId, action);
         break;
       case "daily_boost_assign":
         await executeDailyBoostAssign(userId, action);

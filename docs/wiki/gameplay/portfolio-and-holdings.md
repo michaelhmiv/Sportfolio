@@ -21,7 +21,7 @@ The main pieces are:
 
 - **cash balance**: liquid SB you can spend
 - **player holdings**: tradeable player shares
-- **powered holdings**: player-share rows with higher per-share power
+- **stacked shares**: non-tradeable player-share inventory with higher multiplier strength
 - **LP positions**: ownership in AMM pools
 - **premium shares**: redeemable premium inventory
 - **community shares**: inventory that can be consumed for community boosts
@@ -29,28 +29,28 @@ The main pieces are:
 
 ## Why one player can appear more than once
 
-Sportfolio can store multiple holding rows for the same player.
+Sportfolio can store separate regular-share inventory and stacked-share multiplier state for the same player.
 
 That is intentional. A single player may appear as:
 
-- a regular holding row with `power = 1`
-- one or more powered holding rows with `power > 1`
+- a regular holding row with `1x` multiplier
+- one stacked-share multiplier state with multiplier above `1x`
 
-This matters because boost and condense flows need to know which exact inventory is being consumed.
+This matters because boost and stack shares flows need to know which exact inventory is being consumed.
 
-## Power and power level inside holdings
+## Multiplier inside holdings
 
 Two terms show up repeatedly:
 
-- **power**: per-share strength
-- **powerLevel**: effective total power for that row, derived from `quantity * power`
+- **multiplier**: the strength of a single stacked share
+- **effective shares**: the economic share count a position contributes to value and holder payouts
 
 Example:
 
-- `quantity = 5`, `power = 1` means five normal shares and `powerLevel = 5`
-- `quantity = 2`, `power = 4` means two highly powered shares and `powerLevel = 8`
+- `quantity = 5`, `multiplier = 1x` means five normal shares and `5` effective shares
+- `quantity = 1`, `multiplier = 4x` means one stacked share and `4` effective shares
 
-Power affects boost payouts directly, so the quality of a row can matter more than raw share count.
+Multiplier strength affects boost payouts directly, so the quality of a row can matter more than raw share count.
 
 ## Available versus locked inventory
 
@@ -110,16 +110,16 @@ Common categories include:
 
 - **market**: buys, sells, and other market actions
 - **scout**: hourly share rewards and scout-related changes
-- **power**: boost-related burns, locks, and payout outcomes
+- **boosts**: boost-related burns, locks, and payout outcomes
 
 Use the feed when a balance or holding changed and you want to know why.
 
-## Condense from the portfolio perspective
+## Stack Shares from the portfolio perspective
 
-Condense is easier to understand when you think about it as an inventory rewrite:
+Stack Shares is easier to understand when you think about it as an inventory rewrite:
 
 - it debits unlocked regular shares
-- it increases the power of retained inventory
+- it increases the multiplier strength of retained inventory
 - it lowers raw count and raises per-share quality
 
 You are not "creating free value." You are converting quantity into higher-impact inventory.
@@ -130,7 +130,7 @@ Sportfolio tracks basis and row-level accounting so that P&L and holdings stay c
 
 - trades
 - scout distributions
-- condense operations
+- stack shares operations
 - LP mutations
 - boost burns and settlements
 

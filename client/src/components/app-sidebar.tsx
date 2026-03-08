@@ -48,8 +48,8 @@ const menuItems = [
     icon: BookOpen,
   },
   {
-    title: "Power",
-    url: "/power",
+    title: "Boosts",
+    url: "/boosts",
     icon: Zap,
   },
   {

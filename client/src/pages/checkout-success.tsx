@@ -163,12 +163,12 @@ export default function CheckoutSuccess() {
                 <div className="space-y-3">
                   <Button
                     variant="terminal"
-                    onClick={() => navigate("/power")}
+                    onClick={() => navigate("/boosts")}
                     className="w-full"
                     size="lg"
                   >
                     <Zap className="w-4 h-4 mr-2" />
-                    Go to Power Page
+                    Go to Boosts
                     <ArrowRight className="w-4 h-4 ml-2" />
                   </Button>
 

@@ -25,13 +25,13 @@ Scouts distribute shares over time based on time-weighted participation. They ar
 
 Yes. A daily boost burns one eligible share after the boost locks, so that share leaves your standing inventory.
 
-## Does condense create free value?
+## Does stack shares create free value?
 
-No. Condense converts unlocked raw share quantity into higher per-share power. You are trading quantity for quality, not minting a free gain.
+No. Stack Shares converts unlocked raw share quantity into a higher multiplier. You are trading quantity for quality, not minting a free gain.
 
-## What is the difference between a raw share and a powered share?
+## What is the difference between a raw share and a stacked share?
 
-A raw share has `power = 1`. A powered share has `power > 1`. Powered shares matter most in the boost system because one boost slot burns exactly one share.
+A raw share has a `1x` multiplier. A stacked share has a multiplier above `1x`. Stacked shares matter most in the boost system because one boost slot burns exactly one share.
 
 ## Can the agent execute actions on its own?
 
@@ -57,9 +57,9 @@ Premium is an account-level entitlement layer. The main user-facing benefit toda
 
 No. Premium shares are a separate asset type tied to premium access flows. They should not be treated like normal player holdings.
 
-## What does the Power page actually do?
+## What does the Boosts page actually do?
 
-It is the deployment surface for power-related mechanics: condense, daily boosts, community boosts, and boost payout tracking.
+It is the deployment surface for multiplier-related mechanics: stack shares, daily boosts, community boosts, and boost payout tracking.
 
 ## What do leaderboards measure?
 

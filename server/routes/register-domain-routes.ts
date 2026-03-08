@@ -5,6 +5,7 @@ import { registerDocsRoutes } from "./docs";
 import { registerInternalAgentToolRoutes } from "./internal-agent-tools";
 import { registerLpRoutes } from "./lp";
 import { registerMcpRoutes } from "./mcp";
+import { registerRedditBotRoutes } from "./reddit-bot";
 import { registerSmsRoutes } from "./sms";
 
 /**
@@ -17,6 +18,7 @@ export function registerDomainRoutes(app: Express) {
   registerDocsRoutes(app);
   registerCliRoutes(app);
   registerSmsRoutes(app);
+  registerRedditBotRoutes(app);
   registerInternalAgentToolRoutes(app);
   registerMcpRoutes(app);
 }

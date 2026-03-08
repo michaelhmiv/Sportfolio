@@ -80,8 +80,8 @@ function explainLever(lever: string, context: ScoutAgentContext): string {
     return `That means you have ${context.operatorOverview.communitySharesAvailable} community share${context.operatorOverview.communitySharesAvailable === 1 ? "" : "s"} available that could be converted into a live community boost if you want more multiplier leverage on a player.`;
   }
 
-  if (normalized.includes("condense")) {
-    return `That means you have raw holding rows that can be condensed into powered shares, which makes each share hit harder in boost payouts without increasing share count.`;
+  if (normalized.includes("stack")) {
+    return `That means you have raw holding rows that can be stacked into stacked shares, which makes each share hit harder in boost payouts without increasing share count.`;
   }
 
   if (normalized.includes("idle play-money balance")) {
@@ -238,7 +238,7 @@ function buildActionDeltaPreview(action: AgentAction): AgentConfirmationPreview 
         },
         afterState: {
           boostDate: action.boostDate,
-          powerLevel: action.powerLevel ?? null,
+          shareMultiplier: action.shareMultiplier ?? null,
         },
         estimatedImpact:
           action.opponent && action.gameStartTime
@@ -321,18 +321,18 @@ function buildActionDeltaPreview(action: AgentAction): AgentConfirmationPreview 
         },
         riskClass: "low",
       };
-    case "holdings_condense":
+    case "holdings_stack_shares":
       return {
         ...base,
-        actionSummary: `Condense ${action.sharesToCondense} share${action.sharesToCondense === 1 ? "" : "s"} of ${action.playerName || "player"}`,
+        actionSummary: `Stack ${action.sharesToStack} share${action.sharesToStack === 1 ? "" : "s"} of ${action.playerName || "player"}`,
         beforeState: {
           availableShares: action.availableSharesBefore ?? null,
         },
         afterState: {
           availableShares: action.availableSharesAfter ?? null,
-          expectedPowerGained: action.expectedPowerGained,
+          expectedMultiplierGained: action.expectedMultiplierGained,
         },
-        warnings: ["Only unlocked regular shares can be condensed."],
+        warnings: ["Only unlocked regular shares can be stacked."],
         riskClass: "medium",
       };
     default:

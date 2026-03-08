@@ -539,8 +539,8 @@ async function buildCapabilityGuidePlan(
     domain: "sportfolio",
     requestMessage: message,
     replyText: webResearchEnabled
-      ? "I can operate across the main user-facing Sportfolio loops: scouting, player-pool buys and sells, liquidity adds and removals, zaps, condense/power-up flows, daily boosts, watchlists, and community boosts. I can also pull current outside context through the hosted Brave search path when you ask for latest news, injuries, or other time-sensitive external info. For any live mutation, I still stage the move first and wait for your confirmation before execution."
-      : "I can operate across the main user-facing Sportfolio loops: scouting, player-pool buys and sells, liquidity adds and removals, zaps, condense/power-up flows, daily boosts, watchlists, and community boosts. For any live mutation, I still stage the move first and wait for your confirmation before execution.",
+      ? "I can operate across the main user-facing Sportfolio loops: scouting, player-pool buys and sells, liquidity adds and removals, zaps, stack-shares / multiplier flows, daily boosts, watchlists, and community boosts. I can also pull current outside context through the hosted Brave search path when you ask for latest news, injuries, or other time-sensitive external info. For any live mutation, I still stage the move first and wait for your confirmation before execution."
+      : "I can operate across the main user-facing Sportfolio loops: scouting, player-pool buys and sells, liquidity adds and removals, zaps, stack-shares / multiplier flows, daily boosts, watchlists, and community boosts. For any live mutation, I still stage the move first and wait for your confirmation before execution.",
     summary:
       "Broad operator coverage across scouting, markets, boosts, watchlists, and community boosts.",
     observations: [
@@ -616,17 +616,15 @@ async function buildPortfolioCleanupReviewPlan(
   const leadHoldingShares = parseNumericString(leadHolding?.holding?.quantity);
   const leadConcentrationPercent =
     totalShares > 0 ? Math.round((leadHoldingShares / totalShares) * 100) : 0;
-  const powerReadyRows = sortedHoldings.filter((entry: any) => {
-    const power = parseNumericString(entry?.holding?.power || "1");
+  const stackReadyRows = sortedHoldings.filter((entry: any) => {
     const quantity = parseNumericString(entry?.holding?.quantity);
 
-    return power === 1 && quantity >= 2;
+    return !entry?.holding?.isStackedShare && quantity >= 4;
   });
   const smallRows = sortedHoldings.filter((entry: any) => {
-    const power = parseNumericString(entry?.holding?.power || "1");
     const quantity = parseNumericString(entry?.holding?.quantity);
 
-    return power === 1 && quantity === 1;
+    return !entry?.holding?.isStackedShare && quantity === 1;
   });
   const activeBoostCount = activeBoosts.filter((boost) => boost.status !== "cancelled").length;
   const cleanupLevers: string[] = [];
@@ -636,9 +634,9 @@ async function buildPortfolioCleanupReviewPlan(
       `your biggest concentration is ${leadHolding.player.firstName} ${leadHolding.player.lastName} at roughly ${leadConcentrationPercent}% of visible shares`,
     );
   }
-  if (powerReadyRows.length > 0) {
+  if (stackReadyRows.length > 0) {
     cleanupLevers.push(
-      `${powerReadyRows.length} raw holding row${powerReadyRows.length === 1 ? "" : "s"} can be condensed into powered shares`,
+      `${stackReadyRows.length} raw holding row${stackReadyRows.length === 1 ? "" : "s"} can be stacked into stacked-share multipliers`,
     );
   }
   if (activeBoostCount === 0 && sortedHoldings.length > 0) {
@@ -656,7 +654,7 @@ async function buildPortfolioCleanupReviewPlan(
     domain: "sportfolio",
     requestMessage: message,
     replyText: `${primaryCleanup} ${
-      powerReadyRows.length > 0
+      stackReadyRows.length > 0
         ? "You have at least one raw share stack that can be converted into stronger boost-ready inventory."
         : "Most of the current structure is already fairly clean."
     } ${
@@ -670,9 +668,9 @@ async function buildPortfolioCleanupReviewPlan(
         leadHoldingShares,
         0,
       )} share${leadHoldingShares === 1 ? "" : "s"} (${leadConcentrationPercent}% of visible size).`,
-      `${powerReadyRows.length} raw holding row${powerReadyRows.length === 1 ? "" : "s"} can be condensed right now.`,
+      `${stackReadyRows.length} raw holding row${stackReadyRows.length === 1 ? "" : "s"} can be stacked right now.`,
       `${activeBoostCount} daily boost slot${activeBoostCount === 1 ? "" : "s"} are currently active today.`,
-      `${smallRows.length} one-share row${smallRows.length === 1 ? "" : "s"} are sitting as small unpowered positions.`,
+      `${smallRows.length} one-share row${smallRows.length === 1 ? "" : "s"} are sitting as small unstacked positions.`,
     ],
     warnings: [],
     actions: [],
@@ -683,7 +681,7 @@ async function buildPortfolioCleanupReviewPlan(
       totalShares,
       leadHoldingPlayerId: leadHolding.player.id,
       leadConcentrationPercent,
-      powerReadyRows: powerReadyRows.length,
+      stackReadyRows: stackReadyRows.length,
       activeBoostCount,
       smallRows: smallRows.length,
       availableBalance,
@@ -950,8 +948,8 @@ async function buildBroadOperatorReviewPlan(
     (sum: number, entry: any) => sum + parseNumericString(entry?.holding?.quantity),
     0,
   );
-  const poweredRows = playerHoldings.filter(
-    (entry: any) => parseNumericString(entry?.holding?.power) > 1,
+  const stackedRows = playerHoldings.filter((entry: any) =>
+    Boolean(entry?.holding?.isStackedShare),
   ).length;
   const topHolding =
     [...playerHoldings].sort(
@@ -1026,7 +1024,7 @@ async function buildBroadOperatorReviewPlan(
     observations: [
       leadHoldingText,
       `${watchlists.length} watchlist${watchlists.length === 1 ? "" : "s"} tracking ${watchlistEntries} total ${watchlistEntries === 1 ? "entry" : "entries"}.`,
-      `${poweredRows} powered holding row${poweredRows === 1 ? "" : "s"} currently give you boosted-share flexibility.`,
+      `${stackedRows} stacked holding row${stackedRows === 1 ? "" : "s"} currently give you boosted-share flexibility.`,
       openBoostSlots > 0
         ? `${openBoostSlots} daily boost slot${openBoostSlots === 1 ? "" : "s"} are still open for today.`
         : "All daily boost slots are currently occupied for today.",
@@ -1367,17 +1365,14 @@ async function buildMarketIntelligencePlan(
   };
 }
 
-async function buildBuyPowerBoostWorkflowPlan(
+async function buildBuyStackBoostWorkflowPlan(
   userId: string,
   profile: UserAgentProfile,
   message: string,
   requestMode: "discussion" | "commit",
 ): Promise<DirectOperationPlan | null> {
   const parserMessage = normalizeOperationalParserMessage(message);
-  const hasPowerIntent =
-    /\b(?:power(?:\s+them|\s+it|\s+that\s+share|\s+all(?:\s+up)?)?|power\s+up|condense)\b/i.test(
-      parserMessage,
-    );
+  const hasStackIntent = /\b(?:stack(?:\s+shares?)?|stacking)\b/i.test(parserMessage);
   const slotMatch = parserMessage.match(/\b([2345])x\s+boost\s+slot\b/i);
   const buyMatch =
     parserMessage.match(/\b(?:buy|buying|get|grab|pick\s+up)\s+(\d+)\s+(.+?)\s+shares?\b/i) ||
@@ -1385,25 +1380,25 @@ async function buildBuyPowerBoostWorkflowPlan(
       /\b(?:buy|buying|get|grab|pick\s+up)\s+(\d+)\s+shares?\s+of\s+(.+?)(?:\s+for\s+tomorrow|\s+for\s+today|\s+today|\s+tomorrow|$)/i,
     );
 
-  if (!hasPowerIntent || !slotMatch || !buyMatch) {
+  if (!hasStackIntent || !slotMatch || !buyMatch) {
     return null;
   }
 
   const desiredShares = Number.parseInt(buyMatch[1], 10);
-  if (!Number.isFinite(desiredShares) || desiredShares < 2) {
+  if (!Number.isFinite(desiredShares) || desiredShares < 4) {
     return buildUnavailableResponse({
       domain: "sportfolio",
       requestMessage: message,
-      summary: "I need at least 2 shares to power one up first.",
+      summary: "I need at least 4 shares to stack them into a multiplier first.",
       replyText:
-        "Powering up only works if at least 2 regular shares are being condensed first, so I did not stage that workflow.",
+        "Stacking only works if at least 4 regular shares are being combined first, so I did not stage that workflow.",
       contextSnapshot: {
-        intent: "buy_power_boost",
+        intent: "buy_stack_boost",
         desiredShares,
       },
       trace: {
         framework: "deterministic-agent-operations",
-        intent: "buy_power_boost",
+        intent: "buy_stack_boost",
         reason: "not_enough_shares",
       },
     });
@@ -1418,24 +1413,24 @@ async function buildBuyPowerBoostWorkflowPlan(
       requestMessage: message,
       summary: "I need the full player name before I can stage that workflow.",
       replyText:
-        "I can stage the buy, power-up, and boost sequence, but I need the full player name first so I do not hit the wrong player.",
+        "I can stage the buy, stack-shares, and boost sequence, but I need the full player name first so I do not hit the wrong player.",
       prompt:
-        "I can queue the full buy, power-up, and boost sequence as soon as you give me the full player name.",
-      resumeMessageTemplate: `buy ${desiredShares} {player} shares, power them all up and put that share into my ${slotTier}x boost slot ${resolvedDate.label}`,
-      workflowTitle: "Build the buy, power-up, and boost workflow",
+        "I can queue the full buy, stack-shares, and boost sequence as soon as you give me the full player name.",
+      resumeMessageTemplate: `buy ${desiredShares} {player} shares, stack them all and put that stacked share into my ${slotTier}x boost slot ${resolvedDate.label}`,
+      workflowTitle: "Build the buy, stack, and boost workflow",
       workflowPreviewSteps: [
         `Buy ${desiredShares} shares`,
-        "Power up the new position",
-        `Assign the top powered share to the ${slotTier}x boost slot`,
+        "Stack the new position",
+        `Assign the top stacked share to the ${slotTier}x boost slot`,
       ],
       contextSnapshot: {
-        intent: "buy_power_boost",
+        intent: "buy_stack_boost",
         desiredShares,
         rawPlayerReference: sanitizeNameFragment(buyMatch[2]),
       },
       trace: {
         framework: "deterministic-agent-operations",
-        intent: "buy_power_boost",
+        intent: "buy_stack_boost",
         reason: "player_not_resolved",
       },
     });
@@ -1457,16 +1452,16 @@ async function buildBuyPowerBoostWorkflowPlan(
       requestMessage: message,
       summary: `I couldn't estimate the buy needed to land ${desiredShares} ${player.firstName} ${player.lastName} shares.`,
       replyText:
-        "That market is not giving me a reliable buy estimate right now, so I did not stage the full power-and-boost workflow.",
+        "That market is not giving me a reliable buy estimate right now, so I did not stage the full stack-and-boost workflow.",
       warnings: playerResolution.warnings,
       contextSnapshot: {
-        intent: "buy_power_boost",
+        intent: "buy_stack_boost",
         playerId: player.id,
         desiredShares,
       },
       trace: {
         framework: "deterministic-agent-operations",
-        intent: "buy_power_boost",
+        intent: "buy_stack_boost",
         reason: "buy_estimate_unavailable",
       },
     });
@@ -1481,10 +1476,10 @@ async function buildBuyPowerBoostWorkflowPlan(
         estimate.sbAmount,
       )} available. Right now you only have ${formatMoney(
         availableBalance,
-      )}, so I did not queue the buy-power-boost workflow.`,
+      )}, so I did not queue the buy-stack-boost workflow.`,
       warnings: playerResolution.warnings,
       contextSnapshot: {
-        intent: "buy_power_boost",
+        intent: "buy_stack_boost",
         playerId: player.id,
         desiredShares,
         estimatedSpend: estimate.sbAmount,
@@ -1492,7 +1487,7 @@ async function buildBuyPowerBoostWorkflowPlan(
       },
       trace: {
         framework: "deterministic-agent-operations",
-        intent: "buy_power_boost",
+        intent: "buy_stack_boost",
         reason: "insufficient_balance",
       },
     });
@@ -1506,14 +1501,14 @@ async function buildBuyPowerBoostWorkflowPlan(
       replyText: `Your ${slotTier}x slot is already filled for that window, so I did not stage the boost sequence.`,
       warnings: playerResolution.warnings,
       contextSnapshot: {
-        intent: "buy_power_boost",
+        intent: "buy_stack_boost",
         playerId: player.id,
         slotTier,
         boostDate: resolvedDate.dateStr,
       },
       trace: {
         framework: "deterministic-agent-operations",
-        intent: "buy_power_boost",
+        intent: "buy_stack_boost",
         reason: "slot_occupied",
       },
     });
@@ -1528,13 +1523,13 @@ async function buildBuyPowerBoostWorkflowPlan(
         "That player is already sitting in one of your boost slots for that window, so I did not stage a duplicate boost workflow.",
       warnings: playerResolution.warnings,
       contextSnapshot: {
-        intent: "buy_power_boost",
+        intent: "buy_stack_boost",
         playerId: player.id,
         boostDate: resolvedDate.dateStr,
       },
       trace: {
         framework: "deterministic-agent-operations",
-        intent: "buy_power_boost",
+        intent: "buy_stack_boost",
         reason: "player_already_boosted",
       },
     });
@@ -1546,16 +1541,16 @@ async function buildBuyPowerBoostWorkflowPlan(
       requestMessage: message,
       summary: `${player.firstName} ${player.lastName} does not have a game in that boost window.`,
       replyText:
-        "I can buy and power up the shares, but I cannot finish the boost step because that player does not have a game in the requested window.",
+        "I can buy and stack the shares, but I cannot finish the boost step because that player does not have a game in the requested window.",
       warnings: playerResolution.warnings,
       contextSnapshot: {
-        intent: "buy_power_boost",
+        intent: "buy_stack_boost",
         playerId: player.id,
         boostDate: resolvedDate.dateStr,
       },
       trace: {
         framework: "deterministic-agent-operations",
-        intent: "buy_power_boost",
+        intent: "buy_stack_boost",
         reason: "game_not_found",
       },
     });
@@ -1567,25 +1562,25 @@ async function buildBuyPowerBoostWorkflowPlan(
       requestMessage: message,
       summary: `${player.firstName} ${player.lastName}'s game has already started for that window.`,
       replyText:
-        "That boost window is already closed because the game has started, so I did not stage the buy-power-boost sequence.",
+        "That boost window is already closed because the game has started, so I did not stage the buy-stack-boost sequence.",
       warnings: playerResolution.warnings,
       contextSnapshot: {
-        intent: "buy_power_boost",
+        intent: "buy_stack_boost",
         playerId: player.id,
         boostDate: resolvedDate.dateStr,
         gameId: game.gameId,
       },
       trace: {
         framework: "deterministic-agent-operations",
-        intent: "buy_power_boost",
+        intent: "buy_stack_boost",
         reason: "game_started",
       },
     });
   }
 
-  const condenseableShares = Math.max(0, desiredShares - (desiredShares % 2));
-  const leftoverShares = desiredShares - condenseableShares;
-  const expectedPowerGained = condenseableShares / 2;
+  const stackableShares = desiredShares < 4 ? 0 : Math.max(0, desiredShares - (desiredShares % 2));
+  const leftoverShares = desiredShares - stackableShares;
+  const expectedMultiplierGained = stackableShares / 2;
   const opponent = game.homeTeam === player.team ? `vs ${game.awayTeam}` : `@ ${game.homeTeam}`;
 
   const actions = [
@@ -1602,16 +1597,16 @@ async function buildBuyPowerBoostWorkflowPlan(
       confidence: 0.9,
     },
     {
-      actionType: "holdings_condense" as const,
+      actionType: "holdings_stack_shares" as const,
       playerId: player.id,
       playerName: `${player.firstName} ${player.lastName}`,
-      sharesToCondense: condenseableShares,
-      expectedPowerGained,
-      expectedPoweredShareCount: 1,
+      sharesToStack: stackableShares,
+      expectedMultiplierGained,
+      expectedStackedShareCount: 1,
       reasoning:
         leftoverShares > 0
-          ? `Condense ${condenseableShares} of the bought shares into 1 powered share and leave ${leftoverShares} regular share${leftoverShares === 1 ? "" : "s"} uncondensed.`
-          : `Condense all ${condenseableShares} bought shares into 1 powered share.`,
+          ? `Stack ${stackableShares} of the bought shares into 1 stacked share and leave ${leftoverShares} regular share${leftoverShares === 1 ? "" : "s"} unstacked.`
+          : `Stack all ${stackableShares} bought shares into 1 stacked share.`,
       confidence: 0.92,
     },
     {
@@ -1625,79 +1620,79 @@ async function buildBuyPowerBoostWorkflowPlan(
       gameId: game.gameId,
       gameStartTime: new Date(game.startTime).toISOString(),
       opponent,
-      reasoning: `Use the highest-power available ${player.firstName} ${player.lastName} share in the ${slotTier}x slot for ${resolvedDate.label}.`,
+      reasoning: `Use the highest-multiplier available ${player.firstName} ${player.lastName} share in the ${slotTier}x slot for ${resolvedDate.label}.`,
       confidence: 0.94,
     },
   ];
 
   const warnings = [
     ...playerResolution.warnings,
-    "This is a 3-step workflow: the boost only happens after the buy and condense steps succeed.",
+    "This is a 3-step workflow: the boost only happens after the buy and stack-shares steps succeed.",
   ];
   if (leftoverShares > 0) {
     warnings.push(
-      `${leftoverShares} share${leftoverShares === 1 ? "" : "s"} would remain regular because condense only works on even share counts in the current system.`,
+      `${leftoverShares} share${leftoverShares === 1 ? "" : "s"} would remain regular because Stack Shares only works on even share counts in the current system.`,
     );
   }
 
-  const summary = `Buy ${desiredShares} ${player.firstName} ${player.lastName} shares, power up the position, then use the powered share in your ${slotTier}x boost slot for ${resolvedDate.label}`;
+  const summary = `Buy ${desiredShares} ${player.firstName} ${player.lastName} shares, stack the position, then use the stacked share in your ${slotTier}x boost slot for ${resolvedDate.label}`;
 
   return {
     domain: "sportfolio",
     requestMessage: message,
     replyText:
       requestMode === "discussion"
-        ? `${summary}. That would cost about ${formatMoney(estimate.sbAmount)} at current depth, create 1 powered share worth ${formatNumber(
-            expectedPowerGained,
+        ? `${summary}. That would cost about ${formatMoney(estimate.sbAmount)} at current depth, create 1 stacked share at ${formatNumber(
+            expectedMultiplierGained,
             2,
-          )} power, and line up ${player.firstName} ${player.lastName} ${opponent} in your ${slotTier}x slot. ${buildStageNudge(requestMode)}`
+          )}x, and line up ${player.firstName} ${player.lastName} ${opponent} in your ${slotTier}x slot. ${buildStageNudge(requestMode)}`
         : `${summary}. I staged it as a 3-step workflow: buy about ${formatMoney(
             estimate.sbAmount,
-          )}, condense ${condenseableShares} shares into 1 powered share, then slot that share into ${slotTier}x for ${resolvedDate.label}. ${buildStageNudge(
+          )}, stack ${stackableShares} shares into 1 stacked share, then slot that share into ${slotTier}x for ${resolvedDate.label}. ${buildStageNudge(
             requestMode,
           )}`,
     summary,
     observations: [
       `Estimated spend: ${formatMoney(estimate.sbAmount)} for about ${estimate.roundedSharesOut} shares at current pool depth.`,
-      `Expected powered share strength after condense: ${formatNumber(expectedPowerGained, 2)} power.`,
+      `Expected stacked-share multiplier after stacking: ${formatNumber(expectedMultiplierGained, 2)}x.`,
       `${player.firstName} ${player.lastName} is scheduled ${opponent} at ${new Date(game.startTime).toLocaleString()}.`,
     ],
     warnings,
     actions: requestMode === "commit" ? actions : [],
     errorMessage: null,
     contextSnapshot: {
-      intent: "buy_power_boost",
+      intent: "buy_stack_boost",
       playerId: player.id,
       desiredShares,
-      condenseableShares,
+      stackableShares,
       slotTier,
       boostDate: resolvedDate.dateStr,
     },
     trace: {
       framework: "deterministic-agent-operations",
-      intent: "buy_power_boost",
+      intent: "buy_stack_boost",
       requestMode,
       actionTypes: actions.map((action) => action.actionType),
     },
   };
 }
 
-async function buildCondensePlan(
+async function buildStackSharesPlan(
   _userId: string,
   profile: UserAgentProfile,
   message: string,
   requestMode: "discussion" | "commit",
 ): Promise<DirectOperationPlan | null> {
   const parserMessage = normalizeOperationalParserMessage(message);
-  const match = parserMessage.match(/\b(?:condense|power\s+up|power)\s+(\d+)\s+(.+?)\s+shares?\b/i);
+  const match = parserMessage.match(/\bstack(?:\s+shares)?\s+(\d+)\s+(.+?)\s+shares?\b/i);
 
   if (!match) {
     return null;
   }
 
-  const sharesToCondense = Number.parseInt(match[1], 10);
+  const sharesToStack = Number.parseInt(match[1], 10);
   const rawReference = match[2];
-  if (!Number.isFinite(sharesToCondense) || sharesToCondense < 2) {
+  if (!Number.isFinite(sharesToStack) || sharesToStack < 4) {
     return null;
   }
 
@@ -1706,58 +1701,58 @@ async function buildCondensePlan(
     return buildPlayerClarificationResponse({
       domain: "sportfolio",
       requestMessage: message,
-      summary: "I need a clearer player name before I can power that position up.",
+      summary: "I need a clearer player name before I can stack that position.",
       replyText:
-        "I can power up that holding, but I need the full player name first so I do not condense the wrong shares.",
-      prompt: "Send the full player name and I'll queue the power-up for confirmation.",
-      resumeMessageTemplate: `power up ${sharesToCondense} {player} shares`,
+        "I can stage Stack Shares for that holding, but I need the full player name first so I do not touch the wrong shares.",
+      prompt: "Send the full player name and I'll queue the stack-shares move for confirmation.",
+      resumeMessageTemplate: `stack shares ${sharesToStack} {player} shares`,
       contextSnapshot: {
-        intent: "holdings_condense",
+        intent: "holdings_stack_shares",
         rawPlayerReference: sanitizeNameFragment(rawReference),
-        sharesToCondense,
+        sharesToStack,
       },
       trace: {
         framework: "deterministic-agent-operations",
-        intent: "holdings_condense",
+        intent: "holdings_stack_shares",
         reason: "player_not_resolved",
       },
     });
   }
 
   const player = playerResolution.player;
-  const normalizedShares = sharesToCondense % 2 === 0 ? sharesToCondense : sharesToCondense - 1;
-  if (normalizedShares < 2) {
+  const normalizedShares = sharesToStack % 2 === 0 ? sharesToStack : sharesToStack - 1;
+  if (normalizedShares < 4) {
     return buildUnavailableResponse({
       domain: "sportfolio",
       requestMessage: message,
-      summary: "Condense needs at least 2 regular shares.",
+      summary: "Stack Shares needs at least 4 regular shares.",
       replyText:
-        "I need at least 2 regular shares to condense into a powered share, so I did not stage that move.",
+        "I need at least 4 regular shares to stack into a multiplier, so I did not stage that move.",
       warnings: playerResolution.warnings,
       contextSnapshot: {
-        intent: "holdings_condense",
+        intent: "holdings_stack_shares",
         playerId: player.id,
-        sharesToCondense,
+        sharesToStack,
       },
       trace: {
         framework: "deterministic-agent-operations",
-        intent: "holdings_condense",
+        intent: "holdings_stack_shares",
         reason: "not_enough_shares",
       },
     });
   }
 
   const action = {
-    actionType: "holdings_condense" as const,
+    actionType: "holdings_stack_shares" as const,
     playerId: player.id,
     playerName: `${player.firstName} ${player.lastName}`,
-    sharesToCondense: normalizedShares,
-    expectedPowerGained: normalizedShares / 2,
-    expectedPoweredShareCount: 1,
+    sharesToStack: normalizedShares,
+    expectedMultiplierGained: normalizedShares / 2,
+    expectedStackedShareCount: 1,
     reasoning:
-      normalizedShares === sharesToCondense
-        ? `Condense ${normalizedShares} regular shares into 1 powered share.`
-        : `Condense ${normalizedShares} regular shares into 1 powered share and leave 1 regular share untouched because the current rule requires an even share count.`,
+      normalizedShares === sharesToStack
+        ? `Stack ${normalizedShares} regular shares into 1 stacked share.`
+        : `Stack ${normalizedShares} regular shares into 1 stacked share and leave 1 regular share untouched because the current rule requires an even share count.`,
     confidence: 0.92,
   };
 
@@ -1766,35 +1761,35 @@ async function buildCondensePlan(
     requestMessage: message,
     replyText:
       requestMode === "discussion"
-        ? `Powering up ${action.playerName} using ${normalizedShares} shares would create 1 powered share worth ${formatNumber(
-            action.expectedPowerGained,
+        ? `Stacking ${action.playerName} using ${normalizedShares} shares would create 1 stacked share at ${formatNumber(
+            action.expectedMultiplierGained,
             2,
-          )} power. ${buildStageNudge(requestMode)}`
-        : `I staged a power-up for ${action.playerName}: condense ${normalizedShares} regular shares into 1 powered share worth ${formatNumber(
-            action.expectedPowerGained,
+          )}x. ${buildStageNudge(requestMode)}`
+        : `I staged Stack Shares for ${action.playerName}: stack ${normalizedShares} regular shares into 1 stacked share worth ${formatNumber(
+            action.expectedMultiplierGained,
             2,
-          )} power. ${buildStageNudge(requestMode)}`,
-    summary: `Power up ${action.playerName}`,
+          )}x. ${buildStageNudge(requestMode)}`,
+    summary: `Stack Shares for ${action.playerName}`,
     observations: [
-      `Expected output: 1 powered share at ${formatNumber(action.expectedPowerGained, 2)} power.`,
+      `Expected output: 1 stacked share at ${formatNumber(action.expectedMultiplierGained, 2)}x.`,
     ],
     warnings:
-      normalizedShares === sharesToCondense
+      normalizedShares === sharesToStack
         ? playerResolution.warnings
         : [
             ...playerResolution.warnings,
-            "The current condense rule only accepts even share counts, so one share would be left uncondensed.",
+            "The current Stack Shares rule only accepts even share counts, so one share would be left unstacked.",
           ],
     actions: requestMode === "commit" ? [action] : [],
     errorMessage: null,
     contextSnapshot: {
-      intent: "holdings_condense",
+      intent: "holdings_stack_shares",
       playerId: player.id,
-      sharesToCondense: normalizedShares,
+      sharesToStack: normalizedShares,
     },
     trace: {
       framework: "deterministic-agent-operations",
-      intent: "holdings_condense",
+      intent: "holdings_stack_shares",
       requestMode,
     },
   };
@@ -2193,10 +2188,10 @@ export async function planDirectAgentOperation(input: {
     buildCommunityBoostOpportunityScanPlan,
     buildBroadOperatorReviewPlan,
     buildMarketIntelligencePlan,
-    buildBuyPowerBoostWorkflowPlan,
+    buildBuyStackBoostWorkflowPlan,
     buildCommunityBoostPlan,
     buildWatchlistPlan,
-    buildCondensePlan,
+    buildStackSharesPlan,
     buildGameplayStrategyPlan,
     buildBoostRemovePlan,
     buildBoostAssignPlan,
@@ -3329,7 +3324,7 @@ async function buildBoostAssignPlan(
     storage.getDailyBoosts(userId, player.sport, resolvedDate.targetDate),
     storage.getPlayerGameForDate(player.id, player.sport, resolvedDate.targetDate),
     storage.getAvailableShares(userId, "player", player.id),
-    storage.getHoldingsWithPowerBreakdown(userId, player.id),
+    storage.getPlayerShareBreakdown(userId, player.id),
   ]);
 
   if (currentBoosts.some((boost) => boost.slotTier === slotTier)) {
@@ -3464,14 +3459,18 @@ async function buildBoostAssignPlan(
     });
   }
 
-  const poweredCandidates = [
-    ...(breakdown.powered || []).filter((holding) => Number.parseFloat(holding.quantity) >= 1),
+  const stackedCandidates = [
+    ...(breakdown.stacked || [])
+      .filter((holding) => Number.parseFloat(holding.quantity) >= 1)
+      .map((holding) => ({
+        multiplier: Number.parseFloat(holding.multiplier || "1"),
+      })),
     ...(breakdown.regular && Number.parseFloat(breakdown.regular.quantity) >= 1
-      ? [breakdown.regular]
+      ? [{ multiplier: 1 }]
       : []),
-  ].sort((left, right) => (right.power || 1) - (left.power || 1));
-  const selectedHolding = poweredCandidates[0];
-  const powerLevel = selectedHolding?.power || 1;
+  ].sort((left, right) => right.multiplier - left.multiplier);
+  const selectedHolding = stackedCandidates[0];
+  const multiplier = selectedHolding?.multiplier || 1;
   const opponent = game.homeTeam === player.team ? `vs ${game.awayTeam}` : `@ ${game.homeTeam}`;
 
   const action: DailyBoostAssignAction = {
@@ -3486,7 +3485,7 @@ async function buildBoostAssignPlan(
     gameStartTime: new Date(game.startTime).toISOString(),
     opponent,
     availableShares,
-    powerLevel,
+    shareMultiplier: multiplier,
     reasoning:
       requestMode === "discussion"
         ? "Previewing a valid daily boost placement for the selected slot."
@@ -3497,7 +3496,7 @@ async function buildBoostAssignPlan(
   const summary = `Put ${action.playerName} in your ${slotTier}x boost slot for ${resolvedDate.label}`;
   const observations = [
     `${action.playerName} is scheduled ${opponent} at ${new Date(game.startTime).toLocaleString()}.`,
-    `The selected share would contribute ${formatNumber(powerLevel, 2)} power in that slot.`,
+    `The selected share would contribute ${formatNumber(multiplier, 2)} multiplier in that slot.`,
   ];
   const warnings = [
     ...playerResolution.warnings,
@@ -3510,13 +3509,13 @@ async function buildBoostAssignPlan(
     replyText:
       requestMode === "discussion"
         ? `${summary}. ${action.playerName} is eligible right now, and the best available share would carry ${formatNumber(
-            powerLevel,
+            multiplier,
             2,
-          )} power into that slot. ${buildStageNudge(requestMode)}`
+          )}x into that slot. ${buildStageNudge(requestMode)}`
         : `${summary}. ${action.playerName} is eligible right now, and the best available share would carry ${formatNumber(
-            powerLevel,
+            multiplier,
             2,
-          )} power into that slot. ${buildStageNudge(requestMode)}`,
+          )}x into that slot. ${buildStageNudge(requestMode)}`,
     summary,
     observations,
     warnings,
@@ -3531,7 +3530,7 @@ async function buildBoostAssignPlan(
       boostDate: resolvedDate.dateStr,
       gameId: game.gameId,
       availableShares,
-      selectedPowerLevel: powerLevel,
+      selectedMultiplier: multiplier,
     },
     trace: {
       framework: "deterministic-agent-operations",

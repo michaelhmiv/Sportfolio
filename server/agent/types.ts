@@ -149,7 +149,7 @@ export interface ScoutAgentOperatorHolding {
   name: string;
   sport: string;
   shares: number;
-  power: number;
+  multiplier: number;
   availableShares: number;
   nextGameAt: string | null;
 }
@@ -158,8 +158,8 @@ export interface ScoutAgentOperatorOverview {
   availableBalance: number;
   portfolioPlayerCount: number;
   totalPlayerShares: number;
-  poweredHoldingRows: number;
-  powerReadyHoldingRows: number;
+  stackedHoldingRows: number;
+  stackReadyHoldingRows: number;
   watchlistCount: number;
   watchlistEntryCount: number;
   communitySharesAvailable: number;
@@ -596,16 +596,16 @@ export interface PoolRemoveLiquidityAction {
   confidence: number;
 }
 
-export interface HoldingsCondenseAction {
-  actionType: "holdings_condense";
+export interface HoldingsStackSharesAction {
+  actionType: "holdings_stack_shares";
   playerId: string;
   playerName?: string;
   status?: string;
-  sharesToCondense: number;
+  sharesToStack: number;
   availableSharesBefore?: number | null;
   availableSharesAfter?: number | null;
-  expectedPowerGained: number;
-  expectedPoweredShareCount: number;
+  expectedMultiplierGained: number;
+  expectedStackedShareCount: number;
   reasoning: string;
   confidence: number;
 }
@@ -623,7 +623,7 @@ export interface DailyBoostAssignAction {
   gameStartTime?: string | null;
   opponent?: string | null;
   availableShares?: number;
-  powerLevel?: number | null;
+  shareMultiplier?: number | null;
   reasoning: string;
   confidence: number;
 }
@@ -702,7 +702,7 @@ export type AgentAction =
   | PoolZapSharesAction
   | PoolZapSbAction
   | PoolRemoveLiquidityAction
-  | HoldingsCondenseAction
+  | HoldingsStackSharesAction
   | DailyBoostAssignAction
   | DailyBoostRemoveAction
   | WatchlistAddPlayerAction

@@ -87,7 +87,7 @@ interface DashboardData {
     pnl: string;
     pnlPercent: string;
   }[];
-  power: {
+  boosts: {
     activeBoosts: number;
     lockedBoosts: number;
     processedBoosts: number;
@@ -997,7 +997,7 @@ export default function Dashboard() {
                                       ...(game.userContext?.ownedPlayers || []).map(
                                         (player) => player.team,
                                       ),
-                                      ...(game.userContext?.topPowerPlayers || []).map(
+                                      ...(game.userContext?.topMultiplierPlayers || []).map(
                                         (player) => player.team,
                                       ),
                                     ].filter(Boolean),
@@ -1008,7 +1008,7 @@ export default function Dashboard() {
                                     canShow: isAuthenticated && game.userContext !== null,
                                   });
                                   const ownedCount = game.userContext?.ownedPlayers?.length || 0;
-                                  const powerLeader = game.userContext?.topPowerPlayers?.[0];
+                                  const powerLeader = game.userContext?.topMultiplierPlayers?.[0];
 
                                   return (
                                     <tr
@@ -1077,7 +1077,7 @@ export default function Dashboard() {
                                         </div>
                                         <div className="truncate text-[11px] text-muted-foreground">
                                           {isAuthenticated && powerLeader
-                                            ? `Pwr ${powerLeader.powerLevel.toFixed(1)}`
+                                            ? `Multi ${powerLeader.multiplier.toFixed(1)}x`
                                             : "--"}
                                         </div>
                                       </td>
@@ -1109,19 +1109,19 @@ export default function Dashboard() {
 
           {/* Widgets Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 sm:gap-3">
-            {/* Power Summary */}
+            {/* Boosts Summary */}
             <ScrollReveal delay={0.35}>
               <Card className="lg:col-span-1 relative overflow-hidden">
                 {/* Card Accent */}
                 <CardAccent variant="top" color="warning" intensity="medium" />
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative z-10">
                   <CardTitle className="text-sm font-medium uppercase tracking-wide">
-                    Power
+                    Boosts
                   </CardTitle>
                   <Zap className="w-4 h-4 text-yellow-500" />
                 </CardHeader>
                 <CardContent className="space-y-2 sm:space-y-3">
-                  {isAuthenticated && data?.power ? (
+                  {isAuthenticated && data?.boosts ? (
                     <>
                       {/* Active Boosts Stats */}
                       <div className="grid grid-cols-2 gap-2 relative z-10">
@@ -1130,14 +1130,14 @@ export default function Dashboard() {
                             <Flame className="w-3 h-3 text-orange-500" />
                             <span className="text-xs text-muted-foreground">Active</span>
                           </div>
-                          <div className="text-lg font-bold">{data.power.activeBoosts}/4</div>
+                          <div className="text-lg font-bold">{data.boosts.activeBoosts}/4</div>
                         </div>
                         <div className="p-2 bg-yellow-500/10 rounded-md">
                           <div className="flex items-center gap-1 mb-1">
                             <span className="h-2 w-2 rounded-sm bg-yellow-500 animate-pulse" />
                             <span className="text-xs text-muted-foreground">Live</span>
                           </div>
-                          <div className="text-lg font-bold">{data.power.lockedBoosts}</div>
+                          <div className="text-lg font-bold">{data.boosts.lockedBoosts}</div>
                         </div>
                       </div>
 
@@ -1146,52 +1146,52 @@ export default function Dashboard() {
                         <div className="flex-1">
                           <div className="text-xs text-muted-foreground mb-1">Slots Available</div>
                           <div className="flex gap-1 mt-1">
-                            {data.power.availableSlots.map((slot) => (
+                            {data.boosts.availableSlots.map((slot) => (
                               <Badge key={slot} variant="outline" className="text-xs">
                                 {slot}x
                               </Badge>
                             ))}
                           </div>
                         </div>
-                        {data.power.slotsRemaining > 0 && (
+                        {data.boosts.slotsRemaining > 0 && (
                           <div className="text-sm text-muted-foreground">
-                            {data.power.slotsRemaining} open
+                            {data.boosts.slotsRemaining} open
                           </div>
                         )}
                       </div>
 
                       {/* Community Boost Count */}
-                      {data.power.communityBoostCount > 0 && (
+                      {data.boosts.communityBoostCount > 0 && (
                         <div className="flex items-center gap-2 p-2 bg-amber-500/10 rounded-md border border-amber-500/20">
                           <div className="flex-1">
                             <div className="text-xs text-muted-foreground">Community Boosts</div>
                             <div className="text-sm font-medium">
-                              {data.power.communityBoostCount} active today
+                              {data.boosts.communityBoostCount} active today
                             </div>
                           </div>
                           <Badge className="bg-amber-500/20 text-amber-600 border-amber-500/30">
-                            +{data.power.communityBoostCount}x
+                            +{data.boosts.communityBoostCount}x
                           </Badge>
                         </div>
                       )}
 
                       {/* Today's Payout */}
-                      {(data.power.totalLivePayout !== "0.00" ||
-                        data.power.totalProcessedPayout !== "0.00") && (
+                      {(data.boosts.totalLivePayout !== "0.00" ||
+                        data.boosts.totalProcessedPayout !== "0.00") && (
                         <div className="p-2 bg-green-500/10 rounded-md border border-green-500/20">
                           <div className="flex items-center justify-between">
                             <span className="text-xs text-muted-foreground">Today's Payout</span>
                             <span className="text-lg font-bold text-green-500">
                               $
                               {(
-                                parseFloat(data.power.totalLivePayout) +
-                                parseFloat(data.power.totalProcessedPayout)
+                                parseFloat(data.boosts.totalLivePayout) +
+                                parseFloat(data.boosts.totalProcessedPayout)
                               ).toFixed(2)}
                             </span>
                           </div>
-                          {data.power.totalLivePayout !== "0.00" && (
+                          {data.boosts.totalLivePayout !== "0.00" && (
                             <div className="text-xs text-muted-foreground mt-1">
-                              Est. ${data.power.totalLivePayout} live
+                              Est. ${data.boosts.totalLivePayout} live
                             </div>
                           )}
                         </div>
@@ -1199,13 +1199,13 @@ export default function Dashboard() {
                     </>
                   ) : (
                     <div className="text-center py-4 text-sm text-muted-foreground">
-                      Sign in to use Power
+                      Sign in to use Boosts
                     </div>
                   )}
 
-                  <Link href="/power">
-                    <Button variant="outline" className="w-full" data-testid="button-view-power">
-                      Open Power Tab
+                  <Link href="/boosts">
+                    <Button variant="outline" className="w-full" data-testid="button-view-boosts">
+                      Open Boosts Tab
                     </Button>
                   </Link>
                 </CardContent>

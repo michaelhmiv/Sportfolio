@@ -1,0 +1,32 @@
+{
+  "$schema": "https://developers.reddit.com/schema/config-file.v1.json",
+  "name": "sportfoliobot",
+  "blocks": {
+    "entry": "src/main.ts",
+    "forms": {
+      "enable": true
+    },
+    "menu": {
+      "enable": true
+    },
+    "settings": {
+      "enable": true
+    },
+    "triggers": ["onAppInstall", "onAppUpgrade"]
+  },
+  "permissions": {
+    "http": {
+      "enable": true,
+      "domains": ["www.sportfolio.market", "sportfolio.market"]
+    },
+    "media": true,
+    "redis": true,
+    "reddit": {
+      "enable": true,
+      "scope": "moderator"
+    }
+  },
+  "dev": {
+    "subreddit": "sportfoliobot_dev"
+  }
+}

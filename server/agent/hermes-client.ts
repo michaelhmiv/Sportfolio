@@ -257,7 +257,7 @@ export async function runHermesAgentTurn(input: {
       "preview_lp_add_optimal",
       "preview_lp_remove",
       "preview_lp_zap",
-      "preview_condense",
+      "preview_stack_shares",
       "preview_daily_boost_assign",
       "preview_daily_boost_remove",
       "preview_watchlist_add",

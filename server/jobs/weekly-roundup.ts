@@ -5,7 +5,7 @@
  * - Top gainers and losers of the week
  * - Most traded players
  * - Market statistics and trends
- * - Power rankings changes
+ * - Effective-share rankings changes
  *
  * Runs weekly on Monday at 6 AM ET
  */

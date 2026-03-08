@@ -88,7 +88,7 @@ A buy decision should usually check:
 - whether you are over-concentrating in one player, team, or sport
 - whether you may want to keep cash for boosts, liquidity adds, or a later dip
 
-Buying is the simplest way to gain inventory for future trades, boosts, or condense paths.
+Buying is the simplest way to gain inventory for future trades, boosts, or stack shares paths.
 
 ## Selling shares
 

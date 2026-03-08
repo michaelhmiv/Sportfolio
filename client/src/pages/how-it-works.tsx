@@ -18,7 +18,7 @@ const faqs = [
   {
     question: "How do Daily Boosts work?",
     answer:
-      "Daily Boosts let you commit a single share to a started-game payout mechanic. Slot tier, share power, and any active community multiplier determine the payout after the game settles.",
+      "Daily Boosts let you commit a single share to a started-game payout mechanic. Slot tier, share multiplier, and any active community multiplier determine the payout after the game settles.",
   },
   {
     question: "What happens when I use a share in a boost?",
@@ -53,8 +53,8 @@ const sections = [
     icon: Zap,
     title: "3. Use Daily Boosts",
     body: [
-      "Daily Boosts are the short-horizon action layer. You assign one eligible share to a boost slot and the system records that share's power for settlement.",
-      "When the underlying game starts, the share enters the boost lifecycle. After the game settles, payouts depend on slot tier, the share's power level, and any community multiplier affecting that boost.",
+      "Daily Boosts are the short-horizon action layer. You assign one eligible share to a boost slot and the system records that share's multiplier for settlement.",
+      "When the underlying game starts, the share enters the boost lifecycle. After the game settles, payouts depend on slot tier, the share's multiplier, and any community multiplier affecting that boost.",
     ],
   },
   {

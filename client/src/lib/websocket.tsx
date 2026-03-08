@@ -16,6 +16,8 @@ interface WebSocketContextValue {
   isConnected: boolean;
   connectionState: "connecting" | "connected" | "disconnected" | "error";
   reconnectAttempts: number;
+  lastMessageAt: number | null;
+  freshnessState: "live" | "catching_up" | "offline";
   subscribe: (eventType: string, handler: (data: any) => void) => () => void;
 }
 
@@ -27,10 +29,20 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     "connecting" | "connected" | "disconnected" | "error"
   >("connecting");
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
+  const [lastMessageAt, setLastMessageAt] = useState<number | null>(null);
+  const [freshnessNow, setFreshnessNow] = useState(() => Date.now());
   const wsRef = useRef<WebSocket | null>(null);
   const handlersRef = useRef<Map<string, Set<(data: any) => void>>>(new Map());
   const reconnectTimeoutRef = useRef<NodeJS.Timeout>();
   const reconnectAttemptsRef = useRef(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setFreshnessNow(Date.now());
+    }, 5000);
+
+    return () => clearInterval(timer);
+  }, []);
 
   const connect = () => {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -49,12 +61,14 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
         debugLog("OPEN", "WebSocket connected successfully");
         setIsConnected(true);
         setConnectionState("connected");
+        setLastMessageAt(Date.now());
         reconnectAttemptsRef.current = 0;
         setReconnectAttempts(0);
       };
 
       ws.onmessage = (event) => {
         try {
+          setLastMessageAt(Date.now());
           const message = JSON.parse(event.data);
 
           const handlers = handlersRef.current.get(message.type);
@@ -229,9 +243,29 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     };
   };
 
+  const freshnessState: "live" | "catching_up" | "offline" =
+    connectionState !== "connected"
+      ? "offline"
+      : lastMessageAt === null
+        ? reconnectAttempts > 0
+          ? "catching_up"
+          : "live"
+        : freshnessNow - lastMessageAt <= 30000
+          ? "live"
+          : freshnessNow - lastMessageAt <= 120000
+            ? "catching_up"
+            : "offline";
+
   return (
     <WebSocketContext.Provider
-      value={{ isConnected, connectionState, reconnectAttempts, subscribe }}
+      value={{
+        isConnected,
+        connectionState,
+        reconnectAttempts,
+        lastMessageAt,
+        freshnessState,
+        subscribe,
+      }}
     >
       {children}
     </WebSocketContext.Provider>

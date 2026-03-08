@@ -175,8 +175,6 @@ async function setupMarketMaker() {
             assetType: "player",
             assetId: player.id,
             quantity: INITIAL_POOL_SHARES.toString(),
-            power: 1,
-            powerLevel: INITIAL_POOL_SHARES.toString(),
             avgCostBasis: INITIAL_POOL_PRICE.toString(),
             totalCostBasis: INITIAL_POOL_PLAY_MONEY.toString(),
           });

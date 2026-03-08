@@ -343,8 +343,8 @@ function getOperatorOverview(context: ScoutContext): ScoutContext["operatorOverv
       availableBalance: 0,
       portfolioPlayerCount: 0,
       totalPlayerShares: 0,
-      poweredHoldingRows: 0,
-      powerReadyHoldingRows: 0,
+      stackedHoldingRows: 0,
+      stackReadyHoldingRows: 0,
       watchlistCount: 0,
       watchlistEntryCount: 0,
       communitySharesAvailable: 0,
@@ -367,7 +367,7 @@ function formatOperatorOverviewLines(context: ScoutContext) {
   return [
     `- Available balance: $${overview.availableBalance.toFixed(2)}`,
     `- Portfolio: ${overview.portfolioPlayerCount} player holding row(s), ${overview.totalPlayerShares.toFixed(0)} total shares`,
-    `- Power state: ${overview.poweredHoldingRows} powered row(s), ${overview.powerReadyHoldingRows} raw row(s) ready to condense`,
+    `- Stack state: ${overview.stackedHoldingRows} stacked row(s), ${overview.stackReadyHoldingRows} raw row(s) ready to stack`,
     `- Daily boosts: ${overview.activeDailyBoostSlots} active, ${overview.openDailyBoostSlots} open`,
     `- Watchlists: ${overview.watchlistCount} list(s), ${overview.watchlistEntryCount} tracked entry(ies)`,
     `- Community shares available: ${overview.communitySharesAvailable}`,
@@ -383,7 +383,7 @@ function formatOperatorTopHoldingsLines(context: ScoutContext) {
   return topHoldings.map((holding) => {
     const nextGameNote = holding.nextGameAt ? ` | next game ${holding.nextGameAt}` : "";
 
-    return `- ${holding.name} (${holding.playerId}) | ${holding.sport} | ${holding.shares.toFixed(0)} share(s) | power ${holding.power} | available ${holding.availableShares.toFixed(0)}${nextGameNote}`;
+    return `- ${holding.name} (${holding.playerId}) | ${holding.sport} | ${holding.shares.toFixed(0)} share(s) | ${holding.multiplier}x multiplier | available ${holding.availableShares.toFixed(0)}${nextGameNote}`;
   });
 }
 

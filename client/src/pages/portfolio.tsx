@@ -82,10 +82,10 @@ interface PortfolioData {
     currentValue: string;
     pnl: string;
     pnlPercent: string;
-    power?: number;
-    powerLevel?: string;
-    totalPlayerPower?: string;
-    isPowered?: boolean;
+    multiplier?: string;
+    effectiveShares?: string;
+    totalPlayerEffectiveShares?: string;
+    isStackedShare?: boolean;
   })[];
   premiumShares: number;
   isPremium: boolean;
@@ -198,20 +198,20 @@ export default function Portfolio() {
     return "list";
   });
 
-  // Condense dialog state
-  const [condenseDialogOpen, setCondenseDialogOpen] = useState(false);
-  const [selectedPlayerForCondense, setSelectedPlayerForCondense] = useState<{
+  // Stack Shares dialog state
+  const [stackSharesDialogOpen, setStackSharesDialogOpen] = useState(false);
+  const [selectedPlayerForStacking, setSelectedPlayerForStacking] = useState<{
     id: string;
     name: string;
   } | null>(null);
-  const [sharesToCondenseInput, setSharesToCondenseInput] = useState<string>("");
+  const [sharesToStackInput, setSharesToStackInput] = useState<string>("");
 
   // Player modal state
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [playerModalOpen, setPlayerModalOpen] = useState(false);
 
   // Expanded share table state (per player)
-  const [expandedShareSortField, setExpandedShareSortField] = useState<"quantity" | "power">(
+  const [expandedShareSortField, setExpandedShareSortField] = useState<"quantity" | "multiplier">(
     "quantity",
   );
   const [expandedShareSortDir, setExpandedShareSortDir] = useState<"asc" | "desc">("desc");
@@ -360,58 +360,60 @@ export default function Portfolio() {
     },
   });
 
-  // Condense shares into Power Level (2:1 ratio)
-  const condenseSharesMutation = useMutation({
+  // Stack regular shares into a single multiplier share.
+  const stackSharesMutation = useMutation({
     mutationFn: async ({
       playerId,
-      sharesToCondense,
+      sharesToStack,
     }: {
       playerId: string;
-      sharesToCondense: number;
+      sharesToStack: number;
     }) => {
-      return await apiRequest("POST", "/api/holdings/condense", { playerId, sharesToCondense });
+      return await apiRequest("POST", "/api/holdings/stack-shares", {
+        playerId,
+        sharesToStack,
+      });
     },
     onSuccess: async (data: any) => {
       await invalidatePortfolioQueries();
-      setCondenseDialogOpen(false);
-      setSelectedPlayerForCondense(null);
-      setSharesToCondenseInput("");
+      setStackSharesDialogOpen(false);
+      setSelectedPlayerForStacking(null);
+      setSharesToStackInput("");
       toast({
-        title: "Shares Powered Up! ⚡",
+        title: "Shares Stacked",
         description:
-          data.message ||
-          `Powered up ${data.sharesCondensed} shares into ${data.powerLevelGained} Power Level`,
+          data.message || `Stacked ${data.sharesStacked} shares into ${data.multiplierGained}x`,
       });
     },
     onError: (error: Error) => {
-      toast({ title: "Power Up failed", description: error.message, variant: "destructive" });
+      toast({ title: "Stack Shares failed", description: error.message, variant: "destructive" });
     },
   });
 
-  // Open condense dialog
-  const openCondenseDialog = (playerId: string, playerName: string, availableShares: number) => {
-    setSelectedPlayerForCondense({ id: playerId, name: playerName });
-    // Default to the maximum condensable shares (rounded down to nearest multiple of 2)
-    const maxCondensable = Math.floor(availableShares / 2) * 2;
-    setSharesToCondenseInput(maxCondensable.toString());
-    setCondenseDialogOpen(true);
+  // Open Stack Shares dialog
+  const openStackSharesDialog = (playerId: string, playerName: string, availableShares: number) => {
+    setSelectedPlayerForStacking({ id: playerId, name: playerName });
+    // Default to the maximum stackable shares (rounded down to nearest multiple of 2)
+    const maxStackable = Math.floor(availableShares / 2) * 2;
+    setSharesToStackInput(maxStackable.toString());
+    setStackSharesDialogOpen(true);
   };
 
-  // Handle condense from dialog
-  const handleCondenseFromDialog = () => {
-    if (!selectedPlayerForCondense) return;
-    const shares = parseInt(sharesToCondenseInput);
-    if (isNaN(shares) || shares < 2 || shares % 2 !== 0) {
+  // Handle Stack Shares from dialog
+  const handleStackSharesFromDialog = () => {
+    if (!selectedPlayerForStacking) return;
+    const shares = parseInt(sharesToStackInput);
+    if (isNaN(shares) || shares < 4 || shares % 2 !== 0) {
       toast({
         title: "Invalid selection",
-        description: "Please enter a valid number of shares (minimum 2, must be divisible by 2)",
+        description: "Please enter an even number of shares (minimum 4)",
         variant: "destructive",
       });
       return;
     }
-    condenseSharesMutation.mutate({
-      playerId: selectedPlayerForCondense.id,
-      sharesToCondense: shares,
+    stackSharesMutation.mutate({
+      playerId: selectedPlayerForStacking.id,
+      sharesToStack: shares,
     });
   };
 
@@ -456,7 +458,7 @@ export default function Portfolio() {
   };
 
   // Handle expanded share table sort
-  const handleExpandedShareSort = (field: "quantity" | "power") => {
+  const handleExpandedShareSort = (field: "quantity" | "multiplier") => {
     if (expandedShareSortField === field) {
       setExpandedShareSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
     } else {
@@ -465,18 +467,18 @@ export default function Portfolio() {
     }
   };
 
-  // Open condense dialog with selected holdings
-  const openCondenseFromExpanded = (
+  // Open Stack Shares dialog with selected holdings
+  const openStackSharesFromExpanded = (
     playerId: string,
     playerName: string,
     regularQuantity: number,
   ) => {
     clearSelection();
-    setSelectedPlayerForCondense({ id: playerId, name: playerName });
-    // Default to the maximum condensable shares (rounded down to nearest multiple of 5)
-    const maxCondensable = Math.floor(regularQuantity / 5) * 5;
-    setSharesToCondenseInput(maxCondensable.toString());
-    setCondenseDialogOpen(true);
+    setSelectedPlayerForStacking({ id: playerId, name: playerName });
+    // Default to the maximum even stackable share count.
+    const maxStackable = Math.floor(regularQuantity / 2) * 2;
+    setSharesToStackInput(maxStackable.toString());
+    setStackSharesDialogOpen(true);
   };
 
   // Parse currency string to number (strips $, commas, etc.)
@@ -512,12 +514,12 @@ export default function Portfolio() {
     }
   };
 
-  // Transform holdings: group regular shares and powered shares per player
+  // Transform holdings: group regular shares and stacked shares per player
   // Returns one entry per player with a breakdown array
   interface ShareBreakdown {
     quantity: number;
-    power: number;
-    powerLevel: string;
+    multiplier: number;
+    effectiveShares: string;
     avgCostBasis: string;
     id?: string;
   }
@@ -525,7 +527,7 @@ export default function Portfolio() {
   interface PlayerGroup {
     player: Player;
     regular: ShareBreakdown | null;
-    powered: ShareBreakdown[];
+    stacked: ShareBreakdown[];
     totalShares: number;
     totalPower: string;
     currentValue: string;
@@ -555,7 +557,7 @@ export default function Portfolio() {
           playerMap.set(playerId, {
             player,
             regular: null,
-            powered: [],
+            stacked: [],
             totalShares: 0,
             totalPower: "0.00",
             currentValue: currentValue || "0.00",
@@ -569,13 +571,13 @@ export default function Portfolio() {
 
         const shareBreakdown: ShareBreakdown = {
           quantity: parseFloat(holding.quantity),
-          power: holding.power || 1,
-          powerLevel: holding.powerLevel || parseFloat(holding.quantity).toFixed(2),
+          multiplier: parseFloat(holding.multiplier || "1"),
+          effectiveShares: holding.effectiveShares || parseFloat(holding.quantity).toFixed(2),
           avgCostBasis: holding.avgCostBasis,
           id: holding.id,
         };
 
-        if ((holding.power || 1) === 1) {
+        if (!holding.isStackedShare) {
           // Regular share - combine quantities and average cost
           if (group.regular) {
             const holdingQty = parseFloat(holding.quantity);
@@ -588,33 +590,36 @@ export default function Portfolio() {
               ...group.regular,
               quantity: totalQty,
               avgCostBasis: newAvgCost,
-              powerLevel: totalQty.toFixed(2),
+              effectiveShares: totalQty.toFixed(2),
             };
           } else {
             group.regular = shareBreakdown;
           }
         } else {
-          // Powered share
-          group.powered.push(shareBreakdown);
+          // Stacked share
+          group.stacked.push(shareBreakdown);
         }
 
         // Update totals
         group.totalShares =
-          (group.regular?.quantity || 0) + group.powered.reduce((sum, p) => sum + p.quantity, 0);
+          (group.regular?.quantity || 0) + group.stacked.reduce((sum, p) => sum + p.quantity, 0);
         const regularPower = group.regular?.quantity || 0;
-        const poweredPower = group.powered.reduce((sum, p) => sum + p.power * p.quantity, 0);
-        group.totalPower = (regularPower + poweredPower).toFixed(2);
+        const stackedEffectiveShares = group.stacked.reduce(
+          (sum, p) => sum + p.multiplier * p.quantity,
+          0,
+        );
+        group.totalPower = (regularPower + stackedEffectiveShares).toFixed(2);
       });
 
     return Array.from(playerMap.values());
   })();
 
   // Sort player holdings and filter by selected sport
-  // Include holdings with regular shares OR power level (power level is an attribute of shares)
+  // Include holdings with regular shares or effective-share state.
   const sortedHoldings = playerHoldings
     .filter(
       (h) =>
-        (h.totalShares > 0 || parseFloat(h.regular?.powerLevel || "0") > 0) &&
+        (h.totalShares > 0 || parseFloat(h.regular?.effectiveShares || "0") > 0) &&
         (!sport || sport === "ALL" || h.player.sport === sport),
     )
     .slice()
@@ -1077,7 +1082,7 @@ export default function Portfolio() {
                   <PortfolioCardView
                     holdings={sortedHoldings}
                     lpPositions={lpPositions}
-                    onPowerUp={openCondenseDialog}
+                    onStackShares={openStackSharesDialog}
                     onSelectPlayer={(playerId) => {
                       setSelectedPlayerId(playerId);
                       setPlayerModalOpen(true);
@@ -1266,7 +1271,7 @@ export default function Portfolio() {
                           </tr>
                         )}
                         {sortedHoldings.map((group) => {
-                          const hasPoweredShares = group.powered.length > 0;
+                          const hasStackedShares = group.stacked.length > 0;
                           const hasRegularShares = group.regular !== null;
 
                           return (
@@ -1341,14 +1346,14 @@ export default function Portfolio() {
                                                   ? "text-positive hover:text-green-400"
                                                   : "text-negative hover:text-red-400"
                                               }`}
-                                              title="Click to manage Power Level"
+                                              title="Click to manage multiplier"
                                               onClick={(e) => {
                                                 e.stopPropagation();
                                                 if (
                                                   hasRegularShares &&
-                                                  group.regular!.quantity >= 5
+                                                  group.regular!.quantity >= 4
                                                 ) {
-                                                  openCondenseDialog(
+                                                  openStackSharesDialog(
                                                     group.player.id,
                                                     `${group.player.firstName} ${group.player.lastName}`,
                                                     group.regular!.quantity,
@@ -1473,10 +1478,10 @@ export default function Portfolio() {
                                       {parseFloat(group.totalPower) > 0 && group.regular && (
                                         <button
                                           className="text-xs text-purple-400 hover:text-purple-300 hover:underline cursor-pointer text-right"
-                                          title="Click to power up shares"
+                                          title="Click to stack shares"
                                           onClick={(e) => {
                                             e.stopPropagation();
-                                            openCondenseDialog(
+                                            openStackSharesDialog(
                                               group.player.id,
                                               `${group.player.firstName} ${group.player.lastName}`,
                                               group.regular!.quantity,
@@ -1487,18 +1492,18 @@ export default function Portfolio() {
                                           ⚡ {group.totalPower}
                                         </button>
                                       )}
-                                      {/* P&L - clickable to open power up dialog */}
+                                      {/* P&L - clickable to open stack dialog */}
                                       <button
                                         className={`text-xs font-medium hover:underline cursor-pointer text-right ${
                                           parseFloat(group.pnl) >= 0
                                             ? "text-positive hover:text-green-400"
                                             : "text-negative hover:text-red-400"
                                         }`}
-                                        title="Click to manage Power Level"
+                                        title="Click to manage multiplier"
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          if (hasRegularShares && group.regular!.quantity >= 5) {
-                                            openCondenseDialog(
+                                          if (hasRegularShares && group.regular!.quantity >= 4) {
+                                            openStackSharesDialog(
                                               group.player.id,
                                               `${group.player.firstName} ${group.player.lastName}`,
                                               group.regular!.quantity,
@@ -1538,10 +1543,10 @@ export default function Portfolio() {
                                         // Build share holdings list with types
                                         const shareHoldings: Array<{
                                           id: string | undefined;
-                                          type: "regular" | "powered";
+                                          type: "regular" | "stacked";
                                           quantity: number;
-                                          power: number;
-                                          powerLevel: string;
+                                          multiplier: number;
+                                          effectiveShares: string;
                                         }> = [];
 
                                         if (hasRegularShares) {
@@ -1549,18 +1554,18 @@ export default function Portfolio() {
                                             id: group.regular!.id,
                                             type: "regular",
                                             quantity: group.regular!.quantity,
-                                            power: 1,
-                                            powerLevel: group.regular!.quantity.toFixed(2),
+                                            multiplier: 1,
+                                            effectiveShares: group.regular!.quantity.toFixed(2),
                                           });
                                         }
 
-                                        group.powered.forEach((share, idx) => {
+                                        group.stacked.forEach((share, idx) => {
                                           shareHoldings.push({
                                             id: share.id,
-                                            type: "powered",
+                                            type: "stacked",
                                             quantity: share.quantity,
-                                            power: share.power,
-                                            powerLevel: share.powerLevel,
+                                            multiplier: share.multiplier,
+                                            effectiveShares: share.effectiveShares,
                                           });
                                         });
 
@@ -1569,11 +1574,11 @@ export default function Portfolio() {
                                           const sortValA =
                                             expandedShareSortField === "quantity"
                                               ? a.quantity
-                                              : parseFloat(a.powerLevel);
+                                              : a.multiplier;
                                           const sortValB =
                                             expandedShareSortField === "quantity"
                                               ? b.quantity
-                                              : parseFloat(b.powerLevel);
+                                              : b.multiplier;
                                           return expandedShareSortDir === "asc"
                                             ? sortValA - sortValB
                                             : sortValB - sortValA;
@@ -1625,11 +1630,13 @@ export default function Portfolio() {
                                                   </th>
                                                   <th
                                                     className="text-left pb-2 cursor-pointer hover:text-foreground"
-                                                    onClick={() => handleExpandedShareSort("power")}
+                                                    onClick={() =>
+                                                      handleExpandedShareSort("multiplier")
+                                                    }
                                                   >
                                                     <span className="flex items-center gap-1">
-                                                      Power
-                                                      {expandedShareSortField === "power" &&
+                                                      Multi
+                                                      {expandedShareSortField === "multiplier" &&
                                                         (expandedShareSortDir === "asc" ? (
                                                           <ChevronUp className="w-3 h-3" />
                                                         ) : (
@@ -1647,7 +1654,7 @@ export default function Portfolio() {
                                                     selectedHoldingIds.has(holdingId);
                                                   const isRegular = share.type === "regular";
                                                   const canPowerUp = isRegular
-                                                    ? share.quantity >= 5
+                                                    ? share.quantity >= 4
                                                     : true;
 
                                                   return (
@@ -1672,14 +1679,14 @@ export default function Portfolio() {
                                                         <span
                                                           className={`ml-1 text-[10px] ${isRegular ? "text-muted-foreground" : "text-purple-400"}`}
                                                         >
-                                                          @ {share.power}x
+                                                          @ {share.multiplier}x
                                                         </span>
                                                       </td>
                                                       <td className="py-2">
                                                         <span
                                                           className={`font-mono font-medium ${isRegular ? "text-muted-foreground" : "text-purple-400"}`}
                                                         >
-                                                          {share.powerLevel}
+                                                          {share.effectiveShares}
                                                         </span>
                                                       </td>
                                                       <td className="py-2 pr-1 text-right">
@@ -1689,7 +1696,7 @@ export default function Portfolio() {
                                                             variant="ghost"
                                                             className="h-6 px-2 text-xs bg-green-500/10 hover:bg-green-500/20 text-green-600"
                                                             onClick={() =>
-                                                              openCondenseFromExpanded(
+                                                              openStackSharesFromExpanded(
                                                                 group.player.id,
                                                                 `${group.player.firstName} ${group.player.lastName}`,
                                                                 share.quantity,
@@ -1697,7 +1704,7 @@ export default function Portfolio() {
                                                             }
                                                             disabled={!canPowerUp}
                                                           >
-                                                            Power Up
+                                                            Stack Shares
                                                           </Button>
                                                         ) : (
                                                           <Button
@@ -1706,7 +1713,7 @@ export default function Portfolio() {
                                                             className="h-6 px-2 text-xs bg-purple-500/10 hover:bg-purple-500/20 text-purple-600"
                                                             disabled
                                                           >
-                                                            Powered
+                                                            Stacked
                                                           </Button>
                                                         )}
                                                       </td>
@@ -1727,14 +1734,14 @@ export default function Portfolio() {
                                                   size="sm"
                                                   className="h-7 bg-purple-500 hover:bg-purple-600 text-xs"
                                                   onClick={() =>
-                                                    openCondenseFromExpanded(
+                                                    openStackSharesFromExpanded(
                                                       group.player.id,
                                                       `${group.player.firstName} ${group.player.lastName}`,
                                                       group.regular?.quantity || 0,
                                                     )
                                                   }
                                                 >
-                                                  Power Up Selected
+                                                  Stack Selected
                                                 </Button>
                                               </div>
                                             )}
@@ -1940,27 +1947,27 @@ export default function Portfolio() {
           </TabsContent>
         </Tabs>
 
-        {/* Power Up Dialog */}
-        <Dialog open={condenseDialogOpen} onOpenChange={setCondenseDialogOpen}>
+        {/* Stack Shares Dialog */}
+        <Dialog open={stackSharesDialogOpen} onOpenChange={setStackSharesDialogOpen}>
           <DialogContent className="sm:max-w-md rounded-sm border border-border bg-card">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Zap className="w-5 h-5 text-purple-400" />
-                Power Up Shares
+                Stack Shares
               </DialogTitle>
               <DialogDescription>
-                Convert regular shares into Power Level at a 2:1 ratio. Power Level shares are used
-                exclusively for Daily Boosts.
+                Convert regular shares into a single stacked share at a 2:1 ratio. The resulting
+                multiplier is used for payouts and Daily Boosts.
               </DialogDescription>
             </DialogHeader>
-            {selectedPlayerForCondense && data?.holdings && (
+            {selectedPlayerForStacking && data?.holdings && (
               <div className="space-y-4 py-4">
                 {/* Player info */}
                 <div className="terminal-shell p-3">
-                  <div className="font-medium">{selectedPlayerForCondense.name}</div>
+                  <div className="font-medium">{selectedPlayerForStacking.name}</div>
                   {(() => {
                     const holding = data.holdings.find(
-                      (h) => h.player?.id === selectedPlayerForCondense.id,
+                      (h) => h.player?.id === selectedPlayerForStacking.id,
                     );
                     if (!holding) return null;
                     return (
@@ -1970,10 +1977,10 @@ export default function Portfolio() {
                           <span className="font-mono">{holding.quantity}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span>Current Power Level:</span>
+                          <span>Current Effective Shares:</span>
                           <span className="font-mono text-purple-400">
-                            {parseFloat(holding.powerLevel || "0") > 0
-                              ? holding.powerLevel
+                            {parseFloat(holding.effectiveShares || "0") > 0
+                              ? holding.effectiveShares
                               : "0.00"}
                           </span>
                         </div>
@@ -1984,29 +1991,30 @@ export default function Portfolio() {
 
                 {/* Share input */}
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Shares to Power Up</label>
+                  <label className="text-sm font-medium">Shares to Stack</label>
                   <Input
                     variant="terminal"
                     type="number"
-                    value={sharesToCondenseInput}
-                    onChange={(e) => setSharesToCondenseInput(e.target.value)}
-                    placeholder="Enter shares to power up"
-                    min={2}
+                    value={sharesToStackInput}
+                    onChange={(e) => setSharesToStackInput(e.target.value)}
+                    placeholder="Enter shares to stack"
+                    min={4}
                     step={2}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Must be at least 2 and divisible by 2. Each 2 shares = 1 Power Level.
+                    Must be at least 4 and even. Every 2 shares become 1x of multiplier and the
+                    other half are burned.
                   </p>
                 </div>
 
                 {/* Preview */}
                 {(() => {
-                  const shares = parseInt(sharesToCondenseInput);
-                  const isValid = !isNaN(shares) && shares >= 2 && shares % 2 === 0;
+                  const shares = parseInt(sharesToStackInput);
+                  const isValid = !isNaN(shares) && shares >= 4 && shares % 2 === 0;
                   if (!isValid) return null;
 
                   const holding = data.holdings.find(
-                    (h) => h.player?.id === selectedPlayerForCondense?.id,
+                    (h) => h.player?.id === selectedPlayerForStacking?.id,
                   );
                   if (!holding) return null;
 
@@ -2015,16 +2023,20 @@ export default function Portfolio() {
 
                   return (
                     <div className="terminal-shell space-y-2 border-purple-500/20 bg-purple-500/10 p-3">
-                      <div className="text-sm font-medium text-purple-400">Conversion Result</div>
+                      <div className="text-sm font-medium text-purple-400">Stack Result</div>
                       <div className="flex justify-between text-sm">
                         <span>Regular shares consumed:</span>
                         <span className="font-mono">-{shares}</span>
                       </div>
                       <div className="flex justify-between text-sm font-medium">
-                        <span>Powered share created:</span>
+                        <span>Stacked share created:</span>
                         <span className="font-mono text-purple-400">
-                          1 share @ {powerCreated.toFixed(2)} power
+                          1 share @ {powerCreated.toFixed(2)}x
                         </span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span>Effective shares burned:</span>
+                        <span className="font-mono">-{powerCreated.toFixed(2)}</span>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span>Regular shares remaining:</span>
@@ -2036,16 +2048,16 @@ export default function Portfolio() {
               </div>
             )}
             <DialogFooter>
-              <Button variant="terminalOutline" onClick={() => setCondenseDialogOpen(false)}>
+              <Button variant="terminalOutline" onClick={() => setStackSharesDialogOpen(false)}>
                 Cancel
               </Button>
               <Button
                 variant="terminal"
-                onClick={handleCondenseFromDialog}
-                disabled={condenseSharesMutation.isPending}
+                onClick={handleStackSharesFromDialog}
+                disabled={stackSharesMutation.isPending}
                 className="border-purple-500/30 bg-purple-500/20 text-purple-200 hover:bg-purple-500/25"
               >
-                {condenseSharesMutation.isPending ? "Powering Up..." : "Power Up Shares"}
+                {stackSharesMutation.isPending ? "Stacking..." : "Stack Shares"}
               </Button>
             </DialogFooter>
           </DialogContent>

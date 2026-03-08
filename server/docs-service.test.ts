@@ -13,6 +13,9 @@ describe("docs-service", () => {
     expect(handbook.sections.length).toBeGreaterThan(0);
     expect(handbook.sections[0]?.id).toBe("getting-started");
     expect(handbook.sections[0]?.chapters[0]?.slug).toBe("access");
+    expect(handbook.sections[0]?.chapters.some((chapter) => chapter.slug === "mcp-access")).toBe(
+      true,
+    );
     expect(handbook.sections[0]?.chapters[0]?.title).toBe("How to Access Sportfolio");
   });
 
@@ -60,6 +63,7 @@ describe("docs-service", () => {
     expect(results.length).toBeGreaterThan(0);
     expect(results[0]?.anchorId).toMatch(/^chapter-/);
     expect(results.some((result) => result.slug === "access")).toBe(true);
+    expect(results.some((result) => result.slug === "mcp-access")).toBe(true);
   });
 
   it("exposes canonical wiki articles flagged for agent grounding", () => {

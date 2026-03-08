@@ -54,15 +54,15 @@ const slides: OnboardingSlide[] = [
     ctaPath: "/pools",
   },
   {
-    id: "power",
+    id: "boosts",
     icon: Trophy,
     title: "BOOST GAME OUTCOMES",
-    subtitle: "Use power slots with intent",
+    subtitle: "Use boost slots with intent",
     description:
-      "Deploy one share per daily boost slot, manage power carefully, and turn strong game outcomes into portfolio upside.",
+      "Deploy one share per daily boost slot, manage multipliers carefully, and turn strong game outcomes into portfolio upside.",
     color: "text-sky-500",
-    ctaLabel: "Open Power",
-    ctaPath: "/power",
+    ctaLabel: "Open Boosts",
+    ctaPath: "/boosts",
   },
 ];
 

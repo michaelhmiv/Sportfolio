@@ -51,7 +51,7 @@ export interface AgentAction {
     | "pool_zap_add_shares"
     | "pool_zap_add_sb"
     | "pool_remove_liquidity"
-    | "holdings_condense"
+    | "holdings_stack_shares"
     | "daily_boost_assign"
     | "daily_boost_remove"
     | "watchlist_add_player"
@@ -89,9 +89,9 @@ export interface AgentAction {
   currentLpShares?: number | null;
   remainingLpShares?: number | null;
   estimatedPlayMoneyOut?: number | null;
-  sharesToCondense?: number;
-  expectedPowerGained?: number;
-  expectedPoweredShareCount?: number;
+  sharesToStack?: number;
+  expectedMultiplierGained?: number;
+  expectedStackedShareCount?: number;
   sport?: string;
   slotTier?: 2 | 3 | 4 | 5;
   sharesEntered?: 1;
@@ -100,7 +100,7 @@ export interface AgentAction {
   gameStartTime?: string | null;
   opponent?: string | null;
   availableShares?: number;
-  powerLevel?: number | null;
+  shareMultiplier?: number | null;
   boostId?: string;
   watchlistId?: string | null;
   watchlistName?: string | null;

@@ -7,7 +7,7 @@ interface LiveFantasyPointsProps {
   points: number;
   previousPoints?: number;
   multiplier: number;
-  powerLevel: number;
+  shareMultiplier: number;
   className?: string;
 }
 
@@ -15,7 +15,7 @@ export function LiveFantasyPoints({
   points,
   previousPoints,
   multiplier,
-  powerLevel,
+  shareMultiplier,
   className,
 }: LiveFantasyPointsProps) {
   const [displayPoints, setDisplayPoints] = useState(points);
@@ -38,7 +38,7 @@ export function LiveFantasyPoints({
     }
   }, [points, previousPoints]);
 
-  const estimatedPayout = points * multiplier * powerLevel;
+  const estimatedPayout = points * multiplier * shareMultiplier;
 
   return (
     <div

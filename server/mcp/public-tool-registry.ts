@@ -880,9 +880,15 @@ const stageScoutSchema: RawSchema = {
   targetCount: z.number().int().min(0).max(10),
   threadId: z.string().min(1).optional(),
 };
-const stageCondenseSchema: RawSchema = {
+const stageStackSharesSchema: RawSchema = {
   playerId: z.string().min(1),
-  shares: z.number().int().positive(),
+  shares: z
+    .number()
+    .int()
+    .min(4)
+    .refine((value) => value % 2 === 0, {
+      message: "Stack Shares requires an even share count.",
+    }),
   threadId: z.string().min(1).optional(),
 };
 const stageBoostSchema: RawSchema = {
@@ -1022,7 +1028,7 @@ const READ_ALIAS_TOOLS: PublicMcpToolDefinition[] = [
   }),
   defineTool({
     name: "get_holdings",
-    description: "List current player holdings, power, and available shares.",
+    description: "List current player holdings, multiplier state, and available shares.",
     domain: "portfolio",
     readOnly: true,
     inputSchema: {
@@ -1127,13 +1133,13 @@ const READ_ALIAS_TOOLS: PublicMcpToolDefinition[] = [
     execute: (context, args) => executeReadTool(context, "get_player_watchlists", args),
   }),
   defineTool({
-    name: "get_holdings_power_level",
-    description: "Read holding power and available share state for a player.",
-    domain: "power",
+    name: "get_holding_multiplier_state",
+    description: "Read holding multiplier and available share state for a player.",
+    domain: "portfolio",
     readOnly: true,
     inputSchema: playerIdSchema,
     fixtureArgs: { playerId: "player_1" },
-    execute: (context, args) => executeReadTool(context, "get_holdings_power_level", args),
+    execute: (context, args) => executeReadTool(context, "get_holding_multiplier_state", args),
   }),
   defineTool({
     name: "list_daily_boosts",
@@ -1500,7 +1506,7 @@ const CUSTOM_TOOLS: PublicMcpToolDefinition[] = [
     domain: "market",
     readOnly: false,
     inputSchema: stageMarketSellSchema,
-    fixtureArgs: { playerId: "player_1", shares: 2 },
+    fixtureArgs: { playerId: "player_1", shares: 4 },
     execute: (context, args) =>
       stagePreviewedAction({
         context,
@@ -1605,16 +1611,16 @@ const CUSTOM_TOOLS: PublicMcpToolDefinition[] = [
       }),
   }),
   defineTool({
-    name: "stage_condense",
-    description: "Stage a condense action for confirmation.",
-    domain: "power",
+    name: "stage_stack_shares",
+    description: "Stage a Stack Shares action for confirmation.",
+    domain: "portfolio",
     readOnly: false,
-    inputSchema: stageCondenseSchema,
-    fixtureArgs: { playerId: "player_1", shares: 2 },
+    inputSchema: stageStackSharesSchema,
+    fixtureArgs: { playerId: "player_1", shares: 4 },
     execute: (context, args) =>
       stagePreviewedAction({
         context,
-        previewToolName: "preview_condense",
+        previewToolName: "preview_stack_shares",
         previewArgs: {
           playerId: args.playerId,
           shares: args.shares,

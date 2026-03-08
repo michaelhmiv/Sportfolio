@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-07T13:16:49.668Z",
+  "generatedAt": "2026-03-08T15:53:33.708Z",
   "articles": [
     {
       "id": "agent-runtime-model",
@@ -78,22 +78,34 @@
     },
     {
       "id": "cli-overview",
-      "title": "Sportfolio CLI",
-      "summary": "How to use the Sportfolio CLI for documentation, account reads, and confirmation-gated agent workflows from a terminal.",
+      "title": "CLI and External Access",
+      "summary": "How to use the Sportfolio CLI for documentation, account reads, confirmation-gated agent workflows, and the current status of MCP-style external access.",
       "audience": "public",
       "category": "cli",
       "status": "published",
       "owner": "product-engineering",
-      "lastReviewedAt": "2026-03-04",
+      "lastReviewedAt": "2026-03-08",
       "changeTriggers": [
         "packages/sportfolio-cli",
         "server/routes/cli.ts",
-        "server/api-token-auth.ts"
+        "server/api-token-auth.ts",
+        "server/routes/mcp.ts"
       ],
       "slug": "overview",
       "section": "cli",
       "surface": ["web", "cli"],
-      "searchKeywords": ["cli", "api token", "terminal", "auth", "actions", "agent", "docs"],
+      "searchKeywords": [
+        "cli",
+        "api token",
+        "terminal",
+        "auth",
+        "actions",
+        "agent",
+        "docs",
+        "mcp",
+        "external access",
+        "model context protocol"
+      ],
       "urlPath": "/wiki/cli/overview"
     },
     {
@@ -247,7 +259,7 @@
       "category": "features",
       "status": "published",
       "owner": "product-engineering",
-      "lastReviewedAt": "2026-03-07",
+      "lastReviewedAt": "2026-03-08",
       "changeTriggers": [
         "client/src/App.tsx",
         "client/src/components/app-sidebar.tsx",
@@ -255,7 +267,9 @@
         "server/routes/amm.ts",
         "server/routes/lp.ts",
         "server/routes/cli.ts",
-        "server/routes/sms.ts"
+        "server/routes/mcp.ts",
+        "server/routes/sms.ts",
+        "server/mcp/public-tool-registry.ts"
       ],
       "slug": "user-action-surface",
       "section": "features",
@@ -266,15 +280,15 @@
     {
       "id": "gameplay-leaderboards-progress",
       "title": "Leaderboards and Progress",
-      "summary": "What the public leaderboards measure, how to interpret rank changes, and how to use them as feedback instead of noise.",
+      "summary": "What the public leaderboards measure, how to interpret live rank movement, and how public trader profiles fit into the leaderboard loop.",
       "audience": "public",
       "category": "gameplay",
       "status": "published",
       "owner": "product-engineering",
-      "lastReviewedAt": "2026-03-04",
+      "lastReviewedAt": "2026-03-07",
       "changeTriggers": [
         "client/src/pages/leaderboards.tsx",
-        "client/src/pages/portfolio.tsx",
+        "client/src/pages/user-profile.tsx",
         "server/routes.ts",
         "server/storage.ts"
       ],
@@ -287,7 +301,8 @@
         "progress",
         "net worth",
         "cash balance",
-        "shares mined"
+        "trading volume",
+        "user profile"
       ],
       "urlPath": "/wiki/gameplay/leaderboards-and-progress"
     },
@@ -344,37 +359,6 @@
       "urlPath": "/wiki/gameplay/portfolio-and-holdings"
     },
     {
-      "id": "gameplay-power-boosts",
-      "title": "Power and Boosts",
-      "summary": "A full explanation of condense, power, boost slots, community boosts, and the exact inventory rules behind them.",
-      "audience": "public",
-      "category": "gameplay",
-      "status": "published",
-      "owner": "product-engineering",
-      "lastReviewedAt": "2026-03-04",
-      "changeTriggers": [
-        "client/src/pages/power.tsx",
-        "server/routes.ts",
-        "server/jobs/lock-boost-shares.ts",
-        "server/jobs/settle-boosts.ts",
-        "server/jobs/settle-community-boosts.ts",
-        "server/storage.ts",
-        "shared/schema.ts"
-      ],
-      "slug": "power-and-boosts",
-      "section": "gameplay",
-      "surface": ["web", "cli", "agent"],
-      "searchKeywords": [
-        "power",
-        "boosts",
-        "condense",
-        "daily boosts",
-        "community boosts",
-        "power level"
-      ],
-      "urlPath": "/wiki/gameplay/power-and-boosts"
-    },
-    {
       "id": "gameplay-scouts-rewards",
       "title": "Scouts and Share Rewards",
       "summary": "How scouts work, how hourly share distribution is calculated, and how to use them as a steady accumulation engine.",
@@ -414,7 +398,7 @@
       "changeTriggers": [
         "client/src/lib/sport-context.tsx",
         "client/src/pages/dashboard.tsx",
-        "client/src/pages/power.tsx",
+        "client/src/pages/boosts.tsx",
         "server/routes.ts",
         "shared/schema.ts"
       ],
@@ -432,6 +416,102 @@
         "dates"
       ],
       "urlPath": "/wiki/gameplay/sports-and-slates"
+    },
+    {
+      "id": "gameplay-stacking-shares-boosts",
+      "title": "Stacking Shares and Boosts",
+      "summary": "A full explanation of stacking shares, multipliers, boost slots, community boosts, and the exact inventory rules behind them.",
+      "audience": "public",
+      "category": "gameplay",
+      "status": "published",
+      "owner": "product-engineering",
+      "lastReviewedAt": "2026-03-04",
+      "changeTriggers": [
+        "client/src/pages/boosts.tsx",
+        "server/routes.ts",
+        "server/jobs/lock-boost-shares.ts",
+        "server/jobs/settle-boosts.ts",
+        "server/jobs/settle-community-boosts.ts",
+        "server/storage.ts",
+        "shared/schema.ts"
+      ],
+      "slug": "stacking-shares-and-boosts",
+      "section": "gameplay",
+      "surface": ["web", "cli", "agent"],
+      "searchKeywords": [
+        "stack shares",
+        "stacked shares",
+        "multiplier",
+        "boosts",
+        "daily boosts",
+        "community boosts"
+      ],
+      "urlPath": "/wiki/gameplay/stacking-shares-and-boosts"
+    },
+    {
+      "id": "getting-started-access",
+      "title": "How to Access Sportfolio",
+      "summary": "The fastest way to reach Sportfolio from web, mobile, SMS, and CLI, plus the current status of external MCP-style access.",
+      "audience": "public",
+      "category": "getting-started",
+      "status": "published",
+      "owner": "product-engineering",
+      "lastReviewedAt": "2026-03-08",
+      "changeTriggers": [
+        "client/src/App.tsx",
+        "client/src/components/bottom-nav.tsx",
+        "client/src/components/cli-access-card.tsx",
+        "client/src/pages/wiki.tsx",
+        "packages/sportfolio-cli",
+        "server/routes/docs.ts",
+        "server/routes/mcp.ts"
+      ],
+      "slug": "access",
+      "section": "getting-started",
+      "surface": ["web", "cli", "agent"],
+      "searchKeywords": [
+        "access",
+        "how do i access sportfolio",
+        "mcp",
+        "model context protocol",
+        "cli",
+        "api token",
+        "sms",
+        "agent",
+        "wiki",
+        "mobile"
+      ],
+      "urlPath": "/wiki/getting-started/access"
+    },
+    {
+      "id": "getting-started-mcp-access",
+      "title": "MCP Access",
+      "summary": "How to connect to Sportfolio's public authenticated MCP endpoint, what it exposes today, and what stays out of scope for MCP v1.",
+      "audience": "public",
+      "category": "getting-started",
+      "status": "published",
+      "owner": "product-engineering",
+      "lastReviewedAt": "2026-03-08",
+      "changeTriggers": [
+        "server/routes/mcp.ts",
+        "server/mcp/public-tool-registry.ts",
+        "server/mcp/gameplay-capability-matrix.ts",
+        "server/api-token-auth.ts",
+        "scripts/mcp-smoke.ts"
+      ],
+      "slug": "mcp-access",
+      "section": "getting-started",
+      "surface": ["web", "cli", "agent"],
+      "searchKeywords": [
+        "mcp",
+        "model context protocol",
+        "streamable http",
+        "bearer token",
+        "api token",
+        "external access",
+        "endpoint"
+      ],
+      "urlPath": "/wiki/getting-started/mcp-access"
     },
     {
       "id": "getting-started-overview",
@@ -478,7 +558,7 @@
         "client/src/pages/dashboard.tsx",
         "client/src/pages/marketplace.tsx",
         "client/src/pages/portfolio.tsx",
-        "client/src/pages/power.tsx"
+        "client/src/pages/boosts.tsx"
       ],
       "slug": "platform-tour",
       "section": "getting-started",

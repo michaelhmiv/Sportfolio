@@ -95,7 +95,7 @@ Source: `server/routes.ts` (`/api/daily-boosts*`), `server/jobs/lock-boost-share
 Payout logic:
 
 - `effectiveMultiplier = slotTier + communityBoostCount`
-- `payout = max(0, powerLevel * fantasyPoints * effectiveMultiplier)`
+- `payout = max(0, shareMultiplier * fantasyPoints * effectiveMultiplier)`
 
 Critical invariants:
 
@@ -119,7 +119,7 @@ Critical invariants:
 
 - **SB / Balance**: virtual cash (`users.balance`)
 - **Player Share**: tradeable share in a player
-- **Power**: per-share multiplier strength (used heavily in boost payouts)
+- **Multiplier**: per-share strength value used heavily in boost payouts
 - **Premium Share**: redeemable for premium access window
 - **Community Share**: consumable to create a community boost
 - **Boost Slot Tier**: base daily multiplier slot (`2/3/4/5`)

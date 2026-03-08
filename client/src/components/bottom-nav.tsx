@@ -28,8 +28,8 @@ const navItems = [
     icon: TrendingUp,
   },
   {
-    title: "Power",
-    url: "/power",
+    title: "Boosts",
+    url: "/boosts",
     icon: Zap,
   },
   {
