@@ -18,6 +18,7 @@
 ## 2026-03-07
 
 - When a user explicitly says they want zero ambiguity long term, do not leave legacy economic fields or compatibility aliases in the live canonical model; finish the schema/storage cleanup and keep any transition layer strictly temporary and clearly bounded.
+- When a production migration needs a manual post-cutover fix, immediately capture that fix in a new append-only migration and keep migration numbering unique; do not leave prod-only schema state or duplicate migration prefixes around for the next rollout.
 - When scoping MCP parity for Sportfolio, separate gameplay actions from external purchase and account-management flows: community boost creation, market trades, LP actions, boosts, condense, scouts, watchlists, schedules, and agent threads are gameplay; checkout, add-cash, premium/community purchase flows, profile/settings, and admin routes are not.
 - If a user asks what to do with idle cash, treat that as a cash-deployment intent first and keep the response domain-limited unless they explicitly ask for a broad setup review.
 - For MCP wrappers over existing Hermes previews, keep the public input schema aligned with the underlying preview contract and make the smoke harness validate those exact field names so arg drift cannot pass on permissive mocks.

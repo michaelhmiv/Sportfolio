@@ -13,6 +13,18 @@ Review:
 - Added regression coverage in `server/market-mobile-overview.test.ts` for postponed-game boost windows and mixed-sport watchlist filtering.
 - Validation passed for `npm run test:run -- server/market-mobile-overview.test.ts`, `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`.
 
+## 2026-03-08 Multiplier Cutover Rollout Hardening
+
+- [x] Remove duplicate migration numbering so future DB rollouts have a single unambiguous apply order
+- [x] Add an append-only migration for the post-cutover `share_payouts.earning_model` default and multiplier constraint validation
+- [x] Capture the production rollout follow-up in task tracking and lessons learned
+
+Review:
+
+- Renamed the Reddit schema migration to `migrations/0034_reddit_post_history.sql` so the multiplier cutover files remain the canonical `0032` and `0033` sequence with no duplicate numeric prefix.
+- Added `migrations/0035_finalize_multiplier_cutover_defaults.sql` to encode the production follow-up that sets new share-payout rows to default to `multiplier_only` and validates the `player_multipliers` minimum constraint.
+- This keeps the repo's migration history append-only and aligned with the production database state after the March 8, 2026 multiplier rollout.
+
 ## 2026-03-08 Multiplier Canonicalization Phase 2
 
 - [x] Drop legacy `holdings.power` / `holdings.powerLevel` and old boost/payout compatibility columns from the canonical schema
