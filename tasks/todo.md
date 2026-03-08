@@ -1,3 +1,19 @@
+## 2026-03-07 Wiki Handbook + Access Clarity + Docs QA
+
+- [x] Replace the article-index wiki UX with a single handbook view backed by combined docs sections and chapter anchors
+- [x] Add explicit handbook access guidance for web, mobile, SMS, CLI, repo-local CLI usage, and current MCP status
+- [x] Add public docs handbook and docs ask APIs with docs-only natural-language answers plus lightweight IP rate limiting
+- [x] Convert legacy `/wiki/:section` and `/wiki/:section/:slug` routes into handbook deep-link compatibility flows
+- [x] Update mobile header navigation so Wiki replaces the top-bar Agent shortcut while bottom-nav Agent remains available
+- [x] Add targeted tests for handbook composition, docs QA fallback/routing, and route coverage, then run validation
+
+Review:
+
+- Replaced the article-card wiki with a handbook-first `/wiki` experience that renders all readable docs as one long-form markdown handbook, with stable section/chapter/heading anchors, sticky desktop TOC, mobile drawer navigation, live search highlighting, and compatibility redirects from legacy article URLs into handbook deep links.
+- Added explicit access coverage in the docs source for web, mobile, SMS, CLI, repo-local CLI usage, and current MCP status, and exposed that content through a new `GET /api/docs/handbook` route plus a public `POST /api/docs/ask` docs-only answer path with handbook citations and a `5 requests / 10 minutes / IP` limiter.
+- Added targeted backend/client coverage for handbook composition, docs-answer fallback behavior, route behavior, rate limiting, and legacy deep-link helpers.
+- Validation passed: `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`.
+
 ## 2026-03-04 PR #87 Comment Fix Pass (Manual)
 
 - [x] Sync `main` with `origin/main` and check out PR `#87`

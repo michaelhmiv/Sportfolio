@@ -19,7 +19,7 @@ import { OnboardingModal } from "@/components/onboarding-modal";
 import Dashboard from "@/pages/dashboard";
 import { AnimatePresence, motion } from "framer-motion";
 import logoUrl from "@assets/Sportfolio png_1763227952318.png";
-import { Bot, LogOut, Newspaper, User } from "lucide-react";
+import { BookOpen, Bot, LogOut, Newspaper, User } from "lucide-react";
 import { SiDiscord } from "react-icons/si";
 import { SchemaOrg, schemas } from "@/components/schema-org";
 import { ScoutWidget } from "@/components/scout-widget";
@@ -614,12 +614,25 @@ function Header() {
             )}
           </Link>
         </Button>
+        <Button
+          size="icon"
+          variant="ghost"
+          asChild
+          className="sm:hidden"
+          data-testid="button-wiki-header-mobile"
+          title="Wiki"
+        >
+          <Link href="/wiki">
+            <BookOpen className="h-4 w-4" />
+          </Link>
+        </Button>
         {isAuthenticated ? (
           <>
             <Button
               size="icon"
               variant="ghost"
               asChild
+              className="hidden sm:inline-flex"
               data-testid="button-agent-header"
               title="Agent"
             >
