@@ -76,6 +76,9 @@ describe("wiki handbook helpers", () => {
     expect(getLegacyWikiHref("getting-started", "access")).toBe(
       "/wiki#chapter-getting-started-access",
     );
+    expect(getLegacyWikiHref("getting-started", "access", "#mcp-status")).toBe(
+      "/wiki#chapter-getting-started-access-mcp-status",
+    );
   });
 
   it("flattens handbook chapters in section order", () => {

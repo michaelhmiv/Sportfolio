@@ -1,3 +1,14 @@
+## 2026-03-08 PR #91 Review Fixes
+
+- [x] Preserve legacy `/wiki/:section/:slug#heading` fragments when redirecting into handbook anchors
+- [x] Restore authenticated handbook/search fetching so optional auth routes receive the Supabase bearer token
+- [ ] Re-run targeted validation, push PR #91 updates, and verify merge conflict status against `main`
+
+Review:
+
+- Updated the wiki redirect helper so old article heading fragments map into the new handbook heading anchors instead of being dropped at chapter top.
+- Switched the handbook and search page queries back onto the shared authenticated fetch helper, restoring the authenticated request path for optional-auth docs routes.
+
 ## 2026-03-07 Wiki Handbook + Access Clarity + Docs QA
 
 - [x] Replace the article-index wiki UX with a single handbook view backed by combined docs sections and chapter anchors

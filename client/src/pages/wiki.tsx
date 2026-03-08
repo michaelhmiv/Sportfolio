@@ -19,7 +19,7 @@ import {
   type DocsSearchResult,
 } from "@shared/docs";
 import { useAuth } from "@/hooks/useAuth";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, authenticatedFetch } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -116,7 +116,7 @@ export default function WikiPage() {
   const { data, isLoading, error } = useQuery<DocsHandbookResponse>({
     queryKey: ["/api/docs/handbook"],
     queryFn: async () => {
-      const response = await fetch("/api/docs/handbook");
+      const response = await authenticatedFetch("/api/docs/handbook");
       if (!response.ok) {
         throw new Error("Failed to fetch docs handbook");
       }
@@ -128,7 +128,9 @@ export default function WikiPage() {
     queryKey: ["/api/docs/search", deferredSearchValue],
     enabled: deferredSearchValue.length > 0,
     queryFn: async () => {
-      const response = await fetch(`/api/docs/search?q=${encodeURIComponent(deferredSearchValue)}`);
+      const response = await authenticatedFetch(
+        `/api/docs/search?q=${encodeURIComponent(deferredSearchValue)}`,
+      );
       if (!response.ok) {
         throw new Error("Failed to search docs");
       }

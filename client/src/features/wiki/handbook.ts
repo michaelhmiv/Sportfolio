@@ -1,5 +1,6 @@
 import {
   getDocsChapterAnchorId,
+  getDocsChapterHeadingAnchorId,
   getDocsSectionAnchorId,
   type DocsHandbook,
   type DocsHandbookChapter,
@@ -19,10 +20,21 @@ export function flattenHandbookChapters(handbook: DocsHandbook): DocsHandbookCha
   return handbook.sections.flatMap((section) => section.chapters);
 }
 
-export function getLegacyWikiHref(section: string, slug?: string): string {
-  return slug
-    ? `/wiki#${getDocsChapterAnchorId(section, slug)}`
-    : `/wiki#${getDocsSectionAnchorId(section)}`;
+function normalizeLegacyHash(hash?: string): string {
+  return hash?.replace(/^#/, "").trim() || "";
+}
+
+export function getLegacyWikiHref(section: string, slug?: string, hash?: string): string {
+  if (!slug) {
+    return `/wiki#${getDocsSectionAnchorId(section)}`;
+  }
+
+  const normalizedHash = normalizeLegacyHash(hash);
+  const anchorId = normalizedHash
+    ? getDocsChapterHeadingAnchorId(section, slug, normalizedHash)
+    : getDocsChapterAnchorId(section, slug);
+
+  return `/wiki#${anchorId}`;
 }
 
 export function getHandbookMatchState(

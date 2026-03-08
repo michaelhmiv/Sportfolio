@@ -10,7 +10,7 @@ export default function WikiArticlePage() {
 
   useEffect(() => {
     if (section && slug) {
-      setLocation(getLegacyWikiHref(section, slug), { replace: true });
+      setLocation(getLegacyWikiHref(section, slug, window.location.hash), { replace: true });
       return;
     }
 
