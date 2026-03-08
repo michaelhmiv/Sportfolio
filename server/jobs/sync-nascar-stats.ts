@@ -11,6 +11,7 @@ import {
   fetchRaceResults,
   fetchRaceSchedule,
   calculateFantasyPoints,
+  parseNascarEtDateTime,
   NASCAR_SERIES,
   NASCAR_SERIES_NAMES,
   NASCAR_SERIES_CODES,
@@ -113,6 +114,11 @@ export async function syncNascarRaceResults(
   let errorCount = 0;
 
   try {
+    if (raceDate.getTime() > Date.now()) {
+      console.log(`[nascar_stats_sync] Race ${raceId} has not started yet, skipping result sync`);
+      return { requestCount, recordsProcessed, errorCount };
+    }
+
     // Fetch race results
     requestCount++;
     const results = await fetchRaceResults(year, seriesId, raceId);
@@ -240,7 +246,8 @@ export async function syncNascarStats(progressCallback?: ProgressCallback): Prom
   // (In production, you'd want to track which races have been synced)
   const now = new Date();
   const recentRaces = schedule.filter((race) => {
-    const raceDate = new Date(race.race_date);
+    const raceDate = parseNascarEtDateTime(race.race_date);
+    if (!Number.isFinite(raceDate.getTime())) return false;
     // Get races from last 7 days
     const sevenDaysAgo = new Date(now);
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
@@ -257,7 +264,11 @@ export async function syncNascarStats(progressCallback?: ProgressCallback): Prom
   for (const race of recentRaces) {
     // Determine series ID from the race
     const seriesId = race.series_id as NascarSeriesId;
-    const raceDate = new Date(race.race_date);
+    const raceDate = parseNascarEtDateTime(race.race_date);
+    if (!Number.isFinite(raceDate.getTime())) {
+      console.warn(`[nascar_stats_sync] Invalid race date for race ${race.race_id}, skipping`);
+      continue;
+    }
 
     const result = await syncNascarRaceResults(
       currentYear,

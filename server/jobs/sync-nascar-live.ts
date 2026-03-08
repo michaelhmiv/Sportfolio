@@ -16,6 +16,7 @@ import {
   NascarSeriesId,
   NascarLiveFeed,
   getFlagStateDescription,
+  isNascarRaceSession,
   isNascarRaceFinished,
 } from "../nascar-api";
 import type { JobResult } from "./scheduler";
@@ -108,6 +109,7 @@ async function convertLiveFeedToStats(
       flagState: liveFeed.flag_state,
       flagStateDescription: getFlagStateDescription(liveFeed.flag_state),
       runName: liveFeed.run_name,
+      runType: liveFeed.run_type,
     };
 
     return {
@@ -188,12 +190,42 @@ export async function syncNascarLiveForSeries(
       return { requestCount, recordsProcessed: 0, errorCount: 0, isLive: false, raceInfo: null };
     }
 
+    const gameId = createNascarGameId(liveFeed.race_id, seriesId);
+
+    // Ignore practice/qualifying sessions. They can publish position-like data that is not race-final.
+    if (!isNascarRaceSession(liveFeed.run_type)) {
+      console.log(
+        `[nascar_live_sync] Ignoring non-race session for ${seriesName}: run_type=${liveFeed.run_type}, run_name="${liveFeed.run_name}"`,
+      );
+
+      // Self-heal previously misclassified statuses from non-race sessions.
+      try {
+        const game = await storage.getDailyGameByGameId(gameId);
+        if (game) {
+          const startMs = new Date(game.startTime).getTime();
+          const safeStatus =
+            Number.isFinite(startMs) && startMs > Date.now() ? "scheduled" : "inprogress";
+          const currentStatus = String(game.status || "").toLowerCase();
+
+          if (currentStatus !== safeStatus) {
+            await storage.updateDailyGameStatus(gameId, safeStatus);
+            console.warn(
+              `[nascar_live_sync] Reset game ${gameId} status from ${currentStatus || "(empty)"} to ${safeStatus} after non-race session`,
+            );
+          }
+        }
+      } catch (error: any) {
+        console.error(`[nascar_live_sync] Failed status repair for ${gameId}:`, error.message);
+      }
+
+      return { requestCount, recordsProcessed: 0, errorCount: 0, isLive: false, raceInfo: null };
+    }
+
     isLive = true;
     const flagStateDesc = getFlagStateDescription(liveFeed.flag_state);
     const isRaceFinished = isNascarRaceFinished(liveFeed);
 
     // Update the dailyGames status - mark as completed if checkered flag, otherwise inprogress
-    const gameId = createNascarGameId(liveFeed.race_id, seriesId);
     const newStatus = isRaceFinished ? "completed" : "inprogress";
     try {
       await storage.updateDailyGameStatus(gameId, newStatus);

@@ -1,16 +1,16 @@
 ---
 id: gameplay-leaderboards-progress
 title: Leaderboards and Progress
-summary: What the public leaderboards measure, how to interpret rank changes, and how to use them as feedback instead of noise.
+summary: What the public leaderboards measure, how to interpret live rank movement, and how public trader profiles fit into the leaderboard loop.
 audience: public
 category: gameplay
 status: published
 owner: product-engineering
-lastReviewedAt: 2026-03-04
-changeTriggers: client/src/pages/leaderboards.tsx,client/src/pages/portfolio.tsx,server/routes.ts,server/storage.ts
+lastReviewedAt: 2026-03-07
+changeTriggers: client/src/pages/leaderboards.tsx,client/src/pages/user-profile.tsx,server/routes.ts,server/storage.ts
 slug: leaderboards-and-progress
 surface: web,agent
-searchKeywords: leaderboards,rankings,progress,net worth,cash balance,shares mined
+searchKeywords: leaderboards,rankings,progress,net worth,cash balance,trading volume,user profile
 ---
 
 # What leaderboards are for
@@ -26,7 +26,7 @@ The public Leaderboards page can rank users by metrics such as:
 - net worth
 - cash balance
 - portfolio value
-- shares mined
+- rolling 24-hour trading volume
 - market-order activity
 
 Each category answers a different question.
@@ -36,7 +36,7 @@ Each category answers a different question.
 - **Net Worth**: the broadest account snapshot. Good for overall standing.
 - **Cash Balance**: how much liquid SB a user is holding right now.
 - **Portfolio Value**: how much value is tied up in held assets.
-- **Shares Mined**: how much inventory a user has accumulated through scouting.
+- **Trading Volume (24h)**: who has been most active in the market recently.
 - **Market Orders**: execution activity, not necessarily profitability.
 
 No single category tells the whole story.
@@ -52,6 +52,19 @@ A jump or drop in rank can come from:
 - another user moving faster than you, even if your account improved
 
 That is why rank is best used as context, not as your only decision tool.
+
+## Public trader profiles
+
+Leaderboard rows link into public trader status pages.
+
+Those profile pages are designed to show:
+
+- current leaderboard standing,
+- recent account trend,
+- top public holdings,
+- recent public market activity.
+
+Use them to understand what may be driving a rank, not just who is sitting above or below you.
 
 ## Healthy ways to use leaderboards
 

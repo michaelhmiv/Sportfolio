@@ -251,6 +251,54 @@ describe("hermes-tools", () => {
     expect(result.context.candidates[0].playerName).toBe("Jalen Brunson");
   });
 
+  it("keeps idle-balance scans focused on cash deployment", async () => {
+    mocks.getScoutAgentProfile.mockResolvedValue({
+      profile: {
+        displayName: "Agent",
+        defaultSport: "NBA",
+      },
+    });
+    mocks.planDirectAgentOperation.mockResolvedValue({
+      summary: "Idle-capital deployment review.",
+      replyText:
+        "You have $314.00 available, so the right move is to treat it like deployable leverage, not dead cash. The clean hierarchy is: use a direct buy if you have conviction on one player, use LP if you want a steadier fee-earning posture, and keep some dry powder back if you expect a better window later today.",
+      observations: ["$314.00 is currently uncommitted."],
+      warnings: [
+        "This is a deployment read only; no capital is staged until you give a concrete action request.",
+      ],
+      actions: [],
+      contextSnapshot: {
+        intent: "idle_capital_review",
+        availableBalance: 314,
+        candidatePlayerId: "nba_1",
+      },
+      trace: {
+        framework: "deterministic-agent-operations",
+        intent: "idle_capital_review",
+      },
+    });
+
+    const result = (await runHermesScanTool({
+      toolName: "scan_idle_balance_options",
+      userId: "user_1",
+      args: {},
+    })) as any;
+
+    expect(mocks.planDirectAgentOperation).toHaveBeenCalledWith({
+      userId: "user_1",
+      profile: {
+        displayName: "Agent",
+        defaultSport: "NBA",
+      },
+      message: "what should i do with my idle balance?",
+    });
+    expect(result.intentFocus).toBe("cash_deployment");
+    expect(result.summary).toBe("Idle-capital deployment review.");
+    expect(result.context.availableBalance).toBe(314);
+    expect(result.replyText.toLowerCase()).not.toContain("scout");
+    expect(result.replyText.toLowerCase()).not.toContain("community boost");
+  });
+
   it("creates a thread and stages an action bundle through the action tool", async () => {
     mocks.createAgentThread.mockResolvedValue({
       id: "thread_new",

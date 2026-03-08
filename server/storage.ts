@@ -136,6 +136,7 @@ export interface IStorage {
   getAllUsersForRanking(): Promise<
     Array<{ userId: string; balance: string; portfolioValue: number }>
   >;
+  getUserTradingVolumeSince(startDate: Date): Promise<Map<string, number>>;
   createUser(user: InsertUser): Promise<User>;
   upsertUser(user: UpsertUser): Promise<User>;
   updateUserBalance(userId: string, amount: string): Promise<void>;
@@ -343,7 +344,12 @@ export interface IStorage {
   // Activity methods
   getUserActivity(
     userId: string,
-    filters?: { types?: string[]; limit?: number; offset?: number },
+    filters?: {
+      types?: string[];
+      limit?: number;
+      offset?: number;
+      includeBalanceAfter?: boolean;
+    },
   ): Promise<any[]>;
 
   // Daily games methods
@@ -409,7 +415,12 @@ export interface IStorage {
     Array<{ userId: string; balance: string; portfolioValue: number }>
   >;
   getPortfolioSnapshot(userId: string, date: Date): Promise<PortfolioSnapshot | undefined>;
-  getLatestSnapshotRanks(): Promise<Map<string, { cashRank: number; portfolioRank: number }>>;
+  getLatestSnapshotRanks(): Promise<
+    Map<
+      string,
+      { cashRank: number | null; portfolioRank: number | null; netWorthRank: number | null }
+    >
+  >;
   getPortfolioSnapshotsInRange(
     userId: string,
     startDate: Date,
@@ -2655,11 +2666,17 @@ export class DatabaseStorage implements IStorage {
   // Activity methods
   async getUserActivity(
     userId: string,
-    filters?: { types?: string[]; limit?: number; offset?: number },
+    filters?: {
+      types?: string[];
+      limit?: number;
+      offset?: number;
+      includeBalanceAfter?: boolean;
+    },
   ): Promise<any[]> {
     const limit = filters?.limit || 50;
     const offset = filters?.offset || 0;
     const types = filters?.types || ["vesting", "market", "scout"];
+    const includeBalanceAfter = filters?.includeBalanceAfter ?? true;
 
     const activities: any[] = [];
 
@@ -2826,18 +2843,22 @@ export class DatabaseStorage implements IStorage {
     );
 
     // Get current user balance for balance-after calculations
-    const user = await this.getUser(userId);
-    if (!user) return [];
-
-    let currentBalance = parseFloat(user.balance);
+    let currentBalance = 0;
+    if (includeBalanceAfter) {
+      const user = await this.getUser(userId);
+      if (!user) return [];
+      currentBalance = parseFloat(user.balance);
+    }
 
     // Process activities from most recent to oldest, adding descriptions and balance-after
     const enrichedActivities = sorted.slice(offset, offset + limit).map((activity: any) => {
       const cashDelta = activity.cashDelta ? parseFloat(activity.cashDelta) : 0;
-      const balanceAfter = currentBalance;
+      const balanceAfter = includeBalanceAfter ? currentBalance : null;
 
       // Move backwards through history (we're going DESC)
-      currentBalance -= cashDelta;
+      if (includeBalanceAfter) {
+        currentBalance -= cashDelta;
+      }
 
       // Build description
       let description = "";
@@ -2863,7 +2884,7 @@ export class DatabaseStorage implements IStorage {
         description,
         cashDelta: cashDelta !== 0 ? activity.cashDelta : undefined,
         shareDelta: activity.sharesDelta || undefined,
-        balanceAfter: balanceAfter.toFixed(2),
+        balanceAfter: balanceAfter !== null ? balanceAfter.toFixed(2) : undefined,
         metadata: meta,
       };
     });
@@ -3574,6 +3595,40 @@ export class DatabaseStorage implements IStorage {
     }));
   }
 
+  async getUserTradingVolumeSince(startDate: Date): Promise<Map<string, number>> {
+    const result: any = await db.execute(sql`
+      SELECT
+        user_id,
+        COALESCE(SUM(volume), 0)::text AS volume
+      FROM (
+        SELECT
+          ${trades.buyerId} AS user_id,
+          (${trades.quantity}::numeric * ${trades.price}::numeric) AS volume
+        FROM ${trades}
+        WHERE ${trades.executedAt} >= ${startDate}
+          AND ${trades.buyerId} <> 'pool'
+
+        UNION ALL
+
+        SELECT
+          ${trades.sellerId} AS user_id,
+          (${trades.quantity}::numeric * ${trades.price}::numeric) AS volume
+        FROM ${trades}
+        WHERE ${trades.executedAt} >= ${startDate}
+          AND ${trades.sellerId} <> 'pool'
+      ) user_trade_volume
+      GROUP BY user_id
+    `);
+
+    const rows = Array.isArray(result?.rows) ? result.rows : [];
+    return new Map(
+      rows.map((row: { user_id: string; volume: string }) => [
+        row.user_id,
+        parseFloat(row.volume || "0"),
+      ]),
+    );
+  }
+
   async getPortfolioSnapshot(userId: string, date: Date): Promise<PortfolioSnapshot | undefined> {
     // Normalize to start of day to handle timezone differences
     const startOfDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -3595,7 +3650,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getLatestSnapshotRanks(): Promise<
-    Map<string, { cashRank: number; portfolioRank: number }>
+    Map<
+      string,
+      { cashRank: number | null; portfolioRank: number | null; netWorthRank: number | null }
+    >
   > {
     // Get the most recent snapshot date
     const [latestSnapshot] = await db
@@ -3619,6 +3677,7 @@ export class DatabaseStorage implements IStorage {
       rankMap.set(snapshot.userId, {
         cashRank: snapshot.cashRank,
         portfolioRank: snapshot.portfolioRank,
+        netWorthRank: snapshot.netWorthRank,
       });
     }
 

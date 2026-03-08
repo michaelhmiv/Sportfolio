@@ -20,6 +20,33 @@ function isLegacyNbaGameId(sport: unknown, gameId: unknown): boolean {
   return String(sport || "").toUpperCase() === "NBA" && String(gameId || "").startsWith("18447");
 }
 
+function isSettlableNascarStats(
+  sport: unknown,
+  stats: { statsJson?: unknown } | null | undefined,
+): boolean {
+  if (String(sport || "").toUpperCase() !== "NASCAR") return true;
+
+  const statsJson = stats?.statsJson;
+  if (!statsJson || typeof statsJson !== "object") return true;
+
+  const runType = Number(
+    (statsJson as Record<string, unknown>).runType ??
+      (statsJson as Record<string, unknown>).run_type,
+  );
+  if (Number.isFinite(runType)) {
+    return runType === 3;
+  }
+
+  const runName = String(
+    (statsJson as Record<string, unknown>).runName ??
+      (statsJson as Record<string, unknown>).run_name ??
+      "",
+  ).toLowerCase();
+  if (!runName) return true;
+
+  return !runName.includes("qualifying") && !runName.includes("practice");
+}
+
 export async function settleBoosts(progressCallback?: ProgressCallback): Promise<JobResult> {
   console.log("[settle_boosts] Starting boost settlement...");
 
@@ -143,6 +170,13 @@ export async function settleBoosts(progressCallback?: ProgressCallback): Promise
             `[settle_boosts] Boost ${boost.id}: No stats found for player ${boost.playerId} game ${canonicalGameId}, queuing for retry`,
           );
           boostsNeedingRetry.push(boost);
+          continue;
+        }
+
+        if (!isSettlableNascarStats(game.sport ?? boost.sport, stats)) {
+          console.warn(
+            `[settle_boosts] Boost ${boost.id}: ignoring non-race NASCAR session stats for game ${canonicalGameId}`,
+          );
           continue;
         }
 
@@ -273,6 +307,14 @@ export async function settleBoosts(progressCallback?: ProgressCallback): Promise
             if (!stats) {
               console.warn(
                 `[settle_boosts] Retry ${retry} - Boost ${boost.id}: still no stats, will retry again if available`,
+              );
+              remainingBoosts.push(boost);
+              continue;
+            }
+
+            if (!isSettlableNascarStats(game.sport ?? boost.sport, stats)) {
+              console.warn(
+                `[settle_boosts] Retry ${retry} - Boost ${boost.id}: still non-race NASCAR session stats for game ${canonicalGameId}, deferring`,
               );
               remainingBoosts.push(boost);
               continue;

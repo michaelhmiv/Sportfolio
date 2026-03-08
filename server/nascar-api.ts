@@ -16,9 +16,11 @@
 
 import axios, { AxiosInstance } from "axios";
 import { HttpsProxyAgent } from "https-proxy-agent";
+import { fromZonedTime } from "date-fns-tz";
 
 const NASCAR_API_BASE = "https://cf.nascar.com";
 const NASCAR_PROXY_URL = process.env.NASCAR_PROXY_URL;
+const NASCAR_ET_TIMEZONE = "America/New_York";
 
 // Parse IPRoyal proxy URL format: host:port:username:password
 function parseProxyUrl(
@@ -166,7 +168,7 @@ export interface NascarLiveFeed {
   laps_in_race: number;
   laps_to_go: number;
   run_name: string;
-  run_type: number;
+  run_type: number; // 1=Practice, 2=Qualifying, 3=Race
   // Race state
   flag_state: number; // Provider uses additional terminal values after the race ends
   number_of_caution_segments: number;
@@ -316,6 +318,20 @@ export interface NascarRace {
 // ============================================================================
 
 /**
+ * NASCAR schedule fields are returned in Eastern Time without a timezone suffix.
+ * Parse as ET and convert to UTC so comparisons are accurate in all environments.
+ */
+export function parseNascarEtDateTime(rawDateTime: string): Date {
+  const parsed = fromZonedTime(rawDateTime, NASCAR_ET_TIMEZONE);
+  if (Number.isFinite(parsed.getTime())) return parsed;
+  return new Date(rawDateTime);
+}
+
+export function isNascarRaceSession(runType: number | null | undefined): boolean {
+  return runType === 3;
+}
+
+/**
  * Fetch live feed for current/ongoing race
  */
 export async function fetchLiveFeed(seriesId?: NascarSeriesId): Promise<NascarLiveFeed | null> {
@@ -391,7 +407,10 @@ export async function fetchRaceSchedule(year: number): Promise<NascarRaceListIte
   }
 
   // Sort by race date
-  allRaces.sort((a, b) => new Date(a.race_date).getTime() - new Date(b.race_date).getTime());
+  allRaces.sort(
+    (a, b) =>
+      parseNascarEtDateTime(a.race_date).getTime() - parseNascarEtDateTime(b.race_date).getTime(),
+  );
 
   console.log(`[NASCAR API] Total races for ${year}: ${allRaces.length}`);
   return allRaces;
@@ -486,19 +505,24 @@ export async function fetchRaceResults(
     const weekendFeed = await fetchWeekendFeed(year, seriesId, raceId);
 
     // Try to find race session in weekend feed (runType 3 = Race)
-    let raceSession = weekendFeed?.sessions.find((s) => s.runType === 3);
+    let raceSession = weekendFeed?.sessions.find((s) => isNascarRaceSession(s.runType));
 
     // If no race session in weekend feed, try live feed
     if (!raceSession) {
       try {
         const liveFeed = await fetchLiveFeed(seriesId);
-        if (liveFeed && liveFeed.race_id === raceId && liveFeed.run_type === 3) {
+        if (
+          liveFeed &&
+          liveFeed.race_id === raceId &&
+          isNascarRaceSession(liveFeed.run_type) &&
+          isNascarRaceFinished(liveFeed)
+        ) {
           // Transform live feed to session format
           raceSession = {
             runId: liveFeed.run_id,
             runName: liveFeed.run_name,
             runType: liveFeed.run_type,
-            status: isNascarRaceFinished(liveFeed) ? "completed" : "inprogress",
+            status: "completed",
             scheduledStartTime: "",
             laps: liveFeed.laps_in_race,
             vehicles: liveFeed.vehicles.map((v) => ({
@@ -529,6 +553,18 @@ export async function fetchRaceResults(
 
     if (!raceSession) {
       console.log(`[NASCAR API] No race session found for race ${raceId}`);
+      return [];
+    }
+
+    // Guard against placeholder sessions that can appear before the race has real lap data.
+    const maxLapsCompleted = raceSession.vehicles.reduce(
+      (max, vehicle) => Math.max(max, Number(vehicle.laps_completed) || 0),
+      0,
+    );
+    if (maxLapsCompleted <= 0) {
+      console.log(
+        `[NASCAR API] Race session ${raceId} has no completed laps yet, skipping results`,
+      );
       return [];
     }
 

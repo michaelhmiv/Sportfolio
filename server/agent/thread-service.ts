@@ -1028,8 +1028,32 @@ async function getActionBundleRow(userId: string, actionBundleId: string) {
   return row;
 }
 
-async function applyPendingBundle(userId: string, threadId: string) {
-  const bundle = await getLatestPendingBundleRow(userId, threadId);
+async function getThreadActionBundleById(
+  userId: string,
+  threadId: string,
+  actionBundleId: string,
+  allowedStatuses: Array<"pending_confirmation" | "pending_clarification">,
+) {
+  const bundle = await getActionBundleRow(userId, actionBundleId);
+  const bundleStatus = bundle?.status;
+  const isAllowedStatus =
+    typeof bundleStatus === "string" &&
+    allowedStatuses.some((allowedStatus) => allowedStatus === bundleStatus);
+  if (!bundle || bundle.threadId !== threadId || !isAllowedStatus) {
+    return null;
+  }
+
+  return bundle;
+}
+
+async function applyPendingBundle(
+  userId: string,
+  threadId: string,
+  pendingBundleId?: string | null,
+) {
+  const bundle = pendingBundleId
+    ? await getThreadActionBundleById(userId, threadId, pendingBundleId, ["pending_confirmation"])
+    : await getLatestPendingBundleRow(userId, threadId);
   if (!bundle) {
     throw new Error("No pending plan remains on this thread");
   }
@@ -1070,7 +1094,7 @@ async function applyPendingBundle(userId: string, threadId: string) {
       userId,
       role: "assistant",
       messageType: "result",
-      contentText: `Applied the latest plan. ${bundle.summary}`,
+      contentText: `Applied the pending plan. ${bundle.summary}`,
       runId: bundle.runId,
       actionBundleId: bundle.id,
       structuredPayload: {
@@ -1110,8 +1134,17 @@ async function applyPendingBundle(userId: string, threadId: string) {
   }
 }
 
-async function cancelPendingBundle(userId: string, threadId: string) {
-  const bundle = await getLatestActiveBundleRow(userId, threadId);
+async function cancelPendingBundle(
+  userId: string,
+  threadId: string,
+  pendingBundleId?: string | null,
+) {
+  const bundle = pendingBundleId
+    ? await getThreadActionBundleById(userId, threadId, pendingBundleId, [
+        "pending_confirmation",
+        "pending_clarification",
+      ])
+    : await getLatestActiveBundleRow(userId, threadId);
   if (!bundle) {
     throw new Error("No pending plan remains on this thread");
   }
@@ -1145,7 +1178,7 @@ async function cancelPendingBundle(userId: string, threadId: string) {
     role: "assistant",
     messageType: "result",
     contentText:
-      "Dismissed the latest plan. Send a new request whenever you want a different move.",
+      "Dismissed the pending plan. Send a new request whenever you want a different move.",
     runId: bundle.runId,
     actionBundleId: bundle.id,
     structuredPayload: {
@@ -1700,13 +1733,14 @@ export async function sendAgentThreadMessage(
 export async function confirmAgentThread(
   userId: string,
   threadId: string,
+  pendingBundleId?: string | null,
 ): Promise<AgentThreadTurnResult> {
   const thread = await getThreadRow(userId, threadId);
   if (!thread) {
     throw new Error("Agent thread not found");
   }
 
-  const result = await applyPendingBundle(userId, threadId);
+  const result = await applyPendingBundle(userId, threadId, pendingBundleId);
 
   return {
     thread: await getAgentThread(userId, threadId),
@@ -1731,13 +1765,14 @@ export async function confirmAgentThread(
 export async function cancelAgentThread(
   userId: string,
   threadId: string,
+  pendingBundleId?: string | null,
 ): Promise<AgentThreadTurnResult> {
   const thread = await getThreadRow(userId, threadId);
   if (!thread) {
     throw new Error("Agent thread not found");
   }
 
-  const result = await cancelPendingBundle(userId, threadId);
+  const result = await cancelPendingBundle(userId, threadId, pendingBundleId);
 
   return {
     thread: await getAgentThread(userId, threadId),

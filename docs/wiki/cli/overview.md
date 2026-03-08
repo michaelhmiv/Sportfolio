@@ -22,17 +22,25 @@ The Sportfolio CLI gives you a terminal-native way to read docs, inspect your ac
 CLI access uses user-scoped API tokens. Create a token from your profile page, then authenticate from a terminal:
 
 ```bash
-sportfolio auth login --token <your-token>
+npm run cli -- auth login --token <your-token> --base-url https://www.sportfolio.market
 ```
 
 The token is user-specific, so the CLI inherits the same account boundary as the web app.
 
 ## Command families
 
+If you are running against local development, use:
+
+```bash
+npm run cli -- auth login --token <your-token> --base-url http://127.0.0.1:5000
+```
+
 - `docs list`, `docs search`, `docs open`
 - `portfolio summary`
 - `agent ask`, `agent threads`, `agent confirm`, `agent cancel`
 - structured action staging through `actions ...` commands
+
+For exact syntax, examples, JSON mode, and troubleshooting, use [CLI Command Reference](/wiki/cli/command-reference).
 
 In practice, the CLI is strongest when you want one of three things:
 
@@ -80,6 +88,8 @@ The CLI is especially useful for:
 - checking your portfolio from a workstation
 - searching docs while you trade in another window
 - using the agent in an operations-heavy or developer workflow
+
+If you want one cross-surface map of web, CLI, and SMS capabilities, read [User Action Surface](/wiki/features/user-action-surface).
 
 If you need rich visual scanning, the web app remains the better primary surface. If you need fast, scriptable access, the CLI is the right tool.
 

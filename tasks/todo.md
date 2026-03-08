@@ -2,12 +2,13 @@
 
 - [x] Preserve legacy `/wiki/:section/:slug#heading` fragments when redirecting into handbook anchors
 - [x] Restore authenticated handbook/search fetching so optional auth routes receive the Supabase bearer token
-- [ ] Re-run targeted validation, push PR #91 updates, and verify merge conflict status against `main`
+- [x] Re-run targeted validation and sync the branch with `origin/main` to clear merge conflicts
 
 Review:
 
 - Updated the wiki redirect helper so old article heading fragments map into the new handbook heading anchors instead of being dropped at chapter top.
 - Switched the handbook and search page queries back onto the shared authenticated fetch helper, restoring the authenticated request path for optional-auth docs routes.
+- Validation passed for `npm run check`, `npm run lint`, `npm run format:check`, and the targeted docs/wiki Vitest set. Full `npm run test:run` still has unrelated timeout failures in untouched agent/jobs suites.
 
 ## 2026-03-07 Wiki Handbook + Access Clarity + Docs QA
 
@@ -24,6 +25,100 @@ Review:
 - Added explicit access coverage in the docs source for web, mobile, SMS, CLI, repo-local CLI usage, and current MCP status, and exposed that content through a new `GET /api/docs/handbook` route plus a public `POST /api/docs/ask` docs-only answer path with handbook citations and a `5 requests / 10 minutes / IP` limiter.
 - Added targeted backend/client coverage for handbook composition, docs-answer fallback behavior, route behavior, rate limiting, and legacy deep-link helpers.
 - Validation passed: `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`.
+
+## 2026-03-07 PR #89 Review Follow-up
+
+- [x] Pull the open review comments for PR `#89` and map the actionable feedback
+- [x] Route top-level command help through the CLI error handler so invalid `--help` requests fail cleanly
+- [x] Add regression coverage and validate the fix before pushing
+
+Review:
+
+- Fixed the CLI regression called out in PR `#89`: `sportfolio foo --help` now stays inside the existing `try/catch` path, so unknown command help requests use the normal `fail(...)` output instead of leaking a raw Node stack trace.
+- Added `packages/sportfolio-cli/src/index.test.ts` to lock in both the invalid-command help failure path and the supported-command help path, then re-ran `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`.
+
+## 2026-03-07 Fresh PR Packaging
+
+- [x] Audit the local worktree and separate product changes from local-only artifacts before staging
+- [x] Create a fresh feature branch, stage the intended repo changes, and review the staged diff for secrets/junk
+- [x] Commit, push, and open a GitHub PR for review
+
+Review:
+
+- Bundling the current local batch into a fresh PR that includes the leaderboard/profile overhaul, NASCAR hardening, CLI/action-surface improvements, and the agent shell restructure while excluding `.codex*` audit artifacts from the PR.
+- Created branch `feat/agent-cli-leaderboards-nascar`, pushed commit `1d61a02`, and opened PR `#89` for review: `https://github.com/michaelhmiv/Sportfolio/pull/89`.
+
+## 2026-03-07 Public Holdings Table + Mobile Type Scale Pass
+
+- [x] Bring public profile holdings closer to the private portfolio table with sorting and denser row data
+- [x] Align the public profile mobile type scale to the dashboard compact sizing patterns and make the standard explicit in code
+- [x] Validate via `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`
+
+Review:
+
+- Replaced the bare public holdings list with a sortable holdings surface: mobile gets compact sortable cards and desktop gets clickable sortable table headers for asset, quantity, average cost, price, value, P&L, and portfolio weight.
+- Added explicit compact profile typography standards in `client/src/pages/user-profile.tsx` so mobile labels, meta copy, section titles, and metric values now follow the same denser dashboard-oriented scale instead of oversized one-off classes.
+- Validation passed cleanly: `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`.
+
+## 2026-03-07 Interactive Leaderboards + Public Trader Status Pages
+
+- [x] Replace the stale leaderboard metric with rolling 24h trading volume and normalize leaderboard category/hash handling
+- [x] Expand the public leaderboard API with current-user rank context, rank windows, and freshness metadata
+- [x] Expand the public user profile API with richer rankings, trend history, public activity, and holdings/status summaries
+- [x] Rebuild the leaderboard and public profile pages around live ranking/status UX
+- [x] Validate via `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`
+
+Review:
+
+- Replaced the stale vesting/shares-mined leaderboard slot with a canonical `tradingVolume24h` category and added legacy hash/category normalization so old links resolve onto the live board instead of breaking or drifting.
+- `/api/leaderboards` now returns richer board metadata, current-user rank context, and a focused current-user window, while `/api/user/:userId/profile` now powers a full public trader status page with rankings, trend history, public activity, and portfolio concentration data.
+- Added a dedicated `server/leaderboards.ts` helper module plus regression coverage in `server/leaderboards.test.ts` for category normalization, rank-change math, and current-user window behavior.
+- Rebuilt the `/leaderboards` and public profile pages around live status, rank movement, jump-to-my-spot flow, public trader discovery, and richer holdings/activity presentation.
+- Validation passed cleanly: `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`.
+
+## 2026-03-07 NASCAR Pre-Race Completion / Payout Hardening
+
+- [x] Reproduce the NASCAR provider payload for today and confirm why a non-race session can be treated as completed
+- [x] Harden NASCAR live sync so only race sessions (`run_type=3`) can update game status and race stats
+- [x] Harden race-result sync gating so non-final/live session data cannot mark races completed
+- [x] Add regression tests for qualifying-session payload behavior
+- [x] Validate via `npm run check`, `npm run lint`, `npm run test:run` (and `npm run format:check` if formatting-sensitive)
+
+Review:
+
+- Root cause confirmed with live provider payload: `live-feed.json` was returning a qualifying session (`run_type=2`, pole run) with a terminal flag state, and our live sync treated that as a completed race.
+- `sync-nascar-live` now ignores non-race sessions, self-heals any incorrectly completed game status back to a safe pre-race/in-progress state, and only writes race stats for `run_type=3`.
+- NASCAR ET datetime parsing is now explicit and DST-safe (`America/New_York`) for schedule/status and stats sync paths.
+- Additional payout hardening now blocks NASCAR settlement when stats metadata indicates a non-race session (qualifying/practice), preventing accidental credits even if upstream status drifts.
+- Added regression coverage in `server/jobs/sync-nascar-live.test.ts` for both non-race and race session handling.
+- Validation passed: `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`.
+
+## 2026-03-07 MCP Review Fixes
+
+- [x] Bind MCP confirm/cancel flows to the validated `pendingBundleId` in thread-service
+- [x] Fix `stage_lp_add_optimal` to pass the preview contract's `maxShares`/`maxPlayMoney` fields
+- [x] Sort community-boost eligible players before applying the MCP tool limit
+- [x] Tighten MCP mocks/tests so the reviewed regressions are covered
+- [x] Validate via targeted MCP/Hermes tests plus `npm run check`, `npm run lint`, and `npm run test:run`
+
+Review:
+
+- `confirm_pending_action` and `cancel_pending_action` now pass the validated bundle id into thread-service, and thread-service applies/rejects that exact bundle instead of whichever pending bundle is latest on the thread.
+- `stage_lp_add_optimal` now maps to the preview contract's `maxShares` and `maxPlayMoney` fields, with backward-compatible aliases retained in the MCP schema.
+- Community boost eligibility now mirrors the existing route ordering by sorting on `communityBoostCount` and player name before applying the MCP limit.
+- The MCP mock harness now enforces bundle-id forwarding and the LP-optimal preview contract, and `server/mcp/mcp-server.test.ts` adds an ordering regression test for community boost candidates.
+- Validation passed for targeted MCP/Hermes tests, `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`.
+
+## 2026-03-07 Full Gameplay MCP Parity + Exhaustive Verification
+
+- [ ] Build a canonical gameplay capability matrix that enumerates every included gameplay workflow and every explicit MCP v1 exclusion
+- [ ] Add a stable public MCP tool registry over the existing Hermes/tool executor layer
+- [ ] Fix Hermes intent grounding so idle-cash asks stay in the cash-deployment domain and do not reuse generic cross-domain levers
+- [ ] Add a remote `/mcp` Streamable HTTP server with bearer-token auth using existing user API tokens
+- [ ] Harden staged confirmations so MCP confirm/cancel require both `threadId` and `pendingBundleId`
+- [ ] Expose typed gameplay read/state/mutation tools for the full non-billing gameplay surface
+- [ ] Add parity audit coverage, MCP protocol tests, and an exhaustive smoke harness that calls every public MCP tool at least once
+- [ ] Run `npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`, and the new MCP verification commands
 
 ## 2026-03-04 PR #87 Comment Fix Pass (Manual)
 
@@ -790,3 +885,43 @@ Review:
 - Power now builds community boost filter tabs from the shared `SPORTS` export in `client/src/lib/sport-context.tsx` (mapped to include `All` and exclude only `ALL`), which keeps this page aligned with cross-site sport options and avoids piecemeal filter lists.
 - Mobile quick stats were switched to a horizontal flex strip with small-screen min-width cards and horizontal scrolling, so Active Slots, Live Slots, Premium Shares, and Est. Payout stay on one compact row instead of wrapping into multiple rows.
 - Validation ran successfully: `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check` all pass.
+
+## 2026-03-07 Agent Page UX Audit
+
+- [ ] Map the `/agent` route layout, shell, and thread/composer state flow
+- [ ] Audit mobile-first layout failures: viewport sizing, drawer behavior, scroll ownership, keyboard/composer interactions, and new-chat transitions
+- [ ] Audit desktop behavior and note secondary regressions or mismatches
+- [ ] Deliver prioritized findings with concrete file references and recommended fixes
+
+## 2026-03-07 CLI + User Action Surface Hardening
+
+- [x] Simulate first-time CLI onboarding and action staging flows against local dev + mock smoke harness
+- [x] Capture friction points and convert them into concrete UX/docs hardening changes
+- [x] Improve CLI discoverability (`--help`, command-scoped help, clearer usage strings, network error guidance)
+- [x] Improve CLI route resiliency messaging for agent-concurrency collisions (`429` retryable response)
+- [x] Publish canonical docs for command reference and cross-surface capability mapping
+- [x] Harden in-app CLI access card and root README so users/agents can find setup and capabilities quickly
+
+Review:
+
+- Reproduced live CLI flows as a user: auth + docs + portfolio + agent reads were successful; action staging was intermittently blocked by concurrent agent analysis and surfaced as opaque failures.
+- CLI now has command-scoped help (`sportfolio <command> --help`), global `--json` discoverability, clearer action usage text, and actionable network-failure messaging.
+- CLI backend now returns a specific retryable `429` message when a request collides with an in-flight agent analysis instead of only returning a generic `500` failure.
+- Added two new canonical wiki docs: `/wiki/cli/command-reference` and `/wiki/features/user-action-surface` to map actual available actions across web/CLI/SMS/agent.
+- Updated `/wiki/cli/overview`, the profile CLI access card, and the root `README.md` so setup and possibility discovery are explicit for both human users and agents.
+
+## 2026-03-07 Agent Shell Restructure
+
+- [x] Replace the `/agent` shell with a mobile-safe full-height layout and compact header/actions
+- [x] Add a persistent desktop conversation rail while keeping mobile history in a sheet
+- [x] Replace transient fresh-chat state with immediate real thread creation and preserve selection through thread-list refresh
+- [x] Add targeted Playwright coverage for desktop persistent history and mobile fresh-chat flow
+- [x] Validate via `npm run check`, `npm run lint`, `npm run test:run`, targeted `npx playwright test tests/e2e/agent-shell.spec.ts --project=chromium`, and targeted Prettier check
+
+Review:
+
+- Rebuilt the agent route around a single transcript scroll owner, a compact mobile header, safe-area-aware shell/composer padding, and a persistent desktop history rail so the chat viewport no longer collapses under stacked chrome.
+- `New Chat` now creates a real thread immediately instead of relying on local-only draft state, and a thread-selection guard prevents the newly created thread from snapping back to the previous one while the refreshed thread list is still in flight.
+- Mobile history now closes when starting a fresh chat, and the new Playwright spec locks in both the persistent desktop rail and the fixed mobile fresh-chat behavior.
+- Validation passed for `npm run check`, `npm run lint`, `npm run test:run`, `npx playwright test tests/e2e/agent-shell.spec.ts --project=chromium`, and targeted Prettier check on the touched files.
+- `npm run format:check` still fails, but only because of pre-existing formatting drift in untouched files: `client/src/pages/leaderboards.tsx`, `server/leaderboards.test.ts`, `server/leaderboards.ts`, `server/routes.ts`, `server/storage.ts`, and `tasks/todo.md`.
