@@ -1,3 +1,18 @@
+## 2026-03-08 Wiki MCP Handbook Review Fixes
+
+- [x] Restore regular-share earning units in share-payout snapshots so 1x holdings still earn holder payouts
+- [x] Reinstate `/power` as a backwards-compatible alias for the renamed boosts page
+- [x] Exclude postponed/cancelled games from playable mobile/marketplace slate state and keep watchlist movers sport-scoped
+- [x] Re-run focused and full validation, then capture the review outcome
+
+Review:
+
+- Updated `server/storage.ts` so share-payout snapshots aggregate effective earning units from both regular player holdings and stacked-share multipliers, preserving holder payouts for ordinary 1x inventory.
+- Restored `/power` in `client/src/App.tsx` as a compatibility route and auth-bootstrap prefix while keeping `/boosts` as the canonical page.
+- Hardened market-state helpers in `server/market-mobile-overview.ts` and `server/routes.ts` so postponed/cancelled/delayed/suspended games are treated as out-of-slate instead of upcoming, and filtered authenticated `watchlistMoves` to the requested sport.
+- Added regression coverage in `server/market-mobile-overview.test.ts` for postponed-game boost windows and mixed-sport watchlist filtering.
+- Validation passed for `npm run test:run -- server/market-mobile-overview.test.ts`, `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`.
+
 ## 2026-03-08 Multiplier Canonicalization Phase 2
 
 - [x] Drop legacy `holdings.power` / `holdings.powerLevel` and old boost/payout compatibility columns from the canonical schema

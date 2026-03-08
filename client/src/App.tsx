@@ -180,6 +180,7 @@ const AUTH_BOOTSTRAP_REQUIRED_PREFIXES = [
   "/login",
   "/auth/callback",
   "/agent",
+  "/power",
   "/boosts",
   "/player/",
   "/portfolio",
@@ -508,6 +509,7 @@ function Router() {
             <Route path="/agent">{isAuthenticated ? <Agent /> : <Dashboard />}</Route>
 
             {/* Boosts - requires authentication */}
+            <Route path="/power">{isAuthenticated ? <Boosts /> : <Dashboard />}</Route>
             <Route path="/boosts">{isAuthenticated ? <Boosts /> : <Dashboard />}</Route>
 
             {/* Protected routes - require authentication, redirect to dashboard if not logged in */}

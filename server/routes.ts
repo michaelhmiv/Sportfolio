@@ -129,24 +129,37 @@ function getMarketplaceGameStatus(
     return "none";
   }
 
+  const normalizedStatus = String(game.status || "")
+    .trim()
+    .toLowerCase();
   const now = new Date();
   const startTime = new Date(game.startTime);
   const timeSinceStart = now.getTime() - startTime.getTime();
   const threeHoursMs = 3 * 60 * 60 * 1000;
 
-  if (game.status === "completed" || game.status === "ended") {
+  if (
+    normalizedStatus === "postponed" ||
+    normalizedStatus === "cancelled" ||
+    normalizedStatus === "canceled" ||
+    normalizedStatus === "delayed" ||
+    normalizedStatus === "suspended"
+  ) {
+    return "none";
+  }
+
+  if (normalizedStatus === "completed" || normalizedStatus === "ended") {
     return "ended";
   }
 
-  if (game.status === "inprogress") {
+  if (normalizedStatus === "inprogress") {
     return "live";
   }
 
-  if (game.status === "scheduled" && timeSinceStart > 0 && timeSinceStart < threeHoursMs) {
+  if (normalizedStatus === "scheduled" && timeSinceStart > 0 && timeSinceStart < threeHoursMs) {
     return "live";
   }
 
-  if (game.status === "scheduled" && timeSinceStart >= threeHoursMs) {
+  if (normalizedStatus === "scheduled" && timeSinceStart >= threeHoursMs) {
     return "ended";
   }
 

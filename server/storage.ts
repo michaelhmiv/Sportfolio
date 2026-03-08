@@ -5221,6 +5221,32 @@ export class DatabaseStorage implements IStorage {
     baseRate: string,
   ): Promise<number> {
     const result: any = await db.execute(sql`
+      WITH earning_positions AS (
+        SELECT
+          ${holdings.userId} AS user_id,
+          ${holdings.assetId} AS player_id,
+          ${holdings.quantity}::numeric AS earning_units
+        FROM ${holdings}
+        INNER JOIN ${players} ON ${players.id} = ${holdings.assetId}
+        WHERE ${holdings.assetType} = 'player'
+          AND ${holdings.quantity}::numeric > 0
+          AND ${holdings.userId} <> 'market_maker'
+          AND UPPER(${players.sport}) = ${game.sport.toUpperCase()}
+          AND (${players.team} = ${game.homeTeam} OR ${players.team} = ${game.awayTeam})
+
+        UNION ALL
+
+        SELECT
+          ${playerMultipliers.userId} AS user_id,
+          ${playerMultipliers.playerId} AS player_id,
+          ${playerMultipliers.multiplier}::numeric AS earning_units
+        FROM ${playerMultipliers}
+        INNER JOIN ${players} ON ${players.id} = ${playerMultipliers.playerId}
+        WHERE ${playerMultipliers.multiplier}::numeric > 0
+          AND ${playerMultipliers.userId} <> 'market_maker'
+          AND UPPER(${players.sport}) = ${game.sport.toUpperCase()}
+          AND (${players.team} = ${game.homeTeam} OR ${players.team} = ${game.awayTeam})
+      )
       INSERT INTO ${sharePayouts} (
         user_id,
         player_id,
@@ -5231,21 +5257,16 @@ export class DatabaseStorage implements IStorage {
         status
       )
       SELECT
-        ${playerMultipliers.userId},
-        ${playerMultipliers.playerId},
+        earning_positions.user_id,
+        earning_positions.player_id,
         ${game.gameId},
-        ROUND(SUM(COALESCE(${playerMultipliers.multiplier}::numeric, 0)), 2)::numeric(12, 2),
-        'multiplier_only',
+        ROUND(SUM(COALESCE(earning_positions.earning_units, 0)), 2)::numeric(12, 2),
+        'effective_shares',
         ${baseRate}::numeric,
         'pending'
-      FROM ${playerMultipliers}
-      INNER JOIN ${players} ON ${players.id} = ${playerMultipliers.playerId}
-      WHERE ${playerMultipliers.multiplier}::numeric > 0
-        AND ${playerMultipliers.userId} <> 'market_maker'
-        AND UPPER(${players.sport}) = ${game.sport.toUpperCase()}
-        AND (${players.team} = ${game.homeTeam} OR ${players.team} = ${game.awayTeam})
-      GROUP BY ${playerMultipliers.userId}, ${playerMultipliers.playerId}
-      HAVING SUM(COALESCE(${playerMultipliers.multiplier}::numeric, 0)) > 0
+      FROM earning_positions
+      GROUP BY earning_positions.user_id, earning_positions.player_id
+      HAVING SUM(COALESCE(earning_positions.earning_units, 0)) > 0
       ON CONFLICT (user_id, player_id, game_id) DO NOTHING;
     `);
 

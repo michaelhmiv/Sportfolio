@@ -120,6 +120,27 @@ describe("buildMobileMarketOverview", () => {
     lastTradePrice: "8.10",
     volume24h: 250,
   });
+  const playerFive = makePlayer({
+    id: "p5",
+    firstName: "Emmett",
+    lastName: "Edge",
+    team: "EEE",
+    position: "WR",
+    sport: "NFL",
+    priceChange24h: "18.7",
+    lastTradePrice: "22.00",
+    volume24h: 5200,
+  });
+  const playerSix = makePlayer({
+    id: "p6",
+    firstName: "Flynn",
+    lastName: "Freeze",
+    team: "FFF",
+    position: "G",
+    priceChange24h: "9.4",
+    lastTradePrice: "16.00",
+    volume24h: 2400,
+  });
 
   const baseDeps: MarketMobileOverviewDeps = {
     getFinancialMarketScanners: async () => ({
@@ -188,7 +209,7 @@ describe("buildMobileMarketOverview", () => {
       { playerId: "p3", sport: "NBA" },
     ],
     getPlayersByIds: async (playerIds) =>
-      [playerOne, playerTwo, playerThree, playerFour].filter((player) =>
+      [playerOne, playerTwo, playerThree, playerFour, playerFive, playerSix].filter((player) =>
         playerIds.includes(player.id),
       ),
     getPlayerFinancialMetrics: async (playerId) => ({
@@ -237,5 +258,53 @@ describe("buildMobileMarketOverview", () => {
     expect(personalBoost?.bestShareMultiplier).toBe(3);
     expect(personalBoost?.signal).toBe("boost");
     expect(overview.watchlistMoves.map((entry) => entry.playerId)).toEqual(["p4", "p2"]);
+  });
+
+  it("keeps watchlist movers inside the requested sport", async () => {
+    const overview = await buildMobileMarketOverview(
+      { sport: "NBA", userId: "user-1" },
+      {
+        ...baseDeps,
+        getWatchList: async () => ["p5", "p4"],
+      },
+    );
+
+    expect(overview.watchlistMoves.map((entry) => entry.playerId)).toEqual(["p4"]);
+  });
+
+  it("treats postponed games as out of slate for boost windows", async () => {
+    const overview = await buildMobileMarketOverview(
+      { sport: "NBA" },
+      {
+        ...baseDeps,
+        getFinancialMarketScanners: async () => ({
+          undervalued: [],
+          premium: [],
+          sentiment: [
+            { player: playerSix, metrics: { valueIndex: 91, sentiment: { buyPressure: 67 } } },
+          ],
+          momentum: [
+            { player: playerSix, metrics: { valueIndex: 91, sentiment: { buyPressure: 67 } } },
+          ],
+        }),
+        getDailyGames: async () => [
+          makeGame({
+            gameId: "g-postponed",
+            homeTeam: "FFF",
+            awayTeam: "XYZ",
+            status: "postponed",
+            startTime: new Date("2026-03-08T18:00:00.000Z"),
+          }),
+        ],
+        getCommunityBoostsAllSports: async () => [{ playerId: "p6", sport: "NBA" }],
+        getMarketActivity: async () => [],
+        getBatchActiveScoutCounts: async () => new Map(),
+        getTrendingScoutPlayerIds: async () => [],
+        getWatchList: async () => [],
+      },
+    );
+
+    expect(overview.boostWindow).toHaveLength(0);
+    expect(overview.nowMoving[0]?.gameStatus).toBe("none");
   });
 });
