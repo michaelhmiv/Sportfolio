@@ -174,7 +174,11 @@ export function NascarRaceCard({
       return { label: "--", toneClass: "text-muted-foreground", meta: "Pre-race" };
     }
 
-    const rawValue = typeof race.liveEarned === "number" ? race.liveEarned : 0;
+    if (typeof race.liveEarned !== "number" || Number.isNaN(race.liveEarned)) {
+      return { label: "--", toneClass: "text-muted-foreground", meta: "No earn line" };
+    }
+
+    const rawValue = race.liveEarned;
     const formatter =
       Math.abs(rawValue) >= 1000 ? compactCurrencyFormatter : standardCurrencyFormatter;
     const absValue = formatter.format(Math.abs(rawValue));

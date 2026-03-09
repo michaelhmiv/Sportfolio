@@ -1,18 +1,7 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
-import {
-  Activity,
-  ArrowUpRight,
-  Binoculars,
-  Filter,
-  Loader2,
-  Search,
-  TrendingDown,
-  TrendingUp,
-  Wallet,
-  Zap,
-} from "lucide-react";
+import { Activity, ArrowUpRight, Filter, LineChart, Loader2, Search, Wallet } from "lucide-react";
 
 import { PlayerName } from "@/components/player-name";
 import { SportSelector } from "@/components/sport-selector";
@@ -49,6 +38,7 @@ type SortField =
 type SortOrder = "asc" | "desc";
 type GameStatus = "none" | "upcoming" | "live" | "ended";
 type HeatCheckStatus = "fire" | "ice" | "neutral";
+type MoverDeckTab = "risers" | "pools" | "activity" | "boosts";
 type MarketChipLabel =
   | "Boost live today"
   | "Scouts surging"
@@ -127,7 +117,16 @@ interface MobileMarketSignal {
   gameStatus: GameStatus;
   gameStartTime: string | null;
   note: string;
-  signal: "momentum" | "value" | "scout" | "boost" | "watchlist" | "ticker";
+  signal:
+    | "momentum"
+    | "value"
+    | "scout"
+    | "boost"
+    | "watchlist"
+    | "ticker"
+    | "pool"
+    | "activity"
+    | "portfolio";
   availableShares: number | null;
   bestShareMultiplier: number | null;
   heatCheckStatus: HeatCheckStatus;
@@ -137,6 +136,27 @@ interface MobileMarketOverview {
   sport: string;
   pulse: MobileMarketPulse;
   ticker: MobileMarketTickerItem[];
+  leaderboards: {
+    risers: MobileMarketSignal[];
+    topPools: MobileMarketSignal[];
+    mostActive: MobileMarketSignal[];
+    boostWindow: MobileMarketSignal[];
+  };
+  personalEdge: {
+    ownedMovers: MobileMarketSignal[];
+    watchlistMoves: MobileMarketSignal[];
+    boostReady: MobileMarketSignal[];
+    lpPositions: Array<{
+      playerId: string;
+      firstName: string;
+      lastName: string;
+      team: string;
+      position: string;
+      ownershipPercentage: number;
+      positionValue: number;
+      feesEarnedToDate: number;
+    }>;
+  } | null;
   nowMoving: MobileMarketSignal[];
   boostWindow: MobileMarketSignal[];
   scoutSurge: MobileMarketSignal[];
@@ -245,40 +265,6 @@ function formatGameLabel(
   return "No game on deck";
 }
 
-function getLiquidityLabel(player: PlayerWithPool) {
-  const tvl = toNumber(player.poolTvl);
-  if (tvl < 5000) {
-    return "Thin pool";
-  }
-
-  if (tvl < 20000) {
-    return "Watch slippage";
-  }
-
-  return "Deep pool";
-}
-
-function getEngagementLabel(
-  player: PlayerWithPool,
-  signal: MobileMarketSignal | undefined,
-  whalePlayerIds: Set<string>,
-) {
-  if (whalePlayerIds.has(player.id)) {
-    return "Whale tape";
-  }
-
-  if ((signal?.globalScoutCount || 0) > 0) {
-    return `${signal?.globalScoutCount} active scouts`;
-  }
-
-  const buyPressure = toNumber(player.buyPressure || signal?.buyPressure);
-  if (buyPressure > 0) {
-    return `${buyPressure.toFixed(0)}% buy pressure`;
-  }
-
-  return `${compactNumberFormatter.format(toNumber(player.volume24h))} 24h volume`;
-}
-
 function getPrimaryChip(
   player: PlayerWithPool,
   signal: MobileMarketSignal | undefined,
@@ -367,6 +353,147 @@ function getSortLabel(sortField: SortField) {
   }
 }
 
+function getBoardMetricField(sortField: SortField): SortField {
+  switch (sortField) {
+    case "price":
+      return "volume";
+    case "change":
+      return "tvl";
+    case "name":
+      return "team";
+    case "team":
+      return "volume";
+    default:
+      return sortField;
+  }
+}
+
+function getBoardMetricLabel(sortField: SortField) {
+  switch (sortField) {
+    case "volume":
+      return "Vol";
+    case "marketCap":
+      return "Cap";
+    case "price":
+      return "Price";
+    case "change":
+      return "24h";
+    case "tvl":
+      return "TVL";
+    case "sentiment":
+      return "Sent";
+    case "undervalued":
+      return "Value";
+    case "fantasyPoints":
+      return "FP";
+    case "name":
+      return "Name";
+    case "team":
+      return "Team";
+  }
+}
+
+function formatBoardMetricValue(
+  player: PlayerWithPool,
+  sortField: SortField,
+  signal?: MobileMarketSignal,
+) {
+  switch (sortField) {
+    case "volume":
+      return compactNumberFormatter.format(toNumber(player.volume24h));
+    case "marketCap":
+      return formatCompactCurrency(toNumber(player.marketCap));
+    case "price":
+      return `$${toNumber(player.currentPrice).toFixed(2)}`;
+    case "change": {
+      const change = toNumber(player.priceChange24h);
+      return `${change >= 0 ? "+" : ""}${change.toFixed(1)}%`;
+    }
+    case "tvl":
+      return formatCompactCurrency(toNumber(player.poolTvl));
+    case "sentiment":
+      return `${toNumber(player.buyPressure || signal?.buyPressure).toFixed(0)}%`;
+    case "undervalued":
+      return toNumber(player.valueIndex || signal?.valueIndex).toFixed(0);
+    case "fantasyPoints":
+      return toNumber(player.avgFantasyPointsPerGame).toFixed(1);
+    case "name":
+      return `${player.lastName}, ${player.firstName}`;
+    case "team":
+      return player.team || "-";
+  }
+}
+
+function buildPlayerStub(
+  {
+    playerId,
+    firstName,
+    lastName,
+    team,
+    position,
+    currentPrice,
+    priceChange24h,
+    poolTvl,
+    buyPressure,
+    valueIndex,
+    gameStatus,
+    gameStartTime,
+    communityBoostCount,
+  }: {
+    playerId: string;
+    firstName: string;
+    lastName: string;
+    team: string;
+    position: string;
+    currentPrice?: number | null;
+    priceChange24h?: number | null;
+    poolTvl?: number | null;
+    buyPressure?: number | null;
+    valueIndex?: number | null;
+    gameStatus?: GameStatus;
+    gameStartTime?: string | null;
+    communityBoostCount?: number | null;
+  },
+  sport: string,
+): PlayerWithPool {
+  return {
+    id: playerId,
+    firstName,
+    lastName,
+    team,
+    position,
+    sport: sport === "ALL" ? "NBA" : sport,
+    currentPrice: currentPrice ?? "0",
+    lastTradePrice: String(currentPrice ?? 0),
+    priceChange24h: String(priceChange24h ?? 0),
+    volume24h: 0,
+    marketCap: "0",
+    jerseyNumber: null,
+    isActive: true,
+    isEligibleForVesting: false,
+    status: "active",
+    totalShares: 0,
+    totalHolders: 0,
+    lastUpdated: new Date(0),
+    teamId: null,
+    externalId: null,
+    league: null,
+    metadata: null,
+    injuryStatus: null,
+    injuryDescription: null,
+    injuryReturnDate: null,
+    injuryUpdatedAt: null,
+    createdAt: new Date(0),
+    updatedAt: new Date(0),
+    poolTvl: poolTvl ?? null,
+    buyPressure: buyPressure ?? null,
+    valueIndex: valueIndex ?? null,
+    gameStatus,
+    gameStartTime,
+    communityBoostCount: communityBoostCount ?? 0,
+  } as PlayerWithPool;
+}
+
 function NarrativeModule({
   title,
   subtitle,
@@ -407,7 +534,7 @@ function NarrativeModule({
           </div>
         ) : (
           <div className="mt-4 space-y-2">
-            {items.slice(0, 2).map((item) => (
+            {items.slice(0, 3).map((item) => (
               <button
                 key={`${title}-${item.playerId}`}
                 type="button"
@@ -482,6 +609,7 @@ export function MarketMobileHome({
   const { isAuthenticated } = useAuth();
   const { shouldPoll, isMobile } = useAppState();
   const { freshnessState, lastMessageAt } = useWebSocket();
+  const [activeMoverTab, setActiveMoverTab] = useState<MoverDeckTab>("risers");
 
   const overviewPollingInterval = shouldPoll && isMobile ? 20000 : false;
 
@@ -529,14 +657,64 @@ export function MarketMobileHome({
     placeholderData: (previousData) => previousData,
   });
 
+  const moverDeck = useMemo(
+    () => [
+      {
+        id: "risers" as const,
+        title: "Top Risers",
+        subtitle: "Fastest 24h movers on the board.",
+        emptyState: "No momentum leaders yet.",
+        accentClassName: "bg-emerald-400",
+        items: overview?.leaderboards.risers || overview?.nowMoving || [],
+        action: "buy" as const,
+      },
+      {
+        id: "pools" as const,
+        title: "Largest Pools",
+        subtitle: "Deepest liquidity on the market.",
+        emptyState: "Pool leaders are still loading.",
+        accentClassName: "bg-blue-400",
+        items: overview?.leaderboards.topPools || [],
+        action: "buy" as const,
+      },
+      {
+        id: "activity" as const,
+        title: "Most Active",
+        subtitle: "Fresh prints and whale clips.",
+        emptyState: "Trade tape is quiet right now.",
+        accentClassName: "bg-cyan-400",
+        items: overview?.leaderboards.mostActive || [],
+        action: "buy" as const,
+      },
+      {
+        id: "boosts" as const,
+        title: "Boost in Play",
+        subtitle: "Names with live slate leverage.",
+        emptyState: "No boost-ready names on deck.",
+        accentClassName: "bg-yellow-400",
+        items: overview?.leaderboards.boostWindow || overview?.boostWindow || [],
+        action: "boost" as const,
+      },
+    ],
+    [overview],
+  );
+
+  const activeMoverModule =
+    moverDeck.find((entry) => entry.id === activeMoverTab) || moverDeck[0] || null;
+
   const signalMap = useMemo(() => {
     const map = new Map<string, MobileMarketSignal>();
     const allSignals = [
-      ...(overview?.nowMoving || []),
-      ...(overview?.boostWindow || []),
+      ...(overview?.leaderboards.risers || overview?.nowMoving || []),
+      ...(overview?.leaderboards.topPools || []),
+      ...(overview?.leaderboards.mostActive || []),
+      ...(overview?.leaderboards.boostWindow || overview?.boostWindow || []),
       ...(overview?.scoutSurge || []),
       ...(overview?.quietValue || []),
       ...(overview?.watchlistMoves || []),
+      ...(overview?.personalEdge?.ownedMovers || []),
+      ...(overview?.personalEdge?.watchlistMoves || []),
+      ...(overview?.personalEdge?.boostReady || []),
     ];
 
     allSignals.forEach((entry) => {
@@ -571,6 +749,25 @@ export function MarketMobileHome({
 
   const watchlistSet = useMemo(() => new Set(watchlistIds), [watchlistIds]);
 
+  const lpEdgeMap = useMemo(
+    () =>
+      new Map(
+        (overview?.personalEdge?.lpPositions || []).map(
+          (entry) => [entry.playerId, entry] as const,
+        ),
+      ),
+    [overview?.personalEdge?.lpPositions],
+  );
+
+  const ownedPlayerIds = useMemo(
+    () =>
+      new Set([
+        ...(overview?.personalEdge?.ownedMovers || []).map((entry) => entry.playerId),
+        ...(overview?.personalEdge?.boostReady || []).map((entry) => entry.playerId),
+      ]),
+    [overview?.personalEdge?.boostReady, overview?.personalEdge?.ownedMovers],
+  );
+
   const filterPills = [
     teamFilter !== "all" ? `Team ${teamFilter}` : null,
     positionFilter !== "all" ? `Pos ${positionFilter}` : null,
@@ -583,8 +780,155 @@ export function MarketMobileHome({
   ].filter(Boolean) as string[];
 
   const lowActivityMessage = overview?.pulse.lowActivity
-    ? "Tape is quiet. Scout spikes, boost windows, and pricing gaps are driving the best setups."
-    : "Trade velocity is live. Lean into movers, follow the tape, and work your boost slots.";
+    ? "Momentum is thin. Liquidity leaders and fresh prints are the cleanest read."
+    : "Tape is moving. Chase the leaders, size against liquidity, and use slate context as the tiebreaker.";
+
+  const boardMetricField = getBoardMetricField(sortField);
+
+  const getQuickContext = (playerId: string, signal?: MobileMarketSignal): PlayerQuickContext => {
+    const eligible = eligibleMap.get(playerId);
+
+    return {
+      availableShares: signal?.availableShares ?? eligible?.availableShares,
+      bestShareMultiplier: signal?.bestShareMultiplier ?? eligible?.bestShareMultiplier,
+      isBoostEligible:
+        signal?.signal === "boost" ||
+        (!!eligible &&
+          eligible.availableShares >= 1 &&
+          !eligible.isAlreadyBoosted &&
+          eligible.gameStatus !== "none" &&
+          eligible.gameStatus !== "ended"),
+      scoutCount: signal?.globalScoutCount,
+      isWatchlisted: watchlistSet.has(playerId),
+    };
+  };
+
+  const getPlayerForSignal = (signal: MobileMarketSignal) =>
+    players.find((entry) => entry.id === signal.playerId) ||
+    buildPlayerStub(
+      {
+        playerId: signal.playerId,
+        firstName: signal.firstName,
+        lastName: signal.lastName,
+        team: signal.team,
+        position: signal.position,
+        currentPrice: signal.currentPrice,
+        priceChange24h: signal.priceChange24h,
+        poolTvl: signal.poolTvl,
+        buyPressure: signal.buyPressure,
+        valueIndex: signal.valueIndex,
+        gameStatus: signal.gameStatus,
+        gameStartTime: signal.gameStartTime,
+        communityBoostCount: signal.communityBoostCount,
+      },
+      sport,
+    );
+
+  const personalEdgeCards = useMemo(() => {
+    const cards: Array<{
+      key: string;
+      label: string;
+      accentClassName: string;
+      title: JSX.Element;
+      detail: string;
+      player: PlayerWithPool;
+      action: "default" | "buy" | "sell" | "boost" | "scout";
+      quickContext?: PlayerQuickContext;
+    }> = [];
+
+    const boostReady = overview?.personalEdge?.boostReady?.[0];
+    if (boostReady) {
+      cards.push({
+        key: "boost-ready",
+        label: "Boost Ready",
+        accentClassName: "bg-yellow-400",
+        title: (
+          <PlayerName
+            playerId={boostReady.playerId}
+            firstName={boostReady.firstName}
+            lastName={boostReady.lastName}
+          />
+        ),
+        detail: boostReady.note,
+        player: getPlayerForSignal(boostReady),
+        action: "boost",
+        quickContext: getQuickContext(boostReady.playerId, boostReady),
+      });
+    }
+
+    const ownedMover = overview?.personalEdge?.ownedMovers?.[0];
+    if (ownedMover) {
+      cards.push({
+        key: "owned-mover",
+        label: "Owned Mover",
+        accentClassName: "bg-emerald-400",
+        title: (
+          <PlayerName
+            playerId={ownedMover.playerId}
+            firstName={ownedMover.firstName}
+            lastName={ownedMover.lastName}
+          />
+        ),
+        detail: `${ownedMover.priceChange24h >= 0 ? "+" : ""}${ownedMover.priceChange24h.toFixed(1)}% / ${ownedMover.note}`,
+        player: getPlayerForSignal(ownedMover),
+        action: "default",
+        quickContext: getQuickContext(ownedMover.playerId, ownedMover),
+      });
+    }
+
+    const watchlistMover = overview?.personalEdge?.watchlistMoves?.[0];
+    if (watchlistMover) {
+      cards.push({
+        key: "watchlist-mover",
+        label: "Watchlist",
+        accentClassName: "bg-cyan-400",
+        title: (
+          <PlayerName
+            playerId={watchlistMover.playerId}
+            firstName={watchlistMover.firstName}
+            lastName={watchlistMover.lastName}
+          />
+        ),
+        detail: watchlistMover.note,
+        player: getPlayerForSignal(watchlistMover),
+        action: "default",
+        quickContext: getQuickContext(watchlistMover.playerId, watchlistMover),
+      });
+    }
+
+    const lpEdge = overview?.personalEdge?.lpPositions?.[0];
+    if (lpEdge) {
+      cards.push({
+        key: "lp-edge",
+        label: "Pool Fees",
+        accentClassName: "bg-blue-400",
+        title: (
+          <PlayerName
+            playerId={lpEdge.playerId}
+            firstName={lpEdge.firstName}
+            lastName={lpEdge.lastName}
+          />
+        ),
+        detail: `Fees ${formatCompactCurrency(lpEdge.feesEarnedToDate)} / Value ${formatCompactCurrency(lpEdge.positionValue)}`,
+        player:
+          players.find((entry) => entry.id === lpEdge.playerId) ||
+          buildPlayerStub(
+            {
+              playerId: lpEdge.playerId,
+              firstName: lpEdge.firstName,
+              lastName: lpEdge.lastName,
+              team: lpEdge.team,
+              position: lpEdge.position,
+            },
+            sport,
+          ),
+        action: "default",
+        quickContext: getQuickContext(lpEdge.playerId),
+      });
+    }
+
+    return cards;
+  }, [getPlayerForSignal, getQuickContext, overview?.personalEdge, players, sport, watchlistSet]);
 
   return (
     <div className="space-y-4 md:hidden">
@@ -597,7 +941,7 @@ export function MarketMobileHome({
           <CardContent className="space-y-3 p-3">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <div className="terminal-strip">Live Market</div>
+                <div className="terminal-strip">Market Pulse</div>
                 <h1 className="mt-2 text-base font-semibold uppercase tracking-[0.08em]">
                   Player Pools
                 </h1>
@@ -688,244 +1032,93 @@ export function MarketMobileHome({
         </Card>
       </div>
 
-      <Card variant="terminal" className="overflow-hidden" data-testid="mobile-market-tape">
-        <CardContent className="p-3">
+      <Card variant="terminal" className="overflow-hidden border-border/80">
+        <CardContent className="space-y-3 p-3">
           <div className="flex items-center justify-between gap-3">
             <div>
               <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                Live Tape
+                Movers Deck
               </div>
               <p className="mt-1 text-xs text-muted-foreground">
-                Recent prints, whale clips, and directional flow.
+                Market-first leaders with game context layered in.
               </p>
             </div>
             <Activity className="h-4 w-4 text-primary" />
           </div>
 
-          <div className="mt-4 flex snap-x gap-3 overflow-x-auto pb-1">
-            {(overview?.ticker || []).length === 0 ? (
-              <div className="w-full rounded-sm border border-dashed border-border/70 p-4 text-center text-sm text-muted-foreground">
-                Market tape is quiet right now.
-              </div>
-            ) : (
-              (overview?.ticker || []).slice(0, 8).map((item) => {
-                const player = players.find((entry) => entry.id === item.playerId);
-                const eligible = eligibleMap.get(item.playerId);
-
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    className="min-w-[220px] snap-start rounded-sm border border-border/70 bg-muted/20 p-3 text-left transition-colors hover:bg-muted/35"
-                    onClick={() => {
-                      if (!player) return;
-
-                      onOpenPlayer(player, "buy", {
-                        availableShares: eligible?.availableShares,
-                        bestShareMultiplier: eligible?.bestShareMultiplier,
-                        isBoostEligible:
-                          !!eligible &&
-                          eligible.availableShares >= 1 &&
-                          !eligible.isAlreadyBoosted &&
-                          eligible.gameStatus !== "none" &&
-                          eligible.gameStatus !== "ended",
-                        scoutCount: signalMap.get(item.playerId)?.globalScoutCount,
-                        isWatchlisted: watchlistSet.has(item.playerId),
-                      });
-                    }}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <div className="text-sm font-medium">{item.symbol}</div>
-                        <div className="mt-1 text-[11px] font-mono uppercase tracking-[0.08em] text-muted-foreground">
-                          {item.team}
-                        </div>
-                      </div>
-                      {item.isWhale && (
-                        <Badge
-                          variant="outline"
-                          className="border-blue-500/30 bg-blue-500/10 text-blue-200"
-                        >
-                          Whale
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="mt-3 flex items-end justify-between gap-2">
-                      <div>
-                        <div className="font-mono text-base font-semibold">
-                          ${item.currentPrice.toFixed(2)}
-                        </div>
-                        <div
-                          className={cn(
-                            "text-xs font-mono",
-                            item.priceChange24h >= 0 ? "text-positive" : "text-negative",
-                          )}
-                        >
-                          {item.priceChange24h >= 0 ? "+" : ""}
-                          {item.priceChange24h.toFixed(1)}% / 24h
-                        </div>
-                      </div>
-                      <div className="text-right text-[11px] font-mono uppercase tracking-[0.08em] text-muted-foreground">
-                        <div>{item.quantity} sh</div>
-                        <div>{formatCompactCurrency(item.notional)}</div>
-                      </div>
-                    </div>
-                  </button>
-                );
-              })
-            )}
+          <div className="grid grid-cols-4 gap-1.5 rounded-sm border border-border/60 bg-background/40 p-1">
+            {moverDeck.map((entry) => (
+              <button
+                key={entry.id}
+                type="button"
+                className={cn(
+                  "rounded-sm px-2 py-2 text-center text-[10px] font-semibold uppercase tracking-[0.08em] transition-colors",
+                  activeMoverModule?.id === entry.id
+                    ? "bg-muted/80 text-foreground"
+                    : "text-muted-foreground hover:bg-muted/30",
+                )}
+                onClick={() => setActiveMoverTab(entry.id)}
+              >
+                {entry.title}
+              </button>
+            ))}
           </div>
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-2 gap-3">
+      {activeMoverModule && (
         <NarrativeModule
-          title="Now Moving"
-          subtitle={
-            overview?.pulse.lowActivity
-              ? "Momentum leaders on a thinner tape"
-              : "Fastest movers right now"
-          }
-          items={overview?.nowMoving || []}
-          emptyState="No momentum breakouts yet."
+          title={activeMoverModule.title}
+          subtitle={activeMoverModule.subtitle}
+          items={activeMoverModule.items}
+          emptyState={activeMoverModule.emptyState}
           testId="market-module-now-moving"
-          accentClassName="bg-emerald-400"
-          onOpenPlayer={(item) => {
-            const player = players.find((entry) => entry.id === item.playerId);
-            if (!player) return;
-            onOpenPlayer(player, "buy", {
-              availableShares: item.availableShares || undefined,
-              bestShareMultiplier: item.bestShareMultiplier || undefined,
-              isBoostEligible: item.signal === "boost",
-              scoutCount: item.globalScoutCount,
-              isWatchlisted: watchlistSet.has(item.playerId),
-            });
-          }}
+          accentClassName={activeMoverModule.accentClassName}
+          onOpenPlayer={(item) =>
+            onOpenPlayer(
+              getPlayerForSignal(item),
+              activeMoverModule.action,
+              getQuickContext(item.playerId, item),
+            )
+          }
         />
-        <NarrativeModule
-          title="Boost Window"
-          subtitle="Shares with live or same-day burn leverage."
-          items={overview?.boostWindow || []}
-          emptyState="No boost-ready names on deck."
-          testId="market-module-boost-window"
-          accentClassName="bg-yellow-400"
-          onOpenPlayer={(item) => {
-            const player = players.find((entry) => entry.id === item.playerId);
-            if (!player) return;
-            onOpenPlayer(player, "boost", {
-              availableShares: item.availableShares || undefined,
-              bestShareMultiplier: item.bestShareMultiplier || undefined,
-              isBoostEligible: true,
-              scoutCount: item.globalScoutCount,
-              isWatchlisted: watchlistSet.has(item.playerId),
-            });
-          }}
-        />
-        <NarrativeModule
-          title="Scout Surge"
-          subtitle="Where attention is piling in fastest."
-          items={overview?.scoutSurge || []}
-          emptyState="Scout pressure is muted right now."
-          testId="market-module-scout-surge"
-          accentClassName="bg-cyan-400"
-          onOpenPlayer={(item) => {
-            const player = players.find((entry) => entry.id === item.playerId);
-            if (!player) return;
-            onOpenPlayer(player, isAuthenticated ? "scout" : "buy", {
-              availableShares: item.availableShares || undefined,
-              bestShareMultiplier: item.bestShareMultiplier || undefined,
-              isBoostEligible: false,
-              scoutCount: item.globalScoutCount,
-              isWatchlisted: watchlistSet.has(item.playerId),
-            });
-          }}
-        />
-        <NarrativeModule
-          title="Quiet Value"
-          subtitle="Underowned names with better pricing."
-          items={overview?.quietValue || []}
-          emptyState="Value scanner is waiting for fresh edges."
-          testId="market-module-quiet-value"
-          accentClassName="bg-orange-400"
-          onOpenPlayer={(item) => {
-            const player = players.find((entry) => entry.id === item.playerId);
-            if (!player) return;
-            onOpenPlayer(player, "buy", {
-              availableShares: item.availableShares || undefined,
-              bestShareMultiplier: item.bestShareMultiplier || undefined,
-              isBoostEligible: false,
-              scoutCount: item.globalScoutCount,
-              isWatchlisted: watchlistSet.has(item.playerId),
-            });
-          }}
-        />
-      </div>
+      )}
 
-      {(overview?.watchlistMoves || []).length > 0 && (
-        <Card
-          variant="terminal"
-          className="overflow-hidden"
-          data-testid="market-module-watchlist-moves"
-        >
+      {personalEdgeCards.length > 0 && (
+        <Card variant="terminal" className="overflow-hidden">
           <CardContent className="p-3">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                  Watchlist Moves
+                  Your Edge
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Your saved names with the most motion.
+                  Personal context layered onto the market.
                 </p>
               </div>
               <Wallet className="h-4 w-4 text-primary" />
             </div>
 
-            <div className="mt-4 space-y-2">
-              {overview?.watchlistMoves.slice(0, 3).map((item) => {
-                const player = players.find((entry) => entry.id === item.playerId);
-                if (!player) {
-                  return null;
-                }
-
-                return (
-                  <button
-                    key={item.playerId}
-                    type="button"
-                    className="flex w-full items-center justify-between rounded-sm border border-border/70 bg-muted/20 px-3 py-2 text-left transition-colors hover:bg-muted/35"
-                    onClick={() =>
-                      onOpenPlayer(player, "default", {
-                        availableShares: item.availableShares || undefined,
-                        bestShareMultiplier: item.bestShareMultiplier || undefined,
-                        isBoostEligible: false,
-                        scoutCount: item.globalScoutCount,
-                        isWatchlisted: true,
-                      })
-                    }
-                  >
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-medium">
-                        <PlayerName
-                          playerId={item.playerId}
-                          firstName={item.firstName}
-                          lastName={item.lastName}
-                        />
-                      </div>
-                      <div className="mt-1 text-[11px] font-mono uppercase tracking-[0.08em] text-muted-foreground">
-                        {item.note}
-                      </div>
+            <div className="mt-4 flex snap-x gap-3 overflow-x-auto pb-1">
+              {personalEdgeCards.map((card) => (
+                <button
+                  key={card.key}
+                  type="button"
+                  className="min-w-[200px] snap-start rounded-sm border border-border/70 bg-muted/15 p-3 text-left transition-colors hover:bg-muted/30"
+                  onClick={() => onOpenPlayer(card.player, card.action, card.quickContext)}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                      {card.label}
                     </div>
-                    <div
-                      className={cn(
-                        "shrink-0 text-sm font-mono",
-                        item.priceChange24h >= 0 ? "text-positive" : "text-negative",
-                      )}
-                    >
-                      {item.priceChange24h >= 0 ? "+" : ""}
-                      {item.priceChange24h.toFixed(1)}%
-                    </div>
-                  </button>
-                );
-              })}
+                    <div className={cn("mt-0.5 h-2.5 w-2.5 rounded-full", card.accentClassName)} />
+                  </div>
+                  <div className="mt-2 text-sm font-medium">{card.title}</div>
+                  <div className="mt-2 text-[11px] font-mono uppercase tracking-[0.08em] text-muted-foreground">
+                    {card.detail}
+                  </div>
+                </button>
+              ))}
             </div>
           </CardContent>
         </Card>
@@ -933,7 +1126,7 @@ export function MarketMobileHome({
 
       <Card variant="terminal" className="overflow-hidden">
         <CardContent className="p-3">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex items-start justify-between gap-3">
             <div>
               <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                 Trade Board
@@ -942,21 +1135,32 @@ export function MarketMobileHome({
                 {totalPlayers} pools sorted by {getSortLabel(sortField).toLowerCase()}.
               </p>
             </div>
-            <Badge
-              variant="outline"
-              className="border-border/80 bg-muted/20 text-[10px] uppercase tracking-[0.08em]"
-            >
-              {sortOrder === "asc" ? "Asc" : "Desc"}
-            </Badge>
+            <div className="flex items-center gap-2">
+              <LineChart className="mt-0.5 h-4 w-4 text-primary" />
+              <Badge
+                variant="outline"
+                className="border-border/80 bg-muted/20 text-[10px] uppercase tracking-[0.08em]"
+              >
+                {sortOrder === "asc" ? "Asc" : "Desc"}
+              </Badge>
+            </div>
           </div>
 
-          <div className="mt-4 space-y-3">
+          <div className="mt-4 rounded-sm border border-border/70 bg-muted/10">
+            <div className="grid grid-cols-[minmax(0,1.55fr)_0.8fr_0.75fr_0.9fr_72px] gap-2 border-b border-border/70 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              <div>Player</div>
+              <div className="text-right">Price</div>
+              <div className="text-right">24h</div>
+              <div className="text-right">{getBoardMetricLabel(boardMetricField)}</div>
+              <div className="text-center">Act</div>
+            </div>
+
             {isLoading || overviewLoading ? (
-              <div className="flex items-center justify-center rounded-sm border border-dashed border-border/70 py-10 text-muted-foreground">
+              <div className="flex items-center justify-center py-10 text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
               </div>
             ) : players.length === 0 ? (
-              <div className="rounded-sm border border-dashed border-border/70 p-5 text-center">
+              <div className="p-5 text-center">
                 <div className="text-sm text-muted-foreground">No players match this setup.</div>
                 {hasActiveFilters && (
                   <Button
@@ -973,177 +1177,151 @@ export function MarketMobileHome({
             ) : (
               players.map((player) => {
                 const signal = signalMap.get(player.id);
-                const eligible = eligibleMap.get(player.id);
-                const quickContext: PlayerQuickContext = {
-                  availableShares: eligible?.availableShares,
-                  bestShareMultiplier: eligible?.bestShareMultiplier,
-                  isBoostEligible:
-                    !!eligible &&
-                    eligible.availableShares >= 1 &&
-                    !eligible.isAlreadyBoosted &&
-                    eligible.gameStatus !== "none" &&
-                    eligible.gameStatus !== "ended",
-                  scoutCount: signal?.globalScoutCount,
-                  isWatchlisted: watchlistSet.has(player.id),
-                };
+                const quickContext = getQuickContext(player.id, signal);
                 const primaryChip = getPrimaryChip(player, signal, quickContext, whalePlayerIds);
-                const liquidityLabel = getLiquidityLabel(player);
-                const engagementLabel = getEngagementLabel(player, signal, whalePlayerIds);
-                const gameLabel = formatGameLabel(player, quickContext);
                 const priceChange = toNumber(player.priceChange24h);
                 const currentPrice = toNumber(player.currentPrice);
                 const showSell = (quickContext.availableShares || 0) > 0;
+                const boardMetricValue = formatBoardMetricValue(player, boardMetricField, signal);
+                const secondaryAction = quickContext.isBoostEligible
+                  ? "boost"
+                  : showSell
+                    ? "sell"
+                    : null;
 
                 return (
-                  <Card
+                  <div
                     key={player.id}
-                    variant="terminal"
-                    className="overflow-hidden border-border/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.02),transparent)]"
+                    className="grid grid-cols-[minmax(0,1.55fr)_0.8fr_0.75fr_0.9fr_72px] gap-2 border-b border-border/60 px-3 py-3 last:border-b-0"
                     data-testid="market-mobile-player-card"
                   >
-                    <CardContent className="p-3">
-                      <button
-                        type="button"
-                        className="w-full text-left"
-                        onClick={() => onOpenPlayer(player, "default", quickContext)}
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="truncate text-sm font-medium">
-                              <PlayerName
-                                playerId={player.id}
-                                firstName={player.firstName}
-                                lastName={player.lastName}
-                              />
-                            </div>
-                            <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] font-mono uppercase tracking-[0.08em] text-muted-foreground">
-                              <span>{player.team}</span>
-                              <span>{player.position}</span>
-                              {quickContext.isWatchlisted && (
-                                <span className="text-primary">Watchlist</span>
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="text-right">
-                            <div className="font-mono text-base font-semibold">
-                              ${currentPrice.toFixed(2)}
-                            </div>
-                            <div
-                              className={cn(
-                                "text-xs font-mono",
-                                priceChange >= 0 ? "text-positive" : "text-negative",
-                              )}
-                            >
-                              {priceChange >= 0 ? "+" : ""}
-                              {priceChange.toFixed(1)}%
-                            </div>
-                          </div>
+                    <button
+                      type="button"
+                      className="col-span-4 grid grid-cols-[minmax(0,1.55fr)_0.8fr_0.75fr_0.9fr] gap-2 text-left"
+                      onClick={() => onOpenPlayer(player, "default", quickContext)}
+                    >
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-medium">
+                          <PlayerName
+                            playerId={player.id}
+                            firstName={player.firstName}
+                            lastName={player.lastName}
+                          />
                         </div>
-
-                        <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                        <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] font-mono uppercase tracking-[0.08em] text-muted-foreground">
+                          <span>{player.team}</span>
+                          <span>{player.position}</span>
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-1.5">
                           {primaryChip && (
                             <Badge variant="outline" className={getChipClassName(primaryChip)}>
                               {primaryChip}
                             </Badge>
                           )}
-                          {quickContext.bestShareMultiplier &&
-                            quickContext.bestShareMultiplier > 1 && (
-                              <Badge
-                                variant="outline"
-                                className="border-blue-500/30 bg-blue-500/10 text-blue-200"
-                              >
-                                Multi {quickContext.bestShareMultiplier}x
-                              </Badge>
-                            )}
+                          {quickContext.isWatchlisted && (
+                            <Badge
+                              variant="outline"
+                              className="border-primary/30 bg-primary/10 text-primary"
+                            >
+                              Watchlist
+                            </Badge>
+                          )}
+                          {ownedPlayerIds.has(player.id) && (
+                            <Badge
+                              variant="outline"
+                              className="border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
+                            >
+                              Own
+                            </Badge>
+                          )}
+                          {lpEdgeMap.has(player.id) && (
+                            <Badge
+                              variant="outline"
+                              className="border-blue-500/30 bg-blue-500/10 text-blue-200"
+                            >
+                              LP
+                            </Badge>
+                          )}
+                          {(quickContext.bestShareMultiplier || 1) > 1 && (
+                            <Badge
+                              variant="outline"
+                              className="border-sky-500/30 bg-sky-500/10 text-sky-200"
+                            >
+                              x{quickContext.bestShareMultiplier}
+                            </Badge>
+                          )}
                           {(player.communityBoostCount || 0) > 0 && (
                             <Badge
                               variant="outline"
                               className="border-orange-500/30 bg-orange-500/10 text-orange-200"
                             >
-                              Community +{player.communityBoostCount}
+                              Com +{player.communityBoostCount}
                             </Badge>
                           )}
                         </div>
+                        {(player.gameStatus && player.gameStatus !== "none") ||
+                        quickContext.isBoostEligible ? (
+                          <div className="mt-2 text-[11px] font-mono uppercase tracking-[0.08em] text-muted-foreground">
+                            {formatGameLabel(player, quickContext)}
+                          </div>
+                        ) : null}
+                      </div>
 
-                        <div className="mt-3 grid grid-cols-3 gap-2 text-[11px] font-mono uppercase tracking-[0.08em]">
-                          <div className="rounded-sm border border-border/70 bg-muted/15 p-2">
-                            <div className="text-muted-foreground">Liquidity</div>
-                            <div className="mt-1 text-foreground">{liquidityLabel}</div>
-                          </div>
-                          <div className="rounded-sm border border-border/70 bg-muted/15 p-2">
-                            <div className="text-muted-foreground">Engagement</div>
-                            <div className="mt-1 text-foreground">{engagementLabel}</div>
-                          </div>
-                          <div className="rounded-sm border border-border/70 bg-muted/15 p-2">
-                            <div className="text-muted-foreground">Game Day</div>
-                            <div className="mt-1 text-foreground">{gameLabel}</div>
-                          </div>
+                      <div className="text-right">
+                        <div className="font-mono text-sm font-semibold">
+                          ${currentPrice.toFixed(2)}
                         </div>
+                      </div>
 
-                        <div className="mt-3 grid grid-cols-3 gap-2 text-[11px] font-mono uppercase tracking-[0.08em] text-muted-foreground">
-                          <div className="rounded-sm border border-border/60 bg-background/40 p-2">
-                            TVL {formatCompactCurrency(toNumber(player.poolTvl))}
-                          </div>
-                          <div className="rounded-sm border border-border/60 bg-background/40 p-2">
-                            Buy {toNumber(player.buyPressure || signal?.buyPressure).toFixed(0)}%
-                          </div>
-                          <div className="rounded-sm border border-border/60 bg-background/40 p-2">
-                            Value {toNumber(player.valueIndex || signal?.valueIndex).toFixed(0)}
-                          </div>
-                        </div>
-                      </button>
+                      <div
+                        className={cn(
+                          "text-right font-mono text-sm",
+                          priceChange >= 0 ? "text-positive" : "text-negative",
+                        )}
+                      >
+                        {priceChange >= 0 ? "+" : ""}
+                        {priceChange.toFixed(1)}%
+                      </div>
 
-                      <div className="mt-3 flex flex-wrap gap-2">
+                      <div className="text-right font-mono text-[11px] uppercase tracking-[0.08em] text-foreground">
+                        {boardMetricValue}
+                      </div>
+                    </button>
+
+                    <div className="flex flex-col gap-1">
+                      <Button
+                        type="button"
+                        variant="terminal"
+                        size="sm"
+                        className="h-7 w-full px-0 text-[10px]"
+                        onClick={() => onOpenPlayer(player, "buy", quickContext)}
+                      >
+                        Buy
+                      </Button>
+                      {secondaryAction === "boost" && (
                         <Button
                           type="button"
-                          variant="terminal"
+                          variant="terminalOutline"
                           size="sm"
-                          className="h-8 flex-1 gap-1.5"
-                          onClick={() => onOpenPlayer(player, "buy", quickContext)}
+                          className="h-7 w-full px-0 text-[10px]"
+                          onClick={() => onOpenPlayer(player, "boost", quickContext)}
                         >
-                          <TrendingUp className="h-3.5 w-3.5" />
-                          Buy
+                          Boost
                         </Button>
-                        {showSell && (
-                          <Button
-                            type="button"
-                            variant="terminalOutline"
-                            size="sm"
-                            className="h-8 gap-1.5 px-3"
-                            onClick={() => onOpenPlayer(player, "sell", quickContext)}
-                          >
-                            <TrendingDown className="h-3.5 w-3.5" />
-                            Sell
-                          </Button>
-                        )}
-                        {quickContext.isBoostEligible && (
-                          <Button
-                            type="button"
-                            variant="terminalOutline"
-                            size="sm"
-                            className="h-8 gap-1.5 px-3"
-                            onClick={() => onOpenPlayer(player, "boost", quickContext)}
-                          >
-                            <Zap className="h-3.5 w-3.5" />
-                            Boost
-                          </Button>
-                        )}
-                        {isAuthenticated && (
-                          <Button
-                            type="button"
-                            variant="terminalOutline"
-                            size="sm"
-                            className="h-8 gap-1.5 px-3"
-                            onClick={() => onOpenPlayer(player, "scout", quickContext)}
-                          >
-                            <Binoculars className="h-3.5 w-3.5" />
-                            Scout
-                          </Button>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
+                      )}
+                      {secondaryAction === "sell" && (
+                        <Button
+                          type="button"
+                          variant="terminalOutline"
+                          size="sm"
+                          className="h-7 w-full px-0 text-[10px]"
+                          onClick={() => onOpenPlayer(player, "sell", quickContext)}
+                        >
+                          Sell
+                        </Button>
+                      )}
+                    </div>
+                  </div>
                 );
               })
             )}

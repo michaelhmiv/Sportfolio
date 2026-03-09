@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Zap } from "lucide-react";
 
 import { PlayerName } from "@/components/player-name";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +11,7 @@ interface ShareBreakdown {
   multiplier: number;
   effectiveShares: string;
   avgCostBasis: string;
+  availableQuantity: number;
   id?: string;
 }
 
@@ -67,6 +67,9 @@ export function PortfolioCardView({
 }: PortfolioCardViewProps) {
   const [selectedPlayer, setSelectedPlayer] = useState<PlayerGroup | null>(null);
 
+  const formatShareCount = (value: number): string =>
+    Number.isInteger(value) ? value.toString() : value.toFixed(2);
+
   const getSortValue = (group: PlayerGroup): string => {
     switch (sortField) {
       case "quantity":
@@ -111,8 +114,8 @@ export function PortfolioCardView({
       <div className="grid grid-cols-3 gap-2 p-2">
         {holdings.map((group) => {
           const hasStackedShares = group.stacked.length > 0;
-          const regularQuantity = group.regular?.quantity || 0;
-          const canStackShares = regularQuantity >= 4;
+          const availableToStack = group.regular?.availableQuantity || 0;
+          const canStackShares = availableToStack >= 4;
           const effectiveShares = parseFloat(group.totalPower);
           const maxMultiplier =
             group.stacked.length > 0
@@ -135,8 +138,7 @@ export function PortfolioCardView({
                       className={`${getMultiplierTierColor(effectiveShares)} h-4 cursor-pointer px-1 py-0 text-[10px] hover:opacity-80`}
                       onClick={(event) => handleMultiplierBadgeClick(event, group)}
                     >
-                      <Zap className="mr-0.5 h-2.5 w-2.5" />
-                      {group.totalPower} eff
+                      {group.totalPower} effective
                     </Badge>
                   ) : (
                     <div className="h-4" />
@@ -173,7 +175,7 @@ export function PortfolioCardView({
                   <span>{group.totalShares} shr</span>
                   {lpShares > 0 && <span className="text-blue-400">({lpShares}p)</span>}
                   {hasStackedShares && (
-                    <span className="text-purple-400">MULTI {maxMultiplier}x</span>
+                    <span className="text-purple-400">Stacked {maxMultiplier}x</span>
                   )}
                 </div>
 
@@ -186,15 +188,16 @@ export function PortfolioCardView({
                         onStackShares(
                           group.player.id,
                           `${group.player.firstName} ${group.player.lastName}`,
-                          regularQuantity,
+                          availableToStack,
                         );
                       }}
                     >
-                      <Zap className="h-2.5 w-2.5" />
                       Stack
                     </div>
                   ) : (
-                    <div className="text-[10px] text-muted-foreground">{regularQuantity}/4+</div>
+                    <div className="text-[10px] text-muted-foreground">
+                      {formatShareCount(availableToStack)}/4 unlocked
+                    </div>
                   )}
                 </div>
               </CardContent>
@@ -206,10 +209,7 @@ export function PortfolioCardView({
       <Dialog open={!!selectedPlayer} onOpenChange={() => setSelectedPlayer(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Zap className="h-5 w-5 text-purple-500" />
-              Multiplier Breakdown
-            </DialogTitle>
+            <DialogTitle>Stacking Breakdown</DialogTitle>
           </DialogHeader>
 
           {selectedPlayer && (
@@ -217,7 +217,7 @@ export function PortfolioCardView({
               {(() => {
                 const regularHolding = selectedPlayer.regular;
                 const stackableShares = regularHolding
-                  ? Math.floor(regularHolding.quantity / 2) * 2
+                  ? Math.floor(regularHolding.availableQuantity / 2) * 2
                   : 0;
 
                 return (
@@ -237,8 +237,7 @@ export function PortfolioCardView({
                       <Badge
                         className={`${getMultiplierTierColor(parseFloat(selectedPlayer.totalPower))} text-sm`}
                       >
-                        <Zap className="mr-1 h-3 w-3" />
-                        Eff: {selectedPlayer.totalPower}
+                        {selectedPlayer.totalPower} effective
                       </Badge>
                     </div>
 
@@ -248,18 +247,16 @@ export function PortfolioCardView({
                           <div className="flex items-center gap-3">
                             <div className="h-3 w-3 rounded-sm bg-green-500" />
                             <div>
-                              <div className="font-medium">Regular Shares</div>
-                              <div className="text-sm text-muted-foreground">
-                                1x multiplier each
-                              </div>
+                              <div className="font-medium">Raw Shares</div>
+                              <div className="text-sm text-muted-foreground">1x each</div>
                             </div>
                           </div>
                           <div className="text-right">
                             <div className="text-lg font-mono font-bold">
-                              {selectedPlayer.regular.quantity}
+                              {formatShareCount(selectedPlayer.regular.quantity)}
                             </div>
                             <div className="text-sm text-muted-foreground">
-                              {selectedPlayer.regular.quantity} effective shares
+                              {formatShareCount(selectedPlayer.regular.availableQuantity)} unlocked
                             </div>
                           </div>
                         </div>
@@ -276,16 +273,14 @@ export function PortfolioCardView({
                             />
                             <div>
                               <div className="font-medium text-purple-700">
-                                {share.multiplier}x Stacked Share
+                                Stacked Share {share.multiplier}x
                               </div>
-                              <div className="text-sm text-muted-foreground">
-                                {share.multiplier}x multiplier
-                              </div>
+                              <div className="text-sm text-muted-foreground">1 share retained</div>
                             </div>
                           </div>
                           <div className="text-right">
                             <div className="text-lg font-mono font-bold text-purple-700">
-                              {share.quantity}
+                              {formatShareCount(share.quantity)}
                             </div>
                             <div className="text-sm text-muted-foreground">
                               {share.effectiveShares} effective shares
@@ -295,26 +290,25 @@ export function PortfolioCardView({
                       ))}
                     </div>
 
-                    {regularHolding && regularHolding.quantity >= 4 && (
+                    {regularHolding && regularHolding.availableQuantity >= 4 && (
                       <Button
                         className="w-full bg-purple-500 hover:bg-purple-600"
                         onClick={() => {
                           onStackShares(
                             selectedPlayer.player.id,
                             `${selectedPlayer.player.firstName} ${selectedPlayer.player.lastName}`,
-                            regularHolding.quantity,
+                            regularHolding.availableQuantity,
                           );
                           setSelectedPlayer(null);
                         }}
                       >
-                        <Zap className="mr-2 h-4 w-4" />
-                        Stack Shares {stackableShares}
+                        Stack Shares {formatShareCount(stackableShares)}
                       </Button>
                     )}
 
                     <div className="text-center text-xs text-muted-foreground">
-                      Minimum 4 shares. Use an even share count. N shares become 1 stacked share at
-                      N/2.
+                      Minimum 4 unlocked raw shares. Use an even share count. N shares become 1
+                      stacked share at N/2.
                     </div>
                   </>
                 );

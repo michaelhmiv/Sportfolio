@@ -1725,7 +1725,7 @@ export function GameCommandCenterModal({
                     <div className="text-sm font-semibold">Live Earnings</div>
                     {isAuthenticated ? (
                       <Badge variant="outline" className="text-[10px] border-border/80">
-                        {liveOwnedPlayers.length} owned
+                        {liveOwnedPlayers.length} earning
                       </Badge>
                     ) : null}
                   </div>
@@ -1775,12 +1775,12 @@ export function GameCommandCenterModal({
                         </div>
                       ) : (
                         <div className="mt-2 text-xs text-muted-foreground">
-                          You don’t own players in this matchup yet.
+                          No stacked or boosted earning lines in this matchup yet.
                         </div>
                       )}
 
                       <div className="mt-2 text-[10px] text-muted-foreground">
-                        Estimated earnings = live fantasy points x total effective shares.
+                        Estimated earnings use stacked-share effective units only.
                       </div>
                     </>
                   )}

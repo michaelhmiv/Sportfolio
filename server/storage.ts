@@ -26,6 +26,7 @@ import {
   premiumCheckoutSessions,
   premiumOrders,
   premiumTrades,
+  premiumActivityEvents,
   whopPayments,
   watchlists,
   watchList,
@@ -74,6 +75,8 @@ import {
   type PremiumCheckoutSession,
   type PremiumOrder,
   type PremiumTrade,
+  type PremiumActivityEvent,
+  type InsertPremiumActivityEvent,
   type WhopPayment,
   type InsertWhopPayment,
   type DailyBoost,
@@ -87,6 +90,13 @@ import {
   type CommunityCheckoutSession,
   type UserApiToken,
 } from "@shared/schema";
+import {
+  DEFAULT_ACTIVITY_FEED_CATEGORIES,
+  USER_ACTIVITY_CATEGORIES,
+  type UserActivityCategory,
+  type UserActivityFeedResponse,
+  type UserActivityItem,
+} from "@shared/activity-feed";
 import { db } from "./db";
 import {
   eq,
@@ -373,6 +383,15 @@ export interface IStorage {
       includeBalanceAfter?: boolean;
     },
   ): Promise<any[]>;
+  getUserActivityFeed(
+    userId: string,
+    filters?: {
+      types?: UserActivityCategory[];
+      limit?: number;
+      offset?: number;
+      includeBalanceAfter?: boolean;
+    },
+  ): Promise<UserActivityFeedResponse>;
 
   // Daily games methods
   upsertDailyGame(game: InsertDailyGame): Promise<DailyGame>;
@@ -542,6 +561,9 @@ export interface IStorage {
   ): Promise<PremiumCheckoutSession | undefined>;
   getUserPremiumCheckoutSessions(userId: string): Promise<PremiumCheckoutSession[]>;
   getPendingPremiumCheckoutSessions(): Promise<PremiumCheckoutSession[]>;
+  createPremiumActivityEvent(
+    event: InsertPremiumActivityEvent,
+  ): Promise<PremiumActivityEvent | undefined>;
 
   // Community checkout session methods
   createCommunityCheckoutSession(session: {
@@ -692,6 +714,32 @@ function buildStackedShareSummary(multiplier: PlayerMultiplier): HoldingSummary 
     totalCostBasis: multiplier.totalCostBasis,
     lastUpdated: multiplier.updatedAt,
   };
+}
+
+const LEGACY_ACTIVITY_CATEGORIES: UserActivityCategory[] = ["vesting", "market", "scout"];
+const PENDING_ACTIVITY_STATUSES = new Set(["pending", "active", "locked"]);
+const GAMEPLAY_ACTIVITY_CATEGORIES = new Set<UserActivityCategory>([
+  "scout",
+  "stacking",
+  "boosts",
+  "community",
+  "payouts",
+]);
+
+function toActivityTimestamp(value: Date | string | null | undefined): string {
+  if (!value) {
+    return new Date(0).toISOString();
+  }
+
+  const parsed = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(parsed.getTime()) ? new Date(0).toISOString() : parsed.toISOString();
+}
+
+function formatActivityQuantity(value: number): string {
+  return value.toLocaleString(undefined, {
+    minimumFractionDigits: Number.isInteger(value) ? 0 : 2,
+    maximumFractionDigits: 2,
+  });
 }
 
 export class DatabaseStorage implements IStorage {
@@ -2742,223 +2790,911 @@ export class DatabaseStorage implements IStorage {
       includeBalanceAfter?: boolean;
     },
   ): Promise<any[]> {
-    const limit = filters?.limit || 50;
-    const offset = filters?.offset || 0;
-    const types = filters?.types || ["vesting", "market", "scout"];
+    const feed = await this.getUserActivityFeed(userId, {
+      ...filters,
+      types: (filters?.types as UserActivityCategory[] | undefined) ?? LEGACY_ACTIVITY_CATEGORIES,
+    });
+
+    return feed.activities.map((activity) => ({
+      id: activity.id,
+      timestamp: activity.timestamp,
+      category: activity.category,
+      type: activity.type,
+      description: activity.description,
+      cashDelta: activity.cashDelta,
+      shareDelta: activity.shareDelta,
+      balanceAfter: activity.balanceAfter,
+      metadata: activity.metadata,
+    }));
+  }
+
+  async getUserActivityFeed(
+    userId: string,
+    filters?: {
+      types?: UserActivityCategory[];
+      limit?: number;
+      offset?: number;
+      includeBalanceAfter?: boolean;
+    },
+  ): Promise<UserActivityFeedResponse> {
+    const limit = Math.min(Math.max(filters?.limit || 50, 1), 100);
+    const offset = Math.max(filters?.offset || 0, 0);
+    const types = filters?.types?.length ? filters.types : DEFAULT_ACTIVITY_FEED_CATEGORIES;
     const includeBalanceAfter = filters?.includeBalanceAfter ?? true;
+    const fetchWindow = Math.min(Math.max(limit + offset + 24, 80), 250);
+    const typeSet = new Set<UserActivityCategory>(types);
+    const activityTasks: Array<Promise<UserActivityItem[]>> = [];
 
-    const activities: any[] = [];
+    if (typeSet.has("vesting")) {
+      activityTasks.push(
+        (async () => {
+          const claims = await db
+            .select({
+              id: vestingClaims.id,
+              occurredAt: vestingClaims.claimedAt,
+              playerId: vestingClaims.playerId,
+              playerFirstName: players.firstName,
+              playerLastName: players.lastName,
+              playerTeam: players.team,
+              sharesClaimed: vestingClaims.sharesClaimed,
+            })
+            .from(vestingClaims)
+            .leftJoin(players, eq(vestingClaims.playerId, players.id))
+            .where(eq(vestingClaims.userId, userId))
+            .orderBy(desc(vestingClaims.claimedAt))
+            .limit(fetchWindow);
 
-    // 1. Vesting claims
-    if (types.includes("vesting")) {
-      const claims = await db
-        .select({
-          id: vestingClaims.id,
-          occurredAt: vestingClaims.claimedAt,
-          playerId: vestingClaims.playerId,
-          playerFirstName: players.firstName,
-          playerLastName: players.lastName,
-          playerTeam: players.team,
-          sharesClaimed: vestingClaims.sharesClaimed,
-        })
-        .from(vestingClaims)
-        .leftJoin(players, eq(vestingClaims.playerId, players.id))
-        .where(eq(vestingClaims.userId, userId))
-        .orderBy(desc(vestingClaims.claimedAt))
-        .limit(limit);
+          return claims.map((claim) => {
+            const playerName = claim.playerId
+              ? `${claim.playerFirstName} ${claim.playerLastName}`.trim()
+              : "Multiple Players";
 
-      claims.forEach((claim) => {
-        activities.push({
-          id: `vesting-${claim.id}`,
-          userId,
-          occurredAt: claim.occurredAt,
-          category: "vesting",
-          subtype: "claim",
-          cashDelta: "0.00",
-          sharesDelta: claim.sharesClaimed,
-          metadata: {
-            playerId: claim.playerId,
-            playerName: claim.playerId
-              ? `${claim.playerFirstName} ${claim.playerLastName}`
-              : "Multiple Players",
-            playerTeam: claim.playerTeam,
-            sharesClaimed: claim.sharesClaimed,
-          },
-        });
-      });
+            return {
+              id: `vesting-${claim.id}`,
+              timestamp: toActivityTimestamp(claim.occurredAt),
+              category: "vesting",
+              type: "claim",
+              title: "Claimed vesting shares",
+              description: `Claimed ${claim.sharesClaimed} shares${playerName ? ` of ${playerName}` : ""}`,
+              shareDelta: claim.sharesClaimed,
+              status: "processed",
+              entity: claim.playerId
+                ? {
+                    kind: "player",
+                    id: claim.playerId,
+                    label: playerName,
+                    secondaryLabel: claim.playerTeam || undefined,
+                    href: `/player/${claim.playerId}`,
+                  }
+                : undefined,
+              context: {
+                summary: `${claim.sharesClaimed} shares claimed`,
+              },
+              metadata: {
+                playerId: claim.playerId || undefined,
+                playerName,
+                playerTeam: claim.playerTeam,
+                sharesClaimed: claim.sharesClaimed,
+              },
+            } satisfies UserActivityItem;
+          });
+        })(),
+      );
     }
 
-    // 2. Trades (executed)
-    if (types.includes("market")) {
-      const userBuyTrades = await db
-        .select({
-          id: trades.id,
-          occurredAt: trades.executedAt,
-          playerId: trades.playerId,
-          playerFirstName: players.firstName,
-          playerLastName: players.lastName,
-          playerTeam: players.team,
-          quantity: trades.quantity,
-          price: trades.price,
-        })
-        .from(trades)
-        .innerJoin(players, eq(trades.playerId, players.id))
-        .where(eq(trades.buyerId, userId))
-        .orderBy(desc(trades.executedAt))
-        .limit(limit);
+    if (typeSet.has("market")) {
+      activityTasks.push(
+        (async () => {
+          const [userBuyTrades, userSellTrades] = await Promise.all([
+            db
+              .select({
+                id: trades.id,
+                occurredAt: trades.executedAt,
+                playerId: trades.playerId,
+                playerFirstName: players.firstName,
+                playerLastName: players.lastName,
+                playerTeam: players.team,
+                quantity: trades.quantity,
+                price: trades.price,
+              })
+              .from(trades)
+              .innerJoin(players, eq(trades.playerId, players.id))
+              .where(eq(trades.buyerId, userId))
+              .orderBy(desc(trades.executedAt))
+              .limit(fetchWindow),
+            db
+              .select({
+                id: trades.id,
+                occurredAt: trades.executedAt,
+                playerId: trades.playerId,
+                playerFirstName: players.firstName,
+                playerLastName: players.lastName,
+                playerTeam: players.team,
+                quantity: trades.quantity,
+                price: trades.price,
+              })
+              .from(trades)
+              .innerJoin(players, eq(trades.playerId, players.id))
+              .where(eq(trades.sellerId, userId))
+              .orderBy(desc(trades.executedAt))
+              .limit(fetchWindow),
+          ]);
 
-      userBuyTrades.forEach((trade) => {
-        const totalCost = parseFloat(trade.price) * parseFloat(trade.quantity);
-        activities.push({
-          id: `trade-buy-${trade.id}`,
-          userId,
-          occurredAt: trade.occurredAt,
-          category: "market",
-          subtype: "trade_buy",
-          cashDelta: `-${totalCost.toFixed(2)}`,
-          sharesDelta: trade.quantity,
-          metadata: {
-            playerId: trade.playerId,
-            playerName: `${trade.playerFirstName} ${trade.playerLastName}`,
-            playerTeam: trade.playerTeam,
-            quantity: trade.quantity,
-            tradePrice: trade.price,
-            side: "buy",
-          },
-        });
-      });
+          const buyItems = userBuyTrades.map((trade) => {
+            const quantity = toHoldingNumber(trade.quantity);
+            const price = toHoldingNumber(trade.price);
+            const totalCost = price * quantity;
+            const playerName = `${trade.playerFirstName} ${trade.playerLastName}`.trim();
 
-      const userSellTrades = await db
-        .select({
-          id: trades.id,
-          occurredAt: trades.executedAt,
-          playerId: trades.playerId,
-          playerFirstName: players.firstName,
-          playerLastName: players.lastName,
-          playerTeam: players.team,
-          quantity: trades.quantity,
-          price: trades.price,
-        })
-        .from(trades)
-        .innerJoin(players, eq(trades.playerId, players.id))
-        .where(eq(trades.sellerId, userId))
-        .orderBy(desc(trades.executedAt))
-        .limit(limit);
+            return {
+              id: `trade-buy-${trade.id}`,
+              timestamp: toActivityTimestamp(trade.occurredAt),
+              category: "market",
+              type: "trade_buy",
+              title: "Bought shares",
+              description: `Bought ${formatActivityQuantity(quantity)} shares of ${playerName} @ $${price.toFixed(2)}`,
+              cashDelta: `-${totalCost.toFixed(2)}`,
+              shareDelta: quantity,
+              status: "processed",
+              entity: {
+                kind: "player",
+                id: trade.playerId,
+                label: playerName,
+                secondaryLabel: trade.playerTeam || undefined,
+                href: `/player/${trade.playerId}`,
+              },
+              context: {
+                summary: `${formatActivityQuantity(quantity)} shares @ $${price.toFixed(2)}`,
+              },
+              metadata: {
+                playerId: trade.playerId,
+                playerName,
+                playerTeam: trade.playerTeam,
+                quantity,
+                tradePrice: price.toFixed(2),
+                side: "buy",
+              },
+            } satisfies UserActivityItem;
+          });
 
-      userSellTrades.forEach((trade) => {
-        const totalRevenue = parseFloat(trade.price) * parseFloat(trade.quantity);
-        activities.push({
-          id: `trade-sell-${trade.id}`,
-          userId,
-          occurredAt: trade.occurredAt,
-          category: "market",
-          subtype: "trade_sell",
-          cashDelta: `${totalRevenue.toFixed(2)}`,
-          sharesDelta: -trade.quantity,
-          metadata: {
-            playerId: trade.playerId,
-            playerName: `${trade.playerFirstName} ${trade.playerLastName}`,
-            playerTeam: trade.playerTeam,
-            quantity: trade.quantity,
-            tradePrice: trade.price,
-            side: "sell",
-          },
-        });
-      });
+          const sellItems = userSellTrades.map((trade) => {
+            const quantity = toHoldingNumber(trade.quantity);
+            const price = toHoldingNumber(trade.price);
+            const totalRevenue = price * quantity;
+            const playerName = `${trade.playerFirstName} ${trade.playerLastName}`.trim();
+
+            return {
+              id: `trade-sell-${trade.id}`,
+              timestamp: toActivityTimestamp(trade.occurredAt),
+              category: "market",
+              type: "trade_sell",
+              title: "Sold shares",
+              description: `Sold ${formatActivityQuantity(quantity)} shares of ${playerName} @ $${price.toFixed(2)}`,
+              cashDelta: totalRevenue.toFixed(2),
+              shareDelta: -quantity,
+              status: "processed",
+              entity: {
+                kind: "player",
+                id: trade.playerId,
+                label: playerName,
+                secondaryLabel: trade.playerTeam || undefined,
+                href: `/player/${trade.playerId}`,
+              },
+              context: {
+                summary: `${formatActivityQuantity(quantity)} shares @ $${price.toFixed(2)}`,
+              },
+              metadata: {
+                playerId: trade.playerId,
+                playerName,
+                playerTeam: trade.playerTeam,
+                quantity,
+                tradePrice: price.toFixed(2),
+                side: "sell",
+              },
+            } satisfies UserActivityItem;
+          });
+
+          return [...buyItems, ...sellItems];
+        })(),
+      );
     }
 
-    // 4. Scout distributions (hourly share earnings)
-    if (types.includes("scout")) {
-      const distributions = await db
-        .select({
-          id: scoutDistributions.id,
-          occurredAt: scoutDistributions.hourTimestamp,
-          playerId: scoutDistributions.playerId,
-          playerFirstName: players.firstName,
-          playerLastName: players.lastName,
-          playerTeam: players.team,
-          sharesEarned: scoutDistributions.sharesEarned,
-        })
-        .from(scoutDistributions)
-        .leftJoin(players, eq(scoutDistributions.playerId, players.id))
-        .where(eq(scoutDistributions.userId, userId))
-        .orderBy(desc(scoutDistributions.hourTimestamp))
-        .limit(limit);
+    if (typeSet.has("scout")) {
+      activityTasks.push(
+        (async () => {
+          const distributions = await db
+            .select({
+              id: scoutDistributions.id,
+              occurredAt: scoutDistributions.hourTimestamp,
+              playerId: scoutDistributions.playerId,
+              playerFirstName: players.firstName,
+              playerLastName: players.lastName,
+              playerTeam: players.team,
+              sharesEarned: scoutDistributions.sharesEarned,
+            })
+            .from(scoutDistributions)
+            .leftJoin(players, eq(scoutDistributions.playerId, players.id))
+            .where(eq(scoutDistributions.userId, userId))
+            .orderBy(desc(scoutDistributions.hourTimestamp))
+            .limit(fetchWindow);
 
-      distributions.forEach((dist) => {
-        activities.push({
-          id: `scout-dist-${dist.id}`,
-          userId,
-          occurredAt: dist.occurredAt,
-          category: "scout",
-          subtype: "distribution",
-          cashDelta: "0.00",
-          sharesDelta: parseFloat(dist.sharesEarned?.toString() || "0"),
-          metadata: {
-            playerId: dist.playerId,
-            playerName: dist.playerId
-              ? `${dist.playerFirstName} ${dist.playerLastName}`
-              : "Unknown Player",
-            playerTeam: dist.playerTeam,
-            sharesEarned: dist.sharesEarned,
-          },
-        });
-      });
+          return distributions.map((dist) => {
+            const sharesEarned = toHoldingNumber(dist.sharesEarned);
+            const playerName =
+              `${dist.playerFirstName} ${dist.playerLastName}`.trim() || "Unknown Player";
+
+            return {
+              id: `scout-dist-${dist.id}`,
+              timestamp: toActivityTimestamp(dist.occurredAt),
+              category: "scout",
+              type: "distribution",
+              title: "Scout reward",
+              description: `Earned ${formatActivityQuantity(sharesEarned)} shares from scouting ${playerName}`,
+              shareDelta: sharesEarned,
+              status: "processed",
+              entity: {
+                kind: "player",
+                id: dist.playerId,
+                label: playerName,
+                secondaryLabel: dist.playerTeam || undefined,
+                href: `/player/${dist.playerId}`,
+              },
+              context: {
+                summary: `${formatActivityQuantity(sharesEarned)} shares earned`,
+              },
+              metadata: {
+                playerId: dist.playerId,
+                playerName,
+                playerTeam: dist.playerTeam,
+                shares: sharesEarned,
+              },
+            } satisfies UserActivityItem;
+          });
+        })(),
+      );
     }
 
-    // Sort all activities by timestamp (most recent first) and apply pagination
-    const sorted = activities.sort(
-      (a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime(),
+    if (typeSet.has("stacking")) {
+      activityTasks.push(
+        (async () => {
+          const stackEvents = await db
+            .select({
+              id: playerMultiplierEvents.id,
+              occurredAt: playerMultiplierEvents.createdAt,
+              playerId: playerMultiplierEvents.playerId,
+              playerFirstName: players.firstName,
+              playerLastName: players.lastName,
+              playerTeam: players.team,
+              sharesConsumed: playerMultiplierEvents.sharesConsumed,
+              multiplierDelta: playerMultiplierEvents.multiplierDelta,
+              multiplierAfter: playerMultiplierEvents.multiplierAfter,
+            })
+            .from(playerMultiplierEvents)
+            .innerJoin(players, eq(playerMultiplierEvents.playerId, players.id))
+            .where(
+              and(
+                eq(playerMultiplierEvents.userId, userId),
+                eq(playerMultiplierEvents.eventType, "stack_shares"),
+              ),
+            )
+            .orderBy(desc(playerMultiplierEvents.createdAt))
+            .limit(fetchWindow);
+
+          return stackEvents.map((event) => {
+            const sharesConsumed = Number(event.sharesConsumed || 0);
+            const multiplierDelta = Number(event.multiplierDelta || 0);
+            const multiplierAfter = Number(event.multiplierAfter || 0);
+            const playerName = `${event.playerFirstName} ${event.playerLastName}`.trim();
+
+            return {
+              id: `stack-${event.id}`,
+              timestamp: toActivityTimestamp(event.occurredAt),
+              category: "stacking",
+              type: "stack_shares",
+              title: "Added to stack",
+              description: `Stacked ${sharesConsumed} singles into ${multiplierAfter.toFixed(2)}x on ${playerName}`,
+              shareDelta: -sharesConsumed,
+              status: "processed",
+              entity: {
+                kind: "player",
+                id: event.playerId,
+                label: playerName,
+                secondaryLabel: event.playerTeam || undefined,
+                href: `/player/${event.playerId}`,
+              },
+              context: {
+                summary: `${sharesConsumed} singles -> +${multiplierDelta.toFixed(2)}x`,
+                stackLevelAfter: multiplierAfter,
+              },
+              metadata: {
+                playerId: event.playerId,
+                playerName,
+                playerTeam: event.playerTeam,
+                sharesConsumed,
+                multiplierDelta,
+                multiplierAfter,
+              },
+            } satisfies UserActivityItem;
+          });
+        })(),
+      );
+    }
+
+    if (typeSet.has("boosts")) {
+      activityTasks.push(
+        (async () => {
+          const [boostEntries, payoutEntries] = await Promise.all([
+            db
+              .select({
+                id: dailyBoosts.id,
+                occurredAt: dailyBoosts.createdAt,
+                playerId: dailyBoosts.playerId,
+                playerFirstName: players.firstName,
+                playerLastName: players.lastName,
+                playerTeam: players.team,
+                slotTier: dailyBoosts.slotTier,
+                sport: dailyBoosts.sport,
+                status: dailyBoosts.status,
+                shareMultiplier: dailyBoosts.shareMultiplier,
+                shareSourceType: dailyBoosts.shareSourceType,
+                boostDate: dailyBoosts.boostDate,
+              })
+              .from(dailyBoosts)
+              .innerJoin(players, eq(dailyBoosts.playerId, players.id))
+              .where(eq(dailyBoosts.userId, userId))
+              .orderBy(desc(dailyBoosts.createdAt))
+              .limit(fetchWindow),
+            db
+              .select({
+                id: boostPayouts.id,
+                occurredAt: boostPayouts.createdAt,
+                playerId: boostPayouts.playerId,
+                playerFirstName: players.firstName,
+                playerLastName: players.lastName,
+                playerTeam: players.team,
+                slotTier: dailyBoosts.slotTier,
+                sport: dailyBoosts.sport,
+                fantasyPoints: boostPayouts.fantasyPoints,
+                payoutAmount: boostPayouts.payoutAmount,
+              })
+              .from(boostPayouts)
+              .innerJoin(players, eq(boostPayouts.playerId, players.id))
+              .leftJoin(dailyBoosts, eq(boostPayouts.boostId, dailyBoosts.id))
+              .where(eq(boostPayouts.userId, userId))
+              .orderBy(desc(boostPayouts.createdAt))
+              .limit(fetchWindow),
+          ]);
+
+          const boostItems = boostEntries.map((boost) => {
+            const playerName = `${boost.playerFirstName} ${boost.playerLastName}`.trim();
+            const sourceLabel =
+              boost.shareSourceType === "stacked"
+                ? `${toHoldingNumber(boost.shareMultiplier).toFixed(2)}x stacked share`
+                : "single share";
+
+            return {
+              id: `boost-entry-${boost.id}`,
+              timestamp: toActivityTimestamp(boost.occurredAt),
+              category: "boosts",
+              type: "boost_entered",
+              title: "Entered daily boost",
+              description: `Entered ${boost.slotTier}x boost on ${playerName} with ${sourceLabel}`,
+              status: boost.status,
+              entity: {
+                kind: "boosts",
+                id: boost.id,
+                label: playerName,
+                secondaryLabel: boost.playerTeam || undefined,
+                href: "/boosts",
+              },
+              context: {
+                summary: `${boost.slotTier}x slot • ${sourceLabel}`,
+                sport: boost.sport,
+                boostDate: toActivityTimestamp(boost.boostDate),
+              },
+              metadata: {
+                playerId: boost.playerId,
+                playerName,
+                playerTeam: boost.playerTeam,
+                slotTier: boost.slotTier,
+                sport: boost.sport,
+                shareSourceType: boost.shareSourceType,
+              },
+            } satisfies UserActivityItem;
+          });
+
+          const payoutItems = payoutEntries.map((payout) => {
+            const payoutAmount = toHoldingNumber(payout.payoutAmount);
+            const fantasyPoints = toHoldingNumber(payout.fantasyPoints);
+            const playerName = `${payout.playerFirstName} ${payout.playerLastName}`.trim();
+
+            return {
+              id: `boost-settle-${payout.id}`,
+              timestamp: toActivityTimestamp(payout.occurredAt),
+              category: "boosts",
+              type: "boost_settled",
+              title: "Boost settled",
+              description: `${payout.slotTier || 0}x boost on ${playerName} paid $${payoutAmount.toFixed(2)}`,
+              cashDelta: payoutAmount.toFixed(2),
+              status: "processed",
+              entity: {
+                kind: "boosts",
+                label: playerName,
+                secondaryLabel: payout.playerTeam || undefined,
+                href: "/boosts",
+              },
+              context: {
+                summary: `${payout.slotTier || 0}x slot • ${fantasyPoints.toFixed(2)} FP`,
+                sport: payout.sport,
+              },
+              metadata: {
+                playerId: payout.playerId,
+                playerName,
+                playerTeam: payout.playerTeam,
+                slotTier: payout.slotTier || undefined,
+                sport: payout.sport || undefined,
+                payoutAmount: payoutAmount.toFixed(2),
+              },
+            } satisfies UserActivityItem;
+          });
+
+          return [...boostItems, ...payoutItems];
+        })(),
+      );
+    }
+
+    if (typeSet.has("community")) {
+      activityTasks.push(
+        (async () => {
+          const boosts = await db
+            .select({
+              id: communityBoosts.id,
+              occurredAt: communityBoosts.createdAt,
+              processedAt: communityBoosts.processedAt,
+              playerId: communityBoosts.playerId,
+              playerFirstName: players.firstName,
+              playerLastName: players.lastName,
+              playerTeam: players.team,
+              sport: communityBoosts.sport,
+              status: communityBoosts.status,
+              boostDate: communityBoosts.boostDate,
+            })
+            .from(communityBoosts)
+            .innerJoin(players, eq(communityBoosts.playerId, players.id))
+            .where(eq(communityBoosts.creatorId, userId))
+            .orderBy(desc(communityBoosts.createdAt))
+            .limit(fetchWindow);
+
+          return boosts.flatMap((boost) => {
+            const playerName = `${boost.playerFirstName} ${boost.playerLastName}`.trim();
+            const createdItem = {
+              id: `community-create-${boost.id}`,
+              timestamp: toActivityTimestamp(boost.occurredAt),
+              category: "community",
+              type: "community_boost_created",
+              title: "Created community boost",
+              description: `Created a community boost for ${playerName}`,
+              status: boost.status,
+              entity: {
+                kind: "boosts",
+                id: boost.id,
+                label: playerName,
+                secondaryLabel: boost.playerTeam || undefined,
+                href: "/boosts",
+              },
+              context: {
+                summary: `${boost.sport} community boost`,
+                boostDate: toActivityTimestamp(boost.boostDate),
+              },
+              metadata: {
+                playerId: boost.playerId,
+                playerName,
+                playerTeam: boost.playerTeam,
+                sport: boost.sport,
+              },
+            } satisfies UserActivityItem;
+
+            if (!boost.processedAt) {
+              return [createdItem];
+            }
+
+            return [
+              createdItem,
+              {
+                id: `community-final-${boost.id}`,
+                timestamp: toActivityTimestamp(boost.processedAt),
+                category: "community",
+                type: "community_boost_finalized",
+                title: "Community boost finalized",
+                description: `Community boost for ${playerName} finalized`,
+                status: "processed",
+                entity: {
+                  kind: "boosts",
+                  id: boost.id,
+                  label: playerName,
+                  secondaryLabel: boost.playerTeam || undefined,
+                  href: "/boosts",
+                },
+                context: {
+                  summary: `${boost.sport} community boost processed`,
+                },
+                metadata: {
+                  playerId: boost.playerId,
+                  playerName,
+                  playerTeam: boost.playerTeam,
+                  sport: boost.sport,
+                },
+              } satisfies UserActivityItem,
+            ];
+          });
+        })(),
+      );
+    }
+
+    if (typeSet.has("liquidity")) {
+      activityTasks.push(
+        (async () => {
+          const lpEvents = await db
+            .select({
+              id: lpTransactions.id,
+              occurredAt: lpTransactions.timestamp,
+              playerId: lpTransactions.playerId,
+              playerFirstName: players.firstName,
+              playerLastName: players.lastName,
+              playerTeam: players.team,
+              transactionType: lpTransactions.transactionType,
+              lpShares: lpTransactions.lpShares,
+              sharesAmount: lpTransactions.sharesAmount,
+              playMoneyAmount: lpTransactions.playMoneyAmount,
+            })
+            .from(lpTransactions)
+            .innerJoin(players, eq(lpTransactions.playerId, players.id))
+            .where(eq(lpTransactions.userId, userId))
+            .orderBy(desc(lpTransactions.timestamp))
+            .limit(fetchWindow);
+
+          return lpEvents.map((event) => {
+            const sharesAmount = toHoldingNumber(event.sharesAmount);
+            const playMoneyAmount = toHoldingNumber(event.playMoneyAmount);
+            const lpShares = toHoldingNumber(event.lpShares);
+            const isAdd = event.transactionType === "add";
+            const playerName = `${event.playerFirstName} ${event.playerLastName}`.trim();
+
+            return {
+              id: `lp-${event.id}`,
+              timestamp: toActivityTimestamp(event.occurredAt),
+              category: "liquidity",
+              type: isAdd ? "lp_add" : "lp_remove",
+              title: isAdd ? "Added liquidity" : "Removed liquidity",
+              description: `${isAdd ? "Added" : "Removed"} liquidity for ${playerName}`,
+              cashDelta: `${isAdd ? "-" : ""}${playMoneyAmount.toFixed(2)}`,
+              shareDelta: isAdd ? -sharesAmount : sharesAmount,
+              status: "processed",
+              entity: {
+                kind: "liquidity",
+                id: event.playerId,
+                label: playerName,
+                secondaryLabel: event.playerTeam || undefined,
+                href: `/player/${event.playerId}?panel=lp`,
+              },
+              context: {
+                summary: `${sharesAmount.toFixed(2)} shares • ${lpShares.toFixed(2)} LP`,
+              },
+              metadata: {
+                playerId: event.playerId,
+                playerName,
+                playerTeam: event.playerTeam,
+                shares: sharesAmount,
+              },
+            } satisfies UserActivityItem;
+          });
+        })(),
+      );
+    }
+
+    if (typeSet.has("payouts")) {
+      activityTasks.push(
+        (async () => {
+          const payouts = await db
+            .select({
+              id: sharePayouts.id,
+              occurredAt: sharePayouts.createdAt,
+              processedAt: sharePayouts.processedAt,
+              playerId: sharePayouts.playerId,
+              playerFirstName: players.firstName,
+              playerLastName: players.lastName,
+              playerTeam: players.team,
+              status: sharePayouts.status,
+              fantasyPoints: sharePayouts.fantasyPoints,
+              payoutAmount: sharePayouts.payoutAmount,
+            })
+            .from(sharePayouts)
+            .innerJoin(players, eq(sharePayouts.playerId, players.id))
+            .where(and(eq(sharePayouts.userId, userId), ne(sharePayouts.status, "cancelled")))
+            .orderBy(desc(sharePayouts.createdAt))
+            .limit(fetchWindow);
+
+          return payouts.map((payout) => {
+            const payoutAmount = toHoldingNumber(payout.payoutAmount);
+            const fantasyPoints = toHoldingNumber(payout.fantasyPoints);
+            const playerName = `${payout.playerFirstName} ${payout.playerLastName}`.trim();
+            const isProcessed = payout.status === "processed";
+
+            return {
+              id: `holder-payout-${payout.id}`,
+              timestamp: toActivityTimestamp(payout.processedAt || payout.occurredAt),
+              category: "payouts",
+              type: isProcessed ? "share_payout_processed" : "share_payout_pending",
+              title: isProcessed ? "Holder payout credited" : "Holder payout pending",
+              description: `${isProcessed ? "Credited" : "Queued"} holder payout for ${playerName}`,
+              cashDelta: isProcessed && payoutAmount > 0 ? payoutAmount.toFixed(2) : undefined,
+              status: payout.status,
+              entity: {
+                kind: "player",
+                id: payout.playerId,
+                label: playerName,
+                secondaryLabel: payout.playerTeam || undefined,
+                href: `/player/${payout.playerId}`,
+              },
+              context: {
+                summary: fantasyPoints > 0 ? `${fantasyPoints.toFixed(2)} FP` : "Post-game payout",
+              },
+              metadata: {
+                playerId: payout.playerId,
+                playerName,
+                playerTeam: payout.playerTeam,
+                payoutAmount: payoutAmount > 0 ? payoutAmount.toFixed(2) : undefined,
+              },
+            } satisfies UserActivityItem;
+          });
+        })(),
+      );
+    }
+
+    if (typeSet.has("premium")) {
+      activityTasks.push(
+        (async () => {
+          const [activityEvents, checkoutSessions] = await Promise.all([
+            db
+              .select()
+              .from(premiumActivityEvents)
+              .where(eq(premiumActivityEvents.userId, userId))
+              .orderBy(desc(premiumActivityEvents.createdAt))
+              .limit(fetchWindow),
+            db
+              .select({
+                id: premiumCheckoutSessions.id,
+                occurredAt: premiumCheckoutSessions.completedAt,
+                quantity: premiumCheckoutSessions.quantity,
+                amountCents: premiumCheckoutSessions.amountCents,
+                receiptId: premiumCheckoutSessions.receiptId,
+              })
+              .from(premiumCheckoutSessions)
+              .where(
+                and(
+                  eq(premiumCheckoutSessions.userId, userId),
+                  eq(premiumCheckoutSessions.status, "completed"),
+                  isNotNull(premiumCheckoutSessions.completedAt),
+                ),
+              )
+              .orderBy(desc(premiumCheckoutSessions.completedAt))
+              .limit(fetchWindow),
+          ]);
+
+          const loggedCreditRefs = new Set(
+            activityEvents
+              .filter((event) => event.eventType === "premium_credit" && event.referenceId)
+              .map((event) => event.referenceId as string),
+          );
+          const premiumEvents = activityEvents.map((event) => {
+            const amount = Number(event.amountCents || 0) / 100;
+            const quantityDelta = Number(event.quantityDelta || 0);
+            const metadata = (event.metadata || {}) as Record<
+              string,
+              string | number | boolean | null
+            >;
+            const eventType = event.eventType;
+
+            if (eventType === "premium_redeem") {
+              const daysGranted = Number(event.daysGranted || metadata.daysGranted || 0);
+              const expiresAtAfter =
+                typeof metadata.premiumExpiresAtAfter === "string"
+                  ? metadata.premiumExpiresAtAfter
+                  : event.premiumExpiresAtAfter?.toISOString();
+
+              return {
+                id: `premium-redeem-${event.id}`,
+                timestamp: toActivityTimestamp(event.createdAt),
+                category: "premium",
+                type: "premium_redeem",
+                title: "Redeemed premium access",
+                description: `Redeemed 1 premium share for ${daysGranted || 30} days of access`,
+                shareDelta: quantityDelta,
+                status: "processed",
+                entity: {
+                  kind: "premium",
+                  label: "Premium Access",
+                  href: "/premium",
+                },
+                context: {
+                  summary: `${daysGranted || 30} days granted`,
+                  premiumExpiresAtAfter: expiresAtAfter,
+                },
+                metadata: {
+                  quantity: Math.abs(quantityDelta),
+                  daysGranted: daysGranted || 30,
+                  premiumExpiresAtAfter: expiresAtAfter,
+                },
+              } satisfies UserActivityItem;
+            }
+
+            if (eventType === "premium_admin_credit") {
+              return {
+                id: `premium-admin-${event.id}`,
+                timestamp: toActivityTimestamp(event.createdAt),
+                category: "premium",
+                type: "premium_admin_credit",
+                title: "Premium shares credited",
+                description: `Credited ${quantityDelta} premium shares`,
+                shareDelta: quantityDelta,
+                status: "processed",
+                entity: {
+                  kind: "premium",
+                  label: "Premium Shares",
+                  href: "/premium",
+                },
+                context: {
+                  summary: typeof metadata.reason === "string" ? metadata.reason : "Manual credit",
+                },
+                metadata: {
+                  quantity: quantityDelta,
+                  reason: typeof metadata.reason === "string" ? metadata.reason : undefined,
+                },
+              } satisfies UserActivityItem;
+            }
+
+            return {
+              id: `premium-credit-${event.id}`,
+              timestamp: toActivityTimestamp(event.createdAt),
+              category: "premium",
+              type: "premium_credit",
+              title: "Premium shares credited",
+              description: `Purchased ${quantityDelta} premium shares`,
+              cashDelta: amount > 0 ? `-${amount.toFixed(2)}` : undefined,
+              shareDelta: quantityDelta,
+              status: "processed",
+              entity: {
+                kind: "premium",
+                label: "Premium Shares",
+                href: "/premium",
+              },
+              context: {
+                summary:
+                  amount > 0
+                    ? `${quantityDelta} shares | $${amount.toFixed(2)}`
+                    : `${quantityDelta} shares credited`,
+              },
+              metadata: {
+                quantity: quantityDelta,
+              },
+            } satisfies UserActivityItem;
+          });
+
+          const checkoutItems = checkoutSessions
+            .filter((session) => !(session.receiptId && loggedCreditRefs.has(session.receiptId)))
+            .map((session) => {
+              const spent = Number(session.amountCents || 0) / 100;
+
+              return {
+                id: `premium-credit-legacy-${session.id}`,
+                timestamp: toActivityTimestamp(session.occurredAt),
+                category: "premium",
+                type: "premium_credit",
+                title: "Premium shares credited",
+                description: `Purchased ${session.quantity} premium shares`,
+                cashDelta: `-${spent.toFixed(2)}`,
+                shareDelta: session.quantity,
+                status: "processed",
+                entity: {
+                  kind: "premium",
+                  label: "Premium Shares",
+                  href: "/premium",
+                },
+                context: {
+                  summary: `${session.quantity} shares • $${spent.toFixed(2)}`,
+                },
+                metadata: {
+                  quantity: session.quantity,
+                },
+              } satisfies UserActivityItem;
+            });
+
+          return [...premiumEvents, ...checkoutItems];
+        })(),
+      );
+    }
+
+    const mergedActivities = (await Promise.all(activityTasks))
+      .flat()
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+    const categoryCounts = USER_ACTIVITY_CATEGORIES.reduce(
+      (counts, category) => {
+        counts[category] = 0;
+        return counts;
+      },
+      {} as Partial<Record<UserActivityCategory, number>>,
     );
 
-    // Get current user balance for balance-after calculations
-    let currentBalance = 0;
+    mergedActivities.forEach((activity) => {
+      categoryCounts[activity.category] = (categoryCounts[activity.category] || 0) + 1;
+    });
+
+    let runningBalance = 0;
     if (includeBalanceAfter) {
       const user = await this.getUser(userId);
-      if (!user) return [];
-      currentBalance = parseFloat(user.balance);
-    }
-
-    // Process activities from most recent to oldest, adding descriptions and balance-after
-    const enrichedActivities = sorted.slice(offset, offset + limit).map((activity: any) => {
-      const cashDelta = activity.cashDelta ? parseFloat(activity.cashDelta) : 0;
-      const balanceAfter = includeBalanceAfter ? currentBalance : null;
-
-      // Move backwards through history (we're going DESC)
-      if (includeBalanceAfter) {
-        currentBalance -= cashDelta;
+      if (!user) {
+        return {
+          activities: [],
+          total: 0,
+          limit,
+          offset,
+          hasMore: false,
+          nextOffset: null,
+          categoryCounts,
+          summary: {
+            total: 0,
+            cashCount: 0,
+            pendingCount: 0,
+            gameplayCount: 0,
+          },
+        };
       }
 
-      // Build description
-      let description = "";
-      const meta = activity.metadata;
+      runningBalance = toHoldingNumber(user.balance);
+      mergedActivities.slice(0, offset).forEach((activity) => {
+        runningBalance -= toHoldingNumber(activity.cashDelta);
+      });
+    }
 
-      if (activity.category === "vesting") {
-        description = `Claimed ${meta.sharesClaimed} shares${meta.playerName ? ` of ${meta.playerName}` : ""}`;
-      } else if (activity.category === "market") {
-        if (activity.subtype === "trade_buy") {
-          description = `Bought ${meta.quantity} shares of ${meta.playerName} @ $${meta.tradePrice}`;
-        } else if (activity.subtype === "trade_sell") {
-          description = `Sold ${meta.quantity} shares of ${meta.playerName} @ $${meta.tradePrice}`;
-        }
-      } else if (activity.category === "scout") {
-        description = `Scouting reward: ${meta.sharesEarned} shares of ${meta.playerName}`;
+    const pagedActivities = mergedActivities.slice(offset, offset + limit).map((activity) => {
+      const cashDelta = toHoldingNumber(activity.cashDelta);
+      const balanceAfter = includeBalanceAfter && activity.cashDelta ? runningBalance : undefined;
+
+      if (includeBalanceAfter) {
+        runningBalance -= cashDelta;
       }
 
       return {
-        id: activity.id,
-        timestamp: activity.occurredAt,
-        category: activity.category,
-        type: activity.subtype,
-        description,
-        cashDelta: cashDelta !== 0 ? activity.cashDelta : undefined,
-        shareDelta: activity.sharesDelta || undefined,
-        balanceAfter: balanceAfter !== null ? balanceAfter.toFixed(2) : undefined,
-        metadata: meta,
-      };
+        ...activity,
+        balanceAfter: balanceAfter !== undefined ? balanceAfter.toFixed(2) : undefined,
+      } satisfies UserActivityItem;
     });
 
-    return enrichedActivities;
+    const total = mergedActivities.length;
+    const hasMore = offset + limit < total;
+
+    return {
+      activities: pagedActivities,
+      total,
+      limit,
+      offset,
+      hasMore,
+      nextOffset: hasMore ? offset + limit : null,
+      categoryCounts,
+      summary: {
+        total,
+        cashCount: mergedActivities.filter(
+          (activity) => Math.abs(toHoldingNumber(activity.cashDelta)) > 0,
+        ).length,
+        pendingCount: mergedActivities.filter((activity) =>
+          PENDING_ACTIVITY_STATUSES.has((activity.status || "").toLowerCase()),
+        ).length,
+        gameplayCount: mergedActivities.filter((activity) =>
+          GAMEPLAY_ACTIVITY_CATEGORIES.has(activity.category),
+        ).length,
+      },
+    };
   }
 
   // Daily games methods
@@ -4383,6 +5119,31 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(premiumCheckoutSessions.createdAt));
   }
 
+  async createPremiumActivityEvent(
+    event: InsertPremiumActivityEvent,
+  ): Promise<PremiumActivityEvent | undefined> {
+    const [created] = await db
+      .insert(premiumActivityEvents)
+      .values({
+        userId: event.userId,
+        eventType: event.eventType,
+        quantityDelta: event.quantityDelta,
+        amountCents: event.amountCents ?? null,
+        daysGranted: event.daysGranted ?? null,
+        premiumExpiresAtAfter: event.premiumExpiresAtAfter
+          ? new Date(event.premiumExpiresAtAfter)
+          : null,
+        referenceId: event.referenceId ?? null,
+        metadata: event.metadata ?? {},
+      })
+      .onConflictDoNothing({
+        target: [premiumActivityEvents.eventType, premiumActivityEvents.referenceId],
+      })
+      .returning();
+
+    return created || undefined;
+  }
+
   // Community checkout session methods
   async createCommunityCheckoutSession(session: {
     userId: string;
@@ -5222,20 +5983,6 @@ export class DatabaseStorage implements IStorage {
   ): Promise<number> {
     const result: any = await db.execute(sql`
       WITH earning_positions AS (
-        SELECT
-          ${holdings.userId} AS user_id,
-          ${holdings.assetId} AS player_id,
-          ${holdings.quantity}::numeric AS earning_units
-        FROM ${holdings}
-        INNER JOIN ${players} ON ${players.id} = ${holdings.assetId}
-        WHERE ${holdings.assetType} = 'player'
-          AND ${holdings.quantity}::numeric > 0
-          AND ${holdings.userId} <> 'market_maker'
-          AND UPPER(${players.sport}) = ${game.sport.toUpperCase()}
-          AND (${players.team} = ${game.homeTeam} OR ${players.team} = ${game.awayTeam})
-
-        UNION ALL
-
         SELECT
           ${playerMultipliers.userId} AS user_id,
           ${playerMultipliers.playerId} AS player_id,

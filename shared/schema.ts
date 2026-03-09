@@ -1030,6 +1030,35 @@ export const premiumTrades = pgTable(
   }),
 );
 
+// Premium activity ledger - immutable audit trail for premium inventory and access changes
+export const premiumActivityEvents = pgTable(
+  "premium_activity_events",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    eventType: text("event_type").notNull(), // premium_credit, premium_redeem, premium_admin_credit
+    quantityDelta: integer("quantity_delta").notNull().default(0),
+    amountCents: integer("amount_cents"),
+    daysGranted: integer("days_granted"),
+    premiumExpiresAtAfter: timestamp("premium_expires_at_after"),
+    referenceId: varchar("reference_id"),
+    metadata: jsonb("metadata").notNull().default({}),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    userCreatedIdx: index("premium_activity_user_created_idx").on(table.userId, table.createdAt),
+    eventTypeIdx: index("premium_activity_event_type_idx").on(table.eventType),
+    referenceIdx: uniqueIndex("premium_activity_event_ref_idx").on(
+      table.eventType,
+      table.referenceId,
+    ),
+  }),
+);
+
 // Community checkout sessions table - tracks Whop checkout sessions for community share purchases
 // Community shares are used to create community boosts (+1x multiplier for all holders of a player)
 export const communityCheckoutSessions = pgTable(
@@ -1973,6 +2002,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   boostPayouts: many(boostPayouts),
   sharePayouts: many(sharePayouts),
   communityBoosts: many(communityBoosts),
+  premiumActivityEvents: many(premiumActivityEvents),
   agentProfiles: many(userAgentProfiles),
   agentSecrets: many(userAgentSecrets),
   agentThreads: many(userAgentThreads),
@@ -2096,6 +2126,13 @@ export const boostPayoutsRelations = relations(boostPayouts, ({ one }) => ({
   player: one(players, {
     fields: [boostPayouts.playerId],
     references: [players.id],
+  }),
+}));
+
+export const premiumActivityEventsRelations = relations(premiumActivityEvents, ({ one }) => ({
+  user: one(users, {
+    fields: [premiumActivityEvents.userId],
+    references: [users.id],
   }),
 }));
 
@@ -2462,6 +2499,14 @@ export const insertPremiumTradeSchema = createInsertSchema(premiumTrades).omit({
 
 export type PremiumTrade = typeof premiumTrades.$inferSelect;
 export type InsertPremiumTrade = z.infer<typeof insertPremiumTradeSchema>;
+
+export const insertPremiumActivityEventSchema = createInsertSchema(premiumActivityEvents).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type PremiumActivityEvent = typeof premiumActivityEvents.$inferSelect;
+export type InsertPremiumActivityEvent = z.infer<typeof insertPremiumActivityEventSchema>;
 
 // Community checkout session schemas and types
 export const insertCommunityCheckoutSessionSchema = createInsertSchema(

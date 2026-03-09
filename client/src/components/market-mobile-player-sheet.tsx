@@ -310,7 +310,7 @@ export function MarketMobilePlayerSheet({
                   variant="outline"
                   className="border-yellow-500/30 bg-yellow-500/10 text-yellow-300"
                 >
-                  Boost ready
+                  Boost Ready
                 </Badge>
               )}
               {(quickContext?.bestShareMultiplier || 1) > 1 && (

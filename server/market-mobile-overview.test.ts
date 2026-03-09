@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { DailyGame, Holding, Player } from "@shared/schema";
+import type { DailyGame, Player } from "@shared/schema";
 
 import { buildMobileMarketOverview, type MarketMobileOverviewDeps } from "./market-mobile-overview";
 import type { HoldingWithPlayerSummary } from "./storage";
@@ -230,6 +230,15 @@ describe("buildMobileMarketOverview", () => {
     getTotalLockedQuantity: async (_userId, _assetType, assetId) => (assetId === "p3" ? 1 : 0),
     getRecentTradeCount15m: async () => 1,
     getTrendingScoutPlayerIds: async () => ["p4"],
+    getTopPoolPlayerIds: async () => ["p1", "p3", "p4"],
+    getUserLpPositions: async () => [
+      {
+        playerId: "p1",
+        ownershipPercentage: 0.08,
+        positionValue: 9600,
+        feesEarnedToDate: 145,
+      },
+    ],
     now: () => now,
   };
 
@@ -238,13 +247,24 @@ describe("buildMobileMarketOverview", () => {
 
     expect(overview.pulse.lowActivity).toBe(true);
     expect(overview.pulse.tradeCount15m).toBe(1);
+    expect(overview.marketIndicators.healthLabel).toBe("balanced");
+    expect(overview.marketIndicators.marketIndex24h).toBeCloseTo(4.7, 1);
+    expect(overview.marketIndicators.volatilityIndex).toBeGreaterThan(50);
+    expect(overview.marketIndicators.liquidityHealth).toBeGreaterThan(40);
+    expect(overview.marketIndicators.totalMarketTvl).toBeGreaterThan(400000);
+    expect(overview.marketIndicators.breadth).toEqual({ risers: 3, fallers: 1, flat: 0 });
+    expect(overview.personalEdge).toBeNull();
     expect(overview.ticker[0]?.playerId).toBe("p1");
     expect(overview.ticker[0]?.isWhale).toBe(true);
     expect(overview.nowMoving[0]?.playerId).toBe("p1");
+    expect(overview.leaderboards.risers[0]?.playerId).toBe("p1");
+    expect(overview.leaderboards.topPools[0]?.playerId).toBe("p1");
+    expect(overview.leaderboards.mostActive[0]?.playerId).toBe("p1");
     expect(overview.nowMoving[0]?.heatCheckStatus).toBe("fire");
     expect(overview.quietValue.map((entry) => entry.playerId)).toContain("p4");
     expect(overview.scoutSurge[0]?.playerId).toBe("p4");
     expect(overview.boostWindow.map((entry) => entry.playerId)).toContain("p3");
+    expect(overview.leaderboards.boostWindow.map((entry) => entry.playerId)).toContain("p3");
     expect(overview.watchlistMoves).toHaveLength(0);
   });
 
@@ -254,10 +274,18 @@ describe("buildMobileMarketOverview", () => {
     const personalBoost = overview.boostWindow.find((entry) => entry.playerId === "p3");
 
     expect(overview.pulse.openBoostSlots).toBe(4);
+    expect(overview.marketIndicators.healthScore).toBeGreaterThan(0);
     expect(personalBoost?.availableShares).toBe(1);
     expect(personalBoost?.bestShareMultiplier).toBe(3);
     expect(personalBoost?.signal).toBe("boost");
     expect(overview.watchlistMoves.map((entry) => entry.playerId)).toEqual(["p4", "p2"]);
+    expect(overview.personalEdge?.boostReady.map((entry) => entry.playerId)).toContain("p3");
+    expect(overview.personalEdge?.watchlistMoves.map((entry) => entry.playerId)).toEqual([
+      "p4",
+      "p2",
+    ]);
+    expect(overview.personalEdge?.lpPositions[0]?.playerId).toBe("p1");
+    expect(overview.personalEdge?.ownedMovers[0]?.playerId).toBe("p3");
   });
 
   it("keeps watchlist movers inside the requested sport", async () => {
@@ -306,5 +334,6 @@ describe("buildMobileMarketOverview", () => {
 
     expect(overview.boostWindow).toHaveLength(0);
     expect(overview.nowMoving[0]?.gameStatus).toBe("none");
+    expect(overview.marketIndicators.volatilityIndex).toBeGreaterThan(0);
   });
 });

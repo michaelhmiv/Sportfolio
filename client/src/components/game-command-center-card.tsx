@@ -99,7 +99,11 @@ export function GameCommandCenterCard({
       return { label: "--", toneClass: "text-muted-foreground", meta: "Pre-market" };
     }
 
-    const rawValue = typeof userContext.liveEarned === "number" ? userContext.liveEarned : 0;
+    if (typeof userContext.liveEarned !== "number" || Number.isNaN(userContext.liveEarned)) {
+      return { label: "--", toneClass: "text-muted-foreground", meta: "No earn line" };
+    }
+
+    const rawValue = userContext.liveEarned;
     const formatter =
       Math.abs(rawValue) >= 1000 ? compactCurrencyFormatter : standardCurrencyFormatter;
     const absValue = formatter.format(Math.abs(rawValue));
