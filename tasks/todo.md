@@ -1,3 +1,18 @@
+## 2026-03-09 PR 93 Review Comment Follow-Up
+
+- [x] Inspect unresolved PR `93` review threads and confirm the exact files/behaviors called out
+- [x] Patch the portfolio activity ledger so the client can request vesting activity and the server can paginate beyond 250 source rows
+- [x] Add focused regression coverage for the review fixes
+- [x] Run `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`
+- [x] Push the updated PR `93` branch to GitHub
+
+Review:
+
+- Confirmed two unresolved PR `93` review threads: the portfolio activity tab never requested `vesting`, and the server-side merged-feed pagination capped per-source reads at `250`, which could strand older history for active users.
+- Updated the client activity fetch params to request all supported activity categories, so the existing `Vesting` filter and `All` view can actually surface vesting claims instead of silently excluding them.
+- Removed the server-side `250` cap by routing the source fetch window through a small helper that scales with `limit + offset`, preserving access to older activity rows when users scroll deeper into the ledger.
+- Added focused regression coverage for both fixes and re-ran `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`; all passed.
+
 ## 2026-03-09 Dashboard Slate Exposure Card Refocus
 
 - [x] Replace the top dashboard showcase with an exposure-only card built around `Owned` and `Missing` slate relevance

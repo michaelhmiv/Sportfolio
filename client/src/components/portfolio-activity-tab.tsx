@@ -17,6 +17,7 @@ import { useMemo, useState } from "react";
 import { Link } from "wouter";
 
 import {
+  buildPortfolioActivityFeedQueryParams,
   buildPortfolioActivitySummary,
   filterPortfolioActivities,
   type PortfolioActivityCategoryFilter,
@@ -38,7 +39,6 @@ import {
 import { authenticatedFetch } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
 import {
-  DEFAULT_ACTIVITY_FEED_CATEGORIES,
   type UserActivityCategory,
   type UserActivityFeedResponse,
   type UserActivityItem,
@@ -165,11 +165,7 @@ function formatSignedShares(delta?: number) {
 }
 
 async function fetchActivityPage(offset: number) {
-  const params = new URLSearchParams({
-    limit: "40",
-    offset: String(offset),
-    types: DEFAULT_ACTIVITY_FEED_CATEGORIES.join(","),
-  });
+  const params = buildPortfolioActivityFeedQueryParams(offset);
 
   const response = await authenticatedFetch(`/api/activity?${params.toString()}`);
   if (!response.ok) {

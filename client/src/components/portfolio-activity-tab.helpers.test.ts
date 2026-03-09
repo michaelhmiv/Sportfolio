@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 
+import { USER_ACTIVITY_CATEGORIES } from "@shared/activity-feed";
 import type { UserActivityItem } from "@shared/activity-feed";
 
 import {
+  buildPortfolioActivityFeedQueryParams,
   buildPortfolioActivitySummary,
   filterPortfolioActivities,
 } from "@/components/portfolio-activity-tab.helpers";
@@ -16,6 +18,14 @@ const baseActivity = {
 } satisfies Partial<UserActivityItem>;
 
 describe("portfolio activity tab helpers", () => {
+  it("requests every supported category so vesting activity remains reachable", () => {
+    const params = buildPortfolioActivityFeedQueryParams(80);
+
+    expect(params.get("limit")).toBe("40");
+    expect(params.get("offset")).toBe("80");
+    expect(params.get("types")?.split(",")).toEqual(USER_ACTIVITY_CATEGORIES);
+  });
+
   it("filters by category, focus, and search text", () => {
     const activities: UserActivityItem[] = [
       {

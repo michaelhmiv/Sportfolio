@@ -1,4 +1,5 @@
-import type {
+import {
+  USER_ACTIVITY_CATEGORIES,
   UserActivityCategory,
   UserActivityFeedSummary,
   UserActivityItem,
@@ -15,6 +16,14 @@ const GAMEPLAY_CATEGORIES = new Set<UserActivityCategory>([
   "community",
   "payouts",
 ]);
+
+export function buildPortfolioActivityFeedQueryParams(offset: number) {
+  return new URLSearchParams({
+    limit: "40",
+    offset: String(offset),
+    types: USER_ACTIVITY_CATEGORIES.join(","),
+  });
+}
 
 export function filterPortfolioActivities(
   activities: UserActivityItem[],

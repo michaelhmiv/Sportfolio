@@ -97,6 +97,7 @@ import {
   type UserActivityFeedResponse,
   type UserActivityItem,
 } from "@shared/activity-feed";
+import { getUserActivitySourceFetchWindow } from "./activity-feed";
 import { db } from "./db";
 import {
   eq,
@@ -2821,7 +2822,7 @@ export class DatabaseStorage implements IStorage {
     const offset = Math.max(filters?.offset || 0, 0);
     const types = filters?.types?.length ? filters.types : DEFAULT_ACTIVITY_FEED_CATEGORIES;
     const includeBalanceAfter = filters?.includeBalanceAfter ?? true;
-    const fetchWindow = Math.min(Math.max(limit + offset + 24, 80), 250);
+    const fetchWindow = getUserActivitySourceFetchWindow(limit, offset);
     const typeSet = new Set<UserActivityCategory>(types);
     const activityTasks: Array<Promise<UserActivityItem[]>> = [];
 
