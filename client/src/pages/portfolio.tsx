@@ -13,19 +13,17 @@ import {
   TrendingUp,
   TrendingDown,
   DollarSign,
+  Briefcase,
   Crown,
-  Clock,
-  ShoppingCart,
-  ArrowUpRight,
-  ArrowDownRight,
   ArrowUpDown,
   ChevronUp,
   ChevronDown,
   Plus,
   BarChart3,
-  Zap,
+  Database,
   Droplets,
   ChevronRight,
+  FileText,
   LayoutGrid,
   List,
   HelpCircle,
@@ -69,8 +67,14 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useSport } from "@/lib/sport-context";
 import { SportSelector } from "@/components/sport-selector";
 import { PortfolioCardView } from "@/components/portfolio-card-view";
+import { PortfolioActivityTab } from "@/components/portfolio-activity-tab";
+import { PortfolioStackingTab } from "@/components/portfolio-stacking-tab";
 import { PlayerModal } from "@/components/player-modal";
 import { CardAccent, BackgroundPattern } from "@/components/ui/decorative-elements";
+import {
+  buildStackingCandidates,
+  type PortfolioStackingEligibility,
+} from "@/pages/portfolio-stacking-helpers";
 
 interface PortfolioData {
   balance: string;
@@ -86,39 +90,12 @@ interface PortfolioData {
     effectiveShares?: string;
     totalPlayerEffectiveShares?: string;
     isStackedShare?: boolean;
+    lockedQuantity?: number;
+    availableQuantity?: number;
   })[];
   premiumShares: number;
   isPremium: boolean;
   premiumExpiresAt?: string;
-}
-
-interface UserActivity {
-  id: string;
-  timestamp: string;
-  category: "scout" | "market";
-  type: string;
-  description: string;
-  cashDelta?: string;
-  shareDelta?: number;
-  balanceAfter?: string;
-  metadata: {
-    playerName?: string;
-    playerId?: number;
-    tradePrice?: string;
-    orderType?: string;
-    side?: string;
-    quantity?: number;
-    shares?: number;
-    rank?: number;
-    totalEntries?: number;
-  };
-}
-
-interface ActivityResponse {
-  activities: UserActivity[];
-  total: number;
-  limit: number;
-  offset: number;
 }
 
 type SortField =
@@ -236,6 +213,22 @@ export default function Portfolio() {
     },
     enabled: isAuthenticated,
     retry: 2,
+  });
+
+  const { data: stackingEligibility } = useQuery<{
+    eligiblePlayers: PortfolioStackingEligibility[];
+  }>({
+    queryKey: ["/api/daily-boosts/eligible-all", "portfolio"],
+    queryFn: async () => {
+      const res = await authenticatedFetch("/api/daily-boosts/eligible-all");
+      if (!res.ok) {
+        throw new Error("Failed to fetch stacking context");
+      }
+      return res.json();
+    },
+    enabled: isAuthenticated,
+    retry: 1,
+    staleTime: 30_000,
   });
 
   // Compute LP aggregate totals and sorted positions
@@ -392,7 +385,8 @@ export default function Portfolio() {
 
   // Open Stack Shares dialog
   const openStackSharesDialog = (playerId: string, playerName: string, availableShares: number) => {
-    setSelectedPlayerForStacking({ id: playerId, name: playerName });
+    const safePlayerName = playerName?.trim() || "Selected player";
+    setSelectedPlayerForStacking({ id: playerId, name: safePlayerName });
     // Default to the maximum stackable shares (rounded down to nearest multiple of 2)
     const maxStackable = Math.floor(availableShares / 2) * 2;
     setSharesToStackInput(maxStackable.toString());
@@ -401,12 +395,20 @@ export default function Portfolio() {
 
   // Handle Stack Shares from dialog
   const handleStackSharesFromDialog = () => {
-    if (!selectedPlayerForStacking) return;
+    if (!selectedPlayerForStacking || !selectedStackingCandidate) return;
     const shares = parseInt(sharesToStackInput);
     if (isNaN(shares) || shares < 4 || shares % 2 !== 0) {
       toast({
         title: "Invalid selection",
-        description: "Please enter an even number of shares (minimum 4)",
+        description: "Please enter an even number of singles (minimum 4)",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (shares > selectedStackingCandidate.availableToStack) {
+      toast({
+        title: "Not enough unlocked shares",
+        description: `Only ${selectedStackingCandidate.availableToStack.toFixed(2)} unlocked singles are available to stack right now.`,
         variant: "destructive",
       });
       return;
@@ -471,12 +473,12 @@ export default function Portfolio() {
   const openStackSharesFromExpanded = (
     playerId: string,
     playerName: string,
-    regularQuantity: number,
+    availableRegularShares: number,
   ) => {
     clearSelection();
     setSelectedPlayerForStacking({ id: playerId, name: playerName });
     // Default to the maximum even stackable share count.
-    const maxStackable = Math.floor(regularQuantity / 2) * 2;
+    const maxStackable = Math.floor(availableRegularShares / 2) * 2;
     setSharesToStackInput(maxStackable.toString());
     setStackSharesDialogOpen(true);
   };
@@ -521,6 +523,7 @@ export default function Portfolio() {
     multiplier: number;
     effectiveShares: string;
     avgCostBasis: string;
+    availableQuantity: number;
     id?: string;
   }
 
@@ -574,6 +577,7 @@ export default function Portfolio() {
           multiplier: parseFloat(holding.multiplier || "1"),
           effectiveShares: holding.effectiveShares || parseFloat(holding.quantity).toFixed(2),
           avgCostBasis: holding.avgCostBasis,
+          availableQuantity: Number(holding.availableQuantity || 0),
           id: holding.id,
         };
 
@@ -591,6 +595,7 @@ export default function Portfolio() {
               quantity: totalQty,
               avgCostBasis: newAvgCost,
               effectiveShares: totalQty.toFixed(2),
+              availableQuantity: group.regular.availableQuantity + shareBreakdown.availableQuantity,
             };
           } else {
             group.regular = shareBreakdown;
@@ -659,6 +664,44 @@ export default function Portfolio() {
           return 0;
       }
     });
+
+  const allStackingCandidates = useMemo(
+    () =>
+      buildStackingCandidates(
+        data?.holdings || [],
+        stackingEligibility?.eligiblePlayers || [],
+        "ALL",
+      ),
+    [data?.holdings, stackingEligibility?.eligiblePlayers],
+  );
+
+  const stackingCandidates = useMemo(
+    () =>
+      buildStackingCandidates(
+        data?.holdings || [],
+        stackingEligibility?.eligiblePlayers || [],
+        sport,
+      ),
+    [data?.holdings, stackingEligibility?.eligiblePlayers, sport],
+  );
+
+  const selectedStackingCandidate = useMemo(
+    () =>
+      allStackingCandidates.find(
+        (candidate) => candidate.playerId === selectedPlayerForStacking?.id,
+      ) || null,
+    [allStackingCandidates, selectedPlayerForStacking?.id],
+  );
+
+  const stackingDialogPlayerName = useMemo(() => {
+    if (selectedStackingCandidate) {
+      const fullName =
+        `${selectedStackingCandidate.player.firstName || ""} ${selectedStackingCandidate.player.lastName || ""}`.trim();
+      return fullName || selectedPlayerForStacking?.name || "Selected player";
+    }
+
+    return selectedPlayerForStacking?.name || "Selected player";
+  }, [selectedPlayerForStacking?.name, selectedStackingCandidate]);
 
   // Render sort icon for column header
   const SortIcon = ({ field }: { field: SortField }) => {
@@ -948,43 +991,75 @@ export default function Portfolio() {
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-3 sm:space-y-3">
           <div className="flex items-center justify-between gap-2">
-            <TabsList variant="terminal">
-              <TabsTrigger variant="terminal" value="holdings" data-testid="tab-holdings">
-                Holdings
+            <TabsList
+              variant="terminal"
+              className="grid w-full grid-cols-4 justify-stretch sm:w-auto"
+            >
+              <TabsTrigger
+                variant="terminal"
+                value="holdings"
+                data-testid="tab-holdings"
+                aria-label="Portfolio holdings"
+                title="Portfolio"
+                className="h-9 px-0"
+              >
+                <Briefcase className="h-4 w-4" />
+                <span className="sr-only">Portfolio</span>
               </TabsTrigger>
-              <TabsTrigger variant="terminal" value="liquidity" data-testid="tab-liquidity">
-                Liquidity
+              <TabsTrigger
+                variant="terminal"
+                value="stacking"
+                data-testid="tab-stacking"
+                aria-label="Stacking"
+                title="Stacking"
+                className="h-9 px-0"
+              >
+                <Database className="h-4 w-4" />
+                <span className="sr-only">Stacking</span>
+              </TabsTrigger>
+              <TabsTrigger
+                variant="terminal"
+                value="liquidity"
+                data-testid="tab-liquidity"
+                aria-label="Liquidity"
+                title="Liquidity"
+                className="h-9 px-0"
+              >
+                <Droplets className="h-4 w-4" />
+                <span className="sr-only">Liquidity</span>
               </TabsTrigger>
               <TabsTrigger
                 variant="terminal"
                 value="activity"
                 data-testid="tab-activity"
+                aria-label="Activity"
+                title="Activity"
                 className={
                   unreadCount > 0
-                    ? "relative ring-2 ring-primary ring-offset-2 ring-offset-background"
-                    : ""
+                    ? "relative h-9 px-0 ring-2 ring-primary ring-offset-2 ring-offset-background"
+                    : "relative h-9 px-0"
                 }
               >
-                <span className="flex items-center gap-1.5">
-                  Activity
-                  <AnimatePresence>
-                    {unreadCount > 0 && (
-                      <motion.span
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        exit={{ scale: 0 }}
+                <FileText className="h-4 w-4" />
+                <span className="sr-only">Activity</span>
+                <AnimatePresence>
+                  {unreadCount > 0 && (
+                    <motion.span
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      exit={{ scale: 0 }}
+                      className="absolute right-1.5 top-1.5"
+                    >
+                      <Badge
+                        variant="default"
+                        className="flex h-4 min-w-4 items-center justify-center px-1 text-[10px] font-bold"
+                        data-testid="badge-activity-count"
                       >
-                        <Badge
-                          variant="default"
-                          className="min-w-5 h-5 flex items-center justify-center px-1.5 text-xs font-bold"
-                          data-testid="badge-activity-count"
-                        >
-                          {unreadCount}
-                        </Badge>
-                      </motion.span>
-                    )}
-                  </AnimatePresence>
-                </span>
+                        {unreadCount}
+                      </Badge>
+                    </motion.span>
+                  )}
+                </AnimatePresence>
               </TabsTrigger>
             </TabsList>
             <div className="flex items-center gap-2">
@@ -1305,7 +1380,7 @@ export default function Portfolio() {
                                                 variant="outline"
                                                 className="text-[10px] h-4 px-1 border-purple-500/50 text-purple-400 bg-purple-500/10"
                                               >
-                                                ⚡ {group.totalPower}
+                                                {group.totalPower} effective
                                               </Badge>
                                             )}
                                           </div>
@@ -1346,17 +1421,17 @@ export default function Portfolio() {
                                                   ? "text-positive hover:text-green-400"
                                                   : "text-negative hover:text-red-400"
                                               }`}
-                                              title="Click to manage multiplier"
+                                              title="Open stacking"
                                               onClick={(e) => {
                                                 e.stopPropagation();
                                                 if (
                                                   hasRegularShares &&
-                                                  group.regular!.quantity >= 4
+                                                  group.regular!.availableQuantity >= 4
                                                 ) {
                                                   openStackSharesDialog(
                                                     group.player.id,
                                                     `${group.player.firstName} ${group.player.lastName}`,
-                                                    group.regular!.quantity,
+                                                    group.regular!.availableQuantity,
                                                   );
                                                 }
                                               }}
@@ -1429,7 +1504,7 @@ export default function Portfolio() {
                                               variant="outline"
                                               className="text-[10px] h-4 px-1 border-purple-500/50 text-purple-400 bg-purple-500/10"
                                             >
-                                              ⚡ {group.totalPower}
+                                              {group.totalPower} effective
                                             </Badge>
                                           )}
                                         </div>
@@ -1478,18 +1553,18 @@ export default function Portfolio() {
                                       {parseFloat(group.totalPower) > 0 && group.regular && (
                                         <button
                                           className="text-xs text-purple-400 hover:text-purple-300 hover:underline cursor-pointer text-right"
-                                          title="Click to stack shares"
+                                          title="Open stacking"
                                           onClick={(e) => {
                                             e.stopPropagation();
                                             openStackSharesDialog(
                                               group.player.id,
                                               `${group.player.firstName} ${group.player.lastName}`,
-                                              group.regular!.quantity,
+                                              group.regular!.availableQuantity,
                                             );
                                           }}
                                           data-testid={`button-pnl-${group.player.id}`}
                                         >
-                                          ⚡ {group.totalPower}
+                                          {group.totalPower} effective
                                         </button>
                                       )}
                                       {/* P&L - clickable to open stack dialog */}
@@ -1499,14 +1574,17 @@ export default function Portfolio() {
                                             ? "text-positive hover:text-green-400"
                                             : "text-negative hover:text-red-400"
                                         }`}
-                                        title="Click to manage multiplier"
+                                        title="Open stacking"
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          if (hasRegularShares && group.regular!.quantity >= 4) {
+                                          if (
+                                            hasRegularShares &&
+                                            group.regular!.availableQuantity >= 4
+                                          ) {
                                             openStackSharesDialog(
                                               group.player.id,
                                               `${group.player.firstName} ${group.player.lastName}`,
-                                              group.regular!.quantity,
+                                              group.regular!.availableQuantity,
                                             );
                                           }
                                         }}
@@ -1547,6 +1625,7 @@ export default function Portfolio() {
                                           quantity: number;
                                           multiplier: number;
                                           effectiveShares: string;
+                                          availableQuantity: number;
                                         }> = [];
 
                                         if (hasRegularShares) {
@@ -1556,6 +1635,7 @@ export default function Portfolio() {
                                             quantity: group.regular!.quantity,
                                             multiplier: 1,
                                             effectiveShares: group.regular!.quantity.toFixed(2),
+                                            availableQuantity: group.regular!.availableQuantity,
                                           });
                                         }
 
@@ -1566,6 +1646,7 @@ export default function Portfolio() {
                                             quantity: share.quantity,
                                             multiplier: share.multiplier,
                                             effectiveShares: share.effectiveShares,
+                                            availableQuantity: share.availableQuantity,
                                           });
                                         });
 
@@ -1653,8 +1734,8 @@ export default function Portfolio() {
                                                   const isSelected =
                                                     selectedHoldingIds.has(holdingId);
                                                   const isRegular = share.type === "regular";
-                                                  const canPowerUp = isRegular
-                                                    ? share.quantity >= 4
+                                                  const canStackMore = isRegular
+                                                    ? share.availableQuantity >= 4
                                                     : true;
 
                                                   return (
@@ -1699,10 +1780,10 @@ export default function Portfolio() {
                                                               openStackSharesFromExpanded(
                                                                 group.player.id,
                                                                 `${group.player.firstName} ${group.player.lastName}`,
-                                                                share.quantity,
+                                                                share.availableQuantity,
                                                               )
                                                             }
-                                                            disabled={!canPowerUp}
+                                                            disabled={!canStackMore}
                                                           >
                                                             Stack Shares
                                                           </Button>
@@ -1737,7 +1818,7 @@ export default function Portfolio() {
                                                     openStackSharesFromExpanded(
                                                       group.player.id,
                                                       `${group.player.firstName} ${group.player.lastName}`,
-                                                      group.regular?.quantity || 0,
+                                                      group.regular?.availableQuantity || 0,
                                                     )
                                                   }
                                                 >
@@ -1761,6 +1842,17 @@ export default function Portfolio() {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="stacking">
+            <PortfolioStackingTab
+              candidates={stackingCandidates}
+              onSelectPlayer={(playerId) => {
+                setSelectedPlayerId(playerId);
+                setPlayerModalOpen(true);
+              }}
+              onStackShares={openStackSharesDialog}
+            />
           </TabsContent>
 
           {/* Liquidity */}
@@ -1943,7 +2035,7 @@ export default function Portfolio() {
 
           {/* Activity Feed */}
           <TabsContent value="activity">
-            <ActivityFeed />
+            <PortfolioActivityTab />
           </TabsContent>
         </Tabs>
 
@@ -1951,96 +2043,114 @@ export default function Portfolio() {
         <Dialog open={stackSharesDialogOpen} onOpenChange={setStackSharesDialogOpen}>
           <DialogContent className="sm:max-w-md rounded-sm border border-border bg-card">
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Zap className="w-5 h-5 text-purple-400" />
-                Stack Shares
-              </DialogTitle>
+              <DialogTitle>Stack Shares</DialogTitle>
               <DialogDescription>
-                Convert regular shares into a single stacked share at a 2:1 ratio. The resulting
-                multiplier is used for payouts and Daily Boosts.
+                Convert unlocked raw shares into a single stacked share at a 2:1 ratio. The
+                resulting multiplier carries into boost payouts.
               </DialogDescription>
             </DialogHeader>
-            {selectedPlayerForStacking && data?.holdings && (
+            {selectedPlayerForStacking && (
               <div className="space-y-4 py-4">
                 {/* Player info */}
                 <div className="terminal-shell p-3">
-                  <div className="font-medium">{selectedPlayerForStacking.name}</div>
-                  {(() => {
-                    const holding = data.holdings.find(
-                      (h) => h.player?.id === selectedPlayerForStacking.id,
-                    );
-                    if (!holding) return null;
-                    return (
-                      <div className="text-sm text-muted-foreground mt-1 space-y-1">
-                        <div className="flex justify-between">
-                          <span>Regular Shares:</span>
-                          <span className="font-mono">{holding.quantity}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Current Effective Shares:</span>
-                          <span className="font-mono text-purple-400">
-                            {parseFloat(holding.effectiveShares || "0") > 0
-                              ? holding.effectiveShares
-                              : "0.00"}
-                          </span>
-                        </div>
+                  <div className="font-medium">{stackingDialogPlayerName}</div>
+                  {selectedStackingCandidate ? (
+                    <div className="mt-1 space-y-1 text-sm text-muted-foreground">
+                      <div className="flex justify-between">
+                        <span>Singles Available:</span>
+                        <span className="font-mono">
+                          {selectedStackingCandidate.availableToStack.toFixed(2)}
+                        </span>
                       </div>
-                    );
-                  })()}
+                      <div className="flex justify-between">
+                        <span>Current Stack Level:</span>
+                        <span className="font-mono text-purple-400">
+                          {selectedStackingCandidate.bestStackedMultiplier > 1
+                            ? `${selectedStackingCandidate.bestStackedMultiplier.toFixed(2)}x`
+                            : "None"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Stacked Shares Held:</span>
+                        <span className="font-mono">
+                          {selectedStackingCandidate.stackedShareCount.toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-1 text-sm text-muted-foreground">
+                      Stack details are refreshing. Close and reopen if this does not populate.
+                    </div>
+                  )}
                 </div>
 
                 {/* Share input */}
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Shares to Stack</label>
+                  <label className="text-sm font-medium">Singles to Add</label>
                   <Input
                     variant="terminal"
                     type="number"
                     value={sharesToStackInput}
                     onChange={(e) => setSharesToStackInput(e.target.value)}
-                    placeholder="Enter shares to stack"
+                    placeholder="Enter singles to add"
                     min={4}
                     step={2}
+                    max={
+                      selectedStackingCandidate
+                        ? Math.floor(selectedStackingCandidate.availableToStack)
+                        : undefined
+                    }
                   />
                   <p className="text-xs text-muted-foreground">
-                    Must be at least 4 and even. Every 2 shares become 1x of multiplier and the
-                    other half are burned.
+                    Must be at least 4 unlocked singles and even. Every 2 singles become 1x of stack
+                    level and the other half are burned.
                   </p>
                 </div>
 
                 {/* Preview */}
                 {(() => {
+                  if (!selectedStackingCandidate) return null;
                   const shares = parseInt(sharesToStackInput);
-                  const isValid = !isNaN(shares) && shares >= 4 && shares % 2 === 0;
+                  const isValid =
+                    !isNaN(shares) &&
+                    shares >= 4 &&
+                    shares % 2 === 0 &&
+                    shares <= selectedStackingCandidate.availableToStack;
                   if (!isValid) return null;
 
-                  const holding = data.holdings.find(
-                    (h) => h.player?.id === selectedPlayerForStacking?.id,
-                  );
-                  if (!holding) return null;
-
-                  const powerCreated = shares / 2;
-                  const remainingShares = parseFloat(holding.quantity) - shares;
+                  const multiplierCreated = shares / 2;
+                  const resultingStackLevel =
+                    selectedStackingCandidate.bestStackedMultiplier > 1
+                      ? selectedStackingCandidate.bestStackedMultiplier + multiplierCreated
+                      : multiplierCreated;
+                  const remainingShares = selectedStackingCandidate.regularShares - shares;
 
                   return (
                     <div className="terminal-shell space-y-2 border-purple-500/20 bg-purple-500/10 p-3">
                       <div className="text-sm font-medium text-purple-400">Stack Result</div>
                       <div className="flex justify-between text-sm">
-                        <span>Regular shares consumed:</span>
+                        <span>Singles consumed:</span>
                         <span className="font-mono">-{shares}</span>
                       </div>
                       <div className="flex justify-between text-sm font-medium">
-                        <span>Stacked share created:</span>
+                        <span>Added stack level:</span>
                         <span className="font-mono text-purple-400">
-                          1 share @ {powerCreated.toFixed(2)}x
+                          +{multiplierCreated.toFixed(2)}x
                         </span>
                       </div>
                       <div className="flex justify-between text-sm">
-                        <span>Effective shares burned:</span>
-                        <span className="font-mono">-{powerCreated.toFixed(2)}</span>
+                        <span>New stack level:</span>
+                        <span className="font-mono text-purple-400">
+                          {resultingStackLevel.toFixed(2)}x
+                        </span>
                       </div>
                       <div className="flex justify-between text-sm">
-                        <span>Regular shares remaining:</span>
-                        <span className="font-mono">{remainingShares}</span>
+                        <span>Singles burned:</span>
+                        <span className="font-mono">-{multiplierCreated.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span>Singles remaining:</span>
+                        <span className="font-mono">{remainingShares.toFixed(2)}</span>
                       </div>
                     </div>
                   );
@@ -2054,7 +2164,7 @@ export default function Portfolio() {
               <Button
                 variant="terminal"
                 onClick={handleStackSharesFromDialog}
-                disabled={stackSharesMutation.isPending}
+                disabled={stackSharesMutation.isPending || !selectedStackingCandidate}
                 className="border-purple-500/30 bg-purple-500/20 text-purple-200 hover:bg-purple-500/25"
               >
                 {stackSharesMutation.isPending ? "Stacking..." : "Stack Shares"}
@@ -2071,180 +2181,5 @@ export default function Portfolio() {
         />
       </div>
     </div>
-  );
-}
-
-function ActivityFeed() {
-  const { data: activityData, isLoading } = useQuery<ActivityResponse>({
-    queryKey: ["/api/activity"],
-  });
-
-  if (isLoading) {
-    return (
-      <Card variant="terminal">
-        <CardContent className="p-4 space-y-3">
-          {[85, 75, 90, 70, 80].map((width, i) => (
-            <div key={i} className="flex items-center gap-3">
-              <Shimmer width="40px" height="40px" className="rounded-sm flex-shrink-0" />
-              <div className="flex-1 space-y-2">
-                <Shimmer height="14px" width={`${width}%`} />
-                <Shimmer height="12px" width="120px" />
-              </div>
-              <Shimmer height="16px" width="60px" />
-            </div>
-          ))}
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (!activityData || activityData.activities.length === 0) {
-    return (
-      <Card variant="terminal">
-        <CardHeader>
-          <CardTitle className="text-sm font-medium uppercase tracking-wide">
-            Activity History
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          <EmptyState
-            icon="inbox"
-            title="No activity yet"
-            description="Start trading or scouting to see your activity here."
-            size="sm"
-            className="py-8"
-            data-testid="empty-activity"
-          />
-        </CardContent>
-      </Card>
-    );
-  }
-
-  const getActivityIcon = (category: string) => {
-    if (category === "scout") return <Clock className="w-4 h-4" />;
-    if (category === "market") return <ShoppingCart className="w-4 h-4" />;
-    return null;
-  };
-
-  const getCategoryColor = (category: string) => {
-    if (category === "scout") return "text-yellow-500";
-    if (category === "market") return "text-blue-500";
-    return "text-muted-foreground";
-  };
-
-  return (
-    <Card variant="terminal">
-      <CardHeader>
-        <CardTitle className="text-sm font-medium uppercase tracking-wide">
-          Activity History
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="p-0">
-        <div className="divide-y">
-          {activityData.activities.map((activity) => {
-            const cashDelta = activity.cashDelta ? parseFloat(activity.cashDelta) : null;
-            const isPositive = cashDelta && cashDelta > 0;
-            const isNegative = cashDelta && cashDelta < 0;
-
-            return (
-              <div
-                key={activity.id}
-                className="p-3 sm:p-4 hover-elevate flex items-start gap-3"
-                data-testid={`activity-${activity.id}`}
-              >
-                {/* Icon */}
-                <div
-                  className={`terminal-avatar flex-shrink-0 ${getCategoryColor(activity.category)}`}
-                >
-                  {getActivityIcon(activity.category)}
-                </div>
-
-                {/* Content */}
-                <div className="flex-1 min-w-0">
-                  {/* Description with player link */}
-                  <div className="text-sm font-medium mb-1">
-                    {activity.metadata.playerId ? (
-                      <Link
-                        href={`/player/${activity.metadata.playerId}`}
-                        className="hover:underline"
-                      >
-                        {activity.description}
-                      </Link>
-                    ) : (
-                      activity.description
-                    )}
-                  </div>
-
-                  {/* Metadata */}
-                  <div className="flex items-center gap-2 flex-wrap text-xs text-muted-foreground">
-                    <span className="capitalize">{activity.category}</span>
-                    <span>•</span>
-                    <span>
-                      {formatDistanceToNow(new Date(activity.timestamp), { addSuffix: true })}
-                    </span>
-
-                    {/* Show shares for scout */}
-                    {activity.shareDelta && activity.shareDelta > 0 && (
-                      <>
-                        <span>•</span>
-                        <span className="font-mono text-green-500">
-                          +{activity.shareDelta} {activity.shareDelta === 1 ? "share" : "shares"}
-                        </span>
-                      </>
-                    )}
-
-                    {/* Show order details for market */}
-                    {activity.metadata.orderType && (
-                      <>
-                        <span>•</span>
-                        <span className="capitalize">{activity.metadata.orderType}</span>
-                      </>
-                    )}
-
-                    {/* Show trade price for market */}
-                    {activity.metadata.tradePrice && (
-                      <>
-                        <span>•</span>
-                        <span className="font-mono">${activity.metadata.tradePrice}</span>
-                      </>
-                    )}
-
-                    {/* Show ranking metadata when available */}
-                    {activity.metadata.rank && activity.metadata.totalEntries && (
-                      <>
-                        <span>•</span>
-                        <span>
-                          Rank {activity.metadata.rank} of {activity.metadata.totalEntries}
-                        </span>
-                      </>
-                    )}
-                  </div>
-                </div>
-
-                {/* Cash Delta */}
-                {cashDelta !== null && cashDelta !== 0 && (
-                  <div className="flex-shrink-0 text-right">
-                    <div
-                      className={`flex items-center gap-1 font-mono font-bold text-sm ${isPositive ? "text-green-500" : isNegative ? "text-red-500" : "text-muted-foreground"}`}
-                    >
-                      {isPositive && <ArrowUpRight className="w-3 h-3" />}
-                      {isNegative && <ArrowDownRight className="w-3 h-3" />}
-                      <span data-testid={`cash-delta-${activity.id}`}>
-                        {isPositive ? "+" : ""}${activity.cashDelta}
-                      </span>
-                    </div>
-                    {activity.balanceAfter && (
-                      <div className="text-xs text-muted-foreground mt-0.5">
-                        Bal: ${activity.balanceAfter}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </CardContent>
-    </Card>
   );
 }

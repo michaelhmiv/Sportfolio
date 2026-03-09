@@ -7,6 +7,19 @@ export interface GameInsightLeader {
   scoutCount: number;
 }
 
+export interface GameInsightSlatePlayer {
+  playerId: string;
+  name: string;
+  team: string;
+  gameId: string;
+  startTime: string;
+  status: "scheduled" | "inprogress" | "completed" | "postponed";
+  contextLabel: string;
+  pregameValue: number | null;
+  liveValue: number | null;
+  finalValue: number | null;
+}
+
 export interface GameInsightUserContextPlayer {
   playerId: string;
   name: string;
@@ -50,6 +63,7 @@ export interface GameInsightsResponse {
   sport: string;
   boostSlotsRemaining: number | null;
   games: GameInsight[];
+  slatePlayers: GameInsightSlatePlayer[];
 }
 
 export interface GameInsightDetailResponse {

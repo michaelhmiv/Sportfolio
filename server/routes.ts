@@ -38,12 +38,18 @@ import {
   whopPayments,
   jobExecutionLogs,
 } from "@shared/schema";
+import {
+  DEFAULT_ACTIVITY_FEED_CATEGORIES,
+  USER_ACTIVITY_CATEGORIES,
+  type UserActivityCategory,
+} from "@shared/activity-feed";
 import { sql, eq, desc, and, gte, lte, inArray, lt, like, or } from "drizzle-orm";
 import { jobScheduler } from "./jobs/scheduler";
 import { addClient, removeClient, broadcast, getWebSocketStats } from "./websocket";
 import { calculateAccrualUpdate } from "@shared/vesting-utils";
 import { setupAuth, isAuthenticated, optionalAuth } from "./supabaseAuth";
 import { getGameDay, getETDayBoundaries, getTodayETBoundaries, getTodayET } from "./lib/time";
+import { getPerformanceEarningUnits } from "./lib/performance-earnings";
 import { getOrCompute } from "./cache";
 import { registerDomainRoutes } from "./routes/register-domain-routes";
 import { registerMarketMobileRoutes } from "./routes/market-mobile";
@@ -255,6 +261,19 @@ type GameInsightLeader = {
   scoutCount: number;
 };
 
+type GameInsightSlatePlayer = {
+  playerId: string;
+  name: string;
+  team: string;
+  gameId: string;
+  startTime: Date;
+  status: "scheduled" | "inprogress" | "completed" | "postponed";
+  contextLabel: string;
+  pregameValue: number | null;
+  liveValue: number | null;
+  finalValue: number | null;
+};
+
 const ADMIN_STATS_CACHE_TTL_MS = Math.max(
   5000,
   Number(process.env.ADMIN_STATS_CACHE_TTL_MS || 20000),
@@ -312,6 +331,36 @@ type GameInsight = {
   userContext: GameInsightUserContext | null;
   liveMarketStatus?: string | null;
 };
+
+const slatePlayerStatusPriority: Record<GameInsightSlatePlayer["status"], number> = {
+  inprogress: 0,
+  scheduled: 1,
+  completed: 2,
+  postponed: 3,
+};
+
+function getSlatePlayerSortValue(player: GameInsightSlatePlayer): number {
+  if (player.status === "inprogress") {
+    return player.liveValue ?? player.finalValue ?? player.pregameValue ?? 0;
+  }
+
+  if (player.status === "completed") {
+    return player.finalValue ?? player.liveValue ?? player.pregameValue ?? 0;
+  }
+
+  return player.pregameValue ?? player.liveValue ?? player.finalValue ?? 0;
+}
+
+function sortSlateExposurePlayers(left: GameInsightSlatePlayer, right: GameInsightSlatePlayer) {
+  const statusDelta =
+    slatePlayerStatusPriority[left.status] - slatePlayerStatusPriority[right.status];
+  if (statusDelta !== 0) return statusDelta;
+
+  const valueDelta = getSlatePlayerSortValue(right) - getSlatePlayerSortValue(left);
+  if (valueDelta !== 0) return valueDelta;
+
+  return left.name.localeCompare(right.name);
+}
 
 type LiveEarningsPlayer = {
   playerId: string;
@@ -612,7 +661,7 @@ async function buildUserLiveEarningsSummary(params: {
       if ((player.sport || "").toUpperCase() !== String(game.sport || "").toUpperCase())
         return false;
       if (player.team !== game.homeTeam && player.team !== game.awayTeam) return false;
-      return parseLiveEarningsNumber(holding.quantity) > 0;
+      return getPerformanceEarningUnits(holding) > 0;
     })
     .reduce((map: Map<string, any>, entry: any) => {
       const holding = entry?.holding ?? entry;
@@ -629,7 +678,7 @@ async function buildUserLiveEarningsSummary(params: {
         liveByNameAndTeam.get(getLiveEarningsNameTeamKey(playerName, player?.team)) || 0;
       const fantasyPoints = fantasyPointsById || fantasyPointsByName;
       const quantity = parseLiveEarningsNumber(holding.quantity);
-      const effectiveShares = parseLiveEarningsNumber(holding.effectiveShares || holding.quantity);
+      const effectiveShares = getPerformanceEarningUnits(holding);
 
       const existing = map.get(playerId);
       if (!existing) {
@@ -672,6 +721,10 @@ async function buildUserLiveEarningsSummary(params: {
       }
       return a.name.localeCompare(b.name);
     });
+
+  if (ownedPlayers.length === 0) {
+    return null;
+  }
 
   const totalEstimatedEarnings = ownedPlayers.reduce(
     (sum, player) => sum + player.estimatedEarnings,
@@ -768,6 +821,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
   };
 
   await ensureLpFeeGrowthColumns();
+
+  const ensurePremiumActivitySchema = async () => {
+    try {
+      await db.execute(sql`
+        CREATE TABLE IF NOT EXISTS premium_activity_events (
+          id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+          user_id varchar NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          event_type text NOT NULL,
+          quantity_delta integer NOT NULL DEFAULT 0,
+          amount_cents integer,
+          days_granted integer,
+          premium_expires_at_after timestamp,
+          reference_id varchar,
+          metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+          created_at timestamp NOT NULL DEFAULT now()
+        );
+      `);
+      await db.execute(sql`
+        CREATE INDEX IF NOT EXISTS premium_activity_user_created_idx
+          ON premium_activity_events(user_id, created_at);
+      `);
+      await db.execute(sql`
+        CREATE INDEX IF NOT EXISTS premium_activity_event_type_idx
+          ON premium_activity_events(event_type);
+      `);
+      await db.execute(sql`
+        CREATE UNIQUE INDEX IF NOT EXISTS premium_activity_event_ref_idx
+          ON premium_activity_events(event_type, reference_id);
+      `);
+    } catch (err: any) {
+      console.warn("[DB] Could not ensure premium activity schema:", err?.message || err);
+    }
+  };
+
+  await ensurePremiumActivitySchema();
 
   await ensureUserApiTokenSchema();
 
@@ -954,7 +1042,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     sport: string;
     dateStr: string;
     userId?: string | null;
-  }): Promise<{ insights: GameInsight[]; boostSlotsRemaining: number | null }> => {
+  }): Promise<{
+    insights: GameInsight[];
+    boostSlotsRemaining: number | null;
+    slatePlayers: GameInsightSlatePlayer[];
+  }> => {
     const normalizedSport = (sport || "NBA").toUpperCase();
     const teamsBySport = new Map<string, Set<string>>();
     const liveMarketStatusByGameId = new Map<string, string>();
@@ -1572,6 +1664,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       scoutCount: candidate.scoutCount,
     });
 
+    const storedFantasyPointsByGameAndPlayer = new Map<string, number>();
+    const getSlateFantasyPointsKey = (gameId: string, playerId: string) => `${gameId}:${playerId}`;
+
     let boostSlotsRemaining: number | null = null;
     const userContextByGame = new Map<string, GameInsightUserContext>();
     const gameLiveEarnedById = new Map<string, number | null>();
@@ -1749,12 +1844,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           gameLiveEarnedById.set(
             game.gameId,
-            roundToTwo(liveEarnings?.totalEstimatedEarnings || 0),
+            liveEarnings ? roundToTwo(liveEarnings.totalEstimatedEarnings) : null,
           );
         }),
       );
     }
 
+    await Promise.all(
+      games.map(async (game) => {
+        const providerStatus =
+          providerStatusByGameId.get(game.gameId) ||
+          providerStatusByGameId.get(toUnprefixedGameId(game.gameId)) ||
+          null;
+        const status = providerStatus || normalizeInsightStatus(game.status);
+
+        if (status === "scheduled" || status === "postponed") {
+          return;
+        }
+
+        const storedPlayers = await getStoredLiveEarningsPlayersForGame(game);
+        storedPlayers.forEach((player) => {
+          const rawPlayerId = String(player.playerId || "").trim();
+          if (!rawPlayerId) return;
+
+          getLiveEarningsPlayerIdCandidates(rawPlayerId, game.sport).forEach((candidateId) => {
+            const key = getSlateFantasyPointsKey(game.gameId, candidateId);
+            const existing = storedFantasyPointsByGameAndPlayer.get(key) || 0;
+            if (player.fantasyPoints > existing) {
+              storedFantasyPointsByGameAndPlayer.set(key, player.fantasyPoints);
+            }
+          });
+        });
+      }),
+    );
+
+    const slatePlayers: GameInsightSlatePlayer[] = [];
     const insights = games.map((game) => {
       const candidates = getCandidates(game);
       const pickLeader = (key: "avgFantasyPointsPerGame" | "totalShares" | "scoutCount") => {
@@ -1784,7 +1908,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             liveEarned:
               status === "scheduled" || status === "postponed"
                 ? null
-                : (gameLiveEarnedById.get(game.gameId) ?? 0),
+                : (gameLiveEarnedById.get(game.gameId) ?? null),
             earningsStatus: status,
           }
         : null;
@@ -1794,6 +1918,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
             liveMarketStatusByGameId.get(toUnprefixedGameId(game.gameId)) ||
             null
           : null;
+
+      candidates.forEach((candidate) => {
+        const playerFantasyPoints =
+          getLiveEarningsPlayerIdCandidates(candidate.player.id, game.sport)
+            .map(
+              (candidateId) =>
+                storedFantasyPointsByGameAndPlayer.get(
+                  getSlateFantasyPointsKey(game.gameId, candidateId),
+                ) || 0,
+            )
+            .find((value) => value > 0) || null;
+
+        slatePlayers.push({
+          playerId: candidate.player.id,
+          name: `${candidate.player.firstName} ${candidate.player.lastName}`,
+          team: candidate.player.team,
+          gameId: game.gameId,
+          startTime: game.startTime,
+          status,
+          contextLabel: `${game.awayTeam} @ ${game.homeTeam}`,
+          pregameValue: roundToTwo(candidate.avgFantasyPointsPerGame),
+          liveValue:
+            status === "inprogress" && playerFantasyPoints !== null
+              ? roundToTwo(playerFantasyPoints)
+              : null,
+          finalValue:
+            status === "completed" && playerFantasyPoints !== null
+              ? roundToTwo(playerFantasyPoints)
+              : null,
+        });
+      });
 
       return {
         gameId: game.gameId,
@@ -1816,7 +1971,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } satisfies GameInsight;
     });
 
-    return { insights, boostSlotsRemaining };
+    return {
+      insights,
+      boostSlotsRemaining,
+      slatePlayers: slatePlayers.sort(sortSlateExposurePlayers),
+    };
   };
 
   // Helper: Enrich player data with last trade price (market value)
@@ -2078,6 +2237,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           if (creditResult) {
             result.credited += quantity;
+            if (assetType === "premium") {
+              await recordPremiumActivityEvent({
+                userId,
+                eventType: "premium_credit",
+                quantityDelta: quantity,
+                amountCents,
+                referenceId: paymentId,
+                metadata: {
+                  source: "whop_sync",
+                  paymentId,
+                },
+              });
+            }
             console.log(
               `[WHOP SYNC] Credited ${quantity} ${assetType} shares to user ${userId} from payment ${paymentId} (${creditResult.previousQuantity} -> ${creditResult.newQuantity})`,
             );
@@ -2240,6 +2412,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       return { creditedPayment, previousQuantity: currentQty, newQuantity: newQty };
     });
+  }
+
+  async function recordPremiumActivityEvent(event: {
+    userId: string;
+    eventType: "premium_credit" | "premium_redeem" | "premium_admin_credit";
+    quantityDelta: number;
+    amountCents?: number;
+    daysGranted?: number;
+    premiumExpiresAtAfter?: Date | string;
+    referenceId?: string;
+    metadata?: Record<string, unknown>;
+  }) {
+    try {
+      await storage.createPremiumActivityEvent({
+        userId: event.userId,
+        eventType: event.eventType,
+        quantityDelta: event.quantityDelta,
+        amountCents: event.amountCents,
+        daysGranted: event.daysGranted,
+        premiumExpiresAtAfter:
+          event.premiumExpiresAtAfter instanceof Date
+            ? event.premiumExpiresAtAfter
+            : typeof event.premiumExpiresAtAfter === "string"
+              ? new Date(event.premiumExpiresAtAfter)
+              : undefined,
+        referenceId: event.referenceId,
+        metadata: event.metadata ?? {},
+      });
+    } catch (error: any) {
+      console.warn(
+        "[PREMIUM_ACTIVITY] Could not record premium activity:",
+        error?.message || error,
+      );
+    }
   }
 
   async function findDeterministicSessionMatch(
@@ -2659,6 +2865,19 @@ ${items}
       // Update holding with new quantity
       await storage.updateHolding(targetUser.id, "premium", "premium", newQuantity, currentAvgCost);
 
+      await recordPremiumActivityEvent({
+        userId: targetUser.id,
+        eventType: "premium_admin_credit",
+        quantityDelta: parsedQuantity,
+        metadata: {
+          source: "admin_premium_grant",
+          adminUserId: currentUser.id,
+          adminUsername: currentUser.username,
+          reason: `Granted by admin ${currentUser.username}`,
+          targetUsername: targetUser.username,
+        },
+      });
+
       console.log(
         `[ADMIN] Granted ${parsedQuantity} premium shares to user ${targetUser.username} (${currentQuantity} -> ${newQuantity}) by admin ${currentUser.username}`,
       );
@@ -2726,6 +2945,7 @@ ${items}
             player: playerMap.get(trade.playerId),
           })),
           topHoldings: [],
+          portfolioMovers24h: [],
           portfolioHistory: [],
           boosts: null, // Boosts require authentication
         });
@@ -2869,6 +3089,66 @@ ${items}
 
       const currentNetWorth = parseFloat(user.balance) + portfolioValue;
       const roundToTwo = (value: number) => Math.round(value * 100) / 100;
+      const moverSharesByPlayer = new Map<string, number>();
+
+      for (const holding of userHoldings) {
+        if (holding.assetType !== "player") {
+          continue;
+        }
+
+        const effectiveShares = parseFloat(holding.effectiveShares || holding.quantity || "0");
+        if (effectiveShares <= 0) {
+          continue;
+        }
+
+        moverSharesByPlayer.set(
+          holding.assetId,
+          roundToTwo((moverSharesByPlayer.get(holding.assetId) || 0) + effectiveShares),
+        );
+      }
+
+      const portfolioMovers24h = Array.from(moverSharesByPlayer.entries())
+        .map(([playerId, effectiveShares]) => {
+          const player = playerMap.get(playerId);
+          if (!player || !player.lastTradePrice) {
+            return null;
+          }
+
+          const currentPrice = parseFloat(player.lastTradePrice || "0");
+          const priceChange24h = parseFloat(player.priceChange24h || "0");
+          if (!Number.isFinite(currentPrice) || currentPrice <= 0) {
+            return null;
+          }
+
+          const previousPrice =
+            priceChange24h <= -100 ? 0 : currentPrice / (1 + priceChange24h / 100);
+          const valueGain24h = roundToTwo(effectiveShares * (currentPrice - previousPrice));
+
+          if (!Number.isFinite(valueGain24h) || valueGain24h <= 0) {
+            return null;
+          }
+
+          return {
+            player: enrichPlayerWithMarketValue(player),
+            effectiveShares,
+            currentPrice: roundToTwo(currentPrice),
+            priceChange24h: roundToTwo(priceChange24h),
+            valueGain24h,
+          };
+        })
+        .filter(
+          (
+            mover,
+          ): mover is {
+            player: Player & { lastTradePrice: string | null };
+            effectiveShares: number;
+            currentPrice: number;
+            priceChange24h: number;
+            valueGain24h: number;
+          } => Boolean(mover),
+        )
+        .sort((a, b) => b.valueGain24h - a.valueGain24h || b.priceChange24h - a.priceChange24h)
+        .slice(0, 5);
 
       const currentNetWorthByUser = new Map(
         usersForRanking.map((u) => [u.userId, parseFloat(u.balance) + u.portfolioValue]),
@@ -2991,6 +3271,7 @@ ${items}
           player: playerMap.get(trade.playerId),
         })),
         topHoldings: topHoldings.slice(0, 3),
+        portfolioMovers24h,
         portfolioHistory: [], // Placeholder
       });
     } catch (error: any) {
@@ -3053,7 +3334,7 @@ ${items}
       const games = await storage.getDailyGamesBySport(sport, startOfDay, endOfDay);
 
       const userId = req.user ? getUserId(req) : null;
-      const { insights, boostSlotsRemaining } = await buildGameInsights({
+      const { insights, boostSlotsRemaining, slatePlayers } = await buildGameInsights({
         games,
         sport,
         dateStr,
@@ -3065,6 +3346,7 @@ ${items}
         sport,
         boostSlotsRemaining,
         games: insights,
+        slatePlayers,
       });
     } catch (error: any) {
       console.error("[games/insights] Error:", error);
@@ -3160,7 +3442,7 @@ ${items}
         allHoldings.forEach((holding) => {
           if ((holding.player.sport || "").toUpperCase() !== "NASCAR") return;
 
-          const effectiveShares = parseFloat(holding.effectiveShares || holding.quantity || "0");
+          const effectiveShares = getPerformanceEarningUnits(holding);
           if (!Number.isFinite(effectiveShares) || effectiveShares <= 0) return;
 
           addHoldingEffectiveShares(
@@ -3215,7 +3497,8 @@ ${items}
           );
 
           // Determine race status
-          let status = game.status || "scheduled";
+          let status: "scheduled" | "inprogress" | "completed" =
+            game.status === "inprogress" || game.status === "completed" ? game.status : "scheduled";
           if (raceStats.length > 0) {
             // Get lap info from stats for flag state check
             const mostRecentStat = raceStats[0];
@@ -3262,10 +3545,11 @@ ${items}
 
           let liveEarned: number | null = null;
           if (userId) {
-            if (status === "scheduled" || status === "postponed") {
+            if (status === "scheduled") {
               liveEarned = null;
             } else {
               let totalLiveEarned = 0;
+              let hasEarningExposure = false;
 
               for (const standing of driverStandings) {
                 const fantasyPoints = Number(standing.fantasyPoints || 0);
@@ -3291,10 +3575,11 @@ ${items}
                 });
 
                 if (matchedPowerLevel <= 0) continue;
+                hasEarningExposure = true;
                 totalLiveEarned += fantasyPoints * matchedPowerLevel;
               }
 
-              liveEarned = Math.round(totalLiveEarned * 100) / 100;
+              liveEarned = hasEarningExposure ? Math.round(totalLiveEarned * 100) / 100 : null;
             }
           }
 
@@ -3313,12 +3598,55 @@ ${items}
         }),
       );
 
+      const slateDriverIds = Array.from(
+        new Set(
+          raceInsights
+            .flatMap((race) =>
+              race.driverStandings
+                .map((standing) => String(standing.playerId || "").trim())
+                .filter(Boolean),
+            )
+            .filter(Boolean),
+        ),
+      );
+      const seasonStatsMap =
+        slateDriverIds.length > 0
+          ? await storage.getBatchPlayerSeasonStatsFromLogs(slateDriverIds)
+          : new Map<string, { avgFantasyPointsPerGame: string }>();
+      const slateDrivers: GameInsightSlatePlayer[] = raceInsights
+        .flatMap((race) =>
+          race.driverStandings
+            .filter((standing) => String(standing.playerId || "").trim().length > 0)
+            .map((standing) => {
+              const playerId = String(standing.playerId || "").trim();
+              const fantasyPoints = Number(standing.fantasyPoints || 0);
+              const pregameValue = roundToTwo(
+                parseFloat(seasonStatsMap.get(playerId)?.avgFantasyPointsPerGame || "0"),
+              );
+
+              return {
+                playerId,
+                name: standing.driverName,
+                team: standing.manufacturer || "",
+                gameId: race.raceId,
+                startTime: new Date(race.raceDate),
+                status: race.status,
+                contextLabel: `${race.series} | ${race.trackName}`,
+                pregameValue,
+                liveValue: race.status === "inprogress" ? roundToTwo(fantasyPoints) : null,
+                finalValue: race.status === "completed" ? roundToTwo(fantasyPoints) : null,
+              } satisfies GameInsightSlatePlayer;
+            }),
+        )
+        .sort(sortSlateExposurePlayers);
+
       res.json({
         date: dateStr,
         sport: "NASCAR",
         boostSlotsRemaining,
         races: raceInsights,
         userHoldings,
+        slateDrivers,
       });
     } catch (error: any) {
       console.error("[races/insights] Error:", error);
@@ -5490,25 +5818,25 @@ ${items}
       const { types, limit, offset } = req.query;
 
       // Parse types filter (comma-separated string to array)
-      let typesArray: string[] | undefined;
+      let typesArray: UserActivityCategory[] | undefined;
       if (types && typeof types === "string") {
-        typesArray = types.split(",").filter((t) => ["vesting", "market", "scout"].includes(t));
+        typesArray = types
+          .split(",")
+          .map((entry) => entry.trim())
+          .filter((entry): entry is UserActivityCategory =>
+            USER_ACTIVITY_CATEGORIES.includes(entry as UserActivityCategory),
+          );
       }
 
       const filters = {
-        types: typesArray,
+        types: typesArray?.length ? typesArray : DEFAULT_ACTIVITY_FEED_CATEGORIES,
         limit: limit ? parseInt(limit as string) : 50,
         offset: offset ? parseInt(offset as string) : 0,
       };
 
-      const activities = await storage.getUserActivity(userId, filters);
+      const activityFeed = await storage.getUserActivityFeed(userId, filters);
 
-      res.json({
-        activities,
-        total: activities.length,
-        limit: filters.limit,
-        offset: filters.offset,
-      });
+      res.json(activityFeed);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -7346,6 +7674,18 @@ ${items}
       // Update user premium status in database
       await storage.updateUserPremiumStatus(user.id, true, expiresAt);
 
+      await recordPremiumActivityEvent({
+        userId: user.id,
+        eventType: "premium_redeem",
+        quantityDelta: -1,
+        daysGranted: 30,
+        premiumExpiresAtAfter: expiresAt,
+        metadata: {
+          source: "premium_redeem",
+          remainingShares: Math.max(parseFloat(premiumHolding.quantity) - 1, 0),
+        },
+      });
+
       res.json({
         success: true,
         isPremium: true,
@@ -7683,6 +8023,22 @@ ${items}
         await storage.completePremiumCheckoutSession(matched.session.id, receiptId);
       }
 
+      if (classification.assetType === "premium") {
+        await recordPremiumActivityEvent({
+          userId,
+          eventType: "premium_credit",
+          quantityDelta: quantity,
+          amountCents:
+            paidAmountCents || expectedAmountCents || matched.session.amountCents || undefined,
+          referenceId: receiptId,
+          metadata: {
+            source: "checkout_finalize",
+            receiptId,
+            sessionId: matched.session.id,
+          },
+        });
+      }
+
       broadcast({ type: "portfolio" });
       return res.json({
         success: true,
@@ -7715,21 +8071,33 @@ ${items}
         return res.status(404).json({ error: "User not found" });
       }
 
+      const parsedQuantity = Math.max(1, Math.floor(Number(quantity) || 1));
+
       // Grant premium shares
       const existingHolding = await storage.getHolding(userId, "premium", "premium");
-      const currentQuantity = existingHolding?.quantity || 0;
-      const newQuantity = currentQuantity + quantity;
+      const currentQuantity = parseFloat(existingHolding?.quantity || "0");
+      const newQuantity = currentQuantity + parsedQuantity;
 
       await storage.updateHolding(userId, "premium", "premium", newQuantity, "5.0000");
 
+      await recordPremiumActivityEvent({
+        userId,
+        eventType: "premium_admin_credit",
+        quantityDelta: parsedQuantity,
+        metadata: {
+          source: "dev_grant_premium_shares",
+          reason: "Development premium grant",
+        },
+      });
+
       console.log(
-        `[DEV] Granted ${quantity} premium shares to user ${userId}. Total: ${newQuantity}`,
+        `[DEV] Granted ${parsedQuantity} premium shares to user ${userId}. Total: ${newQuantity}`,
       );
 
       res.json({
         success: true,
         userId,
-        quantity,
+        quantity: parsedQuantity,
         totalShares: newQuantity,
       });
     } catch (error: any) {
@@ -8118,6 +8486,21 @@ ${items}
         }
         if (matched.type === "premium" && matched.session.status !== "completed") {
           await storage.completePremiumCheckoutSession(matched.session.id, receiptId);
+        }
+
+        if (assetType === "premium") {
+          await recordPremiumActivityEvent({
+            userId,
+            eventType: "premium_credit",
+            quantityDelta: quantity,
+            amountCents: amountCents || expectedAmountCents || matched.session.amountCents,
+            referenceId: receiptId,
+            metadata: {
+              source: "whop_webhook",
+              receiptId,
+              sessionId: matched.session.id,
+            },
+          });
         }
 
         const newQuantity = creditResult.newQuantity;
@@ -9318,6 +9701,17 @@ ${items}
 
       // Credit the shares
       await storage.updateHolding(userId, "premium", "premium", newQuantity, "5.0000");
+
+      await recordPremiumActivityEvent({
+        userId,
+        eventType: "premium_admin_credit",
+        quantityDelta: qty,
+        metadata: {
+          source: "admin_premium_credit",
+          reason: reason || "Manual credit by admin",
+          adminUserId: (req as any).adminContext?.userId || null,
+        },
+      });
 
       console.log(
         `[ADMIN] Manually credited ${qty} premium shares to user ${userId}. Reason: ${reason || "No reason provided"}`,
@@ -10822,6 +11216,9 @@ ${items}
           player: player,
           sport: player.sport,
           availableShares,
+          regularShares,
+          availableRegularShares: Math.max(0, regularShares - totalLocked),
+          stackedShares,
           effectiveShares,
           multiplier: bestShareMultiplier.toFixed(2),
           bestShareMultiplier,

@@ -206,7 +206,7 @@ export function PlayerModal({ playerId, open, onOpenChange }: PlayerModalProps) 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="max-w-2xl max-h-[90vh] overflow-y-auto p-3"
+        className="max-h-[90vh] max-w-2xl overflow-y-auto px-3 pb-3 pt-10 sm:p-3"
         data-testid="dialog-player-modal"
       >
         <DialogHeader className="pb-1">

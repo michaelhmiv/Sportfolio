@@ -27,7 +27,7 @@ import { PlayerName } from "@/components/player-name";
 import { SportSelector } from "@/components/sport-selector";
 import { MarketActivityWidget } from "@/components/market-activity-widget";
 import { MarketplaceScanners } from "@/components/marketplace-scanners";
-import { MarketMobileHome } from "@/components/market-mobile-home";
+import { MarketMobilePoolsBoard } from "@/components/market-mobile-pools-board";
 import {
   MarketMobilePlayerSheet,
   type MarketSheetAction,
@@ -420,7 +420,7 @@ export default function PlayerPools() {
           </div>
         </div>
 
-        <MarketMobileHome
+        <MarketMobilePoolsBoard
           sport={sport}
           players={players}
           isLoading={isLoading}

@@ -1,15 +1,26 @@
-import type { DailyGame, Holding, Player } from "@shared/schema";
+import type { DailyGame, Player } from "@shared/schema";
 import { players, scoutAssignments, scoutHistory, trades } from "@shared/schema";
 import { and, eq, gte, lt, sql } from "drizzle-orm";
 
+import { getUserLpPositions } from "./amm/pool";
 import { db } from "./db";
 import { getETDayBoundaries, getGameDay } from "./lib/time";
 import { storage } from "./storage";
 import type { HoldingWithPlayerSummary } from "./storage";
 
 type GameStatus = "none" | "upcoming" | "live" | "ended";
-type SignalKind = "momentum" | "value" | "scout" | "boost" | "watchlist" | "ticker";
+type SignalKind =
+  | "momentum"
+  | "value"
+  | "scout"
+  | "boost"
+  | "watchlist"
+  | "ticker"
+  | "pool"
+  | "activity"
+  | "portfolio";
 type HeatCheckStatus = "fire" | "ice" | "neutral";
+type MarketHealthLabel = "quiet" | "balanced" | "active" | "heated";
 
 interface ScannerEntry {
   player: Player;
@@ -70,10 +81,53 @@ export interface MobileMarketSignal {
   heatCheckStatus: HeatCheckStatus;
 }
 
+export interface PersonalLpEdge {
+  playerId: string;
+  firstName: string;
+  lastName: string;
+  team: string;
+  position: string;
+  ownershipPercentage: number;
+  positionValue: number;
+  feesEarnedToDate: number;
+}
+
+export interface MobileMarketLeaderboards {
+  risers: MobileMarketSignal[];
+  topPools: MobileMarketSignal[];
+  mostActive: MobileMarketSignal[];
+  boostWindow: MobileMarketSignal[];
+}
+
+export interface MobileMarketIndicators {
+  healthScore: number;
+  healthLabel: MarketHealthLabel;
+  healthSummary: string;
+  marketIndex24h: number;
+  volatilityIndex: number;
+  liquidityHealth: number;
+  totalMarketTvl: number;
+  breadth: {
+    risers: number;
+    fallers: number;
+    flat: number;
+  };
+}
+
+export interface MobileMarketPersonalEdge {
+  ownedMovers: MobileMarketSignal[];
+  watchlistMoves: MobileMarketSignal[];
+  boostReady: MobileMarketSignal[];
+  lpPositions: PersonalLpEdge[];
+}
+
 export interface MobileMarketOverview {
   sport: string;
   pulse: MobileMarketPulse;
+  marketIndicators: MobileMarketIndicators;
   ticker: MobileMarketTickerItem[];
+  leaderboards: MobileMarketLeaderboards;
+  personalEdge: MobileMarketPersonalEdge | null;
   nowMoving: MobileMarketSignal[];
   boostWindow: MobileMarketSignal[];
   scoutSurge: MobileMarketSignal[];
@@ -107,11 +161,28 @@ export interface MarketMobileOverviewDeps {
   getTotalLockedQuantity: (userId: string, assetType: string, assetId: string) => Promise<number>;
   getRecentTradeCount15m: (sport: string, since: Date) => Promise<number>;
   getTrendingScoutPlayerIds: (sport: string, limit: number, asOf: Date) => Promise<string[]>;
+  getTopPoolPlayerIds: (sport: string, limit: number) => Promise<string[]>;
+  getUserLpPositions: (userId: string) => Promise<
+    Array<{
+      playerId: string;
+      ownershipPercentage: number;
+      positionValue: number;
+      feesEarnedToDate: number;
+    }>
+  >;
   now: () => Date;
 }
 
 const WHALE_ALERT_MIN_VALUE = 5000;
 const LOW_ACTIVITY_THRESHOLD = 3;
+const compactMetricFormatter = new Intl.NumberFormat("en-US", {
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+
+function formatCompactCurrency(value: number) {
+  return `$${compactMetricFormatter.format(Math.max(0, value))}`;
+}
 
 const defaultDeps: MarketMobileOverviewDeps = {
   getFinancialMarketScanners: (sport) => storage.getFinancialMarketScanners(sport),
@@ -142,6 +213,30 @@ const defaultDeps: MarketMobileOverviewDeps = {
       .where(and(gte(trades.executedAt, since), sportCondition));
 
     return Number(result[0]?.count || 0);
+  },
+  getTopPoolPlayerIds: async (sport, limit) => {
+    const normalizedSport = sport.toUpperCase();
+    const sportFilter =
+      normalizedSport === "ALL" ? sql`TRUE` : sql`UPPER(p.sport) = ${normalizedSport}`;
+
+    const result: any = await db.execute(sql`
+      SELECT pp.player_id AS "playerId"
+      FROM player_pools pp
+      INNER JOIN players p ON p.id = pp.player_id
+      WHERE p.is_active = TRUE
+        AND ${sportFilter}
+      ORDER BY (
+        CASE
+          WHEN (pp.shares)::numeric > 0 THEN (pp.play_money)::numeric * 2
+          ELSE (pp.play_money)::numeric
+        END
+      ) DESC
+      LIMIT ${limit};
+    `);
+
+    return (result?.rows || [])
+      .map((row: any) => String(row.playerId || ""))
+      .filter((playerId: string) => playerId.length > 0);
   },
   getTrendingScoutPlayerIds: async (sport, limit, asOf) => {
     const normalizedSport = sport.toUpperCase();
@@ -199,6 +294,7 @@ const defaultDeps: MarketMobileOverviewDeps = {
       .slice(0, limit)
       .map((entry) => entry.playerId);
   },
+  getUserLpPositions: (userId) => getUserLpPositions(userId),
   now: () => new Date(),
 };
 
@@ -487,6 +583,123 @@ function sortByMarketEnergy(
   return right.poolTvl - left.poolTvl;
 }
 
+function sortByAbsoluteMove(
+  left: Pick<PlayerContext, "priceChange24h" | "poolTvl">,
+  right: Pick<PlayerContext, "priceChange24h" | "poolTvl">,
+) {
+  const leftAbsMove = Math.abs(left.priceChange24h);
+  const rightAbsMove = Math.abs(right.priceChange24h);
+
+  if (rightAbsMove !== leftAbsMove) {
+    return rightAbsMove - leftAbsMove;
+  }
+
+  return right.poolTvl - left.poolTvl;
+}
+
+function getMarketHealthSummary(label: MarketHealthLabel) {
+  switch (label) {
+    case "quiet":
+      return "Thin tape. Lean on liquidity over momentum.";
+    case "balanced":
+      return "Healthy flow with room to pick spots.";
+    case "active":
+      return "Tape is moving. Momentum and slate context both matter.";
+    case "heated":
+      return "High-energy market. Size against liquidity and chase carefully.";
+  }
+}
+
+function buildMarketIndicators(params: {
+  contexts: PlayerContext[];
+  tradeCount15m: number;
+  liveGameCount: number;
+}): MobileMarketIndicators {
+  const { contexts, tradeCount15m, liveGameCount } = params;
+  const breadth = contexts.reduce(
+    (accumulator, context) => {
+      if (context.priceChange24h > 0.25) {
+        accumulator.risers += 1;
+      } else if (context.priceChange24h < -0.25) {
+        accumulator.fallers += 1;
+      } else {
+        accumulator.flat += 1;
+      }
+
+      return accumulator;
+    },
+    { risers: 0, fallers: 0, flat: 0 },
+  );
+
+  const marketIndex24h =
+    contexts.length > 0
+      ? roundToTwo(
+          contexts.reduce((total, context) => total + context.priceChange24h, 0) / contexts.length,
+        )
+      : 0;
+  const averageAbsoluteMove =
+    contexts.length > 0
+      ? contexts.reduce((total, context) => total + Math.abs(context.priceChange24h), 0) /
+        contexts.length
+      : 0;
+  const moveVariance =
+    contexts.length > 0
+      ? contexts.reduce(
+          (total, context) => total + Math.pow(context.priceChange24h - marketIndex24h, 2),
+          0,
+        ) / contexts.length
+      : 0;
+  const moveStandardDeviation = Math.sqrt(moveVariance);
+  const totalMarketTvl = roundToTwo(
+    contexts.reduce((total, context) => total + Math.max(0, context.poolTvl), 0),
+  );
+  const averagePoolTvl = contexts.length > 0 ? totalMarketTvl / contexts.length : 0;
+  const deepPoolShare =
+    contexts.length > 0
+      ? contexts.filter((context) => context.poolTvl >= 100000).length / contexts.length
+      : 0;
+  const volatilityIndex = roundToTwo(
+    Math.max(0, Math.min(100, averageAbsoluteMove * 4 + moveStandardDeviation * 6)),
+  );
+  const liquidityHealth = roundToTwo(
+    Math.max(
+      0,
+      Math.min(100, averagePoolTvl / 4000 + deepPoolShare * 35 + Math.min(20, tradeCount15m * 3)),
+    ),
+  );
+  const healthScore = Math.max(
+    0,
+    Math.min(
+      100,
+      Math.round(
+        Math.min(45, tradeCount15m * 8) +
+          Math.min(30, volatilityIndex * 0.35) +
+          Math.min(25, liveGameCount * 8),
+      ),
+    ),
+  );
+  let healthLabel: MarketHealthLabel = "quiet";
+
+  if (healthScore >= 75) {
+    healthLabel = "heated";
+  } else if (healthScore >= 50) {
+    healthLabel = "active";
+  } else if (healthScore >= 25) {
+    healthLabel = "balanced";
+  }
+
+  return {
+    healthScore,
+    healthLabel,
+    healthSummary: getMarketHealthSummary(healthLabel),
+    marketIndex24h,
+    volatilityIndex,
+    liquidityHealth,
+    totalMarketTvl,
+    breadth,
+  };
+}
+
 export async function buildMobileMarketOverview(
   params: {
     sport?: string | null;
@@ -500,15 +713,23 @@ export async function buildMobileMarketOverview(
   const { startOfDay, endOfDay } = getETDayBoundaries(todayET);
   const targetDate = new Date(startOfDay.getTime() + 12 * 60 * 60 * 1000);
 
-  const [scanners, activity, games, tradeCount15m, trendingScoutPlayerIds, communityBoosts] =
-    await Promise.all([
-      deps.getFinancialMarketScanners(sport),
-      deps.getMarketActivity({ sport, limit: 24 }),
-      deps.getDailyGames(sport, startOfDay, endOfDay),
-      deps.getRecentTradeCount15m(sport, new Date(now.getTime() - 15 * 60 * 1000)),
-      deps.getTrendingScoutPlayerIds(sport, 6, now),
-      deps.getCommunityBoostsAllSports(targetDate),
-    ]);
+  const [
+    scanners,
+    activity,
+    games,
+    tradeCount15m,
+    trendingScoutPlayerIds,
+    communityBoosts,
+    topPoolPlayerIds,
+  ] = await Promise.all([
+    deps.getFinancialMarketScanners(sport),
+    deps.getMarketActivity({ sport, limit: 24 }),
+    deps.getDailyGames(sport, startOfDay, endOfDay),
+    deps.getRecentTradeCount15m(sport, new Date(now.getTime() - 15 * 60 * 1000)),
+    deps.getTrendingScoutPlayerIds(sport, 6, now),
+    deps.getCommunityBoostsAllSports(targetDate),
+    deps.getTopPoolPlayerIds(sport, 6),
+  ]);
 
   const primaryCandidateIds = dedupeIds([
     ...scanners.momentum.map((entry) => entry.player.id),
@@ -516,6 +737,7 @@ export async function buildMobileMarketOverview(
     ...activity.map((entry) => entry.playerId as string),
     ...trendingScoutPlayerIds,
     ...communityBoosts.map((entry) => entry.playerId),
+    ...topPoolPlayerIds,
   ]);
 
   const contextMap = await buildPlayerContextMap(primaryCandidateIds, games, scanners, deps);
@@ -580,6 +802,24 @@ export async function buildMobileMarketOverview(
     })
     .slice(0, 4);
 
+  const topPools = topPoolPlayerIds
+    .map((playerId) =>
+      withSignal(
+        contextMap.get(playerId),
+        "pool",
+        `TVL ${formatCompactCurrency(contextMap.get(playerId)?.poolTvl || 0)}`,
+      ),
+    )
+    .filter((entry): entry is MobileMarketSignal => Boolean(entry))
+    .sort((left, right) => {
+      if (right.poolTvl !== left.poolTvl) {
+        return right.poolTvl - left.poolTvl;
+      }
+
+      return sortByMarketEnergy(left, right);
+    })
+    .slice(0, 4);
+
   let scoutSurge = trendingScoutPlayerIds
     .map((playerId) => {
       const context = contextMap.get(playerId);
@@ -602,6 +842,12 @@ export async function buildMobileMarketOverview(
         bestShareMultiplier: null,
       }));
   }
+
+  const marketIndicators = buildMarketIndicators({
+    contexts: Array.from(contextMap.values()),
+    tradeCount15m,
+    liveGameCount: games.filter((game) => getEffectiveGameStatus(game, now) === "live").length,
+  });
 
   let watchlistMoves: MobileMarketSignal[] = [];
   let boostWindow: MobileMarketSignal[] = Array.from(contextMap.values())
@@ -632,23 +878,42 @@ export async function buildMobileMarketOverview(
       bestShareMultiplier: null,
     }));
 
+  const mostActive = activity
+    .map((entry) => {
+      const context = contextMap.get(entry.playerId);
+      if (!context) {
+        return null;
+      }
+
+      const quantity = Number(entry.quantity || 0);
+      const price = context.currentPrice || toNumber(entry.price);
+      const notional = roundToTwo(quantity * price);
+      const note =
+        notional >= WHALE_ALERT_MIN_VALUE
+          ? `Whale print ${quantity} sh / ${formatCompactCurrency(notional)}`
+          : `${quantity} sh printed`;
+
+      return withSignal(context, "activity", note);
+    })
+    .filter((entry): entry is MobileMarketSignal => Boolean(entry))
+    .slice(0, 4);
+
   if (params.userId) {
-    const [watchListIds, holdingMap, currentBoosts] = await Promise.all([
+    const [watchListIds, holdingMap, currentBoosts, lpPositions] = await Promise.all([
       deps.getWatchList(params.userId),
       buildHoldingContextMap(params.userId, deps),
       deps.getDailyBoostsAllSports(params.userId, targetDate),
+      deps.getUserLpPositions(params.userId),
     ]);
 
-    const additionalBoostPlayerIds = Array.from(holdingMap.keys()).filter(
-      (playerId) => !contextMap.has(playerId),
-    );
-    if (additionalBoostPlayerIds.length > 0) {
-      const extraContexts = await buildPlayerContextMap(
-        additionalBoostPlayerIds,
-        games,
-        scanners,
-        deps,
-      );
+    const additionalPlayerIds = dedupeIds([
+      ...Array.from(holdingMap.keys()),
+      ...watchListIds,
+      ...lpPositions.map((position) => position.playerId),
+    ]).filter((playerId) => !contextMap.has(playerId));
+
+    if (additionalPlayerIds.length > 0) {
+      const extraContexts = await buildPlayerContextMap(additionalPlayerIds, games, scanners, deps);
       extraContexts.forEach((value, key) => {
         contextMap.set(key, value);
       });
@@ -707,6 +972,32 @@ export async function buildMobileMarketOverview(
       boostWindow = personalBoostWindow;
     }
 
+    const ownedMovers = Array.from(holdingMap.entries())
+      .map(([playerId, holding]) => {
+        const context = contextMap.get(playerId);
+        if (!context || holding.availableShares <= 0) {
+          return null;
+        }
+
+        return withSignal(
+          context,
+          "portfolio",
+          holding.bestShareMultiplier > 1
+            ? `${holding.bestShareMultiplier}x stack on hand`
+            : `${roundToTwo(holding.availableShares)} share${holding.availableShares === 1 ? "" : "s"} ready`,
+          holding,
+        );
+      })
+      .filter((entry): entry is MobileMarketSignal => Boolean(entry))
+      .sort((left, right) => {
+        if ((right.bestShareMultiplier || 1) !== (left.bestShareMultiplier || 1)) {
+          return (right.bestShareMultiplier || 1) - (left.bestShareMultiplier || 1);
+        }
+
+        return sortByAbsoluteMove(left, right);
+      })
+      .slice(0, 4);
+
     const watchlistPlayerIds = dedupeIds(watchListIds);
     if (watchlistPlayerIds.length > 0) {
       const watchlistContexts = await buildPlayerContextMap(
@@ -717,15 +1008,7 @@ export async function buildMobileMarketOverview(
       );
       watchlistMoves = Array.from(watchlistContexts.values())
         .filter((entry) => sport === "ALL" || entry.sport.toUpperCase() === sport)
-        .sort((left, right) => {
-          const leftAbsMove = Math.abs(left.priceChange24h);
-          const rightAbsMove = Math.abs(right.priceChange24h);
-          if (rightAbsMove !== leftAbsMove) {
-            return rightAbsMove - leftAbsMove;
-          }
-
-          return right.poolTvl - left.poolTvl;
-        })
+        .sort(sortByAbsoluteMove)
         .slice(0, 4)
         .map((entry) => ({
           ...entry,
@@ -739,6 +1022,51 @@ export async function buildMobileMarketOverview(
         }));
     }
 
+    const lpPositionPlayers = await deps.getPlayersByIds(
+      dedupeIds(lpPositions.map((position) => position.playerId)),
+    );
+    const lpPlayerMap = new Map(lpPositionPlayers.map((player) => [player.id, player]));
+    const lpEdges = lpPositions
+      .map((position) => {
+        const player = lpPlayerMap.get(position.playerId);
+        if (!player) {
+          return null;
+        }
+
+        return {
+          playerId: position.playerId,
+          firstName: player.firstName,
+          lastName: player.lastName,
+          team: player.team,
+          position: player.position,
+          ownershipPercentage: position.ownershipPercentage,
+          positionValue: position.positionValue,
+          feesEarnedToDate: position.feesEarnedToDate,
+        } satisfies PersonalLpEdge;
+      })
+      .filter((entry): entry is PersonalLpEdge => Boolean(entry))
+      .sort((left, right) => {
+        if (right.feesEarnedToDate !== left.feesEarnedToDate) {
+          return right.feesEarnedToDate - left.feesEarnedToDate;
+        }
+
+        return right.positionValue - left.positionValue;
+      })
+      .slice(0, 3);
+
+    const personalEdge =
+      ownedMovers.length > 0 ||
+      watchlistMoves.length > 0 ||
+      personalBoostWindow.length > 0 ||
+      lpEdges.length > 0
+        ? {
+            ownedMovers,
+            watchlistMoves,
+            boostReady: personalBoostWindow,
+            lpPositions: lpEdges,
+          }
+        : null;
+
     return {
       sport,
       pulse: {
@@ -749,7 +1077,15 @@ export async function buildMobileMarketOverview(
         openBoostSlots: Math.max(0, 4 - currentBoosts.length),
         generatedAt: now.toISOString(),
       },
+      marketIndicators,
       ticker,
+      leaderboards: {
+        risers: nowMovingContexts,
+        topPools,
+        mostActive,
+        boostWindow,
+      },
+      personalEdge,
       nowMoving: nowMovingContexts,
       boostWindow,
       scoutSurge,
@@ -768,7 +1104,15 @@ export async function buildMobileMarketOverview(
       openBoostSlots: null,
       generatedAt: now.toISOString(),
     },
+    marketIndicators,
     ticker,
+    leaderboards: {
+      risers: nowMovingContexts,
+      topPools,
+      mostActive,
+      boostWindow,
+    },
+    personalEdge: null,
     nowMoving: nowMovingContexts,
     boostWindow,
     scoutSurge,

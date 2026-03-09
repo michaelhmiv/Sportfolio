@@ -1,3 +1,193 @@
+## 2026-03-09 PR 93 Review Comment Follow-Up
+
+- [x] Inspect unresolved PR `93` review threads and confirm the exact files/behaviors called out
+- [x] Patch the portfolio activity ledger so the client can request vesting activity and the server can paginate beyond 250 source rows
+- [x] Add focused regression coverage for the review fixes
+- [x] Run `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`
+- [x] Push the updated PR `93` branch to GitHub
+
+Review:
+
+- Confirmed two unresolved PR `93` review threads: the portfolio activity tab never requested `vesting`, and the server-side merged-feed pagination capped per-source reads at `250`, which could strand older history for active users.
+- Updated the client activity fetch params to request all supported activity categories, so the existing `Vesting` filter and `All` view can actually surface vesting claims instead of silently excluding them.
+- Removed the server-side `250` cap by routing the source fetch window through a small helper that scales with `limit + offset`, preserving access to older activity rows when users scroll deeper into the ledger.
+- Added focused regression coverage for both fixes and re-ran `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`; all passed.
+
+## 2026-03-09 Dashboard Slate Exposure Card Refocus
+
+- [x] Replace the top dashboard showcase with an exposure-only card built around `Owned` and `Missing` slate relevance
+- [x] Extend game and NASCAR insights with slate-wide player/driver lists so exposure can be ranked across the whole viewed slate
+- [x] Tighten the card to scoreboard-level mobile density with compact pills, mini subtabs, and an internally scrolling row list
+- [x] Re-run `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`
+- [x] Follow up on row interaction and summary treatment so row taps open the shared player modal and raw missing totals are not surfaced in the header
+- [x] Keep the shared player modal close control off the top-right action cluster on mobile so the `Pool` button remains fully tappable
+
+Review:
+
+- Rebuilt the top dashboard card into a compact `Slate Exposure` surface with only `Owned` and `Missing` views for authenticated users plus a generic `Top Slate` guest view, removing the old boost/pulse/movers framing from that location entirely.
+- Extended `/api/games/insights` with `slatePlayers` and `/api/races/insights` with `slateDrivers` so the client can rank owned exposure and uncovered top-slate names across the full viewed slate instead of relying on one leader per game.
+- Tightened the UI to match dashboard score density: short header copy, three compact pills, mini subtabs, dense rows, and an internal scroll window so mobile keeps the card compact above scores.
+- Exposure rows now open the shared `PlayerModal` instead of jumping directly into Player Pools, which gives the dashboard card a browse-first interaction without forcing a trade path.
+- The summary line and compact pills no longer advertise a raw missing count; the `Missing` tab still ranks uncovered names, but the card header stays focused on owned and earning exposure.
+- The shared player modal now reserves a dedicated top strip on mobile, so the close `X` no longer sits on top of the `Buy / Sell / Pool` action row.
+- Validation passed: `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`.
+
+## 2026-03-09 Premium Activity Ledger Completion
+
+- [x] Add an immutable premium activity ledger table/schema surface for premium credits and redemptions
+- [x] Record premium activity events on live premium purchase, redeem, admin-credit, and dev-credit flows
+- [x] Remove inactive premium-trade assumptions from the Portfolio activity feed and keep legacy completed checkout sessions only as purchase fallback history
+- [x] Add the append-only `0036_premium_activity_events.sql` migration and apply it to the production database ahead of merge
+- [x] Re-run validation and capture any unrelated repo-wide blockers separately
+
+Review:
+
+- Added `premium_activity_events` as the canonical immutable ledger for live premium inventory/access changes so Activity can represent premium without relying on not-yet-shipped premium trades.
+- Wired premium event writes into Whop sync, checkout finalization, webhook fulfillment, premium redemption, admin grant/manual credit, and the dev grant helper, with idempotent purchase credits keyed off receipt/payment ids.
+- Simplified the Portfolio premium activity feed to read canonical premium ledger rows first and use old completed checkout sessions only as fallback purchase history when no ledger credit exists for that receipt.
+- Added `migrations/0036_premium_activity_events.sql` and applied that exact SQL against the production `Sportfolio-Replit` database; verified `premium_activity_events` plus `premium_activity_user_created_idx`, `premium_activity_event_type_idx`, and `premium_activity_event_ref_idx` exist in prod.
+- Validation passed for `npm run lint`, `npm run check`, and `npm run test:run`. `npm run format:check` still fails on unrelated existing files `client/src/components/dashboard-showcase-card.helpers.ts`, `client/src/components/dashboard-showcase-card.tsx`, and `server/lib/performance-earnings.ts`.
+
+## 2026-03-09 Mobile Player Pools Intel Consolidation
+
+- [x] Collapse the mobile pre-table stack into one compact `Market Intel` module with the three requested subtabs: `Market Indicators`, `Top Risers`, and `Top Market Value`
+- [x] Add explicit market indicator data to the mobile overview payload so the first tab can show market health, index, breadth, and supporting leaders without inventing client-only heuristics
+- [x] Move mobile player-pool controls to a visible desktop-style control bar above the table with inline search, sort, and expandable filters
+- [x] Validate with `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`
+
+Review:
+
+- Added `marketIndicators` to the mobile overview response and covered the new health/index/liquidity/scout expectations in `server/market-mobile-overview.test.ts`.
+- Replaced the mobile `/pools` entry surface with a slim pulse strip plus one consolidated intel card using the requested three subtabs, then tightened the indicators tab into dashboard-style pills and dense leader rows instead of a spread-out stat grid.
+- Swapped mobile `/pools` onto a dedicated `MarketMobilePoolsBoard` component so the new layout is isolated from the in-progress legacy mobile-home file.
+- Put search directly above the mobile trade board and kept visible sort/filter controls there, with team, position, and watchlist filters available inline instead of relying on a drawer-first interaction.
+- Validation passed: `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`.
+
+## 2026-03-08 Share Payout + Ready Tab Mechanic Correction
+
+- [x] Change game-performance share payouts back to stacked-share-only earning units
+- [x] Keep regular-share boost-slot earnings intact while narrowing dashboard `Ready` to stacked-share players only
+- [x] Add regression coverage for the payout snapshot query and update showcase helper expectations
+- [x] Re-run validation and document the corrected mechanic
+
+Review:
+
+- Updated `server/storage.ts` so share-payout snapshots now source `earning_units` only from `player_multipliers`, which means unstacked player holdings no longer earn game-performance cash outside of boost slots.
+- Left boost-slot assignment behavior intact, so a regular `1x` share can still earn if the user explicitly places it into a daily boost slot.
+- Reworked dashboard `Ready` selection and copy to surface only upcoming, unboosted players with stacked shares, replacing the earlier raw-share stacking prompts with boost-ready stacked-share context.
+- Added a storage-level regression test for the payout snapshot query and updated showcase helper coverage for the new `Ready` criteria.
+- Validation results: `npm run test:run -- server/storage.share-payouts.test.ts`, `npm run test:run -- client/src/components/dashboard-showcase-card.helpers.test.ts`, and `npm run lint` passed. `npm run check` fails on unrelated existing missing symbols in `client/src/components/market-mobile-home.tsx`. `npm run test:run` fails on unrelated existing `server/market-mobile-overview.test.ts` mocks missing `getTopPoolPlayerIds`. `npm run format:check` fails on unrelated existing files `client/src/components/portfolio-activity-tab.helpers.ts`, `client/src/components/portfolio-activity-tab.tsx`, and `server/market-mobile-overview.ts`.
+
+## 2026-03-09 Mobile Player Pools Board Refresh
+
+- [x] Extend the mobile market overview payload with ranked market leaderboards and authenticated personal-edge context
+- [x] Rebuild mobile `/pools` into a market-first movers deck followed by a denser board-style table while preserving the existing player sheet flow
+- [x] Run `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`; document any unrelated failures separately
+
+Review:
+
+- Extended `GET /api/market/mobile-overview` so mobile `/pools` now receives explicit market leaderboards (`risers`, `topPools`, `mostActive`, `boostWindow`) plus authenticated `personalEdge` data for owned movers, watchlist movers, boost-ready holdings, and LP fee/value context.
+- Reframed the mobile page above the board into a tighter market-first stack: `Market Pulse`, a tabbed `Movers Deck`, and a compact `Your Edge` rail instead of the earlier dashboard-like tape/module pileup.
+- Replaced the old mobile player card stack with a denser board-style row layout that keeps desktop-style scanability while preserving the existing player sheet and quick actions.
+- Added focused assertions in `server/market-mobile-overview.test.ts` for the new leaderboard and personal-edge response shape.
+- Validation passed: `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`.
+
+## 2026-03-09 Mobile Player Pools Density Correction
+
+- [x] Remove the standalone mobile pulse card and make `Market Intel` the only top card on `/pools`
+- [x] Replace player-leader indicator content with compact market-wide signals and make risers/value lists show at least 5 names with board-sort handoff
+- [x] Compress the mobile trade board into a true no-wrap spreadsheet row layout and re-run validation
+- [x] Standardize mobile row labels so the CTA always reads `Trade`, owned names use green text only, and row tokens stay action-first
+
+Review:
+
+- Removed the separate `Market Pulse` card and folded freshness plus health into the `Market Intel` header so mobile `/pools` now opens with a single compact top surface instead of stacked summary cards.
+- Rebuilt the `Indicators` tab around market-wide signals only: `Market Index`, `Volatility`, `Breadth`, and `Liquidity`, rendered as compact mini-bars plus small market pills instead of player leader rows.
+- `Top Risers` and `Top Value` now show 5 dense rows each and add a `See more in board` action that auto-sorts the main mobile table by `24h Change` or `TVL` on the same screen.
+- Tightened the mobile trade board into one no-wrap row per player with a single compact token, one action cell, reduced control heights, and much smaller padding throughout.
+- Standardized the trading row language so the green button always says `Trade`, removed `OWN` as a row token, rendered only the owned player name text in green, and switched the remaining compact row labels to readable action/context tokens like `Boost Ready`, `Live`, and `Watch`.
+- Updated `server/market-mobile-overview.ts` and `server/market-mobile-overview.test.ts` so `marketIndicators` now exposes market-wide fields (`volatilityIndex`, `liquidityHealth`, `totalMarketTvl`) instead of player-leader slots.
+- Validation passed: `npm run check`, `npm run lint`, `npm run format:check`, `npm run test:run -- server/market-mobile-overview.test.ts`, and `npm run test:run -- server/jobs/settle-boosts.test.ts`.
+- `npm run test:run` is currently flaky outside this change surface: one full-suite rerun timed out in `server/jobs/settle-boosts.test.ts`, but that same test passed immediately when re-run in isolation and the full suite had passed earlier in this work session.
+
+## 2026-03-08 Dashboard Showcase Exposure / Ready / Pulse Reframe
+
+- [x] Replace the old `Play` framing with `Exposure` centered on portfolio overlap with the day's slate leaders
+- [x] Rework `Ready` into a conditional stack-needed tab with direct boost-slot modal access from each listed player row
+- [x] Repurpose `Pulse` into top 24h portfolio gainers and extend `/api/dashboard` with the mover data needed to drive it
+- [x] Reuse date-scoped boost eligibility / slot data on dashboard and rerun focused + full validation
+
+Review:
+
+- Rebuilt `DashboardShowcaseCard` around `Exposure / Ready / Pulse` so signed-in users now see slate overlap, stack-needed names, and portfolio movers instead of the earlier generic `Play / Ready / Pulse` summary.
+- `Exposure` now favors owned exposure to the slate's highest-rated fantasy leaders, surfaces `playing / eligible` counts at the card level, and keeps the mobile panel compact with a single top line visible at a time.
+- `Ready` now uses `/api/daily-boosts/eligible-all` plus `/api/daily-boosts/all?date=...` to show only upcoming, unboosted players with stackable raw shares; each row includes a compact `Boost` action that opens a slot-assignment modal instead of forcing a page change.
+- Added `portfolioMovers24h` to `/api/dashboard` and used it to drive `Pulse` as the user's top 5 positive 24h movers by portfolio value gained, which avoids duplicating the floater's 24h P/L summary.
+- Validation passed for `npm run check`, `npm run lint`, `npm run test:run -- client/src/components/dashboard-showcase-card.helpers.test.ts`, `npm run test:run`, and `npm run format:check`.
+
+## 2026-03-08 Dashboard Showcase Mobile Condense Pass
+
+- [x] Compress the new dashboard showcase so the mobile version behaves like a briefing, not a stacked multi-panel block
+- [x] Keep the richer multi-panel layout for larger screens while switching mobile to one active panel at a time
+- [x] Leave Player Pools surfaces unchanged and keep the mobile portfolio popup as the only account-summary surface
+- [x] Add/update focused showcase helper coverage and rerun the full validation stack
+
+Review:
+
+- Reworked `DashboardShowcaseCard` so mobile now renders a segmented `Play / Ready / Pulse` layout with one compact panel visible at a time, while desktop keeps the fuller command-center layout.
+- Tightened the mobile card header/footer, limited mobile content to a single top spotlight row per panel, and added a mobile height cap so the card reads as a quick briefing instead of taking over the full first screen.
+- Did not modify the Player Pools tab or its mobile surfaces in this pass; the only product-surface changes were to the dashboard showcase.
+- Added a helper-backed default mobile panel selection path and extended showcase helper tests to cover the panel-priority logic.
+- Validation passed for `npm run check`, `npm run lint`, `npm run test:run`, `npm run test:run -- client/src/components/dashboard-showcase-card.helpers.test.ts`, and `npm run format:check`.
+
+## 2026-03-08 Dashboard Showcase Command Center
+
+- [x] Add a mobile-first showcase card above the dashboard slate that frames Sportfolio as a market/strategy surface instead of a scores-first page
+- [x] Keep cash / portfolio snapshot details out of the new card and preserve the existing mobile portfolio popup as the canonical account-summary surface
+- [x] Curate the top card around today-in-play exposure, stacked-share / multiplier readiness, and market pulse signals using existing dashboard and market-overview data
+- [x] Move onboarding missions out of the first screen so mobile opens with the showcase card and the slate
+- [x] Add focused helper coverage and run validation for the dashboard showcase changes
+
+Review:
+
+- Added `DashboardShowcaseCard` plus helper selectors/tests to build a compact command-center card above the slate without adding new backend contracts.
+- The new card stays dense and mobile-first: small dashboard-matched type, short labels, 2-3 item modules, and no duplication of the mobile portfolio popup's cash / account snapshot data.
+- For signed-in users, the first screen now highlights owned positions on the selected slate, best stacked-share multipliers, and live market signals; guests see concise product-differentiation copy plus live tape metrics instead of a score-only opening.
+- Moved `OnboardingMissions` below the slate so mobile users land on the showcase card and then the games table, which better matches the desired "site showcase first, scores second" flow.
+- Validation passed for `npm run check`, `npm run lint`, `npm run test:run`, and `npm run test:run -- client/src/components/dashboard-showcase-card.helpers.test.ts`.
+- `npm run format:check` still fails, but only on unrelated pre-existing portfolio worktree files: `client/src/components/portfolio-stacking-tab.tsx` and `client/src/pages/portfolio-stacking-helpers.ts`.
+
+## 2026-03-08 Portfolio Stacking Tab + Terminology Refresh
+
+- [x] Add a dedicated `Stacking` tab to Portfolio with a mobile-first evaluation layout
+- [x] Reuse live portfolio + boost-eligibility data to show unlocked raw shares, stack-ready players, and stack projections
+- [x] Refresh Portfolio stacking terminology so holdings surfaces stop relying on the old lightning/power badge treatment
+- [x] Add focused helper coverage and run validation
+
+Review:
+
+- Added a new Portfolio `Stacking` tab that summarizes stack-ready players, singles available to stack, and existing stacked positions, then renders a dense dashboard-style table focused on player context, singles available to add, current stack level, and direct `Stack` / `View` actions.
+- Reused `/api/portfolio` and `/api/daily-boosts/eligible-all` instead of adding a new endpoint, and corrected Portfolio stack actions to use unlocked raw shares (`availableQuantity`) instead of total raw holdings when seeding the stack dialog.
+- Refreshed Portfolio UI copy away from the old lightning/power framing so holdings/card views now read in stacking terms (`effective`, `Stacked 5x`, unlocked raw shares, stacking breakdown) while keeping the existing stack execution dialog.
+- Added `client/src/pages/portfolio-stacking-helpers.test.ts` to lock in candidate aggregation, state classification, and default actionability sorting.
+- Validation passed: `npm run check`, `npm run lint`, `npm run test:run -- client/src/pages/portfolio-stacking-helpers.test.ts`, `npm run test:run`, and `npm run format:check`.
+
+## 2026-03-08 Dev DB Schema Drift Fix
+
+- [x] Confirm the active dev database target and current failure mode on game-loading endpoints
+- [x] Apply the current schema to the dev database so `player_multipliers` and related objects exist
+- [x] Re-verify `/api/games/insights` and `/api/dashboard` against the running dev server
+- [x] Run validation and capture any unrelated failures separately
+
+Review:
+
+- Confirmed the running dev app was not using the shell-exported `DATABASE_URL` pooler value; the effective local dev target came from `.env` and resolved to the `sportfolio_dev` database when loaded through the normal `dotenv` + `server/db.ts` path.
+- The user-facing symptom was not missing game rows or duplicate `npm run dev` listeners: `/api/games/today` already returned `200`, while `/api/games/insights` and `/api/dashboard` failed on `relation "player_multipliers" does not exist`.
+- `drizzle-kit push` could not complete non-interactively because of rename-detection prompts, and `drizzle-kit migrate` was blocked by an out-of-sync historical migration journal on the existing dev database.
+- Fixed the dev DB by applying the checked-in March 8 SQL migrations (`0032` through `0035`) directly against `sportfolio_dev` after deleting two orphaned legacy stacked-share holdings for `dev-user-12345678` (`nba_31030`, `nba_9325`) that referenced missing players and blocked the backfill.
+- Verification after the DB repair: `/api/games/insights?sport=NBA` and `/api/dashboard` now return `200`; `player_multipliers`, `player_multiplier_events`, and `reddit_post_history` exist; legacy `holdings.power*` and `share_payouts.share_power` columns are gone and the new multiplier columns are present.
+- Validation passed for `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`.
+
 ## 2026-03-08 Wiki MCP Handbook Review Fixes
 
 - [x] Restore regular-share earning units in share-payout snapshots so 1x holdings still earn holder payouts
@@ -1039,3 +1229,18 @@ Review:
 - [ ] Rebuild mobile `/pools` into a live-market scroll with sticky pulse strip, live tape, narrative modules, filter sheet, and richer player cards while preserving desktop behavior
 - [ ] Replace the mobile player modal with a trade-first bottom sheet and wire quick actions safely against existing buy/sell/boost/scout flows
 - [ ] Add targeted backend + Playwright coverage and validate via `npm run check`, `npm run lint`, `npm run test:run`, and targeted `npx playwright test`
+
+## 2026-03-08 Portfolio Activity Ledger Refresh
+
+- [x] Expand `/api/activity` beyond the legacy vesting/market/scout feed into a portfolio ledger with stacking, boosts, payouts, liquidity, community, and premium activity from existing event tables
+- [x] Add shared activity feed types and response metadata for category counts, summaries, and load-more pagination
+- [x] Replace the bare Portfolio activity tab with a dense mobile-first ledger UI that includes summaries, search, focus filters, category chips, and drill-in links
+- [x] Add targeted helper coverage for activity filtering and summary counts
+- [x] Validate via `npm run lint` and targeted `npm run test:run -- client/src/components/portfolio-activity-tab.helpers.test.ts client/src/pages/portfolio-stacking-helpers.test.ts`
+
+Review:
+
+- Rebuilt the Portfolio activity surface around a mobile-first ledger instead of a thin market/scout list, so users can scan recent portfolio-changing events without wasting vertical space on tall cards.
+- `/api/activity` now aggregates stacking, daily boost entry/settlement, holder payouts, LP adds/removals, community boosts, and available premium activity from the existing immutable tables instead of inventing a second event store.
+- The new tab adds summary counts, category chips, search, a compact focus filter, and per-row drill-ins to player, boosts, liquidity, or premium surfaces.
+- `npm run check` is still blocked by pre-existing unrelated TypeScript errors in `client/src/components/market-mobile-home.tsx`, and full `npm run test:run` is still blocked by pre-existing `server/market-mobile-overview.test.ts` failures tied to missing `getTopPoolPlayerIds` test deps.

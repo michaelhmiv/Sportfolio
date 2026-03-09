@@ -83,7 +83,26 @@ Vesting code still exists in the repo for archival compatibility, but vesting is
 
 If legacy vesting code must be touched, treat it as maintenance only and do not reintroduce it into active user flows without an explicit product decision.
 
-## 5) Daily Boost Loop
+## 5) Game Performance Share Payouts
+
+Source: `server/storage.ts` (`createSharePayoutSnapshotsForGame`), `server/jobs/settle-share-payouts.ts`
+
+- Started/completed games create `share_payouts` snapshots for stacked-share multiplier positions only.
+- Regular unstacked player holdings do not earn game-performance cash by default.
+- Exception: a single regular share can still earn if the user explicitly assigns it into a daily boost slot; boost settlement is separate from share-payout settlement.
+
+Payout logic:
+
+- `payout = max(0, earningUnits * fantasyPoints * baseRate)`
+- `earningUnits` come only from stacked-share multipliers recorded for that player/game snapshot.
+
+Critical invariants:
+
+- Do not include regular holdings in `share_payouts.earning_units`.
+- Keep boost-slot payouts separate; a regular `1x` share can still earn there if assigned.
+- Never snapshot market-maker positions.
+
+## 6) Daily Boost Loop
 
 Source: `server/routes.ts` (`/api/daily-boosts*`), `server/jobs/lock-boost-shares.ts`, `server/jobs/settle-boosts.ts`, `server/storage.ts`
 
@@ -102,7 +121,7 @@ Critical invariants:
 - Do not allow multi-share boost entries.
 - Do not settle before game completion/stats availability.
 
-## 6) Community Boost Loop
+## 7) Community Boost Loop
 
 Source: `server/routes.ts` (`/api/community-boosts*`), `server/jobs/settle-community-boosts.ts`, `shared/schema.ts`
 

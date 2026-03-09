@@ -1,5 +1,17 @@
 # Lessons Learned
 
+## 2026-03-09
+
+- When a mobile market page still needs desktop trading density, do not stack multiple pre-table summary cards; collapse them into one tabbed intel surface and keep search plus core sort/filter controls visible directly above the board.
+- If the dashboard is the visual reference for a mobile surface, avoid spreading indicators across multi-card stat grids; use compact pills, short summary lines, and dense row treatments instead.
+- When matching dashboard mobile styling, keep the type scale tighter than a normal page header surface: labels should mostly live in the `text-[8px]` to `text-xs` range, and large numeric callouts should be avoided unless they are the single focal point.
+- When a user asks for spreadsheet density on mobile market surfaces, remove extra pre-table cards entirely, keep one top intel card, force one-line no-wrap player rows, and limit row context to a single compact token plus one action cell.
+- When a mobile market row is fundamentally a trading surface, keep the CTA copy stable as `Trade`; express ownership through green player-name text, not a second ownership token or badge.
+- When a dashboard top card is narrowed to one product concept like slate exposure, remove adjacent concepts entirely instead of preserving old tabs or CTA blocks; density and clarity improve more from a single-purpose compact board than from squeezing legacy modules tighter.
+- When an exposure card row represents a player, open the shared player modal first instead of deep-linking straight into Player Pools; dashboard row taps should preserve optionality.
+- If the user wants a `Missing` view on a large slate, show the actual uncovered names but do not headline a raw missing total in the card summary.
+- If a shared modal keeps an absolute top-right close button, reserve explicit mobile top padding when the content also has top-right CTA rows; otherwise the close hit area can sit directly on top of action buttons.
+
 ## 2026-03-04
 
 - If a UI-compliance pass is supposed to cover the whole app, stop only after the shared `ui/*` layer is scanned too; route-level cleanup alone can look complete while generic primitives still reintroduce the old visual language underneath.
@@ -14,6 +26,17 @@
 - If the live Hermes allowlist is broader than the curated tool catalog, supplement missing tool metadata at routing time or the model-first router will silently cover only a subset of the real tool surface.
 - Self-improvement should create durable remediation candidates, but candidate persistence must never be allowed to break the user-facing turn; if that write fails, degrade silently and keep the answer path intact.
 - Agent audit tooling needs a true static mode that can run without a live user id or working local DB credentials; otherwise the evaluation loop disappears in the exact broken environments where it is most useful.
+
+## 2026-03-08
+
+- When a local dev DB issue appears inconsistent with the shell environment, confirm the app's real connection path with `dotenv/config` and `server/db.ts` before assuming the exported `DATABASE_URL` is the active target.
+- If a cutoff migration backfill fails on foreign keys in dev, inspect for orphaned legacy seed rows first; a tiny amount of invalid local data can block an otherwise-correct schema migration and make route failures look like app bugs.
+- When a dashboard revamp is meant to showcase the product, keep the existing mobile account-summary floater as the canonical place for cash / portfolio snapshot data and use the new top card for market, slate, and action context only.
+- When a mobile dashboard surface is supposed to feel like a briefing, do not just stack desktop modules tighter; switch to one active panel at a time and keep sibling product surfaces like Player Pools out of scope unless the user explicitly asks for them too.
+- If the dashboard already exposes 24h P/L in the mobile floater, do not repeat that metric in the top showcase card; use the card for non-duplicative portfolio context like exposure setup, stack-needed names, or top movers instead.
+- For portfolio and gameplay evaluation surfaces in this repo, default to dashboard-style density first: compact tables, tight row spacing, and compressed metadata beats roomy card stacks unless the user explicitly asks for a more spacious/mobile-card presentation.
+- If the user corrects a payout rule, fix the earning-unit source first and then realign dependent dashboard tabs and copy; do not leave UI messaging claiming stacked-only rewards while backend snapshots still pay regular holdings.
+- When adding a ledger category for a live product system, only model live user-visible mechanics in the feed; do not fabricate rows for not-yet-shipped features like premium trading just to fill category coverage.
 
 ## 2026-03-07
 
@@ -76,3 +99,4 @@
 - Self-improving agent behavior should come from constrained reusable skills over approved tools, not from auto-creating new backend tools or widening capability without admin review.
 - If Hermes is supposed to reason over Sportfolio state, do not spend the model pass on a synthetic meta-router; expose real tools directly, let the model chain them, and only bubble out confirmation-gated planners when needed.
 - "Continuous improvement" is not satisfied by memory writes alone; every agent turn needs structured traces plus an audit/remediation loop, or the system only remembers user preferences without actually improving its own behavior.
+- For Portfolio account history, treat Activity as a mobile-first ledger backed by existing immutable event tables instead of a decorative feed; dense rows, category chips, and drill-in links matter more than tall cards or narrative copy.

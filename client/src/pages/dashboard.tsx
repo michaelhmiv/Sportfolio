@@ -56,6 +56,14 @@ import { OnboardingMissions } from "@/components/onboarding-missions";
 import { MarketTicker } from "@/components/market-ticker";
 import { GameCommandCenterModal } from "@/components/game-command-center-modal";
 import { BackgroundPattern, CardAccent } from "@/components/ui/decorative-elements";
+import { DashboardShowcaseCard } from "@/components/dashboard-showcase-card";
+import type {
+  DashboardShowcaseEligiblePlayer,
+  DashboardShowcaseGameEntry,
+  DashboardShowcaseRace,
+  DashboardShowcaseRaceHolding,
+  DashboardShowcaseSlatePlayer,
+} from "@/components/dashboard-showcase-card.helpers";
 import { MobilePortfolioStatsSheet } from "@/components/mobile-portfolio-stats-sheet";
 import type { GameInsight, GameInsightsResponse } from "@/types/game-insights";
 
@@ -99,6 +107,20 @@ interface DashboardData {
     totalLivePayout: string;
     totalProcessedPayout: string;
   } | null;
+}
+
+interface RaceInsightsResponse {
+  date: string;
+  sport: "NASCAR";
+  boostSlotsRemaining: number | null;
+  races: DashboardShowcaseRace[];
+  userHoldings: DashboardShowcaseRaceHolding[];
+  slateDrivers: DashboardShowcaseSlatePlayer[];
+}
+
+interface BoostEligibilityResponse {
+  eligiblePlayers: DashboardShowcaseEligiblePlayer[];
+  totalEligible: number;
 }
 
 type EffectiveGameStatus = "scheduled" | "inprogress" | "completed" | "postponed";
@@ -269,7 +291,7 @@ export default function Dashboard() {
   const isNascar = sport === "NASCAR";
 
   // NASCAR-specific query using /api/races/insights
-  const { data: raceInsights, isLoading: isLoadingRaces } = useQuery<any>({
+  const { data: raceInsights, isLoading: isLoadingRaces } = useQuery<RaceInsightsResponse>({
     queryKey: ["/api/races/insights", formattedDate],
     queryFn: async () => {
       const res = await authenticatedFetch(`/api/races/insights?date=${formattedDate}`);
@@ -296,8 +318,26 @@ export default function Dashboard() {
     refetchIntervalInBackground: false,
   });
 
+  const { data: boostEligibility } = useQuery<BoostEligibilityResponse>({
+    queryKey: ["/api/daily-boosts/eligible-all", formattedDate],
+    queryFn: async () => {
+      const res = await authenticatedFetch(`/api/daily-boosts/eligible-all?date=${formattedDate}`);
+      if (!res.ok) throw new Error("Failed to fetch boost eligibility");
+      return res.json();
+    },
+    enabled: isAuthenticated,
+    refetchInterval: isToday(selectedDate) ? 60000 : false,
+    refetchIntervalInBackground: false,
+    placeholderData: (previousData) => previousData,
+  });
+
   const games = gameInsights?.games || [];
   const races = raceInsights?.races || [];
+  const raceHoldings = raceInsights?.userHoldings || [];
+  const slatePlayers = isNascar
+    ? raceInsights?.slateDrivers || []
+    : gameInsights?.slatePlayers || [];
+  const eligiblePlayers = boostEligibility?.eligiblePlayers || [];
   const filterTabs = ["ALL", ...SPORTS.filter((sportOption) => sportOption !== "ALL")] as const;
   // Use global sport context for filtering (syncs with other pages)
   const globalSportFilter = sport === "ALL" ? "ALL" : sport;
@@ -305,27 +345,33 @@ export default function Dashboard() {
     globalSportFilter === "ALL"
       ? games
       : games.filter((game) => (game.sport || "").toUpperCase() === globalSportFilter);
+  const gameEntries: DashboardShowcaseGameEntry[] = filteredGamesBySport.map((game) => ({
+    game,
+    effectiveStatus: getEffectiveGameStatus(game),
+  }));
 
   const sortGamesByStartAsc = (a: GameInsight, b: GameInsight) =>
     new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
   const sortGamesByStartDesc = (a: GameInsight, b: GameInsight) =>
     new Date(b.startTime).getTime() - new Date(a.startTime).getTime();
-  const sortRacesByDateAsc = (a: any, b: any) =>
+  const sortRacesByDateAsc = (a: DashboardShowcaseRace, b: DashboardShowcaseRace) =>
     new Date(a.raceDate).getTime() - new Date(b.raceDate).getTime();
-  const sortRacesByDateDesc = (a: any, b: any) =>
+  const sortRacesByDateDesc = (a: DashboardShowcaseRace, b: DashboardShowcaseRace) =>
     new Date(b.raceDate).getTime() - new Date(a.raceDate).getTime();
 
-  const liveGames = filteredGamesBySport
-    .filter((game) => getEffectiveGameStatus(game) === "inprogress")
+  const liveGames = gameEntries
+    .filter((entry) => entry.effectiveStatus === "inprogress")
+    .map((entry) => entry.game)
     .sort(sortGamesByStartAsc);
-  const upcomingGames = filteredGamesBySport
-    .filter((game) => getEffectiveGameStatus(game) === "scheduled")
+  const upcomingGames = gameEntries
+    .filter((entry) => entry.effectiveStatus === "scheduled")
+    .map((entry) => entry.game)
     .sort(sortGamesByStartAsc);
-  const finalGames = filteredGamesBySport
-    .filter((game) => {
-      const status = getEffectiveGameStatus(game);
-      return status === "completed" || status === "postponed";
-    })
+  const finalGames = gameEntries
+    .filter(
+      (entry) => entry.effectiveStatus === "completed" || entry.effectiveStatus === "postponed",
+    )
+    .map((entry) => entry.game)
     .sort(sortGamesByStartDesc);
 
   // NASCAR race filtering
@@ -421,7 +467,11 @@ export default function Dashboard() {
       return { label: "--", className: "text-muted-foreground" };
     }
 
-    const amount = typeof value === "number" ? value : 0;
+    if (typeof value !== "number" || Number.isNaN(value)) {
+      return { label: "--", className: "text-muted-foreground" };
+    }
+
+    const amount = value;
     const formatter =
       Math.abs(amount) >= 1000 ? compactCurrencyFormatter : standardCurrencyFormatter;
     const absolute = formatter.format(Math.abs(amount));
@@ -500,12 +550,19 @@ export default function Dashboard() {
 
         {/* Main Dashboard Grid */}
         <div className="p-3 sm:p-4 max-w-full overflow-x-hidden space-y-4 sm:space-y-6">
-          {/* Missions Section */}
-          {isAuthenticated && (
-            <div className="mb-4">
-              <OnboardingMissions />
-            </div>
-          )}
+          <ScrollReveal delay={0.05}>
+            <DashboardShowcaseCard
+              isAuthenticated={isAuthenticated}
+              sport={sport}
+              selectedDate={selectedDate}
+              gameEntries={gameEntries}
+              slatePlayers={slatePlayers}
+              races={races}
+              raceHoldings={raceHoldings}
+              eligiblePlayers={eligiblePlayers}
+              onNavigate={(href) => setLocation(href)}
+            />
+          </ScrollReveal>
 
           {/* Mobile portfolio snapshot trigger + bottom sheet */}
           {isAuthenticated && data?.user && (
@@ -1101,6 +1158,13 @@ export default function Dashboard() {
               </CardContent>
             </Card>
           </ScrollReveal>
+
+          {/* Missions Section */}
+          {isAuthenticated && (
+            <div className="mb-1">
+              <OnboardingMissions />
+            </div>
+          )}
 
           {/* Market Scanners Carousel */}
           <ScrollReveal delay={0.15}>
