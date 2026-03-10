@@ -1,3 +1,17 @@
+## 2026-03-10 Main Admin Route Auth Hotfix
+
+- [x] Confirm `main` is fully synced before applying any direct-to-main hotfix
+- [x] Tighten stray `/api/admin/*` routes that still use `isAuthenticated` instead of `adminAuth`
+- [x] Re-run validation for the auth hotfix
+- [x] Push the hotfix to `main` to trigger Railway redeploy
+
+Review:
+
+- Synced local `main` to `origin/main` first so the hotfix sits directly on top of the merged PR `93` state that Railway missed while it was down.
+- Tightened five stray admin routes in `server/routes.ts` so they now use `adminAuth` instead of `isAuthenticated`: `/api/admin/whop/sync`, `/api/admin/premium/grant`, `/api/admin/games/cleanup-duplicates`, `/api/admin/sync/:jobName`, and `/api/admin/jobs/:jobName/trigger`.
+- Removed redundant inline admin checks where `adminAuth` now guarantees access control, and preserved token-backed admin access for premium grants and manual job triggers by using `req.adminContext` for actor metadata/logging.
+- Validation passed: `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`.
+
 ## 2026-03-09 PR 93 Review Comment Follow-Up
 
 - [x] Inspect unresolved PR `93` review threads and confirm the exact files/behaviors called out

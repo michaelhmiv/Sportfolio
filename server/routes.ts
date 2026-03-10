@@ -2768,16 +2768,8 @@ ${items}
   });
 
   // Admin endpoint to sync Whop payments for any user
-  app.post("/api/admin/whop/sync", isAuthenticated, async (req: any, res) => {
+  app.post("/api/admin/whop/sync", adminAuth, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const currentUser = await storage.getUser(userId);
-
-      // Check if user is admin
-      if (!currentUser?.isAdmin) {
-        return res.status(403).json({ error: "Admin access required" });
-      }
-
       const { email, username } = req.body;
 
       if (!email && !username) {
@@ -2827,15 +2819,18 @@ ${items}
   });
 
   // Admin endpoint to manually grant premium shares
-  app.post("/api/admin/premium/grant", isAuthenticated, async (req: any, res) => {
+  app.post("/api/admin/premium/grant", adminAuth, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const currentUser = await storage.getUser(userId);
-
-      // Check if user is admin
-      if (!currentUser?.isAdmin) {
-        return res.status(403).json({ error: "Admin access required" });
-      }
+      const adminContext = req.adminContext;
+      const adminUser = adminContext?.userId
+        ? await storage.getUser(adminContext.userId)
+        : undefined;
+      const adminLabel =
+        adminUser?.username ||
+        adminUser?.email ||
+        adminContext?.email ||
+        adminContext?.method ||
+        "admin";
 
       const { username, quantity } = req.body;
 
@@ -2871,15 +2866,16 @@ ${items}
         quantityDelta: parsedQuantity,
         metadata: {
           source: "admin_premium_grant",
-          adminUserId: currentUser.id,
-          adminUsername: currentUser.username,
-          reason: `Granted by admin ${currentUser.username}`,
+          adminUserId: adminUser?.id || adminContext?.userId,
+          adminUsername: adminUser?.username || adminContext?.email,
+          adminAuthMethod: adminContext?.method,
+          reason: `Granted by admin ${adminLabel}`,
           targetUsername: targetUser.username,
         },
       });
 
       console.log(
-        `[ADMIN] Granted ${parsedQuantity} premium shares to user ${targetUser.username} (${currentQuantity} -> ${newQuantity}) by admin ${currentUser.username}`,
+        `[ADMIN] Granted ${parsedQuantity} premium shares to user ${targetUser.username} (${currentQuantity} -> ${newQuantity}) by admin ${adminLabel}`,
       );
 
       res.json({
@@ -4532,14 +4528,8 @@ ${items}
   });
 
   // Admin endpoint to clean up duplicate game records (legacy MySportsFeeds data)
-  app.post("/api/admin/games/cleanup-duplicates", isAuthenticated, async (req: any, res) => {
+  app.post("/api/admin/games/cleanup-duplicates", adminAuth, async (req: any, res) => {
     try {
-      // Check if user is admin
-      const currentUser = await storage.getUser(req.user?.claims?.sub);
-      if (!currentUser?.isAdmin) {
-        return res.status(403).json({ error: "Admin access required" });
-      }
-
       console.log("[ADMIN] Starting duplicate game cleanup...");
 
       // Find all legacy MySportsFeeds records (gameId starting with 18447)
@@ -4612,7 +4602,7 @@ ${items}
   });
 
   // Admin endpoint to manually trigger sync jobs
-  app.post("/api/admin/sync/:jobName", isAuthenticated, async (req, res) => {
+  app.post("/api/admin/sync/:jobName", adminAuth, async (req, res) => {
     try {
       const { jobName } = req.params;
       const result = await jobScheduler.triggerJob(jobName);
@@ -10162,14 +10152,11 @@ ${items}
   });
 
   // Admin endpoint: Trigger a specific job manually (e.g., news_fetch)
-  app.post("/api/admin/jobs/:jobName/trigger", isAuthenticated, async (req, res) => {
+  app.post("/api/admin/jobs/:jobName/trigger", adminAuth, async (req, res) => {
     try {
-      const userId = getUserId(req);
-      const user = await storage.getUser(userId);
-
-      if (!user?.isAdmin) {
-        return res.status(403).json({ error: "Admin access required" });
-      }
+      const adminContext = (req as any).adminContext;
+      const adminActor =
+        adminContext?.userId || adminContext?.email || adminContext?.method || "admin";
 
       const { jobName } = req.params;
 
@@ -10179,7 +10166,7 @@ ${items}
         return res.status(400).json({ error: `Job '${jobName}' not allowed via this endpoint` });
       }
 
-      console.log(`[Admin] User ${userId} triggering job: ${jobName}`);
+      console.log(`[Admin] ${adminActor} triggering job: ${jobName}`);
 
       const result = await jobScheduler.triggerJob(jobName);
 

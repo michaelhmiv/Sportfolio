@@ -1,5 +1,9 @@
 # Lessons Learned
 
+## 2026-03-10
+
+- For direct-to-main hotfixes, sync to `main` first and do branch switches plus pulls serially; parallelizing Git state changes can create misleading merge/conflict errors even when the worktree is clean.
+
 ## 2026-03-09
 
 - When a mobile market page still needs desktop trading density, do not stack multiple pre-table summary cards; collapse them into one tabbed intel surface and keep search plus core sort/filter controls visible directly above the board.
