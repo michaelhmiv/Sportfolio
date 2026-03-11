@@ -20,6 +20,9 @@ interface WhaleAlertBannerProps {
   className?: string;
 }
 
+const WHALE_ALERT_DURATION_MS = 3000;
+const SWIPE_DISMISS_THRESHOLD = 60;
+
 function maskUsername(username: string): string {
   if (username.length <= 3) return "***";
   return username.slice(0, 2) + "***" + username.slice(-1);
@@ -56,10 +59,10 @@ export function WhaleAlertBanner({ className }: WhaleAlertBannerProps) {
       setCurrentAlert(nextAlert);
       setAlerts((prev) => prev.slice(1));
 
-      // Auto-dismiss after 5 seconds
+      // Auto-dismiss after 3 seconds
       const timer = setTimeout(() => {
         setCurrentAlert(null);
-      }, 5000);
+      }, WHALE_ALERT_DURATION_MS);
 
       return () => clearTimeout(timer);
     }
@@ -88,6 +91,14 @@ export function WhaleAlertBanner({ className }: WhaleAlertBannerProps) {
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: -20, scale: 0.95 }}
         transition={{ type: "spring", stiffness: 400, damping: 25 }}
+        drag="x"
+        dragConstraints={{ left: 0, right: 0 }}
+        dragElastic={0.2}
+        onDragEnd={(_, info) => {
+          if (Math.abs(info.offset.x) >= SWIPE_DISMISS_THRESHOLD) {
+            dismissAlert();
+          }
+        }}
         className={cn(
           "fixed top-4 left-1/2 -translate-x-1/2 z-50",
           "w-[calc(100%-2rem)] max-w-lg px-0",
@@ -105,6 +116,7 @@ export function WhaleAlertBanner({ className }: WhaleAlertBannerProps) {
               ? "border-emerald-500/50 shadow-emerald-500/20"
               : "border-red-500/50 shadow-red-500/20",
           )}
+          style={{ touchAction: "pan-y" }}
         >
           {/* Animated background wave */}
           <motion.div
@@ -241,7 +253,7 @@ export function WhaleAlertBanner({ className }: WhaleAlertBannerProps) {
             )}
             initial={{ width: "100%" }}
             animate={{ width: "0%" }}
-            transition={{ duration: 5, ease: "linear" }}
+            transition={{ duration: WHALE_ALERT_DURATION_MS / 1000, ease: "linear" }}
           />
         </div>
       </motion.div>
