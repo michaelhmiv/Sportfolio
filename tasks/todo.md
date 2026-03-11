@@ -1211,6 +1211,22 @@ Review:
 - Runtime skills are constrained macros over existing approved tools. They can be created automatically for a single user, but shared/global promotion still requires admin approval.
 - The highest-value compound regression is now handled through `preview_multi_action_bundle`, which lets Hermes decompose linked requests without bouncing into scout-biased fallback.
 
+## 2026-03-11 Production DB Migration + Supabase RLS Hardening
+
+- [x] Verify the current production Supabase schema state for the Hermes bot runtime migrations and the flagged public tables with RLS disabled
+- [x] Add an idempotent migration that enables RLS on the backend-owned public tables flagged by the Supabase linter
+- [x] Apply the pending PR migrations plus the new RLS migration to the production Supabase project and verify the resulting schema/security state
+- [x] Re-run repo validation and record any remaining operational caveats
+
+Review:
+
+- Confirmed production was missing the Hermes bot runtime schema (`bot_cycle_briefs`, `bot_run_logs`, new `bot_profiles` columns), still had legacy `player_pools` seed defaults (`1000` shares / `10000` cash / `10000000` k), and still had every Supabase-linted backend-owned public table with RLS disabled.
+- Added `migrations/0040_enable_rls_for_private_public_tables.sql` as an idempotent RLS hardening migration for the flagged backend-owned public tables, then extended it to include the newly introduced `bot_cycle_briefs` and `bot_run_logs` tables after a broader public-schema check exposed them as the next likely linter findings.
+- Applied `migrations/0037_hermes_bot_runtime.sql`, `migrations/0038_bot_runtime_diagnostics.sql`, `migrations/0039_player_pool_seed_normalization.sql`, and `migrations/0040_enable_rls_for_private_public_tables.sql` directly against the production Supabase project via the official management SQL endpoint because the locally stored direct `DATABASE_URL` password was stale while the authenticated Supabase CLI access token remained valid.
+- Verified production after apply: `bot_cycle_briefs` and `bot_run_logs` now exist, the expected bot runtime diagnostic columns are present, `player_pools` defaults are normalized to the 50k / 500k seed values, zero-trade pool repairs remain at `0`, and a full public-table RLS check now returns no tables with `relrowsecurity = false`.
+- Validation passed: `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`.
+- Operational caveat: the production DB schema is now correct, but the local `.env` `DATABASE_URL` password is stale for direct Postgres access. Future direct `pg` / `drizzle` production commands from this machine should either use a refreshed DB password from Supabase project settings or continue through the authenticated management API path.
+
 ## 2026-03-03 PR #83 CI Fix
 
 - [x] Reproduce the failing `Validate Code` check locally and confirm the exact import path
