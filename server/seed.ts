@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { users, players, vesting, holdings, dailyGames } from "@shared/schema";
+import { users, players, holdings, dailyGames } from "@shared/schema";
 
 async function seed() {
   console.log("Seeding database...");
@@ -80,20 +80,6 @@ async function seed() {
   }
 
   console.log(`Seeded ${mockPlayers.length} players`);
-
-  await db
-    .insert(vesting)
-    .values({
-      userId: user.id,
-      sharesAccumulated: 1200,
-      playerId: "lebron-james",
-    })
-    .onConflictDoUpdate({
-      target: vesting.userId,
-      set: { sharesAccumulated: 1200, playerId: "lebron-james" },
-    });
-
-  console.log("Created vesting record");
 
   const someShares = [
     { playerId: "lebron-james", quantity: 50, avgCost: "12.50" },

@@ -679,16 +679,4 @@ describe("planDirectAgentOperation", () => {
       sport: "NBA",
     });
   });
-
-  it("does not stage vesting because it is no longer in the active agent surface", async () => {
-    const { planDirectAgentOperation } = await import("./operations-planner");
-
-    const result = await planDirectAgentOperation({
-      userId: "user_1",
-      message: "claim my vesting",
-      profile,
-    });
-
-    expect(result).toBeNull();
-  });
 });

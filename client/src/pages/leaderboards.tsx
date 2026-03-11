@@ -66,7 +66,6 @@ const CATEGORY_TABS: Array<{
 
 const LEGACY_CATEGORY_ALIASES: Record<string, LeaderboardCategory> = {
   sharesMined: "tradingVolume24h",
-  sharesVested: "tradingVolume24h",
   tradingVolume: "tradingVolume24h",
   volume: "tradingVolume24h",
 };

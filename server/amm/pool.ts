@@ -24,6 +24,12 @@
 import { eq, sql, and } from "drizzle-orm";
 import { db } from "../db";
 import {
+  INITIAL_POOL_K,
+  INITIAL_POOL_PLAY_MONEY,
+  INITIAL_POOL_SHARES,
+  shouldRepairSeedLiquidity,
+} from "./pool-seed";
+import {
   playerPools,
   players,
   trades,
@@ -51,12 +57,8 @@ const LP_BOOST_THRESHOLD = 0.01;
 const MIN_HOLDING_THRESHOLD = 0.0001;
 
 // Pool initialization constants - scaled for better liquidity
-export const INITIAL_POOL_SHARES = 50000; // 50,000 shares
-export const INITIAL_POOL_PLAY_MONEY = 500000; // $500,000
+export { INITIAL_POOL_PLAY_MONEY, INITIAL_POOL_SHARES } from "./pool-seed";
 const INITIAL_POOL_PRICE = INITIAL_POOL_PLAY_MONEY / INITIAL_POOL_SHARES; // $10/share
-const LEGACY_POOL_SHARES = 1000; // Historical schema default
-const LEGACY_POOL_PLAY_MONEY = 10000; // Historical schema default
-const LEGACY_POOL_LP_SHARES = 1000; // Historical schema default
 const POOL_VALUE_EPSILON = 0.0001;
 
 // Market Maker configuration
@@ -108,27 +110,6 @@ function toPool(row: PoolRow): Pool {
 
 function approximatelyEqual(value: number, target: number): boolean {
   return Math.abs(value - target) < POOL_VALUE_EPSILON;
-}
-
-function shouldRepairSeedLiquidity(pool: PoolRow): boolean {
-  const shares = parseFloat(pool.shares);
-  const playMoney = parseFloat(pool.playMoney);
-  const lpSharesTotal = parseFloat(pool.lpSharesTotal);
-
-  const hasInvalidLiquidity =
-    !isFinite(shares) ||
-    shares <= 0 ||
-    !isFinite(playMoney) ||
-    playMoney <= 0 ||
-    !isFinite(lpSharesTotal) ||
-    lpSharesTotal <= 0;
-
-  const hasLegacyDefaults =
-    approximatelyEqual(shares, LEGACY_POOL_SHARES) &&
-    approximatelyEqual(playMoney, LEGACY_POOL_PLAY_MONEY) &&
-    approximatelyEqual(lpSharesTotal, LEGACY_POOL_LP_SHARES);
-
-  return pool.totalTrades === 0 && (hasInvalidLiquidity || hasLegacyDefaults);
 }
 
 export interface Pool {
@@ -220,6 +201,10 @@ export async function getPool(playerId: string): Promise<Pool | null> {
     return null;
   }
 
+  if (shouldRepairSeedLiquidity(pool)) {
+    return initializePool(playerId);
+  }
+
   return toPool(pool);
 }
 
@@ -254,7 +239,7 @@ export async function initializePool(playerId: string): Promise<Pool> {
         didRepairPool = true;
         playMoneyBeforeRepair = parseFloat(existingPoolRow.playMoney) || 0;
 
-        const repairedK = (INITIAL_POOL_SHARES * INITIAL_POOL_PLAY_MONEY).toFixed(2);
+        const repairedK = INITIAL_POOL_K.toFixed(2);
         await tx
           .update(playerPools)
           .set({
@@ -286,7 +271,7 @@ export async function initializePool(playerId: string): Promise<Pool> {
           `[AMM] Repaired seed liquidity for ${playerId}: ${existingPoolRow.shares} shares / $${existingPoolRow.playMoney} -> ${INITIAL_POOL_SHARES} shares / $${INITIAL_POOL_PLAY_MONEY}`,
         );
       } else {
-        const initialK = (INITIAL_POOL_SHARES * INITIAL_POOL_PLAY_MONEY).toFixed(2);
+        const initialK = INITIAL_POOL_K.toFixed(2);
         const [newPool] = await tx
           .insert(playerPools)
           .values({
@@ -634,6 +619,7 @@ export async function executeBuy(
   maxSlippage: number = MAX_SLIPPAGE_PERCENT,
 ): Promise<TradeResult> {
   console.log("[AMM] Executing buy for player:", playerId, "userId:", userId, "amount:", sbAmount);
+  await getOrCreatePool(playerId);
   return await db.transaction(async (tx) => {
     try {
       // 1. Lock the pool row to prevent race conditions

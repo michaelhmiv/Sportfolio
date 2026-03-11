@@ -1047,7 +1047,6 @@ async function buildBroadOperatorReviewPlan(
       maxScouts,
       openScoutSlots,
       communitySharesAvailable,
-      claimableVestingShares: 0,
     },
     trace: {
       framework: "deterministic-agent-operations",

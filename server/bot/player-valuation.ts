@@ -391,17 +391,6 @@ export async function getMarketMakingCandidates(
 }
 
 /**
- * Get players suitable for vesting (good value, might not have active markets)
- */
-export async function getVestingCandidates(limit: number = 10): Promise<PlayerValuation[]> {
-  return getPlayersForTrading({
-    tier: [1, 2, 3, 4], // Include more tiers for vesting
-    minGamesPlayed: 1,
-    limit,
-  });
-}
-
-/**
  * Get players with NULL lastTradePrice for cold market seeding
  * These players have never been traded and need initial price establishment
  * Returns players sorted by fairValue (prioritizes high-value players first)

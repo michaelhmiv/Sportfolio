@@ -1,11 +1,11 @@
-import { db } from "./db";
-import { users, botProfiles, vesting, vestingSplits } from "@shared/schema";
+import { botProfiles, users } from "@shared/schema";
 import { eq } from "drizzle-orm";
+import { db } from "./db";
 
 interface BotConfig {
   username: string;
   botName: string;
-  botRole: "market_maker" | "trader" | "vester" | "casual";
+  botRole: "market_maker" | "trader" | "casual" | "contest";
   balance: string;
   aggressiveness: string;
   spreadPercent: string;
@@ -13,8 +13,6 @@ interface BotConfig {
   minOrderSize: number;
   maxDailyOrders: number;
   maxDailyVolume: number;
-  vestingClaimThreshold: string;
-  maxPlayersToVest: number;
   minActionCooldownMs: number;
   maxActionCooldownMs: number;
   activeHoursStart: number;
@@ -33,8 +31,6 @@ const BOT_CONFIGS: BotConfig[] = [
     minOrderSize: 10,
     maxDailyOrders: 999999,
     maxDailyVolume: 999999,
-    vestingClaimThreshold: "0.90",
-    maxPlayersToVest: 8,
     minActionCooldownMs: 30000,
     maxActionCooldownMs: 120000,
     activeHoursStart: 6,
@@ -51,8 +47,6 @@ const BOT_CONFIGS: BotConfig[] = [
     minOrderSize: 20,
     maxDailyOrders: 999999,
     maxDailyVolume: 999999,
-    vestingClaimThreshold: "0.85",
-    maxPlayersToVest: 6,
     minActionCooldownMs: 60000,
     maxActionCooldownMs: 240000,
     activeHoursStart: 8,
@@ -69,8 +63,6 @@ const BOT_CONFIGS: BotConfig[] = [
     minOrderSize: 5,
     maxDailyOrders: 999999,
     maxDailyVolume: 999999,
-    vestingClaimThreshold: "0.80",
-    maxPlayersToVest: 4,
     minActionCooldownMs: 120000,
     maxActionCooldownMs: 600000,
     activeHoursStart: 9,
@@ -87,8 +79,6 @@ const BOT_CONFIGS: BotConfig[] = [
     minOrderSize: 10,
     maxDailyOrders: 999999,
     maxDailyVolume: 999999,
-    vestingClaimThreshold: "0.95",
-    maxPlayersToVest: 3,
     minActionCooldownMs: 20000,
     maxActionCooldownMs: 90000,
     activeHoursStart: 7,
@@ -105,8 +95,6 @@ const BOT_CONFIGS: BotConfig[] = [
     minOrderSize: 5,
     maxDailyOrders: 999999,
     maxDailyVolume: 999999,
-    vestingClaimThreshold: "0.75",
-    maxPlayersToVest: 10,
     minActionCooldownMs: 60000,
     maxActionCooldownMs: 300000,
     activeHoursStart: 10,
@@ -123,8 +111,6 @@ const BOT_CONFIGS: BotConfig[] = [
     minOrderSize: 2,
     maxDailyOrders: 999999,
     maxDailyVolume: 999999,
-    vestingClaimThreshold: "0.70",
-    maxPlayersToVest: 3,
     minActionCooldownMs: 300000,
     maxActionCooldownMs: 900000,
     activeHoursStart: 12,
@@ -141,8 +127,6 @@ const BOT_CONFIGS: BotConfig[] = [
     minOrderSize: 5,
     maxDailyOrders: 999999,
     maxDailyVolume: 999999,
-    vestingClaimThreshold: "0.85",
-    maxPlayersToVest: 5,
     minActionCooldownMs: 180000,
     maxActionCooldownMs: 600000,
     activeHoursStart: 9,
@@ -159,8 +143,6 @@ const BOT_CONFIGS: BotConfig[] = [
     minOrderSize: 50,
     maxDailyOrders: 999999,
     maxDailyVolume: 999999,
-    vestingClaimThreshold: "0.95",
-    maxPlayersToVest: 3,
     minActionCooldownMs: 600000,
     maxActionCooldownMs: 1800000,
     activeHoursStart: 10,
@@ -177,17 +159,15 @@ const BOT_CONFIGS: BotConfig[] = [
     minOrderSize: 1,
     maxDailyOrders: 999999,
     maxDailyVolume: 999999,
-    vestingClaimThreshold: "0.60",
-    maxPlayersToVest: 2,
     minActionCooldownMs: 120000,
     maxActionCooldownMs: 480000,
     activeHoursStart: 14,
     activeHoursEnd: 22,
   },
   {
-    username: "DiversifyDan",
-    botName: "Diversify Dan",
-    botRole: "vester",
+    username: "ContestSpecialist",
+    botName: "Contest Specialist",
+    botRole: "contest",
     balance: "22000.00",
     aggressiveness: "0.45",
     spreadPercent: "2.00",
@@ -195,8 +175,6 @@ const BOT_CONFIGS: BotConfig[] = [
     minOrderSize: 5,
     maxDailyOrders: 999999,
     maxDailyVolume: 999999,
-    vestingClaimThreshold: "0.80",
-    maxPlayersToVest: 10,
     minActionCooldownMs: 90000,
     maxActionCooldownMs: 360000,
     activeHoursStart: 8,
@@ -209,7 +187,6 @@ export async function seedBots(): Promise<{ created: number; skipped: number }> 
   let skipped = 0;
 
   for (const config of BOT_CONFIGS) {
-    // Check if bot already exists
     const existing = await db
       .select()
       .from(users)
@@ -222,19 +199,17 @@ export async function seedBots(): Promise<{ created: number; skipped: number }> 
       continue;
     }
 
-    // Create bot user
     const [newUser] = await db
       .insert(users)
       .values({
         username: config.username,
         balance: config.balance,
         isBot: true,
-        isPremium: true, // Bots get premium for split vesting
+        isPremium: true,
         hasSeenOnboarding: true,
       })
       .returning();
 
-    // Create bot profile
     await db.insert(botProfiles).values({
       userId: newUser.id,
       botName: config.botName,
@@ -245,19 +220,10 @@ export async function seedBots(): Promise<{ created: number; skipped: number }> 
       minOrderSize: config.minOrderSize,
       maxDailyOrders: config.maxDailyOrders,
       maxDailyVolume: config.maxDailyVolume,
-      vestingClaimThreshold: config.vestingClaimThreshold,
-      maxPlayersToVest: config.maxPlayersToVest,
       minActionCooldownMs: config.minActionCooldownMs,
       maxActionCooldownMs: config.maxActionCooldownMs,
       activeHoursStart: config.activeHoursStart,
       activeHoursEnd: config.activeHoursEnd,
-    });
-
-    // Initialize vesting record for bot
-    await db.insert(vesting).values({
-      userId: newUser.id,
-      sharesAccumulated: 0,
-      residualMs: 0,
     });
 
     console.log(`Created bot: ${config.username} (${config.botRole}) with $${config.balance}`);
@@ -267,7 +233,6 @@ export async function seedBots(): Promise<{ created: number; skipped: number }> 
   return { created, skipped };
 }
 
-// Run if executed directly
 const isMainModule = import.meta.url === `file://${process.argv[1]}`;
 if (isMainModule) {
   seedBots()

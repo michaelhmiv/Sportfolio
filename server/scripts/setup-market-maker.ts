@@ -10,14 +10,13 @@
 import { db } from "../db";
 import { eq, sql, ne } from "drizzle-orm";
 import { users, players, playerPools, holdings, lpPositions, lpTransactions } from "@shared/schema";
+import { INITIAL_POOL_K, INITIAL_POOL_PLAY_MONEY, INITIAL_POOL_SHARES } from "../amm/pool-seed";
 
 const MARKET_MAKER_ID = "market_maker";
 const MARKET_MAKER_USERNAME = "Sportfolio Market Maker";
 const MARKET_MAKER_EMAIL = "marketmaker@system.sportfolio.internal";
 const OLD_PROTOCOL_ID = "protocol_lp_owner";
 
-const INITIAL_POOL_SHARES = 50000;
-const INITIAL_POOL_PLAY_MONEY = 500000;
 const INITIAL_POOL_PRICE = INITIAL_POOL_PLAY_MONEY / INITIAL_POOL_SHARES;
 
 const MARKET_MAKER_STARTING_BALANCE = 500000000; // $500M
@@ -144,6 +143,7 @@ async function setupMarketMaker() {
               .set({
                 shares: INITIAL_POOL_SHARES.toString(),
                 playMoney: INITIAL_POOL_PLAY_MONEY.toString(),
+                k: INITIAL_POOL_K.toFixed(2),
                 lpSharesTotal: INITIAL_POOL_SHARES.toString(),
                 feesAccumulated: "0",
                 totalVolume: "0",
@@ -156,6 +156,7 @@ async function setupMarketMaker() {
               playerId: player.id,
               shares: INITIAL_POOL_SHARES.toString(),
               playMoney: INITIAL_POOL_PLAY_MONEY.toString(),
+              k: INITIAL_POOL_K.toFixed(2),
               lpSharesTotal: INITIAL_POOL_SHARES.toString(),
               feesAccumulated: "0",
               totalVolume: "0",

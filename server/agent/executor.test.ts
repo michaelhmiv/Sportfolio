@@ -389,45 +389,4 @@ describe("executeAgentActions", () => {
       gameId: "game_1",
     });
   });
-
-  it("executes a vesting claim through storage", async () => {
-    const { executeAgentActions } = await import("./executor");
-
-    await executeAgentActions("user_1", [
-      {
-        actionType: "vesting_claim",
-        playerId: "nba_star",
-        playerName: "Nikola Jokic",
-        claimableShares: 8,
-        distributionCount: 1,
-        targetDescription: "8 shares into Nikola Jokic",
-        reasoning: "test",
-        confidence: 1,
-      },
-    ] as any);
-
-    expect(storageMocks.updateHolding).toHaveBeenCalledWith(
-      "user_1",
-      "player",
-      "nba_star",
-      8,
-      "0.0000",
-    );
-    expect(storageMocks.createVestingClaim).toHaveBeenCalledWith({
-      userId: "user_1",
-      playerId: "nba_star",
-      sharesClaimed: 8,
-    });
-    expect(storageMocks.incrementTotalSharesVested).toHaveBeenCalledWith("user_1", 8);
-    expect(storageMocks.updateVesting).toHaveBeenCalled();
-    expect(websocketMocks.broadcastToUser).toHaveBeenCalledWith("user_1", {
-      type: "portfolio",
-      userId: "user_1",
-    });
-    expect(websocketMocks.broadcastToUser).toHaveBeenCalledWith("user_1", {
-      type: "vesting",
-      userId: "user_1",
-      claimed: 8,
-    });
-  });
 });

@@ -113,7 +113,7 @@ export class MySportsFeedsRateLimiter {
         const jitter = Math.random() * 1000;
         const totalDelay = Math.min(delay + jitter, 60000); // Max 60 seconds
 
-        console.warn(
+        console.log(
           `MySportsFeeds request failed (attempt ${attempt}/${maxAttempts}), retrying in ${Math.round(totalDelay)}ms...`,
           error.message,
         );

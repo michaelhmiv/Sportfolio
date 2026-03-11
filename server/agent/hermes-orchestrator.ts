@@ -275,20 +275,6 @@ function buildActionDeltaPreview(action: AgentAction): AgentConfirmationPreview 
         warnings: ["This burns one community share on confirmation."],
         riskClass: "medium",
       };
-    case "vesting_claim":
-      return {
-        ...base,
-        actionSummary: `Claim ${action.claimableShares} vested share${action.claimableShares === 1 ? "" : "s"}`,
-        beforeState: {
-          claimableShares: action.claimableShares,
-        },
-        afterState: {
-          claimableShares: 0,
-          target: action.targetDescription || null,
-        },
-        warnings: ["Claimed vesting shares post with a fresh cost basis."],
-        riskClass: "low",
-      };
     case "watchlist_add_player":
       return {
         ...base,

@@ -78,6 +78,5 @@ export const CACHE_KEYS = {
   LEADERBOARD_NET_WORTH: "leaderboard:net_worth",
   LEADERBOARD_PORTFOLIO: "leaderboard:portfolio",
   LEADERBOARD_CASH: "leaderboard:cash",
-  LEADERBOARD_VESTING: "leaderboard:vesting",
   LEADERBOARD_MARKET_ORDERS: "leaderboard:market_orders",
 } as const;

@@ -38,7 +38,6 @@ const LEADERBOARD_CATEGORY_ALIASES: Record<string, LeaderboardCategory> = {
   tradingVolume: "tradingVolume24h",
   tradingVolume24h: "tradingVolume24h",
   sharesMined: "tradingVolume24h",
-  sharesVested: "tradingVolume24h",
   marketOrders: "marketOrders",
 };
 

@@ -9,7 +9,6 @@ import {
 describe("leaderboards helpers", () => {
   it("normalizes legacy leaderboard categories", () => {
     expect(normalizeLeaderboardCategory("sharesMined")).toBe("tradingVolume24h");
-    expect(normalizeLeaderboardCategory("sharesVested")).toBe("tradingVolume24h");
     expect(normalizeLeaderboardCategory("netWorth")).toBe("netWorth");
   });
 

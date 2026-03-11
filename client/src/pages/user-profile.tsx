@@ -101,7 +101,7 @@ interface ProfileHolding {
 interface ProfileActivity {
   id: string;
   timestamp: string;
-  category: "market" | "scout" | "vesting";
+  category: "market" | "scout";
   type: string;
   description: string;
   cashDelta?: string;

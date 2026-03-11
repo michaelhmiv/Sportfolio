@@ -13,6 +13,8 @@ import type {
   AgentChannel,
   AgentModelRuntimeConfig,
   AgentSemanticRoute,
+  AgentSkillDefinition,
+  AgentToolDefinition,
   HermesRespondRequest,
   HermesRespondResult,
   ScoutAgentContext,
@@ -229,10 +231,55 @@ export async function runHermesAgentTurn(input: {
   memoryContext: HermesRespondRequest["memoryContext"];
   conversationHistory?: HermesRespondRequest["conversationHistory"];
   semanticRouteHint?: AgentSemanticRoute | null;
+  toolAllowlist?: string[];
+  toolCatalog?: AgentToolDefinition[];
+  availableSkills?: AgentSkillDefinition[];
+  autoExecutionPolicy?: HermesRespondRequest["autoExecutionPolicy"];
+  confirmationPolicy?: HermesRespondRequest["confirmationPolicy"];
+  externalResearch?: HermesRespondRequest["externalContext"]["research"];
 }): Promise<HermesRespondResult> {
   const modelRuntime = await buildModelRuntimeConfig(input.profile, input.secret);
-  const availableSkills = await listAvailableAgentSkills(input.userId);
-  const toolCatalog = getAgentToolCatalog();
+  const availableSkills = input.availableSkills || (await listAvailableAgentSkills(input.userId));
+  const toolCatalog = input.toolCatalog || getAgentToolCatalog();
+  const toolAllowlist = input.toolAllowlist || [
+    ...getDefaultHermesToolAllowlist(),
+    ...toolCatalog.map((entry) => entry.toolName),
+    "get_agent_capabilities",
+    "get_user_profile_summary",
+    "get_watchlist_items",
+    "get_player_watchlists",
+    "get_player_stats",
+    "get_daily_boost_history",
+    "get_community_boosts_all",
+    "list_pattern_candidates",
+    "preview_pool_buy",
+    "preview_pool_sell",
+    "preview_lp_add",
+    "preview_lp_add_optimal",
+    "preview_lp_remove",
+    "preview_lp_zap",
+    "preview_stack_shares",
+    "preview_daily_boost_assign",
+    "preview_daily_boost_remove",
+    "preview_watchlist_add",
+    "preview_watchlist_remove",
+    "preview_community_boost_create",
+    "preview_scout_adjustment",
+    "create_agent_thread",
+    "create_watchlist",
+    "update_watchlist",
+    "delete_watchlist",
+    "add_watchlist_player",
+    "remove_watchlist_player",
+    "upsert_user_schedule",
+    "delete_user_schedule",
+    "search_user_memories",
+    "get_user_memory_context",
+    "write_user_memory",
+    "supersede_user_memory",
+    "archive_user_memory",
+    "archive_runtime_skill",
+  ];
   const requestPayload: HermesRespondRequest = {
     userId: input.userId,
     threadId: input.threadId,
@@ -240,45 +287,7 @@ export async function runHermesAgentTurn(input: {
     message: input.message,
     requestMode: input.requestMode,
     orchestrationMode: "hermes_first",
-    toolAllowlist: [
-      ...getDefaultHermesToolAllowlist(),
-      ...toolCatalog.map((entry) => entry.toolName),
-      "get_agent_capabilities",
-      "get_user_profile_summary",
-      "get_watchlist_items",
-      "get_player_watchlists",
-      "get_player_stats",
-      "get_daily_boost_history",
-      "get_community_boosts_all",
-      "list_pattern_candidates",
-      "preview_pool_buy",
-      "preview_pool_sell",
-      "preview_lp_add",
-      "preview_lp_add_optimal",
-      "preview_lp_remove",
-      "preview_lp_zap",
-      "preview_stack_shares",
-      "preview_daily_boost_assign",
-      "preview_daily_boost_remove",
-      "preview_watchlist_add",
-      "preview_watchlist_remove",
-      "preview_community_boost_create",
-      "preview_scout_adjustment",
-      "create_agent_thread",
-      "create_watchlist",
-      "update_watchlist",
-      "delete_watchlist",
-      "add_watchlist_player",
-      "remove_watchlist_player",
-      "upsert_user_schedule",
-      "delete_user_schedule",
-      "search_user_memories",
-      "get_user_memory_context",
-      "write_user_memory",
-      "supersede_user_memory",
-      "archive_user_memory",
-      "archive_runtime_skill",
-    ],
+    toolAllowlist,
     toolCatalog,
     availableSkills,
     skillPolicy: {
@@ -286,11 +295,11 @@ export async function runHermesAgentTurn(input: {
       requireAdminApprovalForGlobalSkills: true,
     },
     memoryMode: "read_write",
-    autoExecutionPolicy: {
+    autoExecutionPolicy: input.autoExecutionPolicy || {
       allowAdvisoryJobs: true,
       allowRiskyActions: false,
     },
-    confirmationPolicy: {
+    confirmationPolicy: input.confirmationPolicy || {
       requireExplicitConfirmation: true,
       preferredChannel: input.channel,
     },
@@ -314,7 +323,7 @@ export async function runHermesAgentTurn(input: {
     memoryContext: input.memoryContext,
     externalContext: {
       canonicalKnowledge: input.context.knowledgeBrief,
-      research: [],
+      research: input.externalResearch || [],
     },
     conversationHistory: input.conversationHistory || [],
     semanticRouteHint: input.semanticRouteHint || null,

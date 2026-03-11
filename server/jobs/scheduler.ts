@@ -52,6 +52,10 @@ import type { ProgressCallback } from "../lib/admin-stream";
 import { runApiHealthCheck, toApiHealthJobResult } from "../health/api-health-check";
 import { runDueUserAgentSchedules } from "../agent/schedules";
 
+const isProduction = process.env.NODE_ENV === "production";
+const BOT_ENGINE_SCHEDULE =
+  process.env.BOT_ENGINE_SCHEDULE || (isProduction ? "*/15 * * * *" : "* * * * *");
+
 export interface JobResult {
   requestCount: number;
   recordsProcessed: number;
@@ -193,7 +197,7 @@ export class JobScheduler {
       },
       {
         name: "bot_engine",
-        schedule: "*/15 * * * *", // Every 15 minutes - run bot strategies (scout, trade, add liquidity)
+        schedule: BOT_ENGINE_SCHEDULE, // Dev defaults to every minute; production stays every 15 minutes unless overridden
         enabled: true,
         handler: async () => {
           const result = await runBotEngineTick();

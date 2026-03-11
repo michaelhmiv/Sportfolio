@@ -22,7 +22,10 @@ interface SyncResult {
   statsProcessed: number;
   gamesProcessed: number;
   errors: string[];
+  skippedMissingPlayers: number;
 }
+
+const NFL_MISSING_PLAYER_SAMPLE_LIMIT = 8;
 
 /**
  * Sync NFL stats for games occurring today and yesterday
@@ -33,6 +36,7 @@ export async function syncNFLStats(): Promise<SyncResult> {
     statsProcessed: 0,
     gamesProcessed: 0,
     errors: [],
+    skippedMissingPlayers: 0,
   };
 
   if (!isNFLApiConfigured()) {
@@ -155,6 +159,14 @@ export async function syncNFLStats(): Promise<SyncResult> {
     // Fetch stats from API
     const allApiStats = await fetchGameStats(apiGameIds);
     console.log(`[NFL Stats Sync] Fetched ${allApiStats.length} stat lines from API`);
+    const knownPlayerIds = new Set(
+      (
+        await storage.getPlayersByIds(
+          Array.from(new Set(allApiStats.map((apiStat) => createNFLPlayerId(apiStat.player.id)))),
+        )
+      ).map((player) => player.id),
+    );
+    const missingPlayerSamples = new Set<string>();
 
     // Update game scores first (independent of player stats success)
     const uniqueGames = new Map<string, (typeof allApiStats)[0]["game"]>();
@@ -199,6 +211,14 @@ export async function syncNFLStats(): Promise<SyncResult> {
     for (const apiStat of allApiStats) {
       try {
         const playerId = createNFLPlayerId(apiStat.player.id);
+        if (!knownPlayerIds.has(playerId)) {
+          result.skippedMissingPlayers++;
+          if (missingPlayerSamples.size < NFL_MISSING_PLAYER_SAMPLE_LIMIT) {
+            missingPlayerSamples.add(String(apiStat.player.id));
+          }
+          continue;
+        }
+
         const gameId = `nfl_${apiStat.game.id}`;
         const fantasyPoints = calculateNFLFantasyPoints(apiStat);
         const statsJson = parseStatsToJson(apiStat);
@@ -233,6 +253,14 @@ export async function syncNFLStats(): Promise<SyncResult> {
 
     result.success = result.errors.length === 0;
     const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+    if (result.skippedMissingPlayers > 0) {
+      console.warn(
+        `[NFL Stats Sync] Skipped ${result.skippedMissingPlayers} stat rows for players missing from the local roster` +
+          (missingPlayerSamples.size > 0
+            ? ` (sample player ids: ${Array.from(missingPlayerSamples).join(", ")})`
+            : ""),
+      );
+    }
     console.log(
       `[NFL Stats Sync] Completed in ${duration}s. Processed ${result.statsProcessed} stats across ${result.gamesProcessed} games.`,
     );

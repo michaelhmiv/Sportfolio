@@ -117,10 +117,6 @@ function buildCliActionMessage(body: any): string | null {
     return `remove ${player} from my watchlist`;
   }
 
-  if (action === "vesting_claim") {
-    return "claim my vesting shares";
-  }
-
   if (action === "community_boost") {
     if (!player) {
       return null;
@@ -261,7 +257,6 @@ export function registerCliRoutes(app: Express): void {
         }
 
         const holdings = await storage.getUserHoldingsWithPlayers(userId);
-        const vesting = await storage.getVesting(userId);
         const playerHoldings = holdings.filter(
           (entry: any) => entry.holding.assetType === "player",
         );
@@ -286,12 +281,6 @@ export function registerCliRoutes(app: Express): void {
             balance: user.balance,
             holdingCount: playerHoldings.length,
             topHoldings,
-            vesting: vesting
-              ? {
-                  sharesAccumulated: vesting.sharesAccumulated,
-                  lastAccruedAt: vesting.lastAccruedAt,
-                }
-              : null,
           },
         });
       } catch (error) {

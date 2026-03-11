@@ -418,7 +418,7 @@ function sanitizeAgentActions(value: unknown): AgentAction[] {
     return [];
   }
 
-  return value
+  const normalized = value
     .filter((entry): entry is Record<string, unknown> =>
       Boolean(entry && typeof entry === "object"),
     )
@@ -591,18 +591,7 @@ function sanitizeAgentActions(value: unknown): AgentAction[] {
                 ? entry.communitySharesAvailable
                 : undefined,
           } as const;
-        case "vesting_claim":
-          return {
-            ...base,
-            actionType,
-            claimableShares: typeof entry.claimableShares === "number" ? entry.claimableShares : 0,
-            distributionCount:
-              typeof entry.distributionCount === "number" ? entry.distributionCount : 0,
-            targetDescription:
-              typeof entry.targetDescription === "string" ? entry.targetDescription : null,
-          } as const;
         case "scout_set_count":
-        default:
           return {
             ...base,
             actionType: "scout_set_count" as const,
@@ -621,8 +610,13 @@ function sanitizeAgentActions(value: unknown): AgentAction[] {
               ? entry.riskFlags.filter((flag): flag is string => typeof flag === "string")
               : [],
           } as const;
+        default:
+          return null;
       }
-    })
+    }) as Array<AgentAction | null>;
+
+  return normalized
+    .filter((entry): entry is AgentAction => entry !== null)
     .filter((entry) => {
       if ("boostId" in entry) {
         return Boolean(entry.boostId);

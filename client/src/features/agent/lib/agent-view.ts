@@ -111,8 +111,6 @@ export function formatDomainLabel(domain: AgentActionBundle["domain"]) {
       return "Community Boosts";
     case "watchlists":
       return "Watchlists";
-    case "vesting":
-      return "Vesting";
     case "sportfolio":
       return "Sportfolio";
     case "scouting":
@@ -175,11 +173,6 @@ export function getActionMeta(action: AgentAction) {
           ? ` | ${action.communitySharesAvailable} share${action.communitySharesAvailable === 1 ? "" : "s"} ready`
           : ""
       }`;
-    case "vesting_claim":
-      return (
-        action.targetDescription ||
-        `${action.distributionCount || 0} vesting target${action.distributionCount === 1 ? "" : "s"}`
-      );
     case "scout_set_count":
     default:
       return `${action.currentCount || 0} to ${action.targetCount || 0} scouts`;
@@ -596,28 +589,6 @@ function getCommunityBoostComparisonRows(action: AgentAction): ActionComparisonR
   ];
 }
 
-function getVestingClaimComparisonRows(action: AgentAction): ActionComparisonRow[] {
-  return [
-    {
-      label: "Claimable shares",
-      current: `${formatShareCount(action.claimableShares) || `${action.claimableShares || 0} shares`} ready now`,
-      proposed: "Claimable vesting balance resets after the claim",
-    },
-    {
-      label: "Distribution target",
-      current: "Shares still sit inside vesting",
-      proposed:
-        action.targetDescription ||
-        `${action.distributionCount || 0} vesting target${action.distributionCount === 1 ? "" : "s"} credited`,
-    },
-    {
-      label: "Portfolio availability",
-      current: "Those shares are not back in active inventory yet",
-      proposed: "Claimed shares move back into your usable holdings",
-    },
-  ];
-}
-
 export function getActionComparisonRows(action: AgentAction): ActionComparisonRow[] {
   switch (action.actionType) {
     case "scout_set_count":
@@ -648,8 +619,6 @@ export function getActionComparisonRows(action: AgentAction): ActionComparisonRo
       return getWatchlistRemoveComparisonRows(action);
     case "community_boost_create":
       return getCommunityBoostComparisonRows(action);
-    case "vesting_claim":
-      return getVestingClaimComparisonRows(action);
     default:
       return [
         {

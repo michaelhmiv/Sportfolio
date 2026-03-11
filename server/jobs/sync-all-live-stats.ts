@@ -23,6 +23,7 @@ interface UnifiedResult extends JobResult {
   nflResult?: JobResult;
   mlbResult?: JobResult;
   gamesProcessed?: number;
+  skippedMissingPlayers?: number;
 }
 
 /**
@@ -44,6 +45,7 @@ export async function syncAllLiveStats(
     requestCount: 0,
     recordsProcessed: 0,
     errorCount: 0,
+    skippedMissingPlayers: 0,
   };
 
   try {
@@ -88,6 +90,9 @@ export async function syncAllLiveStats(
         result.requestCount += nbaResult.requestCount;
         result.recordsProcessed += nbaResult.recordsProcessed;
         result.errorCount += nbaResult.errorCount;
+        result.skippedMissingPlayers =
+          (result.skippedMissingPlayers || 0) +
+          Number((nbaResult as any).skippedMissingPlayers || 0);
       } catch (error: any) {
         console.error("[live_stats_sync] NBA sync failed:", error.message);
         result.errorCount++;
@@ -107,6 +112,8 @@ export async function syncAllLiveStats(
         };
         result.recordsProcessed += nflResult.statsProcessed;
         result.gamesProcessed = (result.gamesProcessed || 0) + nflResult.gamesProcessed;
+        result.skippedMissingPlayers =
+          (result.skippedMissingPlayers || 0) + Number(nflResult.skippedMissingPlayers || 0);
         if (nflResult.errors.length > 0) {
           result.errorCount += nflResult.errors.length;
         }
@@ -127,6 +134,8 @@ export async function syncAllLiveStats(
         };
         result.recordsProcessed += mlbResult.statsProcessed;
         result.gamesProcessed = (result.gamesProcessed || 0) + mlbResult.gamesProcessed;
+        result.skippedMissingPlayers =
+          (result.skippedMissingPlayers || 0) + Number(mlbResult.skippedMissingPlayers || 0);
         if (mlbResult.errors.length > 0) {
           result.errorCount += mlbResult.errors.length;
         }
@@ -151,6 +160,7 @@ export async function syncAllLiveStats(
             errors: 0,
             apiCalls: 0,
             gamesProcessed: 0,
+            skippedMissingPlayers: 0,
           },
         },
       });
@@ -159,7 +169,7 @@ export async function syncAllLiveStats(
     }
 
     console.log(
-      `[live_stats_sync] Completed: ${result.recordsProcessed} stats processed, ${result.errorCount} errors`,
+      `[live_stats_sync] Completed: ${result.recordsProcessed} stats processed, ${result.errorCount} errors, ${result.skippedMissingPlayers || 0} missing-player skips`,
     );
 
     progressCallback?.({
@@ -178,6 +188,7 @@ export async function syncAllLiveStats(
           nbaGames: nbaGames.length,
           nflGames: nflGames.length,
           mlbGames: mlbGames.length,
+          skippedMissingPlayers: result.skippedMissingPlayers || 0,
         },
       },
     });

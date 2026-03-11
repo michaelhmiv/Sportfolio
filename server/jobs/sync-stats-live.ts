@@ -31,6 +31,12 @@ import { broadcast } from "../websocket";
 import { getETDayBoundaries, getGameDay, getTodayET, getTodayETBoundaries } from "../lib/time";
 import { toZonedTime } from "date-fns-tz";
 
+const NBA_MISSING_PLAYER_SAMPLE_LIMIT = 8;
+
+interface LiveStatsJobResult extends JobResult {
+  skippedMissingPlayers: number;
+}
+
 function getLikelyLiveStatus(normalizedApiStatus: string, startTime: Date, now: Date): string {
   if (normalizedApiStatus !== "scheduled") return normalizedApiStatus;
 
@@ -47,7 +53,9 @@ function normalizeStatusFromApi(apiGame: NBAGame): string {
   return status;
 }
 
-export async function syncStatsLive(progressCallback?: ProgressCallback): Promise<JobResult> {
+export async function syncStatsLive(
+  progressCallback?: ProgressCallback,
+): Promise<LiveStatsJobResult> {
   console.log("[stats_sync_live] Starting NBA live stats sync...");
 
   progressCallback?.({
@@ -59,6 +67,8 @@ export async function syncStatsLive(progressCallback?: ProgressCallback): Promis
   let requestCount = 0;
   let recordsProcessed = 0;
   let errorCount = 0;
+  let missingPlayerSkips = 0;
+  const missingPlayerSamples = new Set<string>();
 
   const gamesToBroadcast = new Set<string>();
   let gamesUpserted = 0;
@@ -72,7 +82,12 @@ export async function syncStatsLive(progressCallback?: ProgressCallback): Promis
         message: "NBA live stats sync skipped - BALLDONTLIE_API_KEY not configured",
         data: { success: true, summary: { statsProcessed: 0, errors: 0, apiCalls: 0 } },
       });
-      return { requestCount: 0, recordsProcessed: 0, errorCount: 0 };
+      return {
+        requestCount: 0,
+        recordsProcessed: 0,
+        errorCount: 0,
+        skippedMissingPlayers: 0,
+      };
     }
 
     const now = new Date();
@@ -129,7 +144,7 @@ export async function syncStatsLive(progressCallback?: ProgressCallback): Promis
           summary: { statsProcessed: 0, errors: errorCount, apiCalls: requestCount },
         },
       });
-      return { requestCount, recordsProcessed: 0, errorCount };
+      return { requestCount, recordsProcessed: 0, errorCount, skippedMissingPlayers: 0 };
     }
 
     for (const apiGame of apiGamesById.values()) {
@@ -219,7 +234,12 @@ export async function syncStatsLive(progressCallback?: ProgressCallback): Promis
         },
       });
 
-      return { requestCount, recordsProcessed: 0, errorCount };
+      return {
+        requestCount,
+        recordsProcessed: 0,
+        errorCount,
+        skippedMissingPlayers: missingPlayerSkips,
+      };
     }
 
     console.log(`[stats_sync_live] Found ${activeGames.length} active NBA games to process`);
@@ -256,9 +276,25 @@ export async function syncStatsLive(progressCallback?: ProgressCallback): Promis
         }
 
         const { startOfDay } = getETDayBoundaries(game.gameDay);
+        const knownPlayerIds = new Set(
+          (
+            await storage.getPlayersByIds(
+              Array.from(new Set(stats.map((stat) => createNBAPlayerId(stat.player.id)))),
+            )
+          ).map((player) => player.id),
+        );
 
         for (const stat of stats) {
           try {
+            const playerId = createNBAPlayerId(stat.player.id);
+            if (!knownPlayerIds.has(playerId)) {
+              missingPlayerSkips++;
+              if (missingPlayerSamples.size < NBA_MISSING_PLAYER_SAMPLE_LIMIT) {
+                missingPlayerSamples.add(String(stat.player.id));
+              }
+              continue;
+            }
+
             const points = stat.pts || 0;
             const rebounds = stat.reb || 0;
             const assists = stat.ast || 0;
@@ -276,7 +312,7 @@ export async function syncStatsLive(progressCallback?: ProgressCallback): Promis
             const minutes = stat.min ? parseInt(stat.min) : 0;
 
             await storage.upsertPlayerGameStats({
-              playerId: createNBAPlayerId(stat.player.id),
+              playerId,
               gameId: game.gameId,
               sport: "NBA",
               gameDate: startOfDay,
@@ -340,6 +376,20 @@ export async function syncStatsLive(progressCallback?: ProgressCallback): Promis
       }
     }
 
+    if (missingPlayerSkips > 0) {
+      const warning =
+        `[stats_sync_live] Skipped ${missingPlayerSkips} NBA stat rows for players missing from the local roster` +
+        (missingPlayerSamples.size > 0
+          ? ` (sample player ids: ${Array.from(missingPlayerSamples).join(", ")})`
+          : "");
+      console.log(warning);
+      progressCallback?.({
+        type: "warning",
+        timestamp: new Date().toISOString(),
+        message: warning,
+      });
+    }
+
     console.log(
       `[stats_sync_live] Completed: ${recordsProcessed} player stat lines, ${errorCount} errors (active games: ${activeGames.length})`,
     );
@@ -361,11 +411,17 @@ export async function syncStatsLive(progressCallback?: ProgressCallback): Promis
           gamesUpserted,
           scoreOrStatusUpdates,
           broadcasts: gamesToBroadcast.size,
+          skippedMissingPlayers: missingPlayerSkips,
         },
       },
     });
 
-    return { requestCount, recordsProcessed, errorCount };
+    return {
+      requestCount,
+      recordsProcessed,
+      errorCount,
+      skippedMissingPlayers: missingPlayerSkips,
+    };
   } catch (error: any) {
     console.error("[stats_sync_live] Fatal failure:", error?.message || error);
 
@@ -390,6 +446,11 @@ export async function syncStatsLive(progressCallback?: ProgressCallback): Promis
       },
     });
 
-    return { requestCount, recordsProcessed, errorCount: errorCount + 1 };
+    return {
+      requestCount,
+      recordsProcessed,
+      errorCount: errorCount + 1,
+      skippedMissingPlayers: missingPlayerSkips,
+    };
   }
 }

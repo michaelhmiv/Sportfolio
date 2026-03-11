@@ -480,7 +480,6 @@ export async function loadScoutAgentContext(
       communitySharesAvailable,
       activeDailyBoostSlots,
       openDailyBoostSlots,
-      claimableVestingShares: 0,
       topHoldings,
       nextBestLevers,
     },

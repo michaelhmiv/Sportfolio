@@ -43,10 +43,10 @@ import {
   USER_ACTIVITY_CATEGORIES,
   type UserActivityCategory,
 } from "@shared/activity-feed";
+import { getMarketplaceGameStatus, hasGameStartedForBoost } from "@shared/game-status";
 import { sql, eq, desc, and, gte, lte, inArray, lt, like, or } from "drizzle-orm";
 import { jobScheduler } from "./jobs/scheduler";
 import { addClient, removeClient, broadcast, getWebSocketStats } from "./websocket";
-import { calculateAccrualUpdate } from "@shared/vesting-utils";
 import { setupAuth, isAuthenticated, optionalAuth } from "./supabaseAuth";
 import { getGameDay, getETDayBoundaries, getTodayETBoundaries, getTodayET } from "./lib/time";
 import { getPerformanceEarningUnits } from "./lib/performance-earnings";
@@ -95,7 +95,6 @@ import {
 import { getManagedProviderModelCatalog } from "./agent/model-catalog";
 import { isManagedProviderKey } from "./agent/provider-registry";
 import { ensureAgentSemanticSchema } from "./agent/semantic-router";
-import { claimVestingShares as claimAgentVestingShares } from "./agent/vesting-claim";
 import { ensureUserApiTokenSchema } from "./api-token-auth";
 import {
   buildLeaderboardWindow,
@@ -105,6 +104,8 @@ import {
   type LeaderboardCategory,
   type LeaderboardEntry,
 } from "./leaderboards";
+import { getBotStats, runBotEngineTick } from "./bot/bot-engine";
+import { getHermesBotRuntimeStatus } from "./bot/runtime";
 
 const SUPPORTED_SPORTS = ["NBA", "NFL", "MLB", "NASCAR"] as const;
 const LEGACY_POOL_SHARES = 1000;
@@ -126,50 +127,6 @@ function toNumber(value: string | number | null | undefined): number {
 
 function roundToTwo(value: number): number {
   return Math.round(value * 100) / 100;
-}
-
-function getMarketplaceGameStatus(
-  game: Pick<DailyGame, "status" | "startTime"> | undefined,
-): "none" | "upcoming" | "live" | "ended" {
-  if (!game) {
-    return "none";
-  }
-
-  const normalizedStatus = String(game.status || "")
-    .trim()
-    .toLowerCase();
-  const now = new Date();
-  const startTime = new Date(game.startTime);
-  const timeSinceStart = now.getTime() - startTime.getTime();
-  const threeHoursMs = 3 * 60 * 60 * 1000;
-
-  if (
-    normalizedStatus === "postponed" ||
-    normalizedStatus === "cancelled" ||
-    normalizedStatus === "canceled" ||
-    normalizedStatus === "delayed" ||
-    normalizedStatus === "suspended"
-  ) {
-    return "none";
-  }
-
-  if (normalizedStatus === "completed" || normalizedStatus === "ended") {
-    return "ended";
-  }
-
-  if (normalizedStatus === "inprogress") {
-    return "live";
-  }
-
-  if (normalizedStatus === "scheduled" && timeSinceStart > 0 && timeSinceStart < threeHoursMs) {
-    return "live";
-  }
-
-  if (normalizedStatus === "scheduled" && timeSinceStart >= threeHoursMs) {
-    return "ended";
-  }
-
-  return "upcoming";
 }
 
 /**
@@ -2012,69 +1969,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     };
   }
 
-  // Helper: Accrue vesting shares based on elapsed time
-  async function accrueVestingShares(userId: string) {
-    const user = await storage.getUser(userId);
-    if (!user) return;
-
-    const vestingData = await storage.getVesting(userId);
-    if (!vestingData) return;
-
-    const now = new Date();
-    // Premium users get double rate (200 shares/hour) and double cap (4800)
-    const isPremium = user.isPremium || false;
-    const capLimit = isPremium ? 4800 : 2400;
-    const totalSharesPerHour = isPremium ? 200 : 100;
-
-    // If already at cap, don't accrue more - clear residual time
-    if (vestingData.sharesAccumulated >= capLimit) {
-      if (!vestingData.capReachedAt || vestingData.residualMs !== 0) {
-        await storage.updateVesting(userId, {
-          capReachedAt: now,
-          residualMs: 0,
-          updatedAt: now,
-        });
-      }
-      return;
-    }
-
-    // Initialize lastAccruedAt if missing (fallback to updatedAt or now)
-    const effectiveLastAccruedAt = vestingData.lastAccruedAt || vestingData.updatedAt || now;
-
-    // If we had to initialize, update the database immediately
-    if (!vestingData.lastAccruedAt) {
-      await storage.updateVesting(userId, {
-        lastAccruedAt: effectiveLastAccruedAt,
-        updatedAt: now,
-      });
-    }
-
-    // Use shared utility to calculate accrual update
-    const update = calculateAccrualUpdate(
-      {
-        sharesAccumulated: vestingData.sharesAccumulated,
-        residualMs: vestingData.residualMs || 0,
-        lastAccruedAt: effectiveLastAccruedAt,
-        sharesPerHour: totalSharesPerHour,
-        capLimit,
-      },
-      now,
-    );
-
-    // Only update if shares were actually earned
-    const sharesEarned = update.sharesAccumulated - vestingData.sharesAccumulated;
-    if (sharesEarned > 0) {
-      await storage.updateVesting(userId, {
-        sharesAccumulated: update.sharesAccumulated,
-        residualMs: update.residualMs,
-        lastAccruedAt: update.lastAccruedAt,
-        updatedAt: now,
-        capReachedAt: update.capReached ? now : null,
-      });
-    }
-    // If no shares earned yet, DON'T update anything - leave baseline unchanged
-  }
-
   // Helper: Sync Whop payments for a user and credit premium shares
   async function syncWhopPaymentsForUser(
     userId: string,
@@ -2699,14 +2593,10 @@ ${items}
         `[AUTH:USER] Authenticated user: ${user?.username} (${userId.substring(0, 8)}...)`,
       );
 
-      // Return user data immediately - don't block on Whop sync or vesting
+      // Return user data immediately - don't block on background sync work
       res.json(user);
 
-      // Fire-and-forget: Trigger vesting accrual in background on login
       if (user) {
-        accrueVestingShares(userId).catch((err) =>
-          console.error("[Vesting] Login accrual error:", err),
-        );
         // Scout Engine: Update activity timestamp for 24h kill-switch
         storage
           .updateLastActive(userId)
@@ -2935,7 +2825,6 @@ ${items}
         return res.json({
           user: null, // No user data for anonymous visitors
           hotPlayers,
-          vesting: null,
           recentTrades: recentTrades.map((trade) => ({
             ...trade,
             player: playerMap.get(trade.playerId),
@@ -2953,17 +2842,9 @@ ${items}
         return res.status(404).json({ error: "User not found" });
       }
 
-      // Accrue vesting shares in background (fire-and-forget for dashboard speed)
-      // Vesting is also triggered by: cron job, vesting modal, claim, redeem, login
-      accrueVestingShares(user.id).catch((err) =>
-        console.error("[Vesting] Background accrual error:", err),
-      );
-
       // Fetch user-specific data in parallel
-      const [userHoldings, vestingData, vestingSplits, boostsData] = await Promise.all([
+      const [userHoldings, boostsData] = await Promise.all([
         storage.getUserHoldings(user.id),
-        storage.getVesting(user.id),
-        storage.getVestingSplits(user.id),
         getDashboardBoostData(user.id),
       ]);
 
@@ -2977,10 +2858,6 @@ ${items}
 
       // Add recent trades player IDs
       recentTrades.forEach((t) => playerIds.add(t.playerId));
-
-      // Add vesting player IDs
-      if (vestingData?.playerId) playerIds.add(vestingData.playerId);
-      vestingSplits.forEach((s) => playerIds.add(s.playerId));
 
       // Parallel fetch: players, ranks, yesterday's snapshot, and current ranking data
       const yesterday = new Date();
@@ -3041,21 +2918,6 @@ ${items}
         if (b.value === null) return -1;
         return parseFloat(b.value) - parseFloat(a.value);
       });
-
-      // Get vesting data using pre-fetched players
-      let vestingPlayer = undefined;
-      let vestingPlayers: Array<{ player: Player | undefined; sharesPerHour: number }> = [];
-
-      if (vestingSplits.length > 0) {
-        // Multi-player vesting
-        vestingPlayers = vestingSplits.map((split) => ({
-          player: playerMap.get(split.playerId),
-          sharesPerHour: split.sharesPerHour,
-        }));
-      } else if (vestingData?.playerId) {
-        // Legacy single-player vesting
-        vestingPlayer = playerMap.get(vestingData.playerId);
-      }
 
       // Get ranks from cached snapshot or calculate real-time
       const cachedRank = latestRanks.get(user.id);
@@ -3252,15 +3114,6 @@ ${items}
           change30d: netWorthChanges.change30d,
         },
         hotPlayers,
-        vesting: vestingData
-          ? {
-              ...vestingData,
-              player: vestingPlayer,
-              players: vestingPlayers,
-              capLimit: user.isPremium ? 4800 : 2400,
-              sharesPerHour: user.isPremium ? 200 : 100,
-            }
-          : null,
         boosts: boostsData,
         recentTrades: recentTrades.map((trade) => ({
           ...trade,
@@ -5832,574 +5685,6 @@ ${items}
     }
   });
 
-  // Get vesting status with fresh accrual (for vesting modal)
-  app.get("/api/vesting/status", isAuthenticated, async (req, res) => {
-    try {
-      const userId = getUserId(req);
-      const user = await storage.getUser(userId);
-      if (!user) {
-        return res.status(404).json({ error: "User not found" });
-      }
-
-      // Trigger fresh accrual calculation
-      await accrueVestingShares(userId);
-
-      // Fetch updated vesting data
-      const [vestingData, vestingSplits] = await Promise.all([
-        storage.getVesting(userId),
-        storage.getVestingSplits(userId),
-      ]);
-
-      // Get player data for splits
-      const playerIds = new Set<string>();
-      if (vestingData?.playerId) playerIds.add(vestingData.playerId);
-      vestingSplits.forEach((s) => playerIds.add(s.playerId));
-
-      const players = await storage.getPlayersByIds(Array.from(playerIds));
-      const playerMap = new Map(players.map((p) => [p.id, p]));
-
-      const isPremiumUser = user.premiumExpiresAt && user.premiumExpiresAt > new Date();
-
-      res.json({
-        vesting: vestingData
-          ? {
-              ...vestingData,
-              player: vestingData.playerId ? playerMap.get(vestingData.playerId) : null,
-              splits: vestingSplits.map((s) => ({
-                ...s,
-                player: playerMap.get(s.playerId),
-              })),
-              sharesPerHour: isPremiumUser ? 200 : 100,
-              capLimit: isPremiumUser ? 4800 : 2400,
-            }
-          : null,
-      });
-    } catch (error: any) {
-      console.error("Error fetching vesting status:", error);
-      res.status(500).json({ error: "Failed to fetch vesting status" });
-    }
-  });
-
-  // Start/select vesting for player(s)
-  app.post("/api/vesting/start", isAuthenticated, async (req, res) => {
-    try {
-      const userId = getUserId(req);
-      const user = await storage.getUser(userId);
-      if (!user) {
-        return res.status(404).json({ error: "User not found" });
-      }
-      const { playerIds } = req.body; // Array of player IDs (1-10)
-
-      if (!playerIds || !Array.isArray(playerIds) || playerIds.length === 0) {
-        return res.status(400).json({ error: "playerIds array required (1-10 players)" });
-      }
-
-      if (playerIds.length > 10) {
-        return res.status(400).json({ error: "Maximum 10 players allowed" });
-      }
-
-      // PERFORMANCE OPTIMIZATION: Batch fetch all players in ONE query instead of N queries
-      const playersArray = await storage.getPlayersByIds(playerIds);
-
-      // Validate all players exist and are eligible
-      if (playersArray.length !== playerIds.length) {
-        const foundIds = new Set(playersArray.map((p) => p.id));
-        const missingId = playerIds.find((id) => !foundIds.has(id));
-        return res.status(404).json({ error: `Player ${missingId} not found` });
-      }
-
-      for (const player of playersArray) {
-        if (!player.isEligibleForVesting) {
-          return res
-            .status(400)
-            .json({ error: `${player.firstName} ${player.lastName} is not eligible for vesting` });
-        }
-      }
-
-      const players = playersArray;
-
-      // AUTO-CLAIM: Check if user has unclaimed shares and claim them automatically
-      await accrueVestingShares(user.id);
-      const currentVesting = await storage.getVesting(user.id);
-      let claimedData = null;
-
-      if (currentVesting && currentVesting.sharesAccumulated > 0) {
-        const totalAccumulated = currentVesting.sharesAccumulated;
-        const splits = await storage.getVestingSplits(user.id);
-        const usingSplits = splits.length > 0;
-
-        if (usingSplits) {
-          // Multi-player vesting: distribute shares proportionally
-          const totalRate = 100;
-          const claimedPlayers = [];
-          let totalDistributed = 0;
-
-          const distributions = splits.map((split) => {
-            const proportion = split.sharesPerHour / totalRate;
-            const shares = Math.floor(proportion * totalAccumulated);
-            return { ...split, shares };
-          });
-
-          // Distribute remainder deterministically
-          const remainder = totalAccumulated - distributions.reduce((sum, d) => sum + d.shares, 0);
-          const sortedByRate = [...distributions].sort((a, b) => b.sharesPerHour - a.sharesPerHour);
-          for (let i = 0; i < remainder; i++) {
-            sortedByRate[i].shares += 1;
-          }
-
-          // PERFORMANCE OPTIMIZATION: Batch fetch players and holdings in parallel
-          const playerIdsForClaim = distributions
-            .filter((d) => d.shares > 0)
-            .map((d) => d.playerId);
-          const [claimPlayers, claimHoldings] = await Promise.all([
-            storage.getPlayersByIds(playerIdsForClaim),
-            storage.getBatchHoldings(user.id, "player", playerIdsForClaim),
-          ]);
-
-          // Create lookup maps for fast access
-          const playersMap = new Map(claimPlayers.map((p) => [p.id, p]));
-
-          // Add shares to holdings for each player
-          for (const dist of distributions) {
-            if (dist.shares === 0) continue;
-
-            const player = playersMap.get(dist.playerId);
-            if (!player) continue;
-
-            const holding = claimHoldings.get(dist.playerId);
-            if (holding) {
-              const newQuantity = parseFloat(holding.quantity) + dist.shares;
-              const newTotalCost = parseFloat(holding.totalCostBasis);
-              const newAvgCost = newTotalCost / newQuantity;
-              await storage.updateHolding(
-                user.id,
-                "player",
-                dist.playerId,
-                newQuantity,
-                newAvgCost.toFixed(4),
-              );
-            } else {
-              await storage.updateHolding(user.id, "player", dist.playerId, dist.shares, "0.0000");
-            }
-
-            await storage.createVestingClaim({
-              userId: user.id,
-              playerId: dist.playerId,
-              sharesClaimed: dist.shares,
-            });
-
-            claimedPlayers.push({
-              playerId: dist.playerId,
-              playerName: `${player.firstName} ${player.lastName}`,
-              sharesClaimed: dist.shares,
-            });
-            totalDistributed += dist.shares;
-          }
-
-          await storage.incrementTotalSharesVested(user.id, totalDistributed);
-          claimedData = { players: claimedPlayers, totalSharesClaimed: totalDistributed };
-        } else {
-          // Legacy single-player vesting - use batched queries for consistency
-          if (currentVesting.playerId) {
-            const [players, holdings] = await Promise.all([
-              storage.getPlayersByIds([currentVesting.playerId]),
-              storage.getBatchHoldings(user.id, "player", [currentVesting.playerId]),
-            ]);
-
-            const player = players[0];
-            if (player) {
-              const holding = holdings.get(currentVesting.playerId);
-              if (holding) {
-                const newQuantity = parseFloat(holding.quantity) + currentVesting.sharesAccumulated;
-                const newTotalCost = parseFloat(holding.totalCostBasis);
-                const newAvgCost = newTotalCost / newQuantity;
-                await storage.updateHolding(
-                  user.id,
-                  "player",
-                  currentVesting.playerId,
-                  newQuantity,
-                  newAvgCost.toFixed(4),
-                );
-              } else {
-                await storage.updateHolding(
-                  user.id,
-                  "player",
-                  currentVesting.playerId,
-                  currentVesting.sharesAccumulated,
-                  "0.0000",
-                );
-              }
-
-              await storage.incrementTotalSharesVested(user.id, currentVesting.sharesAccumulated);
-              await storage.createVestingClaim({
-                userId: user.id,
-                playerId: currentVesting.playerId,
-                sharesClaimed: currentVesting.sharesAccumulated,
-              });
-
-              claimedData = {
-                sharesClaimed: currentVesting.sharesAccumulated,
-                player,
-              };
-            }
-          }
-        }
-
-        broadcast({ type: "portfolio", userId: user.id });
-        broadcast({ type: "vesting", userId: user.id, claimed: totalAccumulated });
-      }
-
-      // Calculate shares per hour for each player (equal distribution)
-      const totalRate = 100;
-      const baseSharesPerHour = Math.floor(totalRate / playerIds.length);
-      const remainder = totalRate % playerIds.length;
-
-      // Create new splits
-      const newSplits = playerIds.map((playerId, index) => ({
-        userId: user.id,
-        playerId,
-        // Distribute remainder to first N players
-        sharesPerHour: baseSharesPerHour + (index < remainder ? 1 : 0),
-      }));
-
-      // Update vesting state: clear playerId (using splits now), reset timestamps
-      const now = new Date();
-      await storage.setVestingSplits(user.id, newSplits);
-      await storage.updateVesting(user.id, {
-        playerId: null, // Clear single player ID since using splits
-        sharesAccumulated: 0,
-        residualMs: 0,
-        lastAccruedAt: now,
-        lastClaimedAt: null,
-        capReachedAt: null,
-        updatedAt: now,
-      });
-
-      broadcast({ type: "vesting", userId: user.id, playerIds });
-
-      res.json({
-        success: true,
-        players,
-        splits: newSplits,
-        claimed: claimedData, // Include auto-claim data if shares were claimed
-      });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // Vesting claim
-  app.post("/api/vesting/claim", isAuthenticated, async (req, res) => {
-    try {
-      const userId = getUserId(req);
-      const user = await storage.getUser(userId);
-      if (!user) {
-        return res.status(404).json({ error: "User not found" });
-      }
-
-      let claim;
-      try {
-        claim = await claimAgentVestingShares(user.id);
-      } catch (error: any) {
-        if (String(error?.message || "") === "No shares to claim") {
-          return res.status(400).json({ error: "No shares to claim" });
-        }
-        throw error;
-      }
-
-      if (!claim.usingSplits) {
-        const player = await storage.getPlayer(claim.primaryPlayerId);
-        if (!player) {
-          return res.status(400).json({ error: "Player not found" });
-        }
-
-        return res.json({
-          success: true,
-          sharesClaimed: claim.claimableShares,
-          player,
-        });
-      }
-
-      res.json({
-        success: true,
-        totalSharesClaimed: claim.claimableShares,
-        players: claim.distributions.map((distribution) => ({
-          playerId: distribution.playerId,
-          playerName: distribution.playerName || distribution.playerId,
-          sharesClaimed: distribution.shares,
-        })),
-      });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // NEW: Pool-based vesting redeem endpoint
-  // Users choose which players to assign their pooled shares to
-  app.post("/api/vesting/redeem", isAuthenticated, async (req, res) => {
-    try {
-      const userId = getUserId(req);
-      const user = await storage.getUser(userId);
-      if (!user) {
-        return res.status(404).json({ error: "User not found" });
-      }
-
-      // Accrue any final shares before redeeming
-      await accrueVestingShares(user.id);
-
-      const vestingData = await storage.getVesting(user.id);
-      if (!vestingData || vestingData.sharesAccumulated === 0) {
-        return res.status(400).json({ error: "No shares to redeem" });
-      }
-
-      // distributions: [{ playerId: string, shares: number }, ...]
-      const { distributions } = req.body;
-
-      if (!distributions || !Array.isArray(distributions) || distributions.length === 0) {
-        return res.status(400).json({ error: "distributions array required" });
-      }
-
-      // Validate total shares don't exceed available
-      const totalRequested = distributions.reduce(
-        (sum: number, d: any) => sum + (d.shares || 0),
-        0,
-      );
-      if (totalRequested > vestingData.sharesAccumulated) {
-        return res.status(400).json({
-          error: `Cannot redeem ${totalRequested} shares. Only ${vestingData.sharesAccumulated} available.`,
-        });
-      }
-
-      if (totalRequested === 0) {
-        return res.status(400).json({ error: "Must redeem at least 1 share" });
-      }
-
-      // Validate all players exist and get their data
-      const playerIds = distributions.map((d: any) => d.playerId);
-      const playersData = await storage.getPlayersByIds(playerIds);
-      const playerMap = new Map(playersData.map((p) => [p.id, p]));
-
-      for (const dist of distributions) {
-        if (!playerMap.has(dist.playerId)) {
-          return res.status(400).json({ error: `Player ${dist.playerId} not found` });
-        }
-        if (!Number.isInteger(dist.shares) || dist.shares < 0) {
-          return res.status(400).json({ error: "Shares must be non-negative integers" });
-        }
-      }
-
-      // Get existing holdings for batch update
-      const existingHoldings = await storage.getBatchHoldings(user.id, "player", playerIds);
-      const redeemedPlayers = [];
-      let totalRedeemed = 0;
-
-      // Distribute shares to players
-      for (const dist of distributions) {
-        if (dist.shares === 0) continue;
-
-        const player = playerMap.get(dist.playerId);
-        const holding = existingHoldings.get(dist.playerId);
-
-        if (holding) {
-          const newQuantity = parseFloat(holding.quantity) + dist.shares;
-          const newTotalCost = parseFloat(holding.totalCostBasis); // Vested shares have $0 cost
-          const newAvgCost = newQuantity > 0 ? newTotalCost / newQuantity : 0;
-          await storage.updateHolding(
-            user.id,
-            "player",
-            dist.playerId,
-            newQuantity,
-            newAvgCost.toFixed(4),
-          );
-        } else {
-          await storage.updateHolding(user.id, "player", dist.playerId, dist.shares, "0.0000");
-        }
-
-        // Record claim for activity timeline
-        await storage.createVestingClaim({
-          userId: user.id,
-          playerId: dist.playerId,
-          sharesClaimed: dist.shares,
-        });
-
-        redeemedPlayers.push({
-          playerId: dist.playerId,
-          playerName: `${player!.firstName} ${player!.lastName}`,
-          sharesRedeemed: dist.shares,
-        });
-        totalRedeemed += dist.shares;
-      }
-
-      // Increment total shares mined counter
-      await storage.incrementTotalSharesVested(user.id, totalRedeemed);
-
-      // Update vesting - subtract redeemed shares, keep remaining in pool
-      // CRITICAL: Reset lastAccruedAt to prevent frontend from projecting phantom shares
-      const now = new Date();
-      const remainingShares = vestingData.sharesAccumulated - totalRedeemed;
-      await storage.updateVesting(user.id, {
-        sharesAccumulated: remainingShares,
-        lastClaimedAt: now,
-        updatedAt: now,
-        // Reset accrual baseline so frontend projections start fresh
-        lastAccruedAt: now,
-        // Only reset residualMs on full redemption - preserve fractional progress for partial redemptions
-        residualMs: remainingShares === 0 ? 0 : vestingData.residualMs,
-        // Only clear cap if we have room now
-        capReachedAt:
-          remainingShares < (user.isPremium ? 4800 : 2400) ? null : vestingData.capReachedAt,
-      });
-
-      broadcast({ type: "portfolio", userId: user.id });
-      broadcast({
-        type: "vesting",
-        userId: user.id,
-        redeemed: totalRedeemed,
-        remaining: remainingShares,
-      });
-
-      res.json({
-        success: true,
-        totalSharesRedeemed: totalRedeemed,
-        remainingShares,
-        players: redeemedPlayers,
-      });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // Vesting presets CRUD
-  app.get("/api/vesting/presets", isAuthenticated, async (req, res) => {
-    try {
-      const userId = getUserId(req);
-      const presets = await storage.getVestingPresets(userId);
-
-      // Enrich with player data
-      const allPlayerIds = Array.from(new Set(presets.flatMap((p) => p.playerIds)));
-      const players = await storage.getPlayersByIds(allPlayerIds);
-      const playerMap = new Map(players.map((p) => [p.id, p]));
-
-      const enrichedPresets = presets.map((preset) => ({
-        ...preset,
-        players: preset.playerIds.map((id) => playerMap.get(id)).filter(Boolean),
-      }));
-
-      res.json({ presets: enrichedPresets });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  app.post("/api/vesting/presets", isAuthenticated, async (req, res) => {
-    try {
-      const userId = getUserId(req);
-      const { name, playerIds } = req.body;
-
-      if (!name || typeof name !== "string" || name.trim().length === 0) {
-        return res.status(400).json({ error: "Preset name required" });
-      }
-
-      if (!playerIds || !Array.isArray(playerIds) || playerIds.length === 0) {
-        return res.status(400).json({ error: "At least one player required" });
-      }
-
-      if (playerIds.length > 20) {
-        return res.status(400).json({ error: "Maximum 20 players per preset" });
-      }
-
-      // Check preset limit
-      const existingCount = await storage.countVestingPresets(userId);
-      if (existingCount >= 20) {
-        return res.status(400).json({ error: "Maximum 20 presets allowed" });
-      }
-
-      // Validate all players exist
-      const players = await storage.getPlayersByIds(playerIds);
-      if (players.length !== playerIds.length) {
-        return res.status(400).json({ error: "One or more players not found" });
-      }
-
-      const preset = await storage.createVestingPreset({
-        userId,
-        name: name.trim(),
-        playerIds,
-      });
-
-      res.json({
-        preset: {
-          ...preset,
-          players,
-        },
-      });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  app.put("/api/vesting/presets/:id", isAuthenticated, async (req, res) => {
-    try {
-      const userId = getUserId(req);
-      const presetId = req.params.id;
-      const { name, playerIds } = req.body;
-
-      const existing = await storage.getVestingPreset(presetId);
-      if (!existing || existing.userId !== userId) {
-        return res.status(404).json({ error: "Preset not found" });
-      }
-
-      const updates: any = {};
-      if (name && typeof name === "string") {
-        updates.name = name.trim();
-      }
-      if (playerIds && Array.isArray(playerIds)) {
-        if (playerIds.length === 0) {
-          return res.status(400).json({ error: "At least one player required" });
-        }
-        if (playerIds.length > 20) {
-          return res.status(400).json({ error: "Maximum 20 players per preset" });
-        }
-        const players = await storage.getPlayersByIds(playerIds);
-        if (players.length !== playerIds.length) {
-          return res.status(400).json({ error: "One or more players not found" });
-        }
-        updates.playerIds = playerIds;
-      }
-
-      const updated = await storage.updateVestingPreset(presetId, updates);
-      if (!updated) {
-        return res.status(500).json({ error: "Failed to update preset" });
-      }
-
-      const players = await storage.getPlayersByIds(updated.playerIds);
-      res.json({
-        preset: {
-          ...updated,
-          players,
-        },
-      });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  app.delete("/api/vesting/presets/:id", isAuthenticated, async (req, res) => {
-    try {
-      const userId = getUserId(req);
-      const presetId = req.params.id;
-
-      const existing = await storage.getVestingPreset(presetId);
-      if (!existing || existing.userId !== userId) {
-        return res.status(404).json({ error: "Preset not found" });
-      }
-
-      const deleted = await storage.deleteVestingPreset(presetId);
-      res.json({ success: deleted });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
   // =====================
   // Scout Engine API Routes
   // =====================
@@ -8868,7 +8153,12 @@ ${items}
             sql`(
               CAST(${playerPools.shares} AS numeric) <= 0
               OR CAST(${playerPools.playMoney} AS numeric) <= 0
+              OR CAST(${playerPools.k} AS numeric) <= 0
               OR CAST(${playerPools.lpSharesTotal} AS numeric) <= 0
+              OR ABS(
+                (CAST(${playerPools.shares} AS numeric) * CAST(${playerPools.playMoney} AS numeric))
+                - CAST(${playerPools.k} AS numeric)
+              ) > 0.01
               OR (
                 CAST(${playerPools.shares} AS numeric) = ${LEGACY_POOL_SHARES}
                 AND CAST(${playerPools.playMoney} AS numeric) = ${LEGACY_POOL_PLAY_MONEY}
@@ -9652,16 +8942,40 @@ ${items}
 
   // Admin endpoint: Bot statistics and recent actions
   app.get("/api/admin/bots", adminAuth, async (_req, res) => {
-    return res.status(410).json({
-      error: "Bot order-book engine is archived. AMM player market has no bot trigger endpoint.",
-    });
+    try {
+      const [stats, runtimeStatus] = await Promise.all([
+        getBotStats(),
+        getHermesBotRuntimeStatus(),
+      ]);
+
+      return res.json({
+        runtime: "hermes_bot_orchestrator",
+        stats,
+        runtimeStatus,
+      });
+    } catch (error: any) {
+      return res.status(500).json({
+        error: error?.message || "Failed to load bot runtime status",
+      });
+    }
   });
 
-  // Admin endpoint: Manually trigger bot engine (archived)
+  // Admin endpoint: Manually trigger Hermes bot engine
   app.post("/api/admin/bots/trigger", adminAuth, async (_req, res) => {
-    return res.status(410).json({
-      error: "Bot order-book engine trigger is archived in AMM-only mode.",
-    });
+    try {
+      const result = await runBotEngineTick();
+      const runtimeStatus = await getHermesBotRuntimeStatus();
+
+      return res.json({
+        triggered: true,
+        result,
+        runtimeStatus,
+      });
+    } catch (error: any) {
+      return res.status(500).json({
+        error: error?.message || "Failed to trigger bot runtime",
+      });
+    }
   });
 
   // Admin endpoint: Manually credit premium shares (for failed Whop purchases)
@@ -10379,18 +9693,15 @@ ${items}
           volumeChange,
           marketCap: marketHealth.totalMarketCap,
           marketCapChange,
-          sharesMined: shareEconomy.totalSharesScouted, // Changed from vested to scouted - active scout shares
-          sharesVested: shareEconomy.totalSharesVested, // Keep vesting separately for reference
+          sharesMined: shareEconomy.totalSharesScouted,
           sharesBurned: shareEconomy.totalSharesBurned,
           totalShares: shareEconomy.totalSharesInEconomy,
-          periodSharesMined: shareEconomy.periodSharesScouted, // Changed from vested to scouted
-          periodSharesVested: shareEconomy.periodSharesVested,
+          periodSharesMined: shareEconomy.periodSharesScouted,
           periodSharesBurned: shareEconomy.periodSharesBurned,
           timeSeries,
           shareEconomyTimeSeries: shareEconomyTimeSeries.map((point) => ({
             ...point,
-            sharesMined: point.sharesScouted, // Changed from vested to scouted for chart
-            sharesVested: point.sharesVested, // Keep vesting available
+            sharesMined: point.sharesScouted,
           })),
         },
         powerRankings,
@@ -10487,9 +9798,8 @@ ${items}
             marketCap: parseFloat(s.marketCap),
             transactions: s.transactionsCount,
             volume: parseFloat(s.volume),
-            sharesMined: sharesScouted, // Scout shares (changed from vested)
-            sharesVested: s.sharesVested, // Keep vesting available
-            sharesScouted, // Add scout shares explicitly
+            sharesMined: sharesScouted,
+            sharesScouted,
             sharesBurned: s.sharesBurned,
             totalShares: s.totalShares,
           };
@@ -11067,24 +10377,27 @@ ${items}
       // Build a map of team -> game info (include status)
       const teamGameMap = new Map<
         string,
-        { gameId: string; startTime: Date; sport: string; status: string }
+        {
+          gameId: string;
+          startTime: Date;
+          sport: string;
+          status: string;
+          homeScore: number | null;
+          awayScore: number | null;
+        }
       >();
       for (const game of todaysGames) {
-        teamGameMap.set(game.homeTeam, {
+        const gameSummary = {
           gameId: game.gameId,
           startTime: new Date(game.startTime),
           sport: game.sport,
           status: game.status,
-        });
-        teamGameMap.set(game.awayTeam, {
-          gameId: game.gameId,
-          startTime: new Date(game.startTime),
-          sport: game.sport,
-          status: game.status,
-        });
+          homeScore: game.homeScore,
+          awayScore: game.awayScore,
+        };
+        teamGameMap.set(game.homeTeam, gameSummary);
+        teamGameMap.set(game.awayTeam, gameSummary);
       }
-
-      const now = new Date();
 
       // Get current boosts to show which players are already boosted
       const currentBoosts = await storage.getDailyBoostsAllSports(userId, targetDate);
@@ -11172,30 +10485,7 @@ ${items}
         const gameStartTime = teamGame?.startTime;
         const hasGameToday = !!teamGame;
         const gameDbStatus = teamGame?.status || "scheduled";
-
-        // Game status: 'none' | 'upcoming' | 'live' | 'ended'
-        // Trust DB status from BallDon'tLie API - see https://docs.balldontlie.io/#games
-        // Status values: 'scheduled', 'inprogress', 'completed', 'ended', 'postponed', 'cancelled'
-        // Time-based fallback only used when status is 'scheduled' and sync may be delayed (>3hrs since start)
-        let gameStatus: "none" | "upcoming" | "live" | "ended" = "none";
-        if (teamGame) {
-          if (gameDbStatus === "completed" || gameDbStatus === "ended") {
-            gameStatus = "ended";
-          } else if (gameDbStatus === "inprogress") {
-            gameStatus = "live"; // Trust API: inprogress = live
-          } else if (gameStartTime) {
-            // scheduled or unknown - check time
-            const timeSinceStart = now.getTime() - gameStartTime.getTime();
-            const threeHoursInMs = 3 * 60 * 60 * 1000;
-            if (timeSinceStart >= threeHoursInMs) {
-              gameStatus = "ended"; // Likely ended but sync hasn't caught up
-            } else {
-              gameStatus = "upcoming";
-            }
-          } else {
-            gameStatus = "upcoming";
-          }
-        }
+        const gameStatus = getMarketplaceGameStatus(teamGame);
 
         return {
           holdingId: holdings[0].id,
@@ -11288,7 +10578,12 @@ ${items}
         gameId: ep.gameId,
         gameStartTime: ep.gameStartTime,
         isAlreadyBoosted: boostedPlayerIds.has(ep.player.id),
-        gameStarted: ep.gameStartTime ? new Date(ep.gameStartTime) <= new Date() : false,
+        gameStarted: hasGameStartedForBoost({
+          status: ep.gameDbStatus,
+          startTime: ep.gameStartTime,
+          homeScore: ep.gameHomeScore,
+          awayScore: ep.gameAwayScore,
+        }),
         communityBoostCount: communityBoostMap.get(ep.player.id) || 0,
         hasCommunityBoost: communityBoostMap.has(ep.player.id),
         userPremiumShares,
@@ -11361,8 +10656,8 @@ ${items}
         return res.status(400).json({ error: "This player doesn't have a game today" });
       }
 
-      // Check if game has already started
-      if (new Date(game.startTime) <= new Date()) {
+      // Check if game has already started according to the normalized marketplace state.
+      if (hasGameStartedForBoost(game)) {
         return res
           .status(400)
           .json({ error: "Cannot add boost - player's game has already started" });
@@ -11470,7 +10765,7 @@ ${items}
       // Double-check game hasn't started
       if (boost.gameId) {
         const game = await storage.getDailyGameByGameId(boost.gameId);
-        if (game && new Date(game.startTime) <= new Date()) {
+        if (game && hasGameStartedForBoost(game)) {
           return res.status(400).json({ error: "Cannot remove boost - game has already started" });
         }
       }
@@ -11720,7 +11015,7 @@ ${items}
         return res.status(400).json({ error: "This player does not have a game today" });
       }
 
-      if (new Date(game.startTime) <= new Date()) {
+      if (hasGameStartedForBoost(game)) {
         return res.status(400).json({ error: "Cannot boost - game has already started" });
       }
 
@@ -11829,25 +11124,23 @@ ${items}
           homeTeam: string;
           awayTeam: string;
           status: string;
+          homeScore: number | null;
+          awayScore: number | null;
         }
       >();
       for (const game of todaysGames) {
-        teamGameMap.set(game.homeTeam, {
+        const gameSummary = {
           gameId: game.gameId,
           startTime: new Date(game.startTime),
           sport: game.sport,
           homeTeam: game.homeTeam,
           awayTeam: game.awayTeam,
           status: game.status,
-        });
-        teamGameMap.set(game.awayTeam, {
-          gameId: game.gameId,
-          startTime: new Date(game.startTime),
-          sport: game.sport,
-          homeTeam: game.homeTeam,
-          awayTeam: game.awayTeam,
-          status: game.status,
-        });
+          homeScore: game.homeScore,
+          awayScore: game.awayScore,
+        };
+        teamGameMap.set(game.homeTeam, gameSummary);
+        teamGameMap.set(game.awayTeam, gameSummary);
       }
 
       // Get all players whose teams have games today
@@ -11868,33 +11161,13 @@ ${items}
         `[community-boosts/eligible-players] Found ${playersWithGames.length} players with games`,
       );
 
-      const now = new Date();
-
       const result = playersWithGames.map((player) => {
         const teamGame = teamGameMap.get(player.team);
         const gameStartTime = teamGame?.startTime;
-        const gameStarted = gameStartTime ? gameStartTime <= now : false;
         const hasGameToday = !!teamGame;
         const communityBoostCount = communityBoostMap.get(player.id) || 0;
         const alreadyBoostedByUser = userBoostedPlayerIds.has(player.id);
-
-        // Game status
-        let gameStatus: "upcoming" | "live" | "ended" = "upcoming";
-        if (teamGame) {
-          const dbStatus = teamGame.status;
-          if (dbStatus === "completed" || dbStatus === "ended") {
-            gameStatus = "ended";
-          } else if (dbStatus === "inprogress") {
-            gameStatus = "live";
-          } else if (gameStartTime) {
-            // scheduled - check if should have started
-            const timeSinceStart = now.getTime() - gameStartTime.getTime();
-            const threeHoursInMs = 3 * 60 * 60 * 1000;
-            if (timeSinceStart >= threeHoursInMs) {
-              gameStatus = "ended";
-            }
-          }
-        }
+        const gameStatus = getMarketplaceGameStatus(teamGame);
 
         return {
           playerId: player.id,

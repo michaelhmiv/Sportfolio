@@ -9,7 +9,6 @@ import {
 } from "../amm/pool";
 import { getETDayBoundaries } from "../lib/time";
 import { storage } from "../storage";
-import { claimVestingShares } from "./vesting-claim";
 import type {
   AgentAction,
   CommunityBoostCreateAction,
@@ -24,7 +23,6 @@ import type {
   PoolZapSbAction,
   PoolZapSharesAction,
   ScoutProposalAction,
-  VestingClaimAction,
   WatchlistAddPlayerAction,
   WatchlistRemovePlayerAction,
 } from "./types";
@@ -241,10 +239,6 @@ async function executeCommunityBoostCreate(userId: string, action: CommunityBoos
   });
 }
 
-async function executeVestingClaim(userId: string, _action: VestingClaimAction) {
-  await claimVestingShares(userId);
-}
-
 export async function executeAgentActions(userId: string, actions: AgentAction[]): Promise<void> {
   const scoutActions = actions.filter(
     (action): action is ScoutProposalAction => action.actionType === "scout_set_count",
@@ -296,9 +290,6 @@ export async function executeAgentActions(userId: string, actions: AgentAction[]
         break;
       case "community_boost_create":
         await executeCommunityBoostCreate(userId, action);
-        break;
-      case "vesting_claim":
-        await executeVestingClaim(userId, action);
         break;
       default:
         break;

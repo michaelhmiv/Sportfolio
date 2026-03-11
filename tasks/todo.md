@@ -1,3 +1,75 @@
+## 2026-03-10 Hermes Bot Runtime Stabilization + Live Sync Log Cleanup
+
+- [x] Inspect the Hermes bot runtime, admin status surface, live-stats sync path, and player-volume refresh job to confirm the concrete failure points
+- [x] Refactor the bot runtime for dev-sized cycle windows, smaller per-tick bot slices, explicit failure classification, and per-run timing metrics
+- [x] Fix the broken 24h volume refresh query and reduce MLB live-sync log noise by batching missing-player skips into summarized warnings
+- [x] Add focused regression coverage and run `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`
+
+Review:
+
+- Updated the Hermes bot runtime so cycle bucketing is now environment-driven, development can use minute-level bot cycles, and each tick only processes a smaller deterministic bot slice instead of serially walking the entire active population every time.
+- Added structured bot diagnostics through `bot_run_logs.failure_class` and `bot_run_logs.metrics`, with run classification for direct-loop failures, advisory-only turns, policy-filtered plans, and execution failures instead of collapsing everything into generic `skipped` rows.
+- Tightened bot planning around a smaller stabilization surface: pool buys, pool sells, simple LP adds, and scout adjustments, plus a strict `NO_ACTION:` contract so freeform advisory text is no longer treated as a valid bot outcome.
+- Expanded runtime status with cycle interval, bots-per-tick, last successful bot action, recent run latency averages, and failure-class breakdowns so the admin/runtime surface is useful for monitoring.
+- Fixed the broken `refreshPlayerVolume24h` SQL aliasing bug and added regression coverage for the generated update statements.
+- Reduced MLB live-sync noise by batching local-player existence checks up front and logging one summarized warning for missing-player stat rows instead of hundreds of per-row FK-style errors.
+- Added focused tests in `server/bot/runtime.test.ts`, `server/storage.share-payouts.test.ts`, and `server/jobs/sync-mlb-stats.test.ts`.
+- Applied `migrations/0038_bot_runtime_diagnostics.sql` to the dev database and verified the new `bot_run_logs.failure_class` and `bot_run_logs.metrics` columns exist.
+- Validation passed: `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`.
+
+## 2026-03-10 Hermes Bot Gameplay Loop Expansion + Vesting Retirement
+
+- [ ] Expand the Hermes bot runtime from the stabilization action subset into the full gameplay bot loop: trading, LP add/remove/zap, scouting, daily boosts, shared research, and richer runtime telemetry
+- [ ] Remove vesting from the active bot, agent, route, CLI, dashboard, and activity surfaces so it is no longer part of the live product/runtime
+- [ ] Restart or directly re-run the current code against the dev database, observe DB-backed bot/job logs, and keep iterating until the target bot mechanics execute cleanly without new errors
+- [ ] Re-run `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`
+
+## 2026-03-10 Dev Runtime Live Verification Loop
+
+- [x] Restart or otherwise re-run the latest bot/job code against the dev database instead of relying on the stale long-lived watcher process
+- [x] Observe fresh bot and job activity in the dev database and current log capture instead of relying on the stale `.agent-dev.log`
+- [x] Fix the remaining runtime failures in `bot_engine`, `refresh_player_volume_24h`, `stats_sync_live`, and `nascar_live_sync`
+- [x] Re-run targeted validation plus a fresh live observation pass until the target jobs stop failing and bot runs produce executable or explicit `NO_ACTION` outcomes
+
+Review:
+
+- Fixed the remaining AMM seed invariant bug by normalizing pool defaults around the live 50k shares / $500k cash seed, correcting zero-trade pool repair detection to include `k` mismatches, and patching both setup/seed scripts so new pools stop inheriting the legacy `10000000` invariant.
+- Added `migrations/0039_player_pool_seed_normalization.sql` and applied it to the dev database, which repaired the four zero-trade pools whose `k` value was still legacy while shares/cash had already been upgraded.
+- Tightened fallback bot sizing so low-budget bots only place market buys that can clear at least one share; if a target would require more than the bounded fallback budget, the bot now skips that market candidate and can fall through to scouting instead of writing repeated `Trade too small` noise.
+- Verified the repaired dev database directly: `refresh_player_volume_24h`, `stats_sync_live`, and `nascar_live_sync` are succeeding again with zero recorded errors in recent job runs.
+- The long-lived local `tsx watch` process did not pick up the final fallback-sizing patch reliably, so verification used a direct one-off `runBotEngineTick()` on the current code path against the dev database; that completed with `botsProcessed: 3`, `botsSkipped: 0`, and `errors: 0`, and the resulting bot run logs were all `executed`.
+- Validation passed after the final code shape: `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`.
+
+## 2026-03-10 Hermes Bot Dev Monitoring Ramp
+
+- [x] Confirm the bot scheduler cadence path and dev database migration target
+- [x] Make `bot_engine` run every minute in development while production stays at 15 minutes unless overridden
+- [x] Apply the Hermes bot runtime schema changes to the dev database and verify the new tables and bot profile columns exist
+- [x] Run `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`
+
+Review:
+
+- Confirmed the local development database target resolves through `DEV_DATABASE_URL` to `sportfolio_dev` on `localhost:5433`, while production still depends on `DATABASE_URL`.
+- Updated `server/jobs/scheduler.ts` so `bot_engine` now defaults to `* * * * *` in development, stays at `*/15 * * * *` in production, and can still be overridden explicitly with `BOT_ENGINE_SCHEDULE`.
+- Updated `docs/CRON_JOBS.md` to document the new dev-vs-prod cadence and the `BOT_ENGINE_SCHEDULE` override path.
+- Applied `migrations/0037_hermes_bot_runtime.sql` directly to the dev database and verified `bot_cycle_briefs`, `bot_run_logs`, and the new `bot_profiles` strategy/research columns exist.
+- Validation passed: `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`.
+
+## 2026-03-10 Boost Selection Live/ Scheduled Status Fix
+
+- [x] Trace the dashboard game-status path and the boost eligibility / assignment path to find the divergence
+- [x] Unify boost eligibility, boost assignment, community boost gating, and boost locking around a shared game-status helper
+- [x] Add focused regression coverage for scheduled-but-not-live games
+- [x] Run `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`
+
+Review:
+
+- Root cause was duplicated status logic: the dashboard only treated `scheduled` games as live when there was live evidence, but boost eligibility, boost assignment, community boost creation, and the lock job still used time-only heuristics or raw `startTime <= now` checks.
+- Added `shared/game-status.ts` as the canonical status helper and routed the dashboard plus the boost/community/lock flows through it so scheduled games remain boostable until there is actual live evidence or the stale-sync completion fallback applies.
+- Extended boost-eligible storage rows with game status and score fields so the legacy sport-specific eligibility endpoint can compute `gameStarted` from the same normalized rules instead of raw time.
+- Added focused regression tests in `shared/game-status.test.ts` and `server/jobs/lock-boost-shares.test.ts` to lock in the scheduled-vs-live behavior and prevent boost shares from locking just because the scheduled tipoff time passed.
+- Validation passed: `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`.
+
 ## 2026-03-10 Main Admin Route Auth Hotfix
 
 - [x] Confirm `main` is fully synced before applying any direct-to-main hotfix
@@ -1138,6 +1210,22 @@ Review:
 - Hermes is now the single front door for normal user turns; deterministic planners still exist, but only behind Hermes-selected tools.
 - Runtime skills are constrained macros over existing approved tools. They can be created automatically for a single user, but shared/global promotion still requires admin approval.
 - The highest-value compound regression is now handled through `preview_multi_action_bundle`, which lets Hermes decompose linked requests without bouncing into scout-biased fallback.
+
+## 2026-03-11 Production DB Migration + Supabase RLS Hardening
+
+- [x] Verify the current production Supabase schema state for the Hermes bot runtime migrations and the flagged public tables with RLS disabled
+- [x] Add an idempotent migration that enables RLS on the backend-owned public tables flagged by the Supabase linter
+- [x] Apply the pending PR migrations plus the new RLS migration to the production Supabase project and verify the resulting schema/security state
+- [x] Re-run repo validation and record any remaining operational caveats
+
+Review:
+
+- Confirmed production was missing the Hermes bot runtime schema (`bot_cycle_briefs`, `bot_run_logs`, new `bot_profiles` columns), still had legacy `player_pools` seed defaults (`1000` shares / `10000` cash / `10000000` k), and still had every Supabase-linted backend-owned public table with RLS disabled.
+- Added `migrations/0040_enable_rls_for_private_public_tables.sql` as an idempotent RLS hardening migration for the flagged backend-owned public tables, then extended it to include the newly introduced `bot_cycle_briefs` and `bot_run_logs` tables after a broader public-schema check exposed them as the next likely linter findings.
+- Applied `migrations/0037_hermes_bot_runtime.sql`, `migrations/0038_bot_runtime_diagnostics.sql`, `migrations/0039_player_pool_seed_normalization.sql`, and `migrations/0040_enable_rls_for_private_public_tables.sql` directly against the production Supabase project via the official management SQL endpoint because the locally stored direct `DATABASE_URL` password was stale while the authenticated Supabase CLI access token remained valid.
+- Verified production after apply: `bot_cycle_briefs` and `bot_run_logs` now exist, the expected bot runtime diagnostic columns are present, `player_pools` defaults are normalized to the 50k / 500k seed values, zero-trade pool repairs remain at `0`, and a full public-table RLS check now returns no tables with `relrowsecurity = false`.
+- Validation passed: `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`.
+- Operational caveat: the production DB schema is now correct, but the local `.env` `DATABASE_URL` password is stale for direct Postgres access. Future direct `pg` / `drizzle` production commands from this machine should either use a refreshed DB password from Supabase project settings or continue through the authenticated management API path.
 
 ## 2026-03-03 PR #83 CI Fix
 

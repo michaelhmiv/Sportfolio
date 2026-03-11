@@ -45,6 +45,89 @@ const quoteSchema = Type.Object(
   },
   { additionalProperties: true },
 );
+const previewPoolBuySchema = Type.Object(
+  {
+    playerId: Type.String({ minLength: 1, maxLength: 160 }),
+    playerName: Type.Optional(Type.String({ minLength: 1, maxLength: 160 })),
+    sbAmount: Type.Number({ exclusiveMinimum: 0 }),
+    amount: Type.Optional(Type.Number({ exclusiveMinimum: 0 })),
+  },
+  { additionalProperties: true },
+);
+const previewPoolSellSchema = Type.Object(
+  {
+    playerId: Type.String({ minLength: 1, maxLength: 160 }),
+    playerName: Type.Optional(Type.String({ minLength: 1, maxLength: 160 })),
+    sharesAmount: Type.Integer({ minimum: 1 }),
+    shares: Type.Optional(Type.Integer({ minimum: 1 })),
+  },
+  { additionalProperties: true },
+);
+const previewLpAddSchema = Type.Object(
+  {
+    playerId: Type.String({ minLength: 1, maxLength: 160 }),
+    playerName: Type.Optional(Type.String({ minLength: 1, maxLength: 160 })),
+    shares: Type.Number({ exclusiveMinimum: 0 }),
+    playMoney: Type.Number({ exclusiveMinimum: 0 }),
+  },
+  { additionalProperties: true },
+);
+const previewLpAddOptimalSchema = Type.Object(
+  {
+    playerId: Type.String({ minLength: 1, maxLength: 160 }),
+    playerName: Type.Optional(Type.String({ minLength: 1, maxLength: 160 })),
+    maxShares: Type.Number({ exclusiveMinimum: 0 }),
+    maxPlayMoney: Type.Number({ exclusiveMinimum: 0 }),
+  },
+  { additionalProperties: true },
+);
+const previewLpRemoveSchema = Type.Object(
+  {
+    playerId: Type.String({ minLength: 1, maxLength: 160 }),
+    playerName: Type.Optional(Type.String({ minLength: 1, maxLength: 160 })),
+    lpShares: Type.Number({ exclusiveMinimum: 0 }),
+    shares: Type.Optional(Type.Number({ exclusiveMinimum: 0 })),
+  },
+  { additionalProperties: true },
+);
+const previewLpZapSchema = Type.Object(
+  {
+    playerId: Type.String({ minLength: 1, maxLength: 160 }),
+    playerName: Type.Optional(Type.String({ minLength: 1, maxLength: 160 })),
+    shares: Type.Optional(Type.Number({ exclusiveMinimum: 0 })),
+    sb: Type.Optional(Type.Number({ exclusiveMinimum: 0 })),
+    sbAmount: Type.Optional(Type.Number({ exclusiveMinimum: 0 })),
+    amount: Type.Optional(Type.Number({ exclusiveMinimum: 0 })),
+  },
+  { additionalProperties: true },
+);
+const previewBoostAssignSchema = Type.Object(
+  {
+    message: Type.Optional(Type.String({ minLength: 1, maxLength: 1200 })),
+    playerId: Type.Optional(Type.String({ minLength: 1, maxLength: 160 })),
+    playerName: Type.Optional(Type.String({ minLength: 1, maxLength: 160 })),
+    slotTier: Type.Optional(Type.Integer({ minimum: 2, maximum: 5 })),
+  },
+  { additionalProperties: true },
+);
+const previewBoostRemoveSchema = Type.Object(
+  {
+    message: Type.Optional(Type.String({ minLength: 1, maxLength: 1200 })),
+    playerId: Type.Optional(Type.String({ minLength: 1, maxLength: 160 })),
+    playerName: Type.Optional(Type.String({ minLength: 1, maxLength: 160 })),
+    slotTier: Type.Optional(Type.Integer({ minimum: 2, maximum: 5 })),
+  },
+  { additionalProperties: true },
+);
+const previewScoutAdjustmentSchema = Type.Object(
+  {
+    message: Type.Optional(Type.String({ minLength: 1, maxLength: 1200 })),
+    playerId: Type.Optional(Type.String({ minLength: 1, maxLength: 160 })),
+    playerName: Type.Optional(Type.String({ minLength: 1, maxLength: 160 })),
+    targetCount: Type.Optional(Type.Integer({ minimum: 0, maximum: 25 })),
+  },
+  { additionalProperties: true },
+);
 const pendingBundleSchema = Type.Object(
   {
     threadId: Type.Optional(Type.String({ minLength: 1, maxLength: 160 })),
@@ -468,6 +551,128 @@ const CORE_TOOL_CATALOG: AgentToolDefinition[] = [
     autoContextArgs: ["message"],
     supportsSequentialUse: false,
     auditPriority: "critical",
+  }),
+  defineTool({
+    toolName: "preview_pool_buy",
+    category: "plan",
+    description: "Preview a direct AMM buy with explicit player and spend inputs.",
+    whenToUse: ["The user or bot already knows the player market and spend size."],
+    whenNotToUse: ["The request is still exploratory and needs a scan or quote first."],
+    examplePrompts: ["buy $25 of Austin Reaves"],
+    requiresConfirmation: true,
+    riskLevel: "high",
+    inputSchema: previewPoolBuySchema,
+    supportsSequentialUse: false,
+    auditPriority: "critical",
+  }),
+  defineTool({
+    toolName: "preview_pool_sell",
+    category: "plan",
+    description: "Preview a direct AMM sell with explicit player and share inputs.",
+    whenToUse: ["The user or bot already knows the player market and share count to sell."],
+    whenNotToUse: ["The user has not confirmed they own the shares or wants general advice first."],
+    examplePrompts: ["sell 3 Austin Reaves shares"],
+    requiresConfirmation: true,
+    riskLevel: "high",
+    inputSchema: previewPoolSellSchema,
+    supportsSequentialUse: false,
+    auditPriority: "critical",
+  }),
+  defineTool({
+    toolName: "preview_lp_add",
+    category: "plan",
+    description: "Preview a fixed-ratio liquidity add for one player pool.",
+    whenToUse: ["The user or bot has explicit share and cash deposit amounts."],
+    whenNotToUse: ["The exact ratio is unknown and the optimal-ratio planner is a better fit."],
+    examplePrompts: ["add 4 shares and $12 into Austin Reaves pool"],
+    requiresConfirmation: true,
+    riskLevel: "medium",
+    inputSchema: previewLpAddSchema,
+    supportsSequentialUse: false,
+    auditPriority: "critical",
+  }),
+  defineTool({
+    toolName: "preview_lp_add_optimal",
+    category: "plan",
+    description: "Preview an optimal-ratio liquidity add capped by the user's limits.",
+    whenToUse: ["The user or bot wants the server to compute the exact LP ratio."],
+    whenNotToUse: ["The request already specifies a fixed-ratio LP deposit."],
+    examplePrompts: ["add optimal liquidity on Austin Reaves using up to 6 shares and $20"],
+    requiresConfirmation: true,
+    riskLevel: "medium",
+    inputSchema: previewLpAddOptimalSchema,
+    supportsSequentialUse: false,
+    auditPriority: "critical",
+  }),
+  defineTool({
+    toolName: "preview_lp_remove",
+    category: "plan",
+    description: "Preview removing a specific LP share amount from one player pool.",
+    whenToUse: ["The user or bot already knows which LP position to trim."],
+    whenNotToUse: ["There is no LP position context yet."],
+    examplePrompts: ["remove 2 lp shares from Austin Reaves"],
+    requiresConfirmation: true,
+    riskLevel: "medium",
+    inputSchema: previewLpRemoveSchema,
+    supportsSequentialUse: false,
+    auditPriority: "critical",
+  }),
+  defineTool({
+    toolName: "preview_lp_zap",
+    category: "plan",
+    description: "Preview a single-sided LP zap using either shares or cash.",
+    whenToUse: [
+      "The user or bot wants a one-sided liquidity add without matching both legs manually.",
+    ],
+    whenNotToUse: ["A fixed-ratio LP deposit is the cleaner operation."],
+    examplePrompts: ["zap $15 into Austin Reaves liquidity"],
+    requiresConfirmation: true,
+    riskLevel: "medium",
+    inputSchema: previewLpZapSchema,
+    supportsSequentialUse: false,
+    auditPriority: "critical",
+  }),
+  defineTool({
+    toolName: "preview_daily_boost_assign",
+    category: "plan",
+    description: "Preview assigning one eligible share to a daily boost slot.",
+    whenToUse: ["The user or bot wants a specific player placed into a boost slot."],
+    whenNotToUse: ["The user needs a candidate scan before choosing the player."],
+    examplePrompts: ["put Austin Reaves in my 5x boost slot today"],
+    requiresConfirmation: true,
+    riskLevel: "medium",
+    inputSchema: previewBoostAssignSchema,
+    autoContextArgs: ["message"],
+    supportsSequentialUse: false,
+    auditPriority: "critical",
+  }),
+  defineTool({
+    toolName: "preview_daily_boost_remove",
+    category: "plan",
+    description: "Preview removing an active daily boost before lock.",
+    whenToUse: ["The user or bot wants to clear a boost slot or remove a named player."],
+    whenNotToUse: ["The boost is already locked or there is no active boost to remove."],
+    examplePrompts: ["remove Austin Reaves from my 5x boost slot today"],
+    requiresConfirmation: true,
+    riskLevel: "medium",
+    inputSchema: previewBoostRemoveSchema,
+    autoContextArgs: ["message"],
+    supportsSequentialUse: false,
+    auditPriority: "critical",
+  }),
+  defineTool({
+    toolName: "preview_scout_adjustment",
+    category: "plan",
+    description: "Preview changing scout allocation for one player.",
+    whenToUse: ["The user or bot wants to raise, lower, or set scouts on a target player."],
+    whenNotToUse: ["The user needs a scout-opportunity scan before choosing a player."],
+    examplePrompts: ["set Austin Reaves scouts to 3"],
+    requiresConfirmation: true,
+    riskLevel: "low",
+    inputSchema: previewScoutAdjustmentSchema,
+    autoContextArgs: ["message"],
+    supportsSequentialUse: false,
+    auditPriority: "high",
   }),
   defineTool({
     toolName: "stage_action_bundle",
