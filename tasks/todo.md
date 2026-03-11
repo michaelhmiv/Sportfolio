@@ -1,3 +1,29 @@
+## 2026-03-11 LP Liquidity Follow-up Smoke Validation
+
+- [x] Re-audit LP add flows and validate likely lock sources that can reduce available shares
+- [x] Add smoke tests that cover add-liquidity success with no locks and failure when locks consume available shares
+- [x] Run `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`
+
+Review:
+
+- Confirmed LP lock pressure can come from holdings locks (`holdings_locks`), including boost/order reservation paths; the new LP checks now align with project-wide available-share semantics.
+- Added `server/amm/pool.add-liquidity.smoke.test.ts` with transaction-level mocks to verify LP adds still succeed with no locks and fail with clear errors when locked shares exceed available quantity.
+- Re-ran full repo validation; all required checks passed.
+
+## 2026-03-11 LP Add-Liquidity Guardrails + Mobile Popup UX
+
+- [x] Audit AMM liquidity-add paths and reproduce why users cannot add players to LP in locked-share scenarios
+- [x] Patch AMM liquidity adds to use available shares (quantity - locked) and preserve share precision
+- [x] Update whale alert/mobile popup behavior: 3s timeout and swipe-to-dismiss support
+- [x] Run `npm run check`, `npm run lint`, and `npm run test:run`
+
+Review:
+
+- Root cause found in LP add flows: they validated/debited raw holdings quantity and ignored `holdings_locks`, causing failed/invalid behavior when shares were reserved by boosts/orders.
+- Updated both fixed-ratio and optimal-ratio add-liquidity paths to enforce available-share checks and lock the holdings row in-transaction.
+- Removed integer rounding during LP share debits to prevent precision loss on fractional holdings.
+- Whale alerts now auto-dismiss after 3 seconds and support swipe-to-dismiss for mobile; toast popups use mobile-friendly swipe affordances.
+
 ## 2026-03-10 Hermes Bot Runtime Stabilization + Live Sync Log Cleanup
 
 - [x] Inspect the Hermes bot runtime, admin status surface, live-stats sync path, and player-volume refresh job to confirm the concrete failure points

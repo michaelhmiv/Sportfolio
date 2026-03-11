@@ -34,6 +34,7 @@ import {
   players,
   trades,
   holdings,
+  holdingsLocks,
   users,
   lpPositions,
   lpTransactions,
@@ -1888,13 +1889,27 @@ export async function addLiquidity(
             eq(holdings.assetType, "player"),
             eq(holdings.assetId, playerId),
           ),
-        );
+        )
+        .for("update");
 
       const userHoldingQuantity = parseFloat(userHolding?.quantity || "0");
-      if (!userHolding || userHoldingQuantity < sharesToDeposit) {
+      const lockedResult = await tx
+        .select({ total: sql<number>`COALESCE(SUM(${holdingsLocks.lockedQuantity}), 0)` })
+        .from(holdingsLocks)
+        .where(
+          and(
+            eq(holdingsLocks.userId, userId),
+            eq(holdingsLocks.assetType, "player"),
+            eq(holdingsLocks.assetId, playerId),
+          ),
+        );
+      const lockedQuantity = Number(lockedResult[0]?.total || 0);
+      const availableShares = Math.max(0, userHoldingQuantity - lockedQuantity);
+
+      if (!userHolding || availableShares + 1e-9 < sharesToDeposit) {
         return {
           success: false,
-          error: `Insufficient shares. Have ${userHoldingQuantity}, need ${sharesToDeposit}`,
+          error: `Insufficient available shares. Have ${availableShares.toFixed(4)} available, need ${sharesToDeposit.toFixed(4)}`,
         };
       }
 
@@ -1940,7 +1955,7 @@ export async function addLiquidity(
         await tx
           .update(holdings)
           .set({
-            quantity: Math.round(newQuantity).toString(),
+            quantity: newQuantity.toFixed(4),
             lastUpdated: new Date(),
           })
           .where(eq(holdings.id, userHolding.id));
@@ -2301,13 +2316,27 @@ export async function addLiquidityOptimal(
             eq(holdings.assetType, "player"),
             eq(holdings.assetId, playerId),
           ),
-        );
+        )
+        .for("update");
 
       const userHoldingQuantity = parseFloat(userHolding?.quantity || "0");
-      if (!userHolding || userHoldingQuantity < sharesToDeposit) {
+      const lockedResult = await tx
+        .select({ total: sql<number>`COALESCE(SUM(${holdingsLocks.lockedQuantity}), 0)` })
+        .from(holdingsLocks)
+        .where(
+          and(
+            eq(holdingsLocks.userId, userId),
+            eq(holdingsLocks.assetType, "player"),
+            eq(holdingsLocks.assetId, playerId),
+          ),
+        );
+      const lockedQuantity = Number(lockedResult[0]?.total || 0);
+      const availableShares = Math.max(0, userHoldingQuantity - lockedQuantity);
+
+      if (!userHolding || availableShares + 1e-9 < sharesToDeposit) {
         return {
           success: false,
-          error: `Insufficient shares. Have ${userHoldingQuantity}, need ${sharesToDeposit}`,
+          error: `Insufficient available shares. Have ${availableShares.toFixed(4)} available, need ${sharesToDeposit.toFixed(4)}`,
         };
       }
 
@@ -2351,7 +2380,7 @@ export async function addLiquidityOptimal(
         await tx
           .update(holdings)
           .set({
-            quantity: Math.round(newQuantity).toString(),
+            quantity: newQuantity.toFixed(4),
             lastUpdated: new Date(),
           })
           .where(eq(holdings.id, userHolding.id));
