@@ -7,7 +7,6 @@ export const USER_ACTIVITY_CATEGORIES = [
   "liquidity",
   "premium",
   "payouts",
-  "vesting",
 ] as const;
 
 export type UserActivityCategory = (typeof USER_ACTIVITY_CATEGORIES)[number];

@@ -6,23 +6,25 @@ This document describes the scheduled jobs that are still active and how to run 
 
 Jobs run in Eastern Time (ET). The scheduler is initialized in `server/jobs/scheduler.ts`.
 
-| Job Name            | Schedule            | Purpose                                            |
-| ------------------- | ------------------- | -------------------------------------------------- |
-| `bot_engine`        | Every 15 min        | Runs AMM bot scouting/trading/liquidity strategies |
-| `vesting_accrual`   | Every 5 min (`:04`) | Accrues vesting shares for users                   |
-| `news_fetch`        | Every hour (`:00`)  | Fetches sports news from Perplexity                |
-| `roster_sync`       | Daily 5:30 AM       | Syncs NBA player roster                            |
-| `schedule_sync`     | Every hour (`:05`)  | Syncs NBA game schedules                           |
-| `stats_sync`        | Every hour (`:10`)  | Syncs NBA game stats for completed games           |
-| `stats_sync_live`   | Every 5 min         | Unified live stats for supported live sports       |
-| `daily_snapshot`    | Daily 1:30 AM       | Creates daily market and rank snapshots            |
-| `weekly_roundup`    | Monday 6:00 AM      | Generates weekly performance summaries             |
-| `nfl_roster_sync`   | Daily 4:30 AM       | Syncs NFL players from Ball Don't Lie              |
-| `nfl_schedule_sync` | Daily 6:45 AM       | Syncs NFL game schedules                           |
+| Job Name            | Schedule                              | Purpose                                               |
+| ------------------- | ------------------------------------- | ----------------------------------------------------- |
+| `bot_engine`        | Dev: every minute; prod: every 15 min | Runs Hermes bot scouting/trading/liquidity strategies |
+| `vesting_accrual`   | Every 5 min (`:04`)                   | Accrues vesting shares for users                      |
+| `news_fetch`        | Every hour (`:00`)                    | Fetches sports news from Perplexity                   |
+| `roster_sync`       | Daily 5:30 AM                         | Syncs NBA player roster                               |
+| `schedule_sync`     | Every hour (`:05`)                    | Syncs NBA game schedules                              |
+| `stats_sync`        | Every hour (`:10`)                    | Syncs NBA game stats for completed games              |
+| `stats_sync_live`   | Every 5 min                           | Unified live stats for supported live sports          |
+| `daily_snapshot`    | Daily 1:30 AM                         | Creates daily market and rank snapshots               |
+| `weekly_roundup`    | Monday 6:00 AM                        | Generates weekly performance summaries                |
+| `nfl_roster_sync`   | Daily 4:30 AM                         | Syncs NFL players from Ball Don't Lie                 |
+| `nfl_schedule_sync` | Daily 6:45 AM                         | Syncs NFL game schedules                              |
 
 ## Manual Job Execution
 
 Jobs can be triggered via the admin panel or CLI.
+
+`bot_engine` uses `BOT_ENGINE_SCHEDULE` if set. Without an override, development runs it every minute and production keeps the 15-minute cadence.
 
 ### Via CLI
 

@@ -29,6 +29,8 @@ export async function syncStats(progressCallback?: ProgressCallback): Promise<Jo
   let requestCount = 0;
   let recordsProcessed = 0;
   let errorCount = 0;
+  let missingPlayerSkips = 0;
+  const missingPlayerSamples = new Set<string>();
 
   try {
     // Get games from last 24 hours (catches late-night games from previous day)
@@ -42,9 +44,10 @@ export async function syncStats(progressCallback?: ProgressCallback): Promise<Jo
     // Process games with scores (completed OR in-progress)
     const relevantGames = games.filter(
       (g) =>
-        g.status === "inprogress" ||
-        g.status === "completed" ||
-        (g.status === "scheduled" && g.homeScore !== null && g.awayScore !== null),
+        g.sport === "NBA" &&
+        (g.status === "inprogress" ||
+          g.status === "completed" ||
+          (g.status === "scheduled" && g.homeScore !== null && g.awayScore !== null)),
     );
 
     console.log(`[stats_sync] Found ${relevantGames.length} games to process`);
@@ -81,9 +84,25 @@ export async function syncStats(progressCallback?: ProgressCallback): Promise<Jo
           continue;
         }
 
+        const candidatePlayerIds = Array.from(
+          new Set(stats.map((stat) => createNBAPlayerId(stat.player.id))),
+        );
+        const existingPlayers =
+          candidatePlayerIds.length > 0 ? await storage.getPlayersByIds(candidatePlayerIds) : [];
+        const existingPlayerIds = new Set(existingPlayers.map((player) => player.id));
+
         // Process player stats from BallDontLie response
         for (const stat of stats) {
           try {
+            const playerId = createNBAPlayerId(stat.player.id);
+            if (!existingPlayerIds.has(playerId)) {
+              missingPlayerSkips++;
+              if (missingPlayerSamples.size < 8) {
+                missingPlayerSamples.add(String(stat.player.id));
+              }
+              continue;
+            }
+
             // BDL stats are flat - directly accessible
             const points = stat.pts || 0;
             const rebounds = stat.reb || 0;
@@ -105,7 +124,7 @@ export async function syncStats(progressCallback?: ProgressCallback): Promise<Jo
             const minutes = stat.min ? parseInt(stat.min) : 0;
 
             await storage.upsertPlayerGameStats({
-              playerId: createNBAPlayerId(stat.player.id), // Prefix with sport for multi-sport support
+              playerId, // Prefix with sport for multi-sport support
               gameId: game.gameId,
               sport: "NBA",
               gameDate: game.date,
@@ -147,6 +166,14 @@ export async function syncStats(progressCallback?: ProgressCallback): Promise<Jo
       `[stats_sync] Successfully processed ${recordsProcessed} player stats, ${errorCount} errors`,
     );
     console.log(`[stats_sync] API requests made: ${requestCount}`);
+    if (missingPlayerSkips > 0) {
+      console.log(
+        `[stats_sync] Skipped ${missingPlayerSkips} NBA stat rows for players missing from the local roster` +
+          (missingPlayerSamples.size > 0
+            ? ` (sample player ids: ${Array.from(missingPlayerSamples).join(", ")})`
+            : ""),
+      );
+    }
 
     progressCallback?.({
       type: "complete",
@@ -160,6 +187,7 @@ export async function syncStats(progressCallback?: ProgressCallback): Promise<Jo
         summary: {
           statsProcessed: recordsProcessed,
           errors: errorCount,
+          missingPlayerSkips,
           apiCalls: requestCount,
           gamesProcessed: relevantGames.length,
         },

@@ -23,6 +23,11 @@ import type { JobResult } from "./scheduler";
 import type { ProgressCallback } from "../lib/admin-stream";
 
 const NASCAR_SPORT = "NASCAR";
+const NASCAR_MISSING_DRIVER_SAMPLE_LIMIT = 8;
+
+interface NascarLiveJobResult extends JobResult {
+  skippedMissingPlayers: number;
+}
 
 /**
  * Create a NASCAR player ID from driver ID
@@ -155,6 +160,7 @@ export async function syncNascarLiveForSeries(
   requestCount: number;
   recordsProcessed: number;
   errorCount: number;
+  skippedMissingPlayers: number;
   isLive: boolean;
   raceInfo: {
     raceId: number;
@@ -169,6 +175,7 @@ export async function syncNascarLiveForSeries(
   let requestCount = 0;
   let recordsProcessed = 0;
   let errorCount = 0;
+  let skippedMissingPlayers = 0;
   let isLive = false;
   let raceInfo = null;
 
@@ -179,7 +186,14 @@ export async function syncNascarLiveForSeries(
 
     if (!liveFeed) {
       console.log(`[nascar_live_sync] No live race for ${seriesName}`);
-      return { requestCount, recordsProcessed: 0, errorCount: 0, isLive: false, raceInfo: null };
+      return {
+        requestCount,
+        recordsProcessed: 0,
+        errorCount: 0,
+        skippedMissingPlayers: 0,
+        isLive: false,
+        raceInfo: null,
+      };
     }
 
     // Check if this is the series we're looking for
@@ -187,7 +201,14 @@ export async function syncNascarLiveForSeries(
       console.log(
         `[nascar_live_sync] Live race is for series ${liveFeed.series_id}, not ${seriesId}`,
       );
-      return { requestCount, recordsProcessed: 0, errorCount: 0, isLive: false, raceInfo: null };
+      return {
+        requestCount,
+        recordsProcessed: 0,
+        errorCount: 0,
+        skippedMissingPlayers: 0,
+        isLive: false,
+        raceInfo: null,
+      };
     }
 
     const gameId = createNascarGameId(liveFeed.race_id, seriesId);
@@ -218,7 +239,14 @@ export async function syncNascarLiveForSeries(
         console.error(`[nascar_live_sync] Failed status repair for ${gameId}:`, error.message);
       }
 
-      return { requestCount, recordsProcessed: 0, errorCount: 0, isLive: false, raceInfo: null };
+      return {
+        requestCount,
+        recordsProcessed: 0,
+        errorCount: 0,
+        skippedMissingPlayers: 0,
+        isLive: false,
+        raceInfo: null,
+      };
     }
 
     isLive = true;
@@ -257,10 +285,24 @@ export async function syncNascarLiveForSeries(
 
     // Convert live feed to stats
     const statsData = await convertLiveFeedToStats(liveFeed, seriesId);
+    const knownPlayerIds = new Set(
+      (
+        await storage.getPlayersByIds(Array.from(new Set(statsData.map((stats) => stats.playerId))))
+      ).map((player) => player.id),
+    );
+    const missingPlayerSamples = new Set<string>();
 
     // Store stats in database
     for (const stats of statsData) {
       try {
+        if (!knownPlayerIds.has(stats.playerId)) {
+          skippedMissingPlayers++;
+          if (missingPlayerSamples.size < NASCAR_MISSING_DRIVER_SAMPLE_LIMIT) {
+            missingPlayerSamples.add(stats.playerId.replace(/^nascar_/, ""));
+          }
+          continue;
+        }
+
         await storage.upsertPlayerGameStats(stats);
         recordsProcessed++;
       } catch (error: any) {
@@ -269,17 +311,34 @@ export async function syncNascarLiveForSeries(
       }
     }
 
+    if (skippedMissingPlayers > 0) {
+      console.log(
+        `[nascar_live_sync] Skipped ${skippedMissingPlayers} live stat rows for drivers missing from the local roster` +
+          (missingPlayerSamples.size > 0
+            ? ` (sample driver ids: ${Array.from(missingPlayerSamples).join(", ")})`
+            : ""),
+      );
+    }
+
     console.log(
       `[nascar_live_sync] Completed live sync for ${seriesName}: ${recordsProcessed} driver stats updated`,
     );
 
-    return { requestCount, recordsProcessed, errorCount, isLive: true, raceInfo };
+    return {
+      requestCount,
+      recordsProcessed,
+      errorCount,
+      skippedMissingPlayers,
+      isLive: true,
+      raceInfo,
+    };
   } catch (error: any) {
     console.error(`[nascar_live_sync] Error syncing live data for ${seriesName}:`, error.message);
     return {
       requestCount,
       recordsProcessed: 0,
       errorCount: errorCount + 1,
+      skippedMissingPlayers,
       isLive: false,
       raceInfo: null,
     };
@@ -290,7 +349,9 @@ export async function syncNascarLiveForSeries(
  * Main live sync job - syncs live data for all series
  * Note: This should be run more frequently during race events
  */
-export async function syncNascarLive(progressCallback?: ProgressCallback): Promise<JobResult> {
+export async function syncNascarLive(
+  progressCallback?: ProgressCallback,
+): Promise<NascarLiveJobResult> {
   console.log("[nascar_live_sync] Starting NASCAR live stats sync...");
 
   const seriesList: NascarSeriesId[] = [
@@ -302,6 +363,7 @@ export async function syncNascarLive(progressCallback?: ProgressCallback): Promi
   let totalRequestCount = 0;
   let totalRecordsProcessed = 0;
   let totalErrorCount = 0;
+  let totalSkippedMissingPlayers = 0;
   let liveRacesFound = 0;
   const liveRaceInfo: { series: string; info: any }[] = [];
 
@@ -312,6 +374,7 @@ export async function syncNascarLive(progressCallback?: ProgressCallback): Promi
     totalRequestCount += result.requestCount;
     totalRecordsProcessed += result.recordsProcessed;
     totalErrorCount += result.errorCount;
+    totalSkippedMissingPlayers += result.skippedMissingPlayers;
 
     if (result.isLive) {
       liveRacesFound++;
@@ -327,5 +390,6 @@ export async function syncNascarLive(progressCallback?: ProgressCallback): Promi
     requestCount: totalRequestCount,
     recordsProcessed: totalRecordsProcessed,
     errorCount: totalErrorCount,
+    skippedMissingPlayers: totalSkippedMissingPlayers,
   };
 }

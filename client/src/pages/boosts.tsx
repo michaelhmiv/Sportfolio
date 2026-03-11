@@ -30,7 +30,7 @@ import {
 import { apiRequest, getAuthHeaders } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import type { Player, DailyGame } from "@shared/schema";
+import type { Player } from "@shared/schema";
 import { PlayerName } from "@/components/player-name";
 import { format, addDays, subDays } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -51,38 +51,6 @@ interface BoostCeremonyData {
   totalMultiplier: number;
   sharesBurned: number;
 }
-
-// Helper to determine effective game status (same as dashboard)
-// Trust DB status from BallDon'tLie API - see https://docs.balldontlie.io/#games
-// Status values: 'scheduled', 'inprogress', 'completed', 'ended', 'postponed', 'cancelled'
-const getEffectiveGameStatus = (game: DailyGame): string => {
-  const now = new Date();
-  const startTime = new Date(game.startTime);
-  const timeSinceStart = now.getTime() - startTime.getTime();
-  const threeHoursInMs = 3 * 60 * 60 * 1000;
-
-  // If DB says completed or ended, trust it
-  if (game.status === "completed" || game.status === "ended") {
-    return "completed";
-  }
-
-  // If DB says inprogress, trust it
-  if (game.status === "inprogress") {
-    return "inprogress";
-  }
-
-  // If game is scheduled but should have started (and it's been less than 3 hours), assume it's live
-  if (game.status === "scheduled" && timeSinceStart > 0 && timeSinceStart < threeHoursInMs) {
-    return "inprogress";
-  }
-
-  // If more than 3 hours have passed since start and still scheduled, likely completed but not synced
-  if (game.status === "scheduled" && timeSinceStart >= threeHoursInMs) {
-    return "completed";
-  }
-
-  return game.status;
-};
 
 interface BoostSlot {
   id: string;

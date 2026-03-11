@@ -21,7 +21,6 @@ export type SubscriptionType =
   | "scout_payout" // Scout distribution notifications
   | "boost_settled" // Boost settlement notifications
   | "COMMUNITY_BOOST_SETTLED" // Community boost settlement
-  | "vesting" // Vesting notifications
   | "scout_update" // Scout update notifications
   | "scout_ready" // Scout ceremony ready notification
   | "whale_alert" // Large trade alerts

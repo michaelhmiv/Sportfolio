@@ -9,6 +9,7 @@
 import { storage } from "../storage";
 import { choosePreferredDailyGame } from "../lib/daily-game-dedupe";
 import { getETDayBoundaries, getGameDay } from "../lib/time";
+import { hasGameStartedForBoost } from "@shared/game-status";
 import type { JobResult } from "./scheduler";
 import type { ProgressCallback } from "../lib/admin-stream";
 
@@ -106,8 +107,8 @@ export async function lockBoostShares(progressCallback?: ProgressCallback): Prom
 
         const gameStart = new Date(game.startTime);
 
-        // Lock if game has started or is about to start (within 1 minute buffer)
-        if (gameStart <= new Date(now.getTime() + 60000)) {
+        // Lock once the game is actually live/completed rather than purely by scheduled tipoff time.
+        if (hasGameStartedForBoost(game, new Date(now.getTime() + 60000))) {
           console.log(
             `[lock_boost_shares] Locking boost ${boost.id} - game ${game.gameId} started at ${gameStart.toISOString()}`,
           );

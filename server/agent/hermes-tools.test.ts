@@ -166,7 +166,7 @@ describe("hermes-tools", () => {
     mocks.listAgentSkillCandidates.mockResolvedValue([]);
   });
 
-  it("builds a native pool buy preview", async () => {
+  it("materializes a native pool buy preview into a staged plan", async () => {
     mocks.storage.getAvailableBalance.mockResolvedValue(125);
     mocks.getOrCreatePool.mockResolvedValue({
       currentPrice: 4.5,
@@ -179,6 +179,27 @@ describe("hermes-tools", () => {
       effectivePrice: 4.62,
       slippagePercent: 0.03,
     });
+    mocks.planDirectAgentOperation.mockResolvedValue({
+      domain: "player_pools",
+      requestMessage: "buy $24 of Jalen Brunson",
+      replyText: "Queued the buy.",
+      summary: "Buy Jalen Brunson",
+      observations: ["Estimated fill prepared."],
+      warnings: [],
+      actions: [
+        {
+          actionType: "pool_buy",
+          playerId: "nba_1",
+          playerName: "Jalen Brunson",
+          sbAmount: 24,
+          reasoning: "Test plan",
+          confidence: 0.9,
+        },
+      ],
+      errorMessage: null,
+      contextSnapshot: {},
+      trace: {},
+    });
 
     const result = (await runHermesPlanTool({
       toolName: "preview_pool_buy",
@@ -189,11 +210,17 @@ describe("hermes-tools", () => {
       },
     })) as any;
 
-    expect(result.supported).toBe(true);
-    expect(result.canStage).toBe(true);
-    expect(result.stageMessage).toContain("buy $24");
-    expect(result.afterState.estimatedSharesOut).toBe(5.2);
-    expect(mocks.planDirectAgentOperation).not.toHaveBeenCalled();
+    expect(result.summary).toBe("Buy Jalen Brunson");
+    expect(result.actions).toHaveLength(1);
+    expect(result.actions[0].actionType).toBe("pool_buy");
+    expect(result.contextSnapshot.preview.afterState.estimatedSharesOut).toBe(5.2);
+    expect(mocks.planDirectAgentOperation).toHaveBeenCalledWith({
+      userId: "user_1",
+      message: "buy $24 of Jalen Brunson",
+      profile: {
+        displayName: "Agent",
+      },
+    });
   });
 
   it("returns watchlist items through the dedicated read tool", async () => {

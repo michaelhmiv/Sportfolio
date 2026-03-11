@@ -75,7 +75,6 @@ describe("hermes-orchestrator", () => {
         communitySharesAvailable: 2,
         activeDailyBoostSlots: 1,
         openDailyBoostSlots: 3,
-        claimableVestingShares: 2,
         topHoldings: [],
         nextBestLevers: ["rotate one boost slot"],
       },

@@ -419,6 +419,102 @@ function buildStructuredPreview(
   };
 }
 
+async function materializeStructuredPreviewPlan(input: {
+  userId: string;
+  toolName: string;
+  preview: StructuredPlanPreview;
+}): Promise<unknown> {
+  const previewObservations = input.preview.estimatedImpact ? [input.preview.estimatedImpact] : [];
+
+  if (!input.preview.canStage) {
+    return {
+      domain: "sportfolio",
+      requestMessage: input.preview.stageMessage,
+      replyText: `${input.preview.actionSummary}. ${input.preview.warnings[0] || "That preview cannot be staged in the current account state."}`,
+      summary: input.preview.actionSummary,
+      observations: previewObservations,
+      warnings: input.preview.warnings,
+      actions: [],
+      citations: [],
+      pendingClarification: null,
+      errorMessage: null,
+      contextSnapshot: {
+        preview: input.preview,
+      },
+      trace: {
+        framework: "structured-preview-materializer",
+        toolName: input.toolName,
+        canStage: false,
+      },
+    };
+  }
+
+  const profile = (await getScoutAgentProfile(input.userId)).profile;
+  const staged = await planDirectAgentOperation({
+    userId: input.userId,
+    message: input.preview.stageMessage,
+    profile,
+  });
+
+  if (!staged) {
+    return {
+      domain: "sportfolio",
+      requestMessage: input.preview.stageMessage,
+      replyText:
+        `${input.preview.actionSummary}. ` +
+        (input.preview.estimatedImpact ||
+          "I built the preview but could not reconstruct a staged action from it."),
+      summary: input.preview.actionSummary,
+      observations: previewObservations,
+      warnings: input.preview.warnings,
+      actions: [],
+      citations: [],
+      pendingClarification: null,
+      errorMessage: null,
+      contextSnapshot: {
+        preview: input.preview,
+      },
+      trace: {
+        framework: "structured-preview-materializer",
+        toolName: input.toolName,
+        canStage: true,
+        stageMessage: input.preview.stageMessage,
+        stageMaterialization: "not_resolved",
+      },
+    };
+  }
+
+  return {
+    ...staged,
+    requestMessage: staged.requestMessage || input.preview.stageMessage,
+    replyText: staged.replyText || input.preview.actionSummary,
+    summary: staged.summary || input.preview.actionSummary,
+    observations: [
+      ...(Array.isArray(staged.observations) ? staged.observations : []),
+      ...previewObservations,
+    ],
+    warnings: Array.from(
+      new Set([
+        ...(Array.isArray(staged.warnings) ? staged.warnings : []),
+        ...input.preview.warnings,
+      ]),
+    ),
+    contextSnapshot: {
+      ...(staged.contextSnapshot && typeof staged.contextSnapshot === "object"
+        ? staged.contextSnapshot
+        : {}),
+      preview: input.preview,
+    },
+    trace: {
+      ...(staged.trace && typeof staged.trace === "object" ? staged.trace : {}),
+      framework: "structured-preview-materializer",
+      toolName: input.toolName,
+      quoteTimestamp: input.preview.quoteTimestamp,
+      stageMessage: input.preview.stageMessage,
+    },
+  };
+}
+
 function formatMoney(value: number): string {
   return `$${value.toFixed(2)}`;
 }
@@ -1306,8 +1402,8 @@ async function buildPoolBuyPreview(input: {
     throw new Error("playerId and sbAmount are required for preview_pool_buy");
   }
 
-  const [player, availableBalance, pool, quote] = await Promise.all([
-    requirePlayer(playerId),
+  const player = await requirePlayer(playerId);
+  const [availableBalance, pool, quote] = await Promise.all([
     storage.getAvailableBalance(input.userId),
     getOrCreatePool(playerId),
     getBuyQuote(playerId, sbAmount),
@@ -1357,8 +1453,8 @@ async function buildPoolSellPreview(input: {
     throw new Error("playerId and sharesAmount are required for preview_pool_sell");
   }
 
-  const [player, availableBalance, holdingInfo, quote] = await Promise.all([
-    requirePlayer(playerId),
+  const player = await requirePlayer(playerId);
+  const [availableBalance, holdingInfo, quote] = await Promise.all([
     storage.getAvailableBalance(input.userId),
     storage.getHoldingMultiplierState(input.userId, playerId),
     getSellQuote(playerId, sharesAmount),
@@ -1413,8 +1509,8 @@ async function buildLpAddPreview(input: {
     throw new Error("playerId, shares, and playMoney are required for preview_lp_add");
   }
 
-  const [player, pool, availableBalance, holdingInfo, existingPosition] = await Promise.all([
-    requirePlayer(playerId),
+  const player = await requirePlayer(playerId);
+  const [pool, availableBalance, holdingInfo, existingPosition] = await Promise.all([
     getOrCreatePool(playerId),
     storage.getAvailableBalance(input.userId),
     storage.getHoldingMultiplierState(input.userId, playerId),
@@ -1458,7 +1554,7 @@ async function buildLpAddPreview(input: {
     canStage,
     requiresConfirmation: true,
     actionSummary: `Add liquidity on ${playerLabel}`,
-    stageMessage: `add ${shares} ${playerLabel} shares and $${playMoney} to liquidity`,
+    stageMessage: `add ${shares} shares and $${playMoney} into ${playerLabel} pool`,
     beforeState: {
       availableBalance,
       availableShares,
@@ -1489,8 +1585,8 @@ async function buildLpAddOptimalPreview(input: {
     );
   }
 
-  const [player, pool, availableBalance, holdingInfo, existingPosition] = await Promise.all([
-    requirePlayer(playerId),
+  const player = await requirePlayer(playerId);
+  const [pool, availableBalance, holdingInfo, existingPosition] = await Promise.all([
     getOrCreatePool(playerId),
     storage.getAvailableBalance(input.userId),
     storage.getHoldingMultiplierState(input.userId, playerId),
@@ -1529,7 +1625,7 @@ async function buildLpAddOptimalPreview(input: {
     canStage,
     requiresConfirmation: true,
     actionSummary: `Add optimal liquidity on ${playerLabel}`,
-    stageMessage: `add optimal liquidity on ${playerLabel} using up to ${maxShares} shares and $${maxPlayMoney}`,
+    stageMessage: `add up to ${maxShares} shares and $${maxPlayMoney} into ${playerLabel} pool`,
     beforeState: {
       availableBalance,
       availableShares,
@@ -1559,8 +1655,8 @@ async function buildLpRemovePreview(input: {
     throw new Error("playerId and lpShares are required for preview_lp_remove");
   }
 
-  const [player, pool, position, availableBalance] = await Promise.all([
-    requirePlayer(playerId),
+  const player = await requirePlayer(playerId);
+  const [pool, position, availableBalance] = await Promise.all([
     getOrCreatePool(playerId),
     getLpPosition(playerId, input.userId),
     storage.getAvailableBalance(input.userId),
@@ -1619,8 +1715,8 @@ async function buildLpZapPreview(input: {
     throw new Error("shares or sb is required for preview_lp_zap");
   }
 
-  const [player, availableBalance, holdingInfo] = await Promise.all([
-    requirePlayer(playerId),
+  const player = await requirePlayer(playerId);
+  const [availableBalance, holdingInfo] = await Promise.all([
     storage.getAvailableBalance(input.userId),
     storage.getHoldingMultiplierState(input.userId, playerId),
   ]);
@@ -1635,7 +1731,7 @@ async function buildLpZapPreview(input: {
         canStage: false,
         requiresConfirmation: true,
         actionSummary: `Zap ${shares} ${playerLabel} shares into liquidity`,
-        stageMessage: `zap ${shares} ${playerLabel} shares into liquidity`,
+        stageMessage: `zap ${shares} shares into ${playerLabel} pool`,
         beforeState: {
           availableShares,
         },
@@ -1654,7 +1750,7 @@ async function buildLpZapPreview(input: {
       canStage: true,
       requiresConfirmation: true,
       actionSummary: `Zap ${shares} ${playerLabel} shares into liquidity`,
-      stageMessage: `zap ${shares} ${playerLabel} shares into liquidity`,
+      stageMessage: `zap ${shares} shares into ${playerLabel} pool`,
       beforeState: {
         availableShares,
       },
@@ -1675,7 +1771,7 @@ async function buildLpZapPreview(input: {
       canStage: false,
       requiresConfirmation: true,
       actionSummary: `Zap ${formatMoney(sb!)} into ${playerLabel} liquidity`,
-      stageMessage: `zap $${sb} into ${playerLabel} liquidity`,
+      stageMessage: `zap $${sb} into ${playerLabel} pool`,
       beforeState: {
         availableBalance,
       },
@@ -1696,7 +1792,7 @@ async function buildLpZapPreview(input: {
     canStage: true,
     requiresConfirmation: true,
     actionSummary: `Zap ${formatMoney(sb!)} into ${playerLabel} liquidity`,
-    stageMessage: `zap $${sb} into ${playerLabel} liquidity`,
+    stageMessage: `zap $${sb} into ${playerLabel} pool`,
     beforeState: {
       availableBalance,
     },
@@ -2098,18 +2194,54 @@ export async function runHermesPlanTool(input: {
   args?: Record<string, unknown>;
 }): Promise<unknown> {
   switch (input.toolName) {
-    case "preview_pool_buy":
-      return buildPoolBuyPreview(input);
-    case "preview_pool_sell":
-      return buildPoolSellPreview(input);
-    case "preview_lp_add":
-      return buildLpAddPreview(input);
-    case "preview_lp_add_optimal":
-      return buildLpAddOptimalPreview(input);
-    case "preview_lp_remove":
-      return buildLpRemovePreview(input);
-    case "preview_lp_zap":
-      return buildLpZapPreview(input);
+    case "preview_pool_buy": {
+      const preview = await buildPoolBuyPreview(input);
+      return materializeStructuredPreviewPlan({
+        userId: input.userId,
+        toolName: input.toolName,
+        preview,
+      });
+    }
+    case "preview_pool_sell": {
+      const preview = await buildPoolSellPreview(input);
+      return materializeStructuredPreviewPlan({
+        userId: input.userId,
+        toolName: input.toolName,
+        preview,
+      });
+    }
+    case "preview_lp_add": {
+      const preview = await buildLpAddPreview(input);
+      return materializeStructuredPreviewPlan({
+        userId: input.userId,
+        toolName: input.toolName,
+        preview,
+      });
+    }
+    case "preview_lp_add_optimal": {
+      const preview = await buildLpAddOptimalPreview(input);
+      return materializeStructuredPreviewPlan({
+        userId: input.userId,
+        toolName: input.toolName,
+        preview,
+      });
+    }
+    case "preview_lp_remove": {
+      const preview = await buildLpRemovePreview(input);
+      return materializeStructuredPreviewPlan({
+        userId: input.userId,
+        toolName: input.toolName,
+        preview,
+      });
+    }
+    case "preview_lp_zap": {
+      const preview = await buildLpZapPreview(input);
+      return materializeStructuredPreviewPlan({
+        userId: input.userId,
+        toolName: input.toolName,
+        preview,
+      });
+    }
     case "preview_direct_operation":
     case "preview_stack_shares":
     case "preview_daily_boost_assign":

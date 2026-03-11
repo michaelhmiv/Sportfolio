@@ -4,6 +4,7 @@ const storageMocks = vi.hoisted(() => ({
   updateDailyGameStatus: vi.fn(),
   upsertPlayerGameStats: vi.fn(),
   getDailyGameByGameId: vi.fn(),
+  getPlayersByIds: vi.fn(),
 }));
 
 const nascarApiMocks = vi.hoisted(() => ({
@@ -18,6 +19,7 @@ vi.mock("../storage", () => ({
     updateDailyGameStatus: storageMocks.updateDailyGameStatus,
     upsertPlayerGameStats: storageMocks.upsertPlayerGameStats,
     getDailyGameByGameId: storageMocks.getDailyGameByGameId,
+    getPlayersByIds: storageMocks.getPlayersByIds,
   },
 }));
 
@@ -98,6 +100,7 @@ describe("syncNascarLiveForSeries", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     nascarApiMocks.getFlagStateDescription.mockReturnValue("Final");
+    storageMocks.getPlayersByIds.mockResolvedValue([{ id: "nascar_1234" }]);
   });
 
   it("ignores qualifying/practice sessions and repairs status away from completed", async () => {
@@ -137,5 +140,42 @@ describe("syncNascarLiveForSeries", () => {
 
     const [firstCallArg] = storageMocks.upsertPlayerGameStats.mock.calls[0];
     expect(firstCallArg.statsJson.runType).toBe(3);
+  });
+
+  it("summarizes missing local drivers as skips instead of hard errors", async () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    nascarApiMocks.fetchLiveFeed.mockResolvedValue(
+      buildLiveFeed({
+        run_type: 3,
+        vehicles: [
+          buildLiveFeed().vehicles[0],
+          {
+            ...buildLiveFeed().vehicles[0],
+            driver: {
+              driver_id: 9999,
+              full_name: "Driver Two",
+              first_name: "Driver",
+              last_name: "Two",
+            },
+          },
+        ],
+      }),
+    );
+    nascarApiMocks.isNascarRaceSession.mockReturnValue(true);
+    nascarApiMocks.isNascarRaceFinished.mockReturnValue(false);
+    storageMocks.getPlayersByIds.mockResolvedValue([{ id: "nascar_1234" }]);
+
+    const { syncNascarLiveForSeries } = await import("./sync-nascar-live");
+    const result = await syncNascarLiveForSeries(2 as any);
+
+    expect(result.recordsProcessed).toBe(1);
+    expect(result.errorCount).toBe(0);
+    expect(result.skippedMissingPlayers).toBe(1);
+    expect(storageMocks.upsertPlayerGameStats).toHaveBeenCalledTimes(1);
+    expect(logSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Skipped 1 live stat rows for drivers missing from the local roster"),
+    );
+
+    logSpy.mockRestore();
   });
 });

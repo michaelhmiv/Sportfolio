@@ -57,6 +57,7 @@ import { MarketTicker } from "@/components/market-ticker";
 import { GameCommandCenterModal } from "@/components/game-command-center-modal";
 import { BackgroundPattern, CardAccent } from "@/components/ui/decorative-elements";
 import { DashboardShowcaseCard } from "@/components/dashboard-showcase-card";
+import { getEffectiveGameStatus, type EffectiveGameStatus } from "@shared/game-status";
 import type {
   DashboardShowcaseEligiblePlayer,
   DashboardShowcaseGameEntry,
@@ -123,8 +124,6 @@ interface BoostEligibilityResponse {
   totalEligible: number;
 }
 
-type EffectiveGameStatus = "scheduled" | "inprogress" | "completed" | "postponed";
-
 const compactCurrencyFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD",
@@ -136,52 +135,6 @@ const compactNumberFormatter = new Intl.NumberFormat("en-US", {
   notation: "compact",
   maximumFractionDigits: 1,
 });
-
-// Helper to determine effective game status based on current time
-const getEffectiveGameStatus = (
-  game: Pick<GameInsight, "startTime" | "status" | "liveMarketStatus" | "homeScore" | "awayScore">,
-): EffectiveGameStatus => {
-  const now = new Date();
-  const startTime = new Date(game.startTime);
-  const timeSinceStart = now.getTime() - startTime.getTime();
-  const threeHoursInMs = 3 * 60 * 60 * 1000;
-  const hasLiveSignal =
-    String(game.liveMarketStatus || "").trim().length > 0 ||
-    game.homeScore !== null ||
-    game.awayScore !== null;
-
-  // If DB says postponed, trust it
-  if (game.status === "postponed") {
-    return "postponed";
-  }
-
-  // If DB says completed, trust it
-  if (game.status === "completed") {
-    return "completed";
-  }
-
-  // If DB says inprogress, trust it
-  if (game.status === "inprogress") {
-    return "inprogress";
-  }
-
-  // Treat scheduled games as live only when backend has live evidence (status label or score signal).
-  if (
-    game.status === "scheduled" &&
-    hasLiveSignal &&
-    timeSinceStart > 0 &&
-    timeSinceStart < threeHoursInMs
-  ) {
-    return "inprogress";
-  }
-
-  // If more than 3 hours have passed since start and still scheduled, likely completed but not synced
-  if (game.status === "scheduled" && timeSinceStart >= threeHoursInMs) {
-    return "completed";
-  }
-
-  return game.status as EffectiveGameStatus;
-};
 
 export default function Dashboard() {
   const { isAuthenticated } = useAuth();

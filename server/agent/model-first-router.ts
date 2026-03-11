@@ -321,6 +321,8 @@ function buildLoopPrompt(input: {
     "Use the real Hermes tools directly when the user needs account-specific, market-specific, or time-sensitive data.",
     "You may call up to one tool per pass. After a tool result, continue reasoning and either call another tool or answer directly.",
     "Use plan tools for confirmation-ready previews or staged bundle planning.",
+    "When you call a plan tool, include every required argument exactly as named by the tool schema. If you do not know a required argument yet, use a read or scan tool first instead of guessing.",
+    "Preview tool argument reminders: preview_pool_buy needs playerId + sbAmount; preview_pool_sell needs playerId + sharesAmount; preview_lp_add_optimal needs playerId + maxShares + maxPlayMoney; preview_lp_remove needs playerId + lpShares; preview_lp_zap needs playerId plus shares or sb; preview_daily_boost_assign/remove and preview_scout_adjustment can use a concrete message when needed.",
     "Use action tools only when the user explicitly wants a pending bundle staged, confirmed, canceled, or another real mutation executed.",
     "Use memory mutation tools only when the user explicitly manages memory or skills, or when a workflow is clearly worth saving.",
     "When you have enough context, answer directly in plain text and do not call another tool.",
@@ -437,7 +439,9 @@ export async function runHermesModelToolLoop(input: {
         {
           systemPrompt: [
             "You are Sportfolio Operator.",
+            input.request.profile.systemPrompt || null,
             "Use the available Hermes tools directly when you need account, market, or news context.",
+            "If you select a tool, return valid JSON arguments that satisfy the tool schema.",
             "Call at most one tool at a time. If you already have enough information, answer directly in plain text.",
             repairReason ? `Repair instruction: ${repairReason}` : null,
           ]

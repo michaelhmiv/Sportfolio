@@ -47,6 +47,101 @@ function isSettlableNascarStats(
   return !runName.includes("qualifying") && !runName.includes("practice");
 }
 
+const STALE_MISSING_STATS_SETTLE_MS = 12 * 60 * 60 * 1000;
+
+function getBoostCommunityCacheKey(boost: {
+  sport: string;
+  boostDate: Date | string;
+  playerId: string;
+}) {
+  const dateKey = boost.boostDate
+    ? new Date(boost.boostDate).toISOString().split("T")[0]
+    : "unknown";
+  return `${boost.sport}:${dateKey}:${boost.playerId}`;
+}
+
+async function getCommunityBoostCountForBoost(
+  boost: {
+    sport: string;
+    boostDate: Date | string;
+    playerId: string;
+  },
+  cache: Map<string, number>,
+) {
+  const cacheKey = getBoostCommunityCacheKey(boost);
+  let communityBoostCount = cache.get(cacheKey);
+  if (communityBoostCount === undefined) {
+    const communityBoosts = await storage.getCommunityBoostsForDate(
+      boost.sport,
+      new Date(boost.boostDate),
+    );
+    communityBoostCount = communityBoosts.filter(
+      (entry) => entry.playerId === boost.playerId,
+    ).length;
+    cache.set(cacheKey, communityBoostCount);
+  }
+
+  return communityBoostCount;
+}
+
+function shouldFinalizeWithoutStats(
+  boost: { boostDate: Date | string },
+  game?: { startTime?: Date | string } | null,
+) {
+  const reference = game?.startTime ? new Date(game.startTime) : new Date(boost.boostDate);
+  return Date.now() - reference.getTime() >= STALE_MISSING_STATS_SETTLE_MS;
+}
+
+async function finalizeBoostWithoutStats(input: {
+  boost: any;
+  game?: { startTime?: Date | string } | null;
+  communityCountCache: Map<string, number>;
+  progressCallback?: ProgressCallback;
+}) {
+  const communityBoostCount = await getCommunityBoostCountForBoost(
+    input.boost,
+    input.communityCountCache,
+  );
+  const effectiveMultiplier = input.boost.slotTier + communityBoostCount;
+
+  await storage.createBoostPayout({
+    boostId: input.boost.id,
+    userId: input.boost.userId,
+    playerId: input.boost.playerId,
+    sharesUsed: input.boost.sharesEntered,
+    fantasyPoints: "0.00",
+    multiplier: effectiveMultiplier,
+    payoutAmount: "0.00",
+  });
+
+  await storage.updateDailyBoost(input.boost.id, {
+    status: "processed",
+    fantasyPoints: "0.00",
+    payout: "0.00",
+    processedAt: new Date(),
+  });
+
+  input.progressCallback?.({
+    type: "info",
+    timestamp: new Date().toISOString(),
+    message: `Settled stale boost ${input.boost.id} with zero payout after repeated missing stats.`,
+    data: {
+      boostId: input.boost.id,
+      playerId: input.boost.playerId,
+      gameId: input.boost.gameId,
+    },
+  });
+
+  broadcast({
+    type: "boost_settled",
+    userId: input.boost.userId,
+    boostId: input.boost.id,
+    payout: "0.00",
+    fantasyPoints: 0,
+    multiplier: effectiveMultiplier,
+  });
+}
+
 export async function settleBoosts(progressCallback?: ProgressCallback): Promise<JobResult> {
   console.log("[settle_boosts] Starting boost settlement...");
 
@@ -105,7 +200,7 @@ export async function settleBoosts(progressCallback?: ProgressCallback): Promise
           }
 
           if (canonical && boost.gameId !== canonical.gameId) {
-            console.warn(
+            console.log(
               `[settle_boosts] Boost ${boost.id}: repairing gameId ${boost.gameId || "(null)"} -> ${canonical.gameId}`,
             );
             await storage.updateDailyBoost(boost.id, { gameId: canonical.gameId });
@@ -124,7 +219,7 @@ export async function settleBoosts(progressCallback?: ProgressCallback): Promise
 
           if (resolved) {
             if (boost.gameId !== resolved.gameId) {
-              console.warn(
+              console.log(
                 `[settle_boosts] Boost ${boost.id}: repairing gameId ${boost.gameId || "(null)"} -> ${resolved.gameId}`,
               );
               await storage.updateDailyBoost(boost.id, { gameId: resolved.gameId });
@@ -134,7 +229,7 @@ export async function settleBoosts(progressCallback?: ProgressCallback): Promise
         }
 
         if (!game) {
-          console.warn(
+          console.log(
             `[settle_boosts] Boost ${boost.id}: no game found (gameId=${boost.gameId || "(null)"}), skipping`,
           );
           continue;
@@ -166,7 +261,7 @@ export async function settleBoosts(progressCallback?: ProgressCallback): Promise
         // This prevents race condition where boost is settled before sync-stats job stores player stats
         // FIX: Add to retry list instead of just skipping
         if (!stats) {
-          console.warn(
+          console.log(
             `[settle_boosts] Boost ${boost.id}: No stats found for player ${boost.playerId} game ${canonicalGameId}, queuing for retry`,
           );
           boostsNeedingRetry.push(boost);
@@ -174,7 +269,7 @@ export async function settleBoosts(progressCallback?: ProgressCallback): Promise
         }
 
         if (!isSettlableNascarStats(game.sport ?? boost.sport, stats)) {
-          console.warn(
+          console.log(
             `[settle_boosts] Boost ${boost.id}: ignoring non-race NASCAR session stats for game ${canonicalGameId}`,
           );
           continue;
@@ -293,7 +388,7 @@ export async function settleBoosts(progressCallback?: ProgressCallback): Promise
               : undefined;
 
             if (!game) {
-              console.warn(`[settle_boosts] Retry - Boost ${boost.id}: no game found, skipping`);
+              console.log(`[settle_boosts] Retry - Boost ${boost.id}: no game found, skipping`);
               continue;
             }
 
@@ -303,7 +398,7 @@ export async function settleBoosts(progressCallback?: ProgressCallback): Promise
             const stats = await storage.getPlayerGameStats(boost.playerId, canonicalGameId);
 
             if (!stats) {
-              console.warn(
+              console.log(
                 `[settle_boosts] Retry ${retry} - Boost ${boost.id}: still no stats, will retry again if available`,
               );
               remainingBoosts.push(boost);
@@ -311,7 +406,7 @@ export async function settleBoosts(progressCallback?: ProgressCallback): Promise
             }
 
             if (!isSettlableNascarStats(game.sport ?? boost.sport, stats)) {
-              console.warn(
+              console.log(
                 `[settle_boosts] Retry ${retry} - Boost ${boost.id}: still non-race NASCAR session stats for game ${canonicalGameId}, deferring`,
               );
               remainingBoosts.push(boost);
@@ -411,13 +506,36 @@ export async function settleBoosts(progressCallback?: ProgressCallback): Promise
       }
 
       if (boostsNeedingRetry.length > 0) {
-        console.warn(
-          `[settle_boosts] ${boostsNeedingRetry.length} boosts still missing stats after ${MAX_RETRIES} retries`,
-        );
+        const unresolvedBoosts: typeof lockedBoosts = [];
+
         for (const boost of boostsNeedingRetry) {
-          console.warn(
-            `[settle_boosts] Unsettled boost: ${boost.id} - player ${boost.playerId} game ${boost.gameId}`,
+          const game = boost.gameId ? await storage.getDailyGameByGameId(boost.gameId) : undefined;
+          if (shouldFinalizeWithoutStats(boost, game)) {
+            console.log(
+              `[settle_boosts] Finalizing stale boost ${boost.id} with zero payout after missing stats retries.`,
+            );
+            await finalizeBoostWithoutStats({
+              boost,
+              game,
+              communityCountCache,
+              progressCallback,
+            });
+            boostsSettled++;
+            continue;
+          }
+
+          unresolvedBoosts.push(boost);
+        }
+
+        if (unresolvedBoosts.length > 0) {
+          console.log(
+            `[settle_boosts] ${unresolvedBoosts.length} boosts still missing stats after ${MAX_RETRIES} retries`,
           );
+          for (const boost of unresolvedBoosts) {
+            console.log(
+              `[settle_boosts] Unsettled boost: ${boost.id} - player ${boost.playerId} game ${boost.gameId}`,
+            );
+          }
         }
       }
     }

@@ -156,6 +156,9 @@ export interface BoostEligibleHolding extends HoldingWithPlayerSummary {
   availableShares: number;
   gameId: string | null;
   gameStartTime: Date | null;
+  gameDbStatus: string | null;
+  gameHomeScore: number | null;
+  gameAwayScore: number | null;
 }
 
 export interface HoldingMultiplierState {
@@ -717,7 +720,7 @@ function buildStackedShareSummary(multiplier: PlayerMultiplier): HoldingSummary 
   };
 }
 
-const LEGACY_ACTIVITY_CATEGORIES: UserActivityCategory[] = ["vesting", "market", "scout"];
+const LEGACY_ACTIVITY_CATEGORIES: UserActivityCategory[] = ["market", "scout"];
 const PENDING_ACTIVITY_STATUSES = new Set(["pending", "active", "locked"]);
 const GAMEPLAY_ACTIVITY_CATEGORIES = new Set<UserActivityCategory>([
   "scout",
@@ -826,14 +829,6 @@ export class DatabaseStorage implements IStorage {
         balance: "10000.00", // Starting balance
       })
       .returning();
-
-    // Initialize vesting for new user with full bar so they can immediately claim
-    // Cap is 2400 for non-premium, 4800 for premium - start at non-premium cap
-    await db.insert(vesting).values({
-      userId: user.id,
-      sharesAccumulated: 2400,
-      lastAccruedAt: new Date(),
-    });
 
     return user;
   }
@@ -1034,16 +1029,6 @@ export class DatabaseStorage implements IStorage {
         },
       })
       .returning();
-
-    // Initialize vesting for new user if it doesn't exist (with lastAccruedAt so vesting job processes them)
-    const existingVesting = await db.select().from(vesting).where(eq(vesting.userId, user.id));
-    if (existingVesting.length === 0) {
-      await db.insert(vesting).values({
-        userId: user.id,
-        sharesAccumulated: 0,
-        lastAccruedAt: new Date(),
-      });
-    }
 
     return user;
   }
@@ -2558,37 +2543,41 @@ export class DatabaseStorage implements IStorage {
    */
   async refreshPlayerVolume24h(): Promise<number> {
     // 1) Update players with AMM trades in the window
-    const updatedWithTrades: any = await db.execute(sql`
+    const updatedWithTrades: any = await db.execute(
+      sql.raw(`
       WITH v AS (
         SELECT
-          ${trades.playerId} AS player_id,
-          COALESCE(ROUND(SUM(${trades.quantity}))::int, 0) AS vol
-        FROM ${trades}
-        WHERE ${trades.executedAt} >= NOW() - INTERVAL '24 hours'
-          AND (${trades.buyerId} = 'pool' OR ${trades.sellerId} = 'pool')
-        GROUP BY ${trades.playerId}
+          "player_id",
+          COALESCE(ROUND(SUM("quantity"))::int, 0) AS vol
+        FROM "trades"
+        WHERE "executed_at" >= NOW() - INTERVAL '24 hours'
+          AND ("buyer_id" = 'pool' OR "seller_id" = 'pool')
+        GROUP BY "player_id"
       )
-      UPDATE ${players} p
-      SET ${players.volume24h} = v.vol,
-          ${players.lastUpdated} = NOW()
+      UPDATE "players" AS p
+      SET "volume_24h" = v.vol,
+          "last_updated" = NOW()
       FROM v
-      WHERE p.${players.id} = v.player_id;
-    `);
+      WHERE p."id" = v."player_id";
+    `),
+    );
 
     // 2) Zero out any players that previously had volume but no longer do
-    const updatedZeroed: any = await db.execute(sql`
-      UPDATE ${players} p
-      SET ${players.volume24h} = 0,
-          ${players.lastUpdated} = NOW()
-      WHERE p.${players.volume24h} <> 0
+    const updatedZeroed: any = await db.execute(
+      sql.raw(`
+      UPDATE "players" AS p
+      SET "volume_24h" = 0,
+          "last_updated" = NOW()
+      WHERE p."volume_24h" <> 0
         AND NOT EXISTS (
           SELECT 1
-          FROM ${trades} t
-          WHERE t.${trades.playerId} = p.${players.id}
-            AND t.${trades.executedAt} >= NOW() - INTERVAL '24 hours'
-            AND (t.${trades.buyerId} = 'pool' OR t.${trades.sellerId} = 'pool')
+          FROM "trades" AS t
+          WHERE t."player_id" = p."id"
+            AND t."executed_at" >= NOW() - INTERVAL '24 hours'
+            AND (t."buyer_id" = 'pool' OR t."seller_id" = 'pool')
         );
-    `);
+    `),
+    );
 
     const c1 = typeof updatedWithTrades?.rowCount === "number" ? updatedWithTrades.rowCount : 0;
     const c2 = typeof updatedZeroed?.rowCount === "number" ? updatedZeroed.rowCount : 0;
@@ -2825,63 +2814,6 @@ export class DatabaseStorage implements IStorage {
     const fetchWindow = getUserActivitySourceFetchWindow(limit, offset);
     const typeSet = new Set<UserActivityCategory>(types);
     const activityTasks: Array<Promise<UserActivityItem[]>> = [];
-
-    if (typeSet.has("vesting")) {
-      activityTasks.push(
-        (async () => {
-          const claims = await db
-            .select({
-              id: vestingClaims.id,
-              occurredAt: vestingClaims.claimedAt,
-              playerId: vestingClaims.playerId,
-              playerFirstName: players.firstName,
-              playerLastName: players.lastName,
-              playerTeam: players.team,
-              sharesClaimed: vestingClaims.sharesClaimed,
-            })
-            .from(vestingClaims)
-            .leftJoin(players, eq(vestingClaims.playerId, players.id))
-            .where(eq(vestingClaims.userId, userId))
-            .orderBy(desc(vestingClaims.claimedAt))
-            .limit(fetchWindow);
-
-          return claims.map((claim) => {
-            const playerName = claim.playerId
-              ? `${claim.playerFirstName} ${claim.playerLastName}`.trim()
-              : "Multiple Players";
-
-            return {
-              id: `vesting-${claim.id}`,
-              timestamp: toActivityTimestamp(claim.occurredAt),
-              category: "vesting",
-              type: "claim",
-              title: "Claimed vesting shares",
-              description: `Claimed ${claim.sharesClaimed} shares${playerName ? ` of ${playerName}` : ""}`,
-              shareDelta: claim.sharesClaimed,
-              status: "processed",
-              entity: claim.playerId
-                ? {
-                    kind: "player",
-                    id: claim.playerId,
-                    label: playerName,
-                    secondaryLabel: claim.playerTeam || undefined,
-                    href: `/player/${claim.playerId}`,
-                  }
-                : undefined,
-              context: {
-                summary: `${claim.sharesClaimed} shares claimed`,
-              },
-              metadata: {
-                playerId: claim.playerId || undefined,
-                playerName,
-                playerTeam: claim.playerTeam,
-                sharesClaimed: claim.sharesClaimed,
-              },
-            } satisfies UserActivityItem;
-          });
-        })(),
-      );
-    }
 
     if (typeSet.has("market")) {
       activityTasks.push(
@@ -5871,10 +5803,26 @@ export class DatabaseStorage implements IStorage {
     const todaysGames = await this.getDailyGamesBySport(sport, startOfDay, endOfDay);
 
     // Build a map of team -> game info
-    const teamGameMap = new Map<string, { gameId: string; startTime: Date }>();
+    const teamGameMap = new Map<
+      string,
+      {
+        gameId: string;
+        startTime: Date;
+        status: string;
+        homeScore: number | null;
+        awayScore: number | null;
+      }
+    >();
     for (const game of todaysGames) {
-      teamGameMap.set(game.homeTeam, { gameId: game.gameId, startTime: new Date(game.startTime) });
-      teamGameMap.set(game.awayTeam, { gameId: game.gameId, startTime: new Date(game.startTime) });
+      const gameSummary = {
+        gameId: game.gameId,
+        startTime: new Date(game.startTime),
+        status: game.status,
+        homeScore: game.homeScore,
+        awayScore: game.awayScore,
+      };
+      teamGameMap.set(game.homeTeam, gameSummary);
+      teamGameMap.set(game.awayTeam, gameSummary);
     }
 
     // For each holding, check if player's team has a game today and calculate available shares
@@ -5916,6 +5864,9 @@ export class DatabaseStorage implements IStorage {
         availableShares,
         gameId: teamGame.gameId,
         gameStartTime: teamGame.startTime,
+        gameDbStatus: teamGame.status,
+        gameHomeScore: teamGame.homeScore,
+        gameAwayScore: teamGame.awayScore,
       });
     }
 
@@ -5937,6 +5888,9 @@ export class DatabaseStorage implements IStorage {
         availableShares,
         gameId: teamGame.gameId,
         gameStartTime: teamGame.startTime,
+        gameDbStatus: teamGame.status,
+        gameHomeScore: teamGame.homeScore,
+        gameAwayScore: teamGame.awayScore,
       });
     }
 

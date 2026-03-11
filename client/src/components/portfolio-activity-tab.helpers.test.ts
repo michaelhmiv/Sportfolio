@@ -18,7 +18,7 @@ const baseActivity = {
 } satisfies Partial<UserActivityItem>;
 
 describe("portfolio activity tab helpers", () => {
-  it("requests every supported category so vesting activity remains reachable", () => {
+  it("requests every supported category in the live portfolio ledger", () => {
     const params = buildPortfolioActivityFeedQueryParams(80);
 
     expect(params.get("limit")).toBe("40");

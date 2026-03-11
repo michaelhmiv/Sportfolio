@@ -5,7 +5,6 @@ import {
   Crown,
   Database,
   Droplets,
-  FileText,
   Loader2,
   Search,
   ShoppingCart,
@@ -54,7 +53,6 @@ const CATEGORY_OPTIONS: Array<{ value: PortfolioActivityCategoryFilter; label: s
   { value: "scout", label: "Scout" },
   { value: "community", label: "Community" },
   { value: "premium", label: "Premium" },
-  { value: "vesting", label: "Vesting" },
 ];
 
 const FOCUS_OPTIONS: Array<{ value: PortfolioActivityFocusFilter; label: string }> = [
@@ -73,7 +71,6 @@ const CATEGORY_LABELS: Record<UserActivityCategory, string> = {
   liquidity: "Liquidity",
   premium: "Premium",
   payouts: "Payouts",
-  vesting: "Vesting",
 };
 
 function getCategoryIcon(category: UserActivityCategory) {
@@ -92,8 +89,6 @@ function getCategoryIcon(category: UserActivityCategory) {
       return Crown;
     case "payouts":
       return Wallet;
-    case "vesting":
-      return FileText;
     case "scout":
     default:
       return Clock3;
@@ -116,8 +111,6 @@ function getCategoryTone(category: UserActivityCategory) {
       return "text-yellow-300 border-yellow-500/20 bg-yellow-500/10";
     case "payouts":
       return "text-emerald-300 border-emerald-500/20 bg-emerald-500/10";
-    case "vesting":
-      return "text-slate-300 border-slate-500/20 bg-slate-500/10";
     case "scout":
     default:
       return "text-green-300 border-green-500/20 bg-green-500/10";

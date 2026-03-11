@@ -350,7 +350,6 @@ function getOperatorOverview(context: ScoutContext): ScoutContext["operatorOverv
       communitySharesAvailable: 0,
       activeDailyBoostSlots: 0,
       openDailyBoostSlots: 0,
-      claimableVestingShares: 0,
       topHoldings: [],
       nextBestLevers: [],
     }

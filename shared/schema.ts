@@ -424,12 +424,12 @@ export const playerPools = pgTable(
     playerId: varchar("player_id")
       .primaryKey()
       .references(() => players.id, { onDelete: "cascade" }),
-    shares: decimal("shares", { precision: 12, scale: 2 }).notNull().default("1000"),
-    playMoney: decimal("play_money", { precision: 12, scale: 2 }).notNull().default("10000"),
-    k: decimal("k", { precision: 24, scale: 2 }).notNull().default("10000000"),
+    shares: decimal("shares", { precision: 12, scale: 2 }).notNull().default("50000"),
+    playMoney: decimal("play_money", { precision: 12, scale: 2 }).notNull().default("500000"),
+    k: decimal("k", { precision: 24, scale: 2 }).notNull().default("25000000000"),
     lpSharesTotal: decimal("lp_shares_total", { precision: 24, scale: 2 })
       .notNull()
-      .default("1000"),
+      .default("50000"),
     feesAccumulated: decimal("fees_accumulated", { precision: 12, scale: 2 })
       .notNull()
       .default("0"),
@@ -905,6 +905,21 @@ export const botProfiles = pgTable(
     maxDailyOrders: integer("max_daily_orders").notNull().default(50), // Daily order cap
     maxDailyVolume: integer("max_daily_volume").notNull().default(1000), // Max shares traded per day
     targetTiers: integer("target_tiers").array(), // Player tiers to target (1-5), null = all tiers
+    strategyPrompt: text("strategy_prompt").notNull().default(""), // Persona / role-specific operating prompt
+    allowedMechanics: text("allowed_mechanics")
+      .array()
+      .notNull()
+      .default(sql`ARRAY['market','liquidity','scouting','boosts']::text[]`),
+    objectiveWeights: jsonb("objective_weights")
+      .notNull()
+      .default(sql`'{"priceMovement":0.45,"liquidityCoverage":0.35,"variety":0.20}'::jsonb`),
+    researchEnabled: boolean("research_enabled").notNull().default(false),
+    researchQueryBudget: integer("research_query_budget").notNull().default(1),
+    researchTtlMinutes: integer("research_ttl_minutes").notNull().default(90),
+    maxActionsPerTick: integer("max_actions_per_tick").notNull().default(2),
+    maxPlayerExposurePercent: decimal("max_player_exposure_percent", { precision: 5, scale: 2 })
+      .notNull()
+      .default("25.00"),
     // Vesting configuration
     vestingClaimThreshold: decimal("vesting_claim_threshold", { precision: 3, scale: 2 })
       .notNull()
@@ -950,6 +965,96 @@ export const botActionsLog = pgTable(
     botUserIdx: index("bot_actions_user_idx").on(table.botUserId),
     actionTypeIdx: index("bot_actions_type_idx").on(table.actionType),
     createdAtIdx: index("bot_actions_created_idx").on(table.createdAt),
+  }),
+);
+
+export const botCycleBriefs = pgTable(
+  "bot_cycle_briefs",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    cycleKey: text("cycle_key").notNull().unique(),
+    coordinatorBotUserId: varchar("coordinator_bot_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    status: text("status").notNull().default("ready"),
+    summary: text("summary").notNull(),
+    sharedPrompt: text("shared_prompt").notNull(),
+    briefPayload: jsonb("brief_payload")
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    warnings: jsonb("warnings")
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    citations: jsonb("citations")
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    toolTrace: jsonb("tool_trace")
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    usedResearch: boolean("used_research").notNull().default(false),
+    researchQueryCount: integer("research_query_count").notNull().default(0),
+    expiresAt: timestamp("expires_at").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    expiresIdx: index("bot_cycle_briefs_expires_idx").on(table.expiresAt),
+    createdIdx: index("bot_cycle_briefs_created_idx").on(table.createdAt),
+  }),
+);
+
+export const botRunLogs = pgTable(
+  "bot_run_logs",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    cycleKey: text("cycle_key").notNull(),
+    botUserId: varchar("bot_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    botProfileId: varchar("bot_profile_id")
+      .notNull()
+      .references(() => botProfiles.id, { onDelete: "cascade" }),
+    cycleBriefId: varchar("cycle_brief_id").references(() => botCycleBriefs.id, {
+      onDelete: "set null",
+    }),
+    threadId: varchar("thread_id"),
+    status: text("status").notNull().default("pending"),
+    role: text("role").notNull(),
+    summary: text("summary"),
+    warnings: jsonb("warnings")
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    plannedActions: jsonb("planned_actions")
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    executedActions: jsonb("executed_actions")
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    citations: jsonb("citations")
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    toolTrace: jsonb("tool_trace")
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    usedResearch: boolean("used_research").notNull().default(false),
+    researchQueryCount: integer("research_query_count").notNull().default(0),
+    failureClass: text("failure_class"),
+    metrics: jsonb("metrics")
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    errorMessage: text("error_message"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    completedAt: timestamp("completed_at"),
+  },
+  (table) => ({
+    botCreatedIdx: index("bot_run_logs_bot_created_idx").on(table.botUserId, table.createdAt),
+    cycleIdx: index("bot_run_logs_cycle_idx").on(table.cycleKey),
+    statusIdx: index("bot_run_logs_status_idx").on(table.status),
+    failureClassIdx: index("bot_run_logs_failure_class_idx").on(table.failureClass),
   }),
 );
 
@@ -2468,6 +2573,24 @@ export const insertBotActionLogSchema = createInsertSchema(botActionsLog).omit({
 
 export type BotActionLog = typeof botActionsLog.$inferSelect;
 export type InsertBotActionLog = z.infer<typeof insertBotActionLogSchema>;
+
+export const insertBotCycleBriefSchema = createInsertSchema(botCycleBriefs).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type BotCycleBrief = typeof botCycleBriefs.$inferSelect;
+export type InsertBotCycleBrief = z.infer<typeof insertBotCycleBriefSchema>;
+
+export const insertBotRunLogSchema = createInsertSchema(botRunLogs).omit({
+  id: true,
+  createdAt: true,
+  completedAt: true,
+});
+
+export type BotRunLog = typeof botRunLogs.$inferSelect;
+export type InsertBotRunLog = z.infer<typeof insertBotRunLogSchema>;
 
 // Premium checkout session schemas and types
 export const insertPremiumCheckoutSessionSchema = createInsertSchema(premiumCheckoutSessions).omit({

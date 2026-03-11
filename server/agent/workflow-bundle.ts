@@ -70,8 +70,6 @@ function describeAction(action: AgentAction): string {
       return `Remove ${action.playerName || action.playerId} from watchlists`;
     case "community_boost_create":
       return `Create community boost for ${action.playerName || action.playerId}`;
-    case "vesting_claim":
-      return `Claim ${action.claimableShares} vested share${action.claimableShares === 1 ? "" : "s"}`;
     case "scout_set_count":
     default:
       return `Update scouts for ${action.playerName || action.playerId}`;

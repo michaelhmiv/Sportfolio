@@ -13,7 +13,6 @@ export type AgentDomain =
   | "daily_boosts"
   | "community_boosts"
   | "watchlists"
-  | "vesting"
   | "sportfolio";
 export type AgentChannel = "in_app" | "sms" | "cli";
 export type ManagedProviderKey = "chutes" | "minimax" | "openrouter";
@@ -165,7 +164,6 @@ export interface ScoutAgentOperatorOverview {
   communitySharesAvailable: number;
   activeDailyBoostSlots: number;
   openDailyBoostSlots: number;
-  claimableVestingShares: number;
   topHoldings: ScoutAgentOperatorHolding[];
   nextBestLevers: string[];
 }
@@ -681,18 +679,6 @@ export interface CommunityBoostCreateAction {
   confidence: number;
 }
 
-export interface VestingClaimAction {
-  actionType: "vesting_claim";
-  playerId: string;
-  playerName?: string;
-  status?: string;
-  claimableShares: number;
-  distributionCount: number;
-  targetDescription?: string | null;
-  reasoning: string;
-  confidence: number;
-}
-
 export type AgentAction =
   | ScoutProposalAction
   | PoolBuyAction
@@ -707,8 +693,7 @@ export type AgentAction =
   | DailyBoostRemoveAction
   | WatchlistAddPlayerAction
   | WatchlistRemovePlayerAction
-  | CommunityBoostCreateAction
-  | VestingClaimAction;
+  | CommunityBoostCreateAction;
 
 export interface AgentAnalysisResult {
   runId: string;

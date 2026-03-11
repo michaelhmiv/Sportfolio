@@ -6,7 +6,6 @@ export type AgentDomain =
   | "daily_boosts"
   | "community_boosts"
   | "watchlists"
-  | "vesting"
   | "sportfolio";
 
 export interface AgentProfileResponse {
@@ -56,8 +55,7 @@ export interface AgentAction {
     | "daily_boost_remove"
     | "watchlist_add_player"
     | "watchlist_remove_player"
-    | "community_boost_create"
-    | "vesting_claim";
+    | "community_boost_create";
   playerId: string;
   playerName?: string;
   status?: string;
@@ -106,9 +104,6 @@ export interface AgentAction {
   watchlistName?: string | null;
   removeFromAll?: boolean;
   communitySharesAvailable?: number;
-  claimableShares?: number;
-  distributionCount?: number;
-  targetDescription?: string | null;
 }
 
 export interface AgentPendingClarification {

@@ -1,5 +1,6 @@
 import type { UserAgentProfile } from "@shared/schema";
 import type { AgentAnalysisResult, AgentCitation } from "./types";
+import { perplexityService } from "../services/perplexity";
 
 const DEFAULT_BRAVE_SEARCH_URL = "https://api.search.brave.com/res/v1/web/search";
 const BRAVE_SEARCH_TIMEOUT_MS = 8000;
@@ -73,7 +74,7 @@ function getBraveSearchApiKey() {
 }
 
 export function isHostedWebResearchAvailable() {
-  return Boolean(getBraveSearchApiKey());
+  return Boolean(getBraveSearchApiKey()) || perplexityService.isReady();
 }
 
 export function shouldUseHostedWebResearch(message: string) {
@@ -219,6 +220,45 @@ async function fetchBraveSearchResults(query: string): Promise<AgentCitation[]> 
   }
 }
 
+function buildPerplexityCitation(urlValue: string, index: number, summary: string): AgentCitation {
+  let sourceName = "External Source";
+
+  try {
+    sourceName = new URL(urlValue).hostname.replace(/^www\./, "");
+  } catch {
+    sourceName = "External Source";
+  }
+
+  return {
+    id: `perplexity-${index + 1}`,
+    title: `Perplexity source ${index + 1}`,
+    sourceName,
+    url: urlValue,
+    publishedAt: null,
+    retrievedAt: new Date().toISOString(),
+    factSummary: truncateText(summary, 240),
+    relevanceScore: Number((1 - index * 0.1).toFixed(2)),
+  };
+}
+
+async function fetchPerplexityResearchResults(query: string): Promise<AgentCitation[]> {
+  const result = await perplexityService.fetchBreakingNews(
+    `Provide concise current sports news, injury, lineup, and catalyst coverage that matters for this query: ${query}`,
+  );
+
+  if (!result.success) {
+    throw new Error(result.error || "Perplexity research request failed.");
+  }
+
+  const summary = normalizeWhitespace(result.content || query);
+  const urls = Array.isArray(result.citations) ? result.citations.filter(Boolean) : [];
+
+  return urls.slice(0, MAX_RESEARCH_RESULTS).map((url, index) => {
+    const normalizedUrl = normalizeWhitespace(String(url));
+    return buildPerplexityCitation(normalizedUrl, index, summary);
+  });
+}
+
 export async function runHostedWebResearchQuery(query: string): Promise<HostedWebResearchResult> {
   const normalizedQuery = normalizeWhitespace(query);
 
@@ -273,10 +313,10 @@ export async function planHostedWebResearch(input: {
       domain: "sportfolio",
       requestMessage: input.message,
       replyText:
-        "Hosted web research is not configured right now, so I could not run the Brave search check. Add a Brave Search API key on the server and I can pull live external coverage for requests like this.",
+        "Hosted web research is not configured right now, so I could not run the external search check. Add a supported research provider on the server and I can pull live external coverage for requests like this.",
       summary: "Hosted web research is not configured.",
       observations: [],
-      warnings: ["External research requires a server-side Brave Search API key."],
+      warnings: ["External research requires a supported server-side provider key."],
       actions: [],
       citations: [],
       pendingClarification: null,
@@ -284,11 +324,11 @@ export async function planHostedWebResearch(input: {
       contextSnapshot: {
         intent: "hosted_web_research",
         queries,
-        provider: "brave",
+        provider: "external_research",
         configured: false,
       },
       trace: {
-        framework: "hosted-brave-search",
+        framework: "hosted-web-research",
         status: "not_configured",
       },
     };
@@ -296,15 +336,21 @@ export async function planHostedWebResearch(input: {
 
   const attemptedQueries: string[] = [];
   const gatheredCitations: AgentCitation[] = [];
+  const provider = getBraveSearchApiKey() ? "brave" : "perplexity";
 
   try {
     for (const query of queries) {
       attemptedQueries.push(query);
-      const result = await runHostedWebResearchQuery(query);
-      if (result.errorMessage) {
-        throw new Error(result.errorMessage);
-      }
-      const results = result.citations;
+      const results =
+        provider === "brave"
+          ? await (async () => {
+              const result = await runHostedWebResearchQuery(query);
+              if (result.errorMessage) {
+                throw new Error(result.errorMessage);
+              }
+              return result.citations;
+            })()
+          : await fetchPerplexityResearchResults(query);
 
       if (results.length > 0) {
         gatheredCitations.push(...results);
@@ -320,7 +366,7 @@ export async function planHostedWebResearch(input: {
       summary: "Hosted web research is temporarily unavailable.",
       observations: [],
       warnings: [
-        error?.message || "The Brave search request failed.",
+        error?.message || "The hosted research request failed.",
         "External research is optional and did not change any portfolio state.",
       ],
       actions: [],
@@ -330,11 +376,11 @@ export async function planHostedWebResearch(input: {
       contextSnapshot: {
         intent: "hosted_web_research",
         queries: attemptedQueries,
-        provider: "brave",
+        provider,
         failure: error?.message || "request_failed",
       },
       trace: {
-        framework: "hosted-brave-search",
+        framework: "hosted-web-research",
         status: "request_failed",
       },
     };
@@ -361,11 +407,11 @@ export async function planHostedWebResearch(input: {
       contextSnapshot: {
         intent: "hosted_web_research",
         queries: attemptedQueries,
-        provider: "brave",
+        provider,
         resultCount: 0,
       },
       trace: {
-        framework: "hosted-brave-search",
+        framework: "hosted-web-research",
         status: "no_results",
       },
     };
@@ -399,11 +445,11 @@ export async function planHostedWebResearch(input: {
     contextSnapshot: {
       intent: "hosted_web_research",
       queries: attemptedQueries,
-      provider: "brave",
+      provider,
       resultCount: citations.length,
     },
     trace: {
-      framework: "hosted-brave-search",
+      framework: "hosted-web-research",
       status: "completed",
       queryCount: attemptedQueries.length,
     },

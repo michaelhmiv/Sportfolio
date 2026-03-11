@@ -7,6 +7,11 @@
 import { db } from "../server/db";
 import { players, playerPools } from "../shared/schema";
 import { eq } from "drizzle-orm";
+import {
+  INITIAL_POOL_K,
+  INITIAL_POOL_PLAY_MONEY,
+  INITIAL_POOL_SHARES,
+} from "../server/amm/pool-seed";
 
 async function seedPlayerPools() {
   console.log("[SEED] Starting player pool creation...");
@@ -40,10 +45,10 @@ async function seedPlayerPools() {
         // Create pool for this player
         await db.insert(playerPools).values({
           playerId: player.id,
-          shares: "1000",
-          playMoney: "10000",
-          k: "10000000",
-          lpSharesTotal: "1000",
+          shares: INITIAL_POOL_SHARES.toString(),
+          playMoney: INITIAL_POOL_PLAY_MONEY.toString(),
+          k: INITIAL_POOL_K.toFixed(2),
+          lpSharesTotal: INITIAL_POOL_SHARES.toString(),
           feesAccumulated: "0",
           totalVolume: "0",
           totalTrades: 0,

@@ -3,6 +3,8 @@
 ## 2026-03-10
 
 - For direct-to-main hotfixes, sync to `main` first and do branch switches plus pulls serially; parallelizing Git state changes can create misleading merge/conflict errors even when the worktree is clean.
+- When game state controls gameplay gates like boosts, do not keep separate time-only heuristics in the dashboard, routes, and jobs; use one shared status helper or delayed/stale schedule rows will drift into false `live` locks.
+- When a local scheduler/watch process looks stale, verify fixes against DB-backed job logs and a direct one-off job invocation on the current code instead of trusting the long-lived file log or assuming the watcher has reloaded.
 
 ## 2026-03-09
 

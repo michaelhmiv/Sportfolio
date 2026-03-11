@@ -1,11 +1,7 @@
-/**
- * BotEngine - Orchestrator for market maker bot actions
- * Runs as a scheduled job to simulate user activity
- */
-
+import { botActionsLog, botProfiles } from "@shared/schema";
+import { eq, gte, sql } from "drizzle-orm";
 import { db } from "../db";
-import { users, botProfiles, botActionsLog } from "@shared/schema";
-import { eq, and, gte, sql } from "drizzle-orm";
+import { getHermesBotRuntimeStatus, runHermesBotEngineTick } from "./runtime";
 
 export interface BotProfile {
   id: string;
@@ -19,8 +15,14 @@ export interface BotProfile {
   minOrderSize: number;
   maxDailyOrders: number;
   maxDailyVolume: number;
-  vestingClaimThreshold: string;
-  maxPlayersToVest: number;
+  strategyPrompt?: string;
+  allowedMechanics?: string[];
+  objectiveWeights?: Record<string, unknown>;
+  researchEnabled?: boolean;
+  researchQueryBudget?: number;
+  researchTtlMinutes?: number;
+  maxActionsPerTick?: number;
+  maxPlayerExposurePercent?: string;
   minActionCooldownMs: number;
   maxActionCooldownMs: number;
   activeHoursStart: number;
@@ -33,15 +35,12 @@ export interface BotProfile {
 
 export interface BotAction {
   actionType: string;
-  actionDetails: Record<string, any>;
+  actionDetails: Record<string, unknown>;
   triggerReason: string;
   success: boolean;
   errorMessage?: string;
 }
 
-/**
- * Log a bot action to the audit trail
- */
 export async function logBotAction(botUserId: string, action: BotAction): Promise<void> {
   await db.insert(botActionsLog).values({
     botUserId,
@@ -53,328 +52,55 @@ export async function logBotAction(botUserId: string, action: BotAction): Promis
   });
 }
 
-/**
- * Check if it's currently within a bot's active hours
- * NOTE: Disabled - bots now run 24/7 per user request
- */
-function isWithinActiveHours(profile: BotProfile): boolean {
-  return true; // Bots run 24/7
-}
-
-/**
- * Check if bot has cooled down since last action
- */
-function isCooldownComplete(profile: BotProfile): boolean {
-  if (!profile.lastActionAt) return true;
-
-  const now = Date.now();
-  const lastAction = new Date(profile.lastActionAt).getTime();
-
-  // Add jitter: random cooldown between min and max
-  const jitter = Math.random();
-  const cooldownMs =
-    profile.minActionCooldownMs +
-    (profile.maxActionCooldownMs - profile.minActionCooldownMs) * jitter;
-
-  return now - lastAction >= cooldownMs;
-}
-
-/**
- * Reset daily counters if it's a new day
- */
-async function maybeResetDailyCounters(profile: BotProfile): Promise<BotProfile> {
-  const now = new Date();
-  const lastReset = new Date(profile.lastResetDate);
-
-  // Check if it's a new day (UTC)
-  if (
-    now.getUTCFullYear() !== lastReset.getUTCFullYear() ||
-    now.getUTCMonth() !== lastReset.getUTCMonth() ||
-    now.getUTCDate() !== lastReset.getUTCDate()
-  ) {
-    // Reset counters
-    await db
-      .update(botProfiles)
-      .set({
-        ordersToday: 0,
-        volumeToday: 0,
-        lastResetDate: now,
-        updatedAt: now,
-      })
-      .where(eq(botProfiles.id, profile.id));
-
-    return {
-      ...profile,
-      ordersToday: 0,
-      volumeToday: 0,
-      lastResetDate: now,
-    };
-  }
-
-  return profile;
-}
-
-/**
- * Update bot's last action timestamp and user activity
- */
-async function updateLastActionTime(profileId: string): Promise<void> {
-  const now = new Date();
-
-  await db.transaction(async (tx) => {
-    // Update bot profile
-    await tx
-      .update(botProfiles)
-      .set({
-        lastActionAt: now,
-        updatedAt: now,
-      })
-      .where(eq(botProfiles.id, profileId));
-
-    // Update user activity (Keep-Alive for Scout Engine)
-    // We need to find the userId. Since we are in a transaction, let's just fetch it quickly.
-    const profile = await tx
-      .select({ userId: botProfiles.userId })
-      .from(botProfiles)
-      .where(eq(botProfiles.id, profileId))
-      .limit(1);
-
-    if (profile.length > 0) {
-      await tx.update(users).set({ lastActiveAt: now }).where(eq(users.id, profile[0].userId));
-    }
-  });
-}
-
-/**
- * Update bot's daily counters after trading
- */
 export async function updateBotCounters(
   profileId: string,
   ordersPlaced: number,
   volumeTraded: number,
 ): Promise<void> {
-  const safeOrdersPlaced = Math.max(0, Math.round(ordersPlaced));
-  const safeVolumeTraded = Math.max(0, Math.round(volumeTraded));
-
-  const [current] = await db
-    .select({ ordersToday: botProfiles.ordersToday, volumeToday: botProfiles.volumeToday })
-    .from(botProfiles)
+  await db
+    .update(botProfiles)
+    .set({
+      ordersToday: sql`${botProfiles.ordersToday} + ${Math.max(0, Math.round(ordersPlaced))}`,
+      volumeToday: sql`${botProfiles.volumeToday} + ${Math.max(0, Math.round(volumeTraded))}`,
+      updatedAt: new Date(),
+    })
     .where(eq(botProfiles.id, profileId));
-
-  if (current) {
-    await db
-      .update(botProfiles)
-      .set({
-        ordersToday: current.ordersToday + safeOrdersPlaced,
-        volumeToday: current.volumeToday + safeVolumeTraded,
-        updatedAt: new Date(),
-      })
-      .where(eq(botProfiles.id, profileId));
-  }
 }
 
-/**
- * Update bot's daily trading volume
- */
 export async function updateBotVolume(profileId: string, volumeAdded: number): Promise<void> {
-  const safeVolumeAdded = Math.max(0, Math.round(volumeAdded));
-
-  const [current] = await db
-    .select({ volumeToday: botProfiles.volumeToday })
-    .from(botProfiles)
+  await db
+    .update(botProfiles)
+    .set({
+      volumeToday: sql`${botProfiles.volumeToday} + ${Math.max(0, Math.round(volumeAdded))}`,
+      updatedAt: new Date(),
+    })
     .where(eq(botProfiles.id, profileId));
-
-  if (current) {
-    await db
-      .update(botProfiles)
-      .set({
-        volumeToday: current.volumeToday + safeVolumeAdded,
-        updatedAt: new Date(),
-      })
-      .where(eq(botProfiles.id, profileId));
-  }
 }
 
-/**
- * Get all active bot profiles with their user data
- */
-async function getActiveBots(): Promise<Array<BotProfile & { user: typeof users.$inferSelect }>> {
-  const results = await db
-    .select()
-    .from(botProfiles)
-    .innerJoin(users, eq(botProfiles.userId, users.id))
-    .where(eq(botProfiles.isActive, true));
-
-  return results.map((r) => ({
-    ...r.bot_profiles,
-    user: r.users,
-  }));
-}
-
-/**
- * Timeout wrapper to prevent strategies from hanging indefinitely
- */
-function withTimeout<T>(promise: Promise<T>, ms: number, name: string): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      reject(new Error(`${name} timed out after ${ms}ms`));
-    }, ms);
-
-    promise
-      .then((result) => {
-        clearTimeout(timer);
-        resolve(result);
-      })
-      .catch((error) => {
-        clearTimeout(timer);
-        reject(error);
-      });
-  });
-}
-
-const STRATEGY_TIMEOUT_MS = 30000; // 30 seconds max per strategy
-
-/**
- * Execute bot strategies: scouting + trading.
- * Each bot's individual settings (aggressiveness, limits, budgets) determine their behavior
- * Bots provide liquidity across ALL players, not just popular ones
- */
-async function executeBotStrategies(
-  profile: BotProfile & { user: typeof users.$inferSelect },
-): Promise<void> {
-  // Lazy imports to avoid circular dependency issues
-  const { executeScoutStrategy } = await import("./scout-strategy");
-  const { executeTradingStrategy } = await import("./trading-strategy");
-
-  const strategiesExecuted: string[] = [];
-
-  try {
-    // 1. SCOUTING - Assign scouts to random players across all active players
-    // This ensures ALL players get scout coverage, not just top ones
-    try {
-      await withTimeout(executeScoutStrategy(profile), STRATEGY_TIMEOUT_MS, "scouting");
-      strategiesExecuted.push("scouting");
-    } catch (e: any) {
-      console.warn(`[BotEngine] ${profile.botName} scouting failed: ${e.message}`);
-    }
-
-    // 2. TRADING - Provide liquidity across ALL players
-    // Bots buy/sell to ensure even lesser-known players have market activity
-    // Uses: maxDailyVolume, maxOrderSize, aggressiveness
-    if (profile.volumeToday < profile.maxDailyVolume) {
-      try {
-        await withTimeout(executeTradingStrategy(profile), STRATEGY_TIMEOUT_MS, "trading");
-        strategiesExecuted.push("trading");
-      } catch (e: any) {
-        console.warn(`[BotEngine] ${profile.botName} trading failed: ${e.message}`);
-      }
-    }
-
-    console.log(`[BotEngine] ${profile.botName} executed: [${strategiesExecuted.join(", ")}]`);
-  } catch (error: any) {
-    console.error(`[BotEngine] Error executing strategies for ${profile.botName}:`, error.message);
-    try {
-      await withTimeout(
-        logBotAction(profile.userId, {
-          actionType: "strategy_error",
-          actionDetails: {
-            persona: profile.botRole,
-            strategiesAttempted: strategiesExecuted,
-            error: error.message,
-          },
-          triggerReason: "Strategy execution failed",
-          success: false,
-          errorMessage: error.message,
-        }),
-        5000,
-        "logBotAction",
-      );
-    } catch (logError: any) {
-      console.error(`[BotEngine] Failed to log bot action: ${logError.message}`);
-    }
-  }
-}
-
-/**
- * Main bot engine tick - called by scheduler
- */
 export async function runBotEngineTick(): Promise<{
   botsProcessed: number;
   botsSkipped: number;
   errors: number;
 }> {
-  console.log("[BotEngine] Running bot engine tick...");
-
-  let botsProcessed = 0;
-  let botsSkipped = 0;
-  let errors = 0;
-
-  try {
-    const bots = await getActiveBots();
-    console.log(`[BotEngine] Found ${bots.length} active bots`);
-
-    for (const botData of bots) {
-      try {
-        // Reset daily counters if needed
-        const profile = await maybeResetDailyCounters(botData);
-        const botWithProfile = { ...profile, user: botData.user };
-
-        // Check active hours
-        if (!isWithinActiveHours(botWithProfile)) {
-          console.log(`[BotEngine] ${profile.botName} outside active hours, skipping`);
-          botsSkipped++;
-          continue;
-        }
-
-        // Check cooldown
-        if (!isCooldownComplete(botWithProfile)) {
-          console.log(`[BotEngine] ${profile.botName} still cooling down, skipping`);
-          botsSkipped++;
-          continue;
-        }
-
-        // Execute strategies
-        await executeBotStrategies(botWithProfile);
-
-        // Update last action time
-        await updateLastActionTime(profile.id);
-
-        botsProcessed++;
-        console.log(`[BotEngine] ${profile.botName} processed successfully`);
-      } catch (error: any) {
-        errors++;
-        console.error(`[BotEngine] Error processing bot ${botData.botName}:`, error.message);
-      }
-    }
-  } catch (error: any) {
-    console.error("[BotEngine] Fatal error in bot engine tick:", error.message);
-    errors++;
-  }
-
-  console.log(
-    `[BotEngine] Tick complete: ${botsProcessed} processed, ${botsSkipped} skipped, ${errors} errors`,
-  );
-
-  return { botsProcessed, botsSkipped, errors };
+  return runHermesBotEngineTick();
 }
 
-/**
- * Get bot statistics for admin dashboard
- */
 export async function getBotStats(): Promise<{
   totalBots: number;
   activeBots: number;
   botsByRole: Record<string, number>;
   totalActionsToday: number;
 }> {
-  const allProfiles = await db.select().from(botProfiles);
-  const activeBots = allProfiles.filter((p) => p.isActive);
+  const [allProfiles, runtimeStatus] = await Promise.all([
+    db.select().from(botProfiles),
+    getHermesBotRuntimeStatus(),
+  ]);
 
   const botsByRole: Record<string, number> = {};
   for (const profile of allProfiles) {
     botsByRole[profile.botRole] = (botsByRole[profile.botRole] || 0) + 1;
   }
 
-  // Count today's actions
   const today = new Date();
   today.setUTCHours(0, 0, 0, 0);
 
@@ -384,8 +110,8 @@ export async function getBotStats(): Promise<{
     .where(gte(botActionsLog.createdAt, today));
 
   return {
-    totalBots: allProfiles.length,
-    activeBots: activeBots.length,
+    totalBots: runtimeStatus.totalBots,
+    activeBots: runtimeStatus.activeBots,
     botsByRole,
     totalActionsToday: actionCount?.count || 0,
   };

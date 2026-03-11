@@ -34,6 +34,7 @@ interface SyncResult {
   statsProcessed: number;
   gamesProcessed: number;
   errors: string[];
+  skippedMissingPlayers: number;
 }
 
 const normalizeTeamKey = (value: string | null | undefined): string =>
@@ -41,6 +42,7 @@ const normalizeTeamKey = (value: string | null | undefined): string =>
     .trim()
     .toUpperCase()
     .replace(/[^A-Z0-9]/g, "");
+const MLB_MISSING_PLAYER_SAMPLE_LIMIT = 8;
 
 function resolveStatGameSide(apiGame: MLBGame, apiStat: MLBGameStats): "home" | "away" | null {
   const homeTeam = apiGame.home_team;
@@ -92,6 +94,7 @@ export async function syncMLBStats(): Promise<SyncResult> {
     statsProcessed: 0,
     gamesProcessed: 0,
     errors: [],
+    skippedMissingPlayers: 0,
   };
 
   if (!isMLBApiConfigured()) {
@@ -158,6 +161,16 @@ export async function syncMLBStats(): Promise<SyncResult> {
 
     const allApiStats = await fetchGameStats(apiGameIds);
     console.log(`[MLB Stats Sync] Fetched ${allApiStats.length} stat lines from API`);
+    const uniquePlayerIds = Array.from(
+      new Set(allApiStats.map((apiStat) => createMLBPlayerId(apiStat.player.id))),
+    );
+    const knownPlayerIds = new Set(
+      uniquePlayerIds.length > 0
+        ? (await storage.getPlayersByIds(uniquePlayerIds)).map((player) => player.id)
+        : [],
+    );
+    let missingPlayerSkips = 0;
+    const missingPlayerSamples = new Set<string>();
 
     const apiGamesById = new Map<number, (typeof apiGames)[0]>();
     apiGames.forEach((apiGame) => {
@@ -209,6 +222,14 @@ export async function syncMLBStats(): Promise<SyncResult> {
         }
 
         const playerId = createMLBPlayerId(apiStat.player.id);
+        if (!knownPlayerIds.has(playerId)) {
+          missingPlayerSkips++;
+          result.skippedMissingPlayers++;
+          if (missingPlayerSamples.size < MLB_MISSING_PLAYER_SAMPLE_LIMIT) {
+            missingPlayerSamples.add(String(apiStat.player.id));
+          }
+          continue;
+        }
         const gameId = `mlb_${gameNumericId}`;
         const fantasyPoints = calculateMLBFantasyPoints(apiStat);
         const statsJson = parseStatsToJson(apiStat);
@@ -243,8 +264,16 @@ export async function syncMLBStats(): Promise<SyncResult> {
 
     result.success = result.errors.length === 0;
     const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+    if (missingPlayerSkips > 0) {
+      console.log(
+        `[MLB Stats Sync] Skipped ${missingPlayerSkips} stat rows for players missing from the local roster` +
+          (missingPlayerSamples.size > 0
+            ? ` (sample player ids: ${Array.from(missingPlayerSamples).join(", ")})`
+            : ""),
+      );
+    }
     console.log(
-      `[MLB Stats Sync] Completed in ${duration}s. Processed ${result.statsProcessed} stats across ${result.gamesProcessed} games.`,
+      `[MLB Stats Sync] Completed in ${duration}s. Processed ${result.statsProcessed} stats across ${result.gamesProcessed} games with ${result.errors.length} hard errors.`,
     );
   } catch (error: any) {
     result.errors.push(`Fatal error: ${error.message}`);
