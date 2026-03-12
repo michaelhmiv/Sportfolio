@@ -1065,10 +1065,11 @@ async function applyPendingBundle(
 
   try {
     if (isScoutOnlyBundle) {
-      if (!bundle.runId) {
-        throw new Error("Pending scout plan is missing its run reference");
+      if (bundle.runId) {
+        await approveScoutAgentRun(userId, bundle.runId);
+      } else {
+        await executeAgentActions(userId, actions);
       }
-      await approveScoutAgentRun(userId, bundle.runId);
     } else {
       await executeAgentActions(userId, actions);
     }

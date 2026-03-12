@@ -1,3 +1,19 @@
+## 2026-03-12 PR 97 Review Follow-up
+
+- [x] Fix public scout-assignment staging so scout-only pending bundles can be confirmed without a scout run id
+- [x] Remove public API-token creation from bearer-token-authenticated CLI/MCP surfaces
+- [x] Restore human-readable CLI `portfolio summary` output while keeping raw JSON available
+- [x] Address the remaining PR 97 review nits for parser preview player labels and capability parity validation
+- [x] Run targeted tests plus required repo validation, then push the PR branch update
+
+Review:
+
+- Scout-only bundles staged through the public registry now confirm by executing direct `scout_set_count` actions when no scout run id exists, while legacy run-backed scout plans still go through scout-run approval.
+- The bearer-token public surface no longer exposes `create_api_token`; the shared route audit now marks `POST /api/account/tokens` as intentionally excluded and session-only.
+- CLI `portfolio summary` again prints a dedicated balance/top-holdings summary, and `get_portfolio_summary` now carries a top-level summary string for generic tool consumers.
+- Added regression coverage for the parser-backed preview player-name preference, public scout staging/confirmation, CLI portfolio rendering, and the public route audit/parity checks.
+- Validation passed: `npm run check`, `npm run lint`, `npm run format:check`, and `npm run test:run`.
+
 ## 2026-03-11 Unified Public Capability Catalog + CLI/MCP Parity
 
 - [x] Audit every authenticated non-admin user action and classify it as cataloged or explicitly excluded

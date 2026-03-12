@@ -989,7 +989,7 @@ function resolvePreviewMessage(input: {
   }
 
   const playerLabel =
-    toStringValue(input.args?.playerId) || toStringValue(input.args?.playerName) || "that player";
+    toStringValue(input.args?.playerName) || toStringValue(input.args?.playerId) || "that player";
   const dollarAmount =
     typeof input.args?.amount === "number"
       ? input.args.amount
@@ -1879,6 +1879,7 @@ export async function runHermesReadTool(input: {
       );
 
       return {
+        summary: "Loaded portfolio summary.",
         operatorOverview: context.operatorOverview,
         selectionWindow: context.selectionWindow,
         recommendedTargets: context.recommendedTargets,

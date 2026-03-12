@@ -44,7 +44,6 @@ import {
   sendAgentThreadMessage,
   stageAgentThreadBundle,
 } from "../agent/thread-service";
-import { createUserApiTokenMaterial } from "../api-token-auth";
 import {
   completeSmsPhoneLink,
   getSmsSettings,
@@ -188,7 +187,6 @@ export type PublicMcpDependencies = {
   listDocsArticles: typeof listDocsArticles;
   searchDocsArticles: typeof searchDocsArticles;
   getDocsArticle: typeof getDocsArticle;
-  createUserApiTokenMaterial: typeof createUserApiTokenMaterial;
   getSmsSettings: typeof getSmsSettings;
   updateSmsSettings: typeof updateSmsSettings;
   startSmsPhoneLink: typeof startSmsPhoneLink;
@@ -1545,42 +1543,6 @@ async function listApiTokens(context: PublicMcpServerContext) {
   };
 }
 
-async function createApiToken(context: PublicMcpServerContext, args: Record<string, unknown>) {
-  const label = toStringValue(args.label);
-  if (!label || label.length > 80) {
-    throw new PublicMcpToolError(
-      "Token label must be between 1 and 80 characters.",
-      "invalid_arguments",
-    );
-  }
-
-  const existingTokens = await context.deps.storage.listUserApiTokens(context.userId);
-  const activeTokenCount = existingTokens.filter((token) => !token.revokedAt).length;
-  if (activeTokenCount >= MAX_ACTIVE_API_TOKENS) {
-    throw new PublicMcpToolError(
-      `You can only keep ${MAX_ACTIVE_API_TOKENS} active API tokens at once.`,
-      "invalid_arguments",
-    );
-  }
-
-  const tokenMaterial = context.deps.createUserApiTokenMaterial();
-  const createdToken = await context.deps.storage.createUserApiToken({
-    userId: context.userId,
-    label,
-    tokenHash: tokenMaterial.tokenHash,
-    tokenPrefix: tokenMaterial.tokenPrefix,
-    tokenLast4: tokenMaterial.tokenLast4,
-  });
-
-  return {
-    summary: "Created API token.",
-    token: {
-      ...toTokenView(createdToken),
-      plaintextToken: tokenMaterial.plaintextToken,
-    },
-  };
-}
-
 async function revokeApiToken(context: PublicMcpServerContext, args: Record<string, unknown>) {
   const tokenId = toStringValue(args.tokenId);
   if (!tokenId) {
@@ -1861,9 +1823,6 @@ const pendingActionSchema: RawSchema = {
 };
 const tokenIdSchema: RawSchema = {
   tokenId: z.string().min(1),
-};
-const createApiTokenSchema: RawSchema = {
-  label: z.string().min(1).max(80),
 };
 const smsSettingsSchema: RawSchema = {
   smsEnabled: z.boolean(),
@@ -3008,15 +2967,6 @@ const CUSTOM_TOOLS: PublicToolDefinition[] = [
     execute: (context, args) => executeActionTool(context, "delete_user_schedule", args),
   }),
   defineTool({
-    name: "create_api_token",
-    description: "Create a new API token immediately.",
-    domain: "account",
-    readOnly: false,
-    inputSchema: createApiTokenSchema,
-    fixtureArgs: { label: "CLI Test Token" },
-    execute: createApiToken,
-  }),
-  defineTool({
     name: "revoke_api_token",
     description: "Revoke an API token immediately.",
     domain: "account",
@@ -3337,7 +3287,6 @@ export function createDefaultPublicMcpDependencies(): PublicMcpDependencies {
     listDocsArticles,
     searchDocsArticles,
     getDocsArticle,
-    createUserApiTokenMaterial,
     getSmsSettings,
     updateSmsSettings,
     startSmsPhoneLink,
@@ -3391,6 +3340,15 @@ const PUBLIC_EXCLUDED_CAPABILITIES: PublicExcludedCapability[] = [
     notes: "Funding flows remain excluded from the shared public capability surface.",
   },
   {
+    capabilityId: "account_token_creation",
+    kind: "excluded",
+    status: "excluded",
+    domain: "account",
+    source: "/api/account/tokens",
+    notes:
+      "API token creation remains web-session-only and must not be exposed through bearer-token CLI or MCP surfaces.",
+  },
+  {
     capabilityId: "whop_provider_sync",
     kind: "excluded",
     status: "excluded",
@@ -3428,6 +3386,11 @@ const PUBLIC_SITE_ROUTE_COVERAGE: PublicSiteRouteCoverageEntry[] = [
   },
   { method: "POST", path: "/api/whop/sync", excludedCapabilityId: "whop_provider_sync" },
   { method: "POST", path: "/api/user/add-cash", excludedCapabilityId: "user_add_cash" },
+  {
+    method: "POST",
+    path: "/api/account/tokens",
+    excludedCapabilityId: "account_token_creation",
+  },
   { method: "POST", path: "/api/user/update-username", capabilityIds: ["update_username"] },
   {
     method: "POST",
@@ -3601,9 +3564,51 @@ const PUBLIC_SITE_ROUTE_COVERAGE: PublicSiteRouteCoverageEntry[] = [
   { method: "POST", path: "/api/sms/link/start", capabilityIds: ["start_sms_link"] },
   { method: "POST", path: "/api/sms/link/complete", capabilityIds: ["complete_sms_link"] },
   { method: "GET", path: "/api/account/tokens", capabilityIds: ["list_api_tokens"] },
-  { method: "POST", path: "/api/account/tokens", capabilityIds: ["create_api_token"] },
   { method: "DELETE", path: "/api/account/tokens/:id", capabilityIds: ["revoke_api_token"] },
 ];
+
+const PUBLIC_TOOL_ONLY_CAPABILITY_IDS = [
+  "review_setup",
+  "review_idle_cash",
+  "review_portfolio_cleanup",
+  "list_boost_candidates",
+  "list_scout_opportunities",
+  "list_market_opportunities",
+  "review_news_impact",
+  "get_balance_state",
+  "get_player_stats",
+  "get_player_recent_games",
+  "get_player_financial_metrics",
+  "get_player_shares_info",
+  "get_amm_pool_state",
+  "get_trade_quote",
+  "list_schedules",
+  "list_schedule_templates",
+  "get_dashboard_overview",
+  "search_players",
+  "get_market_scanners",
+  "get_games_today",
+  "get_game_insights",
+  "search_docs",
+  "get_doc_article",
+  "run_hosted_research",
+  "get_pending_action",
+  "upsert_schedule",
+  "delete_schedule",
+] as const;
+
+const PUBLIC_PROMPT_NAMES = [
+  "review_setup",
+  "review_idle_cash",
+  "find_boost_candidates",
+  "stage_trade",
+] as const;
+
+const PUBLIC_STATIC_RESOURCE_URIS = [
+  "sportfolio://docs/index",
+  "sportfolio://capabilities",
+  "sportfolio://action-surface",
+] as const;
 
 const PUBLIC_PROMPTS: PublicPromptDefinition[] = [
   {
@@ -3896,31 +3901,63 @@ export function getPublicMcpToolFixtures() {
 }
 
 export function evaluateGameplayCapabilityParity() {
+  const registryToolNames = new Set(buildPublicToolRegistry().map((tool) => tool.name));
+  const routeBackedToolNames = new Set(
+    buildPublicSiteRouteCoverage().flatMap((entry) => entry.capabilityIds || []),
+  );
+  const expectedToolNames = new Set<string>([
+    ...routeBackedToolNames,
+    ...PUBLIC_TOOL_ONLY_CAPABILITY_IDS,
+  ]);
+  const registryPromptNames = new Set(buildPublicPromptRegistry().map((prompt) => prompt.name));
+  const expectedPromptNames = new Set<string>(PUBLIC_PROMPT_NAMES);
+  const registryResourceUris = new Set(PUBLIC_STATIC_RESOURCES.map((resource) => resource.uri));
+  const expectedResourceUris = new Set<string>(PUBLIC_STATIC_RESOURCE_URIS);
+  const missingFromRegistry = [...expectedToolNames].filter((name) => !registryToolNames.has(name));
+  const extraInRegistry = [...registryToolNames].filter((name) => !expectedToolNames.has(name));
+  const missingPromptNames = [...expectedPromptNames].filter(
+    (name) => !registryPromptNames.has(name),
+  );
+  const extraPromptNames = [...registryPromptNames].filter(
+    (name) => !expectedPromptNames.has(name),
+  );
+  const missingResourceUris = [...expectedResourceUris].filter(
+    (uri) => !registryResourceUris.has(uri),
+  );
+  const extraResourceUris = [...registryResourceUris].filter(
+    (uri) => !expectedResourceUris.has(uri),
+  );
   const inventory = buildPublicCapabilityInventory();
-  const toolCount = buildPublicToolRegistry().length;
-  const promptCount = buildPublicPromptRegistry().length;
-  const resourceCount = PUBLIC_STATIC_RESOURCES.length;
 
   return {
-    ok: inventory.excluded.length > 0 && toolCount > 0 && promptCount > 0 && resourceCount > 0,
-    missingFromRegistry: [] as string[],
-    extraInRegistry: [] as string[],
-    missingPromptNames: [] as string[],
-    extraPromptNames: [] as string[],
-    missingResourceUris: [] as string[],
-    extraResourceUris: [] as string[],
+    ok:
+      missingFromRegistry.length === 0 &&
+      extraInRegistry.length === 0 &&
+      missingPromptNames.length === 0 &&
+      extraPromptNames.length === 0 &&
+      missingResourceUris.length === 0 &&
+      extraResourceUris.length === 0 &&
+      inventory.excluded.length > 0,
+    missingFromRegistry,
+    extraInRegistry,
+    missingPromptNames,
+    extraPromptNames,
+    missingResourceUris,
+    extraResourceUris,
     includedCount: inventory.included.length,
     excludedCount: inventory.excluded.length,
-    toolCount,
-    promptCount,
-    resourceCount,
+    toolCount: registryToolNames.size,
+    promptCount: registryPromptNames.size,
+    resourceCount: registryResourceUris.size,
   };
 }
 
 export function assertPublicMcpSurfaceIntegrity() {
   const parity = evaluateGameplayCapabilityParity();
   if (!parity.ok) {
-    throw new Error("Public capability surface integrity failed.");
+    throw new Error(
+      `Public capability surface integrity failed. Missing tools: ${parity.missingFromRegistry.join(", ") || "none"}; extra tools: ${parity.extraInRegistry.join(", ") || "none"}; missing prompts: ${parity.missingPromptNames.join(", ") || "none"}; extra prompts: ${parity.extraPromptNames.join(", ") || "none"}; missing resources: ${parity.missingResourceUris.join(", ") || "none"}; extra resources: ${parity.extraResourceUris.join(", ") || "none"}`,
+    );
   }
 }
 

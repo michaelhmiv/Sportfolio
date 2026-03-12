@@ -246,6 +246,56 @@ function renderToolResult(result) {
   return lines;
 }
 
+function formatDecimal(value, fallback = "0") {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+  return parsed % 1 === 0 ? String(parsed) : parsed.toFixed(2).replace(/\.?0+$/, "");
+}
+
+function formatCurrency(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed.toFixed(2) : "0.00";
+}
+
+function renderPortfolioSummary(result) {
+  const overview =
+    result &&
+    typeof result === "object" &&
+    result.operatorOverview &&
+    typeof result.operatorOverview === "object"
+      ? result.operatorOverview
+      : null;
+
+  if (!overview) {
+    return renderToolResult(result);
+  }
+
+  const topHoldings = Array.isArray(overview.topHoldings) ? overview.topHoldings : [];
+  const holdingCount =
+    overview.portfolioPlayerCount == null
+      ? topHoldings.length
+      : Number(overview.portfolioPlayerCount);
+
+  const lines = [
+    `Balance: $${formatCurrency(overview.availableBalance)}`,
+    `Tracked holdings: ${Number.isFinite(holdingCount) ? holdingCount : topHoldings.length}`,
+  ];
+
+  if (topHoldings.length) {
+    lines.push("");
+    lines.push("Top holdings:");
+    for (const holding of topHoldings) {
+      lines.push(
+        `- ${holding.name || holding.playerName || holding.playerId}: shares ${formatDecimal(holding.shares)}, multiplier ${formatDecimal(holding.multiplier, "1")}, available ${formatDecimal(holding.availableShares)}`,
+      );
+    }
+  }
+
+  return lines;
+}
+
 async function listPublicTools(config) {
   return requestJson({
     baseUrl: config.baseUrl,
@@ -496,7 +546,7 @@ async function handlePortfolio(args, asJson) {
     return;
   }
 
-  printList(renderToolResult(result));
+  printList(renderPortfolioSummary(result));
 }
 
 async function handleAgent(args, asJson) {

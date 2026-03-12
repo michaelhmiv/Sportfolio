@@ -223,6 +223,39 @@ describe("hermes-tools", () => {
     });
   });
 
+  it("prefers the resolved player name when building parser-backed preview messages", async () => {
+    mocks.planDirectAgentOperation.mockResolvedValue({
+      domain: "scouting",
+      requestMessage: "set Jalen Brunson scouts to 3",
+      replyText: "Queued the scout move.",
+      summary: "Set Jalen Brunson scouts to 3",
+      observations: [],
+      warnings: [],
+      actions: [],
+      errorMessage: null,
+      contextSnapshot: {},
+      trace: {},
+      pendingClarification: null,
+    });
+
+    await runHermesPlanTool({
+      toolName: "preview_scout_adjustment",
+      userId: "user_1",
+      args: {
+        playerId: "nba_1",
+        targetCount: 3,
+      },
+    });
+
+    expect(mocks.planDirectAgentOperation).toHaveBeenCalledWith({
+      userId: "user_1",
+      message: "set Jalen Brunson scouts to 3",
+      profile: {
+        displayName: "Agent",
+      },
+    });
+  });
+
   it("returns watchlist items through the dedicated read tool", async () => {
     mocks.storage.getWatchlistItems.mockResolvedValue(["nba_1", "nba_2"]);
 
