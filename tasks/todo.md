@@ -1,3 +1,18 @@
+## 2026-03-11 Unified Public Capability Catalog + CLI/MCP Parity
+
+- [x] Audit every authenticated non-admin user action and classify it as cataloged or explicitly excluded
+- [x] Add a canonical public capability catalog with shared schemas, surface metadata, and executor bindings
+- [x] Refactor MCP registration and CLI commands/routes to derive from the shared catalog
+- [x] Add parity coverage tests plus catalog-driven smoke/validation runners for CLI and MCP
+- [x] Run `npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`, and exhaustive dev validation for all exposed CLI/MCP capabilities
+
+Review:
+
+- Unified the public CLI and MCP surfaces behind one capability catalog so tool metadata, schemas, prompts, resources, and execution paths now come from the same server-owned source of truth.
+- Fixed external staging so preview-backed MCP/CLI actions persist pending bundles directly onto threads instead of depending on internal Hermes-turn-only context.
+- Added direct planner coverage for scout assignments, tightened parser-backed preview message generation, and made cannot-stage responses reflect real clarification/action availability.
+- Added catalog coverage tests plus a catalog-driven dev validator that exercises every exposed CLI and MCP tool, prompt, and resource as an external user; the latest sweep passed 252 cases with only `start_sms_link` blocked by missing `TELNYX_API_KEY`.
+
 ## 2026-03-11 LP Liquidity Follow-up Smoke Validation
 
 - [x] Re-audit LP add flows and validate likely lock sources that can reduce available shares

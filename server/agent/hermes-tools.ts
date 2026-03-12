@@ -989,7 +989,7 @@ function resolvePreviewMessage(input: {
   }
 
   const playerLabel =
-    toStringValue(input.args?.playerName) || toStringValue(input.args?.playerId) || "that player";
+    toStringValue(input.args?.playerId) || toStringValue(input.args?.playerName) || "that player";
   const dollarAmount =
     typeof input.args?.amount === "number"
       ? input.args.amount
@@ -1004,6 +1004,16 @@ function resolvePreviewMessage(input: {
         : null;
   const slotTier =
     typeof input.args?.slotTier === "number" ? Math.max(2, Math.min(5, input.args.slotTier)) : 2;
+  const requestedDate = toStringValue(input.args?.date);
+  const today = getTodayET();
+  const { startOfDay } = getETDayBoundaries(today);
+  const tomorrow = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000).toLocaleDateString(
+    "en-CA",
+    {
+      timeZone: "America/New_York",
+    },
+  );
+  const dateLabel = requestedDate === tomorrow ? "tomorrow" : "today";
 
   switch (input.toolName) {
     case "preview_pool_buy":
@@ -1054,15 +1064,15 @@ function resolvePreviewMessage(input: {
       }
       break;
     case "preview_daily_boost_assign":
-      return `put ${playerLabel} in my ${slotTier}x boost slot today`;
+      return `put ${playerLabel} in my ${slotTier}x boost slot ${dateLabel}`;
     case "preview_daily_boost_remove":
-      return `remove ${playerLabel} from my ${slotTier}x boost slot today`;
+      return `remove ${playerLabel} from my boosts ${dateLabel}`;
     case "preview_watchlist_add":
       return `add ${playerLabel} to my watchlist`;
     case "preview_watchlist_remove":
       return `remove ${playerLabel} from my watchlist`;
     case "preview_community_boost_create":
-      return `create a community boost for ${playerLabel} today`;
+      return `create a community boost for ${playerLabel} ${dateLabel}`;
     case "preview_scout_adjustment":
       if (typeof input.args?.targetCount === "number") {
         return `set ${playerLabel} scouts to ${input.args.targetCount}`;
@@ -1101,9 +1111,17 @@ async function runParserBackedPreview(input: {
   args?: Record<string, unknown>;
 }) {
   const profile = (await getScoutAgentProfile(input.userId)).profile;
+  const previewArgs = { ...(input.args || {}) };
+  const playerId = toStringValue(previewArgs.playerId);
+  if (playerId && !toStringValue(previewArgs.playerName)) {
+    const player = await storage.getPlayer(playerId);
+    if (player) {
+      previewArgs.playerName = buildPlayerLabel(player, playerId);
+    }
+  }
   const message = resolvePreviewMessage({
     toolName: input.toolName,
-    args: input.args,
+    args: previewArgs,
   });
   if (!message) {
     throw new Error("message is required for preview_direct_operation");

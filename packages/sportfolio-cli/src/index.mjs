@@ -34,8 +34,8 @@ const COMMAND_HELP = {
     "Usage:",
     "  agent threads",
     "  agent ask <prompt> [--thread <threadId>]",
-    "  agent confirm <threadId>",
-    "  agent cancel <threadId>",
+    "  agent confirm <threadId> [--pending-bundle <bundleId>]",
+    "  agent cancel <threadId> [--pending-bundle <bundleId>]",
     "",
     "Examples:",
     '  sportfolio agent ask "what is my current balance?"',
@@ -49,12 +49,45 @@ const COMMAND_HELP = {
     "  actions sell <player-name-or-id> --shares <amount> [--thread <threadId>]",
     "  actions watchlist add <player-name-or-id> [--thread <threadId>]",
     "  actions watchlist remove <player-name-or-id> [--thread <threadId>]",
-    "  actions vesting claim [--thread <threadId>]",
     "  actions community-boost <player-name> [--timing today|tomorrow] [--thread <threadId>]",
     "",
     "Notes:",
     "  - Action commands stage a plan and still require explicit confirm.",
     "  - For community boosts, prefer full player names for best resolution.",
+  ],
+  tools: [
+    "Public Tool Commands",
+    "",
+    "Usage:",
+    "  tools list",
+    "  tools call <tool-name> [--args-json <json>]",
+    "",
+    "Examples:",
+    "  sportfolio tools list",
+    "  sportfolio tools call get_account_profile",
+    '  sportfolio tools call stage_market_buy --args-json {"playerId":"nba_1","amount":25}',
+  ],
+  prompts: [
+    "Public Prompt Commands",
+    "",
+    "Usage:",
+    "  prompts list",
+    "  prompts render <prompt-name> [--args-json <json>]",
+    "",
+    "Examples:",
+    "  sportfolio prompts list",
+    '  sportfolio prompts render find_boost_candidates --args-json {"sport":"NBA"}',
+  ],
+  resources: [
+    "Public Resource Commands",
+    "",
+    "Usage:",
+    "  resources list",
+    "  resources read <uri>",
+    "",
+    "Examples:",
+    "  sportfolio resources list",
+    "  sportfolio resources read sportfolio://docs/index",
   ],
 };
 
@@ -76,6 +109,19 @@ function removeOption(args, name) {
   const nextArgs = [...args];
   nextArgs.splice(index, 2);
   return nextArgs;
+}
+
+function parseJsonOption(args, name) {
+  const rawValue = readOption(args, name);
+  if (!rawValue) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(rawValue);
+  } catch {
+    throw Object.assign(new Error(`Invalid JSON for ${name}`), { exitCode: 1 });
+  }
 }
 
 function getJsonMode(args) {
@@ -105,14 +151,19 @@ function printHelp() {
     "  portfolio summary",
     "  agent threads",
     "  agent ask <prompt> [--thread <threadId>]",
-    "  agent confirm <threadId>",
-    "  agent cancel <threadId>",
+    "  agent confirm <threadId> [--pending-bundle <bundleId>]",
+    "  agent cancel <threadId> [--pending-bundle <bundleId>]",
     "  actions buy <player-name-or-id> --dollars <amount> [--thread <threadId>]",
     "  actions sell <player-name-or-id> --shares <amount> [--thread <threadId>]",
     "  actions watchlist add <player-name-or-id> [--thread <threadId>]",
     "  actions watchlist remove <player-name-or-id> [--thread <threadId>]",
-    "  actions vesting claim [--thread <threadId>]",
     "  actions community-boost <player-name> [--timing today|tomorrow] [--thread <threadId>]",
+    "  tools list",
+    "  tools call <tool-name> [--args-json <json>]",
+    "  prompts list",
+    "  prompts render <prompt-name> [--args-json <json>]",
+    "  resources list",
+    "  resources read <uri>",
   ]);
 }
 
@@ -176,6 +227,75 @@ function renderAgentResult(result) {
   }
 
   return lines;
+}
+
+function renderToolResult(result) {
+  if (!result || typeof result !== "object") {
+    return [String(result)];
+  }
+
+  const summary = typeof result.summary === "string" ? result.summary : "Tool completed.";
+  const detail = { ...result };
+  delete detail.summary;
+
+  const lines = [summary];
+  if (Object.keys(detail).length > 0) {
+    lines.push("");
+    lines.push(JSON.stringify(detail, null, 2));
+  }
+  return lines;
+}
+
+async function listPublicTools(config) {
+  return requestJson({
+    baseUrl: config.baseUrl,
+    path: "/api/cli/tools",
+    token: config.token,
+  });
+}
+
+async function callPublicTool(config, toolName, args = {}) {
+  return requestJson({
+    baseUrl: config.baseUrl,
+    path: `/api/cli/tools/${encodeURIComponent(toolName)}`,
+    method: "POST",
+    token: config.token,
+    body: args,
+  });
+}
+
+async function listPublicPrompts(config) {
+  return requestJson({
+    baseUrl: config.baseUrl,
+    path: "/api/cli/prompts",
+    token: config.token,
+  });
+}
+
+async function renderPrompt(config, promptName, args = {}) {
+  return requestJson({
+    baseUrl: config.baseUrl,
+    path: `/api/cli/prompts/${encodeURIComponent(promptName)}/render`,
+    method: "POST",
+    token: config.token,
+    body: args,
+  });
+}
+
+async function listPublicResources(config) {
+  return requestJson({
+    baseUrl: config.baseUrl,
+    path: "/api/cli/resources",
+    token: config.token,
+  });
+}
+
+async function readResource(config, uri) {
+  return requestJson({
+    baseUrl: config.baseUrl,
+    path: `/api/cli/resources/read?uri=${encodeURIComponent(uri)}`,
+    token: config.token,
+  });
 }
 
 async function handleAuth(args, asJson) {
@@ -309,7 +429,7 @@ async function handleDocs(args, asJson) {
       return;
     }
 
-    if (!result.results.length) {
+    if (!result.results?.length) {
       printList(["No matching docs found."]);
       return;
     }
@@ -369,37 +489,14 @@ async function handlePortfolio(args, asJson) {
 
   const config = loadConfig();
   ensureToken(config);
-  const result = await requestJson({
-    baseUrl: config.baseUrl,
-    path: "/api/cli/portfolio/summary",
-    token: config.token,
-  });
+  const result = await callPublicTool(config, "get_portfolio_summary");
 
   if (asJson) {
     printJson(result);
     return;
   }
 
-  const lines = [
-    `Balance: $${result.summary.balance}`,
-    `Tracked holdings: ${result.summary.holdingCount}`,
-  ];
-
-  if (result.summary.vesting) {
-    lines.push(`Vesting shares: ${result.summary.vesting.sharesAccumulated}`);
-  }
-
-  if (result.summary.topHoldings.length) {
-    lines.push("");
-    lines.push("Top holdings:");
-    for (const holding of result.summary.topHoldings) {
-      lines.push(
-        `- ${holding.playerName}: qty ${holding.quantity}, power ${holding.powerLevel}, locked ${holding.lockedQuantity}`,
-      );
-    }
-  }
-
-  printList(lines);
+  printList(renderToolResult(result));
 }
 
 async function handleAgent(args, asJson) {
@@ -414,11 +511,7 @@ async function handleAgent(args, asJson) {
   ensureToken(config);
 
   if (subcommand === "threads") {
-    const result = await requestJson({
-      baseUrl: config.baseUrl,
-      path: "/api/cli/agent/threads",
-      token: config.token,
-    });
+    const result = await callPublicTool(config, "list_agent_threads");
 
     if (asJson) {
       printJson(result);
@@ -463,6 +556,7 @@ async function handleAgent(args, asJson) {
 
   if (subcommand === "confirm" || subcommand === "cancel") {
     const threadId = rest[0] || "";
+    const pendingBundleId = readOption(rest, "--pending-bundle");
     if (!threadId) {
       throw Object.assign(new Error("Thread id is required"), { exitCode: 1 });
     }
@@ -472,6 +566,7 @@ async function handleAgent(args, asJson) {
       path: `/api/cli/agent/threads/${encodeURIComponent(threadId)}/${subcommand}`,
       method: "POST",
       token: config.token,
+      body: pendingBundleId ? { pendingBundleId } : undefined,
     });
 
     if (asJson) {
@@ -539,14 +634,6 @@ async function handleActions(args, asJson) {
     payload = { action: verb === "add" ? "watchlist_add" : "watchlist_remove", player };
   }
 
-  if (subcommand === "vesting") {
-    const verb = actionArgs[0] || "";
-    if (verb !== "claim") {
-      throw Object.assign(new Error("Use `actions vesting claim`"), { exitCode: 1 });
-    }
-    payload = { action: "vesting_claim" };
-  }
-
   if (subcommand === "community-boost") {
     const player = actionArgs[0] || "";
     if (!player) {
@@ -584,6 +671,141 @@ async function handleActions(args, asJson) {
   }
 
   printList(renderAgentResult(result));
+}
+
+async function handleTools(args, asJson) {
+  const [subcommand, ...rest] = args;
+  if (!subcommand || subcommand === "--help" || subcommand === "help") {
+    printCommandHelp("tools");
+    return;
+  }
+
+  const config = loadConfig();
+  ensureToken(config);
+
+  if (subcommand === "list") {
+    const result = await listPublicTools(config);
+    if (asJson) {
+      printJson(result);
+      return;
+    }
+
+    printList(
+      result.tools.map(
+        (tool) =>
+          `${tool.name}  ${tool.domain}  ${tool.readOnly ? "read" : "write"}  ${tool.description}`,
+      ),
+    );
+    return;
+  }
+
+  if (subcommand === "call") {
+    const toolName = rest[0] || "";
+    if (!toolName) {
+      throw Object.assign(new Error("Tool name is required"), { exitCode: 1 });
+    }
+
+    const argsJson = parseJsonOption(rest, "--args-json");
+    const result = await callPublicTool(config, toolName, argsJson);
+    if (asJson) {
+      printJson(result);
+      return;
+    }
+
+    printList(renderToolResult(result));
+    return;
+  }
+
+  throw Object.assign(new Error("Unknown tools command. Run `sportfolio tools --help`."), {
+    exitCode: 1,
+  });
+}
+
+async function handlePrompts(args, asJson) {
+  const [subcommand, ...rest] = args;
+  if (!subcommand || subcommand === "--help" || subcommand === "help") {
+    printCommandHelp("prompts");
+    return;
+  }
+
+  const config = loadConfig();
+  ensureToken(config);
+
+  if (subcommand === "list") {
+    const result = await listPublicPrompts(config);
+    if (asJson) {
+      printJson(result);
+      return;
+    }
+
+    printList(result.prompts.map((prompt) => `${prompt.name}  ${prompt.description}`));
+    return;
+  }
+
+  if (subcommand === "render") {
+    const promptName = rest[0] || "";
+    if (!promptName) {
+      throw Object.assign(new Error("Prompt name is required"), { exitCode: 1 });
+    }
+
+    const argsJson = parseJsonOption(rest, "--args-json");
+    const result = await renderPrompt(config, promptName, argsJson);
+    if (asJson) {
+      printJson(result);
+      return;
+    }
+
+    printList(
+      (result.messages || []).map((message) => message.content?.text || JSON.stringify(message)),
+    );
+    return;
+  }
+
+  throw Object.assign(new Error("Unknown prompts command. Run `sportfolio prompts --help`."), {
+    exitCode: 1,
+  });
+}
+
+async function handleResources(args, asJson) {
+  const [subcommand, ...rest] = args;
+  if (!subcommand || subcommand === "--help" || subcommand === "help") {
+    printCommandHelp("resources");
+    return;
+  }
+
+  const config = loadConfig();
+  ensureToken(config);
+
+  if (subcommand === "list") {
+    const result = await listPublicResources(config);
+    if (asJson) {
+      printJson(result);
+      return;
+    }
+
+    printList(result.resources.map((resource) => `${resource.uri}  ${resource.description}`));
+    return;
+  }
+
+  if (subcommand === "read") {
+    const uri = rest[0] || "";
+    if (!uri) {
+      throw Object.assign(new Error("Resource URI is required"), { exitCode: 1 });
+    }
+
+    const result = await readResource(config, uri);
+    if (asJson) {
+      printJson(result);
+      return;
+    }
+
+    printList((result.contents || []).map((content) => content.text || ""));
+    return;
+  }
+
+  throw Object.assign(new Error("Unknown resources command. Run `sportfolio resources --help`."), {
+    exitCode: 1,
+  });
 }
 
 export async function runCli(rawArgs) {
@@ -624,6 +846,21 @@ export async function runCli(rawArgs) {
 
     if (command === "actions") {
       await handleActions(rest, asJson);
+      return;
+    }
+
+    if (command === "tools") {
+      await handleTools(rest, asJson);
+      return;
+    }
+
+    if (command === "prompts") {
+      await handlePrompts(rest, asJson);
+      return;
+    }
+
+    if (command === "resources") {
+      await handleResources(rest, asJson);
       return;
     }
 

@@ -1208,6 +1208,121 @@ export async function createAgentThread(
   return summary;
 }
 
+export async function stageAgentThreadBundle(input: {
+  userId: string;
+  threadId?: string | null;
+  channel?: AgentChannel;
+  domain?: AgentDomain;
+  title?: string | null;
+  requestMessage?: string | null;
+  summary: string;
+  replyText?: string | null;
+  warnings?: string[];
+  actions: AgentAction[];
+  pendingClarification?: AgentPendingClarification | null;
+}): Promise<AgentThreadTurnResult> {
+  const existingThreadId = input.threadId?.trim() || "";
+  const threadSummary =
+    existingThreadId !== ""
+      ? await getAgentThread(input.userId, existingThreadId)
+      : await createAgentThread(input.userId, {
+          channel: input.channel || "cli",
+          domain: input.domain || "sportfolio",
+          title: input.title?.trim() || undefined,
+        });
+
+  const threadId = threadSummary.id;
+  const requestMessage = input.requestMessage?.trim() || "";
+  const normalizedWarnings = Array.isArray(input.warnings)
+    ? input.warnings.filter(
+        (entry): entry is string => typeof entry === "string" && entry.trim().length > 0,
+      )
+    : [];
+  const pendingClarification = input.pendingClarification || null;
+
+  await expirePendingBundles(input.userId, threadId);
+
+  let userMessage: AgentThreadMessage | null = null;
+  if (requestMessage) {
+    const createdUserMessage = await createThreadMessage({
+      threadId,
+      userId: input.userId,
+      role: "user",
+      messageType: "chat",
+      contentText: requestMessage,
+    });
+    userMessage = {
+      id: createdUserMessage.id,
+      role: "user",
+      messageType: "chat",
+      contentText: createdUserMessage.contentText,
+      createdAt: createdUserMessage.createdAt,
+      runId: null,
+      actionBundle: null,
+      citations: [],
+      pendingClarification: null,
+    };
+  }
+
+  const [bundleRow] = await db
+    .insert(userAgentActionBundles)
+    .values({
+      threadId,
+      userId: input.userId,
+      domain: input.domain || "sportfolio",
+      runId: null,
+      status: pendingClarification ? "pending_clarification" : "pending_confirmation",
+      summary: input.summary || "Pending plan",
+      warnings: normalizedWarnings,
+      actionPayload: buildWorkflowPayload({
+        summary: input.summary,
+        actions: input.actions,
+        pendingClarification,
+      }),
+    })
+    .returning();
+
+  const bundleView = mapActionBundleRowToView(bundleRow);
+  const assistantMessage = await createThreadMessage({
+    threadId,
+    userId: input.userId,
+    role: "assistant",
+    messageType: "plan",
+    contentText: input.replyText?.trim() || input.summary || "Pending plan staged.",
+    actionBundleId: bundleRow.id,
+    structuredPayload: {
+      summary: input.summary,
+      warnings: normalizedWarnings,
+      actions: input.actions,
+      citations: [],
+      proposedMemoryWrites: [],
+      toolTrace: [],
+      status: "completed",
+      pendingClarification,
+    },
+  });
+
+  return {
+    thread: await getAgentThread(input.userId, threadId),
+    createdMessages: [
+      ...(userMessage ? [userMessage] : []),
+      {
+        id: assistantMessage.id,
+        role: "assistant",
+        messageType: "plan",
+        contentText: assistantMessage.contentText,
+        createdAt: assistantMessage.createdAt,
+        runId: assistantMessage.runId,
+        actionBundle: bundleView,
+        citations: [],
+        pendingClarification,
+      },
+    ],
+    pendingActionBundle: bundleView,
+    pendingClarification,
+  };
+}
+
 export async function getOrCreateSmsAgentThread(
   userId: string,
   externalThreadKey: string,

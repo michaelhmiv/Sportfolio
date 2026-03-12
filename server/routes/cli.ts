@@ -8,11 +8,21 @@ import {
 } from "../agent/thread-service";
 import { getAgentCapabilities } from "../agent/service";
 import { createUserApiTokenMaterial, requireUserApiToken } from "../api-token-auth";
+import {
+  buildPublicPromptRegistry,
+  buildPublicResourceRegistry,
+  buildPublicToolRegistry,
+  createDefaultPublicMcpDependencies,
+  executePublicTool,
+  readPublicResource,
+  renderPublicPrompt,
+} from "../mcp/public-tool-registry";
 import type { UserApiToken } from "@shared/schema";
 import { isAuthenticated } from "../supabaseAuth";
 import { storage } from "../storage";
 
 const MAX_ACTIVE_API_TOKENS = 8;
+const publicDeps = createDefaultPublicMcpDependencies();
 
 function getUserId(req: Request): string {
   return req.user?.claims?.sub || "";
@@ -70,7 +80,7 @@ async function stageCliAgentMessage(input: {
     existingThreadId !== ""
       ? { id: existingThreadId }
       : await createAgentThread(input.userId, {
-          channel: "in_app",
+          channel: "cli",
           ...(title ? { title } : {}),
         });
 
@@ -127,6 +137,25 @@ function buildCliActionMessage(body: any): string | null {
   }
 
   return null;
+}
+
+function createPublicContext(userId: string) {
+  return {
+    userId,
+    deps: publicDeps,
+  };
+}
+
+function toCliToolView(tool: ReturnType<typeof buildPublicToolRegistry>[number]) {
+  return {
+    name: tool.name,
+    title: tool.title,
+    description: tool.description,
+    domain: tool.domain,
+    readOnly: tool.readOnly,
+    inputKeys: Object.keys(tool.inputSchema || {}),
+    fixtureArgs: tool.fixtureArgs,
+  };
 }
 
 export function registerCliRoutes(app: Express): void {
@@ -223,21 +252,11 @@ export function registerCliRoutes(app: Express): void {
 
   app.get("/api/cli/whoami", requireUserApiToken, async (req: Request, res: Response) => {
     try {
-      const user = await storage.getUser(getUserId(req));
-      if (!user) {
-        res.status(404).json({ message: "User not found" });
-        return;
-      }
-
-      res.json({
-        user: {
-          id: user.id,
-          username: user.username,
-          email: user.email,
-          balance: user.balance,
-          isPremium: user.isPremium,
-        },
-      });
+      const result = await executePublicTool(
+        createPublicContext(getUserId(req)),
+        "get_account_profile",
+      );
+      res.json(result);
     } catch (error) {
       handleCliRouteError(res, error, "Could not load user profile");
     }
@@ -248,41 +267,11 @@ export function registerCliRoutes(app: Express): void {
     requireUserApiToken,
     async (req: Request, res: Response) => {
       try {
-        const userId = getUserId(req);
-        const user = await storage.getUser(userId);
-
-        if (!user) {
-          res.status(404).json({ message: "User not found" });
-          return;
-        }
-
-        const holdings = await storage.getUserHoldingsWithPlayers(userId);
-        const playerHoldings = holdings.filter(
-          (entry: any) => entry.holding.assetType === "player",
+        const result = await executePublicTool(
+          createPublicContext(getUserId(req)),
+          "get_portfolio_summary",
         );
-        const topHoldings = playerHoldings
-          .map((entry: any) => ({
-            playerId: entry.holding.assetId,
-            playerName: entry.player
-              ? `${entry.player.firstName} ${entry.player.lastName}`.trim()
-              : entry.holding.assetId,
-            quantity: entry.holding.quantity,
-            effectiveShares: entry.holding.effectiveShares,
-            multiplier: entry.holding.multiplier,
-            lockedQuantity: Number(entry.totalLocked || 0),
-          }))
-          .sort(
-            (left, right) => Number(right.effectiveShares || 0) - Number(left.effectiveShares || 0),
-          )
-          .slice(0, 5);
-
-        res.json({
-          summary: {
-            balance: user.balance,
-            holdingCount: playerHoldings.length,
-            topHoldings,
-          },
-        });
+        res.json(result);
       } catch (error) {
         handleCliRouteError(res, error, "Could not load portfolio summary");
       }
@@ -291,9 +280,11 @@ export function registerCliRoutes(app: Express): void {
 
   app.get("/api/cli/agent/threads", requireUserApiToken, async (req: Request, res: Response) => {
     try {
-      res.json({
-        threads: await listAgentThreads(getUserId(req)),
-      });
+      const result = await executePublicTool(
+        createPublicContext(getUserId(req)),
+        "list_agent_threads",
+      );
+      res.json(result);
     } catch (error) {
       handleCliRouteError(res, error, "Could not load agent threads");
     }
@@ -348,7 +339,13 @@ export function registerCliRoutes(app: Express): void {
     requireUserApiToken,
     async (req: Request, res: Response) => {
       try {
-        res.json(await confirmAgentThread(getUserId(req), req.params.threadId));
+        res.json(
+          await confirmAgentThread(
+            getUserId(req),
+            req.params.threadId,
+            typeof req.body?.pendingBundleId === "string" ? req.body.pendingBundleId : undefined,
+          ),
+        );
       } catch (error) {
         handleCliRouteError(res, error, "Could not confirm agent action bundle");
       }
@@ -360,10 +357,103 @@ export function registerCliRoutes(app: Express): void {
     requireUserApiToken,
     async (req: Request, res: Response) => {
       try {
-        res.json(await cancelAgentThread(getUserId(req), req.params.threadId));
+        res.json(
+          await cancelAgentThread(
+            getUserId(req),
+            req.params.threadId,
+            typeof req.body?.pendingBundleId === "string" ? req.body.pendingBundleId : undefined,
+          ),
+        );
       } catch (error) {
         handleCliRouteError(res, error, "Could not cancel agent action bundle");
       }
     },
   );
+
+  app.get("/api/cli/tools", requireUserApiToken, async (req: Request, res: Response) => {
+    try {
+      res.json({
+        tools: buildPublicToolRegistry().map(toCliToolView),
+      });
+    } catch (error) {
+      handleCliRouteError(res, error, "Could not load public tools");
+    }
+  });
+
+  app.post("/api/cli/tools/:name", requireUserApiToken, async (req: Request, res: Response) => {
+    try {
+      res.json(
+        await executePublicTool(
+          createPublicContext(getUserId(req)),
+          req.params.name,
+          req.body && typeof req.body === "object" ? req.body : {},
+        ),
+      );
+    } catch (error) {
+      handleCliRouteError(res, error, "Could not execute public tool");
+    }
+  });
+
+  app.get("/api/cli/prompts", requireUserApiToken, async (_req: Request, res: Response) => {
+    try {
+      res.json({
+        prompts: buildPublicPromptRegistry().map((prompt) => ({
+          name: prompt.name,
+          description: prompt.description,
+          inputKeys: Object.keys(prompt.argsSchema || {}),
+          fixtureArgs: prompt.fixtureArgs,
+        })),
+      });
+    } catch (error) {
+      handleCliRouteError(res, error, "Could not load public prompts");
+    }
+  });
+
+  app.post(
+    "/api/cli/prompts/:name/render",
+    requireUserApiToken,
+    async (req: Request, res: Response) => {
+      try {
+        res.json(
+          await renderPublicPrompt(
+            req.params.name,
+            req.body && typeof req.body === "object" ? req.body : {},
+          ),
+        );
+      } catch (error) {
+        handleCliRouteError(res, error, "Could not render public prompt");
+      }
+    },
+  );
+
+  app.get("/api/cli/resources", requireUserApiToken, async (req: Request, res: Response) => {
+    try {
+      res.json({
+        resources: buildPublicResourceRegistry(createPublicContext(getUserId(req))).map(
+          (resource) => ({
+            id: resource.id,
+            uri: resource.uri,
+            mimeType: resource.mimeType,
+            description: resource.description,
+          }),
+        ),
+      });
+    } catch (error) {
+      handleCliRouteError(res, error, "Could not load public resources");
+    }
+  });
+
+  app.get("/api/cli/resources/read", requireUserApiToken, async (req: Request, res: Response) => {
+    try {
+      const uri = typeof req.query.uri === "string" ? req.query.uri : "";
+      if (!uri) {
+        res.status(400).json({ message: "uri is required" });
+        return;
+      }
+
+      res.json(await readPublicResource(createPublicContext(getUserId(req)), uri));
+    } catch (error) {
+      handleCliRouteError(res, error, "Could not read public resource");
+    }
+  });
 }

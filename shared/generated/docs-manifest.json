@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-08T15:53:33.708Z",
+  "generatedAt": "2026-03-12T00:34:56.135Z",
   "articles": [
     {
       "id": "agent-runtime-model",
@@ -55,7 +55,7 @@
       "category": "cli",
       "status": "published",
       "owner": "product-engineering",
-      "lastReviewedAt": "2026-03-07",
+      "lastReviewedAt": "2026-03-12",
       "changeTriggers": [
         "package.json",
         "packages/sportfolio-cli/src/index.mjs",
@@ -79,12 +79,12 @@
     {
       "id": "cli-overview",
       "title": "CLI and External Access",
-      "summary": "How to use the Sportfolio CLI for documentation, account reads, confirmation-gated agent workflows, and the current status of MCP-style external access.",
+      "summary": "How to use the Sportfolio CLI for documentation, shared public tool access, account actions, and the current relationship between CLI and MCP.",
       "audience": "public",
       "category": "cli",
       "status": "published",
       "owner": "product-engineering",
-      "lastReviewedAt": "2026-03-08",
+      "lastReviewedAt": "2026-03-12",
       "changeTriggers": [
         "packages/sportfolio-cli",
         "server/routes/cli.ts",
@@ -259,7 +259,7 @@
       "category": "features",
       "status": "published",
       "owner": "product-engineering",
-      "lastReviewedAt": "2026-03-08",
+      "lastReviewedAt": "2026-03-12",
       "changeTriggers": [
         "client/src/App.tsx",
         "client/src/components/app-sidebar.tsx",
@@ -486,16 +486,15 @@
     {
       "id": "getting-started-mcp-access",
       "title": "MCP Access",
-      "summary": "How to connect to Sportfolio's public authenticated MCP endpoint, what it exposes today, and what stays out of scope for MCP v1.",
+      "summary": "How to connect to Sportfolio's public authenticated MCP endpoint, what the shared public capability surface includes, and what stays out of scope.",
       "audience": "public",
       "category": "getting-started",
       "status": "published",
       "owner": "product-engineering",
-      "lastReviewedAt": "2026-03-08",
+      "lastReviewedAt": "2026-03-12",
       "changeTriggers": [
         "server/routes/mcp.ts",
         "server/mcp/public-tool-registry.ts",
-        "server/mcp/gameplay-capability-matrix.ts",
         "server/api-token-auth.ts",
         "scripts/mcp-smoke.ts"
       ],
