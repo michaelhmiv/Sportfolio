@@ -1,3 +1,34 @@
+## 2026-03-12 PR 97 Review Follow-up
+
+- [x] Fix public scout-assignment staging so scout-only pending bundles can be confirmed without a scout run id
+- [x] Remove public API-token creation from bearer-token-authenticated CLI/MCP surfaces
+- [x] Restore human-readable CLI `portfolio summary` output while keeping raw JSON available
+- [x] Address the remaining PR 97 review nits for parser preview player labels and capability parity validation
+- [x] Run targeted tests plus required repo validation, then push the PR branch update
+
+Review:
+
+- Scout-only bundles staged through the public registry now confirm by executing direct `scout_set_count` actions when no scout run id exists, while legacy run-backed scout plans still go through scout-run approval.
+- The bearer-token public surface no longer exposes `create_api_token`; the shared route audit now marks `POST /api/account/tokens` as intentionally excluded and session-only.
+- CLI `portfolio summary` again prints a dedicated balance/top-holdings summary, and `get_portfolio_summary` now carries a top-level summary string for generic tool consumers.
+- Added regression coverage for the parser-backed preview player-name preference, public scout staging/confirmation, CLI portfolio rendering, and the public route audit/parity checks.
+- Validation passed: `npm run check`, `npm run lint`, `npm run format:check`, and `npm run test:run`.
+
+## 2026-03-11 Unified Public Capability Catalog + CLI/MCP Parity
+
+- [x] Audit every authenticated non-admin user action and classify it as cataloged or explicitly excluded
+- [x] Add a canonical public capability catalog with shared schemas, surface metadata, and executor bindings
+- [x] Refactor MCP registration and CLI commands/routes to derive from the shared catalog
+- [x] Add parity coverage tests plus catalog-driven smoke/validation runners for CLI and MCP
+- [x] Run `npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`, and exhaustive dev validation for all exposed CLI/MCP capabilities
+
+Review:
+
+- Unified the public CLI and MCP surfaces behind one capability catalog so tool metadata, schemas, prompts, resources, and execution paths now come from the same server-owned source of truth.
+- Fixed external staging so preview-backed MCP/CLI actions persist pending bundles directly onto threads instead of depending on internal Hermes-turn-only context.
+- Added direct planner coverage for scout assignments, tightened parser-backed preview message generation, and made cannot-stage responses reflect real clarification/action availability.
+- Added catalog coverage tests plus a catalog-driven dev validator that exercises every exposed CLI and MCP tool, prompt, and resource as an external user; the latest sweep passed 252 cases with only `start_sms_link` blocked by missing `TELNYX_API_KEY`.
+
 ## 2026-03-11 LP Liquidity Follow-up Smoke Validation
 
 - [x] Re-audit LP add flows and validate likely lock sources that can reduce available shares

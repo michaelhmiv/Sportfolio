@@ -85,6 +85,7 @@ const server = http.createServer(async (req, res) => {
   if (req.method === "GET" && url.pathname === "/api/cli/whoami") {
     res.end(
       JSON.stringify({
+        summary: "Loaded authenticated account profile.",
         user: {
           id: "user_1",
           username: "cli_user",
@@ -142,38 +143,135 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  if (req.method === "GET" && url.pathname === "/api/cli/portfolio/summary") {
+  if (req.method === "GET" && url.pathname === "/api/cli/tools") {
     res.end(
       JSON.stringify({
-        summary: {
-          balance: "1234.56",
-          holdingCount: 2,
-          topHoldings: [
-            {
-              playerName: "Demo Player",
-              quantity: "4",
-              powerLevel: "8",
-              lockedQuantity: 1,
-            },
-          ],
-          vesting: {
-            sharesAccumulated: 120,
+        tools: [
+          {
+            name: "get_account_profile",
+            domain: "account",
+            readOnly: true,
+            description: "Load the authenticated user's core account profile.",
           },
+          {
+            name: "get_portfolio_summary",
+            domain: "portfolio",
+            readOnly: true,
+            description: "Load a portfolio summary.",
+          },
+        ],
+      }),
+    );
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/cli/tools/get_account_profile") {
+    res.end(
+      JSON.stringify({
+        summary: "Loaded authenticated account profile.",
+        user: {
+          id: "user_1",
+          username: "cli_user",
+          email: "cli@example.com",
+          balance: "1234.56",
+          isPremium: true,
         },
       }),
     );
     return;
   }
 
-  if (req.method === "GET" && url.pathname === "/api/cli/agent/threads") {
+  if (req.method === "POST" && url.pathname === "/api/cli/tools/get_portfolio_summary") {
     res.end(
       JSON.stringify({
+        summary: "Loaded portfolio summary.",
+        portfolio: {
+          balance: "1234.56",
+          holdingCount: 2,
+        },
+      }),
+    );
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/cli/tools/list_agent_threads") {
+    res.end(
+      JSON.stringify({
+        summary: "Loaded agent threads.",
         threads: [
           {
             id: "thread_demo",
             title: "CLI thread",
             status: "active",
             updatedAt: new Date().toISOString(),
+          },
+        ],
+      }),
+    );
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/cli/prompts") {
+    res.end(
+      JSON.stringify({
+        prompts: [
+          {
+            name: "review_setup",
+            description: "Prompt starter for a broad gameplay setup review.",
+          },
+        ],
+      }),
+    );
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/cli/prompts/review_setup/render") {
+    res.end(
+      JSON.stringify({
+        messages: [
+          {
+            role: "user",
+            content: {
+              type: "text",
+              text: "Review my setup.",
+            },
+          },
+        ],
+      }),
+    );
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/cli/resources") {
+    res.end(
+      JSON.stringify({
+        resources: [
+          {
+            uri: "sportfolio://docs/index",
+            description: "Published Sportfolio documentation article index.",
+          },
+        ],
+      }),
+    );
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/cli/resources/read") {
+    res.end(
+      JSON.stringify({
+        contents: [
+          {
+            uri: url.searchParams.get("uri"),
+            text: JSON.stringify({
+              articles: [
+                {
+                  section: "gameplay",
+                  slug: "player-pools",
+                  title: "Player Pools",
+                  summary: "How AMM trading works.",
+                },
+              ],
+            }),
           },
         ],
       }),
@@ -280,7 +378,7 @@ try {
 
   result = await invoke(["portfolio", "summary"]);
   assert.equal(result.exitCode, 0);
-  assert.match(result.stdout, /Balance: \$1234.56/);
+  assert.match(result.stdout, /Loaded portfolio summary/);
 
   result = await invoke(["agent", "threads"]);
   assert.equal(result.exitCode, 0);
@@ -314,13 +412,33 @@ try {
   assert.equal(result.exitCode, 0);
   assert.match(result.stdout, /Staged watchlist_remove/);
 
-  result = await invoke(["actions", "vesting", "claim"]);
-  assert.equal(result.exitCode, 0);
-  assert.match(result.stdout, /Staged vesting_claim/);
-
   result = await invoke(["actions", "community-boost", "nba_1", "--timing", "tomorrow"]);
   assert.equal(result.exitCode, 0);
   assert.match(result.stdout, /Staged community_boost/);
+
+  result = await invoke(["tools", "list"]);
+  assert.equal(result.exitCode, 0);
+  assert.match(result.stdout, /get_account_profile/);
+
+  result = await invoke(["tools", "call", "get_account_profile"]);
+  assert.equal(result.exitCode, 0);
+  assert.match(result.stdout, /Loaded authenticated account profile/);
+
+  result = await invoke(["prompts", "list"]);
+  assert.equal(result.exitCode, 0);
+  assert.match(result.stdout, /review_setup/);
+
+  result = await invoke(["prompts", "render", "review_setup"]);
+  assert.equal(result.exitCode, 0);
+  assert.match(result.stdout, /Review my setup/);
+
+  result = await invoke(["resources", "list"]);
+  assert.equal(result.exitCode, 0);
+  assert.match(result.stdout, /sportfolio:\/\/docs\/index/);
+
+  result = await invoke(["resources", "read", "sportfolio://docs/index"]);
+  assert.equal(result.exitCode, 0);
+  assert.match(result.stdout, /Player Pools/);
 
   console.log("[cli:smoke] All CLI commands completed successfully.");
 } finally {

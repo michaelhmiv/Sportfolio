@@ -1,12 +1,12 @@
 ---
 id: cli-overview
 title: CLI and External Access
-summary: How to use the Sportfolio CLI for documentation, account reads, confirmation-gated agent workflows, and the current status of MCP-style external access.
+summary: How to use the Sportfolio CLI for documentation, shared public tool access, account actions, and the current relationship between CLI and MCP.
 audience: public
 category: cli
 status: published
 owner: product-engineering
-lastReviewedAt: 2026-03-08
+lastReviewedAt: 2026-03-12
 changeTriggers: packages/sportfolio-cli,server/routes/cli.ts,server/api-token-auth.ts,server/routes/mcp.ts
 slug: overview
 surface: web,cli
@@ -15,7 +15,7 @@ searchKeywords: cli,api token,terminal,auth,actions,agent,docs,mcp,external acce
 
 # CLI and external access
 
-The Sportfolio CLI gives you a terminal-native way to read docs, inspect your account, and use the agent without opening the web app.
+The Sportfolio CLI gives you a terminal-native way to read docs, inspect your account, use the agent, and call the same shared public tool surface exposed through MCP.
 
 ## Authentication model
 
@@ -38,14 +38,17 @@ npm run cli -- auth login --token <your-token> --base-url http://127.0.0.1:5000
 - `docs list`, `docs search`, `docs open`
 - `portfolio summary`
 - `agent ask`, `agent threads`, `agent confirm`, `agent cancel`
-- structured action staging through `actions ...` commands
+- `actions ...` convenience commands for common staged flows
+- `tools list`, `tools call`
+- `prompts list`, `prompts render`
+- `resources list`, `resources read`
 
 For exact syntax, examples, JSON mode, and troubleshooting, use [CLI Command Reference](/wiki/cli/command-reference).
 
-In practice, the CLI is strongest when you want one of three things:
+In practice, the CLI is strongest when you want:
 
 - fast documentation access
-- quick account reads from a shell
+- direct shell access to the shared public capability catalog
 - agent-assisted workflows without opening the browser
 
 ## Repo-local entrypoint
@@ -56,13 +59,13 @@ The CLI package in this repo is private right now. If you are using this reposit
 node packages/sportfolio-cli/bin/sportfolio.mjs auth login --token <your-token>
 ```
 
-From there you can use the same `docs`, `agent`, `portfolio`, and `actions` command families.
+From there you can use the same `docs`, `agent`, `portfolio`, `actions`, `tools`, `prompts`, and `resources` command families.
 
 ## Safety model
 
 The CLI does not bypass confirmation-gated state changes. Mutating flows still stage a plan first, then require a confirm step.
 
-That means the CLI is an interface layer, not a privileged back door.
+That means the CLI is an interface layer over the same server-owned capability catalog, not a privileged back door.
 
 ## How the CLI relates to the rest of Sportfolio
 
@@ -71,7 +74,8 @@ The CLI uses the same canonical docs and the same server-owned business logic as
 So:
 
 - docs commands read the same wiki content used by the web docs hub
-- account reads follow the same auth rules as the web app
+- account and settings actions follow the same auth rules as the web app
+- MCP and CLI now share one public capability registry for tools, prompts, and resources
 - agent commands use the same staged-plan and confirmation model
 
 ## Good operational hygiene
@@ -103,6 +107,6 @@ That means terminal-friendly access now has two public paths:
 - use MCP when you are connecting through an MCP-aware client
 - use the web agent or SMS when you want a conversational surface instead of a protocol client
 
-MCP uses the same user API tokens as the CLI and stays scoped to the public gameplay v1 surface. It is not full site parity and does not expose billing, bootstrap/token-management, SMS linking/settings, profile identity edits, agent settings/BYOK, or admin/internal routes.
+MCP uses the same user API tokens as the CLI and now shares the same non-purchase public capability surface. Both expose account/profile/token/SMS/agent-setting actions in addition to gameplay reads and staged actions. The remaining exclusions are external purchase/funding flows and admin/internal routes.
 
 For the exact endpoint, auth model, and public MCP surface, read [MCP Access](/wiki/getting-started/mcp-access).

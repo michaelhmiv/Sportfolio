@@ -1,5 +1,16 @@
 # Lessons Learned
 
+## 2026-03-12
+
+- When a public action stages a scout-only bundle outside the normal scout-run pipeline, confirmation must fall back to direct action execution instead of assuming a scout run id exists.
+- Bearer-token public surfaces must not be able to mint fresh bearer tokens; keep API token creation explicitly web-session-only even if list/revoke flows are shared elsewhere.
+- Generic tool renderers are not a safe replacement for command-specific CLI summaries; preserve dedicated human-readable output for high-traffic commands like `portfolio summary`.
+
+## 2026-03-11
+
+- For external stage tools, a valid preview is not enough; verify that the pending bundle is actually written to the thread and that confirm/cancel work through the same public contract, or MCP can appear correct while real users still hit `cannot_stage`.
+- When validating Hermes tool execution, exercise the public CLI and MCP surfaces as a separate authenticated user with real thread creation, natural-language `send_agent_message`, and post-state checks; internal helper-path tests alone will miss adapter and staging-context drift.
+
 ## 2026-03-10
 
 - For direct-to-main hotfixes, sync to `main` first and do branch switches plus pulls serially; parallelizing Git state changes can create misleading merge/conflict errors even when the worktree is clean.

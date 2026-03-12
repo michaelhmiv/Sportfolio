@@ -98,6 +98,7 @@ describe("sportfolio MCP server", () => {
       });
 
       expect(tools.tools).toHaveLength(buildPublicMcpToolRegistry().length);
+      expect(tools.tools.map((entry) => entry.name)).not.toContain("create_api_token");
       expect(prompts.prompts.map((entry) => entry.name)).toEqual(
         expect.arrayContaining([
           "review_setup",
@@ -117,6 +118,42 @@ describe("sportfolio MCP server", () => {
       expect(docsIndex.contents[0]?.uri).toBe("sportfolio://docs/index");
       expect(capabilities.contents[0]?.uri).toBe("sportfolio://capabilities");
       expect(prompt.messages[0]?.content.type).toBe("text");
+    } finally {
+      await closeClient(openClient);
+      await server.close();
+    }
+  });
+
+  it("stages and confirms a scout assignment through the public MCP surface", async () => {
+    const server = await startMockMcpHttpServer();
+    let openClient: OpenClient | null = null;
+
+    try {
+      openClient = await connectClient(server.url, server.authToken);
+      const staged = await openClient.client.callTool({
+        name: "stage_scout_assignment",
+        arguments: {
+          playerId: "player_1",
+          targetCount: 3,
+        },
+      });
+
+      expect(staged.isError).not.toBe(true);
+      const stagedContent = (staged.structuredContent || {}) as Record<string, unknown>;
+      expect(stagedContent.confirmationRequired).toBe(true);
+
+      const confirmed = await openClient.client.callTool({
+        name: "confirm_pending_action",
+        arguments: {
+          threadId: stagedContent.threadId,
+          pendingBundleId: stagedContent.pendingBundleId,
+        },
+      });
+
+      expect(confirmed.isError).not.toBe(true);
+      expect((confirmed.structuredContent as Record<string, unknown>).summary).toBe(
+        "Confirmed pending action bundle.",
+      );
     } finally {
       await closeClient(openClient);
       await server.close();

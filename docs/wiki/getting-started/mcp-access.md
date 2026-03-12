@@ -1,13 +1,13 @@
 ---
 id: getting-started-mcp-access
 title: MCP Access
-summary: How to connect to Sportfolio's public authenticated MCP endpoint, what it exposes today, and what stays out of scope for MCP v1.
+summary: How to connect to Sportfolio's public authenticated MCP endpoint, what the shared public capability surface includes, and what stays out of scope.
 audience: public
 category: getting-started
 status: published
 owner: product-engineering
-lastReviewedAt: 2026-03-08
-changeTriggers: server/routes/mcp.ts,server/mcp/public-tool-registry.ts,server/mcp/gameplay-capability-matrix.ts,server/api-token-auth.ts,scripts/mcp-smoke.ts
+lastReviewedAt: 2026-03-12
+changeTriggers: server/routes/mcp.ts,server/mcp/public-tool-registry.ts,server/api-token-auth.ts,scripts/mcp-smoke.ts
 slug: mcp-access
 surface: web,cli,agent
 searchKeywords: mcp,model context protocol,streamable http,bearer token,api token,external access,endpoint
@@ -38,16 +38,17 @@ Authorization: Bearer <your-token>
 
 That keeps MCP inside the same account boundary as the web app and CLI. It is not an admin or shared back door.
 
-## What MCP v1 includes
+## What the shared public surface includes
 
-The current public MCP surface is gameplay-focused.
+The current public MCP surface follows the same shared non-purchase capability catalog used by the CLI.
 
 Included today:
 
-- reads across portfolio, holdings, players, pools, boosts, scouts, watchlists, schedules, docs, news, and thread state
+- reads across account, portfolio, holdings, players, pools, boosts, scouts, watchlists, schedules, docs, news, agent settings, SMS settings, and thread state
 - public docs resources including `sportfolio://docs/index`, `sportfolio://capabilities`, and `sportfolio://action-surface`
 - public prompts including `review_setup`, `review_idle_cash`, `find_boost_candidates`, and `stage_trade`
-- confirmation-gated gameplay staging for market trades, LP actions, stack shares, daily boosts, community boosts, watchlists, scout assignments, schedules, and thread confirm/cancel flows
+- immediate account actions including token management, username/profile-image updates, SMS link/settings actions, agent profile/BYOK updates, and premium redeem
+- confirmation-gated gameplay staging for market trades, LP actions, stack shares, daily boosts, community boosts, scout assignments, and thread confirm/cancel flows
 
 ## Safety model
 
@@ -57,17 +58,13 @@ MCP does not make the agent autonomous.
 - staged actions still require explicit confirmation
 - confirm and cancel operate on pending action bundles instead of bypassing server validation
 
-## What MCP v1 excludes
+## What stays excluded
 
 The public MCP server is not full site parity.
 
 Excluded today:
 
-- billing, funding, checkout, premium purchase, and premium redeem flows
-- account bootstrap and token-management flows
-- SMS linking and SMS settings
-- profile identity edits such as username and profile image
-- agent profile and BYOK settings
+- billing, funding, checkout, and external purchase flows
 - admin and internal-only routes
 
 ## When to use MCP vs CLI

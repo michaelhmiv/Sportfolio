@@ -30,7 +30,7 @@ export async function requestJson({ baseUrl, path, method = "GET", token = "", b
   }
 
   if (!response.ok) {
-    const message = data?.message || data?.error || `${response.status} ${response.statusText}`;
+    const message = data?.error || data?.message || `${response.status} ${response.statusText}`;
     const error = new Error(message);
     error.statusCode = response.status;
     throw error;

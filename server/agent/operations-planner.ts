@@ -27,6 +27,7 @@ import type {
   PoolSellAction,
   PoolZapSbAction,
   PoolZapSharesAction,
+  ScoutProposalAction,
   WatchlistAddPlayerAction,
   WatchlistRemovePlayerAction,
 } from "./types";
@@ -1794,6 +1795,139 @@ async function buildStackSharesPlan(
   };
 }
 
+async function buildScoutAssignmentPlan(
+  userId: string,
+  profile: UserAgentProfile,
+  message: string,
+  requestMode: "discussion" | "commit",
+): Promise<DirectOperationPlan | null> {
+  const parserMessage = normalizeOperationalParserMessage(message);
+  const match =
+    parserMessage.match(/\b(?:set|assign|move)\s+(.+?)\s+scouts?\s+to\s+(\d+)\b/i) ||
+    parserMessage.match(/\b(?:set|assign|move)\s+(\d+)\s+scouts?\s+(?:on|to)\s+(.+?)$/i);
+
+  if (!match) {
+    return null;
+  }
+
+  const countFirstPattern = /^\d+$/.test(match[1]);
+  const targetCount = Number.parseInt(countFirstPattern ? match[1] : match[2], 10);
+  const rawReference = countFirstPattern ? match[2] : match[1];
+  if (!Number.isFinite(targetCount) || targetCount < 0) {
+    return null;
+  }
+
+  const playerResolution = await resolvePlayerByReference(rawReference, { message, profile });
+  if (!playerResolution) {
+    return buildPlayerClarificationResponse({
+      domain: "scouting",
+      requestMessage: message,
+      summary: "I need a clearer player name before I can reassign those scouts.",
+      replyText:
+        "I can stage that scout reassignment, but I need the full player name first so I do not move scouts onto the wrong player.",
+      prompt: "Send the full player name and I'll queue that scout change for confirmation.",
+      resumeMessageTemplate: `set {player} scouts to ${targetCount}`,
+      contextSnapshot: {
+        intent: "scout_set_count",
+        rawPlayerReference: sanitizeNameFragment(rawReference),
+        targetCount,
+      },
+      trace: {
+        framework: "deterministic-agent-operations",
+        intent: "scout_set_count",
+        reason: "player_not_resolved",
+      },
+    });
+  }
+
+  const player = playerResolution.player;
+  const [user, assignments, totalAssigned] = await Promise.all([
+    storage.getUser(userId),
+    storage.getUserScoutAssignments(userId),
+    storage.getTotalScoutsForUser(userId),
+  ]);
+  const maxScouts = user?.isPremium ? 10 : 5;
+  const currentAssignment = assignments.find((entry) => entry.playerId === player.id);
+  const currentCount = Number(currentAssignment?.scoutCount || 0);
+  const resultingAssigned = totalAssigned - currentCount + targetCount;
+
+  if (targetCount > maxScouts || resultingAssigned > maxScouts) {
+    return buildUnavailableResponse({
+      domain: "scouting",
+      requestMessage: message,
+      summary: `That scout assignment would exceed your ${maxScouts}-scout limit.`,
+      replyText:
+        "That reassignment would put you over your current scout cap, so I did not stage it.",
+      warnings: playerResolution.warnings,
+      contextSnapshot: {
+        intent: "scout_set_count",
+        playerId: player.id,
+        targetCount,
+        currentCount,
+        totalAssigned,
+        maxScouts,
+      },
+      trace: {
+        framework: "deterministic-agent-operations",
+        intent: "scout_set_count",
+        reason: "limit_exceeded",
+      },
+    });
+  }
+
+  const action: ScoutProposalAction = {
+    actionType: "scout_set_count",
+    playerId: player.id,
+    playerName: `${player.firstName} ${player.lastName}`,
+    targetCount,
+    currentCount,
+    reasoning:
+      targetCount === 0
+        ? `Pull all scouts off ${player.firstName} ${player.lastName}.`
+        : `Set ${player.firstName} ${player.lastName} to ${targetCount} scout${targetCount === 1 ? "" : "s"}.`,
+    confidence: 0.9,
+    evidence: {
+      trend: null,
+      injury: null,
+      upcomingGame: null,
+      performanceNote: null,
+    },
+    riskFlags: [],
+  };
+
+  return {
+    domain: "scouting",
+    requestMessage: message,
+    replyText:
+      requestMode === "discussion"
+        ? `${action.reasoning} That would leave you using ${resultingAssigned}/${maxScouts} scouts. ${buildStageNudge(requestMode)}`
+        : `${action.reasoning} I staged the change and it would leave you using ${resultingAssigned}/${maxScouts} scouts. ${buildStageNudge(
+            requestMode,
+          )}`,
+    summary: `Set ${action.playerName} scouts to ${targetCount}`,
+    observations: [
+      `Current scout count on ${action.playerName}: ${currentCount}.`,
+      `Resulting total assigned scouts: ${resultingAssigned}/${maxScouts}.`,
+    ],
+    warnings: playerResolution.warnings,
+    actions: requestMode === "commit" ? [action] : [],
+    errorMessage: null,
+    contextSnapshot: {
+      intent: "scout_set_count",
+      playerId: player.id,
+      targetCount,
+      currentCount,
+      resultingAssigned,
+      maxScouts,
+    },
+    trace: {
+      framework: "deterministic-agent-operations",
+      intent: "scout_set_count",
+      requestMode,
+    },
+  };
+}
+
 async function buildWatchlistPlan(
   userId: string,
   profile: UserAgentProfile,
@@ -2191,6 +2325,7 @@ export async function planDirectAgentOperation(input: {
     buildCommunityBoostPlan,
     buildWatchlistPlan,
     buildStackSharesPlan,
+    buildScoutAssignmentPlan,
     buildGameplayStrategyPlan,
     buildBoostRemovePlan,
     buildBoostAssignPlan,

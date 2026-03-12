@@ -56,6 +56,7 @@ import { registerMarketMobileRoutes } from "./routes/market-mobile";
 import { getOrCreatePool, initializePool } from "./amm/pool";
 import { normalizeSiteUrl } from "@shared/seo";
 import { ensureSmsSchema } from "./sms-service";
+import { redeemPremiumShare } from "./services/premium-redemption";
 import {
   getApiHealthStaleThresholdMs,
   getLatestApiHealthReport,
@@ -6922,53 +6923,15 @@ ${items}
   // Premium redeem
   app.post("/api/premium/redeem", isAuthenticated, async (req, res) => {
     try {
-      const userId = getUserId(req);
-      const user = await storage.getUser(userId);
-      if (!user) {
-        return res.status(404).json({ error: "User not found" });
-      }
-      const premiumHolding = await storage.getHolding(user.id, "premium", "premium");
-
-      if (!premiumHolding || parseFloat(premiumHolding.quantity) < 1) {
-        return res.status(400).json({ error: "No premium shares to redeem" });
-      }
-
-      // Burn 1 premium share
-      await storage.updateHolding(
-        user.id,
-        "premium",
-        "premium",
-        parseFloat(premiumHolding.quantity) - 1,
-        "0.0000",
-      );
-
-      // Grant premium access for 30 days
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 30);
-
-      // Update user premium status in database
-      await storage.updateUserPremiumStatus(user.id, true, expiresAt);
-
-      await recordPremiumActivityEvent({
-        userId: user.id,
-        eventType: "premium_redeem",
-        quantityDelta: -1,
-        daysGranted: 30,
-        premiumExpiresAtAfter: expiresAt,
-        metadata: {
-          source: "premium_redeem",
-          remainingShares: Math.max(parseFloat(premiumHolding.quantity) - 1, 0),
-        },
-      });
-
-      res.json({
-        success: true,
-        isPremium: true,
-        premiumExpiresAt: expiresAt.toISOString(),
-        remainingShares: parseFloat(premiumHolding.quantity) - 1,
-      });
+      res.json(await redeemPremiumShare(getUserId(req)));
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      const status =
+        error?.message === "User not found"
+          ? 404
+          : error?.message === "No premium shares to redeem"
+            ? 400
+            : 500;
+      res.status(status).json({ error: error.message });
     }
   });
 

@@ -41,6 +41,13 @@ export type MockMcpHarness = {
     threads: Map<string, MockThreadState>;
     watchlists: Array<Record<string, unknown>>;
     schedules: Array<Record<string, unknown>>;
+    collections: Array<Record<string, unknown>>;
+    milestones: Array<Record<string, unknown>>;
+    apiTokens: Array<Record<string, unknown>>;
+    smsLink: Record<string, unknown> | null;
+    agentProfile: Record<string, unknown>;
+    user: Record<string, unknown>;
+    premiumShares: number;
   };
 };
 
@@ -92,6 +99,7 @@ export function createMockPublicMcpDependencies(): MockMcpHarness {
   let bundleCounter = 1;
   let messageCounter = 1;
   let watchlistCounter = 2;
+  let tokenCounter = 2;
 
   const players: MockPlayer[] = [
     {
@@ -131,12 +139,94 @@ export function createMockPublicMcpDependencies(): MockMcpHarness {
     schedules: [
       {
         id: "schedule_1",
-        jobType: "daily_digest",
+        jobType: "daily_setup_review",
         enabled: true,
         scheduleCron: "0 8 * * *",
         channelTargets: ["in_app"],
       },
     ] as Array<Record<string, unknown>>,
+    collections: [
+      {
+        id: "collection_1",
+        userId: MOCK_USER_ID,
+        collectionType: "team",
+        targetId: "NYK",
+        completed: true,
+        updatedAt: createIsoNow(),
+      },
+    ] as Array<Record<string, unknown>>,
+    milestones: [
+      {
+        id: "milestone_1",
+        userId: MOCK_USER_ID,
+        milestoneType: "netWorth",
+        threshold: "100",
+        celebrated: false,
+        achievedAt: createIsoNow(),
+      },
+    ] as Array<Record<string, unknown>>,
+    apiTokens: [
+      {
+        id: "token_1",
+        label: "Existing token",
+        tokenPrefix: "spt_mock",
+        tokenLast4: "1234",
+        createdAt: createIsoNow(),
+        lastUsedAt: null,
+        revokedAt: null,
+      },
+    ] as Array<Record<string, unknown>>,
+    smsLink: {
+      id: "sms_link_1",
+      phoneE164: "+15555550123",
+      verifiedAt: createIsoNow(),
+      linkedAt: createIsoNow(),
+      lastInboundAt: null,
+      lastOutboundAt: null,
+      smsEnabled: true,
+      smsOptInStatus: "opted_in",
+      smsOptInSource: "web_link",
+    } as Record<string, unknown> | null,
+    agentProfile: {
+      profile: {
+        id: "agent_profile_1",
+        enabled: true,
+        displayName: "Mock Agent",
+        providerMode: "managed",
+        model: "gpt-4.1-mini",
+        systemPrompt: "",
+        userPromptTemplate: "",
+        temperature: "0.7",
+        maxTokens: 1200,
+        analysisWindowMinutes: 120,
+        defaultSport: "NBA",
+      },
+      secret: null,
+      managedProvider: {
+        defaultModel: "gpt-4.1-mini",
+      },
+      capabilities: {
+        canAnalyze: true,
+        canAutoExecute: false,
+        canUseWebResearch: true,
+        webResearchProvider: "hosted",
+        runtime: "hermes",
+        hasDurableMemory: true,
+        canScheduleAdvisories: true,
+      },
+    } as Record<string, unknown>,
+    user: {
+      id: MOCK_USER_ID,
+      username: "mock_user",
+      email: "mock@example.com",
+      balance: "314.96",
+      isPremium: false,
+      premiumExpiresAt: null,
+      profileImageUrl: "https://example.com/mock.png",
+      hasSeenOnboarding: false,
+      lastNewsViewedAt: "2026-03-06T14:00:00.000Z",
+    } as Record<string, unknown>,
+    premiumShares: 2,
   };
 
   const seedThread: MockThreadState = {
@@ -177,6 +267,15 @@ export function createMockPublicMcpDependencies(): MockMcpHarness {
       lockedQuantity: 0,
       multiplier: 1,
       effectiveShares: 2,
+    },
+    {
+      id: "holding_premium",
+      playerId: "premium",
+      assetType: "premium",
+      quantity: state.premiumShares,
+      lockedQuantity: 0,
+      multiplier: 1,
+      effectiveShares: state.premiumShares,
     },
   ];
 
@@ -233,11 +332,14 @@ export function createMockPublicMcpDependencies(): MockMcpHarness {
         );
       });
     },
-    getUser: async () => ({
-      id: MOCK_USER_ID,
-      username: "mock_user",
-      isPremium: false,
-    }),
+    getPlayer: async (playerId: string) => players.find((player) => player.id === playerId),
+    getUser: async () => state.user,
+    getUserByUsername: async (username: string) =>
+      state.user.username === username ? state.user : null,
+    getHolding: async (_userId: string, assetType: string, assetId: string) =>
+      holdings.find((holding) => holding.assetType === assetType && holding.playerId === assetId),
+    getWatchList: async () =>
+      state.watchlists.flatMap((entry) => (Array.isArray(entry.items) ? entry.items : [])),
     getUserHoldings: async () => holdings,
     getUserHoldingsWithPlayers: async () => holdingsWithPlayers,
     getUserCommunityBoostShares: async () => 2,
@@ -271,6 +373,58 @@ export function createMockPublicMcpDependencies(): MockMcpHarness {
         playerId: player.id,
         playerName: `${player.firstName} ${player.lastName}`,
       })),
+    getWatchlists: async () => state.watchlists,
+    getUserActivityFeed: async () => ({
+      items: [
+        {
+          id: "activity_1",
+          category: "market",
+          title: "Bought Jalen Brunson",
+          createdAt: createIsoNow(),
+        },
+      ],
+      total: 1,
+      hasMore: false,
+      nextOffset: null,
+    }),
+    listUserApiTokens: async () => state.apiTokens,
+    createUserApiToken: async (token: Record<string, unknown>) => {
+      const created = {
+        id: `token_${tokenCounter++}`,
+        createdAt: createIsoNow(),
+        lastUsedAt: null,
+        revokedAt: null,
+        ...token,
+      };
+      state.apiTokens.push(created);
+      return created;
+    },
+    revokeUserApiToken: async (_userId: string, tokenId: string) => {
+      const token = state.apiTokens.find((entry) => entry.id === tokenId);
+      if (!token) {
+        return false;
+      }
+      token.revokedAt = createIsoNow();
+      return true;
+    },
+    markOnboardingComplete: async () => {
+      state.user.hasSeenOnboarding = true;
+    },
+    getUserPremiumCheckoutSessions: async () => [
+      {
+        id: "premium_session_1",
+        status: "completed",
+        createdAt: createIsoNow(),
+      },
+    ],
+    updateUsername: async (_userId: string, username: string) => {
+      state.user.username = username;
+      return state.user;
+    },
+    updateProfileImage: async (_userId: string, imageUrl: string) => {
+      state.user.profileImageUrl = imageUrl;
+      return state.user;
+    },
   } as unknown as PublicMcpDependencies["storage"];
 
   const deps = {
@@ -471,8 +625,8 @@ export function createMockPublicMcpDependencies(): MockMcpHarness {
         case "get_schedule_templates":
           return [
             {
-              jobType: "daily_digest",
-              description: "Daily digest template",
+              jobType: "daily_setup_review",
+              description: "Daily setup review template",
             },
           ];
         case "get_pending_bundle":
@@ -749,13 +903,113 @@ export function createMockPublicMcpDependencies(): MockMcpHarness {
       domain: "sportfolio",
       requestMessage: typeof message === "string" ? message : "",
     }),
-    getScoutAgentProfile: async () => ({
-      profile: {
-        displayName: "Hermes",
-        defaultSport: "NBA",
-        providerMode: "managed",
-      },
+    getScoutAgentProfile: async () => state.agentProfile,
+    getAgentCapabilities: async () => ({
+      domains: ["market", "boosts", "scouting"],
+      actionTypes: ["trade", "boost", "watchlist"],
+      canAnalyze: true,
+      canAutoExecute: false,
+      canUseWebResearch: true,
+      webResearchProvider: "hosted",
+      providerMode: ((state.agentProfile.profile as Record<string, unknown>)?.providerMode ??
+        "managed") as string,
+      runtime: "hermes",
+      hasDurableMemory: true,
+      canScheduleAdvisories: true,
     }),
+    updateScoutAgentProfile: async (_userId: string, input: unknown) => {
+      state.agentProfile = {
+        ...state.agentProfile,
+        profile: {
+          ...(state.agentProfile.profile as Record<string, unknown>),
+          ...((input || {}) as Record<string, unknown>),
+        },
+      };
+      return state.agentProfile;
+    },
+    saveScoutAgentByok: async (_userId: string, input: unknown) => {
+      const payload = (input || {}) as Record<string, unknown>;
+      state.agentProfile = {
+        ...state.agentProfile,
+        profile: {
+          ...(state.agentProfile.profile as Record<string, unknown>),
+          providerMode: "byok",
+          baseUrl: payload.baseUrl,
+          model: payload.model,
+        },
+        secret: {
+          keyLast4: typeof payload.apiKey === "string" ? payload.apiKey.slice(-4) : "mock",
+        },
+      };
+      return state.agentProfile;
+    },
+    clearScoutAgentByok: async () => {
+      state.agentProfile = {
+        ...state.agentProfile,
+        profile: {
+          ...(state.agentProfile.profile as Record<string, unknown>),
+          providerMode: "managed",
+        },
+        secret: null,
+      };
+      return state.agentProfile;
+    },
+    createUserApiTokenMaterial: () => ({
+      plaintextToken: "spt_mock_token_material",
+      tokenHash: "mock_hash",
+      tokenPrefix: "spt_mock",
+      tokenLast4: "4321",
+    }),
+    getSmsSettings: async () => state.smsLink,
+    updateSmsSettings: async (_userId: string, smsEnabled: boolean) => {
+      if (!state.smsLink) {
+        return null;
+      }
+      state.smsLink.smsEnabled = smsEnabled;
+      state.smsLink.smsOptInStatus = smsEnabled ? "opted_in" : "opted_out";
+      return state.smsLink;
+    },
+    startSmsPhoneLink: async (_userId: string, phone: string) => ({
+      phoneE164: phone,
+      expiresAt: createIsoNow(),
+    }),
+    completeSmsPhoneLink: async (_userId: string, token: string) => {
+      state.smsLink = {
+        ...(state.smsLink || {}),
+        id: "sms_link_1",
+        phoneE164: "+15555550123",
+        verifiedAt: createIsoNow(),
+        linkedAt: createIsoNow(),
+        lastInboundAt: null,
+        lastOutboundAt: null,
+        smsEnabled: true,
+        smsOptInStatus: "opted_in",
+        smsOptInSource: "web_link",
+        completedToken: token,
+      };
+      return state.smsLink;
+    },
+    redeemPremiumShare: async () => {
+      if (state.premiumShares < 1) {
+        throw new Error("No premium shares to redeem");
+      }
+      state.premiumShares -= 1;
+      state.user.isPremium = true;
+      state.user.premiumExpiresAt = createIsoNow();
+      const premiumHolding = holdings.find(
+        (holding) => holding.assetType === "premium" && holding.playerId === "premium",
+      );
+      if (premiumHolding) {
+        premiumHolding.quantity = state.premiumShares;
+        premiumHolding.effectiveShares = state.premiumShares;
+      }
+      return {
+        success: true,
+        isPremium: true,
+        premiumExpiresAt: state.user.premiumExpiresAt,
+        remainingShares: state.premiumShares,
+      };
+    },
     createAgentThread: async (_userId: string, input: unknown) => {
       const threadInput = (input || {}) as Record<string, unknown>;
       const id = `thread_${threadCounter++}`;
@@ -809,6 +1063,68 @@ export function createMockPublicMcpDependencies(): MockMcpHarness {
         actionBundle: pendingBundle,
       };
       thread.messages.push(userMessage, assistantMessage);
+
+      return {
+        thread: buildThreadView(thread),
+        createdMessages: [assistantMessage],
+        pendingActionBundle: pendingBundle,
+        pendingClarification: null,
+      };
+    },
+    stageAgentThreadBundle: async (input: {
+      threadId?: string | null;
+      summary: string;
+      replyText?: string | null;
+      requestMessage?: string | null;
+      actions: Array<Record<string, unknown>>;
+      warnings?: string[];
+      domain?: string;
+      title?: string | null;
+      channel?: string;
+    }) => {
+      const threadId = input.threadId?.trim() || `thread_${threadCounter++}`;
+      const thread =
+        state.threads.get(threadId) ||
+        ({
+          id: threadId,
+          title: input.title?.trim() || "MCP Thread",
+          channel:
+            typeof input.channel === "string" && ["cli", "in_app", "sms"].includes(input.channel)
+              ? (input.channel as MockThreadState["channel"])
+              : "cli",
+          domain: input.domain || "sportfolio",
+          pendingActionBundle: null,
+          messages: [],
+          createdAt: createIsoNow(),
+          updatedAt: createIsoNow(),
+        } satisfies MockThreadState);
+
+      state.threads.set(threadId, thread);
+      const pendingBundle = {
+        id: `bundle_${bundleCounter++}`,
+        status: "pending_confirmation",
+        summary: input.summary,
+        warnings: Array.isArray(input.warnings) ? input.warnings : [],
+        actions: Array.isArray(input.actions) ? input.actions : [],
+      };
+      thread.pendingActionBundle = pendingBundle;
+      thread.updatedAt = createIsoNow();
+
+      if (input.requestMessage?.trim()) {
+        thread.messages.push({
+          id: `message_${messageCounter++}`,
+          role: "user",
+          contentText: input.requestMessage.trim(),
+        });
+      }
+
+      const assistantMessage: MockThreadMessage = {
+        id: `message_${messageCounter++}`,
+        role: "assistant",
+        contentText: input.replyText?.trim() || input.summary,
+        actionBundle: pendingBundle,
+      };
+      thread.messages.push(assistantMessage);
 
       return {
         thread: buildThreadView(thread),
@@ -896,6 +1212,7 @@ export function createMockPublicMcpDependencies(): MockMcpHarness {
       const thread = state.threads.get(threadId);
       return thread?.messages || [];
     },
+    listAgentThreadResearchSources: async () => [],
     listAgentThreads: async () =>
       Array.from(state.threads.values()).map((thread) => buildThreadView(thread)),
     listDocsArticles: () => [
@@ -932,6 +1249,51 @@ export function createMockPublicMcpDependencies(): MockMcpHarness {
           title: "Mock digest headline",
         },
       ],
+    }),
+    listCollections: async () => state.collections,
+    getCollectionDetail: async (_userId: string, type: string, targetId: string) => {
+      const collection =
+        state.collections.find(
+          (entry) => entry.collectionType === type && entry.targetId === targetId,
+        ) || null;
+      if (!collection) {
+        return null;
+      }
+
+      return {
+        collection,
+        ownedPlayers:
+          type === "team"
+            ? [
+                {
+                  playerId: "player_1",
+                  firstName: "Jalen",
+                  lastName: "Brunson",
+                  position: "PG",
+                  team: targetId,
+                  quantity: 4,
+                },
+              ]
+            : [],
+      };
+    },
+    listMilestones: async () => state.milestones,
+    celebrateMilestone: async (_userId: string, milestoneId: string) => {
+      const milestone = state.milestones.find((entry) => entry.id === milestoneId);
+      if (!milestone) {
+        return false;
+      }
+      milestone.celebrated = true;
+      return true;
+    },
+    markNewsRead: async () => {
+      state.user.lastNewsViewedAt = createIsoNow();
+    },
+    getNewsUnreadCount: async () => ({
+      count: 3,
+      digestCount: 1,
+      hasUnreadDigest: true,
+      digestReleaseAt: new Date(createIsoNow()),
     }),
   } as unknown as PublicMcpDependencies;
 
