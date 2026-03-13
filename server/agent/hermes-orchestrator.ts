@@ -21,6 +21,7 @@ function buildToolTraceEntry(input: {
   status: AgentToolTrace["status"];
   startedAt: number;
   summary: string;
+  details?: Record<string, unknown> | null;
 }): AgentToolTrace {
   return {
     toolName: input.toolName,
@@ -28,19 +29,27 @@ function buildToolTraceEntry(input: {
     status: input.status,
     latencyMs: Math.max(0, Date.now() - input.startedAt),
     summary: input.summary,
+    details: input.details || null,
   };
 }
 
-function summarizeMemoryContext(request: HermesRespondRequest): string | null {
-  const topMemory =
-    request.memoryMode === "off"
-      ? null
-      : request.memoryContext.profile[0] ||
-        request.memoryContext.semantic[0] ||
-        request.memoryContext.episodic[0] ||
-        null;
+function getMemoryInfluences(request: HermesRespondRequest): string[] {
+  if (request.memoryMode === "off") {
+    return [];
+  }
 
-  return topMemory ? topMemory.summary : null;
+  return [
+    ...request.memoryContext.profile,
+    ...request.memoryContext.semantic,
+    ...request.memoryContext.episodic,
+  ]
+    .map((entry) => entry.summary.trim())
+    .filter(Boolean)
+    .slice(0, 4);
+}
+
+function isCompatibilityFallbackEnabled() {
+  return process.env.HERMES_ENABLE_COMPATIBILITY_FALLBACK === "true";
 }
 
 function isFollowUpExplanationRequest(message: string): boolean {
@@ -344,6 +353,20 @@ function normalizePlannerOutcome(
   createdSkillCandidates: string[] = [],
   skillMatchRationale: string | null = null,
   fallbackUsed = false,
+  metadata: Pick<
+    HermesRespondResult,
+    | "terminationReason"
+    | "compressionApplied"
+    | "repairAttempts"
+    | "providerFailureClass"
+    | "memoryInfluences"
+  > = {
+    terminationReason: null,
+    compressionApplied: false,
+    repairAttempts: 0,
+    providerFailureClass: null,
+    memoryInfluences: [],
+  },
 ): HermesRespondResult {
   const proposedActions = Array.isArray(result.actions) ? (result.actions as AgentAction[]) : [];
   const warnings = Array.isArray(result.warnings)
@@ -376,6 +399,11 @@ function normalizePlannerOutcome(
     createdSkillCandidates,
     skillMatchRationale,
     fallbackUsed,
+    terminationReason: metadata.terminationReason ?? null,
+    compressionApplied: Boolean(metadata.compressionApplied),
+    repairAttempts: metadata.repairAttempts ?? 0,
+    providerFailureClass: metadata.providerFailureClass ?? null,
+    memoryInfluences: metadata.memoryInfluences || [],
     requiresConfirmation: proposedActions.length > 0,
     confirmationPreview,
   };
@@ -413,9 +441,12 @@ function buildSkillStepsFromTrace(toolTrace: AgentToolTrace[]): AgentSkillStep[]
         entry.toolName !== "model_first_router" &&
         entry.toolName !== "model_tool_loop" &&
         entry.toolName !== "model_tool_repair_retry" &&
+        entry.toolName !== "model_context_compression" &&
+        entry.toolName !== "model_provider_retry" &&
         entry.toolName !== "model_first_read_summary" &&
         entry.toolName !== "model_first_fallback" &&
         entry.toolName !== "infer_memory_writes" &&
+        entry.toolName !== "memory_influence_context" &&
         entry.toolName !== "external_hermes_fallback",
     )
     .map((entry) => ({
@@ -503,6 +534,7 @@ export async function runHermesOrchestrationTurn(input: {
   const proposedMemoryWrites = buildMemoryWrites(input.request);
   const skillsUsed: string[] = [];
   const createdSkillCandidates: string[] = [];
+  const memoryInfluences = getMemoryInfluences(input.request);
   let skillMatchRationale: string | null = null;
 
   try {
@@ -514,6 +546,21 @@ export async function runHermesOrchestrationTurn(input: {
           status: "ok",
           startedAt,
           summary: `Captured ${proposedMemoryWrites.length} durable memory candidate(s) from the request.`,
+        }),
+      );
+    }
+
+    if (memoryInfluences.length > 0) {
+      toolTrace.push(
+        buildToolTraceEntry({
+          toolName: "memory_influence_context",
+          phase: "memory",
+          status: "ok",
+          startedAt: Date.now(),
+          summary: `Loaded ${memoryInfluences.length} durable memory influence(s) into the orchestrator context.`,
+          details: {
+            memoryInfluences,
+          },
         }),
       );
     }
@@ -568,6 +615,11 @@ export async function runHermesOrchestrationTurn(input: {
         createdSkillCandidates,
         skillMatchRationale,
         fallbackUsed: false,
+        terminationReason: "follow_up_explanation",
+        compressionApplied: false,
+        repairAttempts: 0,
+        providerFailureClass: null,
+        memoryInfluences,
       };
     }
 
@@ -595,6 +647,11 @@ export async function runHermesOrchestrationTurn(input: {
         createdSkillCandidates,
         skillMatchRationale,
         fallbackUsed: false,
+        terminationReason: routedTurn.terminationReason,
+        compressionApplied: routedTurn.compressionApplied,
+        repairAttempts: routedTurn.repairAttempts,
+        providerFailureClass: routedTurn.providerFailureClass,
+        memoryInfluences,
         requiresConfirmation: false,
         confirmationPreview: null,
       };
@@ -667,6 +724,14 @@ export async function runHermesOrchestrationTurn(input: {
             skillsUsed,
             createdSkillCandidates,
             skillMatchRationale,
+            false,
+            {
+              terminationReason: routedTurn.terminationReason,
+              compressionApplied: routedTurn.compressionApplied,
+              repairAttempts: routedTurn.repairAttempts,
+              providerFailureClass: routedTurn.providerFailureClass,
+              memoryInfluences,
+            },
           );
         }
       } catch (error: any) {
@@ -698,6 +763,11 @@ export async function runHermesOrchestrationTurn(input: {
         createdSkillCandidates,
         skillMatchRationale,
         fallbackUsed: false,
+        terminationReason: routedTurn.terminationReason,
+        compressionApplied: routedTurn.compressionApplied,
+        repairAttempts: routedTurn.repairAttempts,
+        providerFailureClass: routedTurn.providerFailureClass,
+        memoryInfluences,
         requiresConfirmation: false,
         confirmationPreview: null,
       };
@@ -725,6 +795,11 @@ export async function runHermesOrchestrationTurn(input: {
       createdSkillCandidates,
       skillMatchRationale,
       fallbackUsed: false,
+      terminationReason: routedTurn.terminationReason || "neutral_model_fallback",
+      compressionApplied: routedTurn.compressionApplied,
+      repairAttempts: routedTurn.repairAttempts,
+      providerFailureClass: routedTurn.providerFailureClass,
+      memoryInfluences,
     };
   } catch (error: any) {
     toolTrace.push(
@@ -733,10 +808,35 @@ export async function runHermesOrchestrationTurn(input: {
         phase: "plan",
         status: "failed",
         startedAt,
-        summary:
-          error?.message || "Hermes orchestration failed and is falling back to PI compatibility.",
+        summary: error?.message || "Hermes orchestration failed.",
       }),
     );
+
+    if (!isCompatibilityFallbackEnabled()) {
+      return {
+        outcome: "error",
+        assistantText: error?.message || "Hermes orchestration failed.",
+        summary: null,
+        warnings: [],
+        proposedActions: [],
+        pendingClarification: null,
+        citations: [],
+        proposedMemoryWrites,
+        toolTrace,
+        toolCallsUsed: toolTrace.map((entry) => entry.toolName),
+        skillsUsed,
+        createdSkillCandidates,
+        skillMatchRationale,
+        fallbackUsed: false,
+        terminationReason: "orchestration_exception",
+        compressionApplied: false,
+        repairAttempts: 0,
+        providerFailureClass: null,
+        memoryInfluences,
+        requiresConfirmation: false,
+        confirmationPreview: null,
+      };
+    }
 
     const fallback = await runLocalHermesCompatibilityTurn({
       userId: input.userId,
@@ -761,6 +861,11 @@ export async function runHermesOrchestrationTurn(input: {
       createdSkillCandidates,
       skillMatchRationale,
       fallbackUsed: true,
+      terminationReason: "compatibility_fallback",
+      compressionApplied: false,
+      repairAttempts: 0,
+      providerFailureClass: null,
+      memoryInfluences,
       requiresConfirmation: fallback.proposedActions.length > 0,
       confirmationPreview:
         fallback.proposedActions.length > 0

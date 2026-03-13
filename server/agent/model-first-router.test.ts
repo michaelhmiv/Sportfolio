@@ -1,20 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  completeSimple: vi.fn(),
-  resolveLocalCompatibilityRuntime: vi.fn(),
+  callAgentModel: vi.fn(),
+  classifyAgentProviderFailure: vi.fn(),
   runHermesReadTool: vi.fn(),
   runHermesScanTool: vi.fn(),
   runHermesActionTool: vi.fn(),
   runHermesMemoryTool: vi.fn(),
 }));
 
-vi.mock("@mariozechner/pi-ai", () => ({
-  completeSimple: mocks.completeSimple,
-}));
-
-vi.mock("./hermes-local", () => ({
-  resolveLocalCompatibilityRuntime: mocks.resolveLocalCompatibilityRuntime,
+vi.mock("./agent-model", () => ({
+  callAgentModel: mocks.callAgentModel,
+  classifyAgentProviderFailure: mocks.classifyAgentProviderFailure,
+  stripHiddenReasoningText: (text: string) =>
+    text.replace(/<think>[\s\S]*?<\/think>/gi, " ").trim(),
 }));
 
 vi.mock("./hermes-tools", () => ({
@@ -25,17 +24,6 @@ vi.mock("./hermes-tools", () => ({
 }));
 
 import { runHermesModelToolLoop } from "./model-first-router";
-
-function buildRuntime() {
-  return {
-    apiKey: "test-key",
-    model: {
-      api: "openai-completions",
-      provider: "chutes",
-      id: "test-model",
-    },
-  };
-}
 
 function buildUsage() {
   return {
@@ -140,17 +128,17 @@ function buildRequest() {
 
 describe("model-first-router", () => {
   beforeEach(() => {
-    mocks.completeSimple.mockReset();
-    mocks.resolveLocalCompatibilityRuntime.mockReset();
+    mocks.callAgentModel.mockReset();
+    mocks.classifyAgentProviderFailure.mockReset();
     mocks.runHermesReadTool.mockReset();
     mocks.runHermesScanTool.mockReset();
     mocks.runHermesActionTool.mockReset();
     mocks.runHermesMemoryTool.mockReset();
-    mocks.resolveLocalCompatibilityRuntime.mockResolvedValue(buildRuntime());
+    mocks.classifyAgentProviderFailure.mockReturnValue("unknown");
   });
 
   it("returns a direct answer when the model answers without tools", async () => {
-    mocks.completeSimple.mockResolvedValue({
+    mocks.callAgentModel.mockResolvedValue({
       role: "assistant",
       content: [
         {
@@ -190,7 +178,7 @@ describe("model-first-router", () => {
   });
 
   it("can execute a read tool and then answer on the next model pass", async () => {
-    mocks.completeSimple
+    mocks.callAgentModel
       .mockResolvedValueOnce({
         role: "assistant",
         content: [
@@ -257,7 +245,7 @@ describe("model-first-router", () => {
   });
 
   it("returns a planning tool selection for confirmation-gated operations", async () => {
-    mocks.completeSimple.mockResolvedValue({
+    mocks.callAgentModel.mockResolvedValue({
       role: "assistant",
       content: [
         {
@@ -299,5 +287,152 @@ describe("model-first-router", () => {
     expect((result as { toolArgs: Record<string, unknown> }).toolArgs.message).toBe(
       "What should I spend my cash balance on?",
     );
+  });
+
+  it("repairs case-insensitive tool names before execution", async () => {
+    mocks.callAgentModel
+      .mockResolvedValueOnce({
+        role: "assistant",
+        content: [
+          {
+            type: "toolCall",
+            id: "call_1",
+            name: "GET_BALANCE_STATE",
+            arguments: {},
+          },
+        ],
+        api: "openai-completions",
+        provider: "chutes",
+        model: "test-model",
+        usage: buildUsage(),
+        stopReason: "tool_calls",
+        timestamp: Date.now(),
+      })
+      .mockResolvedValueOnce({
+        role: "assistant",
+        content: [
+          {
+            type: "text",
+            text: "You have enough balance to make a measured move.",
+          },
+        ],
+        api: "openai-completions",
+        provider: "chutes",
+        model: "test-model",
+        usage: buildUsage(),
+        stopReason: "stop",
+        timestamp: Date.now(),
+      });
+    mocks.runHermesReadTool.mockResolvedValue({
+      availableBalance: 125,
+    });
+
+    const result = await runHermesModelToolLoop({
+      profile: {
+        displayName: "My Agent",
+        providerMode: "managed",
+        model: "test-model",
+        baseUrl: null,
+        systemPrompt: "test",
+        userPromptTemplate: "test",
+        temperature: "0.2",
+        maxTokens: 800,
+      } as any,
+      secret: undefined,
+      request: buildRequest(),
+      matchedSkill: null,
+    });
+
+    expect(result.outcome).toBe("answer");
+    expect(result.repairAttempts).toBeGreaterThan(0);
+    expect(result.toolTrace.some((entry) => entry.summary.includes("Normalized tool name"))).toBe(
+      true,
+    );
+  });
+
+  it("compresses context and retries after a provider overflow", async () => {
+    mocks.callAgentModel
+      .mockRejectedValueOnce(new Error("413 payload too large"))
+      .mockResolvedValueOnce({
+        role: "assistant",
+        content: [
+          {
+            type: "text",
+            text: "Use the compressed context to keep the next move tight.",
+          },
+        ],
+        api: "openai-completions",
+        provider: "chutes",
+        model: "test-model",
+        usage: buildUsage(),
+        stopReason: "stop",
+        timestamp: Date.now(),
+      });
+    mocks.classifyAgentProviderFailure.mockReturnValue("context_overflow");
+
+    const result = await runHermesModelToolLoop({
+      profile: {
+        displayName: "My Agent",
+        providerMode: "managed",
+        model: "test-model",
+        baseUrl: null,
+        systemPrompt: "test",
+        userPromptTemplate: "test",
+        temperature: "0.2",
+        maxTokens: 800,
+      } as any,
+      secret: undefined,
+      request: {
+        ...buildRequest(),
+        conversationHistory: Array.from({ length: 10 }, (_, index) => ({
+          role: index % 2 === 0 ? "user" : "assistant",
+          contentText: `Turn ${index} `.repeat(40),
+        })),
+      },
+      matchedSkill: null,
+    });
+
+    expect(result.outcome).toBe("answer");
+    expect(result.compressionApplied).toBe(true);
+    expect(result.toolTrace.some((entry) => entry.toolName === "model_context_compression")).toBe(
+      true,
+    );
+  });
+
+  it("strips hidden reasoning blocks from the visible reply text", async () => {
+    mocks.callAgentModel.mockResolvedValue({
+      role: "assistant",
+      content: [
+        {
+          type: "text",
+          text: "<think>internal reasoning</think> Keep your cash flexible for boosts.",
+        },
+      ],
+      api: "openai-completions",
+      provider: "chutes",
+      model: "test-model",
+      usage: buildUsage(),
+      stopReason: "stop",
+      timestamp: Date.now(),
+    });
+
+    const result = await runHermesModelToolLoop({
+      profile: {
+        displayName: "My Agent",
+        providerMode: "managed",
+        model: "test-model",
+        baseUrl: null,
+        systemPrompt: "test",
+        userPromptTemplate: "test",
+        temperature: "0.2",
+        maxTokens: 800,
+      } as any,
+      secret: undefined,
+      request: buildRequest(),
+      matchedSkill: null,
+    });
+
+    expect(result.outcome).toBe("answer");
+    expect((result as { replyText: string }).replyText).toBe("Keep your cash flexible for boosts.");
   });
 });

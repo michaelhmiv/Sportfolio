@@ -175,6 +175,7 @@ export interface MarketMobileOverviewDeps {
 
 const WHALE_ALERT_MIN_VALUE = 5000;
 const LOW_ACTIVITY_THRESHOLD = 3;
+const MARKET_BREADTH_MOVE_THRESHOLD = 0.25;
 const compactMetricFormatter = new Intl.NumberFormat("en-US", {
   notation: "compact",
   maximumFractionDigits: 1,
@@ -600,13 +601,13 @@ function sortByAbsoluteMove(
 function getMarketHealthSummary(label: MarketHealthLabel) {
   switch (label) {
     case "quiet":
-      return "Thin tape. Lean on liquidity over momentum.";
+      return "Composite tape read: light flow and softer movement.";
     case "balanced":
-      return "Healthy flow with room to pick spots.";
+      return "Composite tape read: steady flow with usable depth.";
     case "active":
-      return "Tape is moving. Momentum and slate context both matter.";
+      return "Composite tape read: strong flow with broad movement.";
     case "heated":
-      return "High-energy market. Size against liquidity and chase carefully.";
+      return "Composite tape read: crowded tape with sharp movement.";
   }
 }
 
@@ -618,9 +619,9 @@ function buildMarketIndicators(params: {
   const { contexts, tradeCount15m, liveGameCount } = params;
   const breadth = contexts.reduce(
     (accumulator, context) => {
-      if (context.priceChange24h > 0.25) {
+      if (context.priceChange24h > MARKET_BREADTH_MOVE_THRESHOLD) {
         accumulator.risers += 1;
-      } else if (context.priceChange24h < -0.25) {
+      } else if (context.priceChange24h < MARKET_BREADTH_MOVE_THRESHOLD * -1) {
         accumulator.fallers += 1;
       } else {
         accumulator.flat += 1;
@@ -790,7 +791,11 @@ export async function buildMobileMarketOverview(
     .slice(0, 8)
     .map((entry) => {
       const context = contextMap.get(entry.player.id);
-      return withSignal(context, "value", `Value index ${roundToTwo(context?.valueIndex || 0)}`);
+      return withSignal(
+        context,
+        "value",
+        `Model value index ${roundToTwo(context?.valueIndex || 0)}`,
+      );
     })
     .filter((entry): entry is MobileMarketSignal => Boolean(entry))
     .sort((left, right) => {

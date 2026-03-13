@@ -232,6 +232,12 @@ export type AgentScheduleJobType =
   | "boost_window";
 export type AgentToolCategory = "read" | "scan" | "plan" | "action" | "memory" | "research";
 export type AgentToolExposure = "default" | "advanced" | "hidden_fallback" | "internal_only";
+export type AgentProviderFailureClass =
+  | "auth"
+  | "context_overflow"
+  | "transient"
+  | "malformed_response"
+  | "unknown";
 export type AgentFailureClass =
   | "malformed_tool_call"
   | "tool_not_selected_when_needed"
@@ -354,6 +360,7 @@ export interface AgentToolTrace {
   status: "ok" | "failed" | "skipped";
   latencyMs: number;
   summary: string;
+  details?: Record<string, unknown> | null;
 }
 
 export interface AgentConfirmationPreview {
@@ -396,7 +403,7 @@ export interface HermesRespondRequest {
   channel: AgentChannel;
   message: string;
   requestMode: "auto" | "discussion" | "plan" | "clarification_resume";
-  orchestrationMode?: "hermes_first";
+  orchestrationMode?: "hermes_first" | "local_only";
   toolAllowlist: string[];
   toolCatalog: AgentToolDefinition[];
   availableSkills: AgentSkillDefinition[];
@@ -471,6 +478,11 @@ export interface HermesRespondResult {
   createdSkillCandidates: string[];
   skillMatchRationale?: string | null;
   fallbackUsed?: boolean;
+  terminationReason?: string | null;
+  compressionApplied?: boolean;
+  repairAttempts?: number;
+  providerFailureClass?: AgentProviderFailureClass | null;
+  memoryInfluences?: string[];
   requiresConfirmation: boolean;
   confirmationPreview: AgentConfirmationPreview | null;
 }

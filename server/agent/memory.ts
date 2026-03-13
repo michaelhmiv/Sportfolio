@@ -25,6 +25,10 @@ const LOW_SIGNAL_TERMS = new Set([
 const DEFAULT_MEMORY_CONFIDENCE = 0.5;
 const MIN_MEMORY_CONFIDENCE = 0;
 const MAX_MEMORY_CONFIDENCE = 1;
+const MAX_MEMORY_WRITES_PER_MESSAGE = 3;
+const TRANSIENT_ACTION_PATTERN =
+  /\b(buy|sell|boost|stack|assign|remove|drop|add|swap|trade|bet|today|tonight|tomorrow|this slate|this game|right now)\b/i;
+const QUESTION_PREFIX_PATTERN = /^(?:what|when|where|who|why|how|should|can|could|would|did|do)\b/i;
 
 function normalizeSummary(summary: string): string {
   return summary.replace(/\s+/g, " ").trim().slice(0, 240);
@@ -60,10 +64,61 @@ function tokenize(text: string): string[] {
     .filter((term) => term.length > 1 && !LOW_SIGNAL_TERMS.has(term));
 }
 
+function splitIntoCandidateClauses(message: string): string[] {
+  return message
+    .split(/[\n.;!?]+/g)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function isDurableClause(clause: string): boolean {
+  const normalized = clause.trim();
+  if (!normalized || normalized.length < 14) {
+    return false;
+  }
+  if (QUESTION_PREFIX_PATTERN.test(normalized.toLowerCase())) {
+    return false;
+  }
+  if (
+    /\$\d+/.test(normalized) ||
+    /\b\d+\s+(?:share|shares|scout|scouts|slot|slots)\b/i.test(normalized)
+  ) {
+    return false;
+  }
+  if (
+    TRANSIENT_ACTION_PATTERN.test(normalized) &&
+    /\b(today|tonight|tomorrow|this|current)\b/i.test(normalized)
+  ) {
+    return false;
+  }
+
+  return (
+    /\b(i (?:prefer|like|care about|need|usually|tend to|focus on|want to build|want to focus|am trying to|keep|follow)\b)/i.test(
+      normalized,
+    ) ||
+    /\b(i(?:'m| am)? (?:a fan of|into|following)\b)/i.test(normalized) ||
+    /\b(?:keep it|make it|be)\s+(?:brief|short|concise|detailed|step by step)\b/i.test(normalized)
+  );
+}
+
+function normalizeDurableClause(clause: string): string {
+  let normalized = clause.replace(/\s+/g, " ").trim();
+
+  if (/^(?:keep it|make it|be)\s+/i.test(normalized)) {
+    normalized = `I prefer responses that are ${normalized.replace(/^(?:keep it|make it|be)\s+/i, "")}`;
+  }
+
+  return normalized;
+}
+
 function inferMemoryKind(message: string): AgentMemoryKind {
   const normalized = message.toLowerCase();
 
-  if (/\b(low risk|safe|conservative|aggressive|higher risk|less risk)\b/.test(normalized)) {
+  if (
+    /\b(low risk|lower risk|lower-risk|safe|conservative|aggressive|higher risk|higher-risk|less risk)\b/.test(
+      normalized,
+    )
+  ) {
     return "risk_tolerance";
   }
 
@@ -71,7 +126,7 @@ function inferMemoryKind(message: string): AgentMemoryKind {
     return "habit";
   }
 
-  if (/\bgoal|trying to|want to build|want to focus|i want to\b/.test(normalized)) {
+  if (/\bgoal|trying to|want to build|want to focus|build|focus\b/.test(normalized)) {
     return "goal";
   }
 
@@ -102,6 +157,25 @@ function shouldSupersedeExistingMemories(write: ProposedMemoryWrite): boolean {
   return write.kind !== "favorite_entities";
 }
 
+function getKindQueryBonus(record: AgentMemoryRecord, query: string): number {
+  const normalizedQuery = query.toLowerCase();
+
+  switch (record.kind) {
+    case "risk_tolerance":
+      return /\b(risk|safe|aggressive|conservative)\b/.test(normalizedQuery) ? 4 : 0;
+    case "interaction_style":
+      return /\b(brief|short|concise|detailed|walk me through|step by step)\b/.test(normalizedQuery)
+        ? 4
+        : 0;
+    case "goal":
+      return /\b(goal|focus|build|strategy|optimize)\b/.test(normalizedQuery) ? 3 : 0;
+    case "favorite_entities":
+      return /\b(team|player|favorite|fan|follow)\b/.test(normalizedQuery) ? 3 : 0;
+    default:
+      return 0;
+  }
+}
+
 function scoreMemory(record: AgentMemoryRecord, query: string): number {
   const queryTerms = tokenize(query);
   if (queryTerms.length === 0) {
@@ -109,14 +183,18 @@ function scoreMemory(record: AgentMemoryRecord, query: string): number {
   }
 
   const haystack = `${record.summary} ${JSON.stringify(record.content)}`.toLowerCase();
-
-  return queryTerms.reduce((score, term) => {
+  const lexicalScore = queryTerms.reduce((score, term) => {
     if (record.summary.toLowerCase().includes(term)) {
       return score + 5;
     }
 
-    return haystack.includes(term) ? score + 1 : score;
+    return haystack.includes(term) ? score + 2 : score;
   }, 0);
+  const ageHours = Math.max(0, (Date.now() - record.updatedAt.getTime()) / (1000 * 60 * 60));
+  const recencyBonus = Math.max(0, 6 - ageHours / 24);
+  const confidenceBonus = Math.max(0, Math.min(record.confidence, 1)) * 4;
+
+  return lexicalScore + recencyBonus + confidenceBonus + getKindQueryBonus(record, query);
 }
 
 function mapMemoryRow(row: typeof userAgentMemories.$inferSelect): AgentMemoryRecord {
@@ -146,34 +224,36 @@ export function inferMemoryWritesFromMessage(message: string): ProposedMemoryWri
   if (!normalized) {
     return [];
   }
+  const seen = new Set<string>();
 
-  const explicitPreferenceMatch = normalized.match(
-    /\b(i (?:prefer|like|care about|want|need|usually|tend to|focus on)\b.+)$/i,
-  );
-  const favoriteMatch = normalized.match(/\b(i(?:'m| am)? (?:a fan of|into|following)\b.+)$/i);
+  return splitIntoCandidateClauses(normalized)
+    .filter(isDurableClause)
+    .map(normalizeDurableClause)
+    .map((clause) => {
+      const kind = inferMemoryKind(clause);
+      const scope = inferMemoryScope(kind);
+      const summary = normalizeSummary(clause);
 
-  const matchedLine = explicitPreferenceMatch?.[1] || favoriteMatch?.[1] || "";
-  if (!matchedLine) {
-    return [];
-  }
-
-  const kind = inferMemoryKind(matchedLine);
-  const scope = inferMemoryScope(kind);
-  const summary = normalizeSummary(matchedLine);
-
-  return [
-    {
-      scope,
-      kind,
-      summary,
-      content: {
-        statement: summary,
-        capturedFrom: "user_message",
-      },
-      confidence: 0.78,
-      reason: "Captured an explicit durable user preference statement.",
-    },
-  ];
+      return {
+        scope,
+        kind,
+        summary,
+        content: {
+          statement: summary,
+          capturedFrom: "user_message",
+        },
+        confidence: kind === "interaction_style" || kind === "risk_tolerance" ? 0.82 : 0.78,
+        reason: "Captured an explicit durable user preference statement.",
+      } satisfies ProposedMemoryWrite;
+    })
+    .filter((write) => {
+      if (!write.summary || seen.has(write.summary.toLowerCase())) {
+        return false;
+      }
+      seen.add(write.summary.toLowerCase());
+      return true;
+    })
+    .slice(0, MAX_MEMORY_WRITES_PER_MESSAGE);
 }
 
 export async function listActiveUserAgentMemories(

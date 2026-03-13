@@ -36,6 +36,7 @@ import { runHermesOrchestrationTurn } from "./hermes-orchestrator";
 
 describe("hermes-orchestrator", () => {
   beforeEach(() => {
+    delete process.env.HERMES_ENABLE_COMPATIBILITY_FALLBACK;
     mocks.runHermesPlanTool.mockReset();
     mocks.runHermesModelToolLoop.mockReset();
     mocks.runLocalHermesCompatibilityTurn.mockReset();
@@ -172,6 +173,7 @@ describe("hermes-orchestrator", () => {
     expect(result.outcome).toBe("advisory");
     expect(result.assistantText).toContain("NASCAR");
     expect(result.toolCallsUsed).toContain("get_balance_state");
+    expect(result.memoryInfluences).toEqual([]);
     expect(mocks.runLocalHermesCompatibilityTurn).not.toHaveBeenCalled();
   });
 
@@ -342,7 +344,21 @@ describe("hermes-orchestrator", () => {
     expect(result.toolCallsUsed).toContain("model_first_fallback");
   });
 
-  it("falls back to the local compatibility bridge if orchestration throws", async () => {
+  it("returns a local orchestrator error when compatibility fallback is disabled", async () => {
+    mocks.matchAgentSkill.mockImplementation(() => {
+      throw new Error("skill matcher failed");
+    });
+
+    const result = await runHermesOrchestrationTurn(baseInput);
+
+    expect(result.outcome).toBe("error");
+    expect(result.assistantText).toBe("skill matcher failed");
+    expect(mocks.runLocalHermesCompatibilityTurn).not.toHaveBeenCalled();
+    expect(result.toolCallsUsed).toContain("hermes_orchestration");
+  });
+
+  it("uses the compatibility bridge only when explicitly enabled", async () => {
+    process.env.HERMES_ENABLE_COMPATIBILITY_FALLBACK = "true";
     mocks.matchAgentSkill.mockImplementation(() => {
       throw new Error("skill matcher failed");
     });
@@ -364,7 +380,7 @@ describe("hermes-orchestrator", () => {
     const result = await runHermesOrchestrationTurn(baseInput);
 
     expect(result.assistantText).toBe("Fallback reply.");
+    expect(result.fallbackUsed).toBe(true);
     expect(mocks.runLocalHermesCompatibilityTurn).toHaveBeenCalledTimes(1);
-    expect(result.toolCallsUsed).toContain("hermes_orchestration");
   });
 });
