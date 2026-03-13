@@ -377,8 +377,6 @@ function getBoardMetricField(sortField: SortField): SortField {
   switch (sortField) {
     case "price":
       return "volume";
-    case "change":
-      return "tvl";
     case "name":
       return "team";
     case "team":
@@ -521,59 +519,67 @@ function MarketIntelList({
 }: {
   items: MobileMarketSignal[];
   emptyState: string;
-  metric: "change" | "tvl";
+  metric: "change" | "tvl" | "value";
   onOpenPlayer: (item: MobileMarketSignal) => void;
   onSeeMore: () => void;
 }) {
+  const metricLabel = metric === "change" ? "24h" : metric === "value" ? "Value" : "TVL";
+
   if (items.length === 0) {
     return (
-      <div className="rounded-sm border border-dashed border-border/70 p-1.5 text-[10px] text-muted-foreground">
+      <div className="rounded-sm border border-dashed border-border/70 p-1.5 text-xs text-muted-foreground">
         {emptyState}
       </div>
     );
   }
 
   return (
-    <div className="overflow-hidden rounded-sm border border-border/70 bg-muted/10">
-      <div className="grid grid-cols-[minmax(0,1fr)_52px_60px] gap-2 border-b border-border/60 px-1.5 py-1 text-[8px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+    <div
+      className="overflow-hidden rounded-sm border border-border/70 bg-muted/10"
+      data-testid={`market-mobile-intel-list-${metric}`}
+    >
+      <div className="grid grid-cols-[minmax(0,1fr)_56px_64px] gap-2 border-b border-border/60 px-1.5 py-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
         <div className="whitespace-nowrap">Player</div>
         <div className="text-right whitespace-nowrap">Price</div>
-        <div className="text-right whitespace-nowrap">{metric === "change" ? "24h" : "TVL"}</div>
+        <div className="text-right whitespace-nowrap">{metricLabel}</div>
       </div>
       {items.slice(0, 5).map((item) => {
         const metricText =
           metric === "change"
             ? formatSignedPercent(item.priceChange24h)
-            : formatCompactCurrency(item.poolTvl);
+            : metric === "value"
+              ? `${toNumber(item.valueIndex).toFixed(0)}`
+              : formatCompactCurrency(item.poolTvl);
 
         return (
           <button
             key={`${metric}-${item.playerId}`}
             type="button"
-            className="grid w-full grid-cols-[minmax(0,1fr)_52px_60px] items-center gap-2 border-b border-border/60 px-1.5 py-1 text-left transition-colors last:border-b-0 hover:bg-muted/25"
+            className="grid w-full grid-cols-[minmax(0,1fr)_56px_64px] items-center gap-2 border-b border-border/60 px-1.5 py-1 text-left transition-colors last:border-b-0 hover:bg-muted/25"
             onClick={() => onOpenPlayer(item)}
           >
             <div className="min-w-0 whitespace-nowrap">
-              <div className="truncate text-[10px] font-semibold leading-none">
+              <div className="truncate text-xs font-semibold leading-none">
                 <PlayerName
                   playerId={item.playerId}
                   firstName={item.firstName}
                   lastName={item.lastName}
                 />
               </div>
-              <div className="truncate pt-0.5 text-[8px] font-mono uppercase tracking-[0.08em] text-muted-foreground">
+              <div className="truncate pt-0.5 text-[9px] font-mono uppercase tracking-[0.08em] text-muted-foreground">
                 {item.team}
                 {item.position ? `/${item.position}` : ""}
               </div>
             </div>
-            <div className="text-right font-mono text-[9px] whitespace-nowrap">
+            <div className="text-right font-mono text-[10px] whitespace-nowrap">
               ${item.currentPrice.toFixed(2)}
             </div>
             <div
               className={cn(
-                "text-right font-mono text-[9px] whitespace-nowrap",
+                "text-right font-mono text-[10px] whitespace-nowrap",
                 metric === "change" &&
                   (item.priceChange24h >= 0 ? "text-positive" : "text-negative"),
+                metric === "value" && "text-primary",
               )}
             >
               {metricText}
@@ -583,7 +589,7 @@ function MarketIntelList({
       })}
       <button
         type="button"
-        className="flex w-full items-center justify-between border-t border-border/60 px-1.5 py-1 text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground transition-colors hover:bg-muted/25"
+        className="flex w-full items-center justify-between border-t border-border/60 px-1.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground transition-colors hover:bg-muted/25"
         onClick={onSeeMore}
       >
         <span className="whitespace-nowrap">See More In Board</span>
@@ -614,7 +620,7 @@ function MarketMetricPill({
   return (
     <Badge
       variant="outline"
-      className="h-4 whitespace-nowrap rounded-sm border-border/70 bg-background/30 px-1.5 text-[8px] uppercase tracking-[0.08em] text-muted-foreground"
+      className="h-5 whitespace-nowrap rounded-sm border-border/70 bg-background/30 px-1.5 text-[9px] uppercase tracking-[0.08em] text-muted-foreground"
     >
       <span className={cn("mr-1 font-mono", valueClassName)}>{value}</span>
       {label}
@@ -648,7 +654,7 @@ function MarketIndicatorBar({
 }) {
   return (
     <div className="grid grid-cols-[56px_minmax(0,1fr)_58px] items-center gap-2 whitespace-nowrap">
-      <div className="truncate text-[8px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+      <div className="truncate text-[9px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
         {label}
       </div>
       <div className="h-1 overflow-hidden rounded-full bg-muted/40">
@@ -657,7 +663,7 @@ function MarketIndicatorBar({
           style={{ width: `${clampPercent(value)}%` }}
         />
       </div>
-      <div className="text-right font-mono text-[9px] text-foreground">{displayValue}</div>
+      <div className="text-right font-mono text-[10px] text-foreground">{displayValue}</div>
     </div>
   );
 }
@@ -752,12 +758,13 @@ function getRowActionType(quickContext: PlayerQuickContext) {
 }
 
 function syncBoardToIntelSort(
-  field: "change" | "tvl",
+  field: SortField,
   onSortFieldChange: (value: SortField) => void,
   onSortOrderChange: (value: SortOrder) => void,
+  sortOrder: SortOrder = "desc",
 ) {
   onSortFieldChange(field);
-  onSortOrderChange("desc");
+  onSortOrderChange(sortOrder);
 
   if (typeof document !== "undefined") {
     window.requestAnimationFrame(() => {
@@ -851,10 +858,10 @@ export function MarketMobilePoolsBoard({
   const signalMap = useMemo(() => {
     const map = new Map<string, MobileMarketSignal>();
     const allSignals = [
-      ...(overview?.leaderboards.risers || overview?.nowMoving || []),
-      ...(overview?.leaderboards.topPools || []),
-      ...(overview?.leaderboards.mostActive || []),
-      ...(overview?.leaderboards.boostWindow || overview?.boostWindow || []),
+      ...(overview?.leaderboards?.risers || overview?.nowMoving || []),
+      ...(overview?.leaderboards?.topPools || []),
+      ...(overview?.leaderboards?.mostActive || []),
+      ...(overview?.leaderboards?.boostWindow || overview?.boostWindow || []),
       ...(overview?.scoutSurge || []),
       ...(overview?.quietValue || []),
       ...(overview?.watchlistMoves || []),
@@ -980,7 +987,7 @@ export function MarketMobilePoolsBoard({
   const intelTabs: Array<{ id: MarketIntelTab; label: string }> = [
     { id: "indicators", label: "Indicators" },
     { id: "risers", label: "Top Risers" },
-    { id: "value", label: "Top Value" },
+    { id: "value", label: "Value Scan" },
   ];
 
   return (
@@ -994,13 +1001,13 @@ export function MarketMobilePoolsBoard({
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <div className="flex items-center gap-1 whitespace-nowrap">
-                <div className="text-[9px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                   Player Pools
                 </div>
                 <Badge
                   variant="outline"
                   className={cn(
-                    "h-4 whitespace-nowrap px-1 text-[8px] uppercase tracking-[0.08em]",
+                    "h-5 whitespace-nowrap px-1 text-[9px] uppercase tracking-[0.08em]",
                     getFreshnessClassName(freshnessState),
                   )}
                 >
@@ -1013,15 +1020,15 @@ export function MarketMobilePoolsBoard({
                 <Badge
                   variant="outline"
                   className={cn(
-                    "h-4 whitespace-nowrap px-1 text-[8px] uppercase tracking-[0.08em]",
+                    "h-5 whitespace-nowrap px-1 text-[9px] uppercase tracking-[0.08em]",
                     getMarketHealthBadgeClassName(overview?.marketIndicators.healthLabel),
                   )}
                 >
                   {overview?.marketIndicators.healthLabel || "quiet"}
                 </Badge>
               </div>
-              <div className="truncate pt-1 text-[8px] font-mono uppercase tracking-[0.08em] text-muted-foreground">
-                {formatSignedPercent(overview?.marketIndicators.marketIndex24h || 0)} idx | vol{" "}
+              <div className="truncate pt-1 text-[9px] font-mono uppercase tracking-[0.08em] text-muted-foreground">
+                {formatSignedPercent(overview?.marketIndicators.marketIndex24h || 0)} idx | swing{" "}
                 {Math.round(overview?.marketIndicators.volatilityIndex || 0)} | breadth{" "}
                 {breadthDisplay} | {marketFreshness}
               </div>
@@ -1035,7 +1042,7 @@ export function MarketMobilePoolsBoard({
                 key={tab.id}
                 type="button"
                 className={cn(
-                  "rounded-sm px-1 py-1 text-center text-[8px] font-semibold uppercase tracking-[0.08em] transition-colors",
+                  "rounded-sm px-1 py-1 text-center text-[9px] font-semibold uppercase tracking-[0.08em] transition-colors",
                   activeIntelTab === tab.id
                     ? "bg-muted/80 text-foreground"
                     : "text-muted-foreground hover:bg-muted/30",
@@ -1056,14 +1063,14 @@ export function MarketMobilePoolsBoard({
               <div className="space-y-1">
                 <div className="rounded-sm border border-border/60 bg-background/30 px-1.5 py-1">
                   <div className="flex items-center justify-between gap-2">
-                    <div className="truncate text-[8px] uppercase tracking-[0.1em] text-muted-foreground">
-                      Market Intel
+                    <div className="truncate text-[9px] uppercase tracking-[0.1em] text-muted-foreground">
+                      Composite Read
                     </div>
-                    <div className="shrink-0 text-[8px] font-mono uppercase tracking-[0.08em] text-muted-foreground">
+                    <div className="shrink-0 text-[9px] font-mono uppercase tracking-[0.08em] text-muted-foreground">
                       {marketFreshness}
                     </div>
                   </div>
-                  <div className="truncate pt-0.5 text-[9px] text-muted-foreground">
+                  <div className="truncate pt-0.5 text-[10px] text-muted-foreground">
                     {overview?.marketIndicators.healthSummary || "Scanning the tape."}
                   </div>
                   <div className="mt-1 space-y-1">
@@ -1078,7 +1085,7 @@ export function MarketMobilePoolsBoard({
                       tone={indexTone}
                     />
                     <MarketIndicatorBar
-                      label="Vol"
+                      label="Swing"
                       value={overview?.marketIndicators.volatilityIndex || 0}
                       displayValue={String(
                         Math.round(overview?.marketIndicators.volatilityIndex || 0),
@@ -1129,7 +1136,7 @@ export function MarketMobilePoolsBoard({
               </div>
             ) : activeIntelTab === "risers" ? (
               <MarketIntelList
-                items={overview?.leaderboards.risers || overview?.nowMoving || []}
+                items={overview?.leaderboards?.risers || overview?.nowMoving || []}
                 emptyState="No momentum leaders yet."
                 metric="change"
                 onOpenPlayer={(signal) =>
@@ -1145,9 +1152,9 @@ export function MarketMobilePoolsBoard({
               />
             ) : (
               <MarketIntelList
-                items={overview?.leaderboards.topPools || []}
-                emptyState="Pool leaders are still loading."
-                metric="tvl"
+                items={overview?.quietValue || []}
+                emptyState="Value scan is still loading."
+                metric="value"
                 onOpenPlayer={(signal) =>
                   onOpenPlayer(
                     getPlayerForSignal(signal),
@@ -1155,7 +1162,9 @@ export function MarketMobilePoolsBoard({
                     getQuickContext(signal.playerId, signal),
                   )
                 }
-                onSeeMore={() => syncBoardToIntelSort("tvl", onSortFieldChange, onSortOrderChange)}
+                onSeeMore={() =>
+                  syncBoardToIntelSort("undervalued", onSortFieldChange, onSortOrderChange, "asc")
+                }
               />
             )}
           </div>
@@ -1166,16 +1175,16 @@ export function MarketMobilePoolsBoard({
         <CardContent className="p-1.5">
           <div className="flex items-center justify-between gap-2">
             <div className="min-w-0">
-              <div className="text-[9px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                 Trade Board
               </div>
-              <div className="truncate text-[8px] font-mono uppercase tracking-[0.08em] text-muted-foreground">
+              <div className="truncate text-[9px] font-mono uppercase tracking-[0.08em] text-muted-foreground">
                 {totalPlayers} pools | {getSortLabel(sortField)} | {sortOrder}
               </div>
             </div>
             <Badge
               variant="outline"
-              className="h-4 border-border/80 bg-muted/20 px-1 text-[8px] uppercase tracking-[0.08em]"
+              className="h-5 border-border/80 bg-muted/20 px-1 text-[9px] uppercase tracking-[0.08em]"
             >
               {sortOrder}
             </Badge>
@@ -1189,7 +1198,7 @@ export function MarketMobilePoolsBoard({
                 placeholder="Search players, teams, positions..."
                 value={search}
                 onChange={(event) => onSearchChange(event.target.value)}
-                className="h-7 pl-7 pr-8 text-[10px]"
+                className="h-7 pl-7 pr-8 text-xs"
               />
               {search && (
                 <Button
@@ -1208,7 +1217,7 @@ export function MarketMobilePoolsBoard({
               <select
                 value={sortField}
                 onChange={(event) => onSortFieldChange(event.target.value as SortField)}
-                className="h-7 min-w-0 rounded-sm border border-border bg-[hsl(var(--card)/0.85)] px-2 font-mono text-[10px]"
+                className="h-7 min-w-0 rounded-sm border border-border bg-[hsl(var(--card)/0.85)] px-2 font-mono text-xs"
               >
                 <option value="volume">Volume</option>
                 <option value="marketCap">Market Cap</option>
@@ -1226,7 +1235,7 @@ export function MarketMobilePoolsBoard({
                 type="button"
                 variant="terminalOutline"
                 size="sm"
-                className="h-7 gap-1 px-0 text-[8px]"
+                className="h-7 gap-1 px-0 text-[9px]"
                 onClick={() => onSortOrderChange(sortOrder === "asc" ? "desc" : "asc")}
               >
                 <ArrowUpDown className="h-3 w-3" />
@@ -1237,14 +1246,14 @@ export function MarketMobilePoolsBoard({
                 type="button"
                 variant="terminalOutline"
                 size="sm"
-                className="h-7 gap-1 px-1.5 text-[8px]"
+                className="h-7 gap-1 px-1.5 text-[9px]"
                 onClick={() => onShowFiltersChange(!showFilters)}
                 data-testid="button-open-market-filters"
               >
                 <Filter className="h-3 w-3" />
                 Filters
                 {hasActiveFilters && (
-                  <Badge variant="secondary" className="ml-1 h-3.5 px-1 py-0 text-[8px]">
+                  <Badge variant="secondary" className="ml-1 h-4 px-1 py-0 text-[9px]">
                     {filterPills.length}
                   </Badge>
                 )}
@@ -1257,7 +1266,7 @@ export function MarketMobilePoolsBoard({
                   <Badge
                     key={pill}
                     variant="outline"
-                    className="h-4 border-border/80 bg-muted/20 px-1.5 text-[8px] uppercase tracking-[0.08em] text-muted-foreground"
+                    className="h-5 border-border/80 bg-muted/20 px-1.5 text-[9px] uppercase tracking-[0.08em] text-muted-foreground"
                   >
                     {pill}
                   </Badge>
@@ -1268,13 +1277,13 @@ export function MarketMobilePoolsBoard({
             {showFilters && (
               <div className="grid grid-cols-2 gap-1 rounded-sm border border-border/70 bg-muted/10 p-1.5">
                 <div className="space-y-1">
-                  <label className="text-[8px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                  <label className="text-[9px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                     Team
                   </label>
                   <select
                     value={teamFilter}
                     onChange={(event) => onTeamFilterChange(event.target.value)}
-                    className="h-7 w-full rounded-sm border border-border bg-[hsl(var(--card)/0.85)] px-2 font-mono text-[10px]"
+                    className="h-7 w-full rounded-sm border border-border bg-[hsl(var(--card)/0.85)] px-2 font-mono text-xs"
                   >
                     <option value="all">All Teams</option>
                     {teams.map((team) => (
@@ -1286,13 +1295,13 @@ export function MarketMobilePoolsBoard({
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[8px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                  <label className="text-[9px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                     Position
                   </label>
                   <select
                     value={positionFilter}
                     onChange={(event) => onPositionFilterChange(event.target.value)}
-                    className="h-7 w-full rounded-sm border border-border bg-[hsl(var(--card)/0.85)] px-2 font-mono text-[10px]"
+                    className="h-7 w-full rounded-sm border border-border bg-[hsl(var(--card)/0.85)] px-2 font-mono text-xs"
                   >
                     <option value="all">All Positions</option>
                     {positions.map((position) => (
@@ -1305,13 +1314,13 @@ export function MarketMobilePoolsBoard({
 
                 {isAuthenticated && (
                   <div className="col-span-2 space-y-1">
-                    <label className="text-[8px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                    <label className="text-[9px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                       Watchlist
                     </label>
                     <select
                       value={filterWatchlistId}
                       onChange={(event) => onWatchlistFilterChange(event.target.value)}
-                      className="h-7 w-full rounded-sm border border-border bg-[hsl(var(--card)/0.85)] px-2 font-mono text-[10px]"
+                      className="h-7 w-full rounded-sm border border-border bg-[hsl(var(--card)/0.85)] px-2 font-mono text-xs"
                     >
                       <option value="none">All Players</option>
                       <option value="all">My Watchlists</option>
@@ -1328,7 +1337,7 @@ export function MarketMobilePoolsBoard({
                   <Button
                     type="button"
                     variant="terminal"
-                    className="h-7 flex-1 px-0 text-[9px]"
+                    className="h-7 flex-1 px-0 text-[10px]"
                     onClick={onClearFilters}
                   >
                     Clear
@@ -1336,7 +1345,7 @@ export function MarketMobilePoolsBoard({
                   <Button
                     type="button"
                     variant="terminalOutline"
-                    className="h-7 flex-1 px-0 text-[9px]"
+                    className="h-7 flex-1 px-0 text-[10px]"
                     onClick={() => onShowFiltersChange(false)}
                   >
                     Done
@@ -1347,10 +1356,12 @@ export function MarketMobilePoolsBoard({
           </div>
 
           <div className="mt-1 overflow-hidden rounded-sm border border-border/70 bg-muted/10">
-            <div className="grid grid-cols-[minmax(0,1.7fr)_52px_50px_58px_54px] gap-2 border-b border-border/70 px-1.5 py-1 text-[8px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+            <div
+              className="grid grid-cols-[minmax(0,1.95fr)_58px_66px_54px] gap-1.5 border-b border-border/70 px-1.5 py-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-muted-foreground"
+              data-testid="market-mobile-trade-board-header"
+            >
               <div className="whitespace-nowrap">Player</div>
               <div className="text-right whitespace-nowrap">Price</div>
-              <div className="text-right whitespace-nowrap">24h</div>
               <div className="text-right whitespace-nowrap">
                 {getBoardMetricLabel(boardMetricField)}
               </div>
@@ -1363,15 +1374,13 @@ export function MarketMobilePoolsBoard({
               </div>
             ) : players.length === 0 ? (
               <div className="p-4 text-center">
-                <div className="text-[10px] text-muted-foreground">
-                  No players match this setup.
-                </div>
+                <div className="text-xs text-muted-foreground">No players match this setup.</div>
                 {hasActiveFilters && (
                   <Button
                     type="button"
                     variant="terminalOutline"
                     size="sm"
-                    className="mt-2 h-6 px-2 text-[9px]"
+                    className="mt-2 h-6 px-2 text-[10px]"
                     onClick={onClearFilters}
                   >
                     Reset filters
@@ -1382,7 +1391,6 @@ export function MarketMobilePoolsBoard({
               players.map((player) => {
                 const signal = signalMap.get(player.id);
                 const quickContext = getQuickContext(player.id, signal);
-                const priceChange = toNumber(player.priceChange24h);
                 const currentPrice = toNumber(player.currentPrice);
                 const boardMetricValue = formatBoardMetricValue(player, boardMetricField, signal);
                 const rowToken = getCompactStatusToken({
@@ -1398,19 +1406,19 @@ export function MarketMobilePoolsBoard({
                 return (
                   <div
                     key={player.id}
-                    className="grid grid-cols-[minmax(0,1.7fr)_52px_50px_58px_54px] items-center gap-2 border-b border-border/60 px-1.5 py-1 last:border-b-0"
+                    className="grid grid-cols-[minmax(0,1.95fr)_58px_66px_54px] items-center gap-1.5 border-b border-border/60 px-1.5 py-1 last:border-b-0"
                     data-testid="market-mobile-player-card"
                   >
                     <button
                       type="button"
-                      className="col-span-4 grid grid-cols-[minmax(0,1.7fr)_52px_50px_58px] items-center gap-2 text-left whitespace-nowrap"
+                      className="col-span-3 grid grid-cols-[minmax(0,1.95fr)_58px_66px] items-center gap-1.5 text-left whitespace-nowrap"
                       onClick={() => onOpenPlayer(player, "default", quickContext)}
                     >
                       <div className="min-w-0">
                         <div className="flex items-center gap-1 overflow-hidden whitespace-nowrap">
                           <div
                             className={cn(
-                              "truncate text-[10px] font-semibold leading-none",
+                              "truncate text-xs font-semibold leading-none",
                               ownedPlayerIds.has(player.id) && "text-positive",
                             )}
                           >
@@ -1420,14 +1428,14 @@ export function MarketMobilePoolsBoard({
                               lastName={player.lastName}
                             />
                           </div>
-                          <div className="shrink-0 text-[8px] font-mono uppercase tracking-[0.08em] text-muted-foreground">
+                          <div className="shrink-0 text-[9px] font-mono uppercase tracking-[0.08em] text-muted-foreground">
                             {[player.team, player.position].filter(Boolean).join("/") || "-"}
                           </div>
                           {rowToken && (
                             <Badge
                               variant="outline"
                               className={cn(
-                                "h-4 shrink-0 px-1 text-[7px] uppercase tracking-[0.08em]",
+                                "h-5 shrink-0 px-1 text-[9px] uppercase tracking-[0.08em]",
                                 rowToken.className,
                               )}
                             >
@@ -1437,20 +1445,11 @@ export function MarketMobilePoolsBoard({
                         </div>
                       </div>
 
-                      <div className="text-right font-mono text-[9px] font-semibold whitespace-nowrap">
+                      <div className="text-right font-mono text-[10px] font-semibold whitespace-nowrap">
                         ${currentPrice.toFixed(2)}
                       </div>
 
-                      <div
-                        className={cn(
-                          "text-right font-mono text-[9px] whitespace-nowrap",
-                          priceChange >= 0 ? "text-positive" : "text-negative",
-                        )}
-                      >
-                        {formatSignedPercent(priceChange)}
-                      </div>
-
-                      <div className="truncate text-right font-mono text-[9px] uppercase tracking-[0.08em] text-foreground whitespace-nowrap">
+                      <div className="truncate text-right font-mono text-[10px] uppercase tracking-[0.08em] text-foreground whitespace-nowrap">
                         {boardMetricValue}
                       </div>
                     </button>
@@ -1459,7 +1458,7 @@ export function MarketMobilePoolsBoard({
                       type="button"
                       variant="terminal"
                       size="sm"
-                      className="h-5 w-full px-0 text-[8px]"
+                      className="h-6 w-full px-0 text-[9px]"
                       onClick={() => onOpenPlayer(player, rowAction, quickContext)}
                     >
                       {rowActionLabel}
@@ -1472,7 +1471,7 @@ export function MarketMobilePoolsBoard({
 
           {totalPages > 1 && (
             <div className="mt-1 flex items-center justify-between rounded-sm border border-border/70 bg-muted/15 px-1.5 py-1">
-              <div className="text-[8px] font-mono uppercase tracking-[0.08em] text-muted-foreground">
+              <div className="text-[9px] font-mono uppercase tracking-[0.08em] text-muted-foreground">
                 Page {page} / {totalPages}
               </div>
               <div className="flex items-center gap-1">
@@ -1480,7 +1479,7 @@ export function MarketMobilePoolsBoard({
                   type="button"
                   variant="terminalOutline"
                   size="sm"
-                  className="h-6 px-2 text-[8px]"
+                  className="h-6 px-2 text-[9px]"
                   disabled={page <= 1}
                   onClick={() => onPageChange(page - 1)}
                 >
@@ -1490,7 +1489,7 @@ export function MarketMobilePoolsBoard({
                   type="button"
                   variant="terminalOutline"
                   size="sm"
-                  className="h-6 gap-1 px-2 text-[8px]"
+                  className="h-6 gap-1 px-2 text-[9px]"
                   disabled={page >= totalPages}
                   onClick={() => onPageChange(page + 1)}
                 >

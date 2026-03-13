@@ -1,12 +1,7 @@
 import type { UserAgentProfile, UserAgentSecret } from "@shared/schema";
-import { decryptText } from "../lib/encryption";
+import { resolveAgentPiRuntime } from "./agent-model";
 import { resolveAgentRequestModeWithFallback } from "./intent-router";
 import { validateScoutPlanAgainstContext } from "./policy-engine";
-import {
-  normalizeOpenAICompatibleBaseUrl,
-  resolveManagedPiRuntime,
-  resolveOpenAICompatiblePiRuntime,
-} from "./pi-provider";
 import { runScoutDiscussionTurn, runScoutPlanningTurn } from "./scout-agent-core";
 import { inferMemoryWritesFromMessage } from "./memory";
 import type {
@@ -45,30 +40,7 @@ export async function resolveLocalCompatibilityRuntime(
   profile: UserAgentProfile,
   secret: UserAgentSecret | undefined,
 ) {
-  if (profile.providerMode === "byok") {
-    if (!secret) {
-      throw new Error("BYOK is selected but no API key is configured");
-    }
-    if (!profile.baseUrl) {
-      throw new Error("BYOK is selected but no base URL is configured");
-    }
-
-    const apiKey = decryptText({
-      ciphertext: secret.apiKeyCiphertext,
-      iv: secret.apiKeyIv,
-      authTag: secret.apiKeyAuthTag,
-    });
-
-    return resolveOpenAICompatiblePiRuntime({
-      apiKey,
-      baseUrl: normalizeOpenAICompatibleBaseUrl(profile.baseUrl),
-      model: profile.model,
-    });
-  }
-
-  return resolveManagedPiRuntime({
-    model: profile.model,
-  });
+  return resolveAgentPiRuntime(profile, secret);
 }
 
 export async function runLocalHermesCompatibilityTurn(input: {

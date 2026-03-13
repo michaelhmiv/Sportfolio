@@ -248,6 +248,9 @@ describe("buildMobileMarketOverview", () => {
     expect(overview.pulse.lowActivity).toBe(true);
     expect(overview.pulse.tradeCount15m).toBe(1);
     expect(overview.marketIndicators.healthLabel).toBe("balanced");
+    expect(overview.marketIndicators.healthSummary).toBe(
+      "Composite tape read: steady flow with usable depth.",
+    );
     expect(overview.marketIndicators.marketIndex24h).toBeCloseTo(4.7, 1);
     expect(overview.marketIndicators.volatilityIndex).toBeGreaterThan(50);
     expect(overview.marketIndicators.liquidityHealth).toBeGreaterThan(40);
@@ -261,11 +264,53 @@ describe("buildMobileMarketOverview", () => {
     expect(overview.leaderboards.topPools[0]?.playerId).toBe("p1");
     expect(overview.leaderboards.mostActive[0]?.playerId).toBe("p1");
     expect(overview.nowMoving[0]?.heatCheckStatus).toBe("fire");
+    expect(overview.quietValue[0]?.playerId).toBe("p4");
+    expect(overview.quietValue[0]?.note).toContain("Model value index");
     expect(overview.quietValue.map((entry) => entry.playerId)).toContain("p4");
     expect(overview.scoutSurge[0]?.playerId).toBe("p4");
     expect(overview.boostWindow.map((entry) => entry.playerId)).toContain("p3");
     expect(overview.leaderboards.boostWindow.map((entry) => entry.playerId)).toContain("p3");
     expect(overview.watchlistMoves).toHaveLength(0);
+  });
+
+  it("falls back to a quiet composite read when activity inputs are empty", async () => {
+    const overview = await buildMobileMarketOverview(
+      { sport: "NBA" },
+      {
+        ...baseDeps,
+        getFinancialMarketScanners: async () => ({
+          undervalued: [],
+          premium: [],
+          sentiment: [],
+          momentum: [],
+        }),
+        getMarketActivity: async () => [],
+        getDailyGames: async () => [],
+        getBatchPoolData: async () => new Map(),
+        getBatchActiveScoutCounts: async () => new Map(),
+        getCommunityBoostsAllSports: async () => [],
+        getPlayersByIds: async () => [],
+        getRecentTradeCount15m: async () => 0,
+        getTrendingScoutPlayerIds: async () => [],
+        getTopPoolPlayerIds: async () => [],
+      },
+    );
+
+    expect(overview.marketIndicators).toMatchObject({
+      healthScore: 0,
+      healthLabel: "quiet",
+      marketIndex24h: 0,
+      volatilityIndex: 0,
+      liquidityHealth: 0,
+      totalMarketTvl: 0,
+      breadth: { risers: 0, fallers: 0, flat: 0 },
+    });
+    expect(overview.marketIndicators.healthSummary).toBe(
+      "Composite tape read: light flow and softer movement.",
+    );
+    expect(overview.nowMoving).toHaveLength(0);
+    expect(overview.quietValue).toHaveLength(0);
+    expect(overview.boostWindow).toHaveLength(0);
   });
 
   it("adds authenticated watchlist context and personal boost opportunities", async () => {

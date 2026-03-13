@@ -31,10 +31,13 @@ const ACCOUNT_SPECIFIC_PROMPT_PATTERN =
 const META_TOOL_NAMES = new Set([
   "model_tool_loop",
   "model_tool_repair_retry",
+  "model_context_compression",
+  "model_provider_retry",
   "model_first_fallback",
   "match_runtime_skill",
   "create_runtime_skill",
   "infer_memory_writes",
+  "memory_influence_context",
   "explain_previous_guidance",
 ]);
 

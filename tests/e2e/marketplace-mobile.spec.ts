@@ -123,6 +123,20 @@ async function mockMarketplace(page: Page) {
           openBoostSlots: 3,
           generatedAt: "2026-03-07T21:12:00.000Z",
         },
+        marketIndicators: {
+          healthScore: 46,
+          healthLabel: "balanced",
+          healthSummary: "Composite tape read: steady flow with usable depth.",
+          marketIndex24h: 4.2,
+          volatilityIndex: 58,
+          liquidityHealth: 62,
+          totalMarketTvl: 57500,
+          breadth: {
+            risers: 2,
+            fallers: 0,
+            flat: 0,
+          },
+        },
         ticker: [
           {
             id: "ticker_1",
@@ -420,20 +434,57 @@ test("mobile pools loads the live market home and opens the trade sheet", async 
 
   await page.goto("/pools", { waitUntil: "domcontentloaded" });
 
-  await expect(page.getByTestId("mobile-market-pulse")).toBeVisible();
-  await expect(page.getByTestId("mobile-market-tape")).toBeVisible();
-  await expect(page.getByTestId("market-module-now-moving")).toBeVisible();
-  await expect(page.getByTestId("market-mobile-player-card").first()).toBeVisible();
+  await expect(page.getByTestId("mobile-market-intel")).toBeVisible({ timeout: 30000 });
+  await expect(page.getByTestId("market-mobile-trade-board-header")).toBeVisible({
+    timeout: 30000,
+  });
+  await expect(page.getByTestId("market-mobile-player-card").first()).toBeVisible({
+    timeout: 30000,
+  });
   await expect(page.getByText("Search & Filters")).toHaveCount(0);
 
   await page
     .getByTestId("market-mobile-player-card")
     .first()
     .locator("button")
-    .filter({ hasText: /^Boost$/ })
+    .filter({ hasText: /^Trade$/ })
     .click();
   await expect(page.getByTestId("market-mobile-player-sheet")).toBeVisible();
   await expect(page.getByText("Tonight's Boost Window")).toBeVisible();
+
+  await context.close();
+});
+
+test("mobile pools keeps the compact 4-column board and value scan uses value data", async ({
+  browser,
+}) => {
+  const context = await browser.newContext({
+    ...devices["iPhone 13"],
+    baseURL: "http://127.0.0.1:5000",
+  });
+  const page = await context.newPage();
+
+  await mockMarketplace(page);
+
+  await page.goto("/pools", { waitUntil: "domcontentloaded" });
+
+  const tradeHeader = page.getByTestId("market-mobile-trade-board-header");
+  await expect(tradeHeader).toBeVisible({ timeout: 30000 });
+  await expect(tradeHeader).toContainText("Player");
+  await expect(tradeHeader).toContainText("Price");
+  await expect(tradeHeader).toContainText("Vol");
+  await expect(tradeHeader).toContainText("Act");
+  await expect(tradeHeader).not.toContainText("24h");
+
+  await page.locator("#market-mobile-trade-board select").first().selectOption("marketCap");
+  await expect(tradeHeader).toContainText("Cap");
+
+  await page.getByRole("button", { name: "Value Scan" }).click();
+
+  const valueList = page.getByTestId("market-mobile-intel-list-value");
+  await expect(valueList).toBeVisible();
+  await expect(valueList).toContainText("93");
+  await expect(valueList).not.toContainText("15.5K");
 
   await context.close();
 });

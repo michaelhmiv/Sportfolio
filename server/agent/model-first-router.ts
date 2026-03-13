@@ -1,11 +1,10 @@
 import type { UserAgentProfile, UserAgentSecret } from "@shared/schema";
+import { type AssistantMessage, type Message } from "@mariozechner/pi-ai";
 import {
-  completeSimple,
-  type AssistantMessage,
-  type Message,
-  type Usage,
-} from "@mariozechner/pi-ai";
-import { resolveLocalCompatibilityRuntime } from "./hermes-local";
+  callAgentModel,
+  classifyAgentProviderFailure,
+  stripHiddenReasoningText,
+} from "./agent-model";
 import { resolveHermesToolCatalog } from "./hermes-tool-registry";
 import {
   runHermesActionTool,
@@ -16,6 +15,7 @@ import {
 import type {
   AgentCitation,
   AgentModelUsage,
+  AgentProviderFailureClass,
   AgentSkillDefinition,
   AgentToolDefinition,
   AgentToolTrace,
@@ -23,9 +23,17 @@ import type {
 } from "./types";
 
 type ModelFirstToolCategory = "read" | "scan" | "plan" | "action" | "memory";
+type CompressionLevel = 0 | 1 | 2;
+
+type ModelFirstRouteMetadata = {
+  terminationReason: string | null;
+  compressionApplied: boolean;
+  repairAttempts: number;
+  providerFailureClass: AgentProviderFailureClass | null;
+};
 
 export type ModelFirstRouteResult =
-  | {
+  | (ModelFirstRouteMetadata & {
       outcome: "answer";
       replyText: string;
       summary: string | null;
@@ -33,8 +41,8 @@ export type ModelFirstRouteResult =
       citations: AgentCitation[];
       toolTrace: AgentToolTrace[];
       usage?: AgentModelUsage;
-    }
-  | {
+    })
+  | (ModelFirstRouteMetadata & {
       outcome: "tool";
       toolName: string;
       toolCategory: ModelFirstToolCategory;
@@ -44,8 +52,8 @@ export type ModelFirstRouteResult =
       citations: AgentCitation[];
       toolTrace: AgentToolTrace[];
       usage?: AgentModelUsage;
-    }
-  | {
+    })
+  | (ModelFirstRouteMetadata & {
       outcome: "unsupported";
       replyText: string | null;
       summary: string | null;
@@ -53,30 +61,16 @@ export type ModelFirstRouteResult =
       citations: AgentCitation[];
       toolTrace: AgentToolTrace[];
       usage?: AgentModelUsage;
-    }
-  | {
+    })
+  | (ModelFirstRouteMetadata & {
       outcome: "error";
       errorMessage: string;
       warnings: string[];
       citations: AgentCitation[];
       toolTrace: AgentToolTrace[];
       usage?: AgentModelUsage;
-    };
+    });
 
-const ZERO_USAGE: Usage = {
-  input: 0,
-  output: 0,
-  cacheRead: 0,
-  cacheWrite: 0,
-  totalTokens: 0,
-  cost: {
-    input: 0,
-    output: 0,
-    cacheRead: 0,
-    cacheWrite: 0,
-    total: 0,
-  },
-};
 const noArgsSchema = {
   type: "object",
   properties: {},
@@ -85,6 +79,7 @@ const noArgsSchema = {
 
 const MAX_MODEL_PASSES = 4;
 const MAX_TOOL_CALLS = 3;
+const BASE_PROMPT_CHAR_BUDGET = 5_400;
 
 function buildToolTraceEntry(input: {
   toolName: string;
@@ -92,6 +87,7 @@ function buildToolTraceEntry(input: {
   status: AgentToolTrace["status"];
   startedAt: number;
   summary: string;
+  details?: Record<string, unknown> | null;
 }): AgentToolTrace {
   return {
     toolName: input.toolName,
@@ -99,6 +95,7 @@ function buildToolTraceEntry(input: {
     status: input.status,
     latencyMs: Math.max(0, Date.now() - input.startedAt),
     summary: input.summary,
+    details: input.details || null,
   };
 }
 
@@ -141,7 +138,9 @@ function extractAssistantText(message: AssistantMessage): string | null {
     .replace(/\s+/g, " ")
     .trim();
 
-  return text || null;
+  const sanitized = stripHiddenReasoningText(text);
+
+  return sanitized || null;
 }
 
 function extractToolCalls(message: AssistantMessage) {
@@ -171,24 +170,64 @@ function safeJson(value: unknown, maxLength: number) {
   }
 }
 
-function summarizeHistory(entries: HermesRespondRequest["conversationHistory"]) {
-  const tail = (entries || []).slice(-4);
+function estimatePromptChars(input: {
+  request: HermesRespondRequest;
+  matchedSkill: AgentSkillDefinition | null;
+  tools: AgentToolDefinition[];
+}) {
+  const operatorChars = JSON.stringify(input.request.canonicalState.operatorOverview || {}).length;
+  const memoryChars = JSON.stringify(input.request.memoryContext || {}).length;
+  const historyChars = (input.request.conversationHistory || []).reduce(
+    (total, entry) => total + (entry.contentText?.length || 0),
+    0,
+  );
+  const knowledgeChars = JSON.stringify(
+    input.request.externalContext.canonicalKnowledge || [],
+  ).length;
+  const toolChars = input.tools.reduce(
+    (total, tool) => total + tool.toolName.length + tool.description.length,
+    0,
+  );
+
+  return (
+    input.request.message.length +
+    operatorChars +
+    memoryChars +
+    historyChars +
+    knowledgeChars +
+    toolChars +
+    (input.matchedSkill?.description.length || 0)
+  );
+}
+
+function summarizeHistory(
+  entries: HermesRespondRequest["conversationHistory"],
+  input: { limit: number; entryMaxLength: number; compressed: boolean },
+) {
+  const tail = (entries || []).slice(-input.limit);
   if (tail.length === 0) {
     return "None.";
   }
 
-  return tail
+  const summarized = tail
     .map(
       (entry, index) =>
-        `${index + 1}. ${entry.role.toUpperCase()}: ${truncate(entry.contentText.trim(), 220)}`,
+        `${index + 1}. ${entry.role.toUpperCase()}: ${truncate(entry.contentText.trim(), input.entryMaxLength)}`,
     )
     .join("\n");
+
+  if (!input.compressed || (entries || []).length <= tail.length) {
+    return summarized;
+  }
+
+  return `Earlier conversation compressed from ${(entries || []).length} turns to the latest ${tail.length} turns.\n${summarized}`;
 }
 
 function summarizeKnowledge(
   entries: HermesRespondRequest["externalContext"]["canonicalKnowledge"],
+  limit = 6,
 ) {
-  const visible = (entries || []).slice(0, 6);
+  const visible = (entries || []).slice(0, limit);
   if (visible.length === 0) {
     return "None.";
   }
@@ -213,6 +252,55 @@ function summarizeMatchedSkill(skill: AgentSkillDefinition | null) {
   }
 
   return `${skill.name}: ${truncate(skill.description, 220)}`;
+}
+
+function summarizeMemoryContext(
+  request: HermesRespondRequest,
+  input: { limitPerScope: number; compressed: boolean },
+) {
+  const sections: string[] = [];
+  const scopes = [
+    ["profile", request.memoryContext.profile],
+    ["episodic", request.memoryContext.episodic],
+    ["semantic", request.memoryContext.semantic],
+  ] as const;
+
+  for (const [label, entries] of scopes) {
+    const visible = entries.slice(0, input.limitPerScope);
+    if (visible.length === 0) {
+      continue;
+    }
+
+    const lines = visible.map((entry, index) => {
+      const confidence = Number.isFinite(entry.confidence)
+        ? ` (${entry.confidence.toFixed(2)})`
+        : "";
+      return `${index + 1}. ${truncate(entry.summary, input.compressed ? 120 : 180)}${confidence}`;
+    });
+    sections.push(`${label}: ${lines.join(" | ")}`);
+  }
+
+  return sections.length > 0 ? sections.join("\n") : "None.";
+}
+
+function resolveInitialCompressionLevel(input: {
+  request: HermesRespondRequest;
+  matchedSkill: AgentSkillDefinition | null;
+  tools: AgentToolDefinition[];
+}): CompressionLevel {
+  const estimatedChars = estimatePromptChars(input);
+  if (estimatedChars > BASE_PROMPT_CHAR_BUDGET * 1.55) {
+    return 2;
+  }
+  if (
+    estimatedChars > BASE_PROMPT_CHAR_BUDGET ||
+    input.request.conversationHistory.length > 8 ||
+    input.request.memoryContext.semantic.length > 6
+  ) {
+    return 1;
+  }
+
+  return 0;
 }
 
 function normalizeArgs(
@@ -243,6 +331,202 @@ function normalizeArgs(
   }
 
   return args;
+}
+
+function normalizeToolLookupName(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_");
+}
+
+function findSelectedTool(tools: AgentToolDefinition[], requestedName: string) {
+  const exact = tools.find((entry) => entry.toolName === requestedName);
+  if (exact) {
+    return {
+      tool: exact,
+      repaired: false,
+    };
+  }
+
+  const normalizedRequested = normalizeToolLookupName(requestedName);
+  const repaired = tools.find(
+    (entry) => normalizeToolLookupName(entry.toolName) === normalizedRequested,
+  );
+
+  return {
+    tool: repaired || null,
+    repaired: Boolean(repaired),
+  };
+}
+
+function coerceValueBySchema(
+  value: unknown,
+  schema: Record<string, unknown>,
+): { value: unknown; repaired: boolean; issue: string | null } {
+  const type = typeof schema.type === "string" ? schema.type : null;
+  if (!type) {
+    return { value, repaired: false, issue: null };
+  }
+
+  if (Array.isArray(schema.enum) && schema.enum.length > 0) {
+    if (schema.enum.includes(value as never)) {
+      return { value, repaired: false, issue: null };
+    }
+    if (typeof value === "string") {
+      const matched = schema.enum.find(
+        (entry) => typeof entry === "string" && entry.toLowerCase() === value.trim().toLowerCase(),
+      );
+      if (matched !== undefined) {
+        return { value: matched, repaired: true, issue: null };
+      }
+    }
+    return { value, repaired: false, issue: `Expected one of ${schema.enum.join(", ")}.` };
+  }
+
+  switch (type) {
+    case "string":
+      if (typeof value === "string") {
+        return { value: value.trim(), repaired: value !== value.trim(), issue: null };
+      }
+      return { value, repaired: false, issue: "Expected a string." };
+    case "number": {
+      if (typeof value === "number" && Number.isFinite(value)) {
+        return { value, repaired: false, issue: null };
+      }
+      if (typeof value === "string") {
+        const parsed = Number(value.trim());
+        if (Number.isFinite(parsed)) {
+          return { value: parsed, repaired: true, issue: null };
+        }
+      }
+      return { value, repaired: false, issue: "Expected a number." };
+    }
+    case "integer": {
+      if (typeof value === "number" && Number.isInteger(value)) {
+        return { value, repaired: false, issue: null };
+      }
+      if (typeof value === "string") {
+        const parsed = Number(value.trim());
+        if (Number.isInteger(parsed)) {
+          return { value: parsed, repaired: true, issue: null };
+        }
+      }
+      return { value, repaired: false, issue: "Expected an integer." };
+    }
+    case "boolean":
+      if (typeof value === "boolean") {
+        return { value, repaired: false, issue: null };
+      }
+      if (typeof value === "string") {
+        if (/^true$/i.test(value.trim())) {
+          return { value: true, repaired: true, issue: null };
+        }
+        if (/^false$/i.test(value.trim())) {
+          return { value: false, repaired: true, issue: null };
+        }
+      }
+      return { value, repaired: false, issue: "Expected a boolean." };
+    case "array":
+      return {
+        value,
+        repaired: false,
+        issue: Array.isArray(value) ? null : "Expected an array.",
+      };
+    case "object":
+      return {
+        value,
+        repaired: false,
+        issue:
+          value && typeof value === "object" && !Array.isArray(value)
+            ? null
+            : "Expected an object.",
+      };
+    default:
+      return { value, repaired: false, issue: null };
+  }
+}
+
+function validateToolArgs(
+  tool: AgentToolDefinition,
+  args: Record<string, unknown>,
+): {
+  valid: boolean;
+  normalizedArgs: Record<string, unknown>;
+  repaired: boolean;
+  notes: string[];
+} {
+  if (
+    !tool.inputSchema ||
+    typeof tool.inputSchema !== "object" ||
+    Array.isArray(tool.inputSchema)
+  ) {
+    return {
+      valid: true,
+      normalizedArgs: args,
+      repaired: false,
+      notes: [],
+    };
+  }
+
+  const schema = tool.inputSchema as Record<string, unknown>;
+  const normalizedArgs = { ...args };
+  const notes: string[] = [];
+  let repaired = false;
+
+  const properties =
+    schema.properties && typeof schema.properties === "object" && !Array.isArray(schema.properties)
+      ? (schema.properties as Record<string, Record<string, unknown>>)
+      : {};
+  const required = Array.isArray(schema.required)
+    ? schema.required.filter((entry): entry is string => typeof entry === "string")
+    : [];
+
+  for (const [key, propertySchema] of Object.entries(properties)) {
+    if (!(key in normalizedArgs)) {
+      continue;
+    }
+
+    const result = coerceValueBySchema(normalizedArgs[key], propertySchema);
+    if (result.issue) {
+      notes.push(`${key}: ${result.issue}`);
+      continue;
+    }
+    if (result.repaired) {
+      repaired = true;
+      notes.push(`Coerced ${key} to match the tool schema.`);
+    }
+    normalizedArgs[key] = result.value;
+  }
+
+  if (schema.additionalProperties === false) {
+    for (const key of Object.keys(normalizedArgs)) {
+      if (!(key in properties)) {
+        delete normalizedArgs[key];
+        repaired = true;
+        notes.push(`Dropped unexpected argument ${key}.`);
+      }
+    }
+  }
+
+  const missing = required.filter(
+    (key) =>
+      normalizedArgs[key] === undefined ||
+      normalizedArgs[key] === null ||
+      normalizedArgs[key] === "",
+  );
+  if (missing.length > 0) {
+    notes.push(
+      `Missing required argument${missing.length === 1 ? "" : "s"}: ${missing.join(", ")}.`,
+    );
+  }
+
+  return {
+    valid: missing.length === 0 && !notes.some((entry) => entry.includes("Expected")),
+    normalizedArgs,
+    repaired,
+    notes,
+  };
 }
 
 function buildToolDescription(tool: AgentToolDefinition) {
@@ -302,7 +586,9 @@ function buildLoopPrompt(input: {
   request: HermesRespondRequest;
   matchedSkill: AgentSkillDefinition | null;
   tools: AgentToolDefinition[];
+  compressionLevel: CompressionLevel;
 }) {
+  const compressed = input.compressionLevel > 0;
   const availableTools =
     input.tools.length === 0
       ? "No tools available."
@@ -331,21 +617,86 @@ function buildLoopPrompt(input: {
     summarizeMatchedSkill(input.matchedSkill),
     "</matched_skill_hint>",
     "<operator_overview>",
-    safeJson(input.request.canonicalState.operatorOverview || {}, 1400),
+    safeJson(
+      input.request.canonicalState.operatorOverview || {},
+      input.compressionLevel === 2 ? 650 : input.compressionLevel === 1 ? 900 : 1400,
+    ),
     "</operator_overview>",
     "<memory_context>",
-    safeJson(input.request.memoryContext || {}, 1200),
+    summarizeMemoryContext(input.request, {
+      limitPerScope: input.compressionLevel === 2 ? 1 : input.compressionLevel === 1 ? 2 : 4,
+      compressed,
+    }),
     "</memory_context>",
     "<conversation_history>",
-    summarizeHistory(input.request.conversationHistory),
+    summarizeHistory(input.request.conversationHistory, {
+      limit: input.compressionLevel === 2 ? 2 : input.compressionLevel === 1 ? 3 : 4,
+      entryMaxLength: input.compressionLevel === 2 ? 90 : input.compressionLevel === 1 ? 150 : 220,
+      compressed,
+    }),
     "</conversation_history>",
     "<canonical_knowledge>",
-    summarizeKnowledge(input.request.externalContext.canonicalKnowledge),
+    summarizeKnowledge(
+      input.request.externalContext.canonicalKnowledge,
+      input.compressionLevel === 2 ? 2 : input.compressionLevel === 1 ? 4 : 6,
+    ),
     "</canonical_knowledge>",
     "<current_user_message>",
     input.request.message,
     "</current_user_message>",
   ].join("\n");
+}
+
+function cloneMessageWithTrimmedContent(message: Message, maxLength: number): Message {
+  if (!Array.isArray(message.content)) {
+    return message;
+  }
+
+  return {
+    ...message,
+    content: message.content.map((block) =>
+      block.type === "text"
+        ? {
+            ...block,
+            text: truncate(block.text, maxLength),
+          }
+        : block,
+    ),
+    details: undefined,
+  } as Message;
+}
+
+function rebuildLoopMessages(input: {
+  request: HermesRespondRequest;
+  matchedSkill: AgentSkillDefinition | null;
+  tools: AgentToolDefinition[];
+  compressionLevel: CompressionLevel;
+  messages: Message[];
+}) {
+  const promptMessage: Message = {
+    role: "user",
+    content: buildLoopPrompt({
+      request: input.request,
+      matchedSkill: input.matchedSkill,
+      tools: input.tools,
+      compressionLevel: input.compressionLevel,
+    }),
+    timestamp: Date.now(),
+  };
+
+  if (input.messages.length <= 1) {
+    return [promptMessage];
+  }
+
+  const retained = input.messages.slice(
+    Math.max(1, input.messages.length - (input.compressionLevel === 2 ? 2 : 4)),
+  );
+  const maxLength = input.compressionLevel === 2 ? 260 : 700;
+
+  return [
+    promptMessage,
+    ...retained.map((message) => cloneMessageWithTrimmedContent(message, maxLength)),
+  ];
 }
 
 async function executeNonPlanningTool(input: {
@@ -414,29 +765,43 @@ export async function runHermesModelToolLoop(input: {
     toolAllowlist: input.request.toolAllowlist,
     toolCatalog: input.request.toolCatalog,
   }).filter((entry) => entry.exposure !== "hidden_fallback" && entry.exposure !== "internal_only");
+  let compressionLevel = resolveInitialCompressionLevel({
+    request: input.request,
+    matchedSkill: input.matchedSkill,
+    tools,
+  });
+  let compressionApplied = compressionLevel > 0;
+  let repairAttempts = 0;
+  let providerFailureClass: AgentProviderFailureClass | null = null;
 
   try {
-    const runtime = await resolveLocalCompatibilityRuntime(input.profile, input.secret);
-    const promptMessage: Message = {
-      role: "user",
-      content: buildLoopPrompt({
-        request: input.request,
-        matchedSkill: input.matchedSkill,
-        tools,
-      }),
-      timestamp: Date.now(),
-    };
-
-    const messages: Message[] = [promptMessage];
+    let messages = rebuildLoopMessages({
+      request: input.request,
+      matchedSkill: input.matchedSkill,
+      tools,
+      compressionLevel,
+      messages: [],
+    });
     let repairReason: string | null = null;
     let toolCallsUsed = 0;
     let finalUsage: AgentModelUsage | undefined;
+    let usedTransientRetry = false;
+
+    const buildMetadata = (terminationReason: string | null): ModelFirstRouteMetadata => ({
+      terminationReason,
+      compressionApplied,
+      repairAttempts,
+      providerFailureClass,
+    });
 
     for (let pass = 0; pass < MAX_MODEL_PASSES; pass += 1) {
       const startedAt = Date.now();
-      const assistantMessage = await completeSimple(
-        runtime.model,
-        {
+      let assistantMessage: AssistantMessage;
+
+      try {
+        assistantMessage = await callAgentModel({
+          profile: input.profile,
+          secret: input.secret,
           systemPrompt: [
             "You are Sportfolio Operator.",
             input.request.profile.systemPrompt || null,
@@ -444,67 +809,103 @@ export async function runHermesModelToolLoop(input: {
             "If you select a tool, return valid JSON arguments that satisfy the tool schema.",
             "Call at most one tool at a time. If you already have enough information, answer directly in plain text.",
             repairReason ? `Repair instruction: ${repairReason}` : null,
+            compressionApplied
+              ? "Context may be compressed. Avoid repeating old searches or rereading already returned tool data unless the user explicitly asks."
+              : null,
           ]
             .filter(Boolean)
             .join(" "),
           messages,
-          ...(tools.length > 0
-            ? {
-                tools: tools.map((tool) => ({
-                  name: tool.toolName,
-                  description: buildToolDescription(tool),
-                  parameters: (tool.inputSchema || noArgsSchema) as any,
-                })),
-              }
-            : {}),
-        },
-        {
-          apiKey: runtime.apiKey,
+          tools: tools.map((tool) => ({
+            name: tool.toolName,
+            description: buildToolDescription(tool),
+            parameters: (tool.inputSchema || noArgsSchema) as Record<string, unknown>,
+          })),
           temperature: clampTemperature(input.profile),
           maxTokens: clampMaxTokens(input.profile),
-          ...(runtime.headers ? { headers: runtime.headers } : {}),
-          ...(runtime.onPayload ? { onPayload: runtime.onPayload } : {}),
-        },
-      ).catch((error: any) => ({
-        role: "assistant" as const,
-        content: [],
-        api: runtime.model.api,
-        provider: runtime.model.provider,
-        model: runtime.model.id,
-        usage: ZERO_USAGE,
-        stopReason: "error" as const,
-        errorMessage: error?.message || "The model tool loop failed.",
-        timestamp: Date.now(),
-      }));
+        });
+      } catch (error: any) {
+        providerFailureClass = classifyAgentProviderFailure(error);
 
-      finalUsage = summarizeUsage(assistantMessage);
+        if (providerFailureClass === "context_overflow" && compressionLevel < 2) {
+          const previousLevel = compressionLevel;
+          compressionLevel = previousLevel === 0 ? 1 : 2;
+          compressionApplied = true;
+          repairAttempts += 1;
+          repairReason =
+            "Continue from the compressed context only. Use the latest context and do not repeat prior tool calls unless still necessary.";
+          messages = rebuildLoopMessages({
+            request: input.request,
+            matchedSkill: input.matchedSkill,
+            tools,
+            compressionLevel,
+            messages,
+          });
+          toolTrace.push(
+            buildToolTraceEntry({
+              toolName: "model_context_compression",
+              phase: "plan",
+              status: "ok",
+              startedAt,
+              summary:
+                previousLevel === 0
+                  ? "Compressed the context after the provider rejected the initial payload."
+                  : "Escalated to the tightest context budget after another provider overflow.",
+              details: {
+                fromLevel: previousLevel,
+                toLevel: compressionLevel,
+                providerFailureClass,
+              },
+            }),
+          );
+          continue;
+        }
 
-      if (assistantMessage.stopReason === "error" || assistantMessage.errorMessage) {
+        if (providerFailureClass === "transient" && !usedTransientRetry) {
+          usedTransientRetry = true;
+          warnings.push("The provider returned a transient error. Hermes retried the turn once.");
+          toolTrace.push(
+            buildToolTraceEntry({
+              toolName: "model_provider_retry",
+              phase: "plan",
+              status: "skipped",
+              startedAt,
+              summary: "Retried once after a transient provider failure.",
+              details: {
+                providerFailureClass,
+              },
+            }),
+          );
+          continue;
+        }
+
+        const errorMessage = error?.message || "The model tool loop failed.";
         toolTrace.push(
           buildToolTraceEntry({
             toolName: "model_tool_loop",
             phase: "plan",
             status: "failed",
             startedAt,
-            summary: assistantMessage.errorMessage || "The model tool loop failed.",
+            summary: errorMessage,
+            details: {
+              providerFailureClass,
+            },
           }),
         );
 
-        if (!repairReason) {
-          repairReason =
-            "Return either a direct answer or one valid tool call from the allowed Hermes tool list.";
-          continue;
-        }
-
         return {
           outcome: "error",
-          errorMessage: assistantMessage.errorMessage || "The model tool loop failed.",
+          errorMessage,
           warnings,
           citations,
           toolTrace,
           ...(finalUsage ? { usage: finalUsage } : {}),
+          ...buildMetadata("provider_error"),
         };
       }
+
+      finalUsage = summarizeUsage(assistantMessage);
+      usedTransientRetry = false;
 
       const toolCalls = extractToolCalls(assistantMessage);
       const assistantText = extractAssistantText(assistantMessage);
@@ -535,12 +936,14 @@ export async function runHermesModelToolLoop(input: {
             citations,
             toolTrace,
             ...(finalUsage ? { usage: finalUsage } : {}),
+            ...buildMetadata(toolCallsUsed > 0 ? "answered_after_tool_use" : "answered_directly"),
           };
         }
 
         if (!repairReason) {
           repairReason =
             "You must either answer directly in plain text or call exactly one available Hermes tool.";
+          repairAttempts += 1;
           toolTrace.push(
             buildToolTraceEntry({
               toolName: "model_tool_repair_retry",
@@ -564,6 +967,7 @@ export async function runHermesModelToolLoop(input: {
           citations,
           toolTrace,
           ...(finalUsage ? { usage: finalUsage } : {}),
+          ...buildMetadata("empty_model_response"),
         };
       }
 
@@ -574,7 +978,8 @@ export async function runHermesModelToolLoop(input: {
         );
       }
 
-      const selectedTool = tools.find((entry) => entry.toolName === toolCall.name) || null;
+      const selectedToolLookup = findSelectedTool(tools, toolCall.name);
+      const selectedTool = selectedToolLookup.tool;
       messages.push(assistantMessage);
 
       if (!selectedTool) {
@@ -597,6 +1002,7 @@ export async function runHermesModelToolLoop(input: {
         if (!repairReason) {
           repairReason =
             "Do not call unavailable tools. Choose one listed tool or answer directly.";
+          repairAttempts += 1;
           continue;
         }
 
@@ -608,10 +1014,93 @@ export async function runHermesModelToolLoop(input: {
           citations,
           toolTrace,
           ...(finalUsage ? { usage: finalUsage } : {}),
+          ...buildMetadata("unavailable_tool"),
         };
       }
 
-      const normalizedArgs = normalizeArgs(selectedTool, input.request, toolCall.arguments);
+      if (selectedToolLookup.repaired) {
+        repairAttempts += 1;
+        toolTrace.push(
+          buildToolTraceEntry({
+            toolName: "model_tool_repair_retry",
+            phase: "plan",
+            status: "ok",
+            startedAt: Date.now(),
+            summary: `Normalized tool name ${toolCall.name} to ${selectedTool.toolName}.`,
+            details: {
+              requestedToolName: toolCall.name,
+              normalizedToolName: selectedTool.toolName,
+            },
+          }),
+        );
+      }
+
+      let normalizedArgs = normalizeArgs(selectedTool, input.request, toolCall.arguments);
+      const validation = validateToolArgs(selectedTool, normalizedArgs);
+      normalizedArgs = validation.normalizedArgs;
+
+      if (validation.repaired) {
+        repairAttempts += 1;
+        toolTrace.push(
+          buildToolTraceEntry({
+            toolName: "model_tool_repair_retry",
+            phase: "plan",
+            status: "ok",
+            startedAt: Date.now(),
+            summary: `Normalized arguments for ${selectedTool.toolName}.`,
+            details: {
+              notes: validation.notes,
+            },
+          }),
+        );
+      }
+
+      if (!validation.valid) {
+        const note = validation.notes.join(" ");
+        warnings.push(`The model provided invalid arguments for ${selectedTool.toolName}. ${note}`);
+        messages.push({
+          role: "toolResult",
+          toolCallId: toolCall.id,
+          toolName: selectedTool.toolName,
+          content: [
+            {
+              type: "text",
+              text: `${selectedTool.toolName} arguments were invalid: ${note}`,
+            },
+          ],
+          isError: true,
+          timestamp: Date.now(),
+        } as Message);
+
+        if (!repairReason) {
+          repairReason = `Return the same tool only if you can provide valid arguments. ${note}`;
+          repairAttempts += 1;
+          toolTrace.push(
+            buildToolTraceEntry({
+              toolName: "model_tool_repair_retry",
+              phase: "plan",
+              status: "skipped",
+              startedAt: Date.now(),
+              summary: `Rejected invalid arguments for ${selectedTool.toolName} and requested a repaired tool call.`,
+              details: {
+                notes: validation.notes,
+              },
+            }),
+          );
+          continue;
+        }
+
+        return {
+          outcome: "unsupported",
+          replyText: null,
+          summary: `The model provided invalid arguments for ${selectedTool.toolName}.`,
+          warnings,
+          citations,
+          toolTrace,
+          ...(finalUsage ? { usage: finalUsage } : {}),
+          ...buildMetadata("invalid_tool_arguments"),
+        };
+      }
 
       if (selectedTool.category === "plan") {
         toolTrace.push(
@@ -634,6 +1123,7 @@ export async function runHermesModelToolLoop(input: {
           citations,
           toolTrace,
           ...(finalUsage ? { usage: finalUsage } : {}),
+          ...buildMetadata("plan_tool_selected"),
         };
       }
 
@@ -646,6 +1136,7 @@ export async function runHermesModelToolLoop(input: {
           citations,
           toolTrace,
           ...(finalUsage ? { usage: finalUsage } : {}),
+          ...buildMetadata("tool_budget_exhausted"),
         };
       }
 
@@ -727,6 +1218,7 @@ export async function runHermesModelToolLoop(input: {
         if (!repairReason) {
           repairReason =
             "Recover by using another valid tool if needed, or answer directly from the available context.";
+          repairAttempts += 1;
         }
       }
     }
@@ -739,6 +1231,7 @@ export async function runHermesModelToolLoop(input: {
       citations,
       toolTrace,
       ...(finalUsage ? { usage: finalUsage } : {}),
+      ...buildMetadata("model_pass_limit"),
     };
   } catch (error: any) {
     return {
@@ -747,6 +1240,10 @@ export async function runHermesModelToolLoop(input: {
       warnings,
       citations,
       toolTrace,
+      terminationReason: "loop_exception",
+      compressionApplied,
+      repairAttempts,
+      providerFailureClass,
     };
   }
 }

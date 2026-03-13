@@ -3,7 +3,6 @@ import { z } from "zod";
 import { db } from "../db";
 import { decryptText } from "../lib/encryption";
 import { getManagedProviderRuntimeConfig } from "./provider-registry";
-import { buildHermesInternalHeaders } from "./internal-auth";
 import { runHermesOrchestrationTurn } from "./hermes-orchestrator";
 import { getAgentToolCatalog } from "./hermes-tools";
 import { getDefaultHermesToolAllowlist } from "./hermes-tool-registry";
@@ -12,6 +11,7 @@ import { getActiveManagedProviderSelection } from "./system-settings";
 import type {
   AgentChannel,
   AgentModelRuntimeConfig,
+  AgentProviderFailureClass,
   AgentSemanticRoute,
   AgentSkillDefinition,
   AgentToolDefinition,
@@ -19,8 +19,6 @@ import type {
   HermesRespondResult,
   ScoutAgentContext,
 } from "./types";
-
-const DEFAULT_HERMES_TIMEOUT_MS = 20_000;
 
 const proposedMemoryWriteSchema = z.object({
   scope: z.enum(["profile", "episodic", "semantic"]),
@@ -44,6 +42,7 @@ const agentToolTraceSchema = z.object({
   status: z.enum(["ok", "failed", "skipped"]),
   latencyMs: z.number().finite().min(0),
   summary: z.string().trim().min(1),
+  details: z.record(z.unknown()).nullable().optional(),
 });
 
 const hermesResponseSchema = z.object({
@@ -61,23 +60,17 @@ const hermesResponseSchema = z.object({
   createdSkillCandidates: z.array(z.string()).optional(),
   skillMatchRationale: z.string().trim().nullable().optional(),
   fallbackUsed: z.boolean().optional(),
+  terminationReason: z.string().trim().nullable().optional(),
+  compressionApplied: z.boolean().optional(),
+  repairAttempts: z.number().int().min(0).optional(),
+  providerFailureClass: z
+    .enum(["auth", "context_overflow", "transient", "malformed_response", "unknown"])
+    .nullable()
+    .optional(),
+  memoryInfluences: z.array(z.string()).optional(),
   requiresConfirmation: z.boolean().optional(),
   confirmationPreview: z.record(z.unknown()).nullable().optional(),
 });
-
-function getHermesAgentUrl(): string | null {
-  const configured = process.env.HERMES_AGENT_URL?.trim() || "";
-  return configured ? configured.replace(/\/+$/, "") : null;
-}
-
-function getHermesTimeoutMs(): number {
-  const parsed = Number(process.env.HERMES_REQUEST_TIMEOUT_MS || "");
-  if (!Number.isFinite(parsed)) {
-    return DEFAULT_HERMES_TIMEOUT_MS;
-  }
-
-  return Math.max(1_000, Math.min(parsed, 60_000));
-}
 
 function resolveProfileTemperature(profile: UserAgentProfile): number {
   const parsed = Number(profile.temperature);
@@ -166,23 +159,17 @@ export function normalizeHermesTurnResponse(payload: unknown): HermesRespondResu
       : [],
     skillMatchRationale: parsed.skillMatchRationale ?? null,
     fallbackUsed: Boolean(parsed.fallbackUsed),
+    terminationReason: parsed.terminationReason ?? null,
+    compressionApplied: Boolean(parsed.compressionApplied),
+    repairAttempts: parsed.repairAttempts ?? 0,
+    providerFailureClass: (parsed.providerFailureClass ?? null) as AgentProviderFailureClass | null,
+    memoryInfluences: Array.isArray(parsed.memoryInfluences)
+      ? parsed.memoryInfluences.filter((entry): entry is string => typeof entry === "string")
+      : [],
     requiresConfirmation: Boolean(parsed.requiresConfirmation),
     confirmationPreview: (parsed.confirmationPreview ||
       null) as HermesRespondResult["confirmationPreview"],
   };
-}
-
-async function readHermesResponsePayload(response: Response): Promise<unknown> {
-  const rawBody = await response.text();
-  if (!rawBody.trim()) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(rawBody) as unknown;
-  } catch {
-    return rawBody;
-  }
 }
 
 async function logRuntimeSession(input: {
@@ -286,7 +273,7 @@ export async function runHermesAgentTurn(input: {
     channel: input.channel,
     message: input.message,
     requestMode: input.requestMode,
-    orchestrationMode: "hermes_first",
+    orchestrationMode: "local_only",
     toolAllowlist,
     toolCatalog,
     availableSkills,
@@ -330,11 +317,7 @@ export async function runHermesAgentTurn(input: {
   };
 
   const startedAt = Date.now();
-  const hermesUrl = getHermesAgentUrl();
-  const runLocalFallback = async (
-    fallbackReason: string | null,
-    externalError?: unknown,
-  ): Promise<HermesRespondResult> => {
+  try {
     const localResult = await runHermesOrchestrationTurn({
       userId: input.userId,
       profile: input.profile,
@@ -342,71 +325,26 @@ export async function runHermesAgentTurn(input: {
       context: input.context,
       request: requestPayload,
     });
-    const toolTrace = [...localResult.toolTrace];
-
-    if (fallbackReason) {
-      toolTrace.unshift({
-        toolName: "external_hermes_fallback",
-        phase: "plan",
-        status: "failed",
-        latencyMs: Math.max(0, Date.now() - startedAt),
-        summary: `External Hermes sidecar failed (${fallbackReason}); used the in-process Hermes engine.`,
-      });
-      console.warn(
-        "[Hermes] External sidecar request failed; using the in-process Hermes engine:",
-        externalError instanceof Error ? externalError.message : externalError || fallbackReason,
-      );
-    }
-
-    const fallbackResult: HermesRespondResult = {
+    const normalized = normalizeHermesTurnResponse({
       ...localResult,
-      toolTrace,
-      fallbackUsed: Boolean(fallbackReason),
-    };
-
-    await logRuntimeSession({
-      userId: input.userId,
-      threadId: input.threadId,
-      status: fallbackResult.outcome === "error" ? "failed" : fallbackResult.outcome,
-      requestPayload,
-      responsePayload: fallbackResult,
-      toolTrace: fallbackResult.toolTrace,
-      latencyMs: Math.max(0, Date.now() - startedAt),
+      toolTrace: [
+        {
+          toolName: "hermes_orchestrator_local",
+          phase: "plan",
+          status: localResult.outcome === "error" ? "failed" : "ok",
+          latencyMs: Math.max(0, Date.now() - startedAt),
+          summary:
+            localResult.outcome === "error"
+              ? "The in-process Hermes orchestrator ended with an error."
+              : "The in-process Hermes orchestrator handled the turn directly.",
+          details: {
+            orchestrationMode: requestPayload.orchestrationMode,
+          },
+        },
+        ...localResult.toolTrace,
+      ],
+      fallbackUsed: Boolean(localResult.fallbackUsed),
     });
-
-    return fallbackResult;
-  };
-
-  if (!hermesUrl) {
-    return runLocalFallback(null);
-  }
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), getHermesTimeoutMs());
-
-  try {
-    const response = await fetch(`${hermesUrl}/internal/hermes/respond`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        ...buildHermesInternalHeaders(),
-      },
-      body: JSON.stringify(requestPayload),
-      signal: controller.signal,
-    });
-
-    const payload = await readHermesResponsePayload(response);
-    if (!response.ok) {
-      throw new Error(
-        payload && typeof payload === "object" && "message" in (payload as Record<string, unknown>)
-          ? String((payload as Record<string, unknown>).message)
-          : typeof payload === "string" && payload.trim()
-            ? `Hermes returned ${response.status}: ${payload.trim()}`
-            : `Hermes returned ${response.status}`,
-      );
-    }
-
-    const normalized = normalizeHermesTurnResponse(payload);
     await logRuntimeSession({
       userId: input.userId,
       threadId: input.threadId,
@@ -419,8 +357,48 @@ export async function runHermesAgentTurn(input: {
 
     return normalized;
   } catch (error: any) {
-    return runLocalFallback(error?.message || "Hermes request failed", error);
-  } finally {
-    clearTimeout(timeout);
+    const failedResult = normalizeHermesTurnResponse({
+      outcome: "error",
+      assistantText: error?.message || "Hermes orchestration failed.",
+      summary: null,
+      warnings: [],
+      proposedActions: [],
+      pendingClarification: null,
+      citations: [],
+      proposedMemoryWrites: [],
+      toolTrace: [
+        {
+          toolName: "hermes_orchestrator_local",
+          phase: "plan",
+          status: "failed",
+          latencyMs: Math.max(0, Date.now() - startedAt),
+          summary: error?.message || "The in-process Hermes orchestrator failed.",
+        },
+      ],
+      toolCallsUsed: [],
+      skillsUsed: [],
+      createdSkillCandidates: [],
+      skillMatchRationale: null,
+      fallbackUsed: false,
+      terminationReason: "orchestrator_exception",
+      compressionApplied: false,
+      repairAttempts: 0,
+      providerFailureClass: "unknown",
+      memoryInfluences: [],
+      requiresConfirmation: false,
+      confirmationPreview: null,
+    });
+
+    await logRuntimeSession({
+      userId: input.userId,
+      threadId: input.threadId,
+      status: "failed",
+      requestPayload,
+      responsePayload: failedResult,
+      toolTrace: failedResult.toolTrace,
+      latencyMs: Math.max(0, Date.now() - startedAt),
+    });
+
+    return failedResult;
   }
 }

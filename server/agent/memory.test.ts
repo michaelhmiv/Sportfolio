@@ -18,4 +18,24 @@ describe("memory", () => {
 
     expect(writes).toHaveLength(0);
   });
+
+  it("captures multiple durable clauses from one message", () => {
+    const writes = inferMemoryWritesFromMessage(
+      "I usually like concise replies. I'm a fan of the Knicks. I want to focus on lower-risk growth over time.",
+    );
+
+    expect(writes.map((entry) => entry.kind)).toEqual([
+      "habit",
+      "favorite_entities",
+      "risk_tolerance",
+    ]);
+  });
+
+  it("ignores transient execution chatter that should not become profile memory", () => {
+    const writes = inferMemoryWritesFromMessage(
+      "I want to buy $20 of Brunson tonight and boost him before lock.",
+    );
+
+    expect(writes).toHaveLength(0);
+  });
 });
