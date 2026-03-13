@@ -10588,6 +10588,7 @@ ${items}
       }
 
       const sportUpper = sport.toUpperCase();
+      const canonicalPlayerId = await storage.getCanonicalPlayerId(playerId);
 
       const todayET = getTodayET();
       let dateStr = todayET;
@@ -10604,7 +10605,7 @@ ${items}
       }
 
       // Check if player is already boosted
-      if (currentBoosts.some((b) => b.playerId === playerId)) {
+      if (currentBoosts.some((b) => b.playerId === canonicalPlayerId)) {
         return res.status(400).json({ error: "This player is already in a boost slot" });
       }
 
@@ -10614,7 +10615,7 @@ ${items}
       }
 
       // Verify player has game today and get game info
-      const game = await storage.getPlayerGameForDate(playerId, sportUpper, targetDate);
+      const game = await storage.getPlayerGameForDate(canonicalPlayerId, sportUpper, targetDate);
       if (!game) {
         return res.status(400).json({ error: "This player doesn't have a game today" });
       }
@@ -10627,7 +10628,7 @@ ${items}
       }
 
       // Verify user has enough available shares
-      const availableShares = await storage.getAvailableShares(userId, "player", playerId);
+      const availableShares = await storage.getAvailableShares(userId, "player", canonicalPlayerId);
       if (availableShares < shares) {
         return res.status(400).json({
           error: `Not enough available shares. You have ${availableShares} available.`,
@@ -10645,7 +10646,7 @@ ${items}
       // Select a deterministic holding row and capture the per-share multiplier.
       // Boost slots always burn exactly 1 share.
       // If a stacked share exists, prefer that multiplier; otherwise use a regular share.
-      const breakdown = await storage.getPlayerShareBreakdown(userId, playerId);
+      const breakdown = await storage.getPlayerShareBreakdown(userId, canonicalPlayerId);
       const candidates = [
         ...(breakdown.stacked || [])
           .filter((h) => parseFloat(h.quantity) >= 1)
@@ -10677,7 +10678,7 @@ ${items}
 
       const boost = await storage.createDailyBoost({
         userId,
-        playerId,
+        playerId: canonicalPlayerId,
         sport: sportUpper,
         slotTier: tierNum,
         boostDate,
@@ -10688,7 +10689,7 @@ ${items}
       });
 
       // Get player info for response
-      const player = await storage.getPlayer(playerId);
+      const player = await storage.getPlayer(canonicalPlayerId);
 
       res.json({
         success: true,
@@ -10964,6 +10965,7 @@ ${items}
 
       // 1. Verify player has a game today that hasn't started
       const sportUpper = sport.toUpperCase();
+      const canonicalPlayerId = await storage.getCanonicalPlayerId(playerId);
       const todayET = getTodayET();
       let dateStr = todayET;
       if (typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
@@ -10972,7 +10974,7 @@ ${items}
       const { startOfDay } = getETDayBoundaries(dateStr);
       const targetDate = new Date(startOfDay.getTime() + 12 * 60 * 60 * 1000);
 
-      const game = await storage.getPlayerGameForDate(playerId, sportUpper, targetDate);
+      const game = await storage.getPlayerGameForDate(canonicalPlayerId, sportUpper, targetDate);
 
       if (!game) {
         return res.status(400).json({ error: "This player does not have a game today" });
@@ -10984,7 +10986,7 @@ ${items}
 
       // 2. Check if player already has an active community boost
       const existingBoosts = await storage.getCommunityBoostsForDate(sportUpper, targetDate);
-      if (existingBoosts.some((b) => b.playerId === playerId)) {
+      if (existingBoosts.some((b) => b.playerId === canonicalPlayerId)) {
         return res.status(400).json({ error: "This player already has a Community Boost!" });
       }
 
@@ -10993,7 +10995,7 @@ ${items}
 
       const boost = await storage.createCommunityBoost({
         creatorId: userId,
-        playerId,
+        playerId: canonicalPlayerId,
         sport: sportUpper,
         boostDate,
         gameId: game.gameId,

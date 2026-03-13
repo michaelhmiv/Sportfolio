@@ -5,8 +5,8 @@ const storageMocks = vi.hoisted(() => ({
   getDailyGameByGameId: vi.fn(),
   getDailyGamesBySport: vi.fn(),
   getPlayerGameForDate: vi.fn(),
-  getPlayerGameStats: vi.fn(),
-  getCommunityBoostsForDate: vi.fn(),
+  getPlayerGameStatsForIdentity: vi.fn(),
+  getCommunityBoostCountForPlayerIdentity: vi.fn(),
   getUser: vi.fn(),
   updateUserBalance: vi.fn(),
   createBoostPayout: vi.fn(),
@@ -23,8 +23,8 @@ vi.mock("../storage", () => ({
     getDailyGameByGameId: storageMocks.getDailyGameByGameId,
     getDailyGamesBySport: storageMocks.getDailyGamesBySport,
     getPlayerGameForDate: storageMocks.getPlayerGameForDate,
-    getPlayerGameStats: storageMocks.getPlayerGameStats,
-    getCommunityBoostsForDate: storageMocks.getCommunityBoostsForDate,
+    getPlayerGameStatsForIdentity: storageMocks.getPlayerGameStatsForIdentity,
+    getCommunityBoostCountForPlayerIdentity: storageMocks.getCommunityBoostCountForPlayerIdentity,
     getUser: storageMocks.getUser,
     updateUserBalance: storageMocks.updateUserBalance,
     createBoostPayout: storageMocks.createBoostPayout,
@@ -92,14 +92,14 @@ describe("settleBoosts", () => {
       },
     ]);
 
-    storageMocks.getPlayerGameStats.mockResolvedValue({
+    storageMocks.getPlayerGameStatsForIdentity.mockResolvedValue({
       id: "stats_1",
-      playerId: "nba_42",
+      playerId: "nba_237",
       gameId: "123456",
       fantasyPoints: "50",
     });
 
-    storageMocks.getCommunityBoostsForDate.mockResolvedValue([]);
+    storageMocks.getCommunityBoostCountForPlayerIdentity.mockResolvedValue(0);
     storageMocks.getUser.mockResolvedValue({ id: "user_1", balance: "10.00" });
     storageMocks.updateUserBalance.mockResolvedValue(undefined);
     storageMocks.createBoostPayout.mockResolvedValue({ id: "payout_1" });
@@ -114,6 +114,13 @@ describe("settleBoosts", () => {
     expect(storageMocks.updateDailyBoost).toHaveBeenNthCalledWith(1, "boost_1", {
       gameId: "123456",
     });
+
+    expect(storageMocks.getPlayerGameStatsForIdentity).toHaveBeenCalledWith("nba_42", "123456");
+    expect(storageMocks.getCommunityBoostCountForPlayerIdentity).toHaveBeenCalledWith(
+      "NBA",
+      new Date("2026-02-11T05:00:00.000Z"),
+      "nba_42",
+    );
 
     // Payout settled
     expect(storageMocks.updateUserBalance).toHaveBeenCalledWith("user_1", "210.00");

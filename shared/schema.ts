@@ -184,6 +184,27 @@ export const players = pgTable(
   }),
 );
 
+export const playerIdAliases = pgTable(
+  "player_id_aliases",
+  {
+    aliasPlayerId: varchar("alias_player_id").primaryKey(),
+    canonicalPlayerId: varchar("canonical_player_id")
+      .notNull()
+      .references(() => players.id, { onDelete: "cascade" }),
+    sport: text("sport").notNull(),
+    reason: text("reason").notNull().default("duplicate_merge"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    canonicalIdx: index("player_id_aliases_canonical_idx").on(table.canonicalPlayerId),
+    sportCanonicalIdx: index("player_id_aliases_sport_canonical_idx").on(
+      table.sport,
+      table.canonicalPlayerId,
+    ),
+  }),
+);
+
 // Player market metrics table - precomputed sortable metrics for high-scale player lists
 export const playerMarketMetrics = pgTable(
   "player_market_metrics",
@@ -2470,6 +2491,14 @@ export type UpsertUser = typeof users.$inferInsert; // For auth upsert operation
 
 export type Player = typeof players.$inferSelect;
 export type InsertPlayer = z.infer<typeof insertPlayerSchema>;
+
+export const insertPlayerIdAliasSchema = createInsertSchema(playerIdAliases).omit({
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type PlayerIdAlias = typeof playerIdAliases.$inferSelect;
+export type InsertPlayerIdAlias = z.infer<typeof insertPlayerIdAliasSchema>;
 
 export type PlayerMarketMetrics = typeof playerMarketMetrics.$inferSelect;
 export type InsertPlayerMarketMetrics = z.infer<typeof insertPlayerMarketMetricsSchema>;

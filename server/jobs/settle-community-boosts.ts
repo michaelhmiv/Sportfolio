@@ -69,7 +69,7 @@ export async function settleCommunityBoosts(
         );
 
         // Get player's fantasy points for this game
-        const stats = await storage.getPlayerGameStats(boost.playerId, boost.gameId);
+        const stats = await storage.getPlayerGameStatsForIdentity(boost.playerId, boost.gameId);
         const fantasyPoints = stats ? parseFloat(stats.fantasyPoints) : 0;
 
         // Community boosts now modify Daily Boost multipliers (+1x each) and are settled there.

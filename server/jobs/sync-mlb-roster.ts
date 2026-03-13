@@ -85,7 +85,6 @@ export async function syncMLBRoster(): Promise<SyncResult> {
       }
 
       const playerId = createMLBPlayerId(apiPlayer.id);
-      activeApiPlayerIds.add(playerId);
 
       const injury = injuryMap.get(apiPlayer.id);
       const injuryStatus = (injury?.status || "").toLowerCase();
@@ -107,9 +106,11 @@ export async function syncMLBRoster(): Promise<SyncResult> {
       try {
         if (existingPlayerIds.has(playerId)) {
           await storage.updatePlayer(playerId, playerData);
+          activeApiPlayerIds.add(playerId);
           result.playersUpdated++;
         } else {
-          await storage.upsertPlayer(playerData);
+          const upserted = await storage.upsertPlayer(playerData);
+          activeApiPlayerIds.add(upserted.id);
           result.playersAdded++;
         }
       } catch (error: any) {
