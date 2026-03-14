@@ -18,6 +18,20 @@ Review:
 - Production canonicalization is already complete for the user-owned/player-critical tables that caused issue 99 (`holdings`, `player_multipliers`, `daily_boosts`, `boost_payouts`, `community_boosts`, `share_payouts`, and `player_game_stats`), so stale player IDs no longer block boost settlement or future stat ingestion.
 - Remaining live duplicate rows are concentrated in legacy market/archive surfaces (`orders`, some scout history/distributions, plus 46 alias LP positions across 378 alias pool rows with 335 open alias-market orders). Because the Supabase management API enforces a hard request timeout and those tables are materially larger, the full physical retirement of alias market rows should be treated as a follow-up maintenance-window operation rather than hidden behind a risky long-running migration.
 
+## 2026-03-13 PR 100 Review Follow-up
+
+- [x] Patch boost regular-share burning so alias-group selection uses unlocked per-row availability before canonical preference
+- [x] Preserve NFL/MLB active roster IDs across transient player update failures
+- [x] Add regression coverage for both review findings and rerun required validation
+- [ ] Push the PR branch update after verification
+
+Review:
+
+- Added a dedicated regular-share selection helper so `lockBoostShares()` now burns from the alias/canonical holding row with the most unlocked quantity, only falling back to canonical preference after availability ties.
+- NFL and MLB roster syncs now mark each provider player ID active before attempting writes, which prevents transient `updatePlayer()` failures from deactivating still-live roster rows later in the same sync.
+- Added regression coverage for the new holding-selection rules and for the NFL/MLB failed-update deactivation case.
+- Validation passed serially: `npm run check`, `npm run lint`, `npm run format:check`, and `npm run test:run`.
+
 ## 2026-03-12 PR 97 Review Follow-up
 
 - [x] Fix public scout-assignment staging so scout-only pending bundles can be confirmed without a scout run id

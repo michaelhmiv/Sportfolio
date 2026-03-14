@@ -123,6 +123,7 @@ import { alias, unionAll } from "drizzle-orm/pg-core";
 import { randomUUID } from "crypto";
 import { getETDayBoundaries, getGameDay } from "./lib/time";
 import { choosePreferredDailyGame } from "./lib/daily-game-dedupe";
+import { pickRegularBoostHolding } from "./boost-share-selection";
 import { getCurrentCompetitiveSeasons } from "./storage/season-utils";
 
 export interface PlayerFinancialMetrics {
@@ -6362,15 +6363,39 @@ export class DatabaseStorage implements IStorage {
           desc(holdings.lastUpdated),
         )
         .for("update");
-      const [holding] = holdingsRows;
+      const lockRows = await tx
+        .select()
+        .from(holdingsLocks)
+        .where(
+          and(
+            eq(holdingsLocks.userId, boost.userId),
+            eq(holdingsLocks.assetType, "player"),
+            buildIdentityMatchSql(holdingsLocks.assetId, identity.allIds),
+          ),
+        )
+        .for("update");
+      const lockedByAssetId = new Map<string, number>();
+      for (const lockRow of lockRows) {
+        lockedByAssetId.set(
+          lockRow.assetId,
+          (lockedByAssetId.get(lockRow.assetId) ?? 0) + Number(lockRow.lockedQuantity || 0),
+        );
+      }
+      const sharesToBurn = 1;
+      const holdingSelection = pickRegularBoostHolding({
+        holdingsRows,
+        canonicalPlayerId,
+        lockedByAssetId,
+        sharesToBurn,
+      });
 
-      if (!holding) {
+      if (!holdingSelection) {
         throw new Error(
-          `No regular holding found for user ${boost.userId} player ${boost.playerId} (${identity.allIds.join(", ")})`,
+          `No unlocked regular holding found for user ${boost.userId} player ${boost.playerId} (${identity.allIds.join(", ")})`,
         );
       }
 
-      const sharesToBurn = 1;
+      const { holding } = holdingSelection;
       const newQuantity = parseFloat(holding.quantity) - sharesToBurn;
       if (newQuantity < 0) {
         throw new Error(`Cannot burn ${sharesToBurn} shares - only ${holding.quantity} available`);
@@ -6412,7 +6437,7 @@ export class DatabaseStorage implements IStorage {
         .where(eq(dailyBoosts.id, boostId));
 
       console.log(
-        `[BOOST] Burned 1 regular share of player ${canonicalPlayerId} from user ${boost.userId} (holding ${holding.id}: ${holding.quantity} -> ${newQuantity})`,
+        `[BOOST] Burned 1 regular share of player ${canonicalPlayerId} from user ${boost.userId} (holding ${holding.id}: ${holding.quantity} -> ${newQuantity}, locked=${holdingSelection.lockedQuantity}, available=${holdingSelection.availableQuantity})`,
       );
     });
   }

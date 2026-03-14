@@ -95,6 +95,7 @@ export async function syncNFLRoster(): Promise<SyncResult> {
       }
 
       const playerId = createNFLPlayerId(apiPlayer.id);
+      activeApiPlayerIds.add(playerId);
 
       // Check injury status for vesting eligibility
       const injury = injuryMap.get(apiPlayer.id);
@@ -116,7 +117,6 @@ export async function syncNFLRoster(): Promise<SyncResult> {
         if (existingPlayerIds.has(playerId)) {
           // Update existing player
           await storage.updatePlayer(playerId, playerData);
-          activeApiPlayerIds.add(playerId);
           result.playersUpdated++;
         } else {
           // Add new player

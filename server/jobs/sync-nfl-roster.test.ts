@@ -73,4 +73,26 @@ describe("syncNFLRoster", () => {
     expect(result.playersAdded).toBe(1);
     expect(result.playersDeactivated).toBe(0);
   });
+
+  it("does not deactivate an active provider id when the update write fails", async () => {
+    storageMocks.getPlayersBySport.mockResolvedValue([
+      {
+        id: "nfl_new",
+        isActive: true,
+      },
+    ]);
+    storageMocks.updatePlayer.mockRejectedValueOnce(new Error("transient write failure"));
+
+    const { syncNFLRoster } = await import("./sync-nfl-roster");
+    const result = await syncNFLRoster();
+
+    expect(storageMocks.updatePlayer).toHaveBeenCalledTimes(1);
+    expect(storageMocks.updatePlayer).not.toHaveBeenCalledWith(
+      "nfl_new",
+      expect.objectContaining({ isActive: false }),
+    );
+    expect(result.playersUpdated).toBe(0);
+    expect(result.playersDeactivated).toBe(0);
+    expect(result.errors).toContain("Failed to sync player nfl_new: transient write failure");
+  });
 });
