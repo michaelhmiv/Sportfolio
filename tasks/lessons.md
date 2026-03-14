@@ -6,6 +6,11 @@
 - Bearer-token public surfaces must not be able to mint fresh bearer tokens; keep API token creation explicitly web-session-only even if list/revoke flows are shared elsewhere.
 - Generic tool renderers are not a safe replacement for command-specific CLI summaries; preserve dedicated human-readable output for high-traffic commands like `portfolio summary`.
 
+## 2026-03-13
+
+- When burning boost shares across canonical and alias player IDs, choose the regular holding row by actual unlocked availability for that specific asset ID before using canonical/quantity tiebreakers; raw quantity alone can burn from a fully locked row.
+- When a roster sync job uses the API roster itself as the active-source-of-truth, mark the provider ID active before attempting DB writes so transient update failures do not accidentally deactivate still-active players later in the same run.
+
 ## 2026-03-11
 
 - For external stage tools, a valid preview is not enough; verify that the pending bundle is actually written to the thread and that confirm/cancel work through the same public contract, or MCP can appear correct while real users still hit `cannot_stage`.

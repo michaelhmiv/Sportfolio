@@ -109,7 +109,8 @@ export async function syncMLBRoster(): Promise<SyncResult> {
           await storage.updatePlayer(playerId, playerData);
           result.playersUpdated++;
         } else {
-          await storage.upsertPlayer(playerData);
+          const upserted = await storage.upsertPlayer(playerData);
+          activeApiPlayerIds.add(upserted.id);
           result.playersAdded++;
         }
       } catch (error: any) {

@@ -1,6 +1,7 @@
 import {
   users,
   players,
+  playerIdAliases,
   playerMarketMetrics,
   holdings,
   playerMultipliers,
@@ -45,6 +46,8 @@ import {
   type UpsertUser,
   type Player,
   type InsertPlayer,
+  type PlayerIdAlias,
+  type InsertPlayerIdAlias,
   type Holding,
   type PlayerMultiplier,
   type HoldingsLock,
@@ -120,6 +123,7 @@ import { alias, unionAll } from "drizzle-orm/pg-core";
 import { randomUUID } from "crypto";
 import { getETDayBoundaries, getGameDay } from "./lib/time";
 import { choosePreferredDailyGame } from "./lib/daily-game-dedupe";
+import { pickRegularBoostHolding } from "./boost-share-selection";
 import { getCurrentCompetitiveSeasons } from "./storage/season-utils";
 
 export interface PlayerFinancialMetrics {
@@ -232,6 +236,9 @@ export interface IStorage {
   getPlayersBySport(sport: string): Promise<Player[]>;
   getTopPlayersByVolume(limit: number): Promise<Player[]>;
   getPlayerPoolsByPlayerIds(playerIds: string[]): Promise<any[]>;
+  getCanonicalPlayerId(playerId: string): Promise<string>;
+  getPlayerIdentityIds(playerId: string): Promise<string[]>;
+  upsertPlayerIdAlias(alias: InsertPlayerIdAlias): Promise<PlayerIdAlias>;
   upsertPlayer(player: InsertPlayer): Promise<Player>;
   updatePlayer(playerId: string, updates: Partial<InsertPlayer>): Promise<void>;
   getDistinctTeams(): Promise<string[]>;
@@ -422,6 +429,10 @@ export interface IStorage {
   // Player game stats methods
   upsertPlayerGameStats(stats: InsertPlayerGameStats): Promise<PlayerGameStats>;
   getPlayerGameStats(playerId: string, gameId: string): Promise<PlayerGameStats | undefined>;
+  getPlayerGameStatsForIdentity(
+    playerId: string,
+    gameId: string,
+  ): Promise<PlayerGameStats | undefined>;
   getAllPlayerGameStats(playerId: string): Promise<PlayerGameStats[]>;
   getGameStatsByGameId(gameId: string): Promise<PlayerGameStats[]>;
   getPlayerGameStatsByGameAndHomeAway(
@@ -648,6 +659,11 @@ export interface IStorage {
     sport: string,
     date: Date,
   ): Promise<(CommunityBoost & { creator: User; player: Player })[]>;
+  getCommunityBoostCountForPlayerIdentity(
+    sport: string,
+    date: Date,
+    playerId: string,
+  ): Promise<number>;
   getCommunityBoostsAllSports(
     date: Date,
   ): Promise<(CommunityBoost & { creator: User; player: Player })[]>;
@@ -746,17 +762,94 @@ function formatActivityQuantity(value: number): string {
   });
 }
 
+type DbExecutor = typeof db | any;
+
+interface PlayerIdentityContext {
+  requestedId: string;
+  canonicalId: string;
+  aliasIds: string[];
+  allIds: string[];
+}
+
+async function loadPlayerIdentityContext(
+  executor: DbExecutor,
+  playerId: string,
+): Promise<PlayerIdentityContext> {
+  const requestedId = (playerId || "").trim();
+  if (!requestedId) {
+    return {
+      requestedId,
+      canonicalId: requestedId,
+      aliasIds: [],
+      allIds: requestedId ? [requestedId] : [],
+    };
+  }
+
+  let canonicalId = requestedId;
+  const seen = new Set<string>();
+
+  while (!seen.has(canonicalId)) {
+    seen.add(canonicalId);
+    const [directAlias] = await executor
+      .select()
+      .from(playerIdAliases)
+      .where(eq(playerIdAliases.aliasPlayerId, canonicalId))
+      .limit(1);
+    if (!directAlias || directAlias.canonicalPlayerId === canonicalId) {
+      break;
+    }
+    canonicalId = directAlias.canonicalPlayerId;
+  }
+
+  const aliasRows = await executor
+    .select()
+    .from(playerIdAliases)
+    .where(eq(playerIdAliases.canonicalPlayerId, canonicalId));
+  const aliasIds = aliasRows
+    .map((row: PlayerIdAlias) => row.aliasPlayerId)
+    .filter((aliasId: string) => aliasId !== canonicalId);
+
+  return {
+    requestedId,
+    canonicalId,
+    aliasIds,
+    allIds: Array.from(new Set([canonicalId, ...aliasIds])),
+  };
+}
+
+function buildIdentityMatchSql(column: unknown, ids: string[]) {
+  if (ids.length <= 1) {
+    return eq(column as never, ids[0] ?? "");
+  }
+
+  return inArray(column as never, ids);
+}
+
 export class DatabaseStorage implements IStorage {
   private async getPlayerMultiplier(
     userId: string,
     playerId: string,
     tx: typeof db = db,
   ): Promise<PlayerMultiplier | undefined> {
-    const [multiplier] = await tx
+    const identity = await loadPlayerIdentityContext(tx, playerId);
+    const rows = await tx
       .select()
       .from(playerMultipliers)
-      .where(and(eq(playerMultipliers.userId, userId), eq(playerMultipliers.playerId, playerId)));
-    return multiplier || undefined;
+      .where(
+        and(
+          eq(playerMultipliers.userId, userId),
+          buildIdentityMatchSql(playerMultipliers.playerId, identity.allIds),
+        ),
+      )
+      .orderBy(
+        desc(
+          sql<number>`CASE WHEN ${playerMultipliers.playerId} = ${identity.canonicalId} THEN 1 ELSE 0 END`,
+        ),
+        desc(playerMultipliers.multiplier),
+        desc(playerMultipliers.updatedAt),
+      )
+      .limit(1);
+    return rows[0] || undefined;
   }
 
   private async getPlayerMultiplierMap(
@@ -782,14 +875,15 @@ export class DatabaseStorage implements IStorage {
     assetId: string,
     tx: typeof db = db,
   ): Promise<number> {
+    const identity = await loadPlayerIdentityContext(tx, assetId);
     const [regularHolding] = await tx
-      .select({ quantity: holdings.quantity })
+      .select({ quantity: sql<number>`COALESCE(SUM(CAST(${holdings.quantity} AS NUMERIC)), 0)` })
       .from(holdings)
       .where(
         and(
           eq(holdings.userId, userId),
           eq(holdings.assetType, "player"),
-          eq(holdings.assetId, assetId),
+          buildIdentityMatchSql(holdings.assetId, identity.allIds),
         ),
       );
 
@@ -1804,6 +1898,16 @@ export class DatabaseStorage implements IStorage {
     const [player] = await db.select().from(players).where(eq(players.id, trimmedId));
     if (player) return player;
 
+    const canonicalId = await this.getCanonicalPlayerId(trimmedId);
+    if (canonicalId && canonicalId !== trimmedId) {
+      const [canonicalPlayer] = await db
+        .select()
+        .from(players)
+        .where(eq(players.id, canonicalId))
+        .limit(1);
+      if (canonicalPlayer) return canonicalPlayer;
+    }
+
     // Backwards compatibility: allow passing raw numeric IDs and resolve to prefixed IDs.
     // The canonical format is sport-prefixed (e.g., nba_12345, nfl_67890, mlb_99999).
     if (/^\d+$/.test(trimmedId)) {
@@ -1819,9 +1923,49 @@ export class DatabaseStorage implements IStorage {
     return undefined;
   }
 
+  async getCanonicalPlayerId(playerId: string): Promise<string> {
+    return (await loadPlayerIdentityContext(db, playerId)).canonicalId;
+  }
+
+  async getPlayerIdentityIds(playerId: string): Promise<string[]> {
+    return (await loadPlayerIdentityContext(db, playerId)).allIds;
+  }
+
+  async upsertPlayerIdAlias(alias: InsertPlayerIdAlias): Promise<PlayerIdAlias> {
+    const [stored] = await db
+      .insert(playerIdAliases)
+      .values({
+        ...alias,
+        sport: alias.sport.toUpperCase(),
+        updatedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: playerIdAliases.aliasPlayerId,
+        set: {
+          canonicalPlayerId: alias.canonicalPlayerId,
+          sport: alias.sport.toUpperCase(),
+          reason: alias.reason,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return stored;
+  }
+
   async getPlayersByIds(ids: string[]): Promise<Player[]> {
     if (ids.length === 0) return [];
-    return await db.select().from(players).where(inArray(players.id, ids));
+    const canonicalIds = Array.from(
+      new Set(
+        await Promise.all(
+          ids
+            .map((id) => (id || "").trim())
+            .filter(Boolean)
+            .map((id) => this.getCanonicalPlayerId(id)),
+        ),
+      ),
+    );
+    if (canonicalIds.length === 0) return [];
+    return await db.select().from(players).where(inArray(players.id, canonicalIds));
   }
 
   async getTopPlayersByVolume(limit: number): Promise<Player[]> {
@@ -1866,6 +2010,12 @@ export class DatabaseStorage implements IStorage {
         console.log(
           `[upsertPlayer] Merging duplicate: ${player.firstName} ${player.lastName} (${player.team}) - keeping existing ID: ${canonical.id}, ignoring new ID: ${player.id}`,
         );
+        await this.upsertPlayerIdAlias({
+          aliasPlayerId: player.id,
+          canonicalPlayerId: canonical.id,
+          sport: normalizedSport,
+          reason: "roster_sync_duplicate",
+        });
       }
 
       const [updated] = await db
@@ -1994,17 +2144,29 @@ export class DatabaseStorage implements IStorage {
     assetType: string,
     assetId: string,
   ): Promise<Holding | undefined> {
-    const [holding] = await db
+    const identity =
+      assetType === "player" ? await loadPlayerIdentityContext(db, assetId) : undefined;
+    const rows = await db
       .select()
       .from(holdings)
       .where(
         and(
           eq(holdings.userId, userId),
           eq(holdings.assetType, assetType),
-          eq(holdings.assetId, assetId),
+          assetType === "player"
+            ? buildIdentityMatchSql(holdings.assetId, identity?.allIds || [assetId])
+            : eq(holdings.assetId, assetId),
         ),
-      );
-    return holding || undefined;
+      )
+      .orderBy(
+        desc(
+          sql<number>`CASE WHEN ${holdings.assetId} = ${identity?.canonicalId || assetId} THEN 1 ELSE 0 END`,
+        ),
+        desc(sql<number>`CAST(${holdings.quantity} AS NUMERIC)`),
+        desc(holdings.lastUpdated),
+      )
+      .limit(1);
+    return rows[0] || undefined;
   }
 
   async getUserHoldings(userId: string): Promise<HoldingSummary[]> {
@@ -2256,6 +2418,8 @@ export class DatabaseStorage implements IStorage {
     assetType: string,
     assetId: string,
   ): Promise<HoldingsLock[]> {
+    const identity =
+      assetType === "player" ? await loadPlayerIdentityContext(db, assetId) : undefined;
     return await db
       .select()
       .from(holdingsLocks)
@@ -2263,7 +2427,9 @@ export class DatabaseStorage implements IStorage {
         and(
           eq(holdingsLocks.userId, userId),
           eq(holdingsLocks.assetType, assetType),
-          eq(holdingsLocks.assetId, assetId),
+          assetType === "player"
+            ? buildIdentityMatchSql(holdingsLocks.assetId, identity?.allIds || [assetId])
+            : eq(holdingsLocks.assetId, assetId),
         ),
       );
   }
@@ -2273,6 +2439,8 @@ export class DatabaseStorage implements IStorage {
     assetType: string,
     assetId: string,
   ): Promise<number> {
+    const identity =
+      assetType === "player" ? await loadPlayerIdentityContext(db, assetId) : undefined;
     const result = await db
       .select({ total: sql<number>`COALESCE(SUM(${holdingsLocks.lockedQuantity}), 0)` })
       .from(holdingsLocks)
@@ -2280,7 +2448,9 @@ export class DatabaseStorage implements IStorage {
         and(
           eq(holdingsLocks.userId, userId),
           eq(holdingsLocks.assetType, assetType),
-          eq(holdingsLocks.assetId, assetId),
+          assetType === "player"
+            ? buildIdentityMatchSql(holdingsLocks.assetId, identity?.allIds || [assetId])
+            : eq(holdingsLocks.assetId, assetId),
         ),
       );
 
@@ -3818,39 +3988,80 @@ export class DatabaseStorage implements IStorage {
 
   // Player game stats methods
   async upsertPlayerGameStats(stats: InsertPlayerGameStats): Promise<PlayerGameStats> {
+    const canonicalPlayerId = await this.getCanonicalPlayerId(stats.playerId);
+    const normalizedStats = {
+      ...stats,
+      playerId: canonicalPlayerId,
+    };
+
     const [existing] = await db
       .select()
       .from(playerGameStats)
       .where(
-        and(eq(playerGameStats.playerId, stats.playerId), eq(playerGameStats.gameId, stats.gameId)),
+        and(
+          eq(playerGameStats.playerId, normalizedStats.playerId),
+          eq(playerGameStats.gameId, normalizedStats.gameId),
+        ),
       );
 
     if (existing) {
       const [updated] = await db
         .update(playerGameStats)
-        .set({ ...stats, lastFetchedAt: new Date() })
+        .set({ ...normalizedStats, lastFetchedAt: new Date() })
         .where(eq(playerGameStats.id, existing.id))
         .returning();
       return updated;
     } else {
-      const [created] = await db.insert(playerGameStats).values(stats).returning();
+      const [created] = await db.insert(playerGameStats).values(normalizedStats).returning();
       return created;
     }
   }
 
   async getPlayerGameStats(playerId: string, gameId: string): Promise<PlayerGameStats | undefined> {
+    const canonicalPlayerId = await this.getCanonicalPlayerId(playerId);
     const [stats] = await db
       .select()
       .from(playerGameStats)
-      .where(and(eq(playerGameStats.playerId, playerId), eq(playerGameStats.gameId, gameId)));
+      .where(
+        and(eq(playerGameStats.playerId, canonicalPlayerId), eq(playerGameStats.gameId, gameId)),
+      );
     return stats || undefined;
   }
 
+  async getPlayerGameStatsForIdentity(
+    playerId: string,
+    gameId: string,
+  ): Promise<PlayerGameStats | undefined> {
+    const identity = await loadPlayerIdentityContext(db, playerId);
+    if (identity.allIds.length === 0) return undefined;
+
+    const rows = await db
+      .select()
+      .from(playerGameStats)
+      .where(
+        and(
+          buildIdentityMatchSql(playerGameStats.playerId, identity.allIds),
+          eq(playerGameStats.gameId, gameId),
+        ),
+      )
+      .orderBy(
+        desc(
+          sql<number>`CASE WHEN ${playerGameStats.playerId} = ${identity.canonicalId} THEN 1 ELSE 0 END`,
+        ),
+        desc(playerGameStats.lastFetchedAt),
+        desc(playerGameStats.gameDate),
+      )
+      .limit(1);
+
+    return rows[0] || undefined;
+  }
+
   async getAllPlayerGameStats(playerId: string): Promise<PlayerGameStats[]> {
+    const canonicalPlayerId = await this.getCanonicalPlayerId(playerId);
     return await db
       .select()
       .from(playerGameStats)
-      .where(eq(playerGameStats.playerId, playerId))
+      .where(eq(playerGameStats.playerId, canonicalPlayerId))
       .orderBy(desc(playerGameStats.gameDate));
   }
 
@@ -5702,7 +5913,7 @@ export class DatabaseStorage implements IStorage {
     const dateStr = getGameDay(date);
     const { startOfDay, endOfDay } = getETDayBoundaries(dateStr);
 
-    return await db
+    const boosts = await db
       .select()
       .from(dailyBoosts)
       .where(
@@ -5714,13 +5925,20 @@ export class DatabaseStorage implements IStorage {
         ),
       )
       .orderBy(desc(dailyBoosts.slotTier));
+
+    return await Promise.all(
+      boosts.map(async (boost) => ({
+        ...boost,
+        playerId: await this.getCanonicalPlayerId(boost.playerId),
+      })),
+    );
   }
 
   async getDailyBoostsAllSports(userId: string, date: Date): Promise<DailyBoost[]> {
     const dateStr = getGameDay(date);
     const { startOfDay, endOfDay } = getETDayBoundaries(dateStr);
 
-    return await db
+    const boosts = await db
       .select()
       .from(dailyBoosts)
       .where(
@@ -5731,10 +5949,23 @@ export class DatabaseStorage implements IStorage {
         ),
       )
       .orderBy(desc(dailyBoosts.slotTier));
+
+    return await Promise.all(
+      boosts.map(async (boost) => ({
+        ...boost,
+        playerId: await this.getCanonicalPlayerId(boost.playerId),
+      })),
+    );
   }
 
   async getDailyBoostsByStatus(status: string): Promise<DailyBoost[]> {
-    return await db.select().from(dailyBoosts).where(eq(dailyBoosts.status, status));
+    const boosts = await db.select().from(dailyBoosts).where(eq(dailyBoosts.status, status));
+    return await Promise.all(
+      boosts.map(async (boost) => ({
+        ...boost,
+        playerId: await this.getCanonicalPlayerId(boost.playerId),
+      })),
+    );
   }
 
   async getAllHoldingsWithPlayers(userId: string): Promise<HoldingWithPlayerSummary[]> {
@@ -6034,6 +6265,9 @@ export class DatabaseStorage implements IStorage {
         .for("update");
       if (!boost) throw new Error(`Boost ${boostId} not found`);
 
+      const identity = await loadPlayerIdentityContext(tx, boost.playerId);
+      const canonicalPlayerId = identity.canonicalId;
+
       if (boost.sharesEntered !== 1) {
         console.error(
           `[BOOST] Refusing to burn shares for boost ${boostId}: sharesEntered=${boost.sharesEntered} (expected 1)`,
@@ -6050,20 +6284,28 @@ export class DatabaseStorage implements IStorage {
         boost.shareSourceType === "stacked" || snapshotMultiplier > 1 ? "stacked" : "regular";
 
       if (sourceType === "stacked") {
-        const [multiplierRow] = await tx
+        const multiplierRows = await tx
           .select()
           .from(playerMultipliers)
           .where(
             and(
               eq(playerMultipliers.userId, boost.userId),
-              eq(playerMultipliers.playerId, boost.playerId),
+              buildIdentityMatchSql(playerMultipliers.playerId, identity.allIds),
             ),
           )
+          .orderBy(
+            desc(
+              sql<number>`CASE WHEN ${playerMultipliers.playerId} = ${canonicalPlayerId} THEN 1 ELSE 0 END`,
+            ),
+            desc(playerMultipliers.multiplier),
+            desc(playerMultipliers.updatedAt),
+          )
           .for("update");
+        const [multiplierRow] = multiplierRows;
 
         if (!multiplierRow) {
           throw new Error(
-            `No stacked share found for user ${boost.userId} player ${boost.playerId}`,
+            `No stacked share found for user ${boost.userId} player ${boost.playerId} (${identity.allIds.join(", ")})`,
           );
         }
 
@@ -6072,7 +6314,7 @@ export class DatabaseStorage implements IStorage {
         await tx.delete(playerMultipliers).where(eq(playerMultipliers.id, multiplierRow.id));
         await tx.insert(playerMultiplierEvents).values({
           userId: boost.userId,
-          playerId: boost.playerId,
+          playerId: canonicalPlayerId,
           eventType: "boost_burn",
           sharesConsumed: 1,
           effectiveSharesBurned: burnedMultiplier,
@@ -6088,10 +6330,11 @@ export class DatabaseStorage implements IStorage {
             totalShares: sql`GREATEST(${players.totalShares} - ${burnedMultiplier}, 0)`,
             lastUpdated: new Date(),
           })
-          .where(eq(players.id, boost.playerId));
+          .where(eq(players.id, canonicalPlayerId));
         await tx
           .update(dailyBoosts)
           .set({
+            playerId: canonicalPlayerId,
             status: "locked",
             shareMultiplier: toFixedString(burnedMultiplier, 2),
             shareSourceType: "stacked",
@@ -6099,30 +6342,60 @@ export class DatabaseStorage implements IStorage {
           .where(eq(dailyBoosts.id, boostId));
 
         console.log(
-          `[BOOST] Burned stacked share of player ${boost.playerId} from user ${boost.userId} (${burnedMultiplier.toFixed(2)} effective shares removed)`,
+          `[BOOST] Burned stacked share of player ${canonicalPlayerId} from user ${boost.userId} (${burnedMultiplier.toFixed(2)} effective shares removed)`,
         );
         return;
       }
 
-      const [holding] = await tx
+      const holdingsRows = await tx
         .select()
         .from(holdings)
         .where(
           and(
             eq(holdings.userId, boost.userId),
             eq(holdings.assetType, "player"),
-            eq(holdings.assetId, boost.playerId),
+            buildIdentityMatchSql(holdings.assetId, identity.allIds),
+          ),
+        )
+        .orderBy(
+          desc(sql<number>`CASE WHEN ${holdings.assetId} = ${canonicalPlayerId} THEN 1 ELSE 0 END`),
+          desc(sql<number>`CAST(${holdings.quantity} AS NUMERIC)`),
+          desc(holdings.lastUpdated),
+        )
+        .for("update");
+      const lockRows = await tx
+        .select()
+        .from(holdingsLocks)
+        .where(
+          and(
+            eq(holdingsLocks.userId, boost.userId),
+            eq(holdingsLocks.assetType, "player"),
+            buildIdentityMatchSql(holdingsLocks.assetId, identity.allIds),
           ),
         )
         .for("update");
+      const lockedByAssetId = new Map<string, number>();
+      for (const lockRow of lockRows) {
+        lockedByAssetId.set(
+          lockRow.assetId,
+          (lockedByAssetId.get(lockRow.assetId) ?? 0) + Number(lockRow.lockedQuantity || 0),
+        );
+      }
+      const sharesToBurn = 1;
+      const holdingSelection = pickRegularBoostHolding({
+        holdingsRows,
+        canonicalPlayerId,
+        lockedByAssetId,
+        sharesToBurn,
+      });
 
-      if (!holding) {
+      if (!holdingSelection) {
         throw new Error(
-          `No regular holding found for user ${boost.userId} player ${boost.playerId}`,
+          `No unlocked regular holding found for user ${boost.userId} player ${boost.playerId} (${identity.allIds.join(", ")})`,
         );
       }
 
-      const sharesToBurn = 1;
+      const { holding } = holdingSelection;
       const newQuantity = parseFloat(holding.quantity) - sharesToBurn;
       if (newQuantity < 0) {
         throw new Error(`Cannot burn ${sharesToBurn} shares - only ${holding.quantity} available`);
@@ -6152,10 +6425,11 @@ export class DatabaseStorage implements IStorage {
           totalShares: sql`GREATEST(${players.totalShares} - 1, 0)`,
           lastUpdated: new Date(),
         })
-        .where(eq(players.id, boost.playerId));
+        .where(eq(players.id, canonicalPlayerId));
       await tx
         .update(dailyBoosts)
         .set({
+          playerId: canonicalPlayerId,
           status: "locked",
           shareMultiplier: "1.00",
           shareSourceType: "regular",
@@ -6163,7 +6437,7 @@ export class DatabaseStorage implements IStorage {
         .where(eq(dailyBoosts.id, boostId));
 
       console.log(
-        `[BOOST] Burned 1 regular share of player ${boost.playerId} from user ${boost.userId} (holding ${holding.id}: ${holding.quantity} -> ${newQuantity})`,
+        `[BOOST] Burned 1 regular share of player ${canonicalPlayerId} from user ${boost.userId} (holding ${holding.id}: ${holding.quantity} -> ${newQuantity}, locked=${holdingSelection.lockedQuantity}, available=${holdingSelection.availableQuantity})`,
       );
     });
   }
@@ -6189,7 +6463,8 @@ export class DatabaseStorage implements IStorage {
     date: Date,
   ): Promise<DailyGame | undefined> {
     // Get the player's team
-    const [player] = await db.select().from(players).where(eq(players.id, playerId));
+    const canonicalPlayerId = await this.getCanonicalPlayerId(playerId);
+    const [player] = await db.select().from(players).where(eq(players.id, canonicalPlayerId));
     if (!player) return undefined;
 
     // Use ET boundaries for consistent game day matching (same as getEligiblePlayersForBoost)
@@ -6225,11 +6500,46 @@ export class DatabaseStorage implements IStorage {
         ),
       );
 
-    return boosts.map((b) => ({
-      ...b.boost,
-      creator: b.creator,
-      player: b.player,
-    }));
+    return await Promise.all(
+      boosts.map(async (b) => {
+        const canonicalPlayerId = await this.getCanonicalPlayerId(b.boost.playerId);
+        const player =
+          canonicalPlayerId === b.player.id ? b.player : await this.getPlayer(canonicalPlayerId);
+
+        return {
+          ...b.boost,
+          playerId: canonicalPlayerId,
+          creator: b.creator,
+          player: player || b.player,
+        };
+      }),
+    );
+  }
+
+  async getCommunityBoostCountForPlayerIdentity(
+    sport: string,
+    date: Date,
+    playerId: string,
+  ): Promise<number> {
+    const dateStr = getGameDay(date);
+    const { startOfDay, endOfDay } = getETDayBoundaries(dateStr);
+    const identityIds = await this.getPlayerIdentityIds(playerId);
+    if (identityIds.length === 0) return 0;
+
+    const [result] = await db
+      .select({ total: count() })
+      .from(communityBoosts)
+      .where(
+        and(
+          eq(communityBoosts.sport, sport),
+          gte(communityBoosts.boostDate, startOfDay),
+          lte(communityBoosts.boostDate, endOfDay),
+          ne(communityBoosts.status, "cancelled"),
+          buildIdentityMatchSql(communityBoosts.playerId, identityIds),
+        ),
+      );
+
+    return Number(result?.total || 0);
   }
 
   async getCommunityBoostsAllSports(
@@ -6255,11 +6565,20 @@ export class DatabaseStorage implements IStorage {
         ),
       );
 
-    return boosts.map((b) => ({
-      ...b.boost,
-      creator: b.creator,
-      player: b.player,
-    }));
+    return await Promise.all(
+      boosts.map(async (b) => {
+        const canonicalPlayerId = await this.getCanonicalPlayerId(b.boost.playerId);
+        const player =
+          canonicalPlayerId === b.player.id ? b.player : await this.getPlayer(canonicalPlayerId);
+
+        return {
+          ...b.boost,
+          playerId: canonicalPlayerId,
+          creator: b.creator,
+          player: player || b.player,
+        };
+      }),
+    );
   }
 
   async createCommunityBoost(boost: InsertCommunityBoost): Promise<CommunityBoost> {
@@ -6318,7 +6637,16 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getCommunityBoostsByStatus(status: string): Promise<CommunityBoost[]> {
-    return await db.select().from(communityBoosts).where(eq(communityBoosts.status, status));
+    const boosts = await db
+      .select()
+      .from(communityBoosts)
+      .where(eq(communityBoosts.status, status));
+    return await Promise.all(
+      boosts.map(async (boost) => ({
+        ...boost,
+        playerId: await this.getCanonicalPlayerId(boost.playerId),
+      })),
+    );
   }
   // Scout Status
   async getScoutStatus(

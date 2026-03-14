@@ -120,7 +120,8 @@ export async function syncNFLRoster(): Promise<SyncResult> {
           result.playersUpdated++;
         } else {
           // Add new player
-          await storage.upsertPlayer(playerData);
+          const upserted = await storage.upsertPlayer(playerData);
+          activeApiPlayerIds.add(upserted.id);
           result.playersAdded++;
         }
       } catch (error: any) {

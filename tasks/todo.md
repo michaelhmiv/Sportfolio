@@ -1,3 +1,37 @@
+## 2026-03-13 Issue 99 Canonical Player ID Repair
+
+- [x] Sync local repo to latest `origin/main` and branch the issue 99 fix from current main
+- [x] Add canonical player ID alias storage/runtime resolution across boost assignment, lock, settlement, and stats ingestion
+- [x] Harden NFL and MLB roster syncs to track the canonical post-upsert player ID instead of the raw provider ID
+- [x] Add the `player_id_aliases` schema migration plus a guarded duplicate-player / zero-payout boost repair script
+- [x] Add regression coverage and run required validation (`npm run check`, `npm run lint`, `npm run format:check`, `npm run test:run`)
+- [x] Apply the `player_id_aliases` migration against Supabase, seed the live alias map, and repair historical zero-payout boosts
+- [ ] Finish the full production alias-market retirement pass (active alias pools + open alias orders/history) in a maintenance-window follow-up if we want every legacy market/archive row physically rewritten or removed
+
+Review:
+
+- Added an explicit `player_id_aliases` table and identity-aware storage methods so stale IDs now resolve to the canonical player row for boost-critical paths instead of relying on exact equality only.
+- Daily boost assignment and community boost creation now store canonical player IDs, boost/community settlement reads use identity-aware stat lookups, and `upsertPlayerGameStats` now writes under the canonical player ID to prevent future stat drift.
+- `lockBoostShares` now burns the matching holding or stacked-share row across the full alias group and normalizes the boost row onto the canonical player ID when it locks.
+- Added a guarded `scripts/repair-player-id-integrity.ts` script for duplicate-player rewrites and historical zero-payout boost repair, plus new roster-sync regression tests to prevent the canonical-row deactivation bug.
+- Applied `migrations/0041_player_id_aliases.sql` directly against the production Supabase project through the authenticated management SQL endpoint, seeded 378 live alias mappings, and repaired all 8 historically repairable processed zero-payout boosts; production now shows `repairable_zero_boosts_remaining = 0`.
+- Production canonicalization is already complete for the user-owned/player-critical tables that caused issue 99 (`holdings`, `player_multipliers`, `daily_boosts`, `boost_payouts`, `community_boosts`, `share_payouts`, and `player_game_stats`), so stale player IDs no longer block boost settlement or future stat ingestion.
+- Remaining live duplicate rows are concentrated in legacy market/archive surfaces (`orders`, some scout history/distributions, plus 46 alias LP positions across 378 alias pool rows with 335 open alias-market orders). Because the Supabase management API enforces a hard request timeout and those tables are materially larger, the full physical retirement of alias market rows should be treated as a follow-up maintenance-window operation rather than hidden behind a risky long-running migration.
+
+## 2026-03-13 PR 100 Review Follow-up
+
+- [x] Patch boost regular-share burning so alias-group selection uses unlocked per-row availability before canonical preference
+- [x] Preserve NFL/MLB active roster IDs across transient player update failures
+- [x] Add regression coverage for both review findings and rerun required validation
+- [ ] Push the PR branch update after verification
+
+Review:
+
+- Added a dedicated regular-share selection helper so `lockBoostShares()` now burns from the alias/canonical holding row with the most unlocked quantity, only falling back to canonical preference after availability ties.
+- NFL and MLB roster syncs now mark each provider player ID active before attempting writes, which prevents transient `updatePlayer()` failures from deactivating still-live roster rows later in the same sync.
+- Added regression coverage for the new holding-selection rules and for the NFL/MLB failed-update deactivation case.
+- Validation passed serially: `npm run check`, `npm run lint`, `npm run format:check`, and `npm run test:run`.
+
 ## 2026-03-12 PR 97 Review Follow-up
 
 - [x] Fix public scout-assignment staging so scout-only pending bundles can be confirmed without a scout run id

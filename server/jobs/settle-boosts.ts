@@ -71,13 +71,11 @@ async function getCommunityBoostCountForBoost(
   const cacheKey = getBoostCommunityCacheKey(boost);
   let communityBoostCount = cache.get(cacheKey);
   if (communityBoostCount === undefined) {
-    const communityBoosts = await storage.getCommunityBoostsForDate(
+    communityBoostCount = await storage.getCommunityBoostCountForPlayerIdentity(
       boost.sport,
       new Date(boost.boostDate),
+      boost.playerId,
     );
-    communityBoostCount = communityBoosts.filter(
-      (entry) => entry.playerId === boost.playerId,
-    ).length;
     cache.set(cacheKey, communityBoostCount);
   }
 
@@ -255,7 +253,7 @@ export async function settleBoosts(progressCallback?: ProgressCallback): Promise
         );
 
         // Get player's fantasy points for this game
-        const stats = await storage.getPlayerGameStats(boost.playerId, canonicalGameId);
+        const stats = await storage.getPlayerGameStatsForIdentity(boost.playerId, canonicalGameId);
 
         // BUG FIX #44: Skip settlement if stats are not yet available
         // This prevents race condition where boost is settled before sync-stats job stores player stats
@@ -283,13 +281,11 @@ export async function settleBoosts(progressCallback?: ProgressCallback): Promise
         const cacheKey = `${boost.sport}:${dateKey}:${boost.playerId}`;
         let communityBoostCount = communityCountCache.get(cacheKey);
         if (communityBoostCount === undefined) {
-          const communityBoosts = await storage.getCommunityBoostsForDate(
+          communityBoostCount = await storage.getCommunityBoostCountForPlayerIdentity(
             boost.sport,
             new Date(boost.boostDate),
+            boost.playerId,
           );
-          communityBoostCount = communityBoosts.filter(
-            (cb) => cb.playerId === boost.playerId,
-          ).length;
           communityCountCache.set(cacheKey, communityBoostCount);
         }
 
@@ -395,7 +391,10 @@ export async function settleBoosts(progressCallback?: ProgressCallback): Promise
             const canonicalGameId = game.gameId;
 
             // Re-check stats
-            const stats = await storage.getPlayerGameStats(boost.playerId, canonicalGameId);
+            const stats = await storage.getPlayerGameStatsForIdentity(
+              boost.playerId,
+              canonicalGameId,
+            );
 
             if (!stats) {
               console.log(
@@ -426,13 +425,11 @@ export async function settleBoosts(progressCallback?: ProgressCallback): Promise
             const cacheKey = `${boost.sport}:${dateKey}:${boost.playerId}`;
             let communityBoostCount = communityCountCache.get(cacheKey);
             if (communityBoostCount === undefined) {
-              const communityBoosts = await storage.getCommunityBoostsForDate(
+              communityBoostCount = await storage.getCommunityBoostCountForPlayerIdentity(
                 boost.sport,
                 new Date(boost.boostDate),
+                boost.playerId,
               );
-              communityBoostCount = communityBoosts.filter(
-                (cb) => cb.playerId === boost.playerId,
-              ).length;
               communityCountCache.set(cacheKey, communityBoostCount);
             }
 
