@@ -422,8 +422,35 @@ function isExplicitPlanningIntent(message: string) {
     "do it",
     "set up",
   ] as const;
+  const planningPhrases = [
+    "plan a trade",
+    "plan my trade",
+    "plan this trade",
+    "can you plan",
+    "help me plan",
+    "build a trade plan",
+    "prepare a trade plan",
+    "stage a plan",
+  ] as const;
+  const planningActionTargets = [
+    "trade",
+    "buy",
+    "sell",
+    "position",
+    "allocation",
+    "order",
+    "boost",
+    "scout",
+    "liquidity",
+    "lp",
+  ] as const;
 
   if (includesIntentKeyword(normalized, directActionVerbs)) {
+    return true;
+  }
+
+  const hasPlanningPhrase = planningPhrases.some((phrase) => normalized.includes(phrase));
+  if (hasPlanningPhrase && includesIntentKeyword(normalized, planningActionTargets)) {
     return true;
   }
 

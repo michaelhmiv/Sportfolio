@@ -2,6 +2,8 @@
 
 ## 2026-03-23
 
+- Planning-intent guards should recognize explicit planning phrases paired with action targets (for example, "plan a trade") even when request mode is `auto`, or legitimate staging requests will be misrouted as advisory.
+
 - When product policy requires a single in-house managed model/provider, enforce it at type, schema, settings, runtime, and test layers together; leaving legacy enum options in any one layer creates silent drift.
 
 - When users send broad strategy prompts, do not let the model jump straight to confirmation-gated preview tools; require explicit action/planning intent or concrete args, then force a read/scan reroute before staging.

@@ -353,6 +353,55 @@ describe("model-first-router", () => {
     expect(mocks.runHermesReadTool).not.toHaveBeenCalled();
   });
 
+  it("allows explicit trade-planning requests in auto mode to proceed to plan tools", async () => {
+    mocks.callAgentModel.mockResolvedValue({
+      role: "assistant",
+      content: [
+        {
+          type: "toolCall",
+          id: "call_1",
+          name: "preview_direct_operation",
+          arguments: {},
+        },
+      ],
+      api: "openai-completions",
+      provider: "chutes",
+      model: "test-model",
+      usage: buildUsage(),
+      stopReason: "tool_calls",
+      timestamp: Date.now(),
+    });
+
+    const result = await runHermesModelToolLoop({
+      profile: {
+        displayName: "My Agent",
+        providerMode: "managed",
+        model: "test-model",
+        baseUrl: null,
+        systemPrompt: "test",
+        userPromptTemplate: "test",
+        temperature: "0.2",
+        maxTokens: 800,
+      } as any,
+      secret: undefined,
+      request: {
+        ...buildRequest(),
+        requestMode: "auto",
+        message: "can you plan a trade for me tonight?",
+      },
+      matchedSkill: null,
+    });
+
+    expect(result).toMatchObject({
+      outcome: "tool",
+      toolName: "preview_direct_operation",
+      toolCategory: "plan",
+    });
+    expect((result as { toolArgs: Record<string, unknown> }).toolArgs.message).toBe(
+      "can you plan a trade for me tonight?",
+    );
+  });
+
   it("repairs case-insensitive tool names before execution", async () => {
     mocks.callAgentModel
       .mockResolvedValueOnce({
