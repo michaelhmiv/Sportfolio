@@ -42,6 +42,10 @@ import {
   proposeGlobalSkillCandidate,
 } from "./skills";
 import { getCoreHermesToolCatalog } from "./hermes-tool-registry";
+import { dailyGames, players } from "@shared/schema";
+import { and, eq, gte, inArray, lte, or } from "drizzle-orm";
+import { db } from "../db";
+import { queryExternalSource } from "./mcp-client";
 import type {
   AgentChannel,
   AgentSkillStep,
@@ -213,6 +217,71 @@ const AGENT_TOOL_CATALOG: AgentToolDefinition[] = [
     whenToUse: ["The user asks who is worth buying, watching, or starting a position in."],
     whenNotToUse: ["The user already supplied a direct market order."],
     examplePrompts: ["who is worth buying right now?", "who should i start a position in?"],
+    requiresConfirmation: false,
+    riskLevel: "low",
+  },
+  {
+    toolName: "scan_sport_slate",
+    category: "scan",
+    description:
+      "Return the game slate for a specific sport and date range, including teams, start times, and game status. Optionally includes players on each team with their positions and recent stats.",
+    whenToUse: [
+      "The user asks about upcoming games for a sport.",
+      "The user asks who is playing tonight or this week.",
+      "The user asks about starting pitchers, lineups, or matchups.",
+      "A strategy stage needs to identify which players have games in a window.",
+    ],
+    whenNotToUse: [
+      "The user is asking about account state or portfolio.",
+      "The user already named specific players and wants a trade.",
+    ],
+    examplePrompts: [
+      "what MLB games are on tonight?",
+      "who are the starting pitchers this week?",
+      "show me the NBA slate for tomorrow",
+      "which NFL games are this Sunday?",
+    ],
+    requiresConfirmation: false,
+    riskLevel: "low",
+  },
+  {
+    toolName: "scan_player_upcoming_games",
+    category: "scan",
+    description:
+      "For a given player or list of players, return their upcoming games within the next 7 days along with opponent, start time, and boost eligibility.",
+    whenToUse: [
+      "The user asks when a player plays next.",
+      "The user wants to know a player's schedule this week.",
+      "A strategy needs to plan boosts around upcoming game times.",
+    ],
+    whenNotToUse: [
+      "The user is asking about historical stats or past games.",
+    ],
+    examplePrompts: [
+      "when does LeBron play next?",
+      "what's Shohei Ohtani's schedule this week?",
+    ],
+    requiresConfirmation: false,
+    riskLevel: "low",
+  },
+  {
+    toolName: "query_external_source",
+    category: "scan",
+    description:
+      "Query the user's configured external MCP data sources. Use this to fetch data from third-party services the user has connected (projections, analytics, custom feeds).",
+    whenToUse: [
+      "The user asks for data that isn't available through built-in Sportfolio tools.",
+      "The user explicitly mentions an external data source by name.",
+      "A strategy requires external projection or analytics data.",
+    ],
+    whenNotToUse: [
+      "The data is available from built-in scan tools (portfolio, boosts, slate).",
+      "The user has no external MCP sources configured.",
+    ],
+    examplePrompts: [
+      "check my FanGraphs projections for tonight",
+      "what does my external source say about starting pitchers?",
+    ],
     requiresConfirmation: false,
     riskLevel: "low",
   },
@@ -1965,6 +2034,360 @@ async function buildLpZapPreview(input: {
   });
 }
 
+async function buildSportSlateScan(input: {
+  userId: string;
+  args?: Record<string, unknown>;
+}): Promise<HermesScanResult> {
+  const sport = toStringValue(input.args?.sport)?.toUpperCase() || null;
+  const dateArg = toStringValue(input.args?.date) || null;
+
+  const now = new Date();
+  let startDate: Date;
+  let endDate: Date;
+
+  if (dateArg?.toLowerCase() === "this week" || dateArg?.toLowerCase() === "week") {
+    startDate = new Date(now);
+    startDate.setHours(0, 0, 0, 0);
+    endDate = new Date(startDate);
+    endDate.setDate(endDate.getDate() + 7);
+  } else if (dateArg?.toLowerCase() === "tomorrow") {
+    startDate = new Date(now);
+    startDate.setDate(startDate.getDate() + 1);
+    startDate.setHours(0, 0, 0, 0);
+    endDate = new Date(startDate);
+    endDate.setDate(endDate.getDate() + 1);
+  } else {
+    const { startOfDay, endOfDay } = getETDayBoundaries(getTodayET());
+    startDate = startOfDay;
+    endDate = endOfDay;
+  }
+
+  const conditions = [
+    gte(dailyGames.startTime, startDate),
+    lte(dailyGames.startTime, endDate),
+  ];
+  if (sport) {
+    conditions.push(eq(dailyGames.sport, sport));
+  }
+
+  const games = await db
+    .select({
+      gameId: dailyGames.gameId,
+      sport: dailyGames.sport,
+      homeTeam: dailyGames.homeTeam,
+      awayTeam: dailyGames.awayTeam,
+      startTime: dailyGames.startTime,
+      status: dailyGames.status,
+      homeScore: dailyGames.homeScore,
+      awayScore: dailyGames.awayScore,
+    })
+    .from(dailyGames)
+    .where(and(...conditions))
+    .orderBy(dailyGames.startTime)
+    .limit(50);
+
+  const allTeams = new Set<string>();
+  for (const game of games) {
+    allTeams.add(game.homeTeam);
+    allTeams.add(game.awayTeam);
+  }
+
+  const teamPlayers =
+    allTeams.size > 0
+      ? await db
+          .select({
+            id: players.id,
+            firstName: players.firstName,
+            lastName: players.lastName,
+            team: players.team,
+            position: players.position,
+            sport: players.sport,
+            injuryStatus: players.injuryStatus,
+            currentPrice: players.currentPrice,
+            lastTradePrice: players.lastTradePrice,
+          })
+          .from(players)
+          .where(
+            and(
+              inArray(players.team, Array.from(allTeams)),
+              eq(players.isActive, true),
+              ...(sport ? [eq(players.sport, sport)] : []),
+            ),
+          )
+          .limit(300)
+      : [];
+
+  const gameEntries = games.map((game) => {
+    const homePlayers = teamPlayers
+      .filter((player) => player.team === game.homeTeam)
+      .map((player) => ({
+        id: player.id,
+        name: `${player.firstName} ${player.lastName}`,
+        position: player.position,
+        injuryStatus: player.injuryStatus,
+        price: player.lastTradePrice || player.currentPrice,
+      }));
+    const awayPlayers = teamPlayers
+      .filter((player) => player.team === game.awayTeam)
+      .map((player) => ({
+        id: player.id,
+        name: `${player.firstName} ${player.lastName}`,
+        position: player.position,
+        injuryStatus: player.injuryStatus,
+        price: player.lastTradePrice || player.currentPrice,
+      }));
+
+    return {
+      gameId: game.gameId,
+      sport: game.sport,
+      homeTeam: game.homeTeam,
+      awayTeam: game.awayTeam,
+      startTime: game.startTime.toISOString(),
+      status: game.status,
+      score:
+        game.homeScore != null && game.awayScore != null
+          ? `${game.homeScore}-${game.awayScore}`
+          : null,
+      homePlayers: homePlayers.slice(0, 15),
+      awayPlayers: awayPlayers.slice(0, 15),
+    };
+  });
+
+  const sportLabel = sport || "all sports";
+  const dateLabel = dateArg || "today";
+
+  return {
+    toolName: "scan_sport_slate",
+    domain: "sportfolio",
+    summary: `Found ${games.length} ${sportLabel} game${games.length === 1 ? "" : "s"} for ${dateLabel} with ${teamPlayers.length} active players.`,
+    replyText: `Here are the ${sportLabel} games for ${dateLabel}:\n${gameEntries.map((g) => `${g.awayTeam} @ ${g.homeTeam} (${new Date(g.startTime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/New_York" })} ET) - ${g.status}`).join("\n")}`,
+    observations: [
+      `${games.length} games found for ${sportLabel} ${dateLabel}.`,
+      `${teamPlayers.length} active players across participating teams.`,
+      ...(teamPlayers.filter((p) => p.injuryStatus).length > 0
+        ? [
+            `${teamPlayers.filter((p) => p.injuryStatus).length} player${teamPlayers.filter((p) => p.injuryStatus).length === 1 ? "" : "s"} with injury designations.`,
+          ]
+        : []),
+    ],
+    warnings: games.length === 0 ? [`No ${sportLabel} games found for ${dateLabel}.`] : [],
+    context: { games: gameEntries, sport: sportLabel, dateRange: dateLabel },
+  };
+}
+
+async function buildPlayerUpcomingGamesScan(input: {
+  userId: string;
+  args?: Record<string, unknown>;
+}): Promise<HermesScanResult> {
+  const playerIdArg = toStringValue(input.args?.playerId) || null;
+  const playerNameArg = toStringValue(input.args?.playerName) || toStringValue(input.args?.message) || null;
+
+  let targetPlayers: Array<{ id: string; firstName: string; lastName: string; team: string; sport: string; position: string }> = [];
+
+  if (playerIdArg) {
+    const [found] = await db
+      .select({
+        id: players.id,
+        firstName: players.firstName,
+        lastName: players.lastName,
+        team: players.team,
+        sport: players.sport,
+        position: players.position,
+      })
+      .from(players)
+      .where(eq(players.id, playerIdArg))
+      .limit(1);
+    if (found) targetPlayers.push(found);
+  } else if (playerNameArg) {
+    const nameParts = playerNameArg.toLowerCase().split(/\s+/);
+    const found = await db
+      .select({
+        id: players.id,
+        firstName: players.firstName,
+        lastName: players.lastName,
+        team: players.team,
+        sport: players.sport,
+        position: players.position,
+      })
+      .from(players)
+      .where(eq(players.isActive, true))
+      .limit(500);
+    targetPlayers = found.filter((p) =>
+      nameParts.every(
+        (part) =>
+          p.firstName.toLowerCase().includes(part) ||
+          p.lastName.toLowerCase().includes(part),
+      ),
+    ).slice(0, 5);
+  }
+
+  if (targetPlayers.length === 0) {
+    return {
+      toolName: "scan_player_upcoming_games",
+      domain: "sportfolio",
+      summary: "Could not find the requested player.",
+      replyText: "I could not find a matching player. Try providing a more specific name or player ID.",
+      observations: [],
+      warnings: ["Player not found."],
+      context: {},
+    };
+  }
+
+  const now = new Date();
+  const weekFromNow = new Date(now);
+  weekFromNow.setDate(weekFromNow.getDate() + 7);
+
+  const teams = [...new Set(targetPlayers.map((p) => p.team))];
+  const upcomingGames = await db
+    .select({
+      gameId: dailyGames.gameId,
+      sport: dailyGames.sport,
+      homeTeam: dailyGames.homeTeam,
+      awayTeam: dailyGames.awayTeam,
+      startTime: dailyGames.startTime,
+      status: dailyGames.status,
+    })
+    .from(dailyGames)
+    .where(
+      and(
+        gte(dailyGames.startTime, now),
+        lte(dailyGames.startTime, weekFromNow),
+        or(
+          inArray(dailyGames.homeTeam, teams),
+          inArray(dailyGames.awayTeam, teams),
+        ),
+      ),
+    )
+    .orderBy(dailyGames.startTime)
+    .limit(20);
+
+  const results = targetPlayers.map((player) => ({
+    playerId: player.id,
+    name: `${player.firstName} ${player.lastName}`,
+    team: player.team,
+    sport: player.sport,
+    position: player.position,
+    upcomingGames: upcomingGames
+      .filter((g) => g.homeTeam === player.team || g.awayTeam === player.team)
+      .map((g) => ({
+        gameId: g.gameId,
+        opponent: g.homeTeam === player.team ? g.awayTeam : g.homeTeam,
+        isHome: g.homeTeam === player.team,
+        startTime: g.startTime.toISOString(),
+        status: g.status,
+      })),
+  }));
+
+  const totalGames = results.reduce((sum, r) => sum + r.upcomingGames.length, 0);
+
+  return {
+    toolName: "scan_player_upcoming_games",
+    domain: "sportfolio",
+    summary: `Found ${totalGames} upcoming game${totalGames === 1 ? "" : "s"} for ${results.map((r) => r.name).join(", ")} in the next 7 days.`,
+    replyText: results
+      .map(
+        (r) =>
+          `${r.name} (${r.team}, ${r.position}):\n${r.upcomingGames.length > 0 ? r.upcomingGames.map((g) => `  ${g.isHome ? "vs" : "@"} ${g.opponent} - ${new Date(g.startTime).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "America/New_York" })} ${new Date(g.startTime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/New_York" })} ET (${g.status})`).join("\n") : "  No games scheduled in the next 7 days."}`,
+      )
+      .join("\n\n"),
+    observations: [
+      `${targetPlayers.length} player${targetPlayers.length === 1 ? "" : "s"} matched.`,
+      `${totalGames} total upcoming games in the next 7 days.`,
+    ],
+    warnings: totalGames === 0 ? ["No upcoming games found for these players."] : [],
+    context: { players: results },
+  };
+}
+
+async function buildExternalSourceScan(input: {
+  userId: string;
+  args?: Record<string, unknown>;
+}): Promise<HermesScanResult> {
+  const sourceName = toStringValue(input.args?.sourceName) || undefined;
+  const toolName = toStringValue(input.args?.toolName) || toStringValue(input.args?.message) || "";
+
+  if (!toolName) {
+    return {
+      toolName: "query_external_source",
+      domain: "external",
+      summary: "No tool name specified for external source query.",
+      replyText: "Please specify which tool to call on the external source (e.g., toolName: 'get_projections').",
+      observations: [],
+      warnings: ["Missing toolName parameter."],
+      context: {},
+    };
+  }
+
+  const toolArgs: Record<string, unknown> = {};
+  if (input.args) {
+    for (const [key, value] of Object.entries(input.args)) {
+      if (key !== "sourceName" && key !== "toolName" && key !== "message") {
+        toolArgs[key] = value;
+      }
+    }
+  }
+
+  try {
+    const { results, errors } = await queryExternalSource({
+      userId: input.userId,
+      sourceName,
+      toolName,
+      args: toolArgs,
+    });
+
+    const observations: string[] = [];
+    const warnings: string[] = [...errors];
+
+    if (results.length === 0 && errors.length > 0) {
+      return {
+        toolName: "query_external_source",
+        domain: "external",
+        summary: `External source query failed: ${errors.join("; ")}`,
+        replyText: errors.join("\n"),
+        observations,
+        warnings,
+        context: {},
+      };
+    }
+
+    for (const result of results) {
+      observations.push(
+        `${result.sourceName}/${result.toolName}: ${result.isError ? "error" : "success"}`,
+      );
+    }
+
+    const contentParts = results.map((r) => {
+      const text = Array.isArray(r.content)
+        ? r.content
+            .filter((c: any) => c?.type === "text")
+            .map((c: any) => c.text)
+            .join("\n")
+        : JSON.stringify(r.content);
+      return `[${r.sourceName}] ${text}`;
+    });
+
+    return {
+      toolName: "query_external_source",
+      domain: "external",
+      summary: `Queried ${results.length} external source${results.length === 1 ? "" : "s"} for "${toolName}".`,
+      replyText: contentParts.join("\n\n") || "No data returned.",
+      observations,
+      warnings,
+      context: { results: results.map((r) => ({ source: r.sourceName, tool: r.toolName, content: r.content })) },
+    };
+  } catch (err: any) {
+    return {
+      toolName: "query_external_source",
+      domain: "external",
+      summary: `External source query error: ${err.message}`,
+      replyText: `Failed to query external source: ${err.message}`,
+      observations: [],
+      warnings: [err.message],
+      context: {},
+    };
+  }
+}
+
 export async function runHermesScanTool(input: {
   toolName: string;
   userId: string;
@@ -1986,6 +2409,12 @@ export async function runHermesScanTool(input: {
       return buildCommunityBoostCandidateScan(input);
     case "scan_news_impact":
       return buildNewsImpactScan(input);
+    case "scan_sport_slate":
+      return buildSportSlateScan(input);
+    case "scan_player_upcoming_games":
+      return buildPlayerUpcomingGamesScan(input);
+    case "query_external_source":
+      return buildExternalSourceScan(input);
     default:
       throw new Error(`Unsupported Hermes scan tool: ${input.toolName}`);
   }

@@ -66,6 +66,10 @@ const loadWikiArticlePage = () => import("@/pages/wiki-article");
 const loadSmsLinkPage = () => import("@/pages/sms-link");
 const loadAnalyticsPage = () => import("@/pages/analytics");
 const loadAgentPage = () => import("@/pages/agent");
+const loadAgentPublicPreview = () =>
+  import("@/features/agent/components/agent-public-preview").then((m) => ({
+    default: m.AgentPublicPreview,
+  }));
 const loadNewsPage = () => import("@/pages/news");
 const loadPremiumPage = () => import("@/pages/premium");
 const loadWatchlistsPage = () => import("@/pages/watchlists");
@@ -94,6 +98,7 @@ const WikiArticle = lazy(loadWikiArticlePage);
 const SmsLink = lazy(loadSmsLinkPage);
 const Analytics = lazy(loadAnalyticsPage);
 const Agent = lazy(loadAgentPage);
+const AgentPreview = lazy(loadAgentPublicPreview);
 const News = lazy(loadNewsPage);
 const Premium = lazy(loadPremiumPage);
 const Watchlists = lazy(loadWatchlistsPage);
@@ -514,7 +519,7 @@ function Router() {
             <Route path="/sms/link" component={SmsLink} />
             <Route path="/analytics" component={Analytics} />
             <Route path="/news" component={News} />
-            <Route path="/agent">{canAccessProtectedRoutes ? <Agent /> : <Dashboard />}</Route>
+            <Route path="/agent">{canAccessProtectedRoutes ? <Agent /> : <AgentPreview />}</Route>
 
             {/* Boosts - requires authentication */}
             <Route path="/power">{canAccessProtectedRoutes ? <Boosts /> : <Dashboard />}</Route>
@@ -766,7 +771,7 @@ function AppContent() {
   return (
     <SidebarProvider style={style as React.CSSProperties}>
       {isAgentRoute ? (
-        <div className="flex h-[100dvh] w-full min-h-0 flex-col overflow-hidden overscroll-none bg-[#0b1020] pb-16 sm:pb-0">
+        <div className="flex h-[100dvh] w-full min-h-0 flex-col overflow-hidden overscroll-none bg-[#0a0e1a] pb-16 sm:pb-0">
           <main className="flex min-h-0 flex-1 flex-col overflow-hidden overscroll-none">
             <Router />
           </main>
