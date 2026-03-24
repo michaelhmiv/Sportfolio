@@ -1391,7 +1391,7 @@ export const userAgentProfiles = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     enabled: boolean("enabled").notNull().default(true),
-    displayName: text("display_name").notNull().default("My Scout Agent"),
+    displayName: text("display_name").notNull().default("My Portfolio Operator"),
     providerMode: text("provider_mode").notNull().default("managed"), // "managed" | "byok"
     providerType: text("provider_type").notNull().default("openai_compatible"),
     runtime: text("runtime").notNull().default("hermes"), // "pi" | "hermes"
@@ -1400,12 +1400,12 @@ export const userAgentProfiles = pgTable(
     systemPrompt: text("system_prompt")
       .notNull()
       .default(
-        "Operate like a sharp Sportfolio scout strategist. Stay grounded in the provided Sportfolio context, focus on scouting only, surface the strongest opportunity and risk tradeoffs clearly, and never invent players, schedules, or actions outside scout_set_count.",
+        "You are Hermes, the Sportfolio portfolio operator. Stay grounded in the provided Sportfolio gameplay context, treat the approved tool surface as the source of truth, reason across portfolio, market, boosts, scouts, watchlists, and related gameplay systems, and never imply access to code, arbitrary database data, files, or admin-only systems. When a requested move changes gameplay state, follow the active execution policy and confirmation boundary instead of bypassing it.",
       ),
     userPromptTemplate: text("user_prompt_template")
       .notNull()
       .default(
-        "Act like my scout GM. Give me clear, curated reads on my current scout setup, call out concentration risk and missed opportunities, and when I ask for a move, translate that into the highest-leverage scout reallocation you can support with the current Sportfolio context.",
+        "Act like my Sportfolio portfolio operator. Review my live gameplay setup, explain the highest-signal risk and opportunity tradeoffs clearly, and when I ask for a plan, translate that into the safest high-leverage sequence the available Hermes tools can support.",
       ),
     temperature: decimal("temperature", { precision: 3, scale: 2 }).notNull().default("0.20"),
     maxTokens: integer("max_tokens").notNull().default(1200),
@@ -1458,10 +1458,13 @@ export const userAgentThreads = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     channel: text("channel").notNull().default("in_app"), // "in_app" | "sms"
-    domain: text("domain").notNull().default("scouting"),
+    domain: text("domain").notNull().default("sportfolio"),
     status: text("status").notNull().default("active"), // "active" | "archived"
     title: text("title"),
     externalThreadKey: text("external_thread_key"),
+    metadata: jsonb("metadata")
+      .notNull()
+      .default(sql`'{}'::jsonb`),
     lastMessageAt: timestamp("last_message_at"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -1733,6 +1736,12 @@ export const agentRuntimeSessions = pgTable(
     userId: varchar("user_id").references(() => users.id, { onDelete: "set null" }),
     threadId: varchar("thread_id").references(() => userAgentThreads.id, { onDelete: "set null" }),
     runtime: text("runtime").notNull(),
+    transport: text("transport"),
+    endpoint: text("endpoint"),
+    executionKind: text("execution_kind"),
+    triggerSource: text("trigger_source"),
+    strategyId: varchar("strategy_id"),
+    correlationId: text("correlation_id"),
     status: text("status").notNull(),
     requestPayload: jsonb("request_payload"),
     responsePayload: jsonb("response_payload"),
@@ -1751,6 +1760,14 @@ export const agentRuntimeSessions = pgTable(
     ),
     runtimeCreatedIdx: index("agent_runtime_sessions_runtime_created_idx").on(
       table.runtime,
+      table.createdAt,
+    ),
+    transportCreatedIdx: index("agent_runtime_sessions_transport_created_idx").on(
+      table.transport,
+      table.createdAt,
+    ),
+    strategyCreatedIdx: index("agent_runtime_sessions_strategy_created_idx").on(
+      table.strategyId,
       table.createdAt,
     ),
   }),
@@ -1785,6 +1802,156 @@ export const userAgentSchedules = pgTable(
     userUpdatedIdx: index("user_agent_schedules_user_updated_idx").on(
       table.userId,
       table.updatedAt,
+    ),
+  }),
+);
+
+export const userAgentStrategies = pgTable(
+  "user_agent_strategies",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    sourceThreadId: varchar("source_thread_id").references(() => userAgentThreads.id, {
+      onDelete: "set null",
+    }),
+    name: text("name").notNull(),
+    summary: text("summary").notNull(),
+    mandateText: text("mandate_text").notNull(),
+    normalizedRuleSheet: jsonb("normalized_rule_sheet")
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    status: text("status").notNull().default("draft"),
+    scheduleCron: text("schedule_cron"),
+    eventSubscriptions: jsonb("event_subscriptions")
+      .notNull()
+      .default(sql`'["schedule"]'::jsonb`),
+    allowedActionTypes: jsonb("allowed_action_types")
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    guardrails: jsonb("guardrails")
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    linkedSkillId: varchar("linked_skill_id"),
+    lastOutcomeSummary: text("last_outcome_summary"),
+    lastRunAt: timestamp("last_run_at"),
+    nextRunAt: timestamp("next_run_at"),
+    activatedAt: timestamp("activated_at"),
+    pausedAt: timestamp("paused_at"),
+    archivedAt: timestamp("archived_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    userStatusUpdatedIdx: index("user_agent_strategies_user_status_updated_idx").on(
+      table.userId,
+      table.status,
+      table.updatedAt,
+    ),
+    userArchivedIdx: index("user_agent_strategies_user_archived_idx").on(
+      table.userId,
+      table.archivedAt,
+    ),
+    threadIdx: index("user_agent_strategies_thread_idx").on(table.sourceThreadId),
+  }),
+);
+
+export const userAgentStrategyRuns = pgTable(
+  "user_agent_strategy_runs",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    strategyId: varchar("strategy_id")
+      .notNull()
+      .references(() => userAgentStrategies.id, { onDelete: "cascade" }),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    threadId: varchar("thread_id").references(() => userAgentThreads.id, { onDelete: "set null" }),
+    hermesRunId: varchar("hermes_run_id").references(() => userAgentRuns.id, {
+      onDelete: "set null",
+    }),
+    runtimeSessionId: varchar("runtime_session_id").references(() => agentRuntimeSessions.id, {
+      onDelete: "set null",
+    }),
+    runtimeTransport: text("runtime_transport"),
+    runtimeEndpoint: text("runtime_endpoint"),
+    runtimeCorrelationId: text("runtime_correlation_id"),
+    triggerSource: text("trigger_source").notNull().default("manual"),
+    status: text("status").notNull().default("pending"),
+    outcomeSummary: text("outcome_summary"),
+    toolTrace: jsonb("tool_trace")
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    appliedActions: jsonb("applied_actions")
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    adaptationNotes: text("adaptation_notes"),
+    failureReason: text("failure_reason"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    completedAt: timestamp("completed_at"),
+  },
+  (table) => ({
+    strategyCreatedIdx: index("user_agent_strategy_runs_strategy_created_idx").on(
+      table.strategyId,
+      table.createdAt,
+    ),
+    userCreatedIdx: index("user_agent_strategy_runs_user_created_idx").on(
+      table.userId,
+      table.createdAt,
+    ),
+    statusCreatedIdx: index("user_agent_strategy_runs_status_created_idx").on(
+      table.status,
+      table.createdAt,
+    ),
+  }),
+);
+
+export const userAgentStrategyEvents = pgTable(
+  "user_agent_strategy_events",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    strategyId: varchar("strategy_id")
+      .notNull()
+      .references(() => userAgentStrategies.id, { onDelete: "cascade" }),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    strategyRunId: varchar("strategy_run_id").references(() => userAgentStrategyRuns.id, {
+      onDelete: "set null",
+    }),
+    eventType: text("event_type").notNull(),
+    status: text("status").notNull().default("info"),
+    title: text("title").notNull(),
+    summary: text("summary"),
+    eventKey: text("event_key"),
+    metadata: jsonb("metadata")
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    strategyCreatedIdx: index("user_agent_strategy_events_strategy_created_idx").on(
+      table.strategyId,
+      table.createdAt,
+    ),
+    userCreatedIdx: index("user_agent_strategy_events_user_created_idx").on(
+      table.userId,
+      table.createdAt,
+    ),
+    typeCreatedIdx: index("user_agent_strategy_events_type_created_idx").on(
+      table.eventType,
+      table.createdAt,
+    ),
+    strategyEventKeyIdx: index("user_agent_strategy_events_strategy_event_key_idx").on(
+      table.strategyId,
+      table.eventKey,
     ),
   }),
 );
@@ -2133,6 +2300,8 @@ export const usersRelations = relations(users, ({ many }) => ({
   agentSecrets: many(userAgentSecrets),
   agentThreads: many(userAgentThreads),
   agentRuns: many(userAgentRuns),
+  agentStrategies: many(userAgentStrategies),
+  agentStrategyRuns: many(userAgentStrategyRuns),
   agentProposals: many(userAgentProposals),
   agentActionBundles: many(userAgentActionBundles),
   agentMessages: many(userAgentMessages),
@@ -2293,6 +2462,8 @@ export const userAgentThreadsRelations = relations(userAgentThreads, ({ one, man
     references: [users.id],
   }),
   runs: many(userAgentRuns),
+  strategies: many(userAgentStrategies),
+  strategyRuns: many(userAgentStrategyRuns),
   actionBundles: many(userAgentActionBundles),
   messages: many(userAgentMessages),
 }));
@@ -2306,9 +2477,62 @@ export const userAgentRunsRelations = relations(userAgentRuns, ({ one, many }) =
     fields: [userAgentRuns.threadId],
     references: [userAgentThreads.id],
   }),
+  strategyRuns: many(userAgentStrategyRuns),
   proposals: many(userAgentProposals),
   actionBundles: many(userAgentActionBundles),
   messages: many(userAgentMessages),
+}));
+
+export const userAgentStrategiesRelations = relations(userAgentStrategies, ({ one, many }) => ({
+  user: one(users, {
+    fields: [userAgentStrategies.userId],
+    references: [users.id],
+  }),
+  sourceThread: one(userAgentThreads, {
+    fields: [userAgentStrategies.sourceThreadId],
+    references: [userAgentThreads.id],
+  }),
+  runs: many(userAgentStrategyRuns),
+  events: many(userAgentStrategyEvents),
+}));
+
+export const userAgentStrategyRunsRelations = relations(userAgentStrategyRuns, ({ one, many }) => ({
+  strategy: one(userAgentStrategies, {
+    fields: [userAgentStrategyRuns.strategyId],
+    references: [userAgentStrategies.id],
+  }),
+  user: one(users, {
+    fields: [userAgentStrategyRuns.userId],
+    references: [users.id],
+  }),
+  thread: one(userAgentThreads, {
+    fields: [userAgentStrategyRuns.threadId],
+    references: [userAgentThreads.id],
+  }),
+  hermesRun: one(userAgentRuns, {
+    fields: [userAgentStrategyRuns.hermesRunId],
+    references: [userAgentRuns.id],
+  }),
+  runtimeSession: one(agentRuntimeSessions, {
+    fields: [userAgentStrategyRuns.runtimeSessionId],
+    references: [agentRuntimeSessions.id],
+  }),
+  events: many(userAgentStrategyEvents),
+}));
+
+export const userAgentStrategyEventsRelations = relations(userAgentStrategyEvents, ({ one }) => ({
+  strategy: one(userAgentStrategies, {
+    fields: [userAgentStrategyEvents.strategyId],
+    references: [userAgentStrategies.id],
+  }),
+  user: one(users, {
+    fields: [userAgentStrategyEvents.userId],
+    references: [users.id],
+  }),
+  strategyRun: one(userAgentStrategyRuns, {
+    fields: [userAgentStrategyEvents.strategyRunId],
+    references: [userAgentStrategyRuns.id],
+  }),
 }));
 
 export const userAgentProposalsRelations = relations(userAgentProposals, ({ one }) => ({
@@ -2800,6 +3024,28 @@ export const insertUserAgentScheduleSchema = createInsertSchema(userAgentSchedul
   updatedAt: true,
 });
 
+export const insertUserAgentStrategySchema = createInsertSchema(userAgentStrategies).omit({
+  id: true,
+  lastRunAt: true,
+  nextRunAt: true,
+  activatedAt: true,
+  pausedAt: true,
+  archivedAt: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertUserAgentStrategyRunSchema = createInsertSchema(userAgentStrategyRuns).omit({
+  id: true,
+  createdAt: true,
+  completedAt: true,
+});
+
+export const insertUserAgentStrategyEventSchema = createInsertSchema(userAgentStrategyEvents).omit({
+  id: true,
+  createdAt: true,
+});
+
 export const insertAgentSkillSchema = createInsertSchema(agentSkills).omit({
   id: true,
   createdAt: true,
@@ -2887,6 +3133,15 @@ export type InsertAgentRuntimeSession = z.infer<typeof insertAgentRuntimeSession
 
 export type UserAgentSchedule = typeof userAgentSchedules.$inferSelect;
 export type InsertUserAgentSchedule = z.infer<typeof insertUserAgentScheduleSchema>;
+
+export type UserAgentStrategy = typeof userAgentStrategies.$inferSelect;
+export type InsertUserAgentStrategy = z.infer<typeof insertUserAgentStrategySchema>;
+
+export type UserAgentStrategyRun = typeof userAgentStrategyRuns.$inferSelect;
+export type InsertUserAgentStrategyRun = z.infer<typeof insertUserAgentStrategyRunSchema>;
+
+export type UserAgentStrategyEvent = typeof userAgentStrategyEvents.$inferSelect;
+export type InsertUserAgentStrategyEvent = z.infer<typeof insertUserAgentStrategyEventSchema>;
 
 export type AgentSkill = typeof agentSkills.$inferSelect;
 export type InsertAgentSkill = z.infer<typeof insertAgentSkillSchema>;

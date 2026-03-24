@@ -14,15 +14,26 @@ import { and, desc, eq, gte, lt, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db";
 import { encryptText, getEncryptionVersion } from "../lib/encryption";
+import { buildHermesConversationPrompts } from "./conversation-prompts";
+import { buildAgentContinuityState } from "./continuity-state";
 import { loadScoutAgentContext } from "./context-loader";
 import { executeScoutProposalActions } from "./executor";
-import { runHermesAgentTurn } from "./hermes-client";
+import { runHermesRuntimeTurn } from "./runtime-engine";
 import { buildAgentImprovementCandidate } from "./improvement";
 import { buildHermesMemoryContext, persistProposedMemoryWrites } from "./memory";
 import { normalizeOpenAICompatibleBaseUrl } from "./pi-provider";
+import {
+  DEFAULT_PORTFOLIO_AGENT_DISPLAY_NAME,
+  DEFAULT_PORTFOLIO_AGENT_SYSTEM_PROMPT,
+  DEFAULT_PORTFOLIO_AGENT_USER_PROMPT_TEMPLATE,
+  LEGACY_SCOUT_AGENT_DISPLAY_NAME,
+  LEGACY_SCOUT_AGENT_SYSTEM_PROMPT,
+  LEGACY_SCOUT_AGENT_USER_PROMPT_TEMPLATE,
+} from "./profile-defaults";
 import { getManagedProviderStatus } from "./provider-registry";
 import { isHostedWebResearchAvailable } from "./research";
 import { getActiveManagedProviderSelection } from "./system-settings";
+import { materializeAgentUiBlocks } from "./ui-blocks";
 import { MANAGED_MODEL_PLACEHOLDER } from "./types";
 import type {
   AgentAnalysisResult,
@@ -37,7 +48,7 @@ import type {
   ScoutProposalAction,
 } from "./types";
 
-const analyzeScoutAgentInputSchema = z
+export const analyzeScoutAgentInputSchema = z
   .object({
     message: z.string().trim().min(1).max(2000).optional(),
     threadId: z.string().trim().min(1).max(120).optional(),
@@ -54,6 +65,64 @@ const analyzeScoutAgentInputSchema = z
       )
       .max(12)
       .optional(),
+    conversationMode: z
+      .enum(["general_chat", "strategy_builder", "strategy_refinement", "strategy_review"])
+      .optional(),
+    strategyContext: z
+      .object({
+        strategyId: z.string().trim().min(1).max(120),
+        sourceThreadId: z.string().trim().min(1).max(120).nullable(),
+        status: z.enum(["draft", "live", "paused", "blocked", "archived"]).nullable(),
+        mandate: z.string().trim().min(1).max(4000),
+        normalizedRuleSheet: z.record(z.unknown()),
+        guardrails: z.record(z.unknown()),
+        reviewState: z
+          .object({
+            status: z.enum(["pending", "approved"]),
+            reviewedAt: z.string().trim().min(1).nullable(),
+            lastMaterialUpdateAt: z.string().trim().min(1).nullable(),
+            summary: z.string().trim().min(1).max(4000).nullable(),
+          })
+          .nullable()
+          .optional(),
+      })
+      .nullable()
+      .optional(),
+    triggerContext: z
+      .object({
+        source: z.enum([
+          "manual",
+          "manual_retry",
+          "schedule",
+          "strategy_schedule",
+          "strategy_event",
+          "bot_cycle",
+          "system",
+        ]),
+        label: z.string().trim().min(1).max(120).nullable().optional(),
+        jobType: z
+          .enum([
+            "daily_setup_review",
+            "pre_lock_nudge",
+            "injury_watch",
+            "idle_balance_nudge",
+            "boost_window",
+          ])
+          .nullable()
+          .optional(),
+        eventType: z.string().trim().min(1).max(120).nullable().optional(),
+        requestedAt: z.string().trim().min(1),
+      })
+      .nullable()
+      .optional(),
+    executionContext: z
+      .object({
+        kind: z.enum(["manual_thread", "scheduled_advisory", "strategy_run", "bot_runtime"]),
+        allowAutoExecution: z.boolean(),
+        requiresExplicitConfirmation: z.boolean(),
+      })
+      .nullable()
+      .optional(),
   })
   .strict();
 
@@ -63,7 +132,6 @@ const SUPPORTED_AGENT_DOMAINS: AgentCapabilitiesView["domains"] = [
   "scouting",
   "player_pools",
   "daily_boosts",
-  "community_boosts",
   "watchlists",
   "sportfolio",
 ];
@@ -81,7 +149,6 @@ const SUPPORTED_AGENT_ACTION_TYPES: AgentCapabilitiesView["actionTypes"] = [
   "daily_boost_remove",
   "watchlist_add_player",
   "watchlist_remove_player",
-  "community_boost_create",
 ];
 
 type AgentRunOutcomeCategory =
@@ -98,6 +165,24 @@ function toSecretMetadata(secret?: UserAgentSecret): AgentSecretMetadata {
     keyLast4: secret?.keyLast4 || null,
     updatedAt: secret?.updatedAt || null,
   };
+}
+
+function normalizeLegacyPortfolioDefaults(profile: UserAgentProfile) {
+  const updates: Partial<typeof userAgentProfiles.$inferInsert> = {};
+
+  if (profile.displayName === LEGACY_SCOUT_AGENT_DISPLAY_NAME) {
+    updates.displayName = DEFAULT_PORTFOLIO_AGENT_DISPLAY_NAME;
+  }
+
+  if (profile.systemPrompt === LEGACY_SCOUT_AGENT_SYSTEM_PROMPT) {
+    updates.systemPrompt = DEFAULT_PORTFOLIO_AGENT_SYSTEM_PROMPT;
+  }
+
+  if (profile.userPromptTemplate === LEGACY_SCOUT_AGENT_USER_PROMPT_TEMPLATE) {
+    updates.userPromptTemplate = DEFAULT_PORTFOLIO_AGENT_USER_PROMPT_TEMPLATE;
+  }
+
+  return updates;
 }
 
 async function getActiveManagedProviderStatus(): Promise<ManagedProviderStatus> {
@@ -344,45 +429,35 @@ async function ensureProfile(
     throw new Error("Failed to initialize agent profile");
   }
 
+  const updates: Partial<typeof userAgentProfiles.$inferInsert> = {
+    ...normalizeLegacyPortfolioDefaults(profile),
+  };
+
   if (
     profile.providerMode === "managed" &&
     managedProvider.defaultModel &&
     profile.model !== managedProvider.defaultModel
   ) {
-    const migratedModel = managedProvider.defaultModel || MANAGED_MODEL_PLACEHOLDER;
-    const nextUpdatedAt = new Date();
-
-    await db
-      .update(userAgentProfiles)
-      .set({
-        runtime: "hermes",
-        model: migratedModel,
-        updatedAt: nextUpdatedAt,
-      })
-      .where(eq(userAgentProfiles.id, profile.id));
-
-    return {
-      ...profile,
-      runtime: "hermes",
-      model: migratedModel,
-      updatedAt: nextUpdatedAt,
-    };
+    updates.model = managedProvider.defaultModel || MANAGED_MODEL_PLACEHOLDER;
   }
 
   if ((profile.runtime || "pi") !== "hermes") {
-    const nextUpdatedAt = new Date();
+    updates.runtime = "hermes";
+  }
 
+  if (Object.keys(updates).length > 0) {
+    const nextUpdatedAt = new Date();
     await db
       .update(userAgentProfiles)
       .set({
-        runtime: "hermes",
+        ...updates,
         updatedAt: nextUpdatedAt,
       })
       .where(eq(userAgentProfiles.id, profile.id));
 
     return {
       ...profile,
-      runtime: "hermes",
+      ...updates,
       updatedAt: nextUpdatedAt,
     };
   }
@@ -496,6 +571,8 @@ export async function getScoutAgentProfile(userId: string): Promise<AgentProfile
   };
 }
 
+export const getPortfolioAgentProfile = getScoutAgentProfile;
+
 export async function getScoutAgentRuntimeProfile(userId: string): Promise<{
   profile: UserAgentProfile;
   secret?: UserAgentSecret;
@@ -513,6 +590,8 @@ export async function getScoutAgentRuntimeProfile(userId: string): Promise<{
     managedProvider,
   };
 }
+
+export const getPortfolioAgentRuntimeProfile = getScoutAgentRuntimeProfile;
 
 export async function getAgentCapabilities(userId: string): Promise<AgentCapabilitiesView> {
   const profileView = await getScoutAgentProfile(userId);
@@ -573,6 +652,8 @@ export async function updateScoutAgentProfile(
   return getScoutAgentProfile(userId);
 }
 
+export const updatePortfolioAgentProfile = updateScoutAgentProfile;
+
 export async function saveScoutAgentByok(
   userId: string,
   input: unknown,
@@ -622,6 +703,8 @@ export async function saveScoutAgentByok(
   return getScoutAgentProfile(userId);
 }
 
+export const savePortfolioAgentByok = saveScoutAgentByok;
+
 export async function clearScoutAgentByok(userId: string): Promise<AgentProfileView> {
   const managedProvider = await getActiveManagedProviderStatus();
   await ensureProfile(userId, managedProvider);
@@ -639,6 +722,8 @@ export async function clearScoutAgentByok(userId: string): Promise<AgentProfileV
 
   return getScoutAgentProfile(userId);
 }
+
+export const clearPortfolioAgentByok = clearScoutAgentByok;
 
 export async function analyzeScoutAgent(
   userId: string,
@@ -692,17 +777,44 @@ export async function analyzeScoutAgent(
     profile.providerMode === "managed"
       ? managedProvider.defaultModel || profile.model
       : profile.model;
+  const effectiveConversationMode = data.conversationMode || "general_chat";
+  const effectiveTriggerContext = data.triggerContext || {
+    source: "manual" as const,
+    requestedAt: new Date().toISOString(),
+  };
+  const effectiveExecutionContext = data.executionContext || {
+    kind: "manual_thread" as const,
+    allowAutoExecution: false,
+    requiresExplicitConfirmation: true,
+  };
+  const canAutoExecute = Boolean(effectiveExecutionContext.allowAutoExecution);
 
   const context = await loadScoutAgentContext(userId, profile, {
     chatRequest: requestMessage,
   });
+  const continuityState = await buildAgentContinuityState({
+    userId,
+    threadId: data.threadId || null,
+    strategyId: data.strategyContext?.strategyId || null,
+  });
+  const effectivePrompts = buildHermesConversationPrompts({
+    baseSystemPrompt: profile.systemPrompt,
+    baseUserPromptTemplate: profile.userPromptTemplate,
+    conversationMode: effectiveConversationMode,
+    strategyContext: data.strategyContext || null,
+  });
+  const effectiveProfile = {
+    ...profile,
+    systemPrompt: effectivePrompts.systemPrompt,
+    userPromptTemplate: effectivePrompts.userPromptTemplate,
+  };
 
   const [run] = await db
     .insert(userAgentRuns)
     .values({
       userId,
       threadId: data.threadId || null,
-      triggerSource: "manual",
+      triggerSource: effectiveTriggerContext.source,
       status: "pending",
       providerMode: profile.providerMode,
       model: executionModel,
@@ -712,29 +824,34 @@ export async function analyzeScoutAgent(
         requestedMode: data.mode || null,
         requestMessage,
         semanticRouteHint,
+        conversationMode: effectiveConversationMode,
+        triggerContext: effectiveTriggerContext,
+        executionContext: effectiveExecutionContext,
+        strategyContext: data.strategyContext || null,
+        continuityState,
         conversationHistory: data.conversationHistory || [],
-        operatorPlaybook: profile.systemPrompt,
-        strategyTemplate: profile.userPromptTemplate,
+        operatorPlaybook: effectiveProfile.systemPrompt,
+        strategyTemplate: effectiveProfile.userPromptTemplate,
       },
     })
     .returning();
 
   try {
-    const hermesResult = await runHermesAgentTurn({
+    const hermesResult = await runHermesRuntimeTurn({
       userId,
       threadId: data.threadId || null,
       channel: "in_app",
       message: requestMessage || "",
       requestMode:
         data.mode === "commit" ? "plan" : data.mode === "discussion" ? "discussion" : "auto",
-      profile,
+      profile: effectiveProfile,
       secret,
       context,
       capabilities: {
         domains: SUPPORTED_AGENT_DOMAINS,
         actionTypes: SUPPORTED_AGENT_ACTION_TYPES,
         canAnalyze: true,
-        canAutoExecute: false,
+        canAutoExecute,
         canUseWebResearch: isHostedWebResearchAvailable(),
         runtime: "hermes",
         hasDurableMemory: true,
@@ -744,8 +861,26 @@ export async function analyzeScoutAgent(
         userId,
         query: requestMessage || "",
       }),
+      continuityState,
+      autoExecutionPolicy: {
+        allowAdvisoryJobs: true,
+        allowRiskyActions: canAutoExecute,
+      },
+      confirmationPolicy: {
+        requireExplicitConfirmation: effectiveExecutionContext.requiresExplicitConfirmation,
+        preferredChannel: "in_app",
+      },
       conversationHistory: data.conversationHistory || [],
       semanticRouteHint,
+      conversationMode: effectiveConversationMode,
+      strategyContext: data.strategyContext || null,
+      triggerContext: effectiveTriggerContext,
+      executionContext: effectiveExecutionContext,
+    });
+    const uiBlocks = materializeAgentUiBlocks({
+      result: hermesResult,
+      conversationMode: effectiveConversationMode,
+      strategyContext: data.strategyContext || null,
     });
     const normalizedStatus = hermesResult.outcome === "error" ? "failed" : "completed";
     const outcomeCategory = classifyAgentRunOutcome({
@@ -808,9 +943,14 @@ export async function analyzeScoutAgent(
           requestedMode: data.mode || null,
           requestMessage,
           semanticRouteHint,
+          conversationMode: effectiveConversationMode,
+          triggerContext: effectiveTriggerContext,
+          executionContext: effectiveExecutionContext,
+          strategyContext: data.strategyContext || null,
+          continuityState,
           conversationHistory: data.conversationHistory || [],
-          operatorPlaybook: profile.systemPrompt,
-          strategyTemplate: profile.userPromptTemplate,
+          operatorPlaybook: effectiveProfile.systemPrompt,
+          strategyTemplate: effectiveProfile.userPromptTemplate,
         },
         status: normalizedStatus,
         rawResponse: {
@@ -846,6 +986,8 @@ export async function analyzeScoutAgent(
             memoryInfluences: hermesResult.memoryInfluences || [],
             requiresConfirmation: hermesResult.requiresConfirmation,
             confirmationPreview: hermesResult.confirmationPreview,
+            uiBlocks,
+            runtimeMetadata: hermesResult.runtimeMetadata || null,
             outcomeCategory,
             failureClass: improvementCandidateRecord?.failureClass || null,
             improvementCandidateId: improvementCandidateRecord?.id || null,
@@ -873,6 +1015,10 @@ export async function analyzeScoutAgent(
       toolTrace: hermesResult.toolTrace,
       skillsUsed: hermesResult.skillsUsed,
       createdSkillCandidates: hermesResult.createdSkillCandidates,
+      memoryInfluences: hermesResult.memoryInfluences || [],
+      confirmationPreview: hermesResult.confirmationPreview,
+      uiBlocks,
+      runtimeMetadata: hermesResult.runtimeMetadata || null,
       errorMessage: hermesResult.outcome === "error" ? hermesResult.assistantText : null,
     };
   } catch (error: any) {
@@ -911,7 +1057,7 @@ export async function analyzeScoutAgent(
     return {
       runId: run.id,
       status: "failed",
-      domain: "scouting",
+      domain: "sportfolio",
       requestMessage,
       replyText: null,
       summary: null,
@@ -924,6 +1070,8 @@ export async function analyzeScoutAgent(
     };
   }
 }
+
+export const analyzePortfolioAgent = analyzeScoutAgent;
 
 export async function approveScoutAgentRun(userId: string, runId: string): Promise<void> {
   const run = await getRunById(userId, runId);
@@ -991,6 +1139,8 @@ export async function approveScoutAgentRun(userId: string, runId: string): Promi
   }
 }
 
+export const approvePortfolioAgentRun = approveScoutAgentRun;
+
 export async function rejectScoutAgentRun(userId: string, runId: string): Promise<void> {
   const run = await getRunById(userId, runId);
   if (!run) {
@@ -1026,6 +1176,8 @@ export async function rejectScoutAgentRun(userId: string, runId: string): Promis
     })
     .where(eq(userAgentRuns.id, runId));
 }
+
+export const rejectPortfolioAgentRun = rejectScoutAgentRun;
 
 export async function markAgentRunRejected(userId: string, runId: string): Promise<void> {
   const run = await getRunById(userId, runId);

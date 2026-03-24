@@ -38,6 +38,20 @@ A thread exists so the system can keep:
 
 That is why the agent can handle follow-up questions more cleanly than a stateless one-shot command.
 
+## Continuity brief
+
+Hermes also receives a server-owned continuity brief on each run.
+
+This brief is meant to stop the "fresh start" problem. It summarizes:
+
+- recent actions Hermes already applied
+- pending staged work that still needs confirmation or clarification
+- active strategies and their next scheduled evaluations
+- recent evidence updates attached to the thread
+- saved schedules or blocked loops that still matter
+
+The important design choice is that this is not freeform model memory. It is a product-owned runtime summary assembled from real Sportfolio state.
+
 ## Per-user memory
 
 The agent stores durable memory per user to improve continuity over time.
@@ -115,8 +129,24 @@ The design goal is advisory continuity:
 
 - scheduled runs can generate guidance
 - scheduled runs do not auto-confirm risky portfolio actions
+- scheduled runs use the same continuity brief as manual chat, so Hermes can reason from what already happened instead of starting over
 
 The product keeps a strict line between "remind me what matters" and "move my money for me."
+
+## Live strategies
+
+Strategies are a separate saved-mandate layer on top of Hermes.
+
+In practical terms:
+
+- a strategy stores the user's mandate, rule sheet, and guardrails
+- Hermes still decides what to do on each run
+- the server still enforces the allowed action envelope
+- each strategy run sees prior applied actions, pending work, and fresh evidence through the continuity brief
+- Hermes never handles payments, Whop checkout, add-cash flows, or any other external purchase action; those flows stay outside the Hermes tool surface entirely
+- strategy runs are audited with runtime transport metadata so the product can prove whether Hermes ran locally or through the configured sidecar
+
+Today the live auto-execution surface is intentionally narrow and only covers the approved strategy-safe action subset.
 
 ## What good agent usage looks like
 

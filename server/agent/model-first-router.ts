@@ -176,6 +176,7 @@ function estimatePromptChars(input: {
   tools: AgentToolDefinition[];
 }) {
   const operatorChars = JSON.stringify(input.request.canonicalState.operatorOverview || {}).length;
+  const continuityChars = JSON.stringify(input.request.continuityState || {}).length;
   const memoryChars = JSON.stringify(input.request.memoryContext || {}).length;
   const historyChars = (input.request.conversationHistory || []).reduce(
     (total, entry) => total + (entry.contentText?.length || 0),
@@ -192,6 +193,7 @@ function estimatePromptChars(input: {
   return (
     input.request.message.length +
     operatorChars +
+    continuityChars +
     memoryChars +
     historyChars +
     knowledgeChars +
@@ -252,6 +254,55 @@ function summarizeMatchedSkill(skill: AgentSkillDefinition | null) {
   }
 
   return `${skill.name}: ${truncate(skill.description, 220)}`;
+}
+
+function summarizeContinuityState(
+  continuityState: HermesRespondRequest["continuityState"],
+  input: { compressed: boolean; limit: number },
+) {
+  if (!continuityState) {
+    return "None.";
+  }
+
+  const lines = [continuityState.headline, continuityState.summary].filter(Boolean);
+
+  if (continuityState.openLoops.length > 0) {
+    lines.push(
+      `Open loops: ${continuityState.openLoops
+        .slice(0, input.limit)
+        .map((item) => `${item.title} [${item.status}]`)
+        .join(" | ")}`,
+    );
+  }
+
+  if (continuityState.activeStrategies.length > 0) {
+    lines.push(
+      `Active strategies: ${continuityState.activeStrategies
+        .slice(0, input.limit)
+        .map((item) => `${item.name} (${item.status})`)
+        .join(" | ")}`,
+    );
+  }
+
+  if (continuityState.recentActions.length > 0) {
+    lines.push(
+      `Recent actions: ${continuityState.recentActions
+        .slice(0, input.limit)
+        .map((item) => item.title)
+        .join(" | ")}`,
+    );
+  }
+
+  if (continuityState.evidenceUpdates.length > 0) {
+    lines.push(
+      `Fresh evidence: ${continuityState.evidenceUpdates
+        .slice(0, input.limit)
+        .map((item) => item.title)
+        .join(" | ")}`,
+    );
+  }
+
+  return lines.map((line) => truncate(line, input.compressed ? 140 : 220)).join("\n");
 }
 
 function summarizeMemoryContext(
@@ -616,6 +667,12 @@ function buildLoopPrompt(input: {
     "<matched_skill_hint>",
     summarizeMatchedSkill(input.matchedSkill),
     "</matched_skill_hint>",
+    "<operator_continuity>",
+    summarizeContinuityState(input.request.continuityState, {
+      compressed,
+      limit: input.compressionLevel === 2 ? 1 : input.compressionLevel === 1 ? 2 : 3,
+    }),
+    "</operator_continuity>",
     "<operator_overview>",
     safeJson(
       input.request.canonicalState.operatorOverview || {},

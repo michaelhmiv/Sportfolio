@@ -476,7 +476,7 @@ function Router() {
         exit="exit"
         variants={pageTransitionVariants}
         transition={pageTransitionSettings}
-        className="w-full"
+        className={cn("w-full", location.startsWith("/agent") && "h-full min-h-0")}
       >
         <Suspense fallback={<RouteLoadingState />}>
           <Switch>
@@ -742,8 +742,8 @@ function AppContent() {
   return (
     <SidebarProvider style={style as React.CSSProperties}>
       {isAgentRoute ? (
-        <div className="h-[100dvh] w-full overflow-hidden">
-          <main className="h-full min-h-0 overflow-hidden">
+        <div className="flex h-[100dvh] w-full min-h-0 flex-col overflow-hidden overscroll-none bg-[#0b1020] pb-16 sm:pb-0">
+          <main className="flex min-h-0 flex-1 flex-col overflow-hidden overscroll-none">
             <Router />
           </main>
         </div>
@@ -763,7 +763,7 @@ function AppContent() {
           </div>
         </div>
       )}
-      {!isAgentRoute && <BottomNav />}
+      <BottomNav />
       <OnboardingCheck />
       <ScoutDashboardModal />
       <ScoutCeremonyManager />

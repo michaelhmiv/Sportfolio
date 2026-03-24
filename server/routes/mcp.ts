@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import type { Express, Request, Response } from "express";
@@ -14,8 +15,23 @@ const MCP_SERVER_INFO = {
   version: "1.0.0",
 } as const;
 
+type McpSession = {
+  server: McpServer;
+  transport: StreamableHTTPServerTransport;
+  userId: string;
+};
+
 function getUserId(req: Request): string {
   return req.user?.claims?.sub || "";
+}
+
+function getSessionId(req: Request): string | null {
+  const sessionId = req.header("mcp-session-id");
+  return sessionId?.trim() || null;
+}
+
+function isInitializeBody(body: unknown): boolean {
+  return !!body && !Array.isArray(body) && typeof body === "object" && (body as { method?: unknown }).method === "initialize";
 }
 
 function writeJsonRpcError(
@@ -63,6 +79,51 @@ export function registerMcpRoutes(
   app: Express,
   deps: PublicMcpDependencies = createDefaultPublicMcpDependencies(),
 ) {
+  const sessions = new Map<string, McpSession>();
+
+  function getSessionForRequest(req: Request, userId: string): McpSession | null {
+    const sessionId = getSessionId(req);
+    if (!sessionId) {
+      return null;
+    }
+
+    const session = sessions.get(sessionId);
+    if (!session || session.userId !== userId) {
+      return null;
+    }
+
+    return session;
+  }
+
+  async function createSession(userId: string) {
+    const server = await createSportfolioMcpServer(userId, deps);
+    const transport = new StreamableHTTPServerTransport({
+      enableJsonResponse: true,
+      sessionIdGenerator: () => randomUUID(),
+      onsessioninitialized: (sessionId) => {
+        sessions.set(sessionId, {
+          server,
+          transport,
+          userId,
+        });
+      },
+    });
+
+    transport.onclose = () => {
+      const sessionId = transport.sessionId;
+      if (sessionId) {
+        sessions.delete(sessionId);
+      }
+    };
+
+    await server.connect(transport);
+    return {
+      server,
+      transport,
+      userId,
+    } satisfies McpSession;
+  }
+
   app.post("/mcp", requireUserApiToken, async (req: Request, res: Response) => {
     const userId = getUserId(req);
     if (!userId) {
@@ -70,36 +131,82 @@ export function registerMcpRoutes(
       return;
     }
 
-    const transport = new StreamableHTTPServerTransport({
-      sessionIdGenerator: undefined,
-    });
+    const session = getSessionForRequest(req, userId);
+    const existingSessionId = getSessionId(req);
+    if (existingSessionId && !session) {
+      writeJsonRpcError(res, 404, -32001, "Session not found");
+      return;
+    }
 
-    let server: McpServer | null = null;
+    if (!session && !isInitializeBody(req.body)) {
+      writeJsonRpcError(res, 400, -32000, "Bad Request: No valid session ID provided");
+      return;
+    }
 
     try {
-      server = await createSportfolioMcpServer(userId, deps);
-      await server.connect(transport);
-      await transport.handleRequest(req, res, req.body);
+      const activeSession = session ?? (await createSession(userId));
+      await activeSession.transport.handleRequest(req, res, req.body);
     } catch (error) {
       console.error("[MCP] Route error:", error);
       if (!res.headersSent) {
         writeJsonRpcError(res, 500, -32603, "Internal server error");
       }
-    } finally {
-      res.on("close", () => {
-        void transport.close();
-        if (server) {
-          void server.close();
-        }
-      });
     }
   });
 
-  app.get("/mcp", requireUserApiToken, async (_req: Request, res: Response) => {
-    writeMethodNotAllowed(res);
+  app.get("/mcp", requireUserApiToken, async (req: Request, res: Response) => {
+    const userId = getUserId(req);
+    if (!userId) {
+      writeJsonRpcError(res, 401, -32001, "A valid Sportfolio API token is required");
+      return;
+    }
+
+    const session = getSessionForRequest(req, userId);
+    const sessionId = getSessionId(req);
+    if (!sessionId) {
+      writeMethodNotAllowed(res);
+      return;
+    }
+    if (!session) {
+      writeJsonRpcError(res, 404, -32001, "Session not found");
+      return;
+    }
+
+    try {
+      await session.transport.handleRequest(req, res);
+    } catch (error) {
+      console.error("[MCP] Route error:", error);
+      if (!res.headersSent) {
+        writeJsonRpcError(res, 500, -32603, "Internal server error");
+      }
+    }
   });
 
-  app.delete("/mcp", requireUserApiToken, async (_req: Request, res: Response) => {
-    writeMethodNotAllowed(res);
+  app.delete("/mcp", requireUserApiToken, async (req: Request, res: Response) => {
+    const userId = getUserId(req);
+    if (!userId) {
+      writeJsonRpcError(res, 401, -32001, "A valid Sportfolio API token is required");
+      return;
+    }
+
+    const session = getSessionForRequest(req, userId);
+    const sessionId = getSessionId(req);
+    if (!sessionId) {
+      writeMethodNotAllowed(res);
+      return;
+    }
+    if (!session) {
+      writeJsonRpcError(res, 404, -32001, "Session not found");
+      return;
+    }
+
+    try {
+      await session.transport.handleRequest(req, res);
+    } catch (error) {
+      console.error("[MCP] Route error:", error);
+      if (!res.headersSent) {
+        writeJsonRpcError(res, 500, -32603, "Internal server error");
+      }
+    }
   });
 }

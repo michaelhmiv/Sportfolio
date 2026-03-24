@@ -76,6 +76,92 @@ describe("sportfolio MCP server", () => {
     }
   });
 
+  it("supports session-backed streamable HTTP clients", async () => {
+    const server = await startMockMcpHttpServer();
+
+    try {
+      const initializeResponse = await fetch(server.url, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${server.authToken}`,
+          accept: "application/json, text/event-stream",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "initialize",
+          params: {
+            protocolVersion: "2025-03-26",
+            capabilities: {},
+            clientInfo: {
+              name: "streamable-http-session-test",
+              version: "1.0.0",
+            },
+          },
+        }),
+      });
+
+      expect(initializeResponse.status).toBe(200);
+      expect(initializeResponse.headers.get("content-type")).toContain("application/json");
+
+      const sessionId = initializeResponse.headers.get("mcp-session-id");
+      expect(typeof sessionId).toBe("string");
+      expect(sessionId).toBeTruthy();
+
+      const initializePayload = (await initializeResponse.json()) as {
+        result?: { serverInfo?: { name?: string } };
+      };
+      expect(initializePayload.result?.serverInfo?.name).toBe("sportfolio-gameplay-mcp");
+
+      const getResponse = await fetch(server.url, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${server.authToken}`,
+          accept: "text/event-stream",
+          "mcp-protocol-version": "2025-03-26",
+          "mcp-session-id": sessionId!,
+        },
+      });
+
+      expect(getResponse.status).toBe(200);
+      expect(getResponse.headers.get("content-type")).toContain("text/event-stream");
+      await getResponse.body?.cancel();
+
+      const deleteResponse = await fetch(server.url, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${server.authToken}`,
+          "mcp-protocol-version": "2025-03-26",
+          "mcp-session-id": sessionId!,
+        },
+      });
+
+      expect(deleteResponse.status).toBe(200);
+
+      const missingSessionResponse = await fetch(server.url, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${server.authToken}`,
+          accept: "application/json, text/event-stream",
+          "content-type": "application/json",
+          "mcp-protocol-version": "2025-03-26",
+          "mcp-session-id": sessionId!,
+        },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 2,
+          method: "tools/list",
+          params: {},
+        }),
+      });
+
+      expect(missingSessionResponse.status).toBe(404);
+    } finally {
+      await server.close();
+    }
+  });
+
   it("lists tools, prompts, and resources and reads registered resources", async () => {
     const server = await startMockMcpHttpServer();
     let openClient: OpenClient | null = null;

@@ -3,11 +3,13 @@ import {
   userAgentMessageEmbeddings,
   userAgentMessages,
   userAgentProposals,
+  userAgentStrategies,
   userAgentThreads,
 } from "@shared/schema";
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db";
+import { normalizeAgentUiBlocks } from "./ui-blocks";
 import {
   hydrateClarificationMessage,
   parsePendingClarification,
@@ -15,10 +17,10 @@ import {
 } from "./clarification";
 import { executeAgentActions } from "./executor";
 import {
-  analyzeScoutAgent,
-  approveScoutAgentRun,
+  analyzePortfolioAgent,
+  approvePortfolioAgentRun,
   markAgentRunRejected,
-  rejectScoutAgentRun,
+  rejectPortfolioAgentRun,
 } from "./service";
 import { ensureDefaultUserAgentSchedules } from "./schedules";
 import {
@@ -39,12 +41,16 @@ import type {
   AgentActionBundleView,
   AgentChannel,
   AgentCitation,
+  AgentConfirmationPreview,
   AgentDomain,
   AgentPendingClarification,
   AgentQuestionLogReport,
+  AgentScheduleJobType,
   AgentThreadMessage,
   AgentThreadSummary,
   AgentThreadTurnResult,
+  AgentThreadWorkspace,
+  AgentToolTrace,
 } from "./types";
 
 const createThreadInputSchema = z
@@ -61,6 +67,8 @@ const createThreadInputSchema = z
       ])
       .optional(),
     title: z.string().trim().min(1).max(120).optional(),
+    workspace: z.enum(["chat", "strategy"]).optional(),
+    strategyId: z.string().trim().min(1).max(120).nullable().optional(),
   })
   .strict();
 
@@ -70,20 +78,58 @@ const threadMessageInputSchema = z
   })
   .strict();
 
+function toRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function getThreadWorkspace(value: unknown): AgentThreadWorkspace {
+  const metadata = toRecord(value);
+  return metadata.workspace === "strategy" ? "strategy" : "chat";
+}
+
+function getThreadStrategyId(value: unknown): string | null {
+  const metadata = toRecord(value);
+  return typeof metadata.strategyId === "string" && metadata.strategyId.trim().length > 0
+    ? metadata.strategyId.trim()
+    : null;
+}
+
+function buildThreadMetadata(input: {
+  existing?: unknown;
+  workspace?: AgentThreadWorkspace;
+  strategyId?: string | null;
+}) {
+  const next = toRecord(input.existing);
+  if (input.workspace) {
+    next.workspace = input.workspace;
+  }
+  if (input.strategyId !== undefined) {
+    if (input.strategyId) {
+      next.strategyId = input.strategyId;
+    } else {
+      delete next.strategyId;
+    }
+  }
+
+  return next;
+}
+
 export async function ensureAgentThreadSchema() {
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS "user_agent_profiles" (
       "id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
       "user_id" varchar NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
       "enabled" boolean NOT NULL DEFAULT true,
-      "display_name" text NOT NULL DEFAULT 'My Scout Agent',
+      "display_name" text NOT NULL DEFAULT 'My Portfolio Operator',
       "provider_mode" text NOT NULL DEFAULT 'managed',
       "provider_type" text NOT NULL DEFAULT 'openai_compatible',
       "runtime" text NOT NULL DEFAULT 'hermes',
       "model" text NOT NULL DEFAULT 'managed-default',
       "base_url" text,
-      "system_prompt" text NOT NULL DEFAULT 'Operate like a sharp Sportfolio scout strategist. Stay grounded in the provided Sportfolio context, focus on scouting only, surface the strongest opportunity and risk tradeoffs clearly, and never invent players, schedules, or actions outside scout_set_count.',
-      "user_prompt_template" text NOT NULL DEFAULT 'Act like my scout GM. Give me clear, curated reads on my current scout setup, call out concentration risk and missed opportunities, and when I ask for a move, translate that into the highest-leverage scout reallocation you can support with the current Sportfolio context.',
+      "system_prompt" text NOT NULL DEFAULT 'You are Hermes, the Sportfolio portfolio operator. Stay grounded in the provided Sportfolio gameplay context, treat the approved tool surface as the source of truth, reason across portfolio, market, boosts, scouts, watchlists, and related gameplay systems, and never imply access to code, arbitrary database data, files, or admin-only systems. When a requested move changes gameplay state, follow the active execution policy and confirmation boundary instead of bypassing it.',
+      "user_prompt_template" text NOT NULL DEFAULT 'Act like my Sportfolio portfolio operator. Review my live gameplay setup, explain the highest-signal risk and opportunity tradeoffs clearly, and when I ask for a plan, translate that into the safest high-leverage sequence the available Hermes tools can support.',
       "temperature" numeric(3, 2) NOT NULL DEFAULT 0.20,
       "max_tokens" integer NOT NULL DEFAULT 1200,
       "analysis_window_minutes" integer NOT NULL DEFAULT 1440,
@@ -177,14 +223,20 @@ export async function ensureAgentThreadSchema() {
       "id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
       "user_id" varchar NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
       "channel" text NOT NULL DEFAULT 'in_app',
-      "domain" text NOT NULL DEFAULT 'scouting',
+      "domain" text NOT NULL DEFAULT 'sportfolio',
       "status" text NOT NULL DEFAULT 'active',
       "title" text,
       "external_thread_key" text,
+      "metadata" jsonb NOT NULL DEFAULT '{}'::jsonb,
       "last_message_at" timestamp,
       "created_at" timestamp NOT NULL DEFAULT now(),
       "updated_at" timestamp NOT NULL DEFAULT now()
     );
+  `);
+
+  await db.execute(sql`
+    ALTER TABLE "user_agent_threads"
+      ADD COLUMN IF NOT EXISTS "metadata" jsonb NOT NULL DEFAULT '{}'::jsonb;
   `);
 
   await db.execute(sql`
@@ -705,6 +757,158 @@ function extractCitations(value: unknown): AgentCitation[] {
   return sanitizeAgentCitations(record.citations);
 }
 
+function sanitizeToolTrace(value: unknown): AgentToolTrace[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const normalized: AgentToolTrace[] = [];
+
+  for (const rawEntry of value) {
+    if (!rawEntry || typeof rawEntry !== "object" || Array.isArray(rawEntry)) {
+      continue;
+    }
+
+    const entry = rawEntry as Record<string, unknown>;
+    const toolName = typeof entry.toolName === "string" ? entry.toolName.trim() : "";
+    const phase =
+      entry.phase === "read" ||
+      entry.phase === "scan" ||
+      entry.phase === "plan" ||
+      entry.phase === "action" ||
+      entry.phase === "memory" ||
+      entry.phase === "research"
+        ? entry.phase
+        : null;
+    const status =
+      entry.status === "ok" || entry.status === "failed" || entry.status === "skipped"
+        ? entry.status
+        : null;
+    const summary = typeof entry.summary === "string" ? entry.summary.trim() : "";
+    const latencyMs =
+      typeof entry.latencyMs === "number" && Number.isFinite(entry.latencyMs)
+        ? Math.max(0, entry.latencyMs)
+        : 0;
+
+    if (!toolName || !phase || !status || !summary) {
+      continue;
+    }
+
+    normalized.push({
+      toolName,
+      phase,
+      status,
+      latencyMs,
+      summary,
+      details:
+        entry.details && typeof entry.details === "object" && !Array.isArray(entry.details)
+          ? (entry.details as Record<string, unknown>)
+          : null,
+    });
+  }
+
+  return normalized;
+}
+
+function extractToolTrace(value: unknown): AgentToolTrace[] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return [];
+  }
+
+  return sanitizeToolTrace((value as Record<string, unknown>).toolTrace);
+}
+
+function extractStringListField(value: unknown, key: string): string[] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return [];
+  }
+
+  return sanitizeStringArray((value as Record<string, unknown>)[key]);
+}
+
+function extractUiBlocks(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return [];
+  }
+
+  return normalizeAgentUiBlocks((value as Record<string, unknown>).uiBlocks);
+}
+
+function extractGeneratedBy(value: unknown): AgentThreadMessage["generatedBy"] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const generatedBy = (value as Record<string, unknown>).generatedBy;
+  return generatedBy === "user" ||
+    generatedBy === "assistant" ||
+    generatedBy === "hermes_schedule" ||
+    generatedBy === "hermes_strategy"
+    ? generatedBy
+    : null;
+}
+
+function extractScheduleJobType(value: unknown): AgentScheduleJobType | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const jobType = (value as Record<string, unknown>).scheduleJobType;
+  return jobType === "daily_setup_review" ||
+    jobType === "pre_lock_nudge" ||
+    jobType === "injury_watch" ||
+    jobType === "idle_balance_nudge" ||
+    jobType === "boost_window"
+    ? jobType
+    : null;
+}
+
+function extractConfirmationPreview(value: unknown): AgentConfirmationPreview | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const rawPreview = (value as Record<string, unknown>).confirmationPreview;
+  if (!rawPreview || typeof rawPreview !== "object" || Array.isArray(rawPreview)) {
+    return null;
+  }
+
+  const preview = rawPreview as Record<string, unknown>;
+  const actionSummary =
+    typeof preview.actionSummary === "string" ? preview.actionSummary.trim() : "";
+  const beforeState =
+    preview.beforeState &&
+    typeof preview.beforeState === "object" &&
+    !Array.isArray(preview.beforeState)
+      ? (preview.beforeState as Record<string, unknown>)
+      : {};
+  const afterState =
+    preview.afterState &&
+    typeof preview.afterState === "object" &&
+    !Array.isArray(preview.afterState)
+      ? (preview.afterState as Record<string, unknown>)
+      : {};
+  const warnings = sanitizeStringArray(preview.warnings);
+  const riskClass =
+    preview.riskClass === "low" || preview.riskClass === "medium" || preview.riskClass === "high"
+      ? preview.riskClass
+      : null;
+
+  if (!actionSummary || !riskClass) {
+    return null;
+  }
+
+  return {
+    actionSummary,
+    beforeState,
+    afterState,
+    estimatedImpact:
+      typeof preview.estimatedImpact === "string" ? preview.estimatedImpact.trim() || null : null,
+    warnings,
+    riskClass,
+  };
+}
+
 function truncatePreview(text: string | null | undefined, maxLength = 120) {
   const normalized = (text || "").trim();
   if (!normalized) {
@@ -766,6 +970,115 @@ async function getThreadRow(userId: string, threadId: string) {
     .limit(1);
 
   return thread;
+}
+
+export async function updateAgentThreadMetadata(input: {
+  userId: string;
+  threadId: string;
+  workspace?: AgentThreadWorkspace;
+  strategyId?: string | null;
+  title?: string | null;
+}) {
+  const thread = await getThreadRow(input.userId, input.threadId);
+  if (!thread) {
+    throw new Error("Agent thread not found");
+  }
+
+  const [updated] = await db
+    .update(userAgentThreads)
+    .set({
+      title: input.title === undefined ? thread.title : input.title,
+      metadata: buildThreadMetadata({
+        existing: thread.metadata,
+        workspace: input.workspace,
+        strategyId: input.strategyId,
+      }),
+      updatedAt: new Date(),
+    })
+    .where(eq(userAgentThreads.id, input.threadId))
+    .returning();
+
+  return updated;
+}
+
+async function getStrategyContextForThread(userId: string, threadId: string) {
+  const thread = await getThreadRow(userId, threadId);
+  if (!thread) {
+    throw new Error("Agent thread not found");
+  }
+
+  if (getThreadWorkspace(thread.metadata) !== "strategy") {
+    return {
+      conversationMode: "general_chat" as const,
+      strategyContext: null,
+    };
+  }
+
+  const strategyId = getThreadStrategyId(thread.metadata);
+  if (!strategyId) {
+    return {
+      conversationMode: "strategy_builder" as const,
+      strategyContext: null,
+    };
+  }
+
+  const [strategy] = await db
+    .select()
+    .from(userAgentStrategies)
+    .where(and(eq(userAgentStrategies.userId, userId), eq(userAgentStrategies.id, strategyId)))
+    .limit(1);
+
+  if (!strategy) {
+    return {
+      conversationMode: "strategy_builder" as const,
+      strategyContext: null,
+    };
+  }
+
+  return {
+    conversationMode:
+      strategy.status === "draft"
+        ? ("strategy_builder" as const)
+        : ("strategy_refinement" as const),
+    strategyContext: {
+      strategyId: strategy.id,
+      sourceThreadId: strategy.sourceThreadId || null,
+      status:
+        strategy.status === "draft" ||
+        strategy.status === "live" ||
+        strategy.status === "paused" ||
+        strategy.status === "blocked" ||
+        strategy.status === "archived"
+          ? strategy.status
+          : null,
+      mandate: strategy.mandateText,
+      normalizedRuleSheet: toRecord(strategy.normalizedRuleSheet),
+      guardrails: toRecord(strategy.guardrails),
+      reviewState: (() => {
+        const normalizedRuleSheet = toRecord(strategy.normalizedRuleSheet);
+        const reviewState = toRecord(normalizedRuleSheet.reviewState);
+        const reviewedAt =
+          typeof reviewState.reviewedAt === "string" && reviewState.reviewedAt.trim().length > 0
+            ? reviewState.reviewedAt
+            : null;
+        const lastMaterialUpdateAt =
+          typeof reviewState.lastMaterialUpdateAt === "string" &&
+          reviewState.lastMaterialUpdateAt.trim().length > 0
+            ? reviewState.lastMaterialUpdateAt
+            : null;
+
+        return {
+          status: reviewState.status === "approved" ? "approved" : "pending",
+          reviewedAt,
+          lastMaterialUpdateAt,
+          summary:
+            typeof reviewState.summary === "string" && reviewState.summary.trim().length > 0
+              ? reviewState.summary
+              : null,
+        } as const;
+      })(),
+    },
+  };
 }
 
 async function getLatestPendingBundleRow(userId: string, threadId: string) {
@@ -865,6 +1178,34 @@ async function createThreadMessage(input: {
 
   await touchThread(input.threadId, message.createdAt);
   return message;
+}
+
+function mapMessageRowToView(input: {
+  row: typeof userAgentMessages.$inferSelect;
+  actionBundle: typeof userAgentActionBundles.$inferSelect | null;
+}): AgentThreadMessage {
+  return {
+    id: input.row.id,
+    role: input.row.role as AgentThreadMessage["role"],
+    messageType: input.row.messageType as AgentThreadMessage["messageType"],
+    contentText: input.row.contentText,
+    createdAt: input.row.createdAt,
+    runId: input.row.runId || null,
+    citations: extractCitations(input.row.structuredPayload),
+    pendingClarification: extractPendingClarification(input.row.structuredPayload),
+    toolTrace: extractToolTrace(input.row.structuredPayload),
+    skillsUsed: extractStringListField(input.row.structuredPayload, "skillsUsed"),
+    memoryInfluences: extractStringListField(input.row.structuredPayload, "memoryInfluences"),
+    confirmationPreview: extractConfirmationPreview(input.row.structuredPayload),
+    uiBlocks: extractUiBlocks(input.row.structuredPayload),
+    generatedBy:
+      input.row.role === "user"
+        ? "user"
+        : extractGeneratedBy(input.row.structuredPayload) ||
+          (input.row.role === "assistant" ? "assistant" : null),
+    scheduleJobType: extractScheduleJobType(input.row.structuredPayload),
+    actionBundle: input.actionBundle ? mapActionBundleRowToView(input.actionBundle) : null,
+  };
 }
 
 async function expirePendingBundles(userId: string, threadId: string) {
@@ -978,6 +1319,8 @@ async function getThreadSummariesFromRows(
       title: row.title,
       channel: row.channel as AgentChannel,
       domain: row.domain as AgentDomain,
+      workspace: getThreadWorkspace(row.metadata),
+      strategyId: getThreadStrategyId(row.metadata),
       status: row.status,
       lastMessageAt: row.lastMessageAt,
       updatedAt: row.updatedAt,
@@ -1066,7 +1409,7 @@ async function applyPendingBundle(
   try {
     if (isScoutOnlyBundle) {
       if (bundle.runId) {
-        await approveScoutAgentRun(userId, bundle.runId);
+        await approvePortfolioAgentRun(userId, bundle.runId);
       } else {
         await executeAgentActions(userId, actions);
       }
@@ -1153,7 +1496,7 @@ async function cancelPendingBundle(
 
   if (bundle.runId) {
     if (isScoutOnlyBundle) {
-      await rejectScoutAgentRun(userId, bundle.runId);
+      await rejectPortfolioAgentRun(userId, bundle.runId);
     } else {
       await markAgentRunRejected(userId, bundle.runId);
     }
@@ -1202,6 +1545,10 @@ export async function createAgentThread(
       domain: data.domain || "sportfolio",
       status: "active",
       title: data.title || null,
+      metadata: buildThreadMetadata({
+        workspace: data.workspace || "chat",
+        strategyId: data.strategyId,
+      }),
     })
     .returning();
 
@@ -1365,15 +1712,21 @@ export async function getOrCreateSmsAgentThread(
   return summary;
 }
 
-export async function listAgentThreads(userId: string): Promise<AgentThreadSummary[]> {
+export async function listAgentThreads(
+  userId: string,
+  input: { workspace?: AgentThreadWorkspace } = {},
+): Promise<AgentThreadSummary[]> {
   const rows = await db
     .select()
     .from(userAgentThreads)
     .where(eq(userAgentThreads.userId, userId))
     .orderBy(desc(userAgentThreads.updatedAt))
-    .limit(20);
+    .limit(50);
 
-  return getThreadSummariesFromRows(userId, rows);
+  const summaries = await getThreadSummariesFromRows(userId, rows);
+  return input.workspace
+    ? summaries.filter((thread) => thread.workspace === input.workspace)
+    : summaries;
 }
 
 export async function getAgentQuestionLogs(): Promise<AgentQuestionLogReport> {
@@ -1565,20 +1918,12 @@ export async function listAgentThreadMessages(
       : [];
   const bundleMap = new Map(bundleRows.map((row) => [row.id, row]));
 
-  return rows.map((row) => ({
-    id: row.id,
-    role: row.role as AgentThreadMessage["role"],
-    messageType: row.messageType as AgentThreadMessage["messageType"],
-    contentText: row.contentText,
-    createdAt: row.createdAt,
-    runId: row.runId || null,
-    citations: extractCitations(row.structuredPayload),
-    pendingClarification: extractPendingClarification(row.structuredPayload),
-    actionBundle:
-      row.actionBundleId && bundleMap.has(row.actionBundleId)
-        ? mapActionBundleRowToView(bundleMap.get(row.actionBundleId)!)
-        : null,
-  }));
+  return rows.map((row) =>
+    mapMessageRowToView({
+      row,
+      actionBundle: row.actionBundleId ? bundleMap.get(row.actionBundleId) || null : null,
+    }),
+  );
 }
 
 export async function listAgentThreadResearchSources(
@@ -1708,6 +2053,7 @@ export async function sendAgentThreadMessage(
       ? hydrateClarificationMessage(pendingClarification, messageText) || messageText
       : messageText;
   const conversationHistory = await getRecentConversationHistory(userId, threadId);
+  const threadStrategyContext = await getStrategyContextForThread(userId, threadId);
   await ensureDefaultUserAgentSchedules(userId);
   const userMessage = await createThreadMessage({
     threadId,
@@ -1747,11 +2093,13 @@ export async function sendAgentThreadMessage(
 
   await expirePendingBundles(userId, threadId);
 
-  const analysis = await analyzeScoutAgent(userId, {
+  const analysis = await analyzePortfolioAgent(userId, {
     message: effectiveMessage,
     threadId,
     conversationHistory,
     semanticRouteHint: semanticRouteMatch?.route || undefined,
+    conversationMode: threadStrategyContext.conversationMode,
+    strategyContext: threadStrategyContext.strategyContext,
   });
 
   let bundleView: AgentActionBundleView | null = null;
@@ -1805,6 +2153,11 @@ export async function sendAgentThreadMessage(
       citations: analysis.citations || [],
       proposedMemoryWrites: analysis.proposedMemoryWrites || [],
       toolTrace: analysis.toolTrace || [],
+      skillsUsed: analysis.skillsUsed || [],
+      memoryInfluences: analysis.memoryInfluences || [],
+      confirmationPreview: analysis.confirmationPreview || null,
+      uiBlocks: analysis.uiBlocks || [],
+      generatedBy: "assistant",
       status: analysis.status,
       pendingClarification: analysis.pendingClarification || null,
     },

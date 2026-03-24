@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import type { NextFunction, Request, Response } from "express";
 
 const INTERNAL_AUTH_HEADER = "x-hermes-internal-key";
+export const HERMES_CORRELATION_HEADER = "x-hermes-correlation-id";
 
 function getConfiguredInternalKey(): string | null {
   const configured =

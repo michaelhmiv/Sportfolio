@@ -12,7 +12,7 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import { persistProposedMemoryWrites } from "../agent/memory";
 import { loadScoutAgentContext } from "../agent/context-loader";
 import { planDirectAgentOperation } from "../agent/operations-planner";
-import { runHermesAgentTurn } from "../agent/hermes-client";
+import { runHermesRuntimeTurn } from "../agent/runtime-engine";
 import { isHostedWebResearchAvailable, planHostedWebResearch } from "../agent/research";
 import { getScoutAgentProfile } from "../agent/service";
 import { ensureAgentThreadSchema } from "../agent/thread-service";
@@ -1944,7 +1944,7 @@ async function createSharedBrief(activeBots: BotRuntimeProfile[], cycleKey: stri
 
   try {
     const candidateTurn = await withTimeout(
-      runHermesAgentTurn({
+      runHermesRuntimeTurn({
         userId: coordinator.userId,
         threadId: null,
         channel: "cli",
@@ -1973,6 +1973,16 @@ async function createSharedBrief(activeBots: BotRuntimeProfile[], cycleKey: stri
           preferredChannel: "cli",
         },
         externalResearch: sharedResearch?.citations || [],
+        triggerContext: {
+          source: "bot_cycle",
+          label: "shared_cycle_brief",
+          requestedAt: new Date().toISOString(),
+        },
+        executionContext: {
+          kind: "bot_runtime",
+          allowAutoExecution: false,
+          requiresExplicitConfirmation: false,
+        },
       }),
       getSharedBriefTimeoutMs(),
       `Shared brief generation timed out after ${getSharedBriefTimeoutMs()}ms`,
@@ -2539,7 +2549,7 @@ async function runBotPlan(profile: BotRuntimeProfile, cycleBrief: SharedBriefRec
   let planTurn: HermesRespondResult;
   try {
     planTurn = await withTimeout(
-      runHermesAgentTurn({
+      runHermesRuntimeTurn({
         userId: normalizedProfile.userId,
         threadId: thread.id,
         channel: "cli",
@@ -2568,6 +2578,16 @@ async function runBotPlan(profile: BotRuntimeProfile, cycleBrief: SharedBriefRec
           preferredChannel: "cli",
         },
         externalResearch: cycleBrief.citations as AgentCitation[],
+        triggerContext: {
+          source: "bot_cycle",
+          label: "bot_plan",
+          requestedAt: new Date().toISOString(),
+        },
+        executionContext: {
+          kind: "bot_runtime",
+          allowAutoExecution: true,
+          requiresExplicitConfirmation: false,
+        },
       }),
       getBotTurnTimeoutMs(),
       `${normalizedProfile.botName} planning timed out after ${getBotTurnTimeoutMs()}ms`,

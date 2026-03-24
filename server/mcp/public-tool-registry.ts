@@ -3367,6 +3367,78 @@ const PUBLIC_EXCLUDED_CAPABILITIES: PublicExcludedCapability[] = [
       "Debug-only diagnostics must not be exposed through the shared public capability surface.",
   },
   {
+    capabilityId: "agent_thread_runtime_details",
+    kind: "excluded",
+    status: "excluded",
+    domain: "agent",
+    source: "/api/agent/threads/:threadId/runtime-details",
+    notes:
+      "The cockpit runtime-details route is a web-only aggregation view and must not expand the shared CLI or MCP capability surface.",
+  },
+  {
+    capabilityId: "agent_strategy_templates",
+    kind: "excluded",
+    status: "excluded",
+    domain: "agent",
+    source: "/api/agent/strategies",
+    notes:
+      "Strategy template lifecycle remains a web-only Hermes cockpit surface until the public capability model includes first-class strategy management.",
+  },
+  {
+    capabilityId: "agent_strategy_template_update",
+    kind: "excluded",
+    status: "excluded",
+    domain: "agent",
+    source: "/api/agent/strategies/:strategyId",
+    notes:
+      "Strategy template mutation remains web-only until the shared public capability surface includes a stable strategy contract.",
+  },
+  {
+    capabilityId: "agent_strategy_live_state",
+    kind: "excluded",
+    status: "excluded",
+    domain: "agent",
+    source: "/api/agent/strategies/:strategyId/(activate|review|pause|archive)",
+    notes:
+      "Live strategy slot management remains web-only until Hermes-native strategy execution is exposed consistently across product surfaces.",
+  },
+  {
+    capabilityId: "agent_strategy_run_history",
+    kind: "excluded",
+    status: "excluded",
+    domain: "agent",
+    source: "/api/agent/strategies/:strategyId/runs",
+    notes:
+      "Strategy run history remains a web-only cockpit audit surface until the public capability model includes first-class strategy execution telemetry.",
+  },
+  {
+    capabilityId: "agent_strategy_event_history",
+    kind: "excluded",
+    status: "excluded",
+    domain: "agent",
+    source: "/api/agent/strategies/:strategyId/events",
+    notes:
+      "Strategy event history remains a web-only Hermes cockpit surface until the public capability model includes first-class strategy lifecycle telemetry.",
+  },
+  {
+    capabilityId: "agent_strategy_manual_run",
+    kind: "excluded",
+    status: "excluded",
+    domain: "agent",
+    source: "/api/agent/strategies/:strategyId/run",
+    notes:
+      "Manual live-strategy execution remains web-only until Hermes-native strategy execution is exposed consistently across product surfaces.",
+  },
+  {
+    capabilityId: "agent_strategy_detail",
+    kind: "excluded",
+    status: "excluded",
+    domain: "agent",
+    source: "/api/agent/strategies/:strategyId",
+    notes:
+      "Strategy detail, performance, and guardrail editing remain web-only until the public capability model includes a stable Hermes-native strategy contract.",
+  },
+  {
     capabilityId: "admin_internal_routes",
     kind: "excluded",
     status: "excluded",
@@ -3461,6 +3533,11 @@ const PUBLIC_SITE_ROUTE_COVERAGE: PublicSiteRouteCoverageEntry[] = [
     capabilityIds: ["list_thread_research_sources"],
   },
   {
+    method: "GET",
+    path: "/api/agent/threads/:threadId/runtime-details",
+    excludedCapabilityId: "agent_thread_runtime_details",
+  },
+  {
     method: "POST",
     path: "/api/agent/threads/:threadId/messages",
     capabilityIds: ["send_agent_message"],
@@ -3474,6 +3551,61 @@ const PUBLIC_SITE_ROUTE_COVERAGE: PublicSiteRouteCoverageEntry[] = [
     method: "POST",
     path: "/api/agent/threads/:threadId/cancel",
     capabilityIds: ["cancel_pending_action"],
+  },
+  {
+    method: "GET",
+    path: "/api/agent/strategies",
+    excludedCapabilityId: "agent_strategy_templates",
+  },
+  {
+    method: "POST",
+    path: "/api/agent/strategies",
+    excludedCapabilityId: "agent_strategy_templates",
+  },
+  {
+    method: "GET",
+    path: "/api/agent/strategies/:strategyId",
+    excludedCapabilityId: "agent_strategy_detail",
+  },
+  {
+    method: "PATCH",
+    path: "/api/agent/strategies/:strategyId",
+    excludedCapabilityId: "agent_strategy_template_update",
+  },
+  {
+    method: "POST",
+    path: "/api/agent/strategies/:strategyId/activate",
+    excludedCapabilityId: "agent_strategy_live_state",
+  },
+  {
+    method: "POST",
+    path: "/api/agent/strategies/:strategyId/review",
+    excludedCapabilityId: "agent_strategy_live_state",
+  },
+  {
+    method: "POST",
+    path: "/api/agent/strategies/:strategyId/pause",
+    excludedCapabilityId: "agent_strategy_live_state",
+  },
+  {
+    method: "POST",
+    path: "/api/agent/strategies/:strategyId/archive",
+    excludedCapabilityId: "agent_strategy_live_state",
+  },
+  {
+    method: "GET",
+    path: "/api/agent/strategies/:strategyId/runs",
+    excludedCapabilityId: "agent_strategy_run_history",
+  },
+  {
+    method: "GET",
+    path: "/api/agent/strategies/:strategyId/events",
+    excludedCapabilityId: "agent_strategy_event_history",
+  },
+  {
+    method: "POST",
+    path: "/api/agent/strategies/:strategyId/run",
+    excludedCapabilityId: "agent_strategy_manual_run",
   },
   { method: "GET", path: "/api/user/portfolio-history", capabilityIds: ["get_portfolio_history"] },
   { method: "POST", path: "/api/premium/redeem", capabilityIds: ["redeem_premium"] },

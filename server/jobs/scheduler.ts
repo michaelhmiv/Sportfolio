@@ -51,6 +51,10 @@ import { runBotEngineTick } from "../bot/bot-engine";
 import type { ProgressCallback } from "../lib/admin-stream";
 import { runApiHealthCheck, toApiHealthJobResult } from "../health/api-health-check";
 import { runDueUserAgentSchedules } from "../agent/schedules";
+import {
+  runDueUserAgentStrategies,
+  runTriggeredUserAgentStrategies,
+} from "../agent/strategy-runner";
 
 const isProduction = process.env.NODE_ENV === "production";
 const BOT_ENGINE_SCHEDULE =
@@ -227,6 +231,22 @@ export class JobScheduler {
         enabled: true,
         handler: async () => {
           return runDueUserAgentSchedules();
+        },
+      },
+      {
+        name: "agent_live_strategies",
+        schedule: "*/15 * * * *", // Every 15 minutes - wake due live Hermes strategies
+        enabled: true,
+        handler: async () => {
+          return runDueUserAgentStrategies();
+        },
+      },
+      {
+        name: "agent_strategy_events",
+        schedule: "*/10 * * * *", // Every 10 minutes - wake live Hermes strategies on gameplay/research events
+        enabled: true,
+        handler: async () => {
+          return runTriggeredUserAgentStrategies();
         },
       },
       {
@@ -604,6 +624,12 @@ export class JobScheduler {
       agent_advisory_schedules: async () => {
         return runDueUserAgentSchedules();
       },
+      agent_live_strategies: async () => {
+        return runDueUserAgentStrategies();
+      },
+      agent_strategy_events: async () => {
+        return runTriggeredUserAgentStrategies();
+      },
       lock_boost_shares: (callback) => lockBoostShares(callback),
       snapshot_share_payouts: (callback) => snapshotSharePayouts(callback),
       settle_boosts: (callback) => settleBoosts(callback),
@@ -841,6 +867,8 @@ export class JobScheduler {
       "news_fetch",
       "compile_digest",
       "agent_advisory_schedules",
+      "agent_live_strategies",
+      "agent_strategy_events",
       "lock_boost_shares",
       "snapshot_share_payouts",
       "settle_boosts",

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeHermesTurnResponse } from "./hermes-client";
+import { buildDefaultHermesToolAllowlist, normalizeHermesTurnResponse } from "./hermes-client";
 
 describe("hermes-client", () => {
   it("normalizes sparse Hermes responses into stable arrays", () => {
@@ -26,6 +26,7 @@ describe("hermes-client", () => {
     expect(result.memoryInfluences).toEqual([]);
     expect(result.requiresConfirmation).toBe(false);
     expect(result.confirmationPreview).toBeNull();
+    expect(result.uiBlocks).toEqual([]);
   });
 
   it("rejects malformed proposed memory writes from the sidecar payload", () => {
@@ -45,5 +46,88 @@ describe("hermes-client", () => {
         ],
       }),
     ).toThrow();
+  });
+
+  it("only includes explicitly visible tools in the default allowlist", () => {
+    expect(
+      buildDefaultHermesToolAllowlist([
+        {
+          toolName: "get_balance_state",
+          category: "read",
+          description: "Read balance.",
+          whenToUse: [],
+          whenNotToUse: [],
+          examplePrompts: [],
+          requiresConfirmation: false,
+          riskLevel: "low",
+        },
+        {
+          toolName: "preview_direct_operation",
+          category: "plan",
+          description: "Stage a move.",
+          whenToUse: [],
+          whenNotToUse: [],
+          examplePrompts: [],
+          requiresConfirmation: true,
+          riskLevel: "medium",
+          exposure: "advanced",
+        },
+        {
+          toolName: "internal_only_diagnostic",
+          category: "read",
+          description: "Internal only.",
+          whenToUse: [],
+          whenNotToUse: [],
+          examplePrompts: [],
+          requiresConfirmation: false,
+          riskLevel: "low",
+          exposure: "internal_only",
+        },
+        {
+          toolName: "hidden_fallback_repair",
+          category: "memory",
+          description: "Fallback repair.",
+          whenToUse: [],
+          whenNotToUse: [],
+          examplePrompts: [],
+          requiresConfirmation: false,
+          riskLevel: "low",
+          exposure: "hidden_fallback",
+        },
+      ] as any),
+    ).toEqual(["get_balance_state", "preview_direct_operation"]);
+  });
+
+  it("keeps approved uiBlocks from Hermes responses and drops unknown block types", () => {
+    const result = normalizeHermesTurnResponse({
+      outcome: "advisory",
+      assistantText: "Here is the current plan.",
+      uiBlocks: [
+        {
+          type: "goal_strip",
+          slot: "chat_header",
+          priority: 10,
+          props: {
+            title: "Review today's setup",
+          },
+        },
+        {
+          type: "definitely_not_allowed",
+          slot: "chat_header",
+          props: {},
+        },
+      ],
+    });
+
+    expect(result.uiBlocks).toEqual([
+      {
+        type: "goal_strip",
+        slot: "chat_header",
+        priority: 10,
+        props: {
+          title: "Review today's setup",
+        },
+      },
+    ]);
   });
 });

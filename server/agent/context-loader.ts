@@ -486,3 +486,5 @@ export async function loadScoutAgentContext(
     knowledgeBrief,
   };
 }
+
+export const loadPortfolioAgentContext = loadScoutAgentContext;

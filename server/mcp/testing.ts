@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import express from "express";
 import { createServer } from "node:http";
@@ -56,6 +57,11 @@ export type MockMcpHttpServer = {
   authToken: string;
   url: string;
   close: () => Promise<void>;
+};
+
+type MockMcpSession = {
+  transport: StreamableHTTPServerTransport;
+  server: Awaited<ReturnType<typeof createSportfolioMcpServer>>;
 };
 
 const MOCK_USER_ID = "user_mcp_smoke";
@@ -1309,7 +1315,49 @@ export async function startMockMcpHttpServer(
 ): Promise<MockMcpHttpServer> {
   const harness = createMockPublicMcpDependencies();
   const app = express();
+  const sessions = new Map<string, MockMcpSession>();
   app.use(express.json());
+
+  function getSessionId(req: express.Request) {
+    const sessionId = req.header("mcp-session-id");
+    return sessionId?.trim() || null;
+  }
+
+  function isInitializeBody(body: unknown): boolean {
+    return (
+      !!body &&
+      !Array.isArray(body) &&
+      typeof body === "object" &&
+      (body as { method?: unknown }).method === "initialize"
+    );
+  }
+
+  async function createSession() {
+    const server = await createSportfolioMcpServer(harness.userId, harness.deps);
+    const transport = new StreamableHTTPServerTransport({
+      enableJsonResponse: true,
+      sessionIdGenerator: () => randomUUID(),
+      onsessioninitialized: (createdSessionId) => {
+        sessions.set(createdSessionId, {
+          server,
+          transport,
+        });
+      },
+    });
+
+    transport.onclose = () => {
+      const closedSessionId = transport.sessionId;
+      if (closedSessionId) {
+        sessions.delete(closedSessionId);
+      }
+    };
+
+    await server.connect(transport);
+    return {
+      server,
+      transport,
+    } satisfies MockMcpSession;
+  }
 
   app.post("/mcp", async (req, res) => {
     const authorization = req.header("authorization") || "";
@@ -1318,15 +1366,35 @@ export async function startMockMcpHttpServer(
       return;
     }
 
-    const transport = new StreamableHTTPServerTransport({
-      sessionIdGenerator: undefined,
-    });
+    const sessionId = getSessionId(req);
+    const session = sessionId ? sessions.get(sessionId) || null : null;
+    if (sessionId && !session) {
+      res.status(404).json({
+        jsonrpc: "2.0",
+        error: {
+          code: -32001,
+          message: "Session not found",
+        },
+        id: null,
+      });
+      return;
+    }
 
-    let mcpServer: Awaited<ReturnType<typeof createSportfolioMcpServer>> | null = null;
+    if (!session && !isInitializeBody(req.body)) {
+      res.status(400).json({
+        jsonrpc: "2.0",
+        error: {
+          code: -32000,
+          message: "Bad Request: No valid session ID provided",
+        },
+        id: null,
+      });
+      return;
+    }
+
     try {
-      mcpServer = await createSportfolioMcpServer(harness.userId, harness.deps);
-      await mcpServer.connect(transport);
-      await transport.handleRequest(req, res, req.body);
+      const activeSession = session ?? (await createSession());
+      await activeSession.transport.handleRequest(req, res, req.body);
     } catch (error) {
       console.error("[Mock MCP] Route error:", error);
       if (!res.headersSent) {
@@ -1339,36 +1407,79 @@ export async function startMockMcpHttpServer(
           id: null,
         });
       }
-    } finally {
-      res.on("close", () => {
-        void transport.close();
-        if (mcpServer) {
-          void mcpServer.close();
-        }
-      });
     }
   });
 
-  app.get("/mcp", (_req, res) => {
-    res.status(405).json({
-      jsonrpc: "2.0",
-      error: {
-        code: -32000,
-        message: "Method not allowed.",
-      },
-      id: null,
-    });
+  app.get("/mcp", async (req, res) => {
+    const authorization = req.header("authorization") || "";
+    if (authorization !== `Bearer ${requiredAuthToken}`) {
+      res.status(401).json({ message: "A valid Sportfolio API token is required" });
+      return;
+    }
+
+    const sessionId = getSessionId(req);
+    if (!sessionId) {
+      res.status(405).json({
+        jsonrpc: "2.0",
+        error: {
+          code: -32000,
+          message: "Method not allowed.",
+        },
+        id: null,
+      });
+      return;
+    }
+
+    const session = sessions.get(sessionId);
+    if (!session) {
+      res.status(404).json({
+        jsonrpc: "2.0",
+        error: {
+          code: -32001,
+          message: "Session not found",
+        },
+        id: null,
+      });
+      return;
+    }
+
+    await session.transport.handleRequest(req, res);
   });
 
-  app.delete("/mcp", (_req, res) => {
-    res.status(405).json({
-      jsonrpc: "2.0",
-      error: {
-        code: -32000,
-        message: "Method not allowed.",
-      },
-      id: null,
-    });
+  app.delete("/mcp", async (req, res) => {
+    const authorization = req.header("authorization") || "";
+    if (authorization !== `Bearer ${requiredAuthToken}`) {
+      res.status(401).json({ message: "A valid Sportfolio API token is required" });
+      return;
+    }
+
+    const sessionId = getSessionId(req);
+    if (!sessionId) {
+      res.status(405).json({
+        jsonrpc: "2.0",
+        error: {
+          code: -32000,
+          message: "Method not allowed.",
+        },
+        id: null,
+      });
+      return;
+    }
+
+    const session = sessions.get(sessionId);
+    if (!session) {
+      res.status(404).json({
+        jsonrpc: "2.0",
+        error: {
+          code: -32001,
+          message: "Session not found",
+        },
+        id: null,
+      });
+      return;
+    }
+
+    await session.transport.handleRequest(req, res);
   });
 
   const server = createServer(app);
@@ -1393,13 +1504,17 @@ export async function startMockMcpHttpServer(
     url: `http://127.0.0.1:${address.port}/mcp`,
     close: () =>
       new Promise<void>((resolve, reject) => {
-        server.close((error) => {
-          if (error) {
-            reject(error);
-            return;
-          }
-          resolve();
-        });
+        Promise.all(Array.from(sessions.values()).map(async ({ server: mcpServer }) => mcpServer.close()))
+          .catch(() => undefined)
+          .finally(() => {
+            server.close((error) => {
+              if (error) {
+                reject(error);
+                return;
+              }
+              resolve();
+            });
+          });
       }),
   };
 }
