@@ -165,9 +165,12 @@ function buildFollowUpExplanation(
   };
 }
 
-function buildNeutralModelFallback(
-  citations: AgentCitation[],
-): Pick<
+function buildNeutralModelFallback(input: {
+  citations: AgentCitation[];
+  warnings?: string[];
+  terminationReason?: string | null;
+  providerFailureClass?: HermesRespondResult["providerFailureClass"];
+}): Pick<
   HermesRespondResult,
   | "assistantText"
   | "summary"
@@ -179,13 +182,23 @@ function buildNeutralModelFallback(
   | "requiresConfirmation"
   | "confirmationPreview"
 > {
+  const warningLead = input.warnings?.[0] || null;
+  const assistantText =
+    input.terminationReason === "empty_provider_response"
+      ? "Hermes did not get a usable tool call or visible answer back from the active model for that turn. The request reached the direct tool loop, but the provider responded with an empty turn."
+      : "Hermes could not complete the direct tool loop for that turn. I did not ignore your request, but the system did not finish with a usable answer.";
+
   return {
     outcome: "advisory",
-    assistantText:
-      "Hermes could not complete the direct tool loop for that turn. I did not ignore your request, but the system did not finish with a usable answer.",
-    summary: "Hermes could not complete the direct tool loop for the latest turn.",
-    warnings: ["The direct Hermes tool loop did not return a usable answer or plan."],
-    citations,
+    assistantText,
+    summary:
+      input.terminationReason === "empty_provider_response"
+        ? "The active model returned an empty response twice in the Hermes tool loop."
+        : "Hermes could not complete the direct tool loop for the latest turn.",
+    warnings: [
+      warningLead || "The direct Hermes tool loop did not return a usable answer or plan.",
+    ],
+    citations: input.citations,
     proposedActions: [],
     pendingClarification: null,
     requiresConfirmation: false,
@@ -774,7 +787,12 @@ export async function runHermesOrchestrationTurn(input: {
     }
 
     const advisoryStartedAt = Date.now();
-    const advisory = buildNeutralModelFallback(routedTurn.citations);
+    const advisory = buildNeutralModelFallback({
+      citations: routedTurn.citations,
+      warnings: routedTurn.warnings,
+      terminationReason: routedTurn.terminationReason,
+      providerFailureClass: routedTurn.providerFailureClass,
+    });
     toolTrace.push(
       buildToolTraceEntry({
         toolName: "model_first_fallback",

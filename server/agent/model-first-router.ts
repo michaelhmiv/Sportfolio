@@ -176,6 +176,7 @@ function estimatePromptChars(input: {
   tools: AgentToolDefinition[];
 }) {
   const operatorChars = JSON.stringify(input.request.canonicalState.operatorOverview || {}).length;
+  const continuityChars = JSON.stringify(input.request.continuityState || {}).length;
   const memoryChars = JSON.stringify(input.request.memoryContext || {}).length;
   const historyChars = (input.request.conversationHistory || []).reduce(
     (total, entry) => total + (entry.contentText?.length || 0),
@@ -192,6 +193,7 @@ function estimatePromptChars(input: {
   return (
     input.request.message.length +
     operatorChars +
+    continuityChars +
     memoryChars +
     historyChars +
     knowledgeChars +
@@ -252,6 +254,55 @@ function summarizeMatchedSkill(skill: AgentSkillDefinition | null) {
   }
 
   return `${skill.name}: ${truncate(skill.description, 220)}`;
+}
+
+function summarizeContinuityState(
+  continuityState: HermesRespondRequest["continuityState"],
+  input: { compressed: boolean; limit: number },
+) {
+  if (!continuityState) {
+    return "None.";
+  }
+
+  const lines = [continuityState.headline, continuityState.summary].filter(Boolean);
+
+  if (continuityState.openLoops.length > 0) {
+    lines.push(
+      `Open loops: ${continuityState.openLoops
+        .slice(0, input.limit)
+        .map((item) => `${item.title} [${item.status}]`)
+        .join(" | ")}`,
+    );
+  }
+
+  if (continuityState.activeStrategies.length > 0) {
+    lines.push(
+      `Active strategies: ${continuityState.activeStrategies
+        .slice(0, input.limit)
+        .map((item) => `${item.name} (${item.status})`)
+        .join(" | ")}`,
+    );
+  }
+
+  if (continuityState.recentActions.length > 0) {
+    lines.push(
+      `Recent actions: ${continuityState.recentActions
+        .slice(0, input.limit)
+        .map((item) => item.title)
+        .join(" | ")}`,
+    );
+  }
+
+  if (continuityState.evidenceUpdates.length > 0) {
+    lines.push(
+      `Fresh evidence: ${continuityState.evidenceUpdates
+        .slice(0, input.limit)
+        .map((item) => item.title)
+        .join(" | ")}`,
+    );
+  }
+
+  return lines.map((line) => truncate(line, input.compressed ? 140 : 220)).join("\n");
 }
 
 function summarizeMemoryContext(
@@ -616,6 +667,12 @@ function buildLoopPrompt(input: {
     "<matched_skill_hint>",
     summarizeMatchedSkill(input.matchedSkill),
     "</matched_skill_hint>",
+    "<operator_continuity>",
+    summarizeContinuityState(input.request.continuityState, {
+      compressed,
+      limit: input.compressionLevel === 2 ? 1 : input.compressionLevel === 1 ? 2 : 3,
+    }),
+    "</operator_continuity>",
     "<operator_overview>",
     safeJson(
       input.request.canonicalState.operatorOverview || {},
@@ -786,6 +843,8 @@ export async function runHermesModelToolLoop(input: {
     let toolCallsUsed = 0;
     let finalUsage: AgentModelUsage | undefined;
     let usedTransientRetry = false;
+    let lastSuccessfulToolName: string | null = null;
+    let lastSuccessfulToolReply: string | null = null;
 
     const buildMetadata = (terminationReason: string | null): ModelFirstRouteMetadata => ({
       terminationReason,
@@ -950,24 +1009,48 @@ export async function runHermesModelToolLoop(input: {
               phase: "plan",
               status: "skipped",
               startedAt,
-              summary: "The model returned no answer and no usable tool call. Retrying once.",
+              summary:
+                "The model returned no visible answer and no usable tool call. Retrying once.",
             }),
           );
           continue;
         }
 
+        if (!providerFailureClass) {
+          providerFailureClass = "malformed_response";
+        }
+
+        if (lastSuccessfulToolReply) {
+          return {
+            outcome: "unsupported",
+            replyText: lastSuccessfulToolReply,
+            summary:
+              lastSuccessfulToolName != null
+                ? `Returned the latest ${lastSuccessfulToolName} result after the provider stopped responding.`
+                : "Returned the latest Hermes tool result after the provider stopped responding.",
+            warnings: [
+              ...warnings,
+              "The provider returned neither a visible answer nor a valid tool call after one repair retry, so Hermes returned the latest successful tool result directly.",
+            ],
+            citations,
+            toolTrace,
+            ...(finalUsage ? { usage: finalUsage } : {}),
+            ...buildMetadata("empty_provider_response"),
+          };
+        }
+
         return {
           outcome: "unsupported",
           replyText: null,
-          summary: "The model tool loop returned no usable answer.",
+          summary: "The model returned an empty response twice.",
           warnings: [
             ...warnings,
-            "The model returned neither a final answer nor a valid tool call.",
+            "The provider returned neither a visible answer nor a valid tool call after one repair retry.",
           ],
           citations,
           toolTrace,
           ...(finalUsage ? { usage: finalUsage } : {}),
-          ...buildMetadata("empty_model_response"),
+          ...buildMetadata("empty_provider_response"),
         };
       }
 
@@ -1152,6 +1235,9 @@ export async function runHermesModelToolLoop(input: {
         });
 
         citations.push(...collectCitations(toolResult));
+        const toolResultText = buildToolResultText(selectedTool, toolResult);
+        lastSuccessfulToolName = selectedTool.toolName;
+        lastSuccessfulToolReply = toolResultText;
         toolTrace.push(
           buildToolTraceEntry({
             toolName: selectedTool.toolName,
@@ -1172,7 +1258,7 @@ export async function runHermesModelToolLoop(input: {
           content: [
             {
               type: "text",
-              text: buildToolResultText(selectedTool, toolResult),
+              text: toolResultText,
             },
           ],
           details:

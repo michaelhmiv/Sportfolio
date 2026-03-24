@@ -435,4 +435,117 @@ describe("model-first-router", () => {
     expect(result.outcome).toBe("answer");
     expect((result as { replyText: string }).replyText).toBe("Keep your cash flexible for boosts.");
   });
+
+  it("classifies repeated empty assistant payloads as malformed provider responses", async () => {
+    mocks.callAgentModel
+      .mockResolvedValueOnce({
+        role: "assistant",
+        content: [],
+        api: "openai-completions",
+        provider: "chutes",
+        model: "test-model",
+        usage: buildUsage(),
+        stopReason: "stop",
+        timestamp: Date.now(),
+      })
+      .mockResolvedValueOnce({
+        role: "assistant",
+        content: [],
+        api: "openai-completions",
+        provider: "chutes",
+        model: "test-model",
+        usage: buildUsage(),
+        stopReason: "stop",
+        timestamp: Date.now(),
+      });
+
+    const result = await runHermesModelToolLoop({
+      profile: {
+        displayName: "My Agent",
+        providerMode: "managed",
+        model: "test-model",
+        baseUrl: null,
+        systemPrompt: "test",
+        userPromptTemplate: "test",
+        temperature: "0.2",
+        maxTokens: 800,
+      } as any,
+      secret: undefined,
+      request: buildRequest(),
+      matchedSkill: null,
+    });
+
+    expect(result.outcome).toBe("unsupported");
+    expect(result.terminationReason).toBe("empty_provider_response");
+    expect(result.providerFailureClass).toBe("malformed_response");
+    expect(result.warnings[0]).toMatch(/neither a visible answer nor a valid tool call/i);
+  });
+
+  it("returns the latest successful tool result when the provider goes empty after tool use", async () => {
+    mocks.callAgentModel
+      .mockResolvedValueOnce({
+        role: "assistant",
+        content: [
+          {
+            type: "toolCall",
+            id: "call_1",
+            name: "get_balance_state",
+            arguments: {},
+          },
+        ],
+        api: "openai-completions",
+        provider: "chutes",
+        model: "test-model",
+        usage: buildUsage(),
+        stopReason: "tool_calls",
+        timestamp: Date.now(),
+      })
+      .mockResolvedValueOnce({
+        role: "assistant",
+        content: [],
+        api: "openai-completions",
+        provider: "chutes",
+        model: "test-model",
+        usage: buildUsage(),
+        stopReason: "stop",
+        timestamp: Date.now(),
+      })
+      .mockResolvedValueOnce({
+        role: "assistant",
+        content: [],
+        api: "openai-completions",
+        provider: "chutes",
+        model: "test-model",
+        usage: buildUsage(),
+        stopReason: "stop",
+        timestamp: Date.now(),
+      });
+    mocks.runHermesReadTool.mockResolvedValue({
+      replyText: "You have $125 available and three open boost slots.",
+      summary: "Balance state reviewed.",
+    });
+
+    const result = await runHermesModelToolLoop({
+      profile: {
+        displayName: "My Agent",
+        providerMode: "managed",
+        model: "test-model",
+        baseUrl: null,
+        systemPrompt: "test",
+        userPromptTemplate: "test",
+        temperature: "0.2",
+        maxTokens: 800,
+      } as any,
+      secret: undefined,
+      request: buildRequest(),
+      matchedSkill: null,
+    });
+
+    expect(result.outcome).toBe("unsupported");
+    expect(result.terminationReason).toBe("empty_provider_response");
+    expect((result as { replyText: string | null }).replyText).toBe(
+      "You have $125 available and three open boost slots.",
+    );
+    expect(result.summary).toMatch(/latest get_balance_state result/i);
+  });
 });

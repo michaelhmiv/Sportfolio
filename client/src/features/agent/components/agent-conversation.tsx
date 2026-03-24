@@ -16,14 +16,209 @@ import type {
   AgentAction,
   AgentActionBundle,
   AgentCitation,
+  AgentConfirmationPreview,
   AgentPendingClarification,
   AgentThreadMessage,
+  AgentToolTrace,
 } from "../types";
+import { AgentUiBlockList } from "./agent-ui-blocks";
 
 export interface PendingUserMessage {
   id: string;
   contentText: string;
   createdAt: string;
+}
+
+function formatPreviewValue(value: unknown): string {
+  if (value === null || value === undefined || value === "") {
+    return "--";
+  }
+  if (typeof value === "number") {
+    return Number.isInteger(value) ? value.toLocaleString() : value.toFixed(2);
+  }
+  if (typeof value === "boolean") {
+    return value ? "Yes" : "No";
+  }
+  if (Array.isArray(value)) {
+    return value.length === 0 ? "--" : value.map((entry) => String(entry)).join(", ");
+  }
+  if (typeof value === "object") {
+    return JSON.stringify(value);
+  }
+
+  return String(value);
+}
+
+function PreviewStateBlock({ label, state }: { label: string; state: Record<string, unknown> }) {
+  const entries = Object.entries(state);
+  if (entries.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="rounded-sm border border-[#2a2e39] bg-[#121826] p-2.5">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+        {label}
+      </div>
+      <div className="mt-2 space-y-2">
+        {entries.map(([key, value]) => (
+          <div key={key} className="flex items-start justify-between gap-3">
+            <div className="text-[11px] uppercase tracking-[0.08em] text-slate-500">{key}</div>
+            <div className="text-right text-xs leading-5 text-slate-100">
+              {formatPreviewValue(value)}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ConfirmationPreviewCard({ preview }: { preview: AgentConfirmationPreview }) {
+  const riskClassName =
+    preview.riskClass === "high"
+      ? "border-red-500/30 bg-red-500/10 text-red-100"
+      : preview.riskClass === "medium"
+        ? "border-amber-500/30 bg-amber-500/10 text-amber-100"
+        : "border-emerald-500/30 bg-emerald-500/10 text-emerald-100";
+
+  return (
+    <div className="mt-3 rounded-sm border border-[#2a2e39] bg-[#101521] p-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+          Confirmation Preview
+        </div>
+        <span
+          className={cn(
+            "rounded-sm border px-2 py-0.5 text-[10px] uppercase tracking-[0.12em]",
+            riskClassName,
+          )}
+        >
+          {preview.riskClass} risk
+        </span>
+      </div>
+      <div className="mt-2 text-sm font-semibold text-slate-100">{preview.actionSummary}</div>
+      {preview.estimatedImpact && (
+        <div className="mt-2 text-xs leading-5 text-slate-300">{preview.estimatedImpact}</div>
+      )}
+      <div className="mt-3 grid gap-2 md:grid-cols-2">
+        <PreviewStateBlock label="Before" state={preview.beforeState} />
+        <PreviewStateBlock label="After" state={preview.afterState} />
+      </div>
+      {preview.warnings.length > 0 && (
+        <div className="mt-3 rounded-sm border border-amber-500/20 bg-amber-500/10 p-2.5 text-xs leading-5 text-amber-100">
+          {preview.warnings[0]}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ToolTraceRow({ entry }: { entry: AgentToolTrace }) {
+  const toneClassName =
+    entry.status === "failed"
+      ? "border-red-500/25 bg-red-500/10 text-red-100"
+      : entry.status === "skipped"
+        ? "border-slate-600 bg-slate-800/70 text-slate-300"
+        : "border-emerald-500/25 bg-emerald-500/10 text-emerald-100";
+
+  return (
+    <div className="rounded-sm border border-[#2a2e39] bg-[#121826] p-2.5">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-300">
+          {entry.phase}
+        </span>
+        <span
+          className={cn(
+            "rounded-sm border px-2 py-0.5 text-[10px] uppercase tracking-[0.12em]",
+            toneClassName,
+          )}
+        >
+          {entry.status}
+        </span>
+        <span className="text-[10px] uppercase tracking-[0.12em] text-slate-500">
+          {entry.latencyMs}ms
+        </span>
+      </div>
+      <div className="mt-2 text-xs font-semibold text-slate-100">{entry.toolName}</div>
+      <div className="mt-1 text-xs leading-5 text-slate-300">{entry.summary}</div>
+    </div>
+  );
+}
+
+function HermesRunCard({
+  toolTrace,
+  skillsUsed,
+  memoryInfluences,
+  generatedBy,
+  scheduleJobType,
+}: {
+  toolTrace: AgentToolTrace[];
+  skillsUsed: string[];
+  memoryInfluences: string[];
+  generatedBy: AgentThreadMessage["generatedBy"];
+  scheduleJobType: AgentThreadMessage["scheduleJobType"];
+}) {
+  if (
+    toolTrace.length === 0 &&
+    skillsUsed.length === 0 &&
+    memoryInfluences.length === 0 &&
+    generatedBy !== "hermes_schedule" &&
+    generatedBy !== "hermes_strategy"
+  ) {
+    return null;
+  }
+
+  return (
+    <div className="mt-3 rounded-sm border border-[#2a2e39] bg-[#101521] p-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+          Hermes Run
+        </div>
+        {generatedBy === "hermes_schedule" && (
+          <Badge className="bg-sky-500/20 text-sky-200 hover:bg-sky-500/20">
+            {scheduleJobType ? scheduleJobType.replace(/_/g, " ") : "scheduled"}
+          </Badge>
+        )}
+        {generatedBy === "hermes_strategy" && (
+          <Badge className="bg-emerald-500/20 text-emerald-200 hover:bg-emerald-500/20">
+            strategy run
+          </Badge>
+        )}
+        {skillsUsed.length > 0 && (
+          <Badge variant="outline" className="border-[#2a2e39] text-slate-300">
+            {skillsUsed.length} skill{skillsUsed.length === 1 ? "" : "s"}
+          </Badge>
+        )}
+        {memoryInfluences.length > 0 && (
+          <Badge variant="outline" className="border-[#2a2e39] text-slate-300">
+            {memoryInfluences.length} memory cue{memoryInfluences.length === 1 ? "" : "s"}
+          </Badge>
+        )}
+      </div>
+
+      {memoryInfluences.length > 0 && (
+        <div className="mt-3 rounded-sm border border-[#2a2e39] bg-[#121826] p-2.5">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+            What Hermes remembered
+          </div>
+          <div className="mt-2 space-y-1.5 text-xs leading-5 text-slate-300">
+            {memoryInfluences.slice(0, 3).map((entry) => (
+              <div key={entry}>{entry}</div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {toolTrace.length > 0 && (
+        <div className="mt-3 space-y-2">
+          {toolTrace.map((entry, index) => (
+            <ToolTraceRow key={`${entry.toolName}-${entry.phase}-${index}`} entry={entry} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function CitationList({ citations }: { citations: AgentCitation[] }) {
@@ -145,25 +340,27 @@ function ProposalCard({
   const isPending = bundle.status === "pending_confirmation";
 
   return (
-    <div className="mt-3 rounded-md border border-border/70 bg-card p-3 text-card-foreground shadow-sm">
+    <div className="mt-3 rounded-sm border border-[#2a2e39] bg-[#101521] p-3 text-slate-100">
       <div className="flex flex-wrap items-center gap-2">
         <Badge className="bg-amber-600 text-white hover:bg-amber-600">
           {getBundleStatusLabel(bundle.status)}
         </Badge>
-        <Badge variant="outline">{formatDomainLabel(bundle.domain)}</Badge>
-        <span className="text-[11px] text-muted-foreground">
+        <Badge variant="outline" className="border-[#2a2e39] text-slate-300">
+          {formatDomainLabel(bundle.domain)}
+        </Badge>
+        <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-slate-500">
           {new Date(bundle.createdAt).toLocaleString()}
         </span>
       </div>
 
-      <div className="mt-2 text-sm leading-6">{bundle.summary}</div>
+      <div className="mt-2 text-sm leading-6 text-slate-200">{bundle.summary}</div>
 
       {primaryAction && (
-        <div className="mt-3 rounded-md border border-border/70 bg-background/40 p-3">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+        <div className="mt-3 rounded-sm border border-[#2a2e39] bg-[#121826] p-3">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
             Staged Move
           </div>
-          <div className="mt-1.5 text-sm font-semibold text-foreground">
+          <div className="mt-1.5 text-sm font-semibold text-slate-50">
             {getActionMeta(primaryAction)}
           </div>
           <ActionPreview action={primaryAction} />
@@ -173,7 +370,7 @@ function ProposalCard({
       {clarification && <ClarificationPrompt clarification={clarification} />}
 
       {bundle.warnings.length > 0 && (
-        <div className="mt-3 rounded-md border border-amber-500/20 bg-amber-500/10 p-2.5 text-xs leading-5 text-foreground">
+        <div className="mt-3 rounded-sm border border-amber-500/20 bg-amber-500/10 p-2.5 text-xs leading-5 text-amber-100">
           {bundle.warnings[0]}
         </div>
       )}
@@ -181,7 +378,7 @@ function ProposalCard({
       {isPending && (
         <div className="mt-3 flex flex-wrap gap-2">
           <Button
-            className="h-9 rounded-md bg-amber-500 text-slate-950 hover:bg-amber-400"
+            className="h-8 rounded-sm bg-amber-500 px-3 text-[11px] uppercase tracking-[0.08em] text-slate-950 hover:bg-amber-400"
             onClick={onConfirm}
             disabled={isConfirming || isCanceling}
           >
@@ -194,7 +391,7 @@ function ProposalCard({
           </Button>
           <Button
             variant="outline"
-            className="h-9 rounded-md border-border/70 bg-background/40 text-foreground hover:bg-muted/30"
+            className="h-8 rounded-sm border-[#2a2e39] bg-[#121826] px-3 text-[11px] uppercase tracking-[0.08em] text-slate-100 hover:bg-[#182236]"
             onClick={onCancel}
             disabled={isConfirming || isCanceling}
           >
@@ -212,7 +409,7 @@ function ProposalCard({
         <Button
           type="button"
           variant="ghost"
-          className="mt-2 h-auto px-0 text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground hover:bg-transparent hover:text-foreground"
+          className="mt-2 h-auto px-0 text-[10px] font-medium uppercase tracking-[0.12em] text-slate-500 hover:bg-transparent hover:text-slate-100"
           onClick={() => setIsExpanded((current) => !current)}
         >
           <ChevronDown
@@ -224,28 +421,26 @@ function ProposalCard({
           {bundle.steps.map((step) => (
             <div
               key={`${bundle.id}-${step.id}`}
-              className="rounded-md border border-border/70 bg-background/40 p-3"
+              className="rounded-sm border border-[#2a2e39] bg-[#121826] p-3"
             >
               <div className="flex items-center justify-between gap-3">
-                <div className="text-sm font-semibold text-foreground">{step.title}</div>
-                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                <div className="text-sm font-semibold text-slate-50">{step.title}</div>
+                <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
                   {step.status}
                 </span>
               </div>
               {step.action ? (
                 <>
-                  <div className="mt-2 text-xs text-muted-foreground">
-                    {getActionMeta(step.action)}
-                  </div>
+                  <div className="mt-2 text-xs text-slate-400">{getActionMeta(step.action)}</div>
                   <div className="mt-3">
                     <ActionDetails action={step.action} />
                   </div>
-                  <div className="mt-3 text-sm leading-6 text-foreground">
+                  <div className="mt-3 text-sm leading-6 text-slate-200">
                     {step.action.reasoning}
                   </div>
                 </>
               ) : step.clarificationPrompt ? (
-                <div className="mt-3 text-sm leading-6 text-foreground">
+                <div className="mt-3 text-sm leading-6 text-slate-200">
                   {step.clarificationPrompt}
                 </div>
               ) : null}
@@ -257,7 +452,7 @@ function ProposalCard({
               {bundle.warnings.slice(1).map((warning) => (
                 <div
                   key={warning}
-                  className="rounded-md border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-foreground"
+                  className="rounded-sm border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-100"
                 >
                   {warning}
                 </div>
@@ -286,6 +481,16 @@ function MessageBubble({
   isPendingSend?: boolean;
 }) {
   const isRealMessage = "role" in message;
+  const inlineUiBlocks =
+    isRealMessage && message.uiBlocks
+      ? message.uiBlocks.filter(
+          (block) =>
+            block.slot !== "chat_header" &&
+            block.slot !== "chat_inline" &&
+            block.slot !== "strategy_overview" &&
+            block.slot !== "strategy_rules",
+        )
+      : [];
   const isUser = isRealMessage ? message.role === "user" : true;
   const isError = isRealMessage && message.messageType === "error";
   const speakerLabel = isUser
@@ -298,7 +503,7 @@ function MessageBubble({
     <div className={cn("flex w-full", isUser ? "justify-end" : "justify-start")}>
       <div
         className={cn(
-          "w-full rounded-sm px-3 py-2.5 sm:max-w-[86%]",
+          "w-full rounded-sm px-3 py-2.5 sm:max-w-[84%]",
           isUser
             ? "border border-amber-500/35 bg-[#241702] text-amber-50 shadow-sm"
             : isError
@@ -319,8 +524,22 @@ function MessageBubble({
 
         <div className="whitespace-pre-wrap text-[13px] leading-6">{message.contentText}</div>
 
+        {inlineUiBlocks.length > 0 && <AgentUiBlockList blocks={inlineUiBlocks} className="mt-3" />}
+
         {isRealMessage && message.citations && message.citations.length > 0 && (
           <CitationList citations={message.citations} />
+        )}
+        {isRealMessage && message.confirmationPreview && !message.actionBundle && (
+          <ConfirmationPreviewCard preview={message.confirmationPreview} />
+        )}
+        {isRealMessage && (
+          <HermesRunCard
+            toolTrace={message.toolTrace || []}
+            skillsUsed={message.skillsUsed || []}
+            memoryInfluences={message.memoryInfluences || []}
+            generatedBy={message.generatedBy || null}
+            scheduleJobType={message.scheduleJobType || null}
+          />
         )}
         {isRealMessage && message.actionBundle && (
           <ProposalCard
@@ -357,23 +576,23 @@ export function AgentEmptyConversationState({
   onUseStarterPrompt: (prompt: string) => void;
 }) {
   return (
-    <div className="rounded-sm border border-[#2a2e39] bg-[#171c29] p-4 text-sm text-slate-300 shadow-sm">
-      <div className="flex items-center gap-2 font-semibold text-slate-50">
+    <div className="rounded-sm border border-[#2a2e39] bg-[#171c29] p-3 text-sm text-slate-300 shadow-sm">
+      <div className="flex items-center gap-2 text-sm font-semibold text-slate-50">
         <Sparkles className="h-4 w-4 text-amber-400" />
         {isDraftConversation ? "Start a fresh chat." : "Your agent is ready."}
       </div>
-      <p className="mt-2 text-[13px] leading-6">
+      <p className="mt-2 text-xs leading-5 text-slate-400">
         {enabled && canAnalyze
-          ? "Use plain language. Ask for a read, or give a direct instruction when you want the agent to stage a move."
+          ? "Use plain language. Ask for a read or give a direct instruction when you want Hermes to stage a move."
           : "The agent needs to be enabled and configured before you can send the next request."}
       </p>
-      <div className="mt-4 flex flex-wrap gap-2">
+      <div className="mt-3 flex flex-wrap gap-2">
         {starterPrompts.map((prompt) => (
           <Button
             key={prompt}
             type="button"
             variant="outline"
-            className="h-8 rounded-sm border-[#2a2e39] bg-[#0f1420] px-2.5 text-[11px] uppercase tracking-[0.08em] text-slate-100 hover:bg-[#202637]"
+            className="h-7 rounded-sm border-[#2a2e39] bg-[#0f1420] px-2.5 text-[10px] uppercase tracking-[0.12em] text-slate-100 hover:bg-[#202637]"
             onClick={() => onUseStarterPrompt(prompt)}
           >
             {prompt}

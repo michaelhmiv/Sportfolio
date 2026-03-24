@@ -1,10 +1,48 @@
 # Lessons Learned
 
+## 2026-03-23
+
+- For `/agent`, "mobile verified" is not real until Playwright proves the full tap-focus-type-send loop on an iPhone-sized viewport; scroll visibility alone is too weak and let a broken composer ship.
+- If Hermes can be configured with multiple managed providers, do not let an unsafe legacy default remain the effective runtime path just because it is present in env or older DB rows; prefer an explicitly Hermes-safe configured provider and upgrade stale settings automatically.
+- When the provider returns neither text nor tool calls, classify that as an empty provider response immediately and log the effective provider/model. Treating it as a generic unsupported turn hides the real failure mode.
+- If the model goes empty after already completing a useful tool call, preserve and return the latest successful tool result rather than discarding it and falling back to a dead apology.
+- Preview and staging tools should resolve natural player references server-side; requiring the model to always emit canonical Sportfolio player IDs makes ordinary prompts fail for avoidable reasons.
+- When Playwright harness behavior disagrees with live MCP verification, inspect the trace instead of assuming the harness is flaky; here it exposed a real `reviewState` nullability crash in the mocked strategy-detail path.
+- For local browser automation against protected routes, keep any auth bypass loopback-only and explicit so the harness can stay on the real route without weakening production/session behavior.
+
+- When `/agent` already has the right product model, the redesign should change composition before contracts: elevate the command center, slot rail, and detail canvas instead of inventing new agent concepts.
+- If a dense operator page feels like stacked cards, remove equal visual weight before adding new visuals; stronger section hierarchy and fewer repeated shells does more than adding more widgets.
+- For the agent workspace switch, do not duplicate tab state owners just to restyle the header; keep one source of truth and make the visual switch a thin control over that state.
+- On `/agent`, scrolling bugs that survive multiple passes are usually layout-contract bugs, not padding bugs; collapse each workspace to one real scroll owner instead of patching nested `overflow-y-auto` regions one by one.
+- If the dashboard is the visual reference, match its information rhythm directly: tighter labels, denser rows, and fewer explanation blocks. Do not leave chat/strategy headers reading like generic AI cards once the core IA is already correct.
+- When verifying `/agent`, use Playwright MCP against the live app to measure the actual scroll container and `window.scrollY`; browser test harnesses can still miss or flake on the authenticated workspace shell even when the real page behavior is correct.
+
+- If `/agent` is meant to feel integrated with the rest of the mobile product, do not hide the shared bottom nav just because the page is workspace-heavy; reserve viewport space for it and let the route adapt instead of creating a special mobile shell.
+- For mobile strategy workspaces, a preselected desktop detail pane should not dictate the first mobile screen; keep a command-center/list view as the default mobile entry and open detail only after an explicit user drill-down.
+- When the user explicitly requires a named Codex skill or workflow, install it if needed, read it, and use it as an actual review/build rubric for the touched surface instead of treating it like a loose suggestion.
+- When expanding `/agent` runtime payloads with new required fields, update both the live API nullability contract and the browser/mock fixtures in the same pass; otherwise real thread turns and Playwright coverage will drift in different ways.
+
+## 2026-03-21
+
+- When adding a new authenticated web-only agent route, update the public surface audit/exclusion registry in the same pass or the parity suite will correctly fail even if the product behavior itself works.
+- For Hermes recurring workflows, keep review-before-activation as saved strategy state rather than a UI-only flag; activation, live-edit pausing, prompts, and strategy overview all need the same source of truth.
+
 ## 2026-03-12
 
 - When a public action stages a scout-only bundle outside the normal scout-run pipeline, confirmation must fall back to direct action execution instead of assuming a scout run id exists.
 - Bearer-token public surfaces must not be able to mint fresh bearer tokens; keep API token creation explicitly web-session-only even if list/revoke flows are shared elsewhere.
 - Generic tool renderers are not a safe replacement for command-specific CLI summaries; preserve dedicated human-readable output for high-traffic commands like `portfolio summary`.
+
+## 2026-03-18
+
+- In the Agents tab, keep the IA in plain user language and match the task model: `Chat` for one-off help, `Strategies` for recurring workflows, and dedicated strategy conversations instead of deriving strategies directly from general chat.
+- If `/agent` is already mounted inside a full-height app shell, do not give the agent page another `100dvh` root; duplicated viewport ownership plus nested `overflow-hidden` is what causes the bottom of mobile chat and strategy views to get clipped.
+- When redesigning `/agent`, do not fall back to generic AI-dashboard cards; reuse the repo's sharper terminal/trading visual language, keep the first viewport focused on the active goal or decision, and push run metadata into compact blocks or inline expansions.
+- If agent-generated UI is the direction, start with a closed `uiBlocks` catalog over the existing Hermes contract before adopting a full external UI protocol; it captures most of the UX benefit while keeping the host app in control of rendering, trust, and mobile hierarchy.
+- For strategy workspaces, a draft should read like a build surface, not a mini analytics dashboard; prioritize draft/schedule/rules summaries over performance tiles until the strategy is actually active and running.
+- When validating this repo, run the heavy Vitest suite serially if you need a trustworthy signal; running `check`, `lint`, `test:run`, and formatting in parallel can create timeout-only failures in unrelated long-running tests.
+- For `/agent` on mobile, do not keep secondary runtime state as a long stack of equal-weight cards; keep one top briefing surface and collapse supporting automation, evidence, and capability panels behind accordions or sheets.
+- When the product is supposed to be Hermes-native, do not accept “same request contract” as proof of alignment; persist and assert transport provenance so strategy runs, schedules, and manual turns can be shown to have actually traversed the Hermes runtime path instead of a quiet local shortcut.
 
 ## 2026-03-13
 
@@ -122,3 +160,5 @@
 - If Hermes is supposed to reason over Sportfolio state, do not spend the model pass on a synthetic meta-router; expose real tools directly, let the model chain them, and only bubble out confirmation-gated planners when needed.
 - "Continuous improvement" is not satisfied by memory writes alone; every agent turn needs structured traces plus an audit/remediation loop, or the system only remembers user preferences without actually improving its own behavior.
 - For Portfolio account history, treat Activity as a mobile-first ledger backed by existing immutable event tables instead of a decorative feed; dense rows, category chips, and drill-in links matter more than tall cards or narrative copy.
+- When the user defines autonomous agent scope broadly, write the exclusions down in code and docs immediately; "everything except purchases/premium/community boosts" is a product boundary, not a conversational preference.
+- For `/agent` layout work, do not trust static inspection or repo tests alone; verify the real mobile scroll owners in Playwright MCP before calling the redesign done.

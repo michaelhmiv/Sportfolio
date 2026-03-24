@@ -1,9 +1,11 @@
+import crypto from "node:crypto";
 import type { Express, Request, Response } from "express";
 import { z } from "zod";
-import { loadScoutAgentContext } from "./agent/context-loader";
+import { loadPortfolioAgentContext } from "./agent/context-loader";
 import { runHermesOrchestrationTurn } from "./agent/hermes-orchestrator";
-import { requireHermesInternalRequest } from "./agent/internal-auth";
-import { getScoutAgentRuntimeProfile } from "./agent/service";
+import { HERMES_CORRELATION_HEADER, requireHermesInternalRequest } from "./agent/internal-auth";
+import { buildHermesTurnRequest } from "./agent/runtime-adapter";
+import { getPortfolioAgentRuntimeProfile } from "./agent/service";
 import type { AgentSemanticRoute, HermesRespondRequest } from "./agent/types";
 import { storage } from "./storage";
 
@@ -77,6 +79,7 @@ const hermesSidecarRequestSchema = z.object({
       canonicalKnowledge: [],
       research: [],
     }),
+  continuityState: z.record(z.unknown()).nullable().optional(),
   conversationHistory: z
     .array(
       z.object({
@@ -87,6 +90,56 @@ const hermesSidecarRequestSchema = z.object({
     .default([]),
   semanticRouteHint: z
     .enum(["top_targets_today", "single_adjustment", "review_setup", "general_scouting"])
+    .nullable()
+    .optional(),
+  conversationMode: z
+    .enum(["general_chat", "strategy_builder", "strategy_refinement", "strategy_review"])
+    .nullable()
+    .optional(),
+  strategyContext: z
+    .object({
+      strategyId: z.string().trim().min(1),
+      sourceThreadId: z.string().trim().min(1).nullable().default(null),
+      status: z.enum(["draft", "live", "paused", "blocked", "archived"]).nullable().default(null),
+      mandate: z.string().trim().min(1),
+      normalizedRuleSheet: z.record(z.unknown()).default({}),
+      guardrails: z.record(z.unknown()).default({}),
+    })
+    .nullable()
+    .optional(),
+  triggerContext: z
+    .object({
+      source: z.enum([
+        "manual",
+        "manual_retry",
+        "schedule",
+        "strategy_schedule",
+        "strategy_event",
+        "bot_cycle",
+        "system",
+      ]),
+      label: z.string().trim().min(1).nullable().optional(),
+      jobType: z
+        .enum([
+          "daily_setup_review",
+          "pre_lock_nudge",
+          "injury_watch",
+          "idle_balance_nudge",
+          "boost_window",
+        ])
+        .nullable()
+        .optional(),
+      eventType: z.string().trim().min(1).nullable().optional(),
+      requestedAt: z.string().trim().min(1),
+    })
+    .nullable()
+    .optional(),
+  executionContext: z
+    .object({
+      kind: z.enum(["manual_thread", "scheduled_advisory", "strategy_run", "bot_runtime"]),
+      allowAutoExecution: z.boolean(),
+      requiresExplicitConfirmation: z.boolean(),
+    })
     .nullable()
     .optional(),
 });
@@ -114,6 +167,8 @@ export function registerHermesSidecarRoutes(app: Express): void {
     "/internal/hermes/respond",
     requireHermesInternalRequest,
     async (req: Request, res: Response) => {
+      const correlationId = req.header(HERMES_CORRELATION_HEADER)?.trim() || crypto.randomUUID();
+      res.setHeader(HERMES_CORRELATION_HEADER, correlationId);
       try {
         const parsed = hermesSidecarRequestSchema.parse(req.body);
         const user = await storage.getUser(parsed.userId);
@@ -123,9 +178,50 @@ export function registerHermesSidecarRoutes(app: Express): void {
           return;
         }
 
-        const { profile, secret } = await getScoutAgentRuntimeProfile(parsed.userId);
-        const context = await loadScoutAgentContext(parsed.userId, profile, {
+        const { profile, secret } = await getPortfolioAgentRuntimeProfile(parsed.userId);
+        const context = await loadPortfolioAgentContext(parsed.userId, profile, {
           chatRequest: parsed.message,
+        });
+
+        const request = await buildHermesTurnRequest({
+          userId: parsed.userId,
+          threadId: parsed.canonicalState.threadId,
+          channel: parsed.channel,
+          message: parsed.message,
+          requestMode: parsed.requestMode as HermesRespondRequest["requestMode"],
+          orchestrationMode: parsed.orchestrationMode || "hermes_first",
+          profile,
+          secret,
+          context,
+          toolAllowlist: parsed.toolAllowlist,
+          toolCatalog: parsed.toolCatalog as unknown as HermesRespondRequest["toolCatalog"],
+          availableSkills:
+            parsed.availableSkills as unknown as HermesRespondRequest["availableSkills"],
+          skillPolicy: parsed.skillPolicy,
+          memoryMode: parsed.memoryMode,
+          autoExecutionPolicy: parsed.autoExecutionPolicy,
+          confirmationPolicy: {
+            requireExplicitConfirmation: parsed.confirmationPolicy.requireExplicitConfirmation,
+            preferredChannel: parsed.channel,
+          },
+          capabilities: parsed.canonicalState
+            .capabilities as unknown as HermesRespondRequest["canonicalState"]["capabilities"],
+          memoryContext: parsed.memoryContext as unknown as HermesRespondRequest["memoryContext"],
+          canonicalKnowledge:
+            parsed.externalContext.canonicalKnowledge.length > 0
+              ? (parsed.externalContext
+                  .canonicalKnowledge as unknown as HermesRespondRequest["externalContext"]["canonicalKnowledge"])
+              : undefined,
+          externalResearch: parsed.externalContext
+            .research as unknown as HermesRespondRequest["externalContext"]["research"],
+          continuityState: parsed.continuityState as HermesRespondRequest["continuityState"],
+          conversationHistory: parsed.conversationHistory,
+          semanticRouteHint: normalizeSemanticRouteHint(parsed.semanticRouteHint),
+          conversationMode: parsed.conversationMode || null,
+          pendingBundleId: parsed.canonicalState.pendingBundleId,
+          strategyContext: parsed.strategyContext || null,
+          triggerContext: parsed.triggerContext || null,
+          executionContext: parsed.executionContext || null,
         });
 
         const result = await runHermesOrchestrationTurn({
@@ -133,60 +229,7 @@ export function registerHermesSidecarRoutes(app: Express): void {
           profile,
           secret,
           context,
-          request: {
-            userId: parsed.userId,
-            threadId: parsed.canonicalState.threadId,
-            channel: parsed.channel,
-            message: parsed.message,
-            requestMode: parsed.requestMode as HermesRespondRequest["requestMode"],
-            orchestrationMode: parsed.orchestrationMode || "hermes_first",
-            toolAllowlist: parsed.toolAllowlist,
-            toolCatalog: parsed.toolCatalog as unknown as HermesRespondRequest["toolCatalog"],
-            availableSkills:
-              parsed.availableSkills as unknown as HermesRespondRequest["availableSkills"],
-            skillPolicy: parsed.skillPolicy,
-            memoryMode: parsed.memoryMode,
-            autoExecutionPolicy: parsed.autoExecutionPolicy,
-            confirmationPolicy: {
-              requireExplicitConfirmation: parsed.confirmationPolicy.requireExplicitConfirmation,
-              preferredChannel: parsed.channel,
-            },
-            profile: {
-              displayName: profile.displayName,
-              providerMode: profile.providerMode as HermesRespondRequest["profile"]["providerMode"],
-              model: profile.model,
-              baseUrl: profile.baseUrl,
-              systemPrompt: profile.systemPrompt,
-              userPromptTemplate: profile.userPromptTemplate,
-              temperature: Number(profile.temperature) || 0.4,
-              maxTokens: profile.maxTokens,
-            },
-            modelRuntime: {
-              providerMode:
-                profile.providerMode as HermesRespondRequest["modelRuntime"]["providerMode"],
-              model: profile.model,
-              baseUrl: profile.baseUrl,
-            },
-            canonicalState: {
-              threadId: parsed.canonicalState.threadId,
-              pendingBundleId: parsed.canonicalState.pendingBundleId,
-              operatorOverview: context.operatorOverview,
-              capabilities: parsed.canonicalState
-                .capabilities as unknown as HermesRespondRequest["canonicalState"]["capabilities"],
-            },
-            memoryContext: parsed.memoryContext as unknown as HermesRespondRequest["memoryContext"],
-            externalContext: {
-              canonicalKnowledge:
-                parsed.externalContext.canonicalKnowledge.length > 0
-                  ? (parsed.externalContext
-                      .canonicalKnowledge as unknown as HermesRespondRequest["externalContext"]["canonicalKnowledge"])
-                  : context.knowledgeBrief,
-              research: parsed.externalContext
-                .research as unknown as HermesRespondRequest["externalContext"]["research"],
-            },
-            conversationHistory: parsed.conversationHistory,
-            semanticRouteHint: normalizeSemanticRouteHint(parsed.semanticRouteHint),
-          },
+          request,
         });
 
         res.json(result);

@@ -137,12 +137,15 @@ Checklist:
 5. Re-run the full validation stack after changing request/response contracts, tool names, or schedule defaults.
 6. If you change Hermes routing, verify that normal user turns still enter Hermes first, that the model-first router owns intent/tool selection, and that no heuristic scan pre-routing has crept back into the primary path.
 7. Treat runtime skills as constrained macros over approved tools only; do not add unreviewed tool access under the banner of "learning."
+8. Hermes may automate gameplay actions only within the saved strategy scope and server-side validation envelope; it must never initiate payments, Whop checkout, add-cash flows, or any other external purchase flow.
+9. If sidecar mode is required for the target environment, fail closed and capture transport metadata; do not silently reroute live traffic back to the local runtime.
 
 Must-verify behaviors:
 
 - A normal `/agent` message resolves through Hermes through the model-first routing path without requiring the PI fallback path.
-- External Hermes failures degrade to the in-process Hermes engine, then only to PI compatibility if needed.
+- When sidecar mode is enabled, runtime sessions record `sidecar` transport metadata and failed sidecar requests do not silently fall back to the local runtime.
 - Scheduled advisory runs write assistant messages only and never auto-confirm or auto-apply economic actions.
+- Live strategies only run through the shared Hermes runtime contract and only auto-execute the explicitly approved strategy-safe action subset inside saved guardrails.
 - Global skill candidates stay inert until an admin explicitly approves them.
 
 ## Documentation Sync Rule

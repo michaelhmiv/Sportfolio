@@ -1,3 +1,230 @@
+## 2026-03-23 Hermes Runtime Reliability + Agent Mobile Composer Recovery
+
+- [x] Move Hermes managed-provider defaults and capability checks onto tool-loop-safe provider/model pairs instead of silently honoring unsafe legacy defaults
+- [x] Classify repeated empty provider replies explicitly, persist effective provider/model metadata, and preserve the latest successful tool result when the provider goes empty after a tool call
+- [x] Let preview/staging tools resolve player references by name so natural prompts do not fail just because the model omitted canonical player IDs
+- [x] Rebuild mobile `/agent` chat and strategy detail around a flatter dashboard-derived layout with a usable composer instead of stacked card shells
+- [x] Add real mobile typing/send coverage plus local `/agent` Playwright auth bypass for loopback-only harness runs, then verify the live page in Playwright MCP
+- [x] Re-run required validation and push the fixes onto the existing PR branch
+
+Review:
+
+- Hermes no longer defaults onto the unsafe legacy managed path. Managed-provider resolution now prefers configured providers that explicitly advertise Hermes tool-loop support, the DB default moved to `openrouter`, and legacy `chutes` + Kimi settings are auto-upgraded to the new safe default on read.
+- The model-first router and orchestrator now classify empty assistant payloads as provider/runtime failures, log the effective provider/model on the run, and reuse the latest successful tool result if the provider goes empty after an earlier successful tool call instead of dropping straight into the generic fallback.
+- Preview tools now resolve players from either `playerId` or `playerName`, so prompts like asking Hermes to invest in strong MLB names for the week no longer depend on the model knowing Sportfolio's canonical IDs up front.
+- Mobile `/agent` was rebuilt away from the loose card stack: main chat and strategy chat now use a flatter transcript-plus-composer shell, strategies use denser strip/row layouts, and the mobile composer has explicit focus/visibility handling.
+- Local Playwright coverage now exercises the real mobile typing/send path on `/agent`, and the loopback-only auth bypass keeps the harness on the protected route without weakening normal app auth. Live Playwright MCP smoke also succeeded for mobile main chat and strategy chat.
+- Validation passed with `npm run check`, `npm run lint`, `npm run format:check`, `npm run test:run`, and `npx playwright test tests/e2e/agent-shell.spec.ts --reporter=line --workers=1`.
+
+## 2026-03-23 Agent Command Center Visual Redesign
+
+- [x] Recompose `/agent` around a stronger command-center shell with a clearer workspace switch and operator framing
+- [x] Redesign the strategies desk into a denser command brief plus slot rail/detail canvas layout
+- [x] Refine chat hierarchy so the workbench, transcript, and thread rail read like one interface instead of stacked cards
+- [x] Validate with `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`
+
+Review:
+
+- `/agent` now opens inside a stronger Hermes operator shell with a dedicated workspace switch, denser chrome, and a more intentional first viewport.
+- Strategies now reads like a command desk instead of a card stack: the top brief is more poster-like, slot selection is a tighter rail, and the selected strategy detail feels like the main canvas.
+- Chat now leads with a proper workbench brief and a transcript frame, while the thread rail uses denser list-row treatments instead of generic conversation cards.
+- Validation passed for `npm run check`, `npm run lint`, and `npm run test:run`. `npm run format:check` still fails only on the pre-existing unrelated files `server/mcp/testing.ts` and `server/routes/mcp.ts`.
+
+## 2026-03-23 Agent Mobile Command Center + Bottom Nav Recovery
+
+- [x] Restore the shared mobile bottom nav on `/agent` and reserve vertical space for it in the route shell
+- [x] Rework mobile Strategies to open on a command-center overview instead of jumping directly into selected detail
+- [x] Collapse mobile strategy detail into single-scroll views for overview/rules and keep chat as a secondary drill-down
+- [x] Update targeted `/agent` Playwright coverage for the command-center-first mobile flow and bottom-nav visibility
+
+Review:
+
+- `/agent` now keeps the standard mobile bottom nav visible like the rest of the site, and the route shell reserves space for it so the agent workspace no longer stretches behind the nav.
+- Mobile Strategies now opens on a dedicated command center with Today brief, next actions, and the strategy deck instead of forcing users straight into a selected strategy detail pane.
+- Strategy detail remains available after a slot tap, but overview and rules now use a single mobile scroll owner while chat stays a deliberate secondary drill-down.
+- Targeted `/agent` Playwright coverage now checks the command-center-first mobile flow, slot navigation back/forth, and Agent bottom-nav visibility.
+
+## 2026-03-23 Continuous Hermes Operator + Continuity Verification
+
+- [x] Add a server-owned continuity brief so manual chat, strategy runs, and runtime detail payloads all carry recent actions, open loops, active strategies, and evidence updates
+- [x] Surface the continuity state in `/agent` Chat and Strategies using the frontend-skill app-workbench rubric
+- [x] Fix the live thread-message contract so ordinary chat turns can send `null` strategy/trigger/execution context blocks without failing schema validation
+- [x] Update focused tests and `/agent` Playwright fixtures for the new continuity contract
+- [x] Run deep validation across typecheck, lint, full Vitest, targeted `/agent` Playwright, live non-model agent route smoke, and UI review
+
+Review:
+
+- Hermes now carries a continuity brief through the runtime path and exposes that state in thread runtime details plus strategy detail payloads, so the agent can reason from prior actions, scheduled work, and fresh evidence instead of starting over each wake.
+- `/agent` now shows the continuity layer directly: Chat includes a compact continuity strip for open loops, recent actions, and active strategy context, while Strategy Overview adds a dedicated continuous-state section ahead of the policy/timeline detail.
+- Live smoke uncovered and fixed a real regression in `POST /api/agent/threads/:threadId/messages`: ordinary chat threads were sending `null` runtime context blocks into a schema that only accepted objects. A focused regression test now locks that down.
+- Validation passed with `npm run check`, `npm run lint`, `npm run test:run`, and `npx playwright test tests/e2e/agent-shell.spec.ts --reporter=line`.
+- Additional live route smoke passed for non-model endpoints using the local dev user: thread creation, runtime-details fetch, strategy creation, strategy detail fetch, review, and archive all succeeded and returned continuity payloads.
+- `npm run format:check` still fails only on the pre-existing unrelated files `server/mcp/testing.ts` and `server/routes/mcp.ts`.
+- Two broader repo checks also still fail outside this continuity scope: `npm run openapi:check` reports missing `/api/holdings/condense`, and `npm run invariants:check` reports a missing `power: integer(\"power\")` token in `shared/schema.ts`.
+
+## 2026-03-23 Agent-First Strategy Desk + Autonomous Guardrails
+
+- [x] Shift `/agent` to open on the Strategies workspace and frame it as the primary autonomous strategy desk
+- [x] Add a product-owned autonomy policy layer so broad goals are interpreted as portfolio-management mandates instead of literal one-shot trade prompts
+- [x] Expand live strategy auto-execution to the approved gameplay surface while explicitly excluding community boosts, premium, checkout, and purchase-like flows
+- [x] Update strategy prompts, docs, and tests so the new autonomy contract and timeline/trust model are visible across the stack
+- [x] Run required repo validation and record any introduced or pre-existing failures
+
+Review:
+
+- `/agent` now defaults into a strategy-first desk with a clearer daily brief, active-strategy framing, and an operations timeline, while chat is still available as a secondary refinement and inspection surface.
+- Added a shared strategy policy module that injects portfolio-manager behavior for broad requests, including diversification bias, pacing across the week, and hard exclusions for community boosts and any purchase-like flow.
+- Tightened the server-side strategy runner and public capability contract so autonomous strategies can use the broader approved gameplay action set without slipping into premium, checkout, or community-boost execution.
+- Updated agent docs, prompts, focused tests, and the `/agent` shell coverage so the autonomy-first contract is described consistently and the new strategy-first default path is exercised.
+- Validation results: `npm run check`, `npm run lint`, and `npm run test:run` passed. `npm run format:check` still fails on pre-existing unrelated files `server/mcp/testing.ts` and `server/routes/mcp.ts`.
+
+## 2026-03-23 MCP Client Playwright Timeout Fix
+
+- [x] Reproduce the MCP client timeout against the current `/mcp` route and mock harness
+- [x] Trace the transport/session behavior expected by external MCP clients and find the protocol mismatch
+- [x] Patch the MCP server path and tests/smokes so the client handshake completes reliably
+- [x] Run targeted MCP validation plus required repo checks where the current worktree permits
+
+Review:
+
+- Root cause was protocol drift in the public `/mcp` surface: we were creating a brand-new stateless transport per POST, returning initialize as `text/event-stream` with no `Mcp-Session-Id`, and hard-rejecting `GET /mcp`, which is enough to make session-oriented MCP clients hang or time out waiting for a proper streamable HTTP handshake.
+- The MCP route and mock harness now create session-backed Streamable HTTP transports with JSON request/response mode, issue a session ID during initialize, reuse the same transport for later POST/GET/DELETE requests, and tear sessions down cleanly without recursive close loops.
+- Added a regression test that exercises the raw initialize plus GET/DELETE session path, and validation passed with `npx vitest run server/mcp/mcp-server.test.ts`, `npm run mcp:smoke`, `npm run check`, `npm run lint`, and `npm run test:run`.
+
+## 2026-03-21 Hermes Strategy Review + Broad Gameplay Delegation
+
+- [x] Add explicit review-before-activation state to saved strategies so live runs only happen after the user approves the latest saved playbook
+- [x] Broaden gameplay-safe strategy auto-execution to the full approved gameplay action surface while keeping explicit no-payments guardrails
+- [x] Upgrade the Strategies Rules/Overview UI to expose review status, saved stages, and activation readiness clearly on mobile and desktop
+- [x] Add focused regression coverage and rerun `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`
+
+Review:
+
+- Added a saved review-state layer to strategy rule sheets so every strategy now carries explicit approval metadata, activation blocks on unreviewed changes, and live strategies automatically pause when materially edited until the user reviews them again.
+- Broadened the strategy runner's auto-exec allowlist to the full current gameplay-safe action surface, while keeping server-side validation around action scope, spend caps, and an explicit no-payments/no-checkout runtime guard.
+- Reworked the Strategy Rules surface into a real playbook review screen with approval status, stage-by-stage saved timeline visibility, and clear activation readiness instead of a thin cron-and-caps form.
+- Updated Hermes prompts and public runtime docs so the no-payments rule is explicit, and added regression coverage for review-state blocks, no-payments prompting/validation, broader gameplay action execution, and the new web-only strategy review route.
+- Validation passed with `npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`, and `npx playwright test tests/e2e/agent-shell.spec.ts --reporter=line`.
+
+## 2026-03-21 Agent UI Blocks Deepening + Legacy Cleanup
+
+- [x] Move agent block materialization deeper into the Hermes response path and enrich strategy-specific block synthesis
+- [x] Remove the stale cockpit surface and tighten the remaining Chat/Strategies chrome so goal blocks stay primary
+- [x] Improve the strategy builder/review workspace with richer draft, schedule, and rules summaries
+- [x] Update the live agent surface doc to reflect `Chat` / `Strategies` plus native `uiBlocks`
+- [x] Run `npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`, and `npx playwright test tests/e2e/agent-shell.spec.ts --reporter=line`
+
+Review:
+
+- Replaced service-only block fallback usage with shared `materializeAgentUiBlocks()` output so strategy builder/refinement/review turns now default to richer first-class blocks, including schedule and rules summaries, before the UI sees them.
+- Seeded new strategy conversations with draft-oriented `uiBlocks`, which makes blank strategy slots open into a real builder workspace instead of an empty chat plus generic shell chrome.
+- Removed the stale cockpit component and trimmed more remaining static chrome from Chat and Strategies so the active goal, pending decision, and draft/review blocks stay primary.
+- Tightened the visual language further with denser schedule/performance/source block treatments and strategy overview behavior that prefers draft context until the strategy is truly active.
+- Validation passed with `npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`, and targeted Playwright coverage for the Chat/Strategies flows.
+
+## 2026-03-21 Agent UI Blocks + Visual System Refactor
+
+- [x] Replace the generic `/agent` overview chrome with a compact goal-first `Chat` workbench and a slot-first `Strategies` workspace
+- [x] Add a Hermes-safe `uiBlocks` contract plus fallback block derivation so approved native UI blocks can ride the existing Hermes runtime path
+- [x] Rework Chat and Strategies to use the repo's terminal/trading visual language instead of oversized AI-dashboard cards
+- [x] Add regression coverage for uiBlocks prompt/runtime handling and the new mobile-first Chat/Strategies experience
+- [x] Validate with `npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`, and `npx playwright test tests/e2e/agent-shell.spec.ts --reporter=line`
+
+Review:
+
+- Added a closed shared `AgentUiBlock` catalog and threaded it through the Hermes response/runtime/message contracts so the server can persist approved goal, decision, strategy, source, and run-summary UI blocks without widening the tool surface.
+- Introduced safe server-side fallback block derivation for current Hermes responses, which lets the app adopt the new UI layer immediately while the sidecar/prompt path learns to emit first-class blocks directly.
+- Rebuilt the main `/agent` surfaces around the repo's existing terminal/trading language: flatter shells, tighter density, compact goal strips, and lighter strategy chrome instead of generic AI hero cards and repeated summary grids.
+- Updated Chat and Strategies so the transcript or active strategy workspace is visible sooner, while Hermes metadata remains available through compact blocks and inline expandable message details instead of dominating the first viewport.
+- Validation passed with `npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`, and targeted Playwright coverage for the new desktop/mobile Agent flows.
+
+## 2026-03-21 Agent Mobile Cutoff Root-Cause Fix
+
+- [x] Trace the remaining `/agent` mobile clipping through the app shell, agent shell, and strategy workspace to find the real viewport/overflow owner
+- [x] Remove duplicate `100dvh` ownership, simplify chat/strategy scroll containers, and add safe-area bottom padding where the agent content actually ends
+- [x] Add targeted browser coverage that scrolls the real agent chat and strategy workspaces instead of the page window
+- [x] Run `npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`, and targeted `npx playwright test tests/e2e/agent-shell.spec.ts --reporter=line`
+
+## 2026-03-18 Hermes Strategy Continuity + Mobile Strategy Hub
+
+- [x] Add strategy lifecycle events, strategy detail/performance surfaces, and event-driven wakeups without creating a second orchestration engine
+- [x] Extend the strategy runner to wake on gameplay-day and research-refresh events through the Hermes runtime path and persist visible lifecycle history
+- [x] Rework `/agent` mission and strategy views into a mobile-first organized workspace with a clearer briefing hierarchy, collapsible secondary panels, and sheet-based strategy detail on mobile
+- [x] Add focused strategy-runner and `/agent` browser coverage for Hermes event routing and mobile layout behavior
+- [x] Validate with `npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`, and `npx playwright test tests/e2e/agent-shell.spec.ts --reporter=line`
+
+Review:
+
+- Added `user_agent_strategy_events`, strategy detail aggregation, and estimated sleeve/performance summaries so strategies now have real lifecycle history and attributable live-state visibility instead of only template metadata.
+- Extended the Hermes-native strategy runner to wake on gameplay-day and research-refresh signals, record deduped event triggers, and keep all wakeups flowing through the same Hermes runtime boundary used by manual turns and schedules.
+- Reorganized the `/agent` mission view around a single briefing surface plus mobile accordions for secondary automation/evidence/capability panels, and rebuilt the Strategy Hub into grouped live/library/attention sections with sheet-based detail on mobile.
+- Added regression coverage proving gameplay-triggered strategy wakes still route through Hermes strategy mode, plus Playwright coverage for the organized mobile mission view and the mobile strategy detail sheet.
+- Validation passed serially with `npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`, and `npx playwright test tests/e2e/agent-shell.spec.ts --reporter=line`. A parallelized validation attempt produced unrelated timeout-only failures in existing long-running tests, but the serial rerun passed cleanly.
+
+## 2026-03-16 Hermes Ops Cockpit Revamp
+
+- [x] Tighten the live Hermes tool surface so the runtime only sees the explicit gameplay-scoped catalog for the turn
+- [x] Add thread runtime/cockpit data that exposes active focus, progress timeline, schedules, research sources, and capability groups from real Hermes state
+- [x] Rebuild `/agent` into a proactive cockpit with active-focus, since-last-message, progress, evidence, automation, and capability panels while preserving mobile-safe layout rules
+- [x] Enrich assistant message rendering with tool traces, memory/skill context, and confirmation previews so Hermes reads as a real orchestrator
+- [x] Run targeted validation (`npm run check`, `npm run lint`, `npm run test:run`) and record any pre-existing failures
+
+Review:
+
+- Tightened Hermes default tool access so the runtime only inherits tools from the explicit gameplay catalog and automatically excludes `hidden_fallback` and `internal_only` entries.
+- Added a thread-scoped runtime-details server surface that turns real messages, pending bundles, schedules, and research into active objective, timeline, since-last-message, capability-map, and isolation metadata for the cockpit.
+- Reworked the `/agent` shell into a two-column proactive cockpit that keeps mobile-safe density while surfacing focus, progress, evidence, automation, and capability state around the transcript instead of hiding everything inside chat bubbles.
+- Enriched assistant message cards with Hermes run metadata including tool traces, skill usage, memory influences, schedule provenance, and confirmation previews.
+- Added targeted regression coverage for the safe default Hermes allowlist and the runtime-details aggregator; validation passed with `npm run check`, `npm run lint`, `npm run format:check`, and `npm run test:run`.
+
+## 2026-03-18 Hermes Normalization + Strategy Scaffolding
+
+- [x] Normalize the in-app Hermes runtime around one shared request builder and portfolio-operator defaults without widening the tool boundary
+- [x] Add sidecar-ready portfolio aliases/default migration hooks so Hermes identity and request assembly stop living in scattered scout-specific wrappers
+- [x] Add thin user strategy persistence, slot enforcement (`5` saved / `1` live), and agent routes without creating a second orchestration engine
+- [x] Surface saved strategies inside `/agent` so users can save the current Hermes thread as a reusable strategy template and manage live/pause/archive state
+- [x] Run required validation (`npm run check`, `npm run lint`, `npm run format:check`, `npm run test:run`) and record any introduced or pre-existing failures
+
+Review:
+
+- Split Hermes request assembly into a shared runtime adapter so the local runtime and the sidecar path build the same canonical Hermes request contract instead of duplicating payload logic.
+- Normalized the default Hermes identity to a portfolio operator, added compatibility aliases for portfolio-first service entrypoints, and auto-upgrade legacy scout-default profiles when they still match the old stock prompt strings.
+- Added first-class strategy tables and service/routes for saving thread-backed strategy templates, enforcing the `5` saved / `1` live slot limits, and keeping strategies as thin product-owned mandates rather than a new execution engine.
+- Wired a Strategy panel into the `/agent` cockpit so users can save the current thread, inspect saved mandates, and manage live/pause/archive state from the same Hermes surface.
+- Added focused tests for the shared runtime adapter and strategy normalization/slot limits.
+- Validation passed with `npm run check`, `npm run lint`, `npm run format:check`, and `npm run test:run` after updating the shared public-surface route audit for the new authenticated strategy routes.
+
+## 2026-03-18 Hermes Runtime Boundary Refactor
+
+- [x] Replace the request-builder-only runtime helper with a formal Hermes runtime adapter that can execute locally or through the documented sidecar transport
+- [x] Wire the documented `HERMES_AGENT_URL` path so the main app can call a dedicated Hermes sidecar with the same canonical turn contract instead of always running in-process
+- [x] Extend the Hermes runtime contract with explicit strategy, trigger, and execution context metadata without widening the gameplay tool boundary
+- [x] Route the current in-app and bot Hermes entrypoints through the shared adapter instead of directly depending on the local orchestrator path
+- [x] Add parity-focused runtime tests and rerun required validation (`npm run check`, `npm run lint`, `npm run format:check`, `npm run test:run`)
+
+Review:
+
+- Added a real runtime transport layer in `server/agent/runtime-engine.ts` that selects between the in-process Hermes path and the documented sidecar URL, so the app now has a genuine sidecar-ready execution boundary instead of a request-builder-only helper.
+- Kept the existing Hermes orchestration framework intact by reusing the shared turn-request builder for both transports; the sidecar transport sends the same canonical turn metadata, while the dedicated sidecar service still rebuilds runtime config and context on its side instead of trusting widened product payloads.
+- Extended the Hermes runtime contract with explicit `strategyContext`, `triggerContext`, and `executionContext` blocks so manual threads, schedules, and future strategy runs can all enter Hermes through the same interface without hardcoding route-specific behavior.
+- Routed the main in-app agent service, due schedule runner, and Hermes bot runtime through the shared adapter and attached concrete trigger/execution metadata for each path.
+- Added focused tests for the new request contract and sidecar transport path. Validation passed with `npm run check`, `npm run lint`, `npm run format:check`, and `npm run test:run`.
+
+## 2026-03-18 Hermes Sidecar Cutover + Strategy Execution
+
+- [ ] Make the Hermes runtime fail closed when sidecar mode is required, persist transport/correlation metadata on runtime sessions, and expose enough provenance to prove a turn actually routed through the sidecar
+- [ ] Add a Hermes-native live strategy runner that wakes due strategies, calls the shared Hermes runtime contract, auto-executes only the approved strategy-safe action subset, and persists run history plus block/failure state
+- [ ] Wire strategy run visibility and manual run/retry controls into the `/agent` cockpit without adding a second orchestration engine
+- [ ] Add parity and failure-mode coverage for sidecar routing, runtime metadata, and strategy execution, then rerun `npm run check`, `npm run lint`, `npm run format:check`, and `npm run test:run`
+
+## 2026-03-18 Agent Tab Cleanup: Chat + Strategies
+
+- [ ] Fix the `/agent` desktop/mobile clipping bug by giving Chat and Strategies their own scroll ownership instead of one shared workspace scroll area
+- [ ] Replace the current `Mission / Thread / Strategies` IA with `Chat / Strategies` and simplify Chat into a mostly chat-first Hermes workspace
+- [ ] Convert strategies into dedicated strategy conversations with separate strategy threads, slot-based mobile-first navigation, and overview-first detail views with chat always accessible
+- [ ] Add Hermes conversation-mode prompt layering for general chat, strategy builder, and strategy refinement so existing strategies carry the right context when edited
+- [ ] Replace user-facing jargon like `mandate` and `wakeups`, add regression coverage for the new flows, and rerun `npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`, and `npx playwright test tests/e2e/agent-shell.spec.ts --reporter=line`
+
 ## 2026-03-13 Issue 99 Canonical Player ID Repair
 
 - [x] Sync local repo to latest `origin/main` and branch the issue 99 fix from current main
@@ -1437,3 +1664,26 @@ Review:
 - `/api/activity` now aggregates stacking, daily boost entry/settlement, holder payouts, LP adds/removals, community boosts, and available premium activity from the existing immutable tables instead of inventing a second event store.
 - The new tab adds summary counts, category chips, search, a compact focus filter, and per-row drill-ins to player, boosts, liquidity, or premium surfaces.
 - `npm run check` is still blocked by pre-existing unrelated TypeScript errors in `client/src/components/market-mobile-home.tsx`, and full `npm run test:run` is still blocked by pre-existing `server/market-mobile-overview.test.ts` failures tied to missing `getTopPoolPlayerIds` test deps.
+
+## 2026-03-23 Agent Mobile Scroll Hardening
+
+- [x] Constrain `/agent` route height so the page shell, not the document, owns mobile layout
+- [x] Remove mobile horizontal overflow from the strategy command center and slot rail
+- [x] Compact mobile chat and strategy detail chrome so transcript/detail panes remain reachable above the composer
+- [x] Verify mobile `/agent` scroll owners with Playwright MCP before validation
+
+## 2026-03-23 Agent Scroll Contract Refactor + Dashboard Density Pass
+
+- [x] Refactor `/agent` so chat, strategy command center, and strategy detail each have one primary vertical scroll owner
+- [x] Trim repeated helper copy and restyle `/agent` with dashboard-style typography and tighter spacing instead of generic stacked cards
+- [x] Rework mobile strategy detail and strategy chat so the visible detail body owns scrolling while the composer stays anchored
+- [x] Verify the live `/agent` surface in Playwright MCP and rerun repo validation
+
+Review:
+
+- `/agent` now uses a tighter dashboard-derived rhythm: smaller uppercase labels, denser rows, fewer hero-style summaries, and less repeated explanatory copy across Chat and Strategies.
+- Chat header chrome was reduced to one compact workbench strip plus actionable blocks, and the transcript/composer shell now keeps scroll ownership in the transcript body instead of spreading it across nested panels.
+- Strategies now opens into a denser command brief and slot rail, while strategy detail keeps one stable body region for `Overview`, `Chat`, and `Rules`; the mobile strategy chat/composer stack no longer depends on page scroll.
+- Playwright MCP verification on the live app showed the intended mobile behavior: `window.scrollY` stayed at `0` while the chat transcript, strategy command center, strategy overview, and strategy chat containers all scrolled internally, and the send button stayed inside the viewport.
+- Validation passed for `npm run check` and `npm run lint`. `npm run format:check` still fails only on pre-existing unrelated files `server/mcp/testing.ts` and `server/routes/mcp.ts`.
+- `npm run test:run` timed out in the existing full Vitest suite, and `npx playwright test tests/e2e/agent-shell.spec.ts --reporter=line` still fails in the current harness because the browser test does not reliably observe the authenticated workspace switch, even though the same `/agent` flows were verified directly in Playwright MCP.

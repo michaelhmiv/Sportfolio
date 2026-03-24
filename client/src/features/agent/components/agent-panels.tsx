@@ -100,20 +100,21 @@ export function AgentThreadPanel({
 }) {
   return (
     <div className="flex h-full flex-col">
-      <div className="border-b border-[#2a2e39] px-4 py-4">
-        <div className="flex items-center gap-2">
-          <div className="rounded-sm border border-[#2a2e39] bg-[#171c29] p-2 text-amber-300">
+      <div className="border-b border-[#2a2e39] bg-[linear-gradient(180deg,rgba(19,23,34,0.96),rgba(13,18,31,0.98))] px-4 py-4">
+        <div className="flex items-center gap-3">
+          <div className="rounded-full border border-[#2a2e39] bg-[#171c29] p-2 text-amber-300">
             <MessageSquare className="h-4 w-4" />
           </div>
           <div>
-            <div className="text-sm font-semibold text-slate-50">Conversation History</div>
+            <div className="terminal-kicker">Chat rail</div>
+            <div className="mt-1 text-sm font-semibold text-slate-50">Conversation history</div>
             <div className="text-[11px] text-slate-400">
-              Recent chats and staged plans live here.
+              Review recent asks, open staged plans, and jump back into an active thread.
             </div>
           </div>
         </div>
         <Button
-          className="mt-3 h-8 w-full rounded-sm border-[#2a2e39] bg-[#171c29] px-3 text-[11px] uppercase tracking-[0.08em] text-slate-100 hover:bg-[#202637]"
+          className="mt-4 h-9 w-full border-[#2a2e39] bg-[#171c29] px-3 text-[11px] uppercase tracking-[0.08em] text-slate-100 hover:bg-[#202637]"
           variant="outline"
           onClick={() => {
             onStartFresh();
@@ -121,7 +122,7 @@ export function AgentThreadPanel({
           }}
         >
           <Plus className="mr-2 h-4 w-4" />
-          Start Fresh Chat
+          New Chat
         </Button>
       </div>
 
@@ -139,7 +140,7 @@ export function AgentThreadPanel({
           </div>
         ) : threads.length === 0 ? (
           <div className="rounded-sm border border-dashed border-[#2a2e39] bg-[#171c29] px-3 py-4 text-xs text-slate-400">
-            Your conversations will show up here after your first message.
+            Your chats will show up here after your first message.
           </div>
         ) : (
           <div className="space-y-2">
@@ -156,16 +157,21 @@ export function AgentThreadPanel({
                     onClose();
                   }}
                   className={cn(
-                    "w-full rounded-sm border px-3 py-2.5 text-left transition-colors",
+                    "w-full border px-3 py-3 text-left transition-colors",
                     isActive
-                      ? "border-amber-500/40 bg-amber-500/10 text-slate-50 shadow-sm"
-                      : "border-[#2a2e39] bg-[#171c29] text-slate-100 hover:border-slate-600 hover:bg-[#202637]",
+                      ? "border-amber-500/45 bg-[linear-gradient(180deg,rgba(122,81,0,0.14),rgba(27,20,8,0.96))] text-slate-50"
+                      : "border-[#2a2e39] bg-[linear-gradient(180deg,rgba(23,28,41,0.94),rgba(13,18,31,0.98))] text-slate-100 hover:border-slate-600 hover:bg-[#202637]",
                   )}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="truncate text-[13px] font-semibold text-slate-50">
-                        {getThreadTitle(thread, index)}
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-slate-500">
+                          {`T${index + 1}`}
+                        </span>
+                        <div className="truncate text-[13px] font-semibold text-slate-50">
+                          {getThreadTitle(thread, index)}
+                        </div>
                       </div>
                       <div className="mt-1 flex flex-wrap items-center gap-2">
                         {thread.pendingActionBundle ? (
@@ -173,18 +179,21 @@ export function AgentThreadPanel({
                             Plan Ready
                           </Badge>
                         ) : (
-                          <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-slate-400">
+                          <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-slate-400">
                             {formatDomainLabel(thread.domain)}
                           </span>
                         )}
+                        <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-slate-500">
+                          {thread.channel === "sms" ? "SMS" : "In app"}
+                        </span>
                       </div>
                     </div>
-                    <div className="shrink-0 text-[10px] text-slate-400">
+                    <div className="shrink-0 font-mono text-[10px] uppercase tracking-[0.08em] text-slate-500">
                       {formatThreadTimestamp(thread.lastMessageAt || thread.updatedAt)}
                     </div>
                   </div>
                   {preview && (
-                    <div className="mt-1.5 line-clamp-2 text-[11px] leading-5 text-slate-400">
+                    <div className="mt-2 border-l border-[#2a2e39] pl-3 text-[11px] leading-5 text-slate-400">
                       {preview}
                     </div>
                   )}

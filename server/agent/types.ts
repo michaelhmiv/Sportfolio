@@ -3,7 +3,10 @@ import type {
   UpdateUserAgentProfileInput,
   UserAgentByokInput,
   UserAgentProfile,
+  UserAgentSecret,
 } from "@shared/schema";
+import type { AgentUiBlock } from "@shared/agent-ui";
+import type { AgentStrategyTimeline } from "@shared/agent-strategy";
 
 export type AgentProviderMode = "managed" | "byok";
 export type AgentRuntime = "pi" | "hermes";
@@ -14,6 +17,7 @@ export type AgentDomain =
   | "community_boosts"
   | "watchlists"
   | "sportfolio";
+export type AgentThreadWorkspace = "chat" | "strategy";
 export type AgentChannel = "in_app" | "sms" | "cli";
 export type ManagedProviderKey = "chutes" | "minimax" | "openrouter";
 export type AgentMessageRole = "user" | "assistant" | "system";
@@ -32,7 +36,7 @@ export type AgentActionBundleStatus =
   | "failed"
   | "expired";
 export const MANAGED_MODEL_PLACEHOLDER = "managed-default";
-export const DEFAULT_MANAGED_MODEL = "moonshotai/Kimi-K2.5-TEE";
+export const DEFAULT_MANAGED_MODEL = "openai/gpt-4o-mini";
 
 export interface AgentPendingClarification {
   kind: "player_name";
@@ -100,6 +104,7 @@ export interface ManagedProviderStatus {
   baseUrl: string;
   defaultModel: string | null;
   models: string[];
+  supportsHermesToolLoop: boolean;
 }
 
 export interface AgentSystemSettingsView {
@@ -199,6 +204,8 @@ export interface ScoutAgentContext {
   knowledgeBrief: ScoutAgentKnowledgeBriefItem[];
 }
 
+export type PortfolioAgentContext = ScoutAgentContext;
+
 export interface AgentModelUsage {
   promptTokens?: number;
   completionTokens?: number;
@@ -230,6 +237,8 @@ export type AgentScheduleJobType =
   | "injury_watch"
   | "idle_balance_nudge"
   | "boost_window";
+export type AgentStrategyStatus = "draft" | "live" | "paused" | "blocked" | "archived";
+export type AgentStrategyReviewStatus = "pending" | "approved";
 export type AgentToolCategory = "read" | "scan" | "plan" | "action" | "memory" | "research";
 export type AgentToolExposure = "default" | "advanced" | "hidden_fallback" | "internal_only";
 export type AgentProviderFailureClass =
@@ -238,6 +247,11 @@ export type AgentProviderFailureClass =
   | "transient"
   | "malformed_response"
   | "unknown";
+export type HermesConversationMode =
+  | "general_chat"
+  | "strategy_builder"
+  | "strategy_refinement"
+  | "strategy_review";
 export type AgentFailureClass =
   | "malformed_tool_call"
   | "tool_not_selected_when_needed"
@@ -372,6 +386,48 @@ export interface AgentConfirmationPreview {
   riskClass: "low" | "medium" | "high";
 }
 
+export interface AgentContinuityActionView {
+  id: string;
+  title: string;
+  summary: string;
+  createdAt: Date | null;
+  source: "strategy_run" | "pending_bundle";
+}
+
+export interface AgentContinuityOpenLoopView {
+  id: string;
+  title: string;
+  summary: string;
+  status: "tracking" | "waiting_on_you" | "scheduled" | "blocked";
+  dueAt: Date | null;
+  source: "pending_bundle" | "strategy" | "schedule" | "research";
+}
+
+export interface AgentContinuityStrategyView {
+  strategyId: string;
+  name: string;
+  status: AgentStrategyStatus;
+  nextRunAt: Date | null;
+  lastOutcomeSummary: string | null;
+}
+
+export interface AgentContinuityEvidenceView {
+  id: string;
+  title: string;
+  summary: string;
+  createdAt: Date | null;
+  sourceName: string | null;
+}
+
+export interface AgentContinuityStateView {
+  headline: string;
+  summary: string;
+  recentActions: AgentContinuityActionView[];
+  openLoops: AgentContinuityOpenLoopView[];
+  activeStrategies: AgentContinuityStrategyView[];
+  evidenceUpdates: AgentContinuityEvidenceView[];
+}
+
 export interface AgentUserSchedule {
   id: string;
   userId: string;
@@ -384,6 +440,161 @@ export interface AgentUserSchedule {
   nextRunAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface AgentStrategyRecord {
+  id: string;
+  userId: string;
+  sourceThreadId: string | null;
+  conversationThreadId: string | null;
+  name: string;
+  summary: string;
+  mandateText: string;
+  normalizedRuleSheet: Record<string, unknown>;
+  timeline: AgentStrategyTimeline;
+  status: AgentStrategyStatus;
+  scheduleCron: string | null;
+  eventSubscriptions: string[];
+  allowedActionTypes: AgentAction["actionType"][];
+  guardrails: Record<string, unknown>;
+  reviewState: {
+    status: AgentStrategyReviewStatus;
+    reviewedAt: Date | null;
+    lastMaterialUpdateAt: Date | null;
+    summary: string | null;
+  };
+  requiresReview: boolean;
+  linkedSkillId: string | null;
+  lastOutcomeSummary: string | null;
+  lastRunAt: Date | null;
+  nextRunAt: Date | null;
+  activatedAt: Date | null;
+  pausedAt: Date | null;
+  archivedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  recentRuns?: AgentStrategyRunRecord[];
+}
+
+export interface AgentStrategyEventRecord {
+  id: string;
+  strategyId: string;
+  userId: string;
+  strategyRunId: string | null;
+  eventType: string;
+  status: "info" | "success" | "warning" | "error";
+  title: string;
+  summary: string | null;
+  eventKey: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: Date;
+}
+
+export interface AgentStrategyPerformancePosition {
+  playerId: string;
+  playerName: string | null;
+  team: string | null;
+  netShares: number;
+  estimatedCostBasis: number;
+  estimatedCurrentPrice: number | null;
+  estimatedCurrentValue: number | null;
+  estimatedUnrealizedPnl: number | null;
+}
+
+export interface AgentStrategyPerformanceSummary {
+  appliedRunCount: number;
+  completedRunCount: number;
+  blockedRunCount: number;
+  failedRunCount: number;
+  buyActionCount: number;
+  sellActionCount: number;
+  scoutActionCount: number;
+  watchlistActionCount: number;
+  boostActionCount: number;
+  estimatedSpentSb: number;
+  estimatedRealizedSb: number;
+  estimatedCurrentValueSb: number;
+  estimatedNetPnlSb: number;
+  openPositionCount: number;
+  openScoutTargetCount: number;
+  lastAppliedAt: Date | null;
+  positions: AgentStrategyPerformancePosition[];
+}
+
+export interface AgentStrategyDetailRecord extends AgentStrategyRecord {
+  recentRuns: AgentStrategyRunRecord[];
+  recentEvents: AgentStrategyEventRecord[];
+  performance: AgentStrategyPerformanceSummary;
+  continuity: AgentContinuityStateView;
+}
+
+export interface AgentStrategyRunRecord {
+  id: string;
+  strategyId: string;
+  userId: string;
+  threadId: string | null;
+  hermesRunId: string | null;
+  runtimeSessionId: string | null;
+  runtimeTransport: "local" | "sidecar" | null;
+  runtimeEndpoint: string | null;
+  runtimeCorrelationId: string | null;
+  triggerSource: string;
+  status: string;
+  outcomeSummary: string | null;
+  toolTrace: AgentToolTrace[];
+  appliedActions: AgentAction[];
+  adaptationNotes: string | null;
+  failureReason: string | null;
+  createdAt: Date;
+  completedAt: Date | null;
+}
+
+export interface HermesStrategyContext {
+  strategyId: string;
+  sourceThreadId: string | null;
+  status: AgentStrategyStatus | null;
+  mandate: string;
+  normalizedRuleSheet: Record<string, unknown>;
+  guardrails: Record<string, unknown>;
+  reviewState?: {
+    status: AgentStrategyReviewStatus;
+    reviewedAt: string | null;
+    lastMaterialUpdateAt: string | null;
+    summary: string | null;
+  } | null;
+}
+
+export interface HermesRuntimeMetadata {
+  sessionId: string | null;
+  transport: "local" | "sidecar";
+  endpoint: string | null;
+  executionKind: HermesExecutionContext["kind"] | null;
+  triggerSource: HermesTriggerContext["source"] | null;
+  strategyId: string | null;
+  correlationId: string | null;
+  providerKey: ManagedProviderKey | null;
+  model: string | null;
+}
+
+export interface HermesTriggerContext {
+  source:
+    | "manual"
+    | "manual_retry"
+    | "schedule"
+    | "strategy_schedule"
+    | "strategy_event"
+    | "bot_cycle"
+    | "system";
+  label?: string | null;
+  jobType?: AgentScheduleJobType | null;
+  eventType?: string | null;
+  requestedAt: string;
+}
+
+export interface HermesExecutionContext {
+  kind: "manual_thread" | "scheduled_advisory" | "strategy_run" | "bot_runtime";
+  allowAutoExecution: boolean;
+  requiresExplicitConfirmation: boolean;
 }
 
 export interface AgentModelRuntimeConfig {
@@ -456,11 +667,16 @@ export interface HermesRespondRequest {
     canonicalKnowledge: ScoutAgentKnowledgeBriefItem[];
     research: AgentCitation[];
   };
+  continuityState: AgentContinuityStateView | null;
   conversationHistory: Array<{
     role: "user" | "assistant";
     contentText: string;
   }>;
   semanticRouteHint?: AgentSemanticRoute | null;
+  conversationMode?: HermesConversationMode | null;
+  strategyContext?: HermesStrategyContext | null;
+  triggerContext?: HermesTriggerContext | null;
+  executionContext?: HermesExecutionContext | null;
 }
 
 export interface HermesRespondResult {
@@ -485,6 +701,39 @@ export interface HermesRespondResult {
   memoryInfluences?: string[];
   requiresConfirmation: boolean;
   confirmationPreview: AgentConfirmationPreview | null;
+  uiBlocks?: AgentUiBlock[];
+  runtimeMetadata?: HermesRuntimeMetadata | null;
+}
+
+export interface HermesRuntimeTurnInput {
+  userId: string;
+  threadId: string | null;
+  channel: AgentChannel;
+  message: string;
+  requestMode: HermesRespondRequest["requestMode"];
+  profile: UserAgentProfile;
+  secret?: UserAgentSecret;
+  context: ScoutAgentContext;
+  capabilities: HermesRespondRequest["canonicalState"]["capabilities"];
+  memoryContext: HermesRespondRequest["memoryContext"];
+  conversationHistory?: HermesRespondRequest["conversationHistory"];
+  semanticRouteHint?: AgentSemanticRoute | null;
+  conversationMode?: HermesConversationMode | null;
+  toolAllowlist?: string[];
+  toolCatalog?: AgentToolDefinition[];
+  availableSkills?: AgentSkillDefinition[];
+  autoExecutionPolicy?: HermesRespondRequest["autoExecutionPolicy"];
+  confirmationPolicy?: HermesRespondRequest["confirmationPolicy"];
+  externalResearch?: HermesRespondRequest["externalContext"]["research"];
+  canonicalKnowledge?: HermesRespondRequest["externalContext"]["canonicalKnowledge"];
+  continuityState?: HermesRespondRequest["continuityState"];
+  pendingBundleId?: string | null;
+  skillPolicy?: HermesRespondRequest["skillPolicy"];
+  memoryMode?: HermesRespondRequest["memoryMode"];
+  modelRuntime?: AgentModelRuntimeConfig;
+  strategyContext?: HermesStrategyContext | null;
+  triggerContext?: HermesTriggerContext | null;
+  executionContext?: HermesExecutionContext | null;
 }
 
 export interface ScoutProposalAction {
@@ -723,6 +972,10 @@ export interface AgentAnalysisResult {
   toolTrace?: AgentToolTrace[];
   skillsUsed?: string[];
   createdSkillCandidates?: string[];
+  memoryInfluences?: string[];
+  confirmationPreview?: AgentConfirmationPreview | null;
+  uiBlocks?: AgentUiBlock[];
+  runtimeMetadata?: HermesRuntimeMetadata | null;
   errorMessage?: string | null;
 }
 
@@ -749,6 +1002,8 @@ export interface AgentThreadSummary {
   title: string | null;
   channel: AgentChannel;
   domain: AgentDomain;
+  workspace: AgentThreadWorkspace;
+  strategyId: string | null;
   status: string;
   lastMessageAt: Date | null;
   updatedAt: Date;
@@ -767,6 +1022,13 @@ export interface AgentThreadMessage {
   actionBundle: AgentActionBundleView | null;
   citations?: AgentCitation[] | null;
   pendingClarification?: AgentPendingClarification | null;
+  toolTrace?: AgentToolTrace[] | null;
+  skillsUsed?: string[] | null;
+  memoryInfluences?: string[] | null;
+  confirmationPreview?: AgentConfirmationPreview | null;
+  uiBlocks?: AgentUiBlock[] | null;
+  generatedBy?: "user" | "assistant" | "hermes_schedule" | "hermes_strategy" | null;
+  scheduleJobType?: AgentScheduleJobType | null;
 }
 
 export interface AgentThreadTurnResult {
@@ -774,6 +1036,100 @@ export interface AgentThreadTurnResult {
   createdMessages: AgentThreadMessage[];
   pendingActionBundle: AgentActionBundleView | null;
   pendingClarification?: AgentPendingClarification | null;
+}
+
+export type AgentThreadObjectiveStatus =
+  | "tracking"
+  | "planning"
+  | "waiting_on_you"
+  | "completed"
+  | "blocked";
+
+export interface AgentThreadObjectiveView {
+  title: string;
+  status: AgentThreadObjectiveStatus;
+  summary: string;
+  nextStep: string | null;
+  source:
+    | "pending_bundle"
+    | "clarification"
+    | "scheduled_advisory"
+    | "assistant_run"
+    | "applied_result";
+  updatedAt: Date;
+  runId: string | null;
+}
+
+export type AgentThreadTimelineEventType =
+  | "user_turn"
+  | "assistant_run"
+  | "scheduled_advisory"
+  | "research_update"
+  | "plan_staged"
+  | "clarification_needed"
+  | "plan_applied"
+  | "plan_cancelled"
+  | "plan_failed";
+
+export interface AgentThreadTimelineEvent {
+  id: string;
+  type: AgentThreadTimelineEventType;
+  title: string;
+  summary: string;
+  status: "tracking" | "waiting_on_you" | "completed" | "blocked" | "failed" | "info";
+  createdAt: Date;
+  runId: string | null;
+  citations: AgentCitation[];
+  toolTrace: AgentToolTrace[];
+  skillsUsed: string[];
+  memoryInfluences: string[];
+  confirmationPreview: AgentConfirmationPreview | null;
+}
+
+export interface AgentThreadDeltaView {
+  anchorAt: Date | null;
+  eventCount: number;
+  headline: string;
+  items: Array<{
+    id: string;
+    title: string;
+    createdAt: Date;
+    type: AgentThreadTimelineEventType;
+  }>;
+}
+
+export interface AgentCapabilityView {
+  toolName: string;
+  description: string;
+  requiresConfirmation: boolean;
+  riskLevel: AgentToolDefinition["riskLevel"];
+  examplePrompts: string[];
+}
+
+export interface AgentCapabilityGroupView {
+  key: "read" | "scan" | "research" | "plan" | "action" | "memory" | "schedules";
+  label: string;
+  tools: AgentCapabilityView[];
+}
+
+export interface AgentIsolationBoundaryView {
+  gameplayOnly: true;
+  codebaseAccess: false;
+  arbitraryDatabaseAccess: false;
+  genericFileAccess: false;
+  adminAccess: false;
+  riskyMutationsRequireConfirmation: true;
+}
+
+export interface AgentThreadRuntimeDetails {
+  activeObjective: AgentThreadObjectiveView | null;
+  sinceLastUserMessage: AgentThreadDeltaView | null;
+  continuity: AgentContinuityStateView;
+  timeline: AgentThreadTimelineEvent[];
+  researchSources: AgentCitation[];
+  schedules: AgentUserSchedule[];
+  capabilityGroups: AgentCapabilityGroupView[];
+  isolation: AgentIsolationBoundaryView;
 }
 
 export interface AgentSemanticRouteMatch {

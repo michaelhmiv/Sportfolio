@@ -2,7 +2,7 @@ import { userAgentMessages, userAgentSchedules, userAgentThreads } from "@shared
 import { and, desc, eq, lte, sql } from "drizzle-orm";
 import { toZonedTime } from "date-fns-tz";
 import { db } from "../db";
-import { analyzeScoutAgent } from "./service";
+import { analyzePortfolioAgent } from "./service";
 import type { AgentChannel, AgentScheduleJobType, AgentUserSchedule } from "./types";
 
 const DEFAULT_IN_APP_CHANNELS: AgentChannel[] = ["in_app"];
@@ -532,10 +532,21 @@ export async function runDueUserAgentSchedules(limit = 20): Promise<{
     try {
       const threadId = await getOrCreateScheduleThread(schedule.userId, schedule.jobType);
       const prompt = DEFAULT_SCHEDULE_CONFIG[schedule.jobType].prompt;
-      const analysis = await analyzeScoutAgent(schedule.userId, {
+      const analysis = await analyzePortfolioAgent(schedule.userId, {
         threadId,
         message: prompt,
         mode: "discussion",
+        triggerContext: {
+          source: "schedule",
+          label: schedule.jobType,
+          jobType: schedule.jobType,
+          requestedAt: now.toISOString(),
+        },
+        executionContext: {
+          kind: "scheduled_advisory",
+          allowAutoExecution: false,
+          requiresExplicitConfirmation: true,
+        },
       });
 
       if (analysis.status === "completed" && analysis.replyText) {

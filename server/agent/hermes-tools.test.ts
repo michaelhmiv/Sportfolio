@@ -32,6 +32,7 @@ const mocks = vi.hoisted(() => ({
     getLpTransactionHistory: vi.fn(),
     getMarketActivity: vi.fn(),
     getPlayer: vi.fn(),
+    getPlayers: vi.fn(),
     getPlayerFinancialMetrics: vi.fn(),
     getPlayerRecentGamesFromLogs: vi.fn(),
     getPlayerSeasonStatsFromLogs: vi.fn(),
@@ -162,6 +163,15 @@ describe("hermes-tools", () => {
       marketCap: "500.00",
       lastTradePrice: "5.00",
     });
+    mocks.storage.getPlayers.mockResolvedValue([
+      {
+        id: "nba_1",
+        firstName: "Jalen",
+        lastName: "Brunson",
+        marketCap: "500.00",
+        lastTradePrice: "5.00",
+      },
+    ]);
     mocks.listAvailableAgentSkills.mockResolvedValue([]);
     mocks.listAgentSkillCandidates.mockResolvedValue([]);
   });
@@ -214,6 +224,67 @@ describe("hermes-tools", () => {
     expect(result.actions).toHaveLength(1);
     expect(result.actions[0].actionType).toBe("pool_buy");
     expect(result.contextSnapshot.preview.afterState.estimatedSharesOut).toBe(5.2);
+    expect(mocks.planDirectAgentOperation).toHaveBeenCalledWith({
+      userId: "user_1",
+      message: "buy $24 of Jalen Brunson",
+      profile: {
+        displayName: "Agent",
+      },
+    });
+  });
+
+  it("resolves a name-like playerId into a canonical player before building a buy preview", async () => {
+    mocks.storage.getPlayer.mockResolvedValueOnce(null).mockResolvedValue({
+      id: "nba_1",
+      firstName: "Jalen",
+      lastName: "Brunson",
+      marketCap: "500.00",
+      lastTradePrice: "5.00",
+    });
+    mocks.storage.getPlayers.mockResolvedValue([
+      {
+        id: "nba_1",
+        firstName: "Jalen",
+        lastName: "Brunson",
+        marketCap: "500.00",
+        lastTradePrice: "5.00",
+      },
+    ]);
+    mocks.storage.getAvailableBalance.mockResolvedValue(125);
+    mocks.getOrCreatePool.mockResolvedValue({
+      currentPrice: 4.5,
+      lpSharesTotal: 100,
+      shares: 200,
+    });
+    mocks.getBuyQuote.mockResolvedValue({
+      sharesOut: 5.2,
+      newPoolPrice: 4.8,
+      effectivePrice: 4.62,
+      slippagePercent: 0.03,
+    });
+    mocks.planDirectAgentOperation.mockResolvedValue({
+      domain: "player_pools",
+      requestMessage: "buy $24 of Jalen Brunson",
+      replyText: "Queued the buy.",
+      summary: "Buy Jalen Brunson",
+      observations: ["Estimated fill prepared."],
+      warnings: [],
+      actions: [],
+      errorMessage: null,
+      contextSnapshot: {},
+      trace: {},
+    });
+
+    await runHermesPlanTool({
+      toolName: "preview_pool_buy",
+      userId: "user_1",
+      args: {
+        playerId: "Jalen Brunson",
+        sbAmount: 24,
+      },
+    });
+
+    expect(mocks.storage.getPlayers).toHaveBeenCalledWith({ search: "Jalen Brunson" });
     expect(mocks.planDirectAgentOperation).toHaveBeenCalledWith({
       userId: "user_1",
       message: "buy $24 of Jalen Brunson",

@@ -344,6 +344,35 @@ describe("hermes-orchestrator", () => {
     expect(result.toolCallsUsed).toContain("model_first_fallback");
   });
 
+  it("surfaces empty provider responses instead of hiding them behind a generic fallback", async () => {
+    mocks.runHermesModelToolLoop.mockResolvedValue({
+      outcome: "unsupported",
+      replyText: null,
+      summary: "The model returned an empty response twice.",
+      warnings: [
+        "The provider returned neither a visible answer nor a valid tool call after one repair retry.",
+      ],
+      citations: [],
+      toolTrace: [],
+      terminationReason: "empty_provider_response",
+      providerFailureClass: "malformed_response",
+    });
+
+    const result = await runHermesOrchestrationTurn({
+      ...baseInput,
+      request: {
+        ...baseInput.request,
+        message: "i want you to invest in the best mlb players throughout this week",
+        requestMode: "discussion",
+      },
+    });
+
+    expect(result.outcome).toBe("advisory");
+    expect(result.assistantText).toContain("empty turn");
+    expect(result.warnings[0]).toMatch(/visible answer nor a valid tool call/i);
+    expect(result.toolCallsUsed).toContain("model_first_fallback");
+  });
+
   it("returns a local orchestrator error when compatibility fallback is disabled", async () => {
     mocks.matchAgentSkill.mockImplementation(() => {
       throw new Error("skill matcher failed");

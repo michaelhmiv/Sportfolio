@@ -656,7 +656,7 @@ export function getThreadTitle(thread: AgentThreadSummary, index: number) {
     return trimmedTitle;
   }
 
-  return `Chat ${index + 1}`;
+  return thread.workspace === "strategy" ? `Strategy ${index + 1}` : `Chat ${index + 1}`;
 }
 
 export function formatThreadTimestamp(value: string | null) {

@@ -65,11 +65,11 @@ import {
   toApiHealthJobResult,
 } from "./health/api-health-check";
 import {
-  clearScoutAgentByok,
+  clearPortfolioAgentByok,
   getAgentCapabilities,
-  getScoutAgentProfile,
-  saveScoutAgentByok,
-  updateScoutAgentProfile,
+  getPortfolioAgentProfile,
+  savePortfolioAgentByok,
+  updatePortfolioAgentProfile,
 } from "./agent/service";
 import {
   cancelAgentThread,
@@ -83,11 +83,26 @@ import {
   listAgentThreads,
   sendAgentThreadMessage,
 } from "./agent/thread-service";
+import { getAgentThreadRuntimeDetails } from "./agent/thread-runtime";
 import {
   approveAgentSkillCandidate,
   listAdminAgentSkills,
   rejectAgentSkillCandidate,
 } from "./agent/skills";
+import {
+  activateUserAgentStrategy,
+  archiveUserAgentStrategy,
+  createUserAgentStrategyFromThread,
+  ensureUserAgentStrategySchema,
+  getUserAgentStrategyDetail,
+  listUserAgentStrategyEvents,
+  listUserAgentStrategyRuns,
+  listUserAgentStrategies,
+  pauseUserAgentStrategy,
+  reviewUserAgentStrategy,
+  updateUserAgentStrategy,
+} from "./agent/strategies";
+import { runUserAgentStrategy } from "./agent/strategy-runner";
 import {
   ensureAgentSystemSettingsSchema,
   getAgentSystemSettings,
@@ -821,6 +836,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     await ensureAgentThreadSchema();
   } catch (err: any) {
     console.warn("[DB] Could not ensure agent thread schema:", err?.message || err);
+  }
+
+  try {
+    await ensureUserAgentStrategySchema();
+  } catch (err: any) {
+    console.warn("[DB] Could not ensure agent strategy schema:", err?.message || err);
   }
 
   try {
@@ -5850,7 +5871,7 @@ ${items}
   app.get("/api/agent/profile", isAuthenticated, async (req, res) => {
     try {
       const userId = getUserId(req);
-      const profile = await getScoutAgentProfile(userId);
+      const profile = await getPortfolioAgentProfile(userId);
       res.json(profile);
     } catch (error: any) {
       const message = normalizeAgentErrorMessage(error);
@@ -5874,7 +5895,7 @@ ${items}
   app.put("/api/agent/profile", isAuthenticated, async (req, res) => {
     try {
       const userId = getUserId(req);
-      const profile = await updateScoutAgentProfile(userId, req.body);
+      const profile = await updatePortfolioAgentProfile(userId, req.body);
       res.json(profile);
     } catch (error: any) {
       const message = normalizeAgentErrorMessage(error);
@@ -5886,7 +5907,7 @@ ${items}
   app.put("/api/agent/byok-key", isAuthenticated, async (req, res) => {
     try {
       const userId = getUserId(req);
-      const profile = await saveScoutAgentByok(userId, req.body);
+      const profile = await savePortfolioAgentByok(userId, req.body);
       res.json(profile);
     } catch (error: any) {
       const message = normalizeAgentErrorMessage(error);
@@ -5898,7 +5919,7 @@ ${items}
   app.delete("/api/agent/byok-key", isAuthenticated, async (req, res) => {
     try {
       const userId = getUserId(req);
-      const profile = await clearScoutAgentByok(userId);
+      const profile = await clearPortfolioAgentByok(userId);
       res.json(profile);
     } catch (error: any) {
       const message = normalizeAgentErrorMessage(error);
@@ -5910,7 +5931,11 @@ ${items}
   app.get("/api/agent/threads", isAuthenticated, async (req, res) => {
     try {
       const userId = getUserId(req);
-      const threads = await listAgentThreads(userId);
+      const workspace =
+        req.query.workspace === "chat" || req.query.workspace === "strategy"
+          ? req.query.workspace
+          : undefined;
+      const threads = await listAgentThreads(userId, { workspace });
       res.json(threads);
     } catch (error: any) {
       const message = normalizeAgentErrorMessage(error);
@@ -5951,6 +5976,18 @@ ${items}
     } catch (error: any) {
       const message = normalizeAgentErrorMessage(error);
       console.error("[Agent API] Error listing thread messages:", message);
+      res.status(getAgentErrorStatus(error)).json({ error: message });
+    }
+  });
+
+  app.get("/api/agent/threads/:threadId/runtime-details", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const details = await getAgentThreadRuntimeDetails(userId, req.params.threadId);
+      res.json(details);
+    } catch (error: any) {
+      const message = normalizeAgentErrorMessage(error);
+      console.error("[Agent API] Error fetching thread runtime details:", message);
       res.status(getAgentErrorStatus(error)).json({ error: message });
     }
   });
@@ -5999,6 +6036,150 @@ ${items}
     } catch (error: any) {
       const message = normalizeAgentErrorMessage(error);
       console.error("[Agent API] Error canceling thread plan:", message);
+      res.status(getAgentErrorStatus(error)).json({ error: message });
+    }
+  });
+
+  app.get("/api/agent/strategies", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const strategies = await listUserAgentStrategies(userId);
+      res.json(strategies);
+    } catch (error: any) {
+      const message = normalizeAgentErrorMessage(error);
+      console.error("[Agent API] Error listing strategies:", message);
+      res.status(getAgentErrorStatus(error)).json({ error: message });
+    }
+  });
+
+  app.get("/api/agent/strategies/:strategyId", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const strategy = await getUserAgentStrategyDetail(userId, req.params.strategyId);
+      res.json(strategy);
+    } catch (error: any) {
+      const message = normalizeAgentErrorMessage(error);
+      console.error("[Agent API] Error loading strategy detail:", message);
+      res.status(getAgentErrorStatus(error)).json({ error: message });
+    }
+  });
+
+  app.post("/api/agent/strategies", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const strategy = await createUserAgentStrategyFromThread(userId, req.body ?? {});
+      res.json(strategy);
+    } catch (error: any) {
+      const message = normalizeAgentErrorMessage(error);
+      console.error("[Agent API] Error creating strategy:", message);
+      res.status(getAgentErrorStatus(error)).json({ error: message });
+    }
+  });
+
+  app.patch("/api/agent/strategies/:strategyId", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const strategy = await updateUserAgentStrategy(userId, req.params.strategyId, req.body ?? {});
+      res.json(strategy);
+    } catch (error: any) {
+      const message = normalizeAgentErrorMessage(error);
+      console.error("[Agent API] Error updating strategy:", message);
+      res.status(getAgentErrorStatus(error)).json({ error: message });
+    }
+  });
+
+  app.post("/api/agent/strategies/:strategyId/activate", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const strategy = await activateUserAgentStrategy(userId, req.params.strategyId);
+      res.json(strategy);
+    } catch (error: any) {
+      const message = normalizeAgentErrorMessage(error);
+      console.error("[Agent API] Error activating strategy:", message);
+      res.status(getAgentErrorStatus(error)).json({ error: message });
+    }
+  });
+
+  app.post("/api/agent/strategies/:strategyId/review", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const strategy = await reviewUserAgentStrategy(userId, req.params.strategyId);
+      res.json(strategy);
+    } catch (error: any) {
+      const message = normalizeAgentErrorMessage(error);
+      console.error("[Agent API] Error reviewing strategy:", message);
+      res.status(getAgentErrorStatus(error)).json({ error: message });
+    }
+  });
+
+  app.post("/api/agent/strategies/:strategyId/pause", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const strategy = await pauseUserAgentStrategy(userId, req.params.strategyId);
+      res.json(strategy);
+    } catch (error: any) {
+      const message = normalizeAgentErrorMessage(error);
+      console.error("[Agent API] Error pausing strategy:", message);
+      res.status(getAgentErrorStatus(error)).json({ error: message });
+    }
+  });
+
+  app.post("/api/agent/strategies/:strategyId/archive", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const strategy = await archiveUserAgentStrategy(userId, req.params.strategyId);
+      res.json(strategy);
+    } catch (error: any) {
+      const message = normalizeAgentErrorMessage(error);
+      console.error("[Agent API] Error archiving strategy:", message);
+      res.status(getAgentErrorStatus(error)).json({ error: message });
+    }
+  });
+
+  app.get("/api/agent/strategies/:strategyId/runs", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const runs = await listUserAgentStrategyRuns({
+        userId,
+        strategyId: req.params.strategyId,
+        limit: Number.parseInt(String(req.query.limit || ""), 10) || 10,
+      });
+      res.json(runs);
+    } catch (error: any) {
+      const message = normalizeAgentErrorMessage(error);
+      console.error("[Agent API] Error listing strategy runs:", message);
+      res.status(getAgentErrorStatus(error)).json({ error: message });
+    }
+  });
+
+  app.get("/api/agent/strategies/:strategyId/events", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const events = await listUserAgentStrategyEvents({
+        userId,
+        strategyId: req.params.strategyId,
+        limit: Number.parseInt(String(req.query.limit || ""), 10) || 20,
+      });
+      res.json(events);
+    } catch (error: any) {
+      const message = normalizeAgentErrorMessage(error);
+      console.error("[Agent API] Error listing strategy events:", message);
+      res.status(getAgentErrorStatus(error)).json({ error: message });
+    }
+  });
+
+  app.post("/api/agent/strategies/:strategyId/run", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const result = await runUserAgentStrategy({
+        userId,
+        strategyId: req.params.strategyId,
+        triggerSource: "manual_retry",
+      });
+      res.json(result);
+    } catch (error: any) {
+      const message = normalizeAgentErrorMessage(error);
+      console.error("[Agent API] Error running strategy:", message);
       res.status(getAgentErrorStatus(error)).json({ error: message });
     }
   });
