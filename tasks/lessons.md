@@ -2,6 +2,10 @@
 
 ## 2026-03-23
 
+- When product policy requires a single in-house managed model/provider, enforce it at type, schema, settings, runtime, and test layers together; leaving legacy enum options in any one layer creates silent drift.
+
+- When users send broad strategy prompts, do not let the model jump straight to confirmation-gated preview tools; require explicit action/planning intent or concrete args, then force a read/scan reroute before staging.
+
 - For `/agent`, "mobile verified" is not real until Playwright proves the full tap-focus-type-send loop on an iPhone-sized viewport; scroll visibility alone is too weak and let a broken composer ship.
 - If Hermes can be configured with multiple managed providers, do not let an unsafe legacy default remain the effective runtime path just because it is present in env or older DB rows; prefer an explicitly Hermes-safe configured provider and upgrade stale settings automatically.
 - When the provider returns neither text nor tool calls, classify that as an empty provider response immediately and log the effective provider/model. Treating it as a generic unsupported turn hides the real failure mode.

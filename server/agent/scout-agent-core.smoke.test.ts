@@ -20,14 +20,8 @@ const ORIGINAL_ENV = { ...process.env };
 
 function resetEnv() {
   process.env = { ...ORIGINAL_ENV };
-  delete process.env.CHUTES_API_KEY;
-  delete process.env.CHUTES_DEFAULT_MODEL;
   delete process.env.MINIMAX_API_KEY;
   delete process.env.MINIMAX_DEFAULT_MODEL;
-  delete process.env.OPENROUTER_API_KEY;
-  delete process.env.OPENROUTER_DEFAULT_MODEL;
-  delete process.env.OPENROUTER_SITE_URL;
-  delete process.env.OPENROUTER_APP_NAME;
 }
 
 function buildContext() {
@@ -190,11 +184,7 @@ async function startMockProviderServer() {
   };
 }
 
-async function runManagedTurn(input: {
-  provider: "chutes" | "minimax" | "openrouter";
-  model: string;
-  baseUrl: string;
-}) {
+async function runManagedTurn(input: { provider: "minimax"; model: string; baseUrl: string }) {
   getActiveManagedProviderSelectionMock.mockResolvedValue({
     provider: input.provider,
     modelOverride: null,
@@ -236,43 +226,15 @@ afterEach(() => {
 });
 
 describe("scout-agent-core managed provider smoke", () => {
-  it("completes a full tool-call turn against a chutes-style local provider", async () => {
-    process.env.CHUTES_API_KEY = "test-chutes";
-    process.env.CHUTES_DEFAULT_MODEL = "kimi-test";
-    const server = await startMockProviderServer();
-
-    try {
-      const { result } = await runManagedTurn({
-        provider: "chutes",
-        model: "kimi-test",
-        baseUrl: server.baseUrl,
-      });
-
-      expect(result.output.summary).toBe("Mock plan");
-      expect(result.output.replyText).toBe("Plan is ready for your confirmation.");
-      expect(server.requests).toHaveLength(1);
-      expect(server.requests[0].url).toBe("/v1/chat/completions");
-      expect(server.requests[0].headers.authorization).toBe("test-chutes");
-      expect(server.requests[0].body.tool_choice).toEqual({
-        type: "function",
-        function: {
-          name: "submit_scout_plan",
-        },
-      });
-    } finally {
-      await server.close();
-    }
-  });
-
   it("uses minimax-safe openai payloads and completes the tool loop locally", async () => {
     process.env.MINIMAX_API_KEY = "test-minimax";
-    process.env.MINIMAX_DEFAULT_MODEL = "MiniMax-M2.5";
+    process.env.MINIMAX_DEFAULT_MODEL = "MiniMax-M2.7";
     const server = await startMockProviderServer();
 
     try {
       const { result } = await runManagedTurn({
         provider: "minimax",
-        model: "MiniMax-M2.5",
+        model: "MiniMax-M2.7",
         baseUrl: server.baseUrl,
       });
 
@@ -294,30 +256,6 @@ describe("scout-agent-core managed provider smoke", () => {
           }>) || [])[0]?.function || {}
         ).strict,
       ).toBeUndefined();
-    } finally {
-      await server.close();
-    }
-  });
-
-  it("preserves openrouter routing headers while completing the tool loop locally", async () => {
-    process.env.OPENROUTER_API_KEY = "test-openrouter";
-    process.env.OPENROUTER_DEFAULT_MODEL = "openai/gpt-4o-mini";
-    process.env.OPENROUTER_SITE_URL = "https://www.sportfolio.market";
-    process.env.OPENROUTER_APP_NAME = "Sportfolio";
-    const server = await startMockProviderServer();
-
-    try {
-      const { result } = await runManagedTurn({
-        provider: "openrouter",
-        model: "openai/gpt-4o-mini",
-        baseUrl: server.baseUrl,
-      });
-
-      expect(result.output.summary).toBe("Mock plan");
-      expect(server.requests).toHaveLength(1);
-      expect(server.requests[0].headers.authorization).toBe("Bearer test-openrouter");
-      expect(server.requests[0].headers["http-referer"]).toBe("https://www.sportfolio.market");
-      expect(server.requests[0].headers["x-title"]).toBe("Sportfolio");
     } finally {
       await server.close();
     }

@@ -1318,7 +1318,7 @@ export const agentSystemSettings = pgTable("agent_system_settings", {
   id: varchar("id")
     .primaryKey()
     .default(sql`gen_random_uuid()`),
-  managedProvider: text("managed_provider").notNull().default("openrouter"),
+  managedProvider: text("managed_provider").notNull().default("minimax"),
   managedModel: text("managed_model"),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -3093,7 +3093,7 @@ export const userAgentByokInputSchema = z
 
 export const updateAgentSystemSettingsInputSchema = z
   .object({
-    managedProvider: z.enum(["chutes", "minimax", "openrouter"]),
+    managedProvider: z.enum(["minimax"]),
     managedModel: z.string().trim().min(1).max(160).nullable().optional(),
   })
   .strict();

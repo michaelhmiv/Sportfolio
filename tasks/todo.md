@@ -1,3 +1,30 @@
+## 2026-03-24 MiniMax-Only Managed Provider + M2.7 In-House Default
+
+- [x] Remove non-MiniMax managed-provider options from the provider registry, system settings defaults, and managed-provider schema constraints
+- [x] Set the managed in-house default model to `MiniMax-M2.7` and ensure the managed runtime always defaults to that model for agent actions
+- [x] Simplify managed model catalog + provider smoke coverage to MiniMax-only behavior and update tests accordingly
+- [x] Run required repo validation (`check`, `lint`, `test:run`) plus formatting checks
+
+Review:
+
+- Managed-provider resolution is now MiniMax-only: `ManagedProviderKey` is constrained to `minimax`, default managed provider settings are `minimax`, and settings input no longer accepts legacy provider enums.
+- The in-house managed default model is now hard-pinned to `MiniMax-M2.7` in registry/runtime defaults, while still exposing the MiniMax family in supported model suggestions.
+- Removed OpenRouter-specific managed catalog fetching and legacy multi-provider smoke coverage in favor of MiniMax-only catalog/runtime smoke validation.
+- Validation passed with `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check` after formatting cleanup.
+
+## 2026-03-24 Hermes Plan-Tool Intent Guardrails
+
+- [x] Inspect the model-first router and confirm why broad advisory asks can still route into confirmation-gated preview tools
+- [x] Add a guardrail that rejects premature plan-tool calls for advisory prompts and requests safer read/scan rerouting
+- [x] Add regression coverage proving broad MLB strategy asks no longer get trapped in plan-tool-only paths
+- [x] Run targeted tests and required validation commands for this change
+
+Review:
+
+- Added explicit plan-intent gating in the model-first router so confirmation-gated plan tools are only accepted when the message is clearly planning/action-oriented (or concrete action args are present), instead of blindly honoring a premature plan selection on broad advisory asks.
+- When a plan tool is rejected for weak intent, Hermes now feeds a structured retry note back into the loop so the model reroutes to read/scan or advisory behavior instead of failing the turn.
+- Added a regression test that reproduces a broad MLB strategy prompt and verifies Hermes rejects the premature plan tool call, reroutes through read tooling, and returns a usable answer.
+
 ## 2026-03-23 Hermes Runtime Reliability + Agent Mobile Composer Recovery
 
 - [x] Move Hermes managed-provider defaults and capability checks onto tool-loop-safe provider/model pairs instead of silently honoring unsafe legacy defaults

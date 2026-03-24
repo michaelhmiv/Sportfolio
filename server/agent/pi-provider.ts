@@ -118,7 +118,7 @@ function buildCustomAnthropicModel(input: {
   };
 }
 
-function resolveManagedModel(providerKey: "chutes" | "minimax" | "openrouter", modelId: string) {
+function resolveManagedModel(providerKey: "minimax", modelId: string) {
   const runtime = getManagedProviderRuntimeConfig(providerKey);
 
   if (providerKey === "minimax") {

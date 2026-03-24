@@ -391,6 +391,80 @@ function normalizeToolLookupName(value: string) {
     .replace(/[\s-]+/g, "_");
 }
 
+function includesIntentKeyword(message: string, keywords: readonly string[]) {
+  return keywords.some((keyword) => new RegExp(`\\b${keyword}\\b`, "i").test(message));
+}
+
+function isExplicitPlanningIntent(message: string) {
+  const normalized = message.trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+
+  const directActionVerbs = [
+    "buy",
+    "sell",
+    "add",
+    "remove",
+    "set",
+    "assign",
+    "boost",
+    "stack",
+    "zap",
+    "condense",
+    "place",
+  ] as const;
+  const explicitExecutionPhrases = [
+    "stage",
+    "queue",
+    "execute",
+    "go ahead",
+    "do it",
+    "set up",
+  ] as const;
+
+  if (includesIntentKeyword(normalized, directActionVerbs)) {
+    return true;
+  }
+
+  return explicitExecutionPhrases.some((phrase) => normalized.includes(phrase));
+}
+
+function canProceedWithPlanTool(input: {
+  request: HermesRespondRequest;
+  args: Record<string, unknown>;
+}) {
+  if (
+    input.request.requestMode === "plan" ||
+    input.request.requestMode === "clarification_resume"
+  ) {
+    return true;
+  }
+
+  const hasConcreteActionArgs =
+    typeof input.args.playerId === "string" ||
+    typeof input.args.playerName === "string" ||
+    typeof input.args.targetCount === "number" ||
+    typeof input.args.shares === "number" ||
+    typeof input.args.sharesAmount === "number" ||
+    typeof input.args.sb === "number" ||
+    typeof input.args.sbAmount === "number" ||
+    typeof input.args.maxShares === "number" ||
+    typeof input.args.maxPlayMoney === "number" ||
+    typeof input.args.lpShares === "number" ||
+    typeof input.args.slotTier === "number";
+  if (hasConcreteActionArgs) {
+    return true;
+  }
+
+  const message =
+    typeof input.args.message === "string" && input.args.message.trim()
+      ? input.args.message
+      : input.request.message;
+
+  return isExplicitPlanningIntent(message);
+}
+
 function findSelectedTool(tools: AgentToolDefinition[], requestedName: string) {
   const exact = tools.find((entry) => entry.toolName === requestedName);
   if (exact) {
@@ -1186,6 +1260,40 @@ export async function runHermesModelToolLoop(input: {
       }
 
       if (selectedTool.category === "plan") {
+        if (
+          !canProceedWithPlanTool({
+            request: input.request,
+            args: normalizedArgs,
+          })
+        ) {
+          const note = `The user message is advisory-level and not explicit enough to stage ${selectedTool.toolName}. Use read/scan tools first, then provide strategy guidance or ask one concise clarification if needed.`;
+          warnings.push(note);
+          messages.push({
+            role: "toolResult",
+            toolCallId: toolCall.id,
+            toolName: selectedTool.toolName,
+            content: [
+              {
+                type: "text",
+                text: note,
+              },
+            ],
+            isError: true,
+            timestamp: Date.now(),
+          } as Message);
+          repairAttempts += 1;
+          toolTrace.push(
+            buildToolTraceEntry({
+              toolName: "model_tool_repair_retry",
+              phase: "plan",
+              status: "skipped",
+              startedAt: Date.now(),
+              summary: `Rejected premature plan tool ${selectedTool.toolName} for an advisory request and requested a safer reroute.`,
+            }),
+          );
+          continue;
+        }
+
         toolTrace.push(
           buildToolTraceEntry({
             toolName: "model_tool_loop",

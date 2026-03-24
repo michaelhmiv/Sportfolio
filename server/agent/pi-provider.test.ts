@@ -4,8 +4,8 @@ const getModelsMock = vi.fn((provider: string) => {
   if (provider === "minimax") {
     return [
       {
-        id: "MiniMax-M2.5",
-        name: "MiniMax-M2.5",
+        id: "MiniMax-M2.7",
+        name: "MiniMax-M2.7",
         api: "openai-completions",
         provider: "minimax",
         baseUrl: "https://api.minimax.io/v1",
@@ -40,8 +40,6 @@ const ORIGINAL_ENV = { ...process.env };
 
 function resetEnv() {
   process.env = { ...ORIGINAL_ENV };
-  delete process.env.CHUTES_API_KEY;
-  delete process.env.CHUTES_DEFAULT_MODEL;
   delete process.env.MINIMAX_API_KEY;
   delete process.env.MINIMAX_DEFAULT_MODEL;
 }
@@ -70,27 +68,9 @@ describe("pi-provider", () => {
     expect(runtime.apiKey).toBe("test-key");
   });
 
-  it("uses raw Authorization headers for managed chutes runtimes", async () => {
-    process.env.CHUTES_API_KEY = "test-chutes";
-    process.env.CHUTES_DEFAULT_MODEL = "kimi-test";
-    getActiveManagedProviderSelectionMock.mockResolvedValue({
-      provider: "chutes",
-      modelOverride: null,
-    });
-
-    const { resolveManagedPiRuntime } = await import("./pi-provider");
-    const runtime = await resolveManagedPiRuntime({
-      model: "kimi-test",
-    });
-
-    expect(runtime.model.provider).toBe("chutes");
-    expect(runtime.model.api).toBe("openai-completions");
-    expect(runtime.headers).toEqual({ Authorization: "test-chutes" });
-  });
-
   it("uses openai-compatible transport with minimax-specific payload defaults", async () => {
     process.env.MINIMAX_API_KEY = "test-minimax";
-    process.env.MINIMAX_DEFAULT_MODEL = "MiniMax-M2.5";
+    process.env.MINIMAX_DEFAULT_MODEL = "MiniMax-M2.7";
     getActiveManagedProviderSelectionMock.mockResolvedValue({
       provider: "minimax",
       modelOverride: null,
@@ -98,7 +78,7 @@ describe("pi-provider", () => {
 
     const { resolveManagedPiRuntime } = await import("./pi-provider");
     const runtime = await resolveManagedPiRuntime({
-      model: "MiniMax-M2.5",
+      model: "MiniMax-M2.7",
     });
 
     expect(runtime.model.provider).toBe("minimax");
