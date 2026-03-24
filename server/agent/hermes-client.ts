@@ -160,6 +160,8 @@ export async function runHermesAgentTurn(
       executionKind: input.executionContext?.kind || null,
       triggerSource: input.triggerContext?.source || null,
       strategyId: input.strategyContext?.strategyId || null,
+      providerKey: requestPayload.modelRuntime.providerKey || null,
+      model: requestPayload.modelRuntime.model || requestPayload.profile.model || null,
     });
 
     return {
@@ -212,6 +214,8 @@ export async function runHermesAgentTurn(
       executionKind: input.executionContext?.kind || null,
       triggerSource: input.triggerContext?.source || null,
       strategyId: input.strategyContext?.strategyId || null,
+      providerKey: requestPayload.modelRuntime.providerKey || null,
+      model: requestPayload.modelRuntime.model || requestPayload.profile.model || null,
     });
 
     return {

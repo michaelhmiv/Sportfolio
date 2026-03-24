@@ -1504,7 +1504,9 @@ export async function startMockMcpHttpServer(
     url: `http://127.0.0.1:${address.port}/mcp`,
     close: () =>
       new Promise<void>((resolve, reject) => {
-        Promise.all(Array.from(sessions.values()).map(async ({ server: mcpServer }) => mcpServer.close()))
+        Promise.all(
+          Array.from(sessions.values()).map(async ({ server: mcpServer }) => mcpServer.close()),
+        )
           .catch(() => undefined)
           .finally(() => {
             server.close((error) => {

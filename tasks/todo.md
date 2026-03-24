@@ -1,3 +1,21 @@
+## 2026-03-23 Hermes Runtime Reliability + Agent Mobile Composer Recovery
+
+- [x] Move Hermes managed-provider defaults and capability checks onto tool-loop-safe provider/model pairs instead of silently honoring unsafe legacy defaults
+- [x] Classify repeated empty provider replies explicitly, persist effective provider/model metadata, and preserve the latest successful tool result when the provider goes empty after a tool call
+- [x] Let preview/staging tools resolve player references by name so natural prompts do not fail just because the model omitted canonical player IDs
+- [x] Rebuild mobile `/agent` chat and strategy detail around a flatter dashboard-derived layout with a usable composer instead of stacked card shells
+- [x] Add real mobile typing/send coverage plus local `/agent` Playwright auth bypass for loopback-only harness runs, then verify the live page in Playwright MCP
+- [x] Re-run required validation and push the fixes onto the existing PR branch
+
+Review:
+
+- Hermes no longer defaults onto the unsafe legacy managed path. Managed-provider resolution now prefers configured providers that explicitly advertise Hermes tool-loop support, the DB default moved to `openrouter`, and legacy `chutes` + Kimi settings are auto-upgraded to the new safe default on read.
+- The model-first router and orchestrator now classify empty assistant payloads as provider/runtime failures, log the effective provider/model on the run, and reuse the latest successful tool result if the provider goes empty after an earlier successful tool call instead of dropping straight into the generic fallback.
+- Preview tools now resolve players from either `playerId` or `playerName`, so prompts like asking Hermes to invest in strong MLB names for the week no longer depend on the model knowing Sportfolio's canonical IDs up front.
+- Mobile `/agent` was rebuilt away from the loose card stack: main chat and strategy chat now use a flatter transcript-plus-composer shell, strategies use denser strip/row layouts, and the mobile composer has explicit focus/visibility handling.
+- Local Playwright coverage now exercises the real mobile typing/send path on `/agent`, and the loopback-only auth bypass keeps the harness on the protected route without weakening normal app auth. Live Playwright MCP smoke also succeeded for mobile main chat and strategy chat.
+- Validation passed with `npm run check`, `npm run lint`, `npm run format:check`, `npm run test:run`, and `npx playwright test tests/e2e/agent-shell.spec.ts --reporter=line --workers=1`.
+
 ## 2026-03-23 Agent Command Center Visual Redesign
 
 - [x] Recompose `/agent` around a stronger command-center shell with a clearer workspace switch and operator framing

@@ -31,7 +31,12 @@ function getSessionId(req: Request): string | null {
 }
 
 function isInitializeBody(body: unknown): boolean {
-  return !!body && !Array.isArray(body) && typeof body === "object" && (body as { method?: unknown }).method === "initialize";
+  return (
+    !!body &&
+    !Array.isArray(body) &&
+    typeof body === "object" &&
+    (body as { method?: unknown }).method === "initialize"
+  );
 }
 
 function writeJsonRpcError(

@@ -202,7 +202,9 @@ function buildCapabilities(
 ) {
   const canAnalyze =
     profile.providerMode === "managed"
-      ? managedProvider.configured && Boolean(managedProvider.defaultModel)
+      ? managedProvider.configured &&
+        Boolean(managedProvider.defaultModel) &&
+        managedProvider.supportsHermesToolLoop
       : Boolean(secret && profile.baseUrl && profile.model);
 
   return {
@@ -769,8 +771,13 @@ export async function analyzeScoutAgent(
     throw new Error("Agent is disabled");
   }
 
-  if (!buildCapabilities(profile, managedProvider, secret).canAnalyze) {
-    throw new Error("Agent provider is not fully configured");
+  const runtimeCapabilities = buildCapabilities(profile, managedProvider, secret);
+  if (!runtimeCapabilities.canAnalyze) {
+    throw new Error(
+      profile.providerMode === "managed" && !managedProvider.supportsHermesToolLoop
+        ? `${managedProvider.label} is configured but not approved for the Hermes tool loop. Switch the managed provider in settings.`
+        : "Agent provider is not fully configured",
+    );
   }
 
   const executionModel =
@@ -850,7 +857,7 @@ export async function analyzeScoutAgent(
       capabilities: {
         domains: SUPPORTED_AGENT_DOMAINS,
         actionTypes: SUPPORTED_AGENT_ACTION_TYPES,
-        canAnalyze: true,
+        canAnalyze: runtimeCapabilities.canAnalyze,
         canAutoExecute,
         canUseWebResearch: isHostedWebResearchAvailable(),
         runtime: "hermes",

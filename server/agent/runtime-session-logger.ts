@@ -110,6 +110,8 @@ export async function logHermesRuntimeSession(input: {
   triggerSource?: HermesTriggerContext["source"] | null;
   strategyId?: string | null;
   correlationId?: string | null;
+  providerKey?: HermesRuntimeMetadata["providerKey"];
+  model?: string | null;
 }): Promise<HermesRuntimeMetadata | null> {
   try {
     await ensureAgentRuntimeSessionSchema();
@@ -142,6 +144,8 @@ export async function logHermesRuntimeSession(input: {
       triggerSource: input.triggerSource || null,
       strategyId: input.strategyId || null,
       correlationId: input.correlationId || null,
+      providerKey: input.providerKey || null,
+      model: input.model || null,
     };
   } catch (error: any) {
     console.warn("[Hermes Runtime] Could not log runtime session:", error?.message || error);

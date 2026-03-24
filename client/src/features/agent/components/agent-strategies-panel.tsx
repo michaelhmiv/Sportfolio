@@ -105,6 +105,26 @@ function getReviewTone(status: AgentStrategySummary["reviewState"]["status"]) {
     : "border-amber-500/30 bg-amber-500/10 text-amber-100";
 }
 
+function getResolvedReviewState(
+  strategy: Pick<AgentStrategySummary, "updatedAt"> & {
+    requiresReview?: boolean | null;
+    reviewState?: Partial<AgentStrategySummary["reviewState"]> | null;
+  },
+) {
+  const status: AgentStrategySummary["reviewState"]["status"] =
+    strategy.reviewState?.status === "approved" ? "approved" : "pending";
+  const requiresReview =
+    typeof strategy.requiresReview === "boolean" ? strategy.requiresReview : status !== "approved";
+
+  return {
+    status,
+    requiresReview,
+    summary: strategy.reviewState?.summary || null,
+    reviewedAt: strategy.reviewState?.reviewedAt || null,
+    lastMaterialUpdateAt: strategy.reviewState?.lastMaterialUpdateAt || strategy.updatedAt,
+  };
+}
+
 function buildRuleDraft(strategyDetail: AgentStrategyDetail | null): StrategyRuleDraft {
   const guardrails = strategyDetail?.guardrails || {};
   const maxActionsPerRun =
@@ -127,7 +147,8 @@ function buildStrategyOverviewBlocks(strategyDetail: AgentStrategyDetail): Agent
   const latestRun = strategyDetail.recentRuns[0] || null;
   const isDraft = strategyDetail.status === "draft";
   const activeStage = getActiveTimelineStage(strategyDetail);
-  const needsReview = strategyDetail.requiresReview;
+  const reviewState = getResolvedReviewState(strategyDetail);
+  const needsReview = reviewState.requiresReview;
 
   const rulesItems = [
     activeStage
@@ -174,7 +195,7 @@ function buildStrategyOverviewBlocks(strategyDetail: AgentStrategyDetail): Agent
             props: {
               title: "Review needed",
               summary:
-                strategyDetail.reviewState.summary ||
+                reviewState.summary ||
                 "Review the saved stages, triggers, and action scope before Hermes can run this live.",
               helper:
                 strategyDetail.status === "paused"
@@ -327,11 +348,11 @@ function StrategyDeskBrief({
   ];
 
   return (
-    <section className="terminal-shell min-w-0 w-full overflow-hidden border-[#1f2634] bg-[linear-gradient(135deg,rgba(14,19,31,0.96),rgba(8,12,23,0.98))]">
-      <div className="border-b border-[#222938] px-3 py-3 sm:px-4">
+    <section className="min-w-0 w-full overflow-hidden border-b border-[#1f2634] bg-[#0b1120] md:terminal-shell md:border md:border-[#1f2634] md:bg-[linear-gradient(135deg,rgba(14,19,31,0.96),rgba(8,12,23,0.98))]">
+      <div className="border-b border-[#222938] px-0 py-2 sm:px-4 md:px-3 md:py-3">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <div className="terminal-kicker">Today brief</div>
+            <div className="terminal-kicker">Strategy desk</div>
             <div className="mt-1 flex flex-wrap items-center gap-2">
               <div className="truncate text-sm font-semibold text-slate-50 sm:text-base">
                 {selectedDetail?.name || "Strategy desk"}
@@ -347,19 +368,11 @@ function StrategyDeskBrief({
                 </Badge>
               ) : null}
             </div>
-            <div className="mt-2 text-xs leading-5 text-slate-300">
-              {leadLoop?.summary ||
-                selectedDetail?.summary ||
-                "Select a slot to inspect the saved thesis, current wake, and recent runs."}
-            </div>
           </div>
 
-          <div className="grid min-w-[10rem] grid-cols-3 gap-2">
+          <div className="hidden min-w-[10rem] grid-cols-3 gap-px overflow-hidden border border-[#222938] bg-[#222938] md:grid">
             {briefItems.map((item) => (
-              <div
-                key={item.label}
-                className="border border-[#222938] bg-[#0f1524] px-2.5 py-2 text-right"
-              >
+              <div key={item.label} className="bg-[#0f1524] px-2 py-1.5 text-right">
                 <div className="font-mono text-[10px] uppercase tracking-[0.12em] text-slate-500">
                   {item.label}
                 </div>
@@ -370,8 +383,35 @@ function StrategyDeskBrief({
         </div>
       </div>
 
-      <div className="grid gap-px bg-[#222938] md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-        <div className="bg-[#0f1524] px-3 py-3 sm:px-4">
+      <div className="divide-y divide-[#222938] md:hidden">
+        <div className="flex flex-wrap gap-x-3 gap-y-1 px-0 py-1.5 font-mono text-[10px] uppercase tracking-[0.08em] text-slate-500">
+          {briefItems.map((item) => (
+            <span key={item.label}>
+              <span className="text-slate-100">{item.value}</span> {item.label}
+            </span>
+          ))}
+          {selectedDetail?.requiresReview ? (
+            <span className="text-amber-200">Review needed</span>
+          ) : null}
+        </div>
+        <div className="px-0 py-1.5 text-[11px] leading-4.5 text-slate-300">
+          <span className="font-mono uppercase tracking-[0.08em] text-slate-500">Focus</span>{" "}
+          {leadLoop?.summary ||
+            selectedDetail?.summary ||
+            "Open a slot to inspect the saved thesis, current wake, and recent runs."}
+        </div>
+        <div className="px-0 py-1.5 text-[11px] leading-4.5 text-slate-300">
+          <span className="font-mono uppercase tracking-[0.08em] text-slate-500">Next</span>{" "}
+          {leadAction?.summary ||
+            leadLoop?.title ||
+            (nextRunLabel
+              ? `Hermes wakes again ${nextRunLabel}.`
+              : "Hermes is waiting for the next saved trigger or fresh evidence.")}
+        </div>
+      </div>
+
+      <div className="hidden gap-px bg-[#222938] md:grid md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <div className="bg-[#0f1524] px-0 py-2.5 sm:px-4 md:px-3 md:py-3">
           <div className="terminal-label">Active focus</div>
           <div className="mt-1 text-sm font-semibold text-slate-50">
             {selectedDetail?.name || "No strategy selected"}
@@ -382,7 +422,7 @@ function StrategyDeskBrief({
           </div>
         </div>
 
-        <div className="bg-[#0f1524] px-3 py-3 sm:px-4">
+        <div className="bg-[#0f1524] px-0 py-2.5 sm:px-4 md:px-3 md:py-3">
           <div className="terminal-label">Next action</div>
           <div className="mt-1 text-sm font-semibold text-slate-50">
             {leadLoop?.title || "Awaiting next trigger"}
@@ -419,9 +459,9 @@ function StrategySlots({
   const slots = Array.from({ length: 5 }, (_, index) => strategies[index] || null);
 
   return (
-    <div className="terminal-shell flex min-h-0 min-w-0 w-full flex-col border-[#1f2634] bg-[linear-gradient(180deg,rgba(14,19,31,0.96),rgba(8,12,23,0.98))]">
+    <div className="flex min-h-0 min-w-0 w-full flex-col border-t border-[#1f2634] bg-[#0b1120] md:terminal-shell md:border md:border-[#1f2634] md:bg-[linear-gradient(180deg,rgba(14,19,31,0.96),rgba(8,12,23,0.98))]">
       {showHeader ? (
-        <div className="border-b border-[#222938] px-3 py-3 sm:px-4">
+        <div className="border-b border-[#222938] px-0 py-2 sm:px-4 md:px-3 md:py-3">
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="terminal-kicker">Strategy rail</div>
@@ -436,14 +476,14 @@ function StrategySlots({
 
       <div
         className={cn(
-          "px-3 py-3",
+          "px-0 py-1 md:px-3 md:py-3",
           scrollable
             ? "min-h-0 flex-1 overflow-y-auto overscroll-contain pb-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:pb-3"
             : "pb-0",
         )}
         data-testid="strategy-slots"
       >
-        <div className="space-y-2">
+        <div className="divide-y divide-[#222938] md:space-y-2 md:divide-y-0">
           {slots.map((strategy, index) =>
             strategy ? (
               <button
@@ -451,43 +491,55 @@ function StrategySlots({
                 type="button"
                 onClick={() => onSelect(strategy.id)}
                 className={cn(
-                  "w-full border px-3 py-2.5 text-left transition-colors",
+                  "w-full border-l-2 px-0 py-2.5 text-left transition-colors md:border md:px-3",
                   selectedStrategyId === strategy.id
-                    ? "border-amber-500/45 bg-[linear-gradient(180deg,rgba(122,81,0,0.14),rgba(27,20,8,0.96))]"
-                    : "border-border bg-sidebar/20 hover:border-slate-500 hover:bg-sidebar/35",
+                    ? "border-l-amber-500 bg-amber-500/5 md:border-amber-500/45 md:bg-[linear-gradient(180deg,rgba(122,81,0,0.14),rgba(27,20,8,0.96))]"
+                    : "border-l-transparent hover:bg-[#101726] md:border-[#222938] md:bg-[#0f1524] md:hover:border-slate-500 md:hover:bg-[#141d2d]",
                 )}
               >
                 <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-slate-500">
                         {`S${index + 1}`}
                       </span>
-                      <div className="truncate text-sm font-semibold text-slate-50">
+                      <div className="truncate text-[13px] font-semibold text-slate-50 md:text-sm">
                         {strategy.name}
                       </div>
                     </div>
-                    <div className="mt-1 line-clamp-2 text-[11px] leading-5 text-slate-400">
+                    <div className="mt-1 line-clamp-2 text-[11px] leading-4.5 text-slate-400">
                       {strategy.summary}
                     </div>
+                    {strategy.lastOutcomeSummary && (
+                      <div className="mt-1.5 line-clamp-2 text-[11px] leading-4.5 text-slate-300 md:mt-2 md:border-l md:border-[#2a2e39] md:pl-3">
+                        {strategy.lastOutcomeSummary}
+                      </div>
+                    )}
                   </div>
-                  <Badge className={cn("hover:bg-transparent", getStrategyTone(strategy.status))}>
+                  <Badge
+                    className={cn(
+                      "hidden hover:bg-transparent md:inline-flex",
+                      getStrategyTone(strategy.status),
+                    )}
+                  >
                     {strategy.status}
                   </Badge>
+                  <div className="shrink-0 text-right md:hidden">
+                    <div className="font-mono text-[10px] uppercase tracking-[0.08em] text-slate-300">
+                      {strategy.status}
+                    </div>
+                    <div className="mt-1 font-mono text-[10px] uppercase tracking-[0.08em] text-slate-500">
+                      {strategy.requiresReview ? "review" : "ready"}
+                    </div>
+                  </div>
                 </div>
 
-                <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1.5 font-mono text-[10px] uppercase tracking-[0.08em] text-slate-500">
+                <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 font-mono text-[10px] uppercase tracking-[0.08em] text-slate-500 md:mt-2 md:gap-y-1.5">
                   <span>{strategy.requiresReview ? "Review needed" : "Reviewed"}</span>
                   <span>
                     Last update {formatDateTime(strategy.lastRunAt || strategy.updatedAt)}
                   </span>
                 </div>
-
-                {strategy.lastOutcomeSummary && (
-                  <div className="mt-2 border-l border-[#2a2e39] pl-3 text-[11px] leading-5 text-slate-300">
-                    {strategy.lastOutcomeSummary}
-                  </div>
-                )}
               </button>
             ) : (
               <button
@@ -495,21 +547,28 @@ function StrategySlots({
                 type="button"
                 onClick={onCreateBlank}
                 disabled={isCreating}
-                className="w-full border border-dashed border-border bg-sidebar/10 px-3 py-3.5 text-left transition-colors hover:border-amber-500/40 hover:bg-sidebar/20 disabled:cursor-not-allowed disabled:opacity-70"
+                className="w-full border-l-2 border-l-transparent px-0 py-2.5 text-left transition-colors hover:bg-[#101726] disabled:cursor-not-allowed disabled:opacity-70 md:border md:border-dashed md:border-border md:bg-sidebar/10 md:px-3 md:py-3.5 md:hover:border-amber-500/40 md:hover:bg-sidebar/20"
               >
-                <div className="flex items-center gap-3">
-                  <div className="rounded-full border border-[#2a2e39] bg-[#161d2b] p-2 text-amber-300">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-slate-500">
+                        {`S${index + 1}`}
+                      </span>
+                      <div className="text-[13px] font-semibold text-slate-50 md:text-sm">
+                        Create new
+                      </div>
+                    </div>
+                    <div className="mt-1 text-[11px] leading-4.5 text-slate-400">
+                      Slot {index + 1} is open for a new strategy conversation.
+                    </div>
+                  </div>
+                  <div className="shrink-0 text-amber-300">
                     {isCreating && index === strategies.length ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
                       <Plus className="h-4 w-4" />
                     )}
-                  </div>
-                  <div>
-                    <div className="text-sm font-semibold text-slate-50">Create new</div>
-                    <div className="mt-1 text-xs leading-5 text-slate-400">
-                      Slot {index + 1} is open for a new strategy conversation.
-                    </div>
                   </div>
                 </div>
               </button>
@@ -521,48 +580,6 @@ function StrategySlots({
   );
 }
 
-function StrategyNextActions({ selectedDetail }: { selectedDetail: AgentStrategyDetail | null }) {
-  const loops = selectedDetail?.continuity.openLoops.slice(0, 3) || [];
-
-  return (
-    <section className="terminal-shell min-w-0 w-full overflow-hidden border-[#1f2634] bg-[linear-gradient(180deg,rgba(14,19,31,0.96),rgba(8,12,23,0.98))]">
-      <div className="border-b border-[#222938] px-3 py-3 sm:px-4">
-        <div className="terminal-kicker">Attention</div>
-        <div className="mt-1 text-sm font-semibold text-slate-50">Open loops</div>
-      </div>
-      <div className="divide-y divide-[#222938]">
-        {loops.length > 0 ? (
-          loops.map((loop, index) => (
-            <div key={loop.id} className="px-3 py-3 sm:px-4">
-              <div className="flex items-start gap-3">
-                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#2a2e39] bg-[#131a28] font-mono text-[10px] text-slate-400">
-                  {index + 1}
-                </div>
-                <div className="min-w-0">
-                  <div className="text-sm font-medium text-slate-50">{loop.title}</div>
-                  <div className="mt-1 text-xs leading-5 text-slate-300">{loop.summary}</div>
-                  <div className="mt-2">
-                    <Badge
-                      className={cn("hover:bg-transparent", getContinuityLoopTone(loop.status))}
-                    >
-                      {loop.status.replace(/_/g, " ")}
-                    </Badge>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))
-        ) : (
-          <div className="px-3 py-3 text-xs leading-5 text-slate-400 sm:px-4">
-            Hermes has no unresolved operator loops right now. The next run will wait for the next
-            saved trigger or fresh evidence.
-          </div>
-        )}
-      </div>
-    </section>
-  );
-}
-
 function StrategyOverview({ strategyDetail }: { strategyDetail: AgentStrategyDetail }) {
   const recentEvents = strategyDetail.recentEvents.slice(0, 5);
   const overviewBlocks = buildStrategyOverviewBlocks(strategyDetail);
@@ -571,9 +588,14 @@ function StrategyOverview({ strategyDetail }: { strategyDetail: AgentStrategyDet
 
   return (
     <div className="space-y-3 pb-[calc(env(safe-area-inset-bottom)+1rem)] sm:space-y-4 sm:pb-4">
-      <AgentUiBlockList blocks={overviewBlocks} />
+      <div className="md:hidden">
+        <AgentUiBlockList blocks={overviewBlocks.slice(0, 2)} />
+      </div>
+      <div className="hidden md:block">
+        <AgentUiBlockList blocks={overviewBlocks} />
+      </div>
 
-      <section className="terminal-shell p-4">
+      <section className="border-t border-[#1f2634] px-0 py-3 md:terminal-shell md:border md:p-4">
         <div className="terminal-kicker">Continuous state</div>
         <div className="mt-1 text-sm font-semibold text-slate-50">{continuity.headline}</div>
         <div className="mt-2 grid gap-3 xl:grid-cols-3">
@@ -662,7 +684,7 @@ function StrategyOverview({ strategyDetail }: { strategyDetail: AgentStrategyDet
         </div>
       </section>
 
-      <section className="terminal-shell p-4">
+      <section className="border-t border-[#1f2634] px-0 py-3 md:terminal-shell md:border md:p-4">
         <div className="flex items-center gap-2 text-sm font-semibold text-slate-50">
           <Clock3 className="h-4 w-4 text-sky-300" />
           Strategy timeline
@@ -708,7 +730,7 @@ function StrategyOverview({ strategyDetail }: { strategyDetail: AgentStrategyDet
         </div>
       </section>
 
-      <section className="terminal-shell p-4">
+      <section className="border-t border-[#1f2634] px-0 py-3 md:terminal-shell md:border md:p-4">
         <div className="flex items-center gap-2 text-sm font-semibold text-slate-50">
           <Rocket className="h-4 w-4 text-sky-300" />
           Strategy instructions
@@ -716,7 +738,7 @@ function StrategyOverview({ strategyDetail }: { strategyDetail: AgentStrategyDet
         <div className="mt-2 text-sm leading-6 text-slate-300">{strategyDetail.mandateText}</div>
       </section>
 
-      <section className="terminal-shell p-4">
+      <section className="border-t border-[#1f2634] px-0 py-3 md:terminal-shell md:border md:p-4">
         <div className="flex items-center gap-2 text-sm font-semibold text-slate-50">
           <Clock3 className="h-4 w-4 text-sky-300" />
           Operations timeline
@@ -761,6 +783,7 @@ function StrategyRulesForm({
   onReview: () => void;
 }) {
   const [draft, setDraft] = useState<StrategyRuleDraft>(() => buildRuleDraft(strategyDetail));
+  const reviewState = getResolvedReviewState(strategyDetail);
 
   useEffect(() => {
     setDraft(buildRuleDraft(strategyDetail));
@@ -785,7 +808,7 @@ function StrategyRulesForm({
 
   return (
     <div className="space-y-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] sm:pb-4">
-      <section className="terminal-shell p-4">
+      <section className="border-t border-[#1f2634] px-0 py-3 md:terminal-shell md:border md:p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="flex items-center gap-2 text-sm font-semibold text-slate-50">
@@ -793,8 +816,7 @@ function StrategyRulesForm({
               Activation review
             </div>
             <div className="mt-2 text-sm leading-6 text-slate-400">
-              {strategyDetail.reviewState.summary ||
-                "Review the saved playbook before Hermes uses it live."}
+              {reviewState.summary || "Review the saved playbook before Hermes uses it live."}
             </div>
             <div className="mt-3 rounded-sm border border-[#2a2e39] bg-[#0d1320] px-3 py-3 text-xs leading-5 text-slate-300">
               Broad goals are interpreted as ongoing portfolio mandates. By default Hermes should
@@ -802,10 +824,8 @@ function StrategyRulesForm({
               checkout, or community boost flows.
             </div>
           </div>
-          <Badge
-            className={cn("hover:bg-transparent", getReviewTone(strategyDetail.reviewState.status))}
-          >
-            {strategyDetail.reviewState.status === "approved" ? "approved" : "review needed"}
+          <Badge className={cn("hover:bg-transparent", getReviewTone(reviewState.status))}>
+            {reviewState.status === "approved" ? "approved" : "review needed"}
           </Badge>
         </div>
 
@@ -815,9 +835,7 @@ function StrategyRulesForm({
               Latest saved change
             </div>
             <div className="mt-2 text-sm text-slate-200">
-              {formatDateTime(
-                strategyDetail.reviewState.lastMaterialUpdateAt || strategyDetail.updatedAt,
-              )}
+              {formatDateTime(reviewState.lastMaterialUpdateAt)}
             </div>
           </div>
           <div className="border border-border bg-sidebar/25 p-3">
@@ -825,9 +843,7 @@ function StrategyRulesForm({
               Last approval
             </div>
             <div className="mt-2 text-sm text-slate-200">
-              {strategyDetail.reviewState.reviewedAt
-                ? formatDateTime(strategyDetail.reviewState.reviewedAt)
-                : "Not approved yet"}
+              {reviewState.reviewedAt ? formatDateTime(reviewState.reviewedAt) : "Not approved yet"}
             </div>
           </div>
         </div>
@@ -857,21 +873,21 @@ function StrategyRulesForm({
         </div>
 
         <Button
-          variant={strategyDetail.requiresReview ? "terminal" : "terminalOutline"}
+          variant={reviewState.requiresReview ? "terminal" : "terminalOutline"}
           className="mt-4 h-10"
           onClick={onReview}
-          disabled={isReviewing || !strategyDetail.requiresReview}
+          disabled={isReviewing || !reviewState.requiresReview}
         >
           {isReviewing ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           ) : (
             <PlayCircle className="mr-2 h-4 w-4" />
           )}
-          {strategyDetail.requiresReview ? "Approve saved playbook" : "Already approved"}
+          {reviewState.requiresReview ? "Approve saved playbook" : "Already approved"}
         </Button>
       </section>
 
-      <section className="terminal-shell p-4">
+      <section className="border-t border-[#1f2634] px-0 py-3 md:terminal-shell md:border md:p-4">
         <div className="flex items-center gap-2 text-sm font-semibold text-slate-50">
           <Settings2 className="h-4 w-4 text-amber-300" />
           Saved strategy rules
@@ -1047,17 +1063,21 @@ function StrategyChatTab({
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
-      <div className="border-b border-[#222938] px-3 py-2 sm:px-4">
+      <div className="border-b border-[#222938] px-0 py-1.5 sm:px-4 md:px-3 md:py-2">
         <div className="flex items-center justify-between gap-2">
           <div className="terminal-kicker">Strategy chat</div>
           <div className="font-mono text-[10px] uppercase tracking-[0.12em] text-slate-500">
-            {strategyDetail.status === "live" ? "live" : strategyDetail.status}
+            {strategyDetail.nextRunAt
+              ? `Wake ${formatDateTime(strategyDetail.nextRunAt)}`
+              : strategyDetail.status === "live"
+                ? "live"
+                : strategyDetail.status}
           </div>
         </div>
       </div>
       <div
         ref={scrollViewportRef}
-        className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-[linear-gradient(180deg,rgba(15,20,32,0.96),rgba(8,13,24,0.98))] px-3 py-3 pb-4 sm:px-4"
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-[#0b1120] px-0 py-1.5 pb-2 sm:px-4 md:bg-[linear-gradient(180deg,rgba(15,20,32,0.96),rgba(8,13,24,0.98))] md:px-3 md:py-3"
         data-testid="strategy-chat-scroll"
       >
         {shouldShowEmptyState ? (
@@ -1085,7 +1105,7 @@ function StrategyChatTab({
         )}
       </div>
 
-      <div className="border-t border-[#222938] px-3 py-2 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:px-4 sm:pb-3">
+      <div className="border-t border-[#222938] px-0 py-1.5 pb-[calc(env(safe-area-inset-bottom)+0.85rem)] sm:px-4 sm:py-2 sm:pb-3 md:px-3">
         <AgentComposer
           value={composerValue}
           onChange={onComposerChange}
@@ -1160,12 +1180,13 @@ function StrategyDetailWorkspace({
   scrollViewportRef: RefObject<HTMLDivElement>;
   endRef: RefObject<HTMLDivElement>;
 }) {
-  const needsReview = strategyDetail.requiresReview;
+  const reviewState = getResolvedReviewState(strategyDetail);
+  const needsReview = reviewState.requiresReview;
 
   const detailBody =
     detailTab === "overview" ? (
       <div
-        className="h-full overflow-y-auto overscroll-contain px-3 py-3 sm:px-4 sm:py-4"
+        className="h-full overflow-y-auto overscroll-contain px-0 py-2.5 sm:px-4 sm:py-4"
         data-testid="strategy-overview-scroll"
       >
         <StrategyOverview strategyDetail={strategyDetail} />
@@ -1189,7 +1210,7 @@ function StrategyDetailWorkspace({
       />
     ) : (
       <div
-        className="h-full overflow-y-auto overscroll-contain px-3 py-3 sm:px-4 sm:py-4"
+        className="h-full overflow-y-auto overscroll-contain px-0 py-2.5 sm:px-4 sm:py-4"
         data-testid="strategy-rules-scroll"
       >
         <StrategyRulesForm
@@ -1204,46 +1225,53 @@ function StrategyDetailWorkspace({
 
   return (
     <div
-      className="terminal-shell flex h-full min-h-0 min-w-0 w-full flex-col overflow-hidden border-[#1f2634] bg-[linear-gradient(180deg,rgba(14,19,31,0.96),rgba(8,12,23,0.98))]"
+      className="flex h-full min-h-0 min-w-0 w-full flex-col overflow-hidden border-t border-[#1f2634] bg-[#0b1120] md:terminal-shell md:border md:border-[#1f2634] md:bg-[linear-gradient(180deg,rgba(14,19,31,0.96),rgba(8,12,23,0.98))]"
       data-testid="strategy-detail"
     >
-      <div className="border-b border-[#222938] bg-[linear-gradient(180deg,rgba(17,23,39,0.96),rgba(12,17,29,0.98))] px-3 py-3 sm:px-4 md:py-4">
-        <div className="space-y-3 md:hidden">
-          <div className="flex items-center gap-2">
-            <Button variant="terminalOutline" size="icon" className="h-8 w-8" onClick={onBack}>
+      <div className="border-b border-[#222938] bg-[#0b1120] px-0 py-2 sm:px-4 md:bg-[linear-gradient(180deg,rgba(17,23,39,0.96),rgba(12,17,29,0.98))] md:px-3 md:py-4">
+        <div className="space-y-2 md:hidden">
+          <div className="flex items-start gap-2">
+            <Button
+              variant="terminalOutline"
+              size="icon"
+              className="h-8 w-8 shrink-0"
+              onClick={onBack}
+            >
               <ArrowLeft className="h-4 w-4" />
               <span className="sr-only">Back to strategy slots</span>
             </Button>
-            <span className="text-[11px] uppercase tracking-[0.12em] text-slate-500">
-              Strategy detail
-            </span>
-          </div>
-
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <h2 className="truncate text-base font-semibold text-slate-50">
-                {strategyDetail.name}
-              </h2>
-              <Badge className={cn("hover:bg-transparent", getStrategyTone(strategyDetail.status))}>
-                {strategyDetail.status === "live" ? "active" : strategyDetail.status}
-              </Badge>
-              {strategyDetail.requiresReview ? (
-                <span className="terminal-strip py-1 text-amber-200">review needed</span>
-              ) : null}
-            </div>
-            <div className="mt-2 flex flex-wrap gap-2">
-              <span className="terminal-strip py-1">
-                {strategyDetail.reviewState.status === "approved" ? "Reviewed" : "Pending review"}
-              </span>
-              {strategyDetail.nextRunAt ? (
-                <span className="terminal-strip py-1">
-                  {`Next wake ${formatDateTime(strategyDetail.nextRunAt)}`}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">
+                    Strategy detail
+                  </div>
+                  <h2 className="truncate text-sm font-semibold text-slate-50">
+                    {strategyDetail.name}
+                  </h2>
+                </div>
+                <Badge
+                  className={cn("hover:bg-transparent", getStrategyTone(strategyDetail.status))}
+                >
+                  {strategyDetail.status === "live" ? "active" : strategyDetail.status}
+                </Badge>
+              </div>
+              <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 font-mono text-[10px] uppercase tracking-[0.08em] text-slate-500">
+                <span>{reviewState.status === "approved" ? "Reviewed" : "Pending review"}</span>
+                <span>
+                  {strategyDetail.allowedActionTypes.length > 0
+                    ? `${strategyDetail.allowedActionTypes.length} actions`
+                    : "Scope pending"}
                 </span>
-              ) : null}
+                {strategyDetail.nextRunAt ? (
+                  <span>{`Wake ${formatDateTime(strategyDetail.nextRunAt)}`}</span>
+                ) : null}
+                {needsReview ? <span className="text-amber-200">Review needed</span> : null}
+              </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-1.5">
             {strategyDetail.status === "live" ? (
               <Button
                 variant="terminalOutline"
@@ -1327,7 +1355,7 @@ function StrategyDetailWorkspace({
               <Badge className={cn("hover:bg-transparent", getStrategyTone(strategyDetail.status))}>
                 {strategyDetail.status === "live" ? "active" : strategyDetail.status}
               </Badge>
-              {strategyDetail.requiresReview ? (
+              {needsReview ? (
                 <span className="terminal-strip py-1 text-amber-200">review needed</span>
               ) : null}
             </div>
@@ -1343,7 +1371,7 @@ function StrategyDetailWorkspace({
                   : "Action scope not finalized"}
               </span>
               <span className="terminal-strip py-1">
-                {strategyDetail.reviewState.status === "approved" ? "Reviewed" : "Pending review"}
+                {reviewState.status === "approved" ? "Reviewed" : "Pending review"}
               </span>
             </div>
           </div>
@@ -1428,7 +1456,7 @@ function StrategyDetailWorkspace({
         onValueChange={(value) => onDetailTabChange(value as StrategyDetailTab)}
         className="flex min-h-0 flex-1 flex-col overflow-hidden"
       >
-        <div className="border-b border-[#222938] px-3 py-3 sm:px-4">
+        <div className="border-b border-[#222938] px-0 py-1.5 sm:px-4 md:px-3 md:py-3">
           <TabsList variant="terminal" className="grid h-auto w-full grid-cols-3 bg-transparent">
             <TabsTrigger variant="terminal" value="overview">
               Overview
@@ -1529,7 +1557,7 @@ export function AgentStrategiesPanel({
 
   return (
     <div className="flex h-full min-h-0 min-w-0 w-full flex-col">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3 border-b border-[#1f2634] pb-3">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2 border-b border-[#1f2634] pb-2 md:mb-3 md:gap-3 md:pb-3">
         <div className="flex flex-wrap items-center gap-2">
           <span className="terminal-strip py-1">{`${strategyList.length}/5 templates`}</span>
           <span className="terminal-strip py-1">
@@ -1563,23 +1591,18 @@ export function AgentStrategiesPanel({
                   data-testid="strategy-command-center-scroll"
                 >
                   <StrategyDeskBrief strategies={strategyList} selectedDetail={selectedDetail} />
-                  <div className="mt-4">
-                    <StrategyNextActions selectedDetail={selectedDetail} />
-                  </div>
-                  <div className="mt-4">
-                    <StrategySlots
-                      strategies={strategyList}
-                      selectedStrategyId={selectedStrategyId}
-                      isCreating={isCreating}
-                      onSelect={(strategyId) => {
-                        onSelect(strategyId);
-                        onDetailTabChange("overview");
-                      }}
-                      onCreateBlank={onCreateBlank}
-                      scrollable={false}
-                      showHeader={false}
-                    />
-                  </div>
+                  <StrategySlots
+                    strategies={strategyList}
+                    selectedStrategyId={selectedStrategyId}
+                    isCreating={isCreating}
+                    onSelect={(strategyId) => {
+                      onSelect(strategyId);
+                      onDetailTabChange("overview");
+                    }}
+                    onCreateBlank={onCreateBlank}
+                    scrollable={false}
+                    showHeader={false}
+                  />
                 </div>
               </div>
             ) : isDetailLoading && selectedStrategyId ? (

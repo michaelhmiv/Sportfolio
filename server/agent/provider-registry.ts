@@ -10,6 +10,7 @@ const SUPPORTED_MINIMAX_AGENT_MODELS = [DEFAULT_MINIMAX_MODEL];
 const DEFAULT_CHUTES_BASE_URL = "https://llm.chutes.ai/v1";
 const DEFAULT_MINIMAX_BASE_URL = "https://api.minimax.io/v1";
 const DEFAULT_OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
+const HERMES_MANAGED_PROVIDER_PRIORITY: ManagedProviderKey[] = ["openrouter", "minimax"];
 
 type ManagedProviderConfig = ManagedProviderStatus & {
   apiKey: string | null;
@@ -88,6 +89,7 @@ function buildChutesProvider(): ManagedProviderConfig {
     key: "chutes",
     label: "Chutes",
     configured: Boolean(apiKey),
+    supportsHermesToolLoop: false,
     apiKey,
     api: "openai-completions",
     providerId: "chutes",
@@ -115,6 +117,7 @@ function buildMinimaxProvider(): ManagedProviderConfig {
     key: "minimax",
     label: "MiniMax",
     configured: Boolean(apiKey),
+    supportsHermesToolLoop: true,
     apiKey,
     api: "openai-completions",
     providerId: "minimax",
@@ -161,6 +164,7 @@ function buildOpenRouterProvider(): ManagedProviderConfig {
     key: "openrouter",
     label: "OpenRouter",
     configured: Boolean(apiKey),
+    supportsHermesToolLoop: true,
     apiKey,
     api: "openai-completions",
     providerId: "openrouter",
@@ -191,6 +195,7 @@ function toManagedProviderStatus(provider: ManagedProviderConfig): ManagedProvid
     baseUrl: provider.baseUrl,
     defaultModel: provider.defaultModel,
     models: provider.models,
+    supportsHermesToolLoop: provider.supportsHermesToolLoop,
   };
 }
 
@@ -200,7 +205,28 @@ export function isManagedProviderKey(value: string): value is ManagedProviderKey
 
 export function getDefaultManagedProviderKey(): ManagedProviderKey {
   const configured = readEnv("USER_AGENT_MANAGED_PROVIDER");
-  return configured && isManagedProviderKey(configured) ? configured : "chutes";
+  if (configured && isManagedProviderKey(configured)) {
+    const configuredProvider = getManagedProviderConfig(configured);
+    if (configuredProvider.supportsHermesToolLoop && configuredProvider.configured) {
+      return configured;
+    }
+  }
+
+  for (const key of HERMES_MANAGED_PROVIDER_PRIORITY) {
+    const provider = getManagedProviderConfig(key);
+    if (provider.supportsHermesToolLoop && provider.configured) {
+      return key;
+    }
+  }
+
+  if (configured && isManagedProviderKey(configured)) {
+    const configuredProvider = getManagedProviderConfig(configured);
+    if (configuredProvider.supportsHermesToolLoop) {
+      return configured;
+    }
+  }
+
+  return "openrouter";
 }
 
 export function getManagedProviderStatus(key: ManagedProviderKey): ManagedProviderStatus {

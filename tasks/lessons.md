@@ -2,6 +2,14 @@
 
 ## 2026-03-23
 
+- For `/agent`, "mobile verified" is not real until Playwright proves the full tap-focus-type-send loop on an iPhone-sized viewport; scroll visibility alone is too weak and let a broken composer ship.
+- If Hermes can be configured with multiple managed providers, do not let an unsafe legacy default remain the effective runtime path just because it is present in env or older DB rows; prefer an explicitly Hermes-safe configured provider and upgrade stale settings automatically.
+- When the provider returns neither text nor tool calls, classify that as an empty provider response immediately and log the effective provider/model. Treating it as a generic unsupported turn hides the real failure mode.
+- If the model goes empty after already completing a useful tool call, preserve and return the latest successful tool result rather than discarding it and falling back to a dead apology.
+- Preview and staging tools should resolve natural player references server-side; requiring the model to always emit canonical Sportfolio player IDs makes ordinary prompts fail for avoidable reasons.
+- When Playwright harness behavior disagrees with live MCP verification, inspect the trace instead of assuming the harness is flaky; here it exposed a real `reviewState` nullability crash in the mocked strategy-detail path.
+- For local browser automation against protected routes, keep any auth bypass loopback-only and explicit so the harness can stay on the real route without weakening production/session behavior.
+
 - When `/agent` already has the right product model, the redesign should change composition before contracts: elevate the command center, slot rail, and detail canvas instead of inventing new agent concepts.
 - If a dense operator page feels like stacked cards, remove equal visual weight before adding new visuals; stronger section hierarchy and fewer repeated shells does more than adding more widgets.
 - For the agent workspace switch, do not duplicate tab state owners just to restyle the header; keep one source of truth and make the visual switch a thin control over that state.

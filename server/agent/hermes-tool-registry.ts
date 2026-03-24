@@ -47,7 +47,7 @@ const quoteSchema = Type.Object(
 );
 const previewPoolBuySchema = Type.Object(
   {
-    playerId: Type.String({ minLength: 1, maxLength: 160 }),
+    playerId: Type.Optional(Type.String({ minLength: 1, maxLength: 160 })),
     playerName: Type.Optional(Type.String({ minLength: 1, maxLength: 160 })),
     sbAmount: Type.Number({ exclusiveMinimum: 0 }),
     amount: Type.Optional(Type.Number({ exclusiveMinimum: 0 })),
@@ -56,7 +56,7 @@ const previewPoolBuySchema = Type.Object(
 );
 const previewPoolSellSchema = Type.Object(
   {
-    playerId: Type.String({ minLength: 1, maxLength: 160 }),
+    playerId: Type.Optional(Type.String({ minLength: 1, maxLength: 160 })),
     playerName: Type.Optional(Type.String({ minLength: 1, maxLength: 160 })),
     sharesAmount: Type.Integer({ minimum: 1 }),
     shares: Type.Optional(Type.Integer({ minimum: 1 })),
@@ -65,7 +65,7 @@ const previewPoolSellSchema = Type.Object(
 );
 const previewLpAddSchema = Type.Object(
   {
-    playerId: Type.String({ minLength: 1, maxLength: 160 }),
+    playerId: Type.Optional(Type.String({ minLength: 1, maxLength: 160 })),
     playerName: Type.Optional(Type.String({ minLength: 1, maxLength: 160 })),
     shares: Type.Number({ exclusiveMinimum: 0 }),
     playMoney: Type.Number({ exclusiveMinimum: 0 }),
@@ -74,7 +74,7 @@ const previewLpAddSchema = Type.Object(
 );
 const previewLpAddOptimalSchema = Type.Object(
   {
-    playerId: Type.String({ minLength: 1, maxLength: 160 }),
+    playerId: Type.Optional(Type.String({ minLength: 1, maxLength: 160 })),
     playerName: Type.Optional(Type.String({ minLength: 1, maxLength: 160 })),
     maxShares: Type.Number({ exclusiveMinimum: 0 }),
     maxPlayMoney: Type.Number({ exclusiveMinimum: 0 }),
@@ -83,7 +83,7 @@ const previewLpAddOptimalSchema = Type.Object(
 );
 const previewLpRemoveSchema = Type.Object(
   {
-    playerId: Type.String({ minLength: 1, maxLength: 160 }),
+    playerId: Type.Optional(Type.String({ minLength: 1, maxLength: 160 })),
     playerName: Type.Optional(Type.String({ minLength: 1, maxLength: 160 })),
     lpShares: Type.Number({ exclusiveMinimum: 0 }),
     shares: Type.Optional(Type.Number({ exclusiveMinimum: 0 })),
@@ -92,7 +92,7 @@ const previewLpRemoveSchema = Type.Object(
 );
 const previewLpZapSchema = Type.Object(
   {
-    playerId: Type.String({ minLength: 1, maxLength: 160 }),
+    playerId: Type.Optional(Type.String({ minLength: 1, maxLength: 160 })),
     playerName: Type.Optional(Type.String({ minLength: 1, maxLength: 160 })),
     shares: Type.Optional(Type.Number({ exclusiveMinimum: 0 })),
     sb: Type.Optional(Type.Number({ exclusiveMinimum: 0 })),

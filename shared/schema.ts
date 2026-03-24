@@ -1318,7 +1318,7 @@ export const agentSystemSettings = pgTable("agent_system_settings", {
   id: varchar("id")
     .primaryKey()
     .default(sql`gen_random_uuid()`),
-  managedProvider: text("managed_provider").notNull().default("chutes"),
+  managedProvider: text("managed_provider").notNull().default("openrouter"),
   managedModel: text("managed_model"),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

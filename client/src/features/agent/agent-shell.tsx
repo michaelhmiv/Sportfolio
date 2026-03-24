@@ -267,9 +267,9 @@ function ChatWorkbenchHeader({
   ];
 
   return (
-    <div className="min-w-0 w-full space-y-2 sm:space-y-3">
-      <section className="terminal-shell overflow-hidden border-[#1f2634] bg-[linear-gradient(135deg,rgba(14,19,31,0.96),rgba(8,12,23,0.98))]">
-        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#1f2634] px-3 py-3 sm:px-4">
+    <div className="min-w-0 w-full space-y-1.5 md:space-y-3">
+      <section className="overflow-hidden border-y border-[#1f2634] bg-[#0b1120] md:terminal-shell md:border md:border-[#1f2634] md:bg-[linear-gradient(135deg,rgba(14,19,31,0.96),rgba(8,12,23,0.98))]">
+        <div className="flex flex-wrap items-start justify-between gap-2 border-b border-[#1f2634] px-0 py-2 md:gap-3 md:px-3 md:py-3 md:sm:px-4">
           <div className="min-w-0 flex-1">
             <div className="terminal-kicker">Chat</div>
             <div className="mt-1 flex flex-wrap items-center gap-2">
@@ -306,7 +306,33 @@ function ChatWorkbenchHeader({
           </div>
         </div>
 
-        <div className="grid gap-3 px-3 py-3 sm:px-4 sm:py-3 lg:grid-cols-[minmax(0,1fr)_minmax(15rem,18rem)]">
+        <div className="divide-y divide-[#1f2634] md:hidden">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-0 py-1.5 font-mono text-[10px] uppercase tracking-[0.08em] text-slate-500">
+            {quickStats.map((item) => (
+              <span key={item.label}>
+                <span className={item.tone}>{item.value}</span> {item.label}
+              </span>
+            ))}
+            <span className="text-slate-300">{statusLabel}</span>
+          </div>
+          {supportRows[0] ? (
+            <div className="flex items-start justify-between gap-3 px-0 py-1.5 text-[11px] leading-4.5 text-slate-300">
+              <div className="min-w-0 truncate">
+                <span className="font-mono uppercase tracking-[0.08em] text-slate-500">
+                  {supportRows[0].label}
+                </span>{" "}
+                {supportRows[0].value}
+              </div>
+              {activeStrategies[0] ? (
+                <div className="shrink-0 font-mono text-[10px] uppercase tracking-[0.08em] text-slate-500">
+                  {activeStrategies[0].name}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+
+        <div className="hidden gap-3 px-3 py-3 sm:px-4 sm:py-3 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(15rem,18rem)]">
           <div className="min-w-0">
             <div className="text-[13px] leading-5 text-slate-200">{headline}</div>
             <div className="mt-3 grid grid-cols-3 gap-2">
@@ -347,25 +373,13 @@ function ChatWorkbenchHeader({
             ) : null}
           </div>
         </div>
-
-        <div className="border-t border-[#1f2634] px-3 py-2 md:hidden">
-          <Button
-            variant="terminalOutline"
-            className="h-8 w-full justify-center"
-            onClick={onSaveAsStrategy}
-            disabled={!activeThread || isSavingStrategy}
-          >
-            {isSavingStrategy ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Sparkles className="mr-2 h-4 w-4" />
-            )}
-            Save as strategy
-          </Button>
-        </div>
       </section>
 
-      {visibleBlocks.length > 0 ? <AgentUiBlockList blocks={visibleBlocks} /> : null}
+      {visibleBlocks.length > 0 ? (
+        <div className="hidden md:block">
+          <AgentUiBlockList blocks={visibleBlocks} />
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -1115,6 +1129,7 @@ export default function AgentShell() {
                       variant={workspaceTab === "strategies" ? "terminal" : "terminalOutline"}
                       className="h-9 justify-center"
                       onClick={() => setWorkspaceTab("strategies")}
+                      data-testid="agent-workspace-strategies"
                     >
                       Strategies
                     </Button>
@@ -1122,6 +1137,7 @@ export default function AgentShell() {
                       variant={workspaceTab === "chat" ? "terminal" : "terminalOutline"}
                       className="h-9 justify-center"
                       onClick={() => setWorkspaceTab("chat")}
+                      data-testid="agent-workspace-chat"
                     >
                       Chat
                     </Button>
@@ -1158,7 +1174,7 @@ export default function AgentShell() {
                   value="chat"
                   className="mt-0 min-h-0 flex-1 overflow-hidden data-[state=active]:flex data-[state=inactive]:hidden"
                 >
-                  <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 md:grid md:grid-cols-[18rem_minmax(0,1fr)]">
+                  <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 md:grid md:grid-cols-[18rem_minmax(0,1fr)] md:gap-4">
                     <aside className="hidden min-h-0 md:block">
                       <div className="terminal-shell h-full overflow-hidden border-[#1f2634] bg-[linear-gradient(180deg,rgba(12,17,29,0.96),rgba(8,13,24,0.98))]">
                         <AgentThreadPanel
@@ -1194,7 +1210,7 @@ export default function AgentShell() {
                         isSavingStrategy={createStrategyMutation.isPending}
                       />
 
-                      <div className="terminal-shell mt-4 flex min-h-0 flex-1 flex-col border-[#1f2634] bg-[linear-gradient(180deg,rgba(15,20,32,0.96),rgba(8,13,24,0.98))]">
+                      <div className="mt-1 flex min-h-0 flex-1 flex-col overflow-hidden border-y border-[#1f2634] bg-[#0b1120] md:terminal-shell md:mt-4 md:border md:bg-[linear-gradient(180deg,rgba(15,20,32,0.96),rgba(8,13,24,0.98))]">
                         {activeChatThreadId && chatMessagesError ? (
                           <div className="p-4">
                             <AgentErrorState
@@ -1217,7 +1233,7 @@ export default function AgentShell() {
                           </div>
                         ) : (
                           <>
-                            <div className="border-b border-[#222938] px-3 py-2 sm:px-4">
+                            <div className="hidden border-b border-[#222938] px-3 py-2 sm:px-4 md:block">
                               <div className="flex flex-wrap items-center justify-between gap-2">
                                 <div className="terminal-kicker">Transcript</div>
                                 <div className="font-mono text-[10px] uppercase tracking-[0.08em] text-slate-500">
@@ -1229,7 +1245,7 @@ export default function AgentShell() {
                             </div>
                             <div
                               ref={chatScrollRef}
-                              className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 pb-4 sm:px-4 sm:py-3"
+                              className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-0 py-2 pb-2 sm:px-4 sm:py-3 md:px-3"
                               data-testid="agent-chat-scroll"
                             >
                               {isLoadingChatMessages && !chatMessages && activeChatThreadId ? (
@@ -1266,7 +1282,7 @@ export default function AgentShell() {
                               )}
                             </div>
 
-                            <div className="border-t border-[#222938] px-3 py-2 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:px-4 sm:py-2.5 sm:pb-3">
+                            <div className="border-t border-[#222938] px-0 py-1.5 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:px-4 sm:py-2.5 sm:pb-3 md:px-3">
                               <AgentComposer
                                 value={chatComposerValue}
                                 onChange={setChatComposerValue}

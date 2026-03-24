@@ -660,6 +660,95 @@ function buildPlayerLabel(
   return fullName || fallback;
 }
 
+function scorePlayerReferenceMatch(input: {
+  query: string;
+  playerId: string;
+  playerName: string;
+  lastName: string;
+}) {
+  const normalizedQuery = normalizeNameFragment(input.query);
+  const normalizedPlayerId = normalizeNameFragment(input.playerId);
+  const normalizedPlayerName = normalizeNameFragment(input.playerName);
+  const normalizedLastName = normalizeNameFragment(input.lastName);
+
+  if (!normalizedQuery) {
+    return 0;
+  }
+  if (normalizedPlayerId === normalizedQuery) {
+    return 120;
+  }
+  if (normalizedPlayerName === normalizedQuery) {
+    return 110;
+  }
+  if (normalizedPlayerName.startsWith(normalizedQuery)) {
+    return 90;
+  }
+  if (normalizedPlayerName.includes(normalizedQuery)) {
+    return 80;
+  }
+  if (normalizedLastName && normalizedLastName === normalizedQuery) {
+    return 70;
+  }
+  if (normalizedLastName && normalizedQuery.includes(normalizedLastName)) {
+    return 60;
+  }
+  if (normalizedPlayerId.includes(normalizedQuery)) {
+    return 50;
+  }
+
+  return 0;
+}
+
+async function resolvePlayerReference(input: { args?: Record<string, unknown> }): Promise<{
+  playerId: string;
+  playerName: string;
+}> {
+  const explicitPlayerId = toStringValue(input.args?.playerId);
+  const explicitPlayerName = toStringValue(input.args?.playerName);
+
+  if (explicitPlayerId) {
+    const directPlayer = await storage.getPlayer(explicitPlayerId);
+    if (directPlayer) {
+      return {
+        playerId: directPlayer.id,
+        playerName: buildPlayerLabel(directPlayer, directPlayer.id),
+      };
+    }
+  }
+
+  const query = explicitPlayerName || explicitPlayerId;
+  if (!query) {
+    throw new Error("playerId or playerName is required");
+  }
+
+  const candidates = (await storage.getPlayers({ search: query }))
+    .map((player) => {
+      const playerName = buildPlayerLabel(player, player.id);
+      return {
+        player,
+        playerId: player.id,
+        playerName,
+        score: scorePlayerReferenceMatch({
+          query,
+          playerId: player.id,
+          playerName,
+          lastName: toStringValue(player.lastName),
+        }),
+      };
+    })
+    .filter((entry) => entry.score > 0)
+    .sort((left, right) => right.score - left.score)[0];
+
+  if (!candidates) {
+    throw new Error("Player not found");
+  }
+
+  return {
+    playerId: candidates.playerId,
+    playerName: candidates.playerName,
+  };
+}
+
 function resolveTargetDate(rawDate: unknown): Date {
   const requestedDate = toStringValue(rawDate);
   const normalizedDate =
@@ -1484,13 +1573,12 @@ async function buildPoolBuyPreview(input: {
   userId: string;
   args?: Record<string, unknown>;
 }): Promise<StructuredPlanPreview> {
-  const playerId = toStringValue(input.args?.playerId);
   const sbAmount = toPositiveNumber(input.args?.sbAmount ?? input.args?.amount);
-  if (!playerId || sbAmount == null) {
-    throw new Error("playerId and sbAmount are required for preview_pool_buy");
+  if (sbAmount == null) {
+    throw new Error("playerId or playerName and sbAmount are required for preview_pool_buy");
   }
 
-  const player = await requirePlayer(playerId);
+  const { playerId, playerName } = await resolvePlayerReference(input);
   const [availableBalance, pool, quote] = await Promise.all([
     storage.getAvailableBalance(input.userId),
     getOrCreatePool(playerId),
@@ -1509,14 +1597,12 @@ async function buildPoolBuyPreview(input: {
     );
   }
 
-  const playerLabel = buildPlayerLabel(player, playerId);
-
   return buildStructuredPreview({
     toolName: "preview_pool_buy",
     canStage,
     requiresConfirmation: true,
-    actionSummary: `Buy ${formatMoney(sbAmount)} of ${playerLabel}`,
-    stageMessage: `buy $${sbAmount} of ${playerLabel}`,
+    actionSummary: `Buy ${formatMoney(sbAmount)} of ${playerName}`,
+    stageMessage: `buy $${sbAmount} of ${playerName}`,
     beforeState: {
       availableBalance,
       currentPrice: pool.currentPrice,
@@ -1535,13 +1621,12 @@ async function buildPoolSellPreview(input: {
   userId: string;
   args?: Record<string, unknown>;
 }): Promise<StructuredPlanPreview> {
-  const playerId = toStringValue(input.args?.playerId);
   const sharesAmount = toPositiveInteger(input.args?.sharesAmount ?? input.args?.shares);
-  if (!playerId || sharesAmount == null) {
-    throw new Error("playerId and sharesAmount are required for preview_pool_sell");
+  if (sharesAmount == null) {
+    throw new Error("playerId or playerName and sharesAmount are required for preview_pool_sell");
   }
 
-  const player = await requirePlayer(playerId);
+  const { playerId, playerName } = await resolvePlayerReference(input);
   const [availableBalance, holdingInfo, quote] = await Promise.all([
     storage.getAvailableBalance(input.userId),
     storage.getHoldingMultiplierState(input.userId, playerId),
@@ -1561,14 +1646,12 @@ async function buildPoolSellPreview(input: {
     );
   }
 
-  const playerLabel = buildPlayerLabel(player, playerId);
-
   return buildStructuredPreview({
     toolName: "preview_pool_sell",
     canStage,
     requiresConfirmation: true,
-    actionSummary: `Sell ${sharesAmount} ${playerLabel} share${sharesAmount === 1 ? "" : "s"}`,
-    stageMessage: `sell ${sharesAmount} ${playerLabel} shares`,
+    actionSummary: `Sell ${sharesAmount} ${playerName} share${sharesAmount === 1 ? "" : "s"}`,
+    stageMessage: `sell ${sharesAmount} ${playerName} shares`,
     beforeState: {
       availableBalance,
       availableShares,
@@ -1590,14 +1673,15 @@ async function buildLpAddPreview(input: {
   userId: string;
   args?: Record<string, unknown>;
 }): Promise<StructuredPlanPreview> {
-  const playerId = toStringValue(input.args?.playerId);
   const shares = toPositiveNumber(input.args?.shares);
   const playMoney = toPositiveNumber(input.args?.playMoney);
-  if (!playerId || shares == null || playMoney == null) {
-    throw new Error("playerId, shares, and playMoney are required for preview_lp_add");
+  if (shares == null || playMoney == null) {
+    throw new Error(
+      "playerId or playerName, shares, and playMoney are required for preview_lp_add",
+    );
   }
 
-  const player = await requirePlayer(playerId);
+  const { playerId, playerName } = await resolvePlayerReference(input);
   const [pool, availableBalance, holdingInfo, existingPosition] = await Promise.all([
     getOrCreatePool(playerId),
     storage.getAvailableBalance(input.userId),
@@ -1635,14 +1719,12 @@ async function buildLpAddPreview(input: {
     );
   }
 
-  const playerLabel = buildPlayerLabel(player, playerId);
-
   return buildStructuredPreview({
     toolName: "preview_lp_add",
     canStage,
     requiresConfirmation: true,
-    actionSummary: `Add liquidity on ${playerLabel}`,
-    stageMessage: `add ${shares} shares and $${playMoney} into ${playerLabel} pool`,
+    actionSummary: `Add liquidity on ${playerName}`,
+    stageMessage: `add ${shares} shares and $${playMoney} into ${playerName} pool`,
     beforeState: {
       availableBalance,
       availableShares,
@@ -1664,16 +1746,15 @@ async function buildLpAddOptimalPreview(input: {
   userId: string;
   args?: Record<string, unknown>;
 }): Promise<StructuredPlanPreview> {
-  const playerId = toStringValue(input.args?.playerId);
   const maxShares = toPositiveNumber(input.args?.maxShares);
   const maxPlayMoney = toPositiveNumber(input.args?.maxPlayMoney);
-  if (!playerId || maxShares == null || maxPlayMoney == null) {
+  if (maxShares == null || maxPlayMoney == null) {
     throw new Error(
-      "playerId, maxShares, and maxPlayMoney are required for preview_lp_add_optimal",
+      "playerId or playerName, maxShares, and maxPlayMoney are required for preview_lp_add_optimal",
     );
   }
 
-  const player = await requirePlayer(playerId);
+  const { playerId, playerName } = await resolvePlayerReference(input);
   const [pool, availableBalance, holdingInfo, existingPosition] = await Promise.all([
     getOrCreatePool(playerId),
     storage.getAvailableBalance(input.userId),
@@ -1706,14 +1787,12 @@ async function buildLpAddOptimalPreview(input: {
     );
   }
 
-  const playerLabel = buildPlayerLabel(player, playerId);
-
   return buildStructuredPreview({
     toolName: "preview_lp_add_optimal",
     canStage,
     requiresConfirmation: true,
-    actionSummary: `Add optimal liquidity on ${playerLabel}`,
-    stageMessage: `add up to ${maxShares} shares and $${maxPlayMoney} into ${playerLabel} pool`,
+    actionSummary: `Add optimal liquidity on ${playerName}`,
+    stageMessage: `add up to ${maxShares} shares and $${maxPlayMoney} into ${playerName} pool`,
     beforeState: {
       availableBalance,
       availableShares,
@@ -1737,13 +1816,12 @@ async function buildLpRemovePreview(input: {
   userId: string;
   args?: Record<string, unknown>;
 }): Promise<StructuredPlanPreview> {
-  const playerId = toStringValue(input.args?.playerId);
   const lpShares = toPositiveNumber(input.args?.lpShares ?? input.args?.shares);
-  if (!playerId || lpShares == null) {
-    throw new Error("playerId and lpShares are required for preview_lp_remove");
+  if (lpShares == null) {
+    throw new Error("playerId or playerName and lpShares are required for preview_lp_remove");
   }
 
-  const player = await requirePlayer(playerId);
+  const { playerId, playerName } = await resolvePlayerReference(input);
   const [pool, position, availableBalance] = await Promise.all([
     getOrCreatePool(playerId),
     getLpPosition(playerId, input.userId),
@@ -1764,14 +1842,13 @@ async function buildLpRemovePreview(input: {
   const ownershipPercentage = lpShares / Math.max(pool.lpSharesTotal, Number.EPSILON);
   const sharesOut = pool.shares * ownershipPercentage;
   const playMoneyOut = pool.playMoney * ownershipPercentage;
-  const playerLabel = buildPlayerLabel(player, playerId);
 
   return buildStructuredPreview({
     toolName: "preview_lp_remove",
     canStage,
     requiresConfirmation: true,
-    actionSummary: `Remove ${lpShares.toFixed(2)} LP shares from ${playerLabel}`,
-    stageMessage: `remove ${lpShares} lp shares from ${playerLabel}`,
+    actionSummary: `Remove ${lpShares.toFixed(2)} LP shares from ${playerName}`,
+    stageMessage: `remove ${lpShares} lp shares from ${playerName}`,
     beforeState: {
       availableBalance,
       currentLpShares,
@@ -1792,24 +1869,17 @@ async function buildLpZapPreview(input: {
   userId: string;
   args?: Record<string, unknown>;
 }): Promise<StructuredPlanPreview> {
-  const playerId = toStringValue(input.args?.playerId);
-  if (!playerId) {
-    throw new Error("playerId is required for preview_lp_zap");
-  }
-
   const shares = toPositiveNumber(input.args?.shares);
   const sb = toPositiveNumber(input.args?.sb ?? input.args?.amount ?? input.args?.sbAmount);
   if (shares == null && sb == null) {
     throw new Error("shares or sb is required for preview_lp_zap");
   }
 
-  const player = await requirePlayer(playerId);
+  const { playerId, playerName } = await resolvePlayerReference(input);
   const [availableBalance, holdingInfo] = await Promise.all([
     storage.getAvailableBalance(input.userId),
     storage.getHoldingMultiplierState(input.userId, playerId),
   ]);
-
-  const playerLabel = buildPlayerLabel(player, playerId);
 
   if (shares != null) {
     const availableShares = Number(holdingInfo?.availableShares || 0);
@@ -1818,8 +1888,8 @@ async function buildLpZapPreview(input: {
         toolName: "preview_lp_zap",
         canStage: false,
         requiresConfirmation: true,
-        actionSummary: `Zap ${shares} ${playerLabel} shares into liquidity`,
-        stageMessage: `zap ${shares} shares into ${playerLabel} pool`,
+        actionSummary: `Zap ${shares} ${playerName} shares into liquidity`,
+        stageMessage: `zap ${shares} shares into ${playerName} pool`,
         beforeState: {
           availableShares,
         },
@@ -1837,8 +1907,8 @@ async function buildLpZapPreview(input: {
       toolName: "preview_lp_zap",
       canStage: true,
       requiresConfirmation: true,
-      actionSummary: `Zap ${shares} ${playerLabel} shares into liquidity`,
-      stageMessage: `zap ${shares} shares into ${playerLabel} pool`,
+      actionSummary: `Zap ${shares} ${playerName} shares into liquidity`,
+      stageMessage: `zap ${shares} shares into ${playerName} pool`,
       beforeState: {
         availableShares,
       },
@@ -1858,8 +1928,8 @@ async function buildLpZapPreview(input: {
       toolName: "preview_lp_zap",
       canStage: false,
       requiresConfirmation: true,
-      actionSummary: `Zap ${formatMoney(sb!)} into ${playerLabel} liquidity`,
-      stageMessage: `zap $${sb} into ${playerLabel} pool`,
+      actionSummary: `Zap ${formatMoney(sb!)} into ${playerName} liquidity`,
+      stageMessage: `zap $${sb} into ${playerName} pool`,
       beforeState: {
         availableBalance,
       },
@@ -1879,8 +1949,8 @@ async function buildLpZapPreview(input: {
     toolName: "preview_lp_zap",
     canStage: true,
     requiresConfirmation: true,
-    actionSummary: `Zap ${formatMoney(sb!)} into ${playerLabel} liquidity`,
-    stageMessage: `zap $${sb} into ${playerLabel} pool`,
+    actionSummary: `Zap ${formatMoney(sb!)} into ${playerName} liquidity`,
+    stageMessage: `zap $${sb} into ${playerName} pool`,
     beforeState: {
       availableBalance,
     },

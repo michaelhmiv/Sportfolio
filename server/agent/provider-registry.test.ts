@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  getDefaultManagedProviderKey,
   getManagedProviderRuntimeConfig,
   getManagedProviderStatus,
   getManagedProviderStatuses,
@@ -10,6 +11,7 @@ const ORIGINAL_ENV = { ...process.env };
 
 function resetProviderEnv() {
   process.env = { ...ORIGINAL_ENV };
+  delete process.env.USER_AGENT_MANAGED_PROVIDER;
   delete process.env.CHUTES_API_KEY;
   delete process.env.CHUTES_BASE_URL;
   delete process.env.CHUTES_DEFAULT_MODEL;
@@ -47,15 +49,18 @@ describe("provider-registry", () => {
     expect(chutes.label).toBe("Chutes");
     expect(chutes.configured).toBe(true);
     expect(chutes.defaultModel).toBe("kimi-test");
+    expect(chutes.supportsHermesToolLoop).toBe(false);
 
     expect(minimax.label).toBe("MiniMax");
     expect(minimax.configured).toBe(true);
     expect(minimax.baseUrl).toBe("https://api.minimax.io/v1");
     expect(minimax.models).toEqual(["MiniMax-M2.5"]);
+    expect(minimax.supportsHermesToolLoop).toBe(true);
 
     expect(openrouter.label).toBe("OpenRouter");
     expect(openrouter.configured).toBe(true);
     expect(openrouter.models).toContain("anthropic/claude-3.5-sonnet");
+    expect(openrouter.supportsHermesToolLoop).toBe(true);
   });
 
   it("treats openrouter model selection as configurable even without a preset model list", () => {
@@ -74,6 +79,23 @@ describe("provider-registry", () => {
     expect(providers.map((provider) => provider.key)).toEqual(["chutes", "minimax", "openrouter"]);
     expect(isManagedProviderKey("minimax")).toBe(true);
     expect(isManagedProviderKey("not-real")).toBe(false);
+  });
+
+  it("defaults Hermes to OpenRouter unless explicitly overridden", () => {
+    expect(getDefaultManagedProviderKey()).toBe("openrouter");
+
+    process.env.USER_AGENT_MANAGED_PROVIDER = "minimax";
+    expect(getDefaultManagedProviderKey()).toBe("minimax");
+  });
+
+  it("ignores an unsafe or unusable env default when a configured Hermes-safe provider exists", () => {
+    process.env.USER_AGENT_MANAGED_PROVIDER = "chutes";
+    process.env.CHUTES_API_KEY = "test-chutes";
+    process.env.CHUTES_DEFAULT_MODEL = "kimi-test";
+    process.env.OPENROUTER_API_KEY = "test-openrouter";
+    process.env.OPENROUTER_DEFAULT_MODEL = "openai/gpt-4o-mini";
+
+    expect(getDefaultManagedProviderKey()).toBe("openrouter");
   });
 
   it("uses pi-ai compatible provider runtime settings", () => {

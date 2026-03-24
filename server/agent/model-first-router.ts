@@ -843,6 +843,8 @@ export async function runHermesModelToolLoop(input: {
     let toolCallsUsed = 0;
     let finalUsage: AgentModelUsage | undefined;
     let usedTransientRetry = false;
+    let lastSuccessfulToolName: string | null = null;
+    let lastSuccessfulToolReply: string | null = null;
 
     const buildMetadata = (terminationReason: string | null): ModelFirstRouteMetadata => ({
       terminationReason,
@@ -1007,24 +1009,48 @@ export async function runHermesModelToolLoop(input: {
               phase: "plan",
               status: "skipped",
               startedAt,
-              summary: "The model returned no answer and no usable tool call. Retrying once.",
+              summary:
+                "The model returned no visible answer and no usable tool call. Retrying once.",
             }),
           );
           continue;
         }
 
+        if (!providerFailureClass) {
+          providerFailureClass = "malformed_response";
+        }
+
+        if (lastSuccessfulToolReply) {
+          return {
+            outcome: "unsupported",
+            replyText: lastSuccessfulToolReply,
+            summary:
+              lastSuccessfulToolName != null
+                ? `Returned the latest ${lastSuccessfulToolName} result after the provider stopped responding.`
+                : "Returned the latest Hermes tool result after the provider stopped responding.",
+            warnings: [
+              ...warnings,
+              "The provider returned neither a visible answer nor a valid tool call after one repair retry, so Hermes returned the latest successful tool result directly.",
+            ],
+            citations,
+            toolTrace,
+            ...(finalUsage ? { usage: finalUsage } : {}),
+            ...buildMetadata("empty_provider_response"),
+          };
+        }
+
         return {
           outcome: "unsupported",
           replyText: null,
-          summary: "The model tool loop returned no usable answer.",
+          summary: "The model returned an empty response twice.",
           warnings: [
             ...warnings,
-            "The model returned neither a final answer nor a valid tool call.",
+            "The provider returned neither a visible answer nor a valid tool call after one repair retry.",
           ],
           citations,
           toolTrace,
           ...(finalUsage ? { usage: finalUsage } : {}),
-          ...buildMetadata("empty_model_response"),
+          ...buildMetadata("empty_provider_response"),
         };
       }
 
@@ -1209,6 +1235,9 @@ export async function runHermesModelToolLoop(input: {
         });
 
         citations.push(...collectCitations(toolResult));
+        const toolResultText = buildToolResultText(selectedTool, toolResult);
+        lastSuccessfulToolName = selectedTool.toolName;
+        lastSuccessfulToolReply = toolResultText;
         toolTrace.push(
           buildToolTraceEntry({
             toolName: selectedTool.toolName,
@@ -1229,7 +1258,7 @@ export async function runHermesModelToolLoop(input: {
           content: [
             {
               type: "text",
-              text: buildToolResultText(selectedTool, toolResult),
+              text: toolResultText,
             },
           ],
           details:

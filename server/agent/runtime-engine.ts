@@ -167,6 +167,8 @@ const sidecarHermesRuntimeAdapter: HermesRuntimeAdapter = {
           executionKind: input.executionContext?.kind || null,
           triggerSource: input.triggerContext?.source || null,
           strategyId: input.strategyContext?.strategyId || null,
+          providerKey: requestPayload.modelRuntime.providerKey || null,
+          model: requestPayload.modelRuntime.model || requestPayload.profile.model || null,
         });
 
         return {
@@ -237,6 +239,8 @@ const sidecarHermesRuntimeAdapter: HermesRuntimeAdapter = {
         triggerSource: input.triggerContext?.source || null,
         strategyId: input.strategyContext?.strategyId || null,
         correlationId: responseCorrelationId,
+        providerKey: requestPayload.modelRuntime.providerKey || null,
+        model: requestPayload.modelRuntime.model || requestPayload.profile.model || null,
       });
 
       return {
@@ -297,6 +301,8 @@ const sidecarHermesRuntimeAdapter: HermesRuntimeAdapter = {
         triggerSource: input.triggerContext?.source || null,
         strategyId: input.strategyContext?.strategyId || null,
         correlationId,
+        providerKey: requestPayload.modelRuntime.providerKey || null,
+        model: requestPayload.modelRuntime.model || requestPayload.profile.model || null,
       });
 
       return {

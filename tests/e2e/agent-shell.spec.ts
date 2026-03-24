@@ -3,6 +3,10 @@ import { test, expect, type Locator, type Page, type Route, devices } from "@pla
 test.describe.configure({ timeout: 120_000 });
 
 async function mockAgentShell(page: Page) {
+  await page.addInitScript(() => {
+    (window as Window & { __PLAYWRIGHT_AGENT_E2E__?: boolean }).__PLAYWRIGHT_AGENT_E2E__ = true;
+  });
+
   const now = "2026-03-18T12:00:00.000Z";
   const threads = [
     {
@@ -586,10 +590,7 @@ async function waitForAgentShell(page: Page) {
 }
 
 function getWorkspaceTab(page: Page, name: "Chat" | "Strategies") {
-  return page
-    .locator("button")
-    .filter({ hasText: new RegExp(`^${name}$`, "i") })
-    .first();
+  return page.getByTestId(name === "Chat" ? "agent-workspace-chat" : "agent-workspace-strategies");
 }
 
 async function getScrollMetrics(locator: Locator) {
@@ -644,7 +645,8 @@ test("mobile chat keeps the final messages above the bottom edge", async ({ brow
 
   const chatScroll = page.getByTestId("agent-chat-scroll");
   const bottomMessage = page.getByText("Hermes reply 40:", { exact: false });
-  const composerSendButton = page.getByRole("button", { name: "Send" });
+  const composerInput = page.getByTestId("agent-composer-input").first();
+  const composerSendButton = page.getByTestId("agent-composer-send").first();
   const scrollMetrics = await getScrollMetrics(chatScroll);
 
   expect(scrollMetrics.scrollHeight).toBeGreaterThan(scrollMetrics.clientHeight);
@@ -663,6 +665,9 @@ test("mobile chat keeps the final messages above the bottom edge", async ({ brow
   expect((composerBounds?.y ?? 0) + (composerBounds?.height ?? 0)).toBeLessThanOrEqual(
     viewportHeight,
   );
+  await composerInput.click();
+  await composerInput.fill("Review my MLB setup for this week.");
+  await expect(composerInput).toHaveValue("Review my MLB setup for this week.");
 
   await context.close();
 });
@@ -685,7 +690,7 @@ test("mobile strategies keep the selected detail accessible and still allow slot
   const strategyCommandCenter = page.locator('[data-testid="strategy-command-center"]:visible');
   await expect(strategyCommandCenter).toBeVisible();
   await expect(
-    page.getByTestId("strategy-command-center-scroll").getByText("Today brief", { exact: true }),
+    page.getByTestId("strategy-command-center-scroll").getByText("Strategy desk", { exact: true }),
   ).toBeVisible();
   await expect(page.getByRole("link", { name: "Agent" })).toBeVisible();
 
@@ -733,11 +738,24 @@ test("mobile strategies keep the selected detail accessible and still allow slot
   await expect(page.locator('[data-testid="strategy-chat-scroll"]:visible').first()).toBeVisible();
 
   const strategyChatScroll = page.locator('[data-testid="strategy-chat-scroll"]:visible').first();
+  const strategyComposerInput = page
+    .locator('[data-testid="agent-composer-input"]:visible')
+    .first();
+  const strategyComposerSend = page.locator('[data-testid="agent-composer-send"]:visible').first();
   const strategyChatMetrics = await getScrollMetrics(strategyChatScroll);
   expect(strategyChatMetrics.scrollHeight).toBeGreaterThan(strategyChatMetrics.clientHeight);
   await strategyChatScroll.evaluate((node) => {
     node.scrollTop = node.scrollHeight;
   });
+  await strategyComposerInput.click();
+  await strategyComposerInput.fill("Tighten this strategy before the MLB slate.");
+  await expect(strategyComposerInput).toHaveValue("Tighten this strategy before the MLB slate.");
+  const strategyComposerBounds = await strategyComposerSend.boundingBox();
+  const mobileViewportHeight = page.viewportSize()?.height ?? 844;
+  expect(strategyComposerBounds?.y ?? 0).toBeGreaterThan(0);
+  expect(
+    (strategyComposerBounds?.y ?? 0) + (strategyComposerBounds?.height ?? 0),
+  ).toBeLessThanOrEqual(mobileViewportHeight);
   await expect(
     strategyChatScroll.getByText("This strategy already tracks the daily movers.", {
       exact: false,

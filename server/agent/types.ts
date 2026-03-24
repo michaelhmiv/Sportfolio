@@ -36,7 +36,7 @@ export type AgentActionBundleStatus =
   | "failed"
   | "expired";
 export const MANAGED_MODEL_PLACEHOLDER = "managed-default";
-export const DEFAULT_MANAGED_MODEL = "moonshotai/Kimi-K2.5-TEE";
+export const DEFAULT_MANAGED_MODEL = "openai/gpt-4o-mini";
 
 export interface AgentPendingClarification {
   kind: "player_name";
@@ -104,6 +104,7 @@ export interface ManagedProviderStatus {
   baseUrl: string;
   defaultModel: string | null;
   models: string[];
+  supportsHermesToolLoop: boolean;
 }
 
 export interface AgentSystemSettingsView {
@@ -571,6 +572,8 @@ export interface HermesRuntimeMetadata {
   triggerSource: HermesTriggerContext["source"] | null;
   strategyId: string | null;
   correlationId: string | null;
+  providerKey: ManagedProviderKey | null;
+  model: string | null;
 }
 
 export interface HermesTriggerContext {

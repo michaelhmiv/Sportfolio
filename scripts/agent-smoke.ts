@@ -1,28 +1,36 @@
 import { loadScoutAgentContext } from "../server/agent/context-loader";
-import { planDirectAgentOperation } from "../server/agent/operations-planner";
 import {
   buildHostedWebResearchQueries,
   isHostedWebResearchAvailable,
   planHostedWebResearch,
   shouldUseHostedWebResearch,
 } from "../server/agent/research";
-import { getAgentCapabilities, getScoutAgentProfile } from "../server/agent/service";
+import {
+  analyzePortfolioAgent,
+  getAgentCapabilities,
+  getScoutAgentProfile,
+} from "../server/agent/service";
 
 type SmokeSummary = {
   label: string;
   message: string;
   domain: string | null;
+  runtime: "hermes";
   outcome:
     | "staged_plan"
     | "blocked_clarification"
     | "research_only"
     | "blocked_unavailable"
-    | "advisory_only";
+    | "advisory_only"
+    | "failed";
   summary: string | null;
   actionTypes: string[];
   hasClarification: boolean;
   warningCount: number;
   replyPreview: string | null;
+  toolCount: number;
+  toolNames: string[];
+  failureReason: string | null;
 };
 
 function getArg(flag: string): string | null {
@@ -62,7 +70,12 @@ function classifySummary(input: {
   citations?: Array<unknown> | null;
   summary?: string | null;
   replyText?: string | null;
+  errorMessage?: string | null;
 }): SmokeSummary["outcome"] {
+  if (input.errorMessage) {
+    return "failed";
+  }
+
   if (input.pendingClarification) {
     return "blocked_clarification";
   }
@@ -90,11 +103,12 @@ function classifySummary(input: {
 function summarizePlan(
   label: string,
   message: string,
-  result: Awaited<ReturnType<typeof planDirectAgentOperation>>,
+  result: Awaited<ReturnType<typeof analyzePortfolioAgent>>,
 ): SmokeSummary {
   return {
     label,
     message,
+    runtime: "hermes",
     domain: result?.domain || null,
     outcome: classifySummary({
       actions: result?.actions || [],
@@ -102,12 +116,16 @@ function summarizePlan(
       citations: result?.citations,
       summary: result?.summary,
       replyText: result?.replyText,
+      errorMessage: result?.errorMessage || null,
     }),
     summary: result?.summary || null,
     actionTypes: (result?.actions || []).map((action) => action.actionType),
     hasClarification: Boolean(result?.pendingClarification),
     warningCount: result?.warnings.length || 0,
     replyPreview: trimPreview(result?.replyText),
+    toolCount: result?.toolTrace.length || 0,
+    toolNames: (result?.toolTrace || []).map((entry) => entry.toolName),
+    failureReason: result?.errorMessage || null,
   };
 }
 
@@ -138,6 +156,10 @@ async function main() {
     { label: "broad_review", message: "review my setup" },
     { label: "portfolio_cleanup", message: "clean up my portfolio" },
     { label: "idle_balance", message: "what should i do with my idle balance?" },
+    {
+      label: "mlb_weekly_investing",
+      message: "i want you to invest in the best mlb players throughout this week",
+    },
     { label: "community_scan", message: "who should get my community boost today?" },
     { label: "capability_guide", message: "what can you do?" },
   ];
@@ -156,10 +178,9 @@ async function main() {
 
   const planSummaries: SmokeSummary[] = [];
   for (const prompt of [...advisoryPrompts, ...actionPrompts]) {
-    const result = await planDirectAgentOperation({
-      userId,
+    const result = await analyzePortfolioAgent(userId, {
       message: prompt.message,
-      profile: profileView.profile,
+      mode: "discussion",
     });
     planSummaries.push(summarizePlan(prompt.label, prompt.message, result));
   }
@@ -221,7 +242,7 @@ async function main() {
         : null,
     },
     notes: [
-      "This script exercises internal agent modules directly and does not execute any confirmation-gated economic mutation.",
+      "This script exercises the Hermes runtime path directly and does not execute any confirmation-gated economic mutation.",
       includeActionPlans
         ? "Action-plan checks are included; some quote paths may touch read-heavy market helpers."
         : "Action-plan checks are disabled by default. Pass --include-action-plans to include staged mutation previews.",
