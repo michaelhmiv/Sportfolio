@@ -275,7 +275,11 @@ describe("model-first-router", () => {
         maxTokens: 800,
       } as any,
       secret: undefined,
-      request: buildRequest(),
+      request: {
+        ...buildRequest(),
+        requestMode: "plan",
+        message: "Plan a trade for me: buy $20 of a player.",
+      },
       matchedSkill: null,
     });
 
@@ -285,7 +289,116 @@ describe("model-first-router", () => {
       toolCategory: "plan",
     });
     expect((result as { toolArgs: Record<string, unknown> }).toolArgs.message).toBe(
-      "What should I spend my cash balance on?",
+      "Plan a trade for me: buy $20 of a player.",
+    );
+  });
+
+  it("rejects premature planning tool calls for broad advisory asks and reroutes to a non-plan answer", async () => {
+    mocks.callAgentModel
+      .mockResolvedValueOnce({
+        role: "assistant",
+        content: [
+          {
+            type: "toolCall",
+            id: "call_1",
+            name: "preview_direct_operation",
+            arguments: {},
+          },
+        ],
+        api: "openai-completions",
+        provider: "chutes",
+        model: "test-model",
+        usage: buildUsage(),
+        stopReason: "tool_calls",
+        timestamp: Date.now(),
+      })
+      .mockResolvedValueOnce({
+        role: "assistant",
+        content: [
+          {
+            type: "text",
+            text: "Let's start with an MLB allocation plan before staging any move.",
+          },
+        ],
+        api: "openai-completions",
+        provider: "chutes",
+        model: "test-model",
+        usage: buildUsage(),
+        stopReason: "stop",
+        timestamp: Date.now(),
+      });
+
+    const result = await runHermesModelToolLoop({
+      profile: {
+        displayName: "My Agent",
+        providerMode: "managed",
+        model: "test-model",
+        baseUrl: null,
+        systemPrompt: "test",
+        userPromptTemplate: "test",
+        temperature: "0.2",
+        maxTokens: 800,
+      } as any,
+      secret: undefined,
+      request: {
+        ...buildRequest(),
+        message: "I want to develop an MLB strategy with the season starting soon",
+        requestMode: "discussion",
+      },
+      matchedSkill: null,
+    });
+
+    expect(result.outcome).toBe("answer");
+    expect(result.warnings.some((entry) => entry.includes("advisory-level"))).toBe(true);
+    expect(mocks.runHermesReadTool).not.toHaveBeenCalled();
+  });
+
+  it("allows explicit trade-planning requests in auto mode to proceed to plan tools", async () => {
+    mocks.callAgentModel.mockResolvedValue({
+      role: "assistant",
+      content: [
+        {
+          type: "toolCall",
+          id: "call_1",
+          name: "preview_direct_operation",
+          arguments: {},
+        },
+      ],
+      api: "openai-completions",
+      provider: "chutes",
+      model: "test-model",
+      usage: buildUsage(),
+      stopReason: "tool_calls",
+      timestamp: Date.now(),
+    });
+
+    const result = await runHermesModelToolLoop({
+      profile: {
+        displayName: "My Agent",
+        providerMode: "managed",
+        model: "test-model",
+        baseUrl: null,
+        systemPrompt: "test",
+        userPromptTemplate: "test",
+        temperature: "0.2",
+        maxTokens: 800,
+      } as any,
+      secret: undefined,
+      request: {
+        ...buildRequest(),
+        requestMode: "auto",
+        message: "can you plan a trade for me tonight?",
+      },
+      matchedSkill: null,
+    });
+
+    expect(result).toMatchObject({
+      outcome: "tool",
+      toolName: "preview_direct_operation",
+      toolCategory: "plan",
+    });
+    expect((result as { toolArgs: Record<string, unknown> }).toolArgs.message).toBe(
+      "can you plan a trade for me tonight?",
     );
   });
 

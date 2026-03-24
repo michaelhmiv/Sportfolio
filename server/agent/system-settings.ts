@@ -2,7 +2,6 @@ import { agentSystemSettings, updateAgentSystemSettingsInputSchema } from "@shar
 import { eq, sql } from "drizzle-orm";
 import { db } from "../db";
 import {
-  getManagedProviderRuntimeConfig,
   getDefaultManagedProviderKey,
   getManagedProviderStatus,
   getManagedProviderStatuses,
@@ -10,14 +9,11 @@ import {
 } from "./provider-registry";
 import type { AgentSystemSettingsView, ManagedProviderKey } from "./types";
 
-const LEGACY_HERMES_PROVIDER_KEY: ManagedProviderKey = "chutes";
-const LEGACY_HERMES_DEFAULT_MODEL = "moonshotai/Kimi-K2.5-TEE";
-
 export async function ensureAgentSystemSettingsSchema() {
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS "agent_system_settings" (
       "id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
-      "managed_provider" text NOT NULL DEFAULT 'openrouter',
+      "managed_provider" text NOT NULL DEFAULT 'minimax',
       "managed_model" text,
       "updated_at" timestamp NOT NULL DEFAULT now()
     );
@@ -33,34 +29,6 @@ async function ensureAgentSystemSettingsRow() {
   const [existing] = await db.select().from(agentSystemSettings).limit(1);
   if (existing) {
     if (isManagedProviderKey(existing.managedProvider)) {
-      const defaultProvider = getDefaultManagedProviderKey();
-      const currentProvider = getManagedProviderStatus(existing.managedProvider);
-      const currentRuntime = getManagedProviderRuntimeConfig(existing.managedProvider);
-      const looksLikeLegacyDefault =
-        existing.managedProvider === LEGACY_HERMES_PROVIDER_KEY &&
-        (!existing.managedModel ||
-          existing.managedModel === LEGACY_HERMES_DEFAULT_MODEL ||
-          existing.managedModel === currentProvider.defaultModel ||
-          existing.managedModel === currentRuntime.defaultModel);
-
-      if (
-        defaultProvider !== existing.managedProvider &&
-        !currentProvider.supportsHermesToolLoop &&
-        looksLikeLegacyDefault
-      ) {
-        const [updatedDefault] = await db
-          .update(agentSystemSettings)
-          .set({
-            managedProvider: defaultProvider,
-            managedModel: null,
-            updatedAt: new Date(),
-          })
-          .where(eq(agentSystemSettings.id, existing.id))
-          .returning();
-
-        return updatedDefault;
-      }
-
       return existing;
     }
 
@@ -142,12 +110,7 @@ export async function updateAgentSystemSettings(input: unknown): Promise<AgentSy
     throw new Error(`${provider.label} is missing a default model`);
   }
 
-  if (
-    data.managedProvider === "minimax" &&
-    effectiveModel &&
-    provider.models.length > 0 &&
-    !provider.models.includes(effectiveModel)
-  ) {
+  if (effectiveModel && provider.models.length > 0 && !provider.models.includes(effectiveModel)) {
     throw new Error(`MiniMax agent planning currently supports: ${provider.models.join(", ")}`);
   }
 

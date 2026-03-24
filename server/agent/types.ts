@@ -19,7 +19,7 @@ export type AgentDomain =
   | "sportfolio";
 export type AgentThreadWorkspace = "chat" | "strategy";
 export type AgentChannel = "in_app" | "sms" | "cli";
-export type ManagedProviderKey = "chutes" | "minimax" | "openrouter";
+export type ManagedProviderKey = "minimax";
 export type AgentMessageRole = "user" | "assistant" | "system";
 export type AgentMessageType = "chat" | "plan" | "confirmation" | "result" | "error";
 export type AgentClarificationField = "player_name";
@@ -36,7 +36,7 @@ export type AgentActionBundleStatus =
   | "failed"
   | "expired";
 export const MANAGED_MODEL_PLACEHOLDER = "managed-default";
-export const DEFAULT_MANAGED_MODEL = "openai/gpt-4o-mini";
+export const DEFAULT_MANAGED_MODEL = "MiniMax-M2.7";
 
 export interface AgentPendingClarification {
   kind: "player_name";

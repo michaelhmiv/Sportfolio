@@ -5,12 +5,17 @@ import {
   type ManagedProviderStatus,
 } from "./types";
 
-const DEFAULT_MINIMAX_MODEL = "MiniMax-M2.5";
-const SUPPORTED_MINIMAX_AGENT_MODELS = [DEFAULT_MINIMAX_MODEL];
-const DEFAULT_CHUTES_BASE_URL = "https://llm.chutes.ai/v1";
+const DEFAULT_MINIMAX_MODEL = "MiniMax-M2.7";
+const SUPPORTED_MINIMAX_AGENT_MODELS = [
+  "MiniMax-M2.7",
+  "MiniMax-M2.7-highspeed",
+  "MiniMax-M2.5",
+  "MiniMax-M2.5-highspeed",
+  "MiniMax-M2.1",
+  "MiniMax-M2.1-highspeed",
+  "MiniMax-M2",
+] as const;
 const DEFAULT_MINIMAX_BASE_URL = "https://api.minimax.io/v1";
-const DEFAULT_OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
-const HERMES_MANAGED_PROVIDER_PRIORITY: ManagedProviderKey[] = ["openrouter", "minimax"];
 
 type ManagedProviderConfig = ManagedProviderStatus & {
   apiKey: string | null;
@@ -35,10 +40,6 @@ function readEnv(...keys: string[]): string | null {
 
 function normalizeBaseUrl(value: string): string {
   return value.replace(/\/+$/, "");
-}
-
-function normalizeDefaultModel(value: string | null): string | null {
-  return value?.trim() || null;
 }
 
 function normalizeModels(value: string | null): string[] {
@@ -75,38 +76,9 @@ function getBuiltinMinimaxModels(): string[] {
   return [...SUPPORTED_MINIMAX_AGENT_MODELS];
 }
 
-function buildChutesProvider(): ManagedProviderConfig {
-  const apiKey = readEnv("CHUTES_API_KEY", "USER_AGENT_MANAGED_API_KEY");
-  const defaultModel = normalizeDefaultModel(
-    readEnv("CHUTES_DEFAULT_MODEL", "USER_AGENT_MANAGED_DEFAULT_MODEL") || DEFAULT_MANAGED_MODEL,
-  );
-  const models = dedupeModels(
-    [defaultModel],
-    normalizeModels(readEnv("CHUTES_MODELS", "USER_AGENT_MANAGED_MODELS")),
-  );
-
-  return {
-    key: "chutes",
-    label: "Chutes",
-    configured: Boolean(apiKey),
-    supportsHermesToolLoop: false,
-    apiKey,
-    api: "openai-completions",
-    providerId: "chutes",
-    authMode: "raw",
-    baseUrl: normalizeBaseUrl(
-      readEnv("CHUTES_BASE_URL", "USER_AGENT_MANAGED_BASE_URL") || DEFAULT_CHUTES_BASE_URL,
-    ),
-    defaultModel: models[0] || defaultModel,
-    models,
-  };
-}
-
 function buildMinimaxProvider(): ManagedProviderConfig {
   const apiKey = readEnv("MINIMAX_API_KEY", "MINIMAX_CODING_PLAN_API_KEY");
-  const defaultModel = normalizeDefaultModel(
-    readEnv("MINIMAX_DEFAULT_MODEL") || DEFAULT_MINIMAX_MODEL,
-  );
+  const defaultModel = DEFAULT_MINIMAX_MODEL;
   const models = dedupeModels(
     [defaultModel],
     normalizeModels(readEnv("MINIMAX_MODELS")),
@@ -123,7 +95,7 @@ function buildMinimaxProvider(): ManagedProviderConfig {
     providerId: "minimax",
     authMode: "standard",
     baseUrl: normalizeBaseUrl(readEnv("MINIMAX_BASE_URL") || DEFAULT_MINIMAX_BASE_URL),
-    defaultModel: models[0] || defaultModel,
+    defaultModel: defaultModel || models[0] || DEFAULT_MANAGED_MODEL,
     models,
     compat: {
       supportsStore: false,
@@ -139,52 +111,8 @@ function buildMinimaxProvider(): ManagedProviderConfig {
   };
 }
 
-function buildOpenRouterHeaders(): Record<string, string> | undefined {
-  const siteUrl = readEnv("OPENROUTER_SITE_URL");
-  const appName = readEnv("OPENROUTER_APP_NAME", "OPENROUTER_TITLE");
-  const headers: Record<string, string> = {};
-
-  if (siteUrl) {
-    headers["HTTP-Referer"] = siteUrl;
-  }
-
-  if (appName) {
-    headers["X-Title"] = appName;
-  }
-
-  return Object.keys(headers).length > 0 ? headers : undefined;
-}
-
-function buildOpenRouterProvider(): ManagedProviderConfig {
-  const apiKey = readEnv("OPENROUTER_API_KEY");
-  const defaultModel = normalizeDefaultModel(readEnv("OPENROUTER_DEFAULT_MODEL"));
-  const models = dedupeModels([defaultModel], normalizeModels(readEnv("OPENROUTER_MODELS")));
-
-  return {
-    key: "openrouter",
-    label: "OpenRouter",
-    configured: Boolean(apiKey),
-    supportsHermesToolLoop: true,
-    apiKey,
-    api: "openai-completions",
-    providerId: "openrouter",
-    authMode: "standard",
-    baseUrl: normalizeBaseUrl(readEnv("OPENROUTER_BASE_URL") || DEFAULT_OPENROUTER_BASE_URL),
-    defaultModel: models[0] || defaultModel,
-    models,
-    headers: buildOpenRouterHeaders(),
-  };
-}
-
-function getManagedProviderConfig(key: ManagedProviderKey): ManagedProviderConfig {
-  switch (key) {
-    case "chutes":
-      return buildChutesProvider();
-    case "minimax":
-      return buildMinimaxProvider();
-    case "openrouter":
-      return buildOpenRouterProvider();
-  }
+function getManagedProviderConfig(_key: ManagedProviderKey): ManagedProviderConfig {
+  return buildMinimaxProvider();
 }
 
 function toManagedProviderStatus(provider: ManagedProviderConfig): ManagedProviderStatus {
@@ -200,33 +128,11 @@ function toManagedProviderStatus(provider: ManagedProviderConfig): ManagedProvid
 }
 
 export function isManagedProviderKey(value: string): value is ManagedProviderKey {
-  return value === "chutes" || value === "minimax" || value === "openrouter";
+  return value === "minimax";
 }
 
 export function getDefaultManagedProviderKey(): ManagedProviderKey {
-  const configured = readEnv("USER_AGENT_MANAGED_PROVIDER");
-  if (configured && isManagedProviderKey(configured)) {
-    const configuredProvider = getManagedProviderConfig(configured);
-    if (configuredProvider.supportsHermesToolLoop && configuredProvider.configured) {
-      return configured;
-    }
-  }
-
-  for (const key of HERMES_MANAGED_PROVIDER_PRIORITY) {
-    const provider = getManagedProviderConfig(key);
-    if (provider.supportsHermesToolLoop && provider.configured) {
-      return key;
-    }
-  }
-
-  if (configured && isManagedProviderKey(configured)) {
-    const configuredProvider = getManagedProviderConfig(configured);
-    if (configuredProvider.supportsHermesToolLoop) {
-      return configured;
-    }
-  }
-
-  return "openrouter";
+  return "minimax";
 }
 
 export function getManagedProviderStatus(key: ManagedProviderKey): ManagedProviderStatus {
@@ -234,11 +140,7 @@ export function getManagedProviderStatus(key: ManagedProviderKey): ManagedProvid
 }
 
 export function getManagedProviderStatuses(): ManagedProviderStatus[] {
-  return [
-    getManagedProviderStatus("chutes"),
-    getManagedProviderStatus("minimax"),
-    getManagedProviderStatus("openrouter"),
-  ];
+  return [getManagedProviderStatus("minimax")];
 }
 
 export function getManagedProviderRuntimeConfig(key: ManagedProviderKey): ManagedProviderConfig {
