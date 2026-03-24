@@ -294,6 +294,184 @@ export async function getStrategyStageEventTrigger(input: {
   }
 }
 
+export interface StrategyLastRunContext {
+  runId: string;
+  status: string;
+  appliedActionCount: number;
+  outcomeSummary: string | null;
+  completedAt: string;
+  activeStageId: string | null;
+}
+
+export function getLastRunContext(strategy: AgentStrategyRecord): StrategyLastRunContext | null {
+  const record = toRecord(strategy.normalizedRuleSheet);
+  const ctx = toRecord(record.lastRunContext);
+  if (!ctx.runId || typeof ctx.runId !== "string") {
+    return null;
+  }
+
+  return {
+    runId: ctx.runId,
+    status: typeof ctx.status === "string" ? ctx.status : "unknown",
+    appliedActionCount: typeof ctx.appliedActionCount === "number" ? ctx.appliedActionCount : 0,
+    outcomeSummary: typeof ctx.outcomeSummary === "string" ? ctx.outcomeSummary : null,
+    completedAt: typeof ctx.completedAt === "string" ? ctx.completedAt : "",
+    activeStageId: typeof ctx.activeStageId === "string" ? ctx.activeStageId : null,
+  };
+}
+
+export interface StrategyStageOutcome {
+  stageId: string;
+  stageTitle: string;
+  completedAt: string;
+  actionsSummary: string[];
+  observations: string[];
+  deferredItems: string[];
+}
+
+export function getStageOutcomes(strategy: AgentStrategyRecord): StrategyStageOutcome[] {
+  const record = toRecord(strategy.normalizedRuleSheet);
+  const outcomes = record.stageOutcomes;
+  if (!Array.isArray(outcomes)) {
+    return [];
+  }
+
+  return outcomes
+    .filter(
+      (entry): entry is Record<string, unknown> =>
+        !!entry && typeof entry === "object" && !Array.isArray(entry),
+    )
+    .map((entry) => ({
+      stageId: typeof entry.stageId === "string" ? entry.stageId : "",
+      stageTitle: typeof entry.stageTitle === "string" ? entry.stageTitle : "",
+      completedAt: typeof entry.completedAt === "string" ? entry.completedAt : "",
+      actionsSummary: Array.isArray(entry.actionsSummary)
+        ? entry.actionsSummary.filter((item): item is string => typeof item === "string")
+        : [],
+      observations: Array.isArray(entry.observations)
+        ? entry.observations.filter((item): item is string => typeof item === "string")
+        : [],
+      deferredItems: Array.isArray(entry.deferredItems)
+        ? entry.deferredItems.filter((item): item is string => typeof item === "string")
+        : [],
+    }))
+    .filter((outcome) => outcome.stageId);
+}
+
+function buildPriorStageContext(strategy: AgentStrategyRecord, activeStage: AgentStrategyStage): string[] {
+  const outcomes = getStageOutcomes(strategy);
+  if (outcomes.length === 0) {
+    return [];
+  }
+
+  const timeline = strategy.timeline || normalizeStrategyTimeline(strategy);
+  const activeIndex = timeline.stages.findIndex((stage) => stage.id === activeStage.id);
+
+  const priorOutcomes = outcomes.filter((outcome) => {
+    const stageIndex = timeline.stages.findIndex((stage) => stage.id === outcome.stageId);
+    return stageIndex >= 0 && stageIndex < activeIndex;
+  });
+
+  if (priorOutcomes.length === 0) {
+    return [];
+  }
+
+  const lines: string[] = ["Prior stage results that inform this stage:"];
+  for (const outcome of priorOutcomes) {
+    lines.push(`- Stage "${outcome.stageTitle}" (completed ${outcome.completedAt}):`);
+    for (const action of outcome.actionsSummary.slice(0, 5)) {
+      lines.push(`  Action: ${action}`);
+    }
+    for (const obs of outcome.observations.slice(0, 3)) {
+      lines.push(`  Observation: ${obs}`);
+    }
+    for (const deferred of outcome.deferredItems.slice(0, 3)) {
+      lines.push(`  Deferred: ${deferred}`);
+    }
+  }
+
+  return lines;
+}
+
+const KNOWN_SPORTS = ["NBA", "NFL", "MLB", "NASCAR"] as const;
+
+function detectMandateSports(mandateText: string): string[] {
+  const text = mandateText.toUpperCase();
+  return KNOWN_SPORTS.filter((sport) => text.includes(sport));
+}
+
+function buildSportContextInstructions(sports: string[], anchor: string | undefined): string[] {
+  if (sports.length === 0) {
+    return [];
+  }
+
+  const sportList = sports.join(", ");
+  const lines: string[] = [
+    `This strategy targets ${sportList}. Use the scan_sport_slate tool to get today's ${sportList} game schedule, teams, and active players before deciding on actions.`,
+  ];
+
+  if (
+    anchor === "daily_at_time" ||
+    anchor === "research_refresh" ||
+    !anchor
+  ) {
+    lines.push(
+      `Use scan_player_upcoming_games to check upcoming schedules for any players you are considering.`,
+    );
+  }
+
+  if (anchor === "pre_lock") {
+    lines.push(
+      `Games are imminent. Use scan_sport_slate to confirm which ${sportList} games are about to lock, then finalize boost assignments for players in those games.`,
+    );
+  }
+
+  return lines;
+}
+
+function buildStageFocusInstructions(activeStage: AgentStrategyStage, strategy: AgentStrategyRecord): string[] {
+  const lines: string[] = [];
+  const actionScope = activeStage.actionScope;
+
+  if (actionScope.length > 0) {
+    lines.push(`This stage's action scope is limited to: ${actionScope.join(", ")}.`);
+    lines.push("Only propose actions within this scope for this stage.");
+  }
+
+  const anchor = activeStage.triggerPolicy.anchor;
+  switch (anchor) {
+    case "daily_at_time":
+    case "research_refresh":
+      lines.push(
+        "This is a research/scouting phase. Focus on gathering data, scanning opportunities, and preparing positions. Prefer scout and watchlist actions over aggressive trading.",
+      );
+      break;
+    case "pre_lock":
+      lines.push(
+        "This is a pre-lock phase. Games are about to start. Focus on finalizing boost assignments and last-minute positioning adjustments.",
+      );
+      break;
+    case "post_game":
+    case "day_close":
+      lines.push(
+        "This is a post-game evaluation phase. Review what happened, assess results, and prepare for the next cycle. Prefer advisory observations over new positions.",
+      );
+      break;
+    case "post_settlement":
+      lines.push(
+        "Boosts have settled. Evaluate outcomes and decide whether to reinvest, rebalance, or hold. Use settlement results to inform the next stage.",
+      );
+      break;
+    default:
+      break;
+  }
+
+  const mandateSports = detectMandateSports(strategy.mandateText);
+  lines.push(...buildSportContextInstructions(mandateSports, anchor));
+
+  return lines;
+}
+
 export function buildStrategyStagePrompt(strategy: AgentStrategyRecord): string {
   const activeStage = getActiveStrategyStage(strategy);
   if (!activeStage) {
@@ -306,12 +484,31 @@ export function buildStrategyStagePrompt(strategy: AgentStrategyRecord): string 
     allowedActionTypes: strategy.allowedActionTypes,
   });
 
+  const priorContext = buildPriorStageContext(strategy, activeStage);
+  const focusInstructions = buildStageFocusInstructions(activeStage, strategy);
+  const lastRun = getLastRunContext(strategy);
+
+  const timeline = strategy.timeline || normalizeStrategyTimeline(strategy);
+  const stageIndex = timeline.stages.findIndex((stage) => stage.id === activeStage.id);
+  const totalStages = timeline.stages.length;
+  const stageProgress = totalStages > 1 ? `Stage ${stageIndex + 1} of ${totalStages}.` : null;
+
+  const lastRunLine = lastRun
+    ? `Last run (${lastRun.completedAt}): ${lastRun.status}, ${lastRun.appliedActionCount} action${lastRun.appliedActionCount === 1 ? "" : "s"} applied.${lastRun.outcomeSummary ? ` Summary: ${lastRun.outcomeSummary}` : ""}`
+    : null;
+
   return [
     `Run the saved strategy "${strategy.name}" using its mandate and normalized stage timeline.`,
+    `Mandate: "${strategy.mandateText}"`,
+    stageProgress,
+    lastRunLine,
     `Focus on the active stage "${activeStage.title}" (${summarizeAgentStrategyTrigger(activeStage.triggerPolicy)}).`,
     activeStage.summary || null,
+    ...priorContext,
+    ...focusInstructions,
     "Use the approved gameplay tools to inspect live state, decide whether the strategy should act now, and if so return only actions that fit the saved guardrails.",
     "If the strategy should not act right now, return an advisory update with no actions.",
+    "In your response, include brief observations about what you found and any items that should be deferred to a later stage.",
     ...policy.lines,
     "Do not assume access beyond the provided tool surface.",
   ]

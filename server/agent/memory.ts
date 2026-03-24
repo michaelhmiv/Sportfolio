@@ -8,6 +8,51 @@ import type {
   ProposedMemoryWrite,
 } from "./types";
 
+// ---------------------------------------------------------------------------
+// Memory content security scanning — blocks injection/exfiltration payloads
+// before they reach system prompts.  Ported from NousResearch/hermes-agent.
+// ---------------------------------------------------------------------------
+
+const MEMORY_THREAT_PATTERNS: Array<[RegExp, string]> = [
+  // Prompt injection
+  [/ignore\s+(previous|all|above|prior)\s+instructions/i, "prompt_injection"],
+  [/you\s+are\s+now\s+/i, "role_hijack"],
+  [/do\s+not\s+tell\s+the\s+user/i, "deception_hide"],
+  [/system\s+prompt\s+override/i, "sys_prompt_override"],
+  [/disregard\s+(your|all|any)\s+(instructions|rules|guidelines)/i, "disregard_rules"],
+  [/act\s+as\s+(if|though)\s+you\s+(have\s+no|don't\s+have)\s+(restrictions|limits|rules)/i, "bypass_restrictions"],
+  [/pretend\s+(you\s+are|to\s+be)\s+/i, "role_pretend"],
+  [/output\s+(system|initial)\s+prompt/i, "leak_system_prompt"],
+  // Exfiltration via curl/wget with secrets
+  [/curl\s+[^\n]*\$\{?\w*(KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|API)/i, "exfil_curl"],
+  [/wget\s+[^\n]*\$\{?\w*(KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|API)/i, "exfil_wget"],
+  [/cat\s+[^\n]*(\.env|credentials|\.netrc|\.pgpass|\.npmrc|\.pypirc)/i, "read_secrets"],
+  // Persistence via shell/SSH
+  [/authorized_keys/i, "ssh_backdoor"],
+  [/\$HOME\/\.ssh|~\/\.ssh/i, "ssh_access"],
+];
+
+const INVISIBLE_CHARS = new Set([
+  "\u200b", "\u200c", "\u200d", "\u2060", "\ufeff",
+  "\u202a", "\u202b", "\u202c", "\u202d", "\u202e",
+]);
+
+export function scanMemoryContent(content: string): string | null {
+  for (const char of content) {
+    if (INVISIBLE_CHARS.has(char)) {
+      return `Blocked: content contains invisible unicode character U+${char.codePointAt(0)!.toString(16).toUpperCase().padStart(4, "0")} (possible injection).`;
+    }
+  }
+
+  for (const [pattern, patternId] of MEMORY_THREAT_PATTERNS) {
+    if (pattern.test(content)) {
+      return `Blocked: content matches threat pattern '${patternId}'. Memory entries must not contain injection or exfiltration payloads.`;
+    }
+  }
+
+  return null;
+}
+
 const LOW_SIGNAL_TERMS = new Set([
   "a",
   "an",
@@ -250,6 +295,9 @@ export function inferMemoryWritesFromMessage(message: string): ProposedMemoryWri
       if (!write.summary || seen.has(write.summary.toLowerCase())) {
         return false;
       }
+      if (scanMemoryContent(`${write.summary} ${JSON.stringify(write.content)}`)) {
+        return false;
+      }
       seen.add(write.summary.toLowerCase());
       return true;
     })
@@ -324,6 +372,13 @@ export async function persistProposedMemoryWrites(input: {
   for (const write of input.writes) {
     const summary = normalizeSummary(write.summary);
     if (!summary) {
+      continue;
+    }
+
+    const scanResult = scanMemoryContent(
+      `${summary} ${JSON.stringify(write.content)}`,
+    );
+    if (scanResult) {
       continue;
     }
 

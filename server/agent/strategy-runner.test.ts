@@ -14,6 +14,8 @@ const {
   computeStrategyNextRunAtMock,
   getStrategyStageEventTriggerMock,
   buildStrategyStagePromptMock,
+  getStageOutcomesMock,
+  getActiveStrategyStageMock,
 } = vi.hoisted(() => {
   const localSelectQueue: any[] = [];
   const localInsertQueue: any[] = [];
@@ -65,6 +67,8 @@ const {
     computeStrategyNextRunAtMock: vi.fn(() => new Date("2026-03-19T13:00:00.000Z")),
     getStrategyStageEventTriggerMock: vi.fn(async () => null),
     buildStrategyStagePromptMock: vi.fn(() => "Run the active strategy stage"),
+    getStageOutcomesMock: vi.fn(() => []),
+    getActiveStrategyStageMock: vi.fn(() => ({ id: "stage_1", title: "Active Stage", triggerPolicy: { kind: "recurring_cron" }, actionScope: [] })),
   };
 });
 
@@ -94,6 +98,8 @@ vi.mock("./strategy-timeline", () => ({
   buildStrategyStagePrompt: buildStrategyStagePromptMock,
   computeStrategyNextRunAt: computeStrategyNextRunAtMock,
   getStrategyStageEventTrigger: getStrategyStageEventTriggerMock,
+  getStageOutcomes: getStageOutcomesMock,
+  getActiveStrategyStage: getActiveStrategyStageMock,
 }));
 
 import {

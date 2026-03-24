@@ -104,6 +104,13 @@ import {
 } from "./agent/strategies";
 import { runUserAgentStrategy } from "./agent/strategy-runner";
 import {
+  listUserMcpSources,
+  getUserMcpSource,
+  createUserMcpSource,
+  updateUserMcpSource,
+  deleteUserMcpSource,
+} from "./agent/mcp-sources";
+import {
   ensureAgentSystemSettingsSchema,
   getAgentSystemSettings,
   updateAgentSystemSettings,
@@ -6180,6 +6187,71 @@ ${items}
     } catch (error: any) {
       const message = normalizeAgentErrorMessage(error);
       console.error("[Agent API] Error running strategy:", message);
+      res.status(getAgentErrorStatus(error)).json({ error: message });
+    }
+  });
+
+  // --- MCP Source Routes ---
+
+  app.get("/api/agent/mcp-sources", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const sources = await listUserMcpSources(userId);
+      res.json(sources);
+    } catch (error: any) {
+      const message = normalizeAgentErrorMessage(error);
+      console.error("[Agent API] Error listing MCP sources:", message);
+      res.status(getAgentErrorStatus(error)).json({ error: message });
+    }
+  });
+
+  app.get("/api/agent/mcp-sources/:sourceId", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const source = await getUserMcpSource(userId, req.params.sourceId);
+      if (!source) {
+        return res.status(404).json({ error: "MCP source not found." });
+      }
+      res.json(source);
+    } catch (error: any) {
+      const message = normalizeAgentErrorMessage(error);
+      console.error("[Agent API] Error loading MCP source:", message);
+      res.status(getAgentErrorStatus(error)).json({ error: message });
+    }
+  });
+
+  app.post("/api/agent/mcp-sources", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const source = await createUserMcpSource(userId, req.body ?? {});
+      res.json(source);
+    } catch (error: any) {
+      const message = normalizeAgentErrorMessage(error);
+      console.error("[Agent API] Error creating MCP source:", message);
+      res.status(getAgentErrorStatus(error)).json({ error: message });
+    }
+  });
+
+  app.patch("/api/agent/mcp-sources/:sourceId", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const source = await updateUserMcpSource(userId, req.params.sourceId, req.body ?? {});
+      res.json(source);
+    } catch (error: any) {
+      const message = normalizeAgentErrorMessage(error);
+      console.error("[Agent API] Error updating MCP source:", message);
+      res.status(getAgentErrorStatus(error)).json({ error: message });
+    }
+  });
+
+  app.delete("/api/agent/mcp-sources/:sourceId", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      await deleteUserMcpSource(userId, req.params.sourceId);
+      res.json({ success: true });
+    } catch (error: any) {
+      const message = normalizeAgentErrorMessage(error);
+      console.error("[Agent API] Error deleting MCP source:", message);
       res.status(getAgentErrorStatus(error)).json({ error: message });
     }
   });

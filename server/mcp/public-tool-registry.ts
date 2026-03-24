@@ -3446,6 +3446,51 @@ const PUBLIC_EXCLUDED_CAPABILITIES: PublicExcludedCapability[] = [
     source: "admin/internal-only routes",
     notes: "Admin and internal-only routes must not be exposed through CLI or MCP.",
   },
+  {
+    capabilityId: "agent_mcp_source_list",
+    kind: "excluded",
+    status: "excluded",
+    domain: "agent",
+    source: "/api/agent/mcp-sources",
+    notes:
+      "MCP source management remains web-only until the public capability model includes first-class external data source configuration.",
+  },
+  {
+    capabilityId: "agent_mcp_source_detail",
+    kind: "excluded",
+    status: "excluded",
+    domain: "agent",
+    source: "/api/agent/mcp-sources/:sourceId",
+    notes:
+      "MCP source detail remains web-only until the public capability model includes first-class external data source configuration.",
+  },
+  {
+    capabilityId: "agent_mcp_source_create",
+    kind: "excluded",
+    status: "excluded",
+    domain: "agent",
+    source: "/api/agent/mcp-sources",
+    notes:
+      "MCP source creation remains web-only until the public capability model includes first-class external data source configuration.",
+  },
+  {
+    capabilityId: "agent_mcp_source_update",
+    kind: "excluded",
+    status: "excluded",
+    domain: "agent",
+    source: "/api/agent/mcp-sources/:sourceId",
+    notes:
+      "MCP source mutation remains web-only until the public capability model includes first-class external data source configuration.",
+  },
+  {
+    capabilityId: "agent_mcp_source_delete",
+    kind: "excluded",
+    status: "excluded",
+    domain: "agent",
+    source: "/api/agent/mcp-sources/:sourceId",
+    notes:
+      "MCP source deletion remains web-only until the public capability model includes first-class external data source configuration.",
+  },
 ];
 
 const PUBLIC_SITE_ROUTE_COVERAGE: PublicSiteRouteCoverageEntry[] = [
@@ -3606,6 +3651,31 @@ const PUBLIC_SITE_ROUTE_COVERAGE: PublicSiteRouteCoverageEntry[] = [
     method: "POST",
     path: "/api/agent/strategies/:strategyId/run",
     excludedCapabilityId: "agent_strategy_manual_run",
+  },
+  {
+    method: "GET",
+    path: "/api/agent/mcp-sources",
+    excludedCapabilityId: "agent_mcp_source_list",
+  },
+  {
+    method: "GET",
+    path: "/api/agent/mcp-sources/:sourceId",
+    excludedCapabilityId: "agent_mcp_source_detail",
+  },
+  {
+    method: "POST",
+    path: "/api/agent/mcp-sources",
+    excludedCapabilityId: "agent_mcp_source_create",
+  },
+  {
+    method: "PATCH",
+    path: "/api/agent/mcp-sources/:sourceId",
+    excludedCapabilityId: "agent_mcp_source_update",
+  },
+  {
+    method: "DELETE",
+    path: "/api/agent/mcp-sources/:sourceId",
+    excludedCapabilityId: "agent_mcp_source_delete",
   },
   { method: "GET", path: "/api/user/portfolio-history", capabilityIds: ["get_portfolio_history"] },
   { method: "POST", path: "/api/premium/redeem", capabilityIds: ["redeem_premium"] },

@@ -22,7 +22,10 @@ import {
   advanceStrategyTimelineAfterRun,
   buildStrategyStagePrompt,
   computeStrategyNextRunAt,
+  getActiveStrategyStage,
+  getStageOutcomes,
   getStrategyStageEventTrigger,
+  type StrategyStageOutcome,
 } from "./strategy-timeline";
 import { listAgentThreadMessages, listAgentThreadResearchSources } from "./thread-service";
 import type { AgentAction, AgentStrategyRecord, AgentStrategyRunRecord } from "./types";
@@ -537,6 +540,60 @@ async function listTriggeredStrategiesWithFairRotation(limit: number) {
   return [...orderedRowsAfterCursor, ...wrapRows.filter((row) => !existingIds.has(row.id))];
 }
 
+function buildStageOutcome(input: {
+  strategy: AgentStrategyRecord;
+  appliedActions: AgentAction[];
+  outcomeSummary: string | null;
+  toolTrace: unknown[];
+}): StrategyStageOutcome | null {
+  const activeStage = getActiveStrategyStage(input.strategy);
+  if (!activeStage) {
+    return null;
+  }
+
+  const actionsSummary = input.appliedActions.map((action) => {
+    const name = action.playerName || action.playerId;
+    return `${action.actionType}: ${name}`;
+  });
+
+  const observations: string[] = [];
+  if (input.outcomeSummary) {
+    observations.push(input.outcomeSummary);
+  }
+
+  const traceObservations = (input.toolTrace as Array<{ summary?: string; status?: string }>)
+    .filter((trace) => trace.status === "ok" && trace.summary)
+    .map((trace) => trace.summary!)
+    .slice(0, 3);
+  observations.push(...traceObservations);
+
+  const deferredItems: string[] = [];
+  if (input.appliedActions.length === 0 && input.outcomeSummary) {
+    deferredItems.push("No actions taken this run - conditions may not have been met yet.");
+  }
+
+  return {
+    stageId: activeStage.id,
+    stageTitle: activeStage.title,
+    completedAt: new Date().toISOString(),
+    actionsSummary,
+    observations: observations.slice(0, 5),
+    deferredItems,
+  };
+}
+
+function mergeStageOutcomes(
+  existing: StrategyStageOutcome[],
+  newOutcome: StrategyStageOutcome | null,
+): StrategyStageOutcome[] {
+  if (!newOutcome) {
+    return existing;
+  }
+
+  const filtered = existing.filter((outcome) => outcome.stageId !== newOutcome.stageId);
+  return [...filtered, newOutcome].slice(-10);
+}
+
 async function finalizeStrategyRun(input: {
   strategy: AgentStrategyRecord;
   strategyRunId: string;
@@ -555,6 +612,17 @@ async function finalizeStrategyRun(input: {
 }) {
   const now = new Date();
   const nextStatus = input.nextStatus || input.strategy.status;
+
+  const stageOutcome =
+    input.status === "applied" || input.status === "completed"
+      ? buildStageOutcome({
+          strategy: input.strategy,
+          appliedActions: input.appliedActions,
+          outcomeSummary: input.outcomeSummary,
+          toolTrace: input.toolTrace,
+        })
+      : null;
+
   const nextTimeline =
     input.status === "applied" || input.status === "completed"
       ? advanceStrategyTimelineAfterRun(input.strategy)
@@ -563,11 +631,24 @@ async function finalizeStrategyRun(input: {
     nextTimeline.stages.find((stage) => stage.id === nextTimeline.currentStageId) ||
     nextTimeline.stages[0] ||
     null;
+
+  const existingOutcomes = getStageOutcomes(input.strategy);
+  const mergedOutcomes = mergeStageOutcomes(existingOutcomes, stageOutcome);
+
   const nextNormalizedRuleSheet = {
     ...input.strategy.normalizedRuleSheet,
     timeline: nextTimeline,
     currentStageId: nextTimeline.currentStageId,
     currentTrigger: nextActiveStage?.triggerPolicy || null,
+    stageOutcomes: mergedOutcomes,
+    lastRunContext: {
+      runId: input.strategyRunId,
+      status: input.status,
+      appliedActionCount: input.appliedActions.length,
+      outcomeSummary: input.outcomeSummary,
+      completedAt: now.toISOString(),
+      activeStageId: getActiveStrategyStage(input.strategy)?.id || null,
+    },
     savedAt: now.toISOString(),
   } satisfies Record<string, unknown>;
   const nextRunAt =

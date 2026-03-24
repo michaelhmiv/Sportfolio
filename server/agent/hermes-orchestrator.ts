@@ -3,6 +3,7 @@ import { inferMemoryWritesFromMessage } from "./memory";
 import { runHermesPlanTool } from "./hermes-tools";
 import { createOrUpdateUserSkill, matchAgentSkill, proposeGlobalSkillCandidate } from "./skills";
 import { runLocalHermesCompatibilityTurn } from "./hermes-local";
+import { compressThreadContext } from "./context-compressor";
 import { runHermesModelToolLoop } from "./model-first-router";
 import type {
   AgentAction,
@@ -636,10 +637,32 @@ export async function runHermesOrchestrationTurn(input: {
       };
     }
 
+    const compressionResult = compressThreadContext(input.request.conversationHistory);
+    let compressionApplied = false;
+    const requestForModel = compressionResult.compressed
+      ? {
+          ...input.request,
+          conversationHistory: compressionResult.history,
+        }
+      : input.request;
+
+    if (compressionResult.compressed) {
+      compressionApplied = true;
+      toolTrace.push(
+        buildToolTraceEntry({
+          toolName: "model_context_compression",
+          phase: "memory",
+          status: "ok",
+          startedAt: Date.now(),
+          summary: `Compressed ${input.request.conversationHistory.length} conversation turns down to ${compressionResult.history.length} to fit within context limits.`,
+        }),
+      );
+    }
+
     const routedTurn = await runHermesModelToolLoop({
       profile: input.profile,
       secret: input.secret,
-      request: input.request,
+      request: requestForModel,
       matchedSkill: matchedSkill || null,
     });
     toolTrace.push(...routedTurn.toolTrace);
@@ -661,7 +684,7 @@ export async function runHermesOrchestrationTurn(input: {
         skillMatchRationale,
         fallbackUsed: false,
         terminationReason: routedTurn.terminationReason,
-        compressionApplied: routedTurn.compressionApplied,
+        compressionApplied: compressionApplied || routedTurn.compressionApplied,
         repairAttempts: routedTurn.repairAttempts,
         providerFailureClass: routedTurn.providerFailureClass,
         memoryInfluences,
@@ -740,7 +763,7 @@ export async function runHermesOrchestrationTurn(input: {
             false,
             {
               terminationReason: routedTurn.terminationReason,
-              compressionApplied: routedTurn.compressionApplied,
+              compressionApplied: compressionApplied || routedTurn.compressionApplied,
               repairAttempts: routedTurn.repairAttempts,
               providerFailureClass: routedTurn.providerFailureClass,
               memoryInfluences,
@@ -777,7 +800,7 @@ export async function runHermesOrchestrationTurn(input: {
         skillMatchRationale,
         fallbackUsed: false,
         terminationReason: routedTurn.terminationReason,
-        compressionApplied: routedTurn.compressionApplied,
+        compressionApplied: compressionApplied || routedTurn.compressionApplied,
         repairAttempts: routedTurn.repairAttempts,
         providerFailureClass: routedTurn.providerFailureClass,
         memoryInfluences,
@@ -814,7 +837,7 @@ export async function runHermesOrchestrationTurn(input: {
       skillMatchRationale,
       fallbackUsed: false,
       terminationReason: routedTurn.terminationReason || "neutral_model_fallback",
-      compressionApplied: routedTurn.compressionApplied,
+      compressionApplied: compressionApplied || routedTurn.compressionApplied,
       repairAttempts: routedTurn.repairAttempts,
       providerFailureClass: routedTurn.providerFailureClass,
       memoryInfluences,

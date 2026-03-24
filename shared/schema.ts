@@ -1959,6 +1959,34 @@ export const userAgentStrategyEvents = pgTable(
   }),
 );
 
+export const userMcpSources = pgTable(
+  "user_mcp_sources",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    url: text("url").notNull(),
+    authType: text("auth_type").notNull().default("none"), // "none" | "bearer" | "api_key"
+    authToken: text("auth_token"), // encrypted token value
+    enabled: boolean("enabled").notNull().default(true),
+    discoveredTools: jsonb("discovered_tools")
+      .notNull()
+      .default(sql`'[]'::jsonb`), // cached tool schemas from MCP discovery
+    lastVerifiedAt: timestamp("last_verified_at"),
+    lastError: text("last_error"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    userIdx: index("user_mcp_sources_user_idx").on(table.userId),
+    userEnabledIdx: index("user_mcp_sources_user_enabled_idx").on(table.userId, table.enabled),
+  }),
+);
+
 export const agentSkills = pgTable(
   "agent_skills",
   {
@@ -2538,6 +2566,13 @@ export const userAgentStrategyEventsRelations = relations(userAgentStrategyEvent
   }),
 }));
 
+export const userMcpSourcesRelations = relations(userMcpSources, ({ one }) => ({
+  user: one(users, {
+    fields: [userMcpSources.userId],
+    references: [users.id],
+  }),
+}));
+
 export const userAgentProposalsRelations = relations(userAgentProposals, ({ one }) => ({
   run: one(userAgentRuns, {
     fields: [userAgentProposals.runId],
@@ -3049,6 +3084,15 @@ export const insertUserAgentStrategyEventSchema = createInsertSchema(userAgentSt
   createdAt: true,
 });
 
+export const insertUserMcpSourceSchema = createInsertSchema(userMcpSources).omit({
+  id: true,
+  discoveredTools: true,
+  lastVerifiedAt: true,
+  lastError: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const insertAgentSkillSchema = createInsertSchema(agentSkills).omit({
   id: true,
   createdAt: true,
@@ -3145,6 +3189,9 @@ export type InsertUserAgentStrategyRun = z.infer<typeof insertUserAgentStrategyR
 
 export type UserAgentStrategyEvent = typeof userAgentStrategyEvents.$inferSelect;
 export type InsertUserAgentStrategyEvent = z.infer<typeof insertUserAgentStrategyEventSchema>;
+
+export type UserMcpSource = typeof userMcpSources.$inferSelect;
+export type InsertUserMcpSource = z.infer<typeof insertUserMcpSourceSchema>;
 
 export type AgentSkill = typeof agentSkills.$inferSelect;
 export type InsertAgentSkill = z.infer<typeof insertAgentSkillSchema>;

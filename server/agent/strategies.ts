@@ -43,8 +43,8 @@ import type {
 } from "./types";
 
 export const AGENT_STRATEGY_SLOT_LIMITS = {
-  maxSaved: 5,
-  maxLive: 1,
+  maxSaved: 10,
+  maxLive: 3,
 } as const;
 const STRATEGY_EVENT_SUBSCRIPTIONS = ["schedule", "gameplay_event", "research_refresh"] as const;
 const STRATEGY_ACTION_TYPES = [...DEFAULT_AUTONOMOUS_STRATEGY_ACTION_TYPES] as [
@@ -269,7 +269,7 @@ export function assertCanSaveStrategy(savedCount: number) {
 
 export function assertCanActivateStrategy(otherLiveCount: number) {
   if (otherLiveCount >= AGENT_STRATEGY_SLOT_LIMITS.maxLive) {
-    throw new Error(`Only ${AGENT_STRATEGY_SLOT_LIMITS.maxLive} strategy can be live at a time.`);
+    throw new Error(`Only ${AGENT_STRATEGY_SLOT_LIMITS.maxLive} strategies can be live at a time.`);
   }
 }
 
@@ -344,6 +344,23 @@ function buildTimelineFromInputs(input: {
     };
   }
 
+  const decomposedStages = decomposeDirectiveIntoStages({
+    mandateText: input.mandateText,
+    scheduleCron: input.scheduleCron,
+    allowedActionTypes: input.allowedActionTypes,
+  });
+
+  if (decomposedStages.length > 0) {
+    return {
+      objective: input.objective,
+      currentStageId:
+        decomposedStages.find((stage) => stage.status === "active")?.id ||
+        decomposedStages[0]?.id ||
+        null,
+      stages: decomposedStages,
+    };
+  }
+
   const stages: AgentStrategyStage[] = [];
   if (input.scheduleCron) {
     stages.push({
@@ -408,6 +425,130 @@ function buildTimelineFromInputs(input: {
     currentStageId: stages.find((stage) => stage.status === "active")?.id || stages[0]?.id || null,
     stages,
   };
+}
+
+const SCOUT_PATTERNS = /\b(scout|scouting|find|research|identify|discover|look for)\b/i;
+const STACK_PATTERNS = /\b(stack|condense|stack shares|stacking)\b/i;
+const BOOST_PATTERNS = /\b(boost|daily boost|put in.*slot|assign.*boost)\b/i;
+const BUY_PATTERNS = /\b(buy|purchase|invest|deploy|acquire|get shares)\b/i;
+const SELL_PATTERNS = /\b(sell|exit|liquidate|reduce|trim)\b/i;
+const SPORT_PATTERNS = /\b(MLB|NBA|NFL|NASCAR|baseball|basketball|football)\b/i;
+const TIME_PATTERNS = /\b(this week|tonight|today|tomorrow|before.*game|when.*start|at game time|pre.?lock)\b/i;
+
+export function decomposeDirectiveIntoStages(input: {
+  mandateText: string;
+  scheduleCron: string | null;
+  allowedActionTypes: AgentAction["actionType"][];
+}): AgentStrategyStage[] {
+  const mandate = input.mandateText;
+  const stages: AgentStrategyStage[] = [];
+
+  const hasScout = SCOUT_PATTERNS.test(mandate);
+  const hasStack = STACK_PATTERNS.test(mandate);
+  const hasBoost = BOOST_PATTERNS.test(mandate);
+  const hasBuy = BUY_PATTERNS.test(mandate);
+  const hasSell = SELL_PATTERNS.test(mandate);
+  const hasSport = SPORT_PATTERNS.test(mandate);
+  const hasTimeAwareness = TIME_PATTERNS.test(mandate);
+
+  const sportMatch = mandate.match(SPORT_PATTERNS);
+  const sportLabel = sportMatch ? sportMatch[0].toUpperCase() : null;
+
+  const multiPhaseDetected =
+    [hasScout, hasStack, hasBoost, hasBuy, hasSell].filter(Boolean).length >= 2;
+
+  if (!multiPhaseDetected) {
+    return [];
+  }
+
+  if (hasScout || hasBuy) {
+    const scoutActions: AgentAction["actionType"][] = [];
+    if (hasScout) scoutActions.push("scout_set_count");
+    if (hasBuy) scoutActions.push("pool_buy");
+    scoutActions.push("watchlist_add_player");
+
+    stages.push({
+      id: buildStageId(stages.length),
+      title: sportLabel ? `Research & scout ${sportLabel} targets` : "Research & scout targets",
+      summary: `Scan available players${sportLabel ? ` in ${sportLabel}` : ""}, evaluate opportunities, and set up initial positions or scout assignments.`,
+      status: "active",
+      actionScope: scoutActions,
+      triggerPolicy: {
+        kind: input.scheduleCron ? "recurring_cron" : "event_window",
+        anchor: input.scheduleCron ? "daily_at_time" : "research_refresh",
+        scheduleCron: input.scheduleCron || null,
+        rawTimingInstruction: input.scheduleCron || "Morning research window",
+        timezone: "America/New_York",
+      },
+    });
+  }
+
+  if (hasStack) {
+    stages.push({
+      id: buildStageId(stages.length),
+      title: "Stack acquired shares",
+      summary: "Review holdings from the scouting phase and stack shares where eligible to maximize boost multipliers.",
+      status: "pending",
+      actionScope: ["holdings_stack_shares"],
+      triggerPolicy: {
+        kind: "event_window",
+        anchor: "day_close",
+        rawTimingInstruction: "After scouting positions are established",
+        timezone: "America/New_York",
+      },
+    });
+  }
+
+  if (hasBoost) {
+    stages.push({
+      id: buildStageId(stages.length),
+      title: sportLabel ? `Boost ${sportLabel} players at game time` : "Assign boosts before games",
+      summary: `Assign daily boost slots to the strongest eligible players${sportLabel ? ` from ${sportLabel}` : ""} before their games lock.`,
+      status: "pending",
+      actionScope: ["daily_boost_assign", "daily_boost_remove"],
+      triggerPolicy: {
+        kind: "event_window",
+        anchor: "pre_lock",
+        offsetMinutes: 30,
+        rawTimingInstruction: "30 minutes before game lock",
+        timezone: "America/New_York",
+      },
+    });
+  }
+
+  if (hasSell) {
+    stages.push({
+      id: buildStageId(stages.length),
+      title: "Post-game evaluation",
+      summary: "After games settle, evaluate performance and trim or exit positions that no longer fit the mandate.",
+      status: "pending",
+      actionScope: ["pool_sell", "pool_remove_liquidity", "daily_boost_remove"],
+      triggerPolicy: {
+        kind: "event_window",
+        anchor: "post_settlement",
+        rawTimingInstruction: "After boost settlement",
+        timezone: "America/New_York",
+      },
+    });
+  }
+
+  if (stages.length > 0 && !hasSell && (hasBoost || hasStack)) {
+    stages.push({
+      id: buildStageId(stages.length),
+      title: "Review & adapt",
+      summary: "After games complete, review results and decide whether to continue, adjust, or wind down positions.",
+      status: "pending",
+      actionScope: input.allowedActionTypes,
+      triggerPolicy: {
+        kind: "event_window",
+        anchor: "post_game",
+        rawTimingInstruction: "After games finish for the day",
+        timezone: "America/New_York",
+      },
+    });
+  }
+
+  return stages;
 }
 
 function hasStrategyMaterialChanges(input: {
