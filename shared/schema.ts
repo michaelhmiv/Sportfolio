@@ -1908,6 +1908,9 @@ export const userAgentStrategyRuns = pgTable(
       table.status,
       table.createdAt,
     ),
+    activeStrategyUniqueIdx: uniqueIndex("user_agent_strategy_runs_active_strategy_unique_idx")
+      .on(table.strategyId)
+      .where(sql`"status" = 'running'`),
   }),
 );
 

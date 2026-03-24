@@ -714,6 +714,11 @@ export async function ensureUserAgentStrategySchema(): Promise<void> {
     CREATE INDEX IF NOT EXISTS "user_agent_strategy_runs_status_created_idx"
       ON "user_agent_strategy_runs" ("status", "created_at");
   `);
+  await db.execute(sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS "user_agent_strategy_runs_active_strategy_unique_idx"
+      ON "user_agent_strategy_runs" ("strategy_id")
+      WHERE "status" = 'running';
+  `);
 
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS "user_agent_strategy_events" (

@@ -7,7 +7,7 @@ import {
   type UserAgentStrategy,
 } from "@shared/schema";
 import { normalizeAgentStrategyTimeline } from "@shared/agent-strategy";
-import { and, eq, gte, isNull, lte, lt } from "drizzle-orm";
+import { and, eq, gt, gte, isNull, lt, lte, or } from "drizzle-orm";
 import { db } from "../db";
 import { getETDayBoundaries, getTodayET } from "../lib/time";
 import { executeAgentActions } from "./executor";
@@ -39,6 +39,16 @@ const AUTO_EXECUTABLE_STRATEGY_ACTION_TYPE_SET = new Set<string>(
 );
 
 export type StrategyRunTrigger = "strategy_schedule" | "strategy_event" | "manual_retry";
+const ACTIVE_STRATEGY_RUN_UNIQUE_INDEX = "user_agent_strategy_runs_active_strategy_unique_idx";
+type StrategyWakeCursor = { updatedAt: Date; id: string };
+let lastTriggeredWakeCursor: StrategyWakeCursor | null = null;
+
+export class StrategyRunAlreadyInProgressError extends Error {
+  constructor(strategyId: string) {
+    super(`Strategy ${strategyId} already has an active run in progress.`);
+    this.name = "StrategyRunAlreadyInProgressError";
+  }
+}
 
 function toStringArray(value: unknown): string[] {
   return Array.isArray(value)
@@ -453,18 +463,78 @@ async function createPendingStrategyRun(input: {
   strategy: AgentStrategyRecord;
   triggerSource: StrategyRunTrigger;
 }) {
-  const [row] = await db
-    .insert(userAgentStrategyRuns)
-    .values({
-      strategyId: input.strategy.id,
-      userId: input.strategy.userId,
-      threadId: input.strategy.sourceThreadId,
-      triggerSource: input.triggerSource,
-      status: "running",
-    })
-    .returning();
+  let row: typeof userAgentStrategyRuns.$inferSelect | undefined;
+  try {
+    [row] = await db
+      .insert(userAgentStrategyRuns)
+      .values({
+        strategyId: input.strategy.id,
+        userId: input.strategy.userId,
+        threadId: input.strategy.sourceThreadId,
+        triggerSource: input.triggerSource,
+        status: "running",
+      })
+      .returning();
+  } catch (error) {
+    if (isActiveStrategyRunUniqueViolation(error)) {
+      throw new StrategyRunAlreadyInProgressError(input.strategy.id);
+    }
+    throw error;
+  }
+  if (!row) {
+    throw new Error(`Failed to create a running record for strategy ${input.strategy.id}.`);
+  }
 
   return row;
+}
+
+function isActiveStrategyRunUniqueViolation(error: unknown) {
+  const candidate = error as { code?: string; constraint?: string } | null;
+  return candidate?.code === "23505" && candidate.constraint === ACTIVE_STRATEGY_RUN_UNIQUE_INDEX;
+}
+
+async function listTriggeredStrategiesWithFairRotation(limit: number) {
+  const baseWhere = and(
+    eq(userAgentStrategies.status, "live"),
+    isNull(userAgentStrategies.archivedAt),
+  );
+  const orderedRowsAfterCursor = lastTriggeredWakeCursor
+    ? await db
+        .select()
+        .from(userAgentStrategies)
+        .where(
+          and(
+            baseWhere,
+            or(
+              gt(userAgentStrategies.updatedAt, lastTriggeredWakeCursor.updatedAt),
+              and(
+                eq(userAgentStrategies.updatedAt, lastTriggeredWakeCursor.updatedAt),
+                gt(userAgentStrategies.id, lastTriggeredWakeCursor.id),
+              ),
+            ),
+          ),
+        )
+        .orderBy(userAgentStrategies.updatedAt, userAgentStrategies.id)
+        .limit(limit)
+    : [];
+
+  if (orderedRowsAfterCursor.length >= limit) {
+    return orderedRowsAfterCursor;
+  }
+
+  const remainingLimit = limit - orderedRowsAfterCursor.length;
+  const wrapRows = await db
+    .select()
+    .from(userAgentStrategies)
+    .where(baseWhere)
+    .orderBy(userAgentStrategies.updatedAt, userAgentStrategies.id)
+    .limit(remainingLimit);
+  if (orderedRowsAfterCursor.length === 0) {
+    return wrapRows;
+  }
+
+  const existingIds = new Set(orderedRowsAfterCursor.map((row) => row.id));
+  return [...orderedRowsAfterCursor, ...wrapRows.filter((row) => !existingIds.has(row.id))];
 }
 
 async function finalizeStrategyRun(input: {
@@ -947,6 +1017,9 @@ export async function runDueUserAgentStrategies(limit = 10): Promise<{
         recordsProcessed += 1;
       }
     } catch (error) {
+      if (error instanceof StrategyRunAlreadyInProgressError) {
+        continue;
+      }
       errorCount += 1;
       console.warn(
         "[Hermes Strategies] Could not run strategy:",
@@ -978,12 +1051,13 @@ export async function runTriggeredUserAgentStrategies(limit = 10): Promise<{
 }> {
   await ensureUserAgentStrategySchema();
   const now = new Date();
-  const rows = await db
-    .select()
-    .from(userAgentStrategies)
-    .where(and(eq(userAgentStrategies.status, "live"), isNull(userAgentStrategies.archivedAt)))
-    .orderBy(userAgentStrategies.updatedAt)
-    .limit(limit);
+  const rows = await listTriggeredStrategiesWithFairRotation(limit);
+  const lastRow = rows[rows.length - 1];
+  if (lastRow?.updatedAt instanceof Date) {
+    lastTriggeredWakeCursor = { updatedAt: lastRow.updatedAt, id: lastRow.id };
+  } else if (rows.length === 0) {
+    lastTriggeredWakeCursor = null;
+  }
 
   let recordsProcessed = 0;
   let errorCount = 0;
@@ -1059,6 +1133,9 @@ export async function runTriggeredUserAgentStrategies(limit = 10): Promise<{
         recordsProcessed += 1;
       }
     } catch (error) {
+      if (error instanceof StrategyRunAlreadyInProgressError) {
+        continue;
+      }
       errorCount += 1;
       console.warn(
         "[Hermes Strategies] Could not run triggered strategy:",
@@ -1079,5 +1156,8 @@ export const __strategyRunner = {
   AUTO_EXECUTABLE_STRATEGY_ACTION_TYPES,
   buildStrategyStagePrompt,
   getGuardrailInteger,
+  resetTriggeredWakeCursor: () => {
+    lastTriggeredWakeCursor = null;
+  },
   validateStrategyActions,
 };

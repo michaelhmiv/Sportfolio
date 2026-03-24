@@ -224,6 +224,7 @@ beforeEach(() => {
   computeStrategyNextRunAtMock.mockClear();
   getStrategyStageEventTriggerMock.mockReset();
   buildStrategyStagePromptMock.mockClear();
+  __strategyRunner.resetTriggeredWakeCursor();
   listAgentThreadMessagesMock.mockResolvedValue([
     {
       role: "user",
@@ -579,5 +580,52 @@ describe("strategy-runner", () => {
         }),
       }),
     );
+  });
+
+  it("rejects a run claim when the strategy already has an active running record", async () => {
+    selectQueue.push([buildStrategyRow()]);
+    const runningConstraintError = Object.assign(
+      new Error("duplicate key value violates unique constraint"),
+      {
+        code: "23505",
+        constraint: "user_agent_strategy_runs_active_strategy_unique_idx",
+      },
+    );
+    dbMock.insert.mockImplementationOnce(() => ({
+      values: () => ({
+        returning: () => Promise.reject(runningConstraintError),
+      }),
+    }));
+
+    await expect(
+      runUserAgentStrategy({
+        userId: "user_1",
+        strategyId: "strategy_1",
+        triggerSource: "manual_retry",
+      }),
+    ).rejects.toThrow(/already has an active run in progress/i);
+  });
+
+  it("rotates event wake scans so unchanged rows do not starve the rest of the live set", async () => {
+    const first = buildStrategyRow({
+      id: "strategy_1",
+      updatedAt: new Date("2026-03-18T11:30:00.000Z"),
+    });
+    const second = buildStrategyRow({
+      id: "strategy_2",
+      updatedAt: new Date("2026-03-18T11:31:00.000Z"),
+    });
+    const third = buildStrategyRow({
+      id: "strategy_3",
+      updatedAt: new Date("2026-03-18T11:32:00.000Z"),
+    });
+
+    selectQueue.push([first, second], [third], [first]);
+    const firstPass = await runTriggeredUserAgentStrategies(2);
+    const secondPass = await runTriggeredUserAgentStrategies(2);
+
+    expect(firstPass.requestCount).toBe(2);
+    expect(secondPass.requestCount).toBe(2);
+    expect(dbMock.select).toHaveBeenCalledTimes(3);
   });
 });
