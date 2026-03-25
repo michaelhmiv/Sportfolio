@@ -1,3 +1,24 @@
+## 2026-03-25 Hermes BYOK OpenRouter Parity + Conflict Resolution
+
+- [x] Confirm rebase/merge-conflict cleanup on `server/agent/hermes-tools.ts` and branch state
+- [x] Run live BYOK smoke with OpenRouter `MiniMax-M2.7` through Hermes runtime/tool loop
+- [x] Run managed/in-house MiniMax smoke with equivalent prompt for parity comparison
+- [x] Patch BYOK/runtime/UI behavior if any divergence is discovered
+- [x] Run required validation (`npm run check`, `npm run lint`, `npm run test:run`) and targeted Hermes tests
+- [ ] Push branch and update PR
+
+Review:
+
+- Resolved the `server/agent/hermes-tools.ts` merge conflict by keeping both the main-branch imports and the internal MLB MCP bridge imports.
+- Root-cause fix: BYOK OpenRouter failed when users entered `MiniMax-M2.7` because OpenRouter requires provider-prefixed IDs (for example `minimax/minimax-m2.7`).
+- Added server-side model normalization for OpenRouter BYOK so managed-style MiniMax IDs are accepted and translated automatically.
+- Added regression coverage in `server/agent/pi-provider.test.ts` and surfaced an explicit OpenRouter model-format hint in the BYOK UI.
+- Live parity smoke (managed + BYOK, same prompt path) succeeded with Hermes calling `mlb_mcp__get_league_leader_data` in all successful runs.
+- Validation status:
+- `npm run check` passed.
+- `npm run lint` passed.
+- `npm run test:run` failed due pre-existing `.claude/worktrees/flamboyant-dewdney/tests/e2e/*.spec.ts` Playwright collection errors unrelated to this patch.
+
 ## 2026-03-24 Internal MLB MCP Provider via Hermes (Railway)
 
 - [x] Add a Hermes-owned internal MLB MCP client/registry module that discovers tools from the Railway private service and projects them into Hermes tool definitions

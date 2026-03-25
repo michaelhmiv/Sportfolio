@@ -1,5 +1,9 @@
 # Lessons Learned
 
+## 2026-03-25
+
+- For OpenRouter BYOK, managed model aliases (for example `MiniMax-M2.7`) are not valid model IDs; normalize them to provider-prefixed IDs (for example `minimax/minimax-m2.7`) server-side to avoid empty-turn failures in Hermes.
+
 ## 2026-03-23
 
 - Planning-intent guards should recognize explicit planning phrases paired with action targets (for example, "plan a trade") even when request mode is `auto`, or legitimate staging requests will be misrouted as advisory.
