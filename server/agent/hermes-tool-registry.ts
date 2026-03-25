@@ -527,10 +527,20 @@ const CORE_TOOL_CATALOG: AgentToolDefinition[] = [
   defineTool({
     toolName: "preview_direct_operation",
     category: "plan",
-    description: "Preview one concrete user command as a confirmation-ready action.",
-    whenToUse: ["The user gives one direct action request."],
-    whenNotToUse: [],
-    examplePrompts: ["buy $25 of Austin Hill"],
+    description:
+      "Preview one concrete user command as a confirmation-ready action. Handles single buy, sell, stack, boost, or scout operations.",
+    whenToUse: [
+      "The user gives one direct action request.",
+      "The user wants to stack shares, buy/sell a player, assign a boost, or adjust scouts.",
+    ],
+    whenNotToUse: [
+      "The user is asking about multiple linked actions — use preview_multi_action_bundle instead.",
+    ],
+    examplePrompts: [
+      "buy $25 of Austin Hill",
+      "stack my Fried shares",
+      "sell 5 shares of Austin Reaves",
+    ],
     requiresConfirmation: true,
     riskLevel: "medium",
     inputSchema: optionalMessageSchema,
@@ -541,10 +551,19 @@ const CORE_TOOL_CATALOG: AgentToolDefinition[] = [
   defineTool({
     toolName: "preview_multi_action_bundle",
     category: "plan",
-    description: "Preview a compound multi-step workflow as one pending bundle.",
-    whenToUse: ["The user asks for multiple linked actions in one request."],
-    whenNotToUse: [],
-    examplePrompts: ["buy, stack shares, then boost this player"],
+    description:
+      "Preview a compound multi-step workflow as one pending bundle. Use when the user combines multiple actions like buy + stack + boost in a single request.",
+    whenToUse: [
+      "The user asks for multiple linked actions in one request.",
+      "The user wants to buy AND stack AND/OR boost in a single command.",
+    ],
+    whenNotToUse: ["The user is asking about a single isolated action."],
+    examplePrompts: [
+      "buy, stack shares, then boost this player",
+      "buy as many Aaron Judge shares as possible and stack and put in 4x spot",
+      "stack my shares and put in 5x slot",
+      "buy $50 of this player, stack, and boost at 3x",
+    ],
     requiresConfirmation: true,
     riskLevel: "high",
     inputSchema: optionalMessageSchema,
@@ -555,10 +574,14 @@ const CORE_TOOL_CATALOG: AgentToolDefinition[] = [
   defineTool({
     toolName: "preview_pool_buy",
     category: "plan",
-    description: "Preview a direct AMM buy with explicit player and spend inputs.",
-    whenToUse: ["The user or bot already knows the player market and spend size."],
+    description:
+      "Preview a direct AMM buy. The user specifies player and spend amount in Sportfolio Bucks (SB). Price is determined by the constant-product AMM pool.",
+    whenToUse: [
+      "The user or bot already knows the player market and spend size.",
+      "The user says 'buy X' or 'buy as much X as I can afford'.",
+    ],
     whenNotToUse: ["The request is still exploratory and needs a scan or quote first."],
-    examplePrompts: ["buy $25 of Austin Reaves"],
+    examplePrompts: ["buy $25 of Austin Reaves", "buy as much Aaron Judge as I can afford"],
     requiresConfirmation: true,
     riskLevel: "high",
     inputSchema: previewPoolBuySchema,
@@ -635,10 +658,18 @@ const CORE_TOOL_CATALOG: AgentToolDefinition[] = [
   defineTool({
     toolName: "preview_daily_boost_assign",
     category: "plan",
-    description: "Preview assigning one eligible share to a daily boost slot.",
-    whenToUse: ["The user or bot wants a specific player placed into a boost slot."],
+    description:
+      "Preview assigning one eligible share to a daily boost slot (5x/4x/3x/2x). Each slot takes exactly 1 share which is burned at game lock. Higher-multiplier stacked shares are more valuable.",
+    whenToUse: [
+      "The user or bot wants a specific player placed into a boost slot.",
+      "The user says 'put X in my 5x/4x/3x/2x slot' or 'boost X for tonight'.",
+    ],
     whenNotToUse: ["The user needs a candidate scan before choosing the player."],
-    examplePrompts: ["put Austin Reaves in my 5x boost slot today"],
+    examplePrompts: [
+      "put Austin Reaves in my 5x boost slot today",
+      "boost Fried at 4x for tonight",
+      "assign my best player to the 5x boost",
+    ],
     requiresConfirmation: true,
     riskLevel: "medium",
     inputSchema: previewBoostAssignSchema,
@@ -663,10 +694,18 @@ const CORE_TOOL_CATALOG: AgentToolDefinition[] = [
   defineTool({
     toolName: "preview_scout_adjustment",
     category: "plan",
-    description: "Preview changing scout allocation for one player.",
-    whenToUse: ["The user or bot wants to raise, lower, or set scouts on a target player."],
+    description:
+      "Preview changing scout allocation for one player. Scouts passively earn shares hourly (time-weighted via scout-minutes). Standard: 5 max, Premium: 10 max.",
+    whenToUse: [
+      "The user or bot wants to raise, lower, or set scouts on a target player.",
+      "The user says 'scout X' or 'start scouting best pitchers'.",
+    ],
     whenNotToUse: ["The user needs a scout-opportunity scan before choosing a player."],
-    examplePrompts: ["set Austin Reaves scouts to 3"],
+    examplePrompts: [
+      "set Austin Reaves scouts to 3",
+      "scout Aaron Judge with 3 scouts",
+      "start scouting the top 5 pitchers",
+    ],
     requiresConfirmation: true,
     riskLevel: "low",
     inputSchema: previewScoutAdjustmentSchema,

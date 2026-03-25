@@ -1470,6 +1470,13 @@ function inferMaxStackShareCount(availableShares: number): number | null {
   return maxEvenShares >= 4 ? maxEvenShares : null;
 }
 
+function stripBundleNoiseWords(text: string): string {
+  return text
+    .replace(/\b(my|the|his|her|their|all|some|as many|as possible)\b/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 async function buildMultiActionBundlePreview(input: {
   userId: string;
   args?: Record<string, unknown>;
@@ -1495,11 +1502,33 @@ async function buildMultiActionBundlePreview(input: {
   let lastResolvedPlayerId: string | null = null;
 
   for (const clause of clauses) {
-    const stackMatch = clause.match(/\bstack(?:\s+shares)?\s+([a-z .'-]+)/i);
+    const buyMatch = clause.match(
+      /\bbuy\s+(?:as\s+many\s+)?([a-z .'-]+?)(?:\s+shares?)?\s*(?:as\s+(?:possible|i\s+can(?:\s+afford)?))?$/i,
+    );
+    if (buyMatch) {
+      const rawName = stripBundleNoiseWords(buyMatch[1]);
+      if (rawName) {
+        generatedMessages.push(`buy ${rawName}`);
+        lastResolvedPlayerName = rawName;
+      } else {
+        generatedMessages.push(clause);
+      }
+      continue;
+    }
+
+    const stackMatch = clause.match(/\bstack(?:\s+shares?)?\s*([a-z .'-]*)/i);
     if (stackMatch) {
+      const rawName = stripBundleNoiseWords(stackMatch[1]).replace(/\bshares?\b/gi, "").trim();
+      const nameToResolve = rawName || lastResolvedPlayerName;
+      if (!nameToResolve) {
+        blockingReasons.push(
+          "I need a player name to stack shares for. Tell me which player to stack.",
+        );
+        continue;
+      }
       const holding = await findPlayerHoldingByName({
         userId: input.userId,
-        rawName: stackMatch[1],
+        rawName: nameToResolve,
       });
       if (!holding) {
         blockingReasons.push(

@@ -25,10 +25,11 @@ export function isLikelyAdvisoryMessage(message: string) {
   const text = normalizeMessage(message);
   return (
     (text.endsWith("?") &&
-      !/^(can you|could you|will you)\s+\b(scout|move|reallocate|shift|set|put|use|add|remove|make|build|find)\b/.test(
+      !/^(can you|could you|will you)\s+\b(scout|move|reallocate|shift|set|put|use|add|remove|make|build|find|buy|sell|stack|boost|trade|swap)\b/.test(
         text,
       )) ||
-    /^(what|why|how|who|when|where|which)\b/.test(text) ||
+    (/^(what|why|how|who|when|where|which)\b/.test(text) &&
+      !/^(who|what|which)\b.*\bshould i\s+(buy|sell|stack|boost|trade|scout)\b/.test(text)) ||
     /^(do you think|what do you think|would you)\b/.test(text) ||
     /^(can you|could you)\s+(explain|break down|walk me through|talk me through|help me understand|compare)\b/.test(
       text,
@@ -36,7 +37,7 @@ export function isLikelyAdvisoryMessage(message: string) {
     /^(i'm thinking about|im thinking about|thinking about|i am considering|considering|leaning toward)\b/.test(
       text,
     ) ||
-    /\b(help me understand|thoughts on|is it worth|should i|would it make sense|what's better|whats better)\b/.test(
+    /\b(help me understand|thoughts on|is it worth|would it make sense|what's better|whats better)\b/.test(
       text,
     )
   );
@@ -45,14 +46,16 @@ export function isLikelyAdvisoryMessage(message: string) {
 function isLikelyDirectiveMessage(message: string) {
   const text = normalizeMessage(message);
   return (
-    /^(scout|move|reallocate|shift|set|put|use|add|remove|make|build|find|give me|show me)\b/.test(
+    /^(scout|move|reallocate|shift|set|put|use|add|remove|make|build|find|give me|show me|buy|sell|stack|boost|trade|swap)\b/.test(
       text,
     ) ||
-    /^(?:can you|could you|will you)\s+(?:scout|move|reallocate|shift|set|put|use|add|remove|make|build|find|give me|show me)\b/.test(
+    /^(?:can you|could you|will you)\s+(?:scout|move|reallocate|shift|set|put|use|add|remove|make|build|find|give me|show me|buy|sell|stack|boost|trade|swap)\b/.test(
       text,
     ) ||
     (/^(please)\b/.test(text) &&
-      /\b(scout|move|reallocate|shift|set|put|use|add|remove|make|build)\b/.test(text))
+      /\b(scout|move|reallocate|shift|set|put|use|add|remove|make|build|buy|sell|stack|boost|trade|swap)\b/.test(
+        text,
+      ))
   );
 }
 
@@ -60,7 +63,9 @@ function isLikelyAmbiguousDirectiveMessage(message: string) {
   const text = normalizeMessage(message);
   return (
     /^(i want|i'd like|id like|i need|i need you to|let's|lets|we should|can we)\b/.test(text) &&
-    /\b(scout|move|reallocate|shift|set|put|use|add|remove|make|build)\b/.test(text)
+    /\b(scout|move|reallocate|shift|set|put|use|add|remove|make|build|buy|sell|stack|boost|trade|swap)\b/.test(
+      text,
+    )
   );
 }
 
@@ -72,6 +77,13 @@ function resolveHeuristicAgentRequestMode(
   confidence: HeuristicConfidence;
 } {
   const text = normalizeMessage(message);
+
+  if (/^(who|what|which)\b.*\bshould i\s+(buy|sell|stack|boost|trade|scout)\b/.test(text)) {
+    return {
+      mode: "commit",
+      confidence: "low",
+    };
+  }
 
   if (isLikelyAdvisoryMessage(text)) {
     return {

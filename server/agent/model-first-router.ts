@@ -77,8 +77,8 @@ const noArgsSchema = {
   additionalProperties: false,
 } as const;
 
-const MAX_MODEL_PASSES = 4;
-const MAX_TOOL_CALLS = 3;
+const MAX_MODEL_PASSES = 6;
+const MAX_TOOL_CALLS = 5;
 const BASE_PROMPT_CHAR_BUDGET = 5_400;
 
 function buildToolTraceEntry(input: {
@@ -243,7 +243,26 @@ function summarizeKnowledge(
             ? entry.id.trim()
             : `Article ${index + 1}`;
 
-      return `${index + 1}. ${title}`;
+      const summary =
+        typeof (entry as { summary?: string })?.summary === "string"
+          ? (entry as { summary?: string }).summary!.trim()
+          : "";
+      const notes = Array.isArray((entry as { notes?: string[] })?.notes)
+        ? (entry as { notes?: string[] })
+            .notes!.filter((note) => typeof note === "string" && note.trim())
+            .slice(0, 3)
+            .join(" ")
+        : "";
+
+      const parts = [title];
+      if (summary) {
+        parts.push(summary);
+      }
+      if (notes) {
+        parts.push(notes);
+      }
+
+      return `${index + 1}. ${parts.join(" — ")}`;
     })
     .join("\n");
 }
@@ -375,9 +394,20 @@ function normalizeArgs(
     args.query = request.message;
   }
   if (autoArgs.has("sport") && (typeof args.sport !== "string" || !args.sport.trim())) {
-    const explicitSport = request.message.match(/\b(nba|nfl|mlb|nascar)\b/i)?.[1];
-    if (explicitSport) {
-      args.sport = explicitSport.toUpperCase();
+    const sportNameMap: Record<string, string> = {
+      baseball: "MLB",
+      basketball: "NBA",
+      football: "NFL",
+      nascar: "NASCAR",
+      nba: "NBA",
+      nfl: "NFL",
+      mlb: "MLB",
+    };
+    const sportMatch = request.message.match(
+      /\b(nba|nfl|mlb|nascar|baseball|basketball|football)\b/i,
+    )?.[1];
+    if (sportMatch) {
+      args.sport = sportNameMap[sportMatch.toLowerCase()] || sportMatch.toUpperCase();
     }
   }
 
@@ -763,6 +793,8 @@ function buildLoopPrompt(input: {
     "Preview tool argument reminders: preview_pool_buy needs playerId + sbAmount; preview_pool_sell needs playerId + sharesAmount; preview_lp_add_optimal needs playerId + maxShares + maxPlayMoney; preview_lp_remove needs playerId + lpShares; preview_lp_zap needs playerId plus shares or sb; preview_daily_boost_assign/remove and preview_scout_adjustment can use a concrete message when needed.",
     "Use action tools only when the user explicitly wants a pending bundle staged, confirmed, canceled, or another real mutation executed.",
     "Use memory mutation tools only when the user explicitly manages memory or skills, or when a workflow is clearly worth saving.",
+    "For compound requests with multiple linked steps (buy + stack, buy + boost, buy + stack + boost), prefer preview_multi_action_bundle with a clear message describing all steps rather than calling individual preview tools separately.",
+    "If you need to resolve a player name first, use a read tool, then call the compound preview tool on the next pass.",
     "When you have enough context, answer directly in plain text and do not call another tool.",
     "</routing_rules>",
     "<matched_skill_hint>",
