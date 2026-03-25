@@ -42,21 +42,21 @@ export function AgentComposer({
 
   return (
     <div
-      className="bg-transparent sm:border sm:border-[#252c39] sm:bg-[#111826] sm:px-2 sm:py-1.5"
+      className="rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-2"
       data-testid="agent-composer"
     >
-      <div className="flex items-end gap-2 border-b border-[#222938] pb-1.5 sm:border-b-0 sm:pb-0">
+      <div className="flex items-end gap-2">
         <Textarea
           ref={textareaRef}
-          className="min-h-[34px] flex-1 resize-none rounded-none border-0 bg-transparent px-0 py-0.5 font-mono text-[13px] leading-5 text-slate-100 shadow-none placeholder:text-slate-500 focus-visible:ring-0 sm:min-h-[52px]"
+          className="min-h-[36px] flex-1 resize-none rounded-lg border-0 bg-transparent px-1 py-1 text-[13px] leading-5 text-white/90 shadow-none placeholder:text-white/30 focus-visible:ring-0 sm:min-h-[52px]"
           value={value}
           onChange={(event) => onChange(event.target.value)}
           rows={2}
           data-testid="agent-composer-input"
           placeholder={
             enabled
-              ? 'Try "Review my setup" or "Buy $100 of Nikola Jokic."'
-              : "Re-enable the agent in Settings to send a request."
+              ? 'Try "Review my setup" or "Buy $100 of Nikola Jokic"'
+              : "Re-enable the agent in Configure to send a request."
           }
           disabled={!enabled}
           onFocus={keepComposerVisible}
@@ -69,7 +69,7 @@ export function AgentComposer({
           }}
         />
         <Button
-          className="h-8 w-8 shrink-0 rounded-sm bg-amber-500 p-0 text-slate-950 hover:bg-amber-400 sm:h-9 sm:w-9"
+          className="h-9 w-9 shrink-0 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 p-0 text-black hover:from-amber-400 hover:to-amber-500"
           onClick={onSend}
           disabled={disabled}
           data-testid="agent-composer-send"
@@ -78,8 +78,8 @@ export function AgentComposer({
           <span className="sr-only">Send</span>
         </Button>
       </div>
-      <div className="mt-1.5 hidden flex-wrap items-center justify-between gap-2 px-0.5 font-mono text-[10px] uppercase tracking-[0.12em] text-slate-500 sm:flex">
-        <span>Changes stage before execution.</span>
+      <div className="mt-1.5 hidden items-center justify-between px-1 text-[10px] text-white/25 sm:flex">
+        <span>Changes stage before execution</span>
         <span>Cmd/Ctrl+Enter to send</span>
       </div>
     </div>

@@ -14,7 +14,7 @@ import type {
   ProviderMode,
 } from "../types";
 
-export type WorkspaceTab = "chat" | "strategies";
+export type WorkspaceTab = "chat" | "strategies" | "configure";
 export type StrategyDetailTab = "overview" | "chat" | "rules";
 
 export function useAgentShell() {
@@ -26,7 +26,7 @@ export function useAgentShell() {
   const strategyCreateTargetTabRef = useRef<StrategyDetailTab>("overview");
   const strategySelectionInitializedRef = useRef(false);
 
-  const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTab>("strategies");
+  const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTab>("chat");
   const [isMobileStrategyDetailOpen, setIsMobileStrategyDetailOpen] = useState(false);
   const [activeChatThreadId, setActiveChatThreadId] = useState<string | null>(null);
   const [selectedStrategyId, setSelectedStrategyId] = useState<string | null>(null);

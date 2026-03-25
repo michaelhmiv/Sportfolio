@@ -1,5 +1,17 @@
 import { useState, type RefObject } from "react";
-import { Bot, Check, ChevronDown, Loader2, Sparkles, User2, X } from "lucide-react";
+import {
+  Bot,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  Loader2,
+  Sparkles,
+  User2,
+  X,
+  Wrench,
+} from "lucide-react";
+import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
@@ -56,15 +68,15 @@ function PreviewStateBlock({ label, state }: { label: string; state: Record<stri
   }
 
   return (
-    <div className="rounded-sm border border-[#2a2e39] bg-[#121826] p-2.5">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+    <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+      <div className="text-[11px] font-medium uppercase tracking-wider text-white/40">
         {label}
       </div>
       <div className="mt-2 space-y-2">
         {entries.map(([key, value]) => (
           <div key={key} className="flex items-start justify-between gap-3">
-            <div className="text-[11px] uppercase tracking-[0.08em] text-slate-500">{key}</div>
-            <div className="text-right text-xs leading-5 text-slate-100">
+            <div className="text-[11px] uppercase tracking-wide text-white/40">{key}</div>
+            <div className="text-right text-xs leading-5 text-white/80">
               {formatPreviewValue(value)}
             </div>
           </div>
@@ -77,36 +89,36 @@ function PreviewStateBlock({ label, state }: { label: string; state: Record<stri
 function ConfirmationPreviewCard({ preview }: { preview: AgentConfirmationPreview }) {
   const riskClassName =
     preview.riskClass === "high"
-      ? "border-red-500/30 bg-red-500/10 text-red-100"
+      ? "border-red-500/30 bg-red-500/10 text-red-200"
       : preview.riskClass === "medium"
-        ? "border-amber-500/30 bg-amber-500/10 text-amber-100"
-        : "border-emerald-500/30 bg-emerald-500/10 text-emerald-100";
+        ? "border-amber-500/30 bg-amber-500/10 text-amber-200"
+        : "border-emerald-500/30 bg-emerald-500/10 text-emerald-200";
 
   return (
-    <div className="mt-3 rounded-sm border border-[#2a2e39] bg-[#101521] p-3">
+    <div className="mt-3 rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
       <div className="flex flex-wrap items-center gap-2">
-        <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+        <div className="text-[11px] font-medium uppercase tracking-wider text-white/40">
           Confirmation Preview
         </div>
         <span
           className={cn(
-            "rounded-sm border px-2 py-0.5 text-[10px] uppercase tracking-[0.12em]",
+            "rounded-full border px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-wide",
             riskClassName,
           )}
         >
           {preview.riskClass} risk
         </span>
       </div>
-      <div className="mt-2 text-sm font-semibold text-slate-100">{preview.actionSummary}</div>
+      <div className="mt-2 text-sm font-semibold text-white/90">{preview.actionSummary}</div>
       {preview.estimatedImpact && (
-        <div className="mt-2 text-xs leading-5 text-slate-300">{preview.estimatedImpact}</div>
+        <div className="mt-2 text-xs leading-5 text-white/60">{preview.estimatedImpact}</div>
       )}
       <div className="mt-3 grid gap-2 md:grid-cols-2">
         <PreviewStateBlock label="Before" state={preview.beforeState} />
         <PreviewStateBlock label="After" state={preview.afterState} />
       </div>
       {preview.warnings.length > 0 && (
-        <div className="mt-3 rounded-sm border border-amber-500/20 bg-amber-500/10 p-2.5 text-xs leading-5 text-amber-100">
+        <div className="mt-3 rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-xs leading-5 text-amber-200">
           {preview.warnings[0]}
         </div>
       )}
@@ -117,31 +129,33 @@ function ConfirmationPreviewCard({ preview }: { preview: AgentConfirmationPrevie
 function ToolTraceRow({ entry }: { entry: AgentToolTrace }) {
   const toneClassName =
     entry.status === "failed"
-      ? "border-red-500/25 bg-red-500/10 text-red-100"
+      ? "text-red-300"
       : entry.status === "skipped"
-        ? "border-slate-600 bg-slate-800/70 text-slate-300"
-        : "border-emerald-500/25 bg-emerald-500/10 text-emerald-100";
+        ? "text-white/40"
+        : "text-emerald-300";
+
+  const dotClassName =
+    entry.status === "failed"
+      ? "bg-red-400"
+      : entry.status === "skipped"
+        ? "bg-white/30"
+        : "bg-emerald-400";
 
   return (
-    <div className="rounded-sm border border-[#2a2e39] bg-[#121826] p-2.5">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-300">
-          {entry.phase}
-        </span>
-        <span
-          className={cn(
-            "rounded-sm border px-2 py-0.5 text-[10px] uppercase tracking-[0.12em]",
-            toneClassName,
-          )}
-        >
-          {entry.status}
-        </span>
-        <span className="text-[10px] uppercase tracking-[0.12em] text-slate-500">
-          {entry.latencyMs}ms
-        </span>
+    <div className="flex items-start gap-2.5 py-1">
+      <div className={cn("mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full", dotClassName)} />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-medium text-white/70">{entry.toolName}</span>
+          <span className={cn("text-[10px] font-medium", toneClassName)}>
+            {entry.status}
+          </span>
+          <span className="text-[10px] text-white/30">
+            {entry.latencyMs}ms
+          </span>
+        </div>
+        <div className="mt-0.5 text-[11px] leading-4 text-white/40">{entry.summary}</div>
       </div>
-      <div className="mt-2 text-xs font-semibold text-slate-100">{entry.toolName}</div>
-      <div className="mt-1 text-xs leading-5 text-slate-300">{entry.summary}</div>
     </div>
   );
 }
@@ -159,6 +173,8 @@ function HermesRunCard({
   generatedBy: AgentThreadMessage["generatedBy"];
   scheduleJobType: AgentThreadMessage["scheduleJobType"];
 }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
   if (
     toolTrace.length === 0 &&
     skillsUsed.length === 0 &&
@@ -169,52 +185,62 @@ function HermesRunCard({
     return null;
   }
 
+  const traceCount = toolTrace.length;
+
   return (
-    <div className="mt-3 rounded-sm border border-[#2a2e39] bg-[#101521] p-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
-          Hermes Run
+    <div className="mt-3">
+      <button
+        type="button"
+        onClick={() => setIsExpanded((prev) => !prev)}
+        className="flex w-full items-center gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-left transition-colors hover:bg-white/[0.04]"
+      >
+        <Wrench className="h-3.5 w-3.5 text-white/30" />
+        <span className="flex-1 text-xs font-medium text-white/50">
+          {traceCount > 0 ? `${traceCount} tool call${traceCount === 1 ? "" : "s"}` : "Run details"}
+          {skillsUsed.length > 0 && ` · ${skillsUsed.length} skill${skillsUsed.length === 1 ? "" : "s"}`}
+          {memoryInfluences.length > 0 && ` · ${memoryInfluences.length} memory cue${memoryInfluences.length === 1 ? "" : "s"}`}
+        </span>
+        <div className="flex items-center gap-1.5">
+          {generatedBy === "hermes_schedule" && (
+            <Badge className="h-5 rounded-full bg-sky-500/15 px-2 text-[10px] text-sky-300 hover:bg-sky-500/15">
+              {scheduleJobType ? scheduleJobType.replace(/_/g, " ") : "scheduled"}
+            </Badge>
+          )}
+          {generatedBy === "hermes_strategy" && (
+            <Badge className="h-5 rounded-full bg-emerald-500/15 px-2 text-[10px] text-emerald-300 hover:bg-emerald-500/15">
+              strategy
+            </Badge>
+          )}
+          {isExpanded ? (
+            <ChevronDown className="h-3.5 w-3.5 text-white/30" />
+          ) : (
+            <ChevronRight className="h-3.5 w-3.5 text-white/30" />
+          )}
         </div>
-        {generatedBy === "hermes_schedule" && (
-          <Badge className="bg-sky-500/20 text-sky-200 hover:bg-sky-500/20">
-            {scheduleJobType ? scheduleJobType.replace(/_/g, " ") : "scheduled"}
-          </Badge>
-        )}
-        {generatedBy === "hermes_strategy" && (
-          <Badge className="bg-emerald-500/20 text-emerald-200 hover:bg-emerald-500/20">
-            strategy run
-          </Badge>
-        )}
-        {skillsUsed.length > 0 && (
-          <Badge variant="outline" className="border-[#2a2e39] text-slate-300">
-            {skillsUsed.length} skill{skillsUsed.length === 1 ? "" : "s"}
-          </Badge>
-        )}
-        {memoryInfluences.length > 0 && (
-          <Badge variant="outline" className="border-[#2a2e39] text-slate-300">
-            {memoryInfluences.length} memory cue{memoryInfluences.length === 1 ? "" : "s"}
-          </Badge>
-        )}
-      </div>
+      </button>
 
-      {memoryInfluences.length > 0 && (
-        <div className="mt-3 rounded-sm border border-[#2a2e39] bg-[#121826] p-2.5">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
-            What Hermes remembered
-          </div>
-          <div className="mt-2 space-y-1.5 text-xs leading-5 text-slate-300">
-            {memoryInfluences.slice(0, 3).map((entry) => (
-              <div key={entry}>{entry}</div>
-            ))}
-          </div>
-        </div>
-      )}
+      {isExpanded && (
+        <div className="mt-1 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2">
+          {memoryInfluences.length > 0 && (
+            <div className="mb-2 border-b border-white/[0.06] pb-2">
+              <div className="text-[10px] font-medium uppercase tracking-wider text-white/30">
+                Recalled
+              </div>
+              <div className="mt-1 space-y-1 text-[11px] leading-4 text-white/50">
+                {memoryInfluences.slice(0, 3).map((entry) => (
+                  <div key={entry}>{entry}</div>
+                ))}
+              </div>
+            </div>
+          )}
 
-      {toolTrace.length > 0 && (
-        <div className="mt-3 space-y-2">
-          {toolTrace.map((entry, index) => (
-            <ToolTraceRow key={`${entry.toolName}-${entry.phase}-${index}`} entry={entry} />
-          ))}
+          {toolTrace.length > 0 && (
+            <div className="space-y-0">
+              {toolTrace.map((entry, index) => (
+                <ToolTraceRow key={`${entry.toolName}-${entry.phase}-${index}`} entry={entry} />
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -227,9 +253,9 @@ function CitationList({ citations }: { citations: AgentCitation[] }) {
   }
 
   return (
-    <div className="mt-3 space-y-2 rounded-sm border border-sky-500/30 bg-sky-500/10 p-2.5 text-sky-100">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-sky-300">
-        External Sources
+    <div className="mt-3 space-y-2">
+      <div className="text-[10px] font-medium uppercase tracking-wider text-sky-300/70">
+        Sources
       </div>
       {citations.map((citation) => (
         <a
@@ -237,14 +263,14 @@ function CitationList({ citations }: { citations: AgentCitation[] }) {
           href={citation.url}
           target="_blank"
           rel="noreferrer"
-          className="block rounded-sm border border-sky-500/20 bg-[#121a2a] p-2.5 transition-colors hover:bg-[#182236]"
+          className="block rounded-lg border border-sky-500/15 bg-sky-500/5 p-3 transition-colors hover:bg-sky-500/10"
         >
-          <div className="text-xs font-medium text-sky-300">
+          <div className="text-[11px] font-medium text-sky-300/70">
             {citation.sourceName}
-            {citation.publishedAt ? ` | ${citation.publishedAt}` : ""}
+            {citation.publishedAt ? ` · ${citation.publishedAt}` : ""}
           </div>
-          <div className="mt-1 text-sm font-semibold text-slate-100">{citation.title}</div>
-          <div className="mt-1 text-xs leading-5 text-slate-300">{citation.factSummary}</div>
+          <div className="mt-1 text-sm font-medium text-white/80">{citation.title}</div>
+          <div className="mt-1 text-xs leading-5 text-white/50">{citation.factSummary}</div>
         </a>
       ))}
     </div>
@@ -253,13 +279,13 @@ function CitationList({ citations }: { citations: AgentCitation[] }) {
 
 function ClarificationPrompt({ clarification }: { clarification: AgentPendingClarification }) {
   return (
-    <div className="mt-3 rounded-sm border border-sky-500/30 bg-sky-500/10 p-2.5 text-sky-100">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-sky-300">
-        Waiting On One Detail
+    <div className="mt-3 rounded-xl border border-sky-500/20 bg-sky-500/5 p-4">
+      <div className="text-[11px] font-medium uppercase tracking-wider text-sky-300/70">
+        Need one detail
       </div>
-      <div className="mt-2 text-sm leading-6">{clarification.prompt}</div>
-      <div className="mt-2 text-xs text-sky-200/80">
-        Reply naturally and the agent will continue the staged workflow.
+      <div className="mt-2 text-sm leading-6 text-white/80">{clarification.prompt}</div>
+      <div className="mt-2 text-xs text-sky-300/50">
+        Reply naturally and the agent will continue.
       </div>
     </div>
   );
@@ -273,13 +299,13 @@ function ActionPreview({ action }: { action: AgentAction }) {
       {previewRows.map((row) => (
         <div
           key={`${action.actionType}-${row.label}`}
-          className="rounded-sm border border-[#2a2e39] bg-[#121826] p-2.5"
+          className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3"
         >
-          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+          <div className="text-[11px] font-medium uppercase tracking-wider text-white/40">
             {row.label}
           </div>
-          <div className="mt-2 text-xs leading-5 text-slate-400">Now: {row.current}</div>
-          <div className="mt-1 text-sm font-medium leading-6 text-slate-100">
+          <div className="mt-2 text-xs leading-5 text-white/40">Now: {row.current}</div>
+          <div className="mt-1 text-sm font-medium leading-6 text-white/90">
             After: {row.proposed}
           </div>
         </div>
@@ -296,22 +322,22 @@ function ActionDetails({ action }: { action: AgentAction }) {
       {rows.map((row) => (
         <div
           key={`${action.actionType}-${row.label}`}
-          className="rounded-sm border border-[#2a2e39] bg-[#121826] p-2.5"
+          className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3"
         >
-          <div className="text-xs font-semibold text-slate-100">{row.label}</div>
-          {row.detail && <div className="mt-1 text-xs leading-5 text-slate-400">{row.detail}</div>}
+          <div className="text-xs font-semibold text-white/90">{row.label}</div>
+          {row.detail && <div className="mt-1 text-xs leading-5 text-white/40">{row.detail}</div>}
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            <div className="rounded-sm border border-[#2a2e39] bg-[#0f1420] p-2.5">
-              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+            <div className="rounded-lg border border-white/[0.06] bg-white/[0.01] p-3">
+              <div className="text-[10px] font-medium uppercase tracking-wider text-white/30">
                 Current
               </div>
-              <div className="mt-1 text-xs leading-5 text-slate-200">{row.current}</div>
+              <div className="mt-1 text-xs leading-5 text-white/70">{row.current}</div>
             </div>
-            <div className="rounded-sm border border-amber-500/30 bg-amber-500/10 p-2.5">
-              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-300">
+            <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3">
+              <div className="text-[10px] font-medium uppercase tracking-wider text-amber-300/70">
                 After Confirm
               </div>
-              <div className="mt-1 text-xs leading-5 text-amber-100">{row.proposed}</div>
+              <div className="mt-1 text-xs leading-5 text-amber-200/80">{row.proposed}</div>
             </div>
           </div>
         </div>
@@ -340,27 +366,27 @@ function ProposalCard({
   const isPending = bundle.status === "pending_confirmation";
 
   return (
-    <div className="mt-3 rounded-sm border border-[#2a2e39] bg-[#101521] p-3 text-slate-100">
+    <div className="mt-3 rounded-xl border border-white/[0.08] bg-white/[0.03] p-4">
       <div className="flex flex-wrap items-center gap-2">
-        <Badge className="bg-amber-600 text-white hover:bg-amber-600">
+        <Badge className="rounded-full bg-amber-500/20 text-amber-200 hover:bg-amber-500/20">
           {getBundleStatusLabel(bundle.status)}
         </Badge>
-        <Badge variant="outline" className="border-[#2a2e39] text-slate-300">
+        <Badge variant="outline" className="rounded-full border-white/[0.1] text-white/60">
           {formatDomainLabel(bundle.domain)}
         </Badge>
-        <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-slate-500">
+        <span className="text-[10px] text-white/30">
           {new Date(bundle.createdAt).toLocaleString()}
         </span>
       </div>
 
-      <div className="mt-2 text-sm leading-6 text-slate-200">{bundle.summary}</div>
+      <div className="mt-2.5 text-sm leading-6 text-white/70">{bundle.summary}</div>
 
       {primaryAction && (
-        <div className="mt-3 rounded-sm border border-[#2a2e39] bg-[#121826] p-3">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+        <div className="mt-3 rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+          <div className="text-[10px] font-medium uppercase tracking-wider text-white/30">
             Staged Move
           </div>
-          <div className="mt-1.5 text-sm font-semibold text-slate-50">
+          <div className="mt-1.5 text-sm font-semibold text-white/90">
             {getActionMeta(primaryAction)}
           </div>
           <ActionPreview action={primaryAction} />
@@ -370,15 +396,15 @@ function ProposalCard({
       {clarification && <ClarificationPrompt clarification={clarification} />}
 
       {bundle.warnings.length > 0 && (
-        <div className="mt-3 rounded-sm border border-amber-500/20 bg-amber-500/10 p-2.5 text-xs leading-5 text-amber-100">
+        <div className="mt-3 rounded-lg border border-amber-500/15 bg-amber-500/5 p-3 text-xs leading-5 text-amber-200/80">
           {bundle.warnings[0]}
         </div>
       )}
 
       {isPending && (
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="mt-4 flex flex-wrap gap-2">
           <Button
-            className="h-8 rounded-sm bg-amber-500 px-3 text-[11px] uppercase tracking-[0.08em] text-slate-950 hover:bg-amber-400"
+            className="h-9 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 px-4 text-xs font-medium text-black hover:from-amber-400 hover:to-amber-500"
             onClick={onConfirm}
             disabled={isConfirming || isCanceling}
           >
@@ -390,8 +416,8 @@ function ProposalCard({
             Confirm
           </Button>
           <Button
-            variant="outline"
-            className="h-8 rounded-sm border-[#2a2e39] bg-[#121826] px-3 text-[11px] uppercase tracking-[0.08em] text-slate-100 hover:bg-[#182236]"
+            variant="ghost"
+            className="h-9 rounded-xl px-4 text-xs font-medium text-white/50 hover:bg-white/[0.06] hover:text-white/70"
             onClick={onCancel}
             disabled={isConfirming || isCanceling}
           >
@@ -409,38 +435,38 @@ function ProposalCard({
         <Button
           type="button"
           variant="ghost"
-          className="mt-2 h-auto px-0 text-[10px] font-medium uppercase tracking-[0.12em] text-slate-500 hover:bg-transparent hover:text-slate-100"
+          className="mt-2 h-auto px-0 text-[11px] font-medium text-white/30 hover:bg-transparent hover:text-white/60"
           onClick={() => setIsExpanded((current) => !current)}
         >
           <ChevronDown
-            className={cn("mr-2 h-4 w-4 transition-transform", isExpanded && "rotate-180")}
+            className={cn("mr-1.5 h-3.5 w-3.5 transition-transform", isExpanded && "rotate-180")}
           />
-          {isExpanded ? "Hide Details" : "Show Details"}
+          {isExpanded ? "Hide details" : "Show details"}
         </Button>
         <CollapsibleContent className="space-y-3 pt-3">
           {bundle.steps.map((step) => (
             <div
               key={`${bundle.id}-${step.id}`}
-              className="rounded-sm border border-[#2a2e39] bg-[#121826] p-3"
+              className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3"
             >
               <div className="flex items-center justify-between gap-3">
-                <div className="text-sm font-semibold text-slate-50">{step.title}</div>
-                <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                <div className="text-sm font-semibold text-white/90">{step.title}</div>
+                <span className="text-[10px] font-medium uppercase tracking-wider text-white/30">
                   {step.status}
                 </span>
               </div>
               {step.action ? (
                 <>
-                  <div className="mt-2 text-xs text-slate-400">{getActionMeta(step.action)}</div>
+                  <div className="mt-2 text-xs text-white/40">{getActionMeta(step.action)}</div>
                   <div className="mt-3">
                     <ActionDetails action={step.action} />
                   </div>
-                  <div className="mt-3 text-sm leading-6 text-slate-200">
+                  <div className="mt-3 text-sm leading-6 text-white/60">
                     {step.action.reasoning}
                   </div>
                 </>
               ) : step.clarificationPrompt ? (
-                <div className="mt-3 text-sm leading-6 text-slate-200">
+                <div className="mt-3 text-sm leading-6 text-white/60">
                   {step.clarificationPrompt}
                 </div>
               ) : null}
@@ -452,7 +478,7 @@ function ProposalCard({
               {bundle.warnings.slice(1).map((warning) => (
                 <div
                   key={warning}
-                  className="rounded-sm border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-100"
+                  className="rounded-lg border border-amber-500/15 bg-amber-500/5 px-3 py-2 text-xs text-amber-200/80"
                 >
                   {warning}
                 </div>
@@ -493,36 +519,42 @@ function MessageBubble({
       : [];
   const isUser = isRealMessage ? message.role === "user" : true;
   const isError = isRealMessage && message.messageType === "error";
-  const speakerLabel = isUser
-    ? "You"
-    : isRealMessage && message.role === "system"
-      ? "Update"
-      : "Agent";
 
   return (
-    <div className={cn("flex w-full", isUser ? "justify-end" : "justify-start")}>
+    <div className={cn("flex w-full gap-3", isUser ? "justify-end" : "justify-start")}>
+      {/* Avatar for assistant */}
+      {!isUser && (
+        <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-400/20 to-amber-600/10 ring-1 ring-white/[0.08]">
+          <Bot className="h-4 w-4 text-amber-300" />
+        </div>
+      )}
+
       <div
         className={cn(
-          "w-full rounded-sm px-3 py-2.5 sm:max-w-[84%]",
+          "w-full sm:max-w-[82%]",
           isUser
-            ? "border border-amber-500/35 bg-[#241702] text-amber-50 shadow-sm"
+            ? "rounded-2xl rounded-br-md bg-blue-600/15 px-4 py-3 text-blue-50"
             : isError
-              ? "border border-red-500/40 bg-red-950/40 text-red-100"
-              : "border border-[#2a2e39] bg-[#171c29] text-slate-100 shadow-sm",
+              ? "rounded-2xl rounded-bl-md border border-red-500/20 bg-red-950/20 px-4 py-3 text-red-100"
+              : "max-w-full text-white/80",
         )}
       >
-        <div
-          className={cn(
-            "mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em]",
-            isUser ? "text-amber-200/80" : "text-slate-400",
-          )}
-        >
-          {isUser ? <User2 className="h-3.5 w-3.5" /> : <Bot className="h-3.5 w-3.5" />}
-          {speakerLabel}
-          {isPendingSend && <span className="text-[10px] text-amber-200/70">Sending...</span>}
-        </div>
+        {isUser && (
+          <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-blue-200/60">
+            <User2 className="h-3 w-3" />
+            You
+            {isPendingSend && <span className="text-blue-200/40">· Sending...</span>}
+          </div>
+        )}
 
-        <div className="whitespace-pre-wrap text-[13px] leading-6">{message.contentText}</div>
+        {/* Markdown-rendered content for assistant, plain text for user */}
+        {isUser ? (
+          <div className="text-[13px] leading-6 whitespace-pre-wrap">{message.contentText}</div>
+        ) : (
+          <div className="agent-markdown text-[13.5px] leading-7">
+            <Markdown remarkPlugins={[remarkGfm]}>{message.contentText}</Markdown>
+          </div>
+        )}
 
         {inlineUiBlocks.length > 0 && <AgentUiBlockList blocks={inlineUiBlocks} className="mt-3" />}
 
@@ -554,10 +586,17 @@ function MessageBubble({
           <ClarificationPrompt clarification={message.pendingClarification} />
         )}
 
-        <div className={cn("mt-3 text-[11px]", isUser ? "text-amber-200/70" : "text-slate-500")}>
+        <div className={cn("mt-2.5 text-[10px]", isUser ? "text-blue-200/40" : "text-white/20")}>
           {new Date(message.createdAt).toLocaleString()}
         </div>
       </div>
+
+      {/* Avatar for user */}
+      {isUser && (
+        <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-600/15 ring-1 ring-white/[0.08]">
+          <User2 className="h-4 w-4 text-blue-300" />
+        </div>
+      )}
     </div>
   );
 }
@@ -576,23 +615,25 @@ export function AgentEmptyConversationState({
   onUseStarterPrompt: (prompt: string) => void;
 }) {
   return (
-    <div className="rounded-sm border border-[#2a2e39] bg-[#171c29] p-3 text-sm text-slate-300 shadow-sm">
-      <div className="flex items-center gap-2 text-sm font-semibold text-slate-50">
-        <Sparkles className="h-4 w-4 text-amber-400" />
-        {isDraftConversation ? "Start a fresh chat." : "Your agent is ready."}
+    <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5">
+      <div className="flex items-center gap-2.5 text-sm font-semibold text-white/90">
+        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-amber-400/20 to-amber-600/10">
+          <Sparkles className="h-4 w-4 text-amber-300" />
+        </div>
+        {isDraftConversation ? "Start a fresh chat" : "Your agent is ready"}
       </div>
-      <p className="mt-2 text-xs leading-5 text-slate-400">
+      <p className="mt-3 text-xs leading-5 text-white/40">
         {enabled && canAnalyze
           ? "Use plain language. Ask for a read or give a direct instruction when you want Hermes to stage a move."
           : "The agent needs to be enabled and configured before you can send the next request."}
       </p>
-      <div className="mt-3 flex flex-wrap gap-2">
+      <div className="mt-4 flex flex-wrap gap-2">
         {starterPrompts.map((prompt) => (
           <Button
             key={prompt}
             type="button"
-            variant="outline"
-            className="h-7 rounded-sm border-[#2a2e39] bg-[#0f1420] px-2.5 text-[10px] uppercase tracking-[0.12em] text-slate-100 hover:bg-[#202637]"
+            variant="ghost"
+            className="h-8 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 text-[11px] font-medium text-white/50 hover:bg-white/[0.06] hover:text-white/80"
             onClick={() => onUseStarterPrompt(prompt)}
           >
             {prompt}
@@ -621,7 +662,7 @@ export function AgentMessageList({
   endRef: RefObject<HTMLDivElement>;
 }) {
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       {messages.map((message) => (
         <MessageBubble
           key={message.id}

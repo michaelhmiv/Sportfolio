@@ -29,7 +29,7 @@ function getStatusTone(status: string | null | undefined) {
     normalized.includes("completed") ||
     normalized.includes("tracking")
   ) {
-    return "terminal-status-positive";
+    return "border-emerald-500/25 bg-emerald-500/10 text-emerald-200";
   }
   if (
     normalized.includes("wait") ||
@@ -37,44 +37,75 @@ function getStatusTone(status: string | null | undefined) {
     normalized.includes("paused") ||
     normalized.includes("warning")
   ) {
-    return "terminal-status-warning";
+    return "border-amber-500/25 bg-amber-500/10 text-amber-200";
   }
   if (
     normalized.includes("failed") ||
     normalized.includes("blocked") ||
     normalized.includes("error")
   ) {
-    return "terminal-status-negative";
+    return "border-red-500/25 bg-red-500/10 text-red-200";
   }
-  return "border-border bg-card text-foreground";
+  return "border-white/[0.06] bg-white/[0.02] text-white/80";
 }
 
 function BlockShell({ children, className }: { children: ReactNode; className?: string }) {
-  return <section className={cn("terminal-shell p-3 sm:p-4", className)}>{children}</section>;
+  return (
+    <section className={cn("rounded-xl border border-white/[0.06] bg-white/[0.02] p-3 sm:p-4", className)}>
+      {children}
+    </section>
+  );
+}
+
+function Kicker({ children, className }: { children: ReactNode; className?: string }) {
+  return (
+    <div className={cn("text-[10px] font-medium uppercase tracking-wider text-white/40", className)}>
+      {children}
+    </div>
+  );
+}
+
+function FieldLabel({ children }: { children: ReactNode }) {
+  return (
+    <div className="text-[10px] font-medium uppercase tracking-wider text-white/35">
+      {children}
+    </div>
+  );
+}
+
+function Pill({ children, className }: { children: ReactNode; className?: string }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-full border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-[10px] font-medium text-white/60",
+        className,
+      )}
+    >
+      {children}
+    </span>
+  );
 }
 
 function GoalStripBlock({ block }: { block: Extract<AgentUiBlock, { type: "goal_strip" }> }) {
   return (
-    <BlockShell className="bg-card/95">
+    <BlockShell>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <div className="terminal-kicker">{block.props.eyebrow || "Goal"}</div>
+          <Kicker>{block.props.eyebrow || "Goal"}</Kicker>
           <div className="mt-2 flex flex-wrap items-center gap-2">
-            <h2 className="text-base font-semibold tracking-tight text-foreground sm:text-lg">
+            <h2 className="text-base font-semibold tracking-tight text-white/90 sm:text-lg">
               {block.props.title}
             </h2>
-            {block.props.badge ? (
-              <span className="terminal-strip py-1">{block.props.badge}</span>
-            ) : null}
+            {block.props.badge ? <Pill>{block.props.badge}</Pill> : null}
           </div>
           {block.props.summary ? (
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">{block.props.summary}</p>
+            <p className="mt-2 text-sm leading-6 text-white/50">{block.props.summary}</p>
           ) : null}
         </div>
         {block.props.status ? (
           <Badge
             className={cn(
-              "rounded-sm font-mono text-[10px] uppercase tracking-[0.12em]",
+              "rounded-full text-[10px] font-medium",
               getStatusTone(block.props.status),
             )}
           >
@@ -83,9 +114,9 @@ function GoalStripBlock({ block }: { block: Extract<AgentUiBlock, { type: "goal_
         ) : null}
       </div>
       {block.props.nextStep ? (
-        <div className="mt-3 border-t border-border pt-3">
-          <div className="terminal-label">Next</div>
-          <div className="mt-1 text-sm text-foreground">{block.props.nextStep}</div>
+        <div className="mt-3 border-t border-white/[0.06] pt-3">
+          <FieldLabel>Next</FieldLabel>
+          <div className="mt-1 text-sm text-white/80">{block.props.nextStep}</div>
         </div>
       ) : null}
     </BlockShell>
@@ -98,13 +129,13 @@ function PendingDecisionBlock({
   block: Extract<AgentUiBlock, { type: "pending_decision" }>;
 }) {
   return (
-    <BlockShell className="border-amber-500/30 bg-amber-500/10">
+    <BlockShell className="border-amber-500/20 bg-amber-500/5">
       <div className="flex flex-wrap items-center gap-2">
-        <div className="terminal-kicker text-amber-200">{block.props.title}</div>
+        <Kicker className="text-amber-200/70">{block.props.title}</Kicker>
         {block.props.risk ? (
           <Badge
             className={cn(
-              "rounded-sm font-mono text-[10px] uppercase tracking-[0.12em]",
+              "rounded-full text-[10px] font-medium",
               getStatusTone(block.props.risk),
             )}
           >
@@ -112,12 +143,16 @@ function PendingDecisionBlock({
           </Badge>
         ) : null}
       </div>
-      <div className="mt-2 text-sm font-medium text-foreground">{block.props.summary}</div>
+      <div className="mt-2 text-sm font-medium text-white/90">{block.props.summary}</div>
       {block.props.helper ? (
-        <div className="mt-2 text-sm leading-6 text-muted-foreground">{block.props.helper}</div>
+        <div className="mt-2 text-sm leading-6 text-white/50">{block.props.helper}</div>
       ) : null}
       {block.props.actionLabel ? (
-        <div className="mt-3 terminal-strip py-1.5">{block.props.actionLabel}</div>
+        <div className="mt-3">
+          <Pill className="border-amber-500/20 bg-amber-500/10 text-amber-200">
+            {block.props.actionLabel}
+          </Pill>
+        </div>
       ) : null}
     </BlockShell>
   );
@@ -129,20 +164,18 @@ function ClarificationBlock({
   block: Extract<AgentUiBlock, { type: "clarification_card" }>;
 }) {
   return (
-    <BlockShell className="border-sky-500/30 bg-sky-500/10">
-      <div className="terminal-kicker text-sky-200">
+    <BlockShell className="border-sky-500/20 bg-sky-500/5">
+      <Kicker className="text-sky-200/70">
         {block.props.title || "One detail is missing"}
-      </div>
-      <div className="mt-2 text-sm leading-6 text-foreground">{block.props.prompt}</div>
+      </Kicker>
+      <div className="mt-2 text-sm leading-6 text-white/90">{block.props.prompt}</div>
       {block.props.helper ? (
-        <div className="mt-2 text-sm text-muted-foreground">{block.props.helper}</div>
+        <div className="mt-2 text-sm text-white/50">{block.props.helper}</div>
       ) : null}
       {block.props.choices && block.props.choices.length > 0 ? (
         <div className="mt-3 flex flex-wrap gap-2">
           {block.props.choices.slice(0, 3).map((choice) => (
-            <span key={choice} className="terminal-strip py-1">
-              {choice}
-            </span>
+            <Pill key={choice}>{choice}</Pill>
           ))}
         </div>
       ) : null}
@@ -159,12 +192,12 @@ function StrategyStatusBlock({
     <BlockShell>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <div className="terminal-kicker">Strategy</div>
-          <div className="mt-2 text-base font-semibold text-foreground">{block.props.title}</div>
+          <Kicker>Strategy</Kicker>
+          <div className="mt-2 text-base font-semibold text-white/90">{block.props.title}</div>
         </div>
         <Badge
           className={cn(
-            "rounded-sm font-mono text-[10px] uppercase tracking-[0.12em]",
+            "rounded-full text-[10px] font-medium",
             getStatusTone(block.props.status),
           )}
         >
@@ -172,18 +205,18 @@ function StrategyStatusBlock({
         </Badge>
       </div>
       {block.props.summary ? (
-        <div className="mt-3 text-sm leading-6 text-muted-foreground">{block.props.summary}</div>
+        <div className="mt-3 text-sm leading-6 text-white/50">{block.props.summary}</div>
       ) : null}
-      <div className="mt-3 grid gap-3 border-t border-border pt-3 sm:grid-cols-2">
+      <div className="mt-3 grid gap-3 border-t border-white/[0.06] pt-3 sm:grid-cols-2">
         <div>
-          <div className="terminal-label">Next run</div>
-          <div className="mt-1 text-sm text-foreground">
+          <FieldLabel>Next run</FieldLabel>
+          <div className="mt-1 text-sm text-white/80">
             {formatDateTime(block.props.nextRunAt) || "Not scheduled"}
           </div>
         </div>
         <div>
-          <div className="terminal-label">Latest result</div>
-          <div className="mt-1 text-sm text-foreground">
+          <FieldLabel>Latest result</FieldLabel>
+          <div className="mt-1 text-sm text-white/80">
             {block.props.lastResult || "No run recorded yet"}
           </div>
         </div>
@@ -199,31 +232,31 @@ function StrategyDraftBlock({
 }) {
   return (
     <BlockShell>
-      <div className="terminal-kicker">Draft strategy</div>
-      <div className="mt-2 text-base font-semibold text-foreground">{block.props.title}</div>
+      <Kicker>Draft strategy</Kicker>
+      <div className="mt-2 text-base font-semibold text-white/90">{block.props.title}</div>
       {block.props.summary ? (
-        <div className="mt-2 text-sm leading-6 text-muted-foreground">{block.props.summary}</div>
+        <div className="mt-2 text-sm leading-6 text-white/50">{block.props.summary}</div>
       ) : null}
       {block.props.schedule ? (
-        <div className="mt-3 terminal-strip py-1.5">Schedule: {block.props.schedule}</div>
+        <div className="mt-3">
+          <Pill>Schedule: {block.props.schedule}</Pill>
+        </div>
       ) : null}
       {block.props.actionScope && block.props.actionScope.length > 0 ? (
         <div className="mt-3 flex flex-wrap gap-2">
           {block.props.actionScope.map((item) => (
-            <span key={item} className="terminal-strip py-1">
-              {item}
-            </span>
+            <Pill key={item}>{item}</Pill>
           ))}
         </div>
       ) : null}
       {block.props.missingDetails && block.props.missingDetails.length > 0 ? (
-        <div className="mt-3 border-t border-border pt-3">
-          <div className="terminal-label">Still needs</div>
+        <div className="mt-3 border-t border-white/[0.06] pt-3">
+          <FieldLabel>Still needs</FieldLabel>
           <div className="mt-2 flex flex-wrap gap-2">
             {block.props.missingDetails.map((item) => (
-              <span key={item} className="terminal-strip py-1">
+              <Pill key={item} className="border-amber-500/15 text-amber-200/70">
                 {item}
-              </span>
+              </Pill>
             ))}
           </div>
         </div>
@@ -239,10 +272,12 @@ function ScheduleSummaryBlock({
 }) {
   return (
     <BlockShell>
-      <div className="terminal-kicker">{block.props.title || "Schedule"}</div>
-      <div className="mt-3 terminal-strip py-1.5">{block.props.scheduleLabel}</div>
+      <Kicker>{block.props.title || "Schedule"}</Kicker>
+      <div className="mt-3">
+        <Pill>{block.props.scheduleLabel}</Pill>
+      </div>
       {block.props.helper ? (
-        <div className="mt-2 text-sm leading-6 text-muted-foreground">{block.props.helper}</div>
+        <div className="mt-2 text-sm leading-6 text-white/50">{block.props.helper}</div>
       ) : null}
     </BlockShell>
   );
@@ -251,15 +286,15 @@ function ScheduleSummaryBlock({
 function RulesSummaryBlock({ block }: { block: Extract<AgentUiBlock, { type: "rules_summary" }> }) {
   return (
     <BlockShell>
-      <div className="terminal-kicker">{block.props.title || "Rules"}</div>
+      <Kicker>{block.props.title || "Rules"}</Kicker>
       <div className="mt-3 space-y-3">
         {block.props.items.map((item) => (
           <div
             key={`${item.label}-${item.value}`}
             className="flex items-center justify-between gap-3"
           >
-            <div className="terminal-label">{item.label}</div>
-            <div className="terminal-value text-sm">{item.value}</div>
+            <FieldLabel>{item.label}</FieldLabel>
+            <div className="text-sm font-semibold text-white/90">{item.value}</div>
           </div>
         ))}
       </div>
@@ -274,14 +309,14 @@ function PerformanceSummaryBlock({
 }) {
   return (
     <BlockShell>
-      <div className="terminal-kicker">{block.props.title || "Performance"}</div>
+      <Kicker>{block.props.title || "Performance"}</Kicker>
       <div className="mt-3 flex flex-wrap gap-2.5">
         {block.props.metrics.map((metric) => (
           <div
             key={`${metric.label}-${metric.value}`}
-            className="min-w-[9rem] flex-1 border border-border bg-sidebar/20 px-3 py-2.5"
+            className="min-w-[9rem] flex-1 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5"
           >
-            <div className="terminal-label">{metric.label}</div>
+            <FieldLabel>{metric.label}</FieldLabel>
             <div
               className={cn(
                 "mt-1 text-sm font-semibold sm:text-base",
@@ -291,7 +326,7 @@ function PerformanceSummaryBlock({
                     ? "text-red-300"
                     : metric.tone === "warning"
                       ? "text-amber-200"
-                      : "text-foreground",
+                      : "text-white/90",
               )}
             >
               {metric.value}
@@ -306,22 +341,24 @@ function PerformanceSummaryBlock({
 function SourceListBlock({ block }: { block: Extract<AgentUiBlock, { type: "source_list" }> }) {
   return (
     <BlockShell>
-      <div className="terminal-kicker">{block.props.title || "Sources"}</div>
+      <Kicker>{block.props.title || "Sources"}</Kicker>
       <div className="mt-3 space-y-3">
         {block.props.sources.map((source) => {
           const body = (
             <>
               <div className="flex items-center justify-between gap-3">
-                <div className="text-sm font-medium text-foreground">{source.title}</div>
-                <div className="terminal-subtle">
+                <div className="text-sm font-medium text-white/90">{source.title}</div>
+                <div className="text-[10px] text-white/30">
                   {formatDateTime(source.retrievedAt) || "Recent"}
                 </div>
               </div>
               {source.sourceName ? (
-                <div className="mt-1 terminal-label">{source.sourceName}</div>
+                <div className="mt-1 text-[10px] font-medium uppercase tracking-wider text-white/35">
+                  {source.sourceName}
+                </div>
               ) : null}
               {source.factSummary ? (
-                <div className="mt-2 text-sm leading-6 text-muted-foreground">
+                <div className="mt-2 text-sm leading-6 text-white/50">
                   {source.factSummary}
                 </div>
               ) : null}
@@ -334,12 +371,12 @@ function SourceListBlock({ block }: { block: Extract<AgentUiBlock, { type: "sour
               href={source.url}
               target="_blank"
               rel="noreferrer"
-              className="block border border-border bg-sidebar/20 p-3 transition-colors hover:bg-sidebar/35"
+              className="block rounded-lg border border-white/[0.06] bg-white/[0.02] p-3 transition-colors hover:bg-white/[0.04]"
             >
               {body}
             </a>
           ) : (
-            <div key={source.id} className="border border-border bg-sidebar/20 p-3">
+            <div key={source.id} className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
               {body}
             </div>
           );
@@ -353,11 +390,11 @@ function RunSummaryBlock({ block }: { block: Extract<AgentUiBlock, { type: "run_
   return (
     <BlockShell>
       <div className="flex flex-wrap items-center gap-2">
-        <div className="terminal-kicker">{block.props.title || "Run summary"}</div>
+        <Kicker>{block.props.title || "Run summary"}</Kicker>
         {block.props.status ? (
           <Badge
             className={cn(
-              "rounded-sm font-mono text-[10px] uppercase tracking-[0.12em]",
+              "rounded-full text-[10px] font-medium",
               getStatusTone(block.props.status),
             )}
           >
@@ -365,19 +402,17 @@ function RunSummaryBlock({ block }: { block: Extract<AgentUiBlock, { type: "run_
           </Badge>
         ) : null}
       </div>
-      <div className="mt-2 text-sm leading-6 text-foreground">{block.props.summary}</div>
+      <div className="mt-2 text-sm leading-6 text-white/90">{block.props.summary}</div>
       {(block.props.trigger || block.props.transport || block.props.createdAt) && (
         <div className="mt-3 flex flex-wrap gap-2">
           {block.props.trigger ? (
-            <span className="terminal-strip py-1">{block.props.trigger.replace(/_/g, " ")}</span>
+            <Pill>{block.props.trigger.replace(/_/g, " ")}</Pill>
           ) : null}
           {block.props.transport ? (
-            <span className="terminal-strip py-1">via {block.props.transport}</span>
+            <Pill>via {block.props.transport}</Pill>
           ) : null}
           {block.props.createdAt ? (
-            <span className="terminal-strip py-1">
-              {formatDateTime(block.props.createdAt) || "Recent"}
-            </span>
+            <Pill>{formatDateTime(block.props.createdAt) || "Recent"}</Pill>
           ) : null}
         </div>
       )}
