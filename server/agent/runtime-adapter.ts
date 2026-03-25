@@ -3,7 +3,7 @@ import { decryptText } from "../lib/encryption";
 import { getManagedProviderRuntimeConfig } from "./provider-registry";
 import { listAvailableAgentSkills } from "./skills";
 import { getActiveManagedProviderSelection } from "./system-settings";
-import { getAgentToolCatalog } from "./hermes-tools";
+import { getAgentRuntimeToolCatalog } from "./hermes-tools";
 import type {
   AgentModelRuntimeConfig,
   AgentToolDefinition,
@@ -82,7 +82,7 @@ export async function buildHermesTurnRequest(
     orchestrationMode?: HermesRespondRequest["orchestrationMode"];
   },
 ): Promise<HermesRespondRequest> {
-  const toolCatalog = input.toolCatalog || getAgentToolCatalog();
+  const toolCatalog = input.toolCatalog || (await getAgentRuntimeToolCatalog());
   const availableSkills = input.availableSkills || (await listAvailableAgentSkills(input.userId));
   const modelRuntime =
     input.modelRuntime || (await buildAgentModelRuntimeConfig(input.profile, input.secret));

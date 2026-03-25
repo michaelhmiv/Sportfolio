@@ -1,3 +1,30 @@
+## 2026-03-24 Internal MLB MCP Provider via Hermes (Railway)
+
+- [x] Add a Hermes-owned internal MLB MCP client/registry module that discovers tools from the Railway private service and projects them into Hermes tool definitions
+- [x] Merge projected internal MLB MCP tools into the runtime Hermes tool catalog/allowlist without changing the public MCP surface
+- [x] Route Hermes read-tool execution for projected MLB MCP tools through the internal MCP client and preserve strict internal-only behavior
+- [x] Add focused regression tests for runtime tool catalog merge and projected read-tool execution
+- [x] Run required validation (`npm run check`, `npm run lint`, `npm run test:run`) and targeted Hermes tests/smoke coverage
+
+Review:
+
+- Added `server/agent/internal-mlb-mcp.ts` to discover internal MLB MCP tools over Streamable HTTP, cache mappings, project them into Hermes read-tool definitions, and execute prefixed `mlb_mcp__*` tool calls.
+- Hermes runtime now uses `getAgentRuntimeToolCatalog()` so projected internal MLB tools are included in model-visible catalog/allowlist generation, while public MCP routes remain unchanged.
+- `runHermesReadTool()` now returns runtime tool catalog for `get_tool_catalog` and delegates unknown prefixed tools to the internal MLB MCP bridge.
+- Added regression coverage:
+- `server/agent/internal-mlb-mcp.test.ts`
+- `server/agent/runtime-adapter.internal-mcp.test.ts`
+- `server/agent/hermes-tools.test.ts` (catalog merge + delegated read execution)
+- `server/agent/model-first-router.test.ts` (MLB MCP read -> trade-plan composition for `buy 10 shares...home runs last year`)
+- Validation summary:
+- `npm run check` passed.
+- `npm run lint` passed.
+- `npm run test:run` fails in this workspace because Vitest picks up unrelated `.claude/worktrees/flamboyant-dewdney/tests/e2e/*` Playwright specs plus an unrelated `.claude/worktrees/.../public-surface-coverage.test.ts` parity assertion; Hermes-targeted suites and the new tests pass.
+- Upstream/real-tool checks:
+- Cloned `https://github.com/etweisberg/mlb-mcp`, installed dependencies, and executed real leader-query calls successfully.
+- Verified Streamable HTTP endpoint behavior (`/mcp` works; root `/` returns `404` for MCP POST initialize).
+- Verified end-to-end Hermes bridge smoke against a live local `mlb-mcp` HTTP server: discovered `mlb_mcp__get_league_leader_data` and returned 2025 HR leader data through `runHermesReadTool`.
+
 ## 2026-03-24 MiniMax-Only Managed Provider + M2.7 In-House Default
 
 - [x] Remove non-MiniMax managed-provider options from the provider registry, system settings defaults, and managed-provider schema constraints

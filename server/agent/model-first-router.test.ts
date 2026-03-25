@@ -244,6 +244,122 @@ describe("model-first-router", () => {
     });
   });
 
+  it("chains an internal MLB MCP read before selecting a concrete trade plan tool", async () => {
+    mocks.callAgentModel
+      .mockResolvedValueOnce({
+        role: "assistant",
+        content: [
+          {
+            type: "toolCall",
+            id: "call_1",
+            name: "mlb_mcp__home_run_leaders",
+            arguments: {
+              season: 2025,
+            },
+          },
+        ],
+        api: "openai-completions",
+        provider: "chutes",
+        model: "test-model",
+        usage: buildUsage(),
+        stopReason: "tool_calls",
+        timestamp: Date.now(),
+      })
+      .mockResolvedValueOnce({
+        role: "assistant",
+        content: [
+          {
+            type: "toolCall",
+            id: "call_2",
+            name: "preview_direct_operation",
+            arguments: {
+              message: "buy 10 shares of Aaron Judge",
+            },
+          },
+        ],
+        api: "openai-completions",
+        provider: "chutes",
+        model: "test-model",
+        usage: buildUsage(),
+        stopReason: "tool_calls",
+        timestamp: Date.now(),
+      });
+    mocks.runHermesReadTool.mockResolvedValue({
+      summary: "Loaded MLB data via home_run_leaders.",
+      replyText: "Aaron Judge led MLB in home runs last season.",
+      context: {
+        provider: "internal_mlb_mcp",
+      },
+    });
+
+    const result = await runHermesModelToolLoop({
+      profile: {
+        displayName: "My Agent",
+        providerMode: "managed",
+        model: "test-model",
+        baseUrl: null,
+        systemPrompt: "test",
+        userPromptTemplate: "test",
+        temperature: "0.2",
+        maxTokens: 800,
+      } as any,
+      secret: undefined,
+      request: {
+        ...buildRequest(),
+        requestMode: "plan",
+        message: "buy 10 shares of the mlb player who had the most home runs last year",
+        toolAllowlist: ["mlb_mcp__home_run_leaders", "preview_direct_operation"],
+        toolCatalog: [
+          {
+            toolName: "mlb_mcp__home_run_leaders",
+            category: "read",
+            description: "Read MLB home run leaders from the internal provider.",
+            whenToUse: ["Need home run leaderboard context."],
+            whenNotToUse: [],
+            examplePrompts: ["who led mlb in home runs last year?"],
+            requiresConfirmation: false,
+            riskLevel: "low",
+            inputSchema: {
+              type: "object",
+              properties: {
+                season: {
+                  type: "number",
+                },
+              },
+              required: ["season"],
+              additionalProperties: true,
+            },
+          },
+          {
+            toolName: "preview_direct_operation",
+            category: "plan",
+            description: "Stage one action.",
+            whenToUse: ["Use when the user asks for one direct action."],
+            whenNotToUse: [],
+            examplePrompts: ["Buy $20 of a player."],
+            requiresConfirmation: true,
+            riskLevel: "medium",
+          },
+        ],
+      } as any,
+      matchedSkill: null,
+    });
+
+    expect(result).toMatchObject({
+      outcome: "tool",
+      toolName: "preview_direct_operation",
+      toolCategory: "plan",
+    });
+    expect(mocks.runHermesReadTool).toHaveBeenCalledWith({
+      toolName: "mlb_mcp__home_run_leaders",
+      userId: "user_1",
+      threadId: "thread_1",
+      args: {
+        season: 2025,
+      },
+    });
+  });
+
   it("returns a planning tool selection for confirmation-gated operations", async () => {
     mocks.callAgentModel.mockResolvedValue({
       role: "assistant",
