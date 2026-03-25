@@ -9,7 +9,6 @@ import {
   Sparkles,
   SquarePen,
   Layers,
-  Zap,
 } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -23,6 +22,7 @@ import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { AgentComposer } from "./components/agent-composer";
+import { AgentConfigurePanel } from "./components/agent-configure-panel";
 import { AgentStrategiesPanel } from "./components/agent-strategies-panel";
 import { AgentUiBlockList } from "./components/agent-ui-blocks";
 import {
@@ -31,7 +31,6 @@ import {
 } from "./components/agent-conversation";
 import {
   AgentErrorState,
-  AgentSettingsPanel,
   AgentThreadPanel,
 } from "./components/agent-panels";
 import { AgentStatusHeader } from "./components/agent-status-header";
@@ -40,8 +39,9 @@ import { getThreadTitle } from "./lib/agent-view";
 import { useAgentShell, type WorkspaceTab } from "./hooks/use-agent-shell";
 
 const WORKSPACE_TABS: Array<{ id: WorkspaceTab; label: string; icon: typeof MessageCircle }> = [
-  { id: "strategies", label: "Strategies", icon: Layers },
   { id: "chat", label: "Chat", icon: MessageCircle },
+  { id: "strategies", label: "Strategies", icon: Layers },
+  { id: "configure", label: "Configure", icon: Settings2 },
 ];
 
 const STARTER_PROMPTS = [
@@ -66,9 +66,11 @@ export default function AgentShell() {
             (shell.chatThreads || []).findIndex((t) => t.id === shell.activeChatThread!.id),
           )
         : "New Chat"
-      : shell.isMobileStrategyDetailOpen
-        ? shell.strategyDetail?.name || "Strategies"
-        : "Strategies";
+      : shell.workspaceTab === "strategies"
+        ? shell.isMobileStrategyDetailOpen
+          ? shell.strategyDetail?.name || "Strategies"
+          : "Strategies"
+        : "Configure";
 
   return (
     <>
@@ -107,15 +109,6 @@ export default function AgentShell() {
                     New chat
                   </Button>
                 )}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 gap-1.5 rounded-lg text-white/50 hover:bg-white/[0.06] hover:text-white/80"
-                  onClick={() => shell.setDrawerOpen("settings")}
-                >
-                  <Settings2 className="h-3.5 w-3.5" />
-                  Settings
-                </Button>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -176,13 +169,6 @@ export default function AgentShell() {
                         Save as strategy
                       </DropdownMenuItem>
                     )}
-                    <DropdownMenuItem
-                      className="gap-2 rounded-lg px-3 py-2.5 text-sm focus:bg-white/[0.06]"
-                      onSelect={() => shell.setDrawerOpen("settings")}
-                    >
-                      <Settings2 className="h-4 w-4 text-white/40" />
-                      Settings
-                    </DropdownMenuItem>
                     <DropdownMenuItem
                       asChild
                       className="gap-2 rounded-lg px-3 py-2.5 text-sm focus:bg-white/[0.06]"
@@ -486,13 +472,49 @@ export default function AgentShell() {
                     />
                   )}
                 </div>
+
+                {/* ── Configure Tab ── */}
+                <div
+                  className={cn(
+                    "min-h-0 flex-1 flex-col overflow-hidden",
+                    shell.workspaceTab === "configure" ? "flex" : "hidden",
+                  )}
+                >
+                  <AgentConfigurePanel
+                    profileData={shell.profileData}
+                    isLoadingProfile={shell.isLoadingProfile}
+                    profileError={shell.profileError}
+                    onRetry={() => void shell.refetchProfile()}
+                    enabled={shell.enabled}
+                    onEnabledChange={shell.setEnabled}
+                    providerMode={shell.providerMode}
+                    onProviderModeChange={shell.setProviderMode}
+                    userPromptTemplate={shell.userPromptTemplate}
+                    onUserPromptTemplateChange={shell.setUserPromptTemplate}
+                    defaultSport={shell.defaultSport}
+                    onDefaultSportChange={shell.setDefaultSport}
+                    baseUrl={shell.baseUrl}
+                    onBaseUrlChange={shell.setBaseUrl}
+                    model={shell.model}
+                    onModelChange={shell.setModel}
+                    apiKey={shell.apiKey}
+                    onApiKeyChange={shell.setApiKey}
+                    onSaveProfile={() => shell.saveProfileMutation.mutate()}
+                    isSavingProfile={shell.saveProfileMutation.isPending}
+                    onSaveByok={() => shell.saveByokMutation.mutate()}
+                    isSavingByok={shell.saveByokMutation.isPending}
+                    onClearByok={() => shell.clearByokMutation.mutate()}
+                    isClearingByok={shell.clearByokMutation.isPending}
+                    schedules={shell.runtimeDetails?.schedules}
+                  />
+                </div>
               </>
             )}
           </div>
         </div>
       </div>
 
-      {/* ── Drawers ── */}
+      {/* ── Thread Drawer (mobile) ── */}
       <Sheet
         open={shell.drawerOpen === "threads"}
         onOpenChange={(open) => shell.setDrawerOpen(open ? "threads" : null)}
@@ -514,43 +536,6 @@ export default function AgentShell() {
             }}
             onStartFresh={() => void shell.handleStartFreshChat()}
             onClose={() => shell.setDrawerOpen(null)}
-          />
-        </SheetContent>
-      </Sheet>
-
-      <Sheet
-        open={shell.drawerOpen === "settings"}
-        onOpenChange={(open) => shell.setDrawerOpen(open ? "settings" : null)}
-      >
-        <SheetContent
-          side="right"
-          className="w-full border-white/[0.08] bg-[#0f1320] p-0 text-white sm:max-w-lg"
-        >
-          <AgentSettingsPanel
-            profileData={shell.profileData}
-            isLoadingProfile={shell.isLoadingProfile}
-            profileError={shell.profileError}
-            onRetry={() => void shell.refetchProfile()}
-            enabled={shell.enabled}
-            onEnabledChange={shell.setEnabled}
-            providerMode={shell.providerMode}
-            onProviderModeChange={shell.setProviderMode}
-            userPromptTemplate={shell.userPromptTemplate}
-            onUserPromptTemplateChange={shell.setUserPromptTemplate}
-            defaultSport={shell.defaultSport}
-            onDefaultSportChange={shell.setDefaultSport}
-            baseUrl={shell.baseUrl}
-            onBaseUrlChange={shell.setBaseUrl}
-            model={shell.model}
-            onModelChange={shell.setModel}
-            apiKey={shell.apiKey}
-            onApiKeyChange={shell.setApiKey}
-            onSaveProfile={() => shell.saveProfileMutation.mutate()}
-            isSavingProfile={shell.saveProfileMutation.isPending}
-            onSaveByok={() => shell.saveByokMutation.mutate()}
-            isSavingByok={shell.saveByokMutation.isPending}
-            onClearByok={() => shell.clearByokMutation.mutate()}
-            isClearingByok={shell.clearByokMutation.isPending}
           />
         </SheetContent>
       </Sheet>

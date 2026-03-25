@@ -348,17 +348,17 @@ function StrategyDeskBrief({
   ];
 
   return (
-    <section className="min-w-0 w-full overflow-hidden border-b border-[#1f2634] bg-[#0b1120] md:terminal-shell md:border md:border-[#1f2634] md:bg-[linear-gradient(135deg,rgba(14,19,31,0.96),rgba(8,12,23,0.98))]">
+    <section className="min-w-0 w-full overflow-hidden border-b border-[#1f2634] bg-[#0b1120] md:rounded-xl md:border md:border-white/[0.06] md:bg-white/[0.02]">
       <div className="border-b border-[#222938] px-0 py-2 sm:px-4 md:px-3 md:py-3">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <div className="terminal-kicker">Strategy desk</div>
+            <div className="text-[10px] font-medium uppercase tracking-wider text-white/40">Strategy desk</div>
             <div className="mt-1 flex flex-wrap items-center gap-2">
               <div className="truncate text-sm font-semibold text-slate-50 sm:text-base">
                 {selectedDetail?.name || "Strategy desk"}
               </div>
               {nextRunLabel ? (
-                <span className="terminal-strip py-1">{`Next ${nextRunLabel}`}</span>
+                <span className="inline-flex items-center rounded-full border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-[10px] font-medium text-white/60">{`Next ${nextRunLabel}`}</span>
               ) : null}
               {leadLoop ? (
                 <Badge
@@ -412,7 +412,7 @@ function StrategyDeskBrief({
 
       <div className="hidden gap-px bg-[#222938] md:grid md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <div className="bg-[#0f1524] px-0 py-2.5 sm:px-4 md:px-3 md:py-3">
-          <div className="terminal-label">Active focus</div>
+          <div className="text-[10px] font-medium uppercase tracking-wider text-white/35">Active focus</div>
           <div className="mt-1 text-sm font-semibold text-slate-50">
             {selectedDetail?.name || "No strategy selected"}
           </div>
@@ -423,7 +423,7 @@ function StrategyDeskBrief({
         </div>
 
         <div className="bg-[#0f1524] px-0 py-2.5 sm:px-4 md:px-3 md:py-3">
-          <div className="terminal-label">Next action</div>
+          <div className="text-[10px] font-medium uppercase tracking-wider text-white/35">Next action</div>
           <div className="mt-1 text-sm font-semibold text-slate-50">
             {leadLoop?.title || "Awaiting next trigger"}
           </div>
@@ -459,12 +459,12 @@ function StrategySlots({
   const slots = Array.from({ length: 5 }, (_, index) => strategies[index] || null);
 
   return (
-    <div className="flex min-h-0 min-w-0 w-full flex-col border-t border-[#1f2634] bg-[#0b1120] md:terminal-shell md:border md:border-[#1f2634] md:bg-[linear-gradient(180deg,rgba(14,19,31,0.96),rgba(8,12,23,0.98))]">
+    <div className="flex min-h-0 min-w-0 w-full flex-col border-t border-[#1f2634] bg-[#0b1120] md:rounded-xl md:border md:border-white/[0.06] md:bg-white/[0.02]">
       {showHeader ? (
         <div className="border-b border-[#222938] px-0 py-2 sm:px-4 md:px-3 md:py-3">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <div className="terminal-kicker">Strategy rail</div>
+              <div className="text-[10px] font-medium uppercase tracking-wider text-white/40">Strategy rail</div>
               <div className="mt-1 text-sm font-semibold text-slate-50">Saved slots</div>
             </div>
             <Badge variant="outline" className="border-[#2a2e39] text-slate-300">
@@ -595,12 +595,12 @@ function StrategyOverview({ strategyDetail }: { strategyDetail: AgentStrategyDet
         <AgentUiBlockList blocks={overviewBlocks} />
       </div>
 
-      <section className="border-t border-[#1f2634] px-0 py-3 md:terminal-shell md:border md:p-4">
-        <div className="terminal-kicker">Continuous state</div>
+      <section className="border-t border-[#1f2634] px-0 py-3 md:rounded-xl md:border md:border-white/[0.06] md:bg-white/[0.02] md:p-4">
+        <div className="text-[10px] font-medium uppercase tracking-wider text-white/40">Continuous state</div>
         <div className="mt-1 text-sm font-semibold text-slate-50">{continuity.headline}</div>
         <div className="mt-2 grid gap-3 xl:grid-cols-3">
           <div className="space-y-2">
-            <div className="terminal-label">Open loops</div>
+            <div className="text-[10px] font-medium uppercase tracking-wider text-white/35">Open loops</div>
             {continuity.openLoops.length > 0 ? (
               continuity.openLoops.slice(0, 3).map((loop) => (
                 <div key={loop.id} className="border border-border bg-sidebar/25 px-3 py-2.5">
@@ -623,7 +623,7 @@ function StrategyOverview({ strategyDetail }: { strategyDetail: AgentStrategyDet
           </div>
 
           <div className="space-y-2">
-            <div className="terminal-label">Recent actions</div>
+            <div className="text-[10px] font-medium uppercase tracking-wider text-white/35">Recent actions</div>
             {continuity.recentActions.length > 0 ? (
               continuity.recentActions.slice(0, 3).map((action) => (
                 <div key={action.id} className="border border-border bg-sidebar/25 px-3 py-2.5">
@@ -643,7 +643,7 @@ function StrategyOverview({ strategyDetail }: { strategyDetail: AgentStrategyDet
           </div>
 
           <div className="space-y-2">
-            <div className="terminal-label">Evidence</div>
+            <div className="text-[10px] font-medium uppercase tracking-wider text-white/35">Evidence</div>
             {continuity.evidenceUpdates.length > 0 || continuity.activeStrategies.length > 0 ? (
               <>
                 {continuity.evidenceUpdates.slice(0, 2).map((evidence) => (
@@ -684,7 +684,7 @@ function StrategyOverview({ strategyDetail }: { strategyDetail: AgentStrategyDet
         </div>
       </section>
 
-      <section className="border-t border-[#1f2634] px-0 py-3 md:terminal-shell md:border md:p-4">
+      <section className="border-t border-[#1f2634] px-0 py-3 md:rounded-xl md:border md:border-white/[0.06] md:bg-white/[0.02] md:p-4">
         <div className="flex items-center gap-2 text-sm font-semibold text-slate-50">
           <Clock3 className="h-4 w-4 text-sky-300" />
           Strategy timeline
@@ -730,7 +730,7 @@ function StrategyOverview({ strategyDetail }: { strategyDetail: AgentStrategyDet
         </div>
       </section>
 
-      <section className="border-t border-[#1f2634] px-0 py-3 md:terminal-shell md:border md:p-4">
+      <section className="border-t border-[#1f2634] px-0 py-3 md:rounded-xl md:border md:border-white/[0.06] md:bg-white/[0.02] md:p-4">
         <div className="flex items-center gap-2 text-sm font-semibold text-slate-50">
           <Rocket className="h-4 w-4 text-sky-300" />
           Strategy instructions
@@ -738,7 +738,7 @@ function StrategyOverview({ strategyDetail }: { strategyDetail: AgentStrategyDet
         <div className="mt-2 text-sm leading-6 text-slate-300">{strategyDetail.mandateText}</div>
       </section>
 
-      <section className="border-t border-[#1f2634] px-0 py-3 md:terminal-shell md:border md:p-4">
+      <section className="border-t border-[#1f2634] px-0 py-3 md:rounded-xl md:border md:border-white/[0.06] md:bg-white/[0.02] md:p-4">
         <div className="flex items-center gap-2 text-sm font-semibold text-slate-50">
           <Clock3 className="h-4 w-4 text-sky-300" />
           Operations timeline
@@ -808,7 +808,7 @@ function StrategyRulesForm({
 
   return (
     <div className="space-y-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] sm:pb-4">
-      <section className="border-t border-[#1f2634] px-0 py-3 md:terminal-shell md:border md:p-4">
+      <section className="border-t border-[#1f2634] px-0 py-3 md:rounded-xl md:border md:border-white/[0.06] md:bg-white/[0.02] md:p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="flex items-center gap-2 text-sm font-semibold text-slate-50">
@@ -887,7 +887,7 @@ function StrategyRulesForm({
         </Button>
       </section>
 
-      <section className="border-t border-[#1f2634] px-0 py-3 md:terminal-shell md:border md:p-4">
+      <section className="border-t border-[#1f2634] px-0 py-3 md:rounded-xl md:border md:border-white/[0.06] md:bg-white/[0.02] md:p-4">
         <div className="flex items-center gap-2 text-sm font-semibold text-slate-50">
           <Settings2 className="h-4 w-4 text-amber-300" />
           Saved strategy rules
@@ -1065,7 +1065,7 @@ function StrategyChatTab({
     <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
       <div className="border-b border-[#222938] px-0 py-1.5 sm:px-4 md:px-3 md:py-2">
         <div className="flex items-center justify-between gap-2">
-          <div className="terminal-kicker">Strategy chat</div>
+          <div className="text-[10px] font-medium uppercase tracking-wider text-white/40">Strategy chat</div>
           <div className="font-mono text-[10px] uppercase tracking-[0.12em] text-slate-500">
             {strategyDetail.nextRunAt
               ? `Wake ${formatDateTime(strategyDetail.nextRunAt)}`
@@ -1225,7 +1225,7 @@ function StrategyDetailWorkspace({
 
   return (
     <div
-      className="flex h-full min-h-0 min-w-0 w-full flex-col overflow-hidden border-t border-[#1f2634] bg-[#0b1120] md:terminal-shell md:border md:border-[#1f2634] md:bg-[linear-gradient(180deg,rgba(14,19,31,0.96),rgba(8,12,23,0.98))]"
+      className="flex h-full min-h-0 min-w-0 w-full flex-col overflow-hidden border-t border-[#1f2634] bg-[#0b1120] md:rounded-xl md:border md:border-white/[0.06] md:bg-white/[0.02]"
       data-testid="strategy-detail"
     >
       <div className="border-b border-[#222938] bg-[#0b1120] px-0 py-2 sm:px-4 md:bg-[linear-gradient(180deg,rgba(17,23,39,0.96),rgba(12,17,29,0.98))] md:px-3 md:py-4">
@@ -1356,21 +1356,21 @@ function StrategyDetailWorkspace({
                 {strategyDetail.status === "live" ? "active" : strategyDetail.status}
               </Badge>
               {needsReview ? (
-                <span className="terminal-strip py-1 text-amber-200">review needed</span>
+                <span className="inline-flex items-center rounded-full border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-[10px] font-medium text-white/60 text-amber-200">review needed</span>
               ) : null}
             </div>
             <div className="mt-2 flex flex-wrap gap-2">
-              <span className="terminal-strip py-1">
+              <span className="inline-flex items-center rounded-full border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-[10px] font-medium text-white/60">
                 {strategyDetail.nextRunAt
                   ? `Next wake ${formatDateTime(strategyDetail.nextRunAt)}`
                   : "No wake scheduled"}
               </span>
-              <span className="terminal-strip py-1">
+              <span className="inline-flex items-center rounded-full border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-[10px] font-medium text-white/60">
                 {strategyDetail.allowedActionTypes.length > 0
                   ? `${strategyDetail.allowedActionTypes.length} action types`
                   : "Action scope not finalized"}
               </span>
-              <span className="terminal-strip py-1">
+              <span className="inline-flex items-center rounded-full border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-[10px] font-medium text-white/60">
                 {reviewState.status === "approved" ? "Reviewed" : "Pending review"}
               </span>
             </div>
@@ -1559,8 +1559,8 @@ export function AgentStrategiesPanel({
     <div className="flex h-full min-h-0 min-w-0 w-full flex-col">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2 border-b border-[#1f2634] pb-2 md:mb-3 md:gap-3 md:pb-3">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="terminal-strip py-1">{`${strategyList.length}/5 templates`}</span>
-          <span className="terminal-strip py-1">
+          <span className="inline-flex items-center rounded-full border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-[10px] font-medium text-white/60">{`${strategyList.length}/5 templates`}</span>
+          <span className="inline-flex items-center rounded-full border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-[10px] font-medium text-white/60">
             {strategyList.some((strategy) => strategy.status === "live")
               ? "1 active strategy"
               : "No active strategy"}
@@ -1574,7 +1574,7 @@ export function AgentStrategiesPanel({
       </div>
 
       {isLoading && strategyList.length === 0 ? (
-        <div className="terminal-shell flex min-h-[14rem] items-center justify-center text-sm text-slate-300">
+        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] flex min-h-[14rem] items-center justify-center text-sm text-slate-300">
           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           Loading strategies...
         </div>
@@ -1606,7 +1606,7 @@ export function AgentStrategiesPanel({
                 </div>
               </div>
             ) : isDetailLoading && selectedStrategyId ? (
-              <div className="terminal-shell flex h-full min-h-[18rem] items-center justify-center text-sm text-slate-300">
+              <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] flex h-full min-h-[18rem] items-center justify-center text-sm text-slate-300">
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Loading strategy details...
               </div>
@@ -1643,7 +1643,7 @@ export function AgentStrategiesPanel({
                 endRef={strategyThreadEndRef}
               />
             ) : (
-              <div className="terminal-shell flex h-full min-h-[18rem] items-center justify-center border-dashed bg-sidebar/15 px-6 text-center text-sm leading-6 text-slate-400">
+              <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] flex h-full min-h-[18rem] items-center justify-center border-dashed bg-sidebar/15 px-6 text-center text-sm leading-6 text-slate-400">
                 Pick a strategy slot to review it, or create a new one to open a dedicated strategy
                 chat with Hermes.
               </div>
@@ -1668,7 +1668,7 @@ export function AgentStrategiesPanel({
 
               <div className={cn("min-h-0", selectedStrategyId ? "block" : "hidden md:block")}>
                 {isDetailLoading && selectedStrategyId ? (
-                  <div className="terminal-shell flex h-full min-h-[18rem] items-center justify-center text-sm text-slate-300">
+                  <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] flex h-full min-h-[18rem] items-center justify-center text-sm text-slate-300">
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Loading strategy details...
                   </div>
@@ -1705,7 +1705,7 @@ export function AgentStrategiesPanel({
                     endRef={strategyThreadEndRef}
                   />
                 ) : (
-                  <div className="terminal-shell flex h-full min-h-[18rem] items-center justify-center border-dashed bg-sidebar/15 px-6 text-center text-sm leading-6 text-slate-400">
+                  <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] flex h-full min-h-[18rem] items-center justify-center border-dashed bg-sidebar/15 px-6 text-center text-sm leading-6 text-slate-400">
                     Pick a strategy slot to review it, or create a new one to open a dedicated
                     strategy chat with Hermes.
                   </div>
