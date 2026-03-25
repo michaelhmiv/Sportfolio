@@ -1,3 +1,69 @@
+## 2026-03-25 Internal MLB MCP Review Fixes
+
+- [x] Add a short-lived negative cache for internal MLB MCP discovery failures so repeated Hermes turns fail fast during outages
+- [x] Bound internal MLB MCP tool payloads before returning them to Hermes and add regression coverage
+- [x] Run required validation (`npm run check`, `npm run lint`, `npm run test:run`) plus focused agent tests, then push the PR branch
+
+Review:
+
+- `server/agent/internal-mlb-mcp.ts` now extends the cached discovery snapshot with a short retry window when refresh fails, including the cold-start/no-cache case, so repeated Hermes turns return the cached empty/stale catalog instead of stalling on every discovery timeout.
+- The internal MLB MCP read bridge now bounds `replyText`, `structuredContent`, and raw `content` before returning tool results to Hermes, and records truncation metadata when the payload was clipped.
+- Added focused regression coverage in `server/agent/internal-mlb-mcp.test.ts` for both the failure-cache behavior and the oversized-payload truncation path.
+- Validation status:
+- `npx vitest run server/agent/internal-mlb-mcp.test.ts server/agent/runtime-adapter.internal-mcp.test.ts server/agent/hermes-tools.test.ts` passed.
+- `npm run check` passed.
+- `npm run lint` passed.
+- `npm run test:run` still fails due pre-existing Vitest collection of `.claude/worktrees/flamboyant-dewdney/tests/e2e/*.spec.ts` Playwright files, unrelated to this patch.
+- `npm run format:check` still fails due pre-existing formatting drift in unrelated files under `client/src/features/agent/*`, `server/agent/*`, and `server/agent/strategy-runner.test.ts`; the touched files for this patch were formatted and pass targeted Prettier checks.
+
+## 2026-03-25 Hermes BYOK OpenRouter Parity + Conflict Resolution
+
+- [x] Confirm rebase/merge-conflict cleanup on `server/agent/hermes-tools.ts` and branch state
+- [x] Run live BYOK smoke with OpenRouter `MiniMax-M2.7` through Hermes runtime/tool loop
+- [x] Run managed/in-house MiniMax smoke with equivalent prompt for parity comparison
+- [x] Patch BYOK/runtime/UI behavior if any divergence is discovered
+- [x] Run required validation (`npm run check`, `npm run lint`, `npm run test:run`) and targeted Hermes tests
+- [ ] Push branch and update PR
+
+Review:
+
+- Resolved the `server/agent/hermes-tools.ts` merge conflict by keeping both the main-branch imports and the internal MLB MCP bridge imports.
+- Root-cause fix: BYOK OpenRouter failed when users entered `MiniMax-M2.7` because OpenRouter requires provider-prefixed IDs (for example `minimax/minimax-m2.7`).
+- Added server-side model normalization for OpenRouter BYOK so managed-style MiniMax IDs are accepted and translated automatically.
+- Added regression coverage in `server/agent/pi-provider.test.ts` and surfaced an explicit OpenRouter model-format hint in the BYOK UI.
+- Live parity smoke (managed + BYOK, same prompt path) succeeded with Hermes calling `mlb_mcp__get_league_leader_data` in all successful runs.
+- Validation status:
+- `npm run check` passed.
+- `npm run lint` passed.
+- `npm run test:run` failed due pre-existing `.claude/worktrees/flamboyant-dewdney/tests/e2e/*.spec.ts` Playwright collection errors unrelated to this patch.
+
+## 2026-03-24 Internal MLB MCP Provider via Hermes (Railway)
+
+- [x] Add a Hermes-owned internal MLB MCP client/registry module that discovers tools from the Railway private service and projects them into Hermes tool definitions
+- [x] Merge projected internal MLB MCP tools into the runtime Hermes tool catalog/allowlist without changing the public MCP surface
+- [x] Route Hermes read-tool execution for projected MLB MCP tools through the internal MCP client and preserve strict internal-only behavior
+- [x] Add focused regression tests for runtime tool catalog merge and projected read-tool execution
+- [x] Run required validation (`npm run check`, `npm run lint`, `npm run test:run`) and targeted Hermes tests/smoke coverage
+
+Review:
+
+- Added `server/agent/internal-mlb-mcp.ts` to discover internal MLB MCP tools over Streamable HTTP, cache mappings, project them into Hermes read-tool definitions, and execute prefixed `mlb_mcp__*` tool calls.
+- Hermes runtime now uses `getAgentRuntimeToolCatalog()` so projected internal MLB tools are included in model-visible catalog/allowlist generation, while public MCP routes remain unchanged.
+- `runHermesReadTool()` now returns runtime tool catalog for `get_tool_catalog` and delegates unknown prefixed tools to the internal MLB MCP bridge.
+- Added regression coverage:
+- `server/agent/internal-mlb-mcp.test.ts`
+- `server/agent/runtime-adapter.internal-mcp.test.ts`
+- `server/agent/hermes-tools.test.ts` (catalog merge + delegated read execution)
+- `server/agent/model-first-router.test.ts` (MLB MCP read -> trade-plan composition for `buy 10 shares...home runs last year`)
+- Validation summary:
+- `npm run check` passed.
+- `npm run lint` passed.
+- `npm run test:run` fails in this workspace because Vitest picks up unrelated `.claude/worktrees/flamboyant-dewdney/tests/e2e/*` Playwright specs plus an unrelated `.claude/worktrees/.../public-surface-coverage.test.ts` parity assertion; Hermes-targeted suites and the new tests pass.
+- Upstream/real-tool checks:
+- Cloned `https://github.com/etweisberg/mlb-mcp`, installed dependencies, and executed real leader-query calls successfully.
+- Verified Streamable HTTP endpoint behavior (`/mcp` works; root `/` returns `404` for MCP POST initialize).
+- Verified end-to-end Hermes bridge smoke against a live local `mlb-mcp` HTTP server: discovered `mlb_mcp__get_league_leader_data` and returned 2025 HR leader data through `runHermesReadTool`.
+
 ## 2026-03-24 MiniMax-Only Managed Provider + M2.7 In-House Default
 
 - [x] Remove non-MiniMax managed-provider options from the provider registry, system settings defaults, and managed-provider schema constraints

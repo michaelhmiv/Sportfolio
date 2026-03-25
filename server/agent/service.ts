@@ -21,7 +21,7 @@ import { executeScoutProposalActions } from "./executor";
 import { runHermesRuntimeTurn } from "./runtime-engine";
 import { buildAgentImprovementCandidate } from "./improvement";
 import { buildHermesMemoryContext, persistProposedMemoryWrites } from "./memory";
-import { normalizeOpenAICompatibleBaseUrl } from "./pi-provider";
+import { normalizeOpenAICompatibleBaseUrl, normalizeOpenAICompatibleModelId } from "./pi-provider";
 import {
   DEFAULT_PORTFOLIO_AGENT_DISPLAY_NAME,
   DEFAULT_PORTFOLIO_AGENT_SYSTEM_PROMPT,
@@ -662,6 +662,7 @@ export async function saveScoutAgentByok(
 ): Promise<AgentProfileView> {
   const data = userAgentByokInputSchema.parse(input);
   const normalizedBaseUrl = normalizeOpenAICompatibleBaseUrl(data.baseUrl);
+  const normalizedModel = normalizeOpenAICompatibleModelId(data.model, normalizedBaseUrl);
   const encrypted = encryptText(data.apiKey);
   const managedProvider = await getActiveManagedProviderStatus();
 
@@ -697,7 +698,7 @@ export async function saveScoutAgentByok(
       providerMode: "byok",
       providerType: "openai_compatible",
       baseUrl: normalizedBaseUrl,
-      model: data.model,
+      model: normalizedModel,
       updatedAt: new Date(),
     })
     .where(eq(userAgentProfiles.userId, userId));

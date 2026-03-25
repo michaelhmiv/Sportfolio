@@ -46,6 +46,11 @@ import { dailyGames, players } from "@shared/schema";
 import { and, eq, gte, inArray, lte, or } from "drizzle-orm";
 import { db } from "../db";
 import { queryExternalSource } from "./mcp-client";
+import {
+  getInternalMlbMcpToolCatalog,
+  isInternalMlbMcpProjectedTool,
+  runInternalMlbMcpReadTool,
+} from "./internal-mlb-mcp";
 import type {
   AgentChannel,
   AgentSkillStep,
@@ -460,23 +465,40 @@ const AGENT_TOOL_CATALOG: AgentToolDefinition[] = [
 
 const BOOST_SLOT_TIERS = [5, 4, 3, 2] as const;
 
-export function getAgentToolCatalog(): AgentToolDefinition[] {
+function cloneToolCatalogEntry(entry: AgentToolDefinition): AgentToolDefinition {
+  return {
+    ...entry,
+    whenToUse: [...entry.whenToUse],
+    whenNotToUse: [...entry.whenNotToUse],
+    examplePrompts: [...entry.examplePrompts],
+    autoContextArgs: [...(entry.autoContextArgs || [])],
+    inputSchema: entry.inputSchema
+      ? (JSON.parse(JSON.stringify(entry.inputSchema)) as Record<string, unknown>)
+      : null,
+  };
+}
+
+function buildMergedToolCatalog(entries: AgentToolDefinition[]): AgentToolDefinition[] {
   const merged = new Map<string, AgentToolDefinition>();
 
-  for (const entry of AGENT_TOOL_CATALOG) {
-    merged.set(entry.toolName, {
-      ...entry,
-      whenToUse: [...entry.whenToUse],
-      whenNotToUse: [...entry.whenNotToUse],
-      examplePrompts: [...entry.examplePrompts],
-    });
-  }
-
-  for (const entry of getCoreHermesToolCatalog()) {
-    merged.set(entry.toolName, entry);
+  for (const entry of entries) {
+    merged.set(entry.toolName, cloneToolCatalogEntry(entry));
   }
 
   return [...merged.values()];
+}
+
+export function getAgentToolCatalog(): AgentToolDefinition[] {
+  return buildMergedToolCatalog([...AGENT_TOOL_CATALOG, ...getCoreHermesToolCatalog()]);
+}
+
+export async function getAgentRuntimeToolCatalog(): Promise<AgentToolDefinition[]> {
+  const internalMlbTools = await getInternalMlbMcpToolCatalog();
+  return buildMergedToolCatalog([
+    ...AGENT_TOOL_CATALOG,
+    ...getCoreHermesToolCatalog(),
+    ...internalMlbTools,
+  ]);
 }
 
 function toStringValue(value: unknown): string {
@@ -2428,7 +2450,7 @@ export async function runHermesReadTool(input: {
 }): Promise<unknown> {
   switch (input.toolName) {
     case "get_tool_catalog":
-      return getAgentToolCatalog();
+      return getAgentRuntimeToolCatalog();
     case "get_agent_capabilities":
       return getAgentCapabilities(input.userId);
     case "get_thread_state":
@@ -2772,6 +2794,12 @@ export async function runHermesReadTool(input: {
           .pendingActionBundle,
       };
     default:
+      if (isInternalMlbMcpProjectedTool(input.toolName)) {
+        return runInternalMlbMcpReadTool({
+          toolName: input.toolName,
+          args: input.args,
+        });
+      }
       throw new Error(`Unsupported Hermes read tool: ${input.toolName}`);
   }
 }

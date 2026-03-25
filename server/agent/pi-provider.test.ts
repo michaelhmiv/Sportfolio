@@ -68,6 +68,30 @@ describe("pi-provider", () => {
     expect(runtime.apiKey).toBe("test-key");
   });
 
+  it("normalizes OpenRouter MiniMax model aliases for BYOK runtime resolution", async () => {
+    const { resolveOpenAICompatiblePiRuntime } = await import("./pi-provider");
+    const runtime = resolveOpenAICompatiblePiRuntime({
+      apiKey: "test-key",
+      baseUrl: "https://openrouter.ai/api/v1",
+      model: "MiniMax-M2.7",
+    });
+
+    expect(runtime.model.baseUrl).toBe("https://openrouter.ai/api/v1");
+    expect(runtime.model.id).toBe("minimax/minimax-m2.7");
+  });
+
+  it("keeps non-OpenRouter BYOK model ids unchanged", async () => {
+    const { resolveOpenAICompatiblePiRuntime } = await import("./pi-provider");
+    const runtime = resolveOpenAICompatiblePiRuntime({
+      apiKey: "test-key",
+      baseUrl: "https://api.openai.com/v1",
+      model: "MiniMax-M2.7",
+    });
+
+    expect(runtime.model.baseUrl).toBe("https://api.openai.com/v1");
+    expect(runtime.model.id).toBe("MiniMax-M2.7");
+  });
+
   it("uses openai-compatible transport with minimax-specific payload defaults", async () => {
     process.env.MINIMAX_API_KEY = "test-minimax";
     process.env.MINIMAX_DEFAULT_MODEL = "MiniMax-M2.7";

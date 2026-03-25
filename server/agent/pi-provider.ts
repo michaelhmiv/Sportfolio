@@ -64,6 +64,43 @@ export function normalizeOpenAICompatibleBaseUrl(rawBaseUrl: string): string {
   return parsedUrl.toString().replace(/\/+$/, "");
 }
 
+function isOpenRouterHost(hostname: string): boolean {
+  const normalized = hostname.trim().toLowerCase();
+  return normalized === "openrouter.ai" || normalized.endsWith(".openrouter.ai");
+}
+
+export function normalizeOpenAICompatibleModelId(
+  rawModel: string,
+  normalizedBaseUrl: string,
+): string {
+  const model = rawModel.trim();
+  if (!model) {
+    return model;
+  }
+
+  let baseUrl: URL;
+  try {
+    baseUrl = new URL(normalizedBaseUrl);
+  } catch {
+    return model;
+  }
+
+  if (!isOpenRouterHost(baseUrl.hostname)) {
+    return model;
+  }
+
+  if (model.includes("/")) {
+    return model;
+  }
+
+  const lowerModel = model.toLowerCase();
+  if (lowerModel.startsWith("minimax-")) {
+    return `minimax/${lowerModel}`;
+  }
+
+  return model;
+}
+
 function buildCustomOpenAIModel(input: {
   modelId: string;
   providerId: string;
@@ -216,12 +253,15 @@ export function resolveOpenAICompatiblePiRuntime(input: {
   baseUrl: string;
   model: string;
 }): PiRuntime {
+  const normalizedBaseUrl = normalizeOpenAICompatibleBaseUrl(input.baseUrl);
+  const normalizedModel = normalizeOpenAICompatibleModelId(input.model, normalizedBaseUrl);
+
   return {
     apiKey: input.apiKey,
     model: buildCustomOpenAIModel({
-      modelId: input.model,
+      modelId: normalizedModel,
       providerId: "openai-compatible",
-      baseUrl: normalizeOpenAICompatibleBaseUrl(input.baseUrl),
+      baseUrl: normalizedBaseUrl,
     }),
   };
 }

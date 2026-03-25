@@ -308,11 +308,7 @@ function DataSourcesSection() {
   );
 }
 
-function SchedulesSection({
-  schedules,
-}: {
-  schedules: AgentScheduleSummary[] | undefined;
-}) {
+function SchedulesSection({ schedules }: { schedules: AgentScheduleSummary[] | undefined }) {
   return (
     <div className="space-y-3">
       <SectionHeader icon={Clock} title="Schedules" />
@@ -597,8 +593,7 @@ function GeneralSettingsSection({
       <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
         <div className="text-sm font-semibold text-white/90">Connection Details</div>
         <div className="mt-1 text-xs leading-5 text-white/40">
-          Managed mode uses the platform default. BYOK credentials are behind the advanced
-          section.
+          Managed mode uses the platform default. BYOK credentials are behind the advanced section.
         </div>
 
         {providerMode === "managed" ? (
@@ -636,6 +631,9 @@ function GeneralSettingsSection({
                     onChange={(event) => onModelChange(event.target.value)}
                     placeholder="gpt-4o-mini"
                   />
+                  <p className="text-[11px] leading-4 text-white/35">
+                    OpenRouter example: <span className="font-mono">minimax/minimax-m2.7</span>
+                  </p>
                 </div>
               </div>
               <div className="space-y-1.5">
@@ -656,9 +654,7 @@ function GeneralSettingsSection({
                 <Button
                   className="h-9 rounded-xl bg-white/90 text-xs font-medium text-black hover:bg-white"
                   onClick={onSaveByok}
-                  disabled={
-                    isSavingByok || !apiKey.trim() || !baseUrl.trim() || !model.trim()
-                  }
+                  disabled={isSavingByok || !apiKey.trim() || !baseUrl.trim() || !model.trim()}
                 >
                   {isSavingByok && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Save BYOK

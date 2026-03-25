@@ -58,6 +58,9 @@ const mocks = vi.hoisted(() => ({
   listAgentSkillCandidates: vi.fn(),
   listAvailableAgentSkills: vi.fn(),
   proposeGlobalSkillCandidate: vi.fn(),
+  getInternalMlbMcpToolCatalog: vi.fn(),
+  isInternalMlbMcpProjectedTool: vi.fn(),
+  runInternalMlbMcpReadTool: vi.fn(),
 }));
 
 vi.mock("./service", () => ({
@@ -132,6 +135,12 @@ vi.mock("./skills", () => ({
   proposeGlobalSkillCandidate: mocks.proposeGlobalSkillCandidate,
 }));
 
+vi.mock("./internal-mlb-mcp", () => ({
+  getInternalMlbMcpToolCatalog: mocks.getInternalMlbMcpToolCatalog,
+  isInternalMlbMcpProjectedTool: mocks.isInternalMlbMcpProjectedTool,
+  runInternalMlbMcpReadTool: mocks.runInternalMlbMcpReadTool,
+}));
+
 import {
   runHermesActionTool,
   runHermesPlanTool,
@@ -174,6 +183,9 @@ describe("hermes-tools", () => {
     ]);
     mocks.listAvailableAgentSkills.mockResolvedValue([]);
     mocks.listAgentSkillCandidates.mockResolvedValue([]);
+    mocks.getInternalMlbMcpToolCatalog.mockResolvedValue([]);
+    mocks.isInternalMlbMcpProjectedTool.mockReturnValue(false);
+    mocks.runInternalMlbMcpReadTool.mockReset();
   });
 
   it("materializes a native pool buy preview into a staged plan", async () => {
@@ -342,6 +354,57 @@ describe("hermes-tools", () => {
       watchlistId: "watch_1",
       playerIds: ["nba_1", "nba_2"],
     });
+  });
+
+  it("merges projected internal MLB MCP tools into get_tool_catalog", async () => {
+    mocks.getInternalMlbMcpToolCatalog.mockResolvedValue([
+      {
+        toolName: "mlb_mcp__home_run_leaders",
+        category: "read",
+        description: "Internal MLB leaderboard capability.",
+        whenToUse: ["Need HR leaderboard context."],
+        whenNotToUse: [],
+        examplePrompts: ["who led mlb in home runs last year?"],
+        requiresConfirmation: false,
+        riskLevel: "low",
+      },
+    ]);
+
+    const result = (await runHermesReadTool({
+      toolName: "get_tool_catalog",
+      userId: "user_1",
+    })) as any[];
+    const toolNames = result.map((entry) => entry.toolName);
+
+    expect(toolNames).toContain("mlb_mcp__home_run_leaders");
+    expect(toolNames).toContain("get_balance_state");
+  });
+
+  it("routes prefixed MLB MCP read tools through the internal provider bridge", async () => {
+    mocks.isInternalMlbMcpProjectedTool.mockReturnValue(true);
+    mocks.runInternalMlbMcpReadTool.mockResolvedValue({
+      summary: "Loaded MLB data via home_run_leaders.",
+      replyText: "Aaron Judge led MLB in home runs last season.",
+      context: {
+        provider: "internal_mlb_mcp",
+      },
+    });
+
+    const result = (await runHermesReadTool({
+      toolName: "mlb_mcp__home_run_leaders",
+      userId: "user_1",
+      args: {
+        season: 2025,
+      },
+    })) as any;
+
+    expect(mocks.runInternalMlbMcpReadTool).toHaveBeenCalledWith({
+      toolName: "mlb_mcp__home_run_leaders",
+      args: {
+        season: 2025,
+      },
+    });
+    expect(result.replyText).toContain("home runs");
   });
 
   it("scans daily boost candidates through the dedicated scan tool", async () => {
