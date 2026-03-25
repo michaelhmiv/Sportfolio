@@ -5,6 +5,9 @@ import type { AgentToolDefinition } from "./types";
 const DEFAULT_TOOL_PREFIX = "mlb_mcp__";
 const DEFAULT_TIMEOUT_MS = 12000;
 const DEFAULT_CACHE_TTL_MS = 60_000;
+const DEFAULT_FAILURE_CACHE_TTL_MS = 15_000;
+const MAX_TOOL_RESULT_PAYLOAD_CHARS = 8_000;
+const MAX_TOOL_RESULT_REPLY_TEXT_CHARS = 2_000;
 const WARNING_THROTTLE_MS = 60_000;
 
 type InternalMlbMcpConfig = {
@@ -75,8 +78,7 @@ function resolveInternalMlbMcpConfig(): InternalMlbMcpConfig {
   return {
     enabled,
     endpoint,
-    toolPrefix:
-      process.env.HERMES_INTERNAL_MLB_MCP_TOOL_PREFIX?.trim() || DEFAULT_TOOL_PREFIX,
+    toolPrefix: process.env.HERMES_INTERNAL_MLB_MCP_TOOL_PREFIX?.trim() || DEFAULT_TOOL_PREFIX,
     timeoutMs: parseBoundedInt(
       process.env.HERMES_INTERNAL_MLB_MCP_TIMEOUT_MS,
       DEFAULT_TIMEOUT_MS,
@@ -202,6 +204,136 @@ function buildMissingRemoteToolError(toolName: string) {
   return new Error(`Internal MLB MCP tool mapping was not found for ${toolName}.`);
 }
 
+function buildEmptyDiscovery(expiresAt: number): MlbMcpToolDiscovery {
+  return {
+    toolCatalog: [],
+    localToRemoteToolMap: new Map<string, string>(),
+    expiresAt,
+  };
+}
+
+function resolveFailureCacheTtlMs(config: InternalMlbMcpConfig) {
+  return Math.min(config.cacheTtlMs, DEFAULT_FAILURE_CACHE_TTL_MS);
+}
+
+function extendDiscoveryRetryWindow(
+  discovery: MlbMcpToolDiscovery,
+  config: InternalMlbMcpConfig,
+): MlbMcpToolDiscovery {
+  return {
+    toolCatalog: discovery.toolCatalog,
+    localToRemoteToolMap: new Map(discovery.localToRemoteToolMap),
+    expiresAt: Date.now() + resolveFailureCacheTtlMs(config),
+  };
+}
+
+function safeSerialize(value: unknown): string {
+  try {
+    const serialized = JSON.stringify(value);
+    if (typeof serialized === "string") {
+      return serialized;
+    }
+  } catch {
+    // Fall back to a bounded placeholder for unserializable payloads.
+  }
+
+  if (typeof value === "string") {
+    return value;
+  }
+
+  return "[unserializable payload]";
+}
+
+function buildTruncatedPreview(input: { value: string; maxLength: number }): string {
+  if (input.value.length <= input.maxLength) {
+    return input.value;
+  }
+
+  const prefix = `Response truncated (${input.value.length} chars). `;
+  const available = Math.max(0, input.maxLength - prefix.length - 3);
+  return `${prefix}${input.value.slice(0, available)}...`;
+}
+
+function boundReplyText(replyText: string): {
+  value: string;
+  truncated: boolean;
+  originalCharLength: number;
+} {
+  if (replyText.length <= MAX_TOOL_RESULT_REPLY_TEXT_CHARS) {
+    return {
+      value: replyText,
+      truncated: false,
+      originalCharLength: replyText.length,
+    };
+  }
+
+  return {
+    value: buildTruncatedPreview({
+      value: replyText,
+      maxLength: MAX_TOOL_RESULT_REPLY_TEXT_CHARS,
+    }),
+    truncated: true,
+    originalCharLength: replyText.length,
+  };
+}
+
+function boundToolContent(content: unknown[]): {
+  value: unknown[];
+  truncated: boolean;
+  originalCharLength: number;
+} {
+  const serialized = safeSerialize(content);
+  if (serialized.length <= MAX_TOOL_RESULT_PAYLOAD_CHARS) {
+    return {
+      value: content,
+      truncated: false,
+      originalCharLength: serialized.length,
+    };
+  }
+
+  return {
+    value: [
+      {
+        type: "text",
+        text: buildTruncatedPreview({
+          value: serialized,
+          maxLength: MAX_TOOL_RESULT_PAYLOAD_CHARS,
+        }),
+      },
+    ],
+    truncated: true,
+    originalCharLength: serialized.length,
+  };
+}
+
+function boundStructuredContent(structuredContent: unknown): {
+  value: unknown;
+  truncated: boolean;
+  originalCharLength: number;
+} {
+  const serialized = safeSerialize(structuredContent);
+  if (serialized.length <= MAX_TOOL_RESULT_PAYLOAD_CHARS) {
+    return {
+      value: structuredContent,
+      truncated: false,
+      originalCharLength: serialized.length,
+    };
+  }
+
+  return {
+    value: {
+      truncated: true,
+      originalCharLength: serialized.length,
+      preview: buildTruncatedPreview({
+        value: serialized,
+        maxLength: MAX_TOOL_RESULT_PAYLOAD_CHARS,
+      }),
+    },
+    truncated: true,
+    originalCharLength: serialized.length,
+  };
+}
+
 async function promiseWithTimeout<T>(
   promise: Promise<T>,
   timeoutMs: number,
@@ -247,10 +379,14 @@ async function withMlbMcpClient<T>(
     version: "1.0.0",
   });
 
-  await promiseWithTimeout(client.connect(transport), config.timeoutMs, () => abortController.abort());
+  await promiseWithTimeout(client.connect(transport), config.timeoutMs, () =>
+    abortController.abort(),
+  );
 
   try {
-    return await promiseWithTimeout(callback(client), config.timeoutMs, () => abortController.abort());
+    return await promiseWithTimeout(callback(client), config.timeoutMs, () =>
+      abortController.abort(),
+    );
   } finally {
     await client.close().catch(() => undefined);
   }
@@ -313,11 +449,7 @@ function warnOncePerWindow(message: string, error: unknown) {
 async function loadToolDiscovery(forceRefresh = false): Promise<MlbMcpToolDiscovery> {
   const config = resolveInternalMlbMcpConfig();
   if (!config.enabled || !config.endpoint) {
-    return {
-      toolCatalog: [],
-      localToRemoteToolMap: new Map<string, string>(),
-      expiresAt: Date.now() + config.cacheTtlMs,
-    };
+    return buildEmptyDiscovery(Date.now() + config.cacheTtlMs);
   }
 
   const now = Date.now();
@@ -342,10 +474,11 @@ async function loadToolDiscovery(forceRefresh = false): Promise<MlbMcpToolDiscov
     return cloneDiscovery(await inFlightDiscovery);
   } catch (error) {
     warnOncePerWindow("Failed to refresh internal MLB MCP tool catalog", error);
-    if (cachedDiscovery) {
-      return cloneDiscovery(cachedDiscovery);
-    }
-    throw error;
+    cachedDiscovery = extendDiscoveryRetryWindow(
+      cachedDiscovery || buildEmptyDiscovery(now + config.cacheTtlMs),
+      config,
+    );
+    return cloneDiscovery(cachedDiscovery);
   }
 }
 
@@ -401,23 +534,44 @@ export async function runInternalMlbMcpReadTool(input: {
     structuredContent?: unknown;
   };
 
-  const content = Array.isArray(callResult.content) ? callResult.content : [];
-  const replyText = extractToolText(content);
+  const rawContent = Array.isArray(callResult.content) ? callResult.content : [];
+  const content = boundToolContent(rawContent);
+  const extractedReplyText = extractToolText(content.value);
+  const structuredContent = boundStructuredContent(callResult.structuredContent ?? null);
   const isError = callResult.isError === true;
 
   if (isError) {
-    throw new Error(replyText || `Internal MLB MCP tool ${remoteToolName} failed.`);
+    const errorReplyText = boundReplyText(
+      extractedReplyText || `Internal MLB MCP tool ${remoteToolName} failed.`,
+    );
+    throw new Error(errorReplyText.value || `Internal MLB MCP tool ${remoteToolName} failed.`);
   }
+
+  const replyText = boundReplyText(
+    extractedReplyText ||
+      `Internal MLB MCP tool ${remoteToolName} completed with structured output.`,
+  );
+
+  const payloadTruncated = replyText.truncated || structuredContent.truncated || content.truncated;
 
   return {
     summary: `Loaded MLB data via ${remoteToolName}.`,
-    replyText:
-      replyText || `Internal MLB MCP tool ${remoteToolName} completed with structured output.`,
+    replyText: replyText.value,
     context: {
       provider: "internal_mlb_mcp",
       remoteToolName,
-      structuredContent: callResult.structuredContent ?? null,
-      content,
+      structuredContent: structuredContent.value,
+      content: content.value,
+      payloadTruncated,
+      truncation: payloadTruncated
+        ? {
+            replyTextChars: replyText.truncated ? replyText.originalCharLength : null,
+            structuredContentChars: structuredContent.truncated
+              ? structuredContent.originalCharLength
+              : null,
+            contentChars: content.truncated ? content.originalCharLength : null,
+          }
+        : null,
     },
   };
 }

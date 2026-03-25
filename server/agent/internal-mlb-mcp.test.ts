@@ -37,6 +37,7 @@ const originalEnv = {
   enabled: process.env.HERMES_INTERNAL_MLB_MCP_ENABLED,
   endpoint: process.env.HERMES_INTERNAL_MLB_MCP_URL,
   prefix: process.env.HERMES_INTERNAL_MLB_MCP_TOOL_PREFIX,
+  cacheTtlMs: process.env.HERMES_INTERNAL_MLB_MCP_TOOL_CACHE_MS,
 };
 
 describe("internal-mlb-mcp", () => {
@@ -44,6 +45,7 @@ describe("internal-mlb-mcp", () => {
     process.env.HERMES_INTERNAL_MLB_MCP_ENABLED = "true";
     process.env.HERMES_INTERNAL_MLB_MCP_URL = "http://mlb-mcp.railway.internal:8080/mcp";
     process.env.HERMES_INTERNAL_MLB_MCP_TOOL_PREFIX = "mlb_mcp__";
+    process.env.HERMES_INTERNAL_MLB_MCP_TOOL_CACHE_MS = "60000";
 
     resetInternalMlbMcpCacheForTests();
     mocks.connect.mockReset();
@@ -92,6 +94,12 @@ describe("internal-mlb-mcp", () => {
     } else {
       process.env.HERMES_INTERNAL_MLB_MCP_TOOL_PREFIX = originalEnv.prefix;
     }
+
+    if (originalEnv.cacheTtlMs == null) {
+      delete process.env.HERMES_INTERNAL_MLB_MCP_TOOL_CACHE_MS;
+    } else {
+      process.env.HERMES_INTERNAL_MLB_MCP_TOOL_CACHE_MS = originalEnv.cacheTtlMs;
+    }
   });
 
   it("projects remote MLB MCP tools into Hermes read tools with the configured prefix", async () => {
@@ -104,6 +112,28 @@ describe("internal-mlb-mcp", () => {
       riskLevel: "low",
     });
     expect(mocks.listTools).toHaveBeenCalledTimes(1);
+  });
+
+  it("caches discovery failures briefly so repeated catalog reads fail fast", async () => {
+    process.env.HERMES_INTERNAL_MLB_MCP_TOOL_CACHE_MS = "5000";
+    mocks.listTools.mockRejectedValue(new Error("provider unavailable"));
+
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-03-25T12:00:00.000Z"));
+
+    try {
+      await expect(getInternalMlbMcpToolCatalog()).resolves.toEqual([]);
+      await expect(getInternalMlbMcpToolCatalog()).resolves.toEqual([]);
+
+      expect(mocks.listTools).toHaveBeenCalledTimes(1);
+
+      vi.advanceTimersByTime(5001);
+
+      await expect(getInternalMlbMcpToolCatalog()).resolves.toEqual([]);
+      expect(mocks.listTools).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("invokes the mapped remote tool for a projected Hermes tool name", async () => {
@@ -136,5 +166,47 @@ describe("internal-mlb-mcp", () => {
     });
     expect(result.replyText).toContain("Aaron Judge");
     expect(result.context.remoteToolName).toBe("home_run_leaders");
+  });
+
+  it("truncates oversized internal MCP payloads before returning them to Hermes", async () => {
+    const hugeText = "Aaron Judge ".repeat(1200);
+    mocks.callTool.mockResolvedValue({
+      content: [
+        {
+          type: "text",
+          text: hugeText,
+        },
+      ],
+      structuredContent: {
+        leaderboard: hugeText.repeat(2),
+      },
+    });
+
+    const result = (await runInternalMlbMcpReadTool({
+      toolName: "mlb_mcp__home_run_leaders",
+      args: {
+        season: 2025,
+      },
+    })) as any;
+
+    expect(result.replyText).toMatch(/Response truncated/);
+    expect(result.replyText.length).toBeLessThanOrEqual(2000);
+    expect(result.context.payloadTruncated).toBe(true);
+    expect(result.context.content).toEqual([
+      expect.objectContaining({
+        type: "text",
+        text: expect.stringMatching(/Response truncated/),
+      }),
+    ]);
+    expect(result.context.structuredContent).toMatchObject({
+      truncated: true,
+      originalCharLength: expect.any(Number),
+      preview: expect.stringMatching(/Response truncated/),
+    });
+    expect(result.context.truncation).toEqual({
+      replyTextChars: expect.any(Number),
+      structuredContentChars: expect.any(Number),
+      contentChars: expect.any(Number),
+    });
   });
 });

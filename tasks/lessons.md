@@ -3,6 +3,7 @@
 ## 2026-03-25
 
 - For OpenRouter BYOK, managed model aliases (for example `MiniMax-M2.7`) are not valid model IDs; normalize them to provider-prefixed IDs (for example `minimax/minimax-m2.7`) server-side to avoid empty-turn failures in Hermes.
+- When adding an internal MCP bridge to Hermes, cache failed discovery refreshes for a short retry window and bound returned tool payloads before they re-enter the model loop; otherwise outages and large datasets can repeatedly stall or bloat the runtime.
 
 ## 2026-03-23
 

@@ -1,3 +1,21 @@
+## 2026-03-25 Internal MLB MCP Review Fixes
+
+- [x] Add a short-lived negative cache for internal MLB MCP discovery failures so repeated Hermes turns fail fast during outages
+- [x] Bound internal MLB MCP tool payloads before returning them to Hermes and add regression coverage
+- [x] Run required validation (`npm run check`, `npm run lint`, `npm run test:run`) plus focused agent tests, then push the PR branch
+
+Review:
+
+- `server/agent/internal-mlb-mcp.ts` now extends the cached discovery snapshot with a short retry window when refresh fails, including the cold-start/no-cache case, so repeated Hermes turns return the cached empty/stale catalog instead of stalling on every discovery timeout.
+- The internal MLB MCP read bridge now bounds `replyText`, `structuredContent`, and raw `content` before returning tool results to Hermes, and records truncation metadata when the payload was clipped.
+- Added focused regression coverage in `server/agent/internal-mlb-mcp.test.ts` for both the failure-cache behavior and the oversized-payload truncation path.
+- Validation status:
+- `npx vitest run server/agent/internal-mlb-mcp.test.ts server/agent/runtime-adapter.internal-mcp.test.ts server/agent/hermes-tools.test.ts` passed.
+- `npm run check` passed.
+- `npm run lint` passed.
+- `npm run test:run` still fails due pre-existing Vitest collection of `.claude/worktrees/flamboyant-dewdney/tests/e2e/*.spec.ts` Playwright files, unrelated to this patch.
+- `npm run format:check` still fails due pre-existing formatting drift in unrelated files under `client/src/features/agent/*`, `server/agent/*`, and `server/agent/strategy-runner.test.ts`; the touched files for this patch were formatted and pass targeted Prettier checks.
+
 ## 2026-03-25 Hermes BYOK OpenRouter Parity + Conflict Resolution
 
 - [x] Confirm rebase/merge-conflict cleanup on `server/agent/hermes-tools.ts` and branch state
