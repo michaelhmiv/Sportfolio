@@ -15,7 +15,7 @@ export function AgentComposer({
 }: {
   value: string;
   onChange: (value: string) => void;
-  onSend: () => void;
+  onSend: (messageOverride?: string) => void;
   disabled: boolean;
   isSending: boolean;
   enabled: boolean;
@@ -41,8 +41,7 @@ export function AgentComposer({
       onChange(cmd.prompt);
       setSlashMatches([]);
       if (!needsInput) {
-        // Auto-send after a tick so the value updates
-        setTimeout(() => onSend(), 0);
+        onSend(cmd.prompt);
       } else {
         // Focus textarea for user to complete the prompt
         textareaRef.current?.focus();
@@ -148,16 +147,12 @@ export function AgentComposer({
             if (slashMatches.length > 0) {
               if (event.key === "ArrowDown") {
                 event.preventDefault();
-                setSelectedIndex((prev) =>
-                  prev < slashMatches.length - 1 ? prev + 1 : 0,
-                );
+                setSelectedIndex((prev) => (prev < slashMatches.length - 1 ? prev + 1 : 0));
                 return;
               }
               if (event.key === "ArrowUp") {
                 event.preventDefault();
-                setSelectedIndex((prev) =>
-                  prev > 0 ? prev - 1 : slashMatches.length - 1,
-                );
+                setSelectedIndex((prev) => (prev > 0 ? prev - 1 : slashMatches.length - 1));
                 return;
               }
               if (event.key === "Enter" && !event.metaKey && !event.ctrlKey) {
@@ -180,7 +175,7 @@ export function AgentComposer({
         />
         <Button
           className="h-9 w-9 shrink-0 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 p-0 text-black hover:from-amber-400 hover:to-amber-500"
-          onClick={onSend}
+          onClick={() => onSend()}
           disabled={disabled}
           data-testid="agent-composer-send"
         >

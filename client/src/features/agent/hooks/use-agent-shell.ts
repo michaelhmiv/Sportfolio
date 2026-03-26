@@ -486,8 +486,8 @@ export function useAgentShell() {
     }
   };
 
-  const handleSendChat = async () => {
-    const message = chatComposerValue.trim();
+  const handleSendChat = async (messageOverride?: string) => {
+    const message = (messageOverride ?? chatComposerValue).trim();
     if (!message || sendMessageMutation.isPending || isCreatingChat) return;
     const optimisticMessage: PendingUserMessage = {
       id: `pending-chat-${Date.now()}`,
@@ -513,8 +513,8 @@ export function useAgentShell() {
     }
   };
 
-  const handleSendStrategy = async () => {
-    const message = strategyComposerValue.trim();
+  const handleSendStrategy = async (messageOverride?: string) => {
+    const message = (messageOverride ?? strategyComposerValue).trim();
     if (!message || sendMessageMutation.isPending || !strategyConversationThreadId || !enabled)
       return;
     const optimisticMessage: PendingUserMessage = {

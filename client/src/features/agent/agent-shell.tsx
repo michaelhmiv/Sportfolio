@@ -25,14 +25,8 @@ import { AgentComposer } from "./components/agent-composer";
 import { AgentConfigurePanel } from "./components/agent-configure-panel";
 import { AgentStrategiesPanel } from "./components/agent-strategies-panel";
 import { AgentUiBlockList } from "./components/agent-ui-blocks";
-import {
-  AgentEmptyConversationState,
-  AgentMessageList,
-} from "./components/agent-conversation";
-import {
-  AgentErrorState,
-  AgentThreadPanel,
-} from "./components/agent-panels";
+import { AgentEmptyConversationState, AgentMessageList } from "./components/agent-conversation";
+import { AgentErrorState, AgentThreadPanel } from "./components/agent-panels";
 import { AgentStatusHeader } from "./components/agent-status-header";
 import { AgentCommandBar } from "./components/agent-command-bar";
 import { getThreadTitle } from "./lib/agent-view";
@@ -337,7 +331,9 @@ export default function AgentShell() {
                               <AgentComposer
                                 value={shell.chatComposerValue}
                                 onChange={shell.setChatComposerValue}
-                                onSend={() => void shell.handleSendChat()}
+                                onSend={(messageOverride) =>
+                                  void shell.handleSendChat(messageOverride)
+                                }
                                 disabled={
                                   !shell.enabled ||
                                   !shell.chatComposerValue.trim() ||
@@ -409,7 +405,7 @@ export default function AgentShell() {
                       isActivatingId={
                         shell.activateStrategyMutation.isPending
                           ? ((shell.activateStrategyMutation.variables as string | undefined) ??
-                              null)
+                            null)
                           : null
                       }
                       isReviewingId={
@@ -425,7 +421,7 @@ export default function AgentShell() {
                       isArchivingId={
                         shell.archiveStrategyMutation.isPending
                           ? ((shell.archiveStrategyMutation.variables as string | undefined) ??
-                              null)
+                            null)
                           : null
                       }
                       isRunningId={
@@ -435,7 +431,9 @@ export default function AgentShell() {
                       }
                       strategyComposerValue={shell.strategyComposerValue}
                       onStrategyComposerChange={shell.setStrategyComposerValue}
-                      onStrategySend={() => void shell.handleSendStrategy()}
+                      onStrategySend={(messageOverride) =>
+                        void shell.handleSendStrategy(messageOverride)
+                      }
                       pendingStrategyMessage={shell.pendingStrategyMessage}
                       strategyScrollViewportRef={shell.strategyScrollRef}
                       strategyThreadEndRef={shell.strategyEndRef}
