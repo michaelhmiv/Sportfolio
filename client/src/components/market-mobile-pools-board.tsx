@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowUpDown, ArrowUpRight, Filter, Loader2, Search, X } from "lucide-react";
+import { ArrowUpDown, ArrowUpRight, Filter, HelpCircle, Loader2, Search, X } from "lucide-react";
 
 import { PlayerName } from "@/components/player-name";
 import { SportSelector } from "@/components/sport-selector";
@@ -8,8 +8,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useAppState } from "@/hooks/use-app-state";
 import { useAuth } from "@/hooks/useAuth";
+import { formatCompactCurrency } from "@/lib/currency";
 import { authenticatedFetch } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
 import { useWebSocket } from "@/lib/websocket";
@@ -132,6 +134,8 @@ interface MobileMarketIndicators {
   marketIndex24h: number;
   volatilityIndex: number;
   liquidityHealth: number;
+  totalVolume24h: number;
+  totalPoolShares: number;
   totalMarketTvl: number;
   breadth: {
     risers: number;
@@ -233,12 +237,12 @@ function toNumber(value: string | number | null | undefined): number {
   return 0;
 }
 
-function formatCompactCurrency(value: number) {
-  return `$${compactNumberFormatter.format(value)}`;
-}
-
 function formatSignedPercent(value: number, fractionDigits = 1) {
   return `${value >= 0 ? "+" : ""}${value.toFixed(fractionDigits)}%`;
+}
+
+function formatCompactCount(value: number) {
+  return compactNumberFormatter.format(Math.max(0, Math.round(value)));
 }
 
 function formatMarketFreshness(timestamp: number | null, generatedAt?: string) {
@@ -253,10 +257,6 @@ function formatMarketFreshness(timestamp: number | null, generatedAt?: string) {
   }
 
   return `updated ${Math.floor(diffSeconds / 60)}m ago`;
-}
-
-function clampPercent(value: number) {
-  return Math.max(0, Math.min(100, value));
 }
 
 function getPrimaryChip(
@@ -320,32 +320,6 @@ function getFreshnessClassName(freshnessState: "live" | "catching_up" | "offline
     case "offline":
       return "border-red-500/30 bg-red-500/10 text-red-300";
   }
-}
-
-function getMarketHealthBadgeClassName(label: MarketHealthLabel | undefined) {
-  switch (label) {
-    case "heated":
-      return "border-orange-500/30 bg-orange-500/10 text-orange-200";
-    case "active":
-      return "border-emerald-500/30 bg-emerald-500/10 text-emerald-200";
-    case "balanced":
-      return "border-blue-500/30 bg-blue-500/10 text-blue-200";
-    case "quiet":
-    default:
-      return "border-border/80 bg-muted/20 text-muted-foreground";
-  }
-}
-
-function getIndicatorTone(value: number, neutralFloor = 0.01) {
-  if (value > neutralFloor) {
-    return "positive" as const;
-  }
-
-  if (value < neutralFloor * -1) {
-    return "negative" as const;
-  }
-
-  return "neutral" as const;
 }
 
 function getSortLabel(sortField: SortField) {
@@ -599,71 +573,68 @@ function MarketIntelList({
   );
 }
 
-function MarketMetricPill({
+function MarketSummaryStat({
   label,
   value,
-  tone = "neutral",
+  hint,
 }: {
   label: string;
   value: string;
-  tone?: "neutral" | "positive" | "negative" | "primary";
+  hint?: string;
 }) {
-  const valueClassName =
-    tone === "positive"
-      ? "text-positive"
-      : tone === "negative"
-        ? "text-negative"
-        : tone === "primary"
-          ? "text-primary"
-          : "text-foreground";
-
   return (
-    <Badge
-      variant="outline"
-      className="h-5 whitespace-nowrap rounded-sm border-border/70 bg-background/30 px-1.5 text-[9px] uppercase tracking-[0.08em] text-muted-foreground"
-    >
-      <span className={cn("mr-1 font-mono", valueClassName)}>{value}</span>
-      {label}
-    </Badge>
+    <div className="rounded-sm bg-background/50 px-2 py-1.5">
+      <div className="text-[9px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+        {label}
+      </div>
+      <div className="pt-0.5 font-mono text-[12px] text-foreground">{value}</div>
+      {hint ? (
+        <div className="truncate pt-0.5 text-[9px] uppercase tracking-[0.08em] text-muted-foreground">
+          {hint}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
-function getIndicatorBarFillClassName(tone: "neutral" | "positive" | "negative" | "primary") {
-  switch (tone) {
-    case "positive":
-      return "bg-positive";
-    case "negative":
-      return "bg-negative";
-    case "primary":
-      return "bg-primary";
-    default:
-      return "bg-muted-foreground/70";
-  }
-}
-
-function MarketIndicatorBar({
-  label,
-  value,
-  displayValue,
-  tone = "neutral",
+function MarketTabHeader({
+  title,
+  description,
+  help,
 }: {
-  label: string;
-  value: number;
-  displayValue: string;
-  tone?: "neutral" | "positive" | "negative" | "primary";
+  title: string;
+  description: string;
+  help?: string;
 }) {
   return (
-    <div className="grid grid-cols-[56px_minmax(0,1fr)_58px] items-center gap-2 whitespace-nowrap">
-      <div className="truncate text-[9px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
-        {label}
+    <div className="mb-1 flex items-start justify-between gap-2">
+      <div className="min-w-0">
+        <div className="text-[9px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+          {title}
+        </div>
+        <div className="truncate pt-0.5 text-[10px] text-muted-foreground">{description}</div>
       </div>
-      <div className="h-1 overflow-hidden rounded-full bg-muted/40">
-        <div
-          className={cn("h-full rounded-full transition-all", getIndicatorBarFillClassName(tone))}
-          style={{ width: `${clampPercent(value)}%` }}
-        />
-      </div>
-      <div className="text-right font-mono text-[10px] text-foreground">{displayValue}</div>
+      {help ? (
+        <Popover>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-border/70 bg-background/40 text-muted-foreground transition-colors hover:bg-muted/25 hover:text-foreground"
+              aria-label={`Explain ${title}`}
+            >
+              <HelpCircle className="h-3 w-3" />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent align="end" side="top" className="w-64 p-3">
+            <div className="space-y-1">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                {title}
+              </div>
+              <p className="text-xs leading-relaxed text-muted-foreground">{help}</p>
+            </div>
+          </PopoverContent>
+        </Popover>
+      ) : null}
     </div>
   );
 }
@@ -934,15 +905,6 @@ export function MarketMobilePoolsBoard({
 
   const boardMetricField = getBoardMetricField(sortField);
   const marketFreshness = formatMarketFreshness(lastMessageAt, overview?.pulse.generatedAt);
-  const breadth = overview?.marketIndicators.breadth || { risers: 0, fallers: 0, flat: 0 };
-  const breadthDisplay = `${breadth.risers}/${breadth.fallers}/${breadth.flat}`;
-  const indexTone = getIndicatorTone(overview?.marketIndicators.marketIndex24h || 0);
-  const breadthTone =
-    breadth.risers > breadth.fallers
-      ? ("positive" as const)
-      : breadth.fallers > breadth.risers
-        ? ("negative" as const)
-        : ("neutral" as const);
   const liveSlateDisplay = `${overview?.pulse.liveGameCount ?? 0}/${overview?.pulse.slateGameCount ?? 0}`;
 
   const getQuickContext = (playerId: string, signal?: MobileMarketSignal): PlayerQuickContext => {
@@ -989,6 +951,8 @@ export function MarketMobilePoolsBoard({
     { id: "risers", label: "Top Risers" },
     { id: "value", label: "Value Scan" },
   ];
+  const valueScanHelpText =
+    "Value scan ranks players by Sportfolio's value index: current market price relative to recent fantasy production. Lower values suggest cheaper pricing for the output.";
 
   return (
     <div className="space-y-1.5 md:hidden">
@@ -1000,10 +964,10 @@ export function MarketMobilePoolsBoard({
         <CardContent className="p-1.5">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <div className="flex items-center gap-1 whitespace-nowrap">
-                <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                  Player Pools
-                </div>
+              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                Market Summary
+              </div>
+              <div className="flex items-center gap-1 pt-1">
                 <Badge
                   variant="outline"
                   className={cn(
@@ -1017,26 +981,15 @@ export function MarketMobilePoolsBoard({
                       ? "Delay"
                       : "Offline"}
                 </Badge>
-                <Badge
-                  variant="outline"
-                  className={cn(
-                    "h-5 whitespace-nowrap px-1 text-[9px] uppercase tracking-[0.08em]",
-                    getMarketHealthBadgeClassName(overview?.marketIndicators.healthLabel),
-                  )}
-                >
-                  {overview?.marketIndicators.healthLabel || "quiet"}
-                </Badge>
-              </div>
-              <div className="truncate pt-1 text-[9px] font-mono uppercase tracking-[0.08em] text-muted-foreground">
-                {formatSignedPercent(overview?.marketIndicators.marketIndex24h || 0)} idx | swing{" "}
-                {Math.round(overview?.marketIndicators.volatilityIndex || 0)} | breadth{" "}
-                {breadthDisplay} | {marketFreshness}
+                <div className="truncate text-[9px] font-mono uppercase tracking-[0.08em] text-muted-foreground">
+                  {marketFreshness}
+                </div>
               </div>
             </div>
             <SportSelector size="sm" className="w-[112px] shrink-0" />
           </div>
 
-          <div className="mt-1 grid grid-cols-3 gap-1 rounded-sm border border-border/60 bg-background/40 p-0.5">
+          <div className="mt-1 grid grid-cols-3 gap-1 rounded-sm border border-border/60 bg-background/30 p-0.5">
             {intelTabs.map((tab) => (
               <button
                 key={tab.id}
@@ -1044,7 +997,7 @@ export function MarketMobilePoolsBoard({
                 className={cn(
                   "rounded-sm px-1 py-1 text-center text-[9px] font-semibold uppercase tracking-[0.08em] transition-colors",
                   activeIntelTab === tab.id
-                    ? "bg-muted/80 text-foreground"
+                    ? "bg-background text-foreground"
                     : "text-muted-foreground hover:bg-muted/30",
                 )}
                 onClick={() => setActiveIntelTab(tab.id)}
@@ -1061,111 +1014,100 @@ export function MarketMobilePoolsBoard({
               </div>
             ) : activeIntelTab === "indicators" ? (
               <div className="space-y-1">
-                <div className="rounded-sm border border-border/60 bg-background/30 px-1.5 py-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="truncate text-[9px] uppercase tracking-[0.1em] text-muted-foreground">
-                      Composite Read
-                    </div>
-                    <div className="shrink-0 text-[9px] font-mono uppercase tracking-[0.08em] text-muted-foreground">
-                      {marketFreshness}
-                    </div>
-                  </div>
-                  <div className="truncate pt-0.5 text-[10px] text-muted-foreground">
-                    {overview?.marketIndicators.healthSummary || "Scanning the tape."}
-                  </div>
-                  <div className="mt-1 space-y-1">
-                    <MarketIndicatorBar
-                      label="Index"
-                      value={clampPercent(
-                        50 + (overview?.marketIndicators.marketIndex24h || 0) * 4,
-                      )}
-                      displayValue={formatSignedPercent(
-                        overview?.marketIndicators.marketIndex24h || 0,
-                      )}
-                      tone={indexTone}
-                    />
-                    <MarketIndicatorBar
-                      label="Swing"
-                      value={overview?.marketIndicators.volatilityIndex || 0}
-                      displayValue={String(
-                        Math.round(overview?.marketIndicators.volatilityIndex || 0),
-                      )}
-                      tone="primary"
-                    />
-                    <MarketIndicatorBar
-                      label="Breadth"
-                      value={
-                        breadth.risers + breadth.fallers + breadth.flat > 0
-                          ? (breadth.risers / (breadth.risers + breadth.fallers + breadth.flat)) *
-                            100
-                          : 0
-                      }
-                      displayValue={breadthDisplay}
-                      tone={breadthTone}
-                    />
-                    <MarketIndicatorBar
-                      label="Liq"
-                      value={overview?.marketIndicators.liquidityHealth || 0}
-                      displayValue={String(
-                        Math.round(overview?.marketIndicators.liquidityHealth || 0),
-                      )}
-                      tone="primary"
-                    />
-                  </div>
+                <div className="grid grid-cols-2 gap-px overflow-hidden rounded-sm border border-border/60 bg-border/60 p-px">
+                  <MarketSummaryStat
+                    label="Volatility"
+                    value={String(Math.round(overview?.marketIndicators.volatilityIndex || 0))}
+                    hint="0-100"
+                  />
+                  <MarketSummaryStat
+                    label="24h Volume"
+                    value={formatCompactCount(overview?.marketIndicators.totalVolume24h || 0)}
+                    hint="shares traded"
+                  />
+                  <MarketSummaryStat
+                    label="Pool Shares"
+                    value={formatCompactCount(overview?.marketIndicators.totalPoolShares || 0)}
+                    hint="across pools"
+                  />
+                  <MarketSummaryStat
+                    label="Market TVL"
+                    value={formatCompactCurrency(overview?.marketIndicators.totalMarketTvl || 0)}
+                    hint={sport === "ALL" ? "all sports" : sport}
+                  />
                 </div>
 
-                <div className="flex flex-wrap gap-1">
-                  <MarketMetricPill
-                    label="tvl"
-                    value={formatCompactCurrency(overview?.marketIndicators.totalMarketTvl || 0)}
-                  />
-                  <MarketMetricPill
-                    label="trades"
-                    value={String(overview?.pulse.tradeCount15m ?? 0)}
-                  />
-                  <MarketMetricPill label="live" value={liveSlateDisplay} />
-                  <MarketMetricPill
-                    label={overview?.pulse.openBoostSlots == null ? "mode" : "boost"}
-                    value={
-                      overview?.pulse.openBoostSlots == null
-                        ? "Public"
-                        : String(overview.pulse.openBoostSlots)
-                    }
-                  />
+                <div className="flex flex-wrap gap-1 text-[9px] uppercase tracking-[0.08em] text-muted-foreground">
+                  <Badge
+                    variant="outline"
+                    className="h-5 whitespace-nowrap rounded-sm border-border/70 bg-background/30 px-1.5"
+                  >
+                    <span className="mr-1 font-mono text-foreground">{liveSlateDisplay}</span>
+                    live/slate
+                  </Badge>
+                  <Badge
+                    variant="outline"
+                    className="h-5 whitespace-nowrap rounded-sm border-border/70 bg-background/30 px-1.5"
+                  >
+                    <span className="mr-1 font-mono text-foreground">
+                      {overview?.pulse.tradeCount15m ?? 0}
+                    </span>
+                    trades/15m
+                  </Badge>
+                  <Badge
+                    variant="outline"
+                    className="h-5 whitespace-nowrap rounded-sm border-border/70 bg-background/30 px-1.5"
+                  >
+                    <span className="mr-1 font-mono text-foreground">{marketFreshness}</span>
+                    feed
+                  </Badge>
                 </div>
               </div>
             ) : activeIntelTab === "risers" ? (
-              <MarketIntelList
-                items={overview?.leaderboards?.risers || overview?.nowMoving || []}
-                emptyState="No momentum leaders yet."
-                metric="change"
-                onOpenPlayer={(signal) =>
-                  onOpenPlayer(
-                    getPlayerForSignal(signal),
-                    "buy",
-                    getQuickContext(signal.playerId, signal),
-                  )
-                }
-                onSeeMore={() =>
-                  syncBoardToIntelSort("change", onSortFieldChange, onSortOrderChange)
-                }
-              />
+              <div>
+                <MarketTabHeader
+                  title="Top Risers"
+                  description="Highest positive 24h price moves in the market."
+                />
+                <MarketIntelList
+                  items={overview?.leaderboards?.risers || overview?.nowMoving || []}
+                  emptyState="No positive risers yet."
+                  metric="change"
+                  onOpenPlayer={(signal) =>
+                    onOpenPlayer(
+                      getPlayerForSignal(signal),
+                      "buy",
+                      getQuickContext(signal.playerId, signal),
+                    )
+                  }
+                  onSeeMore={() =>
+                    syncBoardToIntelSort("change", onSortFieldChange, onSortOrderChange)
+                  }
+                />
+              </div>
             ) : (
-              <MarketIntelList
-                items={overview?.quietValue || []}
-                emptyState="Value scan is still loading."
-                metric="value"
-                onOpenPlayer={(signal) =>
-                  onOpenPlayer(
-                    getPlayerForSignal(signal),
-                    "buy",
-                    getQuickContext(signal.playerId, signal),
-                  )
-                }
-                onSeeMore={() =>
-                  syncBoardToIntelSort("undervalued", onSortFieldChange, onSortOrderChange, "asc")
-                }
-              />
+              <div>
+                <MarketTabHeader
+                  title="Value Scan"
+                  description="Cheaper market pricing relative to recent fantasy output."
+                  help={valueScanHelpText}
+                />
+                <MarketIntelList
+                  items={overview?.quietValue || []}
+                  emptyState="No value names yet."
+                  metric="value"
+                  onOpenPlayer={(signal) =>
+                    onOpenPlayer(
+                      getPlayerForSignal(signal),
+                      "buy",
+                      getQuickContext(signal.playerId, signal),
+                    )
+                  }
+                  onSeeMore={() =>
+                    syncBoardToIntelSort("undervalued", onSortFieldChange, onSortOrderChange, "asc")
+                  }
+                />
+              </div>
             )}
           </div>
         </CardContent>

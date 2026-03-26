@@ -27,7 +27,10 @@ const mocks = vi.hoisted(() => ({
     getAvailableBalance: vi.fn(),
     getBoostPayoutHistory: vi.fn(),
     getCommunityBoostsAllSports: vi.fn(),
+    getCommunityBoostsForDate: vi.fn(),
+    getDailyGames: vi.fn(),
     getEligiblePlayersForBoost: vi.fn(),
+    getFinancialMarketScanners: vi.fn(),
     getHoldingMultiplierState: vi.fn(),
     getLpTransactionHistory: vi.fn(),
     getMarketActivity: vi.fn(),
@@ -162,6 +165,48 @@ describe("hermes-tools", () => {
     mocks.getScoutAgentProfile.mockResolvedValue({
       profile: {
         displayName: "Agent",
+        internalMlbMcpEnabled: true,
+      },
+    });
+    mocks.loadScoutAgentContext.mockResolvedValue({
+      maxScouts: 5,
+      remainingScouts: 2,
+      defaultSport: "NBA",
+      selectionWindow: {
+        label: "Tonight",
+        date: "2026-03-02",
+        gameCount: 2,
+        sportScope: ["NBA"],
+      },
+      recommendedTargets: [
+        {
+          playerId: "nba_1",
+          name: "Jalen Brunson",
+          sport: "NBA",
+          score: 88,
+          reason: "Strong form with a live window.",
+        },
+        {
+          playerId: "nba_2",
+          name: "Anthony Edwards",
+          sport: "NBA",
+          score: 79,
+          reason: "Strong next-window setup.",
+        },
+      ],
+      operatorOverview: {
+        availableBalance: 314,
+        portfolioPlayerCount: 2,
+        totalPlayerShares: 6,
+        stackedHoldingRows: 1,
+        stackReadyHoldingRows: 1,
+        watchlistCount: 1,
+        watchlistEntryCount: 3,
+        communitySharesAvailable: 1,
+        activeDailyBoostSlots: 1,
+        openDailyBoostSlots: 3,
+        topHoldings: [],
+        nextBestLevers: ["deploy idle balance", "fill an open boost slot"],
       },
     });
     mocks.storage.getWatchlists.mockResolvedValue([{ id: "watch_1" }]);
@@ -181,6 +226,23 @@ describe("hermes-tools", () => {
         lastTradePrice: "5.00",
       },
     ]);
+    mocks.storage.getDailyGames.mockResolvedValue([
+      {
+        gameId: "game_1",
+        sport: "NBA",
+        homeTeam: "NYK",
+        awayTeam: "BOS",
+        status: "scheduled",
+        startTime: new Date("2026-03-03T00:30:00.000Z"),
+      },
+    ]);
+    mocks.storage.getFinancialMarketScanners.mockResolvedValue({
+      undervalued: [],
+      premium: [],
+      sentiment: [],
+      momentum: [],
+    });
+    mocks.storage.getCommunityBoostsForDate.mockResolvedValue([]);
     mocks.listAvailableAgentSkills.mockResolvedValue([]);
     mocks.listAgentSkillCandidates.mockResolvedValue([]);
     mocks.getInternalMlbMcpToolCatalog.mockResolvedValue([]);
@@ -236,13 +298,15 @@ describe("hermes-tools", () => {
     expect(result.actions).toHaveLength(1);
     expect(result.actions[0].actionType).toBe("pool_buy");
     expect(result.contextSnapshot.preview.afterState.estimatedSharesOut).toBe(5.2);
-    expect(mocks.planDirectAgentOperation).toHaveBeenCalledWith({
-      userId: "user_1",
-      message: "buy $24 of Jalen Brunson",
-      profile: {
-        displayName: "Agent",
-      },
-    });
+    expect(mocks.planDirectAgentOperation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: "user_1",
+        message: "buy $24 of Jalen Brunson",
+        profile: expect.objectContaining({
+          displayName: "Agent",
+        }),
+      }),
+    );
   });
 
   it("resolves a name-like playerId into a canonical player before building a buy preview", async () => {
@@ -297,13 +361,15 @@ describe("hermes-tools", () => {
     });
 
     expect(mocks.storage.getPlayers).toHaveBeenCalledWith({ search: "Jalen Brunson" });
-    expect(mocks.planDirectAgentOperation).toHaveBeenCalledWith({
-      userId: "user_1",
-      message: "buy $24 of Jalen Brunson",
-      profile: {
-        displayName: "Agent",
-      },
-    });
+    expect(mocks.planDirectAgentOperation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: "user_1",
+        message: "buy $24 of Jalen Brunson",
+        profile: expect.objectContaining({
+          displayName: "Agent",
+        }),
+      }),
+    );
   });
 
   it("prefers the resolved player name when building parser-backed preview messages", async () => {
@@ -330,13 +396,15 @@ describe("hermes-tools", () => {
       },
     });
 
-    expect(mocks.planDirectAgentOperation).toHaveBeenCalledWith({
-      userId: "user_1",
-      message: "set Jalen Brunson scouts to 3",
-      profile: {
-        displayName: "Agent",
-      },
-    });
+    expect(mocks.planDirectAgentOperation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: "user_1",
+        message: "set Jalen Brunson scouts to 3",
+        profile: expect.objectContaining({
+          displayName: "Agent",
+        }),
+      }),
+    );
   });
 
   it("returns watchlist items through the dedicated read tool", async () => {
@@ -378,6 +446,34 @@ describe("hermes-tools", () => {
 
     expect(toolNames).toContain("mlb_mcp__home_run_leaders");
     expect(toolNames).toContain("get_balance_state");
+  });
+
+  it("omits built-in MLB MCP tools from get_tool_catalog when the source is disabled", async () => {
+    mocks.getScoutAgentProfile.mockResolvedValue({
+      profile: {
+        displayName: "Agent",
+        internalMlbMcpEnabled: false,
+      },
+    });
+    mocks.getInternalMlbMcpToolCatalog.mockResolvedValue([
+      {
+        toolName: "mlb_mcp__home_run_leaders",
+        category: "read",
+        description: "Internal MLB leaderboard capability.",
+        whenToUse: ["Need HR leaderboard context."],
+        whenNotToUse: [],
+        examplePrompts: ["who led mlb in home runs last year?"],
+        requiresConfirmation: false,
+        riskLevel: "low",
+      },
+    ]);
+
+    const result = (await runHermesReadTool({
+      toolName: "get_tool_catalog",
+      userId: "user_1",
+    })) as any[];
+
+    expect(result.map((entry) => entry.toolName)).not.toContain("mlb_mcp__home_run_leaders");
   });
 
   it("routes prefixed MLB MCP read tools through the internal provider bridge", async () => {
@@ -447,51 +543,75 @@ describe("hermes-tools", () => {
   });
 
   it("keeps idle-balance scans focused on cash deployment", async () => {
-    mocks.getScoutAgentProfile.mockResolvedValue({
-      profile: {
-        displayName: "Agent",
-        defaultSport: "NBA",
-      },
-    });
-    mocks.planDirectAgentOperation.mockResolvedValue({
-      summary: "Idle-capital deployment review.",
-      replyText:
-        "You have $314.00 available, so the right move is to treat it like deployable leverage, not dead cash. The clean hierarchy is: use a direct buy if you have conviction on one player, use LP if you want a steadier fee-earning posture, and keep some dry powder back if you expect a better window later today.",
-      observations: ["$314.00 is currently uncommitted."],
-      warnings: [
-        "This is a deployment read only; no capital is staged until you give a concrete action request.",
-      ],
-      actions: [],
-      contextSnapshot: {
-        intent: "idle_capital_review",
-        availableBalance: 314,
-        candidatePlayerId: "nba_1",
-      },
-      trace: {
-        framework: "deterministic-agent-operations",
-        intent: "idle_capital_review",
-      },
-    });
-
     const result = (await runHermesScanTool({
       toolName: "scan_idle_balance_options",
       userId: "user_1",
       args: {},
     })) as any;
 
-    expect(mocks.planDirectAgentOperation).toHaveBeenCalledWith({
-      userId: "user_1",
-      profile: {
+    expect(mocks.loadScoutAgentContext).toHaveBeenCalledWith(
+      "user_1",
+      expect.objectContaining({
         displayName: "Agent",
-        defaultSport: "NBA",
+      }),
+      {
+        chatRequest: "what should i do with my idle balance?",
+        sportOverride: null,
       },
-      message: "what should i do with my idle balance?",
-    });
+    );
     expect(result.intentFocus).toBe("cash_deployment");
-    expect(result.summary).toBe("Idle-capital deployment review.");
+    expect(result.summary).toBe("Reviewed idle-balance deployment options.");
     expect(result.context.availableBalance).toBe(314);
+    expect(result.context.recommendedTargets[0].name).toBe("Jalen Brunson");
     expect(result.replyText.toLowerCase()).not.toContain("scout");
     expect(result.replyText.toLowerCase()).not.toContain("community boost");
+  });
+
+  it("scans community boost candidates without falling back to the deterministic planner", async () => {
+    mocks.storage.getUserCommunityBoostShares.mockResolvedValue(1);
+    mocks.storage.getPlayers.mockResolvedValue([
+      {
+        id: "nba_1",
+        firstName: "Jalen",
+        lastName: "Brunson",
+        sport: "NBA",
+        team: "NYK",
+        isActive: true,
+      },
+    ]);
+    mocks.storage.getDailyGames.mockResolvedValue([
+      {
+        gameId: "game_community_1",
+        sport: "NBA",
+        homeTeam: "NYK",
+        awayTeam: "BOS",
+        status: "scheduled",
+        startTime: new Date(Date.now() + 60 * 60 * 1000),
+      },
+    ]);
+    mocks.storage.getFinancialMarketScanners.mockResolvedValue({
+      undervalued: [],
+      premium: [],
+      sentiment: [{ player: { id: "nba_1" } }],
+      momentum: [{ player: { id: "nba_1" } }],
+    });
+    mocks.storage.getCommunityBoostsForDate.mockResolvedValue([]);
+
+    const result = (await runHermesScanTool({
+      toolName: "scan_community_boost_candidates",
+      userId: "user_1",
+      args: {
+        sport: "NBA",
+      },
+    })) as any;
+
+    expect(mocks.planDirectAgentOperation).not.toHaveBeenCalled();
+    expect(result.summary.toLowerCase()).toContain("community boost");
+    expect(result.context.communitySharesAvailable).toBe(1);
+    expect(result.context.candidate).toMatchObject({
+      playerId: "nba_1",
+      playerName: "Jalen Brunson",
+    });
   });
 
   it("creates a thread and stages an action bundle through the action tool", async () => {

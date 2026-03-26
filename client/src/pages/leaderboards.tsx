@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { formatAdaptiveCurrency } from "@/lib/currency";
 
 type LeaderboardCategory =
   | "netWorth"
@@ -87,10 +88,7 @@ function formatLeaderboardValue(category: LeaderboardCategory, value: number) {
     return `${Math.round(value).toLocaleString()} orders`;
   }
 
-  return `$${value.toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
+  return formatAdaptiveCurrency(value);
 }
 
 function RankChangeBadge({ change }: { change: number | null }) {

@@ -18,6 +18,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { useAppState } from "@/hooks/use-app-state";
 import { useAuth } from "@/hooks/useAuth";
+import { formatCompactCurrency } from "@/lib/currency";
 import { authenticatedFetch } from "@/lib/queryClient";
 import { useWebSocket } from "@/lib/websocket";
 import { cn } from "@/lib/utils";
@@ -222,10 +223,6 @@ function toNumber(value: string | number | null | undefined): number {
   }
 
   return 0;
-}
-
-function formatCompactCurrency(value: number) {
-  return `$${compactNumberFormatter.format(value)}`;
 }
 
 function formatMarketFreshness(timestamp: number | null, generatedAt?: string) {

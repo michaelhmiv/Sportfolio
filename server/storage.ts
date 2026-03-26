@@ -271,6 +271,7 @@ export interface IStorage {
   getBatchSentiment(
     playerIds: string[],
   ): Promise<Map<string, { buyPressure: number; totalVolume24h: number }>>;
+  getBatchPlayerPriceChange24h(playerIds: string[]): Promise<Map<string, number>>;
 
   getBatchAllTimeAvgFantasyPoints(playerIds: string[]): Promise<Map<string, number>>;
 
@@ -1739,13 +1740,36 @@ export class DatabaseStorage implements IStorage {
     conditions.push(eq(players.isActive, true));
 
     const isComplexSort = ["sentiment", "undervalued", "fantasyPoints"].includes(sortBySafe);
+    const needsPoolJoin = ["price", "change", "tvl"].includes(sortBySafe);
+    const effectivePriceExpr = sql<number>`CASE
+      WHEN COALESCE(${playerPools.shares}, 0)::numeric > 0
+        AND COALESCE(${playerPools.playMoney}, 0)::numeric > 0
+      THEN ${playerPools.playMoney}::numeric / NULLIF(${playerPools.shares}::numeric, 0)
+      WHEN ${players.lastTradePrice} IS NOT NULL
+      THEN ${players.lastTradePrice}::numeric
+      ELSE 0
+    END`;
+    const firstTradePrice24hExpr = sql<number>`COALESCE((
+      SELECT ${trades.price}::numeric
+      FROM ${trades}
+      WHERE ${trades.playerId} = ${players.id}
+        AND ${trades.executedAt} >= NOW() - INTERVAL '24 hours'
+        AND (${trades.buyerId} = 'pool' OR ${trades.sellerId} = 'pool')
+      ORDER BY ${trades.executedAt} ASC
+      LIMIT 1
+    ), 0)`;
+    const priceChange24hExpr = sql<number>`CASE
+      WHEN ${firstTradePrice24hExpr} > 0
+      THEN ((${effectivePriceExpr} - ${firstTradePrice24hExpr}) / ${firstTradePrice24hExpr}) * 100
+      ELSE 0
+    END`;
 
     // Build ORDER BY clause
     let orderByClause: any;
     switch (sortBySafe) {
       case "price":
         orderByClause =
-          sortOrder === "asc" ? asc(players.lastTradePrice) : desc(players.lastTradePrice);
+          sortOrder === "asc" ? sql`${effectivePriceExpr} ASC` : sql`${effectivePriceExpr} DESC`;
         break;
       case "marketCap":
         orderByClause = sortOrder === "asc" ? asc(players.marketCap) : desc(players.marketCap);
@@ -1755,7 +1779,7 @@ export class DatabaseStorage implements IStorage {
         break;
       case "change":
         orderByClause =
-          sortOrder === "asc" ? asc(players.priceChange24h) : desc(players.priceChange24h);
+          sortOrder === "asc" ? sql`${priceChange24hExpr} ASC` : sql`${priceChange24hExpr} DESC`;
         break;
       case "name":
         orderByClause =
@@ -1862,13 +1886,22 @@ export class DatabaseStorage implements IStorage {
             .orderBy(finalOrderByClause)
             .limit(limit)
             .offset(offset)
-        : db
-            .select({ player: players })
-            .from(players)
-            .where(and(...conditions))
-            .orderBy(finalOrderByClause)
-            .limit(limit)
-            .offset(offset);
+        : needsPoolJoin
+          ? db
+              .select({ player: players })
+              .from(players)
+              .leftJoin(playerPools, eq(playerPools.playerId, players.id))
+              .where(and(...conditions))
+              .orderBy(finalOrderByClause)
+              .limit(limit)
+              .offset(offset)
+          : db
+              .select({ player: players })
+              .from(players)
+              .where(and(...conditions))
+              .orderBy(finalOrderByClause)
+              .limit(limit)
+              .offset(offset);
 
     const [countResult, playerRows] = await Promise.all([countQuery, dataQuery]);
 
@@ -2596,6 +2629,65 @@ export class DatabaseStorage implements IStorage {
     return sentimentMap;
   }
 
+  async getBatchPlayerPriceChange24h(playerIds: string[]): Promise<Map<string, number>> {
+    if (playerIds.length === 0) {
+      return new Map();
+    }
+
+    const priceChangesResult: any = await db.execute(sql`
+      WITH first_trades AS (
+        SELECT DISTINCT ON (${trades.playerId})
+          ${trades.playerId} AS player_id,
+          ${trades.price}::numeric AS first_price
+        FROM ${trades}
+        WHERE ${inArray(trades.playerId, playerIds)}
+          AND ${trades.executedAt} >= NOW() - INTERVAL '24 hours'
+          AND (${trades.buyerId} = 'pool' OR ${trades.sellerId} = 'pool')
+        ORDER BY ${trades.playerId}, ${trades.executedAt} ASC
+      )
+      SELECT
+        ${players.id} AS player_id,
+        CASE
+          WHEN ft.first_price > 0
+          THEN (
+            (
+              CASE
+                WHEN COALESCE(${playerPools.shares}, 0)::numeric > 0
+                  AND COALESCE(${playerPools.playMoney}, 0)::numeric > 0
+                THEN ${playerPools.playMoney}::numeric / NULLIF(${playerPools.shares}::numeric, 0)
+                WHEN ${players.lastTradePrice} IS NOT NULL
+                THEN ${players.lastTradePrice}::numeric
+                ELSE 0
+              END - ft.first_price
+            ) / ft.first_price
+          ) * 100
+          ELSE 0
+        END AS price_change_24h
+      FROM ${players}
+      LEFT JOIN ${playerPools} ON ${playerPools.playerId} = ${players.id}
+      LEFT JOIN first_trades ft ON ft.player_id = ${players.id}
+      WHERE ${inArray(players.id, playerIds)}
+    `);
+
+    const rows = priceChangesResult?.rows ?? priceChangesResult ?? [];
+    const priceChangeMap = new Map<string, number>();
+
+    for (const row of rows) {
+      priceChangeMap.set(
+        row.player_id ?? row.playerId,
+        parseFloat(row.price_change_24h ?? row.priceChange24h ?? "0"),
+      );
+    }
+
+    for (const playerId of playerIds) {
+      if (!priceChangeMap.has(playerId)) {
+        priceChangeMap.set(playerId, 0);
+      }
+    }
+
+    return priceChangeMap;
+  }
+
   // Batch fetch ALL-TIME average fantasy points for players
   // This matches the calculation used in getFinancialMarketScanners for value index
   async getBatchAllTimeAvgFantasyPoints(playerIds: string[]): Promise<Map<string, number>> {
@@ -2678,10 +2770,6 @@ export class DatabaseStorage implements IStorage {
         buyPressure: (sentiment.buyPressure || 50).toFixed(2),
         totalOrderVolume24h: Math.round(sentiment.totalVolume24h || 0),
         valueIndex: (valueIndex || 0).toFixed(2),
-        bestBid: "0.00",
-        bestAsk: "0.00",
-        bidSize: 0,
-        askSize: 0,
         updatedAt: now,
       };
     });
@@ -2696,10 +2784,6 @@ export class DatabaseStorage implements IStorage {
           buyPressure: sql`excluded.buy_pressure`,
           totalOrderVolume24h: sql`excluded.total_order_volume_24h`,
           valueIndex: sql`excluded.value_index`,
-          bestBid: sql`excluded.best_bid`,
-          bestAsk: sql`excluded.best_ask`,
-          bidSize: sql`excluded.bid_size`,
-          askSize: sql`excluded.ask_size`,
           updatedAt: sql`excluded.updated_at`,
         },
       });
@@ -5664,6 +5748,8 @@ export class DatabaseStorage implements IStorage {
         volume24h: players.volume24h,
         priceChange24h: players.priceChange24h,
         marketCap: players.marketCap,
+        poolShares: sql<number>`COALESCE((${playerPools.shares})::float8, 0)`,
+        poolPlayMoney: sql<number>`COALESCE((${playerPools.playMoney})::float8, 0)`,
         avgPoints: sql<string>`AVG(CAST(${playerGameStats.fantasyPoints} AS numeric))`,
       })
       .from(players)
@@ -5723,6 +5809,27 @@ export class DatabaseStorage implements IStorage {
       };
     });
 
+    const summary = activePlayers.reduce(
+      (accumulator, player) => {
+        const poolShares = Number(player.poolShares || 0);
+        const poolPlayMoney = Number(player.poolPlayMoney || 0);
+
+        accumulator.totalVolume24h += Number(player.volume24h || 0);
+        accumulator.totalPoolShares += Math.max(0, poolShares);
+        accumulator.totalMarketTvl += Math.max(
+          0,
+          poolShares > 0 ? poolPlayMoney * 2 : poolPlayMoney,
+        );
+
+        return accumulator;
+      },
+      {
+        totalVolume24h: 0,
+        totalPoolShares: 0,
+        totalMarketTvl: 0,
+      },
+    );
+
     // 4. Sort and Slice
     const undervalued = processed
       .filter((x) => x.metrics.valueIndex > 0 && x.metrics.valueIndex < 100)
@@ -5743,7 +5850,7 @@ export class DatabaseStorage implements IStorage {
       .sort((a, b) => parseFloat(b.player.priceChange24h) - parseFloat(a.player.priceChange24h))
       .slice(0, 10);
 
-    return { undervalued, premium, sentiment, momentum };
+    return { undervalued, premium, sentiment, momentum, summary };
   }
   async getTradeHistory(userId: string): Promise<Trade[]> {
     return await db

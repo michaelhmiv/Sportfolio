@@ -34,6 +34,10 @@ const poolMocks = vi.hoisted(() => ({
   getZapAddQuoteSbOnly: vi.fn(),
 }));
 
+const dataSourceMocks = vi.hoisted(() => ({
+  getAgentDataSourceSummary: vi.fn(),
+}));
+
 vi.mock("../storage", () => ({
   storage: storageMocks,
 }));
@@ -45,6 +49,10 @@ vi.mock("../amm/pool", () => ({
   getLpPosition: poolMocks.getLpPosition,
   getZapAddQuoteSharesOnly: poolMocks.getZapAddQuoteSharesOnly,
   getZapAddQuoteSbOnly: poolMocks.getZapAddQuoteSbOnly,
+}));
+
+vi.mock("./data-sources", () => ({
+  getAgentDataSourceSummary: dataSourceMocks.getAgentDataSourceSummary,
 }));
 
 describe("planDirectAgentOperation", () => {
@@ -62,6 +70,20 @@ describe("planDirectAgentOperation", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    dataSourceMocks.getAgentDataSourceSummary.mockResolvedValue({
+      builtIn: [
+        {
+          id: "internal_mlb_mcp",
+          kind: "built_in",
+          name: "MLB Data Feed",
+          description: "Built-in in-house MLB data for Hermes.",
+          enabled: true,
+          available: true,
+          capabilitySummary: "In-house MLB data and leaderboard context.",
+        },
+      ],
+      external: [],
+    });
     storageMocks.getPlayer.mockResolvedValue(player);
     storageMocks.getUser.mockResolvedValue({ id: "user_1", isPremium: false });
     storageMocks.getPlayers.mockResolvedValue([
@@ -550,6 +572,7 @@ describe("planDirectAgentOperation", () => {
     expect(result?.domain).toBe("sportfolio");
     expect(result?.actions).toHaveLength(0);
     expect(result?.replyText).toContain("player-pool buys and sells");
+    expect(result?.replyText).toContain("built-in Hermes-only MLB data connection");
     expect(result?.replyText).toContain("wait for your confirmation");
   });
 
@@ -599,6 +622,33 @@ describe("planDirectAgentOperation", () => {
     expect(result?.actions).toHaveLength(0);
     expect(result?.summary).toContain("community-boost opportunity");
     expect(result?.replyText).toContain("community-boost look");
+  });
+
+  it("can suppress broad advisory planners when Hermes wants mutation-only previews", async () => {
+    const { planDirectAgentOperation } = await import("./operations-planner");
+
+    const capabilityResult = await planDirectAgentOperation({
+      userId: "user_1",
+      message: "what can you do?",
+      profile,
+      allowAdvisoryResponses: false,
+    });
+    const setupReviewResult = await planDirectAgentOperation({
+      userId: "user_1",
+      message: "review my setup",
+      profile,
+      allowAdvisoryResponses: false,
+    });
+    const marketReadResult = await planDirectAgentOperation({
+      userId: "user_1",
+      message: "who has a game that hasn't started tonight?",
+      profile,
+      allowAdvisoryResponses: false,
+    });
+
+    expect(capabilityResult).toBeNull();
+    expect(setupReviewResult).toBeNull();
+    expect(marketReadResult).toBeNull();
   });
 
   it("stores a player-name clarification for a blocked multi-step workflow", async () => {

@@ -70,6 +70,40 @@ export interface AgentSecretMetadata {
   updatedAt: Date | null;
 }
 
+export type AgentDataSourceKind = "built_in" | "external";
+
+export interface AgentDataSourceView {
+  id: string;
+  kind: AgentDataSourceKind;
+  name: string;
+  description: string | null;
+  enabled: boolean;
+  available: boolean;
+  authType: string;
+  url: string | null;
+  lastVerifiedAt: Date | null;
+  lastError: string | null;
+  createdAt: Date | null;
+  editable: boolean;
+  removable: boolean;
+  capabilitySummary: string | null;
+}
+
+export interface AgentDataSourceCapabilityView {
+  id: string;
+  kind: AgentDataSourceKind;
+  name: string;
+  description: string | null;
+  enabled: boolean;
+  available: boolean;
+  capabilitySummary: string | null;
+}
+
+export interface AgentDataSourceSummaryView {
+  builtIn: AgentDataSourceCapabilityView[];
+  external: AgentDataSourceCapabilityView[];
+}
+
 export interface AgentProfileView {
   profile: UserAgentProfile;
   secret: AgentSecretMetadata;
@@ -81,6 +115,7 @@ export interface AgentProfileView {
     runtime: AgentRuntime;
     hasDurableMemory: boolean;
     canScheduleAdvisories: boolean;
+    dataSources?: AgentDataSourceSummaryView;
   };
 }
 
@@ -95,6 +130,7 @@ export interface AgentCapabilitiesView {
   runtime: AgentRuntime;
   hasDurableMemory: boolean;
   canScheduleAdvisories: boolean;
+  dataSources?: AgentDataSourceSummaryView;
 }
 
 export interface ManagedProviderStatus {
@@ -656,6 +692,7 @@ export interface HermesRespondRequest {
       | "runtime"
       | "hasDurableMemory"
       | "canScheduleAdvisories"
+      | "dataSources"
     >;
   };
   memoryContext: {

@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { GameInsight } from "@/types/game-insights";
 import { Activity, Calendar, Trophy, Zap, X, RefreshCw } from "lucide-react";
+import { formatSignedAdaptiveCurrency } from "@/lib/currency";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -21,19 +22,6 @@ const statusConfig = {
   completed: { label: "Final", icon: Trophy, variant: "secondary" as const },
   postponed: { label: "Postponed", icon: Calendar, variant: "outline" as const },
 };
-
-const compactCurrencyFormatter = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  notation: "compact",
-  maximumFractionDigits: 1,
-});
-
-const standardCurrencyFormatter = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  maximumFractionDigits: 2,
-});
 
 const listingGridClass =
   "grid grid-cols-[minmax(74px,1.05fr)_minmax(52px,0.8fr)_minmax(52px,0.8fr)_minmax(86px,1fr)_minmax(88px,1fr)] items-start gap-x-2";
@@ -104,19 +92,16 @@ export function GameCommandCenterCard({
     }
 
     const rawValue = userContext.liveEarned;
-    const formatter =
-      Math.abs(rawValue) >= 1000 ? compactCurrencyFormatter : standardCurrencyFormatter;
-    const absValue = formatter.format(Math.abs(rawValue));
-
-    if (rawValue > 0) {
-      return { label: `+${absValue}`, toneClass: "text-emerald-500", meta: "Captured" };
-    }
-
-    if (rawValue < 0) {
-      return { label: `-${absValue}`, toneClass: "text-rose-500", meta: "Captured" };
-    }
-
-    return { label: "$0.00", toneClass: "text-muted-foreground", meta: "Captured" };
+    return {
+      label: formatSignedAdaptiveCurrency(rawValue, { zeroDisplay: "$0.00" }),
+      toneClass:
+        rawValue > 0
+          ? "text-emerald-500"
+          : rawValue < 0
+            ? "text-rose-500"
+            : "text-muted-foreground",
+      meta: "Captured",
+    };
   };
 
   const liveEarnedDisplay = getLiveEarnedDisplay();

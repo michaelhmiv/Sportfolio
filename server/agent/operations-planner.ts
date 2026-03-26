@@ -13,9 +13,11 @@ import { getETDayBoundaries, getTodayET } from "../lib/time";
 import { storage } from "../storage";
 import type { UserAgentProfile } from "@shared/schema";
 import { buildPlayerNameClarification } from "./clarification";
+import { getAgentDataSourceSummary } from "./data-sources";
 import { isHostedWebResearchAvailable } from "./research";
 import type {
   AgentAnalysisResult,
+  AgentDataSourceSummaryView,
   AgentDomain,
   CommunityBoostCreateAction,
   DailyBoostAssignAction,
@@ -437,8 +439,26 @@ function isCapabilityGuideRequest(message: string): boolean {
     /\b(?:how broad|how capable)\b.*\b(?:are you|is the agent)\b/.test(lower) ||
     /\b(?:which|what)\s+(?:areas|parts of sportfolio)\s+(?:can you manage|can you handle)\b/.test(
       lower,
+    ) ||
+    /\b(?:do|does)\s+(?:you|hermes|the agent)\s+(?:have|support)\b.*\b(?:tools?|mcp\s+(?:connections?|tools?)|data sources?)\b/.test(
+      lower,
+    ) ||
+    /\b(?:what|which)\s+(?:tools?|mcp\s+(?:connections?|tools?)|data sources?)\s+(?:do you have|are available)\b/.test(
+      lower,
     )
   );
+}
+
+function summarizeCapabilityDataSources(dataSources: AgentDataSourceSummaryView | undefined) {
+  const builtIn = dataSources?.builtIn[0] || null;
+  const enabledExternal = (dataSources?.external || []).filter((source) => source.enabled);
+  const disabledExternal = (dataSources?.external || []).filter((source) => !source.enabled);
+
+  return {
+    builtIn,
+    enabledExternal,
+    disabledExternal,
+  };
 }
 
 function isBroadOperatorReviewRequest(message: string): boolean {
@@ -525,8 +545,8 @@ function selectScannerBackedUpcomingCandidate(input: {
 }
 
 async function buildCapabilityGuidePlan(
-  _userId: string,
-  _profile: UserAgentProfile,
+  userId: string,
+  profile: UserAgentProfile,
   message: string,
   _requestMode: "discussion" | "commit",
 ): Promise<DirectOperationPlan | null> {
@@ -535,18 +555,50 @@ async function buildCapabilityGuidePlan(
   }
 
   const webResearchEnabled = isHostedWebResearchAvailable();
+  const dataSources = await getAgentDataSourceSummary(userId, profile);
+  const { builtIn, enabledExternal, disabledExternal } =
+    summarizeCapabilityDataSources(dataSources);
+  const builtInSentence = !builtIn
+    ? null
+    : builtIn.enabled && builtIn.available
+      ? "I also have a built-in Hermes-only MLB data connection for in-house MLB stats and leaderboard context."
+      : builtIn.enabled
+        ? "The built-in Hermes-only MLB data connection exists in Configure, but it is currently unavailable."
+        : "The built-in Hermes-only MLB data connection is available in Configure, but it is currently toggled off for this user.";
+  const externalSentence =
+    enabledExternal.length > 0
+      ? `You also have ${enabledExternal.length} enabled external MCP source${enabledExternal.length === 1 ? "" : "s"}: ${enabledExternal.map((source) => source.name).join(", ")}.`
+      : disabledExternal.length > 0
+        ? `You have ${disabledExternal.length} external MCP source${disabledExternal.length === 1 ? "" : "s"} saved, but none are enabled right now.`
+        : "You do not have any enabled external MCP sources connected right now.";
 
   return {
     domain: "sportfolio",
     requestMessage: message,
-    replyText: webResearchEnabled
-      ? "I can operate across the main user-facing Sportfolio loops: scouting, player-pool buys and sells, liquidity adds and removals, zaps, stack-shares / multiplier flows, daily boosts, watchlists, and community boosts. I can also pull current outside context through the hosted Brave search path when you ask for latest news, injuries, or other time-sensitive external info. For any live mutation, I still stage the move first and wait for your confirmation before execution."
-      : "I can operate across the main user-facing Sportfolio loops: scouting, player-pool buys and sells, liquidity adds and removals, zaps, stack-shares / multiplier flows, daily boosts, watchlists, and community boosts. For any live mutation, I still stage the move first and wait for your confirmation before execution.",
+    replyText: [
+      "I can operate across the main user-facing Sportfolio loops: scouting, player-pool buys and sells, liquidity adds and removals, zaps, stack-shares / multiplier flows, daily boosts, watchlists, and community boosts.",
+      builtInSentence,
+      externalSentence,
+      webResearchEnabled
+        ? "I can also pull current outside context through the hosted Brave search path when you ask for latest news, injuries, or other time-sensitive external info."
+        : null,
+      "For any live mutation, I still stage the move first and wait for your confirmation before execution.",
+    ]
+      .filter(Boolean)
+      .join(" "),
     summary:
       "Broad operator coverage across scouting, markets, boosts, watchlists, and community boosts.",
     observations: [
       "Direct commands stage confirmation-gated actions instead of executing immediately.",
       "Broad advisory asks can return a cross-domain setup read before any plan is queued.",
+      builtIn
+        ? builtIn.enabled && builtIn.available
+          ? `${builtIn.name} is enabled as a built-in Hermes data source.`
+          : `${builtIn.name} is not currently available for this user.`
+        : "No built-in data source metadata is available.",
+      enabledExternal.length > 0
+        ? `${enabledExternal.length} external MCP source${enabledExternal.length === 1 ? "" : "s"} enabled.`
+        : "No external MCP sources are enabled.",
       webResearchEnabled
         ? "Hosted Brave search is available for current external news and injury context."
         : "Hosted external web research is not configured right now.",
@@ -558,11 +610,13 @@ async function buildCapabilityGuidePlan(
     contextSnapshot: {
       intent: "capability_guide",
       webResearchEnabled,
+      dataSources,
     },
     trace: {
       framework: "deterministic-agent-operations",
       intent: "capability_guide",
       webResearchEnabled,
+      dataSources,
     },
   };
 }
@@ -2306,6 +2360,7 @@ export async function planDirectAgentOperation(input: {
   userId: string;
   message: string | null;
   profile: UserAgentProfile;
+  allowAdvisoryResponses?: boolean;
 }): Promise<DirectOperationPlan | null> {
   const requestMessage = normalizeWhitespace(input.message || "");
   if (!requestMessage) {
@@ -2313,20 +2368,21 @@ export async function planDirectAgentOperation(input: {
   }
 
   const requestMode = isAdvisoryRequest(requestMessage) ? "discussion" : "commit";
-
-  const planners = [
+  const advisoryPlanners = [
     buildCapabilityGuidePlan,
     buildPortfolioCleanupReviewPlan,
     buildIdleCapitalDeploymentPlan,
     buildCommunityBoostOpportunityScanPlan,
     buildBroadOperatorReviewPlan,
     buildMarketIntelligencePlan,
+    buildGameplayStrategyPlan,
+  ];
+  const mutationPlanners = [
     buildBuyStackBoostWorkflowPlan,
     buildCommunityBoostPlan,
     buildWatchlistPlan,
     buildStackSharesPlan,
     buildScoutAssignmentPlan,
-    buildGameplayStrategyPlan,
     buildBoostRemovePlan,
     buildBoostAssignPlan,
     buildRemoveLiquidityPlan,
@@ -2334,6 +2390,10 @@ export async function planDirectAgentOperation(input: {
     buildLiquidityPlan,
     buildSellPlan,
     buildBuyPlan,
+  ];
+  const planners = [
+    ...(input.allowAdvisoryResponses === false ? [] : advisoryPlanners),
+    ...mutationPlanners,
   ];
 
   for (const planner of planners) {

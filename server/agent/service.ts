@@ -17,6 +17,7 @@ import { encryptText, getEncryptionVersion } from "../lib/encryption";
 import { buildHermesConversationPrompts } from "./conversation-prompts";
 import { buildAgentContinuityState } from "./continuity-state";
 import { loadScoutAgentContext } from "./context-loader";
+import { getAgentDataSourceSummary } from "./data-sources";
 import { executeScoutProposalActions } from "./executor";
 import { runHermesRuntimeTurn } from "./runtime-engine";
 import { buildAgentImprovementCandidate } from "./improvement";
@@ -215,6 +216,18 @@ function buildCapabilities(
     runtime: "hermes" as const,
     hasDurableMemory: true,
     canScheduleAdvisories: true,
+  };
+}
+
+async function buildCapabilityState(
+  userId: string,
+  profile: UserAgentProfile,
+  managedProvider: ManagedProviderStatus,
+  secret?: UserAgentSecret,
+) {
+  return {
+    ...buildCapabilities(profile, managedProvider, secret),
+    dataSources: await getAgentDataSourceSummary(userId, profile),
   };
 }
 
@@ -565,11 +578,12 @@ export async function getScoutAgentProfile(userId: string): Promise<AgentProfile
     getSecret(userId),
   ]);
   const profile = await ensureProfile(userId, managedProvider);
+  const capabilities = await buildCapabilityState(userId, profile, managedProvider, secret);
 
   return {
     profile,
     secret: toSecretMetadata(secret),
-    capabilities: buildCapabilities(profile, managedProvider, secret),
+    capabilities,
   };
 }
 
@@ -609,6 +623,7 @@ export async function getAgentCapabilities(userId: string): Promise<AgentCapabil
     runtime: profileView.capabilities.runtime,
     hasDurableMemory: profileView.capabilities.hasDurableMemory,
     canScheduleAdvisories: profileView.capabilities.canScheduleAdvisories,
+    dataSources: profileView.capabilities.dataSources,
   };
 }
 
@@ -772,7 +787,7 @@ export async function analyzeScoutAgent(
     throw new Error("Agent is disabled");
   }
 
-  const runtimeCapabilities = buildCapabilities(profile, managedProvider, secret);
+  const runtimeCapabilities = await buildCapabilityState(userId, profile, managedProvider, secret);
   if (!runtimeCapabilities.canAnalyze) {
     throw new Error(
       profile.providerMode === "managed" && !managedProvider.supportsHermesToolLoop
@@ -864,6 +879,7 @@ export async function analyzeScoutAgent(
         runtime: "hermes",
         hasDurableMemory: true,
         canScheduleAdvisories: true,
+        dataSources: runtimeCapabilities.dataSources,
       },
       memoryContext: await buildHermesMemoryContext({
         userId,

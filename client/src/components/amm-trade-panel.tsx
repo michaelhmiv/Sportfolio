@@ -21,6 +21,7 @@ import { Slider } from "@/components/ui/slider";
 import { ArrowRightLeft, TrendingUp, TrendingDown, Loader2, Flame, Droplets } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { formatAdaptiveCurrency } from "@/lib/currency";
 import { apiRequest } from "@/lib/queryClient";
 
 interface AmmTradePanelProps {
@@ -475,7 +476,9 @@ export function AmmTradePanel({
                 </div>
                 <div className="bg-muted px-2 py-1 rounded flex-1 text-center">
                   <span className="font-medium">
-                    ${poolData.playMoney?.toLocaleString() || "N/A"}
+                    {poolData.playMoney == null
+                      ? "N/A"
+                      : formatAdaptiveCurrency(poolData.playMoney)}
                   </span>
                   <div className="text-muted-foreground">Liquidity</div>
                 </div>

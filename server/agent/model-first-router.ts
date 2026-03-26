@@ -353,6 +353,40 @@ function summarizeMemoryContext(
   return sections.length > 0 ? sections.join("\n") : "None.";
 }
 
+function summarizeDataConnections(
+  capabilities: HermesRespondRequest["canonicalState"]["capabilities"],
+) {
+  const dataSources = capabilities.dataSources;
+  if (!dataSources) {
+    return "None.";
+  }
+
+  const builtInLines = dataSources.builtIn.map((source) => {
+    const status = [
+      source.enabled ? "enabled" : "disabled",
+      source.available ? "available" : "unavailable",
+    ].join(", ");
+    return `${source.name} [built-in, ${status}]`;
+  });
+  const externalLines = dataSources.external.map((source) => {
+    const status = [
+      source.enabled ? "enabled" : "disabled",
+      source.available ? "available" : "unavailable",
+    ].join(", ");
+    return `${source.name} [external, ${status}]`;
+  });
+  const lines = [];
+
+  if (builtInLines.length > 0) {
+    lines.push(`Built-in: ${builtInLines.join(" | ")}`);
+  }
+  if (externalLines.length > 0) {
+    lines.push(`External: ${externalLines.join(" | ")}`);
+  }
+
+  return lines.length > 0 ? lines.join("\n") : "None.";
+}
+
 function resolveInitialCompressionLevel(input: {
   request: HermesRespondRequest;
   matchedSkill: AgentSkillDefinition | null;
@@ -741,7 +775,57 @@ function collectCitations(result: unknown): AgentCitation[] {
   return [];
 }
 
-function buildToolResultText(tool: AgentToolDefinition, result: unknown): string {
+function isStructuredScanResult(value: unknown): value is {
+  summary?: string | null;
+  replyText?: string;
+  observations?: string[];
+  warnings?: string[];
+  context?: Record<string, unknown>;
+  intentFocus?: string;
+} {
+  return Boolean(
+    value &&
+    typeof value === "object" &&
+    ("observations" in (value as Record<string, unknown>) ||
+      "context" in (value as Record<string, unknown>) ||
+      "intentFocus" in (value as Record<string, unknown>)),
+  );
+}
+
+function buildStructuredToolContextText(input: {
+  toolName: string;
+  summary?: string | null;
+  observations?: string[];
+  warnings?: string[];
+  context?: unknown;
+  intentFocus?: string;
+  fallbackNarrative?: string | null;
+}) {
+  const parts: string[] = [];
+
+  if (input.summary) {
+    parts.push(`Summary: ${input.summary}`);
+  }
+  if (input.intentFocus) {
+    parts.push(`Intent focus: ${input.intentFocus}`);
+  }
+  if (input.observations && input.observations.length > 0) {
+    parts.push(`Observations:\n- ${input.observations.join("\n- ")}`);
+  }
+  if (input.warnings && input.warnings.length > 0) {
+    parts.push(`Warnings:\n- ${input.warnings.join("\n- ")}`);
+  }
+  if (input.context && typeof input.context === "object") {
+    parts.push(`Structured context:\n${safeJson(input.context, 2200)}`);
+  }
+  if (parts.length === 0 && input.fallbackNarrative) {
+    parts.push(input.fallbackNarrative);
+  }
+
+  return parts.join("\n\n") || `Result from ${input.toolName}.`;
+}
+
+function buildToolFallbackText(tool: AgentToolDefinition, result: unknown): string {
   if (tool.category === "scan" && result && typeof result === "object") {
     const scan = result as { replyText?: unknown; summary?: unknown };
     if (typeof scan.replyText === "string" && scan.replyText.trim()) {
@@ -759,6 +843,40 @@ function buildToolResultText(tool: AgentToolDefinition, result: unknown): string
     if (result.summary) {
       return result.summary;
     }
+  }
+
+  return `Result from ${tool.toolName}:\n${safeJson(result, 2800)}`;
+}
+
+function buildToolResultText(tool: AgentToolDefinition, result: unknown): string {
+  if (tool.category === "scan" && isStructuredScanResult(result)) {
+    return buildStructuredToolContextText({
+      toolName: tool.toolName,
+      summary: result.summary || null,
+      observations: Array.isArray(result.observations) ? result.observations : [],
+      warnings: Array.isArray(result.warnings) ? result.warnings : [],
+      context: result.context || {},
+      intentFocus: result.intentFocus,
+      fallbackNarrative: typeof result.replyText === "string" ? result.replyText.trim() : null,
+    });
+  }
+
+  if (isStructuredReadResult(result)) {
+    const record = result as Record<string, unknown>;
+    const { replyText, summary, warnings, citations, ...data } = record;
+
+    return buildStructuredToolContextText({
+      toolName: tool.toolName,
+      summary: typeof summary === "string" ? summary : null,
+      warnings: Array.isArray(warnings)
+        ? warnings.filter((entry): entry is string => typeof entry === "string")
+        : [],
+      context: {
+        ...data,
+        ...(Array.isArray(citations) && citations.length > 0 ? { citations } : {}),
+      },
+      fallbackNarrative: typeof replyText === "string" ? replyText : null,
+    });
   }
 
   return `Result from ${tool.toolName}:\n${safeJson(result, 2800)}`;
@@ -795,6 +913,10 @@ function buildLoopPrompt(input: {
     "Use memory mutation tools only when the user explicitly manages memory or skills, or when a workflow is clearly worth saving.",
     "For compound requests with multiple linked steps (buy + stack, buy + boost, buy + stack + boost), prefer preview_multi_action_bundle with a clear message describing all steps rather than calling individual preview tools separately.",
     "If you need to resolve a player name first, use a read tool, then call the compound preview tool on the next pass.",
+    "For capability, tool, MCP connection, or data-source questions, prefer get_tool_catalog and get_agent_capabilities before answering if you need to verify runtime truth.",
+    "For broad setup reviews, prefer get_portfolio_summary or get_operator_overview before answering.",
+    "For cleanup, cash deployment, market-opportunity, and community-boost recommendation questions, prefer the matching scan tools instead of a plan tool.",
+    "When the user asks what tools, MCP connections, or data sources are available, answer from the real tool list and data-connection state below. Do not claim there are none if either section is populated.",
     "When you have enough context, answer directly in plain text and do not call another tool.",
     "</routing_rules>",
     "<matched_skill_hint>",
@@ -818,6 +940,9 @@ function buildLoopPrompt(input: {
       compressed,
     }),
     "</memory_context>",
+    "<data_connections>",
+    summarizeDataConnections(input.request.canonicalState.capabilities),
+    "</data_connections>",
     "<conversation_history>",
     summarizeHistory(input.request.conversationHistory, {
       limit: input.compressionLevel === 2 ? 2 : input.compressionLevel === 1 ? 3 : 4,
@@ -1403,8 +1528,9 @@ export async function runHermesModelToolLoop(input: {
 
         citations.push(...collectCitations(toolResult));
         const toolResultText = buildToolResultText(selectedTool, toolResult);
+        const toolFallbackText = buildToolFallbackText(selectedTool, toolResult);
         lastSuccessfulToolName = selectedTool.toolName;
-        lastSuccessfulToolReply = toolResultText;
+        lastSuccessfulToolReply = toolFallbackText;
         toolTrace.push(
           buildToolTraceEntry({
             toolName: selectedTool.toolName,

@@ -2,6 +2,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type { AgentToolDefinition } from "./types";
 
+export const INTERNAL_MLB_MCP_SOURCE_ID = "internal_mlb_mcp";
 const DEFAULT_TOOL_PREFIX = "mlb_mcp__";
 const DEFAULT_TIMEOUT_MS = 12000;
 const DEFAULT_CACHE_TTL_MS = 60_000;
@@ -511,6 +512,34 @@ export async function getInternalMlbMcpToolCatalog(): Promise<AgentToolDefinitio
     warnOncePerWindow("Unable to load internal MLB MCP tools", error);
     return [];
   }
+}
+
+export async function getInternalMlbMcpStatus(): Promise<{
+  enabled: boolean;
+  endpointConfigured: boolean;
+  available: boolean;
+  toolCount: number;
+  toolPrefix: string;
+}> {
+  const config = resolveInternalMlbMcpConfig();
+  if (!config.enabled || !config.endpoint) {
+    return {
+      enabled: config.enabled,
+      endpointConfigured: Boolean(config.endpoint),
+      available: false,
+      toolCount: 0,
+      toolPrefix: config.toolPrefix,
+    };
+  }
+
+  const toolCatalog = await getInternalMlbMcpToolCatalog();
+  return {
+    enabled: config.enabled,
+    endpointConfigured: true,
+    available: toolCatalog.length > 0,
+    toolCount: toolCatalog.length,
+    toolPrefix: config.toolPrefix,
+  };
 }
 
 export async function runInternalMlbMcpReadTool(input: {

@@ -8,6 +8,11 @@ import {
   DrawerTrigger,
 } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
+import {
+  formatAdaptiveCurrency,
+  formatSignedAdaptiveCurrency,
+  formatStandardCurrency,
+} from "@/lib/currency";
 import { cn } from "@/lib/utils";
 
 interface NetWorthChangeSummary {
@@ -33,44 +38,12 @@ interface MobilePortfolioStatsSheetProps {
   onOpenLeaderboard: (target: "portfolioValue" | "cashBalance") => void;
 }
 
-const compactCurrencyFormatter = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  notation: "compact",
-  maximumFractionDigits: 1,
-});
-
-const compactNumberFormatter = new Intl.NumberFormat("en-US", {
-  notation: "compact",
-  maximumFractionDigits: 1,
-});
-
-const fullCurrencyFormatter = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  maximumFractionDigits: 2,
-});
-
-function formatCompactCurrency(value: number) {
-  return compactCurrencyFormatter.format(value);
-}
-
 function formatFullCurrency(value: number) {
-  return fullCurrencyFormatter.format(value);
+  return formatStandardCurrency(value);
 }
 
 function formatSignedCurrency(value: number | null) {
-  if (value === null || Number.isNaN(value)) return "--";
-  const absolute = compactNumberFormatter
-    .format(Math.abs(value))
-    .replace("K", "k")
-    .replace("M", "m")
-    .replace("B", "b")
-    .replace("T", "t");
-
-  if (value > 0) return `+${absolute}`;
-  if (value < 0) return `-${absolute}`;
-  return "0";
+  return formatSignedAdaptiveCurrency(value, { zeroDisplay: "$0.00" });
 }
 
 function formatSignedPercent(value: number | null) {
@@ -138,7 +111,7 @@ export function MobilePortfolioStatsSheet({
           <span className="inline-flex items-center gap-1 text-xs font-medium text-[#d1d4dc]">
             <DollarSign className="h-3.5 w-3.5 text-[#2962ff]" />
             <span data-testid="text-mobile-portfolio-trigger-value">
-              {formatCompactCurrency(netWorthValue)}
+              {formatAdaptiveCurrency(netWorthValue)}
             </span>
           </span>
         </button>

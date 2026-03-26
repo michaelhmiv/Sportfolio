@@ -31,15 +31,21 @@ import { cn } from "@/lib/utils";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { AgentProfileResponse, AgentScheduleSummary, ProviderMode } from "../types";
 
-interface McpSource {
+interface AgentDataSource {
   id: string;
+  kind: "built_in" | "external";
   name: string;
-  url: string;
+  description: string | null;
+  url: string | null;
   authType: string;
   enabled: boolean;
+  available: boolean;
   lastVerifiedAt: string | null;
   lastError: string | null;
-  createdAt: string;
+  createdAt: string | null;
+  editable: boolean;
+  removable: boolean;
+  capabilitySummary: string | null;
 }
 
 const SCHEDULE_TEMPLATES: Array<{
@@ -106,9 +112,12 @@ function DataSourcesSection() {
   const [newAuthType, setNewAuthType] = useState("none");
   const [newAuthToken, setNewAuthToken] = useState("");
 
-  const { data: sources, isLoading } = useQuery<McpSource[]>({
+  const { data: sources, isLoading } = useQuery<AgentDataSource[]>({
     queryKey: ["/api/agent/mcp-sources"],
   });
+
+  const sourceList = sources || [];
+  const externalSourceCount = sourceList.filter((source) => source.kind === "external").length;
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -162,11 +171,11 @@ function DataSourcesSection() {
       <SectionHeader
         icon={Database}
         title="Data Sources"
-        badge={sources ? `${sources.length}/5` : undefined}
+        badge={sources ? `${externalSourceCount}/5 external` : undefined}
       />
       <p className="text-xs leading-5 text-white/35">
-        Connect external MCP data sources. Hermes queries them automatically during conversations
-        and strategy runs.
+        Built-in sources are available through Hermes by default. You can also connect external MCP
+        data sources, and Hermes will query enabled sources during conversations and strategy runs.
       </p>
 
       {isLoading ? (
@@ -176,13 +185,13 @@ function DataSourcesSection() {
         </div>
       ) : (
         <>
-          {(sources || []).length === 0 && !isAdding && (
+          {sourceList.length === 0 && !isAdding && (
             <div className="rounded-xl border border-dashed border-white/[0.08] bg-white/[0.02] p-4 text-center text-xs text-white/30">
               No data sources connected yet.
             </div>
           )}
 
-          {(sources || []).map((source) => (
+          {sourceList.map((source) => (
             <div
               key={source.id}
               className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3"
@@ -190,21 +199,32 @@ function DataSourcesSection() {
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium text-white/90">{source.name}</span>
+                  {source.kind === "built_in" && (
+                    <Badge className="rounded-full bg-sky-500/10 text-[10px] text-sky-300 hover:bg-sky-500/10">
+                      Built-in
+                    </Badge>
+                  )}
                   {source.lastError ? (
                     <Badge className="rounded-full bg-red-500/10 text-[10px] text-red-300 hover:bg-red-500/10">
                       Error
                     </Badge>
-                  ) : source.enabled ? (
+                  ) : !source.enabled ? (
+                    <Badge className="rounded-full bg-white/[0.06] text-[10px] text-white/40 hover:bg-white/[0.06]">
+                      Disabled
+                    </Badge>
+                  ) : source.available ? (
                     <Badge className="rounded-full bg-emerald-500/10 text-[10px] text-emerald-300 hover:bg-emerald-500/10">
                       Connected
                     </Badge>
                   ) : (
-                    <Badge className="rounded-full bg-white/[0.06] text-[10px] text-white/40 hover:bg-white/[0.06]">
-                      Disabled
+                    <Badge className="rounded-full bg-amber-500/10 text-[10px] text-amber-300 hover:bg-amber-500/10">
+                      Unavailable
                     </Badge>
                   )}
                 </div>
-                <div className="mt-0.5 truncate text-[11px] text-white/30">{source.url}</div>
+                <div className="mt-0.5 text-[11px] leading-4 text-white/30">
+                  {source.url || source.description || "Hermes-managed data source"}
+                </div>
               </div>
               <Switch
                 checked={source.enabled}
@@ -212,15 +232,19 @@ function DataSourcesSection() {
                   toggleMutation.mutate({ sourceId: source.id, enabled })
                 }
               />
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-white/20 hover:bg-red-500/10 hover:text-red-300"
-                onClick={() => deleteMutation.mutate(source.id)}
-                disabled={deleteMutation.isPending}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
+              {source.removable ? (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-white/20 hover:bg-red-500/10 hover:text-red-300"
+                  onClick={() => deleteMutation.mutate(source.id)}
+                  disabled={deleteMutation.isPending}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              ) : (
+                <div className="h-8 w-8 shrink-0" />
+              )}
             </div>
           ))}
         </>
@@ -298,7 +322,7 @@ function DataSourcesSection() {
           variant="ghost"
           className="h-9 w-full rounded-xl border border-dashed border-white/[0.08] text-xs text-white/40 hover:bg-white/[0.04] hover:text-white/60"
           onClick={() => setIsAdding(true)}
-          disabled={(sources || []).length >= 5}
+          disabled={externalSourceCount >= 5}
         >
           <Plus className="mr-2 h-3.5 w-3.5" />
           Add data source

@@ -259,13 +259,8 @@ const AGENT_TOOL_CATALOG: AgentToolDefinition[] = [
       "The user wants to know a player's schedule this week.",
       "A strategy needs to plan boosts around upcoming game times.",
     ],
-    whenNotToUse: [
-      "The user is asking about historical stats or past games.",
-    ],
-    examplePrompts: [
-      "when does LeBron play next?",
-      "what's Shohei Ohtani's schedule this week?",
-    ],
+    whenNotToUse: ["The user is asking about historical stats or past games."],
+    examplePrompts: ["when does LeBron play next?", "what's Shohei Ohtani's schedule this week?"],
     requiresConfirmation: false,
     riskLevel: "low",
   },
@@ -492,8 +487,11 @@ export function getAgentToolCatalog(): AgentToolDefinition[] {
   return buildMergedToolCatalog([...AGENT_TOOL_CATALOG, ...getCoreHermesToolCatalog()]);
 }
 
-export async function getAgentRuntimeToolCatalog(): Promise<AgentToolDefinition[]> {
-  const internalMlbTools = await getInternalMlbMcpToolCatalog();
+export async function getAgentRuntimeToolCatalog(options?: {
+  includeInternalMlbMcp?: boolean;
+}): Promise<AgentToolDefinition[]> {
+  const internalMlbTools =
+    options?.includeInternalMlbMcp === false ? [] : await getInternalMlbMcpToolCatalog();
   return buildMergedToolCatalog([
     ...AGENT_TOOL_CATALOG,
     ...getCoreHermesToolCatalog(),
@@ -615,6 +613,7 @@ async function materializeStructuredPreviewPlan(input: {
     userId: input.userId,
     message: input.preview.stageMessage,
     profile,
+    allowAdvisoryResponses: false,
   });
 
   if (!staged) {
@@ -846,6 +845,77 @@ function resolveTargetDate(rawDate: unknown): Date {
     requestedDate && /^\d{4}-\d{2}-\d{2}$/.test(requestedDate) ? requestedDate : getTodayET();
   const { startOfDay } = getETDayBoundaries(normalizedDate);
   return new Date(startOfDay.getTime() + 12 * 60 * 60 * 1000);
+}
+
+function resolveDateLabel(targetDate: Date) {
+  const requestedDate = targetDate.toISOString().slice(0, 10);
+  const today = getTodayET();
+  if (requestedDate === today) {
+    return "today";
+  }
+
+  const { startOfDay } = getETDayBoundaries(today);
+  const tomorrow = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000).toLocaleDateString(
+    "en-CA",
+    {
+      timeZone: "America/New_York",
+    },
+  );
+
+  return requestedDate === tomorrow ? "tomorrow" : requestedDate;
+}
+
+function selectScannerBackedUpcomingCandidate(input: {
+  allPlayers: Array<{
+    id?: string | null;
+    isActive?: boolean | null;
+    sport?: string | null;
+    team?: string | null;
+    firstName?: string | null;
+    lastName?: string | null;
+  }>;
+  games: Array<{
+    sport?: string | null;
+    startTime: Date | string;
+    homeTeam?: string | null;
+    awayTeam?: string | null;
+  }>;
+  scannerIds: Set<string>;
+  sportHint: string | null;
+  excludedIds?: Set<string>;
+}) {
+  for (const player of input.allPlayers) {
+    if (!player?.id || !player.isActive) {
+      continue;
+    }
+    if (input.sportHint && player.sport !== input.sportHint) {
+      continue;
+    }
+    if (!input.scannerIds.has(player.id)) {
+      continue;
+    }
+    if (input.excludedIds?.has(player.id)) {
+      continue;
+    }
+
+    const nextGame = input.games.find(
+      (game) =>
+        game.sport === player.sport &&
+        new Date(game.startTime) > new Date() &&
+        (game.homeTeam === player.team || game.awayTeam === player.team),
+    );
+
+    if (!nextGame) {
+      continue;
+    }
+
+    return {
+      player,
+      game: nextGame,
+    };
+  }
+
+  return null;
 }
 
 async function getHoldingAvailability(userId: string, playerId: string) {
@@ -1099,53 +1169,55 @@ async function buildIdleBalanceDeploymentScan(input: {
   userId: string;
   args?: Record<string, unknown>;
 }): Promise<HermesScanResult> {
-  const profile = (await getScoutAgentProfile(input.userId)).profile;
+  const requestedMessage = toStringValue(input.args?.message);
   const requestedSport = toStringValue(input.args?.sport).toUpperCase();
   const message =
-    toStringValue(input.args?.message) ||
+    requestedMessage ||
     (requestedSport
       ? `what should i do with my idle balance in ${requestedSport}?`
       : "what should i do with my idle balance?");
-  const plan = await planDirectAgentOperation({
-    userId: input.userId,
-    profile,
-    message,
-  });
+  const { context } = await loadOperatorToolContext(input.userId, message, input.args?.sport);
+  const availableBalance = context.operatorOverview.availableBalance;
+  const recommendedTargets = context.recommendedTargets.slice(0, 5);
+  const candidateNames = recommendedTargets
+    .slice(0, 3)
+    .map((entry) => entry.name.trim())
+    .filter(Boolean);
+  const warnings: string[] = [];
 
-  if (!plan) {
-    return buildScanResult({
-      toolName: "scan_idle_balance_options",
-      domain: "portfolio",
-      intentFocus: "cash_deployment",
-      summary: "No idle-capital deployment review was produced.",
-      replyText:
-        "I could not produce a cash-deployment review for that request. If you want, I can still review your balance state and current market windows directly.",
-      observations: [],
-      warnings: ["No idle-capital deployment plan was available for that request."],
-      context: {},
-    });
+  if (availableBalance < 10) {
+    warnings.push("Available balance is already mostly deployed.");
   }
-
-  const planContext =
-    plan.contextSnapshot && typeof plan.contextSnapshot === "object"
-      ? (plan.contextSnapshot as Record<string, unknown>)
-      : {};
+  if (candidateNames.length === 0 && availableBalance >= 10) {
+    warnings.push("No standout deployment candidate is surfacing from the current ranked board.");
+  }
 
   return buildScanResult({
     toolName: "scan_idle_balance_options",
     domain: "portfolio",
     intentFocus: "cash_deployment",
-    summary: plan.summary || "Idle-capital deployment review.",
-    replyText: plan.replyText || plan.summary || "I reviewed your idle-capital deployment options.",
-    observations: plan.observations || [],
-    warnings: plan.warnings || [],
+    summary:
+      availableBalance < 10
+        ? "Available balance is already mostly deployed."
+        : "Reviewed idle-balance deployment options.",
+    replyText:
+      availableBalance < 10
+        ? `You only have ${formatMoney(availableBalance)} available right now, so there is no meaningful idle-balance decision to force.`
+        : candidateNames.length > 0
+          ? `You have ${formatMoney(availableBalance)} available. The cleanest current deployment candidates are ${formatCandidateList(candidateNames)}.`
+          : `You have ${formatMoney(availableBalance)} available, but there is no standout deployment candidate from the current ranked board right now.`,
+    observations: [
+      `${formatMoney(availableBalance)} is currently available to deploy.`,
+      `${context.operatorOverview.openDailyBoostSlots} daily boost slot${context.operatorOverview.openDailyBoostSlots === 1 ? "" : "s"} remain open.`,
+      `${context.remainingScouts} scout${context.remainingScouts === 1 ? "" : "s"} remain unassigned.`,
+    ],
+    warnings,
     context: {
-      ...planContext,
-      availableBalance:
-        typeof planContext.availableBalance === "number" ? planContext.availableBalance : null,
-      candidatePlayerId: toOptionalString(planContext.candidatePlayerId),
-      actions: Array.isArray(plan.actions) ? plan.actions : [],
-      trace: plan.trace || {},
+      availableBalance,
+      selectionWindow: context.selectionWindow,
+      operatorOverview: context.operatorOverview,
+      recommendedTargets,
+      defaultSport: context.defaultSport,
     },
   });
 }
@@ -1155,35 +1227,96 @@ async function buildCommunityBoostCandidateScan(input: {
   args?: Record<string, unknown>;
 }): Promise<HermesScanResult> {
   const profile = (await getScoutAgentProfile(input.userId)).profile;
-  const plan = await planDirectAgentOperation({
-    userId: input.userId,
-    profile,
-    message: "who should get my community boost today?",
+  const requestedSport = toStringValue(input.args?.sport).toUpperCase();
+  const targetDate = resolveTargetDate(input.args?.date);
+  const dateLabel = resolveDateLabel(targetDate);
+  const sportHint = requestedSport || toStringValue(profile.defaultSport).toUpperCase() || null;
+  const [communitySharesAvailable, allPlayers, games, scanners, existingBoosts] = await Promise.all(
+    [
+      storage.getUserCommunityBoostShares(input.userId),
+      storage.getPlayers(),
+      storage.getDailyGames(new Date(), new Date(Date.now() + 2 * 24 * 60 * 60 * 1000)),
+      storage.getFinancialMarketScanners(sportHint || "ALL"),
+      storage.getCommunityBoostsForDate(
+        sportHint || toStringValue(profile.defaultSport).toUpperCase() || "NBA",
+        targetDate,
+      ),
+    ],
+  );
+  const scannerIds = new Set(
+    [...scanners.momentum, ...scanners.sentiment, ...scanners.undervalued]
+      .map((entry: any) => entry?.player?.id)
+      .filter((entry: unknown): entry is string => typeof entry === "string"),
+  );
+  const excludedIds = new Set(
+    existingBoosts
+      .map((entry) => entry.playerId)
+      .filter((entry): entry is string => Boolean(entry)),
+  );
+  const candidate = selectScannerBackedUpcomingCandidate({
+    allPlayers,
+    games,
+    scannerIds,
+    sportHint,
+    excludedIds,
   });
+  const warnings: string[] = [];
 
-  if (!plan) {
-    return buildScanResult({
-      toolName: "scan_community_boost_candidates",
-      domain: "community_boosts",
-      summary: "No community boost opportunity was identified.",
-      replyText:
-        "I do not see a clean community boost target right now. If you want, I can still inspect your eligible players and recent market context more directly.",
-      observations: [],
-      warnings: [],
-      context: {},
-    });
+  if (communitySharesAvailable < 1) {
+    warnings.push("No community shares are currently available.");
   }
+  if (!candidate && communitySharesAvailable > 0) {
+    warnings.push("No clean scanner-backed community boost candidate is available right now.");
+  }
+
+  const opponent =
+    candidate && candidate.game.homeTeam === candidate.player.team
+      ? `vs ${candidate.game.awayTeam}`
+      : candidate
+        ? `@ ${candidate.game.homeTeam}`
+        : null;
+  const candidateName =
+    candidate && candidate.player.id
+      ? buildPlayerLabel(candidate.player, candidate.player.id)
+      : null;
 
   return buildScanResult({
     toolName: "scan_community_boost_candidates",
     domain: "community_boosts",
-    summary: plan.summary || "Reviewed the current community boost opportunity.",
+    summary:
+      communitySharesAvailable < 1
+        ? "No community shares are currently available."
+        : candidate
+          ? `Reviewed the best ${dateLabel} community boost opportunity.`
+          : "Reviewed the current community boost window.",
     replyText:
-      plan.replyText || plan.summary || "I reviewed the current community boost opportunity.",
-    observations: plan.observations || [],
-    warnings: plan.warnings || [],
+      communitySharesAvailable < 1
+        ? "You do not have a community share available right now, so there is nothing to assign."
+        : candidateName && opponent
+          ? `${candidateName} is the cleanest ${dateLabel} community boost look right now ${opponent}.`
+          : "You have a community share available, but there is no clean scanner-backed candidate in the current window right now.",
+    observations: [
+      `${communitySharesAvailable} community share${communitySharesAvailable === 1 ? "" : "s"} available.`,
+      `${existingBoosts.length} community boost${existingBoosts.length === 1 ? "" : "s"} already exist in that window.`,
+      candidateName && candidate?.game.startTime
+        ? `${candidateName} is scheduled ${opponent} at ${new Date(candidate.game.startTime).toLocaleString()}.`
+        : "No unclaimed scanner-backed player is standing out from the current window.",
+    ],
+    warnings,
     context: {
-      actions: plan.actions || [],
+      sport: sportHint,
+      date: targetDate.toISOString(),
+      communitySharesAvailable,
+      existingBoosts,
+      candidate:
+        candidateName && candidate?.player.id
+          ? {
+              playerId: candidate.player.id,
+              playerName: candidateName,
+              opponent,
+              gameStartTime: candidate.game.startTime,
+            }
+          : null,
     },
   });
 }
@@ -1381,6 +1514,7 @@ async function runParserBackedPreview(input: {
     userId: input.userId,
     message,
     profile,
+    allowAdvisoryResponses: false,
   });
 }
 
@@ -1518,7 +1652,9 @@ async function buildMultiActionBundlePreview(input: {
 
     const stackMatch = clause.match(/\bstack(?:\s+shares?)?\s*([a-z .'-]*)/i);
     if (stackMatch) {
-      const rawName = stripBundleNoiseWords(stackMatch[1]).replace(/\bshares?\b/gi, "").trim();
+      const rawName = stripBundleNoiseWords(stackMatch[1])
+        .replace(/\bshares?\b/gi, "")
+        .trim();
       const nameToResolve = rawName || lastResolvedPlayerName;
       if (!nameToResolve) {
         blockingReasons.push(
@@ -1641,6 +1777,7 @@ async function buildMultiActionBundlePreview(input: {
       userId: input.userId,
       message,
       profile,
+      allowAdvisoryResponses: false,
     });
 
     if (!plan) {
@@ -2113,10 +2250,7 @@ async function buildSportSlateScan(input: {
     endDate = endOfDay;
   }
 
-  const conditions = [
-    gte(dailyGames.startTime, startDate),
-    lte(dailyGames.startTime, endDate),
-  ];
+  const conditions = [gte(dailyGames.startTime, startDate), lte(dailyGames.startTime, endDate)];
   if (sport) {
     conditions.push(eq(dailyGames.sport, sport));
   }
@@ -2231,9 +2365,17 @@ async function buildPlayerUpcomingGamesScan(input: {
   args?: Record<string, unknown>;
 }): Promise<HermesScanResult> {
   const playerIdArg = toStringValue(input.args?.playerId) || null;
-  const playerNameArg = toStringValue(input.args?.playerName) || toStringValue(input.args?.message) || null;
+  const playerNameArg =
+    toStringValue(input.args?.playerName) || toStringValue(input.args?.message) || null;
 
-  let targetPlayers: Array<{ id: string; firstName: string; lastName: string; team: string; sport: string; position: string }> = [];
+  let targetPlayers: Array<{
+    id: string;
+    firstName: string;
+    lastName: string;
+    team: string;
+    sport: string;
+    position: string;
+  }> = [];
 
   if (playerIdArg) {
     const [found] = await db
@@ -2263,13 +2405,14 @@ async function buildPlayerUpcomingGamesScan(input: {
       .from(players)
       .where(eq(players.isActive, true))
       .limit(500);
-    targetPlayers = found.filter((p) =>
-      nameParts.every(
-        (part) =>
-          p.firstName.toLowerCase().includes(part) ||
-          p.lastName.toLowerCase().includes(part),
-      ),
-    ).slice(0, 5);
+    targetPlayers = found
+      .filter((p) =>
+        nameParts.every(
+          (part) =>
+            p.firstName.toLowerCase().includes(part) || p.lastName.toLowerCase().includes(part),
+        ),
+      )
+      .slice(0, 5);
   }
 
   if (targetPlayers.length === 0) {
@@ -2277,7 +2420,8 @@ async function buildPlayerUpcomingGamesScan(input: {
       toolName: "scan_player_upcoming_games",
       domain: "sportfolio",
       summary: "Could not find the requested player.",
-      replyText: "I could not find a matching player. Try providing a more specific name or player ID.",
+      replyText:
+        "I could not find a matching player. Try providing a more specific name or player ID.",
       observations: [],
       warnings: ["Player not found."],
       context: {},
@@ -2303,10 +2447,7 @@ async function buildPlayerUpcomingGamesScan(input: {
       and(
         gte(dailyGames.startTime, now),
         lte(dailyGames.startTime, weekFromNow),
-        or(
-          inArray(dailyGames.homeTeam, teams),
-          inArray(dailyGames.awayTeam, teams),
-        ),
+        or(inArray(dailyGames.homeTeam, teams), inArray(dailyGames.awayTeam, teams)),
       ),
     )
     .orderBy(dailyGames.startTime)
@@ -2362,7 +2503,8 @@ async function buildExternalSourceScan(input: {
       toolName: "query_external_source",
       domain: "external",
       summary: "No tool name specified for external source query.",
-      replyText: "Please specify which tool to call on the external source (e.g., toolName: 'get_projections').",
+      replyText:
+        "Please specify which tool to call on the external source (e.g., toolName: 'get_projections').",
       observations: [],
       warnings: ["Missing toolName parameter."],
       context: {},
@@ -2424,7 +2566,13 @@ async function buildExternalSourceScan(input: {
       replyText: contentParts.join("\n\n") || "No data returned.",
       observations,
       warnings,
-      context: { results: results.map((r) => ({ source: r.sourceName, tool: r.toolName, content: r.content })) },
+      context: {
+        results: results.map((r) => ({
+          source: r.sourceName,
+          tool: r.toolName,
+          content: r.content,
+        })),
+      },
     };
   } catch (err: any) {
     return {
@@ -2479,7 +2627,10 @@ export async function runHermesReadTool(input: {
 }): Promise<unknown> {
   switch (input.toolName) {
     case "get_tool_catalog":
-      return getAgentRuntimeToolCatalog();
+      return getAgentRuntimeToolCatalog({
+        includeInternalMlbMcp: (await getScoutAgentProfile(input.userId)).profile
+          .internalMlbMcpEnabled,
+      });
     case "get_agent_capabilities":
       return getAgentCapabilities(input.userId);
     case "get_thread_state":
@@ -2824,6 +2975,11 @@ export async function runHermesReadTool(input: {
       };
     default:
       if (isInternalMlbMcpProjectedTool(input.toolName)) {
+        const { profile } = await getScoutAgentProfile(input.userId);
+        if (!profile.internalMlbMcpEnabled) {
+          throw new Error("The built-in MLB data source is disabled for this user.");
+        }
+
         return runInternalMlbMcpReadTool({
           toolName: input.toolName,
           args: input.args,
