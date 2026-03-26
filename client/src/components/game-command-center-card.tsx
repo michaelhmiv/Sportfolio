@@ -63,8 +63,8 @@ export function GameCommandCenterCard({
 
   const ownedTeams = new Set(
     [
-      ...(userContext?.ownedPlayers || []).map((player) => player.team),
-      ...(userContext?.topMultiplierPlayers || []).map((player) => player.team),
+      ...(userContext?.ownedPlayers || []).map((player) => player.team?.toUpperCase()),
+      ...(userContext?.topMultiplierPlayers || []).map((player) => player.team?.toUpperCase()),
     ].filter(Boolean),
   );
 
@@ -191,13 +191,13 @@ export function GameCommandCenterCard({
           </div>
 
           <div
-            className={`text-xs sm:text-sm font-semibold truncate ${ownedTeams.has(game.awayTeam) ? "text-primary" : "text-foreground"}`}
+            className={`text-xs sm:text-sm font-semibold truncate ${ownedTeams.has(game.awayTeam?.toUpperCase()) ? "text-primary" : "text-foreground"}`}
           >
             {game.awayTeam}
           </div>
 
           <div
-            className={`text-xs sm:text-sm font-semibold truncate ${ownedTeams.has(game.homeTeam) ? "text-primary" : "text-foreground"}`}
+            className={`text-xs sm:text-sm font-semibold truncate ${ownedTeams.has(game.homeTeam?.toUpperCase()) ? "text-primary" : "text-foreground"}`}
           >
             {game.homeTeam}
           </div>
