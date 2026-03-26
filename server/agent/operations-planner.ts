@@ -2360,6 +2360,7 @@ export async function planDirectAgentOperation(input: {
   userId: string;
   message: string | null;
   profile: UserAgentProfile;
+  allowAdvisoryResponses?: boolean;
 }): Promise<DirectOperationPlan | null> {
   const requestMessage = normalizeWhitespace(input.message || "");
   if (!requestMessage) {
@@ -2367,20 +2368,21 @@ export async function planDirectAgentOperation(input: {
   }
 
   const requestMode = isAdvisoryRequest(requestMessage) ? "discussion" : "commit";
-
-  const planners = [
+  const advisoryPlanners = [
     buildCapabilityGuidePlan,
     buildPortfolioCleanupReviewPlan,
     buildIdleCapitalDeploymentPlan,
     buildCommunityBoostOpportunityScanPlan,
     buildBroadOperatorReviewPlan,
     buildMarketIntelligencePlan,
+    buildGameplayStrategyPlan,
+  ];
+  const mutationPlanners = [
     buildBuyStackBoostWorkflowPlan,
     buildCommunityBoostPlan,
     buildWatchlistPlan,
     buildStackSharesPlan,
     buildScoutAssignmentPlan,
-    buildGameplayStrategyPlan,
     buildBoostRemovePlan,
     buildBoostAssignPlan,
     buildRemoveLiquidityPlan,
@@ -2388,6 +2390,10 @@ export async function planDirectAgentOperation(input: {
     buildLiquidityPlan,
     buildSellPlan,
     buildBuyPlan,
+  ];
+  const planners = [
+    ...(input.allowAdvisoryResponses === false ? [] : advisoryPlanners),
+    ...mutationPlanners,
   ];
 
   for (const planner of planners) {

@@ -51,6 +51,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AnimatedNumber, FadeIn, StaggerContainer, StaggerItem } from "@/components/ui/animations";
 import { BackgroundPattern, CardAccent } from "@/components/ui/decorative-elements";
+import { formatCompactCurrency, formatStandardCurrency } from "@/lib/currency";
 import {
   Area,
   AreaChart,
@@ -243,19 +244,6 @@ const CHART_COLORS = [
   "hsl(var(--chart-5))",
 ];
 
-const compactCurrencyFormatter = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  notation: "compact",
-  maximumFractionDigits: 1,
-});
-
-const standardCurrencyFormatter = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  maximumFractionDigits: 2,
-});
-
 const compactNumberFormatter = new Intl.NumberFormat("en-US", {
   notation: "compact",
   maximumFractionDigits: 1,
@@ -334,9 +322,7 @@ function formatMetricValue(metric: MetricType, value: number, compact = false) {
   const absolute = Math.abs(value);
 
   if (metric === "marketCap" || metric === "volume") {
-    const formatted = compact
-      ? compactCurrencyFormatter.format(absolute)
-      : standardCurrencyFormatter.format(absolute);
+    const formatted = compact ? formatCompactCurrency(absolute) : formatStandardCurrency(absolute);
     return value < 0 ? `-${formatted}` : formatted;
   }
 

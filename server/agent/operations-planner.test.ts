@@ -624,6 +624,33 @@ describe("planDirectAgentOperation", () => {
     expect(result?.replyText).toContain("community-boost look");
   });
 
+  it("can suppress broad advisory planners when Hermes wants mutation-only previews", async () => {
+    const { planDirectAgentOperation } = await import("./operations-planner");
+
+    const capabilityResult = await planDirectAgentOperation({
+      userId: "user_1",
+      message: "what can you do?",
+      profile,
+      allowAdvisoryResponses: false,
+    });
+    const setupReviewResult = await planDirectAgentOperation({
+      userId: "user_1",
+      message: "review my setup",
+      profile,
+      allowAdvisoryResponses: false,
+    });
+    const marketReadResult = await planDirectAgentOperation({
+      userId: "user_1",
+      message: "who has a game that hasn't started tonight?",
+      profile,
+      allowAdvisoryResponses: false,
+    });
+
+    expect(capabilityResult).toBeNull();
+    expect(setupReviewResult).toBeNull();
+    expect(marketReadResult).toBeNull();
+  });
+
   it("stores a player-name clarification for a blocked multi-step workflow", async () => {
     const { planDirectAgentOperation } = await import("./operations-planner");
     storageMocks.getPlayer.mockResolvedValueOnce(undefined);

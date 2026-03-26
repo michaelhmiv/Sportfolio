@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/drawer";
 import { useAuth } from "@/hooks/useAuth";
 import { useAppState } from "@/hooks/use-app-state";
+import { formatCompactCurrency } from "@/lib/currency";
 import { authenticatedFetch } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
 
@@ -110,15 +111,6 @@ function toNumber(value: string | number | null | undefined) {
     return Number.isFinite(parsed) ? parsed : 0;
   }
   return 0;
-}
-
-function formatCompactCurrency(value: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    notation: "compact",
-    maximumFractionDigits: 1,
-  }).format(value);
 }
 
 function formatGameStatus(player: MarketSheetPlayer | null) {

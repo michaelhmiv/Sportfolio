@@ -10,6 +10,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Activity, Calendar, Trophy, Zap, X, RefreshCw } from "lucide-react";
+import { formatSignedAdaptiveCurrency } from "@/lib/currency";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -66,19 +67,6 @@ const flagColorMap: Record<string, string> = {
   Checkered: "bg-black",
   White: "bg-white",
 };
-
-const compactCurrencyFormatter = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  notation: "compact",
-  maximumFractionDigits: 1,
-});
-
-const standardCurrencyFormatter = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  maximumFractionDigits: 2,
-});
 
 const listingGridClass =
   "grid grid-cols-[minmax(74px,1fr)_minmax(90px,1fr)_minmax(90px,1fr)_minmax(86px,1fr)_minmax(88px,1fr)] items-start gap-x-2";
@@ -179,19 +167,16 @@ export function NascarRaceCard({
     }
 
     const rawValue = race.liveEarned;
-    const formatter =
-      Math.abs(rawValue) >= 1000 ? compactCurrencyFormatter : standardCurrencyFormatter;
-    const absValue = formatter.format(Math.abs(rawValue));
-
-    if (rawValue > 0) {
-      return { label: `+${absValue}`, toneClass: "text-emerald-500", meta: "Captured" };
-    }
-
-    if (rawValue < 0) {
-      return { label: `-${absValue}`, toneClass: "text-rose-500", meta: "Captured" };
-    }
-
-    return { label: "$0.00", toneClass: "text-muted-foreground", meta: "Captured" };
+    return {
+      label: formatSignedAdaptiveCurrency(rawValue, { zeroDisplay: "$0.00" }),
+      toneClass:
+        rawValue > 0
+          ? "text-emerald-500"
+          : rawValue < 0
+            ? "text-rose-500"
+            : "text-muted-foreground",
+      meta: "Captured",
+    };
   };
 
   const liveEarnedDisplay = getLiveEarnedDisplay();

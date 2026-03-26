@@ -57,6 +57,7 @@ import { MarketTicker } from "@/components/market-ticker";
 import { GameCommandCenterModal } from "@/components/game-command-center-modal";
 import { BackgroundPattern, CardAccent } from "@/components/ui/decorative-elements";
 import { DashboardShowcaseCard } from "@/components/dashboard-showcase-card";
+import { formatAdaptiveCurrency, formatSignedAdaptiveCurrency } from "@/lib/currency";
 import { getEffectiveGameStatus, type EffectiveGameStatus } from "@shared/game-status";
 import type {
   DashboardShowcaseEligiblePlayer,
@@ -123,18 +124,6 @@ interface BoostEligibilityResponse {
   eligiblePlayers: DashboardShowcaseEligiblePlayer[];
   totalEligible: number;
 }
-
-const compactCurrencyFormatter = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  notation: "compact",
-  maximumFractionDigits: 1,
-});
-
-const compactNumberFormatter = new Intl.NumberFormat("en-US", {
-  notation: "compact",
-  maximumFractionDigits: 1,
-});
 
 export default function Dashboard() {
   const { isAuthenticated } = useAuth();
@@ -368,16 +357,7 @@ export default function Dashboard() {
   };
 
   const formatSignedCurrency = (value: number | null) => {
-    if (value === null || Number.isNaN(value)) return "—";
-    const absolute = compactNumberFormatter
-      .format(Math.abs(value))
-      .replace("K", "k")
-      .replace("M", "m")
-      .replace("B", "b")
-      .replace("T", "t");
-    if (value > 0) return `+${absolute}`;
-    if (value < 0) return `-${absolute}`;
-    return "0";
+    return formatSignedAdaptiveCurrency(value, { nullDisplay: "--", zeroDisplay: "$0.00" });
   };
 
   const formatSignedPercent = (value: number | null) => {
@@ -394,14 +374,6 @@ export default function Dashboard() {
     if (value < 0) return "text-negative";
     return "text-muted-foreground";
   };
-
-  const formatCompactCurrency = (value: number) => compactCurrencyFormatter.format(value);
-
-  const standardCurrencyFormatter = new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 2,
-  });
 
   const getEarningsDisplay = ({
     value,
@@ -425,19 +397,11 @@ export default function Dashboard() {
     }
 
     const amount = value;
-    const formatter =
-      Math.abs(amount) >= 1000 ? compactCurrencyFormatter : standardCurrencyFormatter;
-    const absolute = formatter.format(Math.abs(amount));
-
-    if (amount > 0) {
-      return { label: `+${absolute}`, className: "text-emerald-500" };
-    }
-
-    if (amount < 0) {
-      return { label: `-${absolute}`, className: "text-rose-500" };
-    }
-
-    return { label: "$0.00", className: "text-muted-foreground" };
+    return {
+      label: formatSignedAdaptiveCurrency(amount, { zeroDisplay: "$0.00" }),
+      className:
+        amount > 0 ? "text-emerald-500" : amount < 0 ? "text-rose-500" : "text-muted-foreground",
+    };
   };
 
   if (isLoading && !data) {
@@ -543,7 +507,7 @@ export default function Dashboard() {
                       data-testid="text-portfolio-value"
                       title={`$${data?.user?.portfolioValue || "0"}`}
                     >
-                      {formatCompactCurrency(parseFloat(data?.user?.portfolioValue || "0"))}
+                      {formatAdaptiveCurrency(parseFloat(data?.user?.portfolioValue || "0"))}
                     </div>
                     {data?.user?.portfolioRank && data?.user.portfolioRank > 0 && (
                       <button
@@ -569,7 +533,7 @@ export default function Dashboard() {
                     )}
                   </div>
                   <div className="text-[9px] sm:text-[10px] text-muted-foreground mt-0.5 truncate">
-                    Cash: {formatCompactCurrency(parseFloat(data?.user?.balance || "0"))}
+                    Cash: {formatAdaptiveCurrency(parseFloat(data?.user?.balance || "0"))}
                     {data?.user?.cashRank && data?.user.cashRank > 0 && (
                       <button
                         onClick={() => setLocation("/leaderboards#cashBalance")}

@@ -4,6 +4,7 @@ import { useParams, useSearch } from "wouter";
 import { useWebSocket } from "@/lib/websocket";
 import { useAuth } from "@/hooks/useAuth";
 import { useAppState } from "@/hooks/use-app-state";
+import { formatAdaptiveCurrency } from "@/lib/currency";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -791,11 +792,9 @@ export default function PlayerPage() {
                             Pool TVL
                           </div>
                           <div className="font-mono font-bold text-sm">
-                            $
-                            {(
-                              poolData.playMoney +
-                              poolData.shares * poolData.currentPrice
-                            ).toLocaleString()}
+                            {formatAdaptiveCurrency(
+                              poolData.playMoney + poolData.shares * poolData.currentPrice,
+                            )}
                           </div>
                         </div>
                       </div>
@@ -805,7 +804,7 @@ export default function PlayerPage() {
                           Total Volume
                         </div>
                         <div className="font-mono font-bold">
-                          ${poolData.totalVolume.toLocaleString()}
+                          {formatAdaptiveCurrency(poolData.totalVolume)}
                         </div>
                         <div className="text-xs text-muted-foreground">
                           {poolData.totalTrades.toLocaleString()} trades

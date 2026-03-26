@@ -59,6 +59,11 @@ import {
 } from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import {
+  formatAdaptiveCurrency as formatSharedAdaptiveCurrency,
+  formatSignedAdaptiveCurrency as formatSharedSignedAdaptiveCurrency,
+  formatStandardCurrency as formatSharedStandardCurrency,
+} from "@/lib/currency";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { getSupabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
@@ -192,14 +197,15 @@ const PUBLIC_HOLDINGS_SORT_OPTIONS: Array<{ value: PublicHoldingsSortField; labe
 ];
 
 function formatCurrency(value: number) {
-  return `$${value.toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
+  return formatSharedStandardCurrency(value);
 }
 
-function formatSignedCurrency(value: number) {
-  return `${value >= 0 ? "+" : "-"}${formatCurrency(Math.abs(value))}`;
+function formatAdaptiveCurrency(value: number) {
+  return formatSharedAdaptiveCurrency(value);
+}
+
+function formatSignedAdaptiveCurrency(value: number) {
+  return formatSharedSignedAdaptiveCurrency(value, { zeroDisplay: "$0.00" });
 }
 
 function formatSignedPercent(value: number) {
@@ -218,7 +224,7 @@ function formatMetricValue(category: LeaderboardCategory, value: number) {
     return `${Math.round(value).toLocaleString()} orders`;
   }
 
-  return formatCurrency(value);
+  return formatAdaptiveCurrency(value);
 }
 
 function RankMovement({ change }: { change: number | null }) {
@@ -259,8 +265,7 @@ function PerformanceCard({ label, value }: { label: string; value: PerformanceWi
                 positive ? "text-positive" : "text-destructive",
               )}
             >
-              {positive ? "+" : ""}
-              {formatCurrency(amount)}
+              {formatSignedAdaptiveCurrency(amount)}
             </div>
             <div
               className={cn("mt-2 flex items-center justify-between", PROFILE_COMPACT_TYPE.meta)}
@@ -502,25 +507,25 @@ export default function UserProfile() {
     {
       category: "netWorth",
       label: "Net Worth",
-      value: formatCurrency(stats.netWorth),
+      value: formatAdaptiveCurrency(stats.netWorth),
       icon: DollarSign,
     },
     {
       category: "portfolioValue",
       label: "Portfolio",
-      value: formatCurrency(stats.portfolioValue),
+      value: formatAdaptiveCurrency(stats.portfolioValue),
       icon: LineChartIcon,
     },
     {
       category: "cashBalance",
       label: "Cash",
-      value: formatCurrency(stats.cashBalance),
+      value: formatAdaptiveCurrency(stats.cashBalance),
       icon: Wallet,
     },
     {
       category: "tradingVolume24h",
       label: "24h Volume",
-      value: formatCurrency(stats.tradingVolume24h),
+      value: formatAdaptiveCurrency(stats.tradingVolume24h),
       icon: Activity,
     },
   ];
@@ -819,7 +824,7 @@ export default function UserProfile() {
                       <YAxis
                         stroke="hsl(var(--muted-foreground))"
                         fontSize={11}
-                        tickFormatter={(value) => `$${Math.round(value).toLocaleString()}`}
+                        tickFormatter={(value) => formatAdaptiveCurrency(Number(value))}
                       />
                       <RechartsTooltip
                         contentStyle={{
@@ -945,8 +950,7 @@ export default function UserProfile() {
                                   : "text-destructive",
                               )}
                             >
-                              {parseFloat(entry.cashDelta) >= 0 ? "+" : ""}
-                              {formatCurrency(parseFloat(entry.cashDelta))}
+                              {formatSignedAdaptiveCurrency(parseFloat(entry.cashDelta))}
                             </div>
                           )}
                           {entry.shareDelta !== undefined && entry.shareDelta !== 0 && (
@@ -1005,7 +1009,7 @@ export default function UserProfile() {
                             </div>
                             <div className="text-right">
                               <div className={PROFILE_COMPACT_TYPE.secondaryValue}>
-                                {formatCurrency(holding.marketValue)}
+                                {formatAdaptiveCurrency(holding.marketValue)}
                               </div>
                               <div
                                 className={cn(
@@ -1013,7 +1017,7 @@ export default function UserProfile() {
                                   holding.pnl >= 0 ? "text-positive" : "text-destructive",
                                 )}
                               >
-                                {formatSignedCurrency(holding.pnl)}
+                                {formatSignedAdaptiveCurrency(holding.pnl)}
                               </div>
                             </div>
                           </div>
@@ -1040,7 +1044,7 @@ export default function UserProfile() {
                       <div key={row.sport} className="space-y-1">
                         <div className="flex items-center justify-between text-xs sm:text-sm">
                           <span className="font-medium">{row.sport}</span>
-                          <span className="font-mono">{formatCurrency(row.value)}</span>
+                          <span className="font-mono">{formatAdaptiveCurrency(row.value)}</span>
                         </div>
                         <div className="h-2 overflow-hidden rounded-sm bg-muted">
                           <div
@@ -1065,7 +1069,9 @@ export default function UserProfile() {
               <CardContent className="space-y-3 text-xs sm:text-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">24h trading volume</span>
-                  <span className="font-mono">{formatCurrency(stats.tradingVolume24h)}</span>
+                  <span className="font-mono">
+                    {formatAdaptiveCurrency(stats.tradingVolume24h)}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Market orders</span>
@@ -1173,7 +1179,7 @@ export default function UserProfile() {
                         </div>
                         <div className="text-right">
                           <div className={PROFILE_COMPACT_TYPE.secondaryValue}>
-                            {formatCurrency(holding.marketValue)}
+                            {formatAdaptiveCurrency(holding.marketValue)}
                           </div>
                           <div
                             className={cn(
@@ -1181,7 +1187,7 @@ export default function UserProfile() {
                               holding.pnl >= 0 ? "text-positive" : "text-destructive",
                             )}
                           >
-                            {formatSignedCurrency(holding.pnl)} (
+                            {formatSignedAdaptiveCurrency(holding.pnl)} (
                             {formatSignedPercent(holding.pnlPercent)})
                           </div>
                         </div>
@@ -1359,7 +1365,7 @@ export default function UserProfile() {
                           </td>
                           <td className="px-3 py-2 text-right">
                             <div className={PROFILE_COMPACT_TYPE.secondaryValue}>
-                              {formatCurrency(holding.marketValue)}
+                              {formatAdaptiveCurrency(holding.marketValue)}
                             </div>
                           </td>
                           <td className="px-3 py-2 text-right">
@@ -1369,7 +1375,7 @@ export default function UserProfile() {
                                 holding.pnl >= 0 ? "text-positive" : "text-destructive",
                               )}
                             >
-                              {formatSignedCurrency(holding.pnl)}
+                              {formatSignedAdaptiveCurrency(holding.pnl)}
                             </div>
                             <div
                               className={cn(
