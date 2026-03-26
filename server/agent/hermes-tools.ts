@@ -259,13 +259,8 @@ const AGENT_TOOL_CATALOG: AgentToolDefinition[] = [
       "The user wants to know a player's schedule this week.",
       "A strategy needs to plan boosts around upcoming game times.",
     ],
-    whenNotToUse: [
-      "The user is asking about historical stats or past games.",
-    ],
-    examplePrompts: [
-      "when does LeBron play next?",
-      "what's Shohei Ohtani's schedule this week?",
-    ],
+    whenNotToUse: ["The user is asking about historical stats or past games."],
+    examplePrompts: ["when does LeBron play next?", "what's Shohei Ohtani's schedule this week?"],
     requiresConfirmation: false,
     riskLevel: "low",
   },
@@ -492,8 +487,11 @@ export function getAgentToolCatalog(): AgentToolDefinition[] {
   return buildMergedToolCatalog([...AGENT_TOOL_CATALOG, ...getCoreHermesToolCatalog()]);
 }
 
-export async function getAgentRuntimeToolCatalog(): Promise<AgentToolDefinition[]> {
-  const internalMlbTools = await getInternalMlbMcpToolCatalog();
+export async function getAgentRuntimeToolCatalog(options?: {
+  includeInternalMlbMcp?: boolean;
+}): Promise<AgentToolDefinition[]> {
+  const internalMlbTools =
+    options?.includeInternalMlbMcp === false ? [] : await getInternalMlbMcpToolCatalog();
   return buildMergedToolCatalog([
     ...AGENT_TOOL_CATALOG,
     ...getCoreHermesToolCatalog(),
@@ -1518,7 +1516,9 @@ async function buildMultiActionBundlePreview(input: {
 
     const stackMatch = clause.match(/\bstack(?:\s+shares?)?\s*([a-z .'-]*)/i);
     if (stackMatch) {
-      const rawName = stripBundleNoiseWords(stackMatch[1]).replace(/\bshares?\b/gi, "").trim();
+      const rawName = stripBundleNoiseWords(stackMatch[1])
+        .replace(/\bshares?\b/gi, "")
+        .trim();
       const nameToResolve = rawName || lastResolvedPlayerName;
       if (!nameToResolve) {
         blockingReasons.push(
@@ -2113,10 +2113,7 @@ async function buildSportSlateScan(input: {
     endDate = endOfDay;
   }
 
-  const conditions = [
-    gte(dailyGames.startTime, startDate),
-    lte(dailyGames.startTime, endDate),
-  ];
+  const conditions = [gte(dailyGames.startTime, startDate), lte(dailyGames.startTime, endDate)];
   if (sport) {
     conditions.push(eq(dailyGames.sport, sport));
   }
@@ -2231,9 +2228,17 @@ async function buildPlayerUpcomingGamesScan(input: {
   args?: Record<string, unknown>;
 }): Promise<HermesScanResult> {
   const playerIdArg = toStringValue(input.args?.playerId) || null;
-  const playerNameArg = toStringValue(input.args?.playerName) || toStringValue(input.args?.message) || null;
+  const playerNameArg =
+    toStringValue(input.args?.playerName) || toStringValue(input.args?.message) || null;
 
-  let targetPlayers: Array<{ id: string; firstName: string; lastName: string; team: string; sport: string; position: string }> = [];
+  let targetPlayers: Array<{
+    id: string;
+    firstName: string;
+    lastName: string;
+    team: string;
+    sport: string;
+    position: string;
+  }> = [];
 
   if (playerIdArg) {
     const [found] = await db
@@ -2263,13 +2268,14 @@ async function buildPlayerUpcomingGamesScan(input: {
       .from(players)
       .where(eq(players.isActive, true))
       .limit(500);
-    targetPlayers = found.filter((p) =>
-      nameParts.every(
-        (part) =>
-          p.firstName.toLowerCase().includes(part) ||
-          p.lastName.toLowerCase().includes(part),
-      ),
-    ).slice(0, 5);
+    targetPlayers = found
+      .filter((p) =>
+        nameParts.every(
+          (part) =>
+            p.firstName.toLowerCase().includes(part) || p.lastName.toLowerCase().includes(part),
+        ),
+      )
+      .slice(0, 5);
   }
 
   if (targetPlayers.length === 0) {
@@ -2277,7 +2283,8 @@ async function buildPlayerUpcomingGamesScan(input: {
       toolName: "scan_player_upcoming_games",
       domain: "sportfolio",
       summary: "Could not find the requested player.",
-      replyText: "I could not find a matching player. Try providing a more specific name or player ID.",
+      replyText:
+        "I could not find a matching player. Try providing a more specific name or player ID.",
       observations: [],
       warnings: ["Player not found."],
       context: {},
@@ -2303,10 +2310,7 @@ async function buildPlayerUpcomingGamesScan(input: {
       and(
         gte(dailyGames.startTime, now),
         lte(dailyGames.startTime, weekFromNow),
-        or(
-          inArray(dailyGames.homeTeam, teams),
-          inArray(dailyGames.awayTeam, teams),
-        ),
+        or(inArray(dailyGames.homeTeam, teams), inArray(dailyGames.awayTeam, teams)),
       ),
     )
     .orderBy(dailyGames.startTime)
@@ -2362,7 +2366,8 @@ async function buildExternalSourceScan(input: {
       toolName: "query_external_source",
       domain: "external",
       summary: "No tool name specified for external source query.",
-      replyText: "Please specify which tool to call on the external source (e.g., toolName: 'get_projections').",
+      replyText:
+        "Please specify which tool to call on the external source (e.g., toolName: 'get_projections').",
       observations: [],
       warnings: ["Missing toolName parameter."],
       context: {},
@@ -2424,7 +2429,13 @@ async function buildExternalSourceScan(input: {
       replyText: contentParts.join("\n\n") || "No data returned.",
       observations,
       warnings,
-      context: { results: results.map((r) => ({ source: r.sourceName, tool: r.toolName, content: r.content })) },
+      context: {
+        results: results.map((r) => ({
+          source: r.sourceName,
+          tool: r.toolName,
+          content: r.content,
+        })),
+      },
     };
   } catch (err: any) {
     return {
@@ -2479,7 +2490,10 @@ export async function runHermesReadTool(input: {
 }): Promise<unknown> {
   switch (input.toolName) {
     case "get_tool_catalog":
-      return getAgentRuntimeToolCatalog();
+      return getAgentRuntimeToolCatalog({
+        includeInternalMlbMcp: (await getScoutAgentProfile(input.userId)).profile
+          .internalMlbMcpEnabled,
+      });
     case "get_agent_capabilities":
       return getAgentCapabilities(input.userId);
     case "get_thread_state":
@@ -2824,6 +2838,11 @@ export async function runHermesReadTool(input: {
       };
     default:
       if (isInternalMlbMcpProjectedTool(input.toolName)) {
+        const { profile } = await getScoutAgentProfile(input.userId);
+        if (!profile.internalMlbMcpEnabled) {
+          throw new Error("The built-in MLB data source is disabled for this user.");
+        }
+
         return runInternalMlbMcpReadTool({
           toolName: input.toolName,
           args: input.args,

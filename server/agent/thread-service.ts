@@ -128,6 +128,7 @@ export async function ensureAgentThreadSchema() {
       "runtime" text NOT NULL DEFAULT 'hermes',
       "model" text NOT NULL DEFAULT 'managed-default',
       "base_url" text,
+      "internal_mlb_mcp_enabled" boolean NOT NULL DEFAULT true,
       "system_prompt" text NOT NULL DEFAULT 'You are Hermes, the Sportfolio portfolio operator. Stay grounded in the provided Sportfolio gameplay context, treat the approved tool surface as the source of truth, reason across portfolio, market, boosts, scouts, watchlists, and related gameplay systems, and never imply access to code, arbitrary database data, files, or admin-only systems. When a requested move changes gameplay state, follow the active execution policy and confirmation boundary instead of bypassing it.',
       "user_prompt_template" text NOT NULL DEFAULT 'Act like my Sportfolio portfolio operator. Review my live gameplay setup, explain the highest-signal risk and opportunity tradeoffs clearly, and when I ask for a plan, translate that into the safest high-leverage sequence the available Hermes tools can support.',
       "temperature" numeric(3, 2) NOT NULL DEFAULT 0.20,
@@ -142,6 +143,11 @@ export async function ensureAgentThreadSchema() {
   await db.execute(sql`
     ALTER TABLE "user_agent_profiles"
       ADD COLUMN IF NOT EXISTS "runtime" text NOT NULL DEFAULT 'hermes';
+  `);
+
+  await db.execute(sql`
+    ALTER TABLE "user_agent_profiles"
+      ADD COLUMN IF NOT EXISTS "internal_mlb_mcp_enabled" boolean NOT NULL DEFAULT true;
   `);
 
   await db.execute(sql`

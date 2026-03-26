@@ -353,6 +353,40 @@ function summarizeMemoryContext(
   return sections.length > 0 ? sections.join("\n") : "None.";
 }
 
+function summarizeDataConnections(
+  capabilities: HermesRespondRequest["canonicalState"]["capabilities"],
+) {
+  const dataSources = capabilities.dataSources;
+  if (!dataSources) {
+    return "None.";
+  }
+
+  const builtInLines = dataSources.builtIn.map((source) => {
+    const status = [
+      source.enabled ? "enabled" : "disabled",
+      source.available ? "available" : "unavailable",
+    ].join(", ");
+    return `${source.name} [built-in, ${status}]`;
+  });
+  const externalLines = dataSources.external.map((source) => {
+    const status = [
+      source.enabled ? "enabled" : "disabled",
+      source.available ? "available" : "unavailable",
+    ].join(", ");
+    return `${source.name} [external, ${status}]`;
+  });
+  const lines = [];
+
+  if (builtInLines.length > 0) {
+    lines.push(`Built-in: ${builtInLines.join(" | ")}`);
+  }
+  if (externalLines.length > 0) {
+    lines.push(`External: ${externalLines.join(" | ")}`);
+  }
+
+  return lines.length > 0 ? lines.join("\n") : "None.";
+}
+
 function resolveInitialCompressionLevel(input: {
   request: HermesRespondRequest;
   matchedSkill: AgentSkillDefinition | null;
@@ -795,6 +829,7 @@ function buildLoopPrompt(input: {
     "Use memory mutation tools only when the user explicitly manages memory or skills, or when a workflow is clearly worth saving.",
     "For compound requests with multiple linked steps (buy + stack, buy + boost, buy + stack + boost), prefer preview_multi_action_bundle with a clear message describing all steps rather than calling individual preview tools separately.",
     "If you need to resolve a player name first, use a read tool, then call the compound preview tool on the next pass.",
+    "When the user asks what tools, MCP connections, or data sources are available, answer from the real tool list and data-connection state below. Do not claim there are none if either section is populated.",
     "When you have enough context, answer directly in plain text and do not call another tool.",
     "</routing_rules>",
     "<matched_skill_hint>",
@@ -818,6 +853,9 @@ function buildLoopPrompt(input: {
       compressed,
     }),
     "</memory_context>",
+    "<data_connections>",
+    summarizeDataConnections(input.request.canonicalState.capabilities),
+    "</data_connections>",
     "<conversation_history>",
     summarizeHistory(input.request.conversationHistory, {
       limit: input.compressionLevel === 2 ? 2 : input.compressionLevel === 1 ? 3 : 4,

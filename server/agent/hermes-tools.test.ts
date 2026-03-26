@@ -162,6 +162,7 @@ describe("hermes-tools", () => {
     mocks.getScoutAgentProfile.mockResolvedValue({
       profile: {
         displayName: "Agent",
+        internalMlbMcpEnabled: true,
       },
     });
     mocks.storage.getWatchlists.mockResolvedValue([{ id: "watch_1" }]);
@@ -236,13 +237,15 @@ describe("hermes-tools", () => {
     expect(result.actions).toHaveLength(1);
     expect(result.actions[0].actionType).toBe("pool_buy");
     expect(result.contextSnapshot.preview.afterState.estimatedSharesOut).toBe(5.2);
-    expect(mocks.planDirectAgentOperation).toHaveBeenCalledWith({
-      userId: "user_1",
-      message: "buy $24 of Jalen Brunson",
-      profile: {
-        displayName: "Agent",
-      },
-    });
+    expect(mocks.planDirectAgentOperation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: "user_1",
+        message: "buy $24 of Jalen Brunson",
+        profile: expect.objectContaining({
+          displayName: "Agent",
+        }),
+      }),
+    );
   });
 
   it("resolves a name-like playerId into a canonical player before building a buy preview", async () => {
@@ -297,13 +300,15 @@ describe("hermes-tools", () => {
     });
 
     expect(mocks.storage.getPlayers).toHaveBeenCalledWith({ search: "Jalen Brunson" });
-    expect(mocks.planDirectAgentOperation).toHaveBeenCalledWith({
-      userId: "user_1",
-      message: "buy $24 of Jalen Brunson",
-      profile: {
-        displayName: "Agent",
-      },
-    });
+    expect(mocks.planDirectAgentOperation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: "user_1",
+        message: "buy $24 of Jalen Brunson",
+        profile: expect.objectContaining({
+          displayName: "Agent",
+        }),
+      }),
+    );
   });
 
   it("prefers the resolved player name when building parser-backed preview messages", async () => {
@@ -330,13 +335,15 @@ describe("hermes-tools", () => {
       },
     });
 
-    expect(mocks.planDirectAgentOperation).toHaveBeenCalledWith({
-      userId: "user_1",
-      message: "set Jalen Brunson scouts to 3",
-      profile: {
-        displayName: "Agent",
-      },
-    });
+    expect(mocks.planDirectAgentOperation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: "user_1",
+        message: "set Jalen Brunson scouts to 3",
+        profile: expect.objectContaining({
+          displayName: "Agent",
+        }),
+      }),
+    );
   });
 
   it("returns watchlist items through the dedicated read tool", async () => {
@@ -378,6 +385,34 @@ describe("hermes-tools", () => {
 
     expect(toolNames).toContain("mlb_mcp__home_run_leaders");
     expect(toolNames).toContain("get_balance_state");
+  });
+
+  it("omits built-in MLB MCP tools from get_tool_catalog when the source is disabled", async () => {
+    mocks.getScoutAgentProfile.mockResolvedValue({
+      profile: {
+        displayName: "Agent",
+        internalMlbMcpEnabled: false,
+      },
+    });
+    mocks.getInternalMlbMcpToolCatalog.mockResolvedValue([
+      {
+        toolName: "mlb_mcp__home_run_leaders",
+        category: "read",
+        description: "Internal MLB leaderboard capability.",
+        whenToUse: ["Need HR leaderboard context."],
+        whenNotToUse: [],
+        examplePrompts: ["who led mlb in home runs last year?"],
+        requiresConfirmation: false,
+        riskLevel: "low",
+      },
+    ]);
+
+    const result = (await runHermesReadTool({
+      toolName: "get_tool_catalog",
+      userId: "user_1",
+    })) as any[];
+
+    expect(result.map((entry) => entry.toolName)).not.toContain("mlb_mcp__home_run_leaders");
   });
 
   it("routes prefixed MLB MCP read tools through the internal provider bridge", async () => {

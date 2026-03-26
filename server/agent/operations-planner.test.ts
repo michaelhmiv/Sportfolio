@@ -34,6 +34,10 @@ const poolMocks = vi.hoisted(() => ({
   getZapAddQuoteSbOnly: vi.fn(),
 }));
 
+const dataSourceMocks = vi.hoisted(() => ({
+  getAgentDataSourceSummary: vi.fn(),
+}));
+
 vi.mock("../storage", () => ({
   storage: storageMocks,
 }));
@@ -45,6 +49,10 @@ vi.mock("../amm/pool", () => ({
   getLpPosition: poolMocks.getLpPosition,
   getZapAddQuoteSharesOnly: poolMocks.getZapAddQuoteSharesOnly,
   getZapAddQuoteSbOnly: poolMocks.getZapAddQuoteSbOnly,
+}));
+
+vi.mock("./data-sources", () => ({
+  getAgentDataSourceSummary: dataSourceMocks.getAgentDataSourceSummary,
 }));
 
 describe("planDirectAgentOperation", () => {
@@ -62,6 +70,20 @@ describe("planDirectAgentOperation", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    dataSourceMocks.getAgentDataSourceSummary.mockResolvedValue({
+      builtIn: [
+        {
+          id: "internal_mlb_mcp",
+          kind: "built_in",
+          name: "MLB Data Feed",
+          description: "Built-in in-house MLB data for Hermes.",
+          enabled: true,
+          available: true,
+          capabilitySummary: "In-house MLB data and leaderboard context.",
+        },
+      ],
+      external: [],
+    });
     storageMocks.getPlayer.mockResolvedValue(player);
     storageMocks.getUser.mockResolvedValue({ id: "user_1", isPremium: false });
     storageMocks.getPlayers.mockResolvedValue([
@@ -550,6 +572,7 @@ describe("planDirectAgentOperation", () => {
     expect(result?.domain).toBe("sportfolio");
     expect(result?.actions).toHaveLength(0);
     expect(result?.replyText).toContain("player-pool buys and sells");
+    expect(result?.replyText).toContain("built-in Hermes-only MLB data connection");
     expect(result?.replyText).toContain("wait for your confirmation");
   });
 
