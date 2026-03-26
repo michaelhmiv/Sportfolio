@@ -9,6 +9,31 @@ import {
 } from "./provider-registry";
 import type { AgentSystemSettingsView, ManagedProviderKey } from "./types";
 
+function isMissingAgentSystemSettingsSchemaError(error: unknown): boolean {
+  const message = String((error as Error)?.message || "").toLowerCase();
+  return (
+    (message.includes("relation") || message.includes("column")) &&
+    message.includes("does not exist") &&
+    message.includes("agent_system_settings")
+  );
+}
+
+async function withAgentSystemSettingsSchemaBootstrap<T>(callback: () => Promise<T>): Promise<T> {
+  try {
+    return await callback();
+  } catch (error) {
+    if (!isMissingAgentSystemSettingsSchemaError(error)) {
+      throw error;
+    }
+
+    console.warn(
+      "[Agent System Settings] Missing schema detected during access, attempting bootstrap + retry.",
+    );
+    await ensureAgentSystemSettingsSchema();
+    return callback();
+  }
+}
+
 export async function ensureAgentSystemSettingsSchema() {
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS "agent_system_settings" (
@@ -26,33 +51,35 @@ export async function ensureAgentSystemSettingsSchema() {
 }
 
 async function ensureAgentSystemSettingsRow() {
-  const [existing] = await db.select().from(agentSystemSettings).limit(1);
-  if (existing) {
-    if (isManagedProviderKey(existing.managedProvider)) {
-      return existing;
+  return withAgentSystemSettingsSchemaBootstrap(async () => {
+    const [existing] = await db.select().from(agentSystemSettings).limit(1);
+    if (existing) {
+      if (isManagedProviderKey(existing.managedProvider)) {
+        return existing;
+      }
+
+      const [updated] = await db
+        .update(agentSystemSettings)
+        .set({
+          managedProvider: getDefaultManagedProviderKey(),
+          managedModel: null,
+          updatedAt: new Date(),
+        })
+        .where(eq(agentSystemSettings.id, existing.id))
+        .returning();
+
+      return updated;
     }
 
-    const [updated] = await db
-      .update(agentSystemSettings)
-      .set({
+    const [created] = await db
+      .insert(agentSystemSettings)
+      .values({
         managedProvider: getDefaultManagedProviderKey(),
-        managedModel: null,
-        updatedAt: new Date(),
       })
-      .where(eq(agentSystemSettings.id, existing.id))
       .returning();
 
-    return updated;
-  }
-
-  const [created] = await db
-    .insert(agentSystemSettings)
-    .values({
-      managedProvider: getDefaultManagedProviderKey(),
-    })
-    .returning();
-
-  return created;
+    return created;
+  });
 }
 
 function toAgentSystemSettingsView(
