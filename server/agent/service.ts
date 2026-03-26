@@ -31,7 +31,7 @@ import {
   LEGACY_SCOUT_AGENT_SYSTEM_PROMPT,
   LEGACY_SCOUT_AGENT_USER_PROMPT_TEMPLATE,
 } from "./profile-defaults";
-import { getDefaultManagedProviderKey, getManagedProviderStatus } from "./provider-registry";
+import { getManagedProviderStatus } from "./provider-registry";
 import { isHostedWebResearchAvailable } from "./research";
 import { getActiveManagedProviderSelection } from "./system-settings";
 import { materializeAgentUiBlocks } from "./ui-blocks";
@@ -187,31 +187,13 @@ function normalizeLegacyPortfolioDefaults(profile: UserAgentProfile) {
 }
 
 async function getActiveManagedProviderStatus(): Promise<ManagedProviderStatus> {
-  try {
-    const selection = await getActiveManagedProviderSelection();
-    const provider = getManagedProviderStatus(selection.provider);
+  const selection = await getActiveManagedProviderSelection();
+  const provider = getManagedProviderStatus(selection.provider);
 
-    return {
-      ...provider,
-      defaultModel: selection.modelOverride || provider.defaultModel,
-    };
-  } catch (error) {
-    const fallbackProvider = getManagedProviderStatus(getDefaultManagedProviderKey());
-    const message = String((error as Error)?.message || "");
-    const normalized = message.toLowerCase();
-
-    if (
-      (normalized.includes("relation") || normalized.includes("column")) &&
-      normalized.includes("does not exist")
-    ) {
-      console.warn(
-        "[Agent Service] Falling back to default managed provider because agent system settings schema is unavailable.",
-      );
-      return fallbackProvider;
-    }
-
-    throw error;
-  }
+  return {
+    ...provider,
+    defaultModel: selection.modelOverride || provider.defaultModel,
+  };
 }
 
 function buildCapabilities(
