@@ -1,3 +1,17 @@
+## 2026-03-26 Agent Settings 503 on Agents Tab
+
+- [x] Trace the Agents tab settings fetch path and confirm the failing endpoint (`/api/agent/profile`)
+- [x] Identify why settings can return 503 instead of a profile payload
+- [x] Add a resilient backend fallback so profile reads still work when `agent_system_settings` schema is temporarily unavailable
+- [x] Run validation (`npm run check`, `npm run lint`, `npm run test:run`) and record outcomes
+
+Review:
+
+- Root cause: `/api/agent/profile` depends on `getActiveManagedProviderSelection()` (from `agent_system_settings`). If that table/column is missing (migration drift), profile load throws and routes map that to HTTP 503, which surfaces in UI as "Couldn't load agent settings" with service unavailable.
+- Fix: `getActiveManagedProviderStatus()` in `server/agent/service.ts` now catches missing relation/column errors and falls back to the default managed provider config from env/runtime defaults instead of failing profile reads.
+- Result: Agents tab can still load profile/settings state even if system-settings schema bootstrap lags, while preserving existing behavior for non-schema failures.
+- Validation: `npm run check` passed, `npm run lint` passed, and `npm run test:run` failed on a pre-existing assertion in `client/src/lib/currency.test.ts` (`$1.0K` vs `$1K`).
+
 ## 2026-03-25 Hermes Advisory De-Determinization + PR Bundle
 
 - [x] Remove broad advisory/capability/review deterministic planner responses from the main Hermes direct-operation router while keeping deterministic mutation previews and blocking validations
