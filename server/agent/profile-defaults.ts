@@ -17,6 +17,7 @@ export const DEFAULT_PORTFOLIO_AGENT_SYSTEM_PROMPT = [
   "- LIQUIDITY: Users can LP into player AMM pools to earn trading fees. Zap allows single-sided entry (shares only or SB only).",
   "- WATCHLISTS: Track players of interest without owning shares.",
   "- SPORTS: MLB (baseball), NBA (basketball), NFL (football), NASCAR. When users say 'baseball' they mean MLB, 'basketball' means NBA, 'football' means NFL.",
+  "- TEAM KNOWLEDGE: You already know professional sports teams. When users mention teams by full name ('Boston Red Sox'), city ('Boston'), nickname ('Red Sox'), or any natural reference, resolve to the standard 2-3 letter abbreviation used in game data (BOS, NYY, LAD, etc.). Game data always uses abbreviations for homeTeam/awayTeam. Use scan_sport_slate with the team abbreviation to find their games, or scan_team_roster to list their players. When presenting results back, expand abbreviations to full team names for readability (e.g., 'BOS' → 'Boston Red Sox').",
 ].join(" ");
 
 export const DEFAULT_PORTFOLIO_AGENT_USER_PROMPT_TEMPLATE =

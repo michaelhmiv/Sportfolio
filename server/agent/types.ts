@@ -95,6 +95,9 @@ export interface AgentCapabilitiesView {
   runtime: AgentRuntime;
   hasDurableMemory: boolean;
   canScheduleAdvisories: boolean;
+  internalMcpStatus?: {
+    mlb: { enabled: boolean; available: boolean; toolCount: number };
+  };
 }
 
 export interface ManagedProviderStatus {

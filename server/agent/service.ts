@@ -30,6 +30,7 @@ import {
   LEGACY_SCOUT_AGENT_SYSTEM_PROMPT,
   LEGACY_SCOUT_AGENT_USER_PROMPT_TEMPLATE,
 } from "./profile-defaults";
+import { getInternalMlbMcpToolCatalog, resolveInternalMlbMcpConfig } from "./internal-mlb-mcp";
 import { getManagedProviderStatus } from "./provider-registry";
 import { isHostedWebResearchAvailable } from "./research";
 import { getActiveManagedProviderSelection } from "./system-settings";
@@ -596,7 +597,11 @@ export async function getScoutAgentRuntimeProfile(userId: string): Promise<{
 export const getPortfolioAgentRuntimeProfile = getScoutAgentRuntimeProfile;
 
 export async function getAgentCapabilities(userId: string): Promise<AgentCapabilitiesView> {
-  const profileView = await getScoutAgentProfile(userId);
+  const [profileView, mlbMcpTools] = await Promise.all([
+    getScoutAgentProfile(userId),
+    getInternalMlbMcpToolCatalog(),
+  ]);
+  const mlbMcpConfig = resolveInternalMlbMcpConfig();
 
   return {
     domains: SUPPORTED_AGENT_DOMAINS,
@@ -609,6 +614,13 @@ export async function getAgentCapabilities(userId: string): Promise<AgentCapabil
     runtime: profileView.capabilities.runtime,
     hasDurableMemory: profileView.capabilities.hasDurableMemory,
     canScheduleAdvisories: profileView.capabilities.canScheduleAdvisories,
+    internalMcpStatus: {
+      mlb: {
+        enabled: mlbMcpConfig.enabled,
+        available: mlbMcpTools.length > 0,
+        toolCount: mlbMcpTools.length,
+      },
+    },
   };
 }
 
@@ -805,11 +817,13 @@ export async function analyzeScoutAgent(
     threadId: data.threadId || null,
     strategyId: data.strategyContext?.strategyId || null,
   });
+  const mlbMcpTools = await getInternalMlbMcpToolCatalog();
   const effectivePrompts = buildHermesConversationPrompts({
     baseSystemPrompt: profile.systemPrompt,
     baseUserPromptTemplate: profile.userPromptTemplate,
     conversationMode: effectiveConversationMode,
     strategyContext: data.strategyContext || null,
+    mlbMcpAvailable: mlbMcpTools.length > 0,
   });
   const effectiveProfile = {
     ...profile,
