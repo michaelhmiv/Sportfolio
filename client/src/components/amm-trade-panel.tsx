@@ -12,7 +12,7 @@
  * - Mobile-optimized interface
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,6 +52,7 @@ interface QuoteData {
 const BURN_FEE_PERCENT = 1; // 1% burned
 const LP_FEE_PERCENT = 1; // 1% to LPs
 const TOTAL_FEE_PERCENT = BURN_FEE_PERCENT + LP_FEE_PERCENT; // 2% total
+const SLIPPAGE_SAFETY_BUFFER_PERCENT = 0.05;
 
 export function AmmTradePanel({
   playerId,
@@ -74,9 +75,6 @@ export function AmmTradePanel({
   const [quote, setQuote] = useState<QuoteData | null>(null);
   const [isLoadingQuote, setIsLoadingQuote] = useState(false);
 
-  // Calculate max amount based on trade type
-  const maxAmount = tradeType === "buy" ? userBalance : userShares;
-
   // Fetch pool data
   const { data: poolData } = useQuery({
     queryKey: ["/api/amm", playerId],
@@ -90,6 +88,85 @@ export function AmmTradePanel({
     refetchIntervalInBackground: false,
   });
 
+  const maxBuyAmountBySlippage = useMemo(() => {
+    if (tradeType !== "buy") return userBalance;
+
+    const poolShares = Number(poolData?.shares ?? 0);
+    const poolPlayMoney = Number(poolData?.playMoney ?? 0);
+
+    if (!poolShares || !poolPlayMoney || poolShares <= 0 || poolPlayMoney <= 0) {
+      return userBalance;
+    }
+
+    const currentPrice = poolPlayMoney / poolShares;
+    if (!currentPrice || !isFinite(currentPrice)) {
+      return userBalance;
+    }
+
+    const slippageLimitPercent = Math.max(0, maxSlippage - SLIPPAGE_SAFETY_BUFFER_PERCENT);
+
+    const calculateBuySlippagePercent = (sbAmount: number): number => {
+      if (sbAmount <= 0) return 0;
+
+      const k = poolShares * poolPlayMoney;
+      const poolReceives = sbAmount * (1 + LP_FEE_PERCENT / 100);
+      const totalCost = sbAmount * (1 + TOTAL_FEE_PERCENT / 100);
+      const newPlayMoney = poolPlayMoney + poolReceives;
+      const newShares = k / newPlayMoney;
+      const sharesOut = poolShares - newShares;
+
+      if (sharesOut <= 0 || !isFinite(sharesOut)) {
+        return Number.POSITIVE_INFINITY;
+      }
+
+      const effectivePrice = totalCost / sharesOut;
+      if (!isFinite(effectivePrice)) {
+        return Number.POSITIVE_INFINITY;
+      }
+
+      return ((effectivePrice - currentPrice) / currentPrice) * 100;
+    };
+
+    if (calculateBuySlippagePercent(0.01) > slippageLimitPercent) {
+      return 0;
+    }
+
+    if (calculateBuySlippagePercent(userBalance) <= slippageLimitPercent) {
+      return userBalance;
+    }
+
+    let low = 0;
+    let high = userBalance;
+
+    for (let i = 0; i < 28; i += 1) {
+      const mid = (low + high) / 2;
+      const slippagePercent = calculateBuySlippagePercent(mid);
+
+      if (slippagePercent <= slippageLimitPercent) {
+        low = mid;
+      } else {
+        high = mid;
+      }
+    }
+
+    return low;
+  }, [tradeType, userBalance, poolData, maxSlippage]);
+
+  // Calculate max amount based on trade type and current slippage constraint
+  const maxAmount =
+    tradeType === "buy" ? Math.min(userBalance, maxBuyAmountBySlippage) : userShares;
+
+  const amountFromSliderPercentage = useCallback(
+    (percentage: number) => {
+      const rawAmount = (maxAmount * percentage) / 100;
+      if (tradeType === "buy") {
+        return rawAmount.toFixed(2);
+      }
+      return Math.floor(rawAmount).toString();
+    },
+    [maxAmount, tradeType],
+  );
+
   // Handle slider change
   const handleSliderChange = useCallback(
     (value: number[]) => {
@@ -97,17 +174,10 @@ export function AmmTradePanel({
       setSliderValue(percentage);
 
       if (maxAmount > 0) {
-        const newAmount = (maxAmount * percentage) / 100;
-        // Format based on trade type - shares must be whole numbers
-        if (tradeType === "buy") {
-          setAmount(newAmount.toFixed(2));
-        } else {
-          // Round to whole number shares
-          setAmount(Math.floor(newAmount).toString());
-        }
+        setAmount(amountFromSliderPercentage(percentage));
       }
     },
-    [maxAmount, tradeType],
+    [maxAmount, amountFromSliderPercentage],
   );
 
   // Handle quick select buttons
@@ -116,16 +186,10 @@ export function AmmTradePanel({
       setSliderValue(percentage);
 
       if (maxAmount > 0) {
-        const newAmount = (maxAmount * percentage) / 100;
-        if (tradeType === "buy") {
-          setAmount(newAmount.toFixed(2));
-        } else {
-          // Round to whole number shares
-          setAmount(Math.floor(newAmount).toString());
-        }
+        setAmount(amountFromSliderPercentage(percentage));
       }
     },
-    [maxAmount, tradeType],
+    [maxAmount, amountFromSliderPercentage],
   );
 
   // Handle manual input change
@@ -142,7 +206,8 @@ export function AmmTradePanel({
       // Update slider to match manual input
       const numValue = parseFloat(value || "0");
       if (!isNaN(numValue) && maxAmount > 0) {
-        const percentage = Math.min((numValue / maxAmount) * 100, 100);
+        const clampedValue = Math.min(numValue, maxAmount);
+        const percentage = Math.min((clampedValue / maxAmount) * 100, 100);
         setSliderValue(percentage);
       } else {
         setSliderValue(0);
@@ -198,6 +263,17 @@ export function AmmTradePanel({
     setSliderValue(0);
     setQuote(null);
   }, [tradeType]);
+
+  useEffect(() => {
+    const amountValue = parseFloat(amount || "0");
+    if (!amount || !isFinite(amountValue) || amountValue <= maxAmount) {
+      return;
+    }
+
+    const clampedPercentage = maxAmount > 0 ? 100 : 0;
+    setSliderValue(clampedPercentage);
+    setAmount(amountFromSliderPercentage(clampedPercentage));
+  }, [amount, maxAmount, amountFromSliderPercentage]);
 
   // Execute buy mutation
   const buyMutation = useMutation({

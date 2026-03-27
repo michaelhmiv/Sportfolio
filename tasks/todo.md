@@ -1903,3 +1903,16 @@ Review:
 - Playwright MCP verification on the live app showed the intended mobile behavior: `window.scrollY` stayed at `0` while the chat transcript, strategy command center, strategy overview, and strategy chat containers all scrolled internally, and the send button stayed inside the viewport.
 - Validation passed for `npm run check` and `npm run lint`. `npm run format:check` still fails only on pre-existing unrelated files `server/mcp/testing.ts` and `server/routes/mcp.ts`.
 - `npm run test:run` timed out in the existing full Vitest suite, and `npx playwright test tests/e2e/agent-shell.spec.ts --reporter=line` still fails in the current harness because the browser test does not reliably observe the authenticated workspace switch, even though the same `/agent` flows were verified directly in Playwright MCP.
+
+## 2026-03-27 Buy Slider Slippage-Capped Max
+
+- [x] Locate AMM buy/sell slider amount logic on the player trade panel
+- [x] Make buy slider max cap to `min(balance max, slippage-safe max)` so 100% aligns with executable max
+- [x] Keep manual/custom amount input synchronized with slider movement and capped max updates
+- [x] Run required validation (`npm run check`, `npm run lint`, `npm run test:run`) and record results
+
+Review:
+
+- Implemented a slippage-aware buy max cap in `client/src/components/amm-trade-panel.tsx` using current pool reserves and AMM fee math with a small safety buffer.
+- Slider and quick-select now map percentages against the capped max, and manual amount remains synchronized/clamped when max changes.
+- Validation passed: `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`.
