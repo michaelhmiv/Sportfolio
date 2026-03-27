@@ -1593,7 +1593,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     ]);
 
     const playerTeamKey = (playerSport: string, team: string) =>
-      `${playerSport.toUpperCase()}:${team}`;
+      `${playerSport.toUpperCase()}:${team.toUpperCase()}`;
 
     const gameIdsByTeam = new Map<string, Set<string>>();
     games.forEach((game) => {
@@ -5358,7 +5358,6 @@ ${items}
         }))
         .reverse(); // Oldest first for proper chart display
 
-      const orderBook = { bids: [], asks: [] };
       const recentTrades = allTrades.slice(0, 20); // Always show 20 most recent trades in the list
       const userHolding = await storage.getHolding(user.id, "player", player.id);
 
@@ -5368,16 +5367,6 @@ ${items}
       res.json({
         player,
         priceHistory,
-        orderBook: {
-          bids: orderBook.bids.slice(0, 10).map((o: any) => ({
-            price: o.limitPrice,
-            quantity: o.quantity - o.filledQuantity,
-          })),
-          asks: orderBook.asks.slice(0, 10).map((o: any) => ({
-            price: o.limitPrice,
-            quantity: o.quantity - o.filledQuantity,
-          })),
-        },
         recentTrades: await Promise.all(
           recentTrades.map(async (trade) => ({
             ...trade,
