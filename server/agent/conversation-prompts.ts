@@ -129,13 +129,15 @@ export function buildHermesConversationPrompts(input: {
   baseUserPromptTemplate: string;
   conversationMode: HermesConversationMode;
   strategyContext?: HermesStrategyContext | null;
+  mlbMcpAvailable?: boolean;
 }) {
-  const systemPrompt = [
-    input.baseSystemPrompt.trim(),
-    ...getModeInstruction(input.conversationMode, input.strategyContext),
-  ]
-    .filter(Boolean)
-    .join(" ");
+  const modeLines = getModeInstruction(input.conversationMode, input.strategyContext);
+  if (input.mlbMcpAvailable === false) {
+    modeLines.push(
+      "Note: MLB MCP advanced tools are currently offline. Use scan_sport_slate and scan_team_roster for MLB game and roster data.",
+    );
+  }
+  const systemPrompt = [input.baseSystemPrompt.trim(), ...modeLines].filter(Boolean).join(" ");
 
   const userPromptTemplate =
     input.conversationMode === "general_chat"

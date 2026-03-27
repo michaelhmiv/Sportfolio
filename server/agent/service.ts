@@ -31,6 +31,7 @@ import {
   LEGACY_SCOUT_AGENT_SYSTEM_PROMPT,
   LEGACY_SCOUT_AGENT_USER_PROMPT_TEMPLATE,
 } from "./profile-defaults";
+import { getInternalMlbMcpToolCatalog } from "./internal-mlb-mcp";
 import { getManagedProviderStatus } from "./provider-registry";
 import { isHostedWebResearchAvailable } from "./research";
 import { getActiveManagedProviderSelection } from "./system-settings";
@@ -820,11 +821,13 @@ export async function analyzeScoutAgent(
     threadId: data.threadId || null,
     strategyId: data.strategyContext?.strategyId || null,
   });
+  const mlbMcpTools = await getInternalMlbMcpToolCatalog();
   const effectivePrompts = buildHermesConversationPrompts({
     baseSystemPrompt: profile.systemPrompt,
     baseUserPromptTemplate: profile.userPromptTemplate,
     conversationMode: effectiveConversationMode,
     strategyContext: data.strategyContext || null,
+    mlbMcpAvailable: mlbMcpTools.length > 0,
   });
   const effectiveProfile = {
     ...profile,

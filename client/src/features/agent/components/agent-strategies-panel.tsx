@@ -352,7 +352,9 @@ function StrategyDeskBrief({
       <div className="border-b border-[#222938] px-0 py-2 sm:px-4 md:px-3 md:py-3">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <div className="text-[10px] font-medium uppercase tracking-wider text-white/40">Strategy desk</div>
+            <div className="text-[10px] font-medium uppercase tracking-wider text-white/40">
+              Strategy desk
+            </div>
             <div className="mt-1 flex flex-wrap items-center gap-2">
               <div className="truncate text-sm font-semibold text-slate-50 sm:text-base">
                 {selectedDetail?.name || "Strategy desk"}
@@ -412,7 +414,9 @@ function StrategyDeskBrief({
 
       <div className="hidden gap-px bg-[#222938] md:grid md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <div className="bg-[#0f1524] px-0 py-2.5 sm:px-4 md:px-3 md:py-3">
-          <div className="text-[10px] font-medium uppercase tracking-wider text-white/35">Active focus</div>
+          <div className="text-[10px] font-medium uppercase tracking-wider text-white/35">
+            Active focus
+          </div>
           <div className="mt-1 text-sm font-semibold text-slate-50">
             {selectedDetail?.name || "No strategy selected"}
           </div>
@@ -423,7 +427,9 @@ function StrategyDeskBrief({
         </div>
 
         <div className="bg-[#0f1524] px-0 py-2.5 sm:px-4 md:px-3 md:py-3">
-          <div className="text-[10px] font-medium uppercase tracking-wider text-white/35">Next action</div>
+          <div className="text-[10px] font-medium uppercase tracking-wider text-white/35">
+            Next action
+          </div>
           <div className="mt-1 text-sm font-semibold text-slate-50">
             {leadLoop?.title || "Awaiting next trigger"}
           </div>
@@ -464,7 +470,9 @@ function StrategySlots({
         <div className="border-b border-[#222938] px-0 py-2 sm:px-4 md:px-3 md:py-3">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <div className="text-[10px] font-medium uppercase tracking-wider text-white/40">Strategy rail</div>
+              <div className="text-[10px] font-medium uppercase tracking-wider text-white/40">
+                Strategy rail
+              </div>
               <div className="mt-1 text-sm font-semibold text-slate-50">Saved slots</div>
             </div>
             <Badge variant="outline" className="border-[#2a2e39] text-slate-300">
@@ -596,11 +604,15 @@ function StrategyOverview({ strategyDetail }: { strategyDetail: AgentStrategyDet
       </div>
 
       <section className="border-t border-[#1f2634] px-0 py-3 md:rounded-xl md:border md:border-white/[0.06] md:bg-white/[0.02] md:p-4">
-        <div className="text-[10px] font-medium uppercase tracking-wider text-white/40">Continuous state</div>
+        <div className="text-[10px] font-medium uppercase tracking-wider text-white/40">
+          Continuous state
+        </div>
         <div className="mt-1 text-sm font-semibold text-slate-50">{continuity.headline}</div>
         <div className="mt-2 grid gap-3 xl:grid-cols-3">
           <div className="space-y-2">
-            <div className="text-[10px] font-medium uppercase tracking-wider text-white/35">Open loops</div>
+            <div className="text-[10px] font-medium uppercase tracking-wider text-white/35">
+              Open loops
+            </div>
             {continuity.openLoops.length > 0 ? (
               continuity.openLoops.slice(0, 3).map((loop) => (
                 <div key={loop.id} className="border border-border bg-sidebar/25 px-3 py-2.5">
@@ -623,7 +635,9 @@ function StrategyOverview({ strategyDetail }: { strategyDetail: AgentStrategyDet
           </div>
 
           <div className="space-y-2">
-            <div className="text-[10px] font-medium uppercase tracking-wider text-white/35">Recent actions</div>
+            <div className="text-[10px] font-medium uppercase tracking-wider text-white/35">
+              Recent actions
+            </div>
             {continuity.recentActions.length > 0 ? (
               continuity.recentActions.slice(0, 3).map((action) => (
                 <div key={action.id} className="border border-border bg-sidebar/25 px-3 py-2.5">
@@ -643,7 +657,9 @@ function StrategyOverview({ strategyDetail }: { strategyDetail: AgentStrategyDet
           </div>
 
           <div className="space-y-2">
-            <div className="text-[10px] font-medium uppercase tracking-wider text-white/35">Evidence</div>
+            <div className="text-[10px] font-medium uppercase tracking-wider text-white/35">
+              Evidence
+            </div>
             {continuity.evidenceUpdates.length > 0 || continuity.activeStrategies.length > 0 ? (
               <>
                 {continuity.evidenceUpdates.slice(0, 2).map((evidence) => (
@@ -1049,7 +1065,7 @@ function StrategyChatTab({
   pendingUserMessage: PendingUserMessage | null;
   composerValue: string;
   onComposerChange: (value: string) => void;
-  onSend: () => void;
+  onSend: (messageOverride?: string) => void;
   onConfirmPlan: () => void;
   onCancelPlan: () => void;
   isConfirming: boolean;
@@ -1065,7 +1081,9 @@ function StrategyChatTab({
     <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
       <div className="border-b border-[#222938] px-0 py-1.5 sm:px-4 md:px-3 md:py-2">
         <div className="flex items-center justify-between gap-2">
-          <div className="text-[10px] font-medium uppercase tracking-wider text-white/40">Strategy chat</div>
+          <div className="text-[10px] font-medium uppercase tracking-wider text-white/40">
+            Strategy chat
+          </div>
           <div className="font-mono text-[10px] uppercase tracking-[0.12em] text-slate-500">
             {strategyDetail.nextRunAt
               ? `Wake ${formatDateTime(strategyDetail.nextRunAt)}`
@@ -1170,7 +1188,7 @@ function StrategyDetailWorkspace({
   pendingUserMessage: PendingUserMessage | null;
   composerValue: string;
   onComposerChange: (value: string) => void;
-  onSendMessage: () => void;
+  onSendMessage: (messageOverride?: string) => void;
   onConfirmPlan: () => void;
   onCancelPlan: () => void;
   isConfirming: boolean;
@@ -1356,7 +1374,9 @@ function StrategyDetailWorkspace({
                 {strategyDetail.status === "live" ? "active" : strategyDetail.status}
               </Badge>
               {needsReview ? (
-                <span className="inline-flex items-center rounded-full border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-[10px] font-medium text-white/60 text-amber-200">review needed</span>
+                <span className="inline-flex items-center rounded-full border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-[10px] font-medium text-white/60 text-amber-200">
+                  review needed
+                </span>
               ) : null}
             </div>
             <div className="mt-2 flex flex-wrap gap-2">
@@ -1531,7 +1551,7 @@ export function AgentStrategiesPanel({
   isRunningId: string | null;
   strategyComposerValue: string;
   onStrategyComposerChange: (value: string) => void;
-  onStrategySend: () => void;
+  onStrategySend: (messageOverride?: string) => void;
   pendingStrategyMessage: PendingUserMessage | null;
   strategyScrollViewportRef: RefObject<HTMLDivElement>;
   strategyThreadEndRef: RefObject<HTMLDivElement>;

@@ -21,22 +21,90 @@ interface SkillScanFinding {
   description: string;
 }
 
-const SKILL_THREAT_PATTERNS: Array<[RegExp, string, SkillScanFinding["severity"], SkillScanFinding["category"], string]> = [
+const SKILL_THREAT_PATTERNS: Array<
+  [RegExp, string, SkillScanFinding["severity"], SkillScanFinding["category"], string]
+> = [
   // Exfiltration
-  [/curl\s+[^\n]*\$\{?\w*(KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|API)/i, "env_exfil_curl", "critical", "exfiltration", "curl command interpolating secret environment variable"],
-  [/wget\s+[^\n]*\$\{?\w*(KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|API)/i, "env_exfil_wget", "critical", "exfiltration", "wget command interpolating secret environment variable"],
-  [/fetch\s*\([^\n]*\$\{?\w*(KEY|TOKEN|SECRET|PASSWORD|API)/i, "env_exfil_fetch", "critical", "exfiltration", "fetch() call interpolating secret environment variable"],
-  [/cat\s+[^\n]*(\.env|credentials|\.netrc|\.pgpass|\.npmrc)/i, "read_secrets_file", "critical", "exfiltration", "reads known secrets file"],
-  [/\$HOME\/\.ssh|~\/\.ssh/i, "ssh_dir_access", "high", "exfiltration", "references user SSH directory"],
+  [
+    /curl\s+[^\n]*\$\{?\w*(KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|API)/i,
+    "env_exfil_curl",
+    "critical",
+    "exfiltration",
+    "curl command interpolating secret environment variable",
+  ],
+  [
+    /wget\s+[^\n]*\$\{?\w*(KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|API)/i,
+    "env_exfil_wget",
+    "critical",
+    "exfiltration",
+    "wget command interpolating secret environment variable",
+  ],
+  [
+    /fetch\s*\([^\n]*\$\{?\w*(KEY|TOKEN|SECRET|PASSWORD|API)/i,
+    "env_exfil_fetch",
+    "critical",
+    "exfiltration",
+    "fetch() call interpolating secret environment variable",
+  ],
+  [
+    /cat\s+[^\n]*(\.env|credentials|\.netrc|\.pgpass|\.npmrc)/i,
+    "read_secrets_file",
+    "critical",
+    "exfiltration",
+    "reads known secrets file",
+  ],
+  [
+    /\$HOME\/\.ssh|~\/\.ssh/i,
+    "ssh_dir_access",
+    "high",
+    "exfiltration",
+    "references user SSH directory",
+  ],
   [/process\.env\[/i, "node_process_env", "high", "exfiltration", "accesses process.env"],
   // Prompt injection
-  [/ignore\s+(previous|all|above|prior)\s+instructions/i, "prompt_injection_ignore", "critical", "injection", "prompt injection: ignore previous instructions"],
-  [/system\s+prompt\s+override/i, "sys_prompt_override", "critical", "injection", "attempts to override the system prompt"],
-  [/disregard\s+(your|all|any)\s+(instructions|rules|guidelines)/i, "disregard_rules", "critical", "injection", "instructs agent to disregard its rules"],
-  [/do\s+not\s+tell\s+the\s+user/i, "deception_hide", "critical", "injection", "instructs agent to hide information from user"],
+  [
+    /ignore\s+(previous|all|above|prior)\s+instructions/i,
+    "prompt_injection_ignore",
+    "critical",
+    "injection",
+    "prompt injection: ignore previous instructions",
+  ],
+  [
+    /system\s+prompt\s+override/i,
+    "sys_prompt_override",
+    "critical",
+    "injection",
+    "attempts to override the system prompt",
+  ],
+  [
+    /disregard\s+(your|all|any)\s+(instructions|rules|guidelines)/i,
+    "disregard_rules",
+    "critical",
+    "injection",
+    "instructs agent to disregard its rules",
+  ],
+  [
+    /do\s+not\s+tell\s+the\s+user/i,
+    "deception_hide",
+    "critical",
+    "injection",
+    "instructs agent to hide information from user",
+  ],
   // Destructive
-  [/rm\s+-rf\s+\//i, "destructive_root_rm", "critical", "destructive", "recursive delete from root"],
-  [/DROP\s+(?:TABLE|DATABASE)/i, "destructive_drop", "critical", "destructive", "SQL DROP statement"],
+  [
+    /rm\s+-rf\s+\//i,
+    "destructive_root_rm",
+    "critical",
+    "destructive",
+    "recursive delete from root",
+  ],
+  [
+    /DROP\s+(?:TABLE|DATABASE)/i,
+    "destructive_drop",
+    "critical",
+    "destructive",
+    "SQL DROP statement",
+  ],
   [/TRUNCATE\s+TABLE/i, "destructive_truncate", "high", "destructive", "SQL TRUNCATE statement"],
 ];
 
@@ -51,7 +119,9 @@ export function scanSkillContent(input: {
     input.name,
     input.description,
     ...input.triggerExamples,
-    ...input.toolSequence.map((step) => `${step.toolName} ${JSON.stringify(step.argumentTemplate || {})}`),
+    ...input.toolSequence.map(
+      (step) => `${step.toolName} ${JSON.stringify(step.argumentTemplate || {})}`,
+    ),
   ].join("\n");
 
   for (const [pattern, patternId, severity, category, description] of SKILL_THREAT_PATTERNS) {

@@ -17,6 +17,22 @@ const optionalSportDateSchema = Type.Object(
   },
   { additionalProperties: true },
 );
+export const sportSlateSchema = Type.Object(
+  {
+    message: Type.Optional(Type.String({ minLength: 1, maxLength: 1200 })),
+    sport: Type.Optional(Type.String({ minLength: 2, maxLength: 16 })),
+    date: Type.Optional(Type.String({ minLength: 4, maxLength: 32 })),
+    team: Type.Optional(Type.String({ minLength: 2, maxLength: 10 })),
+  },
+  { additionalProperties: true },
+);
+export const teamRosterSchema = Type.Object(
+  {
+    team: Type.String({ minLength: 2, maxLength: 10 }),
+    sport: Type.Optional(Type.String({ minLength: 2, maxLength: 16 })),
+  },
+  { additionalProperties: true },
+);
 const playerIdSchema = Type.Object(
   {
     playerId: Type.String({ minLength: 1, maxLength: 160 }),

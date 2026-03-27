@@ -67,7 +67,7 @@ function normalizeEndpoint(raw: string): string | null {
   }
 }
 
-function resolveInternalMlbMcpConfig(): InternalMlbMcpConfig {
+export function resolveInternalMlbMcpConfig(): InternalMlbMcpConfig {
   const configuredEndpoint =
     process.env.HERMES_INTERNAL_MLB_MCP_URL?.trim() ||
     process.env.MLB_MCP_INTERNAL_URL?.trim() ||

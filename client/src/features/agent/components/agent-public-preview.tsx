@@ -63,9 +63,8 @@ export function AgentPublicPreview() {
             Meet Hermes
           </h1>
           <p className="mx-auto mt-3 max-w-lg text-base text-white/50 sm:text-lg">
-            Your autonomous sports trading operator. Hermes scans slates, stages
-            trades, manages boosts, and runs recurring strategies — all with your
-            approval.
+            Your autonomous sports trading operator. Hermes scans slates, stages trades, manages
+            boosts, and runs recurring strategies — all with your approval.
           </p>
           <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
             <Button

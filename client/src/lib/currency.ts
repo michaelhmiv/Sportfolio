@@ -15,6 +15,7 @@ const compactCurrencyFormatter = new Intl.NumberFormat("en-US", {
 export const DEFAULT_COMPACT_CURRENCY_THRESHOLD = 1_000;
 
 const ZERO_CURRENCY = standardCurrencyFormatter.format(0);
+const TRAILING_COMPACT_DECIMAL_PATTERN = /\.0(?=[A-Z])/;
 
 function normalizeCurrencyInput(value: number) {
   return Number.isFinite(value) ? value : 0;
@@ -25,7 +26,9 @@ export function formatStandardCurrency(value: number) {
 }
 
 export function formatCompactCurrency(value: number) {
-  return compactCurrencyFormatter.format(normalizeCurrencyInput(value));
+  return compactCurrencyFormatter
+    .format(normalizeCurrencyInput(value))
+    .replace(TRAILING_COMPACT_DECIMAL_PATTERN, "");
 }
 
 export function formatAdaptiveCurrency(
@@ -34,7 +37,7 @@ export function formatAdaptiveCurrency(
 ) {
   const amount = normalizeCurrencyInput(value);
   return Math.abs(amount) >= threshold
-    ? compactCurrencyFormatter.format(amount)
+    ? compactCurrencyFormatter.format(amount).replace(TRAILING_COMPACT_DECIMAL_PATTERN, "")
     : standardCurrencyFormatter.format(amount);
 }
 

@@ -448,6 +448,31 @@ describe("hermes-tools", () => {
     expect(toolNames).toContain("get_balance_state");
   });
 
+  it("exposes team scan tools with the expected input contracts", async () => {
+    const result = (await runHermesReadTool({
+      toolName: "get_tool_catalog",
+      userId: "user_1",
+    })) as any[];
+
+    const sportSlateTool = result.find((entry) => entry.toolName === "scan_sport_slate");
+    const teamRosterTool = result.find((entry) => entry.toolName === "scan_team_roster");
+
+    expect(sportSlateTool?.inputSchema).toMatchObject({
+      properties: {
+        sport: expect.any(Object),
+        date: expect.any(Object),
+        team: expect.any(Object),
+      },
+    });
+    expect(teamRosterTool?.inputSchema).toMatchObject({
+      required: ["team"],
+      properties: {
+        team: expect.any(Object),
+        sport: expect.any(Object),
+      },
+    });
+  });
+
   it("omits built-in MLB MCP tools from get_tool_catalog when the source is disabled", async () => {
     mocks.getScoutAgentProfile.mockResolvedValue({
       profile: {

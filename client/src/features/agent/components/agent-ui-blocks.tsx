@@ -51,7 +51,9 @@ function getStatusTone(status: string | null | undefined) {
 
 function BlockShell({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <section className={cn("rounded-xl border border-white/[0.06] bg-white/[0.02] p-3 sm:p-4", className)}>
+    <section
+      className={cn("rounded-xl border border-white/[0.06] bg-white/[0.02] p-3 sm:p-4", className)}
+    >
       {children}
     </section>
   );
@@ -59,7 +61,9 @@ function BlockShell({ children, className }: { children: ReactNode; className?: 
 
 function Kicker({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <div className={cn("text-[10px] font-medium uppercase tracking-wider text-white/40", className)}>
+    <div
+      className={cn("text-[10px] font-medium uppercase tracking-wider text-white/40", className)}
+    >
       {children}
     </div>
   );
@@ -67,9 +71,7 @@ function Kicker({ children, className }: { children: ReactNode; className?: stri
 
 function FieldLabel({ children }: { children: ReactNode }) {
   return (
-    <div className="text-[10px] font-medium uppercase tracking-wider text-white/35">
-      {children}
-    </div>
+    <div className="text-[10px] font-medium uppercase tracking-wider text-white/35">{children}</div>
   );
 }
 
@@ -134,10 +136,7 @@ function PendingDecisionBlock({
         <Kicker className="text-amber-200/70">{block.props.title}</Kicker>
         {block.props.risk ? (
           <Badge
-            className={cn(
-              "rounded-full text-[10px] font-medium",
-              getStatusTone(block.props.risk),
-            )}
+            className={cn("rounded-full text-[10px] font-medium", getStatusTone(block.props.risk))}
           >
             {block.props.risk} risk
           </Badge>
@@ -165,9 +164,7 @@ function ClarificationBlock({
 }) {
   return (
     <BlockShell className="border-sky-500/20 bg-sky-500/5">
-      <Kicker className="text-sky-200/70">
-        {block.props.title || "One detail is missing"}
-      </Kicker>
+      <Kicker className="text-sky-200/70">{block.props.title || "One detail is missing"}</Kicker>
       <div className="mt-2 text-sm leading-6 text-white/90">{block.props.prompt}</div>
       {block.props.helper ? (
         <div className="mt-2 text-sm text-white/50">{block.props.helper}</div>
@@ -196,10 +193,7 @@ function StrategyStatusBlock({
           <div className="mt-2 text-base font-semibold text-white/90">{block.props.title}</div>
         </div>
         <Badge
-          className={cn(
-            "rounded-full text-[10px] font-medium",
-            getStatusTone(block.props.status),
-          )}
+          className={cn("rounded-full text-[10px] font-medium", getStatusTone(block.props.status))}
         >
           {block.props.status.replace(/_/g, " ")}
         </Badge>
@@ -358,9 +352,7 @@ function SourceListBlock({ block }: { block: Extract<AgentUiBlock, { type: "sour
                 </div>
               ) : null}
               {source.factSummary ? (
-                <div className="mt-2 text-sm leading-6 text-white/50">
-                  {source.factSummary}
-                </div>
+                <div className="mt-2 text-sm leading-6 text-white/50">{source.factSummary}</div>
               ) : null}
             </>
           );
@@ -376,7 +368,10 @@ function SourceListBlock({ block }: { block: Extract<AgentUiBlock, { type: "sour
               {body}
             </a>
           ) : (
-            <div key={source.id} className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+            <div
+              key={source.id}
+              className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3"
+            >
               {body}
             </div>
           );
@@ -405,12 +400,8 @@ function RunSummaryBlock({ block }: { block: Extract<AgentUiBlock, { type: "run_
       <div className="mt-2 text-sm leading-6 text-white/90">{block.props.summary}</div>
       {(block.props.trigger || block.props.transport || block.props.createdAt) && (
         <div className="mt-3 flex flex-wrap gap-2">
-          {block.props.trigger ? (
-            <Pill>{block.props.trigger.replace(/_/g, " ")}</Pill>
-          ) : null}
-          {block.props.transport ? (
-            <Pill>via {block.props.transport}</Pill>
-          ) : null}
+          {block.props.trigger ? <Pill>{block.props.trigger.replace(/_/g, " ")}</Pill> : null}
+          {block.props.transport ? <Pill>via {block.props.transport}</Pill> : null}
           {block.props.createdAt ? (
             <Pill>{formatDateTime(block.props.createdAt) || "Recent"}</Pill>
           ) : null}

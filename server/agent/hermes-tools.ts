@@ -41,7 +41,11 @@ import {
   listAvailableAgentSkills,
   proposeGlobalSkillCandidate,
 } from "./skills";
-import { getCoreHermesToolCatalog } from "./hermes-tool-registry";
+import {
+  getCoreHermesToolCatalog,
+  sportSlateSchema,
+  teamRosterSchema,
+} from "./hermes-tool-registry";
 import { dailyGames, players } from "@shared/schema";
 import { and, eq, gte, inArray, lte, or } from "drizzle-orm";
 import { db } from "../db";
@@ -229,9 +233,10 @@ const AGENT_TOOL_CATALOG: AgentToolDefinition[] = [
     toolName: "scan_sport_slate",
     category: "scan",
     description:
-      "Return the game slate for a specific sport and date range, including teams, start times, and game status. Optionally includes players on each team with their positions and recent stats.",
+      "Return the game slate for a specific sport and date range, including teams, start times, and game status. When filtering by team abbreviation (e.g., BOS), include sport to avoid cross-league collisions. Includes players on each team with their positions and recent stats.",
     whenToUse: [
       "The user asks about upcoming games for a sport.",
+      "The user asks about a specific team's games (resolve team name to abbreviation first).",
       "The user asks who is playing tonight or this week.",
       "The user asks about starting pitchers, lineups, or matchups.",
       "A strategy stage needs to identify which players have games in a window.",
@@ -245,9 +250,35 @@ const AGENT_TOOL_CATALOG: AgentToolDefinition[] = [
       "who are the starting pitchers this week?",
       "show me the NBA slate for tomorrow",
       "which NFL games are this Sunday?",
+      "do the Red Sox play today?",
     ],
     requiresConfirmation: false,
     riskLevel: "low",
+    inputSchema: sportSlateSchema,
+  },
+  {
+    toolName: "scan_team_roster",
+    category: "scan",
+    description:
+      "List all active players on a team's roster with their positions and market prices. Include sport with team abbreviation when possible (e.g., MLB + BOS) to avoid cross-league collisions. Resolve team names, cities, or nicknames to abbreviations before calling.",
+    whenToUse: [
+      "The user asks about a team's roster or players on a team.",
+      "The user wants to buy players from a specific team equally.",
+      "The user asks who plays for a team.",
+    ],
+    whenNotToUse: [
+      "The user already named specific players.",
+      "The user is asking about game schedules (use scan_sport_slate instead).",
+    ],
+    examplePrompts: [
+      "show me the Red Sox roster",
+      "who plays for the Dodgers?",
+      "buy each Red Sox player equally",
+      "list Yankees players and their prices",
+    ],
+    requiresConfirmation: false,
+    riskLevel: "low",
+    inputSchema: teamRosterSchema,
   },
   {
     toolName: "scan_player_upcoming_games",
@@ -2226,8 +2257,9 @@ async function buildSportSlateScan(input: {
   userId: string;
   args?: Record<string, unknown>;
 }): Promise<HermesScanResult> {
-  const sport = toStringValue(input.args?.sport)?.toUpperCase() || null;
+  let sport = toStringValue(input.args?.sport)?.toUpperCase() || null;
   const dateArg = toStringValue(input.args?.date) || null;
+  const teamFilter = toStringValue(input.args?.team)?.toUpperCase() || null;
 
   const now = new Date();
   let startDate: Date;
@@ -2250,9 +2282,40 @@ async function buildSportSlateScan(input: {
     endDate = endOfDay;
   }
 
+  if (teamFilter && !sport) {
+    const candidateSports = await db
+      .select({ sport: dailyGames.sport })
+      .from(dailyGames)
+      .where(
+        and(
+          gte(dailyGames.startTime, startDate),
+          lte(dailyGames.startTime, endDate),
+          or(eq(dailyGames.homeTeam, teamFilter), eq(dailyGames.awayTeam, teamFilter)),
+        ),
+      )
+      .groupBy(dailyGames.sport)
+      .limit(2);
+
+    if (candidateSports.length === 1) {
+      sport = candidateSports[0].sport;
+    } else if (candidateSports.length > 1) {
+      return {
+        toolName: "scan_sport_slate",
+        domain: "sportfolio",
+        summary: "Team abbreviation is ambiguous across multiple sports.",
+        replyText: `I found multiple sports for team abbreviation ${teamFilter} in this date range. Please include sport (for example sport=MLB, team=${teamFilter}).`,
+        observations: [],
+        warnings: [`Ambiguous team abbreviation ${teamFilter}; sport is required.`],
+        context: { team: teamFilter },
+      };
+    }
+  }
   const conditions = [gte(dailyGames.startTime, startDate), lte(dailyGames.startTime, endDate)];
   if (sport) {
     conditions.push(eq(dailyGames.sport, sport));
+  }
+  if (teamFilter) {
+    conditions.push(or(eq(dailyGames.homeTeam, teamFilter), eq(dailyGames.awayTeam, teamFilter))!);
   }
 
   const games = await db
@@ -2357,6 +2420,104 @@ async function buildSportSlateScan(input: {
     ],
     warnings: games.length === 0 ? [`No ${sportLabel} games found for ${dateLabel}.`] : [],
     context: { games: gameEntries, sport: sportLabel, dateRange: dateLabel },
+  };
+}
+
+async function buildTeamRosterScan(input: {
+  userId: string;
+  args?: Record<string, unknown>;
+}): Promise<HermesScanResult> {
+  const team = toStringValue(input.args?.team)?.toUpperCase();
+  let sport = toStringValue(input.args?.sport)?.toUpperCase() || null;
+
+  if (!team) {
+    return {
+      toolName: "scan_team_roster",
+      domain: "sportfolio",
+      summary: "Missing team abbreviation.",
+      replyText: "Please provide a team abbreviation (e.g., BOS, NYY, LAD).",
+      observations: [],
+      warnings: ["No team abbreviation provided."],
+      context: {},
+    };
+  }
+
+  if (!sport) {
+    const candidateSports = await db
+      .select({ sport: players.sport })
+      .from(players)
+      .where(and(eq(players.team, team), eq(players.isActive, true)))
+      .groupBy(players.sport)
+      .limit(2);
+
+    if (candidateSports.length === 1) {
+      sport = candidateSports[0].sport;
+    } else if (candidateSports.length > 1) {
+      return {
+        toolName: "scan_team_roster",
+        domain: "sportfolio",
+        summary: "Team abbreviation is ambiguous across multiple sports.",
+        replyText: `I found multiple sports for team abbreviation ${team}. Please include sport (for example sport=MLB, team=${team}).`,
+        observations: [],
+        warnings: [`Ambiguous team abbreviation ${team}; sport is required.`],
+        context: { team },
+      };
+    }
+  }
+
+  const conditions = [eq(players.team, team), eq(players.isActive, true)];
+  if (sport) {
+    conditions.push(eq(players.sport, sport));
+  }
+
+  const rosterPlayers = await db
+    .select({
+      id: players.id,
+      firstName: players.firstName,
+      lastName: players.lastName,
+      team: players.team,
+      position: players.position,
+      sport: players.sport,
+      injuryStatus: players.injuryStatus,
+      currentPrice: players.currentPrice,
+      lastTradePrice: players.lastTradePrice,
+    })
+    .from(players)
+    .where(and(...conditions))
+    .limit(60);
+
+  const rosterEntries = rosterPlayers.map((p) => ({
+    id: p.id,
+    name: `${p.firstName} ${p.lastName}`,
+    position: p.position,
+    sport: p.sport,
+    price: p.lastTradePrice || p.currentPrice,
+    injuryStatus: p.injuryStatus,
+  }));
+
+  const sportLabel = sport || (rosterPlayers[0]?.sport ?? "unknown");
+
+  return {
+    toolName: "scan_team_roster",
+    domain: "sportfolio",
+    summary: `Found ${rosterPlayers.length} active ${team} player${rosterPlayers.length === 1 ? "" : "s"} on the market.`,
+    replyText:
+      rosterPlayers.length > 0
+        ? `${team} roster (${rosterPlayers.length} players):\n${rosterEntries.map((p) => `${p.name} (${p.position}) - $${Number(p.price ?? 0).toFixed(2)}${p.injuryStatus ? ` [${p.injuryStatus}]` : ""}`).join("\n")}`
+        : `No active ${team} players found on the market.`,
+    observations: [
+      `${rosterPlayers.length} active players for ${team}.`,
+      ...(rosterPlayers.filter((p) => p.injuryStatus).length > 0
+        ? [
+            `${rosterPlayers.filter((p) => p.injuryStatus).length} player(s) with injury designations.`,
+          ]
+        : []),
+    ],
+    warnings:
+      rosterPlayers.length === 0
+        ? [`No active players found for team ${team}. Check abbreviation.`]
+        : [],
+    context: { team, sport: sportLabel, players: rosterEntries },
   };
 }
 
@@ -2610,6 +2771,8 @@ export async function runHermesScanTool(input: {
       return buildNewsImpactScan(input);
     case "scan_sport_slate":
       return buildSportSlateScan(input);
+    case "scan_team_roster":
+      return buildTeamRosterScan(input);
     case "scan_player_upcoming_games":
       return buildPlayerUpcomingGamesScan(input);
     case "query_external_source":

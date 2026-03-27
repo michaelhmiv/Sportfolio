@@ -104,6 +104,54 @@ function SectionHeader({
   );
 }
 
+function BuiltInDataSection() {
+  const { data: capabilities } = useQuery<{
+    internalMcpStatus?: {
+      mlb: { enabled: boolean; available: boolean; toolCount: number };
+    };
+  }>({
+    queryKey: ["/api/agent/capabilities"],
+  });
+
+  const mlb = capabilities?.internalMcpStatus?.mlb;
+  const mlbStatus = mlb
+    ? mlb.available
+      ? "Connected"
+      : mlb.enabled
+        ? "Unavailable"
+        : "Disabled"
+    : "Loading";
+  const mlbBadgeClass = mlb
+    ? mlb.available
+      ? "bg-emerald-500/20 text-emerald-300"
+      : mlb.enabled
+        ? "bg-amber-500/20 text-amber-300"
+        : "bg-white/[0.06] text-white/40"
+    : "bg-white/[0.06] text-white/40";
+
+  return (
+    <div className="space-y-3">
+      <SectionHeader icon={Database} title="Built-in Intelligence" />
+      <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-white/70">MLB Data Feed</span>
+            {mlb && mlb.available && (
+              <span className="text-[10px] text-white/30">{mlb.toolCount} tools</span>
+            )}
+          </div>
+          <Badge className={cn("rounded-full text-[10px]", mlbBadgeClass)}>{mlbStatus}</Badge>
+        </div>
+        {mlb && !mlb.available && mlb.enabled && (
+          <p className="mt-1.5 text-[11px] text-white/30">
+            The MLB data service is starting up or offline. Built-in tools still work for MLB data.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function DataSourcesSection() {
   const { toast } = useToast();
   const [isAdding, setIsAdding] = useState(false);
@@ -759,6 +807,10 @@ export function AgentConfigurePanel({
   return (
     <ScrollArea className="h-full">
       <div className="mx-auto max-w-2xl space-y-8 px-4 py-6 sm:px-6">
+        <BuiltInDataSection />
+
+        <div className="border-t border-white/[0.04]" />
+
         <DataSourcesSection />
 
         <div className="border-t border-white/[0.04]" />

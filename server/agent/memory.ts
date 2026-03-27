@@ -20,7 +20,10 @@ const MEMORY_THREAT_PATTERNS: Array<[RegExp, string]> = [
   [/do\s+not\s+tell\s+the\s+user/i, "deception_hide"],
   [/system\s+prompt\s+override/i, "sys_prompt_override"],
   [/disregard\s+(your|all|any)\s+(instructions|rules|guidelines)/i, "disregard_rules"],
-  [/act\s+as\s+(if|though)\s+you\s+(have\s+no|don't\s+have)\s+(restrictions|limits|rules)/i, "bypass_restrictions"],
+  [
+    /act\s+as\s+(if|though)\s+you\s+(have\s+no|don't\s+have)\s+(restrictions|limits|rules)/i,
+    "bypass_restrictions",
+  ],
   [/pretend\s+(you\s+are|to\s+be)\s+/i, "role_pretend"],
   [/output\s+(system|initial)\s+prompt/i, "leak_system_prompt"],
   // Exfiltration via curl/wget with secrets
@@ -33,8 +36,16 @@ const MEMORY_THREAT_PATTERNS: Array<[RegExp, string]> = [
 ];
 
 const INVISIBLE_CHARS = new Set([
-  "\u200b", "\u200c", "\u200d", "\u2060", "\ufeff",
-  "\u202a", "\u202b", "\u202c", "\u202d", "\u202e",
+  "\u200b",
+  "\u200c",
+  "\u200d",
+  "\u2060",
+  "\ufeff",
+  "\u202a",
+  "\u202b",
+  "\u202c",
+  "\u202d",
+  "\u202e",
 ]);
 
 export function scanMemoryContent(content: string): string | null {
@@ -375,9 +386,7 @@ export async function persistProposedMemoryWrites(input: {
       continue;
     }
 
-    const scanResult = scanMemoryContent(
-      `${summary} ${JSON.stringify(write.content)}`,
-    );
+    const scanResult = scanMemoryContent(`${summary} ${JSON.stringify(write.content)}`);
     if (scanResult) {
       continue;
     }

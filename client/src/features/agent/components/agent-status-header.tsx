@@ -1,10 +1,6 @@
 import { Bot, Circle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type {
-  AgentThreadRuntimeDetails,
-  AgentThreadSummary,
-  AgentThreadMessage,
-} from "../types";
+import type { AgentThreadRuntimeDetails, AgentThreadSummary, AgentThreadMessage } from "../types";
 import type { AgentUiBlock } from "@shared/agent-ui";
 import { AgentUiBlockList } from "./agent-ui-blocks";
 
@@ -136,11 +132,8 @@ export function AgentStatusHeader({
       : waitingOnYou
         ? "Waiting"
         : "Ready";
-  const statusColor = !enabled || !canAnalyze
-    ? "bg-slate-500"
-    : waitingOnYou
-      ? "bg-amber-400"
-      : "bg-emerald-400";
+  const statusColor =
+    !enabled || !canAnalyze ? "bg-slate-500" : waitingOnYou ? "bg-amber-400" : "bg-emerald-400";
 
   const blocks = buildChatHeaderBlocks({ activeThread, messages, runtimeDetails });
   const inlineBlocks = blocks.filter((b) => b.type !== "goal_strip");
@@ -163,14 +156,16 @@ export function AgentStatusHeader({
               <span className="truncate text-sm font-medium text-white/90">
                 {objective?.title || activeThread?.title || "General conversation"}
               </span>
-              <span className={cn(
-                "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider",
-                !enabled || !canAnalyze
-                  ? "bg-slate-500/10 text-slate-400"
-                  : waitingOnYou
-                    ? "bg-amber-500/10 text-amber-300"
-                    : "bg-emerald-500/10 text-emerald-300",
-              )}>
+              <span
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider",
+                  !enabled || !canAnalyze
+                    ? "bg-slate-500/10 text-slate-400"
+                    : waitingOnYou
+                      ? "bg-amber-500/10 text-amber-300"
+                      : "bg-emerald-500/10 text-emerald-300",
+                )}
+              >
                 <Circle className={cn("h-1.5 w-1.5 fill-current", statusColor)} />
                 {statusLabel}
               </span>

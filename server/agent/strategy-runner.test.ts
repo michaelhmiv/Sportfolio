@@ -68,7 +68,12 @@ const {
     getStrategyStageEventTriggerMock: vi.fn(async () => null),
     buildStrategyStagePromptMock: vi.fn(() => "Run the active strategy stage"),
     getStageOutcomesMock: vi.fn(() => []),
-    getActiveStrategyStageMock: vi.fn(() => ({ id: "stage_1", title: "Active Stage", triggerPolicy: { kind: "recurring_cron" }, actionScope: [] })),
+    getActiveStrategyStageMock: vi.fn(() => ({
+      id: "stage_1",
+      title: "Active Stage",
+      triggerPolicy: { kind: "recurring_cron" },
+      actionScope: [],
+    })),
   };
 });
 

@@ -69,9 +69,7 @@ function PreviewStateBlock({ label, state }: { label: string; state: Record<stri
 
   return (
     <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
-      <div className="text-[11px] font-medium uppercase tracking-wider text-white/40">
-        {label}
-      </div>
+      <div className="text-[11px] font-medium uppercase tracking-wider text-white/40">{label}</div>
       <div className="mt-2 space-y-2">
         {entries.map(([key, value]) => (
           <div key={key} className="flex items-start justify-between gap-3">
@@ -147,12 +145,8 @@ function ToolTraceRow({ entry }: { entry: AgentToolTrace }) {
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span className="text-xs font-medium text-white/70">{entry.toolName}</span>
-          <span className={cn("text-[10px] font-medium", toneClassName)}>
-            {entry.status}
-          </span>
-          <span className="text-[10px] text-white/30">
-            {entry.latencyMs}ms
-          </span>
+          <span className={cn("text-[10px] font-medium", toneClassName)}>{entry.status}</span>
+          <span className="text-[10px] text-white/30">{entry.latencyMs}ms</span>
         </div>
         <div className="mt-0.5 text-[11px] leading-4 text-white/40">{entry.summary}</div>
       </div>
@@ -197,8 +191,10 @@ function HermesRunCard({
         <Wrench className="h-3.5 w-3.5 text-white/30" />
         <span className="flex-1 text-xs font-medium text-white/50">
           {traceCount > 0 ? `${traceCount} tool call${traceCount === 1 ? "" : "s"}` : "Run details"}
-          {skillsUsed.length > 0 && ` · ${skillsUsed.length} skill${skillsUsed.length === 1 ? "" : "s"}`}
-          {memoryInfluences.length > 0 && ` · ${memoryInfluences.length} memory cue${memoryInfluences.length === 1 ? "" : "s"}`}
+          {skillsUsed.length > 0 &&
+            ` · ${skillsUsed.length} skill${skillsUsed.length === 1 ? "" : "s"}`}
+          {memoryInfluences.length > 0 &&
+            ` · ${memoryInfluences.length} memory cue${memoryInfluences.length === 1 ? "" : "s"}`}
         </span>
         <div className="flex items-center gap-1.5">
           {generatedBy === "hermes_schedule" && (

@@ -1,11 +1,4 @@
-import {
-  BarChart3,
-  Eye,
-  Play,
-  Rocket,
-  Search,
-  TrendingUp,
-} from "lucide-react";
+import { BarChart3, Eye, Play, Rocket, Search, TrendingUp } from "lucide-react";
 
 const QUICK_ACTIONS = [
   {
@@ -52,11 +45,7 @@ const QUICK_ACTIONS = [
   },
 ];
 
-export function AgentCommandBar({
-  onAction,
-}: {
-  onAction: (prompt: string) => void;
-}) {
+export function AgentCommandBar({ onAction }: { onAction: (prompt: string) => void }) {
   return (
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-6">
       {QUICK_ACTIONS.map((action) => (
@@ -66,7 +55,9 @@ export function AgentCommandBar({
           onClick={() => onAction(action.prompt)}
           className="group flex flex-col items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-4 text-center transition-all hover:border-white/[0.12] hover:bg-white/[0.04] active:scale-[0.97]"
         >
-          <div className={`flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br ${action.color}`}>
+          <div
+            className={`flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br ${action.color}`}
+          >
             <action.icon className={`h-5 w-5 ${action.iconColor}`} />
           </div>
           <span className="text-xs font-medium text-white/70 group-hover:text-white/90">

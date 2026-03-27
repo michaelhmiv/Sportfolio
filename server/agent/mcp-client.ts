@@ -84,10 +84,7 @@ async function createFreshClient(source: UserMcpSource): Promise<Client> {
     requestInit: { headers },
   });
 
-  const client = new Client(
-    { name: "sportfolio-agent", version: "1.0.0" },
-    { capabilities: {} },
-  );
+  const client = new Client({ name: "sportfolio-agent", version: "1.0.0" }, { capabilities: {} });
 
   await client.connect(transport);
   return client;
@@ -181,9 +178,7 @@ export async function queryExternalSource(input: {
   }
 
   const targetSources = input.sourceName
-    ? enabledSources.filter(
-        (s) => s.name.toLowerCase() === input.sourceName!.toLowerCase(),
-      )
+    ? enabledSources.filter((s) => s.name.toLowerCase() === input.sourceName!.toLowerCase())
     : enabledSources;
 
   if (targetSources.length === 0) {
