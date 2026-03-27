@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation, useSearch } from "wouter";
 import { useSport } from "@/lib/sport-context";
+import { formatAdaptiveCurrency, formatCompactCurrency } from "@/lib/currency";
 import { useAppState } from "@/hooks/use-app-state";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -97,11 +98,6 @@ const normalizeSortField = (value: string | null): SortField | null => {
   return null;
 };
 
-const compactNumberFormatter = new Intl.NumberFormat("en-US", {
-  notation: "compact",
-  maximumFractionDigits: 1,
-});
-
 const integerFormatter = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 0,
 });
@@ -131,12 +127,12 @@ const getMobileSortMetric = (player: PlayerWithPool, sortField: SortField) => {
     }
     case "tvl": {
       const tvl = parseMetricNumber(player.poolTvl);
-      return { text: `TVL $${compactNumberFormatter.format(tvl)}`, className: "font-mono" };
+      return { text: `TVL ${formatCompactCurrency(tvl)}`, className: "font-mono" };
     }
     case "marketCap": {
       const marketCap = parseMetricNumber(player.marketCap);
       return {
-        text: `Cap $${compactNumberFormatter.format(marketCap)}`,
+        text: `Cap ${formatCompactCurrency(marketCap)}`,
         className: "font-mono",
       };
     }
@@ -742,7 +738,9 @@ export default function PlayerPools() {
                                   </div>
                                 </td>
                                 <td className="p-3 text-right text-sm text-muted-foreground hidden lg:table-cell">
-                                  ${player.poolTvl?.toLocaleString() || "N/A"}
+                                  {player.poolTvl == null
+                                    ? "N/A"
+                                    : formatAdaptiveCurrency(player.poolTvl)}
                                 </td>
                                 <td className="p-3 text-center">
                                   <Button

@@ -2,8 +2,12 @@
 
 ## 2026-03-25
 
+- If Hermes gains a built-in internal data source, surface that availability in both Configure and Hermes capability context; hiding it only in runtime tools makes the agent falsely claim it has no MCP/data connections.
+- When the product has fully retired a mechanic like bid/ask order-book pricing, remove the dead UI sort controls and placeholder response fields instead of preserving non-functional compatibility stubs.
 - For OpenRouter BYOK, managed model aliases (for example `MiniMax-M2.7`) are not valid model IDs; normalize them to provider-prefixed IDs (for example `minimax/minimax-m2.7`) server-side to avoid empty-turn failures in Hermes.
 - When adding an internal MCP bridge to Hermes, cache failed discovery refreshes for a short retry window and bound returned tool payloads before they re-enter the model loop; otherwise outages and large datasets can repeatedly stall or bloat the runtime.
+- On the mobile Player Pools header, lead with broad market figures and explain proprietary metrics inline; personal/action framing plus dense health jargon reads gimmicky on this surface.
+- If a tab is called `Top Risers`, source it from real positive 24h movers rather than a generic momentum ranking, or users will correctly read the ordering as broken.
 
 ## 2026-03-23
 

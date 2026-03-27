@@ -207,6 +207,21 @@ const CORE_TOOL_CATALOG: AgentToolDefinition[] = [
     auditPriority: "high",
   }),
   defineTool({
+    toolName: "get_agent_capabilities",
+    category: "read",
+    description:
+      "Read Hermes runtime capabilities, provider state, and built-in or external data connections.",
+    whenToUse: [
+      "The user asks what Hermes can do.",
+      "The user asks about MCP connections, data sources, or other available capabilities.",
+    ],
+    whenNotToUse: [],
+    examplePrompts: ["what mcp connections do you have right now?"],
+    requiresConfirmation: false,
+    riskLevel: "low",
+    auditPriority: "high",
+  }),
+  defineTool({
     toolName: "get_portfolio_summary",
     category: "read",
     description: "Read a broad portfolio summary with ranked targets and operator state.",

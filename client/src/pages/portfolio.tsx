@@ -1,5 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useEffect, useState, useMemo } from "react";
+import { formatAdaptiveCurrency } from "@/lib/currency";
 import { useWebSocket } from "@/lib/websocket";
 import { useNotifications } from "@/lib/notification-context";
 import { useAuth } from "@/hooks/useAuth";
@@ -98,16 +99,7 @@ interface PortfolioData {
   premiumExpiresAt?: string;
 }
 
-type SortField =
-  | "name"
-  | "quantity"
-  | "avgCost"
-  | "price"
-  | "bid"
-  | "ask"
-  | "value"
-  | "pnl"
-  | "tvl";
+type SortField = "name" | "quantity" | "avgCost" | "price" | "value" | "pnl" | "tvl";
 type SortDirection = "asc" | "desc";
 
 const SORT_OPTIONS: { value: SortField; label: string }[] = [
@@ -115,8 +107,6 @@ const SORT_OPTIONS: { value: SortField; label: string }[] = [
   { value: "quantity", label: "Quantity" },
   { value: "avgCost", label: "Avg Cost" },
   { value: "price", label: "Price" },
-  { value: "bid", label: "Bid" },
-  { value: "ask", label: "Ask" },
   { value: "value", label: "Value" },
   { value: "pnl", label: "P&L" },
   { value: "tvl", label: "Pool TVL" },
@@ -489,31 +479,6 @@ export default function Portfolio() {
     const cleaned = value.replace(/[^0-9.-]/g, "");
     const num = parseFloat(cleaned);
     return isNaN(num) ? 0 : num;
-  };
-
-  // Get sort value for a holding
-  const getSortValue = (
-    holding: PortfolioData["holdings"][0],
-    field: SortField,
-  ): number | string => {
-    switch (field) {
-      case "name":
-        return `${holding.player?.lastName || ""} ${holding.player?.firstName || ""}`.toLowerCase();
-      case "quantity":
-        return holding.quantity;
-      case "avgCost":
-        return parseCurrency(holding.avgCostBasis);
-      case "price":
-        return parseCurrency(holding.player?.lastTradePrice);
-      case "value":
-        return parseCurrency(holding.currentValue);
-      case "pnl":
-        return parseCurrency(holding.pnl);
-      case "tvl":
-        return (holding.player as any)?.poolTvl || 0;
-      default:
-        return 0;
-    }
   };
 
   // Transform holdings: group regular shares and stacked shares per player
@@ -1210,26 +1175,6 @@ export default function Portfolio() {
                             </span>
                           </th>
                           <th
-                            className="text-right px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground hidden sm:table-cell cursor-pointer hover:text-foreground select-none"
-                            onClick={() => handleSort("bid")}
-                            data-testid="th-sort-bid"
-                          >
-                            <span className="flex items-center justify-end">
-                              Bid
-                              <SortIcon field="bid" />
-                            </span>
-                          </th>
-                          <th
-                            className="text-right px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground hidden sm:table-cell cursor-pointer hover:text-foreground select-none"
-                            onClick={() => handleSort("ask")}
-                            data-testid="th-sort-ask"
-                          >
-                            <span className="flex items-center justify-end">
-                              Ask
-                              <SortIcon field="ask" />
-                            </span>
-                          </th>
-                          <th
                             className="text-right px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground hidden xl:table-cell cursor-pointer hover:text-foreground select-none"
                             onClick={() => handleSort("value")}
                             data-testid="th-sort-value"
@@ -1248,7 +1193,7 @@ export default function Portfolio() {
                             data-testid="row-premium-shares"
                           >
                             {/* Mobile layout */}
-                            <td className="px-2 py-2 sm:hidden" colSpan={7}>
+                            <td className="px-2 py-2 sm:hidden" colSpan={5}>
                               <div className="flex items-center justify-between gap-2">
                                 <div className="flex items-center gap-2 min-w-0 flex-1">
                                   <div className="terminal-avatar flex-shrink-0 border-yellow-500/20 bg-yellow-500/10 text-yellow-300">
@@ -1299,22 +1244,37 @@ export default function Portfolio() {
 
                             {/* Desktop layout */}
                             <td className="px-2 py-1.5 hidden sm:table-cell">
-                              <div className="flex items-center gap-2">
-                                <div className="terminal-avatar flex-shrink-0 border-yellow-500/20 bg-yellow-500/10 text-yellow-300">
-                                  <Crown className="w-4 h-4 text-yellow-500" />
-                                </div>
-                                <div>
-                                  <div className="font-medium text-sm text-yellow-500">
-                                    Premium Share
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-2">
+                                  <div className="terminal-avatar flex-shrink-0 border-yellow-500/20 bg-yellow-500/10 text-yellow-300">
+                                    <Crown className="w-4 h-4 text-yellow-500" />
                                   </div>
-                                  <div className="text-xs text-muted-foreground">
-                                    30 Days Access
+                                  <div>
+                                    <div className="font-medium text-sm text-yellow-500">
+                                      Premium Share
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">
+                                      30 Days Access
+                                    </div>
                                   </div>
                                 </div>
+                                <Button
+                                  size="sm"
+                                  onClick={() => redeemPremiumMutation.mutate()}
+                                  disabled={redeemPremiumMutation.isPending || data.isPremium}
+                                  variant="terminal"
+                                  className="border-yellow-500/30 bg-yellow-500/20 text-yellow-200 hover:bg-yellow-500/25"
+                                  data-testid="button-redeem-premium-desktop"
+                                >
+                                  {data.isPremium ? "Active" : "Redeem"}
+                                </Button>
                               </div>
                             </td>
                             <td className="px-2 py-1.5 text-right font-mono hidden sm:table-cell text-yellow-500 font-bold">
                               {data.premiumShares}
+                            </td>
+                            <td className="px-2 py-1.5 text-right font-mono hidden sm:table-cell text-yellow-500">
+                              -
                             </td>
                             <td className="px-2 py-1.5 text-right font-mono hidden md:table-cell text-yellow-500">
                               {premiumMarketData?.lastTradePrice !== null &&
@@ -1327,21 +1287,6 @@ export default function Portfolio() {
                               premiumMarketData?.lastTradePrice !== undefined
                                 ? `$${(data.premiumShares * premiumMarketData.lastTradePrice).toFixed(2)}`
                                 : "-"}
-                            </td>
-                            <td className="px-2 py-1.5 text-right hidden sm:table-cell">
-                              <div className="flex gap-1 justify-end">
-                                {/* Premium share trading removed */}
-                                <Button
-                                  size="sm"
-                                  onClick={() => redeemPremiumMutation.mutate()}
-                                  disabled={redeemPremiumMutation.isPending || data.isPremium}
-                                  variant="terminal"
-                                  className="border-yellow-500/30 bg-yellow-500/20 text-yellow-200 hover:bg-yellow-500/25"
-                                  data-testid="button-redeem-premium-desktop"
-                                >
-                                  {data.isPremium ? "Active" : "Redeem"}
-                                </Button>
-                              </div>
                             </td>
                           </tr>
                         )}
@@ -1358,7 +1303,7 @@ export default function Portfolio() {
                                   data-testid={`row-holding-${group.player.id}`}
                                 >
                                   {/* Mobile layout */}
-                                  <td className="px-2 py-2 sm:hidden" colSpan={7}>
+                                  <td className="px-2 py-2 sm:hidden" colSpan={5}>
                                     <div className="flex items-center justify-between gap-2">
                                       <div className="flex items-center gap-2 min-w-0 flex-1">
                                         <div className="terminal-avatar flex-shrink-0">
@@ -1616,7 +1561,7 @@ export default function Portfolio() {
                                 {/* Expanded detail rows - Share Holdings Table */}
                                 <CollapsibleContent asChild>
                                   <tr className="bg-muted/30">
-                                    <td colSpan={7} className="px-0">
+                                    <td colSpan={5} className="px-0">
                                       {(() => {
                                         // Build share holdings list with types
                                         const shareHoldings: Array<{
@@ -1944,11 +1889,7 @@ export default function Portfolio() {
                           Total Value
                         </div>
                         <div className="font-mono font-bold text-lg">
-                          $
-                          {lpAggregates.totalValue.toLocaleString(undefined, {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })}
+                          {formatAdaptiveCurrency(lpAggregates.totalValue)}
                         </div>
                       </div>
                       <div>
@@ -1956,11 +1897,7 @@ export default function Portfolio() {
                           Total Fees Earned
                         </div>
                         <div className="font-mono font-bold text-lg text-positive">
-                          $
-                          {lpAggregates.totalFees.toLocaleString(undefined, {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })}
+                          {formatAdaptiveCurrency(lpAggregates.totalFees)}
                         </div>
                       </div>
                     </div>

@@ -177,6 +177,37 @@ describe("hermes-orchestrator", () => {
     expect(mocks.runLocalHermesCompatibilityTurn).not.toHaveBeenCalled();
   });
 
+  it("routes follow-up explanation prompts through the model loop instead of a canned explanation shortcut", async () => {
+    mocks.runHermesModelToolLoop.mockResolvedValue({
+      outcome: "answer",
+      replyText: "I meant your open boost slot is still unused and worth filling before lock.",
+      summary: "Model answered after tool use.",
+      warnings: [],
+      citations: [],
+      toolTrace: [],
+    });
+
+    const result = await runHermesOrchestrationTurn({
+      ...baseInput,
+      request: {
+        ...baseInput.request,
+        message: "what do you mean?",
+        requestMode: "discussion",
+        conversationHistory: [
+          {
+            role: "assistant",
+            contentText: "The cleanest next lever is to fill a daily boost slot before lock.",
+          },
+        ],
+      },
+    });
+
+    expect(result.outcome).toBe("advisory");
+    expect(result.assistantText).toContain("unused");
+    expect(mocks.runHermesModelToolLoop).toHaveBeenCalledTimes(1);
+    expect(result.toolCallsUsed).not.toContain("explain_previous_guidance");
+  });
+
   it("runs the selected planning tool when the direct loop escalates to a plan tool", async () => {
     mocks.runHermesModelToolLoop.mockResolvedValue({
       outcome: "tool",

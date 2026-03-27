@@ -17,6 +17,7 @@ import { encryptText, getEncryptionVersion } from "../lib/encryption";
 import { buildHermesConversationPrompts } from "./conversation-prompts";
 import { buildAgentContinuityState } from "./continuity-state";
 import { loadScoutAgentContext } from "./context-loader";
+import { getAgentDataSourceSummary } from "./data-sources";
 import { executeScoutProposalActions } from "./executor";
 import { runHermesRuntimeTurn } from "./runtime-engine";
 import { buildAgentImprovementCandidate } from "./improvement";
@@ -30,7 +31,7 @@ import {
   LEGACY_SCOUT_AGENT_SYSTEM_PROMPT,
   LEGACY_SCOUT_AGENT_USER_PROMPT_TEMPLATE,
 } from "./profile-defaults";
-import { getInternalMlbMcpToolCatalog, resolveInternalMlbMcpConfig } from "./internal-mlb-mcp";
+import { getInternalMlbMcpToolCatalog } from "./internal-mlb-mcp";
 import { getManagedProviderStatus } from "./provider-registry";
 import { isHostedWebResearchAvailable } from "./research";
 import { getActiveManagedProviderSelection } from "./system-settings";
@@ -216,6 +217,18 @@ function buildCapabilities(
     runtime: "hermes" as const,
     hasDurableMemory: true,
     canScheduleAdvisories: true,
+  };
+}
+
+async function buildCapabilityState(
+  userId: string,
+  profile: UserAgentProfile,
+  managedProvider: ManagedProviderStatus,
+  secret?: UserAgentSecret,
+) {
+  return {
+    ...buildCapabilities(profile, managedProvider, secret),
+    dataSources: await getAgentDataSourceSummary(userId, profile),
   };
 }
 
@@ -566,11 +579,12 @@ export async function getScoutAgentProfile(userId: string): Promise<AgentProfile
     getSecret(userId),
   ]);
   const profile = await ensureProfile(userId, managedProvider);
+  const capabilities = await buildCapabilityState(userId, profile, managedProvider, secret);
 
   return {
     profile,
     secret: toSecretMetadata(secret),
-    capabilities: buildCapabilities(profile, managedProvider, secret),
+    capabilities,
   };
 }
 
@@ -597,11 +611,7 @@ export async function getScoutAgentRuntimeProfile(userId: string): Promise<{
 export const getPortfolioAgentRuntimeProfile = getScoutAgentRuntimeProfile;
 
 export async function getAgentCapabilities(userId: string): Promise<AgentCapabilitiesView> {
-  const [profileView, mlbMcpTools] = await Promise.all([
-    getScoutAgentProfile(userId),
-    getInternalMlbMcpToolCatalog(),
-  ]);
-  const mlbMcpConfig = resolveInternalMlbMcpConfig();
+  const profileView = await getScoutAgentProfile(userId);
 
   return {
     domains: SUPPORTED_AGENT_DOMAINS,
@@ -614,13 +624,7 @@ export async function getAgentCapabilities(userId: string): Promise<AgentCapabil
     runtime: profileView.capabilities.runtime,
     hasDurableMemory: profileView.capabilities.hasDurableMemory,
     canScheduleAdvisories: profileView.capabilities.canScheduleAdvisories,
-    internalMcpStatus: {
-      mlb: {
-        enabled: mlbMcpConfig.enabled,
-        available: mlbMcpTools.length > 0,
-        toolCount: mlbMcpTools.length,
-      },
-    },
+    dataSources: profileView.capabilities.dataSources,
   };
 }
 
@@ -784,7 +788,7 @@ export async function analyzeScoutAgent(
     throw new Error("Agent is disabled");
   }
 
-  const runtimeCapabilities = buildCapabilities(profile, managedProvider, secret);
+  const runtimeCapabilities = await buildCapabilityState(userId, profile, managedProvider, secret);
   if (!runtimeCapabilities.canAnalyze) {
     throw new Error(
       profile.providerMode === "managed" && !managedProvider.supportsHermesToolLoop
@@ -878,6 +882,7 @@ export async function analyzeScoutAgent(
         runtime: "hermes",
         hasDurableMemory: true,
         canScheduleAdvisories: true,
+        dataSources: runtimeCapabilities.dataSources,
       },
       memoryContext: await buildHermesMemoryContext({
         userId,

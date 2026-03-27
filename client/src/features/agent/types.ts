@@ -30,8 +30,25 @@ export interface AgentProfileResponse {
     canAutoExecute: boolean;
     canUseWebResearch: boolean;
     webResearchProvider: "brave" | null;
-    internalMcpStatus?: {
-      mlb: { enabled: boolean; available: boolean; toolCount: number };
+    dataSources?: {
+      builtIn: Array<{
+        id: string;
+        kind: "built_in" | "external";
+        name: string;
+        description: string | null;
+        enabled: boolean;
+        available: boolean;
+        capabilitySummary: string | null;
+      }>;
+      external: Array<{
+        id: string;
+        kind: "built_in" | "external";
+        name: string;
+        description: string | null;
+        enabled: boolean;
+        available: boolean;
+        capabilitySummary: string | null;
+      }>;
     };
   };
 }

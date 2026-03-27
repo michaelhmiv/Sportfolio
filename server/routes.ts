@@ -103,13 +103,12 @@ import {
   updateUserAgentStrategy,
 } from "./agent/strategies";
 import { runUserAgentStrategy } from "./agent/strategy-runner";
+import { createUserMcpSource, deleteUserMcpSource } from "./agent/mcp-sources";
 import {
-  listUserMcpSources,
-  getUserMcpSource,
-  createUserMcpSource,
-  updateUserMcpSource,
-  deleteUserMcpSource,
-} from "./agent/mcp-sources";
+  getAgentDataSource,
+  listAgentDataSources,
+  updateAgentDataSource,
+} from "./agent/data-sources";
 import {
   ensureAgentSystemSettingsSchema,
   getAgentSystemSettings,
@@ -1594,7 +1593,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     ]);
 
     const playerTeamKey = (playerSport: string, team: string) =>
-      `${playerSport.toUpperCase()}:${team}`;
+      `${playerSport.toUpperCase()}:${team.toUpperCase()}`;
 
     const gameIdsByTeam = new Map<string, Set<string>>();
     games.forEach((game) => {
@@ -4876,6 +4875,7 @@ ${items}
         seasonStatsMap,
         sentimentMap,
         avgFantasyPointsMap,
+        priceChange24hMap,
         globalScoutMap,
         poolDataMap,
         todaysGames,
@@ -4884,6 +4884,7 @@ ${items}
         storage.getBatchPlayerSeasonStatsFromLogs(playerIds),
         storage.getBatchSentiment(playerIds),
         storage.getBatchAllTimeAvgFantasyPoints(playerIds),
+        storage.getBatchPlayerPriceChange24h(playerIds),
         storage.getBatchActiveScoutCounts(playerIds),
         storage.getBatchPoolData(playerIds),
         sport && typeof sport === "string" && sport.toUpperCase() !== "ALL"
@@ -4949,6 +4950,7 @@ ${items}
             ? poolData.playMoney * 2
             : poolData?.playMoney || 0;
         const gameContext = teamGameMap.get(player.team);
+        const priceChange24h = (priceChange24hMap.get(player.id) || 0).toFixed(2);
 
         return {
           ...enriched,
@@ -4958,10 +4960,7 @@ ${items}
                 currentPrice: ammSpotPrice !== null ? ammSpotPrice.toFixed(2) : null,
               }
             : {}),
-          bestBid: null,
-          bestAsk: null,
-          bidSize: 0,
-          askSize: 0,
+          priceChange24h,
           avgFantasyPointsPerGame: (
             metricAvgFantasyPoints ?? parseFloat(seasonStats.avgFantasyPointsPerGame || "0")
           ).toFixed(1),
@@ -5001,16 +5000,17 @@ ${items}
         sport: sport as string,
       });
 
-      // Enrich with player metrics (priceChange24h)
+      // Enrich with player metrics for the activity feed.
       const uniquePlayerIds = Array.from(new Set(activity.map((a: any) => a.playerId)));
       const players = await storage.getPlayersByIds(uniquePlayerIds);
+      const priceChange24hMap = await storage.getBatchPlayerPriceChange24h(uniquePlayerIds);
       const playerMap = new Map(players.map((p) => [p.id, p]));
 
       const enrichedActivity = activity.map((item: any) => {
         const player = playerMap.get(item.playerId);
         return {
           ...item,
-          priceChange24h: player?.priceChange24h || "0",
+          priceChange24h: (priceChange24hMap.get(item.playerId) || 0).toFixed(2),
           currentPrice: player?.lastTradePrice || null,
         };
       });
@@ -5358,7 +5358,6 @@ ${items}
         }))
         .reverse(); // Oldest first for proper chart display
 
-      const orderBook = { bids: [], asks: [] };
       const recentTrades = allTrades.slice(0, 20); // Always show 20 most recent trades in the list
       const userHolding = await storage.getHolding(user.id, "player", player.id);
 
@@ -5368,16 +5367,6 @@ ${items}
       res.json({
         player,
         priceHistory,
-        orderBook: {
-          bids: orderBook.bids.slice(0, 10).map((o: any) => ({
-            price: o.limitPrice,
-            quantity: o.quantity - o.filledQuantity,
-          })),
-          asks: orderBook.asks.slice(0, 10).map((o: any) => ({
-            price: o.limitPrice,
-            quantity: o.quantity - o.filledQuantity,
-          })),
-        },
         recentTrades: await Promise.all(
           recentTrades.map(async (trade) => ({
             ...trade,
@@ -5654,10 +5643,6 @@ ${items}
             multiplier: holding.multiplier ?? "1.00",
             hasStackedShare: Boolean(holding.isStackedShare),
             totalPlayerEffectiveShares: totalPlayerEffectiveShares.toFixed(2),
-            bestBid: null,
-            bestAsk: null,
-            bidSize: 0,
-            askSize: 0,
             globalScoutCount,
           };
         }
@@ -6196,7 +6181,8 @@ ${items}
   app.get("/api/agent/mcp-sources", isAuthenticated, async (req, res) => {
     try {
       const userId = getUserId(req);
-      const sources = await listUserMcpSources(userId);
+      const { profile } = await getPortfolioAgentProfile(userId);
+      const sources = await listAgentDataSources(userId, profile);
       res.json(sources);
     } catch (error: any) {
       const message = normalizeAgentErrorMessage(error);
@@ -6208,7 +6194,8 @@ ${items}
   app.get("/api/agent/mcp-sources/:sourceId", isAuthenticated, async (req, res) => {
     try {
       const userId = getUserId(req);
-      const source = await getUserMcpSource(userId, req.params.sourceId);
+      const { profile } = await getPortfolioAgentProfile(userId);
+      const source = await getAgentDataSource(userId, req.params.sourceId, profile);
       if (!source) {
         return res.status(404).json({ error: "MCP source not found." });
       }
@@ -6235,7 +6222,8 @@ ${items}
   app.patch("/api/agent/mcp-sources/:sourceId", isAuthenticated, async (req, res) => {
     try {
       const userId = getUserId(req);
-      const source = await updateUserMcpSource(userId, req.params.sourceId, req.body ?? {});
+      await getPortfolioAgentProfile(userId);
+      const source = await updateAgentDataSource(userId, req.params.sourceId, req.body ?? {});
       res.json(source);
     } catch (error: any) {
       const message = normalizeAgentErrorMessage(error);
@@ -6247,6 +6235,9 @@ ${items}
   app.delete("/api/agent/mcp-sources/:sourceId", isAuthenticated, async (req, res) => {
     try {
       const userId = getUserId(req);
+      if (req.params.sourceId === "internal_mlb_mcp") {
+        return res.status(400).json({ error: "Built-in data sources cannot be removed." });
+      }
       await deleteUserMcpSource(userId, req.params.sourceId);
       res.json({ success: true });
     } catch (error: any) {

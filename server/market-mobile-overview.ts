@@ -33,6 +33,26 @@ interface ScannerEntry {
   };
 }
 
+interface MarketScannerSummary {
+  totalVolume24h: number;
+  totalPoolShares: number;
+  totalMarketTvl: number;
+}
+
+interface FinancialMarketScanners {
+  undervalued: ScannerEntry[];
+  premium: ScannerEntry[];
+  sentiment: ScannerEntry[];
+  momentum: ScannerEntry[];
+  summary?: MarketScannerSummary;
+}
+
+interface TopRiserSnapshot {
+  playerId: string;
+  currentPrice: number;
+  priceChange24h: number;
+}
+
 type CommunityBoostLike = { playerId: string; sport?: string | null };
 type DailyBoostLike = { playerId: string; slotTier?: number | null };
 
@@ -106,6 +126,8 @@ export interface MobileMarketIndicators {
   marketIndex24h: number;
   volatilityIndex: number;
   liquidityHealth: number;
+  totalVolume24h: number;
+  totalPoolShares: number;
   totalMarketTvl: number;
   breadth: {
     risers: number;
@@ -136,12 +158,7 @@ export interface MobileMarketOverview {
 }
 
 export interface MarketMobileOverviewDeps {
-  getFinancialMarketScanners: (sport: string) => Promise<{
-    undervalued: ScannerEntry[];
-    premium: ScannerEntry[];
-    sentiment: ScannerEntry[];
-    momentum: ScannerEntry[];
-  }>;
+  getFinancialMarketScanners: (sport: string) => Promise<FinancialMarketScanners>;
   getMarketActivity: (filters: { limit: number; sport: string }) => Promise<any[]>;
   getDailyGames: (sport: string, startOfDay: Date, endOfDay: Date) => Promise<DailyGame[]>;
   getBatchPoolData: (
@@ -159,6 +176,7 @@ export interface MarketMobileOverviewDeps {
   getAllHoldingsWithPlayers: (userId: string) => Promise<HoldingWithPlayerSummary[]>;
   getDailyBoostsAllSports: (userId: string, date: Date) => Promise<DailyBoostLike[]>;
   getTotalLockedQuantity: (userId: string, assetType: string, assetId: string) => Promise<number>;
+  getTopRisers: (sport: string, limit: number) => Promise<TopRiserSnapshot[]>;
   getRecentTradeCount15m: (sport: string, since: Date) => Promise<number>;
   getTrendingScoutPlayerIds: (sport: string, limit: number, asOf: Date) => Promise<string[]>;
   getTopPoolPlayerIds: (sport: string, limit: number) => Promise<string[]>;
@@ -202,6 +220,61 @@ const defaultDeps: MarketMobileOverviewDeps = {
   getDailyBoostsAllSports: (userId, date) => storage.getDailyBoostsAllSports(userId, date),
   getTotalLockedQuantity: (userId, assetType, assetId) =>
     storage.getTotalLockedQuantity(userId, assetType, assetId),
+  getTopRisers: async (sport, limit) => {
+    const normalizedSport = sport.toUpperCase();
+    const sportFilter =
+      normalizedSport === "ALL" ? sql`TRUE` : sql`UPPER(p.sport) = ${normalizedSport}`;
+
+    const result: any = await db.execute(sql`
+      WITH recent AS (
+        SELECT
+          t.player_id AS player_id,
+          FIRST_VALUE(t.price::numeric) OVER (PARTITION BY t.player_id ORDER BY t.executed_at ASC) AS first_price,
+          FIRST_VALUE(t.price::numeric) OVER (PARTITION BY t.player_id ORDER BY t.executed_at DESC) AS last_price
+        FROM trades t
+        INNER JOIN players p ON p.id = t.player_id
+        WHERE t.executed_at >= NOW() - INTERVAL '24 hours'
+          AND p.is_active = TRUE
+          AND ${sportFilter}
+      ),
+      agg AS (
+        SELECT
+          DISTINCT
+          player_id,
+          first_price,
+          last_price,
+          CASE
+            WHEN first_price > 0 THEN ((last_price - first_price) / first_price) * 100
+            ELSE 0
+          END AS pct_change
+        FROM recent
+      )
+      SELECT
+        a.player_id AS "playerId",
+        (a.last_price)::float8 AS "currentPrice",
+        (a.pct_change)::float8 AS "priceChange24h"
+      FROM agg a
+      WHERE a.pct_change > 0
+      ORDER BY a.pct_change DESC
+      LIMIT ${limit};
+    `);
+
+    return (result?.rows || []).map((row: any) => ({
+      playerId: String(row.playerId || ""),
+      currentPrice:
+        typeof row.currentPrice === "number"
+          ? row.currentPrice
+          : row.currentPrice != null
+            ? parseFloat(row.currentPrice)
+            : 0,
+      priceChange24h:
+        typeof row.priceChange24h === "number"
+          ? row.priceChange24h
+          : row.priceChange24h != null
+            ? parseFloat(row.priceChange24h)
+            : 0,
+    }));
+  },
   getRecentTradeCount15m: async (sport, since) => {
     const normalizedSport = sport.toUpperCase();
     const sportCondition =
@@ -308,7 +381,9 @@ type PlayerContext = {
   position: string;
   currentPrice: number;
   priceChange24h: number;
+  volume24h: number;
   poolTvl: number;
+  poolShares: number;
   buyPressure: number;
   valueIndex: number;
   globalScoutCount: number;
@@ -414,12 +489,7 @@ function createGameMap(games: DailyGame[], now: Date) {
 async function buildPlayerContextMap(
   playerIds: string[],
   games: DailyGame[],
-  scanners: {
-    undervalued: ScannerEntry[];
-    premium: ScannerEntry[];
-    sentiment: ScannerEntry[];
-    momentum: ScannerEntry[];
-  },
+  scanners: FinancialMarketScanners,
   deps: MarketMobileOverviewDeps,
 ): Promise<Map<string, PlayerContext>> {
   const dedupedPlayerIds = dedupeIds(playerIds);
@@ -488,7 +558,9 @@ async function buildPlayerContextMap(
       position: player.position,
       currentPrice,
       priceChange24h: toNumber(player.priceChange24h),
+      volume24h: Number(player.volume24h || 0),
       poolTvl,
+      poolShares: pool?.shares || 0,
       buyPressure: scanner?.buyPressure ?? 50,
       valueIndex: scanner?.valueIndex ?? 0,
       globalScoutCount: scoutCountMap.get(player.id) || 0,
@@ -598,6 +670,24 @@ function sortByAbsoluteMove(
   return right.poolTvl - left.poolTvl;
 }
 
+function sortByTopRiser(
+  left: Pick<PlayerContext, "priceChange24h" | "poolTvl">,
+  right: Pick<PlayerContext, "priceChange24h" | "poolTvl">,
+) {
+  const leftPositive = left.priceChange24h > 0 ? 1 : 0;
+  const rightPositive = right.priceChange24h > 0 ? 1 : 0;
+
+  if (rightPositive !== leftPositive) {
+    return rightPositive - leftPositive;
+  }
+
+  if (right.priceChange24h !== left.priceChange24h) {
+    return right.priceChange24h - left.priceChange24h;
+  }
+
+  return right.poolTvl - left.poolTvl;
+}
+
 function getMarketHealthSummary(label: MarketHealthLabel) {
   switch (label) {
     case "quiet":
@@ -615,8 +705,9 @@ function buildMarketIndicators(params: {
   contexts: PlayerContext[];
   tradeCount15m: number;
   liveGameCount: number;
+  summary?: MarketScannerSummary;
 }): MobileMarketIndicators {
-  const { contexts, tradeCount15m, liveGameCount } = params;
+  const { contexts, tradeCount15m, liveGameCount, summary } = params;
   const breadth = contexts.reduce(
     (accumulator, context) => {
       if (context.priceChange24h > MARKET_BREADTH_MOVE_THRESHOLD) {
@@ -651,8 +742,17 @@ function buildMarketIndicators(params: {
         ) / contexts.length
       : 0;
   const moveStandardDeviation = Math.sqrt(moveVariance);
+  const totalVolume24h = roundToTwo(
+    summary?.totalVolume24h ??
+      contexts.reduce((total, context) => total + Math.max(0, context.volume24h), 0),
+  );
+  const totalPoolShares = roundToTwo(
+    summary?.totalPoolShares ??
+      contexts.reduce((total, context) => total + Math.max(0, context.poolShares), 0),
+  );
   const totalMarketTvl = roundToTwo(
-    contexts.reduce((total, context) => total + Math.max(0, context.poolTvl), 0),
+    summary?.totalMarketTvl ??
+      contexts.reduce((total, context) => total + Math.max(0, context.poolTvl), 0),
   );
   const averagePoolTvl = contexts.length > 0 ? totalMarketTvl / contexts.length : 0;
   const deepPoolShare =
@@ -696,6 +796,8 @@ function buildMarketIndicators(params: {
     marketIndex24h,
     volatilityIndex,
     liquidityHealth,
+    totalVolume24h,
+    totalPoolShares,
     totalMarketTvl,
     breadth,
   };
@@ -719,6 +821,7 @@ export async function buildMobileMarketOverview(
     activity,
     games,
     tradeCount15m,
+    topRisers,
     trendingScoutPlayerIds,
     communityBoosts,
     topPoolPlayerIds,
@@ -727,12 +830,14 @@ export async function buildMobileMarketOverview(
     deps.getMarketActivity({ sport, limit: 24 }),
     deps.getDailyGames(sport, startOfDay, endOfDay),
     deps.getRecentTradeCount15m(sport, new Date(now.getTime() - 15 * 60 * 1000)),
+    deps.getTopRisers(sport, 6),
     deps.getTrendingScoutPlayerIds(sport, 6, now),
     deps.getCommunityBoostsAllSports(targetDate),
     deps.getTopPoolPlayerIds(sport, 6),
   ]);
 
   const primaryCandidateIds = dedupeIds([
+    ...topRisers.map((entry) => entry.playerId),
     ...scanners.momentum.map((entry) => entry.player.id),
     ...scanners.undervalued.map((entry) => entry.player.id),
     ...activity.map((entry) => entry.playerId as string),
@@ -772,7 +877,29 @@ export async function buildMobileMarketOverview(
     })
     .filter((entry) => entry.currentPrice > 0);
 
-  const nowMovingContexts = scanners.momentum
+  const rankedTopRisers = topRisers
+    .map((entry) => {
+      const context = contextMap.get(entry.playerId);
+      const signal = withSignal(
+        context,
+        "momentum",
+        `${entry.priceChange24h >= 0 ? "+" : ""}${roundToTwo(entry.priceChange24h)}% in the last 24h`,
+      );
+
+      if (!signal) {
+        return null;
+      }
+
+      return {
+        ...signal,
+        currentPrice: entry.currentPrice > 0 ? entry.currentPrice : signal.currentPrice,
+        priceChange24h: roundToTwo(entry.priceChange24h),
+      } satisfies MobileMarketSignal;
+    })
+    .filter((entry): entry is MobileMarketSignal => Boolean(entry))
+    .sort(sortByTopRiser);
+
+  const fallbackMomentum = scanners.momentum
     .slice(0, 6)
     .map((entry) => {
       const context = contextMap.get(entry.player.id);
@@ -784,8 +911,23 @@ export async function buildMobileMarketOverview(
       );
     })
     .filter((entry): entry is MobileMarketSignal => Boolean(entry))
-    .sort(sortByMarketEnergy)
-    .slice(0, 4);
+    .sort(sortByTopRiser);
+
+  const nowMovingContexts: MobileMarketSignal[] = [];
+  const seenRisers = new Set<string>();
+
+  for (const entry of [...rankedTopRisers, ...fallbackMomentum]) {
+    if (seenRisers.has(entry.playerId)) {
+      continue;
+    }
+
+    seenRisers.add(entry.playerId);
+    nowMovingContexts.push(entry);
+
+    if (nowMovingContexts.length === 4) {
+      break;
+    }
+  }
 
   const quietValue = scanners.undervalued
     .slice(0, 8)
@@ -852,6 +994,7 @@ export async function buildMobileMarketOverview(
     contexts: Array.from(contextMap.values()),
     tradeCount15m,
     liveGameCount: games.filter((game) => getEffectiveGameStatus(game, now) === "live").length,
+    summary: scanners.summary,
   });
 
   let watchlistMoves: MobileMarketSignal[] = [];

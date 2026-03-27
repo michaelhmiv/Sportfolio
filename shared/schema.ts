@@ -1397,6 +1397,7 @@ export const userAgentProfiles = pgTable(
     runtime: text("runtime").notNull().default("hermes"), // "pi" | "hermes"
     model: text("model").notNull().default("managed-default"),
     baseUrl: text("base_url"),
+    internalMlbMcpEnabled: boolean("internal_mlb_mcp_enabled").notNull().default(true),
     systemPrompt: text("system_prompt")
       .notNull()
       .default(

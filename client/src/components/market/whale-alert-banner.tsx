@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { Waves, TrendingUp, TrendingDown, X, ExternalLink } from "lucide-react";
 import { useEffect, useState } from "react";
+import { formatAdaptiveCurrency } from "@/lib/currency";
 import { cn } from "@/lib/utils";
 import { useWebSocket } from "@/lib/websocket";
 import { Button } from "@/components/ui/button";
@@ -197,7 +198,7 @@ export function WhaleAlertBanner({ className }: WhaleAlertBannerProps) {
                     isBuy ? "text-emerald-500" : "text-red-500",
                   )}
                 >
-                  ${currentAlert.tradeValue.toLocaleString()}
+                  {formatAdaptiveCurrency(currentAlert.tradeValue)}
                 </span>
                 {isBuy ? (
                   <TrendingUp className="w-4 h-4 text-emerald-500" />

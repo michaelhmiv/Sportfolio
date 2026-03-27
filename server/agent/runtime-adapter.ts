@@ -82,7 +82,11 @@ export async function buildHermesTurnRequest(
     orchestrationMode?: HermesRespondRequest["orchestrationMode"];
   },
 ): Promise<HermesRespondRequest> {
-  const toolCatalog = input.toolCatalog || (await getAgentRuntimeToolCatalog());
+  const toolCatalog =
+    input.toolCatalog ||
+    (await getAgentRuntimeToolCatalog({
+      includeInternalMlbMcp: input.profile.internalMlbMcpEnabled,
+    }));
   const availableSkills = input.availableSkills || (await listAvailableAgentSkills(input.userId));
   const modelRuntime =
     input.modelRuntime || (await buildAgentModelRuntimeConfig(input.profile, input.secret));

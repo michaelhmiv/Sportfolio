@@ -1,3 +1,104 @@
+## 2026-03-26 Agent Settings 503 on Agents Tab
+
+- [x] Trace the Agents tab settings fetch path and confirm the failing endpoint (`/api/agent/profile`)
+- [x] Identify why settings can return 503 instead of a profile payload
+- [x] Add a robust self-healing path so agent system-settings reads bootstrap schema/row on demand and retry automatically
+- [x] Run validation (`npm run check`, `npm run lint`, `npm run test:run`) and record outcomes
+
+Review:
+
+- Root cause: `/api/agent/profile` depends on `getActiveManagedProviderSelection()` (from `agent_system_settings`). If that table/column is missing (migration drift), profile load throws and routes map that to HTTP 503, which surfaces in UI as "Couldn't load agent settings" with service unavailable.
+- Fix: `server/agent/system-settings.ts` now performs a targeted schema bootstrap + retry when `agent_system_settings` relation/column is missing, so reads and writes self-heal and preserve persisted provider/model settings.
+- Result: Agents tab can still load profile/settings state even during migration drift, and once bootstrap succeeds it uses canonical DB-backed settings rather than a temporary in-memory/default-provider fallback.
+- Validation: `npm run check` passed, `npm run lint` passed, and `npm run test:run` failed on a pre-existing assertion in `client/src/lib/currency.test.ts` (`$1.0K` vs `$1K`).
+
+## 2026-03-25 Hermes Advisory De-Determinization + PR Bundle
+
+- [x] Remove broad advisory/capability/review deterministic planner responses from the main Hermes direct-operation router while keeping deterministic mutation previews and blocking validations
+- [x] Replace planner-backed advisory scan tools with native structured scans so Hermes can synthesize idle-balance and community-boost advice from tool context
+- [x] Update focused agent tests to reflect model-first advisory routing and deterministic execution-preview boundaries
+- [x] Run required validation plus targeted Hermes smokes, then bundle the approved local patch set into PR #107
+
+Review:
+
+- Hermes preview/materialization paths now call `planDirectAgentOperation` with `allowAdvisoryResponses: false`, so capability/setup/review/market discussion shortcuts no longer leak through the deterministic planner in the normal Hermes runtime.
+- `scan_idle_balance_options` and `scan_community_boost_candidates` now build structured scans directly from operator context, scanner state, games, and community-boost state instead of proxying through deterministic planner prose.
+- The model-first loop now receives structured scan/read summaries, observations, warnings, and context instead of primarily consuming canned `replyText`, while still preserving the human-readable tool reply for empty-provider fallback recovery.
+- Hermes capability routing now has a first-class `get_agent_capabilities` tool and stronger prompt guidance for capability, setup-review, cash-deployment, cleanup, market, and community-boost advisory turns.
+- The hardcoded follow-up explanation shortcut was removed from the orchestrator, so prompts like `what do you mean?` now go back through the Hermes model/tool loop.
+- Validation status:
+- `npx vitest run server/agent/operations-planner.test.ts server/agent/hermes-tools.test.ts server/agent/model-first-router.test.ts server/agent/hermes-orchestrator.test.ts` passed.
+- `npm run check` passed.
+- `npm run lint` passed.
+- `npm run test:run` passed.
+- `npx tsx scripts/agent-audit.ts --static-only --batch 8` passed and reported the full Hermes tool surface.
+- `npx tsx scripts/agent-smoke.ts --user smoke_user` is still environment-blocked locally by the existing DB auth issue: `password authentication failed for user "postgres"`.
+- `npm run format:check` still fails due pre-existing formatting drift in unrelated files under `client/src/features/agent/*` and untouched `server/agent/*`; the touched files in this patch were formatted.
+
+## 2026-03-25 Mobile Pools Market Summary Refresh
+
+- [x] Replace the gimmicky mobile Player Pools top card with a tighter market-summary header
+- [x] Add broad indicator figures for volatility, 24h volume, pool shares, and market TVL
+- [x] Make Top Risers use explicit positive 24h mover ordering instead of the old momentum proxy
+- [x] Add an inline Value Scan explanation affordance on mobile
+- [x] Run validation (`npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`) and record any pre-existing failures
+
+Review:
+
+- Reworked the top mobile pools card into a restrained `Market Summary` module with one compact stats grid and cleaner status chips instead of the old composite/health dashboard treatment.
+- Extended `server/market-mobile-overview.ts` and `server/storage.ts` so mobile indicators now carry aggregate `totalVolume24h`, `totalPoolShares`, and market-wide TVL data for the header.
+- Top Risers now prefers an explicit positive 24h risers feed built from real trade-based change data, then falls back only if needed; added regression coverage in `server/market-mobile-overview.test.ts`.
+- Value Scan now includes a tappable `?` explainer describing the value index and how to read lower scores.
+- Validation status:
+- `npx vitest run server/market-mobile-overview.test.ts` passed.
+- `npm run check` passed.
+- `npm run lint` passed.
+- `npm run test:run` fails due pre-existing unrelated timeouts/assertions in agent/job/storage suites (`server/agent/*`, `server/jobs/*`, `server/storage.share-payouts.test.ts`), while the touched overview suite passes.
+- `npm run format:check` still fails due pre-existing formatting drift in unrelated `client/src/features/agent/*` and `server/agent/*` files.
+
+## 2026-03-25 Marketplace Sort + 24h Change Fix
+
+- [x] Make marketplace price sorting use the same AMM-aware price that the UI displays
+- [x] Replace marketplace 24h change rendering/sorting with a live 24h AMM calculation
+- [x] Remove retired bid/ask sort UI and legacy placeholder response fields tied to it
+- [x] Run validation (`npm run check`, `npm run lint`, `npm run test:run`) and document any pre-existing failures
+
+Review:
+
+- Marketplace `price` sort now orders by the same AMM-aware effective price the UI renders instead of the stale raw `players.lastTradePrice` column.
+- Marketplace `24h Change` now uses a live batch calculation from AMM trades in the last 24 hours, and the same metric is used for `/api/players` rendering and `change` sorting.
+- Removed retired portfolio `bid`/`ask` sort options, removed the legacy `bestBid`/`bestAsk` placeholder fields from portfolio/player list responses, and stopped persisting dead bid/ask metrics into `playerMarketMetrics`.
+- Validation status:
+- `npm run check` currently fails in unrelated pre-existing worktree code under `client/src/components/market-mobile-pools-board.tsx` (`getMarketHealthBadgeClassName`, `MarketIndicatorBar`, `breadthDisplay`, etc. are missing), outside this marketplace/portfolio patch.
+- `npm run lint` passed.
+- `npm run test:run` failed due a pre-existing mismatch in `server/agent/hermes-tools.test.ts` against the already-modified `shared/schema.ts` profile shape (`internalMlbMcpEnabled`), unrelated to this marketplace/portfolio patch.
+- `npm run format:check` still fails due pre-existing formatting drift in unrelated files outside this change set.
+
+## 2026-03-25 Compact Currency Formatting
+
+- [x] Add a shared client currency formatter with adaptive compact formatting and tests
+- [x] Migrate large-value dashboard, profile, leaderboard, marketplace, player, portfolio, and mobile summary surfaces to the shared formatter
+- [x] Run required validation (`npm run check`, `npm run lint`, `npm run test:run`) and record any pre-existing failures
+
+Review:
+
+- Added `client/src/lib/currency.ts` plus focused tests to standardize USD formatting, compact notation, and threshold-based switching at `$1,000`.
+- Replaced page-local compact currency logic on the main user-facing summary surfaces so large balances, TVL, market cap, liquidity, payouts, and aggregate portfolio values now render with shared adaptive formatting.
+- Left precision-sensitive per-share and quote displays on standard currency formatting paths.
+- Validation status:
+- `npx vitest run client/src/lib/currency.test.ts` passed.
+- `npm run lint` passed.
+- `npm run test:run` passed.
+- `npm run check` failed due pre-existing unresolved identifiers in `client/src/components/market-mobile-pools-board.tsx` (`getMarketHealthBadgeClassName`, `breadthDisplay`, `MarketIndicatorBar`, `clampPercent`, `indexTone`, `breadth`, `breadthTone`), unrelated to this formatter change.
+- `npm run format:check` failed due pre-existing formatting drift in untouched agent files under `client/src/features/agent/*` and `server/agent/*`.
+
+## 2026-03-25 Main Sync + Source Control Investigation
+
+- [ ] Compare current branch against `origin/main` and inspect worktree state
+- [ ] Identify the actual local/untracked files causing Source Control noise
+- [ ] Sync this branch with `origin/main` if it can be done safely without losing local edits
+- [ ] Document the root cause and resulting branch/worktree state
+
 ## 2026-03-25 Internal MLB MCP Review Fixes
 
 - [x] Add a short-lived negative cache for internal MLB MCP discovery failures so repeated Hermes turns fail fast during outages

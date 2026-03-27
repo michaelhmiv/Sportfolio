@@ -156,6 +156,11 @@ describe("buildMobileMarketOverview", () => {
         { player: playerOne, metrics: { valueIndex: 112, sentiment: { buyPressure: 73 } } },
         { player: playerFour, metrics: { valueIndex: 70, sentiment: { buyPressure: 58 } } },
       ],
+      summary: {
+        totalVolume24h: 9250,
+        totalPoolShares: 24000,
+        totalMarketTvl: 575500,
+      },
     }),
     getMarketActivity: async () => [
       {
@@ -228,6 +233,23 @@ describe("buildMobileMarketOverview", () => {
     ],
     getDailyBoostsAllSports: async () => [],
     getTotalLockedQuantity: async (_userId, _assetType, assetId) => (assetId === "p3" ? 1 : 0),
+    getTopRisers: async () => [
+      {
+        playerId: "p1",
+        currentPrice: 30,
+        priceChange24h: 12.4,
+      },
+      {
+        playerId: "p4",
+        currentPrice: 8.1,
+        priceChange24h: 5.5,
+      },
+      {
+        playerId: "p3",
+        currentPrice: 9.25,
+        priceChange24h: 3.1,
+      },
+    ],
     getRecentTradeCount15m: async () => 1,
     getTrendingScoutPlayerIds: async () => ["p4"],
     getTopPoolPlayerIds: async () => ["p1", "p3", "p4"],
@@ -254,12 +276,15 @@ describe("buildMobileMarketOverview", () => {
     expect(overview.marketIndicators.marketIndex24h).toBeCloseTo(4.7, 1);
     expect(overview.marketIndicators.volatilityIndex).toBeGreaterThan(50);
     expect(overview.marketIndicators.liquidityHealth).toBeGreaterThan(40);
-    expect(overview.marketIndicators.totalMarketTvl).toBeGreaterThan(400000);
+    expect(overview.marketIndicators.totalVolume24h).toBe(9250);
+    expect(overview.marketIndicators.totalPoolShares).toBe(24000);
+    expect(overview.marketIndicators.totalMarketTvl).toBe(575500);
     expect(overview.marketIndicators.breadth).toEqual({ risers: 3, fallers: 1, flat: 0 });
     expect(overview.personalEdge).toBeNull();
     expect(overview.ticker[0]?.playerId).toBe("p1");
     expect(overview.ticker[0]?.isWhale).toBe(true);
-    expect(overview.nowMoving[0]?.playerId).toBe("p1");
+    expect(overview.nowMoving.map((entry) => entry.playerId)).toEqual(["p1", "p4", "p3"]);
+    expect(overview.nowMoving.every((entry) => entry.priceChange24h > 0)).toBe(true);
     expect(overview.leaderboards.risers[0]?.playerId).toBe("p1");
     expect(overview.leaderboards.topPools[0]?.playerId).toBe("p1");
     expect(overview.leaderboards.mostActive[0]?.playerId).toBe("p1");
@@ -290,6 +315,7 @@ describe("buildMobileMarketOverview", () => {
         getBatchActiveScoutCounts: async () => new Map(),
         getCommunityBoostsAllSports: async () => [],
         getPlayersByIds: async () => [],
+        getTopRisers: async () => [],
         getRecentTradeCount15m: async () => 0,
         getTrendingScoutPlayerIds: async () => [],
         getTopPoolPlayerIds: async () => [],
@@ -302,6 +328,8 @@ describe("buildMobileMarketOverview", () => {
       marketIndex24h: 0,
       volatilityIndex: 0,
       liquidityHealth: 0,
+      totalVolume24h: 0,
+      totalPoolShares: 0,
       totalMarketTvl: 0,
       breadth: { risers: 0, fallers: 0, flat: 0 },
     });
