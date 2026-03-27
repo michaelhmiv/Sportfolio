@@ -433,7 +433,8 @@ const BOOST_PATTERNS = /\b(boost|daily boost|put in.*slot|assign.*boost)\b/i;
 const BUY_PATTERNS = /\b(buy|purchase|invest|deploy|acquire|get shares)\b/i;
 const SELL_PATTERNS = /\b(sell|exit|liquidate|reduce|trim)\b/i;
 const SPORT_PATTERNS = /\b(MLB|NBA|NFL|NASCAR|baseball|basketball|football)\b/i;
-const TIME_PATTERNS = /\b(this week|tonight|today|tomorrow|before.*game|when.*start|at game time|pre.?lock)\b/i;
+const TIME_PATTERNS =
+  /\b(this week|tonight|today|tomorrow|before.*game|when.*start|at game time|pre.?lock)\b/i;
 
 export function decomposeDirectiveIntoStages(input: {
   mandateText: string;
@@ -487,7 +488,8 @@ export function decomposeDirectiveIntoStages(input: {
     stages.push({
       id: buildStageId(stages.length),
       title: "Stack acquired shares",
-      summary: "Review holdings from the scouting phase and stack shares where eligible to maximize boost multipliers.",
+      summary:
+        "Review holdings from the scouting phase and stack shares where eligible to maximize boost multipliers.",
       status: "pending",
       actionScope: ["holdings_stack_shares"],
       triggerPolicy: {
@@ -520,7 +522,8 @@ export function decomposeDirectiveIntoStages(input: {
     stages.push({
       id: buildStageId(stages.length),
       title: "Post-game evaluation",
-      summary: "After games settle, evaluate performance and trim or exit positions that no longer fit the mandate.",
+      summary:
+        "After games settle, evaluate performance and trim or exit positions that no longer fit the mandate.",
       status: "pending",
       actionScope: ["pool_sell", "pool_remove_liquidity", "daily_boost_remove"],
       triggerPolicy: {
@@ -536,7 +539,8 @@ export function decomposeDirectiveIntoStages(input: {
     stages.push({
       id: buildStageId(stages.length),
       title: "Review & adapt",
-      summary: "After games complete, review results and decide whether to continue, adjust, or wind down positions.",
+      summary:
+        "After games complete, review results and decide whether to continue, adjust, or wind down positions.",
       status: "pending",
       actionScope: input.allowedActionTypes,
       triggerPolicy: {

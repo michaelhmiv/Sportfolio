@@ -358,7 +358,10 @@ export function getStageOutcomes(strategy: AgentStrategyRecord): StrategyStageOu
     .filter((outcome) => outcome.stageId);
 }
 
-function buildPriorStageContext(strategy: AgentStrategyRecord, activeStage: AgentStrategyStage): string[] {
+function buildPriorStageContext(
+  strategy: AgentStrategyRecord,
+  activeStage: AgentStrategyStage,
+): string[] {
   const outcomes = getStageOutcomes(strategy);
   if (outcomes.length === 0) {
     return [];
@@ -410,11 +413,7 @@ function buildSportContextInstructions(sports: string[], anchor: string | undefi
     `This strategy targets ${sportList}. Use the scan_sport_slate tool to get today's ${sportList} game schedule, teams, and active players before deciding on actions.`,
   ];
 
-  if (
-    anchor === "daily_at_time" ||
-    anchor === "research_refresh" ||
-    !anchor
-  ) {
+  if (anchor === "daily_at_time" || anchor === "research_refresh" || !anchor) {
     lines.push(
       `Use scan_player_upcoming_games to check upcoming schedules for any players you are considering.`,
     );
@@ -429,7 +428,10 @@ function buildSportContextInstructions(sports: string[], anchor: string | undefi
   return lines;
 }
 
-function buildStageFocusInstructions(activeStage: AgentStrategyStage, strategy: AgentStrategyRecord): string[] {
+function buildStageFocusInstructions(
+  activeStage: AgentStrategyStage,
+  strategy: AgentStrategyRecord,
+): string[] {
   const lines: string[] = [];
   const actionScope = activeStage.actionScope;
 

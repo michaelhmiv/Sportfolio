@@ -67,9 +67,7 @@ function buildStructuredSummary(turns: ConversationTurn[]): string {
   return sections.join("\n\n");
 }
 
-export function compressThreadContext(
-  history: ConversationTurn[],
-): CompressionResult {
+export function compressThreadContext(history: ConversationTurn[]): CompressionResult {
   if (history.length <= COMPRESSION_THRESHOLD) {
     return { compressed: false, history };
   }

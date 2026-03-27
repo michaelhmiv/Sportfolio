@@ -41,7 +41,11 @@ import {
   listAvailableAgentSkills,
   proposeGlobalSkillCandidate,
 } from "./skills";
-import { getCoreHermesToolCatalog } from "./hermes-tool-registry";
+import {
+  getCoreHermesToolCatalog,
+  sportSlateSchema,
+  teamRosterSchema,
+} from "./hermes-tool-registry";
 import { dailyGames, players } from "@shared/schema";
 import { and, eq, gte, inArray, lte, or } from "drizzle-orm";
 import { db } from "../db";
@@ -250,6 +254,7 @@ const AGENT_TOOL_CATALOG: AgentToolDefinition[] = [
     ],
     requiresConfirmation: false,
     riskLevel: "low",
+    inputSchema: sportSlateSchema,
   },
   {
     toolName: "scan_team_roster",
@@ -273,6 +278,7 @@ const AGENT_TOOL_CATALOG: AgentToolDefinition[] = [
     ],
     requiresConfirmation: false,
     riskLevel: "low",
+    inputSchema: teamRosterSchema,
   },
   {
     toolName: "scan_player_upcoming_games",
@@ -2304,7 +2310,6 @@ async function buildSportSlateScan(input: {
       };
     }
   }
-
   const conditions = [gte(dailyGames.startTime, startDate), lte(dailyGames.startTime, endDate)];
   if (sport) {
     conditions.push(eq(dailyGames.sport, sport));

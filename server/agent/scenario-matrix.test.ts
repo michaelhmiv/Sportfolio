@@ -301,17 +301,12 @@ describe("scenario-matrix: sport name normalization", () => {
     mlb: "MLB",
   };
 
-  it.each(sportCases)(
-    'extracts correct sport from "%s" → %s',
-    (message, expectedSport) => {
-      const match = message.match(
-        /\b(nba|nfl|mlb|nascar|baseball|basketball|football)\b/i,
-      )?.[1];
-      expect(match).toBeTruthy();
-      const resolved = sportNameMap[match!.toLowerCase()] || match!.toUpperCase();
-      expect(resolved).toBe(expectedSport);
-    },
-  );
+  it.each(sportCases)('extracts correct sport from "%s" → %s', (message, expectedSport) => {
+    const match = message.match(/\b(nba|nfl|mlb|nascar|baseball|basketball|football)\b/i)?.[1];
+    expect(match).toBeTruthy();
+    const resolved = sportNameMap[match!.toLowerCase()] || match!.toUpperCase();
+    expect(resolved).toBe(expectedSport);
+  });
 
   it("does not match non-sport words", () => {
     const noSportMessages = [
@@ -320,9 +315,7 @@ describe("scenario-matrix: sport name normalization", () => {
       "Buy Aaron Judge shares",
     ];
     for (const msg of noSportMessages) {
-      const match = msg.match(
-        /\b(nba|nfl|mlb|nascar|baseball|basketball|football)\b/i,
-      );
+      const match = msg.match(/\b(nba|nfl|mlb|nascar|baseball|basketball|football)\b/i);
       expect(match).toBeNull();
     }
   });
@@ -348,35 +341,20 @@ describe("scenario-matrix: multi-action bundle clause splitting", () => {
       "buy Aaron Judge, stack shares, and boost at 5x",
       ["buy Aaron Judge", "stack shares", "boost at 5x"],
     ],
-    [
-      "buy Aaron Judge and stack and boost at 4x",
-      ["buy Aaron Judge", "stack", "boost at 4x"],
-    ],
+    ["buy Aaron Judge and stack and boost at 4x", ["buy Aaron Judge", "stack", "boost at 4x"]],
     [
       "buy as many Aaron Judge shares as possible then stack then boost",
       ["buy as many Aaron Judge shares as possible", "stack", "boost"],
     ],
-    [
-      "stack my Fried shares and put in 5x slot",
-      ["stack my Fried shares", "put in 5x slot"],
-    ],
-    [
-      "sell Brunson, buy Judge",
-      ["sell Brunson", "buy Judge"],
-    ],
-    [
-      "buy $50 of Judge and boost at 3x",
-      ["buy $50 of Judge", "boost at 3x"],
-    ],
+    ["stack my Fried shares and put in 5x slot", ["stack my Fried shares", "put in 5x slot"]],
+    ["sell Brunson, buy Judge", ["sell Brunson", "buy Judge"]],
+    ["buy $50 of Judge and boost at 3x", ["buy $50 of Judge", "boost at 3x"]],
   ];
 
-  it.each(bundleCases)(
-    'splits "%s" into %j',
-    (message, expectedClauses) => {
-      const clauses = splitClauses(message);
-      expect(clauses).toEqual(expectedClauses);
-    },
-  );
+  it.each(bundleCases)('splits "%s" into %j', (message, expectedClauses) => {
+    const clauses = splitClauses(message);
+    expect(clauses).toEqual(expectedClauses);
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -403,12 +381,9 @@ describe("scenario-matrix: noise word stripping", () => {
     ["Aaron Judge", "Aaron Judge"],
   ];
 
-  it.each(noiseCases)(
-    'strips noise from "%s" → "%s"',
-    (input, expected) => {
-      expect(stripBundleNoiseWords(input)).toBe(expected);
-    },
-  );
+  it.each(noiseCases)('strips noise from "%s" → "%s"', (input, expected) => {
+    expect(stripBundleNoiseWords(input)).toBe(expected);
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -419,20 +394,47 @@ describe("scenario-matrix: planning intent detection", () => {
   // Mirrors the isExplicitPlanningIntent logic from model-first-router.ts
 
   const directActionVerbs = [
-    "buy", "sell", "add", "remove", "set", "assign",
-    "boost", "stack", "zap", "condense", "place",
+    "buy",
+    "sell",
+    "add",
+    "remove",
+    "set",
+    "assign",
+    "boost",
+    "stack",
+    "zap",
+    "condense",
+    "place",
   ] as const;
   const explicitExecutionPhrases = [
-    "stage", "queue", "execute", "go ahead", "do it", "set up",
+    "stage",
+    "queue",
+    "execute",
+    "go ahead",
+    "do it",
+    "set up",
   ] as const;
   const planningPhrases = [
-    "plan a trade", "plan my trade", "plan this trade",
-    "can you plan", "help me plan", "build a trade plan",
-    "prepare a trade plan", "stage a plan",
+    "plan a trade",
+    "plan my trade",
+    "plan this trade",
+    "can you plan",
+    "help me plan",
+    "build a trade plan",
+    "prepare a trade plan",
+    "stage a plan",
   ] as const;
   const planningActionTargets = [
-    "trade", "buy", "sell", "position", "allocation",
-    "order", "boost", "scout", "liquidity", "lp",
+    "trade",
+    "buy",
+    "sell",
+    "position",
+    "allocation",
+    "order",
+    "boost",
+    "scout",
+    "liquidity",
+    "lp",
   ] as const;
 
   function isExplicitPlanningIntent(message: string): boolean {
@@ -445,9 +447,7 @@ describe("scenario-matrix: planning intent detection", () => {
     const hasExecutionPhrase = explicitExecutionPhrases.some((p) =>
       new RegExp(`\\b${p}\\b`, "i").test(normalized),
     );
-    const hasPlanningPhrase = planningPhrases.some((p) =>
-      normalized.includes(p),
-    );
+    const hasPlanningPhrase = planningPhrases.some((p) => normalized.includes(p));
     const hasPlanningTarget = planningActionTargets.some((t) =>
       new RegExp(`\\b${t}\\b`, "i").test(normalized),
     );
@@ -480,12 +480,9 @@ describe("scenario-matrix: planning intent detection", () => {
     ["What happened in the last game?", false, "past event question"],
   ];
 
-  it.each(planningMessages)(
-    '"%s" → planning=%s (%s)',
-    (message, expectedPlanning, _label) => {
-      expect(isExplicitPlanningIntent(message)).toBe(expectedPlanning);
-    },
-  );
+  it.each(planningMessages)('"%s" → planning=%s (%s)', (message, expectedPlanning, _label) => {
+    expect(isExplicitPlanningIntent(message)).toBe(expectedPlanning);
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -498,7 +495,10 @@ describe("scenario-matrix: realistic compound scenarios", () => {
   });
 
   const compoundCommitScenarios: Array<[string, string]> = [
-    ["Buy as many Aaron Judge shares as possible and stack and boost at 5x", "buy+stack+boost compound"],
+    [
+      "Buy as many Aaron Judge shares as possible and stack and boost at 5x",
+      "buy+stack+boost compound",
+    ],
     ["Buy $25 of Fried, stack the shares, then boost at 4x", "buy+stack+boost with dollar amount"],
     ["Stack my Fried shares and put in 5x slot", "stack+boost compound"],
     ["Sell Brunson and buy Judge with the proceeds", "sell+buy compound"],
@@ -554,13 +554,10 @@ describe("scenario-matrix: wiki and customer support", () => {
     ["What happens when a boost slot locks?", "boost locking"],
   ];
 
-  it.each(wikiQuestions)(
-    'routes wiki question "%s" to discussion — %s',
-    (message, _label) => {
-      const mode = resolveAgentRequestMode(message, null);
-      expect(mode).toBe("discussion");
-    },
-  );
+  it.each(wikiQuestions)('routes wiki question "%s" to discussion — %s', (message, _label) => {
+    const mode = resolveAgentRequestMode(message, null);
+    expect(mode).toBe("discussion");
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════

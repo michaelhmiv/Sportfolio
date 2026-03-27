@@ -1,3 +1,25 @@
+## 2026-03-26 PR 109 Merge Conflict Resolution + Patch Review
+
+- [x] Fast-forward the PR 109 worktree to the latest remote branch head and inspect mergeability against current `origin/main`
+- [x] Resolve merge conflicts against `origin/main` and keep the intended `currency.ts` formatting behavior plus the `scan_sport_slate` team/sport inference path in `server/agent/hermes-tools.ts`
+- [x] Review the resulting patch set for unnecessary churn, regressions, and missing coverage
+- [x] Run required validation (`npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`) and record the branch-quality verdict
+
+Review:
+
+- The PR ballooning was mostly stale-`main` churn. After syncing to current `origin/main`, the real branch delta is the intended agent surface: slash commands, built-in MLB status visibility, team-aware slate/roster scans, prompt fallback messaging, and a small currency formatter adjustment.
+- Actual merge conflicts were only in `client/src/lib/currency.ts` and `server/agent/hermes-tools.ts`. Resolved them by keeping the compact-currency `.0` trim and preserving the team-filter sport inference plus explicit team filtering in sport-slate scans.
+- Tightened the patch quality beyond conflict cleanup:
+- Exported and attached concrete input schemas for `scan_sport_slate` and `scan_team_roster` so the runtime tool catalog exposes the new arguments cleanly.
+- Added direct coverage for slash-command matching, the MLB MCP fallback prompt note, and the team scan tool contracts in the Hermes tool catalog.
+- Expanded the cleanup to the unrelated Prettier drift the user explicitly wanted fixed, bringing repo formatting back to a clean state.
+- Validation status:
+- `npx vitest run client/src/features/agent/lib/slash-commands.test.ts client/src/lib/currency.test.ts server/agent/conversation-prompts.test.ts server/agent/hermes-tools.test.ts` passed.
+- `npm run check` passed.
+- `npm run lint` passed.
+- `npm run test:run` passed.
+- `npm run format:check` passed.
+
 ## 2026-03-26 Agent Settings 503 on Agents Tab
 
 - [x] Trace the Agents tab settings fetch path and confirm the failing endpoint (`/api/agent/profile`)

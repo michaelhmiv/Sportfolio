@@ -17,7 +17,7 @@ const optionalSportDateSchema = Type.Object(
   },
   { additionalProperties: true },
 );
-const sportSlateSchema = Type.Object(
+export const sportSlateSchema = Type.Object(
   {
     message: Type.Optional(Type.String({ minLength: 1, maxLength: 1200 })),
     sport: Type.Optional(Type.String({ minLength: 2, maxLength: 16 })),
@@ -26,7 +26,7 @@ const sportSlateSchema = Type.Object(
   },
   { additionalProperties: true },
 );
-const teamRosterSchema = Type.Object(
+export const teamRosterSchema = Type.Object(
   {
     team: Type.String({ minLength: 2, maxLength: 10 }),
     sport: Type.Optional(Type.String({ minLength: 2, maxLength: 16 })),

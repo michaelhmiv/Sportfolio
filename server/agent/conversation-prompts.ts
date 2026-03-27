@@ -137,12 +137,7 @@ export function buildHermesConversationPrompts(input: {
       "Note: MLB MCP advanced tools are currently offline. Use scan_sport_slate and scan_team_roster for MLB game and roster data.",
     );
   }
-  const systemPrompt = [
-    input.baseSystemPrompt.trim(),
-    ...modeLines,
-  ]
-    .filter(Boolean)
-    .join(" ");
+  const systemPrompt = [input.baseSystemPrompt.trim(), ...modeLines].filter(Boolean).join(" ");
 
   const userPromptTemplate =
     input.conversationMode === "general_chat"

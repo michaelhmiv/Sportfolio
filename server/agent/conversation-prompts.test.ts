@@ -68,4 +68,17 @@ describe("conversation-prompts", () => {
     expect(prompts.systemPrompt).toContain("dense mobile layouts");
     expect(prompts.userPromptTemplate).toContain("update the existing saved strategy");
   });
+
+  it("adds the MLB fallback note when advanced MLB MCP tools are unavailable", () => {
+    const prompts = buildHermesConversationPrompts({
+      baseSystemPrompt: "You are Hermes.",
+      baseUserPromptTemplate: "Operate on my portfolio.",
+      conversationMode: "general_chat",
+      mlbMcpAvailable: false,
+    });
+
+    expect(prompts.systemPrompt).toContain("MLB MCP advanced tools are currently offline");
+    expect(prompts.systemPrompt).toContain("scan_team_roster");
+    expect(prompts.systemPrompt).toContain("scan_sport_slate");
+  });
 });
