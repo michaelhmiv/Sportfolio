@@ -229,7 +229,7 @@ const AGENT_TOOL_CATALOG: AgentToolDefinition[] = [
     toolName: "scan_sport_slate",
     category: "scan",
     description:
-      "Return the game slate for a specific sport and date range, including teams, start times, and game status. Optionally filter by team abbreviation (e.g., BOS, NYY, LAD). Includes players on each team with their positions and recent stats.",
+      "Return the game slate for a specific sport and date range, including teams, start times, and game status. Team filters require sport to avoid cross-league abbreviation collisions (e.g., BOS). Includes players on each team with their positions and recent stats.",
     whenToUse: [
       "The user asks about upcoming games for a sport.",
       "The user asks about a specific team's games (resolve team name to abbreviation first).",
@@ -255,7 +255,7 @@ const AGENT_TOOL_CATALOG: AgentToolDefinition[] = [
     toolName: "scan_team_roster",
     category: "scan",
     description:
-      "List all active players on a team's roster with their positions and market prices. Use the standard team abbreviation (e.g., BOS, NYY, LAD). Resolve team names, cities, or nicknames to abbreviations before calling.",
+      "List all active players on a team's roster with their positions and market prices. Provide both sport and standard team abbreviation (e.g., MLB + BOS) to avoid cross-league abbreviation collisions. Resolve team names, cities, or nicknames to abbreviations before calling.",
     whenToUse: [
       "The user asks about a team's roster or players on a team.",
       "The user wants to buy players from a specific team equally.",
@@ -284,13 +284,8 @@ const AGENT_TOOL_CATALOG: AgentToolDefinition[] = [
       "The user wants to know a player's schedule this week.",
       "A strategy needs to plan boosts around upcoming game times.",
     ],
-    whenNotToUse: [
-      "The user is asking about historical stats or past games.",
-    ],
-    examplePrompts: [
-      "when does LeBron play next?",
-      "what's Shohei Ohtani's schedule this week?",
-    ],
+    whenNotToUse: ["The user is asking about historical stats or past games."],
+    examplePrompts: ["when does LeBron play next?", "what's Shohei Ohtani's schedule this week?"],
     requiresConfirmation: false,
     riskLevel: "low",
   },
@@ -1543,7 +1538,9 @@ async function buildMultiActionBundlePreview(input: {
 
     const stackMatch = clause.match(/\bstack(?:\s+shares?)?\s*([a-z .'-]*)/i);
     if (stackMatch) {
-      const rawName = stripBundleNoiseWords(stackMatch[1]).replace(/\bshares?\b/gi, "").trim();
+      const rawName = stripBundleNoiseWords(stackMatch[1])
+        .replace(/\bshares?\b/gi, "")
+        .trim();
       const nameToResolve = rawName || lastResolvedPlayerName;
       if (!nameToResolve) {
         blockingReasons.push(
@@ -2118,6 +2115,19 @@ async function buildSportSlateScan(input: {
   const dateArg = toStringValue(input.args?.date) || null;
   const teamFilter = toStringValue(input.args?.team)?.toUpperCase() || null;
 
+  if (teamFilter && !sport) {
+    return {
+      toolName: "scan_sport_slate",
+      domain: "sportfolio",
+      summary: "Sport is required when filtering a slate by team.",
+      replyText:
+        "Please include a sport with the team filter (for example sport=MLB, team=BOS) so I can avoid cross-league abbreviation collisions.",
+      observations: [],
+      warnings: [`Cannot filter schedule by team ${teamFilter} without a sport constraint.`],
+      context: { team: teamFilter },
+    };
+  }
+
   const now = new Date();
   let startDate: Date;
   let endDate: Date;
@@ -2139,17 +2149,12 @@ async function buildSportSlateScan(input: {
     endDate = endOfDay;
   }
 
-  const conditions = [
-    gte(dailyGames.startTime, startDate),
-    lte(dailyGames.startTime, endDate),
-  ];
+  const conditions = [gte(dailyGames.startTime, startDate), lte(dailyGames.startTime, endDate)];
   if (sport) {
     conditions.push(eq(dailyGames.sport, sport));
   }
   if (teamFilter) {
-    conditions.push(
-      or(eq(dailyGames.homeTeam, teamFilter), eq(dailyGames.awayTeam, teamFilter))!,
-    );
+    conditions.push(or(eq(dailyGames.homeTeam, teamFilter), eq(dailyGames.awayTeam, teamFilter))!);
   }
 
   const games = await db
@@ -2276,10 +2281,19 @@ async function buildTeamRosterScan(input: {
     };
   }
 
-  const conditions = [
-    eq(players.team, team),
-    eq(players.isActive, true),
-  ];
+  if (!sport) {
+    return {
+      toolName: "scan_team_roster",
+      domain: "sportfolio",
+      summary: "Sport is required when scanning a team roster.",
+      replyText: `Please include the sport with team ${team} (for example sport=MLB, team=${team}) so I can avoid cross-league abbreviation collisions.`,
+      observations: [],
+      warnings: [`Cannot resolve roster for team ${team} without a sport constraint.`],
+      context: { team },
+    };
+  }
+
+  const conditions = [eq(players.team, team), eq(players.isActive, true)];
   if (sport) {
     conditions.push(eq(players.sport, sport));
   }
@@ -2315,16 +2329,22 @@ async function buildTeamRosterScan(input: {
     toolName: "scan_team_roster",
     domain: "sportfolio",
     summary: `Found ${rosterPlayers.length} active ${team} player${rosterPlayers.length === 1 ? "" : "s"} on the market.`,
-    replyText: rosterPlayers.length > 0
-      ? `${team} roster (${rosterPlayers.length} players):\n${rosterEntries.map((p) => `${p.name} (${p.position}) - $${Number(p.price ?? 0).toFixed(2)}${p.injuryStatus ? ` [${p.injuryStatus}]` : ""}`).join("\n")}`
-      : `No active ${team} players found on the market.`,
+    replyText:
+      rosterPlayers.length > 0
+        ? `${team} roster (${rosterPlayers.length} players):\n${rosterEntries.map((p) => `${p.name} (${p.position}) - $${Number(p.price ?? 0).toFixed(2)}${p.injuryStatus ? ` [${p.injuryStatus}]` : ""}`).join("\n")}`
+        : `No active ${team} players found on the market.`,
     observations: [
       `${rosterPlayers.length} active players for ${team}.`,
       ...(rosterPlayers.filter((p) => p.injuryStatus).length > 0
-        ? [`${rosterPlayers.filter((p) => p.injuryStatus).length} player(s) with injury designations.`]
+        ? [
+            `${rosterPlayers.filter((p) => p.injuryStatus).length} player(s) with injury designations.`,
+          ]
         : []),
     ],
-    warnings: rosterPlayers.length === 0 ? [`No active players found for team ${team}. Check abbreviation.`] : [],
+    warnings:
+      rosterPlayers.length === 0
+        ? [`No active players found for team ${team}. Check abbreviation.`]
+        : [],
     context: { team, sport: sportLabel, players: rosterEntries },
   };
 }
@@ -2334,9 +2354,17 @@ async function buildPlayerUpcomingGamesScan(input: {
   args?: Record<string, unknown>;
 }): Promise<HermesScanResult> {
   const playerIdArg = toStringValue(input.args?.playerId) || null;
-  const playerNameArg = toStringValue(input.args?.playerName) || toStringValue(input.args?.message) || null;
+  const playerNameArg =
+    toStringValue(input.args?.playerName) || toStringValue(input.args?.message) || null;
 
-  let targetPlayers: Array<{ id: string; firstName: string; lastName: string; team: string; sport: string; position: string }> = [];
+  let targetPlayers: Array<{
+    id: string;
+    firstName: string;
+    lastName: string;
+    team: string;
+    sport: string;
+    position: string;
+  }> = [];
 
   if (playerIdArg) {
     const [found] = await db
@@ -2366,13 +2394,14 @@ async function buildPlayerUpcomingGamesScan(input: {
       .from(players)
       .where(eq(players.isActive, true))
       .limit(500);
-    targetPlayers = found.filter((p) =>
-      nameParts.every(
-        (part) =>
-          p.firstName.toLowerCase().includes(part) ||
-          p.lastName.toLowerCase().includes(part),
-      ),
-    ).slice(0, 5);
+    targetPlayers = found
+      .filter((p) =>
+        nameParts.every(
+          (part) =>
+            p.firstName.toLowerCase().includes(part) || p.lastName.toLowerCase().includes(part),
+        ),
+      )
+      .slice(0, 5);
   }
 
   if (targetPlayers.length === 0) {
@@ -2380,7 +2409,8 @@ async function buildPlayerUpcomingGamesScan(input: {
       toolName: "scan_player_upcoming_games",
       domain: "sportfolio",
       summary: "Could not find the requested player.",
-      replyText: "I could not find a matching player. Try providing a more specific name or player ID.",
+      replyText:
+        "I could not find a matching player. Try providing a more specific name or player ID.",
       observations: [],
       warnings: ["Player not found."],
       context: {},
@@ -2406,10 +2436,7 @@ async function buildPlayerUpcomingGamesScan(input: {
       and(
         gte(dailyGames.startTime, now),
         lte(dailyGames.startTime, weekFromNow),
-        or(
-          inArray(dailyGames.homeTeam, teams),
-          inArray(dailyGames.awayTeam, teams),
-        ),
+        or(inArray(dailyGames.homeTeam, teams), inArray(dailyGames.awayTeam, teams)),
       ),
     )
     .orderBy(dailyGames.startTime)
@@ -2465,7 +2492,8 @@ async function buildExternalSourceScan(input: {
       toolName: "query_external_source",
       domain: "external",
       summary: "No tool name specified for external source query.",
-      replyText: "Please specify which tool to call on the external source (e.g., toolName: 'get_projections').",
+      replyText:
+        "Please specify which tool to call on the external source (e.g., toolName: 'get_projections').",
       observations: [],
       warnings: ["Missing toolName parameter."],
       context: {},
@@ -2527,7 +2555,13 @@ async function buildExternalSourceScan(input: {
       replyText: contentParts.join("\n\n") || "No data returned.",
       observations,
       warnings,
-      context: { results: results.map((r) => ({ source: r.sourceName, tool: r.toolName, content: r.content })) },
+      context: {
+        results: results.map((r) => ({
+          source: r.sourceName,
+          tool: r.toolName,
+          content: r.content,
+        })),
+      },
     };
   } catch (err: any) {
     return {
