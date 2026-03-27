@@ -229,7 +229,7 @@ const AGENT_TOOL_CATALOG: AgentToolDefinition[] = [
     toolName: "scan_sport_slate",
     category: "scan",
     description:
-      "Return the game slate for a specific sport and date range, including teams, start times, and game status. Team filters require sport to avoid cross-league abbreviation collisions (e.g., BOS). Includes players on each team with their positions and recent stats.",
+      "Return the game slate for a specific sport and date range, including teams, start times, and game status. When filtering by team abbreviation (e.g., BOS), include sport to avoid cross-league collisions. Includes players on each team with their positions and recent stats.",
     whenToUse: [
       "The user asks about upcoming games for a sport.",
       "The user asks about a specific team's games (resolve team name to abbreviation first).",
@@ -255,7 +255,7 @@ const AGENT_TOOL_CATALOG: AgentToolDefinition[] = [
     toolName: "scan_team_roster",
     category: "scan",
     description:
-      "List all active players on a team's roster with their positions and market prices. Provide both sport and standard team abbreviation (e.g., MLB + BOS) to avoid cross-league abbreviation collisions. Resolve team names, cities, or nicknames to abbreviations before calling.",
+      "List all active players on a team's roster with their positions and market prices. Include sport with team abbreviation when possible (e.g., MLB + BOS) to avoid cross-league collisions. Resolve team names, cities, or nicknames to abbreviations before calling.",
     whenToUse: [
       "The user asks about a team's roster or players on a team.",
       "The user wants to buy players from a specific team equally.",
@@ -2111,22 +2111,9 @@ async function buildSportSlateScan(input: {
   userId: string;
   args?: Record<string, unknown>;
 }): Promise<HermesScanResult> {
-  const sport = toStringValue(input.args?.sport)?.toUpperCase() || null;
+  let sport = toStringValue(input.args?.sport)?.toUpperCase() || null;
   const dateArg = toStringValue(input.args?.date) || null;
   const teamFilter = toStringValue(input.args?.team)?.toUpperCase() || null;
-
-  if (teamFilter && !sport) {
-    return {
-      toolName: "scan_sport_slate",
-      domain: "sportfolio",
-      summary: "Sport is required when filtering a slate by team.",
-      replyText:
-        "Please include a sport with the team filter (for example sport=MLB, team=BOS) so I can avoid cross-league abbreviation collisions.",
-      observations: [],
-      warnings: [`Cannot filter schedule by team ${teamFilter} without a sport constraint.`],
-      context: { team: teamFilter },
-    };
-  }
 
   const now = new Date();
   let startDate: Date;
@@ -2147,6 +2134,35 @@ async function buildSportSlateScan(input: {
     const { startOfDay, endOfDay } = getETDayBoundaries(getTodayET());
     startDate = startOfDay;
     endDate = endOfDay;
+  }
+
+  if (teamFilter && !sport) {
+    const candidateSports = await db
+      .select({ sport: dailyGames.sport })
+      .from(dailyGames)
+      .where(
+        and(
+          gte(dailyGames.startTime, startDate),
+          lte(dailyGames.startTime, endDate),
+          or(eq(dailyGames.homeTeam, teamFilter), eq(dailyGames.awayTeam, teamFilter)),
+        ),
+      )
+      .groupBy(dailyGames.sport)
+      .limit(2);
+
+    if (candidateSports.length === 1) {
+      sport = candidateSports[0].sport;
+    } else if (candidateSports.length > 1) {
+      return {
+        toolName: "scan_sport_slate",
+        domain: "sportfolio",
+        summary: "Team abbreviation is ambiguous across multiple sports.",
+        replyText: `I found multiple sports for team abbreviation ${teamFilter} in this date range. Please include sport (for example sport=MLB, team=${teamFilter}).`,
+        observations: [],
+        warnings: [`Ambiguous team abbreviation ${teamFilter}; sport is required.`],
+        context: { team: teamFilter },
+      };
+    }
   }
 
   const conditions = [gte(dailyGames.startTime, startDate), lte(dailyGames.startTime, endDate)];
@@ -2267,7 +2283,7 @@ async function buildTeamRosterScan(input: {
   args?: Record<string, unknown>;
 }): Promise<HermesScanResult> {
   const team = toStringValue(input.args?.team)?.toUpperCase();
-  const sport = toStringValue(input.args?.sport)?.toUpperCase() || null;
+  let sport = toStringValue(input.args?.sport)?.toUpperCase() || null;
 
   if (!team) {
     return {
@@ -2282,15 +2298,26 @@ async function buildTeamRosterScan(input: {
   }
 
   if (!sport) {
-    return {
-      toolName: "scan_team_roster",
-      domain: "sportfolio",
-      summary: "Sport is required when scanning a team roster.",
-      replyText: `Please include the sport with team ${team} (for example sport=MLB, team=${team}) so I can avoid cross-league abbreviation collisions.`,
-      observations: [],
-      warnings: [`Cannot resolve roster for team ${team} without a sport constraint.`],
-      context: { team },
-    };
+    const candidateSports = await db
+      .select({ sport: players.sport })
+      .from(players)
+      .where(and(eq(players.team, team), eq(players.isActive, true)))
+      .groupBy(players.sport)
+      .limit(2);
+
+    if (candidateSports.length === 1) {
+      sport = candidateSports[0].sport;
+    } else if (candidateSports.length > 1) {
+      return {
+        toolName: "scan_team_roster",
+        domain: "sportfolio",
+        summary: "Team abbreviation is ambiguous across multiple sports.",
+        replyText: `I found multiple sports for team abbreviation ${team}. Please include sport (for example sport=MLB, team=${team}).`,
+        observations: [],
+        warnings: [`Ambiguous team abbreviation ${team}; sport is required.`],
+        context: { team },
+      };
+    }
   }
 
   const conditions = [eq(players.team, team), eq(players.isActive, true)];
