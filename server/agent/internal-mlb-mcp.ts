@@ -7,6 +7,10 @@ const DEFAULT_TOOL_PREFIX = "mlb_mcp__";
 const DEFAULT_TIMEOUT_MS = 12000;
 const DEFAULT_CACHE_TTL_MS = 60_000;
 const DEFAULT_FAILURE_CACHE_TTL_MS = 15_000;
+const DEFAULT_LOCAL_DEV_ENDPOINT = "http://127.0.0.1:8081/mcp";
+const DEFAULT_LOCAL_DEV_TIMEOUT_MS = 10_000;
+const LOCAL_DEV_PROBE_CACHE_TTL_MS = 30_000;
+const LOCAL_DEV_PROBE_TIMEOUT_MS = 1_200;
 const MAX_TOOL_RESULT_PAYLOAD_CHARS = 8_000;
 const MAX_TOOL_RESULT_REPLY_TEXT_CHARS = 2_000;
 const WARNING_THROTTLE_MS = 60_000;
@@ -18,12 +22,14 @@ type InternalMlbMcpConfig = {
   timeoutMs: number;
   cacheTtlMs: number;
   authBearerToken: string | null;
+  implicitLocalDevFallback: boolean;
 };
 
 type MlbMcpToolDiscovery = {
   toolCatalog: AgentToolDefinition[];
   localToRemoteToolMap: Map<string, string>;
   expiresAt: number;
+  failureBackoffActive: boolean;
 };
 
 type UnknownRecord = Record<string, unknown>;
@@ -31,6 +37,12 @@ type UnknownRecord = Record<string, unknown>;
 let cachedDiscovery: MlbMcpToolDiscovery | null = null;
 let inFlightDiscovery: Promise<MlbMcpToolDiscovery> | null = null;
 let lastWarningAt = 0;
+let cachedLocalDevProbe: {
+  endpoint: string;
+  reachable: boolean;
+  expiresAt: number;
+} | null = null;
+let inFlightLocalDevProbe: Promise<boolean> | null = null;
 
 function parseBooleanEnv(value: string | undefined): boolean | null {
   const normalized = (value || "").trim().toLowerCase();
@@ -68,12 +80,18 @@ function normalizeEndpoint(raw: string): string | null {
 }
 
 export function resolveInternalMlbMcpConfig(): InternalMlbMcpConfig {
+  const explicitEnabled = parseBooleanEnv(process.env.HERMES_INTERNAL_MLB_MCP_ENABLED);
   const configuredEndpoint =
     process.env.HERMES_INTERNAL_MLB_MCP_URL?.trim() ||
     process.env.MLB_MCP_INTERNAL_URL?.trim() ||
     "";
-  const endpoint = normalizeEndpoint(configuredEndpoint);
-  const explicitEnabled = parseBooleanEnv(process.env.HERMES_INTERNAL_MLB_MCP_ENABLED);
+  const isDevelopment =
+    (process.env.NODE_ENV || "development").trim().toLowerCase() !== "production";
+  const implicitLocalDevFallback =
+    !configuredEndpoint && explicitEnabled !== false && isDevelopment;
+  const endpoint = normalizeEndpoint(
+    configuredEndpoint || (implicitLocalDevFallback ? DEFAULT_LOCAL_DEV_ENDPOINT : ""),
+  );
   const enabled = explicitEnabled ?? Boolean(endpoint);
 
   return {
@@ -82,7 +100,7 @@ export function resolveInternalMlbMcpConfig(): InternalMlbMcpConfig {
     toolPrefix: process.env.HERMES_INTERNAL_MLB_MCP_TOOL_PREFIX?.trim() || DEFAULT_TOOL_PREFIX,
     timeoutMs: parseBoundedInt(
       process.env.HERMES_INTERNAL_MLB_MCP_TIMEOUT_MS,
-      DEFAULT_TIMEOUT_MS,
+      implicitLocalDevFallback ? DEFAULT_LOCAL_DEV_TIMEOUT_MS : DEFAULT_TIMEOUT_MS,
       2000,
       120_000,
     ),
@@ -93,6 +111,7 @@ export function resolveInternalMlbMcpConfig(): InternalMlbMcpConfig {
       600_000,
     ),
     authBearerToken: process.env.HERMES_INTERNAL_MLB_MCP_AUTH_BEARER?.trim() || null,
+    implicitLocalDevFallback: implicitLocalDevFallback && Boolean(endpoint),
   };
 }
 
@@ -121,6 +140,7 @@ function cloneDiscovery(discovery: MlbMcpToolDiscovery): MlbMcpToolDiscovery {
     toolCatalog: discovery.toolCatalog.map(cloneToolEntry),
     localToRemoteToolMap: new Map(discovery.localToRemoteToolMap),
     expiresAt: discovery.expiresAt,
+    failureBackoffActive: discovery.failureBackoffActive,
   };
 }
 
@@ -210,6 +230,7 @@ function buildEmptyDiscovery(expiresAt: number): MlbMcpToolDiscovery {
     toolCatalog: [],
     localToRemoteToolMap: new Map<string, string>(),
     expiresAt,
+    failureBackoffActive: false,
   };
 }
 
@@ -225,6 +246,7 @@ function extendDiscoveryRetryWindow(
     toolCatalog: discovery.toolCatalog,
     localToRemoteToolMap: new Map(discovery.localToRemoteToolMap),
     expiresAt: Date.now() + resolveFailureCacheTtlMs(config),
+    failureBackoffActive: true,
   };
 }
 
@@ -355,6 +377,64 @@ async function promiseWithTimeout<T>(
   });
 }
 
+function buildLocalDevUnavailableError(endpoint: string) {
+  return new Error(
+    `Local vendored MLB MCP was not detected at ${endpoint}. Start the vendored server or set HERMES_INTERNAL_MLB_MCP_URL explicitly.`,
+  );
+}
+
+async function ensureImplicitLocalDevEndpointReachable(config: InternalMlbMcpConfig) {
+  if (!config.implicitLocalDevFallback || !config.endpoint) {
+    return;
+  }
+
+  const now = Date.now();
+  if (
+    cachedLocalDevProbe &&
+    cachedLocalDevProbe.endpoint === config.endpoint &&
+    cachedLocalDevProbe.expiresAt > now
+  ) {
+    if (cachedLocalDevProbe.reachable) {
+      return;
+    }
+    throw buildLocalDevUnavailableError(config.endpoint);
+  }
+
+  if (!inFlightLocalDevProbe) {
+    inFlightLocalDevProbe = (async () => {
+      const abortController = new AbortController();
+      const timeoutId = setTimeout(() => abortController.abort(), LOCAL_DEV_PROBE_TIMEOUT_MS);
+      try {
+        await fetch(config.endpoint!, {
+          method: "GET",
+          signal: abortController.signal,
+          headers: {
+            accept: "application/json, text/plain, */*",
+          },
+        });
+        return true;
+      } catch {
+        return false;
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    })().finally(() => {
+      inFlightLocalDevProbe = null;
+    });
+  }
+
+  const reachable = await inFlightLocalDevProbe;
+  cachedLocalDevProbe = {
+    endpoint: config.endpoint,
+    reachable,
+    expiresAt: now + LOCAL_DEV_PROBE_CACHE_TTL_MS,
+  };
+
+  if (!reachable) {
+    throw buildLocalDevUnavailableError(config.endpoint);
+  }
+}
+
 async function withMlbMcpClient<T>(
   config: InternalMlbMcpConfig,
   callback: (client: Client) => Promise<T>,
@@ -362,6 +442,8 @@ async function withMlbMcpClient<T>(
   if (!config.endpoint) {
     throw new Error("Internal MLB MCP endpoint is not configured.");
   }
+
+  await ensureImplicitLocalDevEndpointReachable(config);
 
   const abortController = new AbortController();
   const requestHeaders: Record<string, string> = {};
@@ -436,6 +518,7 @@ async function fetchToolDiscovery(config: InternalMlbMcpConfig): Promise<MlbMcpT
     toolCatalog,
     localToRemoteToolMap,
     expiresAt: Date.now() + config.cacheTtlMs,
+    failureBackoffActive: false,
   };
 }
 
@@ -488,9 +571,17 @@ async function resolveRemoteToolName(localToolName: string): Promise<string> {
   const direct = current.localToRemoteToolMap.get(localToolName);
   if (direct) return direct;
 
+  if (current.failureBackoffActive && current.expiresAt > Date.now()) {
+    throw new Error("Internal MLB MCP tool catalog is temporarily unavailable.");
+  }
+
   const refreshed = await loadToolDiscovery(true);
   const afterRefresh = refreshed.localToRemoteToolMap.get(localToolName);
   if (afterRefresh) return afterRefresh;
+
+  if (refreshed.failureBackoffActive && refreshed.expiresAt > Date.now()) {
+    throw new Error("Internal MLB MCP tool catalog is temporarily unavailable.");
+  }
 
   throw buildMissingRemoteToolError(localToolName);
 }
@@ -664,4 +755,6 @@ export function resetInternalMlbMcpCacheForTests() {
   cachedDiscovery = null;
   inFlightDiscovery = null;
   lastWarningAt = 0;
+  cachedLocalDevProbe = null;
+  inFlightLocalDevProbe = null;
 }

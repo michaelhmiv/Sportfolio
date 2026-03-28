@@ -37,11 +37,18 @@ This repo does not require `uv` to run the vendored service locally.
    vendor\mlb-mcp\.venv\Scripts\python -m mlb_stats_mcp.server --http
    ```
 
-4. Point local app env at the vendored server:
+4. Start the main app. In development, Sportfolio now auto-detects the vendored MLB MCP on `http://127.0.0.1:8081/mcp` if no explicit MLB MCP env is set.
+
+5. Only set env manually when you want to override or disable the default:
 
    ```powershell
-   $env:HERMES_INTERNAL_MLB_MCP_ENABLED = "true"
    $env:HERMES_INTERNAL_MLB_MCP_URL = "http://127.0.0.1:8081/mcp"
+   ```
+
+   To disable MLB enrichment in dev on purpose:
+
+   ```powershell
+   $env:HERMES_INTERNAL_MLB_MCP_ENABLED = "false"
    ```
 
 ## Probe commands

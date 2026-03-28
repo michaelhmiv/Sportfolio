@@ -4,6 +4,8 @@
 
 - When an optional enrichment provider drives visible UI, verify the real runtime wiring and show an explicit unavailable or pending state in the product; silent omission makes implemented features look nonexistent.
 - For feature work that changes what users should see on the page, finish with browser verification on the real surface or a deterministic Playwright spec before claiming the UI is shipped.
+- For MCP-backed adapters, do not trust mocked top-level payloads if the live server is already available; verify the actual response envelope first or the UI can look broken even while the tool probe passes.
+- For baseball lineups, `boxscore.teams.<side>.batters` is too broad for a natural box-score view on completed games; prefer `battingOrder` so the UI shows the actual nine-man order instead of everyone who appeared.
 
 ## 2026-03-25
 

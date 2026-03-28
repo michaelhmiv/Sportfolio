@@ -1,3 +1,22 @@
+## 2026-03-28 MLB Dev Runtime + Box Score Blend Pass
+
+- [x] Make development auto-detect the local vendored MLB MCP when no explicit internal endpoint is configured
+- [x] Fix the MLB adapter to accept the real wrapped MCP payload shape returned by the live server
+- [x] Tighten lineups to the actual batting order instead of every player who appeared
+- [x] Blend the MLB modal into a more natural baseball box-score layout without frontend provider labeling
+- [x] Verify the live dashboard and MLB modal on a mobile viewport with Playwright against the real dev app
+- [x] Re-run full validation and Railway MLB smoke before wrapping up
+
+Review:
+
+- `server/agent/internal-mlb-mcp.ts` now auto-falls back to the local vendored MLB MCP in development when explicit MLB env is absent, and uses a less brittle default timeout for local dev reads.
+- `server/mlb-pregame-insights.ts` now unwraps live `result`-wrapped MCP payloads, which was the root cause of `mlbEnrichment: pending` despite a healthy local MCP, and now prefers `battingOrder` for real box-score lineups.
+- `client/src/components/game-command-center-modal.tsx` now reads more like a baseball game center, keeps the frontend blended, and shows a clear loading state while the detailed MLB box score is hydrating instead of falsely showing lineup pending on completed games.
+- Browser verification on a real mobile viewport confirmed:
+- the dashboard slate shows probable pitchers on MLB rows
+- the MLB detail modal hydrates into venue, weather, attendance, linescore, scoring summary, starter context, and nine-man batting orders
+- the lineup list now matches a real batting order instead of every participant in the box score
+
 ## 2026-03-28 MCP Discoverability Hardening
 
 - [x] Add live MCP discovery resources that reflect both the static Sportfolio surface and dynamic MLB tool projection

@@ -42,6 +42,7 @@ describe("mlb-pregame-insights", () => {
       timeoutMs: 12000,
       cacheTtlMs: 60000,
       authBearerToken: null,
+      implicitLocalDevFallback: false,
     });
 
     mocks.runInternalMlbMcpToolRaw.mockImplementation(async ({ toolName, args }) => {
@@ -622,6 +623,7 @@ describe("mlb-pregame-insights", () => {
       timeoutMs: 12000,
       cacheTtlMs: 60000,
       authBearerToken: null,
+      implicitLocalDevFallback: false,
     });
 
     const bundle = await getMlbPregameInsightBundle([localGame], "2026-03-27");
@@ -718,6 +720,33 @@ describe("mlb-pregame-insights", () => {
       loser: "Cole Ragans",
       save: "Raisel Iglesias",
     });
+  });
+
+  it("accepts wrapped MLB MCP tool payloads from the live server", async () => {
+    const baseImplementation = mocks.runInternalMlbMcpToolRaw.getMockImplementation();
+    expect(baseImplementation).toBeTypeOf("function");
+
+    mocks.runInternalMlbMcpToolRaw.mockImplementation(async (input) => {
+      const response = await baseImplementation?.(input as never);
+      return {
+        ...response,
+        structuredContent: {
+          result: response?.structuredContent ?? null,
+        },
+      };
+    });
+
+    const insightByGameId = await getMlbPregameInsightMap([localGame], "2026-03-27", {
+      includeGameDetails: true,
+    });
+    const insight = insightByGameId.get("mlb_local_1");
+
+    expect(insight?.probablePitchers.away?.name).toBe("Cole Ragans");
+    expect(insight?.probablePitchers.home?.name).toBe("Chris Sale");
+    expect(insight?.lineupsPosted).toBe(true);
+    expect(insight?.startingLineups.home[0]?.name).toBe("Ronald Acuna Jr.");
+    expect(insight?.teamContexts.away?.lastGameSummary).toBe("Won 6-4 @ TEX on Mar 26");
+    expect(insight?.teamContexts.home?.nextGameSummary).toBe("Next Mar 29 vs PHI");
   });
 
   it("builds probable-starter and hitter matchup lookup data for the market boards", async () => {

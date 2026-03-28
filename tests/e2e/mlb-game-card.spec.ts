@@ -446,7 +446,7 @@ test.describe("MLB game card", () => {
 
     const dialog = await openGameModal(page, "NYY@BOS");
 
-    await expect(dialog.getByText("MLB Game Card")).toBeVisible();
+    await expect(dialog.getByText("Pregame box score")).toBeVisible();
     await expect(dialog.getByText("Corbin Burnes").first()).toBeVisible();
     await expect(dialog.getByText("Gerrit Cole").first()).toBeVisible();
     await expect(dialog.getByText("Starting lineups")).toBeVisible();
@@ -564,7 +564,7 @@ test.describe("MLB game card", () => {
     await expect(
       dialog.getByText("Austin Riley singles to left, scoring Ronald Acuna Jr."),
     ).toBeVisible();
-    await expect(dialog.getByText("Your Sportfolio angle")).toBeVisible();
+    await expect(dialog.getByText("Your exposure")).toBeVisible();
     await expect(dialog.getByText("$18.25").first()).toBeVisible();
   });
 
@@ -700,7 +700,7 @@ test.describe("MLB game card", () => {
 
     const dialog = await openGameModal(page, "CHC@MIL");
 
-    await expect(dialog.getByText("Extra MLB context is unavailable.")).toBeVisible();
+    await expect(dialog.getByText("Game-center updates are unavailable.")).toBeVisible();
     await expect(dialog.getByText("MLB enrichment unavailable in this environment.")).toBeVisible();
   });
 });

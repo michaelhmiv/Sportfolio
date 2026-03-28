@@ -630,11 +630,13 @@ function normalizeTeamLineup(entry: unknown): NormalizedLineupEntry[] {
     return [];
   }
 
+  const battingOrder = Array.isArray(entry.battingOrder) ? entry.battingOrder : [];
   const batters = Array.isArray(entry.batters) ? entry.batters : [];
+  const lineupOrder = battingOrder.length > 0 ? battingOrder : batters.slice(0, 9);
   const players = isRecord(entry.players) ? entry.players : {};
   const seenPlayerIds = new Set<string>();
 
-  return batters
+  return lineupOrder
     .map((rawPlayerId, index) => normalizeLineupEntry(rawPlayerId, index, players))
     .filter((player): player is NormalizedLineupEntry => {
       if (!player) return false;
@@ -905,8 +907,15 @@ function normalizeGameState(input: {
 }
 
 function normalizeGameDetails(payload: unknown): NormalizedGameDetails {
-  const gameData = isRecord(payload) && isRecord(payload.gameData) ? payload.gameData : null;
-  const liveData = isRecord(payload) && isRecord(payload.liveData) ? payload.liveData : null;
+  const normalizedPayload = unwrapMlbToolResultPayload(payload);
+  const gameData =
+    isRecord(normalizedPayload) && isRecord(normalizedPayload.gameData)
+      ? normalizedPayload.gameData
+      : null;
+  const liveData =
+    isRecord(normalizedPayload) && isRecord(normalizedPayload.liveData)
+      ? normalizedPayload.liveData
+      : null;
   const boxscore = liveData && isRecord(liveData.boxscore) ? liveData.boxscore : null;
   const teams = boxscore && isRecord(boxscore.teams) ? boxscore.teams : null;
   const boxscoreInfo = boxscore && Array.isArray(boxscore.info) ? boxscore.info : [];
@@ -968,6 +977,25 @@ function formatExpectedStatsName(row: UnknownRecord): string | null {
   return formatted;
 }
 
+function unwrapMlbToolResultPayload(payload: unknown): unknown {
+  let current = payload;
+
+  for (let depth = 0; depth < 3; depth += 1) {
+    if (!isRecord(current) || !("result" in current)) {
+      break;
+    }
+
+    const next = current.result;
+    if (next == null) {
+      break;
+    }
+
+    current = next;
+  }
+
+  return current;
+}
+
 function normalizePitcherExpectedStatsRow(
   entry: unknown,
   statYear: number,
@@ -1017,11 +1045,12 @@ function normalizeBatterExpectedStatsRow(
 }
 
 function normalizeScheduleResponse(payload: unknown): NormalizedScheduleGame[] {
-  if (!isRecord(payload) || !Array.isArray(payload.games)) {
+  const normalizedPayload = unwrapMlbToolResultPayload(payload);
+  if (!isRecord(normalizedPayload) || !Array.isArray(normalizedPayload.games)) {
     return [];
   }
 
-  return payload.games
+  return normalizedPayload.games
     .map((game) => normalizeScheduleGame(game))
     .filter((game): game is NormalizedScheduleGame => Boolean(game));
 }
@@ -1030,11 +1059,12 @@ function normalizePitcherStatsResponse(
   payload: unknown,
   statYear: number,
 ): NormalizedPitcherExpectedStats[] {
-  if (!isRecord(payload) || !Array.isArray(payload.data)) {
+  const normalizedPayload = unwrapMlbToolResultPayload(payload);
+  if (!isRecord(normalizedPayload) || !Array.isArray(normalizedPayload.data)) {
     return [];
   }
 
-  return payload.data
+  return normalizedPayload.data
     .map((row) => normalizePitcherExpectedStatsRow(row, statYear))
     .filter((row): row is NormalizedPitcherExpectedStats => Boolean(row));
 }
@@ -1043,25 +1073,27 @@ function normalizeBatterStatsResponse(
   payload: unknown,
   statYear: number,
 ): NormalizedBatterExpectedStats[] {
-  if (!isRecord(payload) || !Array.isArray(payload.data)) {
+  const normalizedPayload = unwrapMlbToolResultPayload(payload);
+  if (!isRecord(normalizedPayload) || !Array.isArray(normalizedPayload.data)) {
     return [];
   }
 
-  return payload.data
+  return normalizedPayload.data
     .map((row) => normalizeBatterExpectedStatsRow(row, statYear))
     .filter((row): row is NormalizedBatterExpectedStats => Boolean(row));
 }
 
 function normalizeTeamReferencePointer(payload: unknown): NormalizedTeamReferencePointer | null {
-  if (!isRecord(payload)) {
+  const normalizedPayload = unwrapMlbToolResultPayload(payload);
+  if (!isRecord(normalizedPayload)) {
     return null;
   }
 
   return {
-    gameId: toInteger(payload.game_id),
-    teamId: toInteger(payload.team_id),
-    gameDate: toText(payload.date),
-    status: toText(payload.status),
+    gameId: toInteger(normalizedPayload.game_id),
+    teamId: toInteger(normalizedPayload.team_id),
+    gameDate: toText(normalizedPayload.date),
+    status: toText(normalizedPayload.status),
   };
 }
 
