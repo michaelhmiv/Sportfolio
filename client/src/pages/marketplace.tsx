@@ -27,6 +27,7 @@ import type { Player } from "@shared/schema";
 import { PlayerName } from "@/components/player-name";
 import { SportSelector } from "@/components/sport-selector";
 import { MarketActivityWidget } from "@/components/market-activity-widget";
+import { MlbProbableBadge } from "@/components/mlb-probable-badge";
 import { MarketplaceScanners } from "@/components/marketplace-scanners";
 import { MarketMobilePoolsBoard } from "@/components/market-mobile-pools-board";
 import {
@@ -50,6 +51,10 @@ type PlayerWithPool = Player & {
   gameStatus?: "none" | "upcoming" | "live" | "ended";
   gameStartTime?: string | null;
   communityBoostCount?: number | null;
+  isProbableStarter?: boolean;
+  probablePitcherGameId?: string | null;
+  mlbMatchupChip?: string | null;
+  mlbPregameSummary?: string | null;
 };
 
 type MobileQuickContext = {
@@ -713,6 +718,21 @@ export default function PlayerPools() {
                                       <div className="font-mono text-[11px] text-muted-foreground">
                                         {player.team} • {player.position}
                                       </div>
+                                      {player.isProbableStarter || player.mlbMatchupChip ? (
+                                        <div className="mt-1 flex flex-wrap gap-1">
+                                          {player.isProbableStarter ? (
+                                            <MlbProbableBadge compact />
+                                          ) : null}
+                                          {player.mlbMatchupChip ? (
+                                            <Badge
+                                              variant="outline"
+                                              className="h-5 border-border/70 bg-background/30 px-1.5 text-[10px] uppercase tracking-[0.08em] text-muted-foreground"
+                                            >
+                                              {player.mlbMatchupChip}
+                                            </Badge>
+                                          ) : null}
+                                        </div>
+                                      ) : null}
                                     </div>
                                   </button>
                                 </td>

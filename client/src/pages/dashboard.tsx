@@ -67,6 +67,7 @@ import type {
   DashboardShowcaseSlatePlayer,
 } from "@/components/dashboard-showcase-card.helpers";
 import { MobilePortfolioStatsSheet } from "@/components/mobile-portfolio-stats-sheet";
+import { MlbProbableBadge } from "@/components/mlb-probable-badge";
 import type { GameInsight, GameInsightsResponse } from "@/types/game-insights";
 
 interface NetWorthChangeSummary {
@@ -124,6 +125,15 @@ interface BoostEligibilityResponse {
   eligiblePlayers: DashboardShowcaseEligiblePlayer[];
   totalEligible: number;
 }
+
+const formatCompactPitcherName = (name: string | null | undefined) => {
+  const trimmed = String(name || "").trim();
+  if (!trimmed) return null;
+
+  const parts = trimmed.split(/\s+/).filter(Boolean);
+  if (parts.length <= 1) return trimmed;
+  return `${parts[0].charAt(0)}. ${parts[parts.length - 1]}`;
+};
 
 export default function Dashboard() {
   const { isAuthenticated } = useAuth();
@@ -955,17 +965,6 @@ export default function Dashboard() {
                                         : effectiveStatus === "postponed"
                                           ? "text-amber-500"
                                           : "text-blue-400";
-                                  const progressValue =
-                                    effectiveStatus === "inprogress" ||
-                                    effectiveStatus === "completed"
-                                      ? `${game.awayScore ?? "-"}-${game.homeScore ?? "-"}`
-                                      : "--";
-                                  const progressMeta =
-                                    effectiveStatus === "inprogress"
-                                      ? "Live"
-                                      : effectiveStatus === "completed"
-                                        ? "Final"
-                                        : "--";
                                   const ownedTeams = new Set(
                                     [
                                       ...(game.userContext?.ownedPlayers || []).map(
@@ -983,6 +982,40 @@ export default function Dashboard() {
                                   });
                                   const ownedCount = game.userContext?.ownedPlayers?.length || 0;
                                   const powerLeader = game.userContext?.topMultiplierPlayers?.[0];
+                                  const isMlbGame = (game.sport || "").toUpperCase() === "MLB";
+                                  const mlbPregame = isMlbGame ? game.mlbPregame || null : null;
+                                  const mlbEnrichment = isMlbGame
+                                    ? game.mlbEnrichment || null
+                                    : null;
+                                  const awayProbable = formatCompactPitcherName(
+                                    mlbPregame?.probablePitchers.away?.name,
+                                  );
+                                  const homeProbable = formatCompactPitcherName(
+                                    mlbPregame?.probablePitchers.home?.name,
+                                  );
+                                  const probableLine =
+                                    awayProbable && homeProbable
+                                      ? `${awayProbable} vs ${homeProbable}`
+                                      : awayProbable || homeProbable || null;
+                                  const mlbFallbackLabel =
+                                    mlbEnrichment?.state === "unavailable"
+                                      ? "MLB unavailable"
+                                      : mlbEnrichment?.state === "pending"
+                                        ? "Probables pending"
+                                        : null;
+                                  const progressValue =
+                                    effectiveStatus === "inprogress" ||
+                                    effectiveStatus === "completed"
+                                      ? `${game.awayScore ?? "-"}-${game.homeScore ?? "-"}`
+                                      : probableLine || mlbFallbackLabel || "--";
+                                  const progressMeta =
+                                    effectiveStatus === "inprogress"
+                                      ? "Live"
+                                      : effectiveStatus === "completed"
+                                        ? "Final"
+                                        : mlbPregame?.matchupSummary ||
+                                          mlbEnrichment?.message ||
+                                          (mlbPregame ? "Probables pending" : "--");
 
                                   return (
                                     <tr
@@ -1015,6 +1048,16 @@ export default function Dashboard() {
                                           <span className="mx-1 text-muted-foreground">@</span>
                                           {game.homeTeam}
                                         </div>
+                                        {probableLine ? (
+                                          <div className="mt-1 flex items-center gap-1 truncate text-[10px] text-muted-foreground">
+                                            <MlbProbableBadge compact className="shrink-0" />
+                                            <span className="truncate">{probableLine}</span>
+                                          </div>
+                                        ) : effectiveStatus === "scheduled" && mlbFallbackLabel ? (
+                                          <div className="mt-1 truncate text-[10px] text-muted-foreground">
+                                            {mlbFallbackLabel}
+                                          </div>
+                                        ) : null}
                                       </td>
                                       <td className="hidden px-2 py-2 align-middle sm:table-cell">
                                         <div
@@ -1022,6 +1065,16 @@ export default function Dashboard() {
                                         >
                                           {game.awayTeam}
                                         </div>
+                                        {awayProbable ? (
+                                          <div className="mt-1 flex items-center gap-1 truncate text-[11px] text-muted-foreground">
+                                            <MlbProbableBadge compact className="shrink-0" />
+                                            <span className="truncate">{awayProbable}</span>
+                                          </div>
+                                        ) : effectiveStatus === "scheduled" && mlbFallbackLabel ? (
+                                          <div className="mt-1 truncate text-[11px] text-muted-foreground">
+                                            {mlbFallbackLabel}
+                                          </div>
+                                        ) : null}
                                       </td>
                                       <td className="hidden px-2 py-2 align-middle sm:table-cell">
                                         <div
@@ -1029,6 +1082,16 @@ export default function Dashboard() {
                                         >
                                           {game.homeTeam}
                                         </div>
+                                        {homeProbable ? (
+                                          <div className="mt-1 flex items-center gap-1 truncate text-[11px] text-muted-foreground">
+                                            <MlbProbableBadge compact className="shrink-0" />
+                                            <span className="truncate">{homeProbable}</span>
+                                          </div>
+                                        ) : effectiveStatus === "scheduled" && mlbFallbackLabel ? (
+                                          <div className="mt-1 truncate text-[11px] text-muted-foreground">
+                                            {mlbFallbackLabel}
+                                          </div>
+                                        ) : null}
                                       </td>
                                       <td className="px-1.5 py-1.5 align-middle sm:px-2 sm:py-2">
                                         <div className="truncate font-mono font-semibold text-foreground text-xs sm:text-sm">

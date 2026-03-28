@@ -1,3 +1,48 @@
+## 2026-03-28 MCP Discoverability Hardening
+
+- [x] Add live MCP discovery resources that reflect both the static Sportfolio surface and dynamic MLB tool projection
+- [x] Enrich public MCP tool metadata so agents can infer confirmation model, provider/source, and useful usage hints more reliably
+- [x] Expand MCP smoke/test coverage to verify dynamic MLB discovery through `tools/list` and discovery resources
+- [x] Re-run full validation, browser verification, and Railway MLB smoke
+
+Review:
+
+- `server/mcp/public-tool-registry.ts` now exposes a live `sportfolio://tool-catalog` resource plus dynamic `sportfolio://capabilities` and `sportfolio://action-surface` payloads that include projected `mlb_mcp__*` tools and dynamic-source availability metadata.
+- `server/routes/mcp.ts` now reuses shared dynamic MLB tool discovery, enriches projected tool metadata, and preserves more JSON Schema detail when converting remote schemas into public MCP Zod inputs.
+- Public MCP metadata now distinguishes provider/source and confirmation model, which makes the tool surface easier for external agents to reason over without exposing Ball Don't Lie vs MLB MCP distinctions in the product UI.
+- `server/mcp/mcp-server.test.ts` and `scripts/mcp-smoke.ts` now verify that a dynamic MLB tool appears consistently in `tools/list`, `sportfolio://capabilities`, `sportfolio://action-surface`, and `sportfolio://tool-catalog`.
+- `docs/wiki/getting-started/mcp-access.md` now documents the richer live discovery resources.
+- Validation status:
+- `npm run check` passed.
+- `npm run lint` passed.
+- `npm run test:run` passed.
+- `npm run e2e -- tests/e2e/mlb-game-card.spec.ts` passed.
+- `npm run mcp:smoke` passed.
+- `npm run mlb-mcp:probe:railway` passed.
+- `npm run format:check` passed.
+
+## 2026-03-28 Authenticated Public MLB MCP + Blended MLB Card Verification
+
+- [x] Extend the authenticated public `/mcp` surface to expose read-only `mlb_mcp__*` tools through Sportfolio instead of making the Railway MLB service public
+- [x] Keep the provider boundary backend-only so MLB frontend surfaces stay blended and avoid Ball Don't Lie vs MLB MCP labeling
+- [x] Verify the MLB game card behavior in browser automation for scheduled, live, final, and enrichment-unavailable states
+- [x] Re-run full repo validation plus Railway MLB MCP smoke and record outcomes
+
+Review:
+
+- `server/routes/mcp.ts` now dynamically registers authenticated read-only `mlb_mcp__*` tools on Sportfolio's public `/mcp` surface using the existing internal MLB bridge, while leaving the private Railway `mlb-mcp` service non-public.
+- `server/mcp/public-tool-registry.ts`, `server/agent/internal-mlb-mcp.ts`, and `server/mcp/testing.ts` now share one backend path for Hermes and public MCP callers, so external access uses the same bounded, fail-soft execution layer as the internal agent.
+- `server/mcp/mcp-server.test.ts` now proves an authenticated MCP client can list and call an MLB tool through Sportfolio `/mcp`.
+- The MLB fallback/status copy in `client/src/components/game-command-center-modal.tsx` stays provider-agnostic, so the frontend reads as one coherent MLB experience even though the backend keeps Ball Don't Lie authoritative for gameplay and scoring.
+- Browser verification passed in `tests/e2e/mlb-game-card.spec.ts` for scheduled, live, final, and unavailable MLB game-card states, including home-slate probable pitchers and modal content.
+- Validation status:
+- `npm run check` passed.
+- `npm run lint` passed.
+- `npm run test:run` passed.
+- `npm run e2e -- tests/e2e/mlb-game-card.spec.ts` passed.
+- `npm run mlb-mcp:probe:railway` passed for `test_get_schedule_tool`, `test_get_stats_tool`, `test_get_available_endpoints_tool`, `test_get_last_game_tool`, and `test_get_next_game_tool`.
+- `npm run format:check` passed.
+
 ## 2026-03-26 PR 109 Merge Conflict Resolution + Patch Review
 
 - [x] Fast-forward the PR 109 worktree to the latest remote branch head and inspect mergeability against current `origin/main`
@@ -120,6 +165,41 @@ Review:
 - [ ] Identify the actual local/untracked files causing Source Control noise
 - [ ] Sync this branch with `origin/main` if it can be done safely without losing local edits
 - [ ] Document the root cause and resulting branch/worktree state
+
+## 2026-03-27 MLB MCP Local Vendor + Railway Parity
+
+- [x] Bring the existing MLB MCP codebase into the repo under a clearly separate internal service boundary
+- [x] Add a local run path and documentation/env wiring so Sportfolio can target the vendored MLB MCP in development
+- [x] Probe Yankees probable-pitcher and starting-lineup data against both the local vendored MCP and the Railway production MCP
+- [x] Document the exact returned fields and the recommended separation boundary versus Ball Don't Lie
+
+Review:
+
+- Vendored `etweisberg/mlb-mcp` into `vendor/mlb-mcp` and pinned the imported snapshot in `vendor/mlb-mcp/VENDORING.md` so the MLB enrichment lane is under Sportfolio control without mixing it into the main Express runtime.
+- Added local dev wiring/docs in `docs/mlb-mcp.md`, `.env.example`, `.gitignore`, and `package.json`, plus a reusable local Yankees probe in `scripts/mlb-mcp-probe.mjs`.
+- Local vendored MCP probe against `http://127.0.0.1:8081/mcp` on 2026-03-27 confirmed:
+- `get_stats(schedule, hydrate=probablePitcher(note))` resolved Yankees at Giants (`gamePk` `823243`) with probable pitchers `Cam Schlittler` and `Robbie Ray`.
+- `get_stats(game, gamePk=823243)` returned lineup paths at `liveData.boxscore.teams.away.batters` and `...home.batters`, with mapped batting orders and player names for both clubs.
+- The schedule payload did not include a populated `probablePitcher.note` field for this sample even with `hydrate=probablePitcher(note)`.
+- Added Railway production smoke in `scripts/mlb-mcp-railway-smoke.mjs` and validated the deployed `mlb-mcp` service over Railway with passing MCP pytest checks for:
+- `test_get_schedule_tool`
+- `test_get_stats_tool`
+- `test_get_available_endpoints_tool`
+- Separation recommendation: keep Ball Don't Lie as canonical ingest/sync, and treat the vendored MLB MCP as a separate MLB StatsAPI enrichment provider behind Sportfolio-owned normalization.
+
+## 2026-03-27 MLB Display-Only Game Card Enrichment
+
+- [x] Keep Ball Don't Lie as the source of truth for gameplay and calculations while confining MLB MCP usage to optional display-only enrichment
+- [x] Expand MLB detail cards with lineups, venue, broadcasts, hitter spotlights, lineup signals, weather, attendance, and live/final linescore context
+- [x] Add club-context summaries from the MLB MCP for recent/next matchup context without changing home-slate compactness
+- [x] Re-run required validation plus Railway MLB MCP smoke for the exact tools used by the display layer
+
+Review:
+
+- The MLB enrichment lane stays fully additive: routes only attach optional `mlbPregame` display fields, and gameplay economics/payout paths continue to rely on Ball Don't Lie plus stored Sportfolio state.
+- The click-through MLB game card now behaves like a fuller baseball card: probable pitchers, venue/broadcasts, lineup status and batting orders, hitter spotlights, lineup quality signals, weather, attendance, and structured game-state/linescore context for live/final states.
+- Added club-context summaries from the MCP using `get_last_game`, `get_next_game`, and game detail follow-ups, so the card can show record plus recent/next matchup summaries without exposing raw MCP payloads to the client.
+- The home dashboard slate remains compact and probable-pitcher-first; the heavier lineup/hitter/team context only loads on the game detail path.
 
 ## 2026-03-25 Internal MLB MCP Review Fixes
 
@@ -1916,3 +1996,51 @@ Review:
 - Implemented a slippage-aware buy max cap in `client/src/components/amm-trade-panel.tsx` using current pool reserves and AMM fee math with a small safety buffer.
 - Slider and quick-select now map percentages against the capped max, and manual amount remains synchronized/clamped when max changes.
 - Validation passed: `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`.
+
+## 2026-03-27 MLB Lifecycle Card Visibility + Live/Final Context
+
+- [x] Finish the always-visible MLB lifecycle card at the top of the game modal for scheduled, live, and final games
+- [x] Keep the home-screen slate compact and probable-pitcher-only while preserving the display-only Ball Don't Lie / MLB MCP boundary
+- [x] Add user-centric live/final context that helps a Sportfolio player check shares: lineups, linescore, scoring summary, top performers, and owned-player earnings
+- [x] Re-run validation plus Railway MLB MCP smoke and record outcomes
+
+Review:
+
+- `client/src/components/game-command-center-modal.tsx` now renders a single always-visible MLB lifecycle card above the tabbed command-center body, so scheduled, live, and final MLB games all surface the baseball-specific context without relying on the hidden `pre` tab state.
+- The lifecycle card keeps mobile-first hierarchy: matchup/venue chips, your Sportfolio angle, linescore and scoring summary for live/final, probable pitchers, posted lineups, hitter matchup context for pregame, team context, and expandable advanced pitching stats.
+- Follow-up mobile polish tightened the first-screen hierarchy: the modal now uses a taller small-screen viewport, the MLB hero card has clearer visual emphasis, the Sportfolio angle block is more prominent, and the advanced toggle moved into the `Probable starters` header so mobile users do not have to scroll to the bottom to expand pitcher metrics.
+- `server/mlb-pregame-insights.ts` now normalizes scoring-play summaries from the MLB game payload so the modal can show recent run-scoring events for live/final games while still failing soft if the MCP omits them.
+- `AGENTS.md` and `tasks/lessons.md` now capture the product rule to design sports features from the perspective of a user checking shares, boosts, and portfolio relevance, not just generic sports stats.
+- Validation status:
+- `npm run check` passed.
+- `npm run lint` passed.
+- `npm run format:check` passed.
+- `npm run test:run -- server/mlb-pregame-insights.test.ts` passed.
+- `npm run mlb-mcp:probe:railway` passed for `test_get_schedule_tool`, `test_get_stats_tool`, `test_get_available_endpoints_tool`, `test_get_last_game_tool`, and `test_get_next_game_tool`.
+- `npm run test:run` now passes after excluding `.claude/worktrees/**` from Vitest collection.
+
+## 2026-03-27 MLB Visibility Status + Browser Verification
+
+- [x] Surface explicit MLB enrichment availability state so the dashboard and game modal do not silently hide MLB context when the internal MCP is disabled or missing
+- [x] Add deterministic mobile Playwright coverage for scheduled, live, final, and unavailable MLB game-card states
+- [x] Re-run full repo validation plus Railway MLB MCP smoke and record the real end-to-end result
+
+Review:
+
+- `server/mlb-pregame-insights.ts` now returns per-game MLB enrichment status alongside optional `mlbPregame` insight payloads, distinguishing `available`, `pending`, and `unavailable` states instead of silently returning nothing.
+- `server/routes.ts` attaches that status to every MLB `GameInsight`, so the client can render a clear fallback when display-only MLB context is not configured or has not posted yet.
+- `client/src/components/game-command-center-modal.tsx` now shows a dedicated MLB status card whenever an MLB game has no enrichment payload, with copy that keeps Ball Don't Lie positioned as the gameplay source of truth.
+- `client/src/pages/dashboard.tsx` now shows `MLB unavailable` or `Probables pending` on MLB slate rows when schedule enrichment is missing, instead of leaving those rows visually empty.
+- Added `tests/e2e/mlb-game-card.spec.ts` to verify the actual mobile flow in Chromium for:
+- scheduled MLB row + modal with probable pitchers and lineups
+- live MLB modal with linescore, scoring summary, and Sportfolio earnings context
+- final MLB modal with recap/share-check content
+- explicit unavailable-state rendering when enrichment is missing
+- Validation status:
+- `npm run e2e -- tests/e2e/mlb-game-card.spec.ts` passed.
+- `npm run check` passed.
+- `npm run lint` passed.
+- `npm run format:check` passed.
+- `npm run test:run -- server/mlb-pregame-insights.test.ts` passed.
+- `npm run test:run` passed.
+- `npm run mlb-mcp:probe:railway` passed for `test_get_schedule_tool`, `test_get_stats_tool`, `test_get_available_endpoints_tool`, `test_get_last_game_tool`, and `test_get_next_game_tool`.

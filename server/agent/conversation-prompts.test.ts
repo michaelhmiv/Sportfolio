@@ -81,4 +81,17 @@ describe("conversation-prompts", () => {
     expect(prompts.systemPrompt).toContain("scan_team_roster");
     expect(prompts.systemPrompt).toContain("scan_sport_slate");
   });
+
+  it("nudges Hermes toward built-in MLB MCP tools when they are available", () => {
+    const prompts = buildHermesConversationPrompts({
+      baseSystemPrompt: "You are Hermes.",
+      baseUserPromptTemplate: "Operate on my portfolio.",
+      conversationMode: "general_chat",
+      mlbMcpAvailable: true,
+    });
+
+    expect(prompts.systemPrompt).toContain("built-in mlb_mcp__ tools");
+    expect(prompts.systemPrompt).toContain("get_schedule");
+    expect(prompts.systemPrompt).toContain("Statcast pitcher expected-stats");
+  });
 });

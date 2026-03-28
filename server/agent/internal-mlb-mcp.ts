@@ -495,6 +495,48 @@ async function resolveRemoteToolName(localToolName: string): Promise<string> {
   throw buildMissingRemoteToolError(localToolName);
 }
 
+async function callInternalMlbMcpToolUnbounded(input: {
+  toolName: string;
+  args?: Record<string, unknown>;
+}): Promise<{
+  remoteToolName: string;
+  content: unknown[];
+  structuredContent: unknown;
+  replyText: string | null;
+}> {
+  const config = resolveInternalMlbMcpConfig();
+  if (!config.enabled || !config.endpoint) {
+    throw new Error("Internal MLB MCP is not configured.");
+  }
+
+  const remoteToolName = await resolveRemoteToolName(input.toolName);
+  const callResult = (await withMlbMcpClient(config, (client) =>
+    client.callTool({
+      name: remoteToolName,
+      arguments: isRecord(input.args) ? input.args : {},
+    }),
+  )) as {
+    isError?: boolean;
+    content?: unknown[];
+    structuredContent?: unknown;
+  };
+
+  const content = Array.isArray(callResult.content) ? callResult.content : [];
+  const replyText = extractToolText(content);
+  const isError = callResult.isError === true;
+
+  if (isError) {
+    throw new Error(replyText || `Internal MLB MCP tool ${remoteToolName} failed.`);
+  }
+
+  return {
+    remoteToolName,
+    content,
+    structuredContent: callResult.structuredContent ?? null,
+    replyText,
+  };
+}
+
 export function isInternalMlbMcpProjectedTool(toolName: string): boolean {
   const config = resolveInternalMlbMcpConfig();
   if (!config.enabled) return false;
@@ -542,65 +584,78 @@ export async function getInternalMlbMcpStatus(): Promise<{
   };
 }
 
-export async function runInternalMlbMcpReadTool(input: {
+export async function runInternalMlbMcpToolRaw(input: {
   toolName: string;
   args?: Record<string, unknown>;
-}): Promise<unknown> {
-  const config = resolveInternalMlbMcpConfig();
-  if (!config.enabled || !config.endpoint) {
-    throw new Error("Internal MLB MCP is not configured.");
-  }
+}): Promise<{
+  remoteToolName: string;
+  content: unknown[];
+  structuredContent: unknown;
+  replyText: string | null;
+}> {
+  return callInternalMlbMcpToolUnbounded(input);
+}
 
-  const remoteToolName = await resolveRemoteToolName(input.toolName);
-  const callResult = (await withMlbMcpClient(config, (client) =>
-    client.callTool({
-      name: remoteToolName,
-      arguments: isRecord(input.args) ? input.args : {},
-    }),
-  )) as {
-    isError?: boolean;
-    content?: unknown[];
-    structuredContent?: unknown;
-  };
-
-  const rawContent = Array.isArray(callResult.content) ? callResult.content : [];
-  const content = boundToolContent(rawContent);
+export async function runInternalMlbMcpToolBounded(input: {
+  toolName: string;
+  args?: Record<string, unknown>;
+}): Promise<{
+  remoteToolName: string;
+  content: unknown[];
+  structuredContent: unknown;
+  replyText: string | null;
+  payloadTruncated: boolean;
+  truncation: {
+    replyTextChars: number | null;
+    structuredContentChars: number | null;
+    contentChars: number | null;
+  } | null;
+}> {
+  const rawResult = await callInternalMlbMcpToolUnbounded(input);
+  const content = boundToolContent(rawResult.content);
   const extractedReplyText = extractToolText(content.value);
-  const structuredContent = boundStructuredContent(callResult.structuredContent ?? null);
-  const isError = callResult.isError === true;
-
-  if (isError) {
-    const errorReplyText = boundReplyText(
-      extractedReplyText || `Internal MLB MCP tool ${remoteToolName} failed.`,
-    );
-    throw new Error(errorReplyText.value || `Internal MLB MCP tool ${remoteToolName} failed.`);
-  }
-
+  const structuredContent = boundStructuredContent(rawResult.structuredContent ?? null);
   const replyText = boundReplyText(
     extractedReplyText ||
-      `Internal MLB MCP tool ${remoteToolName} completed with structured output.`,
+      `Internal MLB MCP tool ${rawResult.remoteToolName} completed with structured output.`,
   );
 
   const payloadTruncated = replyText.truncated || structuredContent.truncated || content.truncated;
 
   return {
-    summary: `Loaded MLB data via ${remoteToolName}.`,
+    remoteToolName: rawResult.remoteToolName,
+    content: content.value,
+    structuredContent: structuredContent.value,
     replyText: replyText.value,
+    payloadTruncated,
+    truncation: payloadTruncated
+      ? {
+          replyTextChars: replyText.truncated ? replyText.originalCharLength : null,
+          structuredContentChars: structuredContent.truncated
+            ? structuredContent.originalCharLength
+            : null,
+          contentChars: content.truncated ? content.originalCharLength : null,
+        }
+      : null,
+  };
+}
+
+export async function runInternalMlbMcpReadTool(input: {
+  toolName: string;
+  args?: Record<string, unknown>;
+}): Promise<unknown> {
+  const boundedResult = await runInternalMlbMcpToolBounded(input);
+
+  return {
+    summary: `Loaded MLB data via ${boundedResult.remoteToolName}.`,
+    replyText: boundedResult.replyText,
     context: {
       provider: "internal_mlb_mcp",
-      remoteToolName,
-      structuredContent: structuredContent.value,
-      content: content.value,
-      payloadTruncated,
-      truncation: payloadTruncated
-        ? {
-            replyTextChars: replyText.truncated ? replyText.originalCharLength : null,
-            structuredContentChars: structuredContent.truncated
-              ? structuredContent.originalCharLength
-              : null,
-            contentChars: content.truncated ? content.originalCharLength : null,
-          }
-        : null,
+      remoteToolName: boundedResult.remoteToolName,
+      structuredContent: boundedResult.structuredContent,
+      content: boundedResult.content,
+      payloadTruncated: boundedResult.payloadTruncated,
+      truncation: boundedResult.truncation,
     },
   };
 }

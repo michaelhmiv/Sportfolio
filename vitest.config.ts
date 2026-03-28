@@ -13,7 +13,14 @@ export default defineConfig({
   },
   test: {
     globals: true,
-    exclude: [...configDefaults.exclude, "vendor/**", "**/vendor/**", "tests/e2e/**"],
+    exclude: [
+      ...configDefaults.exclude,
+      "vendor/**",
+      "**/vendor/**",
+      "tests/e2e/**",
+      ".claude/worktrees/**",
+      "**/.claude/worktrees/**",
+    ],
     coverage: {
       reporter: ["text", "html"],
       thresholds: {

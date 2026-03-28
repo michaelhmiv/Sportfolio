@@ -136,6 +136,10 @@ export function buildHermesConversationPrompts(input: {
     modeLines.push(
       "Note: MLB MCP advanced tools are currently offline. Use scan_sport_slate and scan_team_roster for MLB game and roster data.",
     );
+  } else if (input.mlbMcpAvailable === true) {
+    modeLines.push(
+      "For MLB probable pitchers, matchup reads, and pregame advanced stats, prefer the built-in mlb_mcp__ tools first, especially get_schedule plus the Statcast pitcher expected-stats tools.",
+    );
   }
   const systemPrompt = [input.baseSystemPrompt.trim(), ...modeLines].filter(Boolean).join(" ");
 

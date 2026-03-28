@@ -26,3 +26,6 @@ mobile/android/*.iml
 mobile/android/.idea/
 *.apk
 *.ipa
+vendor/mlb-mcp/.venv/
+vendor/mlb-mcp/logs/
+.claude/worktrees/
