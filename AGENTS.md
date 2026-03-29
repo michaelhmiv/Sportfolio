@@ -120,6 +120,10 @@ Never reduce auth checks on existing protected endpoints without explicit instru
 - Keep changes minimal and targeted.
 - Never expose secrets/tokens in logs or responses.
 - Prefer existing libs/utilities over adding new dependencies.
+- For user-facing feature work, think like a Sportfolio player using the product live:
+  - tie sports data back to owned shares, boosts, and portfolio relevance,
+  - prefer lifecycle-appropriate game context over generic stat dumps,
+  - keep optional enrichment providers display-only unless they are explicitly promoted into gameplay logic.
 
 ## Supabase CLI Note
 

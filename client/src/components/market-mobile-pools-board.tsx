@@ -4,6 +4,7 @@ import { ArrowUpDown, ArrowUpRight, Filter, HelpCircle, Loader2, Search, X } fro
 
 import { PlayerName } from "@/components/player-name";
 import { SportSelector } from "@/components/sport-selector";
+import { MlbProbableBadge } from "@/components/mlb-probable-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -55,6 +56,10 @@ type PlayerWithPool = Player & {
   gameStatus?: GameStatus;
   gameStartTime?: string | null;
   communityBoostCount?: number | null;
+  isProbableStarter?: boolean;
+  probablePitcherGameId?: string | null;
+  mlbMatchupChip?: string | null;
+  mlbPregameSummary?: string | null;
 };
 
 interface WatchlistSummary {
@@ -1353,27 +1358,27 @@ export function MarketMobilePoolsBoard({
                   >
                     <button
                       type="button"
-                      className="col-span-3 grid grid-cols-[minmax(0,1.95fr)_58px_66px] items-center gap-1.5 text-left whitespace-nowrap"
+                      className="col-span-3 grid grid-cols-[minmax(0,1.95fr)_58px_66px] items-center gap-1.5 text-left"
                       onClick={() => onOpenPlayer(player, "default", quickContext)}
                     >
                       <div className="min-w-0">
-                        <div className="flex items-center gap-1 overflow-hidden whitespace-nowrap">
-                          <div
-                            className={cn(
-                              "truncate text-xs font-semibold leading-none",
-                              ownedPlayerIds.has(player.id) && "text-positive",
-                            )}
-                          >
-                            <PlayerName
-                              playerId={player.id}
-                              firstName={player.firstName}
-                              lastName={player.lastName}
-                            />
-                          </div>
+                        <div
+                          className={cn(
+                            "truncate text-xs font-semibold leading-none",
+                            ownedPlayerIds.has(player.id) && "text-positive",
+                          )}
+                        >
+                          <PlayerName
+                            playerId={player.id}
+                            firstName={player.firstName}
+                            lastName={player.lastName}
+                          />
+                        </div>
+                        <div className="mt-0.5 flex flex-wrap items-center gap-1">
                           <div className="shrink-0 text-[9px] font-mono uppercase tracking-[0.08em] text-muted-foreground">
                             {[player.team, player.position].filter(Boolean).join("/") || "-"}
                           </div>
-                          {rowToken && (
+                          {rowToken ? (
                             <Badge
                               variant="outline"
                               className={cn(
@@ -1383,7 +1388,16 @@ export function MarketMobilePoolsBoard({
                             >
                               {rowToken.label}
                             </Badge>
-                          )}
+                          ) : null}
+                          {player.isProbableStarter ? <MlbProbableBadge compact /> : null}
+                          {player.mlbMatchupChip ? (
+                            <Badge
+                              variant="outline"
+                              className="h-5 shrink-0 border-border/70 bg-background/30 px-1 text-[9px] uppercase tracking-[0.08em] text-muted-foreground"
+                            >
+                              {player.mlbMatchupChip}
+                            </Badge>
+                          ) : null}
                         </div>
                       </div>
 

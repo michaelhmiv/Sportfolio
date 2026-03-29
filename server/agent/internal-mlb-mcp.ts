@@ -7,6 +7,10 @@ const DEFAULT_TOOL_PREFIX = "mlb_mcp__";
 const DEFAULT_TIMEOUT_MS = 12000;
 const DEFAULT_CACHE_TTL_MS = 60_000;
 const DEFAULT_FAILURE_CACHE_TTL_MS = 15_000;
+const DEFAULT_LOCAL_DEV_ENDPOINT = "http://127.0.0.1:8081/mcp";
+const DEFAULT_LOCAL_DEV_TIMEOUT_MS = 10_000;
+const LOCAL_DEV_PROBE_CACHE_TTL_MS = 30_000;
+const LOCAL_DEV_PROBE_TIMEOUT_MS = 1_200;
 const MAX_TOOL_RESULT_PAYLOAD_CHARS = 8_000;
 const MAX_TOOL_RESULT_REPLY_TEXT_CHARS = 2_000;
 const WARNING_THROTTLE_MS = 60_000;
@@ -18,12 +22,14 @@ type InternalMlbMcpConfig = {
   timeoutMs: number;
   cacheTtlMs: number;
   authBearerToken: string | null;
+  implicitLocalDevFallback: boolean;
 };
 
 type MlbMcpToolDiscovery = {
   toolCatalog: AgentToolDefinition[];
   localToRemoteToolMap: Map<string, string>;
   expiresAt: number;
+  failureBackoffActive: boolean;
 };
 
 type UnknownRecord = Record<string, unknown>;
@@ -31,6 +37,12 @@ type UnknownRecord = Record<string, unknown>;
 let cachedDiscovery: MlbMcpToolDiscovery | null = null;
 let inFlightDiscovery: Promise<MlbMcpToolDiscovery> | null = null;
 let lastWarningAt = 0;
+let cachedLocalDevProbe: {
+  endpoint: string;
+  reachable: boolean;
+  expiresAt: number;
+} | null = null;
+let inFlightLocalDevProbe: Promise<boolean> | null = null;
 
 function parseBooleanEnv(value: string | undefined): boolean | null {
   const normalized = (value || "").trim().toLowerCase();
@@ -68,12 +80,18 @@ function normalizeEndpoint(raw: string): string | null {
 }
 
 export function resolveInternalMlbMcpConfig(): InternalMlbMcpConfig {
+  const explicitEnabled = parseBooleanEnv(process.env.HERMES_INTERNAL_MLB_MCP_ENABLED);
   const configuredEndpoint =
     process.env.HERMES_INTERNAL_MLB_MCP_URL?.trim() ||
     process.env.MLB_MCP_INTERNAL_URL?.trim() ||
     "";
-  const endpoint = normalizeEndpoint(configuredEndpoint);
-  const explicitEnabled = parseBooleanEnv(process.env.HERMES_INTERNAL_MLB_MCP_ENABLED);
+  const isDevelopment =
+    (process.env.NODE_ENV || "development").trim().toLowerCase() !== "production";
+  const implicitLocalDevFallback =
+    !configuredEndpoint && explicitEnabled !== false && isDevelopment;
+  const endpoint = normalizeEndpoint(
+    configuredEndpoint || (implicitLocalDevFallback ? DEFAULT_LOCAL_DEV_ENDPOINT : ""),
+  );
   const enabled = explicitEnabled ?? Boolean(endpoint);
 
   return {
@@ -82,7 +100,7 @@ export function resolveInternalMlbMcpConfig(): InternalMlbMcpConfig {
     toolPrefix: process.env.HERMES_INTERNAL_MLB_MCP_TOOL_PREFIX?.trim() || DEFAULT_TOOL_PREFIX,
     timeoutMs: parseBoundedInt(
       process.env.HERMES_INTERNAL_MLB_MCP_TIMEOUT_MS,
-      DEFAULT_TIMEOUT_MS,
+      implicitLocalDevFallback ? DEFAULT_LOCAL_DEV_TIMEOUT_MS : DEFAULT_TIMEOUT_MS,
       2000,
       120_000,
     ),
@@ -93,6 +111,7 @@ export function resolveInternalMlbMcpConfig(): InternalMlbMcpConfig {
       600_000,
     ),
     authBearerToken: process.env.HERMES_INTERNAL_MLB_MCP_AUTH_BEARER?.trim() || null,
+    implicitLocalDevFallback: implicitLocalDevFallback && Boolean(endpoint),
   };
 }
 
@@ -111,6 +130,7 @@ function cloneToolEntry(entry: AgentToolDefinition): AgentToolDefinition {
     whenToUse: [...entry.whenToUse],
     whenNotToUse: [...entry.whenNotToUse],
     examplePrompts: [...entry.examplePrompts],
+    preferredColumns: [...(entry.preferredColumns || [])],
     autoContextArgs: [...(entry.autoContextArgs || [])],
     inputSchema: cloneInputSchema(entry.inputSchema),
   };
@@ -121,6 +141,7 @@ function cloneDiscovery(discovery: MlbMcpToolDiscovery): MlbMcpToolDiscovery {
     toolCatalog: discovery.toolCatalog.map(cloneToolEntry),
     localToRemoteToolMap: new Map(discovery.localToRemoteToolMap),
     expiresAt: discovery.expiresAt,
+    failureBackoffActive: discovery.failureBackoffActive,
   };
 }
 
@@ -158,6 +179,56 @@ function allocateLocalToolName(params: {
   return candidate;
 }
 
+function inferToolPresentationProfile(remoteToolName: string) {
+  const normalized = remoteToolName.toLowerCase();
+  if (normalized.includes("schedule")) {
+    return "schedule" as const;
+  }
+  if (
+    normalized.includes("leader") ||
+    normalized.includes("expected_stats") ||
+    normalized.includes("percentile") ||
+    normalized.includes("arsenal")
+  ) {
+    return "leaderboard" as const;
+  }
+  return "generic" as const;
+}
+
+function inferToolPrimaryEntityType(remoteToolName: string) {
+  const normalized = remoteToolName.toLowerCase();
+  if (
+    normalized.includes("batter") ||
+    normalized.includes("pitcher") ||
+    normalized.includes("player") ||
+    normalized.includes("leader")
+  ) {
+    return "player" as const;
+  }
+  if (
+    normalized.includes("schedule") ||
+    normalized.includes("game") ||
+    normalized.includes("boxscore")
+  ) {
+    return "game" as const;
+  }
+  return null;
+}
+
+function inferPreferredColumns(remoteToolName: string) {
+  const normalized = remoteToolName.toLowerCase();
+  if (normalized.includes("schedule")) {
+    return ["matchup", "status", "startTime", "venue"];
+  }
+  if (normalized.includes("leader")) {
+    return ["rank", "player", "team", "value"];
+  }
+  if (normalized.includes("expected_stats")) {
+    return ["player", "metric", "value"];
+  }
+  return [];
+}
+
 function buildMcpToolDefinition(input: {
   localToolName: string;
   remoteToolName: string;
@@ -181,6 +252,9 @@ function buildMcpToolDefinition(input: {
     requiresConfirmation: false,
     riskLevel: "low",
     inputSchema: input.inputSchema,
+    presentationProfile: inferToolPresentationProfile(input.remoteToolName),
+    primaryEntityType: inferToolPrimaryEntityType(input.remoteToolName),
+    preferredColumns: inferPreferredColumns(input.remoteToolName),
     exposure: "advanced",
     supportsSequentialUse: true,
     auditPriority: "high",
@@ -210,6 +284,7 @@ function buildEmptyDiscovery(expiresAt: number): MlbMcpToolDiscovery {
     toolCatalog: [],
     localToRemoteToolMap: new Map<string, string>(),
     expiresAt,
+    failureBackoffActive: false,
   };
 }
 
@@ -225,6 +300,7 @@ function extendDiscoveryRetryWindow(
     toolCatalog: discovery.toolCatalog,
     localToRemoteToolMap: new Map(discovery.localToRemoteToolMap),
     expiresAt: Date.now() + resolveFailureCacheTtlMs(config),
+    failureBackoffActive: true,
   };
 }
 
@@ -355,6 +431,64 @@ async function promiseWithTimeout<T>(
   });
 }
 
+function buildLocalDevUnavailableError(endpoint: string) {
+  return new Error(
+    `Local vendored MLB MCP was not detected at ${endpoint}. Start the vendored server or set HERMES_INTERNAL_MLB_MCP_URL explicitly.`,
+  );
+}
+
+async function ensureImplicitLocalDevEndpointReachable(config: InternalMlbMcpConfig) {
+  if (!config.implicitLocalDevFallback || !config.endpoint) {
+    return;
+  }
+
+  const now = Date.now();
+  if (
+    cachedLocalDevProbe &&
+    cachedLocalDevProbe.endpoint === config.endpoint &&
+    cachedLocalDevProbe.expiresAt > now
+  ) {
+    if (cachedLocalDevProbe.reachable) {
+      return;
+    }
+    throw buildLocalDevUnavailableError(config.endpoint);
+  }
+
+  if (!inFlightLocalDevProbe) {
+    inFlightLocalDevProbe = (async () => {
+      const abortController = new AbortController();
+      const timeoutId = setTimeout(() => abortController.abort(), LOCAL_DEV_PROBE_TIMEOUT_MS);
+      try {
+        await fetch(config.endpoint!, {
+          method: "GET",
+          signal: abortController.signal,
+          headers: {
+            accept: "application/json, text/plain, */*",
+          },
+        });
+        return true;
+      } catch {
+        return false;
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    })().finally(() => {
+      inFlightLocalDevProbe = null;
+    });
+  }
+
+  const reachable = await inFlightLocalDevProbe;
+  cachedLocalDevProbe = {
+    endpoint: config.endpoint,
+    reachable,
+    expiresAt: now + LOCAL_DEV_PROBE_CACHE_TTL_MS,
+  };
+
+  if (!reachable) {
+    throw buildLocalDevUnavailableError(config.endpoint);
+  }
+}
+
 async function withMlbMcpClient<T>(
   config: InternalMlbMcpConfig,
   callback: (client: Client) => Promise<T>,
@@ -362,6 +496,8 @@ async function withMlbMcpClient<T>(
   if (!config.endpoint) {
     throw new Error("Internal MLB MCP endpoint is not configured.");
   }
+
+  await ensureImplicitLocalDevEndpointReachable(config);
 
   const abortController = new AbortController();
   const requestHeaders: Record<string, string> = {};
@@ -436,6 +572,7 @@ async function fetchToolDiscovery(config: InternalMlbMcpConfig): Promise<MlbMcpT
     toolCatalog,
     localToRemoteToolMap,
     expiresAt: Date.now() + config.cacheTtlMs,
+    failureBackoffActive: false,
   };
 }
 
@@ -488,11 +625,61 @@ async function resolveRemoteToolName(localToolName: string): Promise<string> {
   const direct = current.localToRemoteToolMap.get(localToolName);
   if (direct) return direct;
 
+  if (current.failureBackoffActive && current.expiresAt > Date.now()) {
+    throw new Error("Internal MLB MCP tool catalog is temporarily unavailable.");
+  }
+
   const refreshed = await loadToolDiscovery(true);
   const afterRefresh = refreshed.localToRemoteToolMap.get(localToolName);
   if (afterRefresh) return afterRefresh;
 
+  if (refreshed.failureBackoffActive && refreshed.expiresAt > Date.now()) {
+    throw new Error("Internal MLB MCP tool catalog is temporarily unavailable.");
+  }
+
   throw buildMissingRemoteToolError(localToolName);
+}
+
+async function callInternalMlbMcpToolUnbounded(input: {
+  toolName: string;
+  args?: Record<string, unknown>;
+}): Promise<{
+  remoteToolName: string;
+  content: unknown[];
+  structuredContent: unknown;
+  replyText: string | null;
+}> {
+  const config = resolveInternalMlbMcpConfig();
+  if (!config.enabled || !config.endpoint) {
+    throw new Error("Internal MLB MCP is not configured.");
+  }
+
+  const remoteToolName = await resolveRemoteToolName(input.toolName);
+  const callResult = (await withMlbMcpClient(config, (client) =>
+    client.callTool({
+      name: remoteToolName,
+      arguments: isRecord(input.args) ? input.args : {},
+    }),
+  )) as {
+    isError?: boolean;
+    content?: unknown[];
+    structuredContent?: unknown;
+  };
+
+  const content = Array.isArray(callResult.content) ? callResult.content : [];
+  const replyText = extractToolText(content);
+  const isError = callResult.isError === true;
+
+  if (isError) {
+    throw new Error(replyText || `Internal MLB MCP tool ${remoteToolName} failed.`);
+  }
+
+  return {
+    remoteToolName,
+    content,
+    structuredContent: callResult.structuredContent ?? null,
+    replyText,
+  };
 }
 
 export function isInternalMlbMcpProjectedTool(toolName: string): boolean {
@@ -542,65 +729,78 @@ export async function getInternalMlbMcpStatus(): Promise<{
   };
 }
 
-export async function runInternalMlbMcpReadTool(input: {
+export async function runInternalMlbMcpToolRaw(input: {
   toolName: string;
   args?: Record<string, unknown>;
-}): Promise<unknown> {
-  const config = resolveInternalMlbMcpConfig();
-  if (!config.enabled || !config.endpoint) {
-    throw new Error("Internal MLB MCP is not configured.");
-  }
+}): Promise<{
+  remoteToolName: string;
+  content: unknown[];
+  structuredContent: unknown;
+  replyText: string | null;
+}> {
+  return callInternalMlbMcpToolUnbounded(input);
+}
 
-  const remoteToolName = await resolveRemoteToolName(input.toolName);
-  const callResult = (await withMlbMcpClient(config, (client) =>
-    client.callTool({
-      name: remoteToolName,
-      arguments: isRecord(input.args) ? input.args : {},
-    }),
-  )) as {
-    isError?: boolean;
-    content?: unknown[];
-    structuredContent?: unknown;
-  };
-
-  const rawContent = Array.isArray(callResult.content) ? callResult.content : [];
-  const content = boundToolContent(rawContent);
+export async function runInternalMlbMcpToolBounded(input: {
+  toolName: string;
+  args?: Record<string, unknown>;
+}): Promise<{
+  remoteToolName: string;
+  content: unknown[];
+  structuredContent: unknown;
+  replyText: string | null;
+  payloadTruncated: boolean;
+  truncation: {
+    replyTextChars: number | null;
+    structuredContentChars: number | null;
+    contentChars: number | null;
+  } | null;
+}> {
+  const rawResult = await callInternalMlbMcpToolUnbounded(input);
+  const content = boundToolContent(rawResult.content);
   const extractedReplyText = extractToolText(content.value);
-  const structuredContent = boundStructuredContent(callResult.structuredContent ?? null);
-  const isError = callResult.isError === true;
-
-  if (isError) {
-    const errorReplyText = boundReplyText(
-      extractedReplyText || `Internal MLB MCP tool ${remoteToolName} failed.`,
-    );
-    throw new Error(errorReplyText.value || `Internal MLB MCP tool ${remoteToolName} failed.`);
-  }
-
+  const structuredContent = boundStructuredContent(rawResult.structuredContent ?? null);
   const replyText = boundReplyText(
     extractedReplyText ||
-      `Internal MLB MCP tool ${remoteToolName} completed with structured output.`,
+      `Internal MLB MCP tool ${rawResult.remoteToolName} completed with structured output.`,
   );
 
   const payloadTruncated = replyText.truncated || structuredContent.truncated || content.truncated;
 
   return {
-    summary: `Loaded MLB data via ${remoteToolName}.`,
+    remoteToolName: rawResult.remoteToolName,
+    content: content.value,
+    structuredContent: structuredContent.value,
     replyText: replyText.value,
+    payloadTruncated,
+    truncation: payloadTruncated
+      ? {
+          replyTextChars: replyText.truncated ? replyText.originalCharLength : null,
+          structuredContentChars: structuredContent.truncated
+            ? structuredContent.originalCharLength
+            : null,
+          contentChars: content.truncated ? content.originalCharLength : null,
+        }
+      : null,
+  };
+}
+
+export async function runInternalMlbMcpReadTool(input: {
+  toolName: string;
+  args?: Record<string, unknown>;
+}): Promise<unknown> {
+  const boundedResult = await runInternalMlbMcpToolBounded(input);
+
+  return {
+    summary: `Loaded MLB data via ${boundedResult.remoteToolName}.`,
+    replyText: boundedResult.replyText,
     context: {
       provider: "internal_mlb_mcp",
-      remoteToolName,
-      structuredContent: structuredContent.value,
-      content: content.value,
-      payloadTruncated,
-      truncation: payloadTruncated
-        ? {
-            replyTextChars: replyText.truncated ? replyText.originalCharLength : null,
-            structuredContentChars: structuredContent.truncated
-              ? structuredContent.originalCharLength
-              : null,
-            contentChars: content.truncated ? content.originalCharLength : null,
-          }
-        : null,
+      remoteToolName: boundedResult.remoteToolName,
+      structuredContent: boundedResult.structuredContent,
+      content: boundedResult.content,
+      payloadTruncated: boundedResult.payloadTruncated,
+      truncation: boundedResult.truncation,
     },
   };
 }
@@ -609,4 +809,6 @@ export function resetInternalMlbMcpCacheForTests() {
   cachedDiscovery = null;
   inFlightDiscovery = null;
   lastWarningAt = 0;
+  cachedLocalDevProbe = null;
+  inFlightLocalDevProbe = null;
 }

@@ -711,6 +711,12 @@
     font-size: 0.8125rem;
   }
 
+  .agent-markdown-table-shell {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
   .agent-markdown th,
   .agent-markdown td {
     padding: 0.375rem 0.625rem;

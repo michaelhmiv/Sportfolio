@@ -29,6 +29,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { MlbProbableBadge } from "@/components/mlb-probable-badge";
 import { Shimmer } from "@/components/ui/animations";
 import { PlayerModal } from "@/components/player-modal";
 import { apiRequest, authenticatedFetch } from "@/lib/queryClient";
@@ -51,6 +52,7 @@ type InjuryEntry = GameInsightDetailResponse["injuries"][number];
 type LivePlayerStats = {
   playerId?: string;
   name: string;
+  team?: string;
   position?: string;
   min?: string;
   pts?: number;
@@ -107,8 +109,26 @@ interface LiveStatsResponse {
   awayScore: number;
   homePlayers?: LivePlayerStats[];
   awayPlayers?: LivePlayerStats[];
-  homeTopPerformers?: Array<{ name: string; pts?: number; reb?: number; ast?: number }>;
-  awayTopPerformers?: Array<{ name: string; pts?: number; reb?: number; ast?: number }>;
+  homeTopPerformers?: Array<{
+    name: string;
+    team?: string;
+    pts?: number;
+    reb?: number;
+    ast?: number;
+    hits?: number;
+    runs?: number;
+    rbi?: number;
+  }>;
+  awayTopPerformers?: Array<{
+    name: string;
+    team?: string;
+    pts?: number;
+    reb?: number;
+    ast?: number;
+    hits?: number;
+    runs?: number;
+    rbi?: number;
+  }>;
   userEarnings?: {
     totalEstimatedEarnings: number;
     ownedPlayers: Array<{
@@ -185,6 +205,990 @@ const formatCompactName = (name: string) => {
   if (parts.length <= 1) return parts[0] || name;
   return `${parts[0].charAt(0)}. ${parts[parts.length - 1]}`;
 };
+
+const formatPitcherMetric = (value: number | null | undefined, digits = 3) => {
+  if (typeof value !== "number" || Number.isNaN(value)) return "--";
+  return value.toFixed(digits);
+};
+
+const formatPitcherEra = (value: number | null | undefined) => {
+  if (typeof value !== "number" || Number.isNaN(value)) return "--";
+  return value.toFixed(2);
+};
+
+const attendanceFormatter = new Intl.NumberFormat("en-US");
+
+const formatAttendance = (value: number | null | undefined) => {
+  if (typeof value !== "number" || Number.isNaN(value)) return null;
+  return attendanceFormatter.format(value);
+};
+
+function MlbLinescorePanel({
+  title,
+  game,
+  mlbPregame,
+  showDecisions = false,
+  embedded = false,
+}: {
+  title: string;
+  game?: Pick<GameInsight, "awayTeam" | "homeTeam"> | null;
+  mlbPregame?: GameInsight["mlbPregame"] | null;
+  showDecisions?: boolean;
+  embedded?: boolean;
+}) {
+  const gameState = mlbPregame?.gameState || null;
+  const linescore = gameState?.linescore || null;
+
+  if (!gameState && !linescore) {
+    return null;
+  }
+
+  const attendanceLabel = formatAttendance(gameState?.attendance);
+  const decisions = gameState?.decisions;
+
+  return (
+    <div className={embedded ? "space-y-3" : "rounded-sm border border-border/60 p-3"}>
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-sm font-semibold">{title}</div>
+        {gameState?.detailedStatus ? (
+          <Badge variant="outline" className="text-[10px] border-border/80">
+            {gameState.detailedStatus}
+          </Badge>
+        ) : null}
+      </div>
+
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {gameState?.inningLabel ? (
+          <Badge variant="outline" className="text-[10px] border-border/80">
+            {gameState.inningLabel}
+          </Badge>
+        ) : null}
+        {gameState?.countSummary ? (
+          <Badge variant="outline" className="text-[10px] border-border/80">
+            {gameState.countSummary}
+          </Badge>
+        ) : null}
+        {gameState?.weatherSummary ? (
+          <Badge variant="outline" className="text-[10px] border-border/80">
+            {gameState.weatherSummary}
+          </Badge>
+        ) : null}
+        {attendanceLabel ? (
+          <Badge variant="outline" className="text-[10px] border-border/80">
+            {attendanceLabel} in park
+          </Badge>
+        ) : null}
+      </div>
+
+      {linescore ? (
+        <div className="mt-3 overflow-x-auto">
+          <table className="w-full min-w-[420px] border-separate border-spacing-0 text-[10px]">
+            <thead>
+              <tr className="text-muted-foreground">
+                <th className="border-b border-border/60 px-2 py-1 text-left font-medium">Team</th>
+                {linescore.innings.map((inning) => (
+                  <th
+                    key={`${title}-inning-${inning.num}`}
+                    className="border-b border-border/60 px-2 py-1 text-right font-medium"
+                  >
+                    {inning.num}
+                  </th>
+                ))}
+                <th className="border-b border-border/60 px-2 py-1 text-right font-medium">R</th>
+                <th className="border-b border-border/60 px-2 py-1 text-right font-medium">H</th>
+                <th className="border-b border-border/60 px-2 py-1 text-right font-medium">E</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[
+                {
+                  team: game?.awayTeam || "Away",
+                  inningScores: linescore.innings.map((inning) => inning.away),
+                  totals: [
+                    linescore.totals.awayRuns,
+                    linescore.totals.awayHits,
+                    linescore.totals.awayErrors,
+                  ],
+                },
+                {
+                  team: game?.homeTeam || "Home",
+                  inningScores: linescore.innings.map((inning) => inning.home),
+                  totals: [
+                    linescore.totals.homeRuns,
+                    linescore.totals.homeHits,
+                    linescore.totals.homeErrors,
+                  ],
+                },
+              ].map((row) => (
+                <tr key={`${title}-${row.team}`}>
+                  <td className="border-b border-border/40 px-2 py-1.5 font-semibold text-foreground">
+                    {row.team}
+                  </td>
+                  {row.inningScores.map((value, index) => (
+                    <td
+                      key={`${title}-${row.team}-inning-${index + 1}`}
+                      className="border-b border-border/40 px-2 py-1.5 text-right font-mono"
+                    >
+                      {value ?? "-"}
+                    </td>
+                  ))}
+                  {row.totals.map((value, index) => (
+                    <td
+                      key={`${title}-${row.team}-total-${index + 1}`}
+                      className="border-b border-border/40 px-2 py-1.5 text-right font-mono font-semibold"
+                    >
+                      {value ?? "-"}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+
+      {showDecisions && decisions ? (
+        <div className="mt-3 grid gap-2 md:grid-cols-3">
+          {decisions.winner ? (
+            <div className="rounded-sm border border-border/60 bg-background/40 p-2 text-xs">
+              <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                Winning Pitcher
+              </div>
+              <div className="mt-1 font-semibold text-foreground">{decisions.winner}</div>
+            </div>
+          ) : null}
+          {decisions.loser ? (
+            <div className="rounded-sm border border-border/60 bg-background/40 p-2 text-xs">
+              <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                Losing Pitcher
+              </div>
+              <div className="mt-1 font-semibold text-foreground">{decisions.loser}</div>
+            </div>
+          ) : null}
+          {decisions.save ? (
+            <div className="rounded-sm border border-border/60 bg-background/40 p-2 text-xs">
+              <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                Save
+              </div>
+              <div className="mt-1 font-semibold text-foreground">{decisions.save}</div>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function MlbLifecycleCard({
+  game,
+  mlbPregame,
+  activeTab,
+  liveStats,
+  userContext,
+  isAuthenticated,
+  isHydratingDetails,
+  showMlbAdvanced,
+  onToggleAdvanced,
+}: {
+  game?: GameInsight | null;
+  mlbPregame?: GameInsight["mlbPregame"] | null;
+  activeTab: CommandCenterTab;
+  liveStats?: LiveStatsResponse;
+  userContext?: GameInsight["userContext"] | null;
+  isAuthenticated: boolean;
+  isHydratingDetails: boolean;
+  showMlbAdvanced: boolean;
+  onToggleAdvanced: () => void;
+}) {
+  if (!game || !mlbPregame) {
+    return null;
+  }
+
+  const isPregame = activeTab === "pre";
+  const lifecycleLabel = isPregame ? "Pregame" : activeTab === "during" ? "Live" : "Final";
+  const scoreAvailable =
+    !isPregame &&
+    typeof liveStats?.awayScore === "number" &&
+    typeof liveStats?.homeScore === "number";
+  const scoreLine = scoreAvailable
+    ? `${game.awayTeam} ${liveStats?.awayScore ?? 0} • ${liveStats?.homeScore ?? 0} ${game.homeTeam}`
+    : null;
+  const scheduledOwnedPlayers = userContext?.ownedPlayers || [];
+  const liveOwnedPlayers = liveStats?.userEarnings?.ownedPlayers || [];
+  const totalLiveEarnings = liveStats?.userEarnings?.totalEstimatedEarnings || 0;
+  const topPerformers = [
+    ...(liveStats?.awayTopPerformers || []),
+    ...(liveStats?.homeTopPerformers || []),
+  ]
+    .sort((left, right) => (right.pts || 0) - (left.pts || 0))
+    .slice(0, 4);
+  const hasMlbTeamContext = Boolean(mlbPregame.teamContexts.away || mlbPregame.teamContexts.home);
+  const attendanceLabel = formatAttendance(mlbPregame.attendance);
+  const ownershipBadgeLabel = isAuthenticated
+    ? isPregame
+      ? `${scheduledOwnedPlayers.length} held`
+      : `${liveOwnedPlayers.length} live`
+    : null;
+  const normalizeLookupToken = (value: string | null | undefined) =>
+    String(value || "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, " ");
+  const buildNameTeamKey = (name: string | null | undefined, team: string | null | undefined) =>
+    `${normalizeLookupToken(name)}::${normalizeLookupToken(team)}`;
+  const scheduledExposureByNameTeam = new Map(
+    scheduledOwnedPlayers.map((player) => [
+      buildNameTeamKey(player.name, player.team),
+      {
+        badge: `${player.multiplier.toFixed(1)}x`,
+        detail: `${player.totalShares.toFixed(1)} shares held`,
+        tone: "text-purple-500",
+      },
+    ]),
+  );
+  const liveExposureByNameTeam = new Map(
+    liveOwnedPlayers.map((player) => [
+      buildNameTeamKey(player.name, player.team),
+      {
+        badge: `$${player.estimatedEarnings.toFixed(2)}`,
+        detail: `${player.fantasyPoints.toFixed(1)} FP • ${player.effectiveShares.toFixed(1)} effective`,
+        tone: "text-emerald-600 dark:text-emerald-400",
+      },
+    ]),
+  );
+
+  return (
+    <section className="mt-4 overflow-hidden rounded-md border border-border/70 bg-background/80">
+      <div className="px-3 py-3.5 sm:px-4">
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                {isPregame
+                  ? "Pregame box score"
+                  : activeTab === "during"
+                    ? "Live box score"
+                    : "Final box score"}
+              </div>
+              <div className="mt-1 text-sm font-semibold text-foreground">
+                {mlbPregame.matchupSummary || "MLB matchup context is available for this game."}
+              </div>
+              {scoreLine ? (
+                <div className="mt-2 text-base font-semibold text-foreground">{scoreLine}</div>
+              ) : null}
+              {game.venue || mlbPregame.venue ? (
+                <div className="mt-2 text-xs text-muted-foreground">
+                  {game.venue || mlbPregame.venue}
+                </div>
+              ) : null}
+            </div>
+
+            <div className="flex shrink-0 flex-wrap gap-1">
+              <Badge variant="outline" className="text-[10px] border-border/80">
+                {lifecycleLabel}
+              </Badge>
+              {mlbPregame.weatherSummary ? (
+                <Badge variant="outline" className="text-[10px] border-border/80">
+                  {mlbPregame.weatherSummary}
+                </Badge>
+              ) : null}
+              {attendanceLabel ? (
+                <Badge variant="outline" className="text-[10px] border-border/80">
+                  {attendanceLabel} in park
+                </Badge>
+              ) : null}
+              {mlbPregame.doubleheader ? (
+                <Badge variant="outline" className="text-[10px] border-border/80">
+                  {mlbPregame.gameNumber ? `DH Game ${mlbPregame.gameNumber}` : "Doubleheader"}
+                </Badge>
+              ) : null}
+              {mlbPregame.lineupsPosted ? (
+                <Badge variant="outline" className="text-[10px] border-border/80">
+                  Lineups posted
+                </Badge>
+              ) : null}
+              {mlbPregame.statYear ? (
+                <Badge variant="outline" className="text-[10px] border-border/80">
+                  {mlbPregame.statYear} Statcast
+                </Badge>
+              ) : null}
+            </div>
+          </div>
+
+          {mlbPregame.broadcasts.length ? (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                Watch
+              </div>
+              {mlbPregame.broadcasts.map((broadcast) => (
+                <Badge key={broadcast} variant="outline" className="text-[10px] border-border/80">
+                  {broadcast}
+                </Badge>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="border-t border-border/60 px-3 py-3 sm:px-4">
+        <div className="flex items-center justify-between gap-2">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            Your exposure
+          </div>
+          {ownershipBadgeLabel ? (
+            <Badge variant="outline" className="text-[10px] border-border/80">
+              {ownershipBadgeLabel}
+            </Badge>
+          ) : null}
+        </div>
+
+        {!isAuthenticated ? (
+          <div className="mt-2 text-xs text-muted-foreground">
+            Sign in to tie this matchup back to your holdings and earnings.
+          </div>
+        ) : isPregame ? (
+          scheduledOwnedPlayers.length > 0 ? (
+            <div className="mt-3 space-y-2">
+              <div className="flex flex-wrap gap-1.5">
+                {scheduledOwnedPlayers.slice(0, 4).map((player) => (
+                  <Badge
+                    key={`pregame-owned-${player.playerId}`}
+                    variant="outline"
+                    className="text-[10px] gap-1 border-border/80"
+                  >
+                    <span className="text-purple-500">{formatCompactName(player.name)}</span>
+                    <span className="font-mono">{player.multiplier.toFixed(1)}x</span>
+                  </Badge>
+                ))}
+                {scheduledOwnedPlayers.length > 4 ? (
+                  <Badge variant="outline" className="text-[10px] border-border/80">
+                    +{scheduledOwnedPlayers.length - 4}
+                  </Badge>
+                ) : null}
+              </div>
+              <div className="text-[11px] text-muted-foreground">
+                Track posted lineups here against the players you already hold in this game.
+              </div>
+            </div>
+          ) : (
+            <div className="mt-2 text-xs text-muted-foreground">
+              No current holdings in this matchup.
+            </div>
+          )
+        ) : liveOwnedPlayers.length > 0 ? (
+          <div className="mt-3 space-y-2">
+            <div className="flex items-center justify-between rounded-sm border border-emerald-500/30 bg-background/70 px-2 py-1.5">
+              <span className="text-xs text-muted-foreground">
+                {activeTab === "during" ? "Live estimated" : "Final estimated"}
+              </span>
+              <span className="font-mono text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+                ${totalLiveEarnings.toFixed(2)}
+              </span>
+            </div>
+            <div className="space-y-1.5">
+              {liveOwnedPlayers.slice(0, 4).map((player) => (
+                <div
+                  key={`live-owned-${player.playerId}`}
+                  className="flex items-center justify-between gap-2 rounded-sm border border-border/60 bg-background/60 px-2 py-1.5"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-xs font-medium text-purple-500">
+                      {formatCompactName(player.name)}
+                    </div>
+                    <div className="text-[10px] text-muted-foreground">
+                      {player.team} • {player.fantasyPoints.toFixed(1)} FP •{" "}
+                      {player.effectiveShares.toFixed(1)} effective
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-mono text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                      ${player.estimatedEarnings.toFixed(2)}
+                    </div>
+                    <div className="text-[10px] text-muted-foreground">
+                      {player.quantity.toFixed(2)} shares
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="mt-2 text-xs text-muted-foreground">
+            No stacked or boosted earning lines are active in this matchup yet.
+          </div>
+        )}
+      </div>
+
+      {!isPregame && mlbPregame.gameState ? (
+        <MlbLinescorePanel
+          title={activeTab === "during" ? "MLB Game State" : "Final Linescore"}
+          game={game}
+          mlbPregame={mlbPregame}
+          showDecisions={activeTab === "post"}
+          embedded
+        />
+      ) : null}
+
+      {!isPregame && topPerformers.length ? (
+        <div className="border-t border-border/60 px-3 py-3 sm:px-4">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+            Game pulse
+          </div>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            {topPerformers.map((player) => (
+              <div
+                key={`pulse-${player.team || "UNK"}-${player.name}`}
+                className="rounded-sm border border-border/60 bg-background/40 p-2"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="truncate text-xs font-semibold text-foreground">
+                      {player.name}
+                    </div>
+                    <div className="text-[10px] text-muted-foreground">{player.team || "MLB"}</div>
+                  </div>
+                  <div className="text-right font-mono text-[11px]">
+                    <div>{(player.pts || 0).toFixed(1)} FP</div>
+                    <div className="text-muted-foreground">Sportfolio</div>
+                  </div>
+                </div>
+                <div className="mt-2 text-[11px] text-muted-foreground">
+                  {player.hits ?? 0} H • {player.runs ?? 0} R • {player.rbi ?? 0} RBI
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {!isPregame && mlbPregame.scoringPlays.length ? (
+        <div className="border-t border-border/60 px-3 py-3 sm:px-4">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+            Scoring summary
+          </div>
+          <div className="mt-3 space-y-2">
+            {mlbPregame.scoringPlays.slice(0, 4).map((play, index) => (
+              <div
+                key={`scoring-play-${play.inningLabel || "inning"}-${index}`}
+                className="rounded-sm border border-border/60 bg-background/40 p-2"
+              >
+                <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
+                  {play.inningLabel ? <span>{play.inningLabel}</span> : null}
+                  {play.battingTeam ? <span>{play.battingTeam}</span> : null}
+                  {play.scoreLabel ? <span>{play.scoreLabel}</span> : null}
+                  {play.event ? <span>{play.event}</span> : null}
+                </div>
+                <div className="mt-1 text-xs text-foreground">{play.description}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      <div className="border-t border-border/60 px-3 py-3 sm:px-4">
+        <div className="flex items-center justify-between gap-2">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+            {isPregame ? "Probable starters" : "Starter context"}
+          </div>
+          {mlbPregame.advancedStatsAvailable ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-[11px]"
+              onClick={onToggleAdvanced}
+            >
+              {showMlbAdvanced ? (
+                <>
+                  Hide advanced <ChevronUp className="ml-1 h-3 w-3" />
+                </>
+              ) : (
+                <>
+                  Show advanced <ChevronDown className="ml-1 h-3 w-3" />
+                </>
+              )}
+            </Button>
+          ) : null}
+        </div>
+
+        <div className="mt-3 grid gap-3 md:grid-cols-2">
+          {[
+            {
+              side: "Away",
+              team: game.awayTeam || "Away",
+              pitcher: mlbPregame.probablePitchers.away,
+              stats: mlbPregame.probablePitcherStats.away,
+            },
+            {
+              side: "Home",
+              team: game.homeTeam || "Home",
+              pitcher: mlbPregame.probablePitchers.home,
+              stats: mlbPregame.probablePitcherStats.home,
+            },
+          ].map((entry) => (
+            <div
+              key={`${entry.side}-${entry.team}`}
+              className="rounded-sm border border-border/60 bg-background/40 p-3"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                  {entry.team} probable
+                </div>
+                <div className="flex items-center gap-1">
+                  <MlbProbableBadge />
+                  {entry.stats ? (
+                    <Badge variant="outline" className="text-[10px] border-border/80">
+                      Advanced
+                    </Badge>
+                  ) : null}
+                </div>
+              </div>
+
+              <div className="mt-2 text-sm font-semibold text-foreground">
+                {entry.pitcher?.name || "TBD"}
+              </div>
+              <div className="mt-1 text-xs text-muted-foreground">
+                {entry.stats?.summary ||
+                  entry.pitcher?.note ||
+                  "Statcast expected stats are not available for this starter yet."}
+              </div>
+
+              {showMlbAdvanced && entry.stats ? (
+                <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                  <div className="rounded-sm border border-border/60 bg-background/50 p-2">
+                    <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                      ERA
+                    </div>
+                    <div className="mt-1 font-mono">{formatPitcherEra(entry.stats.era)}</div>
+                  </div>
+                  <div className="rounded-sm border border-border/60 bg-background/50 p-2">
+                    <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                      xERA
+                    </div>
+                    <div className="mt-1 font-mono text-emerald-600 dark:text-emerald-400">
+                      {formatPitcherEra(entry.stats.xera)}
+                    </div>
+                  </div>
+                  <div className="rounded-sm border border-border/60 bg-background/50 p-2">
+                    <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                      wOBA
+                    </div>
+                    <div className="mt-1 font-mono">{formatPitcherMetric(entry.stats.woba)}</div>
+                  </div>
+                  <div className="rounded-sm border border-border/60 bg-background/50 p-2">
+                    <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                      xwOBA
+                    </div>
+                    <div className="mt-1 font-mono">
+                      {formatPitcherMetric(entry.stats.expectedWoba)}
+                    </div>
+                  </div>
+                  <div className="rounded-sm border border-border/60 bg-background/50 p-2">
+                    <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                      AVG
+                    </div>
+                    <div className="mt-1 font-mono">
+                      {formatPitcherMetric(entry.stats.battingAverage)}
+                    </div>
+                  </div>
+                  <div className="rounded-sm border border-border/60 bg-background/50 p-2">
+                    <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                      xAVG
+                    </div>
+                    <div className="mt-1 font-mono">
+                      {formatPitcherMetric(entry.stats.expectedBattingAverage)}
+                    </div>
+                  </div>
+                  <div className="rounded-sm border border-border/60 bg-background/50 p-2">
+                    <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                      SLG
+                    </div>
+                    <div className="mt-1 font-mono">
+                      {formatPitcherMetric(entry.stats.slugging)}
+                    </div>
+                  </div>
+                  <div className="rounded-sm border border-border/60 bg-background/50 p-2">
+                    <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                      xSLG
+                    </div>
+                    <div className="mt-1 font-mono">
+                      {formatPitcherMetric(entry.stats.expectedSlugging)}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="border-t border-border/60 px-3 py-3 sm:px-4">
+        <div className="flex items-center justify-between gap-2">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+            Starting lineups
+          </div>
+          {isHydratingDetails && !mlbPregame.lineupsPosted ? (
+            <Badge variant="outline" className="text-[10px] border-border/80">
+              Loading
+            </Badge>
+          ) : mlbPregame.lineupsPosted ? (
+            <Badge variant="outline" className="text-[10px] border-border/80">
+              Gameday
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="text-[10px] border-border/80">
+              Pending
+            </Badge>
+          )}
+        </div>
+
+        {mlbPregame.lineupsPosted ? (
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            {[
+              {
+                team: game.awayTeam || "Away",
+                lineup: mlbPregame.startingLineups.away,
+                note: mlbPregame.hitterMatchupNotes.away,
+                signal: mlbPregame.lineupSignals.away,
+                context: mlbPregame.teamContexts.away,
+                opposingPitcher: mlbPregame.probablePitchers.home?.name || game.homeTeam || "Home",
+              },
+              {
+                team: game.homeTeam || "Home",
+                lineup: mlbPregame.startingLineups.home,
+                note: mlbPregame.hitterMatchupNotes.home,
+                signal: mlbPregame.lineupSignals.home,
+                context: mlbPregame.teamContexts.home,
+                opposingPitcher: mlbPregame.probablePitchers.away?.name || game.awayTeam || "Away",
+              },
+            ].map((entry) => (
+              <div
+                key={`${entry.team}-lineup`}
+                className="rounded-sm border border-border/60 bg-background/40 p-3"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="text-xs font-semibold uppercase tracking-[0.1em] text-foreground">
+                      {entry.team}
+                    </div>
+                    <div className="mt-1 text-[11px] text-muted-foreground">
+                      {entry.context?.record ? `${entry.context.record} • ` : ""}
+                      vs {entry.opposingPitcher}
+                    </div>
+                  </div>
+                  {entry.context?.record ? (
+                    <Badge variant="outline" className="text-[10px] border-border/80">
+                      {entry.context.record}
+                    </Badge>
+                  ) : null}
+                </div>
+                {entry.note || entry.signal ? (
+                  <div className="mt-2 text-[11px] text-muted-foreground">
+                    {entry.note || entry.signal}
+                  </div>
+                ) : null}
+                {entry.lineup.length ? (
+                  <div className="space-y-1.5">
+                    {entry.lineup.map((player) => {
+                      const exposure = (
+                        isPregame ? scheduledExposureByNameTeam : liveExposureByNameTeam
+                      ).get(buildNameTeamKey(player.name, entry.team));
+
+                      return (
+                        <div
+                          key={`${entry.team}-${player.slot}-${player.playerId || player.name}`}
+                          className={`rounded-sm px-2 py-2 text-xs ${exposure ? "bg-purple-500/5" : ""}`}
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono text-muted-foreground">
+                                  {player.slot}.
+                                </span>
+                                <span
+                                  className={`truncate font-medium ${exposure ? "text-purple-500" : "text-foreground"}`}
+                                >
+                                  {player.name}
+                                </span>
+                              </div>
+                              {exposure ? (
+                                <div className="mt-1 pl-5 text-[11px] text-muted-foreground">
+                                  {exposure.detail}
+                                </div>
+                              ) : null}
+                            </div>
+                            <div className="shrink-0 text-right">
+                              <div
+                                className={`font-mono text-[11px] ${exposure ? exposure.tone : "text-muted-foreground"}`}
+                              >
+                                {exposure?.badge || player.position || "--"}
+                              </div>
+                              {!exposure && player.jerseyNumber ? (
+                                <div className="text-[10px] text-muted-foreground">
+                                  #{player.jerseyNumber}
+                                </div>
+                              ) : null}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-xs text-muted-foreground">
+                    {entry.team} has not posted a lineup yet.
+                  </div>
+                )}
+                {entry.context?.lastGameSummary || entry.context?.nextGameSummary ? (
+                  <div className="mt-3 space-y-1.5 border-t border-border/40 pt-3 text-[11px] text-muted-foreground">
+                    {entry.context?.lastGameSummary ? (
+                      <div>{entry.context.lastGameSummary}</div>
+                    ) : null}
+                    {entry.context?.nextGameSummary ? (
+                      <div>{entry.context.nextGameSummary}</div>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="mt-3 text-xs text-muted-foreground">
+            {isHydratingDetails
+              ? "Loading the full MLB box score and batting orders..."
+              : "MLB has not posted the batting orders for this game yet."}
+          </div>
+        )}
+      </div>
+
+      {isPregame && !mlbPregame.lineupsPosted ? (
+        <div className="border-t border-border/60 px-3 py-3 sm:px-4">
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+              Hitter matchups
+            </div>
+            <Badge variant="outline" className="text-[10px] border-border/80">
+              Display only
+            </Badge>
+          </div>
+
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            {[
+              {
+                team: game.awayTeam || "Away",
+                note: mlbPregame.hitterMatchupNotes.away,
+                signal: mlbPregame.lineupSignals.away,
+                spotlights: mlbPregame.hitterSpotlights.away,
+                opposingPitcher: mlbPregame.probablePitchers.home?.name || game.homeTeam || "Home",
+              },
+              {
+                team: game.homeTeam || "Home",
+                note: mlbPregame.hitterMatchupNotes.home,
+                signal: mlbPregame.lineupSignals.home,
+                spotlights: mlbPregame.hitterSpotlights.home,
+                opposingPitcher: mlbPregame.probablePitchers.away?.name || game.awayTeam || "Away",
+              },
+            ].map((entry) => (
+              <div
+                key={`${entry.team}-hitters`}
+                className="rounded-sm border border-border/60 bg-background/40 p-3"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-xs font-semibold uppercase tracking-[0.1em] text-foreground">
+                    {entry.team} bats
+                  </div>
+                  <Badge variant="outline" className="text-[10px] border-border/80">
+                    vs {entry.opposingPitcher}
+                  </Badge>
+                </div>
+
+                <div className="mt-2 text-xs text-foreground">
+                  {entry.note ||
+                    entry.signal ||
+                    "Waiting on posted lineup or hitter Statcast context."}
+                </div>
+
+                {entry.signal && entry.signal !== entry.note ? (
+                  <div className="mt-1 text-[11px] text-muted-foreground">{entry.signal}</div>
+                ) : null}
+
+                {entry.spotlights.length ? (
+                  <div className="mt-3 space-y-2">
+                    {entry.spotlights.map((player) => (
+                      <div
+                        key={`${entry.team}-${player.slot}-${player.name}`}
+                        className="rounded-sm border border-border/60 bg-background/60 p-2"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-[11px] text-muted-foreground">
+                                {player.slot}.
+                              </span>
+                              <span className="truncate text-xs font-semibold text-foreground">
+                                {player.name}
+                              </span>
+                              {player.position ? (
+                                <span className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
+                                  {player.position}
+                                </span>
+                              ) : null}
+                            </div>
+                          </div>
+                          <div className="text-right font-mono text-[11px]">
+                            <div>{formatPitcherMetric(player.expectedWoba)}</div>
+                            <div className="text-muted-foreground">xwOBA</div>
+                          </div>
+                        </div>
+                        <div className="mt-1 text-[11px] text-muted-foreground">
+                          {player.summary}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="mt-3 text-xs text-muted-foreground">
+                    No hitter spotlights available yet.
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {hasMlbTeamContext && !mlbPregame.lineupsPosted ? (
+        <div className="border-t border-border/60 px-3 py-3 sm:px-4">
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+              Club context
+            </div>
+            <Badge variant="outline" className="text-[10px] border-border/80">
+              Display only
+            </Badge>
+          </div>
+
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            {[
+              {
+                team: game.awayTeam || "Away",
+                context: mlbPregame.teamContexts.away,
+              },
+              {
+                team: game.homeTeam || "Home",
+                context: mlbPregame.teamContexts.home,
+              },
+            ].map((entry) => (
+              <div
+                key={`${entry.team}-club-context`}
+                className="rounded-sm border border-border/60 bg-background/40 p-3"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-xs font-semibold uppercase tracking-[0.1em] text-foreground">
+                    {entry.team}
+                  </div>
+                  {entry.context?.record ? (
+                    <Badge variant="outline" className="text-[10px] border-border/80">
+                      {entry.context.record}
+                    </Badge>
+                  ) : null}
+                </div>
+
+                <div className="mt-3 space-y-2 text-xs">
+                  {entry.context?.lastGameSummary ? (
+                    <div>
+                      <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                        Last result
+                      </div>
+                      <div className="mt-1 text-foreground">{entry.context.lastGameSummary}</div>
+                    </div>
+                  ) : null}
+                  {entry.context?.nextGameSummary ? (
+                    <div>
+                      <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                        On deck
+                      </div>
+                      <div className="mt-1 text-foreground">{entry.context.nextGameSummary}</div>
+                    </div>
+                  ) : null}
+                  {!entry.context?.record &&
+                  !entry.context?.lastGameSummary &&
+                  !entry.context?.nextGameSummary ? (
+                    <div className="text-muted-foreground">
+                      Team context is not available for this club yet.
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function MlbEnrichmentStatusCard({
+  game,
+  mlbEnrichment,
+  activeTab,
+}: {
+  game?: GameInsight | null;
+  mlbEnrichment?: GameInsight["mlbEnrichment"] | null;
+  activeTab: CommandCenterTab;
+}) {
+  if (!game || !mlbEnrichment) {
+    return null;
+  }
+
+  const isUnavailable = mlbEnrichment.state === "unavailable";
+
+  return (
+    <section className="mt-4 rounded-md border border-amber-500/35 bg-amber-500/5 p-3 sm:p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-600 dark:text-amber-400">
+            {activeTab === "pre"
+              ? "Pregame box score"
+              : activeTab === "during"
+                ? "Live box score"
+                : "Final box score"}
+          </div>
+          <div className="mt-1 text-sm font-semibold text-foreground">
+            {isUnavailable
+              ? "Game-center updates are unavailable."
+              : "Game-center updates are still loading."}
+          </div>
+          <div className="mt-2 text-xs text-muted-foreground">
+            {isUnavailable
+              ? "Probable pitchers, lineups, and matchup extras are not available right now. Core game and share data are still available."
+              : activeTab === "pre"
+                ? "Probable pitchers, lineups, and matchup extras have not posted for this game yet."
+                : "Live matchup extras have not loaded yet for this game."}
+          </div>
+          {game.venue ? (
+            <div className="mt-2 text-xs text-muted-foreground">{game.venue}</div>
+          ) : null}
+        </div>
+
+        <Badge
+          variant="outline"
+          className="w-fit text-[10px] border-amber-500/40 text-amber-700 dark:text-amber-300"
+        >
+          {mlbEnrichment.state === "unavailable" ? "Unavailable" : "Pending"}
+        </Badge>
+      </div>
+
+      <div className="mt-3 rounded-sm border border-amber-500/20 bg-background/70 p-2.5">
+        <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+          Status
+        </div>
+        <div className="mt-1 text-xs text-foreground">
+          {mlbEnrichment.message || "MLB enrichment status is not available yet."}
+        </div>
+      </div>
+    </section>
+  );
+}
 
 const getPlayerIdVariants = (playerId: string, sport?: string) => {
   const rawId = String(playerId || "").trim();
@@ -331,6 +1335,7 @@ export function GameCommandCenterModal({
   const [showBoostSelector, setShowBoostSelector] = useState(false);
   const [selectedTier, setSelectedTier] = useState<2 | 3 | 4 | 5 | null>(null);
   const [swapTargetPlayerId, setSwapTargetPlayerId] = useState<string | null>(null);
+  const [showMlbAdvanced, setShowMlbAdvanced] = useState(false);
 
   const { data: insight, isLoading } = useQuery<GameInsightDetailResponse>({
     queryKey: ["/api/games", gameId, "insights", sport, date],
@@ -350,6 +1355,10 @@ export function GameCommandCenterModal({
   const leaders = insight?.leaders || game?.leaders;
   const userContext = insight?.userContext || game?.userContext || null;
   const boostSlotsRemaining = insight?.boostSlotsRemaining ?? null;
+  const mlbPregame = liveSport === "MLB" ? game?.mlbPregame || null : null;
+  const mlbEnrichment = liveSport === "MLB" ? game?.mlbEnrichment || null : null;
+  const isHydratingMlbDetails =
+    liveSport === "MLB" && isLoading && Boolean(initialInsight?.mlbPregame) && !insight;
 
   const {
     data: liveStats,
@@ -363,7 +1372,7 @@ export function GameCommandCenterModal({
       if (!res.ok) throw new Error("Failed to fetch live stats");
       return res.json();
     },
-    enabled: !!gameId && activeTab === "during",
+    enabled: !!gameId && (activeTab === "during" || (liveSport === "MLB" && activeTab === "post")),
     refetchInterval: activeTab === "during" ? 30000 : false,
   });
 
@@ -446,18 +1455,24 @@ export function GameCommandCenterModal({
 
   const liveHomePlayers = useMemo(
     () =>
-      [...(liveStats?.homePlayers || [])].sort(
-        (a, b) => (b.fantasyPoints || 0) - (a.fantasyPoints || 0),
-      ),
-    [liveStats?.homePlayers],
+      [...(liveStats?.homePlayers || [])]
+        .map((player) => ({
+          ...player,
+          team: player.team || liveStats?.homeTeam || game?.homeTeam || "Home",
+        }))
+        .sort((a, b) => (b.fantasyPoints || 0) - (a.fantasyPoints || 0)),
+    [game?.homeTeam, liveStats?.homePlayers, liveStats?.homeTeam],
   );
 
   const liveAwayPlayers = useMemo(
     () =>
-      [...(liveStats?.awayPlayers || [])].sort(
-        (a, b) => (b.fantasyPoints || 0) - (a.fantasyPoints || 0),
-      ),
-    [liveStats?.awayPlayers],
+      [...(liveStats?.awayPlayers || [])]
+        .map((player) => ({
+          ...player,
+          team: player.team || liveStats?.awayTeam || game?.awayTeam || "Away",
+        }))
+        .sort((a, b) => (b.fantasyPoints || 0) - (a.fantasyPoints || 0)),
+    [game?.awayTeam, liveStats?.awayPlayers, liveStats?.awayTeam],
   );
 
   const liveInjuries = useMemo(() => {
@@ -501,6 +1516,22 @@ export function GameCommandCenterModal({
     ];
     return [...players].sort((a, b) => b.fantasyPoints - a.fantasyPoints).slice(0, 5);
   }, [gameStats]);
+
+  const mlbLiveFantasyLeaders = useMemo(
+    () =>
+      [...liveAwayPlayers, ...liveHomePlayers]
+        .sort((a, b) => (b.fantasyPoints || 0) - (a.fantasyPoints || 0))
+        .slice(0, 5),
+    [liveAwayPlayers, liveHomePlayers],
+  );
+
+  const mlbTopPerformers = useMemo(
+    () =>
+      [...(liveStats?.awayTopPerformers || []), ...(liveStats?.homeTopPerformers || [])]
+        .sort((left, right) => (right.pts || 0) - (left.pts || 0))
+        .slice(0, 4),
+    [liveStats?.awayTopPerformers, liveStats?.homeTopPerformers],
+  );
 
   // Split top players by team for Pre-Game tab
   const awayTeamPlayers = useMemo(() => {
@@ -744,7 +1775,7 @@ export function GameCommandCenterModal({
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="w-[calc(100vw-1rem)] max-w-4xl max-h-[90vh] overflow-y-auto overflow-x-hidden">
+      <DialogContent className="w-[calc(100vw-0.75rem)] max-w-4xl max-h-[92svh] overflow-y-auto overflow-x-hidden sm:w-[calc(100vw-1rem)] sm:max-h-[90vh]">
         <DialogHeader>
           <DialogTitle>
             {game ? `${game.awayTeam} @ ${game.homeTeam}` : "Game Command Center"}
@@ -763,6 +1794,28 @@ export function GameCommandCenterModal({
             </Badge>
           </div>
         </DialogHeader>
+
+        {liveSport === "MLB" ? (
+          mlbPregame ? (
+            <MlbLifecycleCard
+              game={game}
+              mlbPregame={mlbPregame}
+              activeTab={activeTab}
+              liveStats={liveStats}
+              userContext={userContext}
+              isAuthenticated={isAuthenticated}
+              isHydratingDetails={isHydratingMlbDetails}
+              showMlbAdvanced={showMlbAdvanced}
+              onToggleAdvanced={() => setShowMlbAdvanced((current) => !current)}
+            />
+          ) : mlbEnrichment ? (
+            <MlbEnrichmentStatusCard
+              game={game}
+              mlbEnrichment={mlbEnrichment}
+              activeTab={activeTab}
+            />
+          ) : null
+        ) : null}
 
         <Tabs value={activeTab} className="mt-4">
           <TabsContent value="pre" className="mt-4 space-y-4">
@@ -1792,11 +2845,110 @@ export function GameCommandCenterModal({
           <TabsContent value="post" className="mt-4 space-y-4">
             <div className="flex items-center justify-between">
               <div className="text-sm font-semibold">Post-Game Recap</div>
-              <Button variant="outline" size="sm" onClick={() => refetchStats()}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => (liveSport === "MLB" ? refetchLive() : refetchStats())}
+              >
                 <RefreshCw className="mr-2 h-4 w-4" /> Refresh
               </Button>
             </div>
-            {isLoadingStats ? (
+            {liveSport === "MLB" ? (
+              isLoadingLive ? (
+                <Shimmer height="120px" width="100%" />
+              ) : mlbLiveFantasyLeaders.length > 0 || liveOwnedPlayers.length > 0 ? (
+                <div className="space-y-4">
+                  {mlbTopPerformers.length ? (
+                    <div className="grid gap-3 md:grid-cols-2">
+                      {mlbTopPerformers.map((player) => (
+                        <div
+                          key={`final-pulse-${player.team || "UNK"}-${player.name}`}
+                          className="rounded-sm border border-border/60 p-3 text-xs"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0">
+                              <div className="truncate font-semibold">{player.name}</div>
+                              <div className="text-muted-foreground">{player.team || "MLB"}</div>
+                            </div>
+                            <div className="text-right font-mono">
+                              <div>{(player.pts || 0).toFixed(1)} FP</div>
+                              <div className="text-muted-foreground">Sportfolio</div>
+                            </div>
+                          </div>
+                          <div className="mt-2 text-muted-foreground">
+                            {player.hits ?? 0} H • {player.runs ?? 0} R • {player.rbi ?? 0} RBI
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  <div className="rounded-sm border border-border/60 p-3">
+                    <div className="text-xs text-muted-foreground">Final Fantasy Leaders</div>
+                    <div className="mt-2 space-y-2 text-xs">
+                      {mlbLiveFantasyLeaders.map((player) => (
+                        <div
+                          key={`final-fantasy-${player.playerId || player.name}`}
+                          className="flex items-center justify-between gap-2"
+                        >
+                          <span className="truncate">
+                            {formatName(player.name)} • {player.team}
+                          </span>
+                          <span className="font-mono">
+                            {(player.fantasyPoints || 0).toFixed(1)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="rounded-sm border border-border/60 p-3">
+                    <div className="text-xs text-muted-foreground">Final Share Check</div>
+                    {liveOwnedPlayers.length > 0 ? (
+                      <div className="mt-2 space-y-2 text-xs">
+                        <div className="flex items-center justify-between rounded-sm border border-emerald-500/30 bg-background/70 px-2 py-1.5">
+                          <span className="text-muted-foreground">Estimated outcome</span>
+                          <span className="font-mono text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+                            ${totalLiveEarnings.toFixed(2)}
+                          </span>
+                        </div>
+                        {liveOwnedPlayers.map((player) => (
+                          <div
+                            key={`final-owned-${player.playerId}`}
+                            className="flex items-center justify-between gap-2 rounded-sm border border-border/60 bg-background/60 px-2 py-1.5"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <div className="truncate font-medium text-purple-500">
+                                {formatName(player.name)}
+                              </div>
+                              <div className="text-[10px] text-muted-foreground">
+                                {player.team} • {player.fantasyPoints.toFixed(1)} FP
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="font-mono text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                                ${player.estimatedEarnings.toFixed(2)}
+                              </div>
+                              <div className="text-[10px] text-muted-foreground">
+                                {player.quantity.toFixed(2)} shares
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="mt-2 text-xs text-muted-foreground">
+                        No stacked or boosted earning lines were active in this matchup.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-sm text-muted-foreground">
+                  Final MLB stat lines are not available yet.
+                </div>
+              )
+            ) : isLoadingStats ? (
               <Shimmer height="120px" width="100%" />
             ) : gameStats?.message ? (
               <div className="text-sm text-muted-foreground">{gameStats.message}</div>

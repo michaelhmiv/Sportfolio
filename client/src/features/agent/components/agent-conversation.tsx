@@ -12,6 +12,8 @@ import {
 } from "lucide-react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { Link } from "wouter";
+import { PlayerModal } from "@/components/player-modal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
@@ -39,6 +41,76 @@ export interface PendingUserMessage {
   id: string;
   contentText: string;
   createdAt: string;
+}
+
+function extractPlayerIdFromHref(href?: string | null) {
+  if (!href) {
+    return null;
+  }
+
+  const match = href.match(/^\/player\/([^/?#]+)/i);
+  return match?.[1] ? decodeURIComponent(match[1]) : null;
+}
+
+function AssistantMarkdown({
+  contentText,
+  onOpenPlayer,
+}: {
+  contentText: string;
+  onOpenPlayer: (playerId: string) => void;
+}) {
+  return (
+    <Markdown
+      remarkPlugins={[remarkGfm]}
+      components={{
+        table: ({ children, ...props }) => (
+          <div className="agent-markdown-table-shell">
+            <table {...props}>{children}</table>
+          </div>
+        ),
+        a: ({ href, children, ...props }) => {
+          const playerId = extractPlayerIdFromHref(href);
+
+          if (playerId) {
+            return (
+              <button
+                type="button"
+                onClick={() => onOpenPlayer(playerId)}
+                className="text-left text-sky-300 underline decoration-sky-300/30 underline-offset-2 transition-colors hover:decoration-sky-300/60"
+              >
+                {children}
+              </button>
+            );
+          }
+
+          if (href?.startsWith("/")) {
+            return (
+              <Link
+                href={href}
+                className="text-sky-300 underline decoration-sky-300/30 underline-offset-2 transition-colors hover:decoration-sky-300/60"
+              >
+                {children}
+              </Link>
+            );
+          }
+
+          return (
+            <a
+              href={href}
+              target="_blank"
+              rel="noreferrer"
+              {...props}
+              className="text-sky-300 underline decoration-sky-300/30 underline-offset-2 transition-colors hover:decoration-sky-300/60"
+            >
+              {children}
+            </a>
+          );
+        },
+      }}
+    >
+      {contentText}
+    </Markdown>
+  );
 }
 
 function formatPreviewValue(value: unknown): string {
@@ -502,6 +574,7 @@ function MessageBubble({
   isCanceling: boolean;
   isPendingSend?: boolean;
 }) {
+  const [activePlayerId, setActivePlayerId] = useState<string | null>(null);
   const isRealMessage = "role" in message;
   const inlineUiBlocks =
     isRealMessage && message.uiBlocks
@@ -543,12 +616,11 @@ function MessageBubble({
           </div>
         )}
 
-        {/* Markdown-rendered content for assistant, plain text for user */}
         {isUser ? (
           <div className="text-[13px] leading-6 whitespace-pre-wrap">{message.contentText}</div>
         ) : (
           <div className="agent-markdown text-[13.5px] leading-7">
-            <Markdown remarkPlugins={[remarkGfm]}>{message.contentText}</Markdown>
+            <AssistantMarkdown contentText={message.contentText} onOpenPlayer={setActivePlayerId} />
           </div>
         )}
 
@@ -585,6 +657,15 @@ function MessageBubble({
         <div className={cn("mt-2.5 text-[10px]", isUser ? "text-blue-200/40" : "text-white/20")}>
           {new Date(message.createdAt).toLocaleString()}
         </div>
+        <PlayerModal
+          playerId={activePlayerId}
+          open={Boolean(activePlayerId)}
+          onOpenChange={(open) => {
+            if (!open) {
+              setActivePlayerId(null);
+            }
+          }}
+        />
       </div>
 
       {/* Avatar for user */}

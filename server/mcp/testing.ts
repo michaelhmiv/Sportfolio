@@ -4,6 +4,7 @@ import express from "express";
 import { createServer } from "node:http";
 import type { PublicMcpDependencies } from "./public-tool-registry";
 import { createSportfolioMcpServer } from "../routes/mcp";
+import type { AgentToolDefinition } from "../agent/types";
 
 type MockPlayer = {
   id: string;
@@ -64,6 +65,25 @@ type MockMcpSession = {
   server: Awaited<ReturnType<typeof createSportfolioMcpServer>>;
 };
 
+type MockMlbToolConfig = {
+  toolCatalog?: AgentToolDefinition[];
+  toolResults?: Record<
+    string,
+    {
+      remoteToolName?: string;
+      content?: unknown[];
+      structuredContent?: unknown;
+      replyText?: string | null;
+      payloadTruncated?: boolean;
+      truncation?: {
+        replyTextChars: number | null;
+        structuredContentChars: number | null;
+        contentChars: number | null;
+      } | null;
+    }
+  >;
+};
+
 const MOCK_USER_ID = "user_mcp_smoke";
 const MOCK_NOW = "2026-03-07T14:00:00.000Z";
 
@@ -100,7 +120,9 @@ function createBundle(id: string, summary: string, message: string) {
   };
 }
 
-export function createMockPublicMcpDependencies(): MockMcpHarness {
+export function createMockPublicMcpDependencies(
+  mockMlbTools: MockMlbToolConfig = {},
+): MockMcpHarness {
   let threadCounter = 1;
   let bundleCounter = 1;
   let messageCounter = 1;
@@ -1301,6 +1323,35 @@ export function createMockPublicMcpDependencies(): MockMcpHarness {
       hasUnreadDigest: true,
       digestReleaseAt: new Date(createIsoNow()),
     }),
+    getInternalMlbMcpToolCatalog: async () => mockMlbTools.toolCatalog || [],
+    runInternalMlbMcpToolBounded: async ({ toolName }: { toolName: string }) => {
+      const configured = mockMlbTools.toolResults?.[toolName] ||
+        mockMlbTools.toolResults?.["*"] || {
+          remoteToolName: toolName,
+          content: [
+            {
+              type: "text",
+              text: `Mock MLB MCP result for ${toolName}.`,
+            },
+          ],
+          structuredContent: {
+            ok: true,
+            toolName,
+          },
+          replyText: `Mock MLB MCP result for ${toolName}.`,
+          payloadTruncated: false,
+          truncation: null,
+        };
+
+      return {
+        remoteToolName: configured.remoteToolName || toolName,
+        content: configured.content || [],
+        structuredContent: configured.structuredContent ?? null,
+        replyText: configured.replyText ?? null,
+        payloadTruncated: configured.payloadTruncated ?? false,
+        truncation: configured.truncation ?? null,
+      };
+    },
   } as unknown as PublicMcpDependencies;
 
   return {
@@ -1311,9 +1362,17 @@ export function createMockPublicMcpDependencies(): MockMcpHarness {
 }
 
 export async function startMockMcpHttpServer(
-  requiredAuthToken = "test-token",
+  input:
+    | string
+    | {
+        authToken?: string;
+        mlbTools?: MockMlbToolConfig;
+      } = "test-token",
 ): Promise<MockMcpHttpServer> {
-  const harness = createMockPublicMcpDependencies();
+  const requiredAuthToken = typeof input === "string" ? input : input.authToken || "test-token";
+  const harness = createMockPublicMcpDependencies(
+    typeof input === "string" ? {} : input.mlbTools || {},
+  );
   const app = express();
   const sessions = new Map<string, MockMcpSession>();
   app.use(express.json());

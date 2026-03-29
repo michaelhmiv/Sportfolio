@@ -51,6 +51,13 @@ import { setupAuth, isAuthenticated, optionalAuth } from "./supabaseAuth";
 import { getGameDay, getETDayBoundaries, getTodayETBoundaries, getTodayET } from "./lib/time";
 import { getPerformanceEarningUnits } from "./lib/performance-earnings";
 import { getOrCompute } from "./cache";
+import {
+  getMlbPregameInsightBundle,
+  getMlbPitcherMatchupChip,
+  getMlbPlayerPregameLookup,
+  type MlbEnrichmentStatus,
+  type MlbPregameInsight,
+} from "./mlb-pregame-insights";
 import { registerDomainRoutes } from "./routes/register-domain-routes";
 import { registerMarketMobileRoutes } from "./routes/market-mobile";
 import { getOrCreatePool, initializePool } from "./amm/pool";
@@ -309,6 +316,8 @@ type GameInsight = {
   };
   userContext: GameInsightUserContext | null;
   liveMarketStatus?: string | null;
+  mlbEnrichment?: MlbEnrichmentStatus | null;
+  mlbPregame?: MlbPregameInsight | null;
 };
 
 const slatePlayerStatusPriority: Record<GameInsightSlatePlayer["status"], number> = {
@@ -1022,11 +1031,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     sport,
     dateStr,
     userId,
+    includeMlbGameDetails = false,
   }: {
     games: DailyGame[];
     sport: string;
     dateStr: string;
     userId?: string | null;
+    includeMlbGameDetails?: boolean;
   }): Promise<{
     insights: GameInsight[];
     boostSlotsRemaining: number | null;
@@ -1863,6 +1874,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }),
     );
 
+    // MLB MCP is display-only enrichment. Core gameplay, payouts, and calculations stay on
+    // Ball Don't Lie plus our stored game/player data.
+    const { insightByGameId: mlbPregameInsightByGameId, statusByGameId: mlbEnrichmentByGameId } =
+      await getMlbPregameInsightBundle(games, dateStr, {
+        includeGameDetails: includeMlbGameDetails,
+      });
     const slatePlayers: GameInsightSlatePlayer[] = [];
     const insights = games.map((game) => {
       const candidates = getCandidates(game);
@@ -1935,6 +1952,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       });
 
+      const mlbPregameInsight = mlbPregameInsightByGameId.get(game.gameId) || null;
+      const mlbEnrichment =
+        String(game.sport || "").toUpperCase() === "MLB"
+          ? mlbEnrichmentByGameId.get(game.gameId) || {
+              state: "pending",
+              message: "MLB game context is pending.",
+            }
+          : null;
+
       return {
         gameId: game.gameId,
         sport: game.sport,
@@ -1945,7 +1971,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         awayTeam: game.awayTeam,
         homeScore,
         awayScore,
-        venue: game.venue ?? null,
+        venue: game.venue ?? mlbPregameInsight?.venue ?? null,
         leaders: {
           fantasy: pickLeader("avgFantasyPointsPerGame"),
           shares: pickLeader("totalShares"),
@@ -1953,6 +1979,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         },
         userContext,
         liveMarketStatus,
+        mlbEnrichment,
+        mlbPregame: mlbPregameInsight,
       } satisfies GameInsight;
     });
 
@@ -3551,6 +3579,7 @@ ${items}
         sport,
         dateStr,
         userId,
+        includeMlbGameDetails: true,
       });
 
       const gameInsight = insights[0];
@@ -4895,10 +4924,19 @@ ${items}
 
       const teamGameMap = new Map<
         string,
-        { status: "none" | "upcoming" | "live" | "ended"; startTime: string | null }
+        {
+          gameId: string;
+          homeTeam: string;
+          awayTeam: string;
+          status: "none" | "upcoming" | "live" | "ended";
+          startTime: string | null;
+        }
       >();
       todaysGames.forEach((game) => {
         const gameContext = {
+          gameId: game.gameId,
+          homeTeam: game.homeTeam,
+          awayTeam: game.awayTeam,
           status: getMarketplaceGameStatus(game),
           startTime: game.startTime ? new Date(game.startTime).toISOString() : null,
         };
@@ -4911,6 +4949,17 @@ ${items}
         const current = communityBoostMap.get(boost.playerId) || 0;
         communityBoostMap.set(boost.playerId, current + 1);
       });
+
+      const hasMlbPlayersOnPage = playersRaw.some(
+        (player) => String(player.sport || "").toUpperCase() === "MLB",
+      );
+      const mlbPregameLookup = hasMlbPlayersOnPage
+        ? await getMlbPlayerPregameLookup(todaysGames, todayET)
+        : {
+            probableStarterKeys: new Set<string>(),
+            probableStarterContextByKey: new Map(),
+            matchupsByTeam: new Map(),
+          };
 
       const players = playersRaw.map((player: any) => {
         const enriched = enrichPlayerWithMarketValue(player);
@@ -4951,6 +5000,22 @@ ${items}
             : poolData?.playMoney || 0;
         const gameContext = teamGameMap.get(player.team);
         const priceChange24h = (priceChange24hMap.get(player.id) || 0).toFixed(2);
+        const mlbPregameContext =
+          String(player.sport || "").toUpperCase() === "MLB"
+            ? getMlbPitcherMatchupChip({
+                playerName: `${player.firstName} ${player.lastName}`.trim(),
+                playerTeam: player.team,
+                playerPosition: player.position,
+                probableStarterKeys: mlbPregameLookup.probableStarterKeys,
+                probableStarterContextByKey: mlbPregameLookup.probableStarterContextByKey,
+                matchupsByTeam: mlbPregameLookup.matchupsByTeam,
+              })
+            : {
+                isProbableStarter: false,
+                probablePitcherGameId: null,
+                mlbMatchupChip: null,
+                mlbPregameSummary: null,
+              };
 
         return {
           ...enriched,
@@ -4975,6 +5040,10 @@ ${items}
           gameStatus: gameContext?.status || "none",
           gameStartTime: gameContext?.startTime || null,
           communityBoostCount: communityBoostMap.get(player.id) || 0,
+          isProbableStarter: mlbPregameContext.isProbableStarter,
+          probablePitcherGameId: mlbPregameContext.probablePitcherGameId,
+          mlbMatchupChip: mlbPregameContext.mlbMatchupChip,
+          mlbPregameSummary: mlbPregameContext.mlbPregameSummary,
         };
       });
 

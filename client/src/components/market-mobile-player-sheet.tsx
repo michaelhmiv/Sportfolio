@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 
 import { AmmTradePanel } from "@/components/amm-trade-panel";
+import { MlbProbableBadge } from "@/components/mlb-probable-badge";
 import { PlayerName } from "@/components/player-name";
 import { ScoutSelector } from "@/components/scout-selector";
 import { Badge } from "@/components/ui/badge";
@@ -50,6 +51,10 @@ interface MarketSheetPlayer {
   gameStatus?: "none" | "upcoming" | "live" | "ended";
   gameStartTime?: string | null;
   communityBoostCount?: number | null;
+  isProbableStarter?: boolean;
+  probablePitcherGameId?: string | null;
+  mlbMatchupChip?: string | null;
+  mlbPregameSummary?: string | null;
 }
 
 interface MarketSheetQuickContext {
@@ -297,6 +302,15 @@ export function MarketMobilePlayerSheet({
             </div>
 
             <div className="flex flex-wrap gap-1.5">
+              {player.isProbableStarter && <MlbProbableBadge label="Probable" />}
+              {player.mlbMatchupChip && (
+                <Badge
+                  variant="outline"
+                  className="border-border/70 bg-background/30 text-muted-foreground"
+                >
+                  {player.mlbMatchupChip}
+                </Badge>
+              )}
               {showBoostContext && (
                 <Badge
                   variant="outline"
@@ -365,6 +379,15 @@ export function MarketMobilePlayerSheet({
                 </div>
               </div>
             </div>
+
+            {player.mlbPregameSummary ? (
+              <div className="rounded-sm border border-emerald-500/30 bg-emerald-500/5 p-3">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-emerald-600 dark:text-emerald-400">
+                  MLB matchup read
+                </div>
+                <div className="mt-1 text-xs text-foreground">{player.mlbPregameSummary}</div>
+              </div>
+            ) : null}
 
             <div className="flex flex-wrap gap-2">
               {actionButtons.map((entry) => {

@@ -30,6 +30,7 @@ vi.mock("@modelcontextprotocol/sdk/client/streamableHttp.js", () => ({
 import {
   getInternalMlbMcpToolCatalog,
   resetInternalMlbMcpCacheForTests,
+  resolveInternalMlbMcpConfig,
   runInternalMlbMcpReadTool,
 } from "./internal-mlb-mcp";
 
@@ -38,6 +39,7 @@ const originalEnv = {
   endpoint: process.env.HERMES_INTERNAL_MLB_MCP_URL,
   prefix: process.env.HERMES_INTERNAL_MLB_MCP_TOOL_PREFIX,
   cacheTtlMs: process.env.HERMES_INTERNAL_MLB_MCP_TOOL_CACHE_MS,
+  nodeEnv: process.env.NODE_ENV,
 };
 
 describe("internal-mlb-mcp", () => {
@@ -100,6 +102,24 @@ describe("internal-mlb-mcp", () => {
     } else {
       process.env.HERMES_INTERNAL_MLB_MCP_TOOL_CACHE_MS = originalEnv.cacheTtlMs;
     }
+
+    if (originalEnv.nodeEnv == null) {
+      delete process.env.NODE_ENV;
+    } else {
+      process.env.NODE_ENV = originalEnv.nodeEnv;
+    }
+  });
+
+  it("defaults to the local vendored MLB MCP endpoint in development when no endpoint is configured", () => {
+    delete process.env.HERMES_INTERNAL_MLB_MCP_ENABLED;
+    delete process.env.HERMES_INTERNAL_MLB_MCP_URL;
+    process.env.NODE_ENV = "development";
+
+    const config = resolveInternalMlbMcpConfig();
+
+    expect(config.enabled).toBe(true);
+    expect(config.endpoint).toBe("http://127.0.0.1:8081/mcp");
+    expect(config.implicitLocalDevFallback).toBe(true);
   });
 
   it("projects remote MLB MCP tools into Hermes read tools with the configured prefix", async () => {

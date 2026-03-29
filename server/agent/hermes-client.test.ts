@@ -104,11 +104,21 @@ describe("hermes-client", () => {
       assistantText: "Here is the current plan.",
       uiBlocks: [
         {
-          type: "goal_strip",
-          slot: "chat_header",
+          type: "leaderboard_table",
+          slot: "chat_inline",
           priority: 10,
           props: {
-            title: "Review today's setup",
+            statLabel: "Batting average",
+            leaders: [
+              {
+                id: "leader_1",
+                rank: 1,
+                playerName: "Aaron Judge",
+                playerId: "player_1",
+                team: "NYY",
+                primaryValue: ".341",
+              },
+            ],
           },
         },
         {
@@ -121,11 +131,21 @@ describe("hermes-client", () => {
 
     expect(result.uiBlocks).toEqual([
       {
-        type: "goal_strip",
-        slot: "chat_header",
+        type: "leaderboard_table",
+        slot: "chat_inline",
         priority: 10,
         props: {
-          title: "Review today's setup",
+          statLabel: "Batting average",
+          leaders: [
+            {
+              id: "leader_1",
+              rank: 1,
+              playerName: "Aaron Judge",
+              playerId: "player_1",
+              team: "NYY",
+              primaryValue: ".341",
+            },
+          ],
         },
       },
     ]);

@@ -471,6 +471,10 @@ describe("hermes-tools", () => {
         sport: expect.any(Object),
       },
     });
+    expect(sportSlateTool?.presentationProfile).toBe("schedule");
+    expect(sportSlateTool?.preferredColumns).toContain("venue");
+    expect(teamRosterTool?.presentationProfile).toBe("leaderboard");
+    expect(teamRosterTool?.primaryEntityType).toBe("player");
   });
 
   it("omits built-in MLB MCP tools from get_tool_catalog when the source is disabled", async () => {

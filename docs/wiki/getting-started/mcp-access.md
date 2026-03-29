@@ -1,7 +1,7 @@
 ---
 id: getting-started-mcp-access
 title: MCP Access
-summary: How to connect to Sportfolio's public authenticated MCP endpoint, what the shared public capability surface includes, and what stays out of scope.
+summary: How to connect to Sportfolio's public authenticated MCP endpoint, what the public capability surface includes, and what stays out of scope.
 audience: public
 category: getting-started
 status: published
@@ -38,17 +38,24 @@ Authorization: Bearer <your-token>
 
 That keeps MCP inside the same account boundary as the web app and CLI. It is not an admin or shared back door.
 
-## What the shared public surface includes
+## What the public surface includes
 
-The current public MCP surface follows the same shared non-purchase capability catalog used by the CLI.
+The public MCP surface includes the shared authenticated Sportfolio capability catalog plus a read-only MLB extension when the internal MLB data service is available.
 
 Included today:
 
 - reads across account, portfolio, holdings, players, pools, boosts, scouts, watchlists, schedules, docs, news, agent settings, SMS settings, and thread state
-- public docs resources including `sportfolio://docs/index`, `sportfolio://capabilities`, and `sportfolio://action-surface`
+- read-only `mlb_mcp__*` tools that proxy the internal MLB MCP service through Sportfolio authentication when that service is enabled and reachable
+- public docs/resources including `sportfolio://docs/index`, `sportfolio://capabilities`, `sportfolio://action-surface`, and `sportfolio://tool-catalog`
 - public prompts including `review_setup`, `review_idle_cash`, `find_boost_candidates`, and `stage_trade`
 - immediate account actions including token management, username/profile-image updates, SMS link/settings actions, agent profile/BYOK updates, and premium redeem
 - confirmation-gated gameplay staging for market trades, LP actions, stack shares, daily boosts, community boosts, scout assignments, and thread confirm/cancel flows
+
+The discovery resources are live rather than purely static:
+
+- `sportfolio://capabilities` includes the shared capability inventory plus dynamic-provider availability metadata
+- `sportfolio://action-surface` summarizes the tool/action surface with confirmation/read-only hints
+- `sportfolio://tool-catalog` provides the richest tool metadata for agents, including live dynamic MLB tools, example prompts, and input-field summaries when available
 
 ## Safety model
 

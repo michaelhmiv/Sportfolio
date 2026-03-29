@@ -175,6 +175,7 @@ function cloneTool(entry: AgentToolDefinition): AgentToolDefinition {
     inputSchema: entry.inputSchema
       ? (JSON.parse(JSON.stringify(entry.inputSchema)) as Record<string, unknown>)
       : null,
+    preferredColumns: [...(entry.preferredColumns || [])],
     autoContextArgs: [...(entry.autoContextArgs || [])],
   };
 }
@@ -187,6 +188,9 @@ function defineTool(input: AgentToolDefinition): AgentToolDefinition {
     examplePrompts: [...input.examplePrompts],
     inputSchema: input.inputSchema || noArgsSchema,
     resultShapeHint: input.resultShapeHint || null,
+    presentationProfile: input.presentationProfile || "generic",
+    primaryEntityType: input.primaryEntityType || null,
+    preferredColumns: [...(input.preferredColumns || [])],
     autoContextArgs: [...(input.autoContextArgs || [])],
     exposure: input.exposure || "default",
     supportsSequentialUse: input.supportsSequentialUse ?? true,
@@ -204,6 +208,9 @@ const CORE_TOOL_CATALOG: AgentToolDefinition[] = [
     examplePrompts: ["what can you do right now?"],
     requiresConfirmation: false,
     riskLevel: "low",
+    presentationProfile: "tool_catalog",
+    primaryEntityType: "tool",
+    preferredColumns: ["name", "category", "riskLevel"],
     auditPriority: "high",
   }),
   defineTool({
@@ -219,6 +226,9 @@ const CORE_TOOL_CATALOG: AgentToolDefinition[] = [
     examplePrompts: ["what mcp connections do you have right now?"],
     requiresConfirmation: false,
     riskLevel: "low",
+    presentationProfile: "tool_catalog",
+    primaryEntityType: "tool",
+    preferredColumns: ["name", "category", "source"],
     auditPriority: "high",
   }),
   defineTool({
@@ -292,6 +302,7 @@ const CORE_TOOL_CATALOG: AgentToolDefinition[] = [
     requiresConfirmation: false,
     riskLevel: "low",
     inputSchema: playerIdLimitSchema,
+    primaryEntityType: "player",
     auditPriority: "critical",
   }),
   defineTool({
@@ -304,6 +315,7 @@ const CORE_TOOL_CATALOG: AgentToolDefinition[] = [
     requiresConfirmation: false,
     riskLevel: "low",
     inputSchema: playerIdLimitSchema,
+    primaryEntityType: "player",
     auditPriority: "critical",
   }),
   defineTool({
@@ -316,6 +328,9 @@ const CORE_TOOL_CATALOG: AgentToolDefinition[] = [
     requiresConfirmation: false,
     riskLevel: "low",
     inputSchema: playerIdLimitSchema,
+    presentationProfile: "leaderboard",
+    primaryEntityType: "player",
+    preferredColumns: ["date", "opponent", "fantasyPoints"],
   }),
   defineTool({
     toolName: "get_player_financial_metrics",
@@ -481,6 +496,8 @@ const CORE_TOOL_CATALOG: AgentToolDefinition[] = [
     examplePrompts: ["what agent schedules do i have?"],
     requiresConfirmation: false,
     riskLevel: "low",
+    presentationProfile: "schedule",
+    preferredColumns: ["jobType", "nextRunAt", "enabled"],
   }),
   defineTool({
     toolName: "get_schedule_templates",
@@ -491,6 +508,8 @@ const CORE_TOOL_CATALOG: AgentToolDefinition[] = [
     examplePrompts: ["what can i schedule?"],
     requiresConfirmation: false,
     riskLevel: "low",
+    presentationProfile: "execution",
+    preferredColumns: ["jobType", "schedule", "channel"],
   }),
   defineTool({
     toolName: "get_hosted_research",

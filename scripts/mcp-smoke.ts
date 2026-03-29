@@ -46,10 +46,121 @@ async function main() {
     await protocolClient.client.listPrompts();
     await protocolClient.client.listResources();
     await protocolClient.client.readResource({ uri: "sportfolio://docs/index" });
+    await protocolClient.client.readResource({ uri: "sportfolio://tool-catalog" });
     await protocolClient.client.getPrompt({ name: "review_setup", arguments: {} });
   } finally {
     await closeClient(protocolClient);
     await protocolServer.close();
+  }
+
+  const dynamicServer = await startMockMcpHttpServer({
+    mlbTools: {
+      toolCatalog: [
+        {
+          toolName: "mlb_mcp__get_schedule",
+          category: "read",
+          description: "Get the MLB schedule.",
+          whenToUse: ["Use when the caller wants probable pitchers or the slate."],
+          whenNotToUse: [],
+          examplePrompts: ["who are the probable pitchers today?"],
+          requiresConfirmation: false,
+          riskLevel: "low",
+          resultShapeHint: "dates[].games[] with probable pitchers",
+          inputSchema: {
+            type: "object",
+            properties: {
+              date: {
+                type: "string",
+                description: "Target date in YYYY-MM-DD format.",
+              },
+            },
+            required: ["date"],
+          },
+        },
+      ],
+    },
+  });
+  let dynamicClient: OpenClient | null = null;
+
+  try {
+    dynamicClient = await connectClient(dynamicServer.url, dynamicServer.authToken);
+    const tools = await dynamicClient.client.listTools();
+    if (!tools.tools.some((tool) => tool.name === "mlb_mcp__get_schedule")) {
+      failures.push({
+        toolName: "dynamic_mlb_tool_listing",
+        message: "Dynamic MLB MCP tool was not listed on the public MCP surface.",
+      });
+    }
+
+    const capabilities = await dynamicClient.client.readResource({
+      uri: "sportfolio://capabilities",
+    });
+    const actionSurface = await dynamicClient.client.readResource({
+      uri: "sportfolio://action-surface",
+    });
+    const toolCatalog = await dynamicClient.client.readResource({
+      uri: "sportfolio://tool-catalog",
+    });
+    const dynamicResult = await dynamicClient.client.callTool({
+      name: "mlb_mcp__get_schedule",
+      arguments: {
+        date: "2026-03-28",
+      },
+    });
+
+    if (dynamicResult.isError) {
+      failures.push({
+        toolName: "dynamic_mlb_tool_execution",
+        message: "Dynamic MLB MCP tool returned an MCP error result during smoke.",
+      });
+    }
+
+    const capabilityPayload = JSON.parse(String(capabilities.contents[0]?.text)) as {
+      included?: Array<Record<string, unknown>>;
+    };
+    if (
+      !Array.isArray(capabilityPayload.included) ||
+      !capabilityPayload.included.some((entry) => entry.capabilityId === "mlb_mcp__get_schedule")
+    ) {
+      failures.push({
+        toolName: "dynamic_capabilities_resource",
+        message: "Dynamic MLB MCP tool was not included in sportfolio://capabilities.",
+      });
+    }
+
+    const actionSurfacePayload = JSON.parse(String(actionSurface.contents[0]?.text)) as {
+      tools?: Array<Record<string, unknown>>;
+    };
+    if (
+      !Array.isArray(actionSurfacePayload.tools) ||
+      !actionSurfacePayload.tools.some((entry) => entry.name === "mlb_mcp__get_schedule")
+    ) {
+      failures.push({
+        toolName: "dynamic_action_surface_resource",
+        message: "Dynamic MLB MCP tool was not included in sportfolio://action-surface.",
+      });
+    }
+
+    const toolCatalogPayload = JSON.parse(String(toolCatalog.contents[0]?.text)) as {
+      tools?: Array<Record<string, unknown>>;
+    };
+    if (
+      !Array.isArray(toolCatalogPayload.tools) ||
+      !toolCatalogPayload.tools.some(
+        (entry) =>
+          entry.name === "mlb_mcp__get_schedule" &&
+          Array.isArray(entry.examplePrompts) &&
+          entry.examplePrompts.includes("who are the probable pitchers today?"),
+      )
+    ) {
+      failures.push({
+        toolName: "dynamic_tool_catalog_resource",
+        message: "Dynamic MLB MCP tool metadata was not included in sportfolio://tool-catalog.",
+      });
+    }
+  } finally {
+    await closeClient(dynamicClient);
+    await dynamicServer.close();
   }
 
   for (const toolName of toolNames) {

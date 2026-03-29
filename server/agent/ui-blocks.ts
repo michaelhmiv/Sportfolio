@@ -274,6 +274,97 @@ function buildPendingDecisionBlock(input: {
   };
 }
 
+function buildExecutionChecklistBlock(input: {
+  result: HermesRespondResult;
+  conversationMode: HermesConversationMode | null | undefined;
+  strategyContext: HermesStrategyContext | null | undefined;
+}): AgentUiBlock | null {
+  if (input.result.pendingClarification) {
+    return {
+      type: "execution_checklist",
+      slot: getInlineSlot(input.conversationMode),
+      priority: 18,
+      props: {
+        title: "Execution flow",
+        summary: "Hermes needs one detail before it can continue the workflow.",
+        items: [
+          {
+            id: "clarify",
+            label: "Reply with the missing detail",
+            detail: input.result.pendingClarification.prompt,
+            status: "in_progress",
+          },
+          {
+            id: "resume",
+            label: "Hermes resumes the run",
+            detail: "Once you answer, Hermes continues in the same thread context.",
+            status: "pending",
+          },
+        ],
+      },
+    };
+  }
+
+  if (input.result.requiresConfirmation) {
+    return {
+      type: "execution_checklist",
+      slot: getInlineSlot(input.conversationMode),
+      priority: 18,
+      props: {
+        title: "Execution flow",
+        summary: "The plan is staged but not applied yet.",
+        items: [
+          {
+            id: "review",
+            label: "Review the staged impact",
+            detail:
+              input.result.confirmationPreview?.actionSummary ||
+              input.result.summary ||
+              "Check the proposed change before confirming it.",
+            status: "ready",
+          },
+          {
+            id: "confirm",
+            label: "Confirm or cancel",
+            detail: "Sportfolio only applies the change after an explicit confirm action.",
+            status: "pending",
+          },
+        ],
+      },
+    };
+  }
+
+  if (input.strategyContext?.reviewState?.status === "pending") {
+    return {
+      type: "execution_checklist",
+      slot: "strategy_overview",
+      priority: 22,
+      props: {
+        title: "Review flow",
+        summary: "Saved strategy changes still need approval before activation.",
+        items: [
+          {
+            id: "review_strategy",
+            label: "Review the saved playbook",
+            detail:
+              input.strategyContext.reviewState.summary ||
+              "Check the saved stages, triggers, and action scope before activation.",
+            status: "ready",
+          },
+          {
+            id: "approve_strategy",
+            label: "Approve before activation",
+            detail: "Leave the strategy inactive until you explicitly review and approve it.",
+            status: "pending",
+          },
+        ],
+      },
+    };
+  }
+
+  return null;
+}
+
 function buildClarificationBlock(input: {
   clarification: AgentPendingClarification;
   conversationMode: HermesConversationMode | null | undefined;
@@ -433,6 +524,10 @@ export function buildFallbackAgentUiBlocks(input: {
   strategyContext: HermesStrategyContext | null | undefined;
 }): AgentUiBlock[] {
   const blocks: AgentUiBlock[] = [buildGoalBlock(input)];
+  const executionChecklistBlock = buildExecutionChecklistBlock(input);
+  if (executionChecklistBlock) {
+    blocks.push(executionChecklistBlock);
+  }
 
   if (input.result.pendingClarification) {
     blocks.push(

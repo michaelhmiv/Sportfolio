@@ -198,12 +198,238 @@ describe("sportfolio MCP server", () => {
           "sportfolio://docs/index",
           "sportfolio://capabilities",
           "sportfolio://action-surface",
+          "sportfolio://tool-catalog",
           "sportfolio://docs/agent/product-mechanics",
         ]),
       );
       expect(docsIndex.contents[0]?.uri).toBe("sportfolio://docs/index");
       expect(capabilities.contents[0]?.uri).toBe("sportfolio://capabilities");
       expect(prompt.messages[0]?.content.type).toBe("text");
+    } finally {
+      await closeClient(openClient);
+      await server.close();
+    }
+  });
+
+  it("lists and executes authenticated MLB MCP tools through the public MCP surface", async () => {
+    const server = await startMockMcpHttpServer({
+      mlbTools: {
+        toolCatalog: [
+          {
+            toolName: "mlb_mcp__get_schedule",
+            category: "read",
+            description: "Get the MLB schedule.",
+            whenToUse: ["Use when the caller wants probable pitchers or the slate."],
+            whenNotToUse: [],
+            examplePrompts: ["who are the probable pitchers today?"],
+            requiresConfirmation: false,
+            riskLevel: "low",
+            resultShapeHint: "dates[].games[] with probable pitchers",
+            presentationProfile: "schedule",
+            primaryEntityType: "game",
+            preferredColumns: ["matchup", "status", "startTime", "venue"],
+            inputSchema: {
+              type: "object",
+              properties: {
+                date: {
+                  type: "string",
+                  description: "Target date in YYYY-MM-DD format.",
+                },
+              },
+              required: ["date"],
+            },
+          },
+        ],
+        toolResults: {
+          mlb_mcp__get_schedule: {
+            remoteToolName: "get_schedule",
+            content: [
+              {
+                type: "text",
+                text: "Loaded the MLB schedule.",
+              },
+            ],
+            structuredContent: {
+              dates: [
+                {
+                  games: [
+                    {
+                      gamePk: 12345,
+                    },
+                  ],
+                },
+              ],
+            },
+            replyText: "Loaded the MLB schedule.",
+            payloadTruncated: false,
+            truncation: null,
+          },
+        },
+      },
+    });
+    let openClient: OpenClient | null = null;
+
+    try {
+      openClient = await connectClient(server.url, server.authToken);
+      const tools = await openClient.client.listTools();
+      expect(tools.tools.map((entry) => entry.name)).toContain("mlb_mcp__get_schedule");
+      const capabilities = await openClient.client.readResource({
+        uri: "sportfolio://capabilities",
+      });
+      const actionSurface = await openClient.client.readResource({
+        uri: "sportfolio://action-surface",
+      });
+      const toolCatalog = await openClient.client.readResource({
+        uri: "sportfolio://tool-catalog",
+      });
+
+      const result = await openClient.client.callTool({
+        name: "mlb_mcp__get_schedule",
+        arguments: {
+          date: "2026-03-28",
+        },
+      });
+
+      expect(result.isError).not.toBe(true);
+      expect((result.structuredContent as Record<string, unknown>).dates).toBeTruthy();
+      const capabilityPayload = JSON.parse(String(capabilities.contents[0]?.text)) as {
+        included: Array<Record<string, unknown>>;
+        dynamicSources: Array<Record<string, unknown>>;
+      };
+      expect(
+        capabilityPayload.included.some((entry) => entry.capabilityId === "mlb_mcp__get_schedule"),
+      ).toBe(true);
+      expect(capabilityPayload.dynamicSources[0]?.toolCount).toBe(1);
+
+      const actionSurfacePayload = JSON.parse(String(actionSurface.contents[0]?.text)) as {
+        tools: Array<Record<string, unknown>>;
+      };
+      expect(
+        actionSurfacePayload.tools.some(
+          (entry) =>
+            entry.name === "mlb_mcp__get_schedule" &&
+            entry.provider === "internal_mlb_mcp" &&
+            Array.isArray(entry.inputFieldNames) &&
+            entry.inputFieldNames.includes("date"),
+        ),
+      ).toBe(true);
+
+      const toolCatalogPayload = JSON.parse(String(toolCatalog.contents[0]?.text)) as {
+        tools: Array<Record<string, unknown>>;
+      };
+      expect(
+        toolCatalogPayload.tools.some(
+          (entry) =>
+            entry.name === "mlb_mcp__get_schedule" &&
+            entry.resultShapeHint === "dates[].games[] with probable pitchers" &&
+            entry.presentationProfile === "schedule" &&
+            entry.primaryEntityType === "game" &&
+            Array.isArray(entry.examplePrompts) &&
+            entry.examplePrompts.includes("who are the probable pitchers today?") &&
+            Array.isArray(entry.preferredColumns) &&
+            entry.preferredColumns.includes("venue"),
+        ),
+      ).toBe(true);
+    } finally {
+      await closeClient(openClient);
+      await server.close();
+    }
+  });
+
+  it("keeps MLB discovery resources aligned with the session tool snapshot", async () => {
+    const mlbTools = {
+      toolCatalog: [
+        {
+          toolName: "mlb_mcp__get_schedule",
+          category: "read",
+          description: "Get the MLB schedule.",
+          whenToUse: ["Use when the caller wants probable pitchers or the slate."],
+          whenNotToUse: [],
+          examplePrompts: ["who are the probable pitchers today?"],
+          requiresConfirmation: false,
+          riskLevel: "low",
+          resultShapeHint: "dates[].games[] with probable pitchers",
+          presentationProfile: "schedule",
+          primaryEntityType: "game",
+          preferredColumns: ["matchup", "status", "startTime", "venue"],
+          inputSchema: {
+            type: "object",
+            properties: {
+              date: {
+                type: "string",
+                description: "Target date in YYYY-MM-DD format.",
+              },
+            },
+            required: ["date"],
+          },
+        },
+      ],
+      toolResults: {
+        mlb_mcp__get_schedule: {
+          remoteToolName: "get_schedule",
+          content: [
+            {
+              type: "text",
+              text: "Loaded the MLB schedule.",
+            },
+          ],
+          structuredContent: {
+            dates: [],
+          },
+          replyText: "Loaded the MLB schedule.",
+          payloadTruncated: false,
+          truncation: null,
+        },
+      },
+    };
+    const server = await startMockMcpHttpServer({
+      mlbTools,
+    });
+    let openClient: OpenClient | null = null;
+
+    try {
+      openClient = await connectClient(server.url, server.authToken);
+
+      const initialTools = await openClient.client.listTools();
+      expect(initialTools.tools.map((entry) => entry.name)).toContain("mlb_mcp__get_schedule");
+
+      mlbTools.toolCatalog = [];
+
+      const listedTools = await openClient.client.listTools();
+      const capabilities = await openClient.client.readResource({
+        uri: "sportfolio://capabilities",
+      });
+      const actionSurface = await openClient.client.readResource({
+        uri: "sportfolio://action-surface",
+      });
+      const toolCatalog = await openClient.client.readResource({
+        uri: "sportfolio://tool-catalog",
+      });
+
+      expect(listedTools.tools.map((entry) => entry.name)).toContain("mlb_mcp__get_schedule");
+
+      const capabilityPayload = JSON.parse(String(capabilities.contents[0]?.text)) as {
+        included: Array<Record<string, unknown>>;
+        dynamicSources: Array<Record<string, unknown>>;
+      };
+      expect(
+        capabilityPayload.included.some((entry) => entry.capabilityId === "mlb_mcp__get_schedule"),
+      ).toBe(true);
+      expect(capabilityPayload.dynamicSources[0]?.toolCount).toBe(1);
+
+      const actionSurfacePayload = JSON.parse(String(actionSurface.contents[0]?.text)) as {
+        tools: Array<Record<string, unknown>>;
+      };
+      expect(
+        actionSurfacePayload.tools.some((entry) => entry.name === "mlb_mcp__get_schedule"),
+      ).toBe(true);
+
+      const toolCatalogPayload = JSON.parse(String(toolCatalog.contents[0]?.text)) as {
+        tools: Array<Record<string, unknown>>;
+      };
+      expect(toolCatalogPayload.tools.some((entry) => entry.name === "mlb_mcp__get_schedule")).toBe(
+        true,
+      );
     } finally {
       await closeClient(openClient);
       await server.close();

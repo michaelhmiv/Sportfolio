@@ -25,26 +25,87 @@ async function mockAgentShell(page: Page) {
     },
   ];
 
-  const longMessages = Array.from({ length: 40 }, (_, index) => ({
-    id: `msg_${index + 1}`,
-    role: index % 2 === 0 ? "user" : "assistant",
-    messageType: "chat",
-    contentText:
-      index % 2 === 0
+  const longMessages = Array.from({ length: 40 }, (_, index) => {
+    const isUserMessage = index % 2 === 0;
+    const isFormattedAssistantMessage = index === 39;
+
+    return {
+      id: `msg_${index + 1}`,
+      role: isUserMessage ? "user" : "assistant",
+      messageType: "chat",
+      contentText: isUserMessage
         ? `User update ${index + 1}: keep checking my portfolio and walk me through the setup.`
-        : `Hermes reply ${index + 1}: here is the latest context for your setup and what still matters.`,
-    createdAt: now,
-    runId: null,
-    actionBundle: null,
-    citations: [],
-    pendingClarification: null,
-    toolTrace: [],
-    skillsUsed: [],
-    memoryInfluences: [],
-    confirmationPreview: null,
-    generatedBy: index % 2 === 0 ? "user" : "assistant",
-    scheduleJobType: null,
-  }));
+        : isFormattedAssistantMessage
+          ? [
+              "Hermes reply 40: here is the latest context for your setup and what still matters.",
+              "",
+              "| Rank | Player | Team | AVG |",
+              "| --- | --- | --- | --- |",
+              "| 1 | [Mookie Betts](/player/player_3) | LAD | .338 |",
+              "| 2 | [Juan Soto](/player/player_2) | NYM | .333 |",
+            ].join("\n")
+          : `Hermes reply ${index + 1}: here is the latest context for your setup and what still matters.`,
+      createdAt: now,
+      runId: null,
+      actionBundle: null,
+      citations: [],
+      pendingClarification: null,
+      toolTrace: [],
+      skillsUsed: [],
+      memoryInfluences: [],
+      confirmationPreview: null,
+      uiBlocks: isFormattedAssistantMessage
+        ? [
+            {
+              type: "stat_highlight_strip",
+              priority: 10,
+              props: {
+                title: "League leaders",
+                items: [
+                  {
+                    label: "Leader",
+                    value: "Aaron Judge",
+                    helper: "Highest batting average right now",
+                  },
+                  {
+                    label: "AVG",
+                    value: ".341",
+                  },
+                ],
+              },
+            },
+            {
+              type: "leaderboard_table",
+              priority: 20,
+              props: {
+                title: "Top batting averages",
+                statLabel: "AVG",
+                leaders: [
+                  {
+                    id: "leader_1",
+                    rank: 1,
+                    playerName: "Aaron Judge",
+                    playerId: "player_1",
+                    team: "NYY",
+                    primaryValue: ".341",
+                  },
+                  {
+                    id: "leader_2",
+                    rank: 2,
+                    playerName: "Freddie Freeman",
+                    playerId: "player_4",
+                    team: "LAD",
+                    primaryValue: ".339",
+                  },
+                ],
+              },
+            },
+          ]
+        : [],
+      generatedBy: isUserMessage ? "user" : "assistant",
+      scheduleJobType: null,
+    };
+  });
 
   const continuity = {
     headline: "Hermes is carrying active strategy context forward.",
@@ -343,6 +404,144 @@ async function mockAgentShell(page: Page) {
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({ user: null, session: null }),
+    });
+  });
+
+  const playerLookup: Record<
+    string,
+    {
+      firstName: string;
+      lastName: string;
+      team: string;
+      sport: string;
+      battingAverage: string;
+    }
+  > = {
+    player_1: {
+      firstName: "Aaron",
+      lastName: "Judge",
+      team: "NYY",
+      sport: "MLB",
+      battingAverage: ".341",
+    },
+    player_2: {
+      firstName: "Juan",
+      lastName: "Soto",
+      team: "NYM",
+      sport: "MLB",
+      battingAverage: ".333",
+    },
+    player_3: {
+      firstName: "Mookie",
+      lastName: "Betts",
+      team: "LAD",
+      sport: "MLB",
+      battingAverage: ".338",
+    },
+    player_4: {
+      firstName: "Freddie",
+      lastName: "Freeman",
+      team: "LAD",
+      sport: "MLB",
+      battingAverage: ".339",
+    },
+  };
+
+  await page.route(/.*\/api\/player\/[^/]+\/stats$/, async (route) => {
+    const match = route
+      .request()
+      .url()
+      .match(/\/api\/player\/([^/]+)\/stats$/);
+    const playerId = match?.[1] || "player_1";
+    const player = playerLookup[playerId] || playerLookup.player_1;
+
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        player: {
+          id: playerId,
+          firstName: player.firstName,
+          lastName: player.lastName,
+          sport: player.sport,
+        },
+        team: {
+          abbreviation: player.team,
+        },
+        stats: {
+          sport: player.sport,
+          battingAverage: player.battingAverage,
+          avgFantasyPointsPerGame: 18.4,
+          gamesPlayed: 12,
+          homeRuns: 4,
+        },
+      }),
+    });
+  });
+
+  await page.route(/.*\/api\/player\/[^/]+\/recent-games$/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        recentGames: [
+          {
+            game: {
+              id: 1,
+              date: now,
+              opponent: "BOS",
+              isHome: true,
+            },
+            stats: {
+              hits: 2,
+              runs: 1,
+              runsBattedIn: 3,
+              fantasyPoints: 18.4,
+            },
+          },
+        ],
+      }),
+    });
+  });
+
+  await page.route(/.*\/api\/player\/[^/]+\/shares-info$/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        sharesInfo: {
+          currentSharePrice: "12.40",
+          marketCap: "1240",
+          totalSharesOutstanding: 100,
+          totalHolders: 28,
+          volume24h: 1234,
+          priceChange24h: "4.2",
+        },
+      }),
+    });
+  });
+
+  await page.route(/.*\/api\/player\/[^/]+\/financials$/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        valueIndex: 97,
+        sentiment: {
+          buyPressure: 61,
+          totalVolume24h: 1234,
+          trend: "bullish",
+        },
+        heatCheck: {
+          l5Avg: 17.1,
+          seasonAvg: 15.2,
+          status: "fire",
+        },
+        marketCapRank: {
+          tier: "blue_chip",
+          percentile: 92,
+        },
+      }),
     });
   });
 
@@ -803,4 +1002,29 @@ test("saving the current chat as a strategy opens the separate strategy workspac
     "data-state",
     "active",
   );
+});
+
+test("chat renders formatted leaderboard output and opens player modal from structured rows", async ({
+  page,
+}) => {
+  await mockAgentShell(page);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/agent", { waitUntil: "domcontentloaded" });
+  await waitForAgentShell(page);
+  await getWorkspaceTab(page, "Chat").click();
+
+  const chatScroll = page.getByTestId("agent-chat-scroll");
+  await chatScroll.evaluate((node) => {
+    node.scrollTop = node.scrollHeight;
+  });
+
+  const leaderboard = page.locator('[data-testid="agent-ui-leaderboard-table"]:visible').last();
+  await expect(leaderboard).toBeVisible();
+  await expect(leaderboard).toContainText("Aaron Judge");
+  await expect(page.getByText("Mookie Betts")).toBeVisible();
+
+  await leaderboard.getByRole("button", { name: /Aaron Judge/i }).click();
+  await expect(page.getByTestId("dialog-player-modal")).toBeVisible();
+  await expect(page.getByTestId("text-player-modal-title")).toContainText("Aaron Judge");
 });

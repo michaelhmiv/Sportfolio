@@ -1,7 +1,23 @@
 # Lessons Learned
 
+## 2026-03-29
+
+- For per-player MLB pregame chips, do not collapse a team's schedule to one matchup entry when doubleheaders exist; probable starters need a pitcher-keyed game context or the second leg will point at the wrong game.
+- For dynamic MCP providers, discovery resources must use the same availability snapshot that the session registered in `tools/list`; recomputing provider state on every resource read causes session-visible catalog drift.
+- For rich agent chat answers, do not rely on prose alone; pair native `uiBlocks` with markdown-table and `/player/:id` fallbacks so leaderboard and schedule answers still stay readable and interactive when the model emits only text.
+
+## 2026-03-27
+
+- When an optional enrichment provider drives visible UI, verify the real runtime wiring and show an explicit unavailable or pending state in the product; silent omission makes implemented features look nonexistent.
+- For feature work that changes what users should see on the page, finish with browser verification on the real surface or a deterministic Playwright spec before claiming the UI is shipped.
+- For MCP-backed adapters, do not trust mocked top-level payloads if the live server is already available; verify the actual response envelope first or the UI can look broken even while the tool probe passes.
+- For baseball lineups, `boxscore.teams.<side>.batters` is too broad for a natural box-score view on completed games; prefer `battingOrder` so the UI shows the actual nine-man order instead of everyone who appeared.
+
 ## 2026-03-25
 
+- For internal sidecar-style providers like the MLB MCP, do not stop at local parity; validate the deployed Railway service before calling the work complete, even if the local vendored server returns the expected payloads.
+- When product logic already trusts Ball Don't Lie for MLB gameplay, keep any MLB StatsAPI or MCP additions display-only behind a Sportfolio-owned adapter; optional enrichment must never become a dependency for payouts, locks, or core market behavior.
+- For user-facing sports surfaces, do not stop at proving the data exists; design the view around what a Sportfolio player wants to check about their shares in that game right now, and make that context visible in the primary viewport.
 - If Hermes gains a built-in internal data source, surface that availability in both Configure and Hermes capability context; hiding it only in runtime tools makes the agent falsely claim it has no MCP/data connections.
 - When the product has fully retired a mechanic like bid/ask order-book pricing, remove the dead UI sort controls and placeholder response fields instead of preserving non-functional compatibility stubs.
 - For OpenRouter BYOK, managed model aliases (for example `MiniMax-M2.7`) are not valid model IDs; normalize them to provider-prefixed IDs (for example `minimax/minimax-m2.7`) server-side to avoid empty-turn failures in Hermes.

@@ -11,6 +11,8 @@ describe("conversation-prompts", () => {
 
     expect(prompts.systemPrompt).toContain("general Hermes chat");
     expect(prompts.systemPrompt).toContain("goal_strip");
+    expect(prompts.systemPrompt).toContain("leaderboard_table");
+    expect(prompts.systemPrompt).toContain("compact markdown table");
     expect(prompts.userPromptTemplate).toBe("Operate on my portfolio.");
   });
 
@@ -66,6 +68,7 @@ describe("conversation-prompts", () => {
     expect(prompts.systemPrompt).toContain("Never use community boosts");
     expect(prompts.systemPrompt).toContain("portfolio-management tasks");
     expect(prompts.systemPrompt).toContain("dense mobile layouts");
+    expect(prompts.systemPrompt).toContain("tool_catalog_summary");
     expect(prompts.userPromptTemplate).toContain("update the existing saved strategy");
   });
 
@@ -80,5 +83,18 @@ describe("conversation-prompts", () => {
     expect(prompts.systemPrompt).toContain("MLB MCP advanced tools are currently offline");
     expect(prompts.systemPrompt).toContain("scan_team_roster");
     expect(prompts.systemPrompt).toContain("scan_sport_slate");
+  });
+
+  it("nudges Hermes toward built-in MLB MCP tools when they are available", () => {
+    const prompts = buildHermesConversationPrompts({
+      baseSystemPrompt: "You are Hermes.",
+      baseUserPromptTemplate: "Operate on my portfolio.",
+      conversationMode: "general_chat",
+      mlbMcpAvailable: true,
+    });
+
+    expect(prompts.systemPrompt).toContain("built-in mlb_mcp__ tools");
+    expect(prompts.systemPrompt).toContain("get_schedule");
+    expect(prompts.systemPrompt).toContain("Statcast pitcher expected-stats");
   });
 });

@@ -4,6 +4,12 @@ export const AGENT_UI_BLOCK_TYPES = [
   "clarification_card",
   "strategy_draft",
   "strategy_status",
+  "stat_highlight_strip",
+  "leaderboard_table",
+  "entity_table",
+  "schedule_board",
+  "execution_checklist",
+  "tool_catalog_summary",
   "schedule_summary",
   "rules_summary",
   "performance_summary",
@@ -21,6 +27,21 @@ export const AGENT_UI_BLOCK_SLOTS = [
 
 export type AgentUiBlockType = (typeof AGENT_UI_BLOCK_TYPES)[number];
 export type AgentUiBlockSlot = (typeof AGENT_UI_BLOCK_SLOTS)[number];
+export type AgentUiEntityType = "player" | "team" | "game" | "tool";
+export type AgentUiTone = "default" | "accent" | "positive" | "warning" | "negative";
+export type AgentUiAlign = "left" | "center" | "right";
+export type AgentUiChecklistStatus = "pending" | "ready" | "in_progress" | "done" | "blocked";
+
+export type AgentUiEntityCell = {
+  text: string;
+  secondaryText?: string | null;
+  badge?: string | null;
+  href?: string | null;
+  entityType?: AgentUiEntityType | null;
+  entityId?: string | null;
+  align?: AgentUiAlign | null;
+  tone?: AgentUiTone | null;
+};
 
 type AgentUiBlockBase<TType extends AgentUiBlockType, TProps> = {
   type: TType;
@@ -81,6 +102,120 @@ export type AgentStrategyStatusBlock = AgentUiBlockBase<
     summary?: string | null;
     nextRunAt?: string | null;
     lastResult?: string | null;
+  }
+>;
+
+export type AgentStatHighlightStripBlock = AgentUiBlockBase<
+  "stat_highlight_strip",
+  {
+    title?: string | null;
+    helper?: string | null;
+    items: Array<{
+      label: string;
+      value: string;
+      helper?: string | null;
+      tone?: AgentUiTone | null;
+    }>;
+  }
+>;
+
+export type AgentLeaderboardTableBlock = AgentUiBlockBase<
+  "leaderboard_table",
+  {
+    title?: string | null;
+    helper?: string | null;
+    statLabel: string;
+    secondaryStatLabel?: string | null;
+    leaders: Array<{
+      id: string;
+      rank: number;
+      playerName: string;
+      playerId?: string | null;
+      href?: string | null;
+      team?: string | null;
+      secondaryText?: string | null;
+      badge?: string | null;
+      primaryValue: string;
+      secondaryValue?: string | null;
+      note?: string | null;
+      tone?: AgentUiTone | null;
+    }>;
+    emptyState?: string | null;
+  }
+>;
+
+export type AgentEntityTableBlock = AgentUiBlockBase<
+  "entity_table",
+  {
+    title?: string | null;
+    helper?: string | null;
+    columns: Array<{
+      key: string;
+      label: string;
+      align?: AgentUiAlign | null;
+    }>;
+    rows: Array<{
+      id: string;
+      rank?: number | null;
+      note?: string | null;
+      cells: Record<string, AgentUiEntityCell>;
+    }>;
+    emptyState?: string | null;
+  }
+>;
+
+export type AgentScheduleBoardBlock = AgentUiBlockBase<
+  "schedule_board",
+  {
+    title?: string | null;
+    helper?: string | null;
+    rows: Array<{
+      id: string;
+      matchup: string;
+      status?: string | null;
+      startTime?: string | null;
+      venue?: string | null;
+      href?: string | null;
+      chips?: string[] | null;
+      probableAwayPitcher?: string | null;
+      probableHomePitcher?: string | null;
+      note?: string | null;
+    }>;
+    emptyState?: string | null;
+  }
+>;
+
+export type AgentExecutionChecklistBlock = AgentUiBlockBase<
+  "execution_checklist",
+  {
+    title?: string | null;
+    summary?: string | null;
+    items: Array<{
+      id: string;
+      label: string;
+      detail?: string | null;
+      status: AgentUiChecklistStatus;
+    }>;
+  }
+>;
+
+export type AgentToolCatalogSummaryBlock = AgentUiBlockBase<
+  "tool_catalog_summary",
+  {
+    title?: string | null;
+    helper?: string | null;
+    groups: Array<{
+      id: string;
+      label: string;
+      tools: Array<{
+        name: string;
+        description: string;
+        riskLevel?: "low" | "medium" | "high" | null;
+        examplePrompt?: string | null;
+        presentationProfile?: string | null;
+        primaryEntityType?: AgentUiEntityType | null;
+      }>;
+    }>;
   }
 >;
 
@@ -149,6 +284,12 @@ export type AgentUiBlock =
   | AgentClarificationCardBlock
   | AgentStrategyDraftBlock
   | AgentStrategyStatusBlock
+  | AgentStatHighlightStripBlock
+  | AgentLeaderboardTableBlock
+  | AgentEntityTableBlock
+  | AgentScheduleBoardBlock
+  | AgentExecutionChecklistBlock
+  | AgentToolCatalogSummaryBlock
   | AgentScheduleSummaryBlock
   | AgentRulesSummaryBlock
   | AgentPerformanceSummaryBlock

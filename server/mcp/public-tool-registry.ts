@@ -24,6 +24,10 @@ import {
   runHermesReadTool,
   runHermesScanTool,
 } from "../agent/hermes-tools";
+import {
+  getInternalMlbMcpToolCatalog,
+  runInternalMlbMcpToolBounded,
+} from "../agent/internal-mlb-mcp";
 import { planDirectAgentOperation } from "../agent/operations-planner";
 import {
   clearScoutAgentByok,
@@ -51,7 +55,12 @@ import {
   updateSmsSettings,
 } from "../sms-service";
 import { redeemPremiumShare } from "../services/premium-redemption";
-import type { AgentAction, AgentDomain, AgentPendingClarification } from "../agent/types";
+import type {
+  AgentAction,
+  AgentDomain,
+  AgentPendingClarification,
+  AgentToolDefinition,
+} from "../agent/types";
 
 type RawSchema = Record<string, z.ZodTypeAny>;
 
@@ -90,9 +99,14 @@ export type PublicIncludedCapability = {
   kind: "tool" | "prompt" | "resource";
   status: "included";
   domain: string;
+  title?: string | null;
   toolName?: string;
   promptName?: string;
   resourceUri?: string;
+  provider?: string | null;
+  readOnly?: boolean;
+  confirmationModel?: "immediate" | "staged_confirmation" | "finalizer";
+  riskLevel?: "low" | "medium" | "high" | null;
   source: string;
   routeRefs?: string[];
 };
@@ -108,6 +122,43 @@ export type PublicResourceDefinition = {
       text: string;
     }>;
   }>;
+};
+
+export type PublicDynamicSourceStatus = {
+  id: string;
+  name: string;
+  provider: string;
+  available: boolean;
+  toolCount: number;
+  error: string | null;
+};
+
+export type PublicToolCatalogEntry = {
+  name: string;
+  title: string | null;
+  description: string;
+  domain: string;
+  provider: string | null;
+  source: string;
+  category: string | null;
+  readOnly: boolean;
+  confirmationModel: "immediate" | "staged_confirmation" | "finalizer";
+  riskLevel: "low" | "medium" | "high" | null;
+  whenToUse: string[];
+  whenNotToUse: string[];
+  examplePrompts: string[];
+  resultShapeHint: string | null;
+  presentationProfile: string | null;
+  primaryEntityType: string | null;
+  preferredColumns: string[];
+  inputFieldNames: string[];
+  fixtureArgs: Record<string, unknown>;
+  routeRefs: string[];
+};
+
+type ResolvedDynamicMlbPublicTools = {
+  tools: AgentToolDefinition[];
+  sourceStatus: PublicDynamicSourceStatus;
 };
 
 export type PublicExcludedCapability = {
@@ -131,6 +182,7 @@ export type PublicSiteRouteCoverageEntry = {
 type PublicMcpServerContext = {
   userId: string;
   deps: PublicMcpDependencies;
+  dynamicMlb?: ResolvedDynamicMlbPublicTools | null;
 };
 
 type StorageSubset = Pick<
@@ -208,7 +260,12 @@ export type PublicMcpDependencies = {
     hasUnreadDigest: boolean;
     digestReleaseAt: Date;
   }>;
+  getInternalMlbMcpToolCatalog: () => Promise<AgentToolDefinition[]>;
+  runInternalMlbMcpToolBounded: typeof runInternalMlbMcpToolBounded;
 };
+
+const PUBLIC_DYNAMIC_MLB_SOURCE_ID = "internal_mlb_mcp";
+const PUBLIC_DYNAMIC_MLB_SOURCE_NAME = "Internal MLB MCP";
 
 class PublicMcpToolError extends Error {
   constructor(
@@ -288,6 +345,131 @@ function toToolErrorResult(error: unknown) {
     },
     isError: true,
   };
+}
+
+function getPublicToolExecutionModel(name: string) {
+  if (name === "confirm_pending_action" || name === "cancel_pending_action") {
+    return "finalizer" as const;
+  }
+  if (name.startsWith("stage_")) {
+    return "staged_confirmation" as const;
+  }
+  return "immediate" as const;
+}
+
+function getToolInputFieldNames(schema?: RawSchema) {
+  if (!schema || typeof schema !== "object") {
+    return [];
+  }
+  return Object.keys(schema);
+}
+
+function getAgentToolInputFieldNames(inputSchema?: Record<string, unknown> | null) {
+  if (!inputSchema || typeof inputSchema !== "object" || Array.isArray(inputSchema)) {
+    return [];
+  }
+
+  const properties =
+    "properties" in inputSchema &&
+    inputSchema.properties &&
+    typeof inputSchema.properties === "object" &&
+    !Array.isArray(inputSchema.properties)
+      ? (inputSchema.properties as Record<string, unknown>)
+      : null;
+
+  return properties ? Object.keys(properties) : [];
+}
+
+function toStaticPublicToolCatalogEntry(tool: PublicToolDefinition): PublicToolCatalogEntry {
+  return {
+    name: tool.name,
+    title: tool.title || null,
+    description: tool.description,
+    domain: tool.domain,
+    provider: "sportfolio",
+    source: "public_registry:tool",
+    category: tool.readOnly ? "read" : "action",
+    readOnly: tool.readOnly,
+    confirmationModel: getPublicToolExecutionModel(tool.name),
+    riskLevel: tool.readOnly ? "low" : null,
+    whenToUse: [],
+    whenNotToUse: [],
+    examplePrompts: [],
+    resultShapeHint: null,
+    presentationProfile: null,
+    primaryEntityType: null,
+    preferredColumns: [],
+    inputFieldNames: getToolInputFieldNames(tool.inputSchema),
+    fixtureArgs: tool.fixtureArgs,
+    routeRefs: tool.routeRefs || [],
+  };
+}
+
+function toDynamicPublicToolCatalogEntry(tool: AgentToolDefinition): PublicToolCatalogEntry {
+  return {
+    name: tool.toolName,
+    title: tool.toolName,
+    description: tool.description,
+    domain: "mlb",
+    provider: "internal_mlb_mcp",
+    source: "dynamic:internal_mlb_mcp",
+    category: tool.category,
+    readOnly: !tool.requiresConfirmation,
+    confirmationModel: tool.requiresConfirmation ? "staged_confirmation" : "immediate",
+    riskLevel: tool.riskLevel,
+    whenToUse: [...tool.whenToUse],
+    whenNotToUse: [...tool.whenNotToUse],
+    examplePrompts: [...tool.examplePrompts],
+    resultShapeHint: tool.resultShapeHint || null,
+    presentationProfile: tool.presentationProfile || null,
+    primaryEntityType: tool.primaryEntityType || null,
+    preferredColumns: [...(tool.preferredColumns || [])],
+    inputFieldNames: getAgentToolInputFieldNames(tool.inputSchema),
+    fixtureArgs: {},
+    routeRefs: [],
+  };
+}
+
+export async function resolveDynamicMlbPublicTools(
+  deps: Pick<PublicMcpDependencies, "getInternalMlbMcpToolCatalog">,
+): Promise<ResolvedDynamicMlbPublicTools> {
+  const staticToolNames = new Set(buildPublicToolRegistry().map((tool) => tool.name));
+
+  try {
+    const tools = (await deps.getInternalMlbMcpToolCatalog()).filter(
+      (tool) => !tool.requiresConfirmation && !staticToolNames.has(tool.toolName),
+    );
+
+    return {
+      tools,
+      sourceStatus: {
+        id: PUBLIC_DYNAMIC_MLB_SOURCE_ID,
+        name: PUBLIC_DYNAMIC_MLB_SOURCE_NAME,
+        provider: "internal_mlb_mcp",
+        available: true,
+        toolCount: tools.length,
+        error: null,
+      },
+    };
+  } catch (error) {
+    return {
+      tools: [],
+      sourceStatus: {
+        id: PUBLIC_DYNAMIC_MLB_SOURCE_ID,
+        name: PUBLIC_DYNAMIC_MLB_SOURCE_NAME,
+        provider: "internal_mlb_mcp",
+        available: false,
+        toolCount: 0,
+        error: error instanceof Error ? error.message : String(error),
+      },
+    };
+  }
+}
+
+async function getResolvedDynamicMlbPublicToolsForContext(
+  context: PublicMcpServerContext,
+): Promise<ResolvedDynamicMlbPublicTools> {
+  return context.dynamicMlb || resolveDynamicMlbPublicTools(context.deps);
 }
 
 function toStringValue(value: unknown): string {
@@ -3302,6 +3484,8 @@ export function createDefaultPublicMcpDependencies(): PublicMcpDependencies {
     celebrateMilestone: defaultCelebrateMilestone,
     markNewsRead: defaultMarkNewsRead,
     getNewsUnreadCount: defaultGetNewsUnreadCount,
+    getInternalMlbMcpToolCatalog,
+    runInternalMlbMcpToolBounded,
   };
 }
 
@@ -3810,6 +3994,7 @@ const PUBLIC_STATIC_RESOURCE_URIS = [
   "sportfolio://docs/index",
   "sportfolio://capabilities",
   "sportfolio://action-surface",
+  "sportfolio://tool-catalog",
 ] as const;
 
 const PUBLIC_PROMPTS: PublicPromptDefinition[] = [
@@ -3915,37 +4100,87 @@ const PUBLIC_STATIC_RESOURCES: PublicResourceDefinition[] = [
     uri: "sportfolio://capabilities",
     mimeType: "application/json",
     description: "Shared public capability inventory for CLI and MCP.",
-    read: async () => ({
-      contents: [
-        {
-          uri: "sportfolio://capabilities",
-          text: JSON.stringify(buildPublicCapabilityInventory(), null, 2),
-        },
-      ],
-    }),
+    read: async (context) => {
+      const inventory = await buildResolvedPublicCapabilityInventory(context);
+      return {
+        contents: [
+          {
+            uri: "sportfolio://capabilities",
+            text: JSON.stringify(
+              {
+                generatedAt: new Date().toISOString(),
+                ...inventory,
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    },
   },
   {
     id: "action-surface",
     uri: "sportfolio://action-surface",
     mimeType: "application/json",
     description: "Shared public action surface grouped by domain.",
-    read: async () => ({
-      contents: [
-        {
-          uri: "sportfolio://action-surface",
-          text: JSON.stringify(
-            buildPublicToolRegistry().map((tool) => ({
-              name: tool.name,
-              domain: tool.domain,
-              readOnly: tool.readOnly,
-              fixtureArgs: tool.fixtureArgs,
-            })),
-            null,
-            2,
-          ),
-        },
-      ],
-    }),
+    read: async (context) => {
+      const catalog = await buildResolvedPublicToolCatalog(context);
+      return {
+        contents: [
+          {
+            uri: "sportfolio://action-surface",
+            text: JSON.stringify(
+              {
+                generatedAt: new Date().toISOString(),
+                dynamicSources: catalog.dynamicSources,
+                tools: catalog.tools.map((tool) => ({
+                  name: tool.name,
+                  title: tool.title,
+                  domain: tool.domain,
+                  provider: tool.provider,
+                  readOnly: tool.readOnly,
+                  confirmationModel: tool.confirmationModel,
+                  riskLevel: tool.riskLevel,
+                  presentationProfile: tool.presentationProfile,
+                  primaryEntityType: tool.primaryEntityType,
+                  preferredColumns: tool.preferredColumns,
+                  inputFieldNames: tool.inputFieldNames,
+                  fixtureArgs: tool.fixtureArgs,
+                })),
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    },
+  },
+  {
+    id: "tool-catalog",
+    uri: "sportfolio://tool-catalog",
+    mimeType: "application/json",
+    description: "Full public MCP tool catalog with live dynamic-provider discovery metadata.",
+    read: async (context) => {
+      const catalog = await buildResolvedPublicToolCatalog(context);
+      return {
+        contents: [
+          {
+            uri: "sportfolio://tool-catalog",
+            text: JSON.stringify(
+              {
+                generatedAt: new Date().toISOString(),
+                dynamicSources: catalog.dynamicSources,
+                tools: catalog.tools,
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    },
   },
 ];
 
@@ -3984,6 +4219,54 @@ export function buildPublicToolRegistry(): PublicToolDefinition[] {
 
 export function buildPublicPromptRegistry(): PublicPromptDefinition[] {
   return [...PUBLIC_PROMPTS];
+}
+
+export async function buildResolvedPublicToolCatalog(context: PublicMcpServerContext): Promise<{
+  tools: PublicToolCatalogEntry[];
+  dynamicSources: PublicDynamicSourceStatus[];
+}> {
+  const staticTools = buildPublicToolRegistry().map(toStaticPublicToolCatalogEntry);
+  const dynamicMlb = await getResolvedDynamicMlbPublicToolsForContext(context);
+
+  return {
+    tools: [...staticTools, ...dynamicMlb.tools.map(toDynamicPublicToolCatalogEntry)],
+    dynamicSources: [dynamicMlb.sourceStatus],
+  };
+}
+
+export async function buildResolvedPublicCapabilityInventory(
+  context: PublicMcpServerContext,
+): Promise<{
+  included: PublicIncludedCapability[];
+  excluded: PublicExcludedCapability[];
+  dynamicSources: PublicDynamicSourceStatus[];
+}> {
+  const baseInventory = buildPublicCapabilityInventory();
+  const dynamicMlb = await getResolvedDynamicMlbPublicToolsForContext(context);
+
+  return {
+    included: [
+      ...baseInventory.included,
+      ...dynamicMlb.tools.map(
+        (tool) =>
+          ({
+            capabilityId: tool.toolName,
+            kind: "tool",
+            status: "included",
+            domain: "mlb",
+            title: tool.toolName,
+            toolName: tool.toolName,
+            provider: "internal_mlb_mcp",
+            readOnly: !tool.requiresConfirmation,
+            confirmationModel: tool.requiresConfirmation ? "staged_confirmation" : "immediate",
+            riskLevel: tool.riskLevel,
+            source: "dynamic:internal_mlb_mcp",
+          }) satisfies PublicIncludedCapability,
+      ),
+    ],
+    excluded: [...baseInventory.excluded],
+    dynamicSources: [dynamicMlb.sourceStatus],
+  };
 }
 
 export function buildPublicResourceRegistry(
@@ -4201,6 +4484,7 @@ export async function readPublicResource(context: PublicMcpServerContext, uri: s
 
 export async function registerPublicMcpSurface(server: McpServer, context: PublicMcpServerContext) {
   for (const tool of buildPublicToolRegistry()) {
+    const catalogEntry = toStaticPublicToolCatalogEntry(tool);
     server.registerTool(
       tool.name,
       {
@@ -4214,6 +4498,14 @@ export async function registerPublicMcpSurface(server: McpServer, context: Publi
         },
         _meta: {
           domain: tool.domain,
+          provider: "sportfolio",
+          source: "public_registry:tool",
+          confirmationModel: catalogEntry.confirmationModel,
+          presentationProfile: catalogEntry.presentationProfile,
+          primaryEntityType: catalogEntry.primaryEntityType,
+          preferredColumns: catalogEntry.preferredColumns,
+          inputFieldNames: catalogEntry.inputFieldNames,
+          routeRefs: tool.routeRefs || [],
           fixtureArgs: tool.fixtureArgs,
         },
       },
