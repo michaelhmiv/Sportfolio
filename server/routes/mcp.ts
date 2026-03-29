@@ -240,8 +240,11 @@ function toDynamicMlbToolError(error: unknown) {
   };
 }
 
-async function registerDynamicMlbTools(server: McpServer, deps: PublicMcpDependencies) {
-  const dynamicMlb = await resolveDynamicMlbPublicTools(deps);
+async function registerDynamicMlbTools(
+  server: McpServer,
+  deps: PublicMcpDependencies,
+  dynamicMlb: Awaited<ReturnType<typeof resolveDynamicMlbPublicTools>>,
+) {
   if (!dynamicMlb.sourceStatus.available) {
     console.warn("[MCP] Failed to load dynamic MLB MCP tools:", dynamicMlb.sourceStatus.error);
     return;
@@ -276,6 +279,9 @@ async function registerDynamicMlbTools(server: McpServer, deps: PublicMcpDepende
           whenNotToUse: tool.whenNotToUse,
           examplePrompts: tool.examplePrompts,
           resultShapeHint: tool.resultShapeHint || null,
+          presentationProfile: tool.presentationProfile || null,
+          primaryEntityType: tool.primaryEntityType || null,
+          preferredColumns: [...(tool.preferredColumns || [])],
           inputFieldNames:
             tool.inputSchema &&
             typeof tool.inputSchema === "object" &&
@@ -322,6 +328,7 @@ export async function createSportfolioMcpServer(
   deps: PublicMcpDependencies = createDefaultPublicMcpDependencies(),
 ) {
   assertPublicMcpSurfaceIntegrity();
+  const dynamicMlb = await resolveDynamicMlbPublicTools(deps);
 
   const server = new McpServer(MCP_SERVER_INFO, {
     capabilities: {
@@ -332,8 +339,9 @@ export async function createSportfolioMcpServer(
   await registerPublicMcpSurface(server, {
     userId,
     deps,
+    dynamicMlb,
   });
-  await registerDynamicMlbTools(server, deps);
+  await registerDynamicMlbTools(server, deps, dynamicMlb);
 
   return server;
 }

@@ -255,6 +255,9 @@ const AGENT_TOOL_CATALOG: AgentToolDefinition[] = [
     requiresConfirmation: false,
     riskLevel: "low",
     inputSchema: sportSlateSchema,
+    presentationProfile: "schedule",
+    primaryEntityType: "game",
+    preferredColumns: ["matchup", "status", "startTime", "venue"],
   },
   {
     toolName: "scan_team_roster",
@@ -279,6 +282,9 @@ const AGENT_TOOL_CATALOG: AgentToolDefinition[] = [
     requiresConfirmation: false,
     riskLevel: "low",
     inputSchema: teamRosterSchema,
+    presentationProfile: "leaderboard",
+    primaryEntityType: "player",
+    preferredColumns: ["player", "position", "team", "price"],
   },
   {
     toolName: "scan_player_upcoming_games",
@@ -294,6 +300,9 @@ const AGENT_TOOL_CATALOG: AgentToolDefinition[] = [
     examplePrompts: ["when does LeBron play next?", "what's Shohei Ohtani's schedule this week?"],
     requiresConfirmation: false,
     riskLevel: "low",
+    presentationProfile: "schedule",
+    primaryEntityType: "game",
+    preferredColumns: ["player", "opponent", "startTime", "boostEligible"],
   },
   {
     toolName: "query_external_source",
@@ -328,6 +337,7 @@ const AGENT_TOOL_CATALOG: AgentToolDefinition[] = [
     examplePrompts: ["buy $25 of Austin Hill", "put Anthony Edwards in my 2x boost slot today"],
     requiresConfirmation: true,
     riskLevel: "medium",
+    presentationProfile: "execution",
   },
   {
     toolName: "preview_multi_action_bundle",
@@ -348,6 +358,7 @@ const AGENT_TOOL_CATALOG: AgentToolDefinition[] = [
     ],
     requiresConfirmation: true,
     riskLevel: "high",
+    presentationProfile: "execution",
   },
   {
     toolName: "stage_action_bundle",
@@ -497,6 +508,7 @@ function cloneToolCatalogEntry(entry: AgentToolDefinition): AgentToolDefinition 
     whenToUse: [...entry.whenToUse],
     whenNotToUse: [...entry.whenNotToUse],
     examplePrompts: [...entry.examplePrompts],
+    preferredColumns: [...(entry.preferredColumns || [])],
     autoContextArgs: [...(entry.autoContextArgs || [])],
     inputSchema: entry.inputSchema
       ? (JSON.parse(JSON.stringify(entry.inputSchema)) as Record<string, unknown>)

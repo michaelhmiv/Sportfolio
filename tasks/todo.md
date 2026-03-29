@@ -1,3 +1,43 @@
+## 2026-03-29 MLB Doubleheader + MCP Session Snapshot Follow-Up
+
+- [x] Fix MLB probable-starter matchup resolution so doubleheaders keep the correct per-game context
+- [x] Snapshot dynamic MLB tool availability once per MCP session and reuse it across public discovery resources
+- [x] Add targeted regression coverage for the doubleheader and MCP session-snapshot cases
+- [x] Run targeted validation, update lessons, and push the branch fix
+
+Review:
+
+- `server/mlb-pregame-insights.ts` now preserves all team matchup contexts for doubleheaders and adds a probable-starter-specific lookup, so a second-leg starter resolves to the correct `gameId`, matchup chip, and summary instead of inheriting the first game.
+- `server/mcp/public-tool-registry.ts` and `server/routes/mcp.ts` now resolve the dynamic MLB catalog once when a public MCP session server is created and reuse that snapshot for both dynamic tool registration and discovery resources, eliminating session drift between `tools/list` and `sportfolio://*` resources.
+- Added targeted regressions in `server/mlb-pregame-insights.test.ts` and `server/mcp/mcp-server.test.ts` for MLB doubleheaders and post-connect MLB catalog churn.
+- Validation status:
+- `npm run check` passed.
+- `npm run lint` passed.
+- `npm run test:run` passed.
+- `npm run format:check` passed.
+
+## 2026-03-29 Agent Result Formatting Upgrade
+
+- [x] Extend the shared agent `uiBlocks` catalog for leaderboard, schedule, execution, tool-catalog, and stat-highlight result shapes
+- [x] Render the new result blocks in chat with mobile-safe density and inline player modal behavior
+- [x] Upgrade markdown fallback rendering so leaderboard tables and internal player links behave cleanly inside chat
+- [x] Add presentation metadata to the Hermes/public MCP tool catalog so agents can infer the right formatting profile
+- [x] Update prompt guidance and tests so leaderboard/schedule/tool-catalog answers prefer structured formatting
+- [x] Re-run validation and targeted browser coverage for the formatted chat experience
+
+Review:
+
+- `shared/agent-ui.ts` now supports leaderboard, entity-table, schedule-board, execution-checklist, tool-catalog, and stat-highlight blocks so Hermes can render common sports/result shapes natively instead of relying on long prose.
+- `client/src/features/agent/components/agent-ui-blocks.tsx` and `client/src/features/agent/components/agent-conversation.tsx` now blend structured result blocks and markdown fallbacks into the transcript, add mobile-safe table scrolling, and open `PlayerModal` from structured rows or `/player/:id` markdown links.
+- `server/agent/types.ts`, `server/agent/hermes-tool-registry.ts`, `server/agent/hermes-tools.ts`, `server/agent/internal-mlb-mcp.ts`, `server/mcp/public-tool-registry.ts`, and `server/routes/mcp.ts` now carry presentation metadata like `presentationProfile`, `primaryEntityType`, and `preferredColumns` through the internal tool catalog and public MCP discovery surface.
+- `server/agent/conversation-prompts.ts` and `server/agent/ui-blocks.ts` now guide Hermes toward native leaderboard/schedule/tool-catalog/checklist formatting and synthesize checklist fallbacks for pending/strategy-review turns.
+- Validation status:
+- `npm run check` passed.
+- `npm run lint` passed.
+- `npm run test:run` passed.
+- `npm run format:check` passed.
+- `npx playwright test tests/e2e/agent-shell.spec.ts --grep "formatted leaderboard output" --project=chromium` passed.
+
 ## 2026-03-28 MLB Dev Runtime + Box Score Blend Pass
 
 - [x] Make development auto-detect the local vendored MLB MCP when no explicit internal endpoint is configured

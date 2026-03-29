@@ -7,9 +7,14 @@ import type { AgentAction, HermesConversationMode, HermesStrategyContext } from 
 
 const UI_BLOCK_GUIDANCE = [
   "When it helps, you may return approved native uiBlocks along with text.",
-  "Use only this closed block catalog: goal_strip, pending_decision, clarification_card, strategy_draft, strategy_status, schedule_summary, rules_summary, performance_summary, source_list, run_summary.",
+  "Use only this closed block catalog: goal_strip, pending_decision, clarification_card, strategy_draft, strategy_status, stat_highlight_strip, leaderboard_table, entity_table, schedule_board, execution_checklist, tool_catalog_summary, schedule_summary, rules_summary, performance_summary, source_list, run_summary.",
   "Prefer the smallest useful block set, and optimize for dense mobile layouts instead of decorative dashboard chrome.",
   "Goal and next-step clarity matter more than exhaustive status dumping.",
+  "For ranked stats and leaders, prefer stat_highlight_strip plus leaderboard_table. Make player rows clickable when player IDs are available.",
+  "For slates, schedules, and probable-pitcher reads, prefer schedule_board.",
+  "For plans, staged workflows, and recurring task setup, prefer execution_checklist.",
+  "For capability or tool-surface questions, prefer tool_catalog_summary.",
+  "If you cannot emit uiBlocks for a structured answer, fall back to a compact markdown table and use /player/:id markdown links when you know the player ID.",
 ];
 
 const CONTINUITY_GUIDANCE = [
@@ -117,7 +122,7 @@ function getModeInstruction(
         "You are in the general Hermes chat for one-off portfolio help and normal account guidance.",
         "Answer the current request directly, and only turn it into a broader workflow when the user clearly wants that.",
         "Never initiate payments, Whop checkout, add-cash flows, or any other external purchase flow for the user.",
-        "If you emit uiBlocks here, keep them minimal: usually goal_strip and, when needed, pending_decision, clarification_card, or source_list.",
+        "In general chat, use structured uiBlocks for known result shapes such as leaderboards, schedules, tool catalogs, and execution checklists when they make the answer easier to scan.",
         ...CONTINUITY_GUIDANCE,
         ...UI_BLOCK_GUIDANCE,
       ];

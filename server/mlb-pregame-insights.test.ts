@@ -757,7 +757,8 @@ describe("mlb-pregame-insights", () => {
       playerTeam: "ATL",
       playerPosition: "P",
       probableStarterKeys: lookup.probableStarterKeys,
-      matchupByTeam: lookup.matchupByTeam,
+      probableStarterContextByKey: lookup.probableStarterContextByKey,
+      matchupsByTeam: lookup.matchupsByTeam,
     });
 
     const hitterContext = getMlbPitcherMatchupChip({
@@ -765,7 +766,8 @@ describe("mlb-pregame-insights", () => {
       playerTeam: "ATL",
       playerPosition: "1B",
       probableStarterKeys: lookup.probableStarterKeys,
-      matchupByTeam: lookup.matchupByTeam,
+      probableStarterContextByKey: lookup.probableStarterContextByKey,
+      matchupsByTeam: lookup.matchupsByTeam,
     });
 
     expect(probableStarterContext.isProbableStarter).toBe(true);
@@ -774,5 +776,100 @@ describe("mlb-pregame-insights", () => {
     expect(hitterContext.isProbableStarter).toBe(false);
     expect(hitterContext.mlbMatchupChip).toBe("vs Ragans");
     expect(hitterContext.mlbPregameSummary).toContain("ATL");
+  });
+
+  it("keeps doubleheader probable starters tied to the correct game context", async () => {
+    const firstGame = {
+      ...localGame,
+      gameId: "mlb_local_1",
+      startTime: new Date("2026-03-27T19:15:00.000Z"),
+    } as any;
+    const secondGame = {
+      ...localGame,
+      gameId: "mlb_local_2",
+      startTime: new Date("2026-03-27T23:15:00.000Z"),
+    } as any;
+
+    mocks.runInternalMlbMcpToolRaw.mockImplementation(async ({ toolName, args }) => {
+      if (toolName === "mlb_mcp__get_schedule") {
+        expect(args).toMatchObject({ date: "2026-03-27" });
+        return {
+          remoteToolName: "get_schedule",
+          replyText: null,
+          content: [],
+          structuredContent: {
+            games: [
+              {
+                game_id: 824946,
+                game_datetime: "2026-03-27T19:15:00Z",
+                game_date: "2026-03-27",
+                away_name: "Kansas City Royals",
+                home_name: "Atlanta Braves",
+                away_probable_pitcher: "Cole Ragans",
+                home_probable_pitcher: "Chris Sale",
+                away_pitcher_note: "",
+                home_pitcher_note: "",
+                doubleheader: "Y",
+                game_num: 1,
+                venue_name: "Truist Park",
+                national_broadcasts: [],
+                status: "Pre-Game",
+              },
+              {
+                game_id: 824947,
+                game_datetime: "2026-03-27T23:15:00Z",
+                game_date: "2026-03-27",
+                away_name: "Kansas City Royals",
+                home_name: "Atlanta Braves",
+                away_probable_pitcher: "Seth Lugo",
+                home_probable_pitcher: "Reynaldo Lopez",
+                away_pitcher_note: "",
+                home_pitcher_note: "",
+                doubleheader: "Y",
+                game_num: 2,
+                venue_name: "Truist Park",
+                national_broadcasts: [],
+                status: "Pre-Game",
+              },
+            ],
+          },
+        };
+      }
+
+      if (toolName === "mlb_mcp__get_statcast_pitcher_expected_stats") {
+        expect(args).toMatchObject({
+          minPA: 1,
+          start_row: 0,
+          end_row: 1400,
+        });
+        expect([2025, 2026]).toContain(args.year);
+        return {
+          remoteToolName: "get_statcast_pitcher_expected_stats",
+          replyText: null,
+          content: [],
+          structuredContent: {
+            data: [],
+          },
+        };
+      }
+
+      throw new Error(`Unexpected MLB MCP tool call in doubleheader test: ${toolName}`);
+    });
+
+    const lookup = await getMlbPlayerPregameLookup([firstGame, secondGame], "2026-03-27");
+    const secondStarterContext = getMlbPitcherMatchupChip({
+      playerName: "Reynaldo Lopez",
+      playerTeam: "ATL",
+      playerPosition: "P",
+      probableStarterKeys: lookup.probableStarterKeys,
+      probableStarterContextByKey: lookup.probableStarterContextByKey,
+      matchupsByTeam: lookup.matchupsByTeam,
+    });
+
+    expect(lookup.matchupsByTeam.get("ATL")).toHaveLength(2);
+    expect(secondStarterContext.isProbableStarter).toBe(true);
+    expect(secondStarterContext.probablePitcherGameId).toBe("mlb_local_2");
+    expect(secondStarterContext.mlbPregameSummary).toContain("Lugo");
+    expect(secondStarterContext.mlbPregameSummary).toContain("Lopez");
   });
 });

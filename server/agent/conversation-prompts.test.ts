@@ -11,6 +11,8 @@ describe("conversation-prompts", () => {
 
     expect(prompts.systemPrompt).toContain("general Hermes chat");
     expect(prompts.systemPrompt).toContain("goal_strip");
+    expect(prompts.systemPrompt).toContain("leaderboard_table");
+    expect(prompts.systemPrompt).toContain("compact markdown table");
     expect(prompts.userPromptTemplate).toBe("Operate on my portfolio.");
   });
 
@@ -66,6 +68,7 @@ describe("conversation-prompts", () => {
     expect(prompts.systemPrompt).toContain("Never use community boosts");
     expect(prompts.systemPrompt).toContain("portfolio-management tasks");
     expect(prompts.systemPrompt).toContain("dense mobile layouts");
+    expect(prompts.systemPrompt).toContain("tool_catalog_summary");
     expect(prompts.userPromptTemplate).toContain("update the existing saved strategy");
   });
 

@@ -1,5 +1,11 @@
 # Lessons Learned
 
+## 2026-03-29
+
+- For per-player MLB pregame chips, do not collapse a team's schedule to one matchup entry when doubleheaders exist; probable starters need a pitcher-keyed game context or the second leg will point at the wrong game.
+- For dynamic MCP providers, discovery resources must use the same availability snapshot that the session registered in `tools/list`; recomputing provider state on every resource read causes session-visible catalog drift.
+- For rich agent chat answers, do not rely on prose alone; pair native `uiBlocks` with markdown-table and `/player/:id` fallbacks so leaderboard and schedule answers still stay readable and interactive when the model emits only text.
+
 ## 2026-03-27
 
 - When an optional enrichment provider drives visible UI, verify the real runtime wiring and show an explicit unavailable or pending state in the product; silent omission makes implemented features look nonexistent.

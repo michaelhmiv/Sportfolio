@@ -277,6 +277,14 @@ export type AgentStrategyStatus = "draft" | "live" | "paused" | "blocked" | "arc
 export type AgentStrategyReviewStatus = "pending" | "approved";
 export type AgentToolCategory = "read" | "scan" | "plan" | "action" | "memory" | "research";
 export type AgentToolExposure = "default" | "advanced" | "hidden_fallback" | "internal_only";
+export type AgentToolPresentationProfile =
+  | "generic"
+  | "leaderboard"
+  | "schedule"
+  | "execution"
+  | "tool_catalog"
+  | "sources";
+export type AgentToolPrimaryEntityType = "player" | "team" | "game" | "tool";
 export type AgentProviderFailureClass =
   | "auth"
   | "context_overflow"
@@ -318,6 +326,9 @@ export interface AgentToolDefinition {
   riskLevel: "low" | "medium" | "high";
   inputSchema?: Record<string, unknown> | null;
   resultShapeHint?: string | null;
+  presentationProfile?: AgentToolPresentationProfile | null;
+  primaryEntityType?: AgentToolPrimaryEntityType | null;
+  preferredColumns?: string[] | null;
   autoContextArgs?: string[];
   exposure?: AgentToolExposure;
   supportsSequentialUse?: boolean;

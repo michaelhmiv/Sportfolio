@@ -130,6 +130,7 @@ function cloneToolEntry(entry: AgentToolDefinition): AgentToolDefinition {
     whenToUse: [...entry.whenToUse],
     whenNotToUse: [...entry.whenNotToUse],
     examplePrompts: [...entry.examplePrompts],
+    preferredColumns: [...(entry.preferredColumns || [])],
     autoContextArgs: [...(entry.autoContextArgs || [])],
     inputSchema: cloneInputSchema(entry.inputSchema),
   };
@@ -178,6 +179,56 @@ function allocateLocalToolName(params: {
   return candidate;
 }
 
+function inferToolPresentationProfile(remoteToolName: string) {
+  const normalized = remoteToolName.toLowerCase();
+  if (normalized.includes("schedule")) {
+    return "schedule" as const;
+  }
+  if (
+    normalized.includes("leader") ||
+    normalized.includes("expected_stats") ||
+    normalized.includes("percentile") ||
+    normalized.includes("arsenal")
+  ) {
+    return "leaderboard" as const;
+  }
+  return "generic" as const;
+}
+
+function inferToolPrimaryEntityType(remoteToolName: string) {
+  const normalized = remoteToolName.toLowerCase();
+  if (
+    normalized.includes("batter") ||
+    normalized.includes("pitcher") ||
+    normalized.includes("player") ||
+    normalized.includes("leader")
+  ) {
+    return "player" as const;
+  }
+  if (
+    normalized.includes("schedule") ||
+    normalized.includes("game") ||
+    normalized.includes("boxscore")
+  ) {
+    return "game" as const;
+  }
+  return null;
+}
+
+function inferPreferredColumns(remoteToolName: string) {
+  const normalized = remoteToolName.toLowerCase();
+  if (normalized.includes("schedule")) {
+    return ["matchup", "status", "startTime", "venue"];
+  }
+  if (normalized.includes("leader")) {
+    return ["rank", "player", "team", "value"];
+  }
+  if (normalized.includes("expected_stats")) {
+    return ["player", "metric", "value"];
+  }
+  return [];
+}
+
 function buildMcpToolDefinition(input: {
   localToolName: string;
   remoteToolName: string;
@@ -201,6 +252,9 @@ function buildMcpToolDefinition(input: {
     requiresConfirmation: false,
     riskLevel: "low",
     inputSchema: input.inputSchema,
+    presentationProfile: inferToolPresentationProfile(input.remoteToolName),
+    primaryEntityType: inferToolPrimaryEntityType(input.remoteToolName),
+    preferredColumns: inferPreferredColumns(input.remoteToolName),
     exposure: "advanced",
     supportsSequentialUse: true,
     auditPriority: "high",

@@ -4957,15 +4957,8 @@ ${items}
         ? await getMlbPlayerPregameLookup(todaysGames, todayET)
         : {
             probableStarterKeys: new Set<string>(),
-            matchupByTeam: new Map<
-              string,
-              {
-                gameId: string;
-                opponentLabel: string;
-                opposingProbablePitcher: string | null;
-                matchupSummary: string | null;
-              }
-            >(),
+            probableStarterContextByKey: new Map(),
+            matchupsByTeam: new Map(),
           };
 
       const players = playersRaw.map((player: any) => {
@@ -5014,7 +5007,8 @@ ${items}
                 playerTeam: player.team,
                 playerPosition: player.position,
                 probableStarterKeys: mlbPregameLookup.probableStarterKeys,
-                matchupByTeam: mlbPregameLookup.matchupByTeam,
+                probableStarterContextByKey: mlbPregameLookup.probableStarterContextByKey,
+                matchupsByTeam: mlbPregameLookup.matchupsByTeam,
               })
             : {
                 isProbableStarter: false,

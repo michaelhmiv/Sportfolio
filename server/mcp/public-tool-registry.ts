@@ -148,9 +148,17 @@ export type PublicToolCatalogEntry = {
   whenNotToUse: string[];
   examplePrompts: string[];
   resultShapeHint: string | null;
+  presentationProfile: string | null;
+  primaryEntityType: string | null;
+  preferredColumns: string[];
   inputFieldNames: string[];
   fixtureArgs: Record<string, unknown>;
   routeRefs: string[];
+};
+
+type ResolvedDynamicMlbPublicTools = {
+  tools: AgentToolDefinition[];
+  sourceStatus: PublicDynamicSourceStatus;
 };
 
 export type PublicExcludedCapability = {
@@ -174,6 +182,7 @@ export type PublicSiteRouteCoverageEntry = {
 type PublicMcpServerContext = {
   userId: string;
   deps: PublicMcpDependencies;
+  dynamicMlb?: ResolvedDynamicMlbPublicTools | null;
 };
 
 type StorageSubset = Pick<
@@ -387,6 +396,9 @@ function toStaticPublicToolCatalogEntry(tool: PublicToolDefinition): PublicToolC
     whenNotToUse: [],
     examplePrompts: [],
     resultShapeHint: null,
+    presentationProfile: null,
+    primaryEntityType: null,
+    preferredColumns: [],
     inputFieldNames: getToolInputFieldNames(tool.inputSchema),
     fixtureArgs: tool.fixtureArgs,
     routeRefs: tool.routeRefs || [],
@@ -409,6 +421,9 @@ function toDynamicPublicToolCatalogEntry(tool: AgentToolDefinition): PublicToolC
     whenNotToUse: [...tool.whenNotToUse],
     examplePrompts: [...tool.examplePrompts],
     resultShapeHint: tool.resultShapeHint || null,
+    presentationProfile: tool.presentationProfile || null,
+    primaryEntityType: tool.primaryEntityType || null,
+    preferredColumns: [...(tool.preferredColumns || [])],
     inputFieldNames: getAgentToolInputFieldNames(tool.inputSchema),
     fixtureArgs: {},
     routeRefs: [],
@@ -417,10 +432,7 @@ function toDynamicPublicToolCatalogEntry(tool: AgentToolDefinition): PublicToolC
 
 export async function resolveDynamicMlbPublicTools(
   deps: Pick<PublicMcpDependencies, "getInternalMlbMcpToolCatalog">,
-): Promise<{
-  tools: AgentToolDefinition[];
-  sourceStatus: PublicDynamicSourceStatus;
-}> {
+): Promise<ResolvedDynamicMlbPublicTools> {
   const staticToolNames = new Set(buildPublicToolRegistry().map((tool) => tool.name));
 
   try {
@@ -452,6 +464,12 @@ export async function resolveDynamicMlbPublicTools(
       },
     };
   }
+}
+
+async function getResolvedDynamicMlbPublicToolsForContext(
+  context: PublicMcpServerContext,
+): Promise<ResolvedDynamicMlbPublicTools> {
+  return context.dynamicMlb || resolveDynamicMlbPublicTools(context.deps);
 }
 
 function toStringValue(value: unknown): string {
@@ -4124,6 +4142,9 @@ const PUBLIC_STATIC_RESOURCES: PublicResourceDefinition[] = [
                   readOnly: tool.readOnly,
                   confirmationModel: tool.confirmationModel,
                   riskLevel: tool.riskLevel,
+                  presentationProfile: tool.presentationProfile,
+                  primaryEntityType: tool.primaryEntityType,
+                  preferredColumns: tool.preferredColumns,
                   inputFieldNames: tool.inputFieldNames,
                   fixtureArgs: tool.fixtureArgs,
                 })),
@@ -4205,7 +4226,7 @@ export async function buildResolvedPublicToolCatalog(context: PublicMcpServerCon
   dynamicSources: PublicDynamicSourceStatus[];
 }> {
   const staticTools = buildPublicToolRegistry().map(toStaticPublicToolCatalogEntry);
-  const dynamicMlb = await resolveDynamicMlbPublicTools(context.deps);
+  const dynamicMlb = await getResolvedDynamicMlbPublicToolsForContext(context);
 
   return {
     tools: [...staticTools, ...dynamicMlb.tools.map(toDynamicPublicToolCatalogEntry)],
@@ -4221,7 +4242,7 @@ export async function buildResolvedPublicCapabilityInventory(
   dynamicSources: PublicDynamicSourceStatus[];
 }> {
   const baseInventory = buildPublicCapabilityInventory();
-  const dynamicMlb = await resolveDynamicMlbPublicTools(context.deps);
+  const dynamicMlb = await getResolvedDynamicMlbPublicToolsForContext(context);
 
   return {
     included: [
@@ -4480,6 +4501,9 @@ export async function registerPublicMcpSurface(server: McpServer, context: Publi
           provider: "sportfolio",
           source: "public_registry:tool",
           confirmationModel: catalogEntry.confirmationModel,
+          presentationProfile: catalogEntry.presentationProfile,
+          primaryEntityType: catalogEntry.primaryEntityType,
+          preferredColumns: catalogEntry.preferredColumns,
           inputFieldNames: catalogEntry.inputFieldNames,
           routeRefs: tool.routeRefs || [],
           fixtureArgs: tool.fixtureArgs,

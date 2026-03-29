@@ -750,6 +750,15 @@ function buildToolDescription(tool: AgentToolDefinition) {
   if (tool.whenToUse[0]) {
     lines.push(`Use when: ${tool.whenToUse[0]}`);
   }
+  if (tool.presentationProfile) {
+    lines.push(`Presentation profile: ${tool.presentationProfile}`);
+  }
+  if (tool.primaryEntityType) {
+    lines.push(`Primary entity: ${tool.primaryEntityType}`);
+  }
+  if (tool.preferredColumns && tool.preferredColumns.length > 0) {
+    lines.push(`Preferred columns: ${tool.preferredColumns.join(", ")}`);
+  }
   if (tool.examplePrompts.length > 0) {
     lines.push(`Examples: ${tool.examplePrompts.slice(0, 2).join(" | ")}`);
   }

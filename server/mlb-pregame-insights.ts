@@ -359,17 +359,17 @@ export type MlbPregameInsightBundle = {
   statusByGameId: Map<string, MlbEnrichmentStatus>;
 };
 
+type MlbPlayerPregameMatchupContext = {
+  gameId: string;
+  opponentLabel: string;
+  opposingProbablePitcher: string | null;
+  matchupSummary: string | null;
+};
+
 export type MlbPlayerPregameLookup = {
   probableStarterKeys: Set<string>;
-  matchupByTeam: Map<
-    string,
-    {
-      gameId: string;
-      opponentLabel: string;
-      opposingProbablePitcher: string | null;
-      matchupSummary: string | null;
-    }
-  >;
+  probableStarterContextByKey: Map<string, MlbPlayerPregameMatchupContext>;
+  matchupsByTeam: Map<string, MlbPlayerPregameMatchupContext[]>;
 };
 
 function isRecord(value: unknown): value is UnknownRecord {
@@ -1970,6 +1970,20 @@ function buildOpponentLabel(game: DailyGame, team: string): string {
   return team === game.homeTeam ? `vs ${game.awayTeam}` : `@ ${game.homeTeam}`;
 }
 
+function appendTeamMatchupContext(
+  matchupsByTeam: Map<string, MlbPlayerPregameMatchupContext[]>,
+  team: string,
+  context: MlbPlayerPregameMatchupContext,
+) {
+  const existing = matchupsByTeam.get(team);
+  if (existing) {
+    existing.push(context);
+    return;
+  }
+
+  matchupsByTeam.set(team, [context]);
+}
+
 export async function getMlbPlayerPregameLookup(
   games: DailyGame[],
   dateStr: string,
@@ -1977,52 +1991,49 @@ export async function getMlbPlayerPregameLookup(
   const { matchedGames } = await loadMatchedMlbScheduleGames(games, dateStr);
   const insightByGameId = await getMlbPregameInsightMap(games, dateStr);
   const probableStarterKeys = new Set<string>();
-  const matchupByTeam = new Map<
-    string,
-    {
-      gameId: string;
-      opponentLabel: string;
-      opposingProbablePitcher: string | null;
-      matchupSummary: string | null;
-    }
-  >();
+  const probableStarterContextByKey = new Map<string, MlbPlayerPregameMatchupContext>();
+  const matchupsByTeam = new Map<string, MlbPlayerPregameMatchupContext[]>();
 
   matchedGames.forEach(({ localGame, scheduleGame }) => {
+    const insight = insightByGameId.get(localGame.gameId) || null;
+    const awayContext = {
+      gameId: localGame.gameId,
+      opponentLabel: buildOpponentLabel(localGame, localGame.awayTeam),
+      opposingProbablePitcher: scheduleGame.homeProbablePitcher,
+      matchupSummary: insight?.matchupSummary || null,
+    } satisfies MlbPlayerPregameMatchupContext;
+    const homeContext = {
+      gameId: localGame.gameId,
+      opponentLabel: buildOpponentLabel(localGame, localGame.homeTeam),
+      opposingProbablePitcher: scheduleGame.awayProbablePitcher,
+      matchupSummary: insight?.matchupSummary || null,
+    } satisfies MlbPlayerPregameMatchupContext;
+
     if (scheduleGame.awayProbablePitcher) {
-      probableStarterKeys.add(
-        buildPlayerNameKey(scheduleGame.awayProbablePitcher, localGame.awayTeam),
+      const awayStarterKey = buildPlayerNameKey(
+        scheduleGame.awayProbablePitcher,
+        localGame.awayTeam,
       );
+      probableStarterKeys.add(awayStarterKey);
+      probableStarterContextByKey.set(awayStarterKey, awayContext);
     }
     if (scheduleGame.homeProbablePitcher) {
-      probableStarterKeys.add(
-        buildPlayerNameKey(scheduleGame.homeProbablePitcher, localGame.homeTeam),
+      const homeStarterKey = buildPlayerNameKey(
+        scheduleGame.homeProbablePitcher,
+        localGame.homeTeam,
       );
+      probableStarterKeys.add(homeStarterKey);
+      probableStarterContextByKey.set(homeStarterKey, homeContext);
     }
 
-    const insight = insightByGameId.get(localGame.gameId) || null;
-
-    if (!matchupByTeam.has(localGame.awayTeam)) {
-      matchupByTeam.set(localGame.awayTeam, {
-        gameId: localGame.gameId,
-        opponentLabel: buildOpponentLabel(localGame, localGame.awayTeam),
-        opposingProbablePitcher: scheduleGame.homeProbablePitcher,
-        matchupSummary: insight?.matchupSummary || null,
-      });
-    }
-
-    if (!matchupByTeam.has(localGame.homeTeam)) {
-      matchupByTeam.set(localGame.homeTeam, {
-        gameId: localGame.gameId,
-        opponentLabel: buildOpponentLabel(localGame, localGame.homeTeam),
-        opposingProbablePitcher: scheduleGame.awayProbablePitcher,
-        matchupSummary: insight?.matchupSummary || null,
-      });
-    }
+    appendTeamMatchupContext(matchupsByTeam, localGame.awayTeam, awayContext);
+    appendTeamMatchupContext(matchupsByTeam, localGame.homeTeam, homeContext);
   });
 
   return {
     probableStarterKeys,
-    matchupByTeam,
+    probableStarterContextByKey,
+    matchupsByTeam,
   };
 }
 
@@ -2035,15 +2046,8 @@ export function getMlbPitcherMatchupChip(input: {
   playerTeam: string;
   playerPosition?: string | null;
   probableStarterKeys: Set<string>;
-  matchupByTeam: Map<
-    string,
-    {
-      gameId: string;
-      opponentLabel: string;
-      opposingProbablePitcher: string | null;
-      matchupSummary: string | null;
-    }
-  >;
+  probableStarterContextByKey: Map<string, MlbPlayerPregameMatchupContext>;
+  matchupsByTeam: Map<string, MlbPlayerPregameMatchupContext[]>;
 }): {
   isProbableStarter: boolean;
   probablePitcherGameId: string | null;
@@ -2051,7 +2055,8 @@ export function getMlbPitcherMatchupChip(input: {
   mlbPregameSummary: string | null;
 } {
   const probableStarterKey = buildPlayerNameKey(input.playerName, input.playerTeam);
-  const teamContext = input.matchupByTeam.get(input.playerTeam) || null;
+  const starterContext = input.probableStarterContextByKey.get(probableStarterKey) || null;
+  const teamContext = starterContext || input.matchupsByTeam.get(input.playerTeam)?.[0] || null;
   const isProbableStarter = input.probableStarterKeys.has(probableStarterKey);
   const normalizedPosition = String(input.playerPosition || "")
     .trim()
@@ -2071,7 +2076,7 @@ export function getMlbPitcherMatchupChip(input: {
 
   return {
     isProbableStarter,
-    probablePitcherGameId: isProbableStarter ? teamContext?.gameId || null : null,
+    probablePitcherGameId: isProbableStarter ? starterContext?.gameId || null : null,
     mlbMatchupChip,
     mlbPregameSummary: teamContext?.matchupSummary || null,
   };

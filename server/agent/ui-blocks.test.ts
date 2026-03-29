@@ -82,6 +82,7 @@ describe("materializeAgentUiBlocks", () => {
 
     expect(blocks.map((block) => block.type)).toEqual([
       "goal_strip",
+      "execution_checklist",
       "pending_decision",
       "strategy_draft",
       "schedule_summary",
@@ -95,11 +96,21 @@ describe("materializeAgentUiBlocks", () => {
       result: buildResult({
         uiBlocks: [
           {
-            type: "goal_strip",
-            slot: "chat_header",
+            type: "leaderboard_table",
+            slot: "chat_inline",
             priority: 1,
             props: {
-              title: "Use the current slate",
+              statLabel: "Batting average",
+              leaders: [
+                {
+                  id: "leader_1",
+                  rank: 1,
+                  playerName: "Aaron Judge",
+                  playerId: "player_1",
+                  team: "NYY",
+                  primaryValue: ".341",
+                },
+              ],
             },
           },
           {
@@ -114,7 +125,7 @@ describe("materializeAgentUiBlocks", () => {
     });
 
     expect(blocks).toHaveLength(1);
-    expect(blocks[0]?.type).toBe("goal_strip");
-    expect(blocks[0]?.slot).toBe("chat_header");
+    expect(blocks[0]?.type).toBe("leaderboard_table");
+    expect(blocks[0]?.slot).toBe("chat_inline");
   });
 });
