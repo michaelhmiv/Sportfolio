@@ -3,6 +3,7 @@
 ## 2026-03-30
 
 - For Railway/production hotfixes in this repo, treat GitHub as the source of truth again before calling the incident done: reproduce in logs, patch on a clean branch from current `origin/main`, validate there, and push a fresh PR instead of letting a direct deploy become the only copy of the fix.
+- For Sportfolio deployments, do not push code directly from a local worktree to Railway; push to GitHub first and let Railway deploy from the tracked branch so GitHub, Railway, and local history stay reconcilable.
 - Startup repair work like schema ensures, provider warmups, and player initialization must not block `server.listen`; background maintenance is acceptable, but boot-critical availability must come first so transient dependency latency does not become a full outage.
 - When CI fails on newer Node runtimes, audit any collection/iterator chains carefully; `Map.values()` is not an array, so methods like `flatMap` need an explicit `Array.from(...)` materialization to stay portable across environments.
 

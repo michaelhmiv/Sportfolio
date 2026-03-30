@@ -152,6 +152,13 @@ Before commit/push:
 2. `git status`
 3. Verify no credentials, keys, tokens, or secrets are included.
 
+## Deployment Safety
+
+- GitHub is the deployment source of truth for Sportfolio.
+- Always push changes to GitHub first, then let Railway pick them up from the tracked branch.
+- Do not deploy local-only snapshots directly to Railway with `railway up`.
+- If production behavior needs verification, compare the live Railway deployment against the GitHub commit/PR that is intended to own that change.
+
 ## Custom Droids Available
 
 - `code-quality-reviewer`

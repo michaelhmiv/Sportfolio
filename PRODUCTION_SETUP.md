@@ -6,6 +6,16 @@ This guide explains how to set up external cron jobs for your published Sportfol
 
 Railway deployments should run scheduled jobs via external triggers (or Railway scheduled jobs). This keeps production jobs running consistently even if app instances restart.
 
+## Deployment Source Of Truth
+
+Sportfolio deploys should be GitHub-first:
+
+1. Push the intended change to GitHub.
+2. Land it through the normal branch/PR flow.
+3. Let Railway pick up the tracked GitHub branch deploy.
+
+Do not use direct local `railway up` deploys as the normal release path. Production should always map back to a GitHub commit that reviewers can inspect.
+
 ## Required Background Jobs
 
 Your Sportfolio app requires these automated jobs:
