@@ -813,8 +813,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   };
 
-  await ensureLpFeeGrowthColumns();
-
   const ensurePremiumActivitySchema = async () => {
     try {
       await db.execute(sql`
@@ -847,40 +845,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.warn("[DB] Could not ensure premium activity schema:", err?.message || err);
     }
   };
-
-  await ensurePremiumActivitySchema();
-
-  await ensureUserApiTokenSchema();
-
-  try {
-    await ensureAgentThreadSchema();
-  } catch (err: any) {
-    console.warn("[DB] Could not ensure agent thread schema:", err?.message || err);
-  }
-
-  try {
-    await ensureUserAgentStrategySchema();
-  } catch (err: any) {
-    console.warn("[DB] Could not ensure agent strategy schema:", err?.message || err);
-  }
-
-  try {
-    await ensureAgentSemanticSchema();
-  } catch (err: any) {
-    console.warn("[DB] Could not ensure agent semantic schema:", err?.message || err);
-  }
-
-  try {
-    await ensureAgentSystemSettingsSchema();
-  } catch (err: any) {
-    console.warn("[DB] Could not ensure agent system settings schema:", err?.message || err);
-  }
-
-  try {
-    await ensureSmsSchema();
-  } catch (err: any) {
-    console.warn("[DB] Could not ensure SMS schema:", err?.message || err);
-  }
 
   // Scout Status Endpoint (Placed early to avoid shadowing)
   app.get("/api/scouts/status", isAuthenticated, async (req, res) => {
@@ -11645,8 +11609,52 @@ ${items}
     }
   });
 
-  // Initialize data
-  await initializePlayers();
+  const runStartupWarmups = async () => {
+    await ensureLpFeeGrowthColumns();
+    await ensurePremiumActivitySchema();
+
+    try {
+      await ensureUserApiTokenSchema();
+    } catch (err: any) {
+      console.warn("[DB] Could not ensure user API token schema:", err?.message || err);
+    }
+
+    try {
+      await ensureAgentThreadSchema();
+    } catch (err: any) {
+      console.warn("[DB] Could not ensure agent thread schema:", err?.message || err);
+    }
+
+    try {
+      await ensureUserAgentStrategySchema();
+    } catch (err: any) {
+      console.warn("[DB] Could not ensure agent strategy schema:", err?.message || err);
+    }
+
+    try {
+      await ensureAgentSemanticSchema();
+    } catch (err: any) {
+      console.warn("[DB] Could not ensure agent semantic schema:", err?.message || err);
+    }
+
+    try {
+      await ensureAgentSystemSettingsSchema();
+    } catch (err: any) {
+      console.warn("[DB] Could not ensure agent system settings schema:", err?.message || err);
+    }
+
+    try {
+      await ensureSmsSchema();
+    } catch (err: any) {
+      console.warn("[DB] Could not ensure SMS schema:", err?.message || err);
+    }
+
+    await initializePlayers();
+  };
+
+  void runStartupWarmups().catch((error: any) => {
+    console.warn("[startup] Warmup tasks failed:", error?.message || error);
+  });
 
   // Register secondary domain route modules after core APIs are available
   registerDomainRoutes(app);
