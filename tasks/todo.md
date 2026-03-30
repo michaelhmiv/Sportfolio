@@ -1,3 +1,25 @@
+## 2026-03-30 Production Crash Recovery + Android Release PR Hardening
+
+- [x] Investigate the production crash on Railway and identify the failing runtime path
+- [x] Harden authenticated user sync so transient database timeouts fail closed without crashing the Node process
+- [x] Move non-critical startup warmups off the critical server boot path so the app can bind and serve before background repair work finishes
+- [x] Reconcile the Android/Play release branch onto current `origin/main`, fix failing CI, and open a fresh PR for review
+- [x] Re-run required validation plus Android release build smoke and confirm production health
+
+Review:
+
+- Root cause of the production outage was an unhandled database connection timeout during `upsertSupabaseUser` inside `isAuthenticated`, which could terminate request handling and take the process down during auth-gated traffic.
+- `server/supabaseAuth.ts` now catches storage-sync failures, returns HTTP 503 instead of crashing, and has regression coverage in `server/supabaseAuth.test.ts`.
+- `server/routes.ts` now pushes schema-repair and startup warmup work into a background task so the Express server can call `listen` and start serving before optional maintenance completes.
+- `server/mlb-pregame-insights.ts` now materializes `Map.values()` before `flatMap`, fixing the Node-compatible CI failure that was blocking the fresh release PR.
+- The release branch was rebuilt from current upstream and published as PR #113 (`codex/android-play-release-readiness`) so GitHub has the same intended change set Railway is running.
+- Validation status:
+- `npm run check` passed.
+- `npm run lint` passed.
+- `npm run test:run` passed.
+- `npm run format:check` passed.
+- `npm run mobile:build:android` passed.
+
 ## 2026-03-29 MLB Doubleheader + MCP Session Snapshot Follow-Up
 
 - [x] Fix MLB probable-starter matchup resolution so doubleheaders keep the correct per-game context

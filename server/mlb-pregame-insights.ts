@@ -1786,13 +1786,8 @@ export async function getMlbPregameInsightBundle(
       }),
     );
 
-    const allLineupEntries = Array.from(
-      gameDetailsByScheduleGameId
-        .values()
-        .flatMap((gameDetails) => [
-          ...gameDetails.startingLineups.away,
-          ...gameDetails.startingLineups.home,
-        ]),
+    const allLineupEntries = Array.from(gameDetailsByScheduleGameId.values()).flatMap(
+      (gameDetails) => [...gameDetails.startingLineups.away, ...gameDetails.startingLineups.home],
     );
 
     const loadedBatterStats = await loadBatterStatsLookup(allLineupEntries, dateStr);
