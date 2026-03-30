@@ -1210,7 +1210,10 @@ export const rewardedScoutBoostGrants = pgTable(
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => ({
-    userExpiresIdx: index("rewarded_scout_boost_user_expires_idx").on(table.userId, table.expiresAt),
+    userExpiresIdx: index("rewarded_scout_boost_user_expires_idx").on(
+      table.userId,
+      table.expiresAt,
+    ),
     sessionIdx: index("rewarded_scout_boost_session_idx").on(table.rewardSessionId),
     transactionIdx: uniqueIndex("rewarded_scout_boost_transaction_idx").on(table.transactionId),
   }),
@@ -2495,15 +2498,12 @@ export const premiumActivityEventsRelations = relations(premiumActivityEvents, (
   }),
 }));
 
-export const rewardedScoutBoostGrantsRelations = relations(
-  rewardedScoutBoostGrants,
-  ({ one }) => ({
-    user: one(users, {
-      fields: [rewardedScoutBoostGrants.userId],
-      references: [users.id],
-    }),
+export const rewardedScoutBoostGrantsRelations = relations(rewardedScoutBoostGrants, ({ one }) => ({
+  user: one(users, {
+    fields: [rewardedScoutBoostGrants.userId],
+    references: [users.id],
   }),
-);
+}));
 
 export const sharePayoutsRelations = relations(sharePayouts, ({ one }) => ({
   user: one(users, {

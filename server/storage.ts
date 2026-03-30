@@ -1264,11 +1264,7 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(rewardedScoutBoostGrants.expiresAt))
       .limit(1);
 
-    const entitlements = resolveUserEntitlements(
-      user,
-      activeRewardedScoutBoost[0],
-      new Date(),
-    );
+    const entitlements = resolveUserEntitlements(user, activeRewardedScoutBoost[0], new Date());
     const maxScouts = entitlements.maxScouts;
 
     const currentAssignments = await tx

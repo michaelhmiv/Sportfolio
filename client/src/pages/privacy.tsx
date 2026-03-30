@@ -102,8 +102,7 @@ export default function Privacy() {
             <CardContent className="space-y-4">
               <p className="text-muted-foreground">
                 For questions about this Privacy Policy, data access requests, privacy concerns, or
-                account deletion, visit the Delete Account page or email
-                {" "}
+                account deletion, visit the Delete Account page or email{" "}
                 <a
                   className="text-primary underline underline-offset-4"
                   href="mailto:sportfolioholdings@gmail.com"

@@ -5,10 +5,7 @@ export const BASE_SCOUT_CAPACITY = 5;
 export const BOOSTED_SCOUT_CAPACITY = 10;
 
 type EntitlementUser = Pick<User, "id" | "isPremium" | "premiumExpiresAt">;
-type RewardedScoutBoostSnapshot = Pick<
-  RewardedScoutBoostGrant,
-  "expiresAt" | "revokedAt"
->;
+type RewardedScoutBoostSnapshot = Pick<RewardedScoutBoostGrant, "expiresAt" | "revokedAt">;
 
 export interface UserEntitlements {
   premiumActive: boolean;
@@ -61,7 +58,10 @@ export function applyEntitlementsToUser<T extends EntitlementUser>(
 }
 
 export async function loadUserEntitlements(
-  deps: Pick<IStorage, "getUser" | "getActiveRewardedScoutBoostForUser" | "updateUserPremiumStatus">,
+  deps: Pick<
+    IStorage,
+    "getUser" | "getActiveRewardedScoutBoostForUser" | "updateUserPremiumStatus"
+  >,
   userId: string,
   now: Date = new Date(),
 ) {
