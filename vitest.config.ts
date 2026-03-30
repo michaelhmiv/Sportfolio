@@ -17,9 +17,9 @@ export default defineConfig({
       ...configDefaults.exclude,
       "vendor/**",
       "**/vendor/**",
+      ".claude/**",
+      "**/.claude/**",
       "tests/e2e/**",
-      ".claude/worktrees/**",
-      "**/.claude/worktrees/**",
     ],
     coverage: {
       reporter: ["text", "html"],

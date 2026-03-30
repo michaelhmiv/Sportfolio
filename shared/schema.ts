@@ -1185,6 +1185,40 @@ export const premiumActivityEvents = pgTable(
   }),
 );
 
+export const rewardedScoutBoostGrants = pgTable(
+  "rewarded_scout_boost_grants",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    platform: text("platform").notNull().default("android"),
+    adNetwork: text("ad_network").notNull().default("admob"),
+    adUnitId: text("ad_unit_id"),
+    rewardItem: text("reward_item"),
+    rewardAmount: integer("reward_amount"),
+    rewardSessionId: varchar("reward_session_id").notNull(),
+    transactionId: varchar("transaction_id").notNull(),
+    customData: text("custom_data"),
+    rewardedAt: timestamp("rewarded_at").notNull(),
+    grantedAt: timestamp("granted_at").notNull().defaultNow(),
+    expiresAt: timestamp("expires_at").notNull(),
+    revokedAt: timestamp("revoked_at"),
+    metadata: jsonb("metadata").notNull().default({}),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    userExpiresIdx: index("rewarded_scout_boost_user_expires_idx").on(
+      table.userId,
+      table.expiresAt,
+    ),
+    sessionIdx: index("rewarded_scout_boost_session_idx").on(table.rewardSessionId),
+    transactionIdx: uniqueIndex("rewarded_scout_boost_transaction_idx").on(table.transactionId),
+  }),
+);
+
 // Community checkout sessions table - tracks Whop checkout sessions for community share purchases
 // Community shares are used to create community boosts (+1x multiplier for all holders of a player)
 export const communityCheckoutSessions = pgTable(
@@ -2328,6 +2362,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   sharePayouts: many(sharePayouts),
   communityBoosts: many(communityBoosts),
   premiumActivityEvents: many(premiumActivityEvents),
+  rewardedScoutBoostGrants: many(rewardedScoutBoostGrants),
   agentProfiles: many(userAgentProfiles),
   agentSecrets: many(userAgentSecrets),
   agentThreads: many(userAgentThreads),
@@ -2459,6 +2494,13 @@ export const boostPayoutsRelations = relations(boostPayouts, ({ one }) => ({
 export const premiumActivityEventsRelations = relations(premiumActivityEvents, ({ one }) => ({
   user: one(users, {
     fields: [premiumActivityEvents.userId],
+    references: [users.id],
+  }),
+}));
+
+export const rewardedScoutBoostGrantsRelations = relations(rewardedScoutBoostGrants, ({ one }) => ({
+  user: one(users, {
+    fields: [rewardedScoutBoostGrants.userId],
     references: [users.id],
   }),
 }));
@@ -2922,6 +2964,17 @@ export const insertPremiumActivityEventSchema = createInsertSchema(premiumActivi
 
 export type PremiumActivityEvent = typeof premiumActivityEvents.$inferSelect;
 export type InsertPremiumActivityEvent = z.infer<typeof insertPremiumActivityEventSchema>;
+
+export const insertRewardedScoutBoostGrantSchema = createInsertSchema(
+  rewardedScoutBoostGrants,
+).omit({
+  id: true,
+  grantedAt: true,
+  createdAt: true,
+});
+
+export type RewardedScoutBoostGrant = typeof rewardedScoutBoostGrants.$inferSelect;
+export type InsertRewardedScoutBoostGrant = z.infer<typeof insertRewardedScoutBoostGrantSchema>;
 
 // Community checkout session schemas and types
 export const insertCommunityCheckoutSessionSchema = createInsertSchema(

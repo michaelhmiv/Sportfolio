@@ -55,6 +55,7 @@ import {
   updateSmsSettings,
 } from "../sms-service";
 import { redeemPremiumShare } from "../services/premium-redemption";
+import { loadUserEntitlements } from "../services/user-entitlements";
 import type {
   AgentAction,
   AgentDomain,
@@ -210,7 +211,9 @@ type StorageSubset = Pick<
   | "createUserApiToken"
   | "revokeUserApiToken"
   | "markOnboardingComplete"
+  | "updateUserPremiumStatus"
   | "getUserPremiumCheckoutSessions"
+  | "getActiveRewardedScoutBoostForUser"
   | "updateUsername"
   | "updateProfileImage"
 >;
@@ -1252,13 +1255,13 @@ async function buildSetupReview(context: PublicMcpServerContext, args: Record<st
 }
 
 async function buildScoutStatus(context: PublicMcpServerContext) {
-  const [user, scoutStatus, totalAssigned] = await Promise.all([
-    context.deps.storage.getUser(context.userId),
+  const [userState, scoutStatus, totalAssigned] = await Promise.all([
+    loadUserEntitlements(context.deps.storage, context.userId),
     context.deps.storage.getScoutStatus(context.userId),
     context.deps.storage.getTotalScoutsForUser(context.userId),
   ]);
 
-  const maxScouts = user?.isPremium ? 10 : 5;
+  const maxScouts = userState?.entitlements.maxScouts ?? 5;
   return {
     summary: "Loaded scout status.",
     earnedMinutes: scoutStatus.earnedMinutes,
@@ -1267,6 +1270,9 @@ async function buildScoutStatus(context: PublicMcpServerContext) {
     assignedScouts: totalAssigned,
     maxScouts,
     remainingScouts: Math.max(0, maxScouts - totalAssigned),
+    premiumActive: userState?.entitlements.premiumActive ?? false,
+    rewardedScoutBoostActive: userState?.entitlements.rewardedScoutBoostActive ?? false,
+    rewardedScoutBoostExpiresAt: userState?.entitlements.rewardedScoutBoostExpiresAt ?? null,
   };
 }
 
@@ -1695,10 +1701,11 @@ async function celebrateMilestone(context: PublicMcpServerContext, args: Record<
 }
 
 async function getAccountProfile(context: PublicMcpServerContext) {
-  const user = await context.deps.storage.getUser(context.userId);
-  if (!user) {
+  const userState = await loadUserEntitlements(context.deps.storage, context.userId);
+  if (!userState) {
     throw new PublicMcpToolError("User not found.", "not_found");
   }
+  const user = userState.user;
 
   return {
     summary: "Loaded authenticated account profile.",
@@ -1707,8 +1714,12 @@ async function getAccountProfile(context: PublicMcpServerContext) {
       username: user.username,
       email: user.email,
       balance: user.balance,
-      isPremium: user.isPremium,
-      premiumExpiresAt: user.premiumExpiresAt,
+      isPremium: userState.entitlements.premiumActive,
+      premiumActive: userState.entitlements.premiumActive,
+      premiumExpiresAt: userState.entitlements.premiumExpiresAt,
+      rewardedScoutBoostActive: userState.entitlements.rewardedScoutBoostActive,
+      rewardedScoutBoostExpiresAt: userState.entitlements.rewardedScoutBoostExpiresAt,
+      maxScouts: userState.entitlements.maxScouts,
       profileImageUrl: user.profileImageUrl,
       hasSeenOnboarding: user.hasSeenOnboarding,
       lastNewsViewedAt: user.lastNewsViewedAt,
@@ -1798,10 +1809,11 @@ async function completeSmsLinkTool(context: PublicMcpServerContext, args: Record
 }
 
 async function getPremiumStatusTool(context: PublicMcpServerContext) {
-  const user = await context.deps.storage.getUser(context.userId);
-  if (!user) {
+  const userState = await loadUserEntitlements(context.deps.storage, context.userId);
+  if (!userState) {
     throw new PublicMcpToolError("User not found.", "not_found");
   }
+  const user = userState.user;
 
   const premiumHolding = await context.deps.storage.getHolding(
     context.userId,
@@ -1812,9 +1824,13 @@ async function getPremiumStatusTool(context: PublicMcpServerContext) {
 
   return {
     summary: "Loaded premium status.",
-    isPremium: user.isPremium,
-    premiumExpiresAt: user.premiumExpiresAt,
+    isPremium: userState.entitlements.premiumActive,
+    premiumActive: userState.entitlements.premiumActive,
+    premiumExpiresAt: userState.entitlements.premiumExpiresAt,
     premiumShares: premiumHolding?.quantity || 0,
+    rewardedScoutBoostActive: userState.entitlements.rewardedScoutBoostActive,
+    rewardedScoutBoostExpiresAt: userState.entitlements.rewardedScoutBoostExpiresAt,
+    maxScouts: userState.entitlements.maxScouts,
     recentPurchases: recentSessions.filter((session) => session.status === "completed").slice(0, 5),
   };
 }
@@ -3542,6 +3558,15 @@ const PUBLIC_EXCLUDED_CAPABILITIES: PublicExcludedCapability[] = [
       "External Whop payment-provider synchronization remains outside the shared public capability surface.",
   },
   {
+    capabilityId: "mobile_rewarded_scout_boost_session",
+    kind: "excluded",
+    status: "excluded",
+    domain: "mobile",
+    source: "/api/mobile/rewarded-scout-boost/session",
+    notes:
+      "Android-native rewarded ad session bootstrap stays outside the shared CLI and MCP capability surface.",
+  },
+  {
     capabilityId: "daily_boost_debug",
     kind: "excluded",
     status: "excluded",
@@ -3872,6 +3897,11 @@ const PUBLIC_SITE_ROUTE_COVERAGE: PublicSiteRouteCoverageEntry[] = [
     method: "POST",
     path: "/api/community/checkout-session",
     excludedCapabilityId: "community_checkout_session",
+  },
+  {
+    method: "POST",
+    path: "/api/mobile/rewarded-scout-boost/session",
+    excludedCapabilityId: "mobile_rewarded_scout_boost_session",
   },
   { method: "POST", path: "/api/checkout/finalize", excludedCapabilityId: "checkout_finalize" },
   { method: "GET", path: "/api/premium/status", capabilityIds: ["get_premium_status"] },

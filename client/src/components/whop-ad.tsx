@@ -1,10 +1,12 @@
+import { isNativeAndroid } from "@/lib/native-platform";
+
 interface WhopAdProps {
   className?: string;
   isPremium?: boolean;
 }
 
 export function WhopAd({ className = "", isPremium = false }: WhopAdProps) {
-  if (isPremium) {
+  if (isPremium || isNativeAndroid()) {
     return null;
   }
 

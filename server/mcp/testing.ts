@@ -362,6 +362,16 @@ export function createMockPublicMcpDependencies(
     },
     getPlayer: async (playerId: string) => players.find((player) => player.id === playerId),
     getUser: async () => state.user,
+    updateUserPremiumStatus: async (
+      _userId: string,
+      isPremium: boolean,
+      premiumExpiresAt?: Date | null,
+    ) => {
+      state.user.isPremium = isPremium;
+      state.user.premiumExpiresAt = premiumExpiresAt ?? null;
+      return undefined;
+    },
+    getActiveRewardedScoutBoostForUser: async () => undefined,
     getUserByUsername: async (username: string) =>
       state.user.username === username ? state.user : null,
     getHolding: async (_userId: string, assetType: string, assetId: string) =>

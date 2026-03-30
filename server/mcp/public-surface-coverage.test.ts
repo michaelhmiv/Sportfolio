@@ -10,13 +10,14 @@ const ROUTE_FILES = [
   path.resolve("server/routes.ts"),
   path.resolve("server/routes/amm.ts"),
   path.resolve("server/routes/lp.ts"),
+  path.resolve("server/routes/mobile-rewarded-scout-boost.ts"),
   path.resolve("server/routes/sms.ts"),
   path.resolve("server/routes/cli.ts"),
 ];
 
 function extractAuthenticatedSiteRoutes() {
   const routePattern =
-    /app\.(get|post|put|patch|delete)\(\s*"([^"]+)"\s*,\s*(isAuthenticated|optionalAuth|adminAuth|requireUserApiToken)/g;
+    /app\.(get|post|put|patch|delete)\(\s*"([^"]+)"\s*,\s*(isAuthenticated|authMiddleware|optionalAuth|adminAuth|requireUserApiToken)/g;
   const routes: Array<{ method: string; path: string }> = [];
 
   for (const routeFile of ROUTE_FILES) {
@@ -26,7 +27,7 @@ function extractAuthenticatedSiteRoutes() {
       const routePath = match[2];
       const middleware = match[3];
 
-      if (middleware !== "isAuthenticated") {
+      if (middleware !== "isAuthenticated" && middleware !== "authMiddleware") {
         continue;
       }
       if (!routePath || routePath.startsWith("/api/cli/")) {

@@ -69,6 +69,9 @@ interface ScoutData {
   maxScouts: number;
   remaining: number;
   isPremium: boolean;
+  premiumActive?: boolean;
+  rewardedScoutBoostActive?: boolean;
+  rewardedScoutBoostExpiresAt?: string | null;
 }
 
 interface Holding {
@@ -436,7 +439,8 @@ export function ScoutDashboardModal() {
   const totalScouts = scoutData?.totalScouts || 0;
   const maxScouts = scoutData?.maxScouts || 5;
   const remaining = scoutData?.remaining || 0;
-  const isPremium = scoutData?.isPremium || false;
+  const premiumActive = scoutData?.premiumActive ?? scoutData?.isPremium ?? false;
+  const rewardedScoutBoostActive = scoutData?.rewardedScoutBoostActive || false;
   const assignments = scoutData?.assignments || [];
 
   // Helper to compute game status for a player
@@ -632,7 +636,11 @@ export function ScoutDashboardModal() {
     if (delta > 0 && remaining === 0) {
       toast({
         title: "Capacity Reached",
-        description: isPremium ? "Max scouts used." : "Upgrade to PRO for more scouts!",
+        description: premiumActive
+          ? "Max premium scouts used."
+          : rewardedScoutBoostActive
+            ? "Your rewarded scout boost is fully allocated."
+            : "Watch a rewarded ad on Android or redeem Premium for more scouts.",
         variant: "destructive",
       });
       return;

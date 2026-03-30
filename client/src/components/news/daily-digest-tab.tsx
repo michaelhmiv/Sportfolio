@@ -626,7 +626,7 @@ interface DailyDigestTabProps {
   isAuthenticated: boolean;
   digestLoading: boolean;
   digest?: Digest;
-  isPremium?: boolean;
+  maxScouts?: number;
   availableBalance?: string;
 }
 
@@ -634,13 +634,13 @@ export function DailyDigestTab({
   isAuthenticated,
   digestLoading,
   digest,
-  isPremium = false,
+  maxScouts = 5,
   availableBalance,
 }: DailyDigestTabProps) {
   const [showAllLeagueMovers, setShowAllLeagueMovers] = useState(false);
   const { openScoutDashboard } = useScout();
 
-  const scoutCapacity = isPremium ? 10 : 5;
+  const scoutCapacity = Math.max(5, maxScouts);
   const dailyBrief = useMemo(() => {
     if (!digest) return null;
     return buildDailyBriefModel(digest, scoutCapacity, availableBalance);

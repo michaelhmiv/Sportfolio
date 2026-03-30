@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const storageMocks = vi.hoisted(() => ({
   getPlayer: vi.fn(),
   getUser: vi.fn(),
+  updateUserPremiumStatus: vi.fn(),
+  getActiveRewardedScoutBoostForUser: vi.fn(),
   getPlayers: vi.fn(),
   getPlayersByIds: vi.fn(),
   getDailyGames: vi.fn(),
@@ -86,6 +88,8 @@ describe("planDirectAgentOperation", () => {
     });
     storageMocks.getPlayer.mockResolvedValue(player);
     storageMocks.getUser.mockResolvedValue({ id: "user_1", isPremium: false });
+    storageMocks.updateUserPremiumStatus.mockResolvedValue(undefined);
+    storageMocks.getActiveRewardedScoutBoostForUser.mockResolvedValue(undefined);
     storageMocks.getPlayers.mockResolvedValue([
       {
         ...player,

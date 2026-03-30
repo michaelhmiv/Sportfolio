@@ -297,7 +297,7 @@ export default function NewsPage() {
                 isAuthenticated={isAuthenticated}
                 digestLoading={digestLoading}
                 digest={digestData?.digest}
-                isPremium={user?.isPremium || false}
+                maxScouts={user?.maxScouts || 5}
                 availableBalance={dashboardData?.user?.balance}
               />
             </TabsContent>

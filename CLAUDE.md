@@ -52,6 +52,7 @@ Sportfolio - A sports trading platform with real-time game scores, player market
 - Diff behavior between main and your changes when relevant
 - Ask yourself: "Would a staff engineer approve this?"
 - Run tests, check logs, demonstrate correctness
+- Treat GitHub as the deployment source of truth: push changes to GitHub first and let Railway deploy from the tracked branch rather than shipping local-only deploys
 
 ### 5. Demand Elegance (Balanced)
 

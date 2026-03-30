@@ -28,6 +28,7 @@ import {
   premiumOrders,
   premiumTrades,
   premiumActivityEvents,
+  rewardedScoutBoostGrants,
   whopPayments,
   watchlists,
   watchList,
@@ -80,6 +81,8 @@ import {
   type PremiumTrade,
   type PremiumActivityEvent,
   type InsertPremiumActivityEvent,
+  type RewardedScoutBoostGrant,
+  type InsertRewardedScoutBoostGrant,
   type WhopPayment,
   type InsertWhopPayment,
   type DailyBoost,
@@ -125,6 +128,7 @@ import { getETDayBoundaries, getGameDay } from "./lib/time";
 import { choosePreferredDailyGame } from "./lib/daily-game-dedupe";
 import { pickRegularBoostHolding } from "./boost-share-selection";
 import { getCurrentCompetitiveSeasons } from "./storage/season-utils";
+import { resolveUserEntitlements } from "./services/user-entitlements";
 
 export interface PlayerFinancialMetrics {
   peRatio: number;
@@ -580,6 +584,13 @@ export interface IStorage {
   createPremiumActivityEvent(
     event: InsertPremiumActivityEvent,
   ): Promise<PremiumActivityEvent | undefined>;
+  getActiveRewardedScoutBoostForUser(
+    userId: string,
+    now?: Date,
+  ): Promise<RewardedScoutBoostGrant | undefined>;
+  createRewardedScoutBoostGrant(
+    grant: InsertRewardedScoutBoostGrant,
+  ): Promise<RewardedScoutBoostGrant | undefined>;
 
   // Community checkout session methods
   createCommunityCheckoutSession(session: {
@@ -1087,6 +1098,12 @@ export class DatabaseStorage implements IStorage {
         // Update whop payments
         await tx.update(whopPayments).set({ userId: newId }).where(eq(whopPayments.userId, oldId));
 
+        // Update rewarded scout boost grants
+        await tx
+          .update(rewardedScoutBoostGrants)
+          .set({ userId: newId })
+          .where(eq(rewardedScoutBoostGrants.userId, oldId));
+
         // Update blog posts (author)
         await tx.update(blogPosts).set({ authorId: newId }).where(eq(blogPosts.authorId, oldId));
 
@@ -1234,7 +1251,21 @@ export class DatabaseStorage implements IStorage {
       throw new Error("User not found");
     }
 
-    const maxScouts = user.isPremium ? 10 : 5;
+    const activeRewardedScoutBoost = await tx
+      .select()
+      .from(rewardedScoutBoostGrants)
+      .where(
+        and(
+          eq(rewardedScoutBoostGrants.userId, userId),
+          isNull(rewardedScoutBoostGrants.revokedAt),
+          gt(rewardedScoutBoostGrants.expiresAt, new Date()),
+        ),
+      )
+      .orderBy(desc(rewardedScoutBoostGrants.expiresAt))
+      .limit(1);
+
+    const entitlements = resolveUserEntitlements(user, activeRewardedScoutBoost[0], new Date());
+    const maxScouts = entitlements.maxScouts;
 
     const currentAssignments = await tx
       .select({ totalScouts: sql<number>`COALESCE(SUM(${scoutAssignments.scoutCount}), 0)` })
@@ -5366,6 +5397,54 @@ export class DatabaseStorage implements IStorage {
       })
       .onConflictDoNothing({
         target: [premiumActivityEvents.eventType, premiumActivityEvents.referenceId],
+      })
+      .returning();
+
+    return created || undefined;
+  }
+
+  async getActiveRewardedScoutBoostForUser(
+    userId: string,
+    now: Date = new Date(),
+  ): Promise<RewardedScoutBoostGrant | undefined> {
+    const [grant] = await db
+      .select()
+      .from(rewardedScoutBoostGrants)
+      .where(
+        and(
+          eq(rewardedScoutBoostGrants.userId, userId),
+          isNull(rewardedScoutBoostGrants.revokedAt),
+          gt(rewardedScoutBoostGrants.expiresAt, now),
+        ),
+      )
+      .orderBy(desc(rewardedScoutBoostGrants.expiresAt))
+      .limit(1);
+
+    return grant || undefined;
+  }
+
+  async createRewardedScoutBoostGrant(
+    grant: InsertRewardedScoutBoostGrant,
+  ): Promise<RewardedScoutBoostGrant | undefined> {
+    const [created] = await db
+      .insert(rewardedScoutBoostGrants)
+      .values({
+        userId: grant.userId,
+        platform: grant.platform ?? "android",
+        adNetwork: grant.adNetwork ?? "admob",
+        adUnitId: grant.adUnitId ?? null,
+        rewardItem: grant.rewardItem ?? null,
+        rewardAmount: grant.rewardAmount ?? null,
+        rewardSessionId: grant.rewardSessionId,
+        transactionId: grant.transactionId,
+        customData: grant.customData ?? null,
+        rewardedAt: new Date(grant.rewardedAt),
+        expiresAt: new Date(grant.expiresAt),
+        revokedAt: grant.revokedAt ? new Date(grant.revokedAt) : null,
+        metadata: grant.metadata ?? {},
+      })
+      .onConflictDoNothing({
+        target: [rewardedScoutBoostGrants.transactionId],
       })
       .returning();
 

@@ -675,6 +675,14 @@ export const EXCLUDED_GAMEPLAY_CAPABILITIES: GameplayCapabilityEntry[] = [
     notes: "Checkout finalization is out of scope for MCP v1.",
   },
   {
+    capabilityId: "mobile_rewarded_scout_boost_session",
+    kind: "excluded",
+    status: "excluded",
+    domain: "mobile",
+    source: "/api/mobile/rewarded-scout-boost/session",
+    notes: "Android-native rewarded ad session bootstrap is out of scope for MCP v1.",
+  },
+  {
     capabilityId: "premium_redeem",
     kind: "excluded",
     status: "excluded",

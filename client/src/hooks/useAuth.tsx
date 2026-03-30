@@ -165,6 +165,10 @@ interface AuthUserResponse extends User {
     revoked: number;
     synced: number;
   };
+  premiumActive?: boolean;
+  rewardedScoutBoostActive?: boolean;
+  rewardedScoutBoostExpiresAt?: string | null;
+  maxScouts?: number;
 }
 
 interface AuthContextValue {
@@ -602,7 +606,7 @@ export function useAuth() {
   const isLoading = DEV_BYPASS_ENABLED ? false : !isInitialized || isQueryLoading;
 
   return {
-    user: user as User | undefined,
+    user: user || undefined,
     session,
     isLoading,
     // In dev mode, authenticated once user query returns; in production, require session

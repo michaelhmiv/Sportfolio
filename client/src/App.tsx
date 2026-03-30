@@ -58,6 +58,7 @@ const loadBlogPage = () => import("@/pages/blog");
 const loadBlogPostPage = () => import("@/pages/blog-post");
 const loadPrivacyPage = () => import("@/pages/privacy");
 const loadTermsPage = () => import("@/pages/terms");
+const loadAccountDeletionPage = () => import("@/pages/account-deletion");
 const loadAboutPage = () => import("@/pages/about");
 const loadContactPage = () => import("@/pages/contact");
 const loadHowItWorksPage = () => import("@/pages/how-it-works");
@@ -90,6 +91,7 @@ const Blog = lazy(loadBlogPage);
 const BlogPost = lazy(loadBlogPostPage);
 const Privacy = lazy(loadPrivacyPage);
 const Terms = lazy(loadTermsPage);
+const AccountDeletion = lazy(loadAccountDeletionPage);
 const About = lazy(loadAboutPage);
 const Contact = lazy(loadContactPage);
 const HowItWorks = lazy(loadHowItWorksPage);
@@ -510,6 +512,7 @@ function Router() {
             <Route path="/blog/:slug" component={BlogPost} />
             <Route path="/privacy" component={Privacy} />
             <Route path="/terms" component={Terms} />
+            <Route path="/account-deletion" component={AccountDeletion} />
             <Route path="/about" component={About} />
             <Route path="/contact" component={Contact} />
             <Route path="/how-it-works" component={HowItWorks} />
