@@ -60,7 +60,7 @@ const sections = [
     title: "Account Termination",
     body: [
       "We reserve the right to suspend or terminate accounts that violate these terms, engage in fraudulent activity, or disrupt platform operations.",
-      "You may also request account deletion at any time by contacting support.",
+      "You may also request account deletion at any time through the dedicated Delete Account page.",
     ],
   },
   {

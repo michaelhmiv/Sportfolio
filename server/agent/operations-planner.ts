@@ -11,6 +11,7 @@ import {
 import { db } from "../db";
 import { getETDayBoundaries, getTodayET } from "../lib/time";
 import { storage } from "../storage";
+import { loadUserEntitlements } from "../services/user-entitlements";
 import type { UserAgentProfile } from "@shared/schema";
 import { buildPlayerNameClarification } from "./clarification";
 import { getAgentDataSourceSummary } from "./data-sources";
@@ -973,7 +974,7 @@ async function buildBroadOperatorReviewPlan(
   }
 
   const [
-    user,
+    userState,
     totalScouts,
     availableBalance,
     holdingsWithPlayers,
@@ -981,7 +982,7 @@ async function buildBroadOperatorReviewPlan(
     communitySharesAvailable,
     activeBoosts,
   ] = await Promise.all([
-    storage.getUser(userId),
+    loadUserEntitlements(storage, userId),
     storage.getTotalScoutsForUser(userId),
     storage.getAvailableBalance(userId),
     storage.getUserHoldingsWithPlayers(userId),
@@ -990,7 +991,7 @@ async function buildBroadOperatorReviewPlan(
     storage.getDailyBoostsAllSports(userId, new Date()),
   ]);
 
-  if (!user) {
+  if (!userState) {
     return null;
   }
 
@@ -1017,7 +1018,7 @@ async function buildBroadOperatorReviewPlan(
   );
   const filledBoostSlots = activeBoosts.filter((boost) => boost.status !== "cancelled").length;
   const openBoostSlots = Math.max(0, DAILY_BOOST_SLOT_COUNT - filledBoostSlots);
-  const maxScouts = user.isPremium ? 10 : 5;
+  const maxScouts = userState.entitlements.maxScouts;
   const openScoutSlots = Math.max(0, maxScouts - totalScouts);
   const nextLevers: string[] = [];
 
@@ -1895,12 +1896,12 @@ async function buildScoutAssignmentPlan(
   }
 
   const player = playerResolution.player;
-  const [user, assignments, totalAssigned] = await Promise.all([
-    storage.getUser(userId),
+  const [userState, assignments, totalAssigned] = await Promise.all([
+    loadUserEntitlements(storage, userId),
     storage.getUserScoutAssignments(userId),
     storage.getTotalScoutsForUser(userId),
   ]);
-  const maxScouts = user?.isPremium ? 10 : 5;
+  const maxScouts = userState?.entitlements.maxScouts ?? 5;
   const currentAssignment = assignments.find((entry) => entry.playerId === player.id);
   const currentCount = Number(currentAssignment?.scoutCount || 0);
   const resultingAssigned = totalAssigned - currentCount + targetCount;

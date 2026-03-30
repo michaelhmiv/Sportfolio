@@ -116,6 +116,20 @@ async function upsertSupabaseUser(supabaseUser: SupabaseUser): Promise<void> {
   }
 }
 
+function buildRequestUser(supabaseUser: SupabaseUser) {
+  const fullName = supabaseUser.user_metadata?.full_name || "";
+  const nameParts = fullName.split(" ");
+
+  return {
+    claims: {
+      sub: supabaseUser.id,
+      email: supabaseUser.email,
+      first_name: supabaseUser.user_metadata?.first_name || nameParts[0],
+      last_name: supabaseUser.user_metadata?.last_name || nameParts.slice(1).join(" "),
+    },
+  };
+}
+
 function extractToken(req: Request): string | null {
   const authHeader = req.headers.authorization;
   if (authHeader && authHeader.startsWith("Bearer ")) {
@@ -185,19 +199,15 @@ export async function isAuthenticated(
     return;
   }
 
-  await upsertSupabaseUser(supabaseUser);
+  try {
+    await upsertSupabaseUser(supabaseUser);
+  } catch (error: any) {
+    console.error("[SUPABASE_AUTH] Failed to sync authenticated user:", error?.message || error);
+    res.status(503).json({ message: "Authentication temporarily unavailable" });
+    return;
+  }
 
-  const fullName = supabaseUser.user_metadata?.full_name || "";
-  const nameParts = fullName.split(" ");
-
-  (req as any).user = {
-    claims: {
-      sub: supabaseUser.id,
-      email: supabaseUser.email,
-      first_name: supabaseUser.user_metadata?.first_name || nameParts[0],
-      last_name: supabaseUser.user_metadata?.last_name || nameParts.slice(1).join(" "),
-    },
-  };
+  (req as any).user = buildRequestUser(supabaseUser);
 
   next();
 }
@@ -242,18 +252,7 @@ export async function optionalAuth(req: Request, res: Response, next: NextFuncti
     if (supabaseUser) {
       try {
         await upsertSupabaseUser(supabaseUser);
-
-        const fullName = supabaseUser.user_metadata?.full_name || "";
-        const nameParts = fullName.split(" ");
-
-        (req as any).user = {
-          claims: {
-            sub: supabaseUser.id,
-            email: supabaseUser.email,
-            first_name: supabaseUser.user_metadata?.first_name || nameParts[0],
-            last_name: supabaseUser.user_metadata?.last_name || nameParts.slice(1).join(" "),
-          },
-        };
+        (req as any).user = buildRequestUser(supabaseUser);
       } catch (error) {
         console.error("[SUPABASE_AUTH] Error in optionalAuth:", error);
       }

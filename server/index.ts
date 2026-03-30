@@ -14,6 +14,7 @@ import {
   metricsMiddleware,
 } from "./observability/metrics";
 import { registerRoutes } from "./routes";
+import { registerMobileRewardedScoutBoostRoutes } from "./routes/mobile-rewarded-scout-boost";
 import { registerHermesSidecarRoutes } from "./hermes-sidecar";
 import { isHermesSidecarMode } from "./service-role";
 import { setupVite, serveStatic, log } from "./vite";
@@ -236,6 +237,7 @@ app.use((req, res, next) => {
 
   startupLog("ROUTES", "Registering routes...");
   const server = await registerRoutes(app);
+  await registerMobileRewardedScoutBoostRoutes(app);
   startupLog("ROUTES", "Routes registered");
 
   registerGlobalErrorHandlers(app);

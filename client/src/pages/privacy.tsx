@@ -33,7 +33,7 @@ const sections = [
     title: "Your Rights",
     body: [
       "You have the right to access, modify, or delete your personal information. You can update your profile information through your account settings.",
-      "For data deletion requests or privacy concerns, contact our support team.",
+      "For data deletion requests, use the dedicated Delete Account page. For other privacy concerns, contact our support team.",
     ],
   },
   {
@@ -101,8 +101,16 @@ export default function Privacy() {
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-muted-foreground">
-                For questions about this Privacy Policy, data access requests, or privacy concerns,
-                contact us through the Discord community server or the contact form on the site.
+                For questions about this Privacy Policy, data access requests, privacy concerns, or
+                account deletion, visit the Delete Account page or email
+                {" "}
+                <a
+                  className="text-primary underline underline-offset-4"
+                  href="mailto:sportfolioholdings@gmail.com"
+                >
+                  sportfolioholdings@gmail.com
+                </a>
+                .
               </p>
               <p className="text-muted-foreground">
                 We aim to respond to privacy inquiries within 48 hours.

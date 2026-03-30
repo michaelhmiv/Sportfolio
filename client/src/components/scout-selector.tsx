@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Binoculars, Loader2, Info, Crown } from "lucide-react";
+import { Binoculars, Loader2, Info, Crown, Zap } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -33,6 +33,8 @@ interface ScoutData {
   maxScouts: number;
   remaining: number;
   isPremium: boolean;
+  premiumActive?: boolean;
+  rewardedScoutBoostActive?: boolean;
 }
 
 export function ScoutSelector({ playerId }: ScoutSelectorProps) {
@@ -139,7 +141,7 @@ export function ScoutSelector({ playerId }: ScoutSelectorProps) {
           <span className="text-[10px] text-muted-foreground">
             {scoutData?.totalScouts || 0}/{scoutData?.maxScouts || 5} used
           </span>
-          {scoutData?.isPremium && (
+          {(scoutData?.premiumActive ?? scoutData?.isPremium) && (
             <Badge
               variant="secondary"
               className="h-4 px-1 text-[9px] bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
@@ -148,6 +150,16 @@ export function ScoutSelector({ playerId }: ScoutSelectorProps) {
               PRO
             </Badge>
           )}
+          {!(scoutData?.premiumActive ?? scoutData?.isPremium) &&
+            scoutData?.rewardedScoutBoostActive && (
+              <Badge
+                variant="secondary"
+                className="h-4 px-1 text-[9px] bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+              >
+                <Zap className="h-2.5 w-2.5 mr-0.5" />
+                BOOST
+              </Badge>
+            )}
         </div>
       </div>
 

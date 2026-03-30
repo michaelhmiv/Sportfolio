@@ -17,6 +17,7 @@ import {
   Loader2,
   Moon,
   Settings,
+  Trash2,
   Sun,
   Trophy,
   Upload,
@@ -971,6 +972,26 @@ export default function UserProfile() {
           <div className="space-y-4">
             {isOwnProfile && <SmsAccessCard />}
             {isOwnProfile && <CliAccessCard />}
+            {isOwnProfile && (
+              <Card variant="terminal">
+                <CardHeader>
+                  <CardTitle className={PROFILE_COMPACT_TYPE.sectionTitle}>
+                    Account Controls
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <p className={PROFILE_COMPACT_TYPE.body}>
+                    Need to close your account? Start the deletion request from the dedicated page.
+                  </p>
+                  <Button asChild variant="terminalOutline" className="w-full gap-2">
+                    <Link href="/account-deletion">
+                      <Trash2 className="h-4 w-4" />
+                      Request Account Deletion
+                    </Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
 
             <Card variant="terminal">
               <CardHeader>

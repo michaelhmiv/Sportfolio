@@ -13,12 +13,8 @@ supabase/.temp/
 .env
 .env.*
 !.env.example
-
-# Playwright
 test-results
 playwright-report
-
-# Mobile build artifacts
 mobile/ios/App/build/
 mobile/ios/App/Pods/
 mobile/ios/App/Podfile.lock
@@ -31,6 +27,3 @@ mobile/android/*.iml
 mobile/android/.idea/
 *.apk
 *.ipa
-vendor/mlb-mcp/.venv/
-vendor/mlb-mcp/logs/
-.claude/worktrees/

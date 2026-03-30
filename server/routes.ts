@@ -64,6 +64,7 @@ import { getOrCreatePool, initializePool } from "./amm/pool";
 import { normalizeSiteUrl } from "@shared/seo";
 import { ensureSmsSchema } from "./sms-service";
 import { redeemPremiumShare } from "./services/premium-redemption";
+import { loadUserEntitlements } from "./services/user-entitlements";
 import {
   getApiHealthStaleThresholdMs,
   getLatestApiHealthReport,
@@ -156,6 +157,10 @@ function toNumber(value: string | number | null | undefined): number {
 
 function roundToTwo(value: number): number {
   return Math.round(value * 100) / 100;
+}
+
+async function loadEffectiveUserState(userId: string) {
+  return loadUserEntitlements(storage, userId);
 }
 
 /**
@@ -2642,7 +2647,8 @@ ${items}
   app.get("/api/auth/user", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
+      const userState = await loadEffectiveUserState(userId);
+      const user = userState?.user;
 
       // Log successful auth
       console.log(
@@ -2650,7 +2656,7 @@ ${items}
       );
 
       // Return user data immediately - don't block on background sync work
-      res.json(user);
+      res.json(userState?.decoratedUser || null);
 
       if (user) {
         // Scout Engine: Update activity timestamp for 24h kill-switch
@@ -5629,10 +5635,11 @@ ${items}
   app.get("/api/portfolio", isAuthenticated, async (req, res) => {
     try {
       const userId = getUserId(req);
-      const user = await storage.getUser(userId);
-      if (!user) {
+      const userState = await loadEffectiveUserState(userId);
+      if (!userState) {
         return res.status(404).json({ error: "User not found" });
       }
+      const user = userState.user;
 
       // Optimized: Single JOIN query to get holdings + players + locks
       const holdingsWithData = await storage.getUserHoldingsWithPlayers(user.id);
@@ -5729,8 +5736,12 @@ ${items}
         totalPnLPercent: totalCost > 0 ? ((totalPnL / totalCost) * 100).toFixed(2) : "0.00",
         holdings: enrichedHoldings,
         premiumShares,
-        isPremium: user.isPremium,
-        premiumExpiresAt: user.premiumExpiresAt,
+        isPremium: userState.entitlements.premiumActive,
+        premiumActive: userState.entitlements.premiumActive,
+        premiumExpiresAt: userState.entitlements.premiumExpiresAt,
+        rewardedScoutBoostActive: userState.entitlements.rewardedScoutBoostActive,
+        rewardedScoutBoostExpiresAt: userState.entitlements.rewardedScoutBoostExpiresAt,
+        maxScouts: userState.entitlements.maxScouts,
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -5776,9 +5787,8 @@ ${items}
   app.get("/api/scouts", isAuthenticated, async (req, res) => {
     try {
       const userId = getUserId(req);
-      const user = await storage.getUser(userId);
-
-      if (!user) {
+      const userState = await loadEffectiveUserState(userId);
+      if (!userState) {
         return res.status(404).json({ error: "User not found" });
       }
 
@@ -5790,7 +5800,8 @@ ${items}
         storage.getTotalScoutsForUser(userId),
       ]);
 
-      const maxScouts = user.isPremium ? 10 : 5;
+      const { entitlements } = userState;
+      const maxScouts = entitlements.maxScouts;
 
       // Enrich assignments with player data
       const playerIds = assignments.map((a) => a.playerId);
@@ -5826,7 +5837,11 @@ ${items}
         totalScouts,
         maxScouts,
         remaining: maxScouts - totalScouts,
-        isPremium: user.isPremium,
+        isPremium: entitlements.premiumActive,
+        premiumActive: entitlements.premiumActive,
+        premiumExpiresAt: entitlements.premiumExpiresAt,
+        rewardedScoutBoostActive: entitlements.rewardedScoutBoostActive,
+        rewardedScoutBoostExpiresAt: entitlements.rewardedScoutBoostExpiresAt,
       });
     } catch (error: any) {
       console.error("[Scout API] Error fetching scouts:", error);
@@ -5865,8 +5880,9 @@ ${items}
         storage.getTotalScoutsForUser(userId),
       ]);
 
-      const user = await storage.getUser(userId);
-      const maxScouts = user?.isPremium ? 10 : 5;
+      const userState = await loadEffectiveUserState(userId);
+      const entitlements = userState?.entitlements;
+      const maxScouts = entitlements?.maxScouts ?? 5;
 
       console.log(
         `[Scout API] User ${userId} assigned ${parsedCount} scouts to player ${playerId}`,
@@ -5888,6 +5904,9 @@ ${items}
         totalScouts,
         maxScouts,
         remaining: maxScouts - totalScouts,
+        premiumActive: entitlements?.premiumActive ?? false,
+        rewardedScoutBoostActive: entitlements?.rewardedScoutBoostActive ?? false,
+        rewardedScoutBoostExpiresAt: entitlements?.rewardedScoutBoostExpiresAt ?? null,
       });
     } catch (error: any) {
       console.error("[Scout API] Error assigning scouts:", error);
@@ -6927,10 +6946,11 @@ ${items}
         }
       }
 
-      const user = await storage.getUser(requestedUserId);
-      if (!user) {
+      const userState = await loadEffectiveUserState(requestedUserId);
+      if (!userState) {
         return res.status(404).json({ error: "User not found" });
       }
+      const user = userState.user;
 
       const now = new Date();
       const historyStart = new Date(now);
@@ -7201,7 +7221,11 @@ ${items}
           lastName: user.lastName,
           profileImageUrl: user.profileImageUrl,
           isAdmin: user.isAdmin || false,
-          isPremium: user.isPremium,
+          isPremium: userState.entitlements.premiumActive,
+          premiumActive: userState.entitlements.premiumActive,
+          rewardedScoutBoostActive: userState.entitlements.rewardedScoutBoostActive,
+          rewardedScoutBoostExpiresAt: userState.entitlements.rewardedScoutBoostExpiresAt,
+          maxScouts: userState.entitlements.maxScouts,
           createdAt: user.createdAt,
         },
         updatedAt: now.toISOString(),
@@ -7660,18 +7684,23 @@ ${items}
   app.get("/api/premium/status", isAuthenticated, async (req, res) => {
     try {
       const userId = getUserId(req);
-      const user = await storage.getUser(userId);
-      if (!user) {
+      const userState = await loadEffectiveUserState(userId);
+      if (!userState) {
         return res.status(404).json({ error: "User not found" });
       }
+      const user = userState.user;
 
       const premiumHolding = await storage.getHolding(user.id, "premium", "premium");
       const recentSessions = await storage.getUserPremiumCheckoutSessions(user.id);
 
       res.json({
-        isPremium: user.isPremium,
-        premiumExpiresAt: user.premiumExpiresAt,
+        isPremium: userState.entitlements.premiumActive,
+        premiumActive: userState.entitlements.premiumActive,
+        premiumExpiresAt: userState.entitlements.premiumExpiresAt,
         premiumShares: premiumHolding?.quantity || 0,
+        rewardedScoutBoostActive: userState.entitlements.rewardedScoutBoostActive,
+        rewardedScoutBoostExpiresAt: userState.entitlements.rewardedScoutBoostExpiresAt,
+        maxScouts: userState.entitlements.maxScouts,
         recentPurchases: recentSessions.filter((s) => s.status === "completed").slice(0, 5),
       });
     } catch (error: any) {

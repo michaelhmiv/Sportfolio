@@ -596,10 +596,26 @@ export function log(message: string, source = "express") {
   console.log(`${formattedTime} [${source}] ${message}`);
 }
 
+function parseOptionalPort(value: string | undefined): number | undefined {
+  if (!value) return undefined;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
 export async function setupVite(app: Express, server: Server) {
+  const hmrHost = process.env.VITE_HMR_HOST?.trim();
+  const hmrClientPort = parseOptionalPort(
+    process.env.VITE_HMR_CLIENT_PORT || process.env.VITE_HMR_PORT,
+  );
+  const hmrProtocol = process.env.VITE_HMR_PROTOCOL?.trim();
   const serverOptions = {
     middlewareMode: true,
-    hmr: { server },
+    hmr: {
+      server,
+      ...(hmrHost ? { host: hmrHost } : {}),
+      ...(hmrClientPort ? { clientPort: hmrClientPort, port: hmrClientPort } : {}),
+      ...(hmrProtocol ? { protocol: hmrProtocol } : {}),
+    },
     allowedHosts: true as const,
   };
 

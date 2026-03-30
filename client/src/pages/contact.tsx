@@ -90,8 +90,18 @@ export default function Contact() {
               <p className="text-muted-foreground">
                 <span className="terminal-label">Email Inquiries</span>
                 <br />
-                For business partnerships, press inquiries, or formal communication, start in the
-                Discord server and the team will direct you to the correct channel.
+                <a
+                  className="text-primary underline underline-offset-4"
+                  href="mailto:sportfolioholdings@gmail.com"
+                >
+                  sportfolioholdings@gmail.com
+                </a>
+              </p>
+              <p className="text-muted-foreground">
+                <span className="terminal-label">Account Deletion</span>
+                <br />
+                Visit the dedicated Delete Account page for the deletion request process and data
+                retention details.
               </p>
               <p className="text-muted-foreground">
                 <span className="terminal-label">Service Location</span>

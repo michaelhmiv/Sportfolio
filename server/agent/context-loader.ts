@@ -5,6 +5,7 @@ import { db } from "../db";
 import { listAgentKnowledgeArticles } from "../docs-service";
 import { getETDayBoundaries, getTodayET } from "../lib/time";
 import { storage } from "../storage";
+import { loadUserEntitlements } from "../services/user-entitlements";
 import type { ScoutAgentContext, ScoutAgentSelectionWindow } from "./types";
 
 const SUPPORTED_SPORTS = ["NBA", "NFL", "MLB", "NASCAR"] as const;
@@ -145,8 +146,8 @@ export async function loadScoutAgentContext(
     sportOverride?: string | null;
   },
 ): Promise<ScoutAgentContext> {
-  const user = await storage.getUser(userId);
-  if (!user) {
+  const userState = await loadUserEntitlements(storage, userId);
+  if (!userState) {
     throw new Error("User not found");
   }
 
@@ -189,7 +190,7 @@ export async function loadScoutAgentContext(
     storage.getDailyBoostsAllSports(userId, new Date()),
   ]);
 
-  const maxScouts = user.isPremium ? 10 : 5;
+  const maxScouts = userState.entitlements.maxScouts;
   const playerHoldings = holdingsWithPlayers.filter(
     (entry: any) => entry?.holding?.assetType === "player" && entry?.player?.id,
   );
