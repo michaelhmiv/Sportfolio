@@ -39,18 +39,26 @@ const allowedTelemetryCodes = new Set([
   "none",
 ]);
 
-if (!supabaseUrl || !supabaseServiceRoleKey) {
+const supabaseConfigured = Boolean(supabaseUrl && supabaseServiceRoleKey);
+
+if (!supabaseConfigured) {
   console.warn("[SUPABASE_AUTH] Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY/SUPABASE_KEY");
+  console.warn("[SUPABASE_AUTH] Auth endpoints will return 503 until configured");
 }
 
-const supabaseAdmin = createClient(supabaseUrl || "", supabaseServiceRoleKey || "", {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false,
-  },
-});
+// Only create the Supabase client when credentials are available.
+// Passing an empty string crashes newer @supabase/supabase-js versions.
+const supabaseAdmin = supabaseConfigured
+  ? createClient(supabaseUrl!, supabaseServiceRoleKey!, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    })
+  : null;
 
 async function verifySupabaseToken(token: string): Promise<SupabaseUser | null> {
+  if (!supabaseAdmin) return null;
   try {
     const {
       data: { user },

@@ -82,7 +82,14 @@ export async function loadUserEntitlements(
     entitlements = resolveUserEntitlements(effectiveUser, null, now);
   }
 
-  const rewardedScoutBoost = await deps.getActiveRewardedScoutBoostForUser(user.id, now);
+  let rewardedScoutBoost: RewardedScoutBoostGrant | null | undefined = null;
+  try {
+    rewardedScoutBoost = await deps.getActiveRewardedScoutBoostForUser(user.id, now);
+  } catch (err: any) {
+    // Gracefully degrade if the rewarded_scout_boost_grants table doesn't exist yet
+    // (migration 0042 not applied) instead of crashing every authenticated endpoint.
+    console.warn("[entitlements] Failed to load rewarded scout boost, skipping:", err?.message);
+  }
   entitlements = resolveUserEntitlements(effectiveUser, rewardedScoutBoost, now);
 
   return {
