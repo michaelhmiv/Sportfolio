@@ -324,6 +324,11 @@ export interface IStorage {
   getAvailableShares(userId: string, assetType: string, assetId: string): Promise<number>;
   getLockedShares(userId: string, assetType: string, assetId: string): Promise<HoldingsLock[]>;
   getTotalLockedQuantity(userId: string, assetType: string, assetId: string): Promise<number>;
+  getBatchTotalLockedQuantities(
+    userId: string,
+    assetType: string,
+    assetIds: string[],
+  ): Promise<Map<string, number>>;
   adjustLockQuantity(lockReferenceId: string, newQuantity: number): Promise<void>;
 
   // Balance lock methods - prevent double-spending of cash
@@ -827,6 +832,87 @@ async function loadPlayerIdentityContext(
     aliasIds,
     allIds: Array.from(new Set([canonicalId, ...aliasIds])),
   };
+}
+
+async function loadPlayerIdentityContexts(
+  executor: DbExecutor,
+  playerIds: string[],
+): Promise<Map<string, PlayerIdentityContext>> {
+  const requestedIds = Array.from(
+    new Set(playerIds.map((playerId) => String(playerId || "").trim()).filter(Boolean)),
+  );
+  const contextMap = new Map<string, PlayerIdentityContext>();
+
+  if (requestedIds.length === 0) {
+    return contextMap;
+  }
+
+  const directAliasRows = await executor
+    .select({
+      aliasPlayerId: playerIdAliases.aliasPlayerId,
+      canonicalPlayerId: playerIdAliases.canonicalPlayerId,
+    })
+    .from(playerIdAliases)
+    .where(inArray(playerIdAliases.aliasPlayerId, requestedIds));
+
+  const directAliasMap = new Map<string, string>();
+  for (const row of directAliasRows) {
+    directAliasMap.set(row.aliasPlayerId, row.canonicalPlayerId);
+  }
+
+  const canonicalIds = new Set<string>();
+  const requestedToCanonical = new Map<string, string>();
+
+  for (const requestedId of requestedIds) {
+    let canonicalId = requestedId;
+    const seen = new Set<string>();
+
+    while (!seen.has(canonicalId)) {
+      seen.add(canonicalId);
+      const nextCanonicalId = directAliasMap.get(canonicalId);
+      if (!nextCanonicalId || nextCanonicalId === canonicalId) {
+        break;
+      }
+      canonicalId = nextCanonicalId;
+    }
+
+    requestedToCanonical.set(requestedId, canonicalId);
+    canonicalIds.add(canonicalId);
+  }
+
+  const canonicalAliasRows = await executor
+    .select({
+      canonicalPlayerId: playerIdAliases.canonicalPlayerId,
+      aliasPlayerId: playerIdAliases.aliasPlayerId,
+    })
+    .from(playerIdAliases)
+    .where(inArray(playerIdAliases.canonicalPlayerId, Array.from(canonicalIds)));
+
+  const aliasIdsByCanonical = new Map<string, string[]>();
+  for (const canonicalId of canonicalIds) {
+    aliasIdsByCanonical.set(canonicalId, []);
+  }
+
+  for (const row of canonicalAliasRows) {
+    const existing = aliasIdsByCanonical.get(row.canonicalPlayerId) || [];
+    if (row.aliasPlayerId !== row.canonicalPlayerId) {
+      existing.push(row.aliasPlayerId);
+    }
+    aliasIdsByCanonical.set(row.canonicalPlayerId, existing);
+  }
+
+  for (const requestedId of requestedIds) {
+    const canonicalId = requestedToCanonical.get(requestedId) || requestedId;
+    const aliasIds = aliasIdsByCanonical.get(canonicalId) || [];
+    contextMap.set(requestedId, {
+      requestedId,
+      canonicalId,
+      aliasIds,
+      allIds: Array.from(new Set([canonicalId, ...aliasIds])),
+    });
+  }
+
+  return contextMap;
 }
 
 function buildIdentityMatchSql(column: unknown, ids: string[]) {
@@ -2519,6 +2605,91 @@ export class DatabaseStorage implements IStorage {
       );
 
     return Number(result[0]?.total || 0);
+  }
+
+  async getBatchTotalLockedQuantities(
+    userId: string,
+    assetType: string,
+    assetIds: string[],
+  ): Promise<Map<string, number>> {
+    const requestedIds = Array.from(
+      new Set(assetIds.map((assetId) => String(assetId || "").trim()).filter(Boolean)),
+    );
+    const totalsByRequestedId = new Map<string, number>();
+
+    if (requestedIds.length === 0) {
+      return totalsByRequestedId;
+    }
+
+    if (assetType !== "player") {
+      const lockRows = await db
+        .select({
+          assetId: holdingsLocks.assetId,
+          total: sql<number>`COALESCE(SUM(${holdingsLocks.lockedQuantity}), 0)`,
+        })
+        .from(holdingsLocks)
+        .where(
+          and(
+            eq(holdingsLocks.userId, userId),
+            eq(holdingsLocks.assetType, assetType),
+            inArray(holdingsLocks.assetId, requestedIds),
+          ),
+        )
+        .groupBy(holdingsLocks.assetId);
+
+      const totalsByAssetId = new Map(lockRows.map((row) => [row.assetId, Number(row.total || 0)]));
+      for (const assetId of requestedIds) {
+        totalsByRequestedId.set(assetId, totalsByAssetId.get(assetId) || 0);
+      }
+
+      return totalsByRequestedId;
+    }
+
+    const identityContexts = await loadPlayerIdentityContexts(db, requestedIds);
+    const identityIds = Array.from(
+      new Set(
+        Array.from(identityContexts.values())
+          .flatMap((context) => context.allIds)
+          .filter(Boolean),
+      ),
+    );
+
+    if (identityIds.length === 0) {
+      for (const assetId of requestedIds) {
+        totalsByRequestedId.set(assetId, 0);
+      }
+      return totalsByRequestedId;
+    }
+
+    const lockRows = await db
+      .select({
+        assetId: holdingsLocks.assetId,
+        total: sql<number>`COALESCE(SUM(${holdingsLocks.lockedQuantity}), 0)`,
+      })
+      .from(holdingsLocks)
+      .where(
+        and(
+          eq(holdingsLocks.userId, userId),
+          eq(holdingsLocks.assetType, assetType),
+          inArray(holdingsLocks.assetId, identityIds),
+        ),
+      )
+      .groupBy(holdingsLocks.assetId);
+
+    const totalsByIdentityId = new Map(
+      lockRows.map((row) => [row.assetId, Number(row.total || 0)]),
+    );
+
+    for (const assetId of requestedIds) {
+      const context = identityContexts.get(assetId);
+      const totalLocked = (context?.allIds || [assetId]).reduce(
+        (sum, identityId) => sum + (totalsByIdentityId.get(identityId) || 0),
+        0,
+      );
+      totalsByRequestedId.set(assetId, totalLocked);
+    }
+
+    return totalsByRequestedId;
   }
 
   async adjustLockQuantity(lockReferenceId: string, newQuantity: number): Promise<void> {
@@ -6250,6 +6421,11 @@ export class DatabaseStorage implements IStorage {
     const currentBoosts = await this.getDailyBoosts(userId, sport, date);
 
     const boostedPlayerIds = new Set(currentBoosts.map((b) => b.playerId));
+    const lockedQuantities = await this.getBatchTotalLockedQuantities(
+      userId,
+      "player",
+      regularHoldings.map((entry) => entry.players.id),
+    );
 
     for (const h of regularHoldings) {
       const holding = h.holdings;
@@ -6259,7 +6435,7 @@ export class DatabaseStorage implements IStorage {
       if (!teamGame) continue; // Player's team doesn't have a game today
 
       // Calculate available shares (total - locked)
-      const totalLocked = await this.getTotalLockedQuantity(userId, "player", player.id);
+      const totalLocked = lockedQuantities.get(player.id) || 0;
       const availableShares = parseFloat(holding.quantity) - totalLocked;
 
       const effectiveShares = holding.quantity || "0.00";

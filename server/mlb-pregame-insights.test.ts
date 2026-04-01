@@ -615,7 +615,7 @@ describe("mlb-pregame-insights", () => {
     expect(insight?.gameState).toBeNull();
   });
 
-  it("marks MLB enrichment unavailable when the internal MLB MCP is not configured", async () => {
+  it("marks game details unavailable when the internal MLB MCP is not configured", async () => {
     mocks.resolveInternalMlbMcpConfig.mockReturnValue({
       enabled: false,
       endpoint: null,
@@ -631,11 +631,11 @@ describe("mlb-pregame-insights", () => {
     expect(bundle.insightByGameId.get("mlb_local_1")).toBeUndefined();
     expect(bundle.statusByGameId.get("mlb_local_1")).toEqual({
       state: "unavailable",
-      message: "MLB enrichment unavailable in this environment.",
+      message: "Game details are not available in this environment.",
     });
   });
 
-  it("marks MLB enrichment pending when no schedule match is available yet", async () => {
+  it("marks game details pending when no schedule match is available yet", async () => {
     mocks.runInternalMlbMcpToolRaw.mockImplementation(async ({ toolName }) => {
       if (toolName === "mlb_mcp__get_schedule") {
         return {
@@ -656,7 +656,7 @@ describe("mlb-pregame-insights", () => {
     expect(bundle.insightByGameId.get("mlb_local_1")).toBeUndefined();
     expect(bundle.statusByGameId.get("mlb_local_1")).toEqual({
       state: "pending",
-      message: "MLB game context is pending.",
+      message: "Game details are pending.",
     });
   });
 

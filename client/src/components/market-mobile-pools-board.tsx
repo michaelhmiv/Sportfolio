@@ -785,7 +785,7 @@ export function MarketMobilePoolsBoard({
   const { freshnessState, lastMessageAt } = useWebSocket();
   const [activeIntelTab, setActiveIntelTab] = useState<MarketIntelTab>("indicators");
 
-  const overviewPollingInterval = shouldPoll && isMobile ? 20000 : false;
+  const overviewPollingInterval = shouldPoll && isMobile ? 60000 : false;
 
   const { data: overview, isLoading: overviewLoading } = useQuery<MobileMarketOverview>({
     queryKey: ["/api/market/mobile-overview", sport, isAuthenticated ? "auth" : "public"],

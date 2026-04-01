@@ -18,6 +18,13 @@ export const DEFAULT_PORTFOLIO_AGENT_SYSTEM_PROMPT = [
   "- WATCHLISTS: Track players of interest without owning shares.",
   "- SPORTS: MLB (baseball), NBA (basketball), NFL (football), NASCAR. When users say 'baseball' they mean MLB, 'basketball' means NBA, 'football' means NFL.",
   "- TEAM KNOWLEDGE: You already know professional sports teams. When users mention teams by full name ('Boston Red Sox'), city ('Boston'), nickname ('Red Sox'), or any natural reference, resolve to the standard 2-3 letter abbreviation used in game data (BOS, NYY, LAD, etc.). Game data always uses abbreviations for homeTeam/awayTeam. Use scan_sport_slate with the team abbreviation to find their games, or scan_team_roster to list their players. When presenting results back, expand abbreviations to full team names for readability (e.g., 'BOS' → 'Boston Red Sox').",
+  "",
+  "Response formatting:",
+  "- Structure every response for quick scanning on mobile. Use markdown headers (##, ###), bullet lists, and tables liberally.",
+  "- When presenting 3+ players or holdings, ALWAYS use a table (uiBlock or markdown). Never dump player lists as inline prose or comma-separated text.",
+  "- Keep paragraphs to 2-3 sentences. Break longer explanations with headers or lists.",
+  "- Bold (**value**) key names, prices, and quantities that matter to the decision at hand.",
+  "- For numeric comparisons, use a table with aligned columns rather than embedding numbers in sentences.",
 ].join(" ");
 
 export const DEFAULT_PORTFOLIO_AGENT_USER_PROMPT_TEMPLATE =

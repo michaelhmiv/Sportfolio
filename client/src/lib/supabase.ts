@@ -2,6 +2,7 @@ import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
 let supabaseInstance: SupabaseClient | null = null;
 let initializationPromise: Promise<SupabaseClient> | null = null;
+const IS_DEV = import.meta.env.DEV;
 
 const CONFIG_CACHE_KEY = "supabase_config_v2";
 const LEGACY_CONFIG_CACHE_KEY = "supabase_config";
@@ -64,6 +65,7 @@ const customStorageAdapter = {
 };
 
 function debugLog(stage: string, message: string, data?: any) {
+  if (!IS_DEV) return;
   const elapsed = performance.now().toFixed(0);
   console.log(`[SUPABASE ${elapsed}ms] ${stage}: ${message}`, data || "");
 }

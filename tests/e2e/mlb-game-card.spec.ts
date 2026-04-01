@@ -672,7 +672,9 @@ test.describe("MLB game card", () => {
     await expect(dialog.getByText("$24.10").first()).toBeVisible();
   });
 
-  test("shows explicit MLB unavailable status when enrichment is missing", async ({ page }) => {
+  test("shows basic game info without error card when game details are unavailable", async ({
+    page,
+  }) => {
     const game = buildGame({
       gameId: "mlb_unavailable_1",
       status: "scheduled",
@@ -682,7 +684,7 @@ test.describe("MLB game card", () => {
       venue: "American Family Field",
       mlbEnrichment: {
         state: "unavailable",
-        message: "MLB enrichment unavailable in this environment.",
+        message: "Game details are not available in this environment.",
       },
       mlbPregame: null,
     });
@@ -696,11 +698,19 @@ test.describe("MLB game card", () => {
 
     const gameRow = getGamesTableRow(page, "CHC@MIL");
     await expect(gameRow).toBeVisible();
-    await expect(gameRow).toContainText("MLB unavailable");
+    // Should NOT show "MLB unavailable" on the slate row
+    await expect(gameRow).not.toContainText("MLB unavailable");
 
     const dialog = await openGameModal(page, "CHC@MIL");
 
-    await expect(dialog.getByText("Game-center updates are unavailable.")).toBeVisible();
-    await expect(dialog.getByText("MLB enrichment unavailable in this environment.")).toBeVisible();
+    // Should show the standard game modal content (leaders, team rosters)
+    await expect(dialog.getByText("CHC @ MIL")).toBeVisible();
+    await expect(dialog.getByText("FP Leader")).toBeVisible();
+
+    // Should NOT show the old enrichment error card
+    await expect(dialog.getByText("Game-center updates are unavailable.")).not.toBeVisible();
+    await expect(
+      dialog.getByText("Game details are not available in this environment."),
+    ).not.toBeVisible();
   });
 });

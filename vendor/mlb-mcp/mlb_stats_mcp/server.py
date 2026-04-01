@@ -30,7 +30,11 @@ load_dotenv()
 logger = setup_logging("mcp_server")
 
 # Initialize FastMCP server
-mcp = FastMCP("baseball", stateless_http=True)
+# host="0.0.0.0" prevents the MCP SDK from auto-enabling DNS rebinding
+# protection, which rejects non-localhost Host headers. Railway's internal
+# networking sends Host: mlb-mcp.railway.internal:8080, causing 421 errors
+# when the default host="127.0.0.1" triggers the localhost-only allowlist.
+mcp = FastMCP("baseball", stateless_http=True, host="0.0.0.0")
 
 
 # Automatically register all prompt functions from prompts.py

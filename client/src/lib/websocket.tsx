@@ -7,7 +7,10 @@ import {
   debouncedInvalidateMarketActivity,
 } from "@/lib/cache-invalidation";
 
+const IS_DEV = import.meta.env.DEV;
+
 function debugLog(stage: string, message: string, data?: any) {
+  if (!IS_DEV) return;
   const elapsed = performance.now().toFixed(0);
   console.log(`[WS ${elapsed}ms] ${stage}: ${message}`, data || "");
 }

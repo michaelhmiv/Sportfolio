@@ -233,6 +233,8 @@ describe("buildMobileMarketOverview", () => {
     ],
     getDailyBoostsAllSports: async () => [],
     getTotalLockedQuantity: async (_userId, _assetType, assetId) => (assetId === "p3" ? 1 : 0),
+    getBatchTotalLockedQuantities: async (_userId, _assetType, assetIds) =>
+      new Map(assetIds.map((assetId) => [assetId, assetId === "p3" ? 1 : 0])),
     getTopRisers: async () => [
       {
         playerId: "p1",
