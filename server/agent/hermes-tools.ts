@@ -127,6 +127,9 @@ const AGENT_TOOL_CATALOG: AgentToolDefinition[] = [
     ],
     requiresConfirmation: false,
     riskLevel: "low",
+    presentationProfile: "leaderboard",
+    primaryEntityType: "player",
+    preferredColumns: ["player", "team", "power", "boostSlot"],
   },
   {
     toolName: "scan_open_boost_slots",
@@ -158,6 +161,9 @@ const AGENT_TOOL_CATALOG: AgentToolDefinition[] = [
     examplePrompts: ["what should i scout tonight?", "who are my best scout targets right now?"],
     requiresConfirmation: false,
     riskLevel: "low",
+    presentationProfile: "leaderboard",
+    primaryEntityType: "player",
+    preferredColumns: ["player", "team", "scoutCount", "opportunity"],
   },
   {
     toolName: "scan_idle_balance_options",
@@ -180,6 +186,9 @@ const AGENT_TOOL_CATALOG: AgentToolDefinition[] = [
     examplePrompts: ["clean up my portfolio", "what am i overexposed to right now?"],
     requiresConfirmation: false,
     riskLevel: "low",
+    presentationProfile: "leaderboard",
+    primaryEntityType: "player",
+    preferredColumns: ["player", "team", "quantity", "value", "issue"],
   },
   {
     toolName: "scan_watchlist_targets",
@@ -191,6 +200,9 @@ const AGENT_TOOL_CATALOG: AgentToolDefinition[] = [
     examplePrompts: ["who should i add to my watchlist?", "anything stale in my watchlists?"],
     requiresConfirmation: false,
     riskLevel: "low",
+    presentationProfile: "leaderboard",
+    primaryEntityType: "player",
+    preferredColumns: ["player", "team", "price", "signal"],
   },
   {
     toolName: "scan_community_boost_candidates",
@@ -204,6 +216,9 @@ const AGENT_TOOL_CATALOG: AgentToolDefinition[] = [
     examplePrompts: ["who should get my community boost today?"],
     requiresConfirmation: false,
     riskLevel: "low",
+    presentationProfile: "leaderboard",
+    primaryEntityType: "player",
+    preferredColumns: ["player", "team", "boostImpact"],
   },
   {
     toolName: "scan_news_impact",
@@ -228,6 +243,9 @@ const AGENT_TOOL_CATALOG: AgentToolDefinition[] = [
     examplePrompts: ["who is worth buying right now?", "who should i start a position in?"],
     requiresConfirmation: false,
     riskLevel: "low",
+    presentationProfile: "leaderboard",
+    primaryEntityType: "player",
+    preferredColumns: ["player", "team", "price", "opportunity"],
   },
   {
     toolName: "scan_sport_slate",

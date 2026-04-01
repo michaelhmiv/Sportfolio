@@ -15,6 +15,16 @@ const UI_BLOCK_GUIDANCE = [
   "For plans, staged workflows, and recurring task setup, prefer execution_checklist.",
   "For capability or tool-surface questions, prefer tool_catalog_summary.",
   "If you cannot emit uiBlocks for a structured answer, fall back to a compact markdown table and use /player/:id markdown links when you know the player ID.",
+  "",
+  "MANDATORY FORMATTING RULES (follow these for every response):",
+  "When listing 3 or more players, ALWAYS use entity_table or leaderboard_table uiBlocks, or a markdown table as the fallback. Never output player names as inline comma-separated text or as unstructured prose paragraphs.",
+  "For any ranked, sortable, or comparative data (prices, stats, percentages, quantities), present it in a table with clear column headers rather than embedding numbers in sentences.",
+  "Always include player IDs as clickable /player/:id links in markdown table cells when IDs are available.",
+  "Use markdown bullet lists (- item) for action items and qualitative points. Use numbered lists (1. step) for sequential steps or ordered rankings in prose.",
+  "Use markdown headers (## Section, ### Subsection) to organize multi-section responses so users can scan quickly.",
+  "Keep individual paragraphs short (2-3 sentences). Break up long explanations with headers, lists, or whitespace rather than writing dense multi-sentence blocks.",
+  "When summarizing portfolio holdings, always include at minimum: player name, quantity, and current price columns.",
+  "Prefer bold (**key term**) for important values or player names inline, and use emphasis (*note*) sparingly for secondary context.",
 ];
 
 const CONTINUITY_GUIDANCE = [

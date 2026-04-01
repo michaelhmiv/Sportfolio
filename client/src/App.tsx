@@ -361,12 +361,24 @@ function Router() {
 
   // Warm likely next-route chunks during idle time to improve transition latency.
   useEffect(() => {
+    const nav = navigator as Navigator & {
+      connection?: { saveData?: boolean; effectiveType?: string };
+    };
+    const connection = nav.connection;
+    const isMobileViewport = window.innerWidth < 768;
+    const shouldSkipPreload =
+      isMobileViewport ||
+      connection?.saveData === true ||
+      connection?.effectiveType === "slow-2g" ||
+      connection?.effectiveType === "2g";
+
+    if (shouldSkipPreload) {
+      return;
+    }
+
     const preload = () => {
       void loadPlayerPoolsPage();
       void loadBlogPage();
-      void loadLeaderboardsPage();
-      void loadAgentPage();
-      void loadNewsPage();
     };
 
     const globalObject = globalThis as any;

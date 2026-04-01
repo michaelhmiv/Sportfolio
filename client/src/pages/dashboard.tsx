@@ -144,10 +144,10 @@ export default function Dashboard() {
   const { sport, setSport } = useSport();
   const [activeGame, setActiveGame] = useState<GameInsight | null>(null);
   const [selectedRace, setSelectedRace] = useState<any>(null);
-  const { shouldPoll, isMobile } = useAppState();
+  const { shouldPoll } = useAppState();
 
   // Disable polling when app is backgrounded or offline; reduce frequency on mobile
-  const pollingInterval = shouldPoll ? (isMobile ? 20000 : 10000) : false;
+  const pollingInterval = shouldPoll ? 60000 : false;
 
   const { data, isLoading } = useQuery<DashboardData>({
     queryKey: ["/api/dashboard"],
@@ -999,7 +999,7 @@ export default function Dashboard() {
                                       : awayProbable || homeProbable || null;
                                   const mlbFallbackLabel =
                                     mlbEnrichment?.state === "unavailable"
-                                      ? "MLB unavailable"
+                                      ? null
                                       : mlbEnrichment?.state === "pending"
                                         ? "Probables pending"
                                         : null;
@@ -1014,7 +1014,6 @@ export default function Dashboard() {
                                       : effectiveStatus === "completed"
                                         ? "Final"
                                         : mlbPregame?.matchupSummary ||
-                                          mlbEnrichment?.message ||
                                           (mlbPregame ? "Probables pending" : "--");
 
                                   return (

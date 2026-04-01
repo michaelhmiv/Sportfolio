@@ -1,6 +1,8 @@
 import { createContext, useContext, ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 
+const IS_DEV = import.meta.env.DEV;
+
 export interface InjuryInfo {
   id: string;
   injuryStatus: string;
@@ -29,10 +31,10 @@ export function InjuryProvider({ children }: { children: ReactNode }) {
   });
 
   // Debug logging
-  if (error) {
+  if (IS_DEV && error) {
     console.error("[InjuryProvider] Error fetching injuries:", error);
   }
-  if (injuredPlayers) {
+  if (IS_DEV && injuredPlayers) {
     console.log("[InjuryProvider] Loaded", injuredPlayers.length, "injuries");
   }
 

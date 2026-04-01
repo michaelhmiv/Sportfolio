@@ -5,7 +5,7 @@ Sportfolio now keeps the MLB StatsAPI MCP server as a separate internal service 
 ## Provider boundary
 
 - Ball Don't Lie remains the canonical lane for Sportfolio's existing ingest/sync paths.
-- The vendored MLB MCP is an enrichment lane for probable pitchers, lineups, Statcast, and other MLB-specific reads.
+- The vendored MLB MCP provides game details (probable pitchers, lineups, Statcast, and other MLB-specific reads) as an optional display-only layer.
 - App code should depend on Sportfolio-owned adapters and normalized payloads, not raw upstream MCP response shapes.
 
 ## Vendored source
@@ -45,7 +45,7 @@ This repo does not require `uv` to run the vendored service locally.
    $env:HERMES_INTERNAL_MLB_MCP_URL = "http://127.0.0.1:8081/mcp"
    ```
 
-   To disable MLB enrichment in dev on purpose:
+   To disable MLB game details in dev on purpose:
 
    ```powershell
    $env:HERMES_INTERNAL_MLB_MCP_ENABLED = "false"
