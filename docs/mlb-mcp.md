@@ -76,6 +76,15 @@ It summarizes:
 - whether the `liveData.boxscore.teams.away/home.batters` paths are present
 - mapped lineup names when batters are posted
 
+## Railway deployment
+
+The MLB MCP runs as a separate Railway service (`mlb-mcp`) with private networking.
+
+- `RAILWAY_PRIVATE_DOMAIN=mlb-mcp.railway.internal`
+- The main Sportfolio service connects via `HERMES_INTERNAL_MLB_MCP_URL=http://mlb-mcp.railway.internal:8080/mcp`
+
+**Important:** The `FastMCP` constructor must use `host="0.0.0.0"` to prevent the MCP SDK from auto-enabling DNS rebinding protection. The default `host="127.0.0.1"` triggers a localhost-only `Host` header allowlist that rejects Railway's internal hostname (`mlb-mcp.railway.internal:8080`) with a 421 Misdirected Request.
+
 ## Validation rule
 
 Do not treat local vendored success as sufficient. Any MLB MCP feature that is meant to ship against the Railway internal service should be validated against Railway before completion.
