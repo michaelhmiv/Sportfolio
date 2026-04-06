@@ -543,6 +543,7 @@ export async function runHermesOrchestrationTurn(input: {
         memoryInfluences,
         requiresConfirmation: false,
         confirmationPreview: null,
+        uiBlocks: routedTurn.uiBlocks,
       };
     }
 
@@ -659,6 +660,7 @@ export async function runHermesOrchestrationTurn(input: {
         memoryInfluences,
         requiresConfirmation: false,
         confirmationPreview: null,
+        uiBlocks: routedTurn.uiBlocks,
       };
     }
 

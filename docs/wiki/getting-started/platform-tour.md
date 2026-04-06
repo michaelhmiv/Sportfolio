@@ -129,7 +129,7 @@ Together, these pages help you organize attention before you allocate capital.
 
 - **Premium**: buy premium shares and redeem them for premium access.
 - **User profile**: public-facing user identity and personal account controls.
-- **SMS link**: secure account-link flow for the SMS agent.
+- **Legacy SMS link**: archived account-link flow for the older SMS agent path.
 - **Wiki**: the canonical documentation hub you are reading now.
 
 These pages are support systems around the core economy rather than separate game loops.
@@ -145,8 +145,8 @@ The Agent page is the main in-app assistant interface. It can:
 
 The same product knowledge also powers:
 
-- the SMS agent after account linking
 - the Sportfolio CLI through API tokens
+- public MCP clients through `/mcp`
 
 ## Real-time behavior
 

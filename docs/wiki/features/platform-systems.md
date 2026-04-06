@@ -142,7 +142,7 @@ The product also supports:
 
 - responsive web usage
 - mobile wrappers
-- SMS agent access after linking
 - CLI access through API tokens
+- public MCP access for external clients
 
 The exact controls differ by channel, but the goal is the same: keep the same account and economy accessible in multiple operating contexts.

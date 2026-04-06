@@ -15,6 +15,7 @@ import { loadUserEntitlements } from "../services/user-entitlements";
 import type { UserAgentProfile } from "@shared/schema";
 import { buildPlayerNameClarification } from "./clarification";
 import { getAgentDataSourceSummary } from "./data-sources";
+import { resolveInternalMlbMcpConfig, runInternalMlbMcpToolRaw } from "./internal-mlb-mcp";
 import { isHostedWebResearchAvailable } from "./research";
 import type {
   AgentAnalysisResult,
@@ -38,6 +39,10 @@ import type {
 const DEFAULT_MAX_SLIPPAGE = 0.05;
 const LIQUIDITY_RATIO_TOLERANCE = 0.02;
 const DAILY_BOOST_SLOT_COUNT = 4;
+const BOOST_SLOT_PRIORITY = [5, 4, 3, 2] as const;
+const DEFAULT_ASSUMED_BUY_SB = 25;
+const DEFAULT_ASSUMED_SELL_SHARES = 1;
+const DEFAULT_ASSUMED_SCOUT_COUNT = 1;
 const SUPPORTED_SPORTS = ["NBA", "NFL", "MLB", "NASCAR"] as const;
 
 type DirectOperationPlan = Omit<AgentAnalysisResult, "runId" | "status"> & {
@@ -56,6 +61,80 @@ type ResolvedPlayer = {
   warnings: string[];
 };
 
+type RankedMlbWorkflowSpec = {
+  playerCount: number;
+  leaderCategory: string;
+  leaderLabel: string;
+  statGroup: "pitching" | "hitting";
+  order: "asc" | "desc";
+  slotTiers: Array<2 | 3 | 4 | 5>;
+  requiresStack: boolean;
+  requiresBoost: boolean;
+  season: number;
+  resolvedDate: ResolvedDate;
+};
+
+type RankedMlbLeaderRow = {
+  rank: number | null;
+  playerName: string;
+  teamName: string | null;
+  valueLabel: string | null;
+  numericValue: number | null;
+};
+
+type CompoundPlanningState = {
+  availableBalance: number;
+  reservedBoostSlots: Array<2 | 3 | 4 | 5>;
+  reservedBoostPlayerIds: string[];
+};
+
+type StructuredBuyFollowUpGoal = {
+  rawPlayerReference: string;
+  requestedShareCount: number | null;
+  requestedDollarAmount: number | null;
+  buyAssumptionMode:
+    | "explicit_dollars"
+    | "explicit_shares"
+    | "assumed_starter"
+    | "assumed_max_safe";
+  hasStackIntent: boolean;
+  stackOptional: boolean;
+  slotTier: 2 | 3 | 4 | 5 | null;
+  boostOptional: boolean;
+  resolvedDate: ResolvedDate;
+};
+
+type StructuredPlannerStatus = "supported" | "unavailable" | "clarification";
+
+type StructuredPlannerEvaluation = {
+  status: StructuredPlannerStatus;
+  plan: DirectOperationPlan;
+  reason: string;
+};
+
+type RankedWorkflowCandidateAssessment = {
+  rank: number | null;
+  leaderboardPlayerName: string;
+  playerId: string | null;
+  playerName: string | null;
+  slotTier: 2 | 3 | 4 | 5 | null;
+  provisionalBudget: number;
+  status: StructuredPlannerStatus | "skipped";
+  reason: string;
+  summary: string;
+};
+
+type ParsedBuyDirective = {
+  rawPlayerReference: string;
+  requestedShareCount: number | null;
+  requestedDollarAmount: number | null;
+  buyAssumptionMode:
+    | "explicit_dollars"
+    | "explicit_shares"
+    | "assumed_starter"
+    | "assumed_max_safe";
+};
+
 function normalizeWhitespace(value: string): string {
   return value.replace(/\s+/g, " ").trim();
 }
@@ -63,9 +142,191 @@ function normalizeWhitespace(value: string): string {
 function sanitizeNameFragment(value: string): string {
   return normalizeWhitespace(
     value
-      .replace(/\b(?:stock|shares?|share|pool|player pool|boosts?|boost slot|slot)\b/gi, " ")
+      .replace(/\([^)]*\)/g, " ")
+      .replace(/\[[^\]]*\]/g, " ")
+      .replace(/\b(?:my|some|all|remaining|rest)\b/gi, " ")
+      .replace(/\b(?:today|tonight|tomorrow|please)\b/gi, " ")
+      .replace(/\b(?:stock|shares?|share|pool|player pool|boosts?|boost slot|slot|of)\b/gi, " ")
       .replace(/[.,!?]+$/g, " "),
   );
+}
+
+function getPlayerDisplayName(player: typeof players.$inferSelect): string {
+  return `${player.firstName} ${player.lastName}`;
+}
+
+function getRegularShareCount(
+  availableShares: number,
+  breakdown: Awaited<ReturnType<typeof storage.getPlayerShareBreakdown>>,
+): number {
+  return Math.max(
+    0,
+    Math.min(availableShares, Number.parseFloat(breakdown.regular?.quantity || "0")),
+  );
+}
+
+function getHighestAvailableShareMultiplier(
+  breakdown: Awaited<ReturnType<typeof storage.getPlayerShareBreakdown>>,
+): number {
+  const stackedMultipliers =
+    (breakdown.stacked || [])
+      .map((holding) => Number.parseFloat(holding.multiplier || "1"))
+      .filter((value) => Number.isFinite(value) && value >= 1) || [];
+  return Math.max(1, ...stackedMultipliers);
+}
+
+function inferMaxStackableShares(regularShares: number): number | null {
+  const maxEvenShares = Math.floor(Math.max(0, regularShares) / 2) * 2;
+  return maxEvenShares >= 4 ? maxEvenShares : null;
+}
+
+function findHighestOpenBoostSlot(
+  currentBoosts: Array<Pick<typeof dailyBoosts.$inferSelect, "slotTier">>,
+): 2 | 3 | 4 | 5 | null {
+  const occupied = new Set(currentBoosts.map((boost) => Number(boost.slotTier)));
+  for (const slotTier of BOOST_SLOT_PRIORITY) {
+    if (!occupied.has(slotTier)) {
+      return slotTier;
+    }
+  }
+
+  return null;
+}
+
+function parseBuyDirective(message: string): ParsedBuyDirective | null {
+  const parserMessage = normalizeOperationalParserMessage(message);
+  const amountMatch =
+    parserMessage.match(
+      /\b(?:buy|buying|purchase|purchasing|get|grab|pick\s+up|start(?:\s+my)?\s+position(?:\s+in)?)\s+\$?(\d+(?:\.\d+)?)\s+(?:of\s+)?(.+?)(?:\s+from\s+the\s+pool|\s+in\s+the\s+pool|\s+in\s+pool|$)/i,
+    ) || null;
+  const shareMatch =
+    parserMessage.match(/\b(?:buy|buying|get|grab|pick\s+up)\s+(\d+)\s+(.+?)\s+shares?\b/i) ||
+    parserMessage.match(
+      /\b(?:buy|buying|get|grab|pick\s+up)\s+(\d+)\s+shares?\s+of\s+(.+?)(?:\s+from\s+the\s+pool|\s+in\s+the\s+pool|\s+in\s+pool|$)/i,
+    );
+  const maxBuyMatch =
+    parserMessage.match(
+      /^(?:buy|buying|purchase|purchasing|get|grab|pick\s+up)\s+as\s+much\s+(.+?)\s+as\s+i\s+can\s+afford$/i,
+    ) ||
+    parserMessage.match(
+      /^(?:buy|buying|purchase|purchasing|get|grab|pick\s+up)\s+as\s+many\s+(.+?)\s+shares?\s+as\s+(?:i\s+can\s+afford|possible)$/i,
+    ) ||
+    parserMessage.match(
+      /^(?:buy|buying|purchase|purchasing|get|grab|pick\s+up)\s+max(?:imum)?\s+shares?\s+(?:of\s+)?(.+?)$/i,
+    );
+  const bareMatch = parserMessage.match(
+    /^(?:buy|buying|purchase|purchasing|get|grab|pick\s+up|start(?:\s+my)?\s+position(?:\s+in)?)\s+(.+?)(?:\s+shares?)?$/i,
+  );
+
+  if (amountMatch) {
+    return {
+      rawPlayerReference: amountMatch[2],
+      requestedShareCount: null,
+      requestedDollarAmount: Number(amountMatch[1]),
+      buyAssumptionMode: "explicit_dollars",
+    };
+  }
+
+  if (shareMatch) {
+    return {
+      rawPlayerReference: shareMatch[2],
+      requestedShareCount: Number.parseInt(shareMatch[1], 10),
+      requestedDollarAmount: null,
+      buyAssumptionMode: "explicit_shares",
+    };
+  }
+
+  if (maxBuyMatch) {
+    return {
+      rawPlayerReference: maxBuyMatch[1],
+      requestedShareCount: null,
+      requestedDollarAmount: null,
+      buyAssumptionMode: "assumed_max_safe",
+    };
+  }
+
+  if (bareMatch) {
+    return {
+      rawPlayerReference: bareMatch[1],
+      requestedShareCount: null,
+      requestedDollarAmount: null,
+      buyAssumptionMode: "assumed_starter",
+    };
+  }
+
+  return null;
+}
+
+function splitCompoundFollowUpClauses(message: string): string[] {
+  return message
+    .split(
+      /(?:,?\s+(?:and then|then|and)\s+(?=(?:stack|put|assign|boost|place|slot|lock)\b)|,\s*(?=(?:stack|put|assign|boost|place|slot|lock)\b))/i,
+    )
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+}
+
+function parseStackDirective(
+  stackClause: string | null,
+  fallbackPlayerReference: string | null,
+): {
+  mode: "explicit" | "max";
+  requestedShares: number | null;
+  rawPlayerReference: string | null;
+} | null {
+  if (!stackClause || !/\bstack(?:\s+shares?)?\b/i.test(stackClause)) {
+    return null;
+  }
+
+  const explicitOfMatch = stackClause.match(
+    /\bstack(?:\s+shares?)?\s+(\d+)\s+shares?\s+of\s+(.+)$/i,
+  );
+  if (explicitOfMatch) {
+    return {
+      mode: "explicit",
+      requestedShares: Number.parseInt(explicitOfMatch[1], 10),
+      rawPlayerReference: sanitizeNameFragment(explicitOfMatch[2]),
+    };
+  }
+
+  const explicitSuffixMatch = stackClause.match(
+    /\bstack(?:\s+shares?)?\s+(\d+)\s+(.+?)\s+shares?\b/i,
+  );
+  if (explicitSuffixMatch) {
+    return {
+      mode: "explicit",
+      requestedShares: Number.parseInt(explicitSuffixMatch[1], 10),
+      rawPlayerReference: sanitizeNameFragment(explicitSuffixMatch[2]),
+    };
+  }
+
+  const remainderMatch = stackClause.match(
+    /\bstack(?:\s+shares?)?\s+(?:the\s+)?(?:rest|remainder|remaining|all(?:\s+of\s+(?:my\s+)?)?|them all)(?:\s+of\s+(.+))?$/i,
+  );
+  if (remainderMatch) {
+    return {
+      mode: "max",
+      requestedShares: null,
+      rawPlayerReference: sanitizeNameFragment(remainderMatch[1] || fallbackPlayerReference || ""),
+    };
+  }
+
+  const genericNamedMatch = stackClause.match(/\bstack(?:\s+shares?)?\s+(.+)$/i);
+  if (genericNamedMatch) {
+    return {
+      mode: "max",
+      requestedShares: null,
+      rawPlayerReference: sanitizeNameFragment(genericNamedMatch[1]),
+    };
+  }
+
+  return fallbackPlayerReference
+    ? {
+        mode: "max",
+        requestedShares: null,
+        rawPlayerReference: sanitizeNameFragment(fallbackPlayerReference),
+      }
+    : null;
 }
 
 function isAdvisoryRequest(message: string): boolean {
@@ -133,6 +394,10 @@ function buildStageNudge(requestMode: "discussion" | "commit") {
     : "If you want to lock that in, confirm and I'll execute it.";
 }
 
+function roundCurrency(value: number): number {
+  return Math.round((Number.isFinite(value) ? value : 0) * 100) / 100;
+}
+
 function resolveDateFromMessage(message: string): ResolvedDate {
   const lower = message.toLowerCase();
   const today = getTodayET();
@@ -166,6 +431,225 @@ function resolveSportHint(message: string, defaultSport: string | null): string 
   return explicitSport || defaultSport || null;
 }
 
+function parseRequestedPlayerCount(message: string): number | null {
+  const numericMatch = message.match(/\b([2-5])\b/);
+  if (numericMatch) {
+    return Number.parseInt(numericMatch[1], 10);
+  }
+
+  const wordLookup: Record<string, number> = {
+    two: 2,
+    three: 3,
+    four: 4,
+    five: 5,
+  };
+
+  for (const [word, value] of Object.entries(wordLookup)) {
+    if (new RegExp(`\\b${word}\\b`, "i").test(message)) {
+      return value;
+    }
+  }
+
+  return null;
+}
+
+function parseSlotTiers(message: string): Array<2 | 3 | 4 | 5> {
+  return Array.from(message.matchAll(/\b([2345])x\b/gi))
+    .map((match) => Number.parseInt(match[1], 10))
+    .filter((value): value is 2 | 3 | 4 | 5 => [2, 3, 4, 5].includes(value));
+}
+
+function getCurrentSeasonYear(): number {
+  const today = getTodayET();
+  const parsed = Number.parseInt(today.slice(0, 4), 10);
+  return Number.isFinite(parsed) ? parsed : new Date().getFullYear();
+}
+
+function parseRankedMlbWorkflowSpec(message: string): RankedMlbWorkflowSpec | null {
+  const parserMessage = normalizeOperationalParserMessage(message);
+  const lower = parserMessage.toLowerCase();
+
+  if (
+    !/\bbuy\b/.test(lower) ||
+    !/\b(?:max|as many)\b/.test(lower) ||
+    !/\b(?:lowest|highest|top|best)\b/.test(lower)
+  ) {
+    return null;
+  }
+
+  const playerCount = parseRequestedPlayerCount(lower);
+  if (!playerCount || playerCount < 2) {
+    return null;
+  }
+
+  const requiresStack = /\bstack(?:\s+shares?)?\b/.test(lower);
+  const requiresBoost = /\b(?:boost|slot)\b/.test(lower);
+  if (!requiresStack && !requiresBoost) {
+    return null;
+  }
+
+  let leaderCategory: string | null = null;
+  let leaderLabel: string | null = null;
+  let statGroup: "pitching" | "hitting" | null = null;
+  let order: "asc" | "desc" | null = null;
+
+  if (/\bpitchers?\b/.test(lower) && /\beras?\b/.test(lower)) {
+    leaderCategory = "earnedRunAverage";
+    leaderLabel = "ERA";
+    statGroup = "pitching";
+    order = "asc";
+  } else if (/\bpitchers?\b/.test(lower) && /\bwhip\b/.test(lower)) {
+    leaderCategory = "whip";
+    leaderLabel = "WHIP";
+    statGroup = "pitching";
+    order = "asc";
+  } else if (/\b(?:hitters?|batters?)\b/.test(lower) && /\bobp\b/.test(lower)) {
+    leaderCategory = "onBasePercentage";
+    leaderLabel = "OBP";
+    statGroup = "hitting";
+    order = "desc";
+  } else if (/\b(?:hitters?|batters?)\b/.test(lower) && /\bops\b/.test(lower)) {
+    leaderCategory = "ops";
+    leaderLabel = "OPS";
+    statGroup = "hitting";
+    order = "desc";
+  }
+
+  if (!leaderCategory || !leaderLabel || !statGroup || !order) {
+    return null;
+  }
+
+  const slotTiers = requiresBoost ? parseSlotTiers(lower) : [];
+  const explicitSeason = lower.match(/\b(20\d{2})\b/);
+  const season = explicitSeason ? Number.parseInt(explicitSeason[1], 10) : getCurrentSeasonYear();
+
+  return {
+    playerCount,
+    leaderCategory,
+    leaderLabel,
+    statGroup,
+    order,
+    slotTiers,
+    requiresStack,
+    requiresBoost,
+    season,
+    resolvedDate: resolveDateFromMessage(message),
+  };
+}
+
+function extractRankedMlbLeaderRows(payload: unknown): RankedMlbLeaderRow[] {
+  const rows = Array.isArray(
+    (payload as { result?: { leaders?: unknown[] } } | null)?.result?.leaders,
+  )
+    ? ((payload as { result?: { leaders?: unknown[] } }).result?.leaders as unknown[])
+    : [];
+
+  return rows
+    .map((entry) => {
+      if (!Array.isArray(entry) || entry.length < 4) {
+        return null;
+      }
+
+      const rank = Number.parseInt(String(entry[0]), 10);
+      const numericValue = Number.parseFloat(String(entry[3]));
+
+      return {
+        rank: Number.isFinite(rank) ? rank : null,
+        playerName: normalizeWhitespace(String(entry[1] || "")),
+        teamName: normalizeWhitespace(String(entry[2] || "")) || null,
+        valueLabel: normalizeWhitespace(String(entry[3] || "")) || null,
+        numericValue: Number.isFinite(numericValue) ? numericValue : null,
+      };
+    })
+    .filter((entry): entry is RankedMlbLeaderRow => Boolean(entry?.playerName));
+}
+
+function allocateEvenBuyBudgets(totalBudget: number, itemCount: number): number[] {
+  const safeBudget = roundCurrency(totalBudget);
+  if (!Number.isFinite(safeBudget) || safeBudget <= 0 || itemCount <= 0) {
+    return [];
+  }
+
+  let remaining = safeBudget;
+  const budgets: number[] = [];
+
+  for (let index = 0; index < itemCount; index += 1) {
+    const remainingItems = itemCount - index;
+    const allocation =
+      index === itemCount - 1 ? remaining : roundCurrency(remaining / remainingItems);
+    budgets.push(allocation);
+    remaining = roundCurrency(remaining - allocation);
+  }
+
+  if (remaining !== 0 && budgets.length > 0) {
+    budgets[budgets.length - 1] = roundCurrency(budgets[budgets.length - 1] + remaining);
+  }
+
+  return budgets;
+}
+
+function createCompoundPlanningState(availableBalance: number): CompoundPlanningState {
+  return {
+    availableBalance: roundCurrency(availableBalance),
+    reservedBoostSlots: [],
+    reservedBoostPlayerIds: [],
+  };
+}
+
+function applyCompoundPlanningReservation(input: {
+  state: CompoundPlanningState;
+  goal: StructuredBuyFollowUpGoal;
+  playerId: string;
+}): CompoundPlanningState {
+  const spentAmount = roundCurrency(Math.max(0, input.goal.requestedDollarAmount || 0));
+
+  return {
+    availableBalance: roundCurrency(Math.max(0, input.state.availableBalance - spentAmount)),
+    reservedBoostSlots:
+      input.goal.slotTier != null
+        ? [...input.state.reservedBoostSlots, input.goal.slotTier]
+        : [...input.state.reservedBoostSlots],
+    reservedBoostPlayerIds:
+      input.goal.slotTier != null
+        ? [...input.state.reservedBoostPlayerIds, input.playerId]
+        : [...input.state.reservedBoostPlayerIds],
+  };
+}
+
+function buildRankedWorkflowSyntheticMessage(input: {
+  budget: number;
+  playerReference: string;
+  slotTier: 2 | 3 | 4 | 5 | null;
+  resolvedDate: ResolvedDate;
+  requiresStack: boolean;
+}): string {
+  const parts = [`buy $${input.budget.toFixed(2)} of ${input.playerReference}`];
+
+  if (input.requiresStack) {
+    parts.push("stack shares");
+  }
+
+  if (input.slotTier != null) {
+    parts.push(
+      `put ${input.requiresStack ? "that stacked share" : input.playerReference} in my ${input.slotTier}x boost slot ${input.resolvedDate.label}`,
+    );
+  }
+
+  return parts.join(", and ");
+}
+
+function dedupeStrings(values: string[]): string[] {
+  const seen = new Set<string>();
+  return values.filter((value) => {
+    const normalized = value.trim();
+    if (!normalized || seen.has(normalized)) {
+      return false;
+    }
+    seen.add(normalized);
+    return true;
+  });
+}
+
 async function resolvePlayerByReference(
   rawReference: string,
   options: {
@@ -190,10 +674,12 @@ async function resolvePlayerByReference(
     return { player, warnings: [] };
   }
 
-  const sportHint = resolveSportHint(options.message, options.profile.defaultSport);
+  const explicitSportHint =
+    SUPPORTED_SPORTS.find((sport) => options.message.toUpperCase().includes(sport)) || null;
+  const sportHint = explicitSportHint || options.profile.defaultSport || null;
   const conditions = [eq(players.isActive, true)];
-  if (sportHint) {
-    conditions.push(eq(players.sport, sportHint));
+  if (explicitSportHint) {
+    conditions.push(eq(players.sport, explicitSportHint));
   }
 
   const exactMatches = await db
@@ -562,13 +1048,13 @@ async function buildCapabilityGuidePlan(
   const builtInSentence = !builtIn
     ? null
     : builtIn.enabled && builtIn.available
-      ? "I also have a built-in Hermes-only MLB data connection for in-house MLB stats and leaderboard context."
+      ? "I also have a built-in Hermes-only MLB enrichment connection for in-house MLB stats and leaderboard context."
       : builtIn.enabled
-        ? "The built-in Hermes-only MLB data connection exists in Configure, but it is currently unavailable."
-        : "The built-in Hermes-only MLB data connection is available in Configure, but it is currently toggled off for this user.";
+        ? "The built-in Hermes-only MLB enrichment connection exists in Configure, but it is currently unavailable."
+        : "The built-in Hermes-only MLB enrichment connection is available in Configure, but it is currently toggled off for this user.";
   const externalSentence =
     enabledExternal.length > 0
-      ? `You also have ${enabledExternal.length} enabled external MCP source${enabledExternal.length === 1 ? "" : "s"}: ${enabledExternal.map((source) => source.name).join(", ")}.`
+      ? `You also have ${enabledExternal.length} enabled external MCP source${enabledExternal.length === 1 ? "" : "s"}: ${enabledExternal.map((source) => source.name).join(", ")}. Hermes treats those as optional external context, not canonical Sportfolio state.`
       : disabledExternal.length > 0
         ? `You have ${disabledExternal.length} external MCP source${disabledExternal.length === 1 ? "" : "s"} saved, but none are enabled right now.`
         : "You do not have any enabled external MCP sources connected right now.";
@@ -578,6 +1064,7 @@ async function buildCapabilityGuidePlan(
     requestMessage: message,
     replyText: [
       "I can operate across the main user-facing Sportfolio loops: scouting, player-pool buys and sells, liquidity adds and removals, zaps, stack-shares / multiplier flows, daily boosts, watchlists, and community boosts.",
+      "For account and gameplay state, I use native Sportfolio tools first.",
       builtInSentence,
       externalSentence,
       webResearchEnabled
@@ -1173,6 +1660,66 @@ async function estimateSpendForTargetShares(playerId: string, targetShares: numb
   };
 }
 
+async function estimateMaxBuySpendWithinSlippage(
+  playerId: string,
+  maxBudget: number,
+  maxSlippage = DEFAULT_MAX_SLIPPAGE,
+) {
+  const cappedBudget = roundCurrency(maxBudget);
+  if (!Number.isFinite(cappedBudget) || cappedBudget < 0.01) {
+    return null;
+  }
+
+  let low = 0.01;
+  let high = cappedBudget;
+  let bestAmount = 0;
+  let bestQuote: Awaited<ReturnType<typeof getBuyQuote>> | null = null;
+
+  const lowQuote = await getBuyQuote(playerId, low);
+  if (!lowQuote || lowQuote.slippagePercent > maxSlippage) {
+    return null;
+  }
+
+  bestAmount = low;
+  bestQuote = lowQuote;
+
+  const highQuote = await getBuyQuote(playerId, high);
+  if (highQuote && highQuote.slippagePercent <= maxSlippage) {
+    return {
+      sbAmount: high,
+      quote: highQuote,
+      roundedSharesOut: Math.floor(highQuote.sharesOut),
+    };
+  }
+
+  for (let iteration = 0; iteration < 20; iteration += 1) {
+    const mid = roundCurrency((low + high) / 2);
+    const quote = await getBuyQuote(playerId, mid);
+    if (!quote) {
+      high = mid;
+      continue;
+    }
+
+    if (quote.slippagePercent <= maxSlippage) {
+      bestAmount = mid;
+      bestQuote = quote;
+      low = mid;
+    } else {
+      high = mid;
+    }
+  }
+
+  if (!bestQuote) {
+    return null;
+  }
+
+  return {
+    sbAmount: roundCurrency(bestAmount),
+    quote: bestQuote,
+    roundedSharesOut: Math.floor(bestQuote.sharesOut),
+  };
+}
+
 async function buildMarketIntelligencePlan(
   _userId: string,
   profile: UserAgentProfile,
@@ -1428,7 +1975,7 @@ async function buildBuyStackBoostWorkflowPlan(
 ): Promise<DirectOperationPlan | null> {
   const parserMessage = normalizeOperationalParserMessage(message);
   const hasStackIntent = /\b(?:stack(?:\s+shares?)?|stacking)\b/i.test(parserMessage);
-  const slotMatch = parserMessage.match(/\b([2345])x\s+boost\s+slot\b/i);
+  const slotMatch = parserMessage.match(/\b([2345])x\s+(?:daily\s+)?boost\s+slot\b/i);
   const buyMatch =
     parserMessage.match(/\b(?:buy|buying|get|grab|pick\s+up)\s+(\d+)\s+(.+?)\s+shares?\b/i) ||
     parserMessage.match(
@@ -1518,6 +2065,31 @@ async function buildBuyStackBoostWorkflowPlan(
         framework: "deterministic-agent-operations",
         intent: "buy_stack_boost",
         reason: "buy_estimate_unavailable",
+      },
+    });
+  }
+
+  if (estimate.quote.slippagePercent > DEFAULT_MAX_SLIPPAGE) {
+    return buildUnavailableResponse({
+      domain: "sportfolio",
+      requestMessage: message,
+      summary: `That workflow would currently quote at about ${formatNumber(
+        estimate.quote.slippagePercent * 100,
+      )}% slippage, which is above the ${formatNumber(DEFAULT_MAX_SLIPPAGE * 100)}% execution guard.`,
+      replyText:
+        "That buy size is too large for the current pool depth to stage safely. Lower the share target or use a smaller buy size and I can rebuild the workflow.",
+      warnings: playerResolution.warnings,
+      contextSnapshot: {
+        intent: "buy_stack_boost",
+        playerId: player.id,
+        desiredShares,
+        estimatedSpend: estimate.sbAmount,
+        estimatedSlippagePercent: estimate.quote.slippagePercent * 100,
+      },
+      trace: {
+        framework: "deterministic-agent-operations",
+        intent: "buy_stack_boost",
+        reason: "quote_slippage_too_high",
       },
     });
   }
@@ -1732,22 +2304,1387 @@ async function buildBuyStackBoostWorkflowPlan(
   };
 }
 
-async function buildStackSharesPlan(
-  _userId: string,
+async function buildBuyFollowUpWorkflowPlan(
+  userId: string,
+  profile: UserAgentProfile,
+  message: string,
+  requestMode: "discussion" | "commit",
+): Promise<DirectOperationPlan | null> {
+  const goal = parseStructuredBuyFollowUpGoal(message);
+  if (!goal) {
+    return null;
+  }
+
+  const evaluation = await evaluateStructuredBuyFollowUpWorkflow({
+    userId,
+    profile,
+    requestMessage: message,
+    goal,
+    requestMode,
+  });
+
+  return evaluation.plan;
+}
+
+function parseStructuredBuyFollowUpGoal(message: string): StructuredBuyFollowUpGoal | null {
+  const parserMessage = normalizeOperationalParserMessage(message);
+  const buySegment = parserMessage
+    .split(
+      /(?:,?\s+(?:and then|then|and)\s+(?=(?:stack|put|assign|boost|place|slot|lock)\b)|,\s*(?=(?:stack|put|assign|boost|place|slot|lock)\b))/i,
+    )[0]
+    ?.trim();
+  const hasStackIntent = /\bstack(?:\s+shares?)?\b/i.test(parserMessage);
+  const stackOptional = hasStackIntent && /\bif possible\b/i.test(parserMessage);
+  const slotMatch = parserMessage.match(/\b([2345])x\s+(?:daily\s+)?boost\s+slot\b/i);
+  const boostOptional = Boolean(slotMatch) && /\bif eligible\b/i.test(parserMessage);
+
+  if (!hasStackIntent && !slotMatch) {
+    return null;
+  }
+  const buyDirective = buySegment ? parseBuyDirective(buySegment) : null;
+  if (!buyDirective) {
+    return null;
+  }
+
+  return {
+    requestedShareCount: buyDirective.requestedShareCount,
+    requestedDollarAmount: buyDirective.requestedDollarAmount,
+    rawPlayerReference: buyDirective.rawPlayerReference,
+    buyAssumptionMode: buyDirective.buyAssumptionMode,
+    hasStackIntent,
+    stackOptional,
+    slotTier: slotMatch ? (Number(slotMatch[1]) as 2 | 3 | 4 | 5) : null,
+    boostOptional,
+    resolvedDate: resolveDateFromMessage(message),
+  };
+}
+
+async function evaluateStructuredBuyFollowUpWorkflow(input: {
+  userId: string;
+  profile: UserAgentProfile;
+  requestMessage: string;
+  goal: StructuredBuyFollowUpGoal;
+  requestMode: "discussion" | "commit";
+  resolvedPlayer?: ResolvedPlayer | null;
+  planningState?: CompoundPlanningState | null;
+}): Promise<StructuredPlannerEvaluation> {
+  const {
+    userId,
+    profile,
+    requestMessage,
+    goal,
+    requestMode,
+    resolvedPlayer,
+    planningState = null,
+  } = input;
+  const {
+    requestedShareCount,
+    requestedDollarAmount,
+    rawPlayerReference,
+    buyAssumptionMode,
+    hasStackIntent,
+    stackOptional,
+    slotTier,
+    boostOptional,
+    resolvedDate,
+  } = goal;
+
+  const playerResolution =
+    resolvedPlayer ||
+    (await resolvePlayerByReference(rawPlayerReference, { message: requestMessage, profile }));
+
+  if (!playerResolution) {
+    const workflowSteps = [
+      requestedShareCount != null
+        ? `Buy ${requestedShareCount} shares`
+        : `Buy ${formatMoney(requestedDollarAmount || 0)}`,
+      ...(hasStackIntent ? ["Stack the resulting position if possible"] : []),
+      ...(slotTier != null ? [`Use the resulting share in your ${slotTier}x boost slot`] : []),
+    ];
+
+    return {
+      status: "clarification",
+      reason: "player_not_resolved",
+      plan: buildPlayerClarificationResponse({
+        domain: "sportfolio",
+        requestMessage,
+        summary: "I need the full player name before I can stage that workflow.",
+        replyText:
+          "I can stage that buy workflow, but I need the full player name first so I do not target the wrong player.",
+        prompt: "Send the full player name and I'll queue that workflow for confirmation.",
+        resumeMessageTemplate:
+          requestedShareCount != null
+            ? `buy ${requestedShareCount} {player} shares${hasStackIntent ? ", stack shares if possible" : ""}${slotTier != null ? ` and put ${hasStackIntent ? "that stacked share" : "{player}"} in my ${slotTier}x boost slot ${resolvedDate.label}` : ""}`
+            : `buy $${requestedDollarAmount} of {player}${hasStackIntent ? ", stack shares if possible" : ""}${slotTier != null ? ` and put ${hasStackIntent ? "that stacked share" : "{player}"} in my ${slotTier}x boost slot ${resolvedDate.label}` : ""}`,
+        workflowTitle:
+          slotTier != null
+            ? "Build the buy and boost workflow"
+            : "Build the buy and stack workflow",
+        workflowPreviewSteps: workflowSteps,
+        contextSnapshot: {
+          intent: "buy_follow_up_workflow",
+          requestedShareCount,
+          requestedDollarAmount,
+          slotTier,
+          rawPlayerReference: sanitizeNameFragment(rawPlayerReference),
+        },
+        trace: {
+          framework: "deterministic-agent-operations",
+          intent: "buy_follow_up_workflow",
+          reason: "player_not_resolved",
+        },
+      }),
+    };
+  }
+
+  const player = playerResolution.player;
+  const rawAvailableBalance = planningState
+    ? planningState.availableBalance
+    : await storage.getAvailableBalance(userId);
+  const availableBalance = roundCurrency(Number(rawAvailableBalance || 0));
+  const assumedBuyTarget =
+    buyAssumptionMode === "assumed_max_safe"
+      ? availableBalance
+      : Math.min(DEFAULT_ASSUMED_BUY_SB, availableBalance);
+  const assumedBuyEstimate =
+    requestedDollarAmount == null && requestedShareCount == null
+      ? await estimateMaxBuySpendWithinSlippage(player.id, assumedBuyTarget)
+      : null;
+  const estimatedShareSpend =
+    requestedDollarAmount == null && requestedShareCount != null
+      ? await estimateSpendForTargetShares(player.id, requestedShareCount)
+      : null;
+  const sbAmount =
+    requestedDollarAmount ??
+    (estimatedShareSpend
+      ? estimatedShareSpend.sbAmount
+      : (assumedBuyEstimate?.sbAmount ?? Number.NaN));
+  const quote =
+    requestedDollarAmount != null
+      ? await getBuyQuote(player.id, sbAmount)
+      : estimatedShareSpend?.quote || assumedBuyEstimate?.quote || null;
+
+  if (requestedDollarAmount == null && requestedShareCount == null && !assumedBuyEstimate) {
+    return {
+      status: "unavailable",
+      reason: "buy_assumption_unavailable",
+      plan: buildUnavailableResponse({
+        domain: "sportfolio",
+        requestMessage,
+        summary:
+          availableBalance <= 0
+            ? "You do not have any available balance to open that position right now."
+            : `I could not find a safe assumed buy size for ${player.firstName} ${player.lastName} at the current pool depth.`,
+        replyText:
+          availableBalance <= 0
+            ? "I understood that as a buy request, but you do not have available balance to stage it right now."
+            : "I understood that as a buy request, but even the assumed size would not clear the current slippage guard, so I did not stage it.",
+        warnings: playerResolution.warnings,
+        contextSnapshot: {
+          intent: "buy_follow_up_workflow",
+          playerId: player.id,
+          buyAssumptionMode,
+          availableBalance,
+        },
+        trace: {
+          framework: "deterministic-agent-operations",
+          intent: "buy_follow_up_workflow",
+          reason: "buy_assumption_unavailable",
+        },
+      }),
+    };
+  }
+
+  if (!quote) {
+    return {
+      status: "unavailable",
+      reason: "quote_unavailable",
+      plan: buildUnavailableResponse({
+        domain: "sportfolio",
+        requestMessage,
+        summary: `I could not quote a buy for ${player.firstName} ${player.lastName} right now.`,
+        replyText:
+          "That player pool is not returning a usable buy quote right now, so I did not stage the workflow.",
+        warnings: playerResolution.warnings,
+        contextSnapshot: {
+          intent: "buy_follow_up_workflow",
+          playerId: player.id,
+          requestedShareCount,
+          requestedDollarAmount,
+          buyAssumptionMode,
+        },
+        trace: {
+          framework: "deterministic-agent-operations",
+          intent: "buy_follow_up_workflow",
+          reason: "quote_unavailable",
+        },
+      }),
+    };
+  }
+
+  if (quote.slippagePercent > DEFAULT_MAX_SLIPPAGE) {
+    return {
+      status: "unavailable",
+      reason: "quote_slippage_too_high",
+      plan: buildUnavailableResponse({
+        domain: "sportfolio",
+        requestMessage,
+        summary: `That workflow would currently quote at about ${formatNumber(
+          quote.slippagePercent * 100,
+        )}% slippage, which is above the ${formatNumber(DEFAULT_MAX_SLIPPAGE * 100)}% execution guard.`,
+        replyText:
+          "That buy size is too large for the current pool depth to stage safely. Lower the size and I can rebuild the workflow.",
+        warnings: playerResolution.warnings,
+        contextSnapshot: {
+          intent: "buy_follow_up_workflow",
+          playerId: player.id,
+          requestedShareCount,
+          requestedDollarAmount,
+          buyAssumptionMode,
+          estimatedSlippagePercent: quote.slippagePercent * 100,
+        },
+        trace: {
+          framework: "deterministic-agent-operations",
+          intent: "buy_follow_up_workflow",
+          reason: "quote_slippage_too_high",
+        },
+      }),
+    };
+  }
+
+  const [availableShares, breakdown, currentBoosts, game, currentOpenBoostWindowShares] =
+    await Promise.all([
+      storage.getAvailableShares(userId, "player", player.id),
+      storage.getPlayerShareBreakdown(userId, player.id),
+      slotTier != null ? storage.getDailyBoosts(userId, player.sport, resolvedDate.targetDate) : [],
+      slotTier != null
+        ? storage.getPlayerGameForDate(player.id, player.sport, resolvedDate.targetDate)
+        : null,
+      slotTier != null ? storage.getAvailableShares(userId, "player", player.id) : 0,
+    ]);
+  const reservedBoostSlots = new Set(planningState?.reservedBoostSlots || []);
+  const reservedBoostPlayerIds = new Set(planningState?.reservedBoostPlayerIds || []);
+
+  if (availableBalance < sbAmount) {
+    return {
+      status: "unavailable",
+      reason: "insufficient_balance",
+      plan: buildUnavailableResponse({
+        domain: "sportfolio",
+        requestMessage,
+        summary: `That workflow needs ${formatMoney(sbAmount)}, but you only have ${formatMoney(availableBalance)} available.`,
+        replyText: `That buy step needs ${formatMoney(sbAmount)}, but you currently have ${formatMoney(
+          availableBalance,
+        )} available, so I did not queue the rest of the workflow.`,
+        warnings: playerResolution.warnings,
+        contextSnapshot: {
+          intent: "buy_follow_up_workflow",
+          playerId: player.id,
+          sbAmount,
+          availableBalance,
+          planningState,
+        },
+        trace: {
+          framework: "deterministic-agent-operations",
+          intent: "buy_follow_up_workflow",
+          reason: "insufficient_balance",
+        },
+      }),
+    };
+  }
+
+  const estimatedWholeShares =
+    requestedShareCount != null
+      ? (estimatedShareSpend?.roundedSharesOut ?? requestedShareCount)
+      : Math.floor(quote.sharesOut);
+  const currentRegularShares = getRegularShareCount(availableShares, breakdown);
+  const projectedAvailableShares = availableShares + Math.max(estimatedWholeShares, 0);
+  const projectedRegularShares = currentRegularShares + Math.max(estimatedWholeShares, 0);
+  const stackableShares = Math.floor(projectedRegularShares / 2) * 2;
+  const canStageStack = hasStackIntent && stackableShares >= 4;
+
+  if (hasStackIntent && !stackOptional && !canStageStack) {
+    return {
+      status: "unavailable",
+      reason: "insufficient_post_buy_regular_shares",
+      plan: buildUnavailableResponse({
+        domain: "sportfolio",
+        requestMessage,
+        summary: `That workflow would only leave about ${projectedRegularShares} regular shares available, which is not enough to stack cleanly.`,
+        replyText:
+          "Stack Shares needs at least 4 regular shares after the buy lands, and the current projected position is below that threshold.",
+        warnings: playerResolution.warnings,
+        contextSnapshot: {
+          intent: "buy_then_stack",
+          playerId: player.id,
+          projectedRegularShares,
+          estimatedWholeShares,
+          planningState,
+        },
+        trace: {
+          framework: "deterministic-agent-operations",
+          intent: "buy_then_stack",
+          reason: "insufficient_post_buy_regular_shares",
+        },
+      }),
+    };
+  }
+
+  const warnings = [
+    ...playerResolution.warnings,
+    "The later steps in this workflow only execute after the earlier ones succeed on confirmation.",
+  ];
+  if (buyAssumptionMode === "assumed_starter") {
+    warnings.push(
+      `I assumed you wanted a starter buy and sized it to ${formatMoney(sbAmount)} under the current slippage guard.`,
+    );
+  } else if (buyAssumptionMode === "assumed_max_safe") {
+    warnings.push(
+      "I assumed you wanted the largest safe buy size the remaining balance and current pool depth allow.",
+    );
+  }
+  const observations = [
+    `Buy step estimates ${formatNumber(
+      requestedShareCount != null && estimatedShareSpend
+        ? estimatedShareSpend.roundedSharesOut
+        : (assumedBuyEstimate?.roundedSharesOut ?? quote.sharesOut),
+      4,
+    )} share(s) at about ${formatMoney(quote.effectivePrice)} each with ${formatNumber(
+      quote.slippagePercent * 100,
+    )}% slippage.`,
+  ];
+
+  const actions: AgentAnalysisResult["actions"] = [
+    {
+      actionType: "pool_buy",
+      playerId: player.id,
+      playerName: `${player.firstName} ${player.lastName}`,
+      sbAmount,
+      availableBalanceBefore: availableBalance,
+      availableBalanceAfter: roundCurrency(Math.max(0, availableBalance - sbAmount)),
+      maxSlippage: DEFAULT_MAX_SLIPPAGE,
+      estimatedSharesOut: quote.sharesOut,
+      estimatedPricePerShare: quote.effectivePrice,
+      estimatedSlippagePercent: quote.slippagePercent * 100,
+      reasoning:
+        requestMode === "discussion"
+          ? "Previewing the opening buy step before the rest of the workflow."
+          : "This stages the requested buy step before any follow-up stack or boost action.",
+      confidence: 0.94,
+    },
+  ];
+
+  let compoundIntent: "buy_then_boost" | "buy_then_stack" | "buy_then_stack_then_boost" =
+    slotTier != null && canStageStack
+      ? "buy_then_stack_then_boost"
+      : slotTier != null
+        ? "buy_then_boost"
+        : "buy_then_stack";
+
+  if (canStageStack) {
+    actions.push({
+      actionType: "holdings_stack_shares",
+      playerId: player.id,
+      playerName: `${player.firstName} ${player.lastName}`,
+      sharesToStack: stackableShares,
+      expectedMultiplierGained: stackableShares / 2,
+      expectedStackedShareCount: 1,
+      reasoning:
+        stackableShares === projectedRegularShares
+          ? `Stack ${stackableShares} projected regular shares into 1 stacked share.`
+          : `Stack ${stackableShares} projected regular shares into 1 stacked share and leave ${projectedRegularShares - stackableShares} regular share${projectedRegularShares - stackableShares === 1 ? "" : "s"} unstacked.`,
+      confidence: 0.92,
+    });
+    observations.push(
+      `Projected post-buy regular shares let you stack ${stackableShares} into 1 share at ${formatNumber(
+        stackableShares / 2,
+        2,
+      )}x.`,
+    );
+  } else if (hasStackIntent) {
+    warnings.push(
+      "I kept the stack step out of the staged bundle because the projected post-buy regular share count is still below 4.",
+    );
+    compoundIntent = slotTier != null ? "buy_then_boost" : "buy_then_stack";
+  }
+
+  let boostSkippedReason: string | null = null;
+  if (slotTier != null) {
+    const actualOccupiedSlots = new Set(
+      currentBoosts
+        .map((boost) => boost.slotTier)
+        .filter((value): value is 2 | 3 | 4 | 5 => [2, 3, 4, 5].includes(value as 2 | 3 | 4 | 5)),
+    );
+    const occupiedSlotCount = new Set([...actualOccupiedSlots, ...reservedBoostSlots]).size;
+
+    if (actualOccupiedSlots.has(slotTier) || reservedBoostSlots.has(slotTier)) {
+      boostSkippedReason = `Your ${slotTier}x slot is already filled for ${resolvedDate.label}.`;
+    } else if (
+      currentBoosts.some((boost) => boost.playerId === player.id) ||
+      reservedBoostPlayerIds.has(player.id)
+    ) {
+      boostSkippedReason = `${player.firstName} ${player.lastName} is already boosted for ${resolvedDate.label}.`;
+    } else if (occupiedSlotCount >= DAILY_BOOST_SLOT_COUNT) {
+      boostSkippedReason = `All four boost slots are already filled for ${resolvedDate.label}.`;
+    } else if (!game) {
+      boostSkippedReason = `${player.firstName} ${player.lastName} does not have a ${resolvedDate.label} game in scope.`;
+    } else if (new Date(game.startTime) <= new Date()) {
+      boostSkippedReason = `${player.firstName} ${player.lastName}'s game has already started.`;
+    } else if (Math.max(currentOpenBoostWindowShares, projectedAvailableShares) < 1) {
+      boostSkippedReason =
+        "The projected workflow would not leave an available share for the boost step.";
+    }
+
+    if (boostSkippedReason) {
+      if (!boostOptional) {
+        return {
+          status: "unavailable",
+          reason: "boost_step_unavailable",
+          plan: buildUnavailableResponse({
+            domain: "sportfolio",
+            requestMessage,
+            summary: boostSkippedReason,
+            replyText: `${boostSkippedReason} I did not stage a partial workflow because the boost step was part of the explicit request.`,
+            warnings,
+            contextSnapshot: {
+              intent: compoundIntent,
+              playerId: player.id,
+              slotTier,
+              boostDate: resolvedDate.dateStr,
+              planningState,
+            },
+            trace: {
+              framework: "deterministic-agent-operations",
+              intent: compoundIntent,
+              reason: "boost_step_unavailable",
+            },
+          }),
+        };
+      }
+
+      warnings.push(`I skipped the boost step because ${boostSkippedReason.toLowerCase()}`);
+    } else {
+      const existingBestMultiplier = getHighestAvailableShareMultiplier(breakdown);
+      const projectedMultiplier = canStageStack
+        ? stackableShares / 2
+        : projectedAvailableShares >= 1
+          ? existingBestMultiplier
+          : 1;
+      const opponent =
+        game!.homeTeam === player.team ? `vs ${game!.awayTeam}` : `@ ${game!.homeTeam}`;
+
+      actions.push({
+        actionType: "daily_boost_assign",
+        playerId: player.id,
+        playerName: `${player.firstName} ${player.lastName}`,
+        sport: player.sport,
+        slotTier,
+        sharesEntered: 1,
+        boostDate: resolvedDate.dateStr,
+        gameId: game!.gameId,
+        gameStartTime: new Date(game!.startTime).toISOString(),
+        opponent,
+        availableShares: Math.max(currentOpenBoostWindowShares, projectedAvailableShares),
+        shareMultiplier: projectedMultiplier,
+        reasoning: canStageStack
+          ? `Use the newly stacked ${formatNumber(projectedMultiplier, 2)}x share in the ${slotTier}x slot after the buy and stack steps succeed.`
+          : `Use the bought share in the ${slotTier}x slot after the buy step succeeds.`,
+        confidence: 0.94,
+      });
+      observations.push(
+        `${player.firstName} ${player.lastName} is scheduled ${opponent} at ${new Date(
+          game!.startTime,
+        ).toLocaleString()}.`,
+      );
+      observations.push(
+        `Projected boost share multiplier: ${formatNumber(projectedMultiplier, 2)}x.`,
+      );
+    }
+  }
+
+  const summaryParts = [
+    `Buy ${formatMoney(sbAmount)} of ${player.firstName} ${player.lastName}`,
+    ...(canStageStack ? ["stack the resulting regular shares"] : []),
+    ...(slotTier != null && !boostSkippedReason
+      ? [`use the resulting share in your ${slotTier}x boost slot for ${resolvedDate.label}`]
+      : []),
+  ];
+  const summary = summaryParts.join(", then ");
+  const replyText =
+    requestMode === "discussion"
+      ? `${summary}. ${buildStageNudge(requestMode)}`
+      : `${summary}. I staged the workflow in execution order so the later steps only run after the earlier ones succeed. ${buildStageNudge(
+          requestMode,
+        )}`;
+
+  if (requestedShareCount != null && estimatedShareSpend) {
+    warnings.push(
+      `The buy step stages by spend and currently projects about ${estimatedShareSpend.roundedSharesOut} whole shares from the requested ${requestedShareCount}-share target.`,
+    );
+  } else if (buyAssumptionMode === "assumed_starter" || buyAssumptionMode === "assumed_max_safe") {
+    observations.push(
+      `The buy step used an assumption-driven spend of ${formatMoney(sbAmount)} and currently projects about ${formatNumber(
+        assumedBuyEstimate?.roundedSharesOut ?? quote.sharesOut,
+        0,
+      )} whole shares.`,
+    );
+  }
+
+  return {
+    status: "supported",
+    reason: "supported",
+    plan: {
+      domain: "sportfolio",
+      requestMessage,
+      replyText,
+      summary,
+      observations,
+      warnings,
+      actions: requestMode === "commit" ? actions : [],
+      pendingClarification: null,
+      errorMessage: null,
+      contextSnapshot: {
+        intent: compoundIntent,
+        playerId: player.id,
+        requestedShareCount,
+        requestedDollarAmount,
+        estimatedWholeShares,
+        projectedAvailableShares,
+        projectedRegularShares,
+        stackableShares: canStageStack ? stackableShares : 0,
+        slotTier,
+        boostDate: slotTier != null ? resolvedDate.dateStr : null,
+        planningState,
+      },
+      trace: {
+        framework: "deterministic-agent-operations",
+        intent: compoundIntent,
+        requestMode,
+        actionTypes: actions.map((action) => action.actionType),
+        planningState,
+      },
+    },
+  };
+}
+
+async function buildStackBoostWorkflowPlan(
+  userId: string,
   profile: UserAgentProfile,
   message: string,
   requestMode: "discussion" | "commit",
 ): Promise<DirectOperationPlan | null> {
   const parserMessage = normalizeOperationalParserMessage(message);
-  const match = parserMessage.match(/\bstack(?:\s+shares)?\s+(\d+)\s+(.+?)\s+shares?\b/i);
-
-  if (!match) {
+  const clauses = splitCompoundFollowUpClauses(parserMessage);
+  const slotMatch = parserMessage.match(/\b([2345])x\s+(?:daily\s+)?boost\s+slot\b/i);
+  if (!slotMatch) {
     return null;
   }
 
-  const sharesToStack = Number.parseInt(match[1], 10);
-  const rawReference = match[2];
-  if (!Number.isFinite(sharesToStack) || sharesToStack < 4) {
+  const stackClause = clauses.find((clause) => /\bstack(?:\s+shares?)?\b/i.test(clause)) || null;
+  const stackDirective = parseStackDirective(stackClause, null);
+  if (!stackDirective?.rawPlayerReference) {
+    return null;
+  }
+
+  const playerResolution = await resolvePlayerByReference(stackDirective.rawPlayerReference, {
+    message,
+    profile,
+  });
+  const slotTier = Number(slotMatch[1]) as 2 | 3 | 4 | 5;
+  const resolvedDate = resolveDateFromMessage(message);
+
+  if (!playerResolution) {
+    return buildPlayerClarificationResponse({
+      domain: "sportfolio",
+      requestMessage: message,
+      summary: "I need the full player name before I can stage that stack-and-boost workflow.",
+      replyText:
+        "I can queue the stack and boost sequence, but I need the full player name first so I do not hit the wrong holding.",
+      prompt: "Send the full player name and I'll queue that stack and boost workflow.",
+      resumeMessageTemplate:
+        stackDirective.mode === "explicit" && stackDirective.requestedShares != null
+          ? `stack ${stackDirective.requestedShares} shares of {player} and put {player} in my ${slotTier}x boost slot ${resolvedDate.label}`
+          : `stack {player} and put {player} in my ${slotTier}x boost slot ${resolvedDate.label}`,
+      workflowTitle: "Build the stack and boost workflow",
+      workflowPreviewSteps: [
+        stackDirective.mode === "explicit" && stackDirective.requestedShares != null
+          ? `Stack ${stackDirective.requestedShares} shares`
+          : "Stack the available regular shares",
+        `Assign the best share to the ${slotTier}x boost slot`,
+      ],
+      contextSnapshot: {
+        intent: "stack_then_boost",
+        slotTier,
+        rawPlayerReference: stackDirective.rawPlayerReference,
+        boostDate: resolvedDate.dateStr,
+      },
+      trace: {
+        framework: "deterministic-agent-operations",
+        intent: "stack_then_boost",
+        reason: "player_not_resolved",
+      },
+    });
+  }
+
+  const player = playerResolution.player;
+  const [availableShares, breakdown, currentBoosts, game] = await Promise.all([
+    storage.getAvailableShares(userId, "player", player.id),
+    storage.getPlayerShareBreakdown(userId, player.id),
+    storage.getDailyBoosts(userId, player.sport, resolvedDate.targetDate),
+    storage.getPlayerGameForDate(player.id, player.sport, resolvedDate.targetDate),
+  ]);
+  const currentRegularShares = getRegularShareCount(availableShares, breakdown);
+  const requestedShares =
+    stackDirective.mode === "explicit" && stackDirective.requestedShares != null
+      ? stackDirective.requestedShares
+      : inferMaxStackableShares(currentRegularShares);
+
+  if (requestedShares == null || !Number.isFinite(requestedShares)) {
+    return buildUnavailableResponse({
+      domain: "sportfolio",
+      requestMessage: message,
+      summary: `${getPlayerDisplayName(player)} does not have at least 4 regular shares available to stack cleanly.`,
+      replyText:
+        "Stack Shares needs at least 4 regular shares, so I could not stage the stack-and-boost workflow from the current position.",
+      warnings: playerResolution.warnings,
+      contextSnapshot: {
+        intent: "stack_then_boost",
+        playerId: player.id,
+        availableShares,
+        currentRegularShares,
+      },
+      trace: {
+        framework: "deterministic-agent-operations",
+        intent: "stack_then_boost",
+        reason: "insufficient_regular_shares",
+      },
+    });
+  }
+
+  const normalizedShares = requestedShares % 2 === 0 ? requestedShares : requestedShares - 1;
+  if (normalizedShares < 4 || currentRegularShares < normalizedShares) {
+    return buildUnavailableResponse({
+      domain: "sportfolio",
+      requestMessage: message,
+      summary: `You only have ${currentRegularShares} regular share${currentRegularShares === 1 ? "" : "s"} available for ${getPlayerDisplayName(player)} right now.`,
+      replyText:
+        "That stack step needs an even count of at least 4 regular shares, and the current unlocked regular-share count is below that request.",
+      warnings: playerResolution.warnings,
+      contextSnapshot: {
+        intent: "stack_then_boost",
+        playerId: player.id,
+        requestedShares,
+        normalizedShares,
+        currentRegularShares,
+      },
+      trace: {
+        framework: "deterministic-agent-operations",
+        intent: "stack_then_boost",
+        reason: "requested_stack_exceeds_regular_shares",
+      },
+    });
+  }
+
+  if (currentBoosts.some((boost) => boost.slotTier === slotTier)) {
+    return buildUnavailableResponse({
+      domain: "sportfolio",
+      requestMessage: message,
+      summary: `Your ${slotTier}x slot is already filled for ${resolvedDate.label}.`,
+      replyText: `That ${slotTier}x slot is already occupied for ${resolvedDate.label}, so I did not stage a partial workflow.`,
+      warnings: playerResolution.warnings,
+      contextSnapshot: {
+        intent: "stack_then_boost",
+        playerId: player.id,
+        slotTier,
+        boostDate: resolvedDate.dateStr,
+      },
+      trace: {
+        framework: "deterministic-agent-operations",
+        intent: "stack_then_boost",
+        reason: "slot_taken",
+      },
+    });
+  }
+
+  if (currentBoosts.some((boost) => boost.playerId === player.id)) {
+    return buildUnavailableResponse({
+      domain: "sportfolio",
+      requestMessage: message,
+      summary: `${getPlayerDisplayName(player)} is already in one of your boost slots for ${resolvedDate.label}.`,
+      replyText:
+        "That player is already boosted in the target window, so I did not stage a duplicate stack-and-boost workflow.",
+      warnings: playerResolution.warnings,
+      contextSnapshot: {
+        intent: "stack_then_boost",
+        playerId: player.id,
+        slotTier,
+        boostDate: resolvedDate.dateStr,
+      },
+      trace: {
+        framework: "deterministic-agent-operations",
+        intent: "stack_then_boost",
+        reason: "player_already_boosted",
+      },
+    });
+  }
+
+  if (!game) {
+    return buildUnavailableResponse({
+      domain: "sportfolio",
+      requestMessage: message,
+      summary: `${getPlayerDisplayName(player)} does not have a ${resolvedDate.label} game in scope.`,
+      replyText:
+        "That player does not have a game in the target boost window, so I did not stage the stack-and-boost workflow.",
+      warnings: playerResolution.warnings,
+      contextSnapshot: {
+        intent: "stack_then_boost",
+        playerId: player.id,
+        slotTier,
+        boostDate: resolvedDate.dateStr,
+      },
+      trace: {
+        framework: "deterministic-agent-operations",
+        intent: "stack_then_boost",
+        reason: "no_game",
+      },
+    });
+  }
+
+  if (new Date(game.startTime) <= new Date()) {
+    return buildUnavailableResponse({
+      domain: "sportfolio",
+      requestMessage: message,
+      summary: `${getPlayerDisplayName(player)}'s game has already started.`,
+      replyText:
+        "That game has already started, so the boost window is closed and I did not stage the stack-and-boost workflow.",
+      warnings: playerResolution.warnings,
+      contextSnapshot: {
+        intent: "stack_then_boost",
+        playerId: player.id,
+        slotTier,
+        boostDate: resolvedDate.dateStr,
+        gameId: game.gameId,
+      },
+      trace: {
+        framework: "deterministic-agent-operations",
+        intent: "stack_then_boost",
+        reason: "game_started",
+      },
+    });
+  }
+
+  const projectedAvailableShares = availableShares - normalizedShares + 1;
+  if (projectedAvailableShares < 1) {
+    return buildUnavailableResponse({
+      domain: "sportfolio",
+      requestMessage: message,
+      summary: "That workflow would not leave a share available for the boost step.",
+      replyText:
+        "Stacking that many shares would leave nothing available for the daily boost, so I did not stage the workflow.",
+      warnings: playerResolution.warnings,
+      contextSnapshot: {
+        intent: "stack_then_boost",
+        playerId: player.id,
+        requestedShares,
+        normalizedShares,
+        projectedAvailableShares,
+      },
+      trace: {
+        framework: "deterministic-agent-operations",
+        intent: "stack_then_boost",
+        reason: "no_share_left_for_boost",
+      },
+    });
+  }
+
+  const projectedMultiplier = Math.max(
+    getHighestAvailableShareMultiplier(breakdown),
+    normalizedShares / 2,
+  );
+  const playerName = getPlayerDisplayName(player);
+  const opponent = game.homeTeam === player.team ? `vs ${game.awayTeam}` : `@ ${game.homeTeam}`;
+  const actions: AgentAnalysisResult["actions"] = [
+    {
+      actionType: "holdings_stack_shares",
+      playerId: player.id,
+      playerName,
+      sharesToStack: normalizedShares,
+      expectedMultiplierGained: normalizedShares / 2,
+      expectedStackedShareCount: 1,
+      reasoning:
+        normalizedShares === currentRegularShares
+          ? `Stack ${normalizedShares} regular shares into 1 stacked share before boosting.`
+          : `Stack ${normalizedShares} regular shares into 1 stacked share and leave ${currentRegularShares - normalizedShares} regular share${currentRegularShares - normalizedShares === 1 ? "" : "s"} available.`,
+      confidence: 0.92,
+    },
+    {
+      actionType: "daily_boost_assign",
+      playerId: player.id,
+      playerName,
+      sport: player.sport,
+      slotTier,
+      sharesEntered: 1,
+      boostDate: resolvedDate.dateStr,
+      gameId: game.gameId,
+      gameStartTime: new Date(game.startTime).toISOString(),
+      opponent,
+      availableShares: projectedAvailableShares,
+      shareMultiplier: projectedMultiplier,
+      reasoning: `Use the best available ${formatNumber(projectedMultiplier, 2)}x share in the ${slotTier}x slot after the stack step succeeds.`,
+      confidence: 0.94,
+    },
+  ];
+
+  const warnings = [...playerResolution.warnings];
+  if (normalizedShares !== requestedShares) {
+    warnings.push(
+      "The stack step was normalized down to an even share count because Stack Shares only accepts even counts.",
+    );
+  }
+  warnings.push("The boost step only runs after the stack step succeeds on confirmation.");
+
+  return {
+    domain: "sportfolio",
+    requestMessage: message,
+    replyText:
+      requestMode === "discussion"
+        ? `Stack ${normalizedShares} ${playerName} shares, then use the resulting share in your ${slotTier}x boost slot for ${resolvedDate.label}. ${buildStageNudge(
+            requestMode,
+          )}`
+        : `I staged the stack-and-boost workflow for ${playerName}. The boost step only runs after the stack step succeeds. ${buildStageNudge(
+            requestMode,
+          )}`,
+    summary: `Stack ${normalizedShares} shares of ${playerName}, then use the ${slotTier}x boost slot`,
+    observations: [
+      `Projected stacked share multiplier: ${formatNumber(normalizedShares / 2, 2)}x.`,
+      `${playerName} is scheduled ${opponent} at ${new Date(game.startTime).toLocaleString()}.`,
+      `Projected boost share multiplier: ${formatNumber(projectedMultiplier, 2)}x.`,
+    ],
+    warnings,
+    actions: requestMode === "commit" ? actions : [],
+    errorMessage: null,
+    contextSnapshot: {
+      intent: "stack_then_boost",
+      playerId: player.id,
+      sharesToStack: normalizedShares,
+      slotTier,
+      boostDate: resolvedDate.dateStr,
+      projectedAvailableShares,
+      projectedMultiplier,
+    },
+    trace: {
+      framework: "deterministic-agent-operations",
+      intent: "stack_then_boost",
+      requestMode,
+      actionTypes: actions.map((action) => action.actionType),
+    },
+  };
+}
+
+async function buildSellFollowUpWorkflowPlan(
+  userId: string,
+  profile: UserAgentProfile,
+  message: string,
+  requestMode: "discussion" | "commit",
+): Promise<DirectOperationPlan | null> {
+  const parserMessage = normalizeOperationalParserMessage(message);
+  const clauses = splitCompoundFollowUpClauses(parserMessage);
+  const sellClause = clauses[0] || "";
+  const slotMatch = parserMessage.match(/\b([2345])x\s+(?:daily\s+)?boost\s+slot\b/i);
+  const stackClause =
+    clauses.find((clause, index) => index > 0 && /\bstack(?:\s+shares?)?\b/i.test(clause)) || null;
+
+  if (!slotMatch && !stackClause) {
+    return null;
+  }
+
+  const sellMatch = sellClause.match(
+    /\b(?:sell|selling|dump|liquidate|trim|trimming|cut|reduce|exit)\s+(\d+(?:\.\d+)?)\s+shares?\s+(?:of\s+)?(.+?)(?:\s+from\s+the\s+pool|\s+from\s+the\s+market|$)/i,
+  );
+  if (!sellMatch) {
+    return null;
+  }
+
+  const sharesAmount = Number(sellMatch[1]);
+  if (!Number.isInteger(sharesAmount)) {
+    return buildUnavailableResponse({
+      domain: "sportfolio",
+      requestMessage: message,
+      summary: "Pool sells must use whole shares.",
+      replyText:
+        "The opening sell step only accepts whole shares right now, so I did not stage the rest of that workflow.",
+      contextSnapshot: {
+        intent: "sell_follow_up_workflow",
+        sharesAmount,
+      },
+      trace: {
+        framework: "deterministic-agent-operations",
+        intent: "sell_follow_up_workflow",
+        reason: "non_integer_shares",
+      },
+    });
+  }
+
+  const rawPlayerReference = sanitizeNameFragment(sellMatch[2]);
+  const playerResolution = await resolvePlayerByReference(rawPlayerReference, { message, profile });
+  const slotTier = slotMatch ? (Number(slotMatch[1]) as 2 | 3 | 4 | 5) : null;
+  const resolvedDate = resolveDateFromMessage(message);
+
+  if (!playerResolution) {
+    return buildPlayerClarificationResponse({
+      domain: "sportfolio",
+      requestMessage: message,
+      summary: "I need the full player name before I can stage that sell workflow.",
+      replyText:
+        "I can queue the sell workflow, but I need the full player name first so I do not target the wrong holding.",
+      prompt: "Send the full player name and I'll queue that sell workflow.",
+      resumeMessageTemplate:
+        slotTier != null
+          ? `sell ${sharesAmount} shares of {player}, then put {player} in my ${slotTier}x boost slot ${resolvedDate.label}`
+          : `sell ${sharesAmount} shares of {player}, then stack the rest`,
+      workflowTitle: "Build the sell workflow",
+      workflowPreviewSteps: [
+        `Sell ${sharesAmount} share${sharesAmount === 1 ? "" : "s"}`,
+        ...(stackClause ? ["Stack the remaining regular shares"] : []),
+        ...(slotTier != null ? [`Use the remaining share in the ${slotTier}x boost slot`] : []),
+      ],
+      contextSnapshot: {
+        intent: "sell_follow_up_workflow",
+        rawPlayerReference,
+        sharesAmount,
+        slotTier,
+        boostDate: slotTier != null ? resolvedDate.dateStr : null,
+      },
+      trace: {
+        framework: "deterministic-agent-operations",
+        intent: "sell_follow_up_workflow",
+        reason: "player_not_resolved",
+      },
+    });
+  }
+
+  const stackDirective = parseStackDirective(stackClause, rawPlayerReference);
+  const player = playerResolution.player;
+  await getOrCreatePool(player.id);
+  const [quote, availableShares, breakdown, availableBalance, currentBoosts, game] =
+    await Promise.all([
+      getSellQuote(player.id, sharesAmount),
+      storage.getAvailableShares(userId, "player", player.id),
+      storage.getPlayerShareBreakdown(userId, player.id),
+      storage.getAvailableBalance(userId),
+      slotTier != null ? storage.getDailyBoosts(userId, player.sport, resolvedDate.targetDate) : [],
+      slotTier != null
+        ? storage.getPlayerGameForDate(player.id, player.sport, resolvedDate.targetDate)
+        : null,
+    ]);
+
+  if (!quote) {
+    return buildUnavailableResponse({
+      domain: "sportfolio",
+      requestMessage: message,
+      summary: `I could not quote a sale for ${getPlayerDisplayName(player)} right now.`,
+      replyText:
+        "That player pool is not returning a usable sell quote right now, so I did not stage the follow-up workflow.",
+      warnings: playerResolution.warnings,
+      contextSnapshot: {
+        intent: "sell_follow_up_workflow",
+        playerId: player.id,
+        sharesAmount,
+      },
+      trace: {
+        framework: "deterministic-agent-operations",
+        intent: "sell_follow_up_workflow",
+        reason: "quote_unavailable",
+      },
+    });
+  }
+
+  if (availableShares < sharesAmount) {
+    return buildUnavailableResponse({
+      domain: "sportfolio",
+      requestMessage: message,
+      summary: `You only have ${formatNumber(availableShares, 2)} share${availableShares === 1 ? "" : "s"} available for ${getPlayerDisplayName(player)}.`,
+      replyText:
+        "The opening sell step needs more available shares than you currently have, so I did not stage the rest of that workflow.",
+      warnings: playerResolution.warnings,
+      contextSnapshot: {
+        intent: "sell_follow_up_workflow",
+        playerId: player.id,
+        sharesAmount,
+        availableShares,
+      },
+      trace: {
+        framework: "deterministic-agent-operations",
+        intent: "sell_follow_up_workflow",
+        reason: "insufficient_shares",
+      },
+    });
+  }
+
+  const currentRegularShares = getRegularShareCount(availableShares, breakdown);
+  if (stackDirective && currentRegularShares < sharesAmount) {
+    return buildUnavailableResponse({
+      domain: "sportfolio",
+      requestMessage: message,
+      summary: `I cannot safely stage a post-sell stack because only ${currentRegularShares} regular share${currentRegularShares === 1 ? "" : "s"} are unlocked before the sell.`,
+      replyText:
+        "That follow-up stack depends on regular shares remaining after the sell, and the current unlocked regular-share count is too low to predict that path cleanly.",
+      warnings: playerResolution.warnings,
+      contextSnapshot: {
+        intent: "sell_then_stack",
+        playerId: player.id,
+        sharesAmount,
+        currentRegularShares,
+      },
+      trace: {
+        framework: "deterministic-agent-operations",
+        intent: "sell_then_stack",
+        reason: "insufficient_regular_shares_before_sell",
+      },
+    });
+  }
+
+  const projectedAvailableShares = availableShares - sharesAmount;
+  const projectedRegularShares = Math.max(0, currentRegularShares - sharesAmount);
+  const requestedStackShares =
+    stackDirective?.mode === "explicit" && stackDirective.requestedShares != null
+      ? stackDirective.requestedShares
+      : inferMaxStackableShares(projectedRegularShares);
+  const normalizedStackShares =
+    requestedStackShares != null && Number.isFinite(requestedStackShares)
+      ? requestedStackShares % 2 === 0
+        ? requestedStackShares
+        : requestedStackShares - 1
+      : null;
+
+  if (stackDirective) {
+    if (normalizedStackShares == null || normalizedStackShares < 4) {
+      return buildUnavailableResponse({
+        domain: "sportfolio",
+        requestMessage: message,
+        summary: `That sell would leave only ${projectedRegularShares} regular share${projectedRegularShares === 1 ? "" : "s"}, which is not enough to stack.`,
+        replyText:
+          "Stack Shares needs at least 4 regular shares after the sell step, so I did not stage a partial workflow.",
+        warnings: playerResolution.warnings,
+        contextSnapshot: {
+          intent: "sell_then_stack",
+          playerId: player.id,
+          sharesAmount,
+          projectedRegularShares,
+        },
+        trace: {
+          framework: "deterministic-agent-operations",
+          intent: "sell_then_stack",
+          reason: "insufficient_post_sell_regular_shares",
+        },
+      });
+    }
+
+    if (normalizedStackShares > projectedRegularShares) {
+      return buildUnavailableResponse({
+        domain: "sportfolio",
+        requestMessage: message,
+        summary: `That stack step asks for ${normalizedStackShares} shares, but only ${projectedRegularShares} regular shares should remain after the sell.`,
+        replyText:
+          "The requested stack step would exceed the projected regular shares left after the sell step, so I did not stage it.",
+        warnings: playerResolution.warnings,
+        contextSnapshot: {
+          intent: "sell_then_stack",
+          playerId: player.id,
+          normalizedStackShares,
+          projectedRegularShares,
+        },
+        trace: {
+          framework: "deterministic-agent-operations",
+          intent: "sell_then_stack",
+          reason: "requested_stack_exceeds_post_sell_regular_shares",
+        },
+      });
+    }
+  }
+
+  let projectedPostStackAvailableShares = projectedAvailableShares;
+  if (normalizedStackShares != null) {
+    projectedPostStackAvailableShares = projectedAvailableShares - normalizedStackShares + 1;
+  }
+
+  if (slotTier != null) {
+    if (currentBoosts.some((boost) => boost.slotTier === slotTier)) {
+      return buildUnavailableResponse({
+        domain: "sportfolio",
+        requestMessage: message,
+        summary: `Your ${slotTier}x slot is already filled for ${resolvedDate.label}.`,
+        replyText: `That ${slotTier}x slot is already occupied for ${resolvedDate.label}, so I did not stage a partial workflow.`,
+        warnings: playerResolution.warnings,
+        contextSnapshot: {
+          intent: normalizedStackShares != null ? "sell_then_stack_then_boost" : "sell_then_boost",
+          playerId: player.id,
+          slotTier,
+          boostDate: resolvedDate.dateStr,
+        },
+        trace: {
+          framework: "deterministic-agent-operations",
+          intent: normalizedStackShares != null ? "sell_then_stack_then_boost" : "sell_then_boost",
+          reason: "slot_taken",
+        },
+      });
+    }
+
+    if (currentBoosts.some((boost) => boost.playerId === player.id)) {
+      return buildUnavailableResponse({
+        domain: "sportfolio",
+        requestMessage: message,
+        summary: `${getPlayerDisplayName(player)} is already boosted for ${resolvedDate.label}.`,
+        replyText:
+          "That player is already in one of your boost slots for the target day, so I did not stage a duplicate workflow.",
+        warnings: playerResolution.warnings,
+        contextSnapshot: {
+          intent: normalizedStackShares != null ? "sell_then_stack_then_boost" : "sell_then_boost",
+          playerId: player.id,
+          slotTier,
+          boostDate: resolvedDate.dateStr,
+        },
+        trace: {
+          framework: "deterministic-agent-operations",
+          intent: normalizedStackShares != null ? "sell_then_stack_then_boost" : "sell_then_boost",
+          reason: "player_already_boosted",
+        },
+      });
+    }
+
+    if (!game) {
+      return buildUnavailableResponse({
+        domain: "sportfolio",
+        requestMessage: message,
+        summary: `${getPlayerDisplayName(player)} does not have a ${resolvedDate.label} game in scope.`,
+        replyText:
+          "That player does not have a game in the target boost window, so I did not stage the follow-up workflow.",
+        warnings: playerResolution.warnings,
+        contextSnapshot: {
+          intent: normalizedStackShares != null ? "sell_then_stack_then_boost" : "sell_then_boost",
+          playerId: player.id,
+          slotTier,
+          boostDate: resolvedDate.dateStr,
+        },
+        trace: {
+          framework: "deterministic-agent-operations",
+          intent: normalizedStackShares != null ? "sell_then_stack_then_boost" : "sell_then_boost",
+          reason: "no_game",
+        },
+      });
+    }
+
+    if (new Date(game.startTime) <= new Date()) {
+      return buildUnavailableResponse({
+        domain: "sportfolio",
+        requestMessage: message,
+        summary: `${getPlayerDisplayName(player)}'s game has already started.`,
+        replyText:
+          "That game has already started, so the boost window is closed and I did not stage the follow-up workflow.",
+        warnings: playerResolution.warnings,
+        contextSnapshot: {
+          intent: normalizedStackShares != null ? "sell_then_stack_then_boost" : "sell_then_boost",
+          playerId: player.id,
+          slotTier,
+          boostDate: resolvedDate.dateStr,
+        },
+        trace: {
+          framework: "deterministic-agent-operations",
+          intent: normalizedStackShares != null ? "sell_then_stack_then_boost" : "sell_then_boost",
+          reason: "game_started",
+        },
+      });
+    }
+
+    if (projectedPostStackAvailableShares < 1) {
+      return buildUnavailableResponse({
+        domain: "sportfolio",
+        requestMessage: message,
+        summary: "That workflow would not leave a share available for the boost step.",
+        replyText:
+          "The remaining position after the sell and stack steps would not leave a share available for the boost slot.",
+        warnings: playerResolution.warnings,
+        contextSnapshot: {
+          intent: normalizedStackShares != null ? "sell_then_stack_then_boost" : "sell_then_boost",
+          playerId: player.id,
+          projectedPostStackAvailableShares,
+          slotTier,
+          boostDate: resolvedDate.dateStr,
+        },
+        trace: {
+          framework: "deterministic-agent-operations",
+          intent: normalizedStackShares != null ? "sell_then_stack_then_boost" : "sell_then_boost",
+          reason: "no_share_left_for_boost",
+        },
+      });
+    }
+  }
+
+  const playerName = getPlayerDisplayName(player);
+  const actions: AgentAnalysisResult["actions"] = [
+    {
+      actionType: "pool_sell",
+      playerId: player.id,
+      playerName,
+      sharesAmount,
+      availableSharesBefore: availableShares,
+      availableSharesAfter: projectedAvailableShares,
+      estimatedSbOut: quote.sbOut,
+      estimatedPricePerShare: quote.effectivePrice,
+      maxSlippage: DEFAULT_MAX_SLIPPAGE,
+      estimatedSlippagePercent: quote.slippagePercent * 100,
+      reasoning:
+        requestMode === "discussion"
+          ? "Previewing the opening sell step before the rest of the workflow."
+          : "This stages the requested sell step before any follow-up stack or boost action.",
+      confidence: 0.93,
+    },
+  ];
+  const observations = [
+    `Sell step estimates ${formatMoney(quote.sbOut)} back at about ${formatMoney(quote.effectivePrice)} each with ${formatNumber(
+      quote.slippagePercent * 100,
+    )}% slippage.`,
+  ];
+  const warnings = [
+    ...playerResolution.warnings,
+    "The later steps in this workflow only execute after the earlier ones succeed on confirmation.",
+  ];
+
+  let intent: "sell_then_stack" | "sell_then_boost" | "sell_then_stack_then_boost" =
+    normalizedStackShares != null && slotTier != null
+      ? "sell_then_stack_then_boost"
+      : normalizedStackShares != null
+        ? "sell_then_stack"
+        : "sell_then_boost";
+
+  if (normalizedStackShares != null) {
+    actions.push({
+      actionType: "holdings_stack_shares",
+      playerId: player.id,
+      playerName,
+      sharesToStack: normalizedStackShares,
+      expectedMultiplierGained: normalizedStackShares / 2,
+      expectedStackedShareCount: 1,
+      reasoning:
+        normalizedStackShares === projectedRegularShares
+          ? `Stack the ${normalizedStackShares} projected regular shares left after the sell into 1 stacked share.`
+          : `Stack ${normalizedStackShares} projected regular shares after the sell and leave ${projectedRegularShares - normalizedStackShares} regular share${projectedRegularShares - normalizedStackShares === 1 ? "" : "s"} unstacked.`,
+      confidence: 0.92,
+    });
+    observations.push(
+      `Projected post-sell regular shares let you stack ${normalizedStackShares} into 1 share at ${formatNumber(
+        normalizedStackShares / 2,
+        2,
+      )}x.`,
+    );
+    if (requestedStackShares != null && normalizedStackShares !== requestedStackShares) {
+      warnings.push(
+        "The stack step was normalized down to an even share count because Stack Shares only accepts even counts.",
+      );
+    }
+  }
+
+  if (slotTier != null) {
+    const opponent =
+      game!.homeTeam === player.team ? `vs ${game!.awayTeam}` : `@ ${game!.homeTeam}`;
+    const projectedMultiplier =
+      normalizedStackShares != null
+        ? Math.max(getHighestAvailableShareMultiplier(breakdown), normalizedStackShares / 2)
+        : getHighestAvailableShareMultiplier(breakdown);
+    actions.push({
+      actionType: "daily_boost_assign",
+      playerId: player.id,
+      playerName,
+      sport: player.sport,
+      slotTier,
+      sharesEntered: 1,
+      boostDate: resolvedDate.dateStr,
+      gameId: game!.gameId,
+      gameStartTime: new Date(game!.startTime).toISOString(),
+      opponent,
+      availableShares: projectedPostStackAvailableShares,
+      shareMultiplier: projectedMultiplier,
+      reasoning:
+        normalizedStackShares != null
+          ? `Use the resulting ${formatNumber(projectedMultiplier, 2)}x share in the ${slotTier}x slot after the sell and stack steps succeed.`
+          : `Use the remaining share in the ${slotTier}x slot after the sell step succeeds.`,
+      confidence: 0.94,
+    });
+    observations.push(
+      `${playerName} is scheduled ${opponent} at ${new Date(game!.startTime).toLocaleString()}.`,
+    );
+    observations.push(
+      `Projected boost share multiplier: ${formatNumber(projectedMultiplier, 2)}x.`,
+    );
+  }
+
+  const summaryParts = [
+    `Sell ${sharesAmount} share${sharesAmount === 1 ? "" : "s"} of ${playerName}`,
+    ...(normalizedStackShares != null ? ["stack the remaining regular shares"] : []),
+    ...(slotTier != null
+      ? [`use the remaining share in your ${slotTier}x boost slot for ${resolvedDate.label}`]
+      : []),
+  ];
+
+  return {
+    domain: "sportfolio",
+    requestMessage: message,
+    replyText:
+      requestMode === "discussion"
+        ? `${summaryParts.join(", then ")}. ${buildStageNudge(requestMode)}`
+        : `${summaryParts.join(", then ")}. I staged the workflow in execution order so the later steps only run after the earlier ones succeed. ${buildStageNudge(
+            requestMode,
+          )}`,
+    summary: summaryParts.join(", then "),
+    observations,
+    warnings,
+    actions: requestMode === "commit" ? actions : [],
+    errorMessage: null,
+    contextSnapshot: {
+      intent,
+      playerId: player.id,
+      sharesAmount,
+      projectedAvailableShares,
+      projectedRegularShares,
+      stackableShares: normalizedStackShares ?? 0,
+      slotTier,
+      boostDate: slotTier != null ? resolvedDate.dateStr : null,
+      availableBalance,
+    },
+    trace: {
+      framework: "deterministic-agent-operations",
+      intent,
+      requestMode,
+      actionTypes: actions.map((action) => action.actionType),
+    },
+  };
+}
+
+async function buildStackSharesPlan(
+  userId: string,
+  profile: UserAgentProfile,
+  message: string,
+  requestMode: "discussion" | "commit",
+): Promise<DirectOperationPlan | null> {
+  const parserMessage = normalizeOperationalParserMessage(message);
+  const explicitMatch =
+    parserMessage.match(/\bstack(?:\s+shares)?\s+(\d+)\s+(.+?)\s+shares?\b/i) ||
+    parserMessage.match(/\bstack(?:\s+shares)?\s+(\d+)\s+shares?\s+of\s+(.+?)$/i);
+  const assumedMatch = parserMessage.match(
+    /^(?:stack|stacking)(?:\s+shares)?\s+(?:my\s+)?(.+?)(?:\s+shares?)?$/i,
+  );
+
+  if (!explicitMatch && !assumedMatch) {
+    return null;
+  }
+
+  const stackAssumptionMode = explicitMatch ? "explicit" : "assumed_max_stackable";
+  const rawReference = explicitMatch ? explicitMatch[2] : (assumedMatch?.[1] as string);
+  const requestedSharesToStack = explicitMatch ? Number.parseInt(explicitMatch[1], 10) : null;
+  if (
+    requestedSharesToStack != null &&
+    (!Number.isFinite(requestedSharesToStack) || requestedSharesToStack < 4)
+  ) {
     return null;
   }
 
@@ -1760,11 +3697,15 @@ async function buildStackSharesPlan(
       replyText:
         "I can stage Stack Shares for that holding, but I need the full player name first so I do not touch the wrong shares.",
       prompt: "Send the full player name and I'll queue the stack-shares move for confirmation.",
-      resumeMessageTemplate: `stack shares ${sharesToStack} {player} shares`,
+      resumeMessageTemplate:
+        requestedSharesToStack != null
+          ? `stack shares ${requestedSharesToStack} {player} shares`
+          : "stack my {player} shares",
       contextSnapshot: {
         intent: "holdings_stack_shares",
         rawPlayerReference: sanitizeNameFragment(rawReference),
-        sharesToStack,
+        sharesToStack: requestedSharesToStack,
+        stackAssumptionMode,
       },
       trace: {
         framework: "deterministic-agent-operations",
@@ -1775,7 +3716,39 @@ async function buildStackSharesPlan(
   }
 
   const player = playerResolution.player;
-  const normalizedShares = sharesToStack % 2 === 0 ? sharesToStack : sharesToStack - 1;
+  const [availableShares, breakdown] = await Promise.all([
+    storage.getAvailableShares(userId, "player", player.id),
+    storage.getPlayerShareBreakdown(userId, player.id),
+  ]);
+  const currentRegularShares = getRegularShareCount(availableShares, breakdown);
+  const assumedSharesToStack = inferMaxStackableShares(currentRegularShares);
+  const requestedOrAssumedShares = requestedSharesToStack ?? assumedSharesToStack ?? Number.NaN;
+  const normalizedShares =
+    requestedOrAssumedShares % 2 === 0 ? requestedOrAssumedShares : requestedOrAssumedShares - 1;
+
+  if (requestedSharesToStack == null && !assumedSharesToStack) {
+    return buildUnavailableResponse({
+      domain: "sportfolio",
+      requestMessage: message,
+      summary: `${getPlayerDisplayName(player)} does not have at least 4 regular shares available to stack cleanly.`,
+      replyText:
+        "I understood that as a stack request, but the current position does not have enough regular shares to form a valid stack.",
+      warnings: playerResolution.warnings,
+      contextSnapshot: {
+        intent: "holdings_stack_shares",
+        playerId: player.id,
+        availableShares,
+        currentRegularShares,
+        stackAssumptionMode,
+      },
+      trace: {
+        framework: "deterministic-agent-operations",
+        intent: "holdings_stack_shares",
+        reason: "not_enough_regular_shares_for_assumed_stack",
+      },
+    });
+  }
+
   if (normalizedShares < 4) {
     return buildUnavailableResponse({
       domain: "sportfolio",
@@ -1787,7 +3760,7 @@ async function buildStackSharesPlan(
       contextSnapshot: {
         intent: "holdings_stack_shares",
         playerId: player.id,
-        sharesToStack,
+        sharesToStack: requestedOrAssumedShares,
       },
       trace: {
         framework: "deterministic-agent-operations",
@@ -1805,7 +3778,7 @@ async function buildStackSharesPlan(
     expectedMultiplierGained: normalizedShares / 2,
     expectedStackedShareCount: 1,
     reasoning:
-      normalizedShares === sharesToStack
+      normalizedShares === requestedOrAssumedShares
         ? `Stack ${normalizedShares} regular shares into 1 stacked share.`
         : `Stack ${normalizedShares} regular shares into 1 stacked share and leave 1 regular share untouched because the current rule requires an even share count.`,
     confidence: 0.92,
@@ -1829,11 +3802,19 @@ async function buildStackSharesPlan(
       `Expected output: 1 stacked share at ${formatNumber(action.expectedMultiplierGained, 2)}x.`,
     ],
     warnings:
-      normalizedShares === sharesToStack
-        ? playerResolution.warnings
+      normalizedShares === requestedOrAssumedShares
+        ? stackAssumptionMode === "assumed_max_stackable"
+          ? [
+              ...playerResolution.warnings,
+              "I assumed you wanted the maximum stackable regular shares for that holding.",
+            ]
+          : playerResolution.warnings
         : [
             ...playerResolution.warnings,
             "The current Stack Shares rule only accepts even share counts, so one share would be left unstacked.",
+            ...(stackAssumptionMode === "assumed_max_stackable"
+              ? ["I assumed you wanted the maximum stackable regular shares for that holding."]
+              : []),
           ],
     actions: requestMode === "commit" ? [action] : [],
     errorMessage: null,
@@ -1841,6 +3822,7 @@ async function buildStackSharesPlan(
       intent: "holdings_stack_shares",
       playerId: player.id,
       sharesToStack: normalizedShares,
+      stackAssumptionMode,
     },
     trace: {
       framework: "deterministic-agent-operations",
@@ -1857,17 +3839,35 @@ async function buildScoutAssignmentPlan(
   requestMode: "discussion" | "commit",
 ): Promise<DirectOperationPlan | null> {
   const parserMessage = normalizeOperationalParserMessage(message);
+  const removalMatch = parserMessage.match(
+    /\b(?:remove|pull|take)\s+(?:all\s+)?scouts?\s+(?:from|off)\s+(.+?)$/i,
+  );
   const match =
+    removalMatch ||
     parserMessage.match(/\b(?:set|assign|move)\s+(.+?)\s+scouts?\s+to\s+(\d+)\b/i) ||
-    parserMessage.match(/\b(?:set|assign|move)\s+(\d+)\s+scouts?\s+(?:on|to)\s+(.+?)$/i);
+    parserMessage.match(/\b(?:set|assign|move)\s+(\d+)\s+scouts?\s+(?:on|to)\s+(.+?)$/i) ||
+    parserMessage.match(/^(?:scout|scouting)\s+(.+?)$/i) ||
+    parserMessage.match(/^(?:put|add)\s+scouts?\s+(?:on|to)\s+(.+?)$/i);
 
   if (!match) {
     return null;
   }
 
-  const countFirstPattern = /^\d+$/.test(match[1]);
-  const targetCount = Number.parseInt(countFirstPattern ? match[1] : match[2], 10);
-  const rawReference = countFirstPattern ? match[2] : match[1];
+  const countFirstPattern = !removalMatch && /^\d+$/.test(match[1]);
+  const hasExplicitCount = removalMatch || countFirstPattern || /^\d+$/.test(match[2] || "");
+  const targetCount = removalMatch
+    ? 0
+    : hasExplicitCount
+      ? Number.parseInt(countFirstPattern ? match[1] : match[2], 10)
+      : DEFAULT_ASSUMED_SCOUT_COUNT;
+  const rawReference = removalMatch
+    ? match[1]
+    : hasExplicitCount
+      ? countFirstPattern
+        ? match[2]
+        : match[1]
+      : match[1];
+  const scoutAssumptionMode = removalMatch || hasExplicitCount ? "explicit" : "assumed_one_scout";
   if (!Number.isFinite(targetCount) || targetCount < 0) {
     return null;
   }
@@ -1881,11 +3881,15 @@ async function buildScoutAssignmentPlan(
       replyText:
         "I can stage that scout reassignment, but I need the full player name first so I do not move scouts onto the wrong player.",
       prompt: "Send the full player name and I'll queue that scout change for confirmation.",
-      resumeMessageTemplate: `set {player} scouts to ${targetCount}`,
+      resumeMessageTemplate:
+        scoutAssumptionMode === "explicit"
+          ? `set {player} scouts to ${targetCount}`
+          : "scout {player}",
       contextSnapshot: {
         intent: "scout_set_count",
         rawPlayerReference: sanitizeNameFragment(rawReference),
         targetCount,
+        scoutAssumptionMode,
       },
       trace: {
         framework: "deterministic-agent-operations",
@@ -1964,7 +3968,10 @@ async function buildScoutAssignmentPlan(
       `Current scout count on ${action.playerName}: ${currentCount}.`,
       `Resulting total assigned scouts: ${resultingAssigned}/${maxScouts}.`,
     ],
-    warnings: playerResolution.warnings,
+    warnings:
+      scoutAssumptionMode === "assumed_one_scout"
+        ? [...playerResolution.warnings, "I assumed you wanted to assign 1 scout."]
+        : playerResolution.warnings,
     actions: requestMode === "commit" ? [action] : [],
     errorMessage: null,
     contextSnapshot: {
@@ -1974,6 +3981,7 @@ async function buildScoutAssignmentPlan(
       currentCount,
       resultingAssigned,
       maxScouts,
+      scoutAssumptionMode,
     },
     trace: {
       framework: "deterministic-agent-operations",
@@ -1993,7 +4001,9 @@ async function buildWatchlistPlan(
   const addMatch =
     parserMessage.match(
       /\b(?:add|put|save|track)\s+(.+?)\s+(?:to|on|in)\s+(?:my\s+)?watchlist\b/i,
-    ) || parserMessage.match(/^watchlist\s+(.+?)$/i);
+    ) ||
+    parserMessage.match(/^watchlist\s+(.+?)$/i) ||
+    parserMessage.match(/^(?:track|save)\s+(.+?)$/i);
   const removeMatch =
     parserMessage.match(
       /\b(?:remove|take|drop|delete|unwatch)\s+(.+?)\s+(?:from|off)\s+(?:my\s+)?watchlist\b/i,
@@ -2379,9 +4389,13 @@ export async function planDirectAgentOperation(input: {
     buildGameplayStrategyPlan,
   ];
   const mutationPlanners = [
+    buildRankedMlbWorkflowPlan,
     buildBuyStackBoostWorkflowPlan,
+    buildBuyFollowUpWorkflowPlan,
+    buildSellFollowUpWorkflowPlan,
     buildCommunityBoostPlan,
     buildWatchlistPlan,
+    buildStackBoostWorkflowPlan,
     buildStackSharesPlan,
     buildScoutAssignmentPlan,
     buildBoostRemovePlan,
@@ -2482,32 +4496,402 @@ async function buildGameplayStrategyPlan(
   return null;
 }
 
+async function buildRankedMlbWorkflowPlan(
+  userId: string,
+  profile: UserAgentProfile,
+  message: string,
+  requestMode: "discussion" | "commit",
+): Promise<DirectOperationPlan | null> {
+  const spec = parseRankedMlbWorkflowSpec(message);
+  if (!spec) {
+    return null;
+  }
+
+  if (spec.requiresBoost && spec.slotTiers.length < spec.playerCount) {
+    return buildUnavailableResponse({
+      domain: "sportfolio",
+      requestMessage: message,
+      summary: `I need ${spec.playerCount} boost slots to map that ranked workflow cleanly.`,
+      replyText: `That request names ${spec.playerCount} ranked players, but I only found ${spec.slotTiers.length} boost slot${spec.slotTiers.length === 1 ? "" : "s"} in the prompt, so I did not guess at the ordering.`,
+      contextSnapshot: {
+        intent: "ranked_stat_multi_player_workflow",
+        playerCount: spec.playerCount,
+        slotTiers: spec.slotTiers,
+      },
+      trace: {
+        framework: "deterministic-agent-operations",
+        intent: "ranked_stat_multi_player_workflow",
+        reason: "slot_count_mismatch",
+      },
+    });
+  }
+
+  const availableBalance = roundCurrency(await storage.getAvailableBalance(userId));
+  if (availableBalance <= 0) {
+    return buildUnavailableResponse({
+      domain: "sportfolio",
+      requestMessage: message,
+      summary: "You do not have any available balance to stage that ranked workflow right now.",
+      replyText:
+        "That ranked buy workflow needs available balance to split across the selected players, and you currently do not have any free cash to stage it.",
+      contextSnapshot: {
+        intent: "ranked_stat_multi_player_workflow",
+        playerCount: spec.playerCount,
+        availableBalance,
+      },
+      trace: {
+        framework: "deterministic-agent-operations",
+        intent: "ranked_stat_multi_player_workflow",
+        reason: "no_available_balance",
+      },
+    });
+  }
+
+  if (spec.requiresBoost) {
+    const existingBoosts = await storage.getDailyBoostsAllSports(
+      userId,
+      spec.resolvedDate.targetDate,
+    );
+    const conflictingSlots = existingBoosts
+      .map((boost) => boost.slotTier)
+      .filter((slotTier): slotTier is 2 | 3 | 4 | 5 =>
+        spec.slotTiers.includes(slotTier as 2 | 3 | 4 | 5),
+      );
+
+    if (conflictingSlots.length > 0) {
+      const conflictLabels = [...new Set(conflictingSlots)].map((slot) => `${slot}x`);
+      const summary =
+        conflictLabels.length === 1
+          ? `Your ${conflictLabels[0]} slot is already filled for ${spec.resolvedDate.label}.`
+          : `Your ${conflictLabels.join(" and ")} slots are already filled for ${spec.resolvedDate.label}.`;
+
+      return buildUnavailableResponse({
+        domain: "sportfolio",
+        requestMessage: message,
+        summary,
+        replyText: `${summary} That ranked workflow explicitly asked for ${spec.slotTiers.map((slot) => `${slot}x`).join(" and ")} respectively, so I did not stage a partial bundle.`,
+        contextSnapshot: {
+          intent: "ranked_stat_multi_player_workflow",
+          leaderCategory: spec.leaderCategory,
+          season: spec.season,
+          slotTiers: spec.slotTiers,
+          conflictingSlots: conflictLabels,
+          boostDate: spec.resolvedDate.dateStr,
+        },
+        trace: {
+          framework: "deterministic-agent-operations",
+          intent: "ranked_stat_multi_player_workflow",
+          reason: "requested_boost_slot_occupied",
+          conflictingSlots: conflictLabels,
+        },
+      });
+    }
+  }
+
+  let rankedRows: RankedMlbLeaderRow[];
+  try {
+    const leaderboardResult = await runInternalMlbMcpToolRaw({
+      toolName: `${resolveInternalMlbMcpConfig().toolPrefix}get_league_leader_data`,
+      args: {
+        leader_categories: spec.leaderCategory,
+        season: spec.season,
+        limit: Math.max(spec.playerCount * 20, 40),
+        stat_group: spec.statGroup,
+      },
+    });
+    rankedRows = extractRankedMlbLeaderRows(leaderboardResult.structuredContent);
+  } catch (error) {
+    return buildUnavailableResponse({
+      domain: "sportfolio",
+      requestMessage: message,
+      summary: `I could not load the MLB ${spec.leaderLabel} leaderboard right now.`,
+      replyText:
+        "The in-house MLB leaderboard source did not return usable data for that ranked workflow, so I did not stage the buys.",
+      contextSnapshot: {
+        intent: "ranked_stat_multi_player_workflow",
+        leaderCategory: spec.leaderCategory,
+        season: spec.season,
+      },
+      trace: {
+        framework: "deterministic-agent-operations",
+        intent: "ranked_stat_multi_player_workflow",
+        reason: "leaderboard_unavailable",
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
+  }
+
+  const mlbProfile = {
+    ...profile,
+    defaultSport: "MLB",
+  } as UserAgentProfile;
+  const selectedPlans: Array<{
+    player: typeof players.$inferSelect;
+    leader: RankedMlbLeaderRow;
+    slotTier: 2 | 3 | 4 | 5 | null;
+    budget: number;
+    plan: DirectOperationPlan;
+  }> = [];
+  const selectionWarnings: string[] = [];
+  const candidateAssessments: RankedWorkflowCandidateAssessment[] = [];
+  const seenPlayerIds = new Set<string>();
+  let planningState = createCompoundPlanningState(availableBalance);
+
+  for (const row of rankedRows) {
+    if (selectedPlans.length >= spec.playerCount) {
+      break;
+    }
+
+    const slotTier = spec.requiresBoost ? spec.slotTiers[selectedPlans.length] || null : null;
+    const remainingPlayerSlots = spec.playerCount - selectedPlans.length;
+    const provisionalBudget =
+      allocateEvenBuyBudgets(planningState.availableBalance, remainingPlayerSlots)[0] || 0;
+    const resolved = await resolvePlayerByReference(row.playerName, {
+      message: `MLB ${message}`,
+      profile: mlbProfile,
+    });
+
+    if (!resolved) {
+      const reason =
+        "I skipped this leaderboard entry because there is no active Sportfolio MLB player match for it.";
+      selectionWarnings.push(
+        `I skipped ${row.playerName} because there is no active Sportfolio MLB player match for that leaderboard entry.`,
+      );
+      candidateAssessments.push({
+        rank: row.rank,
+        leaderboardPlayerName: row.playerName,
+        playerId: null,
+        playerName: null,
+        slotTier,
+        provisionalBudget,
+        status: "skipped",
+        reason: "player_not_resolved",
+        summary: reason,
+      });
+      continue;
+    }
+
+    const resolvedPlayerId = resolved.player.id;
+    if (!resolvedPlayerId) {
+      candidateAssessments.push({
+        rank: row.rank,
+        leaderboardPlayerName: row.playerName,
+        playerId: null,
+        playerName: `${resolved.player.firstName} ${resolved.player.lastName}`,
+        slotTier,
+        provisionalBudget,
+        status: "skipped",
+        reason: "player_id_missing",
+        summary:
+          "I skipped this leaderboard entry because the matched Sportfolio player is missing a usable id.",
+      });
+      continue;
+    }
+
+    if (seenPlayerIds.has(resolvedPlayerId)) {
+      candidateAssessments.push({
+        rank: row.rank,
+        leaderboardPlayerName: row.playerName,
+        playerId: resolvedPlayerId,
+        playerName: `${resolved.player.firstName} ${resolved.player.lastName}`,
+        slotTier,
+        provisionalBudget,
+        status: "skipped",
+        reason: "duplicate_player",
+        summary:
+          "I skipped this leaderboard entry because the same Sportfolio player was already selected earlier in the workflow.",
+      });
+      continue;
+    }
+
+    const safeBudgetEstimate = await estimateMaxBuySpendWithinSlippage(
+      resolvedPlayerId,
+      provisionalBudget,
+    );
+
+    if (!safeBudgetEstimate) {
+      const reason =
+        "I skipped this leaderboard entry because the maximum safe buy size still exceeded the execution slippage guard.";
+      selectionWarnings.push(
+        `I skipped ${getPlayerDisplayName(resolved.player)} because the current pool depth would exceed the slippage guard before the workflow could even start.`,
+      );
+      candidateAssessments.push({
+        rank: row.rank,
+        leaderboardPlayerName: row.playerName,
+        playerId: resolvedPlayerId,
+        playerName: getPlayerDisplayName(resolved.player),
+        slotTier,
+        provisionalBudget,
+        status: "skipped",
+        reason: "quote_slippage_too_high",
+        summary: reason,
+      });
+      continue;
+    }
+
+    const safeBudget = safeBudgetEstimate.sbAmount;
+    const goal: StructuredBuyFollowUpGoal = {
+      rawPlayerReference: resolved.player.id,
+      requestedShareCount: null,
+      requestedDollarAmount: safeBudget,
+      buyAssumptionMode: "explicit_dollars",
+      hasStackIntent: spec.requiresStack,
+      stackOptional: false,
+      slotTier,
+      boostOptional: false,
+      resolvedDate: spec.resolvedDate,
+    };
+    const evaluation = await evaluateStructuredBuyFollowUpWorkflow({
+      userId,
+      profile: mlbProfile,
+      requestMessage: buildRankedWorkflowSyntheticMessage({
+        budget: safeBudget,
+        playerReference: resolved.player.id,
+        slotTier,
+        resolvedDate: spec.resolvedDate,
+        requiresStack: spec.requiresStack,
+      }),
+      goal,
+      requestMode,
+      resolvedPlayer: resolved,
+      planningState,
+    });
+    const evaluationSummary =
+      evaluation.plan.summary ||
+      evaluation.plan.replyText ||
+      "I could not stage this ranked candidate cleanly.";
+
+    candidateAssessments.push({
+      rank: row.rank,
+      leaderboardPlayerName: row.playerName,
+      playerId: resolvedPlayerId,
+      playerName: `${resolved.player.firstName} ${resolved.player.lastName}`,
+      slotTier,
+      provisionalBudget,
+      status: evaluation.status,
+      reason: evaluation.reason,
+      summary: evaluationSummary,
+    });
+
+    if (evaluation.status !== "supported") {
+      selectionWarnings.push(evaluationSummary);
+      continue;
+    }
+
+    seenPlayerIds.add(resolvedPlayerId);
+    selectedPlans.push({
+      player: resolved.player,
+      leader: row,
+      slotTier,
+      budget: safeBudget,
+      plan: evaluation.plan,
+    });
+    planningState = applyCompoundPlanningReservation({
+      state: planningState,
+      goal,
+      playerId: resolvedPlayerId,
+    });
+  }
+
+  if (selectedPlans.length < spec.playerCount) {
+    return buildUnavailableResponse({
+      domain: "sportfolio",
+      requestMessage: message,
+      summary: `I could only find ${selectedPlans.length} viable ranked MLB player${selectedPlans.length === 1 ? "" : "s"} for that workflow.`,
+      replyText:
+        "I found the MLB leaderboard signal, but I could not find enough ranked players who could complete the requested buy, stack, and boost workflow under the current Sportfolio constraints.",
+      warnings: dedupeStrings(selectionWarnings),
+      contextSnapshot: {
+        intent: "ranked_stat_multi_player_workflow",
+        leaderCategory: spec.leaderCategory,
+        season: spec.season,
+        resolvedPlayerIds: selectedPlans.map((entry) => entry.player.id),
+        candidateAssessments,
+      },
+      trace: {
+        framework: "deterministic-agent-operations",
+        intent: "ranked_stat_multi_player_workflow",
+        reason: "insufficient_viable_ranked_players",
+        candidateAssessments,
+      },
+    });
+  }
+
+  const combinedActions: AgentAnalysisResult["actions"] = [];
+  const combinedWarnings: string[] = [
+    `I staged each ranked buy at the largest safe size the remaining balance and current pool depth allowed while keeping the leaderboard order intact.`,
+  ];
+  const combinedObservations: string[] = [
+    `MLB ${spec.leaderLabel} leaderboard (${spec.season}) drove the selection order for this workflow.`,
+  ];
+  const playerSummaries: string[] = [];
+
+  for (const selected of selectedPlans) {
+    playerSummaries.push(
+      `${selected.player.firstName} ${selected.player.lastName}${selected.slotTier != null ? ` -> ${selected.slotTier}x` : ""} (${selected.leader.valueLabel || "n/a"} ${spec.leaderLabel})`,
+    );
+    combinedWarnings.push(...selected.plan.warnings);
+    combinedObservations.push(
+      `${selected.player.firstName} ${selected.player.lastName} ranked ${selected.leader.rank ?? "?"} on the ${spec.leaderLabel} leaderboard at ${selected.leader.valueLabel || "n/a"}.`,
+      ...selected.plan.observations,
+    );
+    combinedActions.push(...selected.plan.actions);
+  }
+
+  const summary = `Stage the ranked MLB ${spec.leaderLabel} workflow for ${playerSummaries.join(", then ")}`;
+  const replyText =
+    requestMode === "discussion"
+      ? `${summary}. I would keep the sequence ordered by the leaderboard and size each buy to the largest safe amount the remaining balance and current pool depth allow. ${buildStageNudge(
+          requestMode,
+        )}`
+      : `${summary}. I staged the buys first, then the stack and boost steps in leaderboard order. ${buildStageNudge(requestMode)}`;
+
+  return {
+    domain: "sportfolio",
+    requestMessage: message,
+    replyText,
+    summary,
+    observations: dedupeStrings(combinedObservations),
+    warnings: dedupeStrings([...combinedWarnings, ...selectionWarnings]),
+    actions: requestMode === "commit" ? combinedActions : [],
+    pendingClarification: null,
+    errorMessage: null,
+    contextSnapshot: {
+      intent: "ranked_stat_multi_player_workflow",
+      leaderCategory: spec.leaderCategory,
+      leaderLabel: spec.leaderLabel,
+      season: spec.season,
+      playerIds: selectedPlans.map((entry) => entry.player.id),
+      slotTiers: spec.slotTiers,
+      availableBalance,
+      budgets: selectedPlans.map((entry) => entry.budget),
+      boostDate: spec.requiresBoost ? spec.resolvedDate.dateStr : null,
+      candidateAssessments,
+    },
+    trace: {
+      framework: "deterministic-agent-operations",
+      intent: "ranked_stat_multi_player_workflow",
+      requestMode,
+      actionTypes: combinedActions.map((action) => action.actionType),
+      playerIds: selectedPlans.map((entry) => entry.player.id),
+      candidateAssessments,
+    },
+  };
+}
+
 async function buildBuyPlan(
   userId: string,
   profile: UserAgentProfile,
   message: string,
   requestMode: "discussion" | "commit",
 ): Promise<DirectOperationPlan | null> {
-  const parserMessage = normalizeOperationalParserMessage(message);
-  const amountMatch =
-    parserMessage.match(
-      /\b(?:buy|buying|purchase|purchasing|get|grab|pick\s+up|start(?:\s+my)?\s+position(?:\s+in)?)\s+\$?(\d+(?:\.\d+)?)\s+(?:of\s+)?(.+?)(?:\s+from\s+the\s+pool|\s+in\s+the\s+pool|\s+in\s+pool|$)/i,
-    ) || null;
-  const shareMatch =
-    parserMessage.match(/\b(?:buy|buying|get|grab|pick\s+up)\s+(\d+)\s+(.+?)\s+shares?\b/i) ||
-    parserMessage.match(
-      /\b(?:buy|buying|get|grab|pick\s+up)\s+(\d+)\s+shares?\s+of\s+(.+?)(?:\s+from\s+the\s+pool|\s+in\s+the\s+pool|\s+in\s+pool|$)/i,
-    );
-
-  if (!amountMatch && !shareMatch) {
+  const buyDirective = parseBuyDirective(message);
+  if (!buyDirective) {
     return null;
   }
 
-  const requestedShareCount = shareMatch ? Number.parseInt(shareMatch[1], 10) : null;
-  const requestedDollarAmount =
-    requestedShareCount == null && amountMatch ? Number(amountMatch[1]) : null;
-  const rawPlayerReference =
-    requestedShareCount != null ? shareMatch![2] : (amountMatch?.[2] as string);
+  const { requestedShareCount, requestedDollarAmount, rawPlayerReference, buyAssumptionMode } =
+    buyDirective;
   const playerResolution = await resolvePlayerByReference(rawPlayerReference, { message, profile });
   if (!playerResolution) {
     return buildPlayerClarificationResponse({
@@ -2520,11 +4904,14 @@ async function buildBuyPlan(
       resumeMessageTemplate:
         requestedShareCount != null
           ? `buy ${requestedShareCount} {player} shares`
-          : `buy $${requestedDollarAmount} of {player}`,
+          : buyAssumptionMode === "assumed_max_safe"
+            ? "buy as much {player} as I can afford"
+            : `buy $${requestedDollarAmount || DEFAULT_ASSUMED_BUY_SB} of {player}`,
       contextSnapshot: {
         intent: "pool_buy",
         sbAmount: requestedDollarAmount,
         requestedShareCount,
+        buyAssumptionMode,
         rawPlayerReference: sanitizeNameFragment(rawPlayerReference),
       },
       trace: {
@@ -2537,17 +4924,55 @@ async function buildBuyPlan(
 
   const player = playerResolution.player;
   await getOrCreatePool(player.id);
+  const availableBalance = roundCurrency(await storage.getAvailableBalance(userId));
+  const assumedBuyTarget =
+    buyAssumptionMode === "assumed_max_safe"
+      ? availableBalance
+      : Math.min(DEFAULT_ASSUMED_BUY_SB, availableBalance);
+  const assumedBuyEstimate =
+    requestedDollarAmount == null && requestedShareCount == null
+      ? await estimateMaxBuySpendWithinSlippage(player.id, assumedBuyTarget)
+      : null;
   const estimatedShareSpend =
     requestedDollarAmount == null && requestedShareCount
       ? await estimateSpendForTargetShares(player.id, requestedShareCount)
       : null;
   const sbAmount =
-    requestedDollarAmount ?? (estimatedShareSpend ? estimatedShareSpend.sbAmount : Number.NaN);
+    requestedDollarAmount ??
+    (estimatedShareSpend
+      ? estimatedShareSpend.sbAmount
+      : (assumedBuyEstimate?.sbAmount ?? Number.NaN));
   const quote =
     requestedDollarAmount != null
       ? await getBuyQuote(player.id, sbAmount)
-      : estimatedShareSpend?.quote || null;
-  const availableBalance = await storage.getAvailableBalance(userId);
+      : estimatedShareSpend?.quote || assumedBuyEstimate?.quote || null;
+
+  if (requestedDollarAmount == null && requestedShareCount == null && !assumedBuyEstimate) {
+    return buildUnavailableResponse({
+      domain: "player_pools",
+      requestMessage: message,
+      summary:
+        availableBalance <= 0
+          ? "You do not have any available balance to open that position right now."
+          : `I could not find a safe assumed buy size for ${player.firstName} ${player.lastName} at the current pool depth.`,
+      replyText:
+        availableBalance <= 0
+          ? "I understood that as a buy request, but you do not have available balance to stage it right now."
+          : "I understood that as a buy request, but even the assumed size would not clear the current slippage guard, so I did not stage it.",
+      warnings: playerResolution.warnings,
+      contextSnapshot: {
+        intent: "pool_buy",
+        playerId: player.id,
+        buyAssumptionMode,
+        availableBalance,
+      },
+      trace: {
+        framework: "deterministic-agent-operations",
+        intent: "pool_buy",
+        reason: "buy_assumption_unavailable",
+      },
+    });
+  }
 
   if (!quote) {
     return buildUnavailableResponse({
@@ -2562,11 +4987,38 @@ async function buildBuyPlan(
         playerId: player.id,
         sbAmount,
         requestedShareCount,
+        buyAssumptionMode,
       },
       trace: {
         framework: "deterministic-agent-operations",
         intent: "pool_buy",
         reason: "quote_unavailable",
+      },
+    });
+  }
+
+  if (quote.slippagePercent > DEFAULT_MAX_SLIPPAGE) {
+    return buildUnavailableResponse({
+      domain: "player_pools",
+      requestMessage: message,
+      summary: `That buy would currently quote at about ${formatNumber(
+        quote.slippagePercent * 100,
+      )}% slippage, which is above the ${formatNumber(DEFAULT_MAX_SLIPPAGE * 100)}% execution guard.`,
+      replyText:
+        "That amount is too large for the current pool depth to stage safely. Lower the size and I can restage the buy.",
+      warnings: playerResolution.warnings,
+      contextSnapshot: {
+        intent: "pool_buy",
+        playerId: player.id,
+        sbAmount,
+        requestedShareCount,
+        buyAssumptionMode,
+        estimatedSlippagePercent: quote.slippagePercent * 100,
+      },
+      trace: {
+        framework: "deterministic-agent-operations",
+        intent: "pool_buy",
+        reason: "quote_slippage_too_high",
       },
     });
   }
@@ -2585,6 +5037,7 @@ async function buildBuyPlan(
         playerId: player.id,
         sbAmount,
         requestedShareCount,
+        buyAssumptionMode,
         availableBalance,
       },
       trace: {
@@ -2618,7 +5071,7 @@ async function buildBuyPlan(
     `Estimated shares out: ${formatNumber(
       requestedShareCount != null && estimatedShareSpend
         ? estimatedShareSpend.roundedSharesOut
-        : quote.sharesOut,
+        : (assumedBuyEstimate?.roundedSharesOut ?? quote.sharesOut),
       4,
     )}.`,
     `Estimated effective price: ${formatMoney(quote.effectivePrice)} per share.`,
@@ -2637,6 +5090,15 @@ async function buildBuyPlan(
       `I staged the closest current spend that should land about ${estimatedShareSpend.roundedSharesOut} whole shares, not exactly ${requestedShareCount}, because the AMM buy path executes by spend rather than exact share count.`,
     );
   }
+  if (buyAssumptionMode === "assumed_starter") {
+    warnings.push(
+      `I assumed you wanted a starter buy and sized it to ${formatMoney(sbAmount)} under the current slippage guard.`,
+    );
+  } else if (buyAssumptionMode === "assumed_max_safe") {
+    warnings.push(
+      "I assumed you wanted the largest safe buy size the current balance and pool depth allow.",
+    );
+  }
 
   return {
     domain: "player_pools",
@@ -2646,17 +5108,17 @@ async function buildBuyPlan(
         ? `Buying ${formatMoney(sbAmount)} of ${action.playerName} would currently estimate ${
             requestedShareCount != null && estimatedShareSpend
               ? `${estimatedShareSpend.roundedSharesOut} whole shares`
-              : `${formatNumber(quote.sharesOut, 4)} shares`
+              : `${formatNumber(assumedBuyEstimate?.roundedSharesOut ?? quote.sharesOut, 4)} shares`
           } at about ${formatMoney(quote.effectivePrice)} each with ${formatNumber(
             quote.slippagePercent * 100,
-          )}% slippage. ${buildStageNudge(requestMode)}`
+          )}% slippage.${buyAssumptionMode === "assumed_starter" ? ` I assumed a starter size for you.` : buyAssumptionMode === "assumed_max_safe" ? " I assumed you wanted the largest safe size." : ""} ${buildStageNudge(requestMode)}`
         : `I can stage that buy. ${summary} currently estimates ${
             requestedShareCount != null && estimatedShareSpend
               ? `${estimatedShareSpend.roundedSharesOut} whole shares`
-              : `${formatNumber(quote.sharesOut, 4)} shares`
+              : `${formatNumber(assumedBuyEstimate?.roundedSharesOut ?? quote.sharesOut, 4)} shares`
           } at about ${formatMoney(quote.effectivePrice)} each with ${formatNumber(
             quote.slippagePercent * 100,
-          )}% slippage. ${buildStageNudge(requestMode)}`,
+          )}% slippage.${buyAssumptionMode === "assumed_starter" ? ` I assumed a starter size for you.` : buyAssumptionMode === "assumed_max_safe" ? " I assumed you wanted the largest safe size." : ""} ${buildStageNudge(requestMode)}`,
     summary,
     observations,
     warnings,
@@ -2668,12 +5130,13 @@ async function buildBuyPlan(
       playerName: action.playerName,
       sbAmount,
       requestedShareCount,
+      buyAssumptionMode,
       availableBalance,
       quote: {
         sharesOut:
           requestedShareCount != null && estimatedShareSpend
             ? estimatedShareSpend.roundedSharesOut
-            : quote.sharesOut,
+            : (assumedBuyEstimate?.roundedSharesOut ?? quote.sharesOut),
         effectivePrice: quote.effectivePrice,
         slippagePercent: quote.slippagePercent * 100,
       },
@@ -2682,7 +5145,14 @@ async function buildBuyPlan(
       framework: "deterministic-agent-operations",
       intent: "pool_buy",
       requestMode,
-      matchedPattern: requestedDollarAmount != null ? "buy_by_dollars" : "buy_by_shares",
+      matchedPattern:
+        buyAssumptionMode === "explicit_dollars"
+          ? "buy_by_dollars"
+          : buyAssumptionMode === "explicit_shares"
+            ? "buy_by_shares"
+            : buyAssumptionMode === "assumed_max_safe"
+              ? "buy_assumed_max_safe"
+              : "buy_assumed_starter",
     },
   };
 }
@@ -2694,15 +5164,20 @@ async function buildSellPlan(
   requestMode: "discussion" | "commit",
 ): Promise<DirectOperationPlan | null> {
   const parserMessage = normalizeOperationalParserMessage(message);
-  const match = parserMessage.match(
+  const explicitMatch = parserMessage.match(
     /\b(?:sell|selling|dump|liquidate|trim|trimming|cut|reduce|exit)\s+(\d+(?:\.\d+)?)\s+shares?\s+(?:of\s+)?(.+?)(?:\s+from\s+the\s+pool|\s+from\s+the\s+market|$)/i,
   );
-  if (!match) {
+  const assumedMatch = parserMessage.match(
+    /^(?:sell|selling|dump|liquidate|trim|trimming|cut|reduce|exit)\s+(?:some\s+|my\s+)?(.+?)(?:\s+shares?)?$/i,
+  );
+  if (!explicitMatch && !assumedMatch) {
     return null;
   }
 
-  const sharesAmount = Number(match[1]);
-  const playerResolution = await resolvePlayerByReference(match[2], { message, profile });
+  const sharesAmount = explicitMatch ? Number(explicitMatch[1]) : DEFAULT_ASSUMED_SELL_SHARES;
+  const sellAssumptionMode = explicitMatch ? "explicit" : "assumed_one_share";
+  const playerReference = explicitMatch ? explicitMatch[2] : (assumedMatch?.[1] as string);
+  const playerResolution = await resolvePlayerByReference(playerReference, { message, profile });
   if (!playerResolution) {
     return buildPlayerClarificationResponse({
       domain: "player_pools",
@@ -2711,11 +5186,15 @@ async function buildSellPlan(
       replyText:
         "I can stage that sale, but I need the full player name first so I do not sell the wrong holding.",
       prompt: "Send the full player name and I'll queue that sale for confirmation.",
-      resumeMessageTemplate: `sell ${sharesAmount} shares of {player}`,
+      resumeMessageTemplate:
+        sellAssumptionMode === "explicit"
+          ? `sell ${sharesAmount} shares of {player}`
+          : "sell {player}",
       contextSnapshot: {
         intent: "pool_sell",
         sharesAmount,
-        rawPlayerReference: sanitizeNameFragment(match[2]),
+        sellAssumptionMode,
+        rawPlayerReference: sanitizeNameFragment(playerReference),
       },
       trace: {
         framework: "deterministic-agent-operations",
@@ -2829,6 +5308,9 @@ async function buildSellPlan(
     ...playerResolution.warnings,
     "Pool pricing can move before you confirm, so the final proceeds can differ slightly from the preview.",
   ];
+  if (sellAssumptionMode === "assumed_one_share") {
+    warnings.push("I assumed you wanted to sell 1 available share.");
+  }
 
   return {
     domain: "player_pools",
@@ -2858,6 +5340,7 @@ async function buildSellPlan(
       playerName: action.playerName,
       sharesAmount,
       availableShares,
+      sellAssumptionMode,
       quote: {
         sbOut: quote.sbOut,
         effectivePrice: quote.effectivePrice,
@@ -2868,7 +5351,7 @@ async function buildSellPlan(
       framework: "deterministic-agent-operations",
       intent: "pool_sell",
       requestMode,
-      matchedPattern: "sell",
+      matchedPattern: sellAssumptionMode === "explicit" ? "sell" : "sell_assumed_one_share",
     },
   };
 }
@@ -2880,17 +5363,22 @@ async function buildLiquidityPlan(
   requestMode: "discussion" | "commit",
 ): Promise<DirectOperationPlan | null> {
   const parserMessage = normalizeOperationalParserMessage(message);
-  const match = parserMessage.match(
+  const quantityFirstMatch = parserMessage.match(
     /\b(?:add|deposit|provide|supply)(?:\s+liquidity)?\s+(?:up to\s+|at most\s+|maximum\s+)?(\d+(?:\.\d+)?)\s+shares?\s+(?:and|with)\s+\$?(\d+(?:\.\d+)?)\s*(?:sb|bucks|dollars?)?\s+(?:to|into)\s+(.+?)(?:'s)?(?:\s+pool)?$/i,
   );
+  const playerFirstMatch = parserMessage.match(
+    /\b(?:add|deposit|provide|supply)(?:\s+liquidity)?\s+(?:to|into)\s+(.+?)\s+with\s+(?:up to\s+|at most\s+|maximum\s+)?(\d+(?:\.\d+)?)\s+shares?\s+(?:and|plus)\s+\$?(\d+(?:\.\d+)?)\s*(?:sb|bucks|dollars?)?(?:\s+in(?:to)?\s+(?:their\s+)?pool)?$/i,
+  );
+  const match = quantityFirstMatch || playerFirstMatch;
   if (!match) {
     return null;
   }
 
-  const shares = Number(match[1]);
-  const playMoney = Number(match[2]);
+  const playerReference = quantityFirstMatch ? match[3] : match[1];
+  const shares = Number(quantityFirstMatch ? match[1] : match[2]);
+  const playMoney = Number(quantityFirstMatch ? match[2] : match[3]);
   const isOptimal = /\b(?:up to|at most|maximum|max)\b/i.test(message);
-  const playerResolution = await resolvePlayerByReference(match[3], { message, profile });
+  const playerResolution = await resolvePlayerByReference(playerReference, { message, profile });
 
   if (!playerResolution) {
     return buildPlayerClarificationResponse({
@@ -2907,7 +5395,7 @@ async function buildLiquidityPlan(
         intent: isOptimal ? "pool_add_liquidity_optimal" : "pool_add_liquidity",
         shares,
         playMoney,
-        rawPlayerReference: sanitizeNameFragment(match[3]),
+        rawPlayerReference: sanitizeNameFragment(playerReference),
       },
       trace: {
         framework: "deterministic-agent-operations",
@@ -3473,21 +5961,34 @@ async function buildBoostAssignPlan(
   requestMode: "discussion" | "commit",
 ): Promise<DirectOperationPlan | null> {
   const parserMessage = normalizeOperationalParserMessage(message);
-  const match =
+  const explicitSlotMatch =
     parserMessage.match(
-      /\b(?:put|putting|place|placing|assign|assigning|boost|boosting|slot|slotting|lock|locking|run)\s+(.+?)\s+(?:in|into|to)\s+(?:my\s+)?([2345])x\s+(?:boost\s+)?slot\b/i,
+      /\b(?:put|putting|place|placing|assign|assigning|boost|boosting|slot|slotting|lock|locking|run)\s+(.+?)\s+(?:in|into|to)\s+(?:my\s+)?([2345])x\s+(?:(?:daily\s+)?boost\s+)?slot\b/i,
     ) ||
     parserMessage.match(
-      /\b(?:use|using|throw)\s+(?:my\s+)?([2345])x\s+(?:boost\s+)?slot\s+(?:on|for)\s+(.+?)$/i,
+      /\b(?:use|using|throw)\s+(?:my\s+)?([2345])x\s+(?:(?:daily\s+)?boost\s+)?slot\s+(?:on|for)\s+(.+?)$/i,
+    );
+  const assumedSlotMatch =
+    parserMessage.match(/^(?:boost|boosting)\s+(.+?)(?:\s+(?:today|tomorrow))?$/i) ||
+    parserMessage.match(
+      /^(?:put|putting|place|placing|assign|assigning|slot|slotting|lock|locking|run)\s+(.+?)\s+(?:in|into|to)\s+(?:my\s+)?(?:daily\s+)?boost(?:\s+slot)?(?:\s+(?:today|tomorrow))?$/i,
     );
 
-  if (!match) {
+  if (!explicitSlotMatch && !assumedSlotMatch) {
     return null;
   }
 
-  const slotFirstPattern = /^[2345]$/.test(match[1]);
-  const playerReference = slotFirstPattern ? match[2] : match[1];
-  const slotTier = Number(slotFirstPattern ? match[1] : match[2]) as 2 | 3 | 4 | 5;
+  const match = explicitSlotMatch || assumedSlotMatch;
+  const slotFirstPattern = explicitSlotMatch ? /^[2345]$/.test(match?.[1] || "") : false;
+  const playerReference = explicitSlotMatch
+    ? slotFirstPattern
+      ? (match?.[2] as string)
+      : (match?.[1] as string)
+    : (match?.[1] as string);
+  const explicitSlotTier = explicitSlotMatch
+    ? (Number(slotFirstPattern ? match?.[1] : match?.[2]) as 2 | 3 | 4 | 5)
+    : null;
+  const boostAssumptionMode = explicitSlotTier == null ? "assumed_highest_open_slot" : "explicit";
   const resolvedDate = resolveDateFromMessage(message);
   const playerResolution = await resolvePlayerByReference(playerReference, { message, profile });
 
@@ -3499,10 +6000,14 @@ async function buildBoostAssignPlan(
       replyText:
         "I can stage that daily boost, but I need the full player name first so I do not burn the wrong share.",
       prompt: "Send the full player name and I'll queue that daily boost for confirmation.",
-      resumeMessageTemplate: `put {player} in my ${slotTier}x boost slot ${resolvedDate.label}`,
+      resumeMessageTemplate:
+        explicitSlotTier != null
+          ? `put {player} in my ${explicitSlotTier}x boost slot ${resolvedDate.label}`
+          : `boost {player} ${resolvedDate.label}`,
       contextSnapshot: {
         intent: "daily_boost_assign",
-        slotTier,
+        slotTier: explicitSlotTier,
+        boostAssumptionMode,
         rawPlayerReference: sanitizeNameFragment(playerReference),
         boostDate: resolvedDate.dateStr,
       },
@@ -3521,8 +6026,32 @@ async function buildBoostAssignPlan(
     storage.getAvailableShares(userId, "player", player.id),
     storage.getPlayerShareBreakdown(userId, player.id),
   ]);
+  const slotTier = explicitSlotTier ?? findHighestOpenBoostSlot(currentBoosts);
 
-  if (currentBoosts.some((boost) => boost.slotTier === slotTier)) {
+  if (slotTier == null) {
+    return buildUnavailableResponse({
+      domain: "daily_boosts",
+      requestMessage: message,
+      summary: `All four boost slots are already filled for ${resolvedDate.label}.`,
+      replyText:
+        "I understood that as a boost request, but all four daily boost slots are already occupied for that window.",
+      warnings: playerResolution.warnings,
+      contextSnapshot: {
+        intent: "daily_boost_assign",
+        playerId: player.id,
+        slotTier: explicitSlotTier,
+        boostAssumptionMode,
+        boostDate: resolvedDate.dateStr,
+      },
+      trace: {
+        framework: "deterministic-agent-operations",
+        intent: "daily_boost_assign",
+        reason: "slots_full",
+      },
+    });
+  }
+
+  if (slotTier != null && currentBoosts.some((boost) => boost.slotTier === slotTier)) {
     return buildUnavailableResponse({
       domain: "daily_boosts",
       requestMessage: message,
@@ -3533,6 +6062,7 @@ async function buildBoostAssignPlan(
         intent: "daily_boost_assign",
         playerId: player.id,
         slotTier,
+        boostAssumptionMode,
         boostDate: resolvedDate.dateStr,
       },
       trace: {
@@ -3555,6 +6085,7 @@ async function buildBoostAssignPlan(
         intent: "daily_boost_assign",
         playerId: player.id,
         slotTier,
+        boostAssumptionMode,
         boostDate: resolvedDate.dateStr,
       },
       trace: {
@@ -3565,17 +6096,21 @@ async function buildBoostAssignPlan(
     });
   }
 
-  if (currentBoosts.length >= 4) {
+  if (currentBoosts.length >= DAILY_BOOST_SLOT_COUNT) {
     return buildUnavailableResponse({
       domain: "daily_boosts",
       requestMessage: message,
       summary: `All four boost slots are already filled for ${resolvedDate.label}.`,
-      replyText: "All four daily boost slots are already occupied, so I did not stage another one.",
+      replyText:
+        explicitSlotTier == null
+          ? "I understood that as a boost request, but all four daily boost slots are already occupied for that window."
+          : "All four daily boost slots are already occupied, so I did not stage another one.",
       warnings: playerResolution.warnings,
       contextSnapshot: {
         intent: "daily_boost_assign",
         playerId: player.id,
-        slotTier,
+        slotTier: explicitSlotTier,
+        boostAssumptionMode,
         boostDate: resolvedDate.dateStr,
       },
       trace: {
@@ -3598,6 +6133,7 @@ async function buildBoostAssignPlan(
         intent: "daily_boost_assign",
         playerId: player.id,
         slotTier,
+        boostAssumptionMode,
         boostDate: resolvedDate.dateStr,
       },
       trace: {
@@ -3620,6 +6156,7 @@ async function buildBoostAssignPlan(
         intent: "daily_boost_assign",
         playerId: player.id,
         slotTier,
+        boostAssumptionMode,
         boostDate: resolvedDate.dateStr,
         gameId: game.gameId,
       },
@@ -3643,6 +6180,7 @@ async function buildBoostAssignPlan(
         intent: "daily_boost_assign",
         playerId: player.id,
         slotTier,
+        boostAssumptionMode,
         boostDate: resolvedDate.dateStr,
         availableShares,
       },
@@ -3697,6 +6235,9 @@ async function buildBoostAssignPlan(
     ...playerResolution.warnings,
     "Daily boosts always use exactly one share and become locked when the game starts.",
   ];
+  if (boostAssumptionMode === "assumed_highest_open_slot") {
+    warnings.push(`I assumed you wanted the highest open boost slot and used ${slotTier}x.`);
+  }
 
   return {
     domain: "daily_boosts",
@@ -3722,6 +6263,7 @@ async function buildBoostAssignPlan(
       playerName: action.playerName,
       sport: player.sport,
       slotTier,
+      boostAssumptionMode,
       boostDate: resolvedDate.dateStr,
       gameId: game.gameId,
       availableShares,
@@ -3731,7 +6273,10 @@ async function buildBoostAssignPlan(
       framework: "deterministic-agent-operations",
       intent: "daily_boost_assign",
       requestMode,
-      matchedPattern: "boost_assign",
+      matchedPattern:
+        boostAssumptionMode === "assumed_highest_open_slot"
+          ? "boost_assign_assumed_slot"
+          : "boost_assign",
     },
   };
 }
@@ -3744,7 +6289,7 @@ async function buildBoostRemovePlan(
 ): Promise<DirectOperationPlan | null> {
   const parserMessage = normalizeOperationalParserMessage(message);
   const slotMatch = parserMessage.match(
-    /\b(?:remove|clear|delete|cancel|pull|take|free\s+up|unslot)\s+(?:my\s+)?([2345])x\s+(?:boost\s+)?slot\b/i,
+    /\b(?:remove|clear|delete|cancel|pull|take|free\s+up|unslot)\s+(?:my\s+)?([2345])x\s+(?:(?:daily\s+)?boost\s+)?slot\b/i,
   );
   const playerMatch = parserMessage.match(
     /\b(?:remove|clear|delete|cancel|pull|take|unslot)\s+(.+?)\s+from\s+(?:my\s+)?boosts?\b/i,

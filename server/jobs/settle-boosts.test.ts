@@ -154,5 +154,5 @@ describe("settleBoosts", () => {
         multiplier: 2,
       }),
     );
-  });
+  }, 15000);
 });

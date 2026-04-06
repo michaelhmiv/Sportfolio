@@ -23,6 +23,176 @@ export function buildDefaultHermesToolAllowlist(toolCatalog: AgentToolDefinition
   ];
 }
 
+function isStrategyConversationMode(
+  mode: HermesRuntimeTurnInput["conversationMode"] | HermesRespondRequest["conversationMode"],
+) {
+  return (
+    mode === "strategy_builder" || mode === "strategy_refinement" || mode === "strategy_review"
+  );
+}
+
+function normalizeMessage(message: string) {
+  return message.trim().toLowerCase();
+}
+
+function hasAnyKeyword(message: string, patterns: RegExp[]) {
+  return patterns.some((pattern) => pattern.test(message));
+}
+
+function isScheduleIntent(message: string) {
+  return hasAnyKeyword(message, [
+    /\bschedule\b/,
+    /\brecurring\b/,
+    /\bdaily setup review\b/,
+    /\bpre-lock\b/,
+    /\binjury watch\b/,
+    /\bidle balance nudge\b/,
+    /\bboost window\b/,
+    /\bcheck[- ]?in\b/,
+    /\bremind me\b/,
+  ]);
+}
+
+function isMemoryIntent(message: string) {
+  return hasAnyKeyword(message, [
+    /\bremember\b/,
+    /\bmemory\b/,
+    /\bforget\b/,
+    /\bpreference\b/,
+    /\brisk tolerance\b/,
+    /\binteraction style\b/,
+  ]);
+}
+
+function isSkillIntent(message: string) {
+  return hasAnyKeyword(message, [/\bskill\b/, /\bworkflow\b/, /\blearned\b/, /\breuse\b/]);
+}
+
+function isWatchlistIntent(message: string) {
+  return /\bwatchlist\b/.test(message);
+}
+
+function isMlbEnrichmentIntent(message: string) {
+  return hasAnyKeyword(message, [
+    /\bmlb\b/,
+    /\bbaseball\b/,
+    /\bprobable pitcher\b/,
+    /\bprobable pitchers\b/,
+    /\bstatcast\b/,
+    /\bbox score\b/,
+    /\bbatting order\b/,
+    /\blineup\b/,
+    /\blineups\b/,
+  ]);
+}
+
+function isExternalSourceIntent(
+  message: string,
+  capabilities:
+    | HermesRuntimeTurnInput["capabilities"]
+    | HermesRespondRequest["canonicalState"]["capabilities"],
+) {
+  const enabledExternalSources =
+    capabilities.dataSources?.external.filter((source) => source.enabled && source.available) || [];
+
+  if (enabledExternalSources.length === 0) {
+    return false;
+  }
+
+  if (
+    hasAnyKeyword(message, [
+      /\bexternal\b/,
+      /\bmcp\b/,
+      /\bprojection\b/,
+      /\bprojections\b/,
+      /\banalytics\b/,
+      /\bcustom feed\b/,
+      /\bthird[- ]party\b/,
+    ])
+  ) {
+    return true;
+  }
+
+  return enabledExternalSources.some((source) => message.includes(normalizeMessage(source.name)));
+}
+
+export function buildScopedHermesToolAllowlist(input: {
+  toolCatalog: AgentToolDefinition[];
+  message: string;
+  capabilities:
+    | HermesRuntimeTurnInput["capabilities"]
+    | HermesRespondRequest["canonicalState"]["capabilities"];
+  conversationMode?:
+    | HermesRuntimeTurnInput["conversationMode"]
+    | HermesRespondRequest["conversationMode"];
+}): string[] {
+  const normalizedMessage = normalizeMessage(input.message);
+  const strategyMode = isStrategyConversationMode(input.conversationMode || null);
+  const includeSchedules = strategyMode || isScheduleIntent(normalizedMessage);
+  const includeMemories = isMemoryIntent(normalizedMessage);
+  const includeSkills = strategyMode || isSkillIntent(normalizedMessage);
+  const includeWatchlistAdmin = isWatchlistIntent(normalizedMessage);
+  const includeExternalSources =
+    strategyMode || isExternalSourceIntent(normalizedMessage, input.capabilities);
+  const includeMlbEnrichment = strategyMode || isMlbEnrichmentIntent(normalizedMessage);
+
+  return [
+    ...new Set(
+      input.toolCatalog
+        .filter((entry) => {
+          const exposure = entry.exposure || "default";
+          if (exposure === "hidden_fallback" || exposure === "internal_only") {
+            return false;
+          }
+
+          if (exposure === "default") {
+            return true;
+          }
+
+          if (entry.toolName === "query_external_source") {
+            return includeExternalSources;
+          }
+
+          if (
+            entry.toolName === "get_user_schedules" ||
+            entry.toolName === "get_schedule_templates" ||
+            entry.toolName === "upsert_user_schedule" ||
+            entry.toolName === "delete_user_schedule"
+          ) {
+            return includeSchedules;
+          }
+
+          if (
+            entry.toolName === "list_user_memories" ||
+            entry.toolName === "search_user_memories" ||
+            entry.toolName === "get_user_memory_context"
+          ) {
+            return includeMemories;
+          }
+
+          if (entry.toolName === "list_runtime_skills") {
+            return includeSkills;
+          }
+
+          if (
+            entry.toolName === "create_watchlist" ||
+            entry.toolName === "update_watchlist" ||
+            entry.toolName === "delete_watchlist"
+          ) {
+            return includeWatchlistAdmin;
+          }
+
+          if (entry.toolName.startsWith("mlb_mcp__")) {
+            return includeMlbEnrichment;
+          }
+
+          return strategyMode;
+        })
+        .map((entry) => entry.toolName),
+    ),
+  ];
+}
+
 function resolveProfileTemperature(profile: UserAgentProfile): number {
   const parsed = Number(profile.temperature);
   if (!Number.isFinite(parsed)) {
@@ -101,7 +271,12 @@ export async function buildHermesTurnRequest(
     toolAllowlist:
       input.toolAllowlist && input.toolAllowlist.length > 0
         ? input.toolAllowlist
-        : buildDefaultHermesToolAllowlist(toolCatalog),
+        : buildScopedHermesToolAllowlist({
+            toolCatalog,
+            message: input.message,
+            capabilities: input.capabilities,
+            conversationMode: input.conversationMode || null,
+          }),
     toolCatalog,
     availableSkills,
     skillPolicy: input.skillPolicy || {

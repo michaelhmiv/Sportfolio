@@ -1,27 +1,33 @@
 ---
 id: feature-sms-agent
 title: SMS Agent
-summary: How the SMS channel works from first contact through account linking, what it can do by text, and what remains web-only.
+summary: Legacy reference for the SMS channel: how linking worked, what text flows supported, and what remained web-only.
 audience: public
 category: features
 status: published
 owner: product-engineering
-lastReviewedAt: 2026-03-04
+lastReviewedAt: 2026-04-02
 changeTriggers: server/sms-service.ts,server/routes/sms.ts,server/services/telnyx-sms.ts,client/src/components/sms-access-card.tsx,client/src/pages/sms-link.tsx
 slug: sms-agent
 surface: web,agent
 searchKeywords: sms,text,telnyx,phone link,guest concierge,linked account
 ---
 
-# The SMS channel is conversation-first
+# Legacy SMS reference
 
-Sportfolio's SMS flow is designed so a user can start a conversation before they are fully linked. The system does not force an immediate hard signup wall just to ask a question.
+SMS is no longer part of the primary Hermes product contract.
 
-That means the SMS channel starts as a lightweight concierge and becomes an authenticated operator only after secure linking.
+This page remains as a legacy reference for the older SMS linking and concierge flow.
+
+## The SMS channel was conversation-first
+
+Sportfolio's SMS flow was designed so a user could start a conversation before they were fully linked. The system did not force an immediate hard signup wall just to ask a question.
+
+That meant the SMS channel started as a lightweight concierge and became an authenticated operator only after secure linking.
 
 ## Before linking: guest concierge mode
 
-Before your number is linked to an account, the SMS agent can still help with general discussion such as:
+Before a number was linked to an account, the SMS agent could still help with general discussion such as:
 
 - explain shares, scouts, boosts, and other core mechanics
 - talk through player and game concepts
@@ -29,48 +35,48 @@ Before your number is linked to an account, the SMS agent can still help with ge
 
 Treat this as product guidance and onboarding by text, not as account access.
 
-## When linking becomes required
+## When linking became required
 
-The SMS agent will ask you to link when you move from general conversation into account-specific work.
+The SMS agent would ask the user to link when they moved from general conversation into account-specific work.
 
-Linking is required for anything tied to your account state, including:
+Linking was required for anything tied to account state, including:
 
 - portfolio-specific reads
 - staging trades or other supported actions
 - confirming a pending in-game action by text
 
-In other words, explanation can start before identity. Execution cannot.
+In other words, explanation could start before identity. Execution could not.
 
-## How linking works
+## How linking worked
 
-The linking flow is intentionally narrow:
+The linking flow was intentionally narrow:
 
-1. You provide a phone number from the profile page or text from an unknown number.
-2. Sportfolio generates a one-time link token.
-3. You open the browser link while authenticated.
-4. The phone number becomes attached to that account.
+1. You provided a phone number from the profile page or texted from an unknown number.
+2. Sportfolio generated a one-time link token.
+3. You opened the browser link while authenticated.
+4. The phone number became attached to that account.
 
-After that, the SMS channel can safely access the same user-scoped agent context as the web flow.
+After that, the SMS channel could safely access the same user-scoped agent context as the web flow.
 
-## What the linked SMS channel can do
+## What the linked SMS channel could do
 
-Once linked, the SMS agent can:
+Once linked, the SMS agent could:
 
 - answer account-specific questions
 - read supported account surfaces
 - stage supported in-game actions
 - accept explicit action confirmation by text
 
-It still follows the same confirmation-first rules as the web and CLI agent.
+It still followed the same confirmation-first rules as the web and CLI agent.
 
 ## Safety boundary
 
-SMS supports conversational guidance and supported in-game account actions after linking. Premium, billing, and purchase flows remain web-only.
+SMS supported conversational guidance and supported in-game account actions after linking. Premium, billing, and purchase flows remained web-only.
 
-That boundary exists to keep higher-risk account and payment workflows on richer, more explicit surfaces.
+That boundary existed to keep higher-risk account and payment workflows on richer, more explicit surfaces.
 
 ## Opt-out and channel hygiene
 
-The SMS layer also supports standard opt-out keywords. Unknown numbers stay in guest-concierge mode until they complete the link flow.
+The SMS layer also supported standard opt-out keywords. Unknown numbers stayed in guest-concierge mode until they completed the link flow.
 
-This keeps the channel useful for quick conversation while still preserving identity and consent boundaries.
+This kept the channel useful for quick conversation while still preserving identity and consent boundaries.

@@ -11,16 +11,16 @@ import type {
 
 const INTERNAL_MLB_MCP_NAME = "MLB Data Feed";
 const INTERNAL_MLB_MCP_DESCRIPTION =
-  "Built-in in-house MLB data for Hermes. This source is only available through Hermes and is not exposed as a public MCP endpoint.";
+  "Built-in in-house MLB enrichment for Hermes. This source is only available through Hermes and is not exposed as a public MCP endpoint.";
 const INTERNAL_MLB_MCP_CAPABILITY_SUMMARY =
-  "In-house MLB data and leaderboard context available through Hermes-only tools.";
+  "In-house MLB enrichment and leaderboard context available through Hermes-only tools after native Sportfolio context.";
 
 function toExternalDataSourceView(source: UserMcpSource): AgentDataSourceView {
   return {
     id: source.id,
     kind: "external",
     name: source.name,
-    description: "User-connected external MCP source.",
+    description: "User-connected external MCP source for optional enrichment.",
     enabled: source.enabled,
     available: source.enabled && !source.lastError,
     authType: source.authType,
@@ -30,7 +30,7 @@ function toExternalDataSourceView(source: UserMcpSource): AgentDataSourceView {
     createdAt: source.createdAt,
     editable: true,
     removable: true,
-    capabilitySummary: `External MCP source ${source.name}.`,
+    capabilitySummary: `Optional external MCP source ${source.name}. Native Sportfolio tools stay primary for canonical gameplay state.`,
   };
 }
 
@@ -101,11 +101,21 @@ export async function getAgentDataSourceSummary(
   userId: string,
   profile: UserAgentProfile,
 ): Promise<AgentDataSourceSummaryView> {
-  const sources = await listAgentDataSources(userId, profile);
+  const builtIn = await getInternalMlbDataSourceView(profile);
+  let external: AgentDataSourceView[] = [];
+
+  try {
+    external = (await listUserMcpSources(userId)).map(toExternalDataSourceView);
+  } catch (error: any) {
+    console.warn(
+      "[Agent Data Sources] External MCP source state unavailable during capability load; continuing without external sources.",
+      error?.message || error,
+    );
+  }
 
   return {
-    builtIn: sources.filter((source) => source.kind === "built_in").map(toCapabilityView),
-    external: sources.filter((source) => source.kind === "external").map(toCapabilityView),
+    builtIn: [builtIn].map(toCapabilityView),
+    external: external.map(toCapabilityView),
   };
 }
 

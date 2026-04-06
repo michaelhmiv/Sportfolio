@@ -200,7 +200,7 @@ function EntityCellButton({
       <button
         type="button"
         onClick={() => onOpenPlayer(playerId)}
-        className="w-full text-left transition-colors hover:text-white"
+        className="w-full text-left text-sky-200 transition-colors hover:text-sky-100"
       >
         {content}
       </button>
@@ -216,6 +216,36 @@ function EntityCellButton({
   }
 
   return <div>{content}</div>;
+}
+
+function isWideEntityColumn(key: string) {
+  return ["metric", "game", "signal", "opportunity", "matchup", "venue", "source"].includes(key);
+}
+
+function CompactField({
+  label,
+  cell,
+  onOpenPlayer,
+  wide = false,
+}: {
+  label: string;
+  cell: AgentUiEntityCell;
+  onOpenPlayer: (playerId: string) => void;
+  wide?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "rounded-lg border border-white/[0.06] bg-black/10 px-3 py-2.5",
+        wide && "col-span-2",
+      )}
+    >
+      <FieldLabel>{label}</FieldLabel>
+      <div className="mt-1 text-sm leading-5 text-white/85">
+        <TableCellContent cell={cell} onOpenPlayer={onOpenPlayer} />
+      </div>
+    </div>
+  );
 }
 
 function TableCellContent({
@@ -478,7 +508,60 @@ function LeaderboardTableBlock({
         ) : null}
       </div>
 
-      <div className="-mx-3 mt-3 overflow-x-auto px-3">
+      <div className="mt-3 space-y-2 sm:hidden">
+        {block.props.leaders.map((leader) => {
+          const playerId = extractPlayerId(leader.href, leader.playerId);
+          return (
+            <div
+              key={leader.id}
+              className="rounded-lg border border-white/[0.06] bg-black/10 px-3 py-3"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="text-[10px] font-medium uppercase tracking-wider text-white/35">
+                    Rank #{leader.rank}
+                  </div>
+                  {playerId ? (
+                    <button
+                      type="button"
+                      onClick={() => onOpenPlayer(playerId)}
+                      className="mt-1 text-left text-sm font-semibold text-sky-200 transition-colors hover:text-sky-100"
+                    >
+                      {leader.playerName}
+                    </button>
+                  ) : (
+                    <div
+                      className={cn("mt-1 text-sm font-semibold", getToneTextClass(leader.tone))}
+                    >
+                      {leader.playerName}
+                    </div>
+                  )}
+                  <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-white/45">
+                    {leader.team ? <span>{leader.team}</span> : null}
+                    {leader.secondaryText ? <span>{leader.secondaryText}</span> : null}
+                    {leader.badge ? <Pill className="py-0.5">{leader.badge}</Pill> : null}
+                  </div>
+                  {leader.note ? (
+                    <div className="mt-1 text-[11px] leading-5 text-white/45">{leader.note}</div>
+                  ) : null}
+                </div>
+                <div className="text-right">
+                  <div className={cn("text-base font-semibold", getToneTextClass(leader.tone))}>
+                    {leader.primaryValue}
+                  </div>
+                  {block.props.secondaryStatLabel ? (
+                    <div className="mt-1 text-[11px] text-white/45">
+                      {block.props.secondaryStatLabel}: {leader.secondaryValue || "-"}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="-mx-3 mt-3 hidden overflow-x-auto px-3 sm:block">
         <table className="w-full min-w-[34rem] border-collapse text-left text-[12px]">
           <thead>
             <tr className="border-y border-white/[0.06] bg-white/[0.03] text-white/55">
@@ -504,7 +587,7 @@ function LeaderboardTableBlock({
                       <button
                         type="button"
                         onClick={() => onOpenPlayer(playerId)}
-                        className="text-left transition-colors hover:text-white"
+                        className="text-left text-sky-200 transition-colors hover:text-sky-100"
                       >
                         <div className={cn("font-medium", getToneTextClass(leader.tone))}>
                           {leader.playerName}
@@ -586,7 +669,59 @@ function EntityTableBlock({
           ) : null}
         </div>
       </div>
-      <div className="-mx-3 mt-3 overflow-x-auto px-3">
+      <div className="mt-3 space-y-2 sm:hidden">
+        {block.props.rows.map((row) => {
+          const primaryColumn =
+            block.props.columns.find((column) => row.cells[column.key]) || block.props.columns[0];
+          const primaryCell = primaryColumn ? row.cells[primaryColumn.key] : null;
+          const secondaryColumns = block.props.columns.filter(
+            (column) => !primaryColumn || column.key !== primaryColumn.key,
+          );
+
+          return (
+            <div
+              key={row.id}
+              className="rounded-lg border border-white/[0.06] bg-black/10 px-3 py-3"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  {row.rank != null ? (
+                    <div className="text-[10px] font-medium uppercase tracking-wider text-white/35">
+                      Rank #{row.rank}
+                    </div>
+                  ) : null}
+                  {primaryCell ? (
+                    <div className="mt-1 text-sm leading-5 text-white/90">
+                      <TableCellContent cell={primaryCell} onOpenPlayer={onOpenPlayer} />
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+              {secondaryColumns.length > 0 ? (
+                <div className="mt-3 grid gap-2 grid-cols-2">
+                  {secondaryColumns.map((column) => {
+                    const cell = row.cells[column.key];
+                    if (!cell) {
+                      return null;
+                    }
+
+                    return (
+                      <CompactField
+                        key={`${row.id}-${column.key}`}
+                        label={column.label}
+                        cell={cell}
+                        onOpenPlayer={onOpenPlayer}
+                        wide={isWideEntityColumn(column.key)}
+                      />
+                    );
+                  })}
+                </div>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+      <div className="-mx-3 mt-3 hidden overflow-x-auto px-3 sm:block">
         <table className="w-full min-w-[34rem] border-collapse text-left text-[12px]">
           <thead>
             <tr className="border-y border-white/[0.06] bg-white/[0.03] text-white/55">

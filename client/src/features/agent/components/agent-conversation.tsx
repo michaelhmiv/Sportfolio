@@ -26,6 +26,7 @@ import {
   getBundleStatusLabel,
   getPrimaryClarification,
 } from "../lib/agent-view";
+import { prepareAssistantMessageDisplay } from "../lib/message-format";
 import type {
   AgentAction,
   AgentActionBundle,
@@ -588,6 +589,13 @@ function MessageBubble({
       : [];
   const isUser = isRealMessage ? message.role === "user" : true;
   const isError = isRealMessage && message.messageType === "error";
+  const assistantDisplay =
+    !isUser && isRealMessage
+      ? prepareAssistantMessageDisplay({
+          contentText: message.contentText,
+          uiBlocks: inlineUiBlocks,
+        })
+      : null;
 
   return (
     <div className={cn("flex w-full gap-3", isUser ? "justify-end" : "justify-start")}>
@@ -619,12 +627,28 @@ function MessageBubble({
         {isUser ? (
           <div className="text-[13px] leading-6 whitespace-pre-wrap">{message.contentText}</div>
         ) : (
-          <div className="agent-markdown text-[13.5px] leading-7">
-            <AssistantMarkdown contentText={message.contentText} onOpenPlayer={setActivePlayerId} />
-          </div>
+          <>
+            {assistantDisplay?.beforeText ? (
+              <div className="agent-markdown text-[13.5px] leading-7">
+                <AssistantMarkdown
+                  contentText={assistantDisplay.beforeText}
+                  onOpenPlayer={setActivePlayerId}
+                />
+              </div>
+            ) : null}
+          </>
         )}
 
         {inlineUiBlocks.length > 0 && <AgentUiBlockList blocks={inlineUiBlocks} className="mt-3" />}
+
+        {!isUser && assistantDisplay?.afterText ? (
+          <div className="agent-markdown mt-3 text-[13.5px] leading-7">
+            <AssistantMarkdown
+              contentText={assistantDisplay.afterText}
+              onOpenPlayer={setActivePlayerId}
+            />
+          </div>
+        ) : null}
 
         {isRealMessage && message.citations && message.citations.length > 0 && (
           <CitationList citations={message.citations} />

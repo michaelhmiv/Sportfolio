@@ -229,23 +229,117 @@ function inferPreferredColumns(remoteToolName: string) {
   return [];
 }
 
+type InternalMlbToolGuidance = {
+  description?: string;
+  whenToUse?: string[];
+  whenNotToUse?: string[];
+  examplePrompts?: string[];
+};
+
+const INTERNAL_MLB_TOOL_GUIDANCE: Record<string, InternalMlbToolGuidance> = {
+  get_schedule: {
+    description:
+      "Internal MLB MCP: confirm the current matchup, game status, probable pitchers, and game timing for a specific date or team before ranking players.",
+    whenToUse: [
+      "Hermes needs to verify tonight's matchup, current game state, or probable pitchers before giving MLB advice.",
+    ],
+    whenNotToUse: [
+      "The question is only about Sportfolio account state and does not need baseball enrichment.",
+    ],
+    examplePrompts: [
+      "what is the Yankees matchup tonight?",
+      "who are the probable starters for Yankees vs Marlins?",
+    ],
+  },
+  get_team_roster: {
+    description:
+      "Internal MLB MCP: list a team's active roster. Use it to verify team membership; it is not the same as tonight's confirmed starting lineup.",
+    whenToUse: [
+      "Hermes needs to confirm whether a player is currently on a team before naming them in a gameplan.",
+    ],
+    whenNotToUse: [
+      "You need only the expected starters or current batting order. Confirm the game context first.",
+    ],
+    examplePrompts: [
+      "who is on the Yankees active roster right now?",
+      "confirm whether this hitter is still on the Marlins roster",
+    ],
+  },
+  get_team_batting: {
+    description:
+      "Internal MLB MCP: season-level team batting totals. Use it for whole-team offense context, not for ranking individual hitters.",
+    whenToUse: [
+      "Hermes wants a high-level view of how strong a team's offense has been this season.",
+    ],
+    whenNotToUse: [
+      "You are comparing individual hitters, OBP, OPS, or lineup spots. Use roster, leaders, lineup, or player-stat tools instead.",
+    ],
+    examplePrompts: ["how good has the Yankees offense been this season overall?"],
+  },
+  get_team_leaders: {
+    description:
+      "Internal MLB MCP: return one team's leaders for a single stat category. Use explicit categories like onBasePercentage for OBP-style questions.",
+    whenToUse: [
+      "Hermes needs team-specific leader context after the matchup and roster are already confirmed.",
+    ],
+    whenNotToUse: [
+      "You need today's lineup, current roster membership, or a leaguewide leaderboard.",
+    ],
+    examplePrompts: [
+      "who leads the Yankees in onBasePercentage this season?",
+      "who are the Marlins OPS leaders this year?",
+    ],
+  },
+  get_league_leader_data: {
+    description:
+      "Internal MLB MCP: leaguewide leaderboard data for a stat category. Use it for MLB-wide context, not as proof of a team's current lineup or roster.",
+    whenToUse: [
+      "Hermes needs MLB-wide leader context, such as the best ERA marks or league OBP leaders.",
+    ],
+    whenNotToUse: [
+      "You are building a single-game team-specific hitter plan or verifying team membership.",
+    ],
+    examplePrompts: ["who are the MLB ERA leaders right now?", "who leads MLB in OBP this season?"],
+  },
+  lookup_player: {
+    description:
+      "Internal MLB MCP: resolve MLB player metadata and identifiers. These are not Sportfolio player IDs.",
+    whenToUse: ["Hermes needs MLB player metadata before another MLB-only enrichment read."],
+    whenNotToUse: [
+      "You are calling a Sportfolio-native tool that expects a Sportfolio player ID. Use a message-based preview tool instead.",
+    ],
+    examplePrompts: ["look up Aaron Judge in MLB data"],
+  },
+  get_playerid_lookup: {
+    description:
+      "Internal MLB MCP: resolve MLB and reference identifiers for a player name. These IDs are for MLB enrichment only, not for Sportfolio-native tool arguments.",
+    whenToUse: ["Hermes needs an MLB lookup result before calling another MLB enrichment tool."],
+    whenNotToUse: [
+      "You want to pass the result into a Sportfolio-native tool. Use a preview tool with a natural-language message instead.",
+    ],
+    examplePrompts: ["find the MLB identifier for Max Fried"],
+  },
+};
+
 function buildMcpToolDefinition(input: {
   localToolName: string;
   remoteToolName: string;
   description: string;
   inputSchema: Record<string, unknown> | null;
 }): AgentToolDefinition {
+  const guidance = INTERNAL_MLB_TOOL_GUIDANCE[input.remoteToolName] || null;
   return {
     toolName: input.localToolName,
     category: "read",
-    description: input.description,
-    whenToUse: [
+    description: guidance?.description || input.description,
+    whenToUse: guidance?.whenToUse || [
       `Use ${input.localToolName} when Hermes needs in-house MLB context from ${input.remoteToolName}.`,
     ],
     whenNotToUse: [
       "A Sportfolio-native Hermes tool already covers the exact account-specific question.",
+      ...(guidance?.whenNotToUse || []),
     ],
-    examplePrompts: [
+    examplePrompts: guidance?.examplePrompts || [
       "buy 10 shares of the mlb player who had the most home runs last year",
       "who led mlb in home runs last season?",
     ],
