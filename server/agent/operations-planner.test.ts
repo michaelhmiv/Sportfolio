@@ -908,10 +908,11 @@ describe("planDirectAgentOperation", () => {
   it("fails fast when a requested ranked-workflow boost slot is already occupied", async () => {
     const { planDirectAgentOperation } = await import("./operations-planner");
 
-    storageMocks.getDailyBoostsAllSports.mockResolvedValueOnce([
+    storageMocks.getDailyBoosts.mockResolvedValueOnce([
       {
         slotTier: 4,
         playerId: "mlb_occupied",
+        sport: "MLB",
       },
     ]);
 
@@ -927,6 +928,108 @@ describe("planDirectAgentOperation", () => {
     expect(result?.summary).toContain("4x slot is already filled");
     expect(result?.replyText).toContain("did not stage a partial bundle");
     expect(mlbMcpMocks.runInternalMlbMcpToolRaw).not.toHaveBeenCalled();
+  });
+
+  it("does not let cross-sport occupied slots block an MLB ranked workflow", async () => {
+    const { planDirectAgentOperation } = await import("./operations-planner");
+
+    storageMocks.getAvailableBalance.mockResolvedValueOnce(250);
+    storageMocks.getDailyBoosts.mockResolvedValueOnce([]);
+    storageMocks.getDailyBoostsAllSports.mockResolvedValue([]);
+    mlbMcpMocks.runInternalMlbMcpToolRaw.mockResolvedValueOnce({
+      remoteToolName: "get_league_leader_data",
+      content: [],
+      replyText: null,
+      structuredContent: {
+        result: {
+          leaders: [
+            [1, "Sandy Alcantara", "MIA", "1.90"],
+            [2, "Max Fried", "NYY", "2.05"],
+          ],
+        },
+      },
+    });
+    dbMocks.limit
+      .mockResolvedValueOnce([
+        {
+          id: "mlb_alcantara",
+          firstName: "Sandy",
+          lastName: "Alcantara",
+          sport: "MLB",
+          team: "MIA",
+          volume24h: 1200,
+          isActive: true,
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: "mlb_fried",
+          firstName: "Max",
+          lastName: "Fried",
+          sport: "MLB",
+          team: "NYY",
+          volume24h: 1100,
+          isActive: true,
+        },
+      ]);
+    poolMocks.getOrCreatePool.mockResolvedValue({
+      playerId: "pool",
+      playerName: "Pool",
+      yesPrice: "0.50",
+      noPrice: "0.50",
+      poolType: "dynamic",
+      totalLiquidity: "5000",
+      yesShares: "5000",
+      noShares: "5000",
+    });
+    poolMocks.getBuyQuote.mockImplementation(async ({ playerId }) => ({
+      playerId,
+      estimatedShares: "20",
+      totalCost: "125",
+      averagePricePerShare: "6.25",
+      priceImpact: "0.01",
+      estimatedPosition: {
+        quantity: 20,
+        avgCostBasis: "6.25",
+      },
+    }));
+    storageMocks.getPlayerGameForDate.mockImplementation(async (playerId) => {
+      const team = playerId === "mlb_alcantara" ? "MIA" : "NYY";
+      return {
+        id: `${playerId}_game`,
+        gameId: `${playerId}_game`,
+        sport: "MLB",
+        homeTeam: team,
+        awayTeam: "ATL",
+        startTime: new Date("2026-03-03T23:10:00.000Z"),
+        status: "scheduled",
+      };
+    });
+    storageMocks.getPlayerShareBreakdown.mockResolvedValue({
+      playerId: "player",
+      regularShares: 20,
+      powerShares: [],
+      totalUnlockedShares: 20,
+      maxStackableShares: 20,
+      bestAssignableHolding: {
+        quantity: 1,
+        power: 10,
+        powerLevel: 10,
+      },
+    });
+    storageMocks.getAvailableShares.mockResolvedValue(20);
+
+    const result = await planDirectAgentOperation({
+      userId: "user_1",
+      message:
+        "buy max shares for the two pitchers with lowest ERAs this season, then stack and boost in 5x and 4x respectively",
+      profile,
+    });
+
+    expect(result).not.toBeNull();
+    expect(result?.summary.toLowerCase()).not.toContain("slot is already filled");
+    expect(mlbMcpMocks.runInternalMlbMcpToolRaw).toHaveBeenCalled();
+    expect(storageMocks.getDailyBoosts).toHaveBeenCalledWith("user_1", "MLB", expect.any(Date));
   });
 
   it("caps ranked workflow buy sizes to the largest safe slippage-constrained amounts", async () => {

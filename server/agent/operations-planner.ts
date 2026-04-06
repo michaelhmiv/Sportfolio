@@ -4548,8 +4548,9 @@ async function buildRankedMlbWorkflowPlan(
   }
 
   if (spec.requiresBoost) {
-    const existingBoosts = await storage.getDailyBoostsAllSports(
+    const existingBoosts = await storage.getDailyBoosts(
       userId,
+      "MLB",
       spec.resolvedDate.targetDate,
     );
     const conflictingSlots = existingBoosts

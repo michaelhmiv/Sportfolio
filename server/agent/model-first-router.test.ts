@@ -1477,6 +1477,67 @@ describe("model-first-router", () => {
     expect(result.toolTrace.some((entry) => entry.toolName === "model_plan_recovery")).toBe(true);
   });
 
+  it("recovers direct action requests with leading context before the command verb", async () => {
+    mocks.callAgentModel
+      .mockResolvedValueOnce({
+        role: "assistant",
+        content: [],
+        api: "openai-completions",
+        provider: "chutes",
+        model: "test-model",
+        usage: buildUsage(),
+        stopReason: "stop",
+        timestamp: Date.now(),
+      })
+      .mockResolvedValueOnce({
+        role: "assistant",
+        content: [],
+        api: "openai-completions",
+        provider: "chutes",
+        model: "test-model",
+        usage: buildUsage(),
+        stopReason: "stop",
+        timestamp: Date.now(),
+      });
+
+    const result = await runHermesModelToolLoop({
+      profile: {
+        displayName: "My Agent",
+        providerMode: "managed",
+        model: "test-model",
+        baseUrl: null,
+        systemPrompt: "test",
+        userPromptTemplate: "test",
+        temperature: "0.2",
+        maxTokens: 800,
+      } as any,
+      secret: undefined,
+      request: {
+        ...buildRequest(),
+        message: "Hermes, buy Aaron Judge shares",
+        toolAllowlist: ["preview_direct_operation"],
+        toolCatalog: [
+          {
+            toolName: "preview_direct_operation",
+            category: "plan",
+            description: "Stage one action.",
+            whenToUse: ["Use when the user asks for one direct action."],
+            whenNotToUse: [],
+            examplePrompts: ["Buy Aaron Judge."],
+            requiresConfirmation: true,
+            riskLevel: "medium",
+          },
+        ],
+      },
+      matchedSkill: null,
+    });
+
+    expect(result.outcome).toBe("tool");
+    expect(result.terminationReason).toBe("plan_only_recovery");
+    expect((result as { toolName: string }).toolName).toBe("preview_direct_operation");
+    expect(result.toolTrace.some((entry) => entry.toolName === "model_plan_recovery")).toBe(true);
+  });
+
   it("recovers an explicit compound staged-action request after two empty provider turns", async () => {
     mocks.callAgentModel
       .mockResolvedValueOnce({

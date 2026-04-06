@@ -621,6 +621,56 @@ function includesIntentKeyword(message: string, keywords: readonly string[]) {
   return keywords.some((keyword) => new RegExp(`\\b${keyword}\\b`, "i").test(message));
 }
 
+function stripLeadingCommandPreamble(message: string) {
+  let normalized = message.trim().toLowerCase();
+  if (!normalized) {
+    return normalized;
+  }
+
+  const prefixPatterns = [
+    /^(?:hey|hi|hello)\s+/i,
+    /^(?:okay|ok|so|now|then)\b[,:-]?\s*/i,
+    /^(?:hermes|agent|sportfolio)(?:\s+operator)?\b[,:-]?\s*/i,
+  ] as const;
+
+  let changed = true;
+  while (changed && normalized) {
+    changed = false;
+    for (const pattern of prefixPatterns) {
+      const next = normalized.replace(pattern, "").trimStart();
+      if (next !== normalized) {
+        normalized = next;
+        changed = true;
+      }
+    }
+  }
+
+  const firstComma = normalized.indexOf(",");
+  if (firstComma > 0) {
+    const preamble = normalized.slice(0, firstComma).trim();
+    const remainder = normalized.slice(firstComma + 1).trimStart();
+    if (remainder && preamble.split(/\s+/).filter(Boolean).length <= 4) {
+      return remainder;
+    }
+  }
+
+  return normalized;
+}
+
+function hasDirectActionCommand(message: string) {
+  const normalized = stripLeadingCommandPreamble(message);
+  const directCommandPatterns = [
+    /^(?:please\s+)?(?:buy|sell|add|remove|set|assign|boost|stack|zap|condense|place|put|move|lock|scout|track|save|watchlist|unwatch)\b/i,
+    /^(?:please\s+)?(?:can|could|will)\s+you\s+(?:buy|sell|add|remove|set|assign|boost|stack|zap|condense|place|put|move|lock|scout|track|save|watchlist|unwatch)\b/i,
+    /^(?:please\s+)?(?:i want you to|i'd like you to|id like you to)\s+(?:buy|sell|add|remove|set|assign|boost|stack|zap|condense|place|put|move|lock|scout|track|save|watchlist|unwatch)\b/i,
+    /^(?:please\s+)?(?:create|make|activate|redeem)\s+(?:(?:a|my)\s+)?community\s+(?:boost|share)\b/i,
+    /^(?:please\s+)?(?:can|could|will)\s+you\s+(?:create|make|activate|redeem)\s+(?:(?:a|my)\s+)?community\s+(?:boost|share)\b/i,
+    /^(?:please\s+)?(?:i want you to|i'd like you to|id like you to)\s+(?:create|make|activate|redeem)\s+(?:(?:a|my)\s+)?community\s+(?:boost|share)\b/i,
+  ] as const;
+
+  return directCommandPatterns.some((pattern) => pattern.test(normalized));
+}
+
 function isExplicitPlanningIntent(message: string) {
   const normalized = message.trim().toLowerCase();
   if (!normalized) {
@@ -657,14 +707,6 @@ function isExplicitPlanningIntent(message: string) {
     "liquidity",
     "lp",
   ] as const;
-  const directCommandPatterns = [
-    /^(?:please\s+)?(?:buy|sell|add|remove|set|assign|boost|stack|zap|condense|place|put|move|lock|scout|track|save|watchlist|unwatch)\b/i,
-    /^(?:please\s+)?(?:can|could|will)\s+you\s+(?:buy|sell|add|remove|set|assign|boost|stack|zap|condense|place|put|move|lock|scout|track|save|watchlist|unwatch)\b/i,
-    /^(?:please\s+)?(?:i want you to|i'd like you to|id like you to)\s+(?:buy|sell|add|remove|set|assign|boost|stack|zap|condense|place|put|move|lock|scout|track|save|watchlist|unwatch)\b/i,
-    /^(?:please\s+)?(?:create|make|activate|redeem)\s+(?:(?:a|my)\s+)?community\s+(?:boost|share)\b/i,
-    /^(?:please\s+)?(?:can|could|will)\s+you\s+(?:create|make|activate|redeem)\s+(?:(?:a|my)\s+)?community\s+(?:boost|share)\b/i,
-    /^(?:please\s+)?(?:i want you to|i'd like you to|id like you to)\s+(?:create|make|activate|redeem)\s+(?:(?:a|my)\s+)?community\s+(?:boost|share)\b/i,
-  ] as const;
   const advisoryDecisionPatterns = [
     /\bwho should i\b/i,
     /\bwhat should i\b/i,
@@ -677,7 +719,7 @@ function isExplicitPlanningIntent(message: string) {
     /\bhelp me decide\b/i,
   ] as const;
 
-  if (directCommandPatterns.some((pattern) => pattern.test(normalized))) {
+  if (hasDirectActionCommand(normalized)) {
     return true;
   }
 
@@ -1568,20 +1610,23 @@ export async function runHermesModelToolLoop(input: {
       }
 
       const startedAt = Date.now();
+      const normalizedPlanningMessage = stripLeadingCommandPreamble(input.request.message);
       const looksLikeSingleLpAddRequest =
         /\b(?:add|deposit|provide|supply)(?:\s+liquidity)?\s+(?:to|into)\s+.+?\s+with\s+\d+(?:\.\d+)?\s+shares?\s+(?:and|plus)\s+\$?\d+(?:\.\d+)?/i.test(
-          input.request.message,
+          normalizedPlanningMessage,
         ) ||
         /\b(?:add|deposit|provide|supply)(?:\s+liquidity)?\s+\d+(?:\.\d+)?\s+shares?\s+(?:and|with)\s+\$?\d+(?:\.\d+)?\s*(?:sb|bucks|dollars?)?\s+(?:to|into)\s+.+?(?:'s)?(?:\s+pool)?$/i.test(
-          input.request.message,
+          normalizedPlanningMessage,
         );
       const looksCompoundActionRequest =
         (!looksLikeSingleLpAddRequest &&
           /(?:\b(?:and then|then)\b|,\s*)(?=(?:buy|stack|put|assign|boost|add|remove|sell|zap|create|set|move|place|lock)\b)/i.test(
-            input.request.message,
+            normalizedPlanningMessage,
           )) ||
         (!looksLikeSingleLpAddRequest &&
-          /\b(?:buy|sell|boost|scout|zap|liquidity|stack)\b.*\band\b/i.test(input.request.message));
+          /\b(?:buy|sell|boost|scout|zap|liquidity|stack)\b.*\band\b/i.test(
+            normalizedPlanningMessage,
+          ));
       const deterministicRecoveryTool = planTools.find(
         (tool) =>
           tool.toolName ===
