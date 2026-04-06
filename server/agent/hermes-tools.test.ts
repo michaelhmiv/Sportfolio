@@ -36,6 +36,7 @@ const mocks = vi.hoisted(() => ({
     getMarketActivity: vi.fn(),
     getPlayer: vi.fn(),
     getPlayers: vi.fn(),
+    getPlayersBySport: vi.fn(),
     getPlayerFinancialMetrics: vi.fn(),
     getPlayerRecentGamesFromLogs: vi.fn(),
     getPlayerSeasonStatsFromLogs: vi.fn(),
@@ -63,7 +64,9 @@ const mocks = vi.hoisted(() => ({
   proposeGlobalSkillCandidate: vi.fn(),
   getInternalMlbMcpToolCatalog: vi.fn(),
   isInternalMlbMcpProjectedTool: vi.fn(),
+  resolveInternalMlbMcpConfig: vi.fn(),
   runInternalMlbMcpReadTool: vi.fn(),
+  runInternalMlbMcpToolRaw: vi.fn(),
 }));
 
 vi.mock("./service", () => ({
@@ -141,7 +144,9 @@ vi.mock("./skills", () => ({
 vi.mock("./internal-mlb-mcp", () => ({
   getInternalMlbMcpToolCatalog: mocks.getInternalMlbMcpToolCatalog,
   isInternalMlbMcpProjectedTool: mocks.isInternalMlbMcpProjectedTool,
+  resolveInternalMlbMcpConfig: mocks.resolveInternalMlbMcpConfig,
   runInternalMlbMcpReadTool: mocks.runInternalMlbMcpReadTool,
+  runInternalMlbMcpToolRaw: mocks.runInternalMlbMcpToolRaw,
 }));
 
 import {
@@ -226,6 +231,7 @@ describe("hermes-tools", () => {
         lastTradePrice: "5.00",
       },
     ]);
+    mocks.storage.getPlayersBySport.mockResolvedValue([]);
     mocks.storage.getDailyGames.mockResolvedValue([
       {
         gameId: "game_1",
@@ -247,7 +253,11 @@ describe("hermes-tools", () => {
     mocks.listAgentSkillCandidates.mockResolvedValue([]);
     mocks.getInternalMlbMcpToolCatalog.mockResolvedValue([]);
     mocks.isInternalMlbMcpProjectedTool.mockReturnValue(false);
+    mocks.resolveInternalMlbMcpConfig.mockReturnValue({
+      toolPrefix: "mlb_mcp__",
+    });
     mocks.runInternalMlbMcpReadTool.mockReset();
+    mocks.runInternalMlbMcpToolRaw.mockReset();
   });
 
   it("materializes a native pool buy preview into a staged plan", async () => {
@@ -596,6 +606,220 @@ describe("hermes-tools", () => {
     expect(result.replyText.toLowerCase()).not.toContain("community boost");
   });
 
+  it("builds an MLB stat gameplan from internal MCP leaderboard data", async () => {
+    mocks.storage.getPlayersBySport.mockResolvedValue([
+      {
+        id: "mlb_judge",
+        firstName: "Aaron",
+        lastName: "Judge",
+        team: "NYY",
+        sport: "MLB",
+        position: "OF",
+        isActive: true,
+        currentPrice: "12.10",
+        lastTradePrice: "12.55",
+      },
+      {
+        id: "mlb_soto",
+        firstName: "Juan",
+        lastName: "Soto",
+        team: "NYM",
+        sport: "MLB",
+        position: "OF",
+        isActive: true,
+        currentPrice: "11.30",
+        lastTradePrice: "11.45",
+      },
+    ]);
+    mocks.storage.getDailyGames.mockResolvedValue([
+      {
+        gameId: "mlb_game_1",
+        sport: "MLB",
+        homeTeam: "NYY",
+        awayTeam: "BOS",
+        status: "scheduled",
+        startTime: new Date("2026-03-03T23:05:00.000Z"),
+      },
+      {
+        gameId: "mlb_game_2",
+        sport: "MLB",
+        homeTeam: "PHI",
+        awayTeam: "NYM",
+        status: "scheduled",
+        startTime: new Date("2026-03-04T00:10:00.000Z"),
+      },
+    ]);
+    mocks.runInternalMlbMcpToolRaw
+      .mockResolvedValueOnce({
+        structuredContent: {
+          result: {
+            leaders: [
+              ["1", "Aaron Judge", "New York Yankees", ".441"],
+              ["2", "Juan Soto", "New York Mets", ".432"],
+            ],
+          },
+        },
+      })
+      .mockResolvedValueOnce({
+        structuredContent: {
+          result: {
+            leaders: [
+              ["1", "Aaron Judge", "New York Yankees", "1.188"],
+              ["3", "Juan Soto", "New York Mets", "1.021"],
+            ],
+          },
+        },
+      });
+
+    const result = (await runHermesScanTool({
+      toolName: "scan_mlb_stat_gameplan",
+      userId: "user_1",
+      args: {
+        message: "based on OBP and OPS, build me an MLB gameplan for tomorrow",
+      },
+    })) as any;
+
+    expect(result.summary).toContain("OBP + OPS");
+    expect(result.replyText).toContain("Aaron Judge");
+    expect(result.replyText).toContain("Juan Soto");
+    expect(result.context.candidates).toHaveLength(2);
+    expect(mocks.runInternalMlbMcpToolRaw).toHaveBeenCalledTimes(2);
+  });
+
+  it("filters MLB stat gameplans to the team named in the prompt", async () => {
+    mocks.storage.getPlayersBySport.mockResolvedValue([
+      {
+        id: "mlb_judge",
+        firstName: "Aaron",
+        lastName: "Judge",
+        team: "NYY",
+        sport: "MLB",
+        position: "OF",
+        isActive: true,
+        currentPrice: "12.10",
+        lastTradePrice: "12.55",
+      },
+      {
+        id: "mlb_soto",
+        firstName: "Juan",
+        lastName: "Soto",
+        team: "NYM",
+        sport: "MLB",
+        position: "OF",
+        isActive: true,
+        currentPrice: "11.30",
+        lastTradePrice: "11.45",
+      },
+    ]);
+    mocks.storage.getDailyGames.mockResolvedValue([
+      {
+        gameId: "mlb_game_1",
+        sport: "MLB",
+        homeTeam: "NYY",
+        awayTeam: "BOS",
+        status: "scheduled",
+        startTime: new Date("2026-03-03T23:05:00.000Z"),
+      },
+      {
+        gameId: "mlb_game_2",
+        sport: "MLB",
+        homeTeam: "PHI",
+        awayTeam: "NYM",
+        status: "scheduled",
+        startTime: new Date("2026-03-04T00:10:00.000Z"),
+      },
+    ]);
+    mocks.runInternalMlbMcpToolRaw
+      .mockResolvedValueOnce({
+        structuredContent: {
+          result: {
+            leaders: [
+              ["1", "Aaron Judge", "New York Yankees", ".441"],
+              ["2", "Juan Soto", "New York Mets", ".432"],
+            ],
+          },
+        },
+      })
+      .mockResolvedValueOnce({
+        structuredContent: {
+          result: {
+            leaders: [
+              ["1", "Aaron Judge", "New York Yankees", "1.188"],
+              ["3", "Juan Soto", "New York Mets", "1.021"],
+            ],
+          },
+        },
+      });
+
+    const result = (await runHermesScanTool({
+      toolName: "scan_mlb_stat_gameplan",
+      userId: "user_1",
+      args: {
+        message:
+          "Compare Yankees hitters tonight by OBP and OPS and give me a gameplan for who I should buy or avoid.",
+      },
+    })) as any;
+
+    expect(result.replyText).toContain("Aaron Judge");
+    expect(result.replyText).not.toContain("Juan Soto");
+    expect(result.context.candidates).toHaveLength(1);
+    expect(result.observations).toContain("Applied an MLB team filter for NYY from the prompt.");
+  });
+
+  it("grounds later-today MLB stat scans to the current ET date even if the model passes a stale date arg", async () => {
+    mocks.storage.getPlayersBySport.mockResolvedValue([
+      {
+        id: "mlb_judge",
+        firstName: "Aaron",
+        lastName: "Judge",
+        team: "NYY",
+        sport: "MLB",
+        position: "OF",
+        isActive: true,
+        currentPrice: "12.10",
+        lastTradePrice: "12.55",
+      },
+    ]);
+    mocks.storage.getDailyGames.mockResolvedValue([
+      {
+        gameId: "mlb_game_1",
+        sport: "MLB",
+        homeTeam: "NYY",
+        awayTeam: "BOS",
+        status: "scheduled",
+        startTime: new Date("2026-03-02T23:05:00.000Z"),
+      },
+    ]);
+    mocks.runInternalMlbMcpToolRaw
+      .mockResolvedValueOnce({
+        structuredContent: {
+          result: {
+            leaders: [["1", "Aaron Judge", "New York Yankees", ".441"]],
+          },
+        },
+      })
+      .mockResolvedValueOnce({
+        structuredContent: {
+          result: {
+            leaders: [["1", "Aaron Judge", "New York Yankees", "1.188"]],
+          },
+        },
+      });
+
+    const result = (await runHermesScanTool({
+      toolName: "scan_mlb_stat_gameplan",
+      userId: "user_1",
+      args: {
+        date: "2026-03-27",
+        message: "who are top 5 batters in OPS this season that are playing later today?",
+      },
+    })) as any;
+
+    expect(result.summary).toContain("today");
+    expect(result.context.date).toBe("2026-03-02");
+    expect(result.replyText).toContain("Aaron Judge");
+  });
+
   it("scans community boost candidates without falling back to the deterministic planner", async () => {
     mocks.storage.getUserCommunityBoostShares.mockResolvedValue(1);
     mocks.storage.getPlayers.mockResolvedValue([
@@ -670,6 +894,7 @@ describe("hermes-tools", () => {
 
   it("builds a multi-action bundle preview for chained stack shares and boost requests", async () => {
     mocks.planDirectAgentOperation
+      .mockResolvedValueOnce(null)
       .mockResolvedValueOnce({
         replyText: "Stack Shares Amen",
         summary: "Stack Shares Amen",
@@ -733,8 +958,86 @@ describe("hermes-tools", () => {
     ]);
   });
 
-  it("does not reuse the previous player when an explicit boost target cannot be resolved", async () => {
+  it("uses the holistic compound planner result before falling back to clause splitting", async () => {
     mocks.planDirectAgentOperation.mockResolvedValueOnce({
+      replyText: "Buy then boost",
+      summary: "Buy then boost",
+      warnings: [],
+      observations: [],
+      actions: [
+        {
+          actionType: "pool_buy",
+          playerId: "nba_amen",
+          playerName: "Amen Thompson",
+          sbAmount: 25,
+        },
+        {
+          actionType: "daily_boost_assign",
+          playerId: "nba_amen",
+          playerName: "Amen Thompson",
+          slotTier: 4,
+          boostDate: "2026-03-02",
+          reasoning: "Boost next",
+        },
+      ],
+      trace: [],
+      contextSnapshot: {
+        intent: "buy_then_boost",
+      },
+    });
+
+    const result = (await runHermesPlanTool({
+      toolName: "preview_multi_action_bundle",
+      userId: "user_1",
+      args: {
+        message: "buy $25 of Amen Thompson and put him in my 4x boost slot today",
+      },
+    })) as any;
+
+    expect(mocks.planDirectAgentOperation).toHaveBeenCalledTimes(1);
+    expect(result.actions.map((action: any) => action.actionType)).toEqual([
+      "pool_buy",
+      "daily_boost_assign",
+    ]);
+    expect(result.generatedMessages).toEqual([
+      "buy $25 of Amen Thompson and put him in my 4x boost slot today",
+    ]);
+  });
+
+  it("returns a ranked workflow planner result directly instead of falling back to clause splitting", async () => {
+    mocks.planDirectAgentOperation.mockResolvedValueOnce({
+      replyText: "Ranked workflow unavailable",
+      summary: "Ranked workflow unavailable",
+      warnings: ["I could not build the full ranked multi-player workflow cleanly."],
+      observations: [],
+      actions: [],
+      trace: [],
+      contextSnapshot: {
+        intent: "ranked_stat_multi_player_workflow",
+      },
+    });
+
+    const result = (await runHermesPlanTool({
+      toolName: "preview_multi_action_bundle",
+      userId: "user_1",
+      args: {
+        message:
+          "buy max shares for the two pitchers with lowest ERAs this season, then stack and boost in 5x and 4x respectively",
+      },
+    })) as any;
+
+    expect(mocks.planDirectAgentOperation).toHaveBeenCalledTimes(1);
+    expect(result.generatedMessages).toEqual([
+      "buy max shares for the two pitchers with lowest ERAs this season, then stack and boost in 5x and 4x respectively",
+    ]);
+    expect(result.summary).toBe("Ranked workflow unavailable");
+    expect(result.warnings).toContain(
+      "I could not build the full ranked multi-player workflow cleanly.",
+    );
+  });
+
+  it("does not reuse the previous player when an explicit boost target cannot be resolved", async () => {
+    mocks.planDirectAgentOperation.mockResolvedValueOnce(null).mockResolvedValueOnce({
       replyText: "Stack Shares Amen",
       summary: "Stack Shares Amen",
       warnings: [],
@@ -773,11 +1076,104 @@ describe("hermes-tools", () => {
       },
     })) as any;
 
-    expect(mocks.planDirectAgentOperation).toHaveBeenCalledTimes(1);
+    expect(mocks.planDirectAgentOperation).toHaveBeenCalledTimes(2);
     expect(result.generatedMessages).toEqual(["stack shares 4 Amen Thompson shares"]);
     expect(result.warnings).toContain(
       'I could not find an unlocked holding for "unknown guy" to place in a boost slot.',
     );
+  });
+
+  it("carries player identity forward across sell-led multi-action bundle clauses", async () => {
+    mocks.planDirectAgentOperation
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        replyText: "Sell Amen",
+        summary: "Sell Amen",
+        warnings: [],
+        observations: [],
+        actions: [
+          {
+            actionType: "pool_sell",
+            playerId: "nba_amen",
+            playerName: "Amen Thompson",
+            sharesAmount: 2,
+            availableSharesBefore: 20,
+            availableSharesAfter: 18,
+            estimatedSbOut: 12,
+            estimatedPricePerShare: 6,
+            estimatedSlippagePercent: 1.5,
+            reasoning: "Sell first",
+          },
+        ],
+        trace: [],
+      })
+      .mockResolvedValueOnce({
+        replyText: "Stack Shares Amen",
+        summary: "Stack Shares Amen",
+        warnings: [],
+        observations: [],
+        actions: [
+          {
+            actionType: "holdings_stack_shares",
+            playerId: "nba_amen",
+            playerName: "Amen Thompson",
+            sharesToStack: 20,
+            expectedMultiplierGained: 10,
+            reasoning: "Stack second",
+          },
+        ],
+        trace: [],
+      })
+      .mockResolvedValueOnce({
+        replyText: "Boost Amen",
+        summary: "Boost Amen",
+        warnings: [],
+        observations: [],
+        actions: [
+          {
+            actionType: "daily_boost_assign",
+            playerId: "nba_amen",
+            playerName: "Amen Thompson",
+            slotTier: 4,
+            boostDate: "2026-03-02",
+            reasoning: "Boost third",
+          },
+        ],
+        trace: [],
+      });
+    mocks.storage.getUserHoldingsWithPlayers.mockResolvedValue([
+      {
+        holding: {
+          quantity: 20,
+        },
+        player: {
+          id: "nba_amen",
+          firstName: "Amen",
+          lastName: "Thompson",
+        },
+        totalLocked: 0,
+      },
+    ]);
+
+    const result = (await runHermesPlanTool({
+      toolName: "preview_multi_action_bundle",
+      userId: "user_1",
+      args: {
+        message: "sell 2 shares of Amen Thompson, then stack the rest and put him at 4x",
+      },
+    })) as any;
+
+    expect(mocks.planDirectAgentOperation.mock.calls.length).toBeGreaterThanOrEqual(3);
+    expect(result.generatedMessages).toEqual([
+      "sell 2 shares of amen thompson",
+      "stack shares 20 Amen Thompson shares",
+      "put Amen Thompson in my 4x boost slot today",
+    ]);
+    expect(result.actions.map((action: any) => action.actionType)).toEqual([
+      "pool_sell",
+      "holdings_stack_shares",
+      "daily_boost_assign",
+    ]);
   });
 
   it("upserts a user schedule through the action tool", async () => {

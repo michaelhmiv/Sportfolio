@@ -98,14 +98,15 @@ function formatEtDate(value: Date): string {
 }
 
 function isBlockedError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
+  const message = (error instanceof Error ? error.message : String(error)).toLowerCase();
   return [
-    "TELNYX_API_KEY is not configured",
-    "TELNYX_FROM_NUMBER or TELNYX_MESSAGING_PROFILE_ID must be configured",
-    "Perplexity",
+    "telnyx_api_key is not configured",
+    "telnyx_from_number or telnyx_messaging_profile_id must be configured",
+    "invalid destination number",
+    "perplexity",
     "provider",
     "table does not exist",
-    "Milestones unavailable",
+    "milestones unavailable",
   ].some((fragment) => message.includes(fragment));
 }
 
@@ -621,6 +622,23 @@ async function ensureSmsLinked(state: ValidationState) {
   return completeSmsPhoneLink(state.userId, token);
 }
 
+async function ensureRevokableApiToken(state: ValidationState) {
+  if (state.createdTokenId) {
+    return state.createdTokenId;
+  }
+
+  const response = await requestJson<{ token: { id: string } }>(state.baseUrl, {
+    path: "/api/account/tokens",
+    method: "POST",
+    body: {
+      label: `validation-revoke-${Date.now()}`,
+    },
+  });
+
+  state.createdTokenId = response.token.id;
+  return state.createdTokenId;
+}
+
 async function ensureActiveDailyBoost(state: ValidationState) {
   if (!state.gameId) {
     return;
@@ -901,6 +919,9 @@ async function validateCliSurface(state: ValidationState, results: ValidationRes
           maxActive: 7,
         });
       }
+      if (tool.name === "revoke_api_token") {
+        await ensureRevokableApiToken(state);
+      }
       if (tool.name === "stage_daily_boost_remove") {
         await ensureActiveDailyBoost(state);
       }
@@ -1049,6 +1070,9 @@ async function validateMcpSurface(
           keepTokenIds: [state.authTokenId],
           maxActive: 7,
         });
+      }
+      if (tool.name === "revoke_api_token") {
+        await ensureRevokableApiToken(state);
       }
       if (tool.name === "stage_daily_boost_remove") {
         await ensureActiveDailyBoost(state);

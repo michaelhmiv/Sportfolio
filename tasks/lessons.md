@@ -1,5 +1,32 @@
 # Lessons Learned
 
+## 2026-04-06
+
+- For relative-time sports prompts, do not trust a model-supplied tool `date` arg over the user's actual wording. If the message says `today`, `later today`, `tonight`, or `tomorrow`, resolve that window server-side from ET before honoring any stale explicit tool date.
+- Time-sensitive model loops need an explicit current-date anchor in the prompt. If the model has to choose tool args for `today` or `tonight` without a concrete ET date/time in-context, it can invent a stale calendar day even when the rest of the tool path is correct.
+
+- For local service validation in this repo, distinguish “the vendored service cannot boot” from “this tool shell cannot keep a detached child alive.” The foreground MLB MCP server proved the vendored service was healthy even though detached startup was not durable in-session.
+- When Hermes says an internal MCP source is unavailable, inspect the stored `toolTrace` in `user_agent_messages` before changing prompts. In this case the trace showed `scan_mlb_stat_gameplan` failed first and the later bad prose was just model drift after the real tool error.
+
+## 2026-04-03
+
+- For compound Hermes planner work, do not stop at `planDirectAgentOperation` unit coverage; restart the live dev server and replay the exact `/api/agent/threads/:id/messages` prompt variants because the model tool loop can still route into stale or different bundle-preview behavior than the direct planner.
+- When closing agent-schema or runtime hardening work, do not stop at unit tests and one happy-path UI check; run the public-surface dev validator plus live `/api/agent/threads` replays for advisory, single-action, and compound-action prompts before calling the fix complete.
+- Explicit staged-action requests need deterministic plan recovery even when the model answers early in prose with zero prior tool calls; otherwise compound buy-plus-boost requests can still skip staging despite the deterministic planners being available.
+- Public-surface validation needs to seed dependent state the same way the product actually works: if a public revoke tool depends on a token that can only be created outside the bearer-token surface, create that token out-of-band for the harness instead of treating the missing setup as a product failure.
+- Treat outbound SMS start in unattended dev validation as provider-blocked when Telnyx rejects a synthetic test number; that is not the same failure class as schema drift or a broken agent surface.
+
+## 2026-04-04
+
+- If Hermes is supposed to feel tool-first, bare action verbs like `scout Aaron Judge` and `track Aaron Judge` must count as explicit staged-action intent in the router; otherwise the model can answer with plausible advisory prose and completely bypass the deterministic plan tools that already know how to execute the move.
+- For assumption-first planner changes, validate the real `/api/agent/threads` contract with the exact natural-language prompts users will send. Unit tests caught the planner grammar, but live thread replays exposed that the router still needed broader explicit-intent coverage before the behavior matched the product goal.
+
+## 2026-04-02
+
+- When resetting Hermes against upstream capabilities, audit the runtime boundary by category before changing prompts or copy: orchestration, tool exposure, MCP roles, memory, skills, strategies, and channels all need explicit keep, narrow, or remove decisions.
+- Built-in and user-connected MCP should be classified as enrichment versus canonical product state before they are exposed in prompts, capability docs, or default allowlists; otherwise Hermes accumulates overlapping ways to answer the same question.
+- Optional enrichment storage like `user_mcp_sources` must not be allowed to break `/api/agent/profile` or the Agent settings surface; bootstrap that schema on first access and keep capability assembly fail-soft for external-source state while preserving loud failures for core agent tables.
+
 ## 2026-03-30
 
 - For Railway/production hotfixes in this repo, treat GitHub as the source of truth again before calling the incident done: reproduce in logs, patch on a clean branch from current `origin/main`, validate there, and push a fresh PR instead of letting a direct deploy become the only copy of the fix.
@@ -200,3 +227,5 @@
 - For Portfolio account history, treat Activity as a mobile-first ledger backed by existing immutable event tables instead of a decorative feed; dense rows, category chips, and drill-in links matter more than tall cards or narrative copy.
 - When the user defines autonomous agent scope broadly, write the exclusions down in code and docs immediately; "everything except purchases/premium/community boosts" is a product boundary, not a conversational preference.
 - For `/agent` layout work, do not trust static inspection or repo tests alone; verify the real mobile scroll owners in Playwright MCP before calling the redesign done.
+- For Hermes action parsing, live-test exact user phrasing on a real dev account: default-sport hints must not override exact full-name matches, direct boost verbs like `put`/`move` need to hit planning recovery, and team-specific MLB gameplans need an explicit team filter instead of assuming league-wide leaderboards are "close enough."
+- If tool-backed agent answers need structured tables in chat, preserve synthesized `uiBlocks` through the model-first router and orchestration handoff; otherwise ranked/MCP results get flattened into prose even when the renderer already supports clickable player tables.

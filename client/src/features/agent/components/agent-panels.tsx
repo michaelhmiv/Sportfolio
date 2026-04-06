@@ -165,7 +165,7 @@ export function AgentThreadPanel({
                           </span>
                         )}
                         <span className="text-[10px] text-white/20">
-                          {thread.channel === "sms" ? "SMS" : "In app"}
+                          {thread.channel === "sms" ? "Legacy SMS" : "In app"}
                         </span>
                       </div>
                     </div>

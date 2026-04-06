@@ -80,7 +80,7 @@ export function listAgentScheduleTemplates(): Array<{
 function mapScheduleRow(row: typeof userAgentSchedules.$inferSelect): AgentUserSchedule {
   const channelTargets = Array.isArray(row.channelTargets)
     ? row.channelTargets.filter(
-        (entry): entry is AgentChannel => entry === "in_app" || entry === "sms" || entry === "cli",
+        (entry): entry is AgentChannel => entry === "in_app" || entry === "cli",
       )
     : DEFAULT_IN_APP_CHANNELS;
 
@@ -271,7 +271,7 @@ export function buildUserAgentScheduleWriteState(input: {
 
 function normalizeChannelTargets(channelTargets?: AgentChannel[] | null): AgentChannel[] {
   const normalized = (channelTargets || []).filter(
-    (entry): entry is AgentChannel => entry === "in_app" || entry === "sms" || entry === "cli",
+    (entry): entry is AgentChannel => entry === "in_app" || entry === "cli",
   );
 
   return normalized.length > 0 ? normalized : DEFAULT_IN_APP_CHANNELS;

@@ -111,7 +111,11 @@ import {
   updateUserAgentStrategy,
 } from "./agent/strategies";
 import { runUserAgentStrategy } from "./agent/strategy-runner";
-import { createUserMcpSource, deleteUserMcpSource } from "./agent/mcp-sources";
+import {
+  createUserMcpSource,
+  deleteUserMcpSource,
+  ensureUserMcpSourceSchema,
+} from "./agent/mcp-sources";
 import {
   getAgentDataSource,
   listAgentDataSources,
@@ -959,6 +963,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       (normalized.includes("relation") || normalized.includes("column")) &&
       normalized.includes("does not exist")
     ) {
+      if (normalized.includes("user_mcp_sources")) {
+        return "Agent external MCP source schema is missing or outdated. Apply the latest migration and restart the server.";
+      }
+
       return "Agent database schema is missing or outdated. Apply the latest migration and restart the server.";
     }
 
@@ -11698,6 +11706,12 @@ ${items}
       await ensureAgentSystemSettingsSchema();
     } catch (err: any) {
       console.warn("[DB] Could not ensure agent system settings schema:", err?.message || err);
+    }
+
+    try {
+      await ensureUserMcpSourceSchema();
+    } catch (err: any) {
+      console.warn("[DB] Could not ensure user MCP source schema:", err?.message || err);
     }
 
     try {

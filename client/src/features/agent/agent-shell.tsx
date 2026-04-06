@@ -134,6 +134,7 @@ export default function AgentShell() {
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8 rounded-lg text-white/40 hover:bg-white/[0.06]"
+                      data-testid="agent-shell-more-menu-trigger"
                     >
                       <MoreHorizontal className="h-4 w-4" />
                     </Button>
@@ -146,6 +147,7 @@ export default function AgentShell() {
                       <DropdownMenuItem
                         className="gap-2 rounded-lg px-3 py-2.5 text-sm focus:bg-white/[0.06]"
                         onSelect={() => void shell.handleStartFreshChat()}
+                        data-testid="agent-shell-new-chat-menu-item"
                       >
                         <SquarePen className="h-4 w-4 text-white/40" />
                         New chat
@@ -158,6 +160,7 @@ export default function AgentShell() {
                         disabled={
                           !shell.activeChatThreadId || shell.createStrategyMutation.isPending
                         }
+                        data-testid="agent-shell-save-as-strategy-menu-item"
                       >
                         <Sparkles className="h-4 w-4 text-white/40" />
                         Save as strategy

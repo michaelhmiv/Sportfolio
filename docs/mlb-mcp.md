@@ -37,6 +37,18 @@ This repo does not require `uv` to run the vendored service locally.
    vendor\mlb-mcp\.venv\Scripts\python -m mlb_stats_mcp.server --http
    ```
 
+   Or use the repo helper in a separate terminal:
+
+   ```powershell
+   npm run mlb-mcp:start
+   ```
+
+   There is also an opt-in detached variant:
+
+   ```powershell
+   npm run mlb-mcp:start:detached
+   ```
+
 4. Start the main app. In development, Sportfolio now auto-detects the vendored MLB MCP on `http://127.0.0.1:8081/mcp` if no explicit MLB MCP env is set.
 
 5. Only set env manually when you want to override or disable the default:
@@ -56,7 +68,14 @@ This repo does not require `uv` to run the vendored service locally.
 Local MCP probe:
 
 ```powershell
+npm run mlb-mcp:status
 npm run mlb-mcp:probe -- --url http://127.0.0.1:8081/mcp --date 2026-03-27 --team-id 147
+```
+
+Stop the local helper-managed server:
+
+```powershell
+npm run mlb-mcp:stop
 ```
 
 Railway production smoke against the deployed `mlb-mcp` service:

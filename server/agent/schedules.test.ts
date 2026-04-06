@@ -19,7 +19,7 @@ describe("schedules", () => {
     expect(nextRun.toISOString()).toBe("2026-03-02T23:15:00.000Z");
   });
 
-  it("preserves existing enabled state and nextRunAt on partial updates", () => {
+  it("drops legacy sms targets while preserving existing enabled state and nextRunAt", () => {
     const existingNextRun = new Date("2026-03-03T13:00:00.000Z");
 
     const result = buildUserAgentScheduleWriteState({
@@ -41,7 +41,7 @@ describe("schedules", () => {
 
     expect(result.enabled).toBe(false);
     expect(result.scheduleCron).toBe("0 8 * * *");
-    expect(result.channelTargets).toEqual(["sms"]);
+    expect(result.channelTargets).toEqual(["in_app"]);
     expect(result.policy).toEqual({
       source: "user_update",
     });

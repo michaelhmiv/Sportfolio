@@ -1,16 +1,16 @@
 ---
 id: cli-overview
 title: CLI and External Access
-summary: How to use the Sportfolio CLI for documentation, shared public tool access, account actions, and the current relationship between CLI and MCP.
+summary: How to use the Sportfolio CLI for documentation, shared public tool access, account actions, and its relationship to public MCP and Hermes.
 audience: public
 category: cli
 status: published
 owner: product-engineering
-lastReviewedAt: 2026-03-12
+lastReviewedAt: 2026-04-02
 changeTriggers: packages/sportfolio-cli,server/routes/cli.ts,server/api-token-auth.ts,server/routes/mcp.ts
 slug: overview
 surface: web,cli
-searchKeywords: cli,api token,terminal,auth,actions,agent,docs,mcp,external access,model context protocol
+searchKeywords: cli,api token,terminal,auth,actions,agent,docs,mcp,external access,model context protocol,hermes
 ---
 
 # CLI and external access
@@ -75,7 +75,7 @@ So:
 
 - docs commands read the same wiki content used by the web docs hub
 - account and settings actions follow the same auth rules as the web app
-- MCP and CLI now share one public capability registry for tools, prompts, and resources
+- MCP and CLI share one public capability registry for tools, prompts, and resources
 - agent commands use the same staged-plan and confirmation model
 
 ## Good operational hygiene
@@ -93,7 +93,7 @@ The CLI is especially useful for:
 - searching docs while you trade in another window
 - using the agent in an operations-heavy or developer workflow
 
-If you want one cross-surface map of web, CLI, and SMS capabilities, read [User Action Surface](/wiki/features/user-action-surface).
+If you want one cross-surface map of web, CLI, and MCP capabilities, read [User Action Surface](/wiki/features/user-action-surface).
 
 If you need rich visual scanning, the web app remains the better primary surface. If you need fast, scriptable access, the CLI is the right tool.
 
@@ -105,8 +105,8 @@ That means terminal-friendly access now has two public paths:
 
 - use the CLI when you want the simplest shell workflow
 - use MCP when you are connecting through an MCP-aware client
-- use the web agent or SMS when you want a conversational surface instead of a protocol client
+- use the web agent when you want the primary conversational surface instead of a protocol client
 
-MCP uses the same user API tokens as the CLI and now shares the same non-purchase public capability surface. Both expose account/profile/token/SMS/agent-setting actions in addition to gameplay reads and staged actions. The remaining exclusions are external purchase/funding flows and admin/internal routes.
+MCP uses the same user API tokens as the CLI and shares the same non-purchase public capability surface. Hermes may also consume built-in or user-connected MCP sources internally, but that is separate from the public `/mcp` server.
 
 For the exact endpoint, auth model, and public MCP surface, read [MCP Access](/wiki/getting-started/mcp-access).

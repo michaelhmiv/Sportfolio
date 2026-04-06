@@ -62,6 +62,8 @@ export function classifyAgentProviderFailure(error: unknown): AgentProviderFailu
 export function stripHiddenReasoningText(text: string): string {
   return text
     .replace(/<think>[\s\S]*?<\/think>/gi, " ")
+    .replace(/<invoke\b[\s\S]*?<\/invoke>/gi, " ")
+    .replace(/<\/?minimax:tool_call>/gi, " ")
     .replace(/\s+/g, " ")
     .trim();
 }

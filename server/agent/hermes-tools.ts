@@ -53,7 +53,9 @@ import { queryExternalSource } from "./mcp-client";
 import {
   getInternalMlbMcpToolCatalog,
   isInternalMlbMcpProjectedTool,
+  resolveInternalMlbMcpConfig,
   runInternalMlbMcpReadTool,
+  runInternalMlbMcpToolRaw,
 } from "./internal-mlb-mcp";
 import type {
   AgentChannel,
@@ -87,6 +89,39 @@ type HermesScanResult = {
   context: Record<string, unknown>;
   intentFocus?: string;
 };
+
+const MLB_TEAM_REFERENCES = [
+  { code: "LAA", aliases: ["los angeles angels", "angels", "laa"] },
+  { code: "ARI", aliases: ["arizona diamondbacks", "diamondbacks", "dbacks", "ari"] },
+  { code: "BAL", aliases: ["baltimore orioles", "orioles", "bal"] },
+  { code: "BOS", aliases: ["boston red sox", "red sox", "bos"] },
+  { code: "CHC", aliases: ["chicago cubs", "cubs", "chc"] },
+  { code: "CIN", aliases: ["cincinnati reds", "reds", "cin"] },
+  { code: "CLE", aliases: ["cleveland guardians", "guardians", "cle"] },
+  { code: "COL", aliases: ["colorado rockies", "rockies", "col"] },
+  { code: "DET", aliases: ["detroit tigers", "tigers", "det"] },
+  { code: "HOU", aliases: ["houston astros", "astros", "hou"] },
+  { code: "KC", aliases: ["kansas city royals", "royals", "kc", "kcr"] },
+  { code: "LAD", aliases: ["los angeles dodgers", "dodgers", "lad"] },
+  { code: "WSH", aliases: ["washington nationals", "nationals", "nats", "wsh", "wsn"] },
+  { code: "NYM", aliases: ["new york mets", "mets", "nym"] },
+  { code: "ATH", aliases: ["athletics", "a's", "as", "oakland athletics", "ath", "oak"] },
+  { code: "PIT", aliases: ["pittsburgh pirates", "pirates", "pit"] },
+  { code: "SD", aliases: ["san diego padres", "padres", "sd", "sdp"] },
+  { code: "SEA", aliases: ["seattle mariners", "mariners", "sea"] },
+  { code: "SF", aliases: ["san francisco giants", "giants", "sf", "sfg"] },
+  { code: "STL", aliases: ["st louis cardinals", "cardinals", "stl"] },
+  { code: "TB", aliases: ["tampa bay rays", "rays", "tb", "tbr"] },
+  { code: "TEX", aliases: ["texas rangers", "rangers", "tex"] },
+  { code: "TOR", aliases: ["toronto blue jays", "blue jays", "jays", "tor"] },
+  { code: "MIN", aliases: ["minnesota twins", "twins", "min"] },
+  { code: "PHI", aliases: ["philadelphia phillies", "phillies", "phi"] },
+  { code: "ATL", aliases: ["atlanta braves", "braves", "atl"] },
+  { code: "CWS", aliases: ["chicago white sox", "white sox", "cws", "chw"] },
+  { code: "MIA", aliases: ["miami marlins", "marlins", "mia", "fla"] },
+  { code: "NYY", aliases: ["new york yankees", "yankees", "nyy"] },
+  { code: "MIL", aliases: ["milwaukee brewers", "brewers", "mil"] },
+] as const;
 
 const proposedMemoryWritesSchema = z.array(
   z.object({
@@ -278,6 +313,31 @@ const AGENT_TOOL_CATALOG: AgentToolDefinition[] = [
     preferredColumns: ["matchup", "status", "startTime", "venue"],
   },
   {
+    toolName: "scan_mlb_stat_gameplan",
+    category: "scan",
+    description:
+      "Build an MLB hitter or pitcher gameplan from internal MLB MCP leaderboard stats like OBP, OPS, ERA, and WHIP, filtered to active Sportfolio markets with a game in the requested window.",
+    whenToUse: [
+      "The user wants an MLB gameplan based on stat signals like OBP, OPS, ERA, or WHIP.",
+      "The user asks who stands out for tomorrow's MLB slate based on leaderboard stats.",
+      "The user wants a bounded MLB watchlist or buy list driven by the internal MLB MCP instead of generic opinion.",
+    ],
+    whenNotToUse: [
+      "The user already named a specific player and wants a direct staged move.",
+      "The user only wants a raw game schedule with no stat-based ranking.",
+    ],
+    examplePrompts: [
+      "based on OBP and OPS, build me an MLB gameplan for tomorrow",
+      "who stands out today by ERA and WHIP in MLB?",
+    ],
+    requiresConfirmation: false,
+    riskLevel: "low",
+    inputSchema: sportSlateSchema,
+    presentationProfile: "leaderboard",
+    primaryEntityType: "player",
+    preferredColumns: ["player", "team", "metric", "game"],
+  },
+  {
     toolName: "scan_team_roster",
     category: "scan",
     description:
@@ -342,17 +402,23 @@ const AGENT_TOOL_CATALOG: AgentToolDefinition[] = [
     ],
     requiresConfirmation: false,
     riskLevel: "low",
+    exposure: "advanced",
   },
   {
     toolName: "preview_direct_operation",
     category: "plan",
     description:
-      "Use the deterministic operation planner to interpret and preview a concrete user command.",
+      "Use the deterministic operation planner to interpret and preview a concrete user command. It can assume safe defaults for obvious bare-intent actions like buy, sell, stack, boost, or scout when the user leaves out size or slot details.",
     whenToUse: [
       "The user gave an explicit operational request and you need a confirmation-ready plan.",
     ],
     whenNotToUse: ["The user is still asking an advisory who/what/which question."],
-    examplePrompts: ["buy $25 of Austin Hill", "put Anthony Edwards in my 2x boost slot today"],
+    examplePrompts: [
+      "buy Aaron Judge",
+      "buy $25 of Austin Hill",
+      "stack my Fried shares",
+      "boost Aaron Judge",
+    ],
     requiresConfirmation: true,
     riskLevel: "medium",
     presentationProfile: "execution",
@@ -371,6 +437,7 @@ const AGENT_TOOL_CATALOG: AgentToolDefinition[] = [
       "The user only wants a single direct action preview.",
     ],
     examplePrompts: [
+      "buy Aaron Judge and put him in my boost slot",
       "stack shares Amen and put him at 4x, then stack Jokic and put him at 5x",
       "buy 16 Austin Hill shares, stack them, then put the stacked share in my 5x slot",
     ],
@@ -418,6 +485,7 @@ const AGENT_TOOL_CATALOG: AgentToolDefinition[] = [
     examplePrompts: ["create a watchlist for tonight's boost targets"],
     requiresConfirmation: false,
     riskLevel: "low",
+    exposure: "advanced",
   },
   {
     toolName: "update_watchlist",
@@ -428,6 +496,7 @@ const AGENT_TOOL_CATALOG: AgentToolDefinition[] = [
     examplePrompts: ["rename my value watchlist to nba value"],
     requiresConfirmation: false,
     riskLevel: "low",
+    exposure: "advanced",
   },
   {
     toolName: "delete_watchlist",
@@ -438,6 +507,7 @@ const AGENT_TOOL_CATALOG: AgentToolDefinition[] = [
     examplePrompts: ["delete my stale watchlist"],
     requiresConfirmation: false,
     riskLevel: "low",
+    exposure: "advanced",
   },
   {
     toolName: "add_watchlist_player",
@@ -468,6 +538,7 @@ const AGENT_TOOL_CATALOG: AgentToolDefinition[] = [
     examplePrompts: ["set up a daily setup review for me"],
     requiresConfirmation: false,
     riskLevel: "low",
+    exposure: "advanced",
   },
   {
     toolName: "delete_user_schedule",
@@ -478,6 +549,7 @@ const AGENT_TOOL_CATALOG: AgentToolDefinition[] = [
     examplePrompts: ["remove my idle balance nudge"],
     requiresConfirmation: false,
     riskLevel: "low",
+    exposure: "advanced",
   },
   {
     toolName: "list_runtime_skills",
@@ -489,6 +561,7 @@ const AGENT_TOOL_CATALOG: AgentToolDefinition[] = [
     examplePrompts: ["have i solved something like this before?"],
     requiresConfirmation: false,
     riskLevel: "low",
+    exposure: "advanced",
   },
   {
     toolName: "create_runtime_skill",
@@ -504,6 +577,7 @@ const AGENT_TOOL_CATALOG: AgentToolDefinition[] = [
     examplePrompts: ["save this as a reusable workflow for this user"],
     requiresConfirmation: false,
     riskLevel: "low",
+    exposure: "internal_only",
   },
   {
     toolName: "propose_global_pattern",
@@ -515,6 +589,7 @@ const AGENT_TOOL_CATALOG: AgentToolDefinition[] = [
     examplePrompts: ["flag this workflow pattern for admin review"],
     requiresConfirmation: false,
     riskLevel: "low",
+    exposure: "internal_only",
   },
 ];
 
@@ -924,6 +999,171 @@ function resolveDateLabel(targetDate: Date) {
   );
 
   return requestedDate === tomorrow ? "tomorrow" : requestedDate;
+}
+
+type MlbGameplanStatSpec = {
+  leaderCategory: string;
+  label: "OBP" | "OPS" | "ERA" | "WHIP";
+  statGroup: "hitting" | "pitching";
+};
+
+type MlbGameplanLeaderRow = {
+  rank: number | null;
+  playerName: string;
+  teamName: string | null;
+  valueLabel: string | null;
+  numericValue: number | null;
+};
+
+function normalizeNameKey(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function inferMlbTeamsFromMessage(message: string) {
+  const normalized = message.trim().toLowerCase();
+  if (!normalized) {
+    return [];
+  }
+
+  return MLB_TEAM_REFERENCES.filter((team) =>
+    team.aliases.some((alias) => new RegExp(`\\b${escapeRegExp(alias)}\\b`, "i").test(normalized)),
+  );
+}
+
+function parseMlbGameplanStatSpecs(message: string): MlbGameplanStatSpec[] {
+  const lower = toStringValue(message).toLowerCase();
+  const specs: MlbGameplanStatSpec[] = [];
+
+  if (/\bobp\b/.test(lower)) {
+    specs.push({
+      leaderCategory: "onBasePercentage",
+      label: "OBP",
+      statGroup: "hitting",
+    });
+  }
+  if (/\bops\b/.test(lower)) {
+    specs.push({
+      leaderCategory: "ops",
+      label: "OPS",
+      statGroup: "hitting",
+    });
+  }
+  if (/\beras?\b/.test(lower)) {
+    specs.push({
+      leaderCategory: "earnedRunAverage",
+      label: "ERA",
+      statGroup: "pitching",
+    });
+  }
+  if (/\bwhip\b/.test(lower)) {
+    specs.push({
+      leaderCategory: "whip",
+      label: "WHIP",
+      statGroup: "pitching",
+    });
+  }
+
+  return specs;
+}
+
+function extractMlbLeaderboardRows(payload: unknown): MlbGameplanLeaderRow[] {
+  const rows = Array.isArray(
+    (payload as { result?: { leaders?: unknown[] } } | null)?.result?.leaders,
+  )
+    ? ((payload as { result?: { leaders?: unknown[] } }).result?.leaders as unknown[])
+    : [];
+
+  return rows
+    .map((entry) => {
+      if (!Array.isArray(entry) || entry.length < 4) {
+        return null;
+      }
+
+      const rank = Number.parseInt(String(entry[0]), 10);
+      const numericValue = Number.parseFloat(String(entry[3]));
+
+      return {
+        rank: Number.isFinite(rank) ? rank : null,
+        playerName: toStringValue(entry[1]),
+        teamName: toOptionalString(entry[2]),
+        valueLabel: toOptionalString(entry[3]),
+        numericValue: Number.isFinite(numericValue) ? numericValue : null,
+      };
+    })
+    .filter((entry): entry is MlbGameplanLeaderRow => Boolean(entry?.playerName));
+}
+
+function extractExplicitIsoDateFromMessage(message: string): string | null {
+  const match = message.match(/\b(20\d{2}-\d{2}-\d{2})\b/);
+  return match?.[1] || null;
+}
+
+function messageUsesCurrentSlateDate(message: string) {
+  return /\b(?:later today|today|today's|todays|tonight|right now|current slate|this slate|this afternoon|this evening)\b/i.test(
+    message,
+  );
+}
+
+function resolveMessageTargetDate(rawDate: unknown, message: string): Date {
+  const explicitDateInMessage = extractExplicitIsoDateFromMessage(message);
+  if (explicitDateInMessage) {
+    return resolveTargetDate(explicitDateInMessage);
+  }
+
+  if (/\btomorrow\b/i.test(message)) {
+    const { startOfDay } = getETDayBoundaries(getTodayET());
+    return new Date(startOfDay.getTime() + 36 * 60 * 60 * 1000);
+  }
+
+  if (messageUsesCurrentSlateDate(message)) {
+    return resolveTargetDate(null);
+  }
+
+  const requestedDate = toStringValue(rawDate);
+  if (requestedDate) {
+    return resolveTargetDate(requestedDate);
+  }
+
+  return resolveTargetDate(null);
+}
+
+async function buildMlbTeamGameMap(targetDate: Date, teamFilter: Set<string>) {
+  const requestedDate = targetDate.toISOString().slice(0, 10);
+  const { startOfDay } = getETDayBoundaries(requestedDate);
+  const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000 - 1);
+  const games = (await storage.getDailyGames(startOfDay, endOfDay, "MLB")).filter((game) =>
+    teamFilter.size > 0 ? teamFilter.has(game.homeTeam) || teamFilter.has(game.awayTeam) : true,
+  );
+
+  const teamGameMap = new Map<
+    string,
+    { gameId: string; opponent: string; startTime: string; status: string | null }
+  >();
+
+  for (const game of games) {
+    teamGameMap.set(game.homeTeam, {
+      gameId: game.gameId,
+      opponent: `vs ${game.awayTeam}`,
+      startTime: game.startTime.toISOString(),
+      status: game.status,
+    });
+    teamGameMap.set(game.awayTeam, {
+      gameId: game.gameId,
+      opponent: `@ ${game.homeTeam}`,
+      startTime: game.startTime.toISOString(),
+      status: game.status,
+    });
+  }
+
+  return teamGameMap;
 }
 
 function selectScannerBackedUpcomingCandidate(input: {
@@ -1667,9 +1907,26 @@ function inferMaxStackShareCount(availableShares: number): number | null {
 
 function stripBundleNoiseWords(text: string): string {
   return text
-    .replace(/\b(my|the|his|her|their|all|some|as many|as possible)\b/gi, "")
+    .replace(
+      /\b(my|the|his|her|their|all|some|rest|remainder|remaining|them|him|it|as many|as possible|if possible|if eligible|possible|eligible|of)\b/gi,
+      "",
+    )
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function splitMultiActionClauses(message: string): string[] {
+  const normalized = message
+    .replace(/[;]+/g, " and ")
+    .replace(
+      /,\s*(?=(?:then\s+)?(?:buy|stack|put|assign|boost|place|slot|lock|add|remove|sell|zap|create|set|move)\b)/gi,
+      " and ",
+    );
+
+  return normalized
+    .split(/\b(?:and then|then|and)\b/i)
+    .map((entry) => entry.trim().replace(/^[,.\s]+|[,.\s]+$/g, ""))
+    .filter(Boolean);
 }
 
 async function buildMultiActionBundlePreview(input: {
@@ -1681,11 +1938,47 @@ async function buildMultiActionBundlePreview(input: {
     throw new Error("message is required for preview_multi_action_bundle");
   }
 
+  const profile = (await getScoutAgentProfile(input.userId)).profile;
+  const holisticPlan = await planDirectAgentOperation({
+    userId: input.userId,
+    message: rawMessage,
+    profile,
+    allowAdvisoryResponses: false,
+  });
+  const holisticIntent =
+    typeof holisticPlan?.contextSnapshot?.intent === "string"
+      ? holisticPlan.contextSnapshot.intent
+      : null;
+
+  if (
+    holisticPlan &&
+    (holisticPlan.pendingClarification ||
+      (holisticPlan.actions || []).length > 1 ||
+      (holisticIntent != null &&
+        new Set([
+          "buy_stack_boost",
+          "buy_then_boost",
+          "buy_then_stack",
+          "buy_then_stack_then_boost",
+          "stack_then_boost",
+          "sell_then_stack",
+          "sell_then_boost",
+          "sell_then_stack_then_boost",
+          "ranked_stat_multi_player_workflow",
+        ]).has(holisticIntent)))
+  ) {
+    return {
+      ...holisticPlan,
+      generatedMessages: [rawMessage],
+      contextSnapshot: {
+        ...(holisticPlan.contextSnapshot || {}),
+        generatedMessages: [rawMessage],
+      },
+    };
+  }
+
   const normalized = rawMessage.toLowerCase();
-  const clauses = normalized
-    .split(/\b(?:and then|then|and)\b/i)
-    .map((entry) => entry.trim())
-    .filter(Boolean);
+  const clauses = splitMultiActionClauses(normalized);
 
   if (clauses.length < 2) {
     throw new Error("preview_multi_action_bundle requires a compound multi-step request");
@@ -1697,16 +1990,35 @@ async function buildMultiActionBundlePreview(input: {
   let lastResolvedPlayerId: string | null = null;
 
   for (const clause of clauses) {
-    const buyMatch = clause.match(
-      /\bbuy\s+(?:as\s+many\s+)?([a-z .'-]+?)(?:\s+shares?)?\s*(?:as\s+(?:possible|i\s+can(?:\s+afford)?))?$/i,
-    );
+    const buyMatch =
+      clause.match(
+        /\bbuy\s+\$?\d+(?:\.\d+)?\s+(?:of\s+)?([a-z .'-]+?)(?:\s+from\s+the\s+pool|\s+in\s+the\s+pool|\s+in\s+pool|$)/i,
+      ) ||
+      clause.match(
+        /\bbuy\s+(?:as\s+many\s+)?([a-z .'-]+?)(?:\s+shares?)?\s*(?:as\s+(?:possible|i\s+can(?:\s+afford)?))?$/i,
+      ) ||
+      clause.match(/\bbuy\s+\d+\s+(.+?)\s+shares?\b/i) ||
+      clause.match(/\bbuy\s+\d+\s+shares?\s+of\s+(.+?)$/i);
     if (buyMatch) {
       const rawName = stripBundleNoiseWords(buyMatch[1]);
       if (rawName) {
-        generatedMessages.push(`buy ${rawName}`);
+        generatedMessages.push(clause);
         lastResolvedPlayerName = rawName;
       } else {
         generatedMessages.push(clause);
+      }
+      continue;
+    }
+
+    const sellMatch =
+      clause.match(
+        /\bsell\s+\d+(?:\.\d+)?\s+shares?\s+(?:of\s+)?([a-z .'-]+?)(?:\s+from\s+the\s+pool|\s+from\s+the\s+market|$)/i,
+      ) || clause.match(/\bsell\s+\d+(?:\.\d+)?\s+([a-z .'-]+?)\s+shares?\b/i);
+    if (sellMatch) {
+      const rawName = stripBundleNoiseWords(sellMatch[1]);
+      generatedMessages.push(clause);
+      if (rawName) {
+        lastResolvedPlayerName = rawName;
       }
       continue;
     }
@@ -1769,7 +2081,7 @@ async function buildMultiActionBundlePreview(input: {
         }
       }
 
-      if (!playerName || !lastResolvedPlayerId) {
+      if (!playerName) {
         blockingReasons.push(
           "I need the player tied to that boost slot request before I can build the multi-step preview.",
         );
@@ -1777,6 +2089,7 @@ async function buildMultiActionBundlePreview(input: {
       }
 
       generatedMessages.push(`put ${playerName} in my ${slotMatch[2]}x boost slot today`);
+      lastResolvedPlayerName = playerName;
       continue;
     }
 
@@ -1825,7 +2138,6 @@ async function buildMultiActionBundlePreview(input: {
     };
   }
 
-  const profile = (await getScoutAgentProfile(input.userId)).profile;
   const combinedActions: any[] = [];
   const warnings: string[] = [];
   const observations: string[] = [];
@@ -2453,6 +2765,213 @@ async function buildSportSlateScan(input: {
   };
 }
 
+async function buildMlbStatGameplanScan(input: {
+  userId: string;
+  args?: Record<string, unknown>;
+}): Promise<HermesScanResult> {
+  const message = toStringValue(input.args?.message) || "Build an MLB stat gameplan.";
+  const statSpecs = parseMlbGameplanStatSpecs(message);
+  const targetDate = resolveMessageTargetDate(input.args?.date, message);
+  const dateLabel = resolveDateLabel(targetDate);
+  const season = Number.parseInt(targetDate.toISOString().slice(0, 4), 10);
+  const requestedTeamCodes = new Set<string>(
+    inferMlbTeamsFromMessage(message).map((team) => team.code),
+  );
+
+  if (statSpecs.length === 0) {
+    return {
+      toolName: "scan_mlb_stat_gameplan",
+      domain: "sportfolio",
+      summary: "I need at least one supported MLB stat signal to build that gameplan.",
+      replyText:
+        "Use an MLB stat signal like OBP, OPS, ERA, or WHIP so I can build a leaderboard-driven gameplan from the internal MLB feed.",
+      observations: [],
+      warnings: ["Missing supported MLB stat signal."],
+      context: { supportedStats: ["OBP", "OPS", "ERA", "WHIP"] },
+    };
+  }
+
+  const allMlbPlayers = (await storage.getPlayersBySport("MLB")).filter(
+    (player) => player.isActive,
+  );
+  const playerByName = new Map<string, (typeof allMlbPlayers)[number]>();
+  for (const player of allMlbPlayers) {
+    const key = normalizeNameKey(`${player.firstName} ${player.lastName}`);
+    if (!playerByName.has(key)) {
+      playerByName.set(key, player);
+    }
+  }
+
+  const leaderboards: Array<{ spec: MlbGameplanStatSpec; rows: MlbGameplanLeaderRow[] }> = [];
+  for (const spec of statSpecs) {
+    const result = await runInternalMlbMcpToolRaw({
+      toolName: `${resolveInternalMlbMcpConfig().toolPrefix}get_league_leader_data`,
+      args: {
+        leader_categories: spec.leaderCategory,
+        season,
+        limit: 15,
+        stat_group: spec.statGroup,
+      },
+    });
+
+    leaderboards.push({
+      spec,
+      rows: extractMlbLeaderboardRows(result.structuredContent),
+    });
+  }
+
+  const relevantTeams = new Set<string>();
+  for (const board of leaderboards) {
+    for (const row of board.rows) {
+      const matchedPlayer = playerByName.get(normalizeNameKey(row.playerName));
+      if (matchedPlayer?.team) {
+        relevantTeams.add(matchedPlayer.team);
+      }
+    }
+  }
+
+  const teamGameMap = await buildMlbTeamGameMap(targetDate, relevantTeams);
+  const candidateMap = new Map<
+    string,
+    {
+      player: (typeof allMlbPlayers)[number];
+      score: number;
+      stats: Array<{ label: string; rank: number | null; valueLabel: string | null }>;
+      game: {
+        gameId: string;
+        opponent: string;
+        startTime: string;
+        status: string | null;
+      } | null;
+    }
+  >();
+  const warnings: string[] = [];
+
+  for (const board of leaderboards) {
+    for (const row of board.rows) {
+      const matchedPlayer = playerByName.get(normalizeNameKey(row.playerName));
+      if (!matchedPlayer) {
+        continue;
+      }
+      if (requestedTeamCodes.size > 0 && !requestedTeamCodes.has(matchedPlayer.team)) {
+        continue;
+      }
+
+      const game = teamGameMap.get(matchedPlayer.team) || null;
+      if (relevantTeams.size > 0 && teamGameMap.size > 0 && !game) {
+        continue;
+      }
+
+      const existing = candidateMap.get(matchedPlayer.id) || {
+        player: matchedPlayer,
+        score: 0,
+        stats: [],
+        game,
+      };
+      existing.score += Math.max(0, 20 - (row.rank || 20));
+      existing.stats.push({
+        label: board.spec.label,
+        rank: row.rank,
+        valueLabel: row.valueLabel,
+      });
+      existing.game = existing.game || game;
+      candidateMap.set(matchedPlayer.id, existing);
+    }
+  }
+
+  const candidates = [...candidateMap.values()]
+    .filter((entry) => entry.stats.length > 0)
+    .sort((left, right) => {
+      if (right.stats.length !== left.stats.length) {
+        return right.stats.length - left.stats.length;
+      }
+      return right.score - left.score;
+    })
+    .slice(0, 4);
+
+  if (candidates.length === 0) {
+    return {
+      toolName: "scan_mlb_stat_gameplan",
+      domain: "sportfolio",
+      summary:
+        "I could not map enough MLB leaderboard names into active Sportfolio markets for that gameplan.",
+      replyText:
+        "The internal MLB stat feed responded, but I could not turn those leaderboard names into active Sportfolio MLB markets with a usable game window.",
+      observations: [],
+      warnings: ["No active Sportfolio MLB markets matched the requested leaderboard signals."],
+      context: {
+        stats: statSpecs.map((spec) => spec.label),
+        season,
+        date: targetDate.toISOString().slice(0, 10),
+      },
+    };
+  }
+
+  if (teamGameMap.size === 0) {
+    warnings.push(
+      `I did not find any MLB games on the board for ${dateLabel}, so this is a pure leaderboard watchlist.`,
+    );
+  }
+
+  const focusLabel = statSpecs.every((spec) => spec.statGroup === "pitching")
+    ? "pitching"
+    : statSpecs.every((spec) => spec.statGroup === "hitting")
+      ? "hitting"
+      : "mixed";
+
+  const replyLines = candidates.map((entry, index) => {
+    const statLine = entry.stats
+      .map(
+        (stat) =>
+          `${stat.label} #${stat.rank || "?"}${stat.valueLabel ? ` (${stat.valueLabel})` : ""}`,
+      )
+      .join(", ");
+    const gameLine = entry.game
+      ? `${entry.game.opponent} at ${new Date(entry.game.startTime).toLocaleTimeString("en-US", {
+          hour: "numeric",
+          minute: "2-digit",
+          timeZone: "America/New_York",
+        })} ET`
+      : "no game confirmed in the requested window";
+    const price = Number(entry.player.lastTradePrice || entry.player.currentPrice || 0);
+    return `${index + 1}. ${entry.player.firstName} ${entry.player.lastName} (${entry.player.team}) - ${statLine}; ${gameLine}; price $${price.toFixed(2)}`;
+  });
+
+  return {
+    toolName: "scan_mlb_stat_gameplan",
+    domain: "sportfolio",
+    summary: `Built an MLB ${focusLabel} gameplan for ${dateLabel} from ${statSpecs.map((spec) => spec.label).join(" + ")} leaderboard data.`,
+    replyText: `For ${dateLabel}'s MLB ${focusLabel} gameplan, start here:\n${replyLines.join("\n")}`,
+    observations: [
+      `Internal MLB MCP leaderboard categories used: ${statSpecs.map((spec) => spec.label).join(", ")}.`,
+      `${candidates.length} active Sportfolio MLB market${candidates.length === 1 ? "" : "s"} matched the requested stat signals.`,
+      ...(requestedTeamCodes.size > 0
+        ? [`Applied an MLB team filter for ${[...requestedTeamCodes].join(", ")} from the prompt.`]
+        : []),
+      ...(teamGameMap.size > 0
+        ? [`${teamGameMap.size} MLB team game context entries were confirmed for ${dateLabel}.`]
+        : []),
+    ],
+    warnings,
+    context: {
+      date: targetDate.toISOString().slice(0, 10),
+      dateLabel,
+      season,
+      focus: focusLabel,
+      stats: statSpecs.map((spec) => spec.label),
+      candidates: candidates.map((entry) => ({
+        playerId: entry.player.id,
+        name: `${entry.player.firstName} ${entry.player.lastName}`,
+        team: entry.player.team,
+        position: entry.player.position,
+        price: entry.player.lastTradePrice || entry.player.currentPrice,
+        stats: entry.stats,
+        game: entry.game,
+      })),
+    },
+  };
+}
+
 async function buildTeamRosterScan(input: {
   userId: string;
   args?: Record<string, unknown>;
@@ -2801,6 +3320,8 @@ export async function runHermesScanTool(input: {
       return buildNewsImpactScan(input);
     case "scan_sport_slate":
       return buildSportSlateScan(input);
+    case "scan_mlb_stat_gameplan":
+      return buildMlbStatGameplanScan(input);
     case "scan_team_roster":
       return buildTeamRosterScan(input);
     case "scan_player_upcoming_games":
