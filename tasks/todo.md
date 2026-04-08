@@ -4,7 +4,7 @@
 - [x] Merge `origin/main` into `chore/non-telegram-rollup` and resolve conflict files cleanly
 - [x] Patch unresolved review comments for agent turn-stream auth and `PlayerName` click behavior
 - [x] Run required validation (`npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`)
-- [ ] Commit and push the merge-resolution + comment fixes to PR #117 branch
+- [x] Commit and push the merge-resolution + comment fixes to PR #117 branch
 
 Review:
 
