@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, ChevronUp, RefreshCw, X } from "lucide-react";
 import { Shimmer } from "@/components/ui/animations";
 import { Badge } from "@/components/ui/badge";
+import { openPlayerModal } from "@/lib/player-modal-events";
 
 // NBA Player Stats
 export interface NBAPlayerStats {
@@ -215,6 +216,30 @@ export function LiveGameStats({ gameId, sport, teams, scores, status }: LiveGame
   );
 }
 
+function ModalPlayerName({ playerId, name }: { playerId: string; name: string }) {
+  const handleActivate = (event: React.MouseEvent | React.KeyboardEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    openPlayerModal(playerId);
+  };
+
+  return (
+    <span
+      role="button"
+      tabIndex={0}
+      onClick={handleActivate}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          handleActivate(event);
+        }
+      }}
+      className="truncate cursor-pointer underline-offset-2 hover:underline focus-visible:underline"
+    >
+      {name}
+    </span>
+  );
+}
+
 // NBA Stats Panel
 function NBAStatsPanel({ liveStats }: { liveStats: NBALiveStats }) {
   const [showAllHome, setShowAllHome] = useState(false);
@@ -233,7 +258,7 @@ function NBAStatsPanel({ liveStats }: { liveStats: NBALiveStats }) {
         <span className="text-[9px] bg-secondary px-1 rounded w-5 text-center flex-shrink-0">
           {player.position}
         </span>
-        <span className="truncate">{player.name}</span>
+        <ModalPlayerName playerId={`nba_${player.id}`} name={player.name} />
       </div>
       <div className="flex gap-3 text-mono text-[10px]">
         <span className="w-6 text-center">{player.min}</span>
@@ -342,7 +367,7 @@ function NFLStatsPanel({ liveStats }: { liveStats: NFLLiveStats }) {
         <span className="text-[9px] bg-secondary px-1 rounded w-5 text-center flex-shrink-0">
           {player.position}
         </span>
-        <span className="truncate">{player.name}</span>
+        <ModalPlayerName playerId={`nfl_${player.id}`} name={player.name} />
       </div>
       <div className="flex gap-2 text-mono text-[10px]">
         {player.passingYards !== null && player.passingYards !== undefined && (
@@ -437,7 +462,7 @@ function MLBStatsPanel({ liveStats }: { liveStats: MLBLiveStats }) {
         <span className="text-[9px] bg-secondary px-1 rounded w-6 text-center flex-shrink-0">
           {player.position || "-"}
         </span>
-        <span className="truncate">{player.name}</span>
+        <ModalPlayerName playerId={`mlb_${player.id}`} name={player.name} />
       </div>
       <div className="flex gap-2 text-mono text-[10px]">
         <span className="w-4 text-center">{player.hits ?? 0}</span>

@@ -1,4 +1,5 @@
 import { useInjuries, getInjurySeverity } from "@/lib/injury-context";
+import { openPlayerModal } from "@/lib/player-modal-events";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { HeartPulse } from "lucide-react";
 
@@ -20,11 +21,26 @@ export function PlayerName({
   const { getInjury } = useInjuries();
   const injury = showInjury ? getInjury(playerId) : undefined;
 
-  // Always use span - parent elements handle click/navigation
-  // This prevents nested button issues across the site
+  const handleOpenModal = (event: React.MouseEvent | React.KeyboardEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    openPlayerModal(playerId);
+  };
+
   return (
     <span className={`inline-flex items-center gap-1 ${className}`}>
-      <span data-testid={`link-player-${playerId}`}>
+      <span
+        role="button"
+        tabIndex={0}
+        onClick={handleOpenModal}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            handleOpenModal(event);
+          }
+        }}
+        data-testid={`link-player-${playerId}`}
+        className="cursor-pointer underline-offset-2 hover:underline focus-visible:underline"
+      >
         {firstName} {lastName}
       </span>
       {injury && <InjuryIndicator injury={injury} />}

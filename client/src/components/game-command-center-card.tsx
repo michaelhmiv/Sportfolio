@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import type { GameInsight } from "@/types/game-insights";
 import { Activity, Calendar, Trophy, Zap, X, RefreshCw } from "lucide-react";
 import { formatSignedAdaptiveCurrency } from "@/lib/currency";
+import { openPlayerModal } from "@/lib/player-modal-events";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -105,6 +106,14 @@ export function GameCommandCenterCard({
   };
 
   const liveEarnedDisplay = getLiveEarnedDisplay();
+  const openPlayerFromName = (
+    event: React.MouseEvent | React.KeyboardEvent,
+    playerId: string | null | undefined,
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    openPlayerModal(playerId);
+  };
 
   // Boost assignment mutation
   const assignBoostMutation = useMutation({
@@ -303,7 +312,19 @@ export function GameCommandCenterCard({
                       className="flex items-center justify-between text-xs py-1.5 px-2 rounded bg-background/80"
                     >
                       <div className="flex items-center gap-1.5 min-w-0">
-                        <span className="font-medium truncate">{player.name}</span>
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          onClick={(event) => openPlayerFromName(event, player.playerId)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                              openPlayerFromName(event, player.playerId);
+                            }
+                          }}
+                          className="font-medium truncate cursor-pointer underline-offset-2 hover:underline focus-visible:underline"
+                        >
+                          {player.name}
+                        </span>
                         <span className="text-muted-foreground text-[10px]">{player.team}</span>
                         <span className="text-purple-500 font-mono text-[10px]">
                           {player.multiplier.toFixed(1)}x
@@ -355,7 +376,19 @@ export function GameCommandCenterCard({
                   key={`${player.playerId}-${idx}`}
                   className="flex items-center justify-between"
                 >
-                  <span className="truncate">{player.name}</span>
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    onClick={(event) => openPlayerFromName(event, player.playerId)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        openPlayerFromName(event, player.playerId);
+                      }
+                    }}
+                    className="truncate cursor-pointer underline-offset-2 hover:underline focus-visible:underline"
+                  >
+                    {player.name}
+                  </span>
                   <span className="font-mono text-purple-400">{player.multiplier.toFixed(1)}x</span>
                 </div>
               ))}

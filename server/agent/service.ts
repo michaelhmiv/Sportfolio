@@ -42,10 +42,12 @@ import type {
   AgentCapabilitiesView,
   AgentImprovementCandidate,
   AgentProfileView,
+  AgentTurnProgressCallback,
   AgentSecretMetadata,
   AgentSemanticRoute,
   AgentToolTrace,
   HermesRespondResult,
+  HermesTurnBudgetProfile,
   ManagedProviderStatus,
   ScoutProposalAction,
 } from "./types";
@@ -160,6 +162,11 @@ type AgentRunOutcomeCategory =
   | "blocked_unavailable"
   | "research_only"
   | "failed";
+
+interface AnalyzeScoutAgentRuntimeOptions {
+  turnBudgetProfile?: HermesTurnBudgetProfile;
+  onTurnEvent?: AgentTurnProgressCallback;
+}
 
 function toSecretMetadata(secret?: UserAgentSecret): AgentSecretMetadata {
   return {
@@ -747,6 +754,7 @@ export const clearPortfolioAgentByok = clearScoutAgentByok;
 export async function analyzeScoutAgent(
   userId: string,
   input: unknown = {},
+  runtimeOptions: AnalyzeScoutAgentRuntimeOptions = {},
 ): Promise<AgentAnalysisResult> {
   const data = analyzeScoutAgentInputSchema.parse(input);
   await expireStalePendingRuns(userId);
@@ -903,6 +911,8 @@ export async function analyzeScoutAgent(
       strategyContext: data.strategyContext || null,
       triggerContext: effectiveTriggerContext,
       executionContext: effectiveExecutionContext,
+      turnBudgetProfile: runtimeOptions.turnBudgetProfile,
+      onTurnEvent: runtimeOptions.onTurnEvent,
     });
     const uiBlocks = materializeAgentUiBlocks({
       result: hermesResult,
@@ -1015,6 +1025,7 @@ export async function analyzeScoutAgent(
             confirmationPreview: hermesResult.confirmationPreview,
             uiBlocks,
             runtimeMetadata: hermesResult.runtimeMetadata || null,
+            usageMetrics: hermesResult.usageMetrics || null,
             outcomeCategory,
             failureClass: improvementCandidateRecord?.failureClass || null,
             improvementCandidateId: improvementCandidateRecord?.id || null,
@@ -1046,6 +1057,7 @@ export async function analyzeScoutAgent(
       confirmationPreview: hermesResult.confirmationPreview,
       uiBlocks,
       runtimeMetadata: hermesResult.runtimeMetadata || null,
+      usageMetrics: hermesResult.usageMetrics || null,
       errorMessage: hermesResult.outcome === "error" ? hermesResult.assistantText : null,
     };
   } catch (error: any) {

@@ -9,6 +9,7 @@ import type {
   AgentStrategyDetail,
   AgentStrategySummary,
   AgentThreadMessage,
+  AgentTurnProgressEvent,
   AgentThreadRuntimeDetails,
   AgentThreadSummary,
   ProviderMode,
@@ -16,6 +17,21 @@ import type {
 
 export type WorkspaceTab = "chat" | "strategies" | "configure";
 export type StrategyDetailTab = "overview" | "chat" | "rules";
+
+type PendingTurnStreamTarget = "chat" | "strategy";
+
+const TERMINAL_TURN_EVENTS = new Set<AgentTurnProgressEvent["eventType"]>([
+  "turn_completed",
+  "turn_failed",
+]);
+
+function createTurnId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+
+  return `turn-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
 
 export function useAgentShell() {
   const { toast } = useToast();
@@ -25,6 +41,10 @@ export function useAgentShell() {
   const strategyEndRef = useRef<HTMLDivElement>(null);
   const strategyCreateTargetTabRef = useRef<StrategyDetailTab>("overview");
   const strategySelectionInitializedRef = useRef(false);
+  const turnEventSourceRef = useRef<{ chat: EventSource | null; strategy: EventSource | null }>({
+    chat: null,
+    strategy: null,
+  });
 
   const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTab>("chat");
   const [isMobileStrategyDetailOpen, setIsMobileStrategyDetailOpen] = useState(false);
@@ -48,6 +68,82 @@ export function useAgentShell() {
   const [baseUrl, setBaseUrl] = useState("");
   const [model, setModel] = useState("");
   const [apiKey, setApiKey] = useState("");
+
+  const closeTurnStream = (target: PendingTurnStreamTarget) => {
+    const current = turnEventSourceRef.current[target];
+    if (!current) {
+      return;
+    }
+    current.close();
+    turnEventSourceRef.current[target] = null;
+  };
+
+  const appendTurnProgressEvent = (
+    target: PendingTurnStreamTarget,
+    event: AgentTurnProgressEvent,
+  ) => {
+    const updater = (current: PendingUserMessage | null) => {
+      if (!current) {
+        return current;
+      }
+      return {
+        ...current,
+        progressEvents: [...(current.progressEvents || []), event].slice(-16),
+      };
+    };
+
+    if (target === "chat") {
+      setPendingChatMessage(updater);
+      return;
+    }
+
+    setPendingStrategyMessage(updater);
+  };
+
+  const startTurnProgressStream = (input: {
+    target: PendingTurnStreamTarget;
+    threadId: string;
+    turnId: string;
+  }) => {
+    if (typeof window === "undefined" || typeof EventSource === "undefined") {
+      return () => undefined;
+    }
+
+    closeTurnStream(input.target);
+    const stream = new EventSource(
+      `/api/agent/threads/${input.threadId}/turns/${input.turnId}/events`,
+      { withCredentials: true },
+    );
+    turnEventSourceRef.current[input.target] = stream;
+
+    stream.onmessage = (raw) => {
+      try {
+        const parsed = JSON.parse(raw.data) as AgentTurnProgressEvent;
+        if (!parsed || typeof parsed.eventType !== "string") {
+          return;
+        }
+        appendTurnProgressEvent(input.target, parsed);
+        if (TERMINAL_TURN_EVENTS.has(parsed.eventType)) {
+          closeTurnStream(input.target);
+        }
+      } catch {
+        // ignore malformed progress payloads
+      }
+    };
+
+    stream.onerror = () => {
+      closeTurnStream(input.target);
+    };
+
+    return () => closeTurnStream(input.target);
+  };
+
+  useEffect(() => {
+    return () => {
+      closeTurnStream("chat");
+      closeTurnStream("strategy");
+    };
+  }, []);
 
   // --- Queries ---
 
@@ -233,8 +329,19 @@ export function useAgentShell() {
   // --- Mutations ---
 
   const sendMessageMutation = useMutation({
-    mutationFn: async ({ threadId, message }: { threadId: string; message: string }) => {
-      const res = await apiRequest("POST", `/api/agent/threads/${threadId}/messages`, { message });
+    mutationFn: async ({
+      threadId,
+      message,
+      turnId,
+    }: {
+      threadId: string;
+      message: string;
+      turnId?: string;
+    }) => {
+      const res = await apiRequest("POST", `/api/agent/threads/${threadId}/messages`, {
+        message,
+        turnId,
+      });
       return res.json();
     },
     onSuccess: async (_result, variables) => {
@@ -469,6 +576,7 @@ export function useAgentShell() {
   const handleStartFreshChat = async () => {
     if (isCreatingChat) return;
     setDrawerOpen(null);
+    closeTurnStream("chat");
     setPendingChatMessage(null);
     setChatComposerValue("");
     try {
@@ -493,22 +601,32 @@ export function useAgentShell() {
       id: `pending-chat-${Date.now()}`,
       contentText: message,
       createdAt: new Date().toISOString(),
+      progressEvents: [],
     };
     setChatComposerValue("");
     setPendingChatMessage(optimisticMessage);
     let threadId = activeChatThreadId;
+    let stopTurnProgressStream: () => void = () => {};
     try {
       if (!threadId) {
         setIsCreatingChat(true);
         const thread = await createChatThread();
         threadId = thread.id;
       }
-      await sendMessageMutation.mutateAsync({ threadId, message });
+      const turnId = createTurnId();
+      stopTurnProgressStream = startTurnProgressStream({
+        target: "chat",
+        threadId,
+        turnId,
+      });
+      await sendMessageMutation.mutateAsync({ threadId, message, turnId });
       setPendingChatMessage(null);
     } catch {
       setPendingChatMessage(null);
       setChatComposerValue(message);
     } finally {
+      stopTurnProgressStream();
+      closeTurnStream("chat");
       setIsCreatingChat(false);
     }
   };
@@ -521,15 +639,30 @@ export function useAgentShell() {
       id: `pending-strategy-${Date.now()}`,
       contentText: message,
       createdAt: new Date().toISOString(),
+      progressEvents: [],
     };
     setStrategyComposerValue("");
     setPendingStrategyMessage(optimisticMessage);
+    let stopTurnProgressStream: () => void = () => {};
     try {
-      await sendMessageMutation.mutateAsync({ threadId: strategyConversationThreadId, message });
+      const turnId = createTurnId();
+      stopTurnProgressStream = startTurnProgressStream({
+        target: "strategy",
+        threadId: strategyConversationThreadId,
+        turnId,
+      });
+      await sendMessageMutation.mutateAsync({
+        threadId: strategyConversationThreadId,
+        message,
+        turnId,
+      });
       setPendingStrategyMessage(null);
     } catch {
       setPendingStrategyMessage(null);
       setStrategyComposerValue(message);
+    } finally {
+      stopTurnProgressStream();
+      closeTurnStream("strategy");
     }
   };
 

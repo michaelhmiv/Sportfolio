@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { X, RefreshCw, Loader2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { openPlayerModal } from "@/lib/player-modal-events";
 
 // Types
 export interface NBAPlayerStats {
@@ -207,6 +208,30 @@ export function GameStatsModal({ gameId, sport, onClose }: GameStatsModalProps) 
   );
 }
 
+function ModalPlayerName({ playerId, name }: { playerId: string; name: string }) {
+  const handleActivate = (event: React.MouseEvent | React.KeyboardEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    openPlayerModal(playerId);
+  };
+
+  return (
+    <span
+      role="button"
+      tabIndex={0}
+      onClick={handleActivate}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          handleActivate(event);
+        }
+      }}
+      className="truncate cursor-pointer underline-offset-2 hover:underline focus-visible:underline"
+    >
+      {name}
+    </span>
+  );
+}
+
 // NBA Stats Table
 function NBAStatsTable({ liveStats }: { liveStats: NBALiveStats }) {
   const PlayerTable = ({
@@ -240,7 +265,7 @@ function NBAStatsTable({ liveStats }: { liveStats: NBALiveStats }) {
               <span className="text-[9px] bg-secondary px-1 rounded w-5 text-center flex-shrink-0">
                 {player.position}
               </span>
-              <span className="truncate">{player.name}</span>
+              <ModalPlayerName playerId={`nba_${player.id}`} name={player.name} />
             </div>
             <div className="text-center font-mono text-[10px]">{player.min}</div>
             <div className="text-center font-mono font-semibold">{player.pts}</div>
@@ -291,7 +316,7 @@ function NFLStatsTable({ liveStats }: { liveStats: NFLLiveStats }) {
               <span className="text-[9px] bg-secondary px-1 rounded w-5 text-center flex-shrink-0">
                 {player.position}
               </span>
-              <span className="truncate">{player.name}</span>
+              <ModalPlayerName playerId={`nfl_${player.id}`} name={player.name} />
             </div>
             {/* Passing */}
             <div className="text-center font-mono text-[10px]">
@@ -365,7 +390,7 @@ function MLBStatsTable({ liveStats }: { liveStats: MLBLiveStats }) {
               <span className="text-[9px] bg-secondary px-1 rounded w-6 text-center flex-shrink-0">
                 {player.position || "-"}
               </span>
-              <span className="truncate">{player.name}</span>
+              <ModalPlayerName playerId={`mlb_${player.id}`} name={player.name} />
             </div>
             <div className="text-center font-mono text-[10px]">{player.hits ?? 0}</div>
             <div className="text-center font-mono text-[10px]">{player.runs ?? 0}</div>

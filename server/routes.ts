@@ -92,6 +92,7 @@ import {
   sendAgentThreadMessage,
 } from "./agent/thread-service";
 import { getAgentThreadRuntimeDetails } from "./agent/thread-runtime";
+import { agentTurnEventStreamManager } from "./agent/turn-events";
 import {
   approveAgentSkillCandidate,
   listAdminAgentSkills,
@@ -1001,12 +1002,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     dateStr,
     userId,
     includeMlbGameDetails = false,
+    includeMlbDeepContext = includeMlbGameDetails,
   }: {
     games: DailyGame[];
     sport: string;
     dateStr: string;
     userId?: string | null;
     includeMlbGameDetails?: boolean;
+    includeMlbDeepContext?: boolean;
   }): Promise<{
     insights: GameInsight[];
     boostSlotsRemaining: number | null;
@@ -1848,6 +1851,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const { insightByGameId: mlbPregameInsightByGameId, statusByGameId: mlbEnrichmentByGameId } =
       await getMlbPregameInsightBundle(games, dateStr, {
         includeGameDetails: includeMlbGameDetails,
+        includeDeepContext: includeMlbDeepContext,
       });
     const slatePlayers: GameInsightSlatePlayer[] = [];
     const insights = games.map((game) => {
@@ -3550,6 +3554,7 @@ ${items}
         dateStr,
         userId,
         includeMlbGameDetails: true,
+        includeMlbDeepContext: false,
       });
 
       const gameInsight = insights[0];
@@ -3794,6 +3799,7 @@ ${items}
               .sort((a, b) => (b.pts || 0) - (a.pts || 0))
               .slice(0, 3)
               .map((s) => ({
+                playerId: createNBAPlayerId(s.player.id),
                 name: `${s.player.first_name.charAt(0)}. ${s.player.last_name}`,
                 team: s.team.abbreviation,
                 pts: s.pts || 0,
@@ -4181,6 +4187,7 @@ ${items}
                 const normalizedStats = parseStatsToJson(s);
                 const side = getStatSide(s);
                 return {
+                  playerId: createMLBPlayerId(s.player.id),
                   name: `${s.player.first_name.charAt(0)}. ${s.player.last_name}`,
                   team:
                     side === "home"
@@ -6047,6 +6054,61 @@ ${items}
       res.status(getAgentErrorStatus(error)).json({ error: message });
     }
   });
+
+  app.get(
+    "/api/agent/threads/:threadId/turns/:turnId/events",
+    isAuthenticated,
+    async (req, res) => {
+      try {
+        const userId = getUserId(req);
+        const threadId = req.params.threadId;
+        const turnId = req.params.turnId;
+        await getAgentThread(userId, threadId);
+
+        res.status(200);
+        res.setHeader("Content-Type", "text/event-stream");
+        res.setHeader("Cache-Control", "no-cache, no-transform");
+        res.setHeader("Connection", "keep-alive");
+        res.setHeader("X-Accel-Buffering", "no");
+        res.flushHeaders?.();
+
+        agentTurnEventStreamManager.registerClient({
+          userId,
+          threadId,
+          turnId,
+          req,
+          res,
+        });
+
+        agentTurnEventStreamManager.emit({
+          userId,
+          threadId,
+          turnId,
+          event: {
+            eventType: "stream_connected",
+            status: "info",
+            summary: "Progress stream connected.",
+            phase: "plan",
+          },
+        });
+
+        const heartbeat = setInterval(() => {
+          if (!res.writableEnded) {
+            res.write(": keepalive\n\n");
+          }
+        }, 15_000);
+
+        req.on("close", () => clearInterval(heartbeat));
+        req.on("error", () => clearInterval(heartbeat));
+        res.on("close", () => clearInterval(heartbeat));
+        res.on("error", () => clearInterval(heartbeat));
+      } catch (error: any) {
+        const message = normalizeAgentErrorMessage(error);
+        console.error("[Agent API] Error opening thread turn event stream:", message);
+        res.status(getAgentErrorStatus(error)).json({ error: message });
+      }
+    },
+  );
 
   app.post("/api/agent/threads/:threadId/messages", isAuthenticated, async (req, res) => {
     try {

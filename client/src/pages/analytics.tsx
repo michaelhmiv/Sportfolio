@@ -52,6 +52,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AnimatedNumber, FadeIn, StaggerContainer, StaggerItem } from "@/components/ui/animations";
 import { BackgroundPattern, CardAccent } from "@/components/ui/decorative-elements";
 import { formatCompactCurrency, formatStandardCurrency } from "@/lib/currency";
+import { openPlayerModal } from "@/lib/player-modal-events";
 import {
   Area,
   AreaChart,
@@ -717,6 +718,29 @@ export default function Analytics() {
   const [compareSearchQuery, setCompareSearchQuery] = useState("");
   const [selectedRelationshipKey, setSelectedRelationshipKey] = useState<string | null>(null);
   const deferredCompareSearch = useDeferredValue(compareSearchQuery);
+  const handleOpenPlayerModal = (
+    event: React.MouseEvent | React.KeyboardEvent,
+    playerId: string,
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    openPlayerModal(playerId);
+  };
+  const renderModalPlayerName = (playerId: string, label: string, className = "") => (
+    <span
+      role="button"
+      tabIndex={0}
+      onClick={(event) => handleOpenPlayerModal(event, playerId)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          handleOpenPlayerModal(event, playerId);
+        }
+      }}
+      className={`${className} cursor-pointer underline-offset-2 hover:underline focus-visible:underline`}
+    >
+      {label}
+    </span>
+  );
 
   const { data: analyticsData, isLoading } = useQuery<AnalyticsData>({
     queryKey: [`/api/analytics?timeRange=${timeRange}`],
@@ -1443,9 +1467,11 @@ export default function Analytics() {
                           <span className="font-mono text-xs text-muted-foreground">
                             #{ranking.rank}
                           </span>
-                          <span className="truncate text-sm font-medium">
-                            {ranking.player.firstName} {ranking.player.lastName}
-                          </span>
+                          {renderModalPlayerName(
+                            ranking.player.id,
+                            `${ranking.player.firstName} ${ranking.player.lastName}`,
+                            "truncate text-sm font-medium",
+                          )}
                         </div>
                         <div className={ANALYTICS_COMPACT_TYPE.meta}>
                           {ranking.player.team} / {ranking.player.position}
@@ -1626,9 +1652,11 @@ export default function Analytics() {
                                   <span className="font-mono text-xs text-muted-foreground">
                                     #{ranking.rank}
                                   </span>
-                                  <span className="truncate text-sm font-medium">
-                                    {ranking.player.firstName} {ranking.player.lastName}
-                                  </span>
+                                  {renderModalPlayerName(
+                                    ranking.player.id,
+                                    `${ranking.player.firstName} ${ranking.player.lastName}`,
+                                    "truncate text-sm font-medium",
+                                  )}
                                 </div>
                                 <div className={ANALYTICS_COMPACT_TYPE.meta}>
                                   {ranking.player.team} / {ranking.player.position}
@@ -1715,9 +1743,11 @@ export default function Analytics() {
                             data-testid={`button-compare-result-${player.id}`}
                           >
                             <div className="min-w-0">
-                              <div className="truncate text-sm font-medium">
-                                {player.firstName} {player.lastName}
-                              </div>
+                              {renderModalPlayerName(
+                                player.id,
+                                `${player.firstName} ${player.lastName}`,
+                                "truncate text-sm font-medium",
+                              )}
                               <div className={ANALYTICS_COMPACT_TYPE.meta}>
                                 {player.team} / {player.position} / {player.sport}
                               </div>
@@ -1742,7 +1772,11 @@ export default function Analytics() {
                     onClick={() => handlePlayerSelect(player.id)}
                     disabled={selectedPlayers.includes(player.id)}
                   >
-                    {player.firstName} {player.lastName}
+                    {renderModalPlayerName(
+                      player.id,
+                      `${player.firstName} ${player.lastName}`,
+                      "inline",
+                    )}
                   </Button>
                 ))}
               </div>
@@ -1760,7 +1794,11 @@ export default function Analytics() {
                       >
                         <div className="min-w-0">
                           <div className="text-xs font-medium">
-                            {player.firstName} {player.lastName}
+                            {renderModalPlayerName(
+                              player.id,
+                              `${player.firstName} ${player.lastName}`,
+                              "inline",
+                            )}
                           </div>
                           <div className={ANALYTICS_COMPACT_TYPE.meta}>
                             {player.team} / {player.position}
@@ -2025,7 +2063,9 @@ export default function Analytics() {
                                   className="border-b border-border/60 last:border-0"
                                 >
                                   <td className="px-2 py-2">
-                                    <div className="font-medium">{player.name}</div>
+                                    <div className="font-medium">
+                                      {renderModalPlayerName(player.id, player.name, "inline")}
+                                    </div>
                                     <div className={ANALYTICS_COMPACT_TYPE.meta}>
                                       {player.team} / {player.position}
                                     </div>

@@ -30,14 +30,31 @@ This repo does not require `uv` to run the vendored service locally.
    vendor\mlb-mcp\.venv\Scripts\python -m pip install -e vendor\mlb-mcp
    ```
 
-3. Start the local HTTP MCP server:
+3. Start the local HTTP MCP server manually (optional when using the orchestrated `npm run dev`):
 
    ```powershell
    $env:PORT = "8081"
    vendor\mlb-mcp\.venv\Scripts\python -m mlb_stats_mcp.server --http
    ```
 
-4. Start the main app. In development, Sportfolio now auto-detects the vendored MLB MCP on `http://127.0.0.1:8081/mcp` if no explicit MLB MCP env is set.
+4. Start the main app:
+
+   ```powershell
+   npm run dev
+   ```
+
+   `npm run dev` now starts the app server and auto-starts the local MLB MCP sidecar when:
+   - `vendor/mlb-mcp/.venv` exists, and
+   - nothing is already listening on `127.0.0.1:8081`.
+
+   If you only want one side:
+
+   ```powershell
+   npm run dev:app
+   npm run dev:mcp
+   ```
+
+   In development, Sportfolio auto-detects MLB MCP on `http://127.0.0.1:8081/mcp` when no explicit MLB MCP env is set.
 
 5. Only set env manually when you want to override or disable the default:
 

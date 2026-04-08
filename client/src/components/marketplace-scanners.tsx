@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/carousel";
 import { useSport } from "@/lib/sport-context";
 import { Button } from "@/components/ui/button";
+import { openPlayerModal } from "@/lib/player-modal-events";
 
 // Simplified type for the API response
 interface ScannerResponse {
@@ -546,6 +547,38 @@ function DesktopScannerGrid({
 
 // --- Row Variants ---
 
+function ModalPlayerName({
+  playerId,
+  name,
+  className = "",
+}: {
+  playerId: string;
+  name: string;
+  className?: string;
+}) {
+  const handleOpen = (event: React.MouseEvent | React.KeyboardEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    openPlayerModal(playerId);
+  };
+
+  return (
+    <span
+      role="button"
+      tabIndex={0}
+      onClick={handleOpen}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          handleOpen(event);
+        }
+      }}
+      className={`${className} cursor-pointer underline-offset-2 hover:underline focus-visible:underline`}
+    >
+      {name}
+    </span>
+  );
+}
+
 function ScannerRowExpanded({ rank, player, label, value, color, type }: any) {
   return (
     <Link href={`/player/${player.id}`}>
@@ -557,9 +590,11 @@ function ScannerRowExpanded({ rank, player, label, value, color, type }: any) {
 
           {/* Player Info */}
           <div className="flex flex-col min-w-0">
-            <span className="text-sm font-bold truncate group-hover/row:text-primary transition-colors">
-              {player.firstName} {player.lastName}
-            </span>
+            <ModalPlayerName
+              playerId={player.id}
+              name={`${player.firstName} ${player.lastName}`}
+              className="text-sm font-bold truncate group-hover/row:text-primary transition-colors"
+            />
             <div className="flex items-center gap-2">
               <Badge variant="outline" className="h-4 px-1 py-0 font-mono text-[10px] uppercase">
                 {player.team}
@@ -602,7 +637,11 @@ function ScannerRowCompact({ rank, player, label, value, color }: any) {
         </span>
 
         <div className="flex-1 min-w-0 flex items-baseline gap-1.5">
-          <span className="text-[11px] font-bold truncate">{player.lastName}</span>
+          <ModalPlayerName
+            playerId={player.id}
+            name={player.lastName}
+            className="text-[11px] font-bold truncate"
+          />
           <span className="text-[9px] text-muted-foreground uppercase truncate flex-shrink-0">
             {player.team}
           </span>
@@ -648,9 +687,11 @@ function ScannerRow({ rank, player, metricLabel, metricValue, metricColor }: any
         <div className="flex items-center gap-3 overflow-hidden">
           <span className={`text-xs font-mono font-bold w-4 text-muted-foreground/50`}>{rank}</span>
           <div className="flex flex-col min-w-0">
-            <span className="text-xs font-bold truncate group-hover/row:text-primary transition-colors">
-              {player.firstName.charAt(0)}. {player.lastName}
-            </span>
+            <ModalPlayerName
+              playerId={player.id}
+              name={`${player.firstName.charAt(0)}. ${player.lastName}`}
+              className="text-xs font-bold truncate group-hover/row:text-primary transition-colors"
+            />
             <span className="text-[10px] text-muted-foreground uppercase">
               {player.team} • {player.position}
             </span>
