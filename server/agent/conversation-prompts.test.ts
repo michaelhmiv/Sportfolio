@@ -10,9 +10,11 @@ describe("conversation-prompts", () => {
     });
 
     expect(prompts.systemPrompt).toContain("general Hermes chat");
-    expect(prompts.systemPrompt).toContain("goal_strip");
+    expect(prompts.systemPrompt).toContain(
+      "Sportfolio-native Hermes tools are the canonical source",
+    );
+    expect(prompts.systemPrompt).toContain("optional enrichment");
     expect(prompts.systemPrompt).toContain("leaderboard_table");
-    expect(prompts.systemPrompt).toContain("compact markdown table");
     expect(prompts.userPromptTemplate).toBe("Operate on my portfolio.");
   });
 
@@ -67,8 +69,8 @@ describe("conversation-prompts", () => {
     expect(prompts.systemPrompt).toContain("Never initiate payments");
     expect(prompts.systemPrompt).toContain("Never use community boosts");
     expect(prompts.systemPrompt).toContain("portfolio-management tasks");
-    expect(prompts.systemPrompt).toContain("dense mobile layouts");
-    expect(prompts.systemPrompt).toContain("tool_catalog_summary");
+    expect(prompts.systemPrompt).toContain("optional enrichment");
+    expect(prompts.systemPrompt).toContain("execution_checklist");
     expect(prompts.userPromptTemplate).toContain("update the existing saved strategy");
   });
 
@@ -80,7 +82,7 @@ describe("conversation-prompts", () => {
       mlbMcpAvailable: false,
     });
 
-    expect(prompts.systemPrompt).toContain("MLB MCP advanced tools are currently offline");
+    expect(prompts.systemPrompt).toContain("MLB-specific enrichment tools are currently offline");
     expect(prompts.systemPrompt).toContain("scan_team_roster");
     expect(prompts.systemPrompt).toContain("scan_sport_slate");
   });
@@ -93,8 +95,7 @@ describe("conversation-prompts", () => {
       mlbMcpAvailable: true,
     });
 
-    expect(prompts.systemPrompt).toContain("built-in mlb_mcp__ tools");
-    expect(prompts.systemPrompt).toContain("get_schedule");
-    expect(prompts.systemPrompt).toContain("Statcast pitcher expected-stats");
+    expect(prompts.systemPrompt).toContain("built-in mlb_mcp__ tools are available");
+    expect(prompts.systemPrompt).toContain("native Sportfolio context is established");
   });
 });

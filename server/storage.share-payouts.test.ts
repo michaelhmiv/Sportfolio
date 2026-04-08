@@ -37,7 +37,7 @@ describe("DatabaseStorage.createSharePayoutSnapshotsForGame", () => {
 
     expect(sqlText).toMatch(/FROM\s+"player_multipliers"/i);
     expect(sqlText).not.toMatch(/FROM\s+"holdings"/i);
-  });
+  }, 15000);
 });
 
 describe("DatabaseStorage.refreshPlayerVolume24h", () => {

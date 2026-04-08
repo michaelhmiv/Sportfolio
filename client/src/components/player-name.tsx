@@ -22,8 +22,6 @@ export function PlayerName({
   const injury = showInjury ? getInjury(playerId) : undefined;
 
   const handleOpenModal = (event: React.MouseEvent | React.KeyboardEvent) => {
-    event.preventDefault();
-    event.stopPropagation();
     openPlayerModal(playerId);
   };
 

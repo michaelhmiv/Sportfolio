@@ -1295,7 +1295,7 @@ async function loadMatchedMlbScheduleGames(
       matchedGames: [],
       unavailableStatus: {
         state: "unavailable",
-        message: "MLB enrichment unavailable in this environment.",
+        message: "Game details are not available in this environment.",
       },
     };
   }
@@ -1316,7 +1316,7 @@ async function loadMatchedMlbScheduleGames(
       matchedGames: [],
       unavailableStatus: {
         state: "unavailable",
-        message: "MLB enrichment is temporarily unavailable.",
+        message: "Game details are temporarily unavailable.",
       },
     };
   }
@@ -1944,7 +1944,7 @@ export async function getMlbPregameInsightBundle(
 
     statusByGameId.set(game.gameId, {
       state: "pending",
-      message: "MLB game context is pending.",
+      message: "Game details are pending.",
     });
   });
 

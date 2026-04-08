@@ -3,6 +3,7 @@ MLB Stats API tool implementations for the baseball project.
 Contains the core functionality for interacting with the MLB Stats API.
 """
 
+from datetime import date as calendar_date
 from typing import Any, Dict, Optional
 
 import statsapi
@@ -11,6 +12,44 @@ from mlb_stats_mcp.utils.logging_config import setup_logging
 
 # Initialize logging for the MLB Stats API tools
 logger = setup_logging("mlb_statsapi_tools")
+
+
+def _normalize_endpoint_name(endpoint: str) -> str:
+    normalized = endpoint.strip()
+    if normalized.lower().startswith("statsapi."):
+        return normalized.split(".", 1)[1]
+    return normalized
+
+
+def _resolve_team_roster_season(season: Optional[int], date: Optional[str]) -> int:
+    if season is not None:
+        return season
+    if date:
+        try:
+            return int(str(date).split("-", 1)[0])
+        except (TypeError, ValueError):
+            pass
+    return calendar_date.today().year
+
+
+def _resolve_leader_season(season: Optional[int]) -> int:
+    return season if season is not None else calendar_date.today().year
+
+
+def _normalize_leader_category(leader_category: str) -> str:
+    normalized = (leader_category or "").strip()
+    if not normalized:
+        return "homeRuns"
+
+    collapsed = "".join(ch for ch in normalized.lower() if ch.isalnum())
+    aliases = {
+        "obp": "onBasePercentage",
+        "onbasepct": "onBasePercentage",
+        "onbasepercentage": "onBasePercentage",
+        "onbasepercent": "onBasePercentage",
+        "ops": "ops",
+    }
+    return aliases.get(collapsed, normalized)
 
 
 # Core Data Gathering Tools
@@ -29,9 +68,14 @@ async def get_stats(endpoint: str, params: Dict[str, Any]) -> Dict[str, Any]:
         Exception: If there's an error accessing the MLB Stats API
     """
     try:
-        logger.debug(f"Calling MLB Stats API endpoint: {endpoint} with params: {params}")
-        result = statsapi.get(endpoint, params)
-        logger.debug(f"MLB Stats API response received for endpoint: {endpoint}")
+        normalized_endpoint = _normalize_endpoint_name(endpoint)
+        logger.debug(
+            f"Calling MLB Stats API endpoint: {normalized_endpoint} with params: {params}"
+        )
+        result = statsapi.get(normalized_endpoint, params)
+        logger.debug(
+            f"MLB Stats API response received for endpoint: {normalized_endpoint}"
+        )
         return result
     except Exception as e:
         error_msg = f"Error accessing MLB Stats API endpoint {endpoint}: {e!s}"
@@ -201,7 +245,22 @@ async def get_standings(
         logger.debug(f"Retrieving standings with params: {kwargs}")
         result = statsapi.standings_data(**kwargs)
         logger.debug(f"Retrieved standings data for {standings_types}")
-        return result
+        if isinstance(result, dict):
+            normalized_by_division = {}
+            divisions = []
+            for division_id, division_data in result.items():
+                division_key = str(division_id)
+                normalized_by_division[division_key] = division_data
+                if isinstance(division_data, dict):
+                    divisions.append({"division_id": division_id, **division_data})
+                else:
+                    divisions.append({"division_id": division_id, "data": division_data})
+
+            return {
+                "divisions": divisions,
+                "by_division_id": normalized_by_division,
+            }
+        return {"standings": result}
     except Exception as e:
         error_msg = f"Error retrieving standings: {e!s}"
         logger.error(error_msg)
@@ -212,7 +271,7 @@ async def get_standings(
 async def get_team_roster(
     team_id: int,
     roster_type: str = "active",
-    season: int = 2025,
+    season: Optional[int] = None,
     date: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
@@ -231,8 +290,17 @@ async def get_team_roster(
         Exception: If there's an error retrieving team roster
     """
     try:
+        resolved_season = _resolve_team_roster_season(season, date)
+        params: Dict[str, Any] = {
+            "teamId": team_id,
+            "rosterType": roster_type,
+            "season": resolved_season,
+        }
+        if date:
+            params["date"] = date
+
         logger.debug(f"Retrieving team roster for team ID: {team_id}")
-        result = statsapi.roster(team_id, roster_type, season, date)
+        result = statsapi.get("team_roster", params)
         logger.debug(f"Retrieved team roster data for team ID: {team_id}")
         return result
     except Exception as e:
@@ -265,22 +333,29 @@ async def get_team_leaders(
         Exception: If there's an error retrieving team leaders
     """
     try:
-        logger.debug(f"Retrieving team leaders for team: {team_id} | category: {leader_category}")
+        resolved_season = _resolve_leader_season(season)
+        resolved_category = _normalize_leader_category(leader_category)
+        logger.debug(
+            "Retrieving team leaders for team: %s | category: %s | season: %s",
+            team_id,
+            resolved_category,
+            resolved_season,
+        )
 
         leaders_text = statsapi.team_leaders(
             team_id,
-            leader_category,
+            resolved_category,
             limit=10 if limit is None else limit,
             leaderGameTypes=leader_game_type,
-            season=season,
+            season=resolved_season,
         )
 
         logger.debug(f"Retrieved team leaders data for team ID: {team_id}")
 
         return {
             "teamId": team_id,
-            "leaderCategory": leader_category,
-            "season": season,
+            "leaderCategory": resolved_category,
+            "season": resolved_season,
             "results": leaders_text,
             "teamLeaders": True,
         }
@@ -412,6 +487,12 @@ async def get_meta(type_name: str, fields: Optional[str] = None) -> Dict[str, An
             result = statsapi.meta(type_name)
 
         logger.debug(f"Retrieved metadata for type: {type_name}")
+        if isinstance(result, list):
+            return {
+                "data": result,
+                "count": len(result),
+                "type_name": type_name,
+            }
         return result
     except Exception as e:
         error_msg = f"Error retrieving metadata for type {type_name}: {e!s}"

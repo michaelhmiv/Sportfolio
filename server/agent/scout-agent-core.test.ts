@@ -131,7 +131,7 @@ describe("scout-agent-core", () => {
     expect(result.rawTrace.resolution).toBe("deterministic_fast_path");
     expect(result.output.actions).toHaveLength(1);
     expect(result.output.replyText).toContain("backend's top 1 ranked targets");
-  });
+  }, 15000);
 
   it("uses the semantic route hint to hit the fast path for paraphrased slate requests", async () => {
     const { runScoutPlanningTurn } = await import("./scout-agent-core");

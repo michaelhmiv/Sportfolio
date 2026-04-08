@@ -1234,69 +1234,6 @@ function MlbLifecycleCard({
   );
 }
 
-function MlbEnrichmentStatusCard({
-  game,
-  mlbEnrichment,
-  activeTab,
-}: {
-  game?: GameInsight | null;
-  mlbEnrichment?: GameInsight["mlbEnrichment"] | null;
-  activeTab: CommandCenterTab;
-}) {
-  if (!game || !mlbEnrichment) {
-    return null;
-  }
-
-  const isUnavailable = mlbEnrichment.state === "unavailable";
-
-  return (
-    <section className="mt-4 rounded-md border border-amber-500/35 bg-amber-500/5 p-3 sm:p-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-600 dark:text-amber-400">
-            {activeTab === "pre"
-              ? "Pregame box score"
-              : activeTab === "during"
-                ? "Live box score"
-                : "Final box score"}
-          </div>
-          <div className="mt-1 text-sm font-semibold text-foreground">
-            {isUnavailable
-              ? "Game-center updates are unavailable."
-              : "Game-center updates are still loading."}
-          </div>
-          <div className="mt-2 text-xs text-muted-foreground">
-            {isUnavailable
-              ? "Probable pitchers, lineups, and matchup extras are not available right now. Core game and share data are still available."
-              : activeTab === "pre"
-                ? "Probable pitchers, lineups, and matchup extras have not posted for this game yet."
-                : "Live matchup extras have not loaded yet for this game."}
-          </div>
-          {game.venue ? (
-            <div className="mt-2 text-xs text-muted-foreground">{game.venue}</div>
-          ) : null}
-        </div>
-
-        <Badge
-          variant="outline"
-          className="w-fit text-[10px] border-amber-500/40 text-amber-700 dark:text-amber-300"
-        >
-          {mlbEnrichment.state === "unavailable" ? "Unavailable" : "Pending"}
-        </Badge>
-      </div>
-
-      <div className="mt-3 rounded-sm border border-amber-500/20 bg-background/70 p-2.5">
-        <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-          Status
-        </div>
-        <div className="mt-1 text-xs text-foreground">
-          {mlbEnrichment.message || "MLB enrichment status is not available yet."}
-        </div>
-      </div>
-    </section>
-  );
-}
-
 const getPlayerIdVariants = (playerId: string, sport?: string) => {
   const rawId = String(playerId || "").trim();
   if (!rawId) return [] as string[];
@@ -1496,7 +1433,6 @@ export function GameCommandCenterModal({
   const userContext = insight?.userContext || game?.userContext || null;
   const boostSlotsRemaining = insight?.boostSlotsRemaining ?? null;
   const mlbPregame = liveSport === "MLB" ? game?.mlbPregame || null : null;
-  const mlbEnrichment = liveSport === "MLB" ? game?.mlbEnrichment || null : null;
   const isHydratingMlbDetails =
     liveSport === "MLB" && isLoading && Boolean(initialInsight?.mlbPregame) && !insight;
 
@@ -2189,28 +2125,20 @@ export function GameCommandCenterModal({
           </div>
         </DialogHeader>
 
-        {liveSport === "MLB" ? (
-          mlbPregame ? (
-            <MlbLifecycleCard
-              game={game}
-              mlbPregame={mlbPregame}
-              activeTab={activeTab}
-              liveStats={liveStats}
-              userContext={userContext}
-              isAuthenticated={isAuthenticated}
-              isHydratingDetails={isHydratingMlbDetails}
-              showMlbAdvanced={showMlbAdvanced}
-              onToggleAdvanced={() => setShowMlbAdvanced((current) => !current)}
-              resolvePlayerModalId={resolvePlayerModalId}
-              onOpenPlayerModal={(playerId) => setSelectedLivePlayerId(playerId)}
-            />
-          ) : mlbEnrichment ? (
-            <MlbEnrichmentStatusCard
-              game={game}
-              mlbEnrichment={mlbEnrichment}
-              activeTab={activeTab}
-            />
-          ) : null
+        {liveSport === "MLB" && mlbPregame ? (
+          <MlbLifecycleCard
+            game={game}
+            mlbPregame={mlbPregame}
+            activeTab={activeTab}
+            liveStats={liveStats}
+            userContext={userContext}
+            isAuthenticated={isAuthenticated}
+            isHydratingDetails={isHydratingMlbDetails}
+            showMlbAdvanced={showMlbAdvanced}
+            onToggleAdvanced={() => setShowMlbAdvanced((current) => !current)}
+            resolvePlayerModalId={resolvePlayerModalId}
+            onOpenPlayerModal={(playerId) => setSelectedLivePlayerId(playerId)}
+          />
         ) : null}
 
         <Tabs value={activeTab} className="mt-4">

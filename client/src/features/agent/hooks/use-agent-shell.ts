@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest, getAuthHeaders, queryClient } from "@/lib/queryClient";
 import { getReadableAgentError } from "../lib/agent-view";
 import type { PendingUserMessage } from "../components/agent-conversation";
 import type {
@@ -41,7 +41,10 @@ export function useAgentShell() {
   const strategyEndRef = useRef<HTMLDivElement>(null);
   const strategyCreateTargetTabRef = useRef<StrategyDetailTab>("overview");
   const strategySelectionInitializedRef = useRef(false);
-  const turnEventSourceRef = useRef<{ chat: EventSource | null; strategy: EventSource | null }>({
+  const turnEventSourceRef = useRef<{
+    chat: AbortController | null;
+    strategy: AbortController | null;
+  }>({
     chat: null,
     strategy: null,
   });
@@ -74,7 +77,7 @@ export function useAgentShell() {
     if (!current) {
       return;
     }
-    current.close();
+    current.abort();
     turnEventSourceRef.current[target] = null;
   };
 
@@ -105,35 +108,85 @@ export function useAgentShell() {
     threadId: string;
     turnId: string;
   }) => {
-    if (typeof window === "undefined" || typeof EventSource === "undefined") {
+    if (typeof window === "undefined") {
       return () => undefined;
     }
 
     closeTurnStream(input.target);
-    const stream = new EventSource(
-      `/api/agent/threads/${input.threadId}/turns/${input.turnId}/events`,
-      { withCredentials: true },
-    );
-    turnEventSourceRef.current[input.target] = stream;
+    const controller = new AbortController();
+    turnEventSourceRef.current[input.target] = controller;
 
-    stream.onmessage = (raw) => {
+    void (async () => {
       try {
-        const parsed = JSON.parse(raw.data) as AgentTurnProgressEvent;
-        if (!parsed || typeof parsed.eventType !== "string") {
+        const authHeaders = await getAuthHeaders();
+        const response = await fetch(
+          `/api/agent/threads/${input.threadId}/turns/${input.turnId}/events`,
+          {
+            method: "GET",
+            headers: authHeaders,
+            credentials: "include",
+            signal: controller.signal,
+          },
+        );
+        if (!response.ok || !response.body) {
+          closeTurnStream(input.target);
           return;
         }
-        appendTurnProgressEvent(input.target, parsed);
-        if (TERMINAL_TURN_EVENTS.has(parsed.eventType)) {
-          closeTurnStream(input.target);
-        }
-      } catch {
-        // ignore malformed progress payloads
-      }
-    };
 
-    stream.onerror = () => {
-      closeTurnStream(input.target);
-    };
+        const decoder = new TextDecoder();
+        const reader = response.body.getReader();
+        let buffered = "";
+
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) {
+            break;
+          }
+          buffered += decoder.decode(value, { stream: true });
+          buffered = buffered.replace(/\r\n/g, "\n");
+
+          let boundaryIndex = buffered.indexOf("\n\n");
+          while (boundaryIndex !== -1) {
+            const rawEvent = buffered.slice(0, boundaryIndex);
+            buffered = buffered.slice(boundaryIndex + 2);
+            boundaryIndex = buffered.indexOf("\n\n");
+
+            const payload = rawEvent
+              .split("\n")
+              .filter((line) => line.startsWith("data:"))
+              .map((line) => line.slice(5).trimStart())
+              .join("\n")
+              .trim();
+            if (!payload) {
+              continue;
+            }
+
+            try {
+              const parsed = JSON.parse(payload) as AgentTurnProgressEvent;
+              if (!parsed || typeof parsed.eventType !== "string") {
+                continue;
+              }
+              appendTurnProgressEvent(input.target, parsed);
+              if (TERMINAL_TURN_EVENTS.has(parsed.eventType)) {
+                closeTurnStream(input.target);
+                return;
+              }
+            } catch {
+              // ignore malformed progress payloads
+            }
+          }
+        }
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
+        closeTurnStream(input.target);
+      } finally {
+        if (turnEventSourceRef.current[input.target] === controller) {
+          turnEventSourceRef.current[input.target] = null;
+        }
+      }
+    })();
 
     return () => closeTurnStream(input.target);
   };

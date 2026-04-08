@@ -1,5 +1,6 @@
 import { getAgentToolCatalog } from "./hermes-tools";
 import { buildAgentContinuityState } from "./continuity-state";
+import { buildScopedHermesToolAllowlist } from "./runtime-adapter";
 import { listAgentScheduleTemplates, listUserAgentSchedules } from "./schedules";
 import {
   getAgentThread,
@@ -391,6 +392,25 @@ export async function getAgentThreadRuntimeDetails(
   const activeObjective =
     buildObjectiveFromPendingBundle(thread) || buildObjectiveFromTimeline(timeline);
 
+  const defaultCapabilityToolNames = new Set(
+    buildScopedHermesToolAllowlist({
+      toolCatalog: getAgentToolCatalog(),
+      message: "",
+      capabilities: {
+        domains: ["sportfolio"],
+        actionTypes: [],
+        canAnalyze: true,
+        canAutoExecute: false,
+        canUseWebResearch: true,
+        runtime: "hermes",
+        hasDurableMemory: true,
+        canScheduleAdvisories: true,
+        dataSources: undefined,
+      },
+      conversationMode: "general_chat",
+    }),
+  );
+
   return {
     activeObjective,
     sinceLastUserMessage: buildSinceLastUserMessage(messages, timeline),
@@ -398,7 +418,9 @@ export async function getAgentThreadRuntimeDetails(
     timeline,
     researchSources,
     schedules,
-    capabilityGroups: buildCapabilityGroups(getAgentToolCatalog()),
+    capabilityGroups: buildCapabilityGroups(
+      getAgentToolCatalog().filter((tool) => defaultCapabilityToolNames.has(tool.toolName)),
+    ),
     isolation: ISOLATION_BOUNDARY,
   };
 }

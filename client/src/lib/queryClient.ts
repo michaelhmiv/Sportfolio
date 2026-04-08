@@ -1,7 +1,10 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 import { getSupabase } from "./supabase";
 
+const IS_DEV = import.meta.env.DEV;
+
 function debugLog(stage: string, message: string, data?: any) {
+  if (!IS_DEV) return;
   const elapsed = performance.now().toFixed(0);
   console.log(`[QUERY ${elapsed}ms] ${stage}: ${message}`, data || "");
 }

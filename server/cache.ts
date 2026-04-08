@@ -11,6 +11,7 @@ interface CacheEntry<T> {
 }
 
 const cache = new Map<string, CacheEntry<any>>();
+const inFlight = new Map<string, Promise<any>>();
 
 // Default TTL of 60 seconds
 const DEFAULT_TTL_MS = 60 * 1000;
@@ -34,15 +35,31 @@ export async function getOrCompute<T>(
     return entry.data;
   }
 
-  // Fetch fresh data
-  const data = await fetcher();
+  const existingInFlight = inFlight.get(key);
+  if (existingInFlight) {
+    return existingInFlight;
+  }
 
-  cache.set(key, {
-    data,
-    expiresAt: now + ttlMs,
-  });
+  const pending = (async () => {
+    const data = await fetcher();
 
-  return data;
+    cache.set(key, {
+      data,
+      expiresAt: Date.now() + ttlMs,
+    });
+
+    return data;
+  })();
+
+  inFlight.set(key, pending);
+
+  try {
+    return await pending;
+  } finally {
+    if (inFlight.get(key) === pending) {
+      inFlight.delete(key);
+    }
+  }
 }
 
 /**
@@ -69,6 +86,7 @@ export function invalidatePattern(pattern: RegExp): void {
  */
 export function clearAll(): void {
   cache.clear();
+  inFlight.clear();
 }
 
 // Cache key constants

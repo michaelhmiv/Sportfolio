@@ -104,16 +104,10 @@ function SectionHeader({
   );
 }
 
-function BuiltInDataSection() {
-  const { data: capabilities } = useQuery<{
-    internalMcpStatus?: {
-      mlb: { enabled: boolean; available: boolean; toolCount: number };
-    };
-  }>({
-    queryKey: ["/api/agent/capabilities"],
-  });
-
-  const mlb = capabilities?.internalMcpStatus?.mlb;
+function BuiltInDataSection({ profileData }: { profileData: AgentProfileResponse | undefined }) {
+  const mlb = profileData?.capabilities.dataSources?.builtIn[0] || null;
+  const projectedToolCountMatch = mlb?.capabilitySummary?.match(/(\d+)\s+tool/);
+  const projectedToolCount = projectedToolCountMatch ? Number(projectedToolCountMatch[1]) : null;
   const mlbStatus = mlb
     ? mlb.available
       ? "Connected"
@@ -136,15 +130,19 @@ function BuiltInDataSection() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-sm text-white/70">MLB Data Feed</span>
-            {mlb && mlb.available && (
-              <span className="text-[10px] text-white/30">{mlb.toolCount} tools</span>
+            {projectedToolCount != null && mlb?.available && (
+              <span className="text-[10px] text-white/30">{projectedToolCount} tools</span>
             )}
           </div>
           <Badge className={cn("rounded-full text-[10px]", mlbBadgeClass)}>{mlbStatus}</Badge>
         </div>
+        {mlb?.capabilitySummary && (
+          <p className="mt-1.5 text-[11px] text-white/30">{mlb.capabilitySummary}</p>
+        )}
         {mlb && !mlb.available && mlb.enabled && (
           <p className="mt-1.5 text-[11px] text-white/30">
-            The MLB data service is starting up or offline. Built-in tools still work for MLB data.
+            The MLB enrichment service is starting up or offline. Native Sportfolio MLB tools still
+            remain primary.
           </p>
         )}
       </div>
@@ -222,8 +220,9 @@ function DataSourcesSection() {
         badge={sources ? `${externalSourceCount}/5 external` : undefined}
       />
       <p className="text-xs leading-5 text-white/35">
-        Built-in sources are available through Hermes by default. You can also connect external MCP
-        data sources, and Hermes will query enabled sources during conversations and strategy runs.
+        Native Sportfolio tools stay primary for portfolio and gameplay state. Built-in and external
+        MCP sources are optional enrichment that Hermes uses only when native tools do not already
+        cover the request cleanly.
       </p>
 
       {isLoading ? (
@@ -460,7 +459,7 @@ function MemorySkillsSection() {
     <div className="space-y-3">
       <SectionHeader icon={Brain} title="Memory & Skills" />
       <p className="text-xs leading-5 text-white/35">
-        Hermes learns your preferences and builds reusable workflow skills over time.
+        Hermes keeps limited Sportfolio-specific memory and can reuse successful workflow patterns.
       </p>
 
       <div className="grid gap-2 sm:grid-cols-2">
@@ -469,8 +468,8 @@ function MemorySkillsSection() {
             Memory
           </div>
           <div className="mt-2 text-sm text-white/70">
-            Hermes stores your preferences, goals, risk tolerance, and interaction style
-            automatically from conversations.
+            Hermes stores compact user-scoped preferences, goals, and interaction notes that help
+            with future Sportfolio turns.
           </div>
           <div className="mt-3 text-[10px] text-white/20">
             To manage: "What do you remember about me?" or "Forget my risk tolerance preference"
@@ -481,8 +480,8 @@ function MemorySkillsSection() {
             Skills
           </div>
           <div className="mt-2 text-sm text-white/70">
-            When Hermes solves a new workflow cleanly, it saves the pattern as a reusable skill for
-            future conversations.
+            When Hermes solves a repeatable Sportfolio workflow cleanly, it can save that pattern as
+            a reusable skill without widening backend access.
           </div>
           <div className="mt-3 text-[10px] text-white/20">
             To manage: "What skills have you learned?" or "List my runtime skills"
@@ -807,7 +806,7 @@ export function AgentConfigurePanel({
   return (
     <ScrollArea className="h-full">
       <div className="mx-auto max-w-2xl space-y-8 px-4 py-6 sm:px-6">
-        <BuiltInDataSection />
+        <BuiltInDataSection profileData={profileData} />
 
         <div className="border-t border-white/[0.04]" />
 
