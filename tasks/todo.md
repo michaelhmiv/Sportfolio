@@ -1,3 +1,22 @@
+## 2026-04-08 PR #117 Review Comments + Merge Conflict Resolution
+
+- [x] Pull PR #117 review-thread context and identify unresolved actionable comments
+- [x] Merge `origin/main` into `chore/non-telegram-rollup` and resolve conflict files cleanly
+- [x] Patch unresolved review comments for agent turn-stream auth and `PlayerName` click behavior
+- [x] Run required validation (`npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`)
+- [x] Commit and push the merge-resolution + comment fixes to PR #117 branch
+
+Review:
+
+- Resolved merge conflicts in `client/src/components/game-command-center-modal.tsx`, `docs/mlb-mcp.md`, and `server/agent/model-first-router.ts` while preserving current `main` recovery behavior and the branch turn-budget progress-stream changes.
+- Replaced EventSource-based turn progress streaming in `client/src/features/agent/hooks/use-agent-shell.ts` with an authenticated `fetch` SSE reader so bearer-header sessions receive progress events.
+- Updated `client/src/components/player-name.tsx` to stop suppressing parent click handlers, so parent row/button actions continue to fire when player names are clicked.
+- Validation status:
+- `npm run check` passed.
+- `npm run lint` passed.
+- `npm run test:run` passed.
+- `npm run format:check` passed.
+
 ## 2026-04-06 Relative-Date Grounding for MLB Stat Scans
 
 - [x] Reproduce the wrong-date MLB stat gameplan response from the stored dev thread and confirm whether the bad date came from the tool result or only the final prose

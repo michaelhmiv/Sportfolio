@@ -1734,6 +1734,7 @@ export async function getMlbPregameInsightBundle(
   dateStr: string,
   options?: {
     includeGameDetails?: boolean;
+    includeDeepContext?: boolean;
   },
 ): Promise<MlbPregameInsightBundle> {
   const mlbGames = games.filter((game) => String(game.sport || "").toUpperCase() === "MLB");
@@ -1764,6 +1765,7 @@ export async function getMlbPregameInsightBundle(
   const batterStatsLookup = new Map<string, NormalizedBatterExpectedStats>();
   const teamContextByTeamKey = new Map<string, MlbPregameTeamContext | null>();
   const includeGameDetails = options?.includeGameDetails ?? false;
+  const includeDeepContext = options?.includeDeepContext ?? true;
 
   if (includeGameDetails) {
     await Promise.all(
@@ -1786,45 +1788,47 @@ export async function getMlbPregameInsightBundle(
       }),
     );
 
-    const allLineupEntries = Array.from(gameDetailsByScheduleGameId.values()).flatMap(
-      (gameDetails) => [...gameDetails.startingLineups.away, ...gameDetails.startingLineups.home],
-    );
+    if (includeDeepContext) {
+      const allLineupEntries = Array.from(gameDetailsByScheduleGameId.values()).flatMap(
+        (gameDetails) => [...gameDetails.startingLineups.away, ...gameDetails.startingLineups.home],
+      );
 
-    const loadedBatterStats = await loadBatterStatsLookup(allLineupEntries, dateStr);
-    loadedBatterStats.forEach((value, key) => {
-      batterStatsLookup.set(key, value);
-    });
+      const loadedBatterStats = await loadBatterStatsLookup(allLineupEntries, dateStr);
+      loadedBatterStats.forEach((value, key) => {
+        batterStatsLookup.set(key, value);
+      });
 
-    await Promise.all(
-      matchedGames.flatMap(({ localGame, scheduleGame }) => {
-        const gameDetails =
-          scheduleGame.gameId != null
-            ? gameDetailsByScheduleGameId.get(scheduleGame.gameId) || null
-            : null;
+      await Promise.all(
+        matchedGames.flatMap(({ localGame, scheduleGame }) => {
+          const gameDetails =
+            scheduleGame.gameId != null
+              ? gameDetailsByScheduleGameId.get(scheduleGame.gameId) || null
+              : null;
 
-        return [
-          {
-            teamKey: localGame.awayTeam,
-            teamCode: localGame.awayTeam,
-          },
-          {
-            teamKey: localGame.homeTeam,
-            teamCode: localGame.homeTeam,
-          },
-        ].map(async (entry) => {
-          if (teamContextByTeamKey.has(entry.teamKey)) {
-            return;
-          }
+          return [
+            {
+              teamKey: localGame.awayTeam,
+              teamCode: localGame.awayTeam,
+            },
+            {
+              teamKey: localGame.homeTeam,
+              teamCode: localGame.homeTeam,
+            },
+          ].map(async (entry) => {
+            if (teamContextByTeamKey.has(entry.teamKey)) {
+              return;
+            }
 
-          const context = await loadTeamContext({
-            teamCode: entry.teamCode,
-            gameDetails,
-            currentGameId: scheduleGame.gameId,
+            const context = await loadTeamContext({
+              teamCode: entry.teamCode,
+              gameDetails,
+              currentGameId: scheduleGame.gameId,
+            });
+            teamContextByTeamKey.set(entry.teamKey, context);
           });
-          teamContextByTeamKey.set(entry.teamKey, context);
-        });
-      }),
-    );
+        }),
+      );
+    }
   }
 
   const insightByGameId = new Map<string, MlbPregameInsight>();
@@ -1955,6 +1959,7 @@ export async function getMlbPregameInsightMap(
   dateStr: string,
   options?: {
     includeGameDetails?: boolean;
+    includeDeepContext?: boolean;
   },
 ): Promise<Map<string, MlbPregameInsight>> {
   const { insightByGameId } = await getMlbPregameInsightBundle(games, dateStr, options);

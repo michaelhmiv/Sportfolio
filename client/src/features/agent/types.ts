@@ -217,6 +217,32 @@ export interface AgentToolTrace {
   details?: Record<string, unknown> | null;
 }
 
+export type AgentTurnProgressEventType =
+  | "stream_connected"
+  | "turn_started"
+  | "model_pass_started"
+  | "model_pass_completed"
+  | "tool_call_started"
+  | "tool_call_completed"
+  | "tool_call_failed"
+  | "repair_retry"
+  | "turn_completed"
+  | "turn_failed";
+
+export interface AgentTurnProgressEvent {
+  turnId: string;
+  threadId: string;
+  timestamp: string;
+  eventType: AgentTurnProgressEventType;
+  status: "queued" | "running" | "done" | "failed" | "info";
+  summary: string;
+  phase?: AgentToolTrace["phase"];
+  toolName?: string | null;
+  passIndex?: number;
+  elapsedMs?: number | null;
+  details?: Record<string, unknown> | null;
+}
+
 export interface AgentConfirmationPreview {
   actionSummary: string;
   beforeState: Record<string, unknown>;

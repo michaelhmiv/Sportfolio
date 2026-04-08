@@ -321,5 +321,6 @@ export async function buildHermesTurnRequest(
     strategyContext: input.strategyContext || null,
     triggerContext: input.triggerContext || null,
     executionContext: input.executionContext || null,
+    turnBudgetProfile: input.turnBudgetProfile || "default",
   };
 }

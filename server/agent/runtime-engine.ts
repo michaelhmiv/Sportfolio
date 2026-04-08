@@ -79,6 +79,7 @@ function buildSidecarRequestBody(requestPayload: HermesRespondRequest) {
     strategyContext: requestPayload.strategyContext || null,
     triggerContext: requestPayload.triggerContext || null,
     executionContext: requestPayload.executionContext || null,
+    turnBudgetProfile: requestPayload.turnBudgetProfile || "default",
   };
 }
 

@@ -11,6 +11,7 @@ import type {
   AgentConfirmationPreview,
   AgentSkillStep,
   AgentToolTrace,
+  AgentTurnProgressCallback,
   HermesRespondRequest,
   HermesRespondResult,
   ScoutAgentContext,
@@ -261,12 +262,14 @@ function normalizePlannerOutcome(
     | "repairAttempts"
     | "providerFailureClass"
     | "memoryInfluences"
+    | "usageMetrics"
   > = {
     terminationReason: null,
     compressionApplied: false,
     repairAttempts: 0,
     providerFailureClass: null,
     memoryInfluences: [],
+    usageMetrics: null,
   },
 ): HermesRespondResult {
   const proposedActions = Array.isArray(result.actions) ? (result.actions as AgentAction[]) : [];
@@ -305,6 +308,7 @@ function normalizePlannerOutcome(
     repairAttempts: metadata.repairAttempts ?? 0,
     providerFailureClass: metadata.providerFailureClass ?? null,
     memoryInfluences: metadata.memoryInfluences || [],
+    usageMetrics: metadata.usageMetrics || null,
     requiresConfirmation: proposedActions.length > 0,
     confirmationPreview,
   };
@@ -429,6 +433,7 @@ export async function runHermesOrchestrationTurn(input: {
   secret?: UserAgentSecret;
   context: ScoutAgentContext;
   request: HermesRespondRequest;
+  onTurnEvent?: AgentTurnProgressCallback;
 }): Promise<HermesRespondResult> {
   const toolTrace: AgentToolTrace[] = [];
   const startedAt = Date.now();
@@ -517,6 +522,7 @@ export async function runHermesOrchestrationTurn(input: {
       secret: input.secret,
       request: requestForModel,
       matchedSkill: matchedSkill || null,
+      onTurnEvent: input.onTurnEvent,
     });
     toolTrace.push(...routedTurn.toolTrace);
 
@@ -541,6 +547,7 @@ export async function runHermesOrchestrationTurn(input: {
         repairAttempts: routedTurn.repairAttempts,
         providerFailureClass: routedTurn.providerFailureClass,
         memoryInfluences,
+        usageMetrics: routedTurn.usageMetrics,
         requiresConfirmation: false,
         confirmationPreview: null,
         uiBlocks: routedTurn.uiBlocks,
@@ -554,6 +561,15 @@ export async function runHermesOrchestrationTurn(input: {
         toolArgs: routedTurn.toolArgs,
       });
       const planStartedAt = Date.now();
+      const planPhase = routedTurn.toolName === "get_hosted_research" ? "research" : "plan";
+      input.onTurnEvent?.({
+        eventType: "tool_call_started",
+        status: "running",
+        summary: `Running ${routedTurn.toolName}.`,
+        phase: planPhase,
+        toolName: routedTurn.toolName,
+        passIndex: routedTurn.usageMetrics.modelPassCount,
+      });
 
       try {
         const planResult = await runHermesPlanTool({
@@ -573,6 +589,15 @@ export async function runHermesOrchestrationTurn(input: {
                 "The model-selected planning tool did not return a usable plan for this turn.",
             }),
           );
+          input.onTurnEvent?.({
+            eventType: "tool_call_completed",
+            status: "done",
+            summary: `${routedTurn.toolName} returned no actionable plan.`,
+            phase: planPhase,
+            toolName: routedTurn.toolName,
+            passIndex: routedTurn.usageMetrics.modelPassCount,
+            elapsedMs: Math.max(0, Date.now() - planStartedAt),
+          });
         } else {
           toolTrace.push(
             buildToolTraceEntry({
@@ -588,6 +613,15 @@ export async function runHermesOrchestrationTurn(input: {
                   : "Resolved the request through a model-selected planning tool.",
             }),
           );
+          input.onTurnEvent?.({
+            eventType: "tool_call_completed",
+            status: "done",
+            summary: `Completed ${routedTurn.toolName}.`,
+            phase: planPhase,
+            toolName: routedTurn.toolName,
+            passIndex: routedTurn.usageMetrics.modelPassCount,
+            elapsedMs: Math.max(0, Date.now() - planStartedAt),
+          });
 
           if (
             routedTurn.toolName === "preview_multi_action_bundle" &&
@@ -621,6 +655,7 @@ export async function runHermesOrchestrationTurn(input: {
               repairAttempts: routedTurn.repairAttempts,
               providerFailureClass: routedTurn.providerFailureClass,
               memoryInfluences,
+              usageMetrics: routedTurn.usageMetrics,
             },
           );
         }
@@ -636,6 +671,18 @@ export async function runHermesOrchestrationTurn(input: {
               `${routedTurn.toolName} failed after the model selected it for this turn.`,
           }),
         );
+        input.onTurnEvent?.({
+          eventType: "tool_call_failed",
+          status: "failed",
+          summary: `${routedTurn.toolName} failed.`,
+          phase: planPhase,
+          toolName: routedTurn.toolName,
+          passIndex: routedTurn.usageMetrics.modelPassCount,
+          elapsedMs: Math.max(0, Date.now() - planStartedAt),
+          details: {
+            error: error?.message || `${routedTurn.toolName} failed.`,
+          },
+        });
       }
     } else if (routedTurn.outcome === "unsupported" && routedTurn.replyText) {
       return {
@@ -658,6 +705,7 @@ export async function runHermesOrchestrationTurn(input: {
         repairAttempts: routedTurn.repairAttempts,
         providerFailureClass: routedTurn.providerFailureClass,
         memoryInfluences,
+        usageMetrics: routedTurn.usageMetrics,
         requiresConfirmation: false,
         confirmationPreview: null,
         uiBlocks: routedTurn.uiBlocks,
@@ -696,6 +744,7 @@ export async function runHermesOrchestrationTurn(input: {
       repairAttempts: routedTurn.repairAttempts,
       providerFailureClass: routedTurn.providerFailureClass,
       memoryInfluences,
+      usageMetrics: routedTurn.usageMetrics,
     };
   } catch (error: any) {
     toolTrace.push(
@@ -729,6 +778,7 @@ export async function runHermesOrchestrationTurn(input: {
         repairAttempts: 0,
         providerFailureClass: null,
         memoryInfluences,
+        usageMetrics: null,
         requiresConfirmation: false,
         confirmationPreview: null,
       };
@@ -762,6 +812,7 @@ export async function runHermesOrchestrationTurn(input: {
       repairAttempts: 0,
       providerFailureClass: null,
       memoryInfluences,
+      usageMetrics: null,
       requiresConfirmation: fallback.proposedActions.length > 0,
       confirmationPreview:
         fallback.proposedActions.length > 0

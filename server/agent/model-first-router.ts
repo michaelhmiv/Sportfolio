@@ -21,7 +21,10 @@ import type {
   AgentSkillDefinition,
   AgentToolDefinition,
   AgentToolTrace,
+  AgentTurnProgressCallback,
   HermesRespondRequest,
+  HermesTurnBudgetProfile,
+  HermesTurnUsageMetrics,
 } from "./types";
 
 type ModelFirstToolCategory = "read" | "scan" | "plan" | "action" | "memory";
@@ -32,6 +35,7 @@ type ModelFirstRouteMetadata = {
   compressionApplied: boolean;
   repairAttempts: number;
   providerFailureClass: AgentProviderFailureClass | null;
+  usageMetrics: HermesTurnUsageMetrics;
 };
 
 export type ModelFirstRouteResult =
@@ -81,10 +85,24 @@ const noArgsSchema = {
   additionalProperties: false,
 } as const;
 
-const MAX_MODEL_PASSES = 8;
-const MAX_TOOL_CALLS = 7;
-const BASE_PROMPT_CHAR_BUDGET = 5_400;
+const DEFAULT_MAX_MODEL_PASSES = 8;
+const DEFAULT_MAX_TOOL_CALLS = 7;
+const DEFAULT_BASE_PROMPT_CHAR_BUDGET = 5_400;
+const AGGRESSIVE_SAFE_MAX_MODEL_PASSES = 3;
+const AGGRESSIVE_SAFE_MAX_TOOL_CALLS = 2;
+const AGGRESSIVE_SAFE_BASE_PROMPT_CHAR_BUDGET = 3_200;
+const AGGRESSIVE_SAFE_MAX_TOKENS = 720;
 const AGENT_TIMEZONE = "America/New_York";
+
+interface ResolvedTurnBudget {
+  profile: HermesTurnBudgetProfile;
+  maxModelPasses: number;
+  maxToolCalls: number;
+  basePromptCharBudget: number;
+  maxTokens: number;
+  compactToolResultPayloads: boolean;
+}
+
 const MLB_TEAM_REFERENCES = [
   { id: 108, code: "LAA", aliases: ["los angeles angels", "angels", "laa"] },
   { id: 109, code: "ARI", aliases: ["arizona diamondbacks", "diamondbacks", "dbacks", "ari"] },
@@ -200,6 +218,45 @@ function clampMaxTokens(profile: UserAgentProfile) {
   }
 
   return Math.max(250, Math.min(profile.maxTokens, 1400));
+}
+
+function isExplicitActionIntentForBudget(request: HermesRespondRequest) {
+  if (request.requestMode === "plan" || request.requestMode === "clarification_resume") {
+    return true;
+  }
+
+  return isExplicitPlanningIntent(request.message);
+}
+
+function resolveTurnBudget(
+  request: HermesRespondRequest,
+  profile: UserAgentProfile,
+): ResolvedTurnBudget {
+  const requestedProfile = request.turnBudgetProfile || "default";
+  const canUseAggressiveSafe =
+    requestedProfile === "aggressive_safe" && !isExplicitActionIntentForBudget(request);
+  const profileName: HermesTurnBudgetProfile = canUseAggressiveSafe ? "aggressive_safe" : "default";
+  const clampedMaxTokens = clampMaxTokens(profile);
+
+  if (profileName === "aggressive_safe") {
+    return {
+      profile: "aggressive_safe",
+      maxModelPasses: AGGRESSIVE_SAFE_MAX_MODEL_PASSES,
+      maxToolCalls: AGGRESSIVE_SAFE_MAX_TOOL_CALLS,
+      basePromptCharBudget: AGGRESSIVE_SAFE_BASE_PROMPT_CHAR_BUDGET,
+      maxTokens: Math.max(300, Math.min(clampedMaxTokens, AGGRESSIVE_SAFE_MAX_TOKENS)),
+      compactToolResultPayloads: true,
+    };
+  }
+
+  return {
+    profile: "default",
+    maxModelPasses: DEFAULT_MAX_MODEL_PASSES,
+    maxToolCalls: DEFAULT_MAX_TOOL_CALLS,
+    basePromptCharBudget: DEFAULT_BASE_PROMPT_CHAR_BUDGET,
+    maxTokens: clampedMaxTokens,
+    compactToolResultPayloads: false,
+  };
 }
 
 function clampTemperature(profile: UserAgentProfile) {
@@ -486,13 +543,14 @@ function resolveInitialCompressionLevel(input: {
   request: HermesRespondRequest;
   matchedSkill: AgentSkillDefinition | null;
   tools: AgentToolDefinition[];
+  basePromptCharBudget: number;
 }): CompressionLevel {
   const estimatedChars = estimatePromptChars(input);
-  if (estimatedChars > BASE_PROMPT_CHAR_BUDGET * 1.55) {
+  if (estimatedChars > input.basePromptCharBudget * 1.55) {
     return 2;
   }
   if (
-    estimatedChars > BASE_PROMPT_CHAR_BUDGET ||
+    estimatedChars > input.basePromptCharBudget ||
     input.request.conversationHistory.length > 8 ||
     input.request.memoryContext.semantic.length > 6
   ) {
@@ -1026,6 +1084,7 @@ function buildStructuredToolContextText(input: {
   context?: unknown;
   intentFocus?: string;
   fallbackNarrative?: string | null;
+  contextMaxChars?: number;
 }) {
   const parts: string[] = [];
 
@@ -1042,7 +1101,7 @@ function buildStructuredToolContextText(input: {
     parts.push(`Warnings:\n- ${input.warnings.join("\n- ")}`);
   }
   if (input.context && typeof input.context === "object") {
-    parts.push(`Structured context:\n${safeJson(input.context, 2200)}`);
+    parts.push(`Structured context:\n${safeJson(input.context, input.contextMaxChars || 2200)}`);
   }
   if (parts.length === 0 && input.fallbackNarrative) {
     parts.push(input.fallbackNarrative);
@@ -1051,7 +1110,11 @@ function buildStructuredToolContextText(input: {
   return parts.join("\n\n") || `Result from ${input.toolName}.`;
 }
 
-function buildToolFallbackText(tool: AgentToolDefinition, result: unknown): string {
+function buildToolFallbackText(
+  tool: AgentToolDefinition,
+  result: unknown,
+  compactPayload: boolean,
+): string {
   if (tool.category === "scan" && result && typeof result === "object") {
     const scan = result as { replyText?: unknown; summary?: unknown };
     if (typeof scan.replyText === "string" && scan.replyText.trim()) {
@@ -1071,10 +1134,14 @@ function buildToolFallbackText(tool: AgentToolDefinition, result: unknown): stri
     }
   }
 
-  return `Result from ${tool.toolName}:\n${safeJson(result, 2800)}`;
+  return `Result from ${tool.toolName}:\n${safeJson(result, compactPayload ? 900 : 2800)}`;
 }
 
-function buildToolResultText(tool: AgentToolDefinition, result: unknown): string {
+function buildToolResultText(
+  tool: AgentToolDefinition,
+  result: unknown,
+  compactPayload: boolean,
+): string {
   if (tool.category === "scan" && isStructuredScanResult(result)) {
     return buildStructuredToolContextText({
       toolName: tool.toolName,
@@ -1084,6 +1151,7 @@ function buildToolResultText(tool: AgentToolDefinition, result: unknown): string
       context: result.context || {},
       intentFocus: result.intentFocus,
       fallbackNarrative: typeof result.replyText === "string" ? result.replyText.trim() : null,
+      contextMaxChars: compactPayload ? 850 : 2200,
     });
   }
 
@@ -1102,10 +1170,11 @@ function buildToolResultText(tool: AgentToolDefinition, result: unknown): string
         ...(Array.isArray(citations) && citations.length > 0 ? { citations } : {}),
       },
       fallbackNarrative: typeof replyText === "string" ? replyText : null,
+      contextMaxChars: compactPayload ? 850 : 2200,
     });
   }
 
-  return `Result from ${tool.toolName}:\n${safeJson(result, 2800)}`;
+  return `Result from ${tool.toolName}:\n${safeJson(result, compactPayload ? 900 : 2800)}`;
 }
 
 function formatOperatorOverviewFallback(result: unknown): string | null {
@@ -1468,6 +1537,7 @@ export async function runHermesModelToolLoop(input: {
   secret?: UserAgentSecret;
   request: HermesRespondRequest;
   matchedSkill: AgentSkillDefinition | null;
+  onTurnEvent?: AgentTurnProgressCallback;
 }): Promise<ModelFirstRouteResult> {
   const toolTrace: AgentToolTrace[] = [];
   const warnings: string[] = [];
@@ -1476,6 +1546,7 @@ export async function runHermesModelToolLoop(input: {
     toolAllowlist: input.request.toolAllowlist,
     toolCatalog: input.request.toolCatalog,
   }).filter((entry) => entry.exposure !== "hidden_fallback" && entry.exposure !== "internal_only");
+  const turnBudget = resolveTurnBudget(input.request, input.profile);
   const includesInternalMlbTools = hasInternalMlbEnrichmentTools(tools);
   const internalMlbGroundingRules = includesInternalMlbTools
     ? buildInternalMlbGroundingRules()
@@ -1486,10 +1557,25 @@ export async function runHermesModelToolLoop(input: {
     request: input.request,
     matchedSkill: input.matchedSkill,
     tools,
+    basePromptCharBudget: turnBudget.basePromptCharBudget,
   });
   let compressionApplied = compressionLevel > 0;
   let repairAttempts = 0;
   let providerFailureClass: AgentProviderFailureClass | null = null;
+  let modelPassCount = 0;
+  let toolCallsUsed = 0;
+  let finalUsage: AgentModelUsage | undefined;
+
+  const emitTurnEvent = (event: Parameters<AgentTurnProgressCallback>[0]) => {
+    if (!input.onTurnEvent) {
+      return;
+    }
+    try {
+      input.onTurnEvent(event);
+    } catch (_error) {
+      // best-effort callback only
+    }
+  };
 
   try {
     let messages = rebuildLoopMessages({
@@ -1500,19 +1586,27 @@ export async function runHermesModelToolLoop(input: {
       messages: [],
     });
     let repairReason: string | null = null;
-    let toolCallsUsed = 0;
-    let finalUsage: AgentModelUsage | undefined;
     let usedTransientRetry = false;
     let lastSuccessfulToolName: string | null = null;
     let lastSuccessfulToolReply: string | null = null;
     let lastSuccessfulToolUiBlocks: AgentUiBlock[] = [];
     const successfulToolContexts: Array<{ toolName: string; text: string }> = [];
 
+    const buildUsageMetrics = (): HermesTurnUsageMetrics => ({
+      modelPassCount,
+      nonPlanningToolCallCount: toolCallsUsed,
+      maxModelPasses: turnBudget.maxModelPasses,
+      maxToolCalls: turnBudget.maxToolCalls,
+      budgetProfile: turnBudget.profile,
+      finalUsage: finalUsage || null,
+    });
+
     const buildMetadata = (terminationReason: string | null): ModelFirstRouteMetadata => ({
       terminationReason,
       compressionApplied,
       repairAttempts,
       providerFailureClass,
+      usageMetrics: buildUsageMetrics(),
     });
 
     const attemptAnswerOnlySynthesis = async (reason: string) => {
@@ -1840,7 +1934,11 @@ export async function runHermesModelToolLoop(input: {
           result: toolResult,
           conversationMode: input.request.conversationMode,
         });
-        const toolResultText = buildToolResultText(selectedTool, toolResult);
+        const toolResultText = buildToolResultText(
+          selectedTool,
+          toolResult,
+          turnBudget.compactToolResultPayloads,
+        );
         successfulToolContexts.push({
           toolName: selectedTool.toolName,
           text: toolResultText,
@@ -1873,8 +1971,8 @@ export async function runHermesModelToolLoop(input: {
           selectedTool.toolName === "get_operator_overview" ||
           selectedTool.toolName === "get_portfolio_summary"
             ? formatOperatorOverviewFallback(toolResult) ||
-              buildToolFallbackText(selectedTool, toolResult)
-            : buildToolFallbackText(selectedTool, toolResult);
+              buildToolFallbackText(selectedTool, toolResult, turnBudget.compactToolResultPayloads)
+            : buildToolFallbackText(selectedTool, toolResult, turnBudget.compactToolResultPayloads);
 
         warnings.push(
           `Hermes used ${selectedTool.toolName} directly after the active model returned empty turns.`,
@@ -1905,8 +2003,17 @@ export async function runHermesModelToolLoop(input: {
       }
     };
 
-    for (let pass = 0; pass < MAX_MODEL_PASSES; pass += 1) {
+    for (let pass = 0; pass < turnBudget.maxModelPasses; pass += 1) {
       const startedAt = Date.now();
+      const passIndex = pass + 1;
+      modelPassCount += 1;
+      emitTurnEvent({
+        eventType: "model_pass_started",
+        status: "running",
+        summary: `Model pass ${passIndex} started.`,
+        phase: "plan",
+        passIndex,
+      });
       let assistantMessage: AssistantMessage;
 
       try {
@@ -1934,7 +2041,7 @@ export async function runHermesModelToolLoop(input: {
             parameters: (tool.inputSchema || noArgsSchema) as Record<string, unknown>,
           })),
           temperature: clampTemperature(input.profile),
-          maxTokens: clampMaxTokens(input.profile),
+          maxTokens: turnBudget.maxTokens,
         });
       } catch (error: any) {
         providerFailureClass = classifyAgentProviderFailure(error);
@@ -1970,6 +2077,17 @@ export async function runHermesModelToolLoop(input: {
               },
             }),
           );
+          emitTurnEvent({
+            eventType: "repair_retry",
+            status: "info",
+            summary:
+              previousLevel === 0
+                ? "Provider overflowed context; compressed prompt and retrying."
+                : "Provider overflowed again; escalated to tightest compression and retrying.",
+            phase: "plan",
+            passIndex,
+            elapsedMs: Math.max(0, Date.now() - startedAt),
+          });
           continue;
         }
 
@@ -1988,6 +2106,14 @@ export async function runHermesModelToolLoop(input: {
               },
             }),
           );
+          emitTurnEvent({
+            eventType: "repair_retry",
+            status: "info",
+            summary: "Transient provider failure; retrying once.",
+            phase: "plan",
+            passIndex,
+            elapsedMs: Math.max(0, Date.now() - startedAt),
+          });
           continue;
         }
 
@@ -2004,6 +2130,18 @@ export async function runHermesModelToolLoop(input: {
             },
           }),
         );
+        emitTurnEvent({
+          eventType: "model_pass_completed",
+          status: "failed",
+          summary: `Model pass ${passIndex} failed.`,
+          phase: "plan",
+          passIndex,
+          elapsedMs: Math.max(0, Date.now() - startedAt),
+          details: {
+            error: errorMessage,
+            providerFailureClass,
+          },
+        });
 
         return {
           outcome: "error",
@@ -2021,6 +2159,21 @@ export async function runHermesModelToolLoop(input: {
 
       const toolCalls = extractToolCalls(assistantMessage);
       const assistantText = extractAssistantText(assistantMessage);
+      emitTurnEvent({
+        eventType: "model_pass_completed",
+        status: "done",
+        summary:
+          toolCalls.length > 0
+            ? `Model pass ${passIndex} completed with ${toolCalls.length} tool call candidate${toolCalls.length === 1 ? "" : "s"}.`
+            : `Model pass ${passIndex} completed with a direct answer candidate.`,
+        phase: "plan",
+        passIndex,
+        elapsedMs: Math.max(0, Date.now() - startedAt),
+        details: {
+          toolCallCount: toolCalls.length,
+          hasAssistantText: Boolean(assistantText),
+        },
+      });
 
       if (toolCalls.length === 0) {
         if (assistantText && requestedPlanningIntent) {
@@ -2078,6 +2231,15 @@ export async function runHermesModelToolLoop(input: {
                 "The model returned no visible answer and no usable tool call. Retrying once.",
             }),
           );
+          emitTurnEvent({
+            eventType: "repair_retry",
+            status: "info",
+            summary:
+              "Model returned no visible answer or tool call; retrying once with repair guidance.",
+            phase: "plan",
+            passIndex,
+            elapsedMs: Math.max(0, Date.now() - startedAt),
+          });
           continue;
         }
 
@@ -2170,6 +2332,13 @@ export async function runHermesModelToolLoop(input: {
           repairReason =
             "Do not call unavailable tools. Choose one listed tool or answer directly.";
           repairAttempts += 1;
+          emitTurnEvent({
+            eventType: "repair_retry",
+            status: "info",
+            summary: `Model chose unavailable tool ${toolCall.name}; retrying with corrected tool list guidance.`,
+            phase: "plan",
+            passIndex,
+          });
           continue;
         }
 
@@ -2254,6 +2423,13 @@ export async function runHermesModelToolLoop(input: {
               },
             }),
           );
+          emitTurnEvent({
+            eventType: "repair_retry",
+            status: "info",
+            summary: `Rejected invalid arguments for ${selectedTool.toolName}; retrying with schema guidance.`,
+            phase: "plan",
+            passIndex,
+          });
           continue;
         }
 
@@ -2301,6 +2477,13 @@ export async function runHermesModelToolLoop(input: {
               summary: `Rejected premature plan tool ${selectedTool.toolName} for an advisory request and requested a safer reroute.`,
             }),
           );
+          emitTurnEvent({
+            eventType: "repair_retry",
+            status: "info",
+            summary: `Deferred ${selectedTool.toolName} until the request is explicit enough to stage a plan.`,
+            phase: "plan",
+            passIndex,
+          });
           continue;
         }
 
@@ -2328,7 +2511,7 @@ export async function runHermesModelToolLoop(input: {
         };
       }
 
-      if (toolCallsUsed >= MAX_TOOL_CALLS) {
+      if (toolCallsUsed >= turnBudget.maxToolCalls) {
         const recoveredPlan = await attemptPlanOnlyRecovery("the Hermes tool budget was exhausted");
         if (recoveredPlan) {
           return recoveredPlan;
@@ -2340,7 +2523,6 @@ export async function runHermesModelToolLoop(input: {
         if (synthesized) {
           return synthesized;
         }
-
         return {
           outcome: "unsupported",
           replyText: null,
@@ -2355,6 +2537,17 @@ export async function runHermesModelToolLoop(input: {
 
       toolCallsUsed += 1;
       const toolStartedAt = Date.now();
+      emitTurnEvent({
+        eventType: "tool_call_started",
+        status: "running",
+        summary: `Running ${selectedTool.toolName}.`,
+        phase:
+          selectedTool.category === "read" && selectedTool.toolName === "get_hosted_research"
+            ? "research"
+            : selectedTool.category,
+        toolName: selectedTool.toolName,
+        passIndex,
+      });
 
       try {
         const toolResult = await executeNonPlanningTool({
@@ -2370,8 +2563,16 @@ export async function runHermesModelToolLoop(input: {
           result: toolResult,
           conversationMode: input.request.conversationMode,
         });
-        const toolResultText = buildToolResultText(selectedTool, toolResult);
-        const toolFallbackText = buildToolFallbackText(selectedTool, toolResult);
+        const toolResultText = buildToolResultText(
+          selectedTool,
+          toolResult,
+          turnBudget.compactToolResultPayloads,
+        );
+        const toolFallbackText = buildToolFallbackText(
+          selectedTool,
+          toolResult,
+          turnBudget.compactToolResultPayloads,
+        );
         lastSuccessfulToolName = selectedTool.toolName;
         lastSuccessfulToolReply = toolFallbackText;
         lastSuccessfulToolUiBlocks = toolUiBlocks;
@@ -2391,6 +2592,44 @@ export async function runHermesModelToolLoop(input: {
             summary: `Executed ${selectedTool.toolName} in the model tool loop.`,
           }),
         );
+        emitTurnEvent({
+          eventType: "tool_call_completed",
+          status: "done",
+          summary: `Completed ${selectedTool.toolName}.`,
+          phase:
+            selectedTool.category === "read" && selectedTool.toolName === "get_hosted_research"
+              ? "research"
+              : selectedTool.category,
+          toolName: selectedTool.toolName,
+          passIndex,
+          elapsedMs: Math.max(0, Date.now() - toolStartedAt),
+        });
+
+        const shouldShortCircuitWithToolReply =
+          turnBudget.profile === "aggressive_safe" &&
+          (selectedTool.category === "read" || selectedTool.category === "scan") &&
+          Boolean(toolFallbackText.trim());
+        if (shouldShortCircuitWithToolReply) {
+          toolTrace.push(
+            buildToolTraceEntry({
+              toolName: "model_first_read_summary",
+              phase: selectedTool.category,
+              status: "ok",
+              startedAt: toolStartedAt,
+              summary: `Returned ${selectedTool.toolName} directly to reduce advisory latency.`,
+            }),
+          );
+          return {
+            outcome: "answer",
+            replyText: toolFallbackText.trim(),
+            summary: `Returned ${selectedTool.toolName} directly for faster advisory response.`,
+            warnings,
+            citations,
+            toolTrace,
+            ...(finalUsage ? { usage: finalUsage } : {}),
+            ...buildMetadata("aggressive_safe_short_circuit"),
+          };
+        }
 
         const toolResultMessage: Message = {
           role: "toolResult",
@@ -2426,6 +2665,21 @@ export async function runHermesModelToolLoop(input: {
             summary: errorMessage,
           }),
         );
+        emitTurnEvent({
+          eventType: "tool_call_failed",
+          status: "failed",
+          summary: `${selectedTool.toolName} failed.`,
+          phase:
+            selectedTool.category === "read" && selectedTool.toolName === "get_hosted_research"
+              ? "research"
+              : selectedTool.category,
+          toolName: selectedTool.toolName,
+          passIndex,
+          elapsedMs: Math.max(0, Date.now() - toolStartedAt),
+          details: {
+            error: errorMessage,
+          },
+        });
 
         const toolResultMessage: Message = {
           role: "toolResult",
@@ -2446,6 +2700,13 @@ export async function runHermesModelToolLoop(input: {
           repairReason =
             "Recover by using another valid tool if needed, or answer directly from the available context.";
           repairAttempts += 1;
+          emitTurnEvent({
+            eventType: "repair_retry",
+            status: "info",
+            summary: `Retrying after ${selectedTool.toolName} failed.`,
+            phase: "plan",
+            passIndex,
+          });
         }
       }
     }
@@ -2492,6 +2753,14 @@ export async function runHermesModelToolLoop(input: {
       compressionApplied,
       repairAttempts,
       providerFailureClass,
+      usageMetrics: {
+        modelPassCount,
+        nonPlanningToolCallCount: toolCallsUsed,
+        maxModelPasses: turnBudget.maxModelPasses,
+        maxToolCalls: turnBudget.maxToolCalls,
+        budgetProfile: turnBudget.profile,
+        finalUsage: finalUsage || null,
+      },
     };
   }
 }
