@@ -63,6 +63,7 @@ import { registerMarketMobileRoutes } from "./routes/market-mobile";
 import { getOrCreatePool, initializePool } from "./amm/pool";
 import { normalizeSiteUrl } from "@shared/seo";
 import { ensureSmsSchema } from "./sms-service";
+import { ensureDiscordSchema } from "./discord-service";
 import { redeemPremiumShare } from "./services/premium-redemption";
 import { loadUserEntitlements } from "./services/user-entitlements";
 import {
@@ -11647,6 +11648,12 @@ ${items}
       await ensureSmsSchema();
     } catch (err: any) {
       console.warn("[DB] Could not ensure SMS schema:", err?.message || err);
+    }
+
+    try {
+      await ensureDiscordSchema();
+    } catch (err: any) {
+      console.warn("[DB] Could not ensure Discord schema:", err?.message || err);
     }
 
     await initializePlayers();
