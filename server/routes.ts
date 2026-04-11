@@ -93,6 +93,7 @@ import {
   sendAgentThreadMessage,
 } from "./agent/thread-service";
 import { getAgentThreadRuntimeDetails } from "./agent/thread-runtime";
+import { agentTurnEventStreamManager } from "./agent/turn-events";
 import {
   approveAgentSkillCandidate,
   listAdminAgentSkills,
@@ -112,7 +113,11 @@ import {
   updateUserAgentStrategy,
 } from "./agent/strategies";
 import { runUserAgentStrategy } from "./agent/strategy-runner";
-import { createUserMcpSource, deleteUserMcpSource } from "./agent/mcp-sources";
+import {
+  createUserMcpSource,
+  deleteUserMcpSource,
+  ensureUserMcpSourceSchema,
+} from "./agent/mcp-sources";
 import {
   getAgentDataSource,
   listAgentDataSources,
@@ -790,6 +795,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.setHeader("X-Data-Generated-At", generatedAt.toISOString());
   };
 
+  const withPublicDataHeaders = <T>(
+    res: Response,
+    data: T,
+    options?: {
+      generatedAt?: Date;
+      lastModifiedAt?: Date;
+      maxAgeSeconds?: number;
+      sharedMaxAgeSeconds?: number;
+    },
+  ) => {
+    setPublicDataHeaders(res, options);
+    return data;
+  };
+
   // Best-effort: ensure LP fee-growth columns exist.
   // This project historically applies SQL migrations manually; if prod misses a migration,
   // a single missing column can break market carousels and AMM reads.
@@ -863,7 +882,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const sport = (req.query.sport as string) || "ALL"; // Default to ALL if not specified
       const scanners = await storage.getFinancialMarketScanners(sport);
-      res.json(scanners);
+      res.json(
+        withPublicDataHeaders(res, scanners, { maxAgeSeconds: 60, sharedMaxAgeSeconds: 60 }),
+      );
     } catch (error) {
       console.error("Error fetching market scanners:", error);
       res.status(500).json({ error: "Failed to fetch market scanners" });
@@ -944,6 +965,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       (normalized.includes("relation") || normalized.includes("column")) &&
       normalized.includes("does not exist")
     ) {
+      if (normalized.includes("user_mcp_sources")) {
+        return "Agent external MCP source schema is missing or outdated. Apply the latest migration and restart the server.";
+      }
+
       return "Agent database schema is missing or outdated. Apply the latest migration and restart the server.";
     }
 
@@ -1002,12 +1027,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     dateStr,
     userId,
     includeMlbGameDetails = false,
+    includeMlbDeepContext = includeMlbGameDetails,
   }: {
     games: DailyGame[];
     sport: string;
     dateStr: string;
     userId?: string | null;
     includeMlbGameDetails?: boolean;
+    includeMlbDeepContext?: boolean;
   }): Promise<{
     insights: GameInsight[];
     boostSlotsRemaining: number | null;
@@ -1844,11 +1871,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }),
     );
 
-    // MLB MCP is display-only enrichment. Core gameplay, payouts, and calculations stay on
+    // MLB MCP is display-only. Core gameplay, payouts, and calculations stay on
     // Ball Don't Lie plus our stored game/player data.
-    const { insightByGameId: mlbPregameInsightByGameId, statusByGameId: mlbEnrichmentByGameId } =
+    const { insightByGameId: mlbPregameInsightByGameId, statusByGameId: mlbStatusByGameId } =
       await getMlbPregameInsightBundle(games, dateStr, {
         includeGameDetails: includeMlbGameDetails,
+        includeDeepContext: includeMlbDeepContext,
       });
     const slatePlayers: GameInsightSlatePlayer[] = [];
     const insights = games.map((game) => {
@@ -1925,9 +1953,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const mlbPregameInsight = mlbPregameInsightByGameId.get(game.gameId) || null;
       const mlbEnrichment =
         String(game.sport || "").toUpperCase() === "MLB"
-          ? mlbEnrichmentByGameId.get(game.gameId) || {
+          ? mlbStatusByGameId.get(game.gameId) || {
               state: "pending",
-              message: "MLB game context is pending.",
+              message: "Game details are pending.",
             }
           : null;
 
@@ -2849,18 +2877,24 @@ ${items}
           `[Dashboard] Unauthenticated: ${timings.total.toFixed(0)}ms (public: ${timings.publicData.toFixed(0)}ms, playerBatch: ${timings.playerBatch.toFixed(0)}ms)`,
         );
 
-        return res.json({
-          user: null, // No user data for anonymous visitors
-          hotPlayers,
-          recentTrades: recentTrades.map((trade) => ({
-            ...trade,
-            player: playerMap.get(trade.playerId),
-          })),
-          topHoldings: [],
-          portfolioMovers24h: [],
-          portfolioHistory: [],
-          boosts: null, // Boosts require authentication
-        });
+        return res.json(
+          withPublicDataHeaders(
+            res,
+            {
+              user: null,
+              hotPlayers,
+              recentTrades: recentTrades.map((trade) => ({
+                ...trade,
+                player: playerMap.get(trade.playerId),
+              })),
+              topHoldings: [],
+              portfolioMovers24h: [],
+              portfolioHistory: [],
+              boosts: null,
+            },
+            { maxAgeSeconds: 60, sharedMaxAgeSeconds: 60 },
+          ),
+        );
       }
 
       // Authenticated user - fetch full dashboard data
@@ -3551,6 +3585,7 @@ ${items}
         dateStr,
         userId,
         includeMlbGameDetails: true,
+        includeMlbDeepContext: false,
       });
 
       const gameInsight = insights[0];
@@ -3795,6 +3830,7 @@ ${items}
               .sort((a, b) => (b.pts || 0) - (a.pts || 0))
               .slice(0, 3)
               .map((s) => ({
+                playerId: createNBAPlayerId(s.player.id),
                 name: `${s.player.first_name.charAt(0)}. ${s.player.last_name}`,
                 team: s.team.abbreviation,
                 pts: s.pts || 0,
@@ -4182,6 +4218,7 @@ ${items}
                 const normalizedStats = parseStatsToJson(s);
                 const side = getStatSide(s);
                 return {
+                  playerId: createMLBPlayerId(s.player.id),
                   name: `${s.player.first_name.charAt(0)}. ${s.player.last_name}`,
                   team:
                     side === "home"
@@ -4505,7 +4542,7 @@ ${items}
         requestedSport && requestedSport !== "ALL"
           ? await storage.getDistinctTeamsBySport(requestedSport)
           : await storage.getDistinctTeams();
-      res.json(teams);
+      res.json(withPublicDataHeaders(res, teams, { maxAgeSeconds: 60, sharedMaxAgeSeconds: 60 }));
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -4536,7 +4573,12 @@ ${items}
           injuryReturnDate: p.injuryReturnDate,
         }));
 
-      res.json(injuredPlayers);
+      res.json(
+        withPublicDataHeaders(res, injuredPlayers, {
+          maxAgeSeconds: 60,
+          sharedMaxAgeSeconds: 60,
+        }),
+      );
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -4594,25 +4636,29 @@ ${items}
       `);
 
       res.json(
-        (result?.rows || []).map((r: any) => ({
-          id: r.id,
-          firstName: r.firstName,
-          lastName: r.lastName,
-          team: r.team,
-          position: r.position,
-          currentPrice:
-            typeof r.currentPrice === "number"
-              ? r.currentPrice
-              : r.currentPrice != null
-                ? parseFloat(r.currentPrice)
-                : null,
-          priceChange24h:
-            typeof r.priceChange24h === "number"
-              ? r.priceChange24h
-              : r.priceChange24h != null
-                ? parseFloat(r.priceChange24h)
-                : 0,
-        })),
+        withPublicDataHeaders(
+          res,
+          (result?.rows || []).map((r: any) => ({
+            id: r.id,
+            firstName: r.firstName,
+            lastName: r.lastName,
+            team: r.team,
+            position: r.position,
+            currentPrice:
+              typeof r.currentPrice === "number"
+                ? r.currentPrice
+                : r.currentPrice != null
+                  ? parseFloat(r.currentPrice)
+                  : null,
+            priceChange24h:
+              typeof r.priceChange24h === "number"
+                ? r.priceChange24h
+                : r.priceChange24h != null
+                  ? parseFloat(r.priceChange24h)
+                  : 0,
+          })),
+          { maxAgeSeconds: 60, sharedMaxAgeSeconds: 60 },
+        ),
       );
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -4659,7 +4705,9 @@ ${items}
         .sort((a, b) => b.marketCap - a.marketCap)
         .slice(0, limit);
 
-      res.json(topMarketCap);
+      res.json(
+        withPublicDataHeaders(res, topMarketCap, { maxAgeSeconds: 60, sharedMaxAgeSeconds: 60 }),
+      );
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -4696,30 +4744,34 @@ ${items}
       `);
 
       res.json(
-        (result?.rows || []).map((r: any) => ({
-          player: {
-            id: r.playerId,
-            firstName: r.firstName,
-            lastName: r.lastName,
-            team: r.team || "",
-            position: r.position || "",
-            currentPrice:
-              typeof r.currentPrice === "number"
-                ? r.currentPrice
-                : r.currentPrice != null
-                  ? parseFloat(r.currentPrice)
-                  : null,
-          },
-          tvl: typeof r.tvl === "number" ? r.tvl : r.tvl != null ? parseFloat(r.tvl) : 0,
-          shares:
-            typeof r.shares === "number" ? r.shares : r.shares != null ? parseFloat(r.shares) : 0,
-          playMoney:
-            typeof r.playMoney === "number"
-              ? r.playMoney
-              : r.playMoney != null
-                ? parseFloat(r.playMoney)
-                : 0,
-        })),
+        withPublicDataHeaders(
+          res,
+          (result?.rows || []).map((r: any) => ({
+            player: {
+              id: r.playerId,
+              firstName: r.firstName,
+              lastName: r.lastName,
+              team: r.team || "",
+              position: r.position || "",
+              currentPrice:
+                typeof r.currentPrice === "number"
+                  ? r.currentPrice
+                  : r.currentPrice != null
+                    ? parseFloat(r.currentPrice)
+                    : null,
+            },
+            tvl: typeof r.tvl === "number" ? r.tvl : r.tvl != null ? parseFloat(r.tvl) : 0,
+            shares:
+              typeof r.shares === "number" ? r.shares : r.shares != null ? parseFloat(r.shares) : 0,
+            playMoney:
+              typeof r.playMoney === "number"
+                ? r.playMoney
+                : r.playMoney != null
+                  ? parseFloat(r.playMoney)
+                  : 0,
+          })),
+          { maxAgeSeconds: 60, sharedMaxAgeSeconds: 60 },
+        ),
       );
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -5055,7 +5107,12 @@ ${items}
         };
       });
 
-      res.json(enrichedActivity);
+      res.json(
+        withPublicDataHeaders(res, enrichedActivity, {
+          maxAgeSeconds: 60,
+          sharedMaxAgeSeconds: 60,
+        }),
+      );
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -5077,11 +5134,17 @@ ${items}
       // Normalize to 0-100 scale (assume 100 trades = max activity)
       const activityLevel = Math.min((tradeCount / 100) * 100, 100);
 
-      res.json({
-        activityLevel,
-        tradeCount,
-        timestamp: new Date().toISOString(),
-      });
+      res.json(
+        withPublicDataHeaders(
+          res,
+          {
+            activityLevel,
+            tradeCount,
+            timestamp: new Date().toISOString(),
+          },
+          { maxAgeSeconds: 60, sharedMaxAgeSeconds: 60 },
+        ),
+      );
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -6049,6 +6112,61 @@ ${items}
     }
   });
 
+  app.get(
+    "/api/agent/threads/:threadId/turns/:turnId/events",
+    isAuthenticated,
+    async (req, res) => {
+      try {
+        const userId = getUserId(req);
+        const threadId = req.params.threadId;
+        const turnId = req.params.turnId;
+        await getAgentThread(userId, threadId);
+
+        res.status(200);
+        res.setHeader("Content-Type", "text/event-stream");
+        res.setHeader("Cache-Control", "no-cache, no-transform");
+        res.setHeader("Connection", "keep-alive");
+        res.setHeader("X-Accel-Buffering", "no");
+        res.flushHeaders?.();
+
+        agentTurnEventStreamManager.registerClient({
+          userId,
+          threadId,
+          turnId,
+          req,
+          res,
+        });
+
+        agentTurnEventStreamManager.emit({
+          userId,
+          threadId,
+          turnId,
+          event: {
+            eventType: "stream_connected",
+            status: "info",
+            summary: "Progress stream connected.",
+            phase: "plan",
+          },
+        });
+
+        const heartbeat = setInterval(() => {
+          if (!res.writableEnded) {
+            res.write(": keepalive\n\n");
+          }
+        }, 15_000);
+
+        req.on("close", () => clearInterval(heartbeat));
+        req.on("error", () => clearInterval(heartbeat));
+        res.on("close", () => clearInterval(heartbeat));
+        res.on("error", () => clearInterval(heartbeat));
+      } catch (error: any) {
+        const message = normalizeAgentErrorMessage(error);
+        console.error("[Agent API] Error opening thread turn event stream:", message);
+        res.status(getAgentErrorStatus(error)).json({ error: message });
+      }
+    },
+  );
+
   app.post("/api/agent/threads/:threadId/messages", isAuthenticated, async (req, res) => {
     try {
       const userId = getUserId(req);
@@ -6537,11 +6655,22 @@ ${items}
           : null;
       const currentUserWindow = buildLeaderboardWindow(result.leaderboard, currentUserId, 2);
 
-      res.json({
+      const payload = {
         ...result,
         currentUser,
         currentUserWindow,
-      });
+      };
+
+      if (!currentUserId) {
+        return res.json(
+          withPublicDataHeaders(res, payload, {
+            maxAgeSeconds: 60,
+            sharedMaxAgeSeconds: 60,
+          }),
+        );
+      }
+
+      res.json(payload);
     } catch (error: any) {
       console.error("[leaderboards] Error:", error);
       res.status(500).json({ error: error.message });
@@ -9634,7 +9763,17 @@ ${items}
         .orderBy(desc(newsFeed.createdAt))
         .limit(50);
 
-      res.json({ news });
+      const payload = { news };
+      if (!(req as any).user) {
+        return res.json(
+          withPublicDataHeaders(res, payload, {
+            maxAgeSeconds: 60,
+            sharedMaxAgeSeconds: 60,
+          }),
+        );
+      }
+
+      res.json(payload);
     } catch (error: any) {
       console.error("[news] Error fetching news:", error.message);
       res.status(500).json({ error: error.message });
@@ -9657,7 +9796,9 @@ ${items}
           priceChange24h: p.priceChange24h || null,
         }));
 
-      res.json({ players });
+      res.json(
+        withPublicDataHeaders(res, { players }, { maxAgeSeconds: 60, sharedMaxAgeSeconds: 60 }),
+      );
     } catch (error: any) {
       console.error("[players/lookup] Error:", error.message);
       res.status(500).json({ error: error.message });
@@ -10686,25 +10827,11 @@ ${items}
       const premiumHolding = userHoldings.find((h: Holding) => h.assetType === "premium");
       const userPremiumShares = premiumHolding?.quantity || 0;
 
-      // Pre-fetch all locked quantities to avoid await inside map
-      const lockedQuantities = new Map<string, number>();
-      for (const holding of allHoldings) {
-        try {
-          const totalLocked = await storage.getTotalLockedQuantity(
-            userId,
-            "player",
-            holding.player.id,
-          );
-          lockedQuantities.set(holding.player.id, totalLocked);
-        } catch (e: unknown) {
-          const errMsg = e instanceof Error ? e.message : String(e);
-          console.error(
-            `[eligible-all] Error getting locked qty for ${holding.player.id}:`,
-            errMsg,
-          );
-          lockedQuantities.set(holding.player.id, 0);
-        }
-      }
+      const lockedQuantities = await storage.getBatchTotalLockedQuantities(
+        userId,
+        "player",
+        allHoldings.map((holding) => holding.player.id),
+      );
 
       // Aggregate holdings by playerId to avoid duplicates when user has multiple holding rows
       // (e.g., regular shares + stacked shares for the same player)
@@ -11642,6 +11769,12 @@ ${items}
       await ensureAgentSystemSettingsSchema();
     } catch (err: any) {
       console.warn("[DB] Could not ensure agent system settings schema:", err?.message || err);
+    }
+
+    try {
+      await ensureUserMcpSourceSchema();
+    } catch (err: any) {
+      console.warn("[DB] Could not ensure user MCP source schema:", err?.message || err);
     }
 
     try {

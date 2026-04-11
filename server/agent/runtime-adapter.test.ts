@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { buildHermesTurnRequest } from "./runtime-adapter";
+import { buildHermesTurnRequest, buildScopedHermesToolAllowlist } from "./runtime-adapter";
 
 describe("runtime-adapter", () => {
-  it("builds a canonical Hermes request with the visible tool allowlist by default", async () => {
+  it("builds a canonical Hermes request with a scoped general-chat allowlist by default", async () => {
     const request = await buildHermesTurnRequest({
       userId: "user_1",
       threadId: "thread_1",
@@ -112,7 +112,7 @@ describe("runtime-adapter", () => {
       },
     });
 
-    expect(request.toolAllowlist).toEqual(["get_balance_state", "preview_direct_operation"]);
+    expect(request.toolAllowlist).toEqual(["get_balance_state"]);
     expect(request.canonicalState.operatorOverview.availableBalance).toBe(150);
     expect(request.profile.temperature).toBe(0.2);
     expect(request.externalContext.canonicalKnowledge).toEqual([]);
@@ -120,6 +120,107 @@ describe("runtime-adapter", () => {
     expect(request.triggerContext).toBeNull();
     expect(request.strategyContext).toBeNull();
     expect(request.executionContext).toBeNull();
+  });
+
+  it("promotes advanced tools only when the request clearly needs them", () => {
+    const toolCatalog = [
+      {
+        toolName: "get_balance_state",
+        category: "read",
+        description: "Read balance state.",
+        whenToUse: [],
+        whenNotToUse: [],
+        examplePrompts: [],
+        requiresConfirmation: false,
+        riskLevel: "low",
+      },
+      {
+        toolName: "query_external_source",
+        category: "scan",
+        description: "Query an external MCP source.",
+        whenToUse: [],
+        whenNotToUse: [],
+        examplePrompts: [],
+        requiresConfirmation: false,
+        riskLevel: "low",
+        exposure: "advanced",
+      },
+      {
+        toolName: "mlb_mcp__get_schedule",
+        category: "read",
+        description: "MLB enrichment.",
+        whenToUse: [],
+        whenNotToUse: [],
+        examplePrompts: [],
+        requiresConfirmation: false,
+        riskLevel: "low",
+        exposure: "advanced",
+      },
+    ] as const;
+
+    expect(
+      buildScopedHermesToolAllowlist({
+        toolCatalog: [...toolCatalog],
+        message: "Review my setup.",
+        conversationMode: "general_chat",
+        capabilities: {
+          domains: ["sportfolio"],
+          actionTypes: ["pool_buy"],
+          canAnalyze: true,
+          canAutoExecute: false,
+          canUseWebResearch: true,
+          runtime: "hermes",
+          hasDurableMemory: true,
+          canScheduleAdvisories: true,
+          dataSources: {
+            builtIn: [],
+            external: [
+              {
+                id: "source_1",
+                kind: "external",
+                name: "FanGraphs",
+                description: null,
+                enabled: true,
+                available: true,
+                capabilitySummary: null,
+              },
+            ],
+          },
+        },
+      }),
+    ).toEqual(["get_balance_state"]);
+
+    expect(
+      buildScopedHermesToolAllowlist({
+        toolCatalog: [...toolCatalog],
+        message: "Check my FanGraphs projections for tonight's MLB pitchers.",
+        conversationMode: "general_chat",
+        capabilities: {
+          domains: ["sportfolio"],
+          actionTypes: ["pool_buy"],
+          canAnalyze: true,
+          canAutoExecute: false,
+          canUseWebResearch: true,
+          runtime: "hermes",
+          hasDurableMemory: true,
+          canScheduleAdvisories: true,
+          dataSources: {
+            builtIn: [],
+            external: [
+              {
+                id: "source_1",
+                kind: "external",
+                name: "FanGraphs",
+                description: null,
+                enabled: true,
+                available: true,
+                capabilitySummary: null,
+              },
+            ],
+          },
+        },
+      }),
+    ).toEqual(["get_balance_state", "query_external_source", "mlb_mcp__get_schedule"]);
   });
 
   it("carries explicit strategy, trigger, and execution context into the canonical Hermes request", async () => {

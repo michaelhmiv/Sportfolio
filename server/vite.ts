@@ -669,7 +669,33 @@ export function serveStatic(app: Express) {
 
   const indexTemplate = fs.readFileSync(indexPath, "utf-8");
 
-  app.use(express.static(distPath, { index: false }));
+  app.use(
+    "/assets",
+    express.static(path.join(distPath, "assets"), {
+      index: false,
+      immutable: true,
+      maxAge: "1y",
+      setHeaders: (res) => {
+        res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      },
+    }),
+  );
+
+  app.use(
+    express.static(distPath, {
+      index: false,
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith("index.html")) {
+          res.setHeader("Cache-Control", "public, max-age=60, must-revalidate");
+          return;
+        }
+
+        if (/\.(png|jpg|jpeg|gif|svg|webp|ico|woff2?)$/i.test(filePath)) {
+          res.setHeader("Cache-Control", "public, max-age=86400, stale-while-revalidate=604800");
+        }
+      },
+    }),
+  );
 
   app.use("*", async (req, res, next) => {
     try {

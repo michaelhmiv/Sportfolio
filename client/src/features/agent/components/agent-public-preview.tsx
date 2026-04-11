@@ -1,4 +1,4 @@
-import { Bot, Layers, MessageCircle, Shield, Sparkles, Zap } from "lucide-react";
+import { Bot, Layers, Shield, Sparkles, Zap } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 
@@ -6,45 +6,45 @@ const DEMO_MESSAGES = [
   { role: "user" as const, text: "Review my setup for today." },
   {
     role: "assistant" as const,
-    text: "You have 2 open daily boost slots and 3 idle scouts. Your balance can support one more position. I recommend assigning your boost slots before the 7 PM lock window, then redirecting your idle scouts to the players in tonight's slate.",
+    text: "You have 2 open daily boost slots and 3 idle scouts. I would lock in the boost slots before the 7 PM window, then redirect the idle scouts to tonight's highest-relevance names.",
   },
   { role: "user" as const, text: "Stage a trade plan for my idle cash." },
   {
     role: "assistant" as const,
-    text: "Based on tonight's matchups: buy 5 shares of Player A ($12.40 each, projected +8% payout). This uses $62 of your $180 idle balance. Confirm to execute.",
+    text: "I staged one Sportfolio-native trade plan based on tonight's slate: buy 5 shares of Player A for about $62. Review the staged plan and confirm only if you want it executed.",
   },
 ];
 
 const FEATURES = [
   {
     icon: Layers,
-    title: "Autonomous Strategies",
+    title: "Saved Strategies",
     description:
-      "Set recurring game-day workflows that Hermes runs on a schedule without manual intervention.",
+      "Save recurring game-day workflows that Hermes can run inside approved Sportfolio guardrails.",
     color: "from-purple-500/20 to-purple-600/10",
     iconColor: "text-purple-300",
   },
   {
     icon: Sparkles,
-    title: "Multi-Sport Intelligence",
+    title: "Slate-Aware Reads",
     description:
-      "NBA, NFL, MLB, NASCAR analysis. Hermes scans slates, evaluates matchups, and finds opportunities.",
+      "NBA, NFL, MLB, and NASCAR context tied back to your holdings, boosts, scouts, and idle balance.",
     color: "from-amber-500/20 to-amber-600/10",
     iconColor: "text-amber-300",
   },
   {
     icon: Shield,
-    title: "Confirmation-Gated Actions",
+    title: "Confirmation-Gated Gameplay",
     description:
-      "Every trade, boost, and scout move is staged for your review before execution. Nothing happens without your approval.",
+      "Trades, boosts, scouts, and watchlist moves are staged for review first. Nothing risky executes without approval.",
     color: "from-emerald-500/20 to-emerald-600/10",
     iconColor: "text-emerald-300",
   },
   {
     icon: Zap,
-    title: "External Data Sources",
+    title: "Optional External Enrichment",
     description:
-      "Connect external MCP data sources for richer analysis. Hermes queries them automatically during strategy runs.",
+      "Native Sportfolio tools stay primary. Built-in or user-added MCP sources are used only when extra context is actually needed.",
     color: "from-cyan-500/20 to-cyan-600/10",
     iconColor: "text-cyan-300",
   },
@@ -53,7 +53,6 @@ const FEATURES = [
 export function AgentPublicPreview() {
   return (
     <div className="flex min-h-full flex-col overflow-y-auto bg-[#0a0e1a] text-white">
-      {/* Hero */}
       <div className="mx-auto w-full max-w-4xl px-4 pt-12 pb-8 sm:px-6 sm:pt-20 sm:pb-12">
         <div className="text-center">
           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-400/20 to-amber-600/10 ring-1 ring-white/[0.08]">
@@ -63,8 +62,9 @@ export function AgentPublicPreview() {
             Meet Hermes
           </h1>
           <p className="mx-auto mt-3 max-w-lg text-base text-white/50 sm:text-lg">
-            Your autonomous sports trading operator. Hermes scans slates, stages trades, manages
-            boosts, and runs recurring strategies — all with your approval.
+            Sportfolio&apos;s product operator. Hermes reviews your setup, reads slate context,
+            stages supported actions, and carries saved strategies forward inside server-owned
+            guardrails.
           </p>
           <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
             <Button
@@ -86,7 +86,6 @@ export function AgentPublicPreview() {
         </div>
       </div>
 
-      {/* Demo conversation */}
       <div className="mx-auto w-full max-w-2xl px-4 pb-8 sm:px-6">
         <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4 sm:p-6">
           <p className="mb-4 text-xs font-medium uppercase tracking-wider text-white/30">
@@ -113,7 +112,6 @@ export function AgentPublicPreview() {
         </div>
       </div>
 
-      {/* Features grid */}
       <div className="mx-auto w-full max-w-4xl px-4 pb-16 sm:px-6">
         <div className="grid gap-4 sm:grid-cols-2">
           {FEATURES.map((feature) => (

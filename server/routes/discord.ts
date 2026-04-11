@@ -154,6 +154,24 @@ function extractSubcommand(options: DiscordCommandOption[] | undefined): {
   };
 }
 
+function flattenCommandOptions(
+  options: DiscordCommandOption[] | undefined,
+): DiscordCommandOption[] {
+  if (!options || options.length === 0) {
+    return [];
+  }
+
+  const flattened: DiscordCommandOption[] = [];
+  for (const option of options) {
+    flattened.push(option);
+    if (option.options && option.options.length > 0) {
+      flattened.push(...flattenCommandOptions(option.options));
+    }
+  }
+
+  return flattened;
+}
+
 function getOption(
   options: DiscordCommandOption[] | undefined,
   name: string,
@@ -1094,8 +1112,11 @@ async function handleTradeComponent(
 }
 
 async function handleAutocomplete(interaction: DiscordInteractionPayload) {
-  const options = interaction.data?.options || [];
-  const focusedOption = options.find((option) => option.focused) || options[0] || null;
+  const options = flattenCommandOptions(interaction.data?.options);
+  const focusedOption =
+    options.find((option) => option.focused) ||
+    options.find((option) => typeof option.value === "string") ||
+    null;
   const query = (typeof focusedOption?.value === "string" ? focusedOption.value : "").trim();
 
   if (!query) {

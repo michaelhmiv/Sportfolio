@@ -1,4 +1,5 @@
 import type { UserAgentProfile, UserAgentSecret } from "@shared/schema";
+import type { AgentUiBlock } from "@shared/agent-ui";
 import { type AssistantMessage, type Message } from "@mariozechner/pi-ai";
 import {
   callAgentModel,
@@ -12,6 +13,7 @@ import {
   runHermesReadTool,
   runHermesScanTool,
 } from "./hermes-tools";
+import { buildToolResultUiBlocks } from "./ui-blocks";
 import type {
   AgentCitation,
   AgentModelUsage,
@@ -19,7 +21,10 @@ import type {
   AgentSkillDefinition,
   AgentToolDefinition,
   AgentToolTrace,
+  AgentTurnProgressCallback,
   HermesRespondRequest,
+  HermesTurnBudgetProfile,
+  HermesTurnUsageMetrics,
 } from "./types";
 
 type ModelFirstToolCategory = "read" | "scan" | "plan" | "action" | "memory";
@@ -30,6 +35,7 @@ type ModelFirstRouteMetadata = {
   compressionApplied: boolean;
   repairAttempts: number;
   providerFailureClass: AgentProviderFailureClass | null;
+  usageMetrics: HermesTurnUsageMetrics;
 };
 
 export type ModelFirstRouteResult =
@@ -40,6 +46,7 @@ export type ModelFirstRouteResult =
       warnings: string[];
       citations: AgentCitation[];
       toolTrace: AgentToolTrace[];
+      uiBlocks?: AgentUiBlock[];
       usage?: AgentModelUsage;
     })
   | (ModelFirstRouteMetadata & {
@@ -60,6 +67,7 @@ export type ModelFirstRouteResult =
       warnings: string[];
       citations: AgentCitation[];
       toolTrace: AgentToolTrace[];
+      uiBlocks?: AgentUiBlock[];
       usage?: AgentModelUsage;
     })
   | (ModelFirstRouteMetadata & {
@@ -77,9 +85,114 @@ const noArgsSchema = {
   additionalProperties: false,
 } as const;
 
-const MAX_MODEL_PASSES = 6;
-const MAX_TOOL_CALLS = 5;
-const BASE_PROMPT_CHAR_BUDGET = 5_400;
+const DEFAULT_MAX_MODEL_PASSES = 8;
+const DEFAULT_MAX_TOOL_CALLS = 7;
+const DEFAULT_BASE_PROMPT_CHAR_BUDGET = 5_400;
+const AGGRESSIVE_SAFE_MAX_MODEL_PASSES = 3;
+const AGGRESSIVE_SAFE_MAX_TOOL_CALLS = 2;
+const AGGRESSIVE_SAFE_BASE_PROMPT_CHAR_BUDGET = 3_200;
+const AGGRESSIVE_SAFE_MAX_TOKENS = 720;
+const AGENT_TIMEZONE = "America/New_York";
+
+interface ResolvedTurnBudget {
+  profile: HermesTurnBudgetProfile;
+  maxModelPasses: number;
+  maxToolCalls: number;
+  basePromptCharBudget: number;
+  maxTokens: number;
+  compactToolResultPayloads: boolean;
+}
+
+const MLB_TEAM_REFERENCES = [
+  { id: 108, code: "LAA", aliases: ["los angeles angels", "angels", "laa"] },
+  { id: 109, code: "ARI", aliases: ["arizona diamondbacks", "diamondbacks", "dbacks", "ari"] },
+  { id: 110, code: "BAL", aliases: ["baltimore orioles", "orioles", "bal"] },
+  { id: 111, code: "BOS", aliases: ["boston red sox", "red sox", "bos"] },
+  { id: 112, code: "CHC", aliases: ["chicago cubs", "cubs", "chc"] },
+  { id: 113, code: "CIN", aliases: ["cincinnati reds", "reds", "cin"] },
+  { id: 114, code: "CLE", aliases: ["cleveland guardians", "guardians", "cle"] },
+  { id: 115, code: "COL", aliases: ["colorado rockies", "rockies", "col"] },
+  { id: 116, code: "DET", aliases: ["detroit tigers", "tigers", "det"] },
+  { id: 117, code: "HOU", aliases: ["houston astros", "astros", "hou"] },
+  { id: 118, code: "KC", aliases: ["kansas city royals", "royals", "kc", "kcr"] },
+  { id: 119, code: "LAD", aliases: ["los angeles dodgers", "dodgers", "lad"] },
+  { id: 120, code: "WSH", aliases: ["washington nationals", "nationals", "nats", "wsh", "wsn"] },
+  { id: 121, code: "NYM", aliases: ["new york mets", "mets", "nym"] },
+  { id: 133, code: "ATH", aliases: ["athletics", "a's", "as", "oakland athletics", "ath", "oak"] },
+  { id: 134, code: "PIT", aliases: ["pittsburgh pirates", "pirates", "pit"] },
+  { id: 135, code: "SD", aliases: ["san diego padres", "padres", "sd", "sdp"] },
+  { id: 136, code: "SEA", aliases: ["seattle mariners", "mariners", "sea"] },
+  { id: 137, code: "SF", aliases: ["san francisco giants", "giants", "sf", "sfg"] },
+  { id: 138, code: "STL", aliases: ["st louis cardinals", "cardinals", "stl"] },
+  { id: 139, code: "TB", aliases: ["tampa bay rays", "rays", "tb", "tbr"] },
+  { id: 140, code: "TEX", aliases: ["texas rangers", "rangers", "tex"] },
+  { id: 141, code: "TOR", aliases: ["toronto blue jays", "blue jays", "jays", "tor"] },
+  { id: 142, code: "MIN", aliases: ["minnesota twins", "twins", "min"] },
+  { id: 143, code: "PHI", aliases: ["philadelphia phillies", "phillies", "phi"] },
+  { id: 144, code: "ATL", aliases: ["atlanta braves", "braves", "atl"] },
+  { id: 145, code: "CWS", aliases: ["chicago white sox", "white sox", "cws", "chw"] },
+  { id: 146, code: "MIA", aliases: ["miami marlins", "marlins", "mia", "fla"] },
+  { id: 147, code: "NYY", aliases: ["new york yankees", "yankees", "nyy"] },
+  { id: 158, code: "MIL", aliases: ["milwaukee brewers", "brewers", "mil"] },
+] as const;
+
+function hasInternalMlbEnrichmentTools(tools: AgentToolDefinition[]) {
+  return tools.some((tool) => tool.toolName.startsWith("mlb_mcp__"));
+}
+
+function buildInternalMlbGroundingRules() {
+  return [
+    "When you use MLB MCP tools, only name players, teams, lineup spots, or matchups that appear in the current tool results for this turn.",
+    "For hitter or pitcher gameplans, confirm the current matchup first, then verify roster or lineup context before ranking players.",
+    "If an MLB stat lookup fails or is incomplete, say that directly instead of backfilling missing baseball facts from memory.",
+    "Internal MLB MCP lookup tools return MLB identifiers, not Sportfolio player IDs. Do not pass MLB IDs into Sportfolio-native tools. Use message-based preview tools when turning MLB reads into staged Sportfolio actions.",
+  ];
+}
+
+function getCurrentAgentDateIso() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: AGENT_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
+function getCurrentAgentTimeLabel() {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: AGENT_TIMEZONE,
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date());
+}
+
+function getCurrentAgentYear() {
+  const parsed = Number(getCurrentAgentDateIso().slice(0, 4));
+  return Number.isInteger(parsed) ? parsed : new Date().getFullYear();
+}
+
+function usesCurrentSlateLanguage(message: string) {
+  return /\b(today|today's|todays|tonight|right now|current slate|this slate)\b/i.test(message);
+}
+
+function mentionsExplicitYear(message: string) {
+  return /\b20\d{2}\b/.test(message);
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function inferMlbTeamsFromMessage(message: string) {
+  const normalized = message.trim().toLowerCase();
+  if (!normalized) {
+    return [];
+  }
+
+  return MLB_TEAM_REFERENCES.filter((team) =>
+    team.aliases.some((alias) => new RegExp(`\\b${escapeRegExp(alias)}\\b`, "i").test(normalized)),
+  );
+}
 
 function buildToolTraceEntry(input: {
   toolName: string;
@@ -105,6 +218,45 @@ function clampMaxTokens(profile: UserAgentProfile) {
   }
 
   return Math.max(250, Math.min(profile.maxTokens, 1400));
+}
+
+function isExplicitActionIntentForBudget(request: HermesRespondRequest) {
+  if (request.requestMode === "plan" || request.requestMode === "clarification_resume") {
+    return true;
+  }
+
+  return isExplicitPlanningIntent(request.message);
+}
+
+function resolveTurnBudget(
+  request: HermesRespondRequest,
+  profile: UserAgentProfile,
+): ResolvedTurnBudget {
+  const requestedProfile = request.turnBudgetProfile || "default";
+  const canUseAggressiveSafe =
+    requestedProfile === "aggressive_safe" && !isExplicitActionIntentForBudget(request);
+  const profileName: HermesTurnBudgetProfile = canUseAggressiveSafe ? "aggressive_safe" : "default";
+  const clampedMaxTokens = clampMaxTokens(profile);
+
+  if (profileName === "aggressive_safe") {
+    return {
+      profile: "aggressive_safe",
+      maxModelPasses: AGGRESSIVE_SAFE_MAX_MODEL_PASSES,
+      maxToolCalls: AGGRESSIVE_SAFE_MAX_TOOL_CALLS,
+      basePromptCharBudget: AGGRESSIVE_SAFE_BASE_PROMPT_CHAR_BUDGET,
+      maxTokens: Math.max(300, Math.min(clampedMaxTokens, AGGRESSIVE_SAFE_MAX_TOKENS)),
+      compactToolResultPayloads: true,
+    };
+  }
+
+  return {
+    profile: "default",
+    maxModelPasses: DEFAULT_MAX_MODEL_PASSES,
+    maxToolCalls: DEFAULT_MAX_TOOL_CALLS,
+    basePromptCharBudget: DEFAULT_BASE_PROMPT_CHAR_BUDGET,
+    maxTokens: clampedMaxTokens,
+    compactToolResultPayloads: false,
+  };
 }
 
 function clampTemperature(profile: UserAgentProfile) {
@@ -391,13 +543,14 @@ function resolveInitialCompressionLevel(input: {
   request: HermesRespondRequest;
   matchedSkill: AgentSkillDefinition | null;
   tools: AgentToolDefinition[];
+  basePromptCharBudget: number;
 }): CompressionLevel {
   const estimatedChars = estimatePromptChars(input);
-  if (estimatedChars > BASE_PROMPT_CHAR_BUDGET * 1.55) {
+  if (estimatedChars > input.basePromptCharBudget * 1.55) {
     return 2;
   }
   if (
-    estimatedChars > BASE_PROMPT_CHAR_BUDGET ||
+    estimatedChars > input.basePromptCharBudget ||
     input.request.conversationHistory.length > 8 ||
     input.request.memoryContext.semantic.length > 6
   ) {
@@ -445,6 +598,73 @@ function normalizeArgs(
     }
   }
 
+  if (
+    tool.toolName.startsWith("mlb_mcp__") &&
+    usesCurrentSlateLanguage(request.message) &&
+    !mentionsExplicitYear(request.message)
+  ) {
+    const currentDate = getCurrentAgentDateIso();
+    const currentYear = getCurrentAgentYear();
+    const currentSeason = String(currentYear);
+    const inferredTeams = inferMlbTeamsFromMessage(request.message);
+    const primaryTeam = inferredTeams[0] || null;
+    const opponentTeam = inferredTeams[1] || null;
+
+    if (tool.toolName === "mlb_mcp__get_schedule") {
+      if ((typeof args.team_id !== "number" || !Number.isInteger(args.team_id)) && primaryTeam) {
+        args.team_id = primaryTeam.id;
+      }
+      if (
+        (typeof args.opponent_id !== "number" || !Number.isInteger(args.opponent_id)) &&
+        opponentTeam
+      ) {
+        args.opponent_id = opponentTeam.id;
+      }
+      if (!args.game_id && !args.date && !args.start_date && !args.end_date) {
+        args.date = currentDate;
+      }
+      if (typeof args.season !== "string" || !args.season.trim() || args.season !== currentSeason) {
+        args.season = currentSeason;
+      }
+    }
+
+    if (
+      (tool.toolName === "mlb_mcp__get_team_roster" ||
+        tool.toolName === "mlb_mcp__get_team_leaders") &&
+      (typeof args.team_id !== "number" || !Number.isInteger(args.team_id)) &&
+      primaryTeam
+    ) {
+      args.team_id = primaryTeam.id;
+    }
+
+    if (
+      tool.toolName === "mlb_mcp__get_schedule_and_record" &&
+      (typeof args.team !== "string" || !args.team.trim()) &&
+      primaryTeam
+    ) {
+      args.team = primaryTeam.code;
+    }
+
+    if ("season" in args || tool.toolName !== "mlb_mcp__get_schedule") {
+      if (
+        args.season == null ||
+        (typeof args.season === "string" && args.season.trim() !== currentSeason) ||
+        (typeof args.season === "number" && args.season !== currentYear)
+      ) {
+        args.season = typeof args.season === "number" ? currentYear : currentSeason;
+      }
+    }
+
+    if (
+      (tool.toolName === "mlb_mcp__get_team_batting" ||
+        tool.toolName === "mlb_mcp__get_team_pitching" ||
+        tool.toolName === "mlb_mcp__get_team_fielding") &&
+      (typeof args.start_season !== "number" || !Number.isInteger(args.start_season))
+    ) {
+      args.start_season = currentYear;
+    }
+  }
+
   return args;
 }
 
@@ -459,25 +679,62 @@ function includesIntentKeyword(message: string, keywords: readonly string[]) {
   return keywords.some((keyword) => new RegExp(`\\b${keyword}\\b`, "i").test(message));
 }
 
+function stripLeadingCommandPreamble(message: string) {
+  let normalized = message.trim().toLowerCase();
+  if (!normalized) {
+    return normalized;
+  }
+
+  const prefixPatterns = [
+    /^(?:hey|hi|hello)\s+/i,
+    /^(?:okay|ok|so|now|then)\b[,:-]?\s*/i,
+    /^(?:hermes|agent|sportfolio)(?:\s+operator)?\b[,:-]?\s*/i,
+  ] as const;
+
+  let changed = true;
+  while (changed && normalized) {
+    changed = false;
+    for (const pattern of prefixPatterns) {
+      const next = normalized.replace(pattern, "").trimStart();
+      if (next !== normalized) {
+        normalized = next;
+        changed = true;
+      }
+    }
+  }
+
+  const firstComma = normalized.indexOf(",");
+  if (firstComma > 0) {
+    const preamble = normalized.slice(0, firstComma).trim();
+    const remainder = normalized.slice(firstComma + 1).trimStart();
+    if (remainder && preamble.split(/\s+/).filter(Boolean).length <= 4) {
+      return remainder;
+    }
+  }
+
+  return normalized;
+}
+
+function hasDirectActionCommand(message: string) {
+  const normalized = stripLeadingCommandPreamble(message);
+  const directCommandPatterns = [
+    /^(?:please\s+)?(?:buy|sell|add|remove|set|assign|boost|stack|zap|condense|place|put|move|lock|scout|track|save|watchlist|unwatch)\b/i,
+    /^(?:please\s+)?(?:can|could|will)\s+you\s+(?:buy|sell|add|remove|set|assign|boost|stack|zap|condense|place|put|move|lock|scout|track|save|watchlist|unwatch)\b/i,
+    /^(?:please\s+)?(?:i want you to|i'd like you to|id like you to)\s+(?:buy|sell|add|remove|set|assign|boost|stack|zap|condense|place|put|move|lock|scout|track|save|watchlist|unwatch)\b/i,
+    /^(?:please\s+)?(?:create|make|activate|redeem)\s+(?:(?:a|my)\s+)?community\s+(?:boost|share)\b/i,
+    /^(?:please\s+)?(?:can|could|will)\s+you\s+(?:create|make|activate|redeem)\s+(?:(?:a|my)\s+)?community\s+(?:boost|share)\b/i,
+    /^(?:please\s+)?(?:i want you to|i'd like you to|id like you to)\s+(?:create|make|activate|redeem)\s+(?:(?:a|my)\s+)?community\s+(?:boost|share)\b/i,
+  ] as const;
+
+  return directCommandPatterns.some((pattern) => pattern.test(normalized));
+}
+
 function isExplicitPlanningIntent(message: string) {
   const normalized = message.trim().toLowerCase();
   if (!normalized) {
     return false;
   }
 
-  const directActionVerbs = [
-    "buy",
-    "sell",
-    "add",
-    "remove",
-    "set",
-    "assign",
-    "boost",
-    "stack",
-    "zap",
-    "condense",
-    "place",
-  ] as const;
   const explicitExecutionPhrases = [
     "stage",
     "queue",
@@ -508,14 +765,32 @@ function isExplicitPlanningIntent(message: string) {
     "liquidity",
     "lp",
   ] as const;
+  const advisoryDecisionPatterns = [
+    /\bwho should i\b/i,
+    /\bwhat should i\b/i,
+    /\bshould i\b/i,
+    /\bwho\b.*\b(?:buy|sell|boost|scout|avoid)\b/i,
+    /\bwhat\b.*\b(?:buy|sell|boost|scout|avoid)\b/i,
+    /\bcompare\b/i,
+    /\bwalk me through\b/i,
+    /\btalk me through\b/i,
+    /\bhelp me decide\b/i,
+  ] as const;
 
-  if (includesIntentKeyword(normalized, directActionVerbs)) {
+  if (hasDirectActionCommand(normalized)) {
     return true;
   }
 
   const hasPlanningPhrase = planningPhrases.some((phrase) => normalized.includes(phrase));
   if (hasPlanningPhrase && includesIntentKeyword(normalized, planningActionTargets)) {
     return true;
+  }
+
+  if (
+    advisoryDecisionPatterns.some((pattern) => pattern.test(normalized)) ||
+    normalized.endsWith("?")
+  ) {
+    return false;
   }
 
   return explicitExecutionPhrases.some((phrase) => normalized.includes(phrase));
@@ -809,6 +1084,7 @@ function buildStructuredToolContextText(input: {
   context?: unknown;
   intentFocus?: string;
   fallbackNarrative?: string | null;
+  contextMaxChars?: number;
 }) {
   const parts: string[] = [];
 
@@ -825,7 +1101,7 @@ function buildStructuredToolContextText(input: {
     parts.push(`Warnings:\n- ${input.warnings.join("\n- ")}`);
   }
   if (input.context && typeof input.context === "object") {
-    parts.push(`Structured context:\n${safeJson(input.context, 2200)}`);
+    parts.push(`Structured context:\n${safeJson(input.context, input.contextMaxChars || 2200)}`);
   }
   if (parts.length === 0 && input.fallbackNarrative) {
     parts.push(input.fallbackNarrative);
@@ -834,7 +1110,11 @@ function buildStructuredToolContextText(input: {
   return parts.join("\n\n") || `Result from ${input.toolName}.`;
 }
 
-function buildToolFallbackText(tool: AgentToolDefinition, result: unknown): string {
+function buildToolFallbackText(
+  tool: AgentToolDefinition,
+  result: unknown,
+  compactPayload: boolean,
+): string {
   if (tool.category === "scan" && result && typeof result === "object") {
     const scan = result as { replyText?: unknown; summary?: unknown };
     if (typeof scan.replyText === "string" && scan.replyText.trim()) {
@@ -854,10 +1134,14 @@ function buildToolFallbackText(tool: AgentToolDefinition, result: unknown): stri
     }
   }
 
-  return `Result from ${tool.toolName}:\n${safeJson(result, 2800)}`;
+  return `Result from ${tool.toolName}:\n${safeJson(result, compactPayload ? 900 : 2800)}`;
 }
 
-function buildToolResultText(tool: AgentToolDefinition, result: unknown): string {
+function buildToolResultText(
+  tool: AgentToolDefinition,
+  result: unknown,
+  compactPayload: boolean,
+): string {
   if (tool.category === "scan" && isStructuredScanResult(result)) {
     return buildStructuredToolContextText({
       toolName: tool.toolName,
@@ -867,6 +1151,7 @@ function buildToolResultText(tool: AgentToolDefinition, result: unknown): string
       context: result.context || {},
       intentFocus: result.intentFocus,
       fallbackNarrative: typeof result.replyText === "string" ? result.replyText.trim() : null,
+      contextMaxChars: compactPayload ? 850 : 2200,
     });
   }
 
@@ -885,10 +1170,132 @@ function buildToolResultText(tool: AgentToolDefinition, result: unknown): string
         ...(Array.isArray(citations) && citations.length > 0 ? { citations } : {}),
       },
       fallbackNarrative: typeof replyText === "string" ? replyText : null,
+      contextMaxChars: compactPayload ? 850 : 2200,
     });
   }
 
-  return `Result from ${tool.toolName}:\n${safeJson(result, 2800)}`;
+  return `Result from ${tool.toolName}:\n${safeJson(result, compactPayload ? 900 : 2800)}`;
+}
+
+function formatOperatorOverviewFallback(result: unknown): string | null {
+  const source =
+    result &&
+    typeof result === "object" &&
+    "operatorOverview" in (result as Record<string, unknown>)
+      ? ((result as Record<string, unknown>).operatorOverview as Record<string, unknown> | null)
+      : (result as Record<string, unknown> | null);
+
+  if (!source || typeof source !== "object") {
+    return null;
+  }
+
+  const availableBalance =
+    typeof source.availableBalance === "number" ? source.availableBalance : null;
+  const openDailyBoostSlots =
+    typeof source.openDailyBoostSlots === "number" ? source.openDailyBoostSlots : null;
+  const communitySharesAvailable =
+    typeof source.communitySharesAvailable === "number" ? source.communitySharesAvailable : null;
+  const stackReadyHoldingRows =
+    typeof source.stackReadyHoldingRows === "number" ? source.stackReadyHoldingRows : null;
+  const nextBestLevers = Array.isArray(source.nextBestLevers)
+    ? source.nextBestLevers
+        .filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
+        .slice(0, 3)
+    : [];
+  const topHoldings = Array.isArray(source.topHoldings)
+    ? source.topHoldings
+        .map((entry) => {
+          if (!entry || typeof entry !== "object") {
+            return null;
+          }
+          const name = (entry as Record<string, unknown>).name;
+          return typeof name === "string" && name.trim() ? name.trim() : null;
+        })
+        .filter((entry): entry is string => Boolean(entry))
+        .slice(0, 3)
+    : [];
+
+  const parts = [
+    "Setup review:",
+    availableBalance != null ? `$${availableBalance.toFixed(2)} available balance.` : null,
+    openDailyBoostSlots != null
+      ? `${openDailyBoostSlots} open daily boost slot${openDailyBoostSlots === 1 ? "" : "s"}.`
+      : null,
+    communitySharesAvailable != null
+      ? `${communitySharesAvailable} community share${communitySharesAvailable === 1 ? "" : "s"} available.`
+      : null,
+    stackReadyHoldingRows != null
+      ? `${stackReadyHoldingRows} stack-ready holding row${stackReadyHoldingRows === 1 ? "" : "s"}.`
+      : null,
+    nextBestLevers.length > 0 ? `Next levers: ${nextBestLevers.join("; ")}.` : null,
+    topHoldings.length > 0 ? `Top holdings: ${topHoldings.join(", ")}.` : null,
+  ].filter(Boolean);
+
+  return parts.join(" ") || null;
+}
+
+function selectDeterministicAdvisoryTool(
+  tools: AgentToolDefinition[],
+  message: string,
+): AgentToolDefinition | null {
+  const normalized = message.trim().toLowerCase();
+  if (!normalized) {
+    return null;
+  }
+
+  const findTool = (toolName: string) => tools.find((tool) => tool.toolName === toolName) || null;
+
+  if (
+    /\b(?:obp|ops|era|whip)\b/i.test(normalized) &&
+    /\b(?:mlb|baseball|gameplan|slate|today|tonight|tomorrow)\b/i.test(normalized)
+  ) {
+    return findTool("scan_mlb_stat_gameplan");
+  }
+
+  if (
+    /\b(?:review|talk me through|walk me through|setup|portfolio)\b/i.test(normalized) &&
+    /\b(?:setup|portfolio|look|review)\b/i.test(normalized)
+  ) {
+    return findTool("get_operator_overview") || findTool("get_portfolio_summary");
+  }
+
+  if (/\b(?:idle balance|idle cash|unused balance|extra cash)\b/i.test(normalized)) {
+    return findTool("scan_idle_balance_options");
+  }
+
+  if (/\bcommunity boost\b/i.test(normalized)) {
+    return findTool("scan_community_boost_candidates");
+  }
+
+  if (/\bwatchlist\b/i.test(normalized)) {
+    return findTool("scan_watchlist_targets");
+  }
+
+  if (/\b(?:scout|scouting)\b/i.test(normalized)) {
+    return findTool("scan_scout_opportunities");
+  }
+
+  if (/\b(?:boost slot|boost slots|eligible for a boost|who can i boost)\b/i.test(normalized)) {
+    return findTool("scan_daily_boost_candidates") || findTool("scan_open_boost_slots");
+  }
+
+  if (
+    /\b(?:buy|worth buying|start a position|market opportunities|who should i buy)\b/i.test(
+      normalized,
+    )
+  ) {
+    return findTool("scan_top_market_opportunities");
+  }
+
+  if (/\b(?:slate|games|matchup|matchups|lineup|lineups|probable pitchers?)\b/i.test(normalized)) {
+    return findTool("scan_sport_slate");
+  }
+
+  if (/\b(?:clean up|overexposed|stale)\b/i.test(normalized)) {
+    return findTool("scan_portfolio_cleanup_levers");
+  }
+
+  return null;
 }
 
 function buildLoopPrompt(input: {
@@ -898,6 +1305,11 @@ function buildLoopPrompt(input: {
   compressionLevel: CompressionLevel;
 }) {
   const compressed = input.compressionLevel > 0;
+  const currentDate = getCurrentAgentDateIso();
+  const currentTime = getCurrentAgentTimeLabel();
+  const internalMlbGroundingRules = hasInternalMlbEnrichmentTools(input.tools)
+    ? buildInternalMlbGroundingRules()
+    : [];
   const availableTools =
     input.tools.length === 0
       ? "No tools available."
@@ -912,6 +1324,10 @@ function buildLoopPrompt(input: {
     "<available_tools>",
     availableTools,
     "</available_tools>",
+    "<current_time_context>",
+    `Current ET date: ${currentDate}. Current ET time: ${currentTime}.`,
+    "Interpret relative time phrases like today, later today, tonight, tomorrow, and this slate using America/New_York unless the user explicitly names a different date.",
+    "</current_time_context>",
     "<routing_rules>",
     "Use the real Hermes tools directly when the user needs account-specific, market-specific, or time-sensitive data.",
     "You may call up to one tool per pass. After a tool result, continue reasoning and either call another tool or answer directly.",
@@ -926,6 +1342,7 @@ function buildLoopPrompt(input: {
     "For broad setup reviews, prefer get_portfolio_summary or get_operator_overview before answering.",
     "For cleanup, cash deployment, market-opportunity, and community-boost recommendation questions, prefer the matching scan tools instead of a plan tool.",
     "When the user asks what tools, MCP connections, or data sources are available, answer from the real tool list and data-connection state below. Do not claim there are none if either section is populated.",
+    ...internalMlbGroundingRules,
     "When you have enough context, answer directly in plain text and do not call another tool.",
     "</routing_rules>",
     "<matched_skill_hint>",
@@ -1023,6 +1440,45 @@ function rebuildLoopMessages(input: {
   ];
 }
 
+function buildAnswerOnlyMessages(input: {
+  request: HermesRespondRequest;
+  successfulToolContexts: Array<{ toolName: string; text: string }>;
+  warnings: string[];
+  includesInternalMlbTools: boolean;
+}) {
+  const toolResultsText =
+    input.successfulToolContexts
+      .slice(-6)
+      .map((entry, index) => `${index + 1}. ${entry.toolName}\n${truncate(entry.text, 1200)}`)
+      .join("\n\n") || "None.";
+  const warningText =
+    input.warnings.length > 0 ? `Warnings:\n- ${input.warnings.slice(-4).join("\n- ")}` : null;
+
+  return [
+    {
+      role: "user",
+      content: [
+        "<user_request>",
+        input.request.message,
+        "</user_request>",
+        "<tool_results>",
+        toolResultsText,
+        "</tool_results>",
+        warningText,
+        "Answer the user's request directly in plain text using only the tool results above.",
+        "Do not call any more tools.",
+        input.includesInternalMlbTools
+          ? "Only name players, teams, lineup spots, or matchups that appear in the tool results above."
+          : null,
+        "If the available data is incomplete, say what is uncertain and still give the best bounded recommendation you can.",
+      ]
+        .filter(Boolean)
+        .join("\n"),
+      timestamp: Date.now(),
+    } as Message,
+  ];
+}
+
 async function executeNonPlanningTool(input: {
   tool: AgentToolDefinition;
   userId: string;
@@ -1081,6 +1537,7 @@ export async function runHermesModelToolLoop(input: {
   secret?: UserAgentSecret;
   request: HermesRespondRequest;
   matchedSkill: AgentSkillDefinition | null;
+  onTurnEvent?: AgentTurnProgressCallback;
 }): Promise<ModelFirstRouteResult> {
   const toolTrace: AgentToolTrace[] = [];
   const warnings: string[] = [];
@@ -1089,14 +1546,36 @@ export async function runHermesModelToolLoop(input: {
     toolAllowlist: input.request.toolAllowlist,
     toolCatalog: input.request.toolCatalog,
   }).filter((entry) => entry.exposure !== "hidden_fallback" && entry.exposure !== "internal_only");
+  const turnBudget = resolveTurnBudget(input.request, input.profile);
+  const includesInternalMlbTools = hasInternalMlbEnrichmentTools(tools);
+  const internalMlbGroundingRules = includesInternalMlbTools
+    ? buildInternalMlbGroundingRules()
+    : [];
+  const requestedPlanningIntent = isExplicitPlanningIntent(input.request.message);
+  const planTools = tools.filter((tool) => tool.category === "plan");
   let compressionLevel = resolveInitialCompressionLevel({
     request: input.request,
     matchedSkill: input.matchedSkill,
     tools,
+    basePromptCharBudget: turnBudget.basePromptCharBudget,
   });
   let compressionApplied = compressionLevel > 0;
   let repairAttempts = 0;
   let providerFailureClass: AgentProviderFailureClass | null = null;
+  let modelPassCount = 0;
+  let toolCallsUsed = 0;
+  let finalUsage: AgentModelUsage | undefined;
+
+  const emitTurnEvent = (event: Parameters<AgentTurnProgressCallback>[0]) => {
+    if (!input.onTurnEvent) {
+      return;
+    }
+    try {
+      input.onTurnEvent(event);
+    } catch (_error) {
+      // best-effort callback only
+    }
+  };
 
   try {
     let messages = rebuildLoopMessages({
@@ -1107,21 +1586,434 @@ export async function runHermesModelToolLoop(input: {
       messages: [],
     });
     let repairReason: string | null = null;
-    let toolCallsUsed = 0;
-    let finalUsage: AgentModelUsage | undefined;
     let usedTransientRetry = false;
     let lastSuccessfulToolName: string | null = null;
     let lastSuccessfulToolReply: string | null = null;
+    let lastSuccessfulToolUiBlocks: AgentUiBlock[] = [];
+    const successfulToolContexts: Array<{ toolName: string; text: string }> = [];
+
+    const buildUsageMetrics = (): HermesTurnUsageMetrics => ({
+      modelPassCount,
+      nonPlanningToolCallCount: toolCallsUsed,
+      maxModelPasses: turnBudget.maxModelPasses,
+      maxToolCalls: turnBudget.maxToolCalls,
+      budgetProfile: turnBudget.profile,
+      finalUsage: finalUsage || null,
+    });
 
     const buildMetadata = (terminationReason: string | null): ModelFirstRouteMetadata => ({
       terminationReason,
       compressionApplied,
       repairAttempts,
       providerFailureClass,
+      usageMetrics: buildUsageMetrics(),
     });
 
-    for (let pass = 0; pass < MAX_MODEL_PASSES; pass += 1) {
+    const attemptAnswerOnlySynthesis = async (reason: string) => {
+      if (toolCallsUsed === 0) {
+        return null;
+      }
+
       const startedAt = Date.now();
+      try {
+        const synthesisMessage = await callAgentModel({
+          profile: input.profile,
+          secret: input.secret,
+          systemPrompt: [
+            "You are Sportfolio Operator.",
+            input.request.profile.systemPrompt || null,
+            "The tool loop already gathered context for this turn.",
+            "No more Hermes tool calls are available right now.",
+            "Answer directly from the available tool results and keep the response useful and concrete.",
+            ...internalMlbGroundingRules,
+          ]
+            .filter(Boolean)
+            .join(" "),
+          messages: buildAnswerOnlyMessages({
+            request: input.request,
+            successfulToolContexts,
+            warnings,
+            includesInternalMlbTools,
+          }),
+          tools: [],
+          temperature: clampTemperature(input.profile),
+          maxTokens: clampMaxTokens(input.profile),
+        });
+
+        const synthesisText = extractAssistantText(synthesisMessage);
+        const synthesisUsage = summarizeUsage(synthesisMessage);
+
+        if (!synthesisText) {
+          toolTrace.push(
+            buildToolTraceEntry({
+              toolName: "model_answer_synthesis",
+              phase: "plan",
+              status: "skipped",
+              startedAt,
+              summary: `The final answer-only synthesis pass did not return visible text after ${reason}.`,
+            }),
+          );
+          return null;
+        }
+
+        finalUsage = synthesisUsage || finalUsage;
+        warnings.push(
+          "Hermes used a final answer-only synthesis pass after the direct tool loop gathered context but did not close with a direct reply.",
+        );
+        toolTrace.push(
+          buildToolTraceEntry({
+            toolName: "model_answer_synthesis",
+            phase: "plan",
+            status: "ok",
+            startedAt,
+            summary: `Synthesized a direct answer after ${reason}.`,
+          }),
+        );
+
+        return {
+          outcome: "answer" as const,
+          replyText: synthesisText,
+          summary: `Model answered after ${reason}.`,
+          warnings,
+          citations,
+          toolTrace,
+          ...(lastSuccessfulToolUiBlocks.length > 0
+            ? { uiBlocks: lastSuccessfulToolUiBlocks }
+            : {}),
+          ...(finalUsage ? { usage: finalUsage } : {}),
+          ...buildMetadata("answer_only_synthesis"),
+        };
+      } catch (error: any) {
+        toolTrace.push(
+          buildToolTraceEntry({
+            toolName: "model_answer_synthesis",
+            phase: "plan",
+            status: "failed",
+            startedAt,
+            summary:
+              error?.message || `The final answer-only synthesis pass failed after ${reason}.`,
+          }),
+        );
+        return null;
+      }
+    };
+
+    const attemptPlanOnlyRecovery = async (reason: string) => {
+      if (!requestedPlanningIntent || planTools.length === 0) {
+        return null;
+      }
+
+      const startedAt = Date.now();
+      const normalizedPlanningMessage = stripLeadingCommandPreamble(input.request.message);
+      const looksLikeSingleLpAddRequest =
+        /\b(?:add|deposit|provide|supply)(?:\s+liquidity)?\s+(?:to|into)\s+.+?\s+with\s+\d+(?:\.\d+)?\s+shares?\s+(?:and|plus)\s+\$?\d+(?:\.\d+)?/i.test(
+          normalizedPlanningMessage,
+        ) ||
+        /\b(?:add|deposit|provide|supply)(?:\s+liquidity)?\s+\d+(?:\.\d+)?\s+shares?\s+(?:and|with)\s+\$?\d+(?:\.\d+)?\s*(?:sb|bucks|dollars?)?\s+(?:to|into)\s+.+?(?:'s)?(?:\s+pool)?$/i.test(
+          normalizedPlanningMessage,
+        );
+      const looksCompoundActionRequest =
+        (!looksLikeSingleLpAddRequest &&
+          /(?:\b(?:and then|then)\b|,\s*)(?=(?:buy|stack|put|assign|boost|add|remove|sell|zap|create|set|move|place|lock)\b)/i.test(
+            normalizedPlanningMessage,
+          )) ||
+        (!looksLikeSingleLpAddRequest &&
+          /\b(?:buy|sell|boost|scout|zap|liquidity|stack)\b.*\band\b/i.test(
+            normalizedPlanningMessage,
+          ));
+      const deterministicRecoveryTool = planTools.find(
+        (tool) =>
+          tool.toolName ===
+          (looksCompoundActionRequest ? "preview_multi_action_bundle" : "preview_direct_operation"),
+      );
+
+      if (deterministicRecoveryTool) {
+        const deterministicArgs = { message: input.request.message };
+        if (
+          canProceedWithPlanTool({
+            request: input.request,
+            args: deterministicArgs,
+          })
+        ) {
+          toolTrace.push(
+            buildToolTraceEntry({
+              toolName: "model_plan_recovery",
+              phase: "plan",
+              status: "ok",
+              startedAt,
+              summary: `Recovered ${deterministicRecoveryTool.toolName} deterministically after ${reason}.`,
+            }),
+          );
+
+          return {
+            outcome: "tool" as const,
+            toolName: deterministicRecoveryTool.toolName,
+            toolCategory: "plan" as const,
+            toolArgs: deterministicArgs,
+            summary: `Recovered ${deterministicRecoveryTool.toolName} after ${reason}.`,
+            warnings,
+            citations,
+            toolTrace,
+            ...(finalUsage ? { usage: finalUsage } : {}),
+            ...buildMetadata("plan_only_recovery"),
+          };
+        }
+      }
+
+      try {
+        const recoveryMessage = await callAgentModel({
+          profile: input.profile,
+          secret: input.secret,
+          systemPrompt: [
+            "You are Sportfolio Operator.",
+            input.request.profile.systemPrompt || null,
+            "The read and scan loop already gathered context for this turn.",
+            "Use the available plan tools only if the user explicitly asked to stage, preview, or queue a move.",
+            "Prefer preview_multi_action_bundle for multi-step requests and preview_direct_operation for one concrete action.",
+            "Do not call read, scan, action, or memory tools in this recovery pass.",
+            ...internalMlbGroundingRules,
+          ]
+            .filter(Boolean)
+            .join(" "),
+          messages: [
+            {
+              role: "user",
+              content: [
+                "<user_request>",
+                input.request.message,
+                "</user_request>",
+                "<tool_results>",
+                successfulToolContexts
+                  .slice(-6)
+                  .map(
+                    (entry, index) =>
+                      `${index + 1}. ${entry.toolName}\n${truncate(entry.text, 1200)}`,
+                  )
+                  .join("\n\n") || "None.",
+                "</tool_results>",
+                warnings.length > 0 ? `Warnings:\n- ${warnings.slice(-4).join("\n- ")}` : null,
+                "If there is enough context to stage a move safely, select one plan tool with valid JSON arguments.",
+                "If a staged move is still premature, answer directly with one concise explanation or clarification.",
+              ]
+                .filter(Boolean)
+                .join("\n"),
+              timestamp: Date.now(),
+            } as Message,
+          ],
+          tools: planTools.map((tool) => ({
+            name: tool.toolName,
+            description: buildToolDescription(tool),
+            parameters: (tool.inputSchema || noArgsSchema) as Record<string, unknown>,
+          })),
+          temperature: clampTemperature(input.profile),
+          maxTokens: clampMaxTokens(input.profile),
+        });
+
+        const recoveryUsage = summarizeUsage(recoveryMessage);
+        finalUsage = recoveryUsage || finalUsage;
+
+        const recoveryToolCall = extractToolCalls(recoveryMessage)[0] || null;
+        if (recoveryToolCall) {
+          const selectedToolLookup = findSelectedTool(planTools, recoveryToolCall.name);
+          const selectedTool = selectedToolLookup.tool;
+          if (selectedTool) {
+            let normalizedArgs = normalizeArgs(
+              selectedTool,
+              input.request,
+              recoveryToolCall.arguments,
+            );
+            const validation = validateToolArgs(selectedTool, normalizedArgs);
+            normalizedArgs = validation.normalizedArgs;
+
+            if (
+              validation.valid &&
+              canProceedWithPlanTool({
+                request: input.request,
+                args: normalizedArgs,
+              })
+            ) {
+              toolTrace.push(
+                buildToolTraceEntry({
+                  toolName: "model_plan_recovery",
+                  phase: "plan",
+                  status: "ok",
+                  startedAt,
+                  summary: `Recovered a confirmation-gated plan after ${reason}.`,
+                }),
+              );
+
+              return {
+                outcome: "tool" as const,
+                toolName: selectedTool.toolName,
+                toolCategory: "plan" as const,
+                toolArgs: normalizedArgs,
+                summary: `Recovered ${selectedTool.toolName} after ${reason}.`,
+                warnings,
+                citations,
+                toolTrace,
+                ...(finalUsage ? { usage: finalUsage } : {}),
+                ...buildMetadata("plan_only_recovery"),
+              };
+            }
+          }
+        }
+
+        const recoveryText = extractAssistantText(recoveryMessage);
+        if (recoveryText) {
+          toolTrace.push(
+            buildToolTraceEntry({
+              toolName: "model_plan_recovery",
+              phase: "plan",
+              status: "ok",
+              startedAt,
+              summary: `Recovered a direct response after ${reason} when staging was still premature.`,
+            }),
+          );
+
+          return {
+            outcome: "answer" as const,
+            replyText: recoveryText,
+            summary: `Recovered a direct response after ${reason}.`,
+            warnings,
+            citations,
+            toolTrace,
+            ...(lastSuccessfulToolUiBlocks.length > 0
+              ? { uiBlocks: lastSuccessfulToolUiBlocks }
+              : {}),
+            ...(finalUsage ? { usage: finalUsage } : {}),
+            ...buildMetadata("plan_only_recovery"),
+          };
+        }
+
+        toolTrace.push(
+          buildToolTraceEntry({
+            toolName: "model_plan_recovery",
+            phase: "plan",
+            status: "skipped",
+            startedAt,
+            summary: `The final plan-only recovery pass did not return a usable plan or reply after ${reason}.`,
+          }),
+        );
+        return null;
+      } catch (error: any) {
+        toolTrace.push(
+          buildToolTraceEntry({
+            toolName: "model_plan_recovery",
+            phase: "plan",
+            status: "failed",
+            startedAt,
+            summary: error?.message || `The final plan-only recovery pass failed after ${reason}.`,
+          }),
+        );
+        return null;
+      }
+    };
+
+    const attemptDeterministicAdvisoryFallback = async (reason: string) => {
+      if (requestedPlanningIntent) {
+        return null;
+      }
+
+      const selectedTool = selectDeterministicAdvisoryTool(tools, input.request.message);
+      if (!selectedTool || selectedTool.category === "plan") {
+        return null;
+      }
+
+      const startedAt = Date.now();
+      try {
+        const toolResult = await executeNonPlanningTool({
+          tool: selectedTool,
+          userId: input.request.userId,
+          threadId: input.request.threadId,
+          args: { message: input.request.message },
+        });
+
+        citations.push(...collectCitations(toolResult));
+        const toolUiBlocks = buildToolResultUiBlocks({
+          tool: selectedTool,
+          result: toolResult,
+          conversationMode: input.request.conversationMode,
+        });
+        const toolResultText = buildToolResultText(
+          selectedTool,
+          toolResult,
+          turnBudget.compactToolResultPayloads,
+        );
+        successfulToolContexts.push({
+          toolName: selectedTool.toolName,
+          text: toolResultText,
+        });
+        lastSuccessfulToolUiBlocks = toolUiBlocks;
+
+        toolTrace.push(
+          buildToolTraceEntry({
+            toolName: selectedTool.toolName,
+            phase:
+              selectedTool.category === "read" && selectedTool.toolName === "get_hosted_research"
+                ? "research"
+                : selectedTool.category,
+            status: "ok",
+            startedAt,
+            summary: `Executed ${selectedTool.toolName} through the deterministic advisory fallback.`,
+          }),
+        );
+        toolTrace.push(
+          buildToolTraceEntry({
+            toolName: "tool_first_router",
+            phase: "plan",
+            status: "ok",
+            startedAt,
+            summary: `Recovered a direct advisory reply via ${selectedTool.toolName} after ${reason}.`,
+          }),
+        );
+
+        const fallbackReply =
+          selectedTool.toolName === "get_operator_overview" ||
+          selectedTool.toolName === "get_portfolio_summary"
+            ? formatOperatorOverviewFallback(toolResult) ||
+              buildToolFallbackText(selectedTool, toolResult, turnBudget.compactToolResultPayloads)
+            : buildToolFallbackText(selectedTool, toolResult, turnBudget.compactToolResultPayloads);
+
+        warnings.push(
+          `Hermes used ${selectedTool.toolName} directly after the active model returned empty turns.`,
+        );
+
+        return {
+          outcome: "answer" as const,
+          replyText: fallbackReply,
+          summary: `Recovered an advisory reply via ${selectedTool.toolName} after ${reason}.`,
+          warnings,
+          citations,
+          toolTrace,
+          ...(toolUiBlocks.length > 0 ? { uiBlocks: toolUiBlocks } : {}),
+          ...(finalUsage ? { usage: finalUsage } : {}),
+          ...buildMetadata("deterministic_advisory_fallback"),
+        };
+      } catch (error: any) {
+        toolTrace.push(
+          buildToolTraceEntry({
+            toolName: "tool_first_router",
+            phase: "plan",
+            status: "failed",
+            startedAt,
+            summary: error?.message || `Deterministic advisory fallback failed after ${reason}.`,
+          }),
+        );
+        return null;
+      }
+    };
+
+    for (let pass = 0; pass < turnBudget.maxModelPasses; pass += 1) {
+      const startedAt = Date.now();
+      const passIndex = pass + 1;
+      modelPassCount += 1;
+      emitTurnEvent({
+        eventType: "model_pass_started",
+        status: "running",
+        summary: `Model pass ${passIndex} started.`,
+        phase: "plan",
+        passIndex,
+      });
       let assistantMessage: AssistantMessage;
 
       try {
@@ -1134,6 +2026,7 @@ export async function runHermesModelToolLoop(input: {
             "Use the available Hermes tools directly when you need account, market, or news context.",
             "If you select a tool, return valid JSON arguments that satisfy the tool schema.",
             "Call at most one tool at a time. If you already have enough information, answer directly in plain text.",
+            ...internalMlbGroundingRules,
             repairReason ? `Repair instruction: ${repairReason}` : null,
             compressionApplied
               ? "Context may be compressed. Avoid repeating old searches or rereading already returned tool data unless the user explicitly asks."
@@ -1148,7 +2041,7 @@ export async function runHermesModelToolLoop(input: {
             parameters: (tool.inputSchema || noArgsSchema) as Record<string, unknown>,
           })),
           temperature: clampTemperature(input.profile),
-          maxTokens: clampMaxTokens(input.profile),
+          maxTokens: turnBudget.maxTokens,
         });
       } catch (error: any) {
         providerFailureClass = classifyAgentProviderFailure(error);
@@ -1184,6 +2077,17 @@ export async function runHermesModelToolLoop(input: {
               },
             }),
           );
+          emitTurnEvent({
+            eventType: "repair_retry",
+            status: "info",
+            summary:
+              previousLevel === 0
+                ? "Provider overflowed context; compressed prompt and retrying."
+                : "Provider overflowed again; escalated to tightest compression and retrying.",
+            phase: "plan",
+            passIndex,
+            elapsedMs: Math.max(0, Date.now() - startedAt),
+          });
           continue;
         }
 
@@ -1202,6 +2106,14 @@ export async function runHermesModelToolLoop(input: {
               },
             }),
           );
+          emitTurnEvent({
+            eventType: "repair_retry",
+            status: "info",
+            summary: "Transient provider failure; retrying once.",
+            phase: "plan",
+            passIndex,
+            elapsedMs: Math.max(0, Date.now() - startedAt),
+          });
           continue;
         }
 
@@ -1218,6 +2130,18 @@ export async function runHermesModelToolLoop(input: {
             },
           }),
         );
+        emitTurnEvent({
+          eventType: "model_pass_completed",
+          status: "failed",
+          summary: `Model pass ${passIndex} failed.`,
+          phase: "plan",
+          passIndex,
+          elapsedMs: Math.max(0, Date.now() - startedAt),
+          details: {
+            error: errorMessage,
+            providerFailureClass,
+          },
+        });
 
         return {
           outcome: "error",
@@ -1235,8 +2159,32 @@ export async function runHermesModelToolLoop(input: {
 
       const toolCalls = extractToolCalls(assistantMessage);
       const assistantText = extractAssistantText(assistantMessage);
+      emitTurnEvent({
+        eventType: "model_pass_completed",
+        status: "done",
+        summary:
+          toolCalls.length > 0
+            ? `Model pass ${passIndex} completed with ${toolCalls.length} tool call candidate${toolCalls.length === 1 ? "" : "s"}.`
+            : `Model pass ${passIndex} completed with a direct answer candidate.`,
+        phase: "plan",
+        passIndex,
+        elapsedMs: Math.max(0, Date.now() - startedAt),
+        details: {
+          toolCallCount: toolCalls.length,
+          hasAssistantText: Boolean(assistantText),
+        },
+      });
 
       if (toolCalls.length === 0) {
+        if (assistantText && requestedPlanningIntent) {
+          const recoveredPlan = await attemptPlanOnlyRecovery(
+            "the model answered in prose despite an explicit staged-action request",
+          );
+          if (recoveredPlan) {
+            return recoveredPlan;
+          }
+        }
+
         if (assistantText) {
           toolTrace.push(
             buildToolTraceEntry({
@@ -1261,6 +2209,9 @@ export async function runHermesModelToolLoop(input: {
             warnings,
             citations,
             toolTrace,
+            ...(lastSuccessfulToolUiBlocks.length > 0
+              ? { uiBlocks: lastSuccessfulToolUiBlocks }
+              : {}),
             ...(finalUsage ? { usage: finalUsage } : {}),
             ...buildMetadata(toolCallsUsed > 0 ? "answered_after_tool_use" : "answered_directly"),
           };
@@ -1280,7 +2231,32 @@ export async function runHermesModelToolLoop(input: {
                 "The model returned no visible answer and no usable tool call. Retrying once.",
             }),
           );
+          emitTurnEvent({
+            eventType: "repair_retry",
+            status: "info",
+            summary:
+              "Model returned no visible answer or tool call; retrying once with repair guidance.",
+            phase: "plan",
+            passIndex,
+            elapsedMs: Math.max(0, Date.now() - startedAt),
+          });
           continue;
+        }
+
+        if (requestedPlanningIntent) {
+          const recoveredPlan = await attemptPlanOnlyRecovery(
+            "the provider returned no visible answer or usable tool call after the repair retry",
+          );
+          if (recoveredPlan) {
+            return recoveredPlan;
+          }
+        }
+
+        const advisoryFallback = await attemptDeterministicAdvisoryFallback(
+          "the provider returned no visible answer or usable tool call after the repair retry",
+        );
+        if (advisoryFallback) {
+          return advisoryFallback;
         }
 
         if (!providerFailureClass) {
@@ -1301,6 +2277,9 @@ export async function runHermesModelToolLoop(input: {
             ],
             citations,
             toolTrace,
+            ...(lastSuccessfulToolUiBlocks.length > 0
+              ? { uiBlocks: lastSuccessfulToolUiBlocks }
+              : {}),
             ...(finalUsage ? { usage: finalUsage } : {}),
             ...buildMetadata("empty_provider_response"),
           };
@@ -1353,6 +2332,13 @@ export async function runHermesModelToolLoop(input: {
           repairReason =
             "Do not call unavailable tools. Choose one listed tool or answer directly.";
           repairAttempts += 1;
+          emitTurnEvent({
+            eventType: "repair_retry",
+            status: "info",
+            summary: `Model chose unavailable tool ${toolCall.name}; retrying with corrected tool list guidance.`,
+            phase: "plan",
+            passIndex,
+          });
           continue;
         }
 
@@ -1437,6 +2423,13 @@ export async function runHermesModelToolLoop(input: {
               },
             }),
           );
+          emitTurnEvent({
+            eventType: "repair_retry",
+            status: "info",
+            summary: `Rejected invalid arguments for ${selectedTool.toolName}; retrying with schema guidance.`,
+            phase: "plan",
+            passIndex,
+          });
           continue;
         }
 
@@ -1484,6 +2477,13 @@ export async function runHermesModelToolLoop(input: {
               summary: `Rejected premature plan tool ${selectedTool.toolName} for an advisory request and requested a safer reroute.`,
             }),
           );
+          emitTurnEvent({
+            eventType: "repair_retry",
+            status: "info",
+            summary: `Deferred ${selectedTool.toolName} until the request is explicit enough to stage a plan.`,
+            phase: "plan",
+            passIndex,
+          });
           continue;
         }
 
@@ -1511,7 +2511,18 @@ export async function runHermesModelToolLoop(input: {
         };
       }
 
-      if (toolCallsUsed >= MAX_TOOL_CALLS) {
+      if (toolCallsUsed >= turnBudget.maxToolCalls) {
+        const recoveredPlan = await attemptPlanOnlyRecovery("the Hermes tool budget was exhausted");
+        if (recoveredPlan) {
+          return recoveredPlan;
+        }
+
+        const synthesized = await attemptAnswerOnlySynthesis(
+          "the Hermes tool budget was exhausted",
+        );
+        if (synthesized) {
+          return synthesized;
+        }
         return {
           outcome: "unsupported",
           replyText: null,
@@ -1526,6 +2537,17 @@ export async function runHermesModelToolLoop(input: {
 
       toolCallsUsed += 1;
       const toolStartedAt = Date.now();
+      emitTurnEvent({
+        eventType: "tool_call_started",
+        status: "running",
+        summary: `Running ${selectedTool.toolName}.`,
+        phase:
+          selectedTool.category === "read" && selectedTool.toolName === "get_hosted_research"
+            ? "research"
+            : selectedTool.category,
+        toolName: selectedTool.toolName,
+        passIndex,
+      });
 
       try {
         const toolResult = await executeNonPlanningTool({
@@ -1536,10 +2558,28 @@ export async function runHermesModelToolLoop(input: {
         });
 
         citations.push(...collectCitations(toolResult));
-        const toolResultText = buildToolResultText(selectedTool, toolResult);
-        const toolFallbackText = buildToolFallbackText(selectedTool, toolResult);
+        const toolUiBlocks = buildToolResultUiBlocks({
+          tool: selectedTool,
+          result: toolResult,
+          conversationMode: input.request.conversationMode,
+        });
+        const toolResultText = buildToolResultText(
+          selectedTool,
+          toolResult,
+          turnBudget.compactToolResultPayloads,
+        );
+        const toolFallbackText = buildToolFallbackText(
+          selectedTool,
+          toolResult,
+          turnBudget.compactToolResultPayloads,
+        );
         lastSuccessfulToolName = selectedTool.toolName;
         lastSuccessfulToolReply = toolFallbackText;
+        lastSuccessfulToolUiBlocks = toolUiBlocks;
+        successfulToolContexts.push({
+          toolName: selectedTool.toolName,
+          text: toolResultText,
+        });
         toolTrace.push(
           buildToolTraceEntry({
             toolName: selectedTool.toolName,
@@ -1552,6 +2592,44 @@ export async function runHermesModelToolLoop(input: {
             summary: `Executed ${selectedTool.toolName} in the model tool loop.`,
           }),
         );
+        emitTurnEvent({
+          eventType: "tool_call_completed",
+          status: "done",
+          summary: `Completed ${selectedTool.toolName}.`,
+          phase:
+            selectedTool.category === "read" && selectedTool.toolName === "get_hosted_research"
+              ? "research"
+              : selectedTool.category,
+          toolName: selectedTool.toolName,
+          passIndex,
+          elapsedMs: Math.max(0, Date.now() - toolStartedAt),
+        });
+
+        const shouldShortCircuitWithToolReply =
+          turnBudget.profile === "aggressive_safe" &&
+          (selectedTool.category === "read" || selectedTool.category === "scan") &&
+          Boolean(toolFallbackText.trim());
+        if (shouldShortCircuitWithToolReply) {
+          toolTrace.push(
+            buildToolTraceEntry({
+              toolName: "model_first_read_summary",
+              phase: selectedTool.category,
+              status: "ok",
+              startedAt: toolStartedAt,
+              summary: `Returned ${selectedTool.toolName} directly to reduce advisory latency.`,
+            }),
+          );
+          return {
+            outcome: "answer",
+            replyText: toolFallbackText.trim(),
+            summary: `Returned ${selectedTool.toolName} directly for faster advisory response.`,
+            warnings,
+            citations,
+            toolTrace,
+            ...(finalUsage ? { usage: finalUsage } : {}),
+            ...buildMetadata("aggressive_safe_short_circuit"),
+          };
+        }
 
         const toolResultMessage: Message = {
           role: "toolResult",
@@ -1587,6 +2665,21 @@ export async function runHermesModelToolLoop(input: {
             summary: errorMessage,
           }),
         );
+        emitTurnEvent({
+          eventType: "tool_call_failed",
+          status: "failed",
+          summary: `${selectedTool.toolName} failed.`,
+          phase:
+            selectedTool.category === "read" && selectedTool.toolName === "get_hosted_research"
+              ? "research"
+              : selectedTool.category,
+          toolName: selectedTool.toolName,
+          passIndex,
+          elapsedMs: Math.max(0, Date.now() - toolStartedAt),
+          details: {
+            error: errorMessage,
+          },
+        });
 
         const toolResultMessage: Message = {
           role: "toolResult",
@@ -1607,8 +2700,36 @@ export async function runHermesModelToolLoop(input: {
           repairReason =
             "Recover by using another valid tool if needed, or answer directly from the available context.";
           repairAttempts += 1;
+          emitTurnEvent({
+            eventType: "repair_retry",
+            status: "info",
+            summary: `Retrying after ${selectedTool.toolName} failed.`,
+            phase: "plan",
+            passIndex,
+          });
         }
       }
+    }
+
+    const recoveredPlan = await attemptPlanOnlyRecovery(
+      "the model tool loop reached its pass limit",
+    );
+    if (recoveredPlan) {
+      return recoveredPlan;
+    }
+
+    const advisoryFallback = await attemptDeterministicAdvisoryFallback(
+      "the model tool loop reached its pass limit",
+    );
+    if (advisoryFallback) {
+      return advisoryFallback;
+    }
+
+    const synthesized = await attemptAnswerOnlySynthesis(
+      "the model tool loop reached its pass limit",
+    );
+    if (synthesized) {
+      return synthesized;
     }
 
     return {
@@ -1632,6 +2753,14 @@ export async function runHermesModelToolLoop(input: {
       compressionApplied,
       repairAttempts,
       providerFailureClass,
+      usageMetrics: {
+        modelPassCount,
+        nonPlanningToolCallCount: toolCallsUsed,
+        maxModelPasses: turnBudget.maxModelPasses,
+        maxToolCalls: turnBudget.maxToolCalls,
+        budgetProfile: turnBudget.profile,
+        finalUsage: finalUsage || null,
+      },
     };
   }
 }

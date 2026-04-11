@@ -8,13 +8,19 @@ import type { AgentAction, HermesConversationMode, HermesStrategyContext } from 
 const UI_BLOCK_GUIDANCE = [
   "When it helps, you may return approved native uiBlocks along with text.",
   "Use only this closed block catalog: goal_strip, pending_decision, clarification_card, strategy_draft, strategy_status, stat_highlight_strip, leaderboard_table, entity_table, schedule_board, execution_checklist, tool_catalog_summary, schedule_summary, rules_summary, performance_summary, source_list, run_summary.",
-  "Prefer the smallest useful block set, and optimize for dense mobile layouts instead of decorative dashboard chrome.",
+  "Prefer the smallest useful block set, and optimize for dense mobile scanning instead of decorative chrome.",
   "Goal and next-step clarity matter more than exhaustive status dumping.",
-  "For ranked stats and leaders, prefer stat_highlight_strip plus leaderboard_table. Make player rows clickable when player IDs are available.",
-  "For slates, schedules, and probable-pitcher reads, prefer schedule_board.",
-  "For plans, staged workflows, and recurring task setup, prefer execution_checklist.",
-  "For capability or tool-surface questions, prefer tool_catalog_summary.",
-  "If you cannot emit uiBlocks for a structured answer, fall back to a compact markdown table and use /player/:id markdown links when you know the player ID.",
+  "For ranked stats and leaders, prefer leaderboard_table or entity_table.",
+  "For slates, schedules, and matchup reads, prefer schedule_board.",
+  "For staged plans and recurring setup, prefer execution_checklist.",
+  "If you do not emit uiBlocks for a structured answer, fall back to a compact markdown table.",
+];
+
+const TOOL_PRECEDENCE_GUIDANCE = [
+  "Sportfolio-native Hermes tools are the canonical source for account, portfolio, market, boost, scout, watchlist, and strategy state.",
+  "Treat built-in or user-connected MCP sources as optional enrichment after native Sportfolio context, not as a second source of truth.",
+  "Use user-connected external MCP sources only when the user explicitly asks for external data or when a strategy genuinely needs outside data that native Sportfolio tools do not provide.",
+  "Do not reach for external MCP tools when native Sportfolio tools already answer the question.",
 ];
 
 const CONTINUITY_GUIDANCE = [
@@ -89,6 +95,7 @@ function getModeInstruction(
         "If the user asks for something unsupported, say so directly and offer the closest supported shape.",
         "When a strategy draft is taking shape, prefer a goal_strip plus strategy_draft block, and add schedule_summary or rules_summary only if they clarify the next decision.",
         ...CONTINUITY_GUIDANCE,
+        ...TOOL_PRECEDENCE_GUIDANCE,
         ...UI_BLOCK_GUIDANCE,
       ];
     case "strategy_refinement":
@@ -101,6 +108,7 @@ function getModeInstruction(
         "Never initiate payments, Whop checkout, add-cash flows, or any other external purchase flow for the user.",
         "Prefer compact review blocks such as strategy_status, schedule_summary, rules_summary, and run_summary over long dashboard-style narration.",
         ...CONTINUITY_GUIDANCE,
+        ...TOOL_PRECEDENCE_GUIDANCE,
         ...UI_BLOCK_GUIDANCE,
         ...buildStrategyContextLines(strategyContext),
       ];
@@ -113,6 +121,7 @@ function getModeInstruction(
         "Never initiate payments, Whop checkout, add-cash flows, or any other external purchase flow for the user.",
         "If the latest run or schedule matters, prefer strategy_status plus run_summary, and only add extra blocks that materially help the user decide what to do next.",
         ...CONTINUITY_GUIDANCE,
+        ...TOOL_PRECEDENCE_GUIDANCE,
         ...UI_BLOCK_GUIDANCE,
         ...buildStrategyContextLines(strategyContext),
       ];
@@ -124,6 +133,7 @@ function getModeInstruction(
         "Never initiate payments, Whop checkout, add-cash flows, or any other external purchase flow for the user.",
         "In general chat, use structured uiBlocks for known result shapes such as leaderboards, schedules, tool catalogs, and execution checklists when they make the answer easier to scan.",
         ...CONTINUITY_GUIDANCE,
+        ...TOOL_PRECEDENCE_GUIDANCE,
         ...UI_BLOCK_GUIDANCE,
       ];
   }
@@ -139,11 +149,11 @@ export function buildHermesConversationPrompts(input: {
   const modeLines = getModeInstruction(input.conversationMode, input.strategyContext);
   if (input.mlbMcpAvailable === false) {
     modeLines.push(
-      "Note: MLB MCP advanced tools are currently offline. Use scan_sport_slate and scan_team_roster for MLB game and roster data.",
+      "Note: MLB-specific enrichment tools are currently offline. Use scan_sport_slate and scan_team_roster for MLB game and roster data.",
     );
   } else if (input.mlbMcpAvailable === true) {
     modeLines.push(
-      "For MLB probable pitchers, matchup reads, and pregame advanced stats, prefer the built-in mlb_mcp__ tools first, especially get_schedule plus the Statcast pitcher expected-stats tools.",
+      "For MLB probable pitchers, matchup reads, and advanced Statcast-style enrichment, built-in mlb_mcp__ tools are available after native Sportfolio context is established.",
     );
   }
   const systemPrompt = [input.baseSystemPrompt.trim(), ...modeLines].filter(Boolean).join(" ");

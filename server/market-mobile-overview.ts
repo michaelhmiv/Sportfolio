@@ -3,6 +3,7 @@ import { players, scoutAssignments, scoutHistory, trades } from "@shared/schema"
 import { and, eq, gte, lt, sql } from "drizzle-orm";
 
 import { getUserLpPositions } from "./amm/pool";
+import { getOrCompute } from "./cache";
 import { db } from "./db";
 import { getETDayBoundaries, getGameDay } from "./lib/time";
 import { storage } from "./storage";
@@ -175,7 +176,11 @@ export interface MarketMobileOverviewDeps {
   getWatchList: (userId: string) => Promise<string[]>;
   getAllHoldingsWithPlayers: (userId: string) => Promise<HoldingWithPlayerSummary[]>;
   getDailyBoostsAllSports: (userId: string, date: Date) => Promise<DailyBoostLike[]>;
-  getTotalLockedQuantity: (userId: string, assetType: string, assetId: string) => Promise<number>;
+  getBatchTotalLockedQuantities: (
+    userId: string,
+    assetType: string,
+    assetIds: string[],
+  ) => Promise<Map<string, number>>;
   getTopRisers: (sport: string, limit: number) => Promise<TopRiserSnapshot[]>;
   getRecentTradeCount15m: (sport: string, since: Date) => Promise<number>;
   getTrendingScoutPlayerIds: (sport: string, limit: number, asOf: Date) => Promise<string[]>;
@@ -218,8 +223,8 @@ const defaultDeps: MarketMobileOverviewDeps = {
   getWatchList: (userId) => storage.getWatchList(userId),
   getAllHoldingsWithPlayers: (userId) => storage.getAllHoldingsWithPlayers(userId),
   getDailyBoostsAllSports: (userId, date) => storage.getDailyBoostsAllSports(userId, date),
-  getTotalLockedQuantity: (userId, assetType, assetId) =>
-    storage.getTotalLockedQuantity(userId, assetType, assetId),
+  getBatchTotalLockedQuantities: (userId, assetType, assetIds) =>
+    storage.getBatchTotalLockedQuantities(userId, assetType, assetIds),
   getTopRisers: async (sport, limit) => {
     const normalizedSport = sport.toUpperCase();
     const sportFilter =
@@ -627,9 +632,14 @@ async function buildHoldingContextMap(
   }
 
   const result = new Map<string, HoldingContext>();
+  const lockedQuantities = await deps.getBatchTotalLockedQuantities(
+    userId,
+    "player",
+    Array.from(grouped.keys()),
+  );
 
   for (const [playerId, context] of grouped) {
-    const locked = await deps.getTotalLockedQuantity(userId, "player", playerId);
+    const locked = lockedQuantities.get(playerId) || 0;
     const availableRegularShares = Math.max(0, context.regularShares - locked);
 
     result.set(playerId, {
@@ -641,174 +651,12 @@ async function buildHoldingContextMap(
   return result;
 }
 
-function sortByMarketEnergy(
-  left: Pick<PlayerContext, "priceChange24h" | "communityBoostCount" | "poolTvl">,
-  right: Pick<PlayerContext, "priceChange24h" | "communityBoostCount" | "poolTvl">,
-) {
-  if (right.priceChange24h !== left.priceChange24h) {
-    return right.priceChange24h - left.priceChange24h;
-  }
-
-  if (right.communityBoostCount !== left.communityBoostCount) {
-    return right.communityBoostCount - left.communityBoostCount;
-  }
-
-  return right.poolTvl - left.poolTvl;
-}
-
-function sortByAbsoluteMove(
-  left: Pick<PlayerContext, "priceChange24h" | "poolTvl">,
-  right: Pick<PlayerContext, "priceChange24h" | "poolTvl">,
-) {
-  const leftAbsMove = Math.abs(left.priceChange24h);
-  const rightAbsMove = Math.abs(right.priceChange24h);
-
-  if (rightAbsMove !== leftAbsMove) {
-    return rightAbsMove - leftAbsMove;
-  }
-
-  return right.poolTvl - left.poolTvl;
-}
-
-function sortByTopRiser(
-  left: Pick<PlayerContext, "priceChange24h" | "poolTvl">,
-  right: Pick<PlayerContext, "priceChange24h" | "poolTvl">,
-) {
-  const leftPositive = left.priceChange24h > 0 ? 1 : 0;
-  const rightPositive = right.priceChange24h > 0 ? 1 : 0;
-
-  if (rightPositive !== leftPositive) {
-    return rightPositive - leftPositive;
-  }
-
-  if (right.priceChange24h !== left.priceChange24h) {
-    return right.priceChange24h - left.priceChange24h;
-  }
-
-  return right.poolTvl - left.poolTvl;
-}
-
-function getMarketHealthSummary(label: MarketHealthLabel) {
-  switch (label) {
-    case "quiet":
-      return "Composite tape read: light flow and softer movement.";
-    case "balanced":
-      return "Composite tape read: steady flow with usable depth.";
-    case "active":
-      return "Composite tape read: strong flow with broad movement.";
-    case "heated":
-      return "Composite tape read: crowded tape with sharp movement.";
-  }
-}
-
-function buildMarketIndicators(params: {
-  contexts: PlayerContext[];
-  tradeCount15m: number;
-  liveGameCount: number;
-  summary?: MarketScannerSummary;
-}): MobileMarketIndicators {
-  const { contexts, tradeCount15m, liveGameCount, summary } = params;
-  const breadth = contexts.reduce(
-    (accumulator, context) => {
-      if (context.priceChange24h > MARKET_BREADTH_MOVE_THRESHOLD) {
-        accumulator.risers += 1;
-      } else if (context.priceChange24h < MARKET_BREADTH_MOVE_THRESHOLD * -1) {
-        accumulator.fallers += 1;
-      } else {
-        accumulator.flat += 1;
-      }
-
-      return accumulator;
-    },
-    { risers: 0, fallers: 0, flat: 0 },
-  );
-
-  const marketIndex24h =
-    contexts.length > 0
-      ? roundToTwo(
-          contexts.reduce((total, context) => total + context.priceChange24h, 0) / contexts.length,
-        )
-      : 0;
-  const averageAbsoluteMove =
-    contexts.length > 0
-      ? contexts.reduce((total, context) => total + Math.abs(context.priceChange24h), 0) /
-        contexts.length
-      : 0;
-  const moveVariance =
-    contexts.length > 0
-      ? contexts.reduce(
-          (total, context) => total + Math.pow(context.priceChange24h - marketIndex24h, 2),
-          0,
-        ) / contexts.length
-      : 0;
-  const moveStandardDeviation = Math.sqrt(moveVariance);
-  const totalVolume24h = roundToTwo(
-    summary?.totalVolume24h ??
-      contexts.reduce((total, context) => total + Math.max(0, context.volume24h), 0),
-  );
-  const totalPoolShares = roundToTwo(
-    summary?.totalPoolShares ??
-      contexts.reduce((total, context) => total + Math.max(0, context.poolShares), 0),
-  );
-  const totalMarketTvl = roundToTwo(
-    summary?.totalMarketTvl ??
-      contexts.reduce((total, context) => total + Math.max(0, context.poolTvl), 0),
-  );
-  const averagePoolTvl = contexts.length > 0 ? totalMarketTvl / contexts.length : 0;
-  const deepPoolShare =
-    contexts.length > 0
-      ? contexts.filter((context) => context.poolTvl >= 100000).length / contexts.length
-      : 0;
-  const volatilityIndex = roundToTwo(
-    Math.max(0, Math.min(100, averageAbsoluteMove * 4 + moveStandardDeviation * 6)),
-  );
-  const liquidityHealth = roundToTwo(
-    Math.max(
-      0,
-      Math.min(100, averagePoolTvl / 4000 + deepPoolShare * 35 + Math.min(20, tradeCount15m * 3)),
-    ),
-  );
-  const healthScore = Math.max(
-    0,
-    Math.min(
-      100,
-      Math.round(
-        Math.min(45, tradeCount15m * 8) +
-          Math.min(30, volatilityIndex * 0.35) +
-          Math.min(25, liveGameCount * 8),
-      ),
-    ),
-  );
-  let healthLabel: MarketHealthLabel = "quiet";
-
-  if (healthScore >= 75) {
-    healthLabel = "heated";
-  } else if (healthScore >= 50) {
-    healthLabel = "active";
-  } else if (healthScore >= 25) {
-    healthLabel = "balanced";
-  }
-
-  return {
-    healthScore,
-    healthLabel,
-    healthSummary: getMarketHealthSummary(healthLabel),
-    marketIndex24h,
-    volatilityIndex,
-    liquidityHealth,
-    totalVolume24h,
-    totalPoolShares,
-    totalMarketTvl,
-    breadth,
-  };
-}
-
-export async function buildMobileMarketOverview(
+async function buildMobileMarketOverviewInternal(
   params: {
     sport?: string | null;
     userId?: string | null;
   },
-  deps: MarketMobileOverviewDeps = defaultDeps,
+  deps: MarketMobileOverviewDeps,
 ): Promise<MobileMarketOverview> {
   const sport = (params.sport || "ALL").toUpperCase();
   const now = deps.now();
@@ -1267,6 +1115,187 @@ export async function buildMobileMarketOverview(
     quietValue,
     watchlistMoves,
   };
+}
+
+function sortByMarketEnergy(
+  left: Pick<PlayerContext, "priceChange24h" | "communityBoostCount" | "poolTvl">,
+  right: Pick<PlayerContext, "priceChange24h" | "communityBoostCount" | "poolTvl">,
+) {
+  if (right.priceChange24h !== left.priceChange24h) {
+    return right.priceChange24h - left.priceChange24h;
+  }
+
+  if (right.communityBoostCount !== left.communityBoostCount) {
+    return right.communityBoostCount - left.communityBoostCount;
+  }
+
+  return right.poolTvl - left.poolTvl;
+}
+
+function sortByAbsoluteMove(
+  left: Pick<PlayerContext, "priceChange24h" | "poolTvl">,
+  right: Pick<PlayerContext, "priceChange24h" | "poolTvl">,
+) {
+  const leftAbsMove = Math.abs(left.priceChange24h);
+  const rightAbsMove = Math.abs(right.priceChange24h);
+
+  if (rightAbsMove !== leftAbsMove) {
+    return rightAbsMove - leftAbsMove;
+  }
+
+  return right.poolTvl - left.poolTvl;
+}
+
+function sortByTopRiser(
+  left: Pick<PlayerContext, "priceChange24h" | "poolTvl">,
+  right: Pick<PlayerContext, "priceChange24h" | "poolTvl">,
+) {
+  const leftPositive = left.priceChange24h > 0 ? 1 : 0;
+  const rightPositive = right.priceChange24h > 0 ? 1 : 0;
+
+  if (rightPositive !== leftPositive) {
+    return rightPositive - leftPositive;
+  }
+
+  if (right.priceChange24h !== left.priceChange24h) {
+    return right.priceChange24h - left.priceChange24h;
+  }
+
+  return right.poolTvl - left.poolTvl;
+}
+
+function getMarketHealthSummary(label: MarketHealthLabel) {
+  switch (label) {
+    case "quiet":
+      return "Composite tape read: light flow and softer movement.";
+    case "balanced":
+      return "Composite tape read: steady flow with usable depth.";
+    case "active":
+      return "Composite tape read: strong flow with broad movement.";
+    case "heated":
+      return "Composite tape read: crowded tape with sharp movement.";
+  }
+}
+
+function buildMarketIndicators(params: {
+  contexts: PlayerContext[];
+  tradeCount15m: number;
+  liveGameCount: number;
+  summary?: MarketScannerSummary;
+}): MobileMarketIndicators {
+  const { contexts, tradeCount15m, liveGameCount, summary } = params;
+  const breadth = contexts.reduce(
+    (accumulator, context) => {
+      if (context.priceChange24h > MARKET_BREADTH_MOVE_THRESHOLD) {
+        accumulator.risers += 1;
+      } else if (context.priceChange24h < MARKET_BREADTH_MOVE_THRESHOLD * -1) {
+        accumulator.fallers += 1;
+      } else {
+        accumulator.flat += 1;
+      }
+
+      return accumulator;
+    },
+    { risers: 0, fallers: 0, flat: 0 },
+  );
+
+  const marketIndex24h =
+    contexts.length > 0
+      ? roundToTwo(
+          contexts.reduce((total, context) => total + context.priceChange24h, 0) / contexts.length,
+        )
+      : 0;
+  const averageAbsoluteMove =
+    contexts.length > 0
+      ? contexts.reduce((total, context) => total + Math.abs(context.priceChange24h), 0) /
+        contexts.length
+      : 0;
+  const moveVariance =
+    contexts.length > 0
+      ? contexts.reduce(
+          (total, context) => total + Math.pow(context.priceChange24h - marketIndex24h, 2),
+          0,
+        ) / contexts.length
+      : 0;
+  const moveStandardDeviation = Math.sqrt(moveVariance);
+  const totalVolume24h = roundToTwo(
+    summary?.totalVolume24h ??
+      contexts.reduce((total, context) => total + Math.max(0, context.volume24h), 0),
+  );
+  const totalPoolShares = roundToTwo(
+    summary?.totalPoolShares ??
+      contexts.reduce((total, context) => total + Math.max(0, context.poolShares), 0),
+  );
+  const totalMarketTvl = roundToTwo(
+    summary?.totalMarketTvl ??
+      contexts.reduce((total, context) => total + Math.max(0, context.poolTvl), 0),
+  );
+  const averagePoolTvl = contexts.length > 0 ? totalMarketTvl / contexts.length : 0;
+  const deepPoolShare =
+    contexts.length > 0
+      ? contexts.filter((context) => context.poolTvl >= 100000).length / contexts.length
+      : 0;
+  const volatilityIndex = roundToTwo(
+    Math.max(0, Math.min(100, averageAbsoluteMove * 4 + moveStandardDeviation * 6)),
+  );
+  const liquidityHealth = roundToTwo(
+    Math.max(
+      0,
+      Math.min(100, averagePoolTvl / 4000 + deepPoolShare * 35 + Math.min(20, tradeCount15m * 3)),
+    ),
+  );
+  const healthScore = Math.max(
+    0,
+    Math.min(
+      100,
+      Math.round(
+        Math.min(45, tradeCount15m * 8) +
+          Math.min(30, volatilityIndex * 0.35) +
+          Math.min(25, liveGameCount * 8),
+      ),
+    ),
+  );
+  let healthLabel: MarketHealthLabel = "quiet";
+
+  if (healthScore >= 75) {
+    healthLabel = "heated";
+  } else if (healthScore >= 50) {
+    healthLabel = "active";
+  } else if (healthScore >= 25) {
+    healthLabel = "balanced";
+  }
+
+  return {
+    healthScore,
+    healthLabel,
+    healthSummary: getMarketHealthSummary(healthLabel),
+    marketIndex24h,
+    volatilityIndex,
+    liquidityHealth,
+    totalVolume24h,
+    totalPoolShares,
+    totalMarketTvl,
+    breadth,
+  };
+}
+
+export async function buildMobileMarketOverview(
+  params: {
+    sport?: string | null;
+    userId?: string | null;
+  },
+  deps: MarketMobileOverviewDeps = defaultDeps,
+): Promise<MobileMarketOverview> {
+  if (!params.userId && deps === defaultDeps) {
+    const sport = (params.sport || "ALL").toUpperCase();
+    return getOrCompute(
+      `market:mobile-overview:public:${sport}`,
+      () => buildMobileMarketOverviewInternal({ ...params, sport, userId: null }, deps),
+      60_000,
+    );
+  }
+
+  return buildMobileMarketOverviewInternal(params, deps);
 }
 
 function roundToTwo(value: number): number {

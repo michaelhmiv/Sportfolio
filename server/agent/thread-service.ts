@@ -27,9 +27,11 @@ import {
   backfillRecentAgentMessageEmbeddings,
   buildAgentQuestionRouteCounts,
   buildAgentQuestionSemanticClusters,
+  inferSemanticRouteMatch,
   normalizeAgentQuestionText,
   recordAgentMessageEmbedding,
 } from "./semantic-router";
+import { agentTurnEventStreamManager } from "./turn-events";
 import {
   buildWorkflowPayload,
   getBundleActions,
@@ -49,6 +51,7 @@ import type {
   AgentThreadMessage,
   AgentThreadSummary,
   AgentThreadTurnResult,
+  AgentTurnProgressUpdate,
   AgentThreadWorkspace,
   AgentToolTrace,
 } from "./types";
@@ -75,6 +78,7 @@ const createThreadInputSchema = z
 const threadMessageInputSchema = z
   .object({
     message: z.string().trim().min(1).max(2000),
+    turnId: z.string().trim().min(1).max(120).optional(),
   })
   .strict();
 
@@ -129,8 +133,8 @@ export async function ensureAgentThreadSchema() {
       "model" text NOT NULL DEFAULT 'managed-default',
       "base_url" text,
       "internal_mlb_mcp_enabled" boolean NOT NULL DEFAULT true,
-      "system_prompt" text NOT NULL DEFAULT 'You are Hermes, the Sportfolio portfolio operator. Stay grounded in the provided Sportfolio gameplay context, treat the approved tool surface as the source of truth, reason across portfolio, market, boosts, scouts, watchlists, and related gameplay systems, and never imply access to code, arbitrary database data, files, or admin-only systems. When a requested move changes gameplay state, follow the active execution policy and confirmation boundary instead of bypassing it.',
-      "user_prompt_template" text NOT NULL DEFAULT 'Act like my Sportfolio portfolio operator. Review my live gameplay setup, explain the highest-signal risk and opportunity tradeoffs clearly, and when I ask for a plan, translate that into the safest high-leverage sequence the available Hermes tools can support.',
+      "system_prompt" text NOT NULL DEFAULT 'You are Hermes, Sportfolio''s product operator. Stay inside Sportfolio gameplay and user experience: portfolio state, player markets, liquidity, boosts, scouts, watchlists, lineups, schedules, stats, and guardrailed strategies. Use Sportfolio-native tools as the source of truth for account and gameplay state. Treat built-in or user-connected MCP sources as optional enrichment after native Sportfolio context, not as canonical state. Keep the focus on the next useful Sportfolio decision instead of acting like a general personal assistant. Never imply access to code, arbitrary database state, files, or admin-only systems. When a request would change gameplay state, preview or stage it through the server-owned confirmation boundary instead of bypassing validation.',
+      "user_prompt_template" text NOT NULL DEFAULT 'Act like my Sportfolio portfolio operator. Keep me focused on the highest-signal Sportfolio decision, use lineups, schedules, stats, and news only when they change what I should do, and turn direct requests into the safest staged move the current Hermes tools support.',
       "temperature" numeric(3, 2) NOT NULL DEFAULT 0.20,
       "max_tokens" integer NOT NULL DEFAULT 1200,
       "analysis_window_minutes" integer NOT NULL DEFAULT 1440,
@@ -1962,6 +1966,41 @@ export async function sendAgentThreadMessage(
   }
 
   const messageText = data.message.trim();
+  const turnId = data.turnId?.trim() || null;
+  const turnStartedAt = Date.now();
+  const emitTurnEvent = (event: AgentTurnProgressUpdate) => {
+    if (!turnId) {
+      return;
+    }
+    agentTurnEventStreamManager.emit({
+      userId,
+      threadId,
+      turnId,
+      event,
+    });
+  };
+  const finishTurn = (input: {
+    eventType: "turn_completed" | "turn_failed";
+    status: "done" | "failed";
+    summary: string;
+    details?: Record<string, unknown> | null;
+  }) => {
+    emitTurnEvent({
+      eventType: input.eventType,
+      status: input.status,
+      summary: input.summary,
+      phase: "plan",
+      elapsedMs: Math.max(0, Date.now() - turnStartedAt),
+      details: input.details || null,
+    });
+  };
+  emitTurnEvent({
+    eventType: "turn_started",
+    status: "running",
+    summary: "Queued your request and started processing.",
+    phase: "plan",
+  });
+
   const pendingBundle = await getLatestPendingBundleRow(userId, threadId);
   const activeBundle = pendingBundle || (await getLatestActiveBundleRow(userId, threadId));
 
@@ -1974,6 +2013,11 @@ export async function sendAgentThreadMessage(
       contentText: messageText,
     });
     const result = await applyPendingBundle(userId, threadId);
+    finishTurn({
+      eventType: "turn_completed",
+      status: "done",
+      summary: "Confirmed and applied the pending plan.",
+    });
 
     return {
       thread: await getAgentThread(userId, threadId),
@@ -2015,6 +2059,11 @@ export async function sendAgentThreadMessage(
       contentText: messageText,
     });
     const result = await cancelPendingBundle(userId, threadId);
+    finishTurn({
+      eventType: "turn_completed",
+      status: "done",
+      summary: "Canceled the pending plan.",
+    });
 
     return {
       thread: await getAgentThread(userId, threadId),
@@ -2047,157 +2096,201 @@ export async function sendAgentThreadMessage(
     };
   }
 
-  const pendingClarification = pendingBundle
-    ? null
-    : await getLatestPendingClarification(userId, threadId);
-  const shouldResumeClarification = shouldTreatAsClarificationReply(
-    pendingClarification,
-    messageText,
-  );
-  const effectiveMessage =
-    shouldResumeClarification && pendingClarification
-      ? hydrateClarificationMessage(pendingClarification, messageText) || messageText
-      : messageText;
-  const conversationHistory = await getRecentConversationHistory(userId, threadId);
-  const threadStrategyContext = await getStrategyContextForThread(userId, threadId);
-  await ensureDefaultUserAgentSchedules(userId);
-  const userMessage = await createThreadMessage({
-    threadId,
-    userId,
-    role: "user",
-    messageType: "chat",
-    contentText: messageText,
-  });
-  let semanticRouteMatch: Awaited<ReturnType<typeof recordAgentMessageEmbedding>> | null = null;
-  if (!shouldResumeClarification) {
-    try {
-      semanticRouteMatch = await recordAgentMessageEmbedding({
+  try {
+    const pendingClarification = pendingBundle
+      ? null
+      : await getLatestPendingClarification(userId, threadId);
+    const shouldResumeClarification = shouldTreatAsClarificationReply(
+      pendingClarification,
+      messageText,
+    );
+    const effectiveMessage =
+      shouldResumeClarification && pendingClarification
+        ? hydrateClarificationMessage(pendingClarification, messageText) || messageText
+        : messageText;
+    const conversationHistory = await getRecentConversationHistory(userId, threadId);
+    const threadStrategyContext = await getStrategyContextForThread(userId, threadId);
+    const semanticRouteMatch = shouldResumeClarification
+      ? null
+      : inferSemanticRouteMatch({
+          messageText,
+        });
+
+    void ensureDefaultUserAgentSchedules(userId).catch((error: any) => {
+      console.warn(
+        "[Agent Schedules] Could not ensure default schedules:",
+        error?.message || error,
+      );
+    });
+
+    const userMessage = await createThreadMessage({
+      threadId,
+      userId,
+      role: "user",
+      messageType: "chat",
+      contentText: messageText,
+    });
+
+    if (!shouldResumeClarification) {
+      void recordAgentMessageEmbedding({
         messageId: userMessage.id,
         userId,
         threadId,
         role: "user",
         messageType: "chat",
         contentText: messageText,
+      }).catch((error: any) => {
+        console.warn(
+          "[Agent Embeddings] Could not record question embedding:",
+          error?.message || error,
+        );
       });
-    } catch (error: any) {
-      console.warn(
-        "[Agent Embeddings] Could not record question embedding:",
-        error?.message || error,
-      );
     }
-  }
 
-  if (!thread.title) {
-    await db
-      .update(userAgentThreads)
-      .set({
-        title: buildThreadTitle(messageText),
-        updatedAt: new Date(),
-      })
-      .where(eq(userAgentThreads.id, threadId));
-  }
+    if (!thread.title) {
+      await db
+        .update(userAgentThreads)
+        .set({
+          title: buildThreadTitle(messageText),
+          updatedAt: new Date(),
+        })
+        .where(eq(userAgentThreads.id, threadId));
+    }
 
-  await expirePendingBundles(userId, threadId);
+    await expirePendingBundles(userId, threadId);
 
-  const analysis = await analyzePortfolioAgent(userId, {
-    message: effectiveMessage,
-    threadId,
-    conversationHistory,
-    semanticRouteHint: semanticRouteMatch?.route || undefined,
-    conversationMode: threadStrategyContext.conversationMode,
-    strategyContext: threadStrategyContext.strategyContext,
-  });
-
-  let bundleView: AgentActionBundleView | null = null;
-  let actionBundleId: string | null = null;
-  if (
-    analysis.status === "completed" &&
-    (analysis.actions.length > 0 || analysis.pendingClarification)
-  ) {
-    const [bundleRow] = await db
-      .insert(userAgentActionBundles)
-      .values({
-        threadId,
-        userId,
-        domain: analysis.domain,
-        runId: analysis.runId,
-        status: analysis.pendingClarification ? "pending_clarification" : "pending_confirmation",
-        summary: analysis.summary || "Pending plan",
-        warnings: analysis.warnings,
-        actionPayload: buildWorkflowPayload({
-          summary: analysis.summary,
-          actions: analysis.actions,
-          pendingClarification: analysis.pendingClarification || null,
-        }),
-      })
-      .returning();
-
-    bundleView = mapActionBundleRowToView(bundleRow);
-    actionBundleId = bundleRow.id;
-  }
-
-  const assistantMessageText =
-    analysis.replyText ||
-    analysis.summary ||
-    analysis.errorMessage ||
-    "I couldn't complete that request.";
-  const assistantMessageType: AgentThreadMessage["messageType"] =
-    analysis.status !== "completed" ? "error" : bundleView ? "plan" : "chat";
-
-  const assistantMessage = await createThreadMessage({
-    threadId,
-    userId,
-    role: "assistant",
-    messageType: assistantMessageType,
-    contentText: assistantMessageText,
-    runId: analysis.runId,
-    actionBundleId,
-    structuredPayload: {
-      summary: analysis.summary,
-      warnings: analysis.warnings,
-      actions: analysis.actions,
-      citations: analysis.citations || [],
-      proposedMemoryWrites: analysis.proposedMemoryWrites || [],
-      toolTrace: analysis.toolTrace || [],
-      skillsUsed: analysis.skillsUsed || [],
-      memoryInfluences: analysis.memoryInfluences || [],
-      confirmationPreview: analysis.confirmationPreview || null,
-      uiBlocks: analysis.uiBlocks || [],
-      generatedBy: "assistant",
-      status: analysis.status,
-      pendingClarification: analysis.pendingClarification || null,
-    },
-  });
-
-  return {
-    thread: await getAgentThread(userId, threadId),
-    createdMessages: [
+    const analysis = await analyzePortfolioAgent(
+      userId,
       {
-        id: userMessage.id,
-        role: "user",
-        messageType: "chat",
-        contentText: userMessage.contentText,
-        createdAt: userMessage.createdAt,
-        runId: null,
-        actionBundle: null,
-        citations: [],
-        pendingClarification: null,
+        message: effectiveMessage,
+        threadId,
+        conversationHistory,
+        semanticRouteHint: semanticRouteMatch?.route || undefined,
+        conversationMode: threadStrategyContext.conversationMode,
+        strategyContext: threadStrategyContext.strategyContext,
       },
       {
-        id: assistantMessage.id,
-        role: "assistant",
-        messageType: assistantMessageType,
-        contentText: assistantMessage.contentText,
-        createdAt: assistantMessage.createdAt,
-        runId: assistantMessage.runId,
-        actionBundle: bundleView,
+        turnBudgetProfile: "aggressive_safe",
+        onTurnEvent: (event) => emitTurnEvent(event),
+      },
+    );
+
+    let bundleView: AgentActionBundleView | null = null;
+    let actionBundleId: string | null = null;
+    if (
+      analysis.status === "completed" &&
+      (analysis.actions.length > 0 || analysis.pendingClarification)
+    ) {
+      const [bundleRow] = await db
+        .insert(userAgentActionBundles)
+        .values({
+          threadId,
+          userId,
+          domain: analysis.domain,
+          runId: analysis.runId,
+          status: analysis.pendingClarification ? "pending_clarification" : "pending_confirmation",
+          summary: analysis.summary || "Pending plan",
+          warnings: analysis.warnings,
+          actionPayload: buildWorkflowPayload({
+            summary: analysis.summary,
+            actions: analysis.actions,
+            pendingClarification: analysis.pendingClarification || null,
+          }),
+        })
+        .returning();
+
+      bundleView = mapActionBundleRowToView(bundleRow);
+      actionBundleId = bundleRow.id;
+    }
+
+    const assistantMessageText =
+      analysis.replyText ||
+      analysis.summary ||
+      analysis.errorMessage ||
+      "I couldn't complete that request.";
+    const assistantMessageType: AgentThreadMessage["messageType"] =
+      analysis.status !== "completed" ? "error" : bundleView ? "plan" : "chat";
+
+    const assistantMessage = await createThreadMessage({
+      threadId,
+      userId,
+      role: "assistant",
+      messageType: assistantMessageType,
+      contentText: assistantMessageText,
+      runId: analysis.runId,
+      actionBundleId,
+      structuredPayload: {
+        summary: analysis.summary,
+        warnings: analysis.warnings,
+        actions: analysis.actions,
         citations: analysis.citations || [],
+        proposedMemoryWrites: analysis.proposedMemoryWrites || [],
+        toolTrace: analysis.toolTrace || [],
+        skillsUsed: analysis.skillsUsed || [],
+        memoryInfluences: analysis.memoryInfluences || [],
+        confirmationPreview: analysis.confirmationPreview || null,
+        uiBlocks: analysis.uiBlocks || [],
+        generatedBy: "assistant",
+        status: analysis.status,
         pendingClarification: analysis.pendingClarification || null,
       },
-    ],
-    pendingActionBundle: bundleView,
-    pendingClarification: analysis.pendingClarification || null,
-  };
+    });
+
+    finishTurn({
+      eventType: analysis.status === "completed" ? "turn_completed" : "turn_failed",
+      status: analysis.status === "completed" ? "done" : "failed",
+      summary:
+        analysis.status === "completed"
+          ? "Completed your request."
+          : analysis.errorMessage || "The request ended with an error state.",
+      details: {
+        runId: analysis.runId,
+        status: analysis.status,
+        modelPassCount: analysis.usageMetrics?.modelPassCount ?? null,
+        toolCallCount: analysis.usageMetrics?.nonPlanningToolCallCount ?? null,
+      },
+    });
+
+    return {
+      thread: await getAgentThread(userId, threadId),
+      createdMessages: [
+        {
+          id: userMessage.id,
+          role: "user",
+          messageType: "chat",
+          contentText: userMessage.contentText,
+          createdAt: userMessage.createdAt,
+          runId: null,
+          actionBundle: null,
+          citations: [],
+          pendingClarification: null,
+        },
+        {
+          id: assistantMessage.id,
+          role: "assistant",
+          messageType: assistantMessageType,
+          contentText: assistantMessage.contentText,
+          createdAt: assistantMessage.createdAt,
+          runId: assistantMessage.runId,
+          actionBundle: bundleView,
+          citations: analysis.citations || [],
+          pendingClarification: analysis.pendingClarification || null,
+        },
+      ],
+      pendingActionBundle: bundleView,
+      pendingClarification: analysis.pendingClarification || null,
+    };
+  } catch (error: any) {
+    finishTurn({
+      eventType: "turn_failed",
+      status: "failed",
+      summary: error?.message || "Turn failed before completion.",
+      details: {
+        error: error?.message || "Unknown error",
+      },
+    });
+    throw error;
+  }
 }
 
 export async function confirmAgentThread(

@@ -196,9 +196,9 @@ export default function PlayerPools() {
   const offset = (page - 1) * ITEMS_PER_PAGE;
   const playersPollingInterval = shouldPoll
     ? isMobile
-      ? 20000
+      ? 60000
       : activeTab === "players"
-        ? 10000
+        ? 60000
         : false
     : false;
 

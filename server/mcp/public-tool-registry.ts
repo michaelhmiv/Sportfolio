@@ -3585,6 +3585,15 @@ const PUBLIC_EXCLUDED_CAPABILITIES: PublicExcludedCapability[] = [
       "The cockpit runtime-details route is a web-only aggregation view and must not expand the shared CLI or MCP capability surface.",
   },
   {
+    capabilityId: "agent_thread_turn_events",
+    kind: "excluded",
+    status: "excluded",
+    domain: "agent",
+    source: "/api/agent/threads/:threadId/turns/:turnId/events",
+    notes:
+      "The cockpit live turn event stream is UI telemetry and remains excluded from the shared CLI and MCP capability surface.",
+  },
+  {
     capabilityId: "agent_strategy_templates",
     kind: "excluded",
     status: "excluded",
@@ -3790,6 +3799,11 @@ const PUBLIC_SITE_ROUTE_COVERAGE: PublicSiteRouteCoverageEntry[] = [
     method: "GET",
     path: "/api/agent/threads/:threadId/runtime-details",
     excludedCapabilityId: "agent_thread_runtime_details",
+  },
+  {
+    method: "GET",
+    path: "/api/agent/threads/:threadId/turns/:turnId/events",
+    excludedCapabilityId: "agent_thread_turn_events",
   },
   {
     method: "POST",

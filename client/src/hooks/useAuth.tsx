@@ -18,6 +18,7 @@ import { Browser } from "@capacitor/browser";
 import { normalizeSiteUrl } from "@shared/seo";
 
 const MOBILE_AUTH_REDIRECT_URL = "sportfolio://auth/callback";
+const IS_DEV = import.meta.env.DEV;
 
 function getWebAuthRedirectUrl(): string | undefined {
   if (typeof window === "undefined") {
@@ -46,6 +47,7 @@ function normalizePostAuthRedirect(path: string | null | undefined): string | nu
 }
 
 function debugLog(stage: string, message: string, data?: any) {
+  if (!IS_DEV) return;
   const elapsed = performance.now().toFixed(0);
   console.log(`[AUTH ${elapsed}ms] ${stage}: ${message}`, data || "");
 }

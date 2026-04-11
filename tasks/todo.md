@@ -1,3 +1,118 @@
+## 2026-04-08 PR #117 Review Comments + Merge Conflict Resolution
+
+- [x] Pull PR #117 review-thread context and identify unresolved actionable comments
+- [x] Merge `origin/main` into `chore/non-telegram-rollup` and resolve conflict files cleanly
+- [x] Patch unresolved review comments for agent turn-stream auth and `PlayerName` click behavior
+- [x] Run required validation (`npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`)
+- [x] Commit and push the merge-resolution + comment fixes to PR #117 branch
+
+Review:
+
+- Resolved merge conflicts in `client/src/components/game-command-center-modal.tsx`, `docs/mlb-mcp.md`, and `server/agent/model-first-router.ts` while preserving current `main` recovery behavior and the branch turn-budget progress-stream changes.
+- Replaced EventSource-based turn progress streaming in `client/src/features/agent/hooks/use-agent-shell.ts` with an authenticated `fetch` SSE reader so bearer-header sessions receive progress events.
+- Updated `client/src/components/player-name.tsx` to stop suppressing parent click handlers, so parent row/button actions continue to fire when player names are clicked.
+- Validation status:
+- `npm run check` passed.
+- `npm run lint` passed.
+- `npm run test:run` passed.
+- `npm run format:check` passed.
+
+## 2026-04-06 Relative-Date Grounding for MLB Stat Scans
+
+- [x] Reproduce the wrong-date MLB stat gameplan response from the stored dev thread and confirm whether the bad date came from the tool result or only the final prose
+- [x] Trace the MLB stat scan date resolution path and identify why a relative-time prompt could land on a stale explicit date
+- [x] Ground `today` / `later today` / `tonight` server-side in the scan tool and anchor the model loop prompt with the current ET date
+- [x] Add regressions for relative-date MLB stat scans and prompt time-context injection
+- [ ] Re-run the exact prompt through the live dev agent surface once the current app session is ready, to verify it now anchors to April 6, 2026 end to end
+
+Review:
+
+- The stored bad turn already had `2026-03-27` embedded inside the `scan_mlb_stat_gameplan` result, so the issue was upstream of final prose formatting.
+- `buildMlbStatGameplanScan()` trusted any model-supplied `args.date` before checking the actual user wording, which let a stale tool arg override a `later today` request.
+- `server/agent/hermes-tools.ts` now resolves explicit dates from the user message first, then relative words like `tomorrow`, `today`, `later today`, and `tonight`, and only falls back to a raw tool arg when the user did not express a relative current-slate window.
+- `server/agent/model-first-router.ts` now injects the current ET date/time into the tool-loop prompt so the active model gets a concrete calendar anchor before choosing time-sensitive tool args.
+
+## 2026-04-06 Local MLB MCP Launcher
+
+- [x] Confirm local Hermes expects the vendored MLB MCP at `http://127.0.0.1:8081/mcp` when no explicit internal MLB env is set
+- [x] Add repo-owned helper scripts to start, check, and stop the local vendored MLB MCP
+- [x] Update the MLB MCP runbook with the helper commands
+- [ ] Re-verify the helper in a normal local terminal outside the Codex tool shell, since detached child processes do not survive reliably in this session environment
+
+Review:
+
+- Added `scripts/mlb-mcp-local.mjs` with `start`, `start-detached`, `status`, and `stop` commands for the vendored `vendor/mlb-mcp` service.
+- Added `npm run mlb-mcp:start`, `npm run mlb-mcp:start:detached`, `npm run mlb-mcp:status`, and `npm run mlb-mcp:stop`.
+- Updated `docs/mlb-mcp.md` so the local runbook points to the new helper commands.
+- Verified that the vendored Python server starts correctly in the foreground and binds the expected HTTP MCP server path in-session; detached persistence remains a shell-environment issue here, not a vendored MLB MCP code issue.
+
+## 2026-04-04 Assumption-First Direct Action Recovery
+
+- [x] Expand direct-operation planners so bare buy, sell, scout, stack, boost, and watchlist verbs stage deterministic previews instead of returning `null`
+- [x] Align Hermes plan-tool descriptions with assumption-first behavior so the runtime can recover obvious action intent through `preview_direct_operation`
+- [x] Broaden explicit staged-action intent detection so bare `scout`, `track`, and related verbs recover through plan tools when the model answers in prose
+- [x] Add regression coverage for assumption-first planner behavior and router plan-only recovery
+- [x] Run repo validation plus live `/api/agent/threads` replays for bare buy/scout/watchlist prompts on local dev
+
+Review:
+
+- `server/agent/operations-planner.ts` now treats bare action prompts as valid deterministic planning inputs: `buy Aaron Judge shares` assumes a starter-size buy, `sell Aaron Judge` assumes one share, `stack my Aaron Judge shares` uses the max stackable regular shares, `scout Aaron Judge` defaults to one scout, and `track Aaron Judge` stages the default-watchlist add.
+- `server/agent/model-first-router.ts` now treats bare `scout`, `track`, `save`, `watchlist`, and `unwatch` verbs as explicit staged-action intent, so Hermes recovers through `preview_direct_operation` instead of accepting advisory prose when the user clearly asked for a direct move.
+- Added regression coverage in `server/agent/operations-planner.test.ts` and `server/agent/model-first-router.test.ts`.
+- Live local `/api/agent/threads` validation on `dev_user` confirmed:
+- `buy Aaron Judge shares` stages a `$25` starter buy bundle instead of returning the empty-provider fallback
+- `scout Aaron Judge` stages a 1-scout bundle instead of drifting into advisory text
+- `track Aaron Judge` stages a default-watchlist add
+- `buy Aaron Judge and put him in my 4x boost slot today` fails cleanly on slot occupancy instead of malformed fallback text
+
+## 2026-04-03 Ranked MLB Workflow Support
+
+- [x] Inspect the current compound bundle fallback and deterministic planner paths for ranked stat-selection prompts
+- [x] Add a deterministic MLB ranked workflow for stat-driven multi-player buy, stack, and boost requests
+- [x] Prevent `preview_multi_action_bundle` from falling back to clause splitting when the ranked workflow returns its own holistic result
+- [x] Add regression coverage for the ranked planner path and the bundle-preview guard
+- [x] Run repo validation plus live `/api/agent/threads` replays for the ranked workflow, MCP reads, and `/agent` Configure load
+
+Review:
+
+- `server/agent/operations-planner.ts` now detects ranked MLB workflow prompts such as lowest ERA or highest OBP, resolves leaderboard-driven player sets through the internal MLB MCP, splits available balance evenly across the selected players, and stages ordered buy/stack/boost actions through the deterministic planner instead of free-form clause splitting.
+- `server/agent/hermes-tools.ts` now treats `ranked_stat_multi_player_workflow` as a holistic preview result, so an unavailable ranked workflow stays on its own clear failure path rather than degrading into malformed fragment errors.
+- Added targeted regressions in `server/agent/operations-planner.test.ts` and `server/agent/hermes-tools.test.ts`.
+- Live validation confirmed:
+- the original ranked-ERA prompt now fails cleanly when the requested boost slots are already occupied
+- the same ranked-ERA prompt stages a six-step pending bundle when rerun against open slots (`3x` and `2x`) for tomorrow
+- the `/agent` Configure tab loads without the schema error and shows built-in MLB data-source state
+- the OBP/OPS advisory gameplan path uses live internal MLB MCP reads
+
+## 2026-04-03 Hermes Gameplay + MCP Validation Pass
+
+- [ ] Fix deterministic planner gaps for natural `stack ... shares of ...` phrasing and sell-led compound workflows
+- [ ] Add regression coverage for compound planner and bundle-preview identity carryover
+- [ ] Update `/agent` browser coverage to match the current shell and prove slash-command behavior
+- [ ] Add a full internal MLB MCP catalog validator and run it against the live local MLB MCP
+- [ ] Re-run live local/dev Hermes conversations for gameplay combinations, MCP-backed gameplans, and slash-command chat flows
+- [ ] Run `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`
+
+## 2026-03-30 Lean Load-Time Performance Pass
+
+- [x] Phase 1: reduce production client logging, remove eager chunk warmups, and apply cache headers/static asset caching for safe public data
+- [x] Phase 1 validation: run targeted typecheck/lint/tests for touched surfaces and capture any regressions before continuing
+- [x] Phase 2: batch locked-share lookups, add cache single-flight coalescing, and cache safe derived market/dashboard/mobile overview reads with 60s soft TTL
+- [x] Phase 2 validation: run targeted and repo-wide verification to confirm no drift in player queries, boost eligibility, or power/lock semantics
+- [x] Final validation: run `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`
+
+Review:
+
+- `server/storage.ts` now batches player share-lock totals with alias-aware canonical resolution, and the boost eligibility paths use that batch lookup instead of per-player N+1 lock queries.
+- `server/routes.ts` `/api/daily-boosts/eligible-all` and `server/market-mobile-overview.ts` holding aggregation now reuse the batched lock totals, which reduces repeat DB work without changing one-share-per-slot, lock, or stacked-share semantics.
+- `server/cache.ts` now coalesces concurrent cache misses per key so repeated public reads share one in-flight computation, and `server/cache.test.ts` locks that behavior down.
+- `server/market-mobile-overview.ts` now caches the unauthenticated overview only when running with real production deps, preserving deterministic custom-deps test behavior while reducing repeated public recomputation in production.
+- Validation status:
+- `npm run check` passed.
+- `npm run lint` passed.
+- `npm run test:run` passed.
+- `npm run format:check` passed.
+
 ## 2026-03-30 Production Crash Recovery + Android Release PR Hardening
 
 - [x] Investigate the production crash on Railway and identify the failing runtime path
@@ -2152,3 +2267,21 @@ Review:
 - `postDiscordHourlyMarketDigest()` and `postDiscordNewsUpdates()` executed without runtime errors (dedupe-safe no-op when there is nothing new to post).
 - Local server route probes succeeded (`GET /api/discord/health` => `200`, `GET /api/discord/link/state` without state => expected `400`).
 - Discord application metadata still reports `interactions_endpoint_url = null`, which will cause slash commands in Discord to show “application did not respond” until the endpoint is set to the deployed webhook URL.
+
+## 2026-04-02 Agent MCP Source Schema Hardening
+
+- [x] Confirm the local Agents-tab failure path and identify the missing optional schema dependency
+- [x] Add bootstrap/ensure coverage for `user_mcp_sources` in the agent MCP-source storage layer and startup warmups
+- [x] Make agent capability/profile loading fail soft when optional external MCP-source state is unavailable
+- [x] Add targeted regression coverage for MCP-source bootstrap and fail-soft capability summaries
+- [x] Run `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`
+- [x] Apply the new MCP-source schema to the local dev DB and verify the table/column state
+
+Review:
+
+- Root cause of the local Agent settings failure was not `user_agent_profiles`; `/api/agent/profile` was failing while building capability state because `getAgentDataSourceSummary()` tried to read `user_mcp_sources`, and that optional external MCP-source table was missing locally.
+- `server/agent/mcp-sources.ts` now self-heals `user_mcp_sources` on first access with a targeted bootstrap + retry path, and `server/routes.ts` includes the same ensure in startup warmups so local/dev drift gets repaired before users hit the Configure panel.
+- `server/agent/data-sources.ts` now treats external MCP-source state as optional during profile/capability assembly, so built-in/internal Hermes data-source state still loads even if external MCP-source storage is absent or temporarily unavailable.
+- Added regressions in `server/agent/mcp-sources.test.ts` and `server/agent/data-sources.test.ts` to lock down bootstrap-on-missing-schema and fail-soft capability loading.
+- Validation passed: `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`.
+- Local dev DB repair passed via the new ensure path, and `user_mcp_sources` now exists locally with the expected columns: `id`, `user_id`, `name`, `url`, `auth_type`, `auth_token`, `enabled`, `discovered_tools`, `last_verified_at`, `last_error`, `created_at`, and `updated_at`.

@@ -498,6 +498,7 @@ const CORE_TOOL_CATALOG: AgentToolDefinition[] = [
     riskLevel: "low",
     presentationProfile: "schedule",
     preferredColumns: ["jobType", "nextRunAt", "enabled"],
+    exposure: "advanced",
   }),
   defineTool({
     toolName: "get_schedule_templates",
@@ -510,6 +511,7 @@ const CORE_TOOL_CATALOG: AgentToolDefinition[] = [
     riskLevel: "low",
     presentationProfile: "execution",
     preferredColumns: ["jobType", "schedule", "channel"],
+    exposure: "advanced",
   }),
   defineTool({
     toolName: "get_hosted_research",
@@ -539,6 +541,7 @@ const CORE_TOOL_CATALOG: AgentToolDefinition[] = [
       { additionalProperties: true },
     ),
     autoContextArgs: ["query"],
+    exposure: "advanced",
   }),
   defineTool({
     toolName: "search_user_memories",
@@ -556,6 +559,7 @@ const CORE_TOOL_CATALOG: AgentToolDefinition[] = [
       { additionalProperties: true },
     ),
     autoContextArgs: ["query"],
+    exposure: "advanced",
   }),
   defineTool({
     toolName: "get_user_memory_context",
@@ -573,22 +577,26 @@ const CORE_TOOL_CATALOG: AgentToolDefinition[] = [
       { additionalProperties: true },
     ),
     autoContextArgs: ["query"],
+    exposure: "advanced",
   }),
   defineTool({
     toolName: "preview_direct_operation",
     category: "plan",
     description:
-      "Preview one concrete user command as a confirmation-ready action. Handles single buy, sell, stack, boost, or scout operations.",
+      "Preview one concrete user command as a confirmation-ready action. Handles single buy, sell, stack, boost, scout, and watchlist operations, and can assume safe defaults when the user omits size or slot details.",
     whenToUse: [
       "The user gives one direct action request.",
-      "The user wants to stack shares, buy/sell a player, assign a boost, or adjust scouts.",
+      "The user wants to stack shares, buy/sell a player, assign a boost, adjust scouts, or update a watchlist.",
     ],
     whenNotToUse: [
       "The user is asking about multiple linked actions — use preview_multi_action_bundle instead.",
     ],
     examplePrompts: [
+      "buy Aaron Judge",
       "buy $25 of Austin Hill",
       "stack my Fried shares",
+      "boost Aaron Judge",
+      "scout Aaron Judge",
       "sell 5 shares of Austin Reaves",
     ],
     requiresConfirmation: true,
@@ -602,13 +610,14 @@ const CORE_TOOL_CATALOG: AgentToolDefinition[] = [
     toolName: "preview_multi_action_bundle",
     category: "plan",
     description:
-      "Preview a compound multi-step workflow as one pending bundle. Use when the user combines multiple actions like buy + stack + boost in a single request.",
+      "Preview a compound multi-step workflow as one pending bundle. Use when the user combines multiple actions like buy + stack + boost in a single request, even if some buy or slot details need safe assumptions.",
     whenToUse: [
       "The user asks for multiple linked actions in one request.",
       "The user wants to buy AND stack AND/OR boost in a single command.",
     ],
     whenNotToUse: ["The user is asking about a single isolated action."],
     examplePrompts: [
+      "buy Aaron Judge and put him in my boost slot",
       "buy, stack shares, then boost this player",
       "buy as many Aaron Judge shares as possible and stack and put in 4x spot",
       "stack my shares and put in 5x slot",

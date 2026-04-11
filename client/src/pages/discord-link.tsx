@@ -1,4 +1,4 @@
-import { useMemo, useRef, useEffect } from "react";
+import { useMemo } from "react";
 import { Link } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { CheckCircle2, Link2, Loader2 } from "lucide-react";
@@ -40,7 +40,6 @@ function normalizeRedirectPath(input: string): string {
 export default function DiscordLinkPage() {
   const { isAuthenticated } = useAuth();
   const { toast } = useToast();
-  const autoAttemptedRef = useRef(false);
 
   const state = useMemo(
     () => new URLSearchParams(window.location.search).get("state")?.trim() || "",
@@ -91,34 +90,6 @@ export default function DiscordLinkPage() {
       });
     },
   });
-
-  useEffect(() => {
-    if (!isAuthenticated) {
-      return;
-    }
-
-    if (!stateQuery.data?.valid) {
-      return;
-    }
-
-    if (completeLinkMutation.isPending || completeLinkMutation.data || completeLinkMutation.error) {
-      return;
-    }
-
-    if (autoAttemptedRef.current) {
-      return;
-    }
-
-    autoAttemptedRef.current = true;
-    completeLinkMutation.mutate();
-  }, [
-    completeLinkMutation,
-    isAuthenticated,
-    stateQuery.data?.valid,
-    completeLinkMutation.isPending,
-    completeLinkMutation.data,
-    completeLinkMutation.error,
-  ]);
 
   if (!state) {
     return (

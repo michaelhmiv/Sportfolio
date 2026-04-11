@@ -32,6 +32,8 @@ import { ScoutCeremonyOverlay } from "@/components/ceremonies/scout-ceremony-ove
 import { ScoutReadyBanner } from "@/components/ceremonies/scout-ready-banner";
 import { useScoutCeremony } from "@/hooks/use-scout-ceremony";
 import { WhaleAlertBanner } from "@/components/market/whale-alert-banner";
+import { PlayerModal } from "@/components/player-modal";
+import { OPEN_PLAYER_MODAL_EVENT } from "@/lib/player-modal-events";
 import { Capacitor } from "@capacitor/core";
 import { App as CapacitorApp } from "@capacitor/app";
 import { Browser } from "@capacitor/browser";
@@ -363,12 +365,24 @@ function Router() {
 
   // Warm likely next-route chunks during idle time to improve transition latency.
   useEffect(() => {
+    const nav = navigator as Navigator & {
+      connection?: { saveData?: boolean; effectiveType?: string };
+    };
+    const connection = nav.connection;
+    const isMobileViewport = window.innerWidth < 768;
+    const shouldSkipPreload =
+      isMobileViewport ||
+      connection?.saveData === true ||
+      connection?.effectiveType === "slow-2g" ||
+      connection?.effectiveType === "2g";
+
+    if (shouldSkipPreload) {
+      return;
+    }
+
     const preload = () => {
       void loadPlayerPoolsPage();
       void loadBlogPage();
-      void loadLeaderboardsPage();
-      void loadAgentPage();
-      void loadNewsPage();
     };
 
     const globalObject = globalThis as any;
@@ -764,6 +778,42 @@ function ScoutCeremonyManager() {
   );
 }
 
+function GlobalPlayerModalHost() {
+  const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    const handleOpen = (event: Event) => {
+      const customEvent = event as CustomEvent<{ playerId?: string }>;
+      const playerId = String(customEvent.detail?.playerId || "").trim();
+      if (!playerId) {
+        return;
+      }
+
+      setSelectedPlayerId(playerId);
+      setOpen(true);
+    };
+
+    window.addEventListener(OPEN_PLAYER_MODAL_EVENT, handleOpen as EventListener);
+    return () => {
+      window.removeEventListener(OPEN_PLAYER_MODAL_EVENT, handleOpen as EventListener);
+    };
+  }, []);
+
+  return (
+    <PlayerModal
+      playerId={selectedPlayerId}
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        if (!nextOpen) {
+          setSelectedPlayerId(null);
+        }
+      }}
+    />
+  );
+}
+
 function AppContent() {
   const [location] = useLocation();
   const isAgentRoute = location === "/agent" || location.startsWith("/agent/");
@@ -803,6 +853,7 @@ function AppContent() {
       <ScoutDashboardModal />
       <ScoutCeremonyManager />
       <WhaleAlertBanner />
+      <GlobalPlayerModalHost />
     </SidebarProvider>
   );
 }

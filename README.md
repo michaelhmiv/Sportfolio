@@ -46,7 +46,9 @@ For full syntax and troubleshooting:
 
 ## Common Scripts
 
-- `npm run dev` - start development server
+- `npm run dev` - start development server and auto-start local MLB MCP sidecar if the vendored venv is available
+- `npm run dev:app` - start only the development app server
+- `npm run dev:mcp` - start only the local MLB MCP sidecar
 - `npm run build` - build client + server
 - `npm run start` - run production build
 - `npm run cli -- <args>` - run Sportfolio CLI from repo

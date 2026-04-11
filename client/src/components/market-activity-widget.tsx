@@ -43,7 +43,7 @@ export function MarketActivityWidget({
 }: MarketActivityWidgetProps = {}) {
   const { subscribe } = useWebSocket();
   const { shouldPoll, isMobile } = useAppState();
-  const pollingInterval = shouldPoll ? (isMobile ? 20000 : 10000) : false;
+  const pollingInterval = shouldPoll ? 60000 : false;
 
   const { data: activity = [], isLoading } = useQuery<MarketActivity[]>({
     queryKey: ["/api/market/activity", sport || "ALL", limit],
