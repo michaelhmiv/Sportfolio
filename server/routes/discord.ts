@@ -35,6 +35,7 @@ import {
 const DISCORD_EPHEMERAL_FLAG = 1 << 6;
 const LINK_STATE_TTL_MINUTES = 30;
 const TRADE_CONFIRM_TTL_MS = 5 * 60 * 1000;
+const DISCORD_SIGNATURE_TOLERANCE_SECONDS = 5 * 60;
 
 const SPKI_ED25519_PREFIX = Buffer.from("302a300506032b6570032100", "hex");
 
@@ -263,6 +264,16 @@ function verifyDiscordRequestSignature(req: RawBodyRequest): boolean {
   const timestampHeader = req.header("x-signature-timestamp");
 
   if (!signatureHeader || !timestampHeader) {
+    return false;
+  }
+
+  const timestampSeconds = Number(timestampHeader);
+  if (!Number.isFinite(timestampSeconds)) {
+    return false;
+  }
+
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  if (Math.abs(nowSeconds - timestampSeconds) > DISCORD_SIGNATURE_TOLERANCE_SECONDS) {
     return false;
   }
 
@@ -626,7 +637,7 @@ async function handleBuy(ctx: DiscordCommandContext, options: DiscordCommandOpti
       `Available balance: ${formatCurrency(availableBalance)}`,
       `Estimated shares out: ${quote.sharesOut.toFixed(4)}`,
       `Effective price: ${formatCurrency(quote.effectivePrice)}`,
-      `Slippage estimate: ${quote.slippagePercent.toFixed(2)}%`,
+      `Slippage estimate: ${formatPercent(quote.slippagePercent)}`,
       `Max slippage: ${formatPercent(maxSlippage ?? 0.05)}`,
       "Press confirm within 5 minutes.",
     ].join("\n"),
@@ -723,7 +734,7 @@ async function handleSell(ctx: DiscordCommandContext, options: DiscordCommandOpt
       `Regular available shares: ${Math.floor(regularAvailableShares)}`,
       `Estimated SB out: ${formatCurrency(quote.sbOut)}`,
       `Effective price: ${formatCurrency(quote.effectivePrice)}`,
-      `Slippage estimate: ${quote.slippagePercent.toFixed(2)}%`,
+      `Slippage estimate: ${formatPercent(quote.slippagePercent)}`,
       `Max slippage: ${formatPercent(maxSlippage ?? 0.05)}`,
       "Press confirm within 5 minutes.",
     ].join("\n"),
