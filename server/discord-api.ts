@@ -91,6 +91,40 @@ export function buildDiscordSlashCommandDefinitions() {
       name: "portfolio",
       description: "View your Sportfolio account summary",
       type: 1,
+      options: [
+        {
+          type: 3,
+          name: "sport",
+          description: "Optional sport filter",
+          required: false,
+          choices: [
+            { name: "ALL", value: "ALL" },
+            { name: "NBA", value: "NBA" },
+            { name: "NFL", value: "NFL" },
+            { name: "MLB", value: "MLB" },
+            { name: "NASCAR", value: "NASCAR" },
+          ],
+        },
+        {
+          type: 3,
+          name: "view",
+          description: "Holding type view",
+          required: false,
+          choices: [
+            { name: "all", value: "all" },
+            { name: "stacked", value: "stacked" },
+            { name: "regular", value: "regular" },
+          ],
+        },
+        {
+          type: 4,
+          name: "limit",
+          description: "Rows to show",
+          required: false,
+          min_value: 1,
+          max_value: 20,
+        },
+      ],
     },
     {
       name: "player",
@@ -119,11 +153,10 @@ export function buildDiscordSlashCommandDefinitions() {
           autocomplete: true,
         },
         {
-          type: 10,
-          name: "sb_amount",
-          description: "Sportfolio Bucks to spend",
+          type: 3,
+          name: "amount",
+          description: "Spend amount (e.g. 25, 50%, max)",
           required: true,
-          min_value: 0.01,
         },
         {
           type: 10,
@@ -148,11 +181,10 @@ export function buildDiscordSlashCommandDefinitions() {
           autocomplete: true,
         },
         {
-          type: 4,
-          name: "shares",
-          description: "Whole shares to sell",
+          type: 3,
+          name: "amount",
+          description: "Shares to sell (e.g. 10, 50%, max)",
           required: true,
-          min_value: 1,
         },
         {
           type: 10,
@@ -177,11 +209,10 @@ export function buildDiscordSlashCommandDefinitions() {
           autocomplete: true,
         },
         {
-          type: 4,
-          name: "shares",
-          description: "Even share count (minimum 4)",
+          type: 3,
+          name: "amount",
+          description: "Shares to stack (e.g. 4, 50%, max)",
           required: true,
-          min_value: 4,
         },
       ],
     },
@@ -276,18 +307,6 @@ export function buildDiscordSlashCommandDefinitions() {
             },
             {
               type: 3,
-              name: "sport",
-              description: "Sport",
-              required: true,
-              choices: [
-                { name: "NBA", value: "NBA" },
-                { name: "NFL", value: "NFL" },
-                { name: "MLB", value: "MLB" },
-                { name: "NASCAR", value: "NASCAR" },
-              ],
-            },
-            {
-              type: 3,
               name: "date",
               description: "Date in YYYY-MM-DD (ET)",
               required: false,
@@ -303,7 +322,7 @@ export function buildDiscordSlashCommandDefinitions() {
               type: 3,
               name: "sport",
               description: "Sport",
-              required: true,
+              required: false,
               choices: [
                 { name: "NBA", value: "NBA" },
                 { name: "NFL", value: "NFL" },
