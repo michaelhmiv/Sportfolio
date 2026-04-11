@@ -25,6 +25,12 @@ import { newsFeed, players, trades } from "@shared/schema";
 import { getETDayBoundaries, getTodayET } from "../lib/time";
 import { hasGameStartedForBoost } from "@shared/game-status";
 import { loadUserEntitlements } from "../services/user-entitlements";
+import {
+  DISCORD_SUPPORTED_SPORTS,
+  normalizeDiscordSport,
+  normalizePortfolioView,
+  resolveAmountInput,
+} from "../discord-command-utils";
 
 const DISCORD_EPHEMERAL_FLAG = 1 << 6;
 const LINK_STATE_TTL_MINUTES = 30;
@@ -193,6 +199,37 @@ function getNumberOption(options: DiscordCommandOption[] | undefined, name: stri
   return option.value;
 }
 
+function toSafeNumber(value: unknown): number {
+  const parsed = Number.parseFloat(String(value ?? 0));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+async function getRegularAvailableSharesForPlayer(
+  userId: string,
+  playerId: string,
+): Promise<number> {
+  const [regularHolding, lockedQuantity] = await Promise.all([
+    storage.getRegularHolding(userId, "player", playerId),
+    storage.getTotalLockedQuantity(userId, "player", playerId),
+  ]);
+
+  const regularQuantity = toSafeNumber(regularHolding?.quantity);
+  return Math.max(0, regularQuantity - lockedQuantity);
+}
+
+function getAmountOptionInput(
+  options: DiscordCommandOption[] | undefined,
+  modernKey: string,
+  legacyNumericKey: string,
+): string | null {
+  const modern = getStringOption(options, modernKey);
+  if (modern) return modern;
+
+  const legacy = getNumberOption(options, legacyNumericKey);
+  if (legacy === null || legacy === undefined) return null;
+  return String(legacy);
+}
+
 function isMutationAllowed(roles: string[], requiredRoleId: string | null): boolean {
   if (!requiredRoleId) {
     return true;
@@ -334,24 +371,46 @@ function handleHelp() {
   const lines = [
     "`/start` onboarding",
     "`/link` account linking",
-    "`/portfolio` your account summary",
+    "`/portfolio` account summary with filters (`sport`, `view`, `limit`)",
     "`/player` player market snapshot",
-    "`/buy` and `/sell` (quote + confirm)",
-    "`/stack` share stacking",
-    "`/boost` daily boost actions",
+    "`/buy`, `/sell`, `/stack` support `amount` as number, `%`, or `max`",
+    "`/boost` daily boost actions (global slots across sports)",
     "`/scout` scout actions",
     "`/market` movers + indicators",
     "`/news` latest stories",
+    "Examples:",
+    "`/portfolio sport:MLB view:stacked`",
+    "`/buy player:<name> amount:50%`",
+    "`/sell player:<name> amount:max`",
+    "`/stack player:<name> amount:50%`",
   ];
 
   return buildEphemeralResponse(lines.join("\n"));
 }
 
-async function handlePortfolio(ctx: DiscordCommandContext) {
+async function handlePortfolio(
+  ctx: DiscordCommandContext,
+  options: DiscordCommandOption[] | undefined,
+) {
   const linked = await requireLinkedUser(ctx);
   if (!linked.ok) {
     return linked.response;
   }
+
+  const sport = normalizeDiscordSport(getStringOption(options, "sport") || "ALL");
+  if (!sport) {
+    return buildErrorResponse(
+      `Invalid sport filter. Supported values: ${DISCORD_SUPPORTED_SPORTS.join(", ")}`,
+    );
+  }
+
+  const view = normalizePortfolioView(getStringOption(options, "view"));
+  if (!view) {
+    return buildErrorResponse("Invalid view filter. Use one of: all, stacked, regular.");
+  }
+
+  const limitRaw = getNumberOption(options, "limit");
+  const limit = Math.max(1, Math.min(limitRaw ? Math.floor(limitRaw) : 5, 20));
 
   const userId = linked.link.userId;
   const [user, holdings] = await Promise.all([
@@ -363,18 +422,39 @@ async function handlePortfolio(ctx: DiscordCommandContext) {
     return buildErrorResponse("Your linked Sportfolio account could not be loaded.");
   }
 
-  const topHoldings = (holdings || [])
-    .filter((holding: any) => holding.assetType === "player" && holding.player)
-    .sort((a: any, b: any) => parseFloat(b.quantity) - parseFloat(a.quantity))
-    .slice(0, 5)
-    .map(
-      (holding: any) =>
-        `${holding.player.firstName} ${holding.player.lastName}: ${parseFloat(holding.quantity).toFixed(2)} shares`,
-    );
+  const filteredHoldings = (holdings || [])
+    .filter((item: any) => item?.holding?.assetType === "player" && item?.player)
+    .filter((item: any) =>
+      sport === "ALL" ? true : String(item.player?.sport || "").toUpperCase() === sport,
+    )
+    .filter((item: any) => {
+      const isStacked = Boolean(item.holding?.isStackedShare);
+      if (view === "stacked") return isStacked;
+      if (view === "regular") return !isStacked;
+      return true;
+    });
+
+  const topHoldings = filteredHoldings
+    .sort(
+      (a: any, b: any) =>
+        toSafeNumber(b.holding?.effectiveShares || b.holding?.quantity) -
+        toSafeNumber(a.holding?.effectiveShares || a.holding?.quantity),
+    )
+    .slice(0, limit)
+    .map((item: any) => {
+      const effectiveShares = toSafeNumber(item.holding?.effectiveShares || item.holding?.quantity);
+      const shareType = item.holding?.isStackedShare
+        ? `stacked ${toSafeNumber(item.holding?.multiplier || 1).toFixed(2)}x`
+        : "regular";
+
+      return `${item.player.firstName} ${item.player.lastName} [${item.player.sport}] - ${effectiveShares.toFixed(2)} effective (${shareType})`;
+    });
 
   const content = [
     `Balance: ${formatCurrency(parseFloat(user.balance || "0"))}`,
     `Premium: ${user.isPremium ? "active" : "inactive"}`,
+    `Filter: sport=${sport}, view=${view}, limit=${limit}`,
+    `Matching holdings: ${filteredHoldings.length}`,
     `Top holdings:`,
     ...(topHoldings.length > 0 ? topHoldings : ["No player holdings yet."]),
   ].join("\n");
@@ -491,11 +571,11 @@ async function handleBuy(ctx: DiscordCommandContext, options: DiscordCommandOpti
   }
 
   const playerInput = getStringOption(options, "player");
-  const amount = getNumberOption(options, "sb_amount");
+  const amountInput = getAmountOptionInput(options, "amount", "sb_amount");
   const maxSlippage = getNumberOption(options, "max_slippage");
 
-  if (!playerInput || !amount || amount <= 0) {
-    return buildErrorResponse("`player` and `sb_amount` are required.");
+  if (!playerInput || !amountInput) {
+    return buildErrorResponse("`player` and `amount` are required.");
   }
 
   const player = await resolvePlayerFromInput(playerInput);
@@ -503,6 +583,26 @@ async function handleBuy(ctx: DiscordCommandContext, options: DiscordCommandOpti
     return buildErrorResponse("Player not found.");
   }
 
+  const availableBalance = await storage.getAvailableBalance(linked.link.userId);
+  const resolvedAmount = resolveAmountInput({
+    rawInput: amountInput,
+    baseAmount: availableBalance,
+    kind: "currency",
+    minimum: 0.01,
+  });
+  if (!resolvedAmount) {
+    return buildErrorResponse(
+      "Invalid `amount`. Use a positive number, a percentage like `50%`, or `max`.",
+    );
+  }
+
+  if (resolvedAmount.value > availableBalance) {
+    return buildErrorResponse(
+      `Requested amount exceeds available balance (${formatCurrency(availableBalance)}).`,
+    );
+  }
+
+  const amount = resolvedAmount.value;
   const quote = await getBuyQuote(player.id, amount);
   if (!quote) {
     return buildErrorResponse("Could not calculate quote.");
@@ -522,7 +622,8 @@ async function handleBuy(ctx: DiscordCommandContext, options: DiscordCommandOpti
   return buildEphemeralResponse(
     [
       `Buy quote for ${player.firstName} ${player.lastName}`,
-      `Spend: ${formatCurrency(amount)}`,
+      `Input: ${resolvedAmount.input} -> Spend ${formatCurrency(amount)}`,
+      `Available balance: ${formatCurrency(availableBalance)}`,
       `Estimated shares out: ${quote.sharesOut.toFixed(4)}`,
       `Effective price: ${formatCurrency(quote.effectivePrice)}`,
       `Slippage estimate: ${quote.slippagePercent.toFixed(2)}%`,
@@ -564,20 +665,39 @@ async function handleSell(ctx: DiscordCommandContext, options: DiscordCommandOpt
   }
 
   const playerInput = getStringOption(options, "player");
-  const shares = getNumberOption(options, "shares");
+  const amountInput = getAmountOptionInput(options, "amount", "shares");
   const maxSlippage = getNumberOption(options, "max_slippage");
 
-  if (!playerInput || !shares || shares <= 0) {
-    return buildErrorResponse("`player` and `shares` are required.");
-  }
-
-  if (!Number.isInteger(shares)) {
-    return buildErrorResponse("`shares` must be a whole number.");
+  if (!playerInput || !amountInput) {
+    return buildErrorResponse("`player` and `amount` are required.");
   }
 
   const player = await resolvePlayerFromInput(playerInput);
   if (!player) {
     return buildErrorResponse("Player not found.");
+  }
+
+  const regularAvailableShares = await getRegularAvailableSharesForPlayer(
+    linked.link.userId,
+    player.id,
+  );
+  const resolvedAmount = resolveAmountInput({
+    rawInput: amountInput,
+    baseAmount: regularAvailableShares,
+    kind: "whole",
+    minimum: 1,
+  });
+  if (!resolvedAmount) {
+    return buildErrorResponse(
+      "Invalid `amount`. Use a positive number, a percentage like `50%`, or `max`.",
+    );
+  }
+
+  const shares = Math.floor(resolvedAmount.value);
+  if (shares > regularAvailableShares) {
+    return buildErrorResponse(
+      `Requested shares exceed regular available shares (${Math.floor(regularAvailableShares)}).`,
+    );
   }
 
   const quote = await getSellQuote(player.id, shares);
@@ -599,7 +719,8 @@ async function handleSell(ctx: DiscordCommandContext, options: DiscordCommandOpt
   return buildEphemeralResponse(
     [
       `Sell quote for ${player.firstName} ${player.lastName}`,
-      `Shares in: ${shares}`,
+      `Input: ${resolvedAmount.input} -> Shares in ${shares}`,
+      `Regular available shares: ${Math.floor(regularAvailableShares)}`,
       `Estimated SB out: ${formatCurrency(quote.sbOut)}`,
       `Effective price: ${formatCurrency(quote.effectivePrice)}`,
       `Slippage estimate: ${quote.slippagePercent.toFixed(2)}%`,
@@ -644,14 +765,10 @@ async function handleStack(
   }
 
   const playerInput = getStringOption(options, "player");
-  const shares = getNumberOption(options, "shares");
+  const amountInput = getAmountOptionInput(options, "amount", "shares");
 
-  if (!playerInput || !shares || shares <= 0) {
-    return buildErrorResponse("`player` and `shares` are required.");
-  }
-
-  if (!Number.isInteger(shares)) {
-    return buildErrorResponse("`shares` must be a whole number.");
+  if (!playerInput || !amountInput) {
+    return buildErrorResponse("`player` and `amount` are required.");
   }
 
   const player = await resolvePlayerFromInput(playerInput);
@@ -659,10 +776,34 @@ async function handleStack(
     return buildErrorResponse("Player not found.");
   }
 
+  const regularAvailableShares = await getRegularAvailableSharesForPlayer(
+    linked.link.userId,
+    player.id,
+  );
+  const resolvedAmount = resolveAmountInput({
+    rawInput: amountInput,
+    baseAmount: regularAvailableShares,
+    kind: "evenWhole",
+    minimum: 4,
+  });
+  if (!resolvedAmount) {
+    return buildErrorResponse(
+      "Invalid `amount`. Use a positive number, a percentage like `50%`, or `max` (minimum 4 and even).",
+    );
+  }
+
+  const shares = Math.floor(resolvedAmount.value);
+  if (shares > regularAvailableShares) {
+    return buildErrorResponse(
+      `Requested shares exceed regular available shares (${Math.floor(regularAvailableShares)}).`,
+    );
+  }
+
   const stackResult = await storage.stackShares(linked.link.userId, player.id, shares);
   return buildEphemeralResponse(
     [
-      `Stacked ${shares} shares of ${player.firstName} ${player.lastName}.`,
+      `Input: ${resolvedAmount.input} -> Stacked ${shares} shares of ${player.firstName} ${player.lastName}.`,
+      `Regular available shares: ${Math.floor(regularAvailableShares)}`,
       `New multiplier: ${stackResult.newMultiplier}x`,
       `Effective shares burned: ${stackResult.effectiveSharesBurned}`,
     ].join("\n"),
@@ -720,11 +861,10 @@ async function handleBoost(
   if (sub.name === "assign") {
     const playerInput = getStringOption(sub.options, "player");
     const slot = getNumberOption(sub.options, "slot");
-    const sportInput = getStringOption(sub.options, "sport");
     const dateInput = getStringOption(sub.options, "date");
 
-    if (!playerInput || !slot || !sportInput) {
-      return buildErrorResponse("`player`, `slot`, and `sport` are required.");
+    if (!playerInput || !slot) {
+      return buildErrorResponse("`player` and `slot` are required.");
     }
 
     const slotTier = Math.floor(slot);
@@ -738,10 +878,14 @@ async function handleBoost(
     }
 
     const canonicalPlayerId = await storage.getCanonicalPlayerId(player.id);
-    const sport = sportInput.toUpperCase();
+    const sport = String(player.sport || "").toUpperCase();
+    if (!sport) {
+      return buildErrorResponse("Player sport could not be resolved.");
+    }
+
     const { dateStr, targetDate } = parseDateInput(dateInput);
 
-    const currentBoosts = await storage.getDailyBoosts(userId, sport, targetDate);
+    const currentBoosts = await storage.getDailyBoostsAllSports(userId, targetDate);
     if (currentBoosts.some((boost) => boost.slotTier === slotTier)) {
       return buildErrorResponse(`Slot ${slotTier}x is already occupied.`);
     }
@@ -818,21 +962,27 @@ async function handleBoost(
 
   if (sub.name === "live") {
     const sportInput = getStringOption(sub.options, "sport");
-    if (!sportInput) {
-      return buildErrorResponse("`sport` is required.");
+    const sport = normalizeDiscordSport(sportInput || "ALL");
+    if (!sport) {
+      return buildErrorResponse(
+        `Invalid sport filter. Supported values: ${DISCORD_SUPPORTED_SPORTS.join(", ")}`,
+      );
     }
 
-    const sport = sportInput.toUpperCase();
     const { targetDate } = parseDateInput(null);
-    const boosts = await storage.getDailyBoosts(userId, sport, targetDate);
+    const allBoosts = await storage.getDailyBoostsAllSports(userId, targetDate);
+    const boosts =
+      sport === "ALL"
+        ? allBoosts
+        : allBoosts.filter((boost) => String(boost.sport || "").toUpperCase() === sport);
 
     const rows = boosts.slice(0, 8).map((boost) => {
-      return `${boost.id}: ${boost.status} | slot ${boost.slotTier}x | multiplier ${boost.shareMultiplier}`;
+      return `${boost.id}: ${boost.status} | ${boost.sport} | slot ${boost.slotTier}x | multiplier ${boost.shareMultiplier}`;
     });
 
     return buildEphemeralResponse(
       [
-        `Live boosts for ${sport}:`,
+        `Live boosts (${sport}):`,
         ...(rows.length > 0 ? rows : ["No boosts found for this sport/date."]),
       ].join("\n"),
     );
@@ -1172,7 +1322,7 @@ async function handleApplicationCommand(ctx: DiscordCommandContext) {
     case "help":
       return handleHelp();
     case "portfolio":
-      return handlePortfolio(ctx);
+      return handlePortfolio(ctx, options);
     case "player":
       return handlePlayer(ctx, options);
     case "market":

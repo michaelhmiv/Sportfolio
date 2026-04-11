@@ -13,6 +13,38 @@ import type { MobileMarketSignal } from "../market-mobile-overview";
 const MAX_NEWS_POSTS_PER_RUN = 5;
 const DISCORD_MESSAGE_LINK_FALLBACK = "/news";
 
+function buildNoopJobResult(): JobResult {
+  return {
+    requestCount: 0,
+    recordsProcessed: 0,
+    errorCount: 0,
+  };
+}
+
+function isDiscordPostingRuntimeAllowed(): boolean {
+  if (process.env.DISCORD_FORCE_ENABLE_POSTING?.trim().toLowerCase() === "true") {
+    return true;
+  }
+
+  if (process.env.NODE_ENV !== "production") {
+    return false;
+  }
+
+  const railwayEnvironmentName = (
+    process.env.RAILWAY_ENVIRONMENT_NAME ||
+    process.env.RAILWAY_ENVIRONMENT ||
+    ""
+  )
+    .trim()
+    .toLowerCase();
+
+  if (!railwayEnvironmentName) {
+    return false;
+  }
+
+  return railwayEnvironmentName === "production";
+}
+
 type EtHourSnapshot = {
   key: string;
   label: string;
@@ -63,15 +95,15 @@ function buildTopMoverLines(movers: MobileMarketSignal[]): string[] {
 }
 
 export async function postDiscordNewsUpdates(): Promise<JobResult> {
+  if (!isDiscordPostingRuntimeAllowed()) {
+    return buildNoopJobResult();
+  }
+
   const config = getDiscordRuntimeConfig();
   const channelId = config.newsChannelId;
 
   if (!config.botToken || !channelId) {
-    return {
-      requestCount: 0,
-      recordsProcessed: 0,
-      errorCount: 0,
-    };
+    return buildNoopJobResult();
   }
 
   await ensureDiscordSchema();
@@ -152,15 +184,15 @@ export async function postDiscordNewsUpdates(): Promise<JobResult> {
 }
 
 export async function postDiscordHourlyMarketDigest(): Promise<JobResult> {
+  if (!isDiscordPostingRuntimeAllowed()) {
+    return buildNoopJobResult();
+  }
+
   const config = getDiscordRuntimeConfig();
   const channelId = config.hourlyChannelId;
 
   if (!config.botToken || !channelId) {
-    return {
-      requestCount: 0,
-      recordsProcessed: 0,
-      errorCount: 0,
-    };
+    return buildNoopJobResult();
   }
 
   await ensureDiscordSchema();
