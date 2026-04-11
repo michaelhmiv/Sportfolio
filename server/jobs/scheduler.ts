@@ -35,6 +35,7 @@ import { syncNascarSchedule } from "./sync-nascar-schedule";
 import { syncNascarLive } from "./sync-nascar-live";
 import { syncPlayerInjuries } from "./sync-injuries";
 import { fetchNews } from "./fetch-news";
+import { postDiscordHourlyMarketDigest, postDiscordNewsUpdates } from "./discord-posting";
 import { compileAllDigests } from "./compile-digest";
 import { lockBoostShares } from "./lock-boost-shares";
 import { settleBoosts } from "./settle-boosts";
@@ -197,6 +198,22 @@ export class JobScheduler {
             recordsProcessed: result.storiesProcessed,
             errorCount: result.success ? 0 : 1,
           };
+        },
+      },
+      {
+        name: "discord_hourly_market_digest",
+        schedule: "0 * * * *", // Every hour at :00 - publish market digest to Discord
+        enabled: true,
+        handler: async () => {
+          return postDiscordHourlyMarketDigest();
+        },
+      },
+      {
+        name: "discord_news_post",
+        schedule: "5 * * * *", // Every hour at :05 - publish newly fetched news to Discord
+        enabled: true,
+        handler: async () => {
+          return postDiscordNewsUpdates();
         },
       },
       {
@@ -613,6 +630,12 @@ export class JobScheduler {
           error: result.error || null,
         };
       },
+      discord_hourly_market_digest: async () => {
+        return postDiscordHourlyMarketDigest();
+      },
+      discord_news_post: async () => {
+        return postDiscordNewsUpdates();
+      },
       compile_digest: async (callback) => {
         const result = await compileAllDigests(callback);
         return {
@@ -865,6 +888,8 @@ export class JobScheduler {
       "backfill_market_snapshots",
       "scout_distribution",
       "news_fetch",
+      "discord_hourly_market_digest",
+      "discord_news_post",
       "compile_digest",
       "agent_advisory_schedules",
       "agent_live_strategies",

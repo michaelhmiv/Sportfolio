@@ -34,6 +34,18 @@ function getWebAuthRedirectUrl(): string | undefined {
   return `${configuredSiteUrl}/auth/callback`;
 }
 
+function normalizePostAuthRedirect(path: string | null | undefined): string | null {
+  if (!path) {
+    return null;
+  }
+
+  if (!path.startsWith("/") || path.startsWith("//")) {
+    return null;
+  }
+
+  return path;
+}
+
 function debugLog(stage: string, message: string, data?: any) {
   if (!IS_DEV) return;
   const elapsed = performance.now().toFixed(0);
@@ -150,7 +162,7 @@ function mapAuthError(
     return {
       success: false,
       code: "unknown",
-      error: "Could not complete Google sign in. Please try again.",
+      error: "Could not complete OAuth sign in. Please try again.",
     };
   }
 
@@ -556,53 +568,122 @@ export function useAuth() {
     }
   }, [supabaseClient, queryClient]);
 
-  const loginWithGoogle = useCallback(async (): Promise<AuthResult> => {
-    debugLog("GOOGLE_LOGIN", "Google login attempt");
-    try {
-      if (!supabaseClient) {
-        throw new Error("Auth not initialized");
-      }
-
-      if (Capacitor.isNativePlatform()) {
-        const { data, error } = await supabaseClient.auth.signInWithOAuth({
-          provider: "google",
-          options: {
-            redirectTo: MOBILE_AUTH_REDIRECT_URL,
-            skipBrowserRedirect: true,
-          },
-        });
-
-        if (error) throw error;
-        if (!data?.url) {
-          throw new Error("Could not start mobile OAuth flow");
+  const loginWithGoogle = useCallback(
+    async (postAuthRedirectPath?: string): Promise<AuthResult> => {
+      debugLog("GOOGLE_LOGIN", "Google login attempt");
+      try {
+        if (!supabaseClient) {
+          throw new Error("Auth not initialized");
         }
 
-        await Browser.open({
-          url: data.url,
-          windowName: "_self",
-        });
-      } else {
-        const redirectTo = getWebAuthRedirectUrl();
-        const { error } = await supabaseClient.auth.signInWithOAuth({
-          provider: "google",
-          options: {
-            redirectTo,
-          },
-        });
+        const normalizedRedirect = normalizePostAuthRedirect(postAuthRedirectPath);
 
-        if (error) throw error;
+        if (Capacitor.isNativePlatform()) {
+          const { data, error } = await supabaseClient.auth.signInWithOAuth({
+            provider: "google",
+            options: {
+              redirectTo: MOBILE_AUTH_REDIRECT_URL,
+              skipBrowserRedirect: true,
+            },
+          });
+
+          if (error) throw error;
+          if (!data?.url) {
+            throw new Error("Could not start mobile OAuth flow");
+          }
+
+          await Browser.open({
+            url: data.url,
+            windowName: "_self",
+          });
+        } else {
+          if (normalizedRedirect && typeof window !== "undefined") {
+            window.sessionStorage.setItem("auth_post_redirect", normalizedRedirect);
+          }
+
+          const redirectTo = getWebAuthRedirectUrl();
+          const { error } = await supabaseClient.auth.signInWithOAuth({
+            provider: "google",
+            options: {
+              redirectTo,
+            },
+          });
+
+          if (error) throw error;
+        }
+
+        debugLog("GOOGLE_LOGIN", "Google OAuth initiated");
+        trackAuthEvent("google_oauth_started");
+        return { success: true };
+      } catch (error: unknown) {
+        const mapped = mapAuthError(error, "oauth");
+        debugLog("GOOGLE_LOGIN", "Google login failed", { error: mapped.error, code: mapped.code });
+        trackAuthEvent("google_oauth_failure", { code: mapped.code });
+        return mapped;
       }
+    },
+    [supabaseClient],
+  );
 
-      debugLog("GOOGLE_LOGIN", "Google OAuth initiated");
-      trackAuthEvent("google_oauth_started");
-      return { success: true };
-    } catch (error: unknown) {
-      const mapped = mapAuthError(error, "oauth");
-      debugLog("GOOGLE_LOGIN", "Google login failed", { error: mapped.error, code: mapped.code });
-      trackAuthEvent("google_oauth_failure", { code: mapped.code });
-      return mapped;
-    }
-  }, [supabaseClient]);
+  const loginWithDiscord = useCallback(
+    async (postAuthRedirectPath?: string): Promise<AuthResult> => {
+      debugLog("DISCORD_LOGIN", "Discord login attempt");
+      try {
+        if (!supabaseClient) {
+          throw new Error("Auth not initialized");
+        }
+
+        const normalizedRedirect = normalizePostAuthRedirect(postAuthRedirectPath);
+
+        if (Capacitor.isNativePlatform()) {
+          const { data, error } = await supabaseClient.auth.signInWithOAuth({
+            provider: "discord",
+            options: {
+              redirectTo: MOBILE_AUTH_REDIRECT_URL,
+              skipBrowserRedirect: true,
+            },
+          });
+
+          if (error) throw error;
+          if (!data?.url) {
+            throw new Error("Could not start mobile OAuth flow");
+          }
+
+          await Browser.open({
+            url: data.url,
+            windowName: "_self",
+          });
+        } else {
+          if (normalizedRedirect && typeof window !== "undefined") {
+            window.sessionStorage.setItem("auth_post_redirect", normalizedRedirect);
+          }
+
+          const redirectTo = getWebAuthRedirectUrl();
+          const { error } = await supabaseClient.auth.signInWithOAuth({
+            provider: "discord",
+            options: {
+              redirectTo,
+            },
+          });
+
+          if (error) throw error;
+        }
+
+        debugLog("DISCORD_LOGIN", "Discord OAuth initiated");
+        trackAuthEvent("discord_oauth_started");
+        return { success: true };
+      } catch (error: unknown) {
+        const mapped = mapAuthError(error, "oauth");
+        debugLog("DISCORD_LOGIN", "Discord login failed", {
+          error: mapped.error,
+          code: mapped.code,
+        });
+        trackAuthEvent("discord_oauth_failure", { code: mapped.code });
+        return mapped;
+      }
+    },
+    [supabaseClient],
+  );
 
   // In dev mode, we're never loading and always authenticated
   const isLoading = DEV_BYPASS_ENABLED ? false : !isInitialized || isQueryLoading;
@@ -618,6 +699,7 @@ export function useAuth() {
     resendVerification,
     logout,
     loginWithGoogle,
+    loginWithDiscord,
     initError,
     retryInit,
   };

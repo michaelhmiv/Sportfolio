@@ -9,9 +9,17 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { CheckCircle2, Loader2, Mail } from "lucide-react";
-import { SiGoogle } from "react-icons/si";
+import { SiDiscord, SiGoogle } from "react-icons/si";
 
 type AuthTab = "login" | "signup";
+
+function normalizePostAuthRedirect(path: string | null): string {
+  if (!path || !path.startsWith("/") || path.startsWith("//")) {
+    return "/";
+  }
+
+  return path;
+}
 
 export default function Login() {
   const [, navigate] = useLocation();
@@ -20,6 +28,7 @@ export default function Login() {
     signup,
     resendVerification,
     loginWithGoogle,
+    loginWithDiscord,
     isAuthenticated,
     isLoading: authLoading,
   } = useAuth();
@@ -33,6 +42,14 @@ export default function Login() {
   const [isResendingVerification, setIsResendingVerification] = useState(false);
   const [emailTouched, setEmailTouched] = useState(false);
   const [signupSuccessEmail, setSignupSuccessEmail] = useState<string | null>(null);
+  const postAuthRedirect = useMemo(() => {
+    if (typeof window === "undefined") {
+      return "/";
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    return normalizePostAuthRedirect(params.get("redirect"));
+  }, []);
 
   const normalizedEmail = useMemo(() => normalizeEmail(email), [email]);
   const emailIsValid = useMemo(() => isValidEmail(normalizedEmail), [normalizedEmail]);
@@ -47,7 +64,7 @@ export default function Login() {
   }
 
   if (isAuthenticated) {
-    navigate("/");
+    navigate(postAuthRedirect);
     return null;
   }
 
@@ -85,7 +102,7 @@ export default function Login() {
         title: "Welcome back!",
         description: "You have successfully logged in.",
       });
-      navigate("/");
+      navigate(postAuthRedirect);
     } else {
       toast({
         title: "Login failed",
@@ -174,12 +191,26 @@ export default function Login() {
 
   const handleGoogleLogin = async () => {
     setIsLoading(true);
-    const result = await loginWithGoogle();
+    const result = await loginWithGoogle(postAuthRedirect);
 
     if (!result.success) {
       toast({
         title: "Login failed",
         description: result.error || "Could not sign in with Google",
+        variant: "destructive",
+      });
+      setIsLoading(false);
+    }
+  };
+
+  const handleDiscordLogin = async () => {
+    setIsLoading(true);
+    const result = await loginWithDiscord(postAuthRedirect);
+
+    if (!result.success) {
+      toast({
+        title: "Login failed",
+        description: result.error || "Could not sign in with Discord",
         variant: "destructive",
       });
       setIsLoading(false);
@@ -414,6 +445,23 @@ export default function Login() {
               <>
                 <SiGoogle className="h-4 w-4 mr-2" />
                 Sign in with Google
+              </>
+            )}
+          </Button>
+          <Button
+            type="button"
+            variant="terminalOutline"
+            className="mt-3 w-full"
+            onClick={handleDiscordLogin}
+            disabled={isLoading}
+            data-testid="button-discord-login"
+          >
+            {isLoading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <>
+                <SiDiscord className="mr-2 h-4 w-4" />
+                Sign in with Discord
               </>
             )}
           </Button>

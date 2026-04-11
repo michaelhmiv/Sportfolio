@@ -2241,6 +2241,33 @@ Review:
 - `npm run test:run` passed.
 - `npm run mlb-mcp:probe:railway` passed for `test_get_schedule_tool`, `test_get_stats_tool`, `test_get_available_endpoints_tool`, `test_get_last_game_tool`, and `test_get_next_game_tool`.
 
+## 2026-04-08 Discord Integration Rollout (Official Server)
+
+- [x] Repair and finalize `server/routes/discord.ts` interaction/auth/linking flow with strict guild scope and canonical account mapping
+- [x] Wire Discord route registration + startup schema ensure into server boot paths
+- [x] Implement Discord automation jobs for news channel posting and hourly market digest posting with dedupe protection
+- [x] Add Discord link-complete web page + router wiring so Discord-first users can authenticate and complete account linking
+- [x] Add focused tests for Discord service and routing behavior, then run full validation (`npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`)
+- [x] Execute end-to-end smoke checks for command sync and job/manual trigger paths and document any env blockers
+
+Review:
+
+- Added full Discord route surface in `server/routes/discord.ts` (interaction webhook with signature verification, guild lock, linking APIs, admin command-sync/cleanup APIs, and slash-command handlers for portfolio/player/market/news/trading/stack/boost/scout).
+- Added canonical Discord account mapping storage and state/intent/post-history lifecycle helpers in `shared/schema.ts`, `server/discord-service.ts`, and startup schema ensure in `server/routes.ts`.
+- Added Discord API helpers in `server/discord-api.ts` for guild command definition/sync and channel posting.
+- Added scheduled Discord automation in `server/jobs/discord-posting.ts` and wired scheduler jobs/manual triggers in `server/jobs/scheduler.ts`.
+- Added Discord link completion web UX in `client/src/pages/discord-link.tsx` and route wiring in `client/src/App.tsx`, plus post-login redirect support across `client/src/pages/Login.tsx`, `client/src/pages/AuthCallback.tsx`, and `client/src/hooks/useAuth.tsx`.
+- Validation status:
+- `npm run check` passed.
+- `npm run lint` passed.
+- `npm run test:run` passed.
+- `npm run format:check` passed.
+- Discord smoke status (with `.env` loaded):
+- `syncDiscordGuildCommands()` succeeded (`status: 200`) and guild command install includes 12 commands (`start`, `help`, `link`, `portfolio`, `player`, `buy`, `sell`, `stack`, `market`, `news`, `boost`, `scout`).
+- `postDiscordHourlyMarketDigest()` and `postDiscordNewsUpdates()` executed without runtime errors (dedupe-safe no-op when there is nothing new to post).
+- Local server route probes succeeded (`GET /api/discord/health` => `200`, `GET /api/discord/link/state` without state => expected `400`).
+- Discord application metadata still reports `interactions_endpoint_url = null`, which will cause slash commands in Discord to show “application did not respond” until the endpoint is set to the deployed webhook URL.
+
 ## 2026-04-02 Agent MCP Source Schema Hardening
 
 - [x] Confirm the local Agents-tab failure path and identify the missing optional schema dependency
