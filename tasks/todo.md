@@ -216,6 +216,12 @@ Review:
 - `Cannot manage a one-time product without first registering a payments profile for the developer account.`
 - This is a Play Console account-setup precondition (not an app code/config issue) and blocks API-driven creation of `premium_share_1` until billing profile registration is complete.
 - Local Android release bundle smoke on this workstation is blocked by missing Android SDK configuration (`ANDROID_HOME`/`mobile/android/local.properties`), so release upload should run through GitHub Actions runner (which provisions Android SDK).
+- GitHub Actions `Play Internal Testing` workflow executions:
+- Run `24747007366`: failed during Android compile due BillingClient API change (`enablePendingPurchases` now requires `PendingPurchasesParams`).
+- Run `24747154179`: Android App Bundle build succeeded, upload failed because Play Console expects an existing upload certificate:
+- expected SHA1 `2F:31:3E:0F:1C:BE:C9:91:12:38:2A:3F:76:E5:07:F2:CC:93:97:1F`
+- generated keystore SHA1 `72:AE:5C:69:80:8C:F5:90:54:AF:88:89:77:04:9B:2B:A7:79:C2:42`
+- This confirms release automation is wired; final upload requires either the original upload keystore for this app or a Play Console upload key reset to the new certificate.
 - Validation status:
 - `npm run check` passed.
 - `npm run lint` passed.
