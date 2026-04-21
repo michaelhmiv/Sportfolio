@@ -165,6 +165,63 @@ Review:
 - `npm run lint` passed.
 - `npm run test:run` passed.
 - `npm run format:check` passed.
+## 2026-04-21 Google Play Billing + Play Automation
+
+- [x] Add Android native Google Play Billing plugin and wire it into Capacitor
+- [x] Add Android billing bridge on the web client and integrate Premium page purchase + restore flows
+- [x] Add backend Google Play purchase verification endpoint with secure server-side verification
+- [x] Add idempotent purchase ledger storage for Google Play tokens and crediting state
+- [x] Ensure purchased credits use existing premium inventory/entitlement paths and activity logging
+- [x] Add Play automation scripts/docs to minimize Play Console manual setup
+- [x] Run required validation (`npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`) and document outcomes
+
+Review:
+
+- Added `AndroidPlayBillingPlugin` in the Android app and registered it in `MainActivity`, plus Billing dependency and manifest billing permission.
+- Added client billing bridge (`client/src/lib/android-play-billing.ts`) and integrated Android Premium page purchase and restore/sync flows.
+- Added backend route `POST /api/mobile/google-play/verify-purchase` with server-side Google Play verification, idempotent token ledgering (`google_play_purchases`), premium holding credit, and premium activity logging.
+- Added Play automation script `scripts/play-billing-doctor.mjs` with npm commands:
+- `npm run play:billing:doctor`
+- `npm run play:billing:ensure-product`
+- Updated environment and mobile runbook docs for Google Play Billing setup.
+- Validation status:
+- `npm run check` passed.
+- `npm run lint` passed.
+- `npm run format:check` passed.
+- `npm run test:run` has 1 pre-existing failing test unrelated to this billing patch:
+- `server/routes/mobile-rewarded-scout-boost.test.ts` -> `marks premium users as ineligible for rewarded scout boost sessions`
+- Android Gradle compile verification did not complete within command runtime constraints in this environment (Gradle task timeout), so native compile needs one more local/CI pass.
+
+## 2026-04-21 Google Play Billing Cloud Wiring (GitHub + Railway)
+
+- [x] Confirm CLI auth and project access for GitHub, Railway, and GCP
+- [x] Generate a fresh `google-play-deploy@sportfolio-f1b70.iam.gserviceaccount.com` key and set `PLAY_SERVICE_ACCOUNT_JSON` in GitHub Actions secrets
+- [x] Link this workspace to Railway project `Sportfolio` service `Sportfolio-Replit` and set Play billing environment variables
+- [x] Run Play API doctor validation with a temporary key and report remaining blockers
+
+Review:
+
+- GitHub repository secret `PLAY_SERVICE_ACCOUNT_JSON` is configured for `michaelhmiv/Sportfolio-Replit`.
+- Railway `Sportfolio-Replit` production service now has:
+- `PLAY_SERVICE_ACCOUNT_JSON`
+- `GOOGLE_PLAY_PACKAGE_NAME=sportfolio.market`
+- `GOOGLE_PLAY_PREMIUM_PRODUCT_ID=premium_share_1`
+- `GOOGLE_PLAY_PREMIUM_PRODUCT_IDS=premium_share_1`
+- `GOOGLE_PLAY_PREMIUM_PRICE_USD=5`
+- `VITE_ANDROID_PREMIUM_PRODUCT_ID=premium_share_1`
+- Validation result from `npm run play:billing:doctor`:
+- OAuth token acquisition succeeded for the service account.
+- Legacy `inappproducts` calls are now rejected for this app/account with `403 PERMISSION_DENIED` ("Please migrate to the new publishing API"), so the doctor script was migrated to `monetization.onetimeproducts`.
+- New one-time product API now authenticates but returns `400 FAILED_PRECONDITION` for product creation with:
+- `Cannot manage a one-time product without first registering a payments profile for the developer account.`
+- This is a Play Console account-setup precondition (not an app code/config issue) and blocks API-driven creation of `premium_share_1` until billing profile registration is complete.
+- Local Android release bundle smoke on this workstation is blocked by missing Android SDK configuration (`ANDROID_HOME`/`mobile/android/local.properties`), so release upload should run through GitHub Actions runner (which provisions Android SDK).
+- Validation status:
+- `npm run check` passed.
+- `npm run lint` passed.
+- `npm run format:check` passed.
+- `npm run test:run` has the same pre-existing failing test:
+- `server/routes/mobile-rewarded-scout-boost.test.ts` -> `marks premium users as ineligible for rewarded scout boost sessions`.
 
 ## 2026-03-30 Production Crash Recovery + Android Release PR Hardening
 

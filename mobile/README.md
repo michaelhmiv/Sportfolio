@@ -156,3 +156,36 @@ Notes:
 
 - Internal testing is private and suitable for getting release process moving before public launch.
 - For some personal Play developer accounts, Google requires a closed testing phase before production access.
+
+## Google Play Billing Automation
+
+Android Premium Share purchases now use Google Play Billing in native Android builds.
+
+Backend env vars required for purchase verification:
+
+- `PLAY_SERVICE_ACCOUNT_JSON` or `PLAY_SERVICE_ACCOUNT_FILE`
+- `GOOGLE_PLAY_PACKAGE_NAME` (default: `sportfolio.market`)
+- `GOOGLE_PLAY_PREMIUM_PRODUCT_ID` (default: `premium_share_1`)
+- optional `GOOGLE_PLAY_PREMIUM_PRODUCT_IDS` (comma-separated allowlist)
+
+Client env var (for Android product lookup):
+
+- `VITE_ANDROID_PREMIUM_PRODUCT_ID` (default: `premium_share_1`)
+
+Use the billing doctor script to validate API access and product setup:
+
+```bash
+npm run play:billing:doctor
+```
+
+If the product does not exist yet, create it via API:
+
+```bash
+npm run play:billing:ensure-product
+```
+
+Optional overrides:
+
+```bash
+node scripts/play-billing-doctor.mjs --ensure --package sportfolio.market --product premium_share_1 --price-usd 5
+```

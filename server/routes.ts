@@ -2,6 +2,7 @@ import express, { type Express, type Request, type Response } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer } from "ws";
 import { performance } from "node:perf_hooks";
+import { readFile } from "node:fs/promises";
 import { storage } from "./storage";
 import { db } from "./db";
 import { fetchActivePlayers, calculateFantasyPoints } from "./balldontlie-nba";
@@ -36,6 +37,7 @@ import {
   userMilestones,
   trades,
   whopPayments,
+  googlePlayPurchases,
   jobExecutionLogs,
 } from "@shared/schema";
 import {
@@ -2470,6 +2472,175 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     return null;
+  }
+
+  type GooglePlayServiceAccountCredentials = {
+    client_email: string;
+    private_key: string;
+    project_id?: string;
+  };
+
+  const GOOGLE_PLAY_ANDROID_PUBLISHER_SCOPE = "https://www.googleapis.com/auth/androidpublisher";
+
+  let googlePlayAccessTokenCache: { token: string; expiresAtMs: number } | null = null;
+
+  function parseGooglePlayServiceAccountJson(raw: string): GooglePlayServiceAccountCredentials {
+    const parsed = JSON.parse(raw) as Partial<GooglePlayServiceAccountCredentials>;
+    if (!parsed.client_email || !parsed.private_key) {
+      throw new Error("PLAY_SERVICE_ACCOUNT_JSON is missing client_email/private_key");
+    }
+
+    return {
+      client_email: parsed.client_email,
+      private_key: parsed.private_key,
+      project_id: parsed.project_id,
+    };
+  }
+
+  async function resolveGooglePlayServiceAccountCredentials() {
+    const inlineValue = process.env.PLAY_SERVICE_ACCOUNT_JSON?.trim();
+    const filePath = process.env.PLAY_SERVICE_ACCOUNT_FILE?.trim();
+
+    if (inlineValue) {
+      try {
+        return parseGooglePlayServiceAccountJson(inlineValue);
+      } catch {
+        const decoded = Buffer.from(inlineValue, "base64").toString("utf8");
+        return parseGooglePlayServiceAccountJson(decoded);
+      }
+    }
+
+    if (filePath) {
+      const fileContent = await readFile(filePath, "utf8");
+      return parseGooglePlayServiceAccountJson(fileContent);
+    }
+
+    throw new Error(
+      "Google Play service account credentials are not configured (PLAY_SERVICE_ACCOUNT_JSON or PLAY_SERVICE_ACCOUNT_FILE)",
+    );
+  }
+
+  async function getGooglePlayAccessToken(forceRefresh = false) {
+    const now = Date.now();
+    if (
+      !forceRefresh &&
+      googlePlayAccessTokenCache &&
+      googlePlayAccessTokenCache.expiresAtMs > now
+    ) {
+      return googlePlayAccessTokenCache.token;
+    }
+
+    const credentials = await resolveGooglePlayServiceAccountCredentials();
+    const { GoogleAuth } = await import("google-auth-library");
+
+    const auth = new GoogleAuth({
+      credentials,
+      scopes: [GOOGLE_PLAY_ANDROID_PUBLISHER_SCOPE],
+    });
+    const client = await auth.getClient();
+    const tokenResponse = await client.getAccessToken();
+    const accessToken =
+      typeof tokenResponse === "string" ? tokenResponse : tokenResponse?.token || null;
+
+    if (!accessToken) {
+      throw new Error("Could not obtain Google Play access token");
+    }
+
+    const expiryMs =
+      typeof (client as any)?.credentials?.expiry_date === "number"
+        ? Number((client as any).credentials.expiry_date)
+        : now + 45 * 60 * 1000;
+
+    googlePlayAccessTokenCache = {
+      token: accessToken,
+      expiresAtMs: Math.max(now + 60 * 1000, expiryMs - 60 * 1000),
+    };
+
+    return accessToken;
+  }
+
+  async function fetchGooglePlayProductPurchase(options: {
+    packageName: string;
+    productId: string;
+    purchaseToken: string;
+  }) {
+    const endpoint = `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${encodeURIComponent(options.packageName)}/purchases/products/${encodeURIComponent(options.productId)}/tokens/${encodeURIComponent(options.purchaseToken)}`;
+
+    const request = async (token: string) =>
+      fetch(endpoint, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+    let accessToken = await getGooglePlayAccessToken();
+    let response = await request(accessToken);
+
+    if (response.status === 401) {
+      accessToken = await getGooglePlayAccessToken(true);
+      response = await request(accessToken);
+    }
+
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(
+        `Google Play verification failed (${response.status}): ${body || response.statusText}`,
+      );
+    }
+
+    return response.json();
+  }
+
+  async function consumeGooglePlayProductPurchase(options: {
+    packageName: string;
+    productId: string;
+    purchaseToken: string;
+  }) {
+    const endpoint = `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${encodeURIComponent(options.packageName)}/purchases/products/${encodeURIComponent(options.productId)}/tokens/${encodeURIComponent(options.purchaseToken)}:consume`;
+
+    const request = async (token: string) =>
+      fetch(endpoint, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: "{}",
+      });
+
+    let accessToken = await getGooglePlayAccessToken();
+    let response = await request(accessToken);
+
+    if (response.status === 401) {
+      accessToken = await getGooglePlayAccessToken(true);
+      response = await request(accessToken);
+    }
+
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(
+        `Google Play consume failed (${response.status}): ${body || response.statusText}`,
+      );
+    }
+  }
+
+  function getAllowedGooglePlayPremiumProductIds() {
+    const explicitIds = (process.env.GOOGLE_PLAY_PREMIUM_PRODUCT_IDS || "")
+      .split(",")
+      .map((id) => id.trim())
+      .filter(Boolean);
+
+    const fallbackId = (process.env.GOOGLE_PLAY_PREMIUM_PRODUCT_ID || "premium_share_1").trim();
+    if (explicitIds.length === 0 && fallbackId) {
+      return [fallbackId];
+    }
+
+    if (fallbackId) {
+      explicitIds.push(fallbackId);
+    }
+
+    return Array.from(new Set(explicitIds));
   }
 
   // Ezoic ads.txt redirect
@@ -7151,6 +7322,296 @@ ${items}
             ? 400
             : 500;
       res.status(status).json({ error: error.message });
+    }
+  });
+
+  // Android Google Play Billing verification and premium crediting
+  app.post("/api/mobile/google-play/verify-purchase", isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const purchaseToken = String(req.body?.purchaseToken || "").trim();
+      const requestedProductId = String(req.body?.productId || "").trim();
+      const packageName = (process.env.GOOGLE_PLAY_PACKAGE_NAME || "sportfolio.market").trim();
+
+      if (!purchaseToken) {
+        return res.status(400).json({ error: "purchaseToken is required" });
+      }
+
+      const allowedProductIds = getAllowedGooglePlayPremiumProductIds();
+      if (allowedProductIds.length === 0) {
+        return res.status(500).json({
+          error: "Google Play premium product IDs are not configured",
+        });
+      }
+
+      const productId = requestedProductId || allowedProductIds[0];
+      if (!allowedProductIds.includes(productId)) {
+        return res.status(400).json({ error: "Unsupported Google Play productId" });
+      }
+
+      const purchase = await fetchGooglePlayProductPurchase({
+        packageName,
+        productId,
+        purchaseToken,
+      });
+
+      const purchaseState =
+        purchase?.purchaseState === undefined || purchase?.purchaseState === null
+          ? null
+          : Number(purchase.purchaseState);
+      const acknowledgementState =
+        purchase?.acknowledgementState === undefined || purchase?.acknowledgementState === null
+          ? null
+          : Number(purchase.acknowledgementState);
+      const consumptionState =
+        purchase?.consumptionState === undefined || purchase?.consumptionState === null
+          ? null
+          : Number(purchase.consumptionState);
+      const purchaseTime =
+        purchase?.purchaseTimeMillis && Number.isFinite(Number(purchase.purchaseTimeMillis))
+          ? new Date(Number(purchase.purchaseTimeMillis))
+          : null;
+      const quantity = Math.max(1, Math.min(100, Number(purchase?.quantity) || 1));
+      const orderId = typeof purchase?.orderId === "string" ? purchase.orderId : null;
+      const isTestPurchase = Number(purchase?.purchaseType) === 0;
+
+      const obfuscatedExternalAccountId = purchase?.obfuscatedExternalAccountId;
+      if (
+        obfuscatedExternalAccountId &&
+        typeof obfuscatedExternalAccountId === "string" &&
+        obfuscatedExternalAccountId !== userId
+      ) {
+        return res.status(409).json({
+          error: "Purchase token is bound to a different account",
+          state: "account_mismatch",
+        });
+      }
+
+      if (purchaseState === 1) {
+        return res.status(409).json({
+          error: "Purchase is canceled",
+          state: "canceled",
+          purchaseState,
+        });
+      }
+
+      if (purchaseState !== 0) {
+        return res.status(202).json({
+          success: false,
+          state: "pending",
+          purchaseState,
+          acknowledgementState,
+          consumptionState,
+        });
+      }
+
+      const creditResult = await db.transaction(async (tx) => {
+        const now = new Date();
+
+        await tx
+          .insert(googlePlayPurchases)
+          .values({
+            purchaseToken,
+            orderId,
+            userId,
+            productId,
+            packageName,
+            quantity,
+            purchaseState,
+            acknowledgementState,
+            consumptionState,
+            purchaseTime,
+            isTestPurchase,
+            lastVerifiedAt: now,
+            rawPayload: purchase,
+            updatedAt: now,
+          })
+          .onConflictDoUpdate({
+            target: googlePlayPurchases.purchaseToken,
+            set: {
+              orderId,
+              productId,
+              packageName,
+              quantity,
+              purchaseState,
+              acknowledgementState,
+              consumptionState,
+              purchaseTime,
+              isTestPurchase,
+              lastVerifiedAt: now,
+              rawPayload: purchase,
+              updatedAt: now,
+            },
+          });
+
+        const [existingPurchase] = await tx
+          .select()
+          .from(googlePlayPurchases)
+          .where(eq(googlePlayPurchases.purchaseToken, purchaseToken))
+          .limit(1);
+
+        if (!existingPurchase) {
+          throw new Error("Failed to load Google Play purchase row after upsert");
+        }
+
+        if (existingPurchase.creditedAt) {
+          return {
+            credited: false,
+            alreadyCredited: true,
+            creditedUserId: existingPurchase.userId,
+          };
+        }
+
+        const [claim] = await tx
+          .update(googlePlayPurchases)
+          .set({
+            userId,
+            creditedAt: now,
+            updatedAt: now,
+          })
+          .where(
+            and(
+              eq(googlePlayPurchases.purchaseToken, purchaseToken),
+              sql`${googlePlayPurchases.creditedAt} IS NULL`,
+            ),
+          )
+          .returning();
+
+        if (!claim) {
+          const [claimedRow] = await tx
+            .select()
+            .from(googlePlayPurchases)
+            .where(eq(googlePlayPurchases.purchaseToken, purchaseToken))
+            .limit(1);
+          return {
+            credited: false,
+            alreadyCredited: true,
+            creditedUserId: claimedRow?.userId || null,
+          };
+        }
+
+        const [existingHolding] = await tx
+          .select()
+          .from(holdings)
+          .where(
+            and(
+              eq(holdings.userId, userId),
+              eq(holdings.assetType, "premium"),
+              eq(holdings.assetId, "premium"),
+            ),
+          );
+
+        const currentQuantity = parseFloat(existingHolding?.quantity || "0");
+        const newQuantity = currentQuantity + quantity;
+        const avgCostBasis = existingHolding?.avgCostBasis || "5.0000";
+        const totalCostBasis = (parseFloat(avgCostBasis) * newQuantity).toFixed(2);
+
+        if (existingHolding) {
+          await tx
+            .update(holdings)
+            .set({
+              quantity: newQuantity.toString(),
+              avgCostBasis,
+              totalCostBasis,
+              lastUpdated: now,
+            })
+            .where(eq(holdings.id, existingHolding.id));
+        } else {
+          await tx.insert(holdings).values({
+            userId,
+            assetType: "premium",
+            assetId: "premium",
+            quantity: newQuantity.toString(),
+            avgCostBasis,
+            totalCostBasis,
+            lastUpdated: now,
+          });
+        }
+
+        return {
+          credited: true,
+          alreadyCredited: false,
+          creditedUserId: userId,
+        };
+      });
+
+      if (creditResult.alreadyCredited && creditResult.creditedUserId !== userId) {
+        return res.status(409).json({
+          error: "Purchase token was already credited to a different user",
+          state: "credited_to_other_user",
+        });
+      }
+
+      let consumed = false;
+      let consumePending = false;
+
+      if (consumptionState !== 1) {
+        try {
+          await consumeGooglePlayProductPurchase({
+            packageName,
+            productId,
+            purchaseToken,
+          });
+          consumed = true;
+
+          await db
+            .update(googlePlayPurchases)
+            .set({
+              consumptionState: 1,
+              consumedAt: new Date(),
+              updatedAt: new Date(),
+            })
+            .where(eq(googlePlayPurchases.purchaseToken, purchaseToken));
+        } catch (consumeError: any) {
+          consumePending = true;
+          console.warn(
+            "[GOOGLE_PLAY] Purchase consumed failed; will retry on future sync:",
+            consumeError?.message || consumeError,
+          );
+        }
+      } else {
+        consumed = true;
+      }
+
+      if (creditResult.credited) {
+        await recordPremiumActivityEvent({
+          userId,
+          eventType: "premium_credit",
+          quantityDelta: quantity,
+          referenceId: `play:${purchaseToken}`,
+          metadata: {
+            source: "google_play_billing",
+            productId,
+            packageName,
+            purchaseToken,
+            orderId,
+            isTestPurchase,
+            acknowledged: acknowledgementState === 1,
+            consumed,
+          },
+        });
+
+        broadcast({ type: "portfolio" });
+      }
+
+      const premiumHolding = await storage.getHolding(userId, "premium", "premium");
+      const premiumShares = Number(premiumHolding?.quantity || 0);
+
+      return res.json({
+        success: true,
+        state: "purchased",
+        credited: creditResult.credited,
+        alreadyCredited: creditResult.alreadyCredited,
+        premiumShares,
+        quantity,
+        productId,
+        orderId,
+        consumed,
+        consumePending,
+      });
+    } catch (error: any) {
+      console.error("[GOOGLE_PLAY] Verify purchase error:", error);
+      return res.status(500).json({ error: error.message || "Could not verify purchase" });
     }
   });
 

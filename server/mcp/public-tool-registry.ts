@@ -3567,6 +3567,24 @@ const PUBLIC_EXCLUDED_CAPABILITIES: PublicExcludedCapability[] = [
       "Android-native rewarded ad session bootstrap stays outside the shared CLI and MCP capability surface.",
   },
   {
+    capabilityId: "mobile_google_play_verify_purchase",
+    kind: "excluded",
+    status: "excluded",
+    domain: "billing",
+    source: "/api/mobile/google-play/verify-purchase",
+    notes:
+      "Android-native Google Play purchase verification is intentionally excluded from the shared CLI and MCP capability surface.",
+  },
+  {
+    capabilityId: "daily_boost_debug",
+    kind: "excluded",
+    status: "excluded",
+    domain: "internal",
+    source: "/api/daily-boosts/debug",
+    notes:
+      "Debug-only diagnostics must not be exposed through the shared public capability surface.",
+  },
+  {
     capabilityId: "agent_thread_runtime_details",
     kind: "excluded",
     status: "excluded",
@@ -3907,6 +3925,11 @@ const PUBLIC_SITE_ROUTE_COVERAGE: PublicSiteRouteCoverageEntry[] = [
     method: "POST",
     path: "/api/mobile/rewarded-scout-boost/session",
     excludedCapabilityId: "mobile_rewarded_scout_boost_session",
+  },
+  {
+    method: "POST",
+    path: "/api/mobile/google-play/verify-purchase",
+    excludedCapabilityId: "mobile_google_play_verify_purchase",
   },
   { method: "POST", path: "/api/checkout/finalize", excludedCapabilityId: "checkout_finalize" },
   { method: "GET", path: "/api/premium/status", capabilityIds: ["get_premium_status"] },
