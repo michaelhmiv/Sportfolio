@@ -1,0 +1,2 @@
+Sportfolio Android now supports Google Play Billing for Premium Share purchases.
+This build includes purchase restore handling and backend Play verification improvements.

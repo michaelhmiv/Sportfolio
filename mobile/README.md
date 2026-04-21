@@ -152,6 +152,18 @@ Run it from GitHub Actions:
 2. Select **Play Internal Testing**.
 3. Click **Run workflow**.
 
+Before dispatching, run the Play release preflight:
+
+```bash
+npm run play:release:preflight
+```
+
+This checks:
+
+- required GitHub secrets for the upload workflow,
+- local upload keystore readability/fingerprint (when `ANDROID_KEYSTORE_PASSWORD` is set),
+- Play billing product readiness via the billing doctor.
+
 Notes:
 
 - Internal testing is private and suitable for getting release process moving before public launch.

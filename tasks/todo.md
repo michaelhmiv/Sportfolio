@@ -165,6 +165,39 @@ Review:
 - `npm run lint` passed.
 - `npm run test:run` passed.
 - `npm run format:check` passed.
+## 2026-04-21 Play Upload-Key Reset Wait-Window Hardening
+
+- [x] Upgrade Play internal testing workflow actions to current major versions and force Node 24 JS action runtime
+- [x] Remove deprecated Play upload input (`track`) in favor of `tracks`
+- [x] Add repo-managed Play "What's new" metadata directory and wire it into workflow uploads
+- [x] Add one-command Play release preflight script to verify secrets, keystore readability, and billing readiness
+- [x] Update mobile runbook with preflight-first release flow and capture validation outcomes
+
+Review:
+
+- Updated `.github/workflows/play-internal-testing.yml`:
+- `actions/checkout@v5`
+- `actions/setup-node@v6`
+- `actions/setup-java@v5`
+- `android-actions/setup-android@v4`
+- `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true`
+- Upload action now uses `tracks: internal` and `whatsNewDirectory: mobile/play/whatsnew`.
+- Added Play release notes metadata file:
+- `mobile/play/whatsnew/en-US/default.txt`
+- Added preflight automation:
+- `scripts/play-release-preflight.mjs`
+- `npm run play:release:preflight`
+- Updated docs with preflight step in `mobile/README.md`.
+- Current preflight result:
+- Warning: `ANDROID_KEYSTORE_PASSWORD` not set locally, so local keystore fingerprint check was skipped.
+- Blocker: Google Play product still not ready (`npm run play:billing:doctor` indicates product readiness gating remains until billing permissions are fully granted and product can be ensured).
+- Validation status:
+- `npm run check` passed.
+- `npm run lint` passed.
+- `npm run format:check` passed (after formatting workflow file).
+- `npm run test:run` still has the same pre-existing failure:
+- `server/routes/mobile-rewarded-scout-boost.test.ts` -> `marks premium users as ineligible for rewarded scout boost sessions`.
+
 ## 2026-04-21 Google Play Billing + Play Automation
 
 - [x] Add Android native Google Play Billing plugin and wire it into Capacitor
