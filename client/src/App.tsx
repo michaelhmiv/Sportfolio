@@ -31,6 +31,8 @@ import { InjuryProvider } from "@/lib/injury-context";
 import { ScoutCeremonyOverlay } from "@/components/ceremonies/scout-ceremony-overlay";
 import { ScoutReadyBanner } from "@/components/ceremonies/scout-ready-banner";
 import { useScoutCeremony } from "@/hooks/use-scout-ceremony";
+import { useBoostSettleCeremony } from "@/hooks/use-boost-settle-ceremony";
+import { BoostCeremonyOverlay } from "@/components/ceremonies/boost-ceremony-overlay";
 import { WhaleAlertBanner } from "@/components/market/whale-alert-banner";
 import { PlayerModal } from "@/components/player-modal";
 import { OPEN_PLAYER_MODAL_EVENT } from "@/lib/player-modal-events";
@@ -744,6 +746,36 @@ function Header() {
   );
 }
 
+function GlobalBoostCeremonyManager() {
+  const { isShowing, data, handleBoostSettled, closeCeremony } = useBoostSettleCeremony();
+  const { subscribe } = useWebSocket();
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if (!user) return;
+    const unsub = subscribe("boost_settled", (payload: any) => {
+      // Only show ceremony for the current user's boosts
+      if (payload.userId && payload.userId !== user.id) return;
+      handleBoostSettled(payload);
+    });
+    return unsub;
+  }, [subscribe, user, handleBoostSettled]);
+
+  if (!data) return null;
+
+  // BoostCeremonyOverlay expects BoostCeremonyData shape
+  const ceremonyData = {
+    playerName: data.playerName,
+    playerTeam: data.playerTeam,
+    slotTier: data.slotTier,
+    shareMultiplier: data.shareMultiplier,
+    totalMultiplier: data.totalMultiplier,
+    sharesBurned: data.sharesBurned,
+  };
+
+  return <BoostCeremonyOverlay isOpen={isShowing} data={ceremonyData} onClose={closeCeremony} />;
+}
+
 function ScoutCeremonyManager() {
   const { isReady, isShowing, data, handleScoutReady, showCeremony, closeCeremony, dismissReady } =
     useScoutCeremony();
@@ -852,6 +884,7 @@ function AppContent() {
       <OnboardingCheck />
       <ScoutDashboardModal />
       <ScoutCeremonyManager />
+      <GlobalBoostCeremonyManager />
       <WhaleAlertBanner />
       <GlobalPlayerModalHost />
     </SidebarProvider>

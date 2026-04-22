@@ -24,6 +24,7 @@ import {
   Flame,
   Users,
 } from "lucide-react";
+import { Sparkline } from "@/components/ui/sparkline";
 import { AnimatedPrice } from "@/components/ui/animated-price";
 import { useWebSocket } from "@/lib/websocket";
 import { queryClient } from "@/lib/queryClient";
@@ -327,6 +328,20 @@ export default function PlayerPools() {
   const totalPlayers = playersData?.total || 0;
   const totalPages = Math.ceil(totalPlayers / ITEMS_PER_PAGE);
 
+  // Batch sparkline fetch for all visible players
+  const playerIdKey = players.map((p) => p.id).join(",");
+  const { data: sparklines = {} } = useQuery<Record<string, number[]>>({
+    queryKey: ["/api/players/sparklines", playerIdKey],
+    queryFn: async () => {
+      if (!playerIdKey) return {};
+      const res = await fetch(`/api/players/sparklines?ids=${playerIdKey}&days=7`);
+      if (!res.ok) return {};
+      return res.json();
+    },
+    enabled: players.length > 0,
+    staleTime: 5 * 60 * 1000,
+  });
+
   useEffect(() => {
     if (!selectedMobilePlayer) {
       return;
@@ -458,18 +473,20 @@ export default function PlayerPools() {
           onOpenPlayer={openMobileSheet}
         />
 
-        <div className="hidden md:block">
+        <div className="hidden md:flex gap-4 items-start">
+          {/* Main content: tabs with player list and (on md/lg) activity tab */}
+          <div className="flex-1 min-w-0">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
             <div className="flex items-center gap-2">
               <TabsList
                 variant="terminal"
-                className="grid flex-1 grid-cols-2 sm:w-auto sm:inline-flex sm:flex-none"
+                className="grid flex-1 grid-cols-2 sm:w-auto sm:inline-flex sm:flex-none xl:grid-cols-1 xl:flex"
               >
                 <TabsTrigger variant="terminal" value="players" className="gap-2">
                   <Activity className="w-4 h-4" />
                   Players
                 </TabsTrigger>
-                <TabsTrigger variant="terminal" value="activity" className="gap-2">
+                <TabsTrigger variant="terminal" value="activity" className="gap-2 xl:hidden">
                   <TrendingUp className="w-4 h-4" />
                   Activity
                 </TabsTrigger>
@@ -658,6 +675,9 @@ export default function PlayerPools() {
                                   <SortIcon field="price" />
                                 </div>
                               </th>
+                              <th className="text-right p-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground hidden lg:table-cell">
+                                7d
+                              </th>
                               <th
                                 className="text-right p-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground cursor-pointer hover:bg-muted/80"
                                 onClick={() => toggleSort("volume")}
@@ -785,6 +805,14 @@ export default function PlayerPools() {
                                     value={parseFloat(player.currentPrice?.toString() || "0")}
                                     size="sm"
                                     className="font-mono font-medium justify-end"
+                                  />
+                                </td>
+                                <td className="p-3 text-right hidden lg:table-cell">
+                                  <Sparkline
+                                    points={sparklines[player.id] ?? []}
+                                    positive={change24h >= 0}
+                                    width={48}
+                                    height={22}
                                   />
                                 </td>
                                 <td className="p-3 text-right text-sm text-muted-foreground">
@@ -929,10 +957,16 @@ export default function PlayerPools() {
               </Card>
             </TabsContent>
 
-            <TabsContent value="activity">
+            <TabsContent value="activity" className="xl:hidden">
               <MarketActivityWidget sport={sport} />
             </TabsContent>
           </Tabs>
+          </div>
+
+          {/* Persistent Market Feed sidebar — always visible on xl+ screens */}
+          <div className="hidden xl:flex flex-col w-72 flex-shrink-0 sticky top-4 gap-4">
+            <MarketActivityWidget sport={sport} title="Market Feed" limit={15} className="h-full" />
+          </div>
         </div>
 
         <PlayerModal
