@@ -122,7 +122,7 @@ describe("registerMobileRewardedScoutBoostRoutes", () => {
         getUser: vi.fn().mockResolvedValue({
           id: "user-premium",
           isPremium: true,
-          premiumExpiresAt: new Date("2026-04-15T00:00:00.000Z"),
+          premiumExpiresAt: new Date("2099-04-15T00:00:00.000Z"),
         }),
         updateUserPremiumStatus: vi.fn(),
         getActiveRewardedScoutBoostForUser: vi.fn().mockResolvedValue(undefined),
