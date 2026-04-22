@@ -2,27 +2,18 @@ import { useQuery } from "@tanstack/react-query";
 import { Activity } from "lucide-react";
 import { useSport } from "@/lib/sport-context";
 import { LivePriceTicker } from "@/components/ui/animated-price";
-
-interface MarketActivity {
-  id: string;
-  activityType: "trade";
-  price: string | null;
-  currentPrice: string; // Enriched from backend - current AMM pool price
-  playerId: string;
-  playerFirstName: string;
-  playerLastName: string;
-  priceChange24h: string; // From enriched backend
-}
+import type { MarketActivityFeedItem, MarketActivityFeedResponse } from "@shared/market-activity";
 
 export function MarketTicker() {
   const { sport } = useSport();
 
-  const { data: activity } = useQuery<MarketActivity[]>({
+  const { data: activity } = useQuery<MarketActivityFeedItem[]>({
     queryKey: ["/api/market/activity", sport],
     queryFn: async () => {
       const res = await fetch(`/api/market/activity?sport=${sport}&limit=30`); // Queue up last 30
       if (!res.ok) throw new Error("Failed to fetch market activity");
-      return res.json();
+      const payload = (await res.json()) as MarketActivityFeedResponse;
+      return payload.activities;
     },
     staleTime: Infinity, // Keep data forever once fetched
   });
@@ -32,11 +23,10 @@ export function MarketTicker() {
   // Transform to ticker items
   const tickerItems = activity
     .map((item) => {
-      const displayPrice = item.currentPrice ? parseFloat(item.currentPrice) : 0;
       return {
         symbol: `${item.playerFirstName?.charAt(0) || ""}. ${item.playerLastName || "Unknown"}`,
-        price: displayPrice,
-        change: parseFloat(item.priceChange24h || "0"), // Use 24h change
+        price: item.currentPrice || 0,
+        change: item.priceChange24h || 0,
         link: `/player/${item.playerId}`,
       };
     })
