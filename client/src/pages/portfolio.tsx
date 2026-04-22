@@ -335,7 +335,8 @@ export default function Portfolio() {
     const priceMap = new Map<string, number>();
     for (const point of benchmarkRaw[benchmarkPlayerId]) {
       const day = point.date.split("T")[0];
-      // keep the latest price for each day
+      // price_history rows are ordered by timestamp ascending; later points for the same
+      // calendar day overwrite earlier ones, so we end up with the last recorded price per day
       priceMap.set(day, point.price);
     }
     return history.map((pt) => ({

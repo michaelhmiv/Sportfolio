@@ -130,7 +130,7 @@ async function finalizeBoostWithoutStats(input: {
     },
   });
 
-  const stalePlayer = await storage.getPlayer(input.boost.playerId);
+  const player = await storage.getPlayer(input.boost.playerId);
   broadcast({
     type: "boost_settled",
     userId: input.boost.userId,
@@ -141,9 +141,9 @@ async function finalizeBoostWithoutStats(input: {
     slotTier: input.boost.slotTier,
     shareMultiplier: parseFloat(input.boost.shareMultiplier ?? "1"),
     sharesBurned: input.boost.sharesEntered,
-    playerFirstName: stalePlayer?.firstName ?? "",
-    playerLastName: stalePlayer?.lastName ?? "",
-    playerTeam: stalePlayer?.team ?? "",
+    playerFirstName: player?.firstName ?? "",
+    playerLastName: player?.lastName ?? "",
+    playerTeam: player?.team ?? "",
   });
 }
 
@@ -348,7 +348,7 @@ export async function settleBoosts(progressCallback?: ProgressCallback): Promise
         });
 
         // Broadcast settlement to user
-        const settledPlayer = await storage.getPlayer(boost.playerId);
+        const player = await storage.getPlayer(boost.playerId);
         broadcast({
           type: "boost_settled",
           userId: boost.userId,
@@ -359,9 +359,9 @@ export async function settleBoosts(progressCallback?: ProgressCallback): Promise
           slotTier: boost.slotTier,
           shareMultiplier: parseFloat(boost.shareMultiplier?.toString() ?? "1"),
           sharesBurned: boost.sharesEntered,
-          playerFirstName: settledPlayer?.firstName ?? "",
-          playerLastName: settledPlayer?.lastName ?? "",
-          playerTeam: settledPlayer?.team ?? "",
+          playerFirstName: player?.firstName ?? "",
+          playerLastName: player?.lastName ?? "",
+          playerTeam: player?.team ?? "",
         });
       } catch (boostError: any) {
         console.error(`[settle_boosts] Error settling boost ${boost.id}:`, boostError.message);
@@ -496,7 +496,7 @@ export async function settleBoosts(progressCallback?: ProgressCallback): Promise
             });
 
             // Broadcast settlement to user
-            const retryPlayer = await storage.getPlayer(boost.playerId);
+            const player = await storage.getPlayer(boost.playerId);
             broadcast({
               type: "boost_settled",
               userId: boost.userId,
@@ -507,9 +507,9 @@ export async function settleBoosts(progressCallback?: ProgressCallback): Promise
               slotTier: boost.slotTier,
               shareMultiplier: parseFloat(boost.shareMultiplier?.toString() ?? "1"),
               sharesBurned: boost.sharesEntered,
-              playerFirstName: retryPlayer?.firstName ?? "",
-              playerLastName: retryPlayer?.lastName ?? "",
-              playerTeam: retryPlayer?.team ?? "",
+              playerFirstName: player?.firstName ?? "",
+              playerLastName: player?.lastName ?? "",
+              playerTeam: player?.team ?? "",
             });
           } catch (retryError: any) {
             console.error(`[settle_boosts] Retry error for boost ${boost.id}:`, retryError.message);

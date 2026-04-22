@@ -41,7 +41,7 @@ export function useBoostSettleCeremony() {
     const playerLastName = payload.playerLastName?.trim() ?? "";
     const playerName = [playerFirstName, playerLastName].filter(Boolean).join(" ");
 
-    // Only show the overlay if we have enough data
+    // Skip ceremony if missing both player name and payout amount
     if (!playerName && !payload.payout) return;
 
     setState({
