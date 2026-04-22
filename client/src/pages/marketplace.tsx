@@ -20,7 +20,11 @@ import {
   X,
   Activity,
   ShoppingCart,
+  Radio,
+  Flame,
+  Users,
 } from "lucide-react";
+import { AnimatedPrice } from "@/components/ui/animated-price";
 import { useWebSocket } from "@/lib/websocket";
 import { queryClient } from "@/lib/queryClient";
 import type { Player } from "@shared/schema";
@@ -687,10 +691,27 @@ export default function PlayerPools() {
                             </tr>
                           </thead>
                           <tbody>
-                            {players.map((player) => (
+                            {players.map((player) => {
+                              const change24h = parseFloat(player.priceChange24h || "0");
+                              const isLive = player.gameStatus === "live";
+                              const hasBuyPressure =
+                                (player.buyPressure ?? 0) >= 60;
+                              const hasCommunityBoost =
+                                (player.communityBoostCount ?? 0) > 0;
+                              const rowBorderClass =
+                                change24h > 0
+                                  ? "border-l-2 border-l-emerald-500/50"
+                                  : change24h < 0
+                                    ? "border-l-2 border-l-red-500/40"
+                                    : "";
+                              return (
                               <tr
                                 key={player.id}
-                                className="border-b border-border hover:bg-muted/20"
+                                className={cn(
+                                  "border-b border-border hover:bg-muted/20 transition-colors",
+                                  rowBorderClass,
+                                  isLive && "bg-emerald-500/[0.03]",
+                                )}
                               >
                                 <td className="p-3">
                                   <button
@@ -718,8 +739,31 @@ export default function PlayerPools() {
                                       <div className="font-mono text-[11px] text-muted-foreground">
                                         {player.team} • {player.position}
                                       </div>
-                                      {player.isProbableStarter || player.mlbMatchupChip ? (
+                                      {/* Market signal chips */}
+                                      {(isLive ||
+                                        hasBuyPressure ||
+                                        hasCommunityBoost ||
+                                        player.isProbableStarter ||
+                                        player.mlbMatchupChip) ? (
                                         <div className="mt-1 flex flex-wrap gap-1">
+                                          {isLive && (
+                                            <span className="inline-flex items-center gap-0.5 rounded-sm border border-emerald-500/40 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-500">
+                                              <Radio className="w-2.5 h-2.5" />
+                                              Live
+                                            </span>
+                                          )}
+                                          {hasBuyPressure && (
+                                            <span className="inline-flex items-center gap-0.5 rounded-sm border border-orange-500/30 bg-orange-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-orange-500">
+                                              <Flame className="w-2.5 h-2.5" />
+                                              Buy
+                                            </span>
+                                          )}
+                                          {hasCommunityBoost && (
+                                            <span className="inline-flex items-center gap-0.5 rounded-sm border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-500">
+                                              <Users className="w-2.5 h-2.5" />
+                                              {player.communityBoostCount}x
+                                            </span>
+                                          )}
                                           {player.isProbableStarter ? (
                                             <MlbProbableBadge compact />
                                           ) : null}
@@ -737,9 +781,11 @@ export default function PlayerPools() {
                                   </button>
                                 </td>
                                 <td className="p-3 text-right">
-                                  <div className="font-mono font-medium">
-                                    ${player.currentPrice || "0.00"}
-                                  </div>
+                                  <AnimatedPrice
+                                    value={parseFloat(player.currentPrice?.toString() || "0")}
+                                    size="sm"
+                                    className="font-mono font-medium justify-end"
+                                  />
                                 </td>
                                 <td className="p-3 text-right text-sm text-muted-foreground">
                                   {player.volume24h?.toLocaleString() || 0}
@@ -748,13 +794,13 @@ export default function PlayerPools() {
                                   <div
                                     className={cn(
                                       "font-mono text-sm",
-                                      parseFloat(player.priceChange24h || "0") >= 0
+                                      change24h >= 0
                                         ? "text-positive"
                                         : "text-negative",
                                     )}
                                   >
-                                    {parseFloat(player.priceChange24h || "0") >= 0 ? "+" : ""}
-                                    {parseFloat(player.priceChange24h || "0").toFixed(2)}%
+                                    {change24h >= 0 ? "+" : ""}
+                                    {change24h.toFixed(2)}%
                                   </div>
                                 </td>
                                 <td className="p-3 text-right text-sm text-muted-foreground hidden lg:table-cell">
@@ -779,7 +825,8 @@ export default function PlayerPools() {
                                   </Button>
                                 </td>
                               </tr>
-                            ))}
+                              );
+                            })}
                           </tbody>
                         </table>
                       </div>
