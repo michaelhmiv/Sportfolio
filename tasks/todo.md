@@ -1,3 +1,10 @@
+## 2026-04-22 Worktree Helper + PR Merge Train
+
+- [x] Add a safe `worktree:close` helper and wire docs/scripts for the full worktree lifecycle
+- [x] Open a GitHub PR for the workflow toolkit changes
+- [x] Triage open GitHub PRs excluding `#120`, run validation for merge candidates, and merge safe ones
+- [x] Verify post-merge stability signals for GitHub CI and Railway-facing health checks
+
 ## 2026-04-08 PR #117 Review Comments + Merge Conflict Resolution
 
 - [x] Pull PR #117 review-thread context and identify unresolved actionable comments

@@ -12,6 +12,32 @@ npm run dev
 
 Default development URL: `http://127.0.0.1:5000`
 
+## Worktree + GitHub Flow
+
+Use this loop for isolated feature work and fast PR feedback:
+
+```bash
+# Create a branch worktree at .claude/worktrees/<name>
+npm run worktree:new -- market-card-refresh
+
+# Jump into that worktree and develop
+cd .claude/worktrees/market-card-refresh
+npm run dev
+
+# Check PR + CI status from any branch
+npm run gh:pr:status
+```
+
+Helper scripts:
+
+- `npm run worktree:new -- <name>`: create a new worktree + branch (`codex/<name>`) from `origin/main`
+- `npm run worktree:list`: list active worktrees
+- `npm run worktree:close -- <name>`: remove a worktree under `.claude/worktrees` safely (supports `--force` and `--delete-branch`)
+- `npm run worktree:prune`: prune stale worktree metadata
+- `npm run gh:pr:status`: show current branch PR and check status
+- `npm run gh:pr:create -- --base main --head <branch>`: create PR from current branch
+- `npm run gh:pr:checks -- <pr-number> --watch`: stream check updates
+
 ## Validation Commands
 
 ```bash
