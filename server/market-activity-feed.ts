@@ -14,6 +14,17 @@ import type { MobileMarketOverview, MobileMarketSignal } from "./market-mobile-o
 
 const WHALE_NOTIONAL_THRESHOLD = 5000;
 const THIN_POOL_TVL_THRESHOLD = 5000;
+const SCOUT_SIGNAL_THRESHOLD = 3;
+const MOMENTUM_SIGNAL_THRESHOLD_PCT = 8;
+const VALUE_SIGNAL_MAX_INDEX = 12;
+const ACTIVITY_SCORE_PRICE_CHANGE_WEIGHT = 1.5;
+const ACTIVITY_SCORE_NOTIONAL_WEIGHT = 12;
+const ACTIVITY_SCORE_PRESSURE_DIVISOR = 10;
+const ACTIVITY_SCORE_SCOUT_WEIGHT = 3;
+const ACTIVITY_SCORE_BOOST_WEIGHT = 2;
+const ACTIVITY_SCORE_WHALE_BONUS = 20;
+const ACTIVITY_SCORE_LIVE_BONUS = 6;
+// Prefer the most decision-useful market label when one trade qualifies for multiple tags.
 const PRIMARY_SIGNAL_PRIORITY: MarketActivitySignalTag[] = [
   "whale",
   "momentum",
@@ -181,6 +192,8 @@ function toHighlight(
 }
 
 export function getMarketActivitySourceFetchWindow(limit: number, offset: number) {
+  // Pull a larger recent-trade window than the rendered page so post-query filtering/sorting
+  // still has enough rows to build highlights and paginate without starving the ledger.
   return Math.min(Math.max(limit + offset + 60, 120), 400);
 }
 
@@ -231,16 +244,16 @@ export function buildMarketActivityFeed({
     if (gameState === "live") {
       signalTags.add("live");
     }
-    if ((signal?.globalScoutCount || 0) >= 3) {
+    if ((signal?.globalScoutCount || 0) >= SCOUT_SIGNAL_THRESHOLD) {
       signalTags.add("scout");
     }
     if ((signal?.communityBoostCount || 0) > 0) {
       signalTags.add("boost");
     }
-    if (Math.abs(signal?.priceChange24h || 0) >= 8) {
+    if (Math.abs(signal?.priceChange24h || 0) >= MOMENTUM_SIGNAL_THRESHOLD_PCT) {
       signalTags.add("momentum");
     }
-    if ((signal?.valueIndex || 0) > 0 && (signal?.valueIndex || 0) <= 12) {
+    if ((signal?.valueIndex || 0) > 0 && (signal?.valueIndex || 0) <= VALUE_SIGNAL_MAX_INDEX) {
       signalTags.add("value");
     }
 
@@ -248,13 +261,13 @@ export function buildMarketActivityFeed({
     const primarySignal = getPrimarySignal(tags);
     const spotMovePct = price > 0 ? roundToTwo(((currentPrice - price) / price) * 100) : 0;
     const activityScore = roundToTwo(
-      Math.abs(signal?.priceChange24h || 0) * 1.5 +
-        Math.log10(Math.max(notional, 1)) * 12 +
-        (signal?.buyPressure || 50) / 10 +
-        (signal?.globalScoutCount || 0) * 3 +
-        (signal?.communityBoostCount || 0) * 2 +
-        (isWhale ? 20 : 0) +
-        (gameState === "live" ? 6 : 0),
+      Math.abs(signal?.priceChange24h || 0) * ACTIVITY_SCORE_PRICE_CHANGE_WEIGHT +
+        Math.log10(Math.max(notional, 1)) * ACTIVITY_SCORE_NOTIONAL_WEIGHT +
+        (signal?.buyPressure || 50) / ACTIVITY_SCORE_PRESSURE_DIVISOR +
+        (signal?.globalScoutCount || 0) * ACTIVITY_SCORE_SCOUT_WEIGHT +
+        (signal?.communityBoostCount || 0) * ACTIVITY_SCORE_BOOST_WEIGHT +
+        (isWhale ? ACTIVITY_SCORE_WHALE_BONUS : 0) +
+        (gameState === "live" ? ACTIVITY_SCORE_LIVE_BONUS : 0),
     );
 
     const note =

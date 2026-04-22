@@ -5120,6 +5120,8 @@ ${items}
             ? playerSearch.trim()
             : "";
       const normalizedSport = typeof sport === "string" && sport.trim().length > 0 ? sport : "ALL";
+      // Fetch deeper than the visible page so server-side filtering/sorting can still return
+      // a full ledger page plus summary/highlight context from recent site-wide activity.
       const fetchWindow = getMarketActivitySourceFetchWindow(safeLimit, safeOffset);
       const normalizedSide: MarketActivitySideFilter =
         typeof side === "string" && ["buy", "sell", "peer", "all"].includes(side)

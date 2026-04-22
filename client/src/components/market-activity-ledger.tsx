@@ -34,7 +34,9 @@ import {
   type MarketActivitySort,
 } from "@shared/market-activity";
 
+// Keep one fetch large enough for dense scanning while staying light on mobile.
 const PAGE_SIZE = 40;
+const HIGHLIGHT_ITEM_LIMIT = 4;
 
 const SIGNAL_LABELS: Record<MarketActivitySignalTag, string> = {
   whale: "Whales",
@@ -180,7 +182,7 @@ function HighlightStrip({
         {items.length === 0 ? (
           <div className="px-3 py-4 text-xs text-muted-foreground">No signals right now.</div>
         ) : (
-          items.slice(0, 4).map((item) => (
+          items.slice(0, HIGHLIGHT_ITEM_LIMIT).map((item) => (
             <Link
               key={`${title}-${item.playerId}`}
               href={item.href}
