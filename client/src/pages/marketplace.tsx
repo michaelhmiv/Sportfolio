@@ -26,7 +26,7 @@ import { queryClient } from "@/lib/queryClient";
 import type { Player } from "@shared/schema";
 import { PlayerName } from "@/components/player-name";
 import { SportSelector } from "@/components/sport-selector";
-import { MarketActivityWidget } from "@/components/market-activity-widget";
+import { MarketActivityLedger } from "@/components/market-activity-ledger";
 import { MlbProbableBadge } from "@/components/mlb-probable-badge";
 import { MarketplaceScanners } from "@/components/marketplace-scanners";
 import { MarketMobilePoolsBoard } from "@/components/market-mobile-pools-board";
@@ -196,9 +196,9 @@ export default function PlayerPools() {
   const offset = (page - 1) * ITEMS_PER_PAGE;
   const playersPollingInterval = shouldPoll
     ? isMobile
-      ? 20000
+      ? 60000
       : activeTab === "players"
-        ? 10000
+        ? 60000
         : false
     : false;
 
@@ -421,38 +421,65 @@ export default function PlayerPools() {
           </div>
         </div>
 
-        <MarketMobilePoolsBoard
-          sport={sport}
-          players={players}
-          isLoading={isLoading}
-          search={search}
-          onSearchChange={setSearch}
-          teamFilter={teamFilter}
-          onTeamFilterChange={setTeamFilter}
-          positionFilter={positionFilter}
-          onPositionFilterChange={setPositionFilter}
-          sortField={sortField}
-          onSortFieldChange={setSortFieldFromSelector}
-          sortOrder={sortOrder}
-          onSortOrderChange={(value) => {
-            setSortOrder(value);
-            setPage(1);
-          }}
-          filterWatchlistId={filterWatchlistId}
-          onWatchlistFilterChange={setFilterWatchlistId}
-          watchlists={watchlists}
-          teams={teams}
-          positions={positions}
-          hasActiveFilters={hasActiveFilters}
-          showFilters={showFilters}
-          onShowFiltersChange={setShowFilters}
-          onClearFilters={clearAllFilters}
-          totalPlayers={totalPlayers}
-          page={page}
-          totalPages={totalPages}
-          onPageChange={setPage}
-          onOpenPlayer={openMobileSheet}
-        />
+        <div className="space-y-3 md:hidden">
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              variant={activeTab === "players" ? "default" : "outline"}
+              size="sm"
+              className="gap-2"
+              onClick={() => setActiveTab("players")}
+            >
+              <Activity className="h-4 w-4" />
+              Players
+            </Button>
+            <Button
+              variant={activeTab === "activity" ? "default" : "outline"}
+              size="sm"
+              className="gap-2"
+              onClick={() => setActiveTab("activity")}
+            >
+              <TrendingUp className="h-4 w-4" />
+              Activity
+            </Button>
+          </div>
+
+          {activeTab === "activity" ? (
+            <MarketActivityLedger sport={sport} />
+          ) : (
+            <MarketMobilePoolsBoard
+              sport={sport}
+              players={players}
+              isLoading={isLoading}
+              search={search}
+              onSearchChange={setSearch}
+              teamFilter={teamFilter}
+              onTeamFilterChange={setTeamFilter}
+              positionFilter={positionFilter}
+              onPositionFilterChange={setPositionFilter}
+              sortField={sortField}
+              onSortFieldChange={setSortFieldFromSelector}
+              sortOrder={sortOrder}
+              onSortOrderChange={(value) => {
+                setSortOrder(value);
+                setPage(1);
+              }}
+              filterWatchlistId={filterWatchlistId}
+              onWatchlistFilterChange={setFilterWatchlistId}
+              watchlists={watchlists}
+              teams={teams}
+              positions={positions}
+              hasActiveFilters={hasActiveFilters}
+              showFilters={showFilters}
+              onShowFiltersChange={setShowFilters}
+              onClearFilters={clearAllFilters}
+              totalPlayers={totalPlayers}
+              page={page}
+              totalPages={totalPages}
+              onPageChange={setPage}
+              onOpenPlayer={openMobileSheet}
+            />
+          )}
+        </div>
 
         <div className="hidden md:block">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
@@ -883,7 +910,7 @@ export default function PlayerPools() {
             </TabsContent>
 
             <TabsContent value="activity">
-              <MarketActivityWidget sport={sport} />
+              <MarketActivityLedger sport={sport} />
             </TabsContent>
           </Tabs>
         </div>

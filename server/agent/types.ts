@@ -424,6 +424,48 @@ export interface AgentToolTrace {
   details?: Record<string, unknown> | null;
 }
 
+export type HermesTurnBudgetProfile = "default" | "aggressive_safe";
+
+export type AgentTurnProgressEventType =
+  | "stream_connected"
+  | "turn_started"
+  | "model_pass_started"
+  | "model_pass_completed"
+  | "tool_call_started"
+  | "tool_call_completed"
+  | "tool_call_failed"
+  | "repair_retry"
+  | "turn_completed"
+  | "turn_failed";
+
+export interface AgentTurnProgressUpdate {
+  eventType: AgentTurnProgressEventType;
+  status: "queued" | "running" | "done" | "failed" | "info";
+  summary: string;
+  phase?: AgentToolTrace["phase"];
+  toolName?: string | null;
+  passIndex?: number;
+  elapsedMs?: number | null;
+  details?: Record<string, unknown> | null;
+}
+
+export interface AgentTurnProgressEvent extends AgentTurnProgressUpdate {
+  turnId: string;
+  threadId: string;
+  timestamp: string;
+}
+
+export type AgentTurnProgressCallback = (event: AgentTurnProgressUpdate) => void;
+
+export interface HermesTurnUsageMetrics {
+  modelPassCount: number;
+  nonPlanningToolCallCount: number;
+  maxModelPasses: number;
+  maxToolCalls: number;
+  budgetProfile: HermesTurnBudgetProfile;
+  finalUsage: AgentModelUsage | null;
+}
+
 export interface AgentConfirmationPreview {
   actionSummary: string;
   beforeState: Record<string, unknown>;
@@ -725,6 +767,7 @@ export interface HermesRespondRequest {
   strategyContext?: HermesStrategyContext | null;
   triggerContext?: HermesTriggerContext | null;
   executionContext?: HermesExecutionContext | null;
+  turnBudgetProfile?: HermesTurnBudgetProfile;
 }
 
 export interface HermesRespondResult {
@@ -751,6 +794,7 @@ export interface HermesRespondResult {
   confirmationPreview: AgentConfirmationPreview | null;
   uiBlocks?: AgentUiBlock[];
   runtimeMetadata?: HermesRuntimeMetadata | null;
+  usageMetrics?: HermesTurnUsageMetrics | null;
 }
 
 export interface HermesRuntimeTurnInput {
@@ -782,6 +826,8 @@ export interface HermesRuntimeTurnInput {
   strategyContext?: HermesStrategyContext | null;
   triggerContext?: HermesTriggerContext | null;
   executionContext?: HermesExecutionContext | null;
+  turnBudgetProfile?: HermesTurnBudgetProfile;
+  onTurnEvent?: AgentTurnProgressCallback;
 }
 
 export interface ScoutProposalAction {
@@ -1024,6 +1070,7 @@ export interface AgentAnalysisResult {
   confirmationPreview?: AgentConfirmationPreview | null;
   uiBlocks?: AgentUiBlock[];
   runtimeMetadata?: HermesRuntimeMetadata | null;
+  usageMetrics?: HermesTurnUsageMetrics | null;
   errorMessage?: string | null;
 }
 

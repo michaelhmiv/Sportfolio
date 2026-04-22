@@ -59,6 +59,23 @@ const hermesResponseSchema = z.object({
     .nullable()
     .optional(),
   memoryInfluences: z.array(z.string()).optional(),
+  usageMetrics: z
+    .object({
+      modelPassCount: z.number().int().min(0),
+      nonPlanningToolCallCount: z.number().int().min(0),
+      maxModelPasses: z.number().int().min(1),
+      maxToolCalls: z.number().int().min(1),
+      budgetProfile: z.enum(["default", "aggressive_safe"]),
+      finalUsage: z
+        .object({
+          promptTokens: z.number().int().min(0),
+          completionTokens: z.number().int().min(0),
+          totalTokens: z.number().int().min(0),
+        })
+        .nullable(),
+    })
+    .nullable()
+    .optional(),
   requiresConfirmation: z.boolean().optional(),
   confirmationPreview: z.record(z.unknown()).nullable().optional(),
   uiBlocks: z.array(z.record(z.unknown())).optional(),
@@ -104,6 +121,7 @@ export function normalizeHermesTurnResponse(payload: unknown): HermesRespondResu
     memoryInfluences: Array.isArray(parsed.memoryInfluences)
       ? parsed.memoryInfluences.filter((entry): entry is string => typeof entry === "string")
       : [],
+    usageMetrics: parsed.usageMetrics || null,
     requiresConfirmation: Boolean(parsed.requiresConfirmation),
     confirmationPreview: (parsed.confirmationPreview ||
       null) as HermesRespondResult["confirmationPreview"],
@@ -127,6 +145,7 @@ export async function runHermesAgentTurn(
       secret: input.secret,
       context: input.context,
       request: requestPayload,
+      onTurnEvent: input.onTurnEvent,
     });
     const normalized = normalizeHermesTurnResponse({
       ...localResult,

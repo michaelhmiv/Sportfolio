@@ -11,22 +11,7 @@ import { PlayerName } from "@/components/player-name";
 import { UserName } from "@/components/user-name";
 import { AnimatedList } from "@/components/ui/animated-list";
 import { useAppState } from "@/hooks/use-app-state";
-
-interface MarketActivity {
-  activityType: "trade";
-  id: string;
-  playerId: string;
-  playerFirstName: string;
-  playerLastName: string;
-  playerTeam: string;
-  buyerId: string | null;
-  buyerUsername: string | null;
-  sellerId: string | null;
-  sellerUsername: string | null;
-  quantity: number;
-  price: string | null;
-  timestamp: string;
-}
+import type { MarketActivityFeedItem, MarketActivityFeedResponse } from "@shared/market-activity";
 
 interface MarketActivityWidgetProps {
   sport?: string;
@@ -43,9 +28,9 @@ export function MarketActivityWidget({
 }: MarketActivityWidgetProps = {}) {
   const { subscribe } = useWebSocket();
   const { shouldPoll, isMobile } = useAppState();
-  const pollingInterval = shouldPoll ? (isMobile ? 20000 : 10000) : false;
+  const pollingInterval = shouldPoll ? 60000 : false;
 
-  const { data: activity = [], isLoading } = useQuery<MarketActivity[]>({
+  const { data: activity = [], isLoading } = useQuery<MarketActivityFeedItem[]>({
     queryKey: ["/api/market/activity", sport || "ALL", limit],
     queryFn: async () => {
       const params = new URLSearchParams();
@@ -56,7 +41,8 @@ export function MarketActivityWidget({
 
       const response = await fetch(`/api/market/activity?${params.toString()}`);
       if (!response.ok) throw new Error("Failed to fetch market activity");
-      return response.json();
+      const payload = (await response.json()) as MarketActivityFeedResponse;
+      return payload.activities;
     },
     refetchInterval: pollingInterval,
     refetchIntervalInBackground: false,
@@ -71,11 +57,11 @@ export function MarketActivityWidget({
     return unsubscribe;
   }, [subscribe]);
 
-  const getActivityIcon = (item: MarketActivity) => {
+  const getActivityIcon = (item: MarketActivityFeedItem) => {
     return <span className="text-blue-500 font-bold text-lg">▲</span>;
   };
 
-  const getActivityText = (item: MarketActivity) => {
+  const getActivityText = (item: MarketActivityFeedItem) => {
     return (
       <div className="flex items-center gap-2 flex-wrap">
         <span className="text-muted-foreground text-xs">Trade:</span>
@@ -156,7 +142,7 @@ export function MarketActivityWidget({
                   </div>
                   <div className="text-right flex-shrink-0 ml-3">
                     <div className="font-mono font-bold text-sm">
-                      {item.price ? `$${item.price}` : "-"}
+                      {item.price ? `$${item.price.toFixed(2)}` : "-"}
                     </div>
                     <div className="text-xs text-muted-foreground">{item.quantity} shares</div>
                     <div className="text-xs text-muted-foreground">

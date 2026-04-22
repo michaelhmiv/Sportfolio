@@ -3,6 +3,14 @@ import { useLocation } from "wouter";
 import { getSupabase } from "@/lib/supabase";
 import { Loader2 } from "lucide-react";
 
+function normalizePostAuthRedirect(path: string | null): string | null {
+  if (!path || !path.startsWith("/") || path.startsWith("//")) {
+    return null;
+  }
+
+  return path;
+}
+
 export default function AuthCallback() {
   const [, navigate] = useLocation();
 
@@ -66,7 +74,19 @@ export default function AuthCallback() {
           return;
         }
 
-        navigate("/", { replace: true });
+        const queryRedirect = normalizePostAuthRedirect(queryParams.get("redirect"));
+        const storedRedirect = normalizePostAuthRedirect(
+          typeof window !== "undefined"
+            ? window.sessionStorage.getItem("auth_post_redirect")
+            : null,
+        );
+        const target = storedRedirect || queryRedirect || "/";
+
+        if (typeof window !== "undefined") {
+          window.sessionStorage.removeItem("auth_post_redirect");
+        }
+
+        navigate(target, { replace: true });
       } catch (error) {
         console.error("[AUTH_CALLBACK] Error:", error);
         const description =

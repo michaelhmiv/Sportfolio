@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { materializeAgentUiBlocks } from "./ui-blocks";
-import type { HermesRespondResult, HermesStrategyContext } from "./types";
+import { buildToolResultUiBlocks, materializeAgentUiBlocks } from "./ui-blocks";
+import type { AgentToolDefinition, HermesRespondResult, HermesStrategyContext } from "./types";
 
 function buildResult(overrides: Partial<HermesRespondResult> = {}): HermesRespondResult {
   return {
@@ -127,5 +127,93 @@ describe("materializeAgentUiBlocks", () => {
     expect(blocks).toHaveLength(1);
     expect(blocks[0]?.type).toBe("leaderboard_table");
     expect(blocks[0]?.slot).toBe("chat_inline");
+  });
+});
+
+describe("buildToolResultUiBlocks", () => {
+  it("builds a clickable entity table for ranked native player scans", () => {
+    const tool: AgentToolDefinition = {
+      toolName: "scan_top_market_opportunities",
+      category: "scan",
+      description: "Surface ranked market opportunities.",
+      whenToUse: ["Use when the user asks who to buy."],
+      whenNotToUse: [],
+      examplePrompts: ["who should i buy?"],
+      requiresConfirmation: false,
+      riskLevel: "low",
+      presentationProfile: "leaderboard",
+      primaryEntityType: "player",
+      preferredColumns: ["player", "team", "price", "signal"],
+    };
+
+    const blocks = buildToolResultUiBlocks({
+      tool,
+      conversationMode: "general_chat",
+      result: {
+        summary: "Surfaced 2 market-facing opportunity candidate(s).",
+        context: {
+          recommendedTargets: [
+            {
+              playerId: "player_1",
+              name: "Aaron Judge",
+              team: "NYY",
+              price: 71.25,
+              reason: "Power bat with strong matchup context.",
+            },
+            {
+              playerId: "player_2",
+              name: "Bobby Witt Jr.",
+              team: "KC",
+              price: 58.1,
+              reason: "Momentum and lineup support.",
+            },
+          ],
+        },
+      },
+    });
+
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0]?.type).toBe("entity_table");
+    expect(blocks[0]?.props.rows[0]?.cells.player?.entityId).toBe("player_1");
+    expect(blocks[0]?.props.rows[0]?.cells.price?.text).toContain("$");
+  });
+
+  it("builds a leaderboard table from internal MLB MCP leader rows", () => {
+    const tool: AgentToolDefinition = {
+      toolName: "mlb_mcp__get_league_leader_data",
+      category: "read",
+      description: "Read leaderboard data from the internal MLB provider.",
+      whenToUse: ["Use when the user asks for MLB leaders."],
+      whenNotToUse: [],
+      examplePrompts: ["show me MLB OBP leaders"],
+      requiresConfirmation: false,
+      riskLevel: "low",
+      presentationProfile: "leaderboard",
+      primaryEntityType: "player",
+      preferredColumns: ["rank", "player", "team", "value"],
+    };
+
+    const blocks = buildToolResultUiBlocks({
+      tool,
+      conversationMode: "general_chat",
+      result: {
+        summary: "Loaded MLB data via get_league_leader_data.",
+        context: {
+          structuredContent: {
+            result: {
+              leaders: [
+                [1, "Aaron Judge", "NYY", ".441"],
+                [2, "Juan Soto", "NYM", ".421"],
+              ],
+            },
+          },
+        },
+      },
+    });
+
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0]?.type).toBe("leaderboard_table");
+    expect(blocks[0]?.props.leaders[0]?.playerName).toBe("Aaron Judge");
+    expect(blocks[0]?.props.leaders[0]?.primaryValue).toBe(".441");
   });
 });

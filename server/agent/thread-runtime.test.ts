@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
       examplePrompts: ["Set up a daily review schedule."],
       requiresConfirmation: false,
       riskLevel: "low",
+      exposure: "advanced",
     },
     {
       toolName: "internal_diagnostic",
@@ -269,10 +270,10 @@ describe("thread-runtime", () => {
     expect(details.continuity).toMatchObject({
       headline: "Hermes has operator work waiting on you.",
     });
-    expect(details.capabilityGroups.map((group) => group.key)).toEqual(["read", "schedules"]);
+    expect(details.capabilityGroups.map((group) => group.key)).toEqual(["read"]);
     expect(
       details.capabilityGroups.flatMap((group) => group.tools).map((tool) => tool.toolName),
-    ).toEqual(["get_balance_state", "upsert_user_schedule"]);
+    ).toEqual(["get_balance_state"]);
     expect(details.isolation).toEqual({
       gameplayOnly: true,
       codebaseAccess: false,

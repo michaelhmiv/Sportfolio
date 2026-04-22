@@ -2,6 +2,8 @@ import { createContext, useContext, useState, useEffect, ReactNode, useCallback 
 import { useAuth } from "@/hooks/useAuth";
 import { authenticatedFetch } from "@/lib/queryClient";
 
+const IS_DEV = import.meta.env.DEV;
+
 interface NewsNotificationContextType {
   unreadNewsCount: number;
   unreadDigestCount: number;
@@ -43,11 +45,12 @@ export function NewsNotificationProvider({ children }: { children: ReactNode }) 
     if (!isAuthenticated) return;
 
     try {
-      console.log("[NewsNotification] Calling mark-read API...");
       const response = await authenticatedFetch("/api/news/mark-read", {
         method: "POST",
       });
-      console.log("[NewsNotification] mark-read response:", response.status, response.ok);
+      if (IS_DEV) {
+        console.log("[NewsNotification] mark-read response:", response.status, response.ok);
+      }
       if (response.ok) {
         setUnreadNewsCount(0);
         setUnreadDigestCount(0);

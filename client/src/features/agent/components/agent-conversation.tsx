@@ -26,6 +26,7 @@ import {
   getBundleStatusLabel,
   getPrimaryClarification,
 } from "../lib/agent-view";
+import { prepareAssistantMessageDisplay } from "../lib/message-format";
 import type {
   AgentAction,
   AgentActionBundle,
@@ -34,6 +35,7 @@ import type {
   AgentPendingClarification,
   AgentThreadMessage,
   AgentToolTrace,
+  AgentTurnProgressEvent,
 } from "../types";
 import { AgentUiBlockList } from "./agent-ui-blocks";
 
@@ -41,6 +43,7 @@ export interface PendingUserMessage {
   id: string;
   contentText: string;
   createdAt: string;
+  progressEvents?: AgentTurnProgressEvent[];
 }
 
 function extractPlayerIdFromHref(href?: string | null) {
@@ -576,6 +579,9 @@ function MessageBubble({
 }) {
   const [activePlayerId, setActivePlayerId] = useState<string | null>(null);
   const isRealMessage = "role" in message;
+  const pendingProgressEvents =
+    !isRealMessage && Array.isArray(message.progressEvents) ? message.progressEvents : [];
+  const pendingProgressTail = pendingProgressEvents.slice(-6);
   const inlineUiBlocks =
     isRealMessage && message.uiBlocks
       ? message.uiBlocks.filter(
@@ -588,6 +594,13 @@ function MessageBubble({
       : [];
   const isUser = isRealMessage ? message.role === "user" : true;
   const isError = isRealMessage && message.messageType === "error";
+  const assistantDisplay =
+    !isUser && isRealMessage
+      ? prepareAssistantMessageDisplay({
+          contentText: message.contentText,
+          uiBlocks: inlineUiBlocks,
+        })
+      : null;
 
   return (
     <div className={cn("flex w-full gap-3", isUser ? "justify-end" : "justify-start")}>
@@ -612,19 +625,62 @@ function MessageBubble({
           <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-blue-200/60">
             <User2 className="h-3 w-3" />
             You
-            {isPendingSend && <span className="text-blue-200/40">· Sending...</span>}
+            {isPendingSend && (
+              <span className="text-blue-200/40">
+                · {pendingProgressTail[pendingProgressTail.length - 1]?.summary || "Sending..."}
+              </span>
+            )}
           </div>
         )}
 
         {isUser ? (
           <div className="text-[13px] leading-6 whitespace-pre-wrap">{message.contentText}</div>
         ) : (
-          <div className="agent-markdown text-[13.5px] leading-7">
-            <AssistantMarkdown contentText={message.contentText} onOpenPlayer={setActivePlayerId} />
+          <>
+            {assistantDisplay?.beforeText ? (
+              <div className="agent-markdown text-[13.5px] leading-7">
+                <AssistantMarkdown
+                  contentText={assistantDisplay.beforeText}
+                  onOpenPlayer={setActivePlayerId}
+                />
+              </div>
+            ) : null}
+          </>
+        )}
+
+        {isPendingSend && pendingProgressTail.length > 0 && (
+          <div className="mt-2 space-y-1 rounded-lg border border-blue-400/20 bg-blue-500/5 px-3 py-2">
+            {pendingProgressTail.map((event, index) => (
+              <div
+                key={`${event.eventType}-${event.timestamp}-${index}`}
+                className="flex items-start gap-2 text-[11px] text-blue-100/75"
+              >
+                <span
+                  className={cn(
+                    "mt-0.5 inline-block h-1.5 w-1.5 rounded-full",
+                    event.status === "failed"
+                      ? "bg-red-300"
+                      : event.status === "done"
+                        ? "bg-emerald-300"
+                        : "bg-blue-300/80",
+                  )}
+                />
+                <span>{event.summary}</span>
+              </div>
+            ))}
           </div>
         )}
 
         {inlineUiBlocks.length > 0 && <AgentUiBlockList blocks={inlineUiBlocks} className="mt-3" />}
+
+        {!isUser && assistantDisplay?.afterText ? (
+          <div className="agent-markdown mt-3 text-[13.5px] leading-7">
+            <AssistantMarkdown
+              contentText={assistantDisplay.afterText}
+              onOpenPlayer={setActivePlayerId}
+            />
+          </div>
+        ) : null}
 
         {isRealMessage && message.citations && message.citations.length > 0 && (
           <CitationList citations={message.citations} />

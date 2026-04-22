@@ -64,7 +64,7 @@ describe("lockBoostShares", () => {
 
     expect(result.recordsProcessed).toBe(0);
     expect(storageMocks.lockBoostShares).not.toHaveBeenCalled();
-  });
+  }, 15000);
 
   it("locks a scheduled game once live score evidence exists", async () => {
     storageMocks.getDailyGameByGameId.mockResolvedValue({

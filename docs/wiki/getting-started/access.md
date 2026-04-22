@@ -1,16 +1,16 @@
 ---
 id: getting-started-access
 title: How to Access Sportfolio
-summary: The fastest way to reach Sportfolio from web, mobile, SMS, and CLI, plus the current status of external MCP-style access.
+summary: The fastest way to reach Sportfolio from web, mobile, CLI, and public MCP, plus how those access paths differ.
 audience: public
 category: getting-started
 status: published
 owner: product-engineering
-lastReviewedAt: 2026-03-08
+lastReviewedAt: 2026-04-02
 changeTriggers: client/src/App.tsx,client/src/components/bottom-nav.tsx,client/src/components/cli-access-card.tsx,client/src/pages/wiki.tsx,packages/sportfolio-cli,server/routes/docs.ts,server/routes/mcp.ts
 slug: access
 surface: web,cli,agent
-searchKeywords: access,how do i access sportfolio,mcp,model context protocol,cli,api token,sms,agent,wiki,mobile
+searchKeywords: access,how do i access sportfolio,mcp,model context protocol,cli,api token,agent,wiki,mobile
 ---
 
 # How to access Sportfolio
@@ -19,10 +19,10 @@ Sportfolio currently gives you four documented access paths:
 
 - **Web agent** at `/agent`
 - **Wiki and handbook** at `/wiki`
-- **SMS agent** after linking your phone number
 - **CLI** with a user-scoped API token
+- **Public MCP** at `/mcp`
 
-If you want help or product explanations, the fastest starting point is the wiki. If you want account-specific help, use the web agent or SMS after linking.
+If you want help or product explanations, the fastest starting point is the wiki. If you want account-specific conversational help, use the web agent. If you want protocol or terminal access, use MCP or the CLI.
 
 ## Web and mobile
 
@@ -65,12 +65,6 @@ node packages/sportfolio-cli/bin/sportfolio.mjs auth login --token <your-token>
 
 That gives you the same CLI command surface without requiring a published npm package.
 
-## SMS access
-
-SMS access starts from the profile phone-link flow or by texting from an unlinked number.
-
-Once linked, SMS can use the same user-scoped agent context as the web flow, but it still follows the same confirmation-first safety model.
-
 ## MCP status
 
 Sportfolio now exposes a public authenticated MCP endpoint at `/mcp`.
@@ -87,6 +81,10 @@ The public MCP v1 surface is intentionally scoped:
 - gameplay and account reads are included
 - docs resources and prompts are included
 - state-changing gameplay flows are staged first and still require explicit confirmation
-- billing, funding, bootstrap/token-management, SMS linking/settings, profile identity edits, agent settings/BYOK, and admin/internal routes are excluded
+- billing, funding, checkout, and admin or internal routes are excluded
 
 Read [MCP Access](/wiki/getting-started/mcp-access) for the exact endpoint contract, public surface, and exclusions.
+
+## Legacy SMS note
+
+Legacy SMS linking infrastructure may still exist in the product, but it is not part of the active primary Hermes contract.

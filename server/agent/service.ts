@@ -28,8 +28,10 @@ import {
   DEFAULT_PORTFOLIO_AGENT_SYSTEM_PROMPT,
   DEFAULT_PORTFOLIO_AGENT_USER_PROMPT_TEMPLATE,
   LEGACY_SCOUT_AGENT_DISPLAY_NAME,
-  LEGACY_SCOUT_AGENT_SYSTEM_PROMPT,
-  LEGACY_SCOUT_AGENT_USER_PROMPT_TEMPLATE,
+  LEGACY_PORTFOLIO_AGENT_SYSTEM_PROMPT_V1,
+  LEGACY_PORTFOLIO_AGENT_USER_PROMPT_TEMPLATE_V1,
+  isLegacyScoutAgentSystemPrompt,
+  isLegacyScoutAgentUserPromptTemplate,
 } from "./profile-defaults";
 import { getInternalMlbMcpToolCatalog } from "./internal-mlb-mcp";
 import { getManagedProviderStatus } from "./provider-registry";
@@ -42,10 +44,12 @@ import type {
   AgentCapabilitiesView,
   AgentImprovementCandidate,
   AgentProfileView,
+  AgentTurnProgressCallback,
   AgentSecretMetadata,
   AgentSemanticRoute,
   AgentToolTrace,
   HermesRespondResult,
+  HermesTurnBudgetProfile,
   ManagedProviderStatus,
   ScoutProposalAction,
 } from "./types";
@@ -161,6 +165,11 @@ type AgentRunOutcomeCategory =
   | "research_only"
   | "failed";
 
+interface AnalyzeScoutAgentRuntimeOptions {
+  turnBudgetProfile?: HermesTurnBudgetProfile;
+  onTurnEvent?: AgentTurnProgressCallback;
+}
+
 function toSecretMetadata(secret?: UserAgentSecret): AgentSecretMetadata {
   return {
     configured: Boolean(secret),
@@ -176,11 +185,19 @@ function normalizeLegacyPortfolioDefaults(profile: UserAgentProfile) {
     updates.displayName = DEFAULT_PORTFOLIO_AGENT_DISPLAY_NAME;
   }
 
-  if (profile.systemPrompt === LEGACY_SCOUT_AGENT_SYSTEM_PROMPT) {
+  if (isLegacyScoutAgentSystemPrompt(profile.systemPrompt)) {
     updates.systemPrompt = DEFAULT_PORTFOLIO_AGENT_SYSTEM_PROMPT;
   }
 
-  if (profile.userPromptTemplate === LEGACY_SCOUT_AGENT_USER_PROMPT_TEMPLATE) {
+  if (profile.systemPrompt === LEGACY_PORTFOLIO_AGENT_SYSTEM_PROMPT_V1) {
+    updates.systemPrompt = DEFAULT_PORTFOLIO_AGENT_SYSTEM_PROMPT;
+  }
+
+  if (isLegacyScoutAgentUserPromptTemplate(profile.userPromptTemplate)) {
+    updates.userPromptTemplate = DEFAULT_PORTFOLIO_AGENT_USER_PROMPT_TEMPLATE;
+  }
+
+  if (profile.userPromptTemplate === LEGACY_PORTFOLIO_AGENT_USER_PROMPT_TEMPLATE_V1) {
     updates.userPromptTemplate = DEFAULT_PORTFOLIO_AGENT_USER_PROMPT_TEMPLATE;
   }
 
@@ -747,6 +764,7 @@ export const clearPortfolioAgentByok = clearScoutAgentByok;
 export async function analyzeScoutAgent(
   userId: string,
   input: unknown = {},
+  runtimeOptions: AnalyzeScoutAgentRuntimeOptions = {},
 ): Promise<AgentAnalysisResult> {
   const data = analyzeScoutAgentInputSchema.parse(input);
   await expireStalePendingRuns(userId);
@@ -903,6 +921,8 @@ export async function analyzeScoutAgent(
       strategyContext: data.strategyContext || null,
       triggerContext: effectiveTriggerContext,
       executionContext: effectiveExecutionContext,
+      turnBudgetProfile: runtimeOptions.turnBudgetProfile,
+      onTurnEvent: runtimeOptions.onTurnEvent,
     });
     const uiBlocks = materializeAgentUiBlocks({
       result: hermesResult,
@@ -1015,6 +1035,7 @@ export async function analyzeScoutAgent(
             confirmationPreview: hermesResult.confirmationPreview,
             uiBlocks,
             runtimeMetadata: hermesResult.runtimeMetadata || null,
+            usageMetrics: hermesResult.usageMetrics || null,
             outcomeCategory,
             failureClass: improvementCandidateRecord?.failureClass || null,
             improvementCandidateId: improvementCandidateRecord?.id || null,
@@ -1046,6 +1067,7 @@ export async function analyzeScoutAgent(
       confirmationPreview: hermesResult.confirmationPreview,
       uiBlocks,
       runtimeMetadata: hermesResult.runtimeMetadata || null,
+      usageMetrics: hermesResult.usageMetrics || null,
       errorMessage: hermesResult.outcome === "error" ? hermesResult.assistantText : null,
     };
   } catch (error: any) {

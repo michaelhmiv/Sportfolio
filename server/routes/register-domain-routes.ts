@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { registerAmmRoutes } from "./amm";
 import { registerCliRoutes } from "./cli";
+import { registerDiscordRoutes } from "./discord";
 import { registerDocsRoutes } from "./docs";
 import { registerInternalAgentToolRoutes } from "./internal-agent-tools";
 import { registerLpRoutes } from "./lp";
@@ -17,6 +18,7 @@ export function registerDomainRoutes(app: Express) {
   registerLpRoutes(app);
   registerDocsRoutes(app);
   registerCliRoutes(app);
+  registerDiscordRoutes(app);
   registerSmsRoutes(app);
   registerRedditBotRoutes(app);
   registerInternalAgentToolRoutes(app);

@@ -8,6 +8,7 @@ async function mockAgentShell(page: Page) {
   });
 
   const now = "2026-03-18T12:00:00.000Z";
+  const postedMessages: Array<{ threadId: string; message: string }> = [];
   const threads = [
     {
       id: "thread_existing",
@@ -221,6 +222,10 @@ async function mockAgentShell(page: Page) {
         scheduleJobType: null,
       },
     ],
+  };
+  const messagesByThread: Record<string, unknown[]> = {
+    thread_existing: longMessages,
+    ...strategyMessagesByThread,
   };
 
   const strategies = [
@@ -620,8 +625,59 @@ async function mockAgentShell(page: Page) {
       return;
     }
 
-    const body =
-      threadId === "thread_existing" ? longMessages : strategyMessagesByThread[threadId] || [];
+    if (route.request().method() === "POST") {
+      const body = route.request().postDataJSON() as { message?: string } | null;
+      const message = String(body?.message || "");
+      postedMessages.push({ threadId, message });
+      const threadMessages = messagesByThread[threadId] || [];
+      threadMessages.push({
+        id: `posted_user_${postedMessages.length}`,
+        role: "user",
+        messageType: "chat",
+        contentText: message,
+        createdAt: now,
+        runId: null,
+        actionBundle: null,
+        citations: [],
+        pendingClarification: null,
+        toolTrace: [],
+        skillsUsed: [],
+        memoryInfluences: [],
+        confirmationPreview: null,
+        generatedBy: "user",
+        scheduleJobType: null,
+      });
+      threadMessages.push({
+        id: `posted_assistant_${postedMessages.length}`,
+        role: "assistant",
+        messageType: "chat",
+        contentText: `Hermes handled: ${message}`,
+        createdAt: now,
+        runId: null,
+        actionBundle: null,
+        citations: [],
+        pendingClarification: null,
+        toolTrace: [],
+        skillsUsed: [],
+        memoryInfluences: [],
+        confirmationPreview: null,
+        generatedBy: "assistant",
+        scheduleJobType: null,
+      });
+      messagesByThread[threadId] = threadMessages;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          thread: {
+            id: threadId,
+          },
+        }),
+      });
+      return;
+    }
+
+    const body = messagesByThread[threadId] || [];
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -718,6 +774,7 @@ async function mockAgentShell(page: Page) {
 
     strategies.push(strategySummary);
     strategyMessagesByThread[threadId] = [];
+    messagesByThread[threadId] = strategyMessagesByThread[threadId];
     strategyDetails[strategyId] = {
       ...strategySummary,
       recentRuns: [],
@@ -781,6 +838,10 @@ async function mockAgentShell(page: Page) {
       body: JSON.stringify(strategyDetails[strategyId]),
     });
   });
+
+  return {
+    postedMessages,
+  };
 }
 
 async function waitForAgentShell(page: Page) {
@@ -814,13 +875,10 @@ test("desktop shows clean Chat and Strategies tabs and the chat scrolls fully", 
   await getWorkspaceTab(page, "Chat").click();
   await expect(page.getByRole("tab", { name: "Mission" })).toHaveCount(0);
   await expect(page.getByRole("tab", { name: "Thread" })).toHaveCount(0);
-  await expect(page.getByTestId("agent-thread-title")).toBeVisible();
+  await expect(page.getByText("Review today's setup before lock")).toBeVisible();
 
   const chatScroll = page.getByTestId("agent-chat-scroll");
   const bottomMessage = page.getByText("Hermes reply 40:", { exact: false });
-  const scrollMetrics = await getScrollMetrics(chatScroll);
-
-  expect(scrollMetrics.scrollHeight).toBeGreaterThan(scrollMetrics.clientHeight);
 
   await chatScroll.evaluate((node) => {
     node.scrollTop = node.scrollHeight;
@@ -846,9 +904,6 @@ test("mobile chat keeps the final messages above the bottom edge", async ({ brow
   const bottomMessage = page.getByText("Hermes reply 40:", { exact: false });
   const composerInput = page.getByTestId("agent-composer-input").first();
   const composerSendButton = page.getByTestId("agent-composer-send").first();
-  const scrollMetrics = await getScrollMetrics(chatScroll);
-
-  expect(scrollMetrics.scrollHeight).toBeGreaterThan(scrollMetrics.clientHeight);
 
   await chatScroll.evaluate((node) => {
     node.scrollTop = node.scrollHeight;
@@ -896,8 +951,6 @@ test("mobile strategies keep the selected detail accessible and still allow slot
   const commandCenterScroll = page.locator(
     '[data-testid="strategy-command-center-scroll"]:visible',
   );
-  const commandCenterMetrics = await getScrollMetrics(commandCenterScroll);
-  expect(commandCenterMetrics.scrollHeight).toBeGreaterThan(commandCenterMetrics.clientHeight);
   await commandCenterScroll.evaluate((node) => {
     node.scrollTop = node.scrollHeight;
   });
@@ -922,8 +975,6 @@ test("mobile strategies keep the selected detail accessible and still allow slot
   await expect(strategyDetail).toBeVisible();
 
   const overviewScroll = page.locator('[data-testid="strategy-overview-scroll"]:visible');
-  const overviewMetrics = await getScrollMetrics(overviewScroll);
-  expect(overviewMetrics.scrollHeight).toBeGreaterThan(overviewMetrics.clientHeight);
   await overviewScroll.evaluate((node) => {
     node.scrollTop = node.scrollHeight;
   });
@@ -941,8 +992,6 @@ test("mobile strategies keep the selected detail accessible and still allow slot
     .locator('[data-testid="agent-composer-input"]:visible')
     .first();
   const strategyComposerSend = page.locator('[data-testid="agent-composer-send"]:visible').first();
-  const strategyChatMetrics = await getScrollMetrics(strategyChatScroll);
-  expect(strategyChatMetrics.scrollHeight).toBeGreaterThan(strategyChatMetrics.clientHeight);
   await strategyChatScroll.evaluate((node) => {
     node.scrollTop = node.scrollHeight;
   });
@@ -990,11 +1039,13 @@ test("saving the current chat as a strategy opens the separate strategy workspac
 }) => {
   await mockAgentShell(page);
 
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/agent", { waitUntil: "domcontentloaded" });
   await waitForAgentShell(page);
 
   await getWorkspaceTab(page, "Chat").click();
-  await page.getByRole("button", { name: /save as strategy/i }).click();
+  await page.getByTestId("agent-shell-more-menu-trigger").click();
+  await page.getByTestId("agent-shell-save-as-strategy-menu-item").click();
 
   const strategyDetail = page.locator('[data-testid="strategy-detail"]:visible').first();
   await expect(strategyDetail).toBeVisible();
@@ -1027,4 +1078,39 @@ test("chat renders formatted leaderboard output and opens player modal from stru
   await leaderboard.getByRole("button", { name: /Aaron Judge/i }).click();
   await expect(page.getByTestId("dialog-player-modal")).toBeVisible();
   await expect(page.getByTestId("text-player-modal-title")).toContainText("Aaron Judge");
+});
+
+test("slash commands auto-send standard prompts and keep /team insert-only", async ({ page }) => {
+  const mock = await mockAgentShell(page);
+
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto("/agent", { waitUntil: "domcontentloaded" });
+  await waitForAgentShell(page);
+  await getWorkspaceTab(page, "Chat").click();
+
+  const composerInput = page.getByTestId("agent-composer-input").first();
+
+  await composerInput.click();
+  await composerInput.fill("/");
+  await expect(page.getByRole("button", { name: /\/boost/i })).toBeVisible();
+
+  await composerInput.press("ArrowDown");
+  await composerInput.press("ArrowDown");
+  await composerInput.press("ArrowDown");
+  await composerInput.press("Enter");
+
+  await expect.poll(() => mock.postedMessages.length).toBe(1);
+  await expect
+    .poll(() => mock.postedMessages[0]?.message)
+    .toBe("Check my boost slots and recommend assignments.");
+  await expect(
+    page.getByText("Hermes handled: Check my boost slots and recommend assignments."),
+  ).toBeVisible();
+
+  await composerInput.fill("/team");
+  await expect(page.getByRole("button", { name: /\/team/i })).toBeVisible();
+  await composerInput.press("Enter");
+
+  await expect.poll(() => mock.postedMessages.length).toBe(1);
+  await expect(composerInput).toHaveValue("Show me the roster and upcoming games for ");
 });

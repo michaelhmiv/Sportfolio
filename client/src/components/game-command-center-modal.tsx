@@ -110,6 +110,7 @@ interface LiveStatsResponse {
   homePlayers?: LivePlayerStats[];
   awayPlayers?: LivePlayerStats[];
   homeTopPerformers?: Array<{
+    playerId?: string;
     name: string;
     team?: string;
     pts?: number;
@@ -120,6 +121,7 @@ interface LiveStatsResponse {
     rbi?: number;
   }>;
   awayTopPerformers?: Array<{
+    playerId?: string;
     name: string;
     team?: string;
     pts?: number;
@@ -143,6 +145,12 @@ interface LiveStatsResponse {
   } | null;
   message?: string;
 }
+
+type PlayerModalLookupInput = {
+  playerId?: string | null;
+  name: string;
+  team?: string | null;
+};
 
 interface GameStatsResponse {
   gameId: string;
@@ -229,12 +237,16 @@ function MlbLinescorePanel({
   mlbPregame,
   showDecisions = false,
   embedded = false,
+  resolvePlayerModalId,
+  onOpenPlayerModal,
 }: {
   title: string;
   game?: Pick<GameInsight, "awayTeam" | "homeTeam"> | null;
   mlbPregame?: GameInsight["mlbPregame"] | null;
   showDecisions?: boolean;
   embedded?: boolean;
+  resolvePlayerModalId?: (input: PlayerModalLookupInput) => string | null;
+  onOpenPlayerModal?: (playerId: string) => void;
 }) {
   const gameState = mlbPregame?.gameState || null;
   const linescore = gameState?.linescore || null;
@@ -245,6 +257,26 @@ function MlbLinescorePanel({
 
   const attendanceLabel = formatAttendance(gameState?.attendance);
   const decisions = gameState?.decisions;
+  const renderDecisionName = (name: string) => {
+    if (!resolvePlayerModalId || !onOpenPlayerModal) {
+      return <div className="mt-1 font-semibold text-foreground">{name}</div>;
+    }
+
+    const resolvedPlayerId = resolvePlayerModalId({ name });
+    if (!resolvedPlayerId) {
+      return <div className="mt-1 font-semibold text-foreground">{name}</div>;
+    }
+
+    return (
+      <button
+        type="button"
+        onClick={() => onOpenPlayerModal(resolvedPlayerId)}
+        className="mt-1 text-left font-semibold text-foreground underline-offset-2 hover:underline focus-visible:underline"
+      >
+        {name}
+      </button>
+    );
+  };
 
   return (
     <div className={embedded ? "space-y-3" : "rounded-sm border border-border/60 p-3"}>
@@ -354,7 +386,7 @@ function MlbLinescorePanel({
               <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
                 Winning Pitcher
               </div>
-              <div className="mt-1 font-semibold text-foreground">{decisions.winner}</div>
+              {renderDecisionName(decisions.winner)}
             </div>
           ) : null}
           {decisions.loser ? (
@@ -362,7 +394,7 @@ function MlbLinescorePanel({
               <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
                 Losing Pitcher
               </div>
-              <div className="mt-1 font-semibold text-foreground">{decisions.loser}</div>
+              {renderDecisionName(decisions.loser)}
             </div>
           ) : null}
           {decisions.save ? (
@@ -370,7 +402,7 @@ function MlbLinescorePanel({
               <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
                 Save
               </div>
-              <div className="mt-1 font-semibold text-foreground">{decisions.save}</div>
+              {renderDecisionName(decisions.save)}
             </div>
           ) : null}
         </div>
@@ -389,6 +421,8 @@ function MlbLifecycleCard({
   isHydratingDetails,
   showMlbAdvanced,
   onToggleAdvanced,
+  resolvePlayerModalId,
+  onOpenPlayerModal,
 }: {
   game?: GameInsight | null;
   mlbPregame?: GameInsight["mlbPregame"] | null;
@@ -399,6 +433,8 @@ function MlbLifecycleCard({
   isHydratingDetails: boolean;
   showMlbAdvanced: boolean;
   onToggleAdvanced: () => void;
+  resolvePlayerModalId: (input: PlayerModalLookupInput) => string | null;
+  onOpenPlayerModal: (playerId: string) => void;
 }) {
   if (!game || !mlbPregame) {
     return null;
@@ -456,6 +492,35 @@ function MlbLifecycleCard({
       },
     ]),
   );
+  const renderModalPlayerName = ({
+    name,
+    team,
+    playerId,
+    className = "",
+    label,
+  }: {
+    name: string;
+    team?: string | null;
+    playerId?: string | null;
+    className?: string;
+    label?: string;
+  }) => {
+    const resolvedPlayerId = resolvePlayerModalId({ playerId, name, team });
+    const displayName = label || name;
+    if (!resolvedPlayerId) {
+      return <span className={className}>{displayName}</span>;
+    }
+
+    return (
+      <button
+        type="button"
+        onClick={() => onOpenPlayerModal(resolvedPlayerId)}
+        className={`${className} text-left underline-offset-2 hover:underline focus-visible:underline`}
+      >
+        {displayName}
+      </button>
+    );
+  };
 
   return (
     <section className="mt-4 overflow-hidden rounded-md border border-border/70 bg-background/80">
@@ -556,7 +621,13 @@ function MlbLifecycleCard({
                     variant="outline"
                     className="text-[10px] gap-1 border-border/80"
                   >
-                    <span className="text-purple-500">{formatCompactName(player.name)}</span>
+                    {renderModalPlayerName({
+                      name: player.name,
+                      team: player.team,
+                      playerId: player.playerId,
+                      className: "text-purple-500",
+                      label: formatCompactName(player.name),
+                    })}
                     <span className="font-mono">{player.multiplier.toFixed(1)}x</span>
                   </Badge>
                 ))}
@@ -592,9 +663,13 @@ function MlbLifecycleCard({
                   className="flex items-center justify-between gap-2 rounded-sm border border-border/60 bg-background/60 px-2 py-1.5"
                 >
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-xs font-medium text-purple-500">
-                      {formatCompactName(player.name)}
-                    </div>
+                    {renderModalPlayerName({
+                      name: player.name,
+                      team: player.team,
+                      playerId: player.playerId,
+                      className: "truncate text-xs font-medium text-purple-500",
+                      label: formatCompactName(player.name),
+                    })}
                     <div className="text-[10px] text-muted-foreground">
                       {player.team} • {player.fantasyPoints.toFixed(1)} FP •{" "}
                       {player.effectiveShares.toFixed(1)} effective
@@ -626,6 +701,8 @@ function MlbLifecycleCard({
           mlbPregame={mlbPregame}
           showDecisions={activeTab === "post"}
           embedded
+          resolvePlayerModalId={resolvePlayerModalId}
+          onOpenPlayerModal={onOpenPlayerModal}
         />
       ) : null}
 
@@ -642,9 +719,12 @@ function MlbLifecycleCard({
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0">
-                    <div className="truncate text-xs font-semibold text-foreground">
-                      {player.name}
-                    </div>
+                    {renderModalPlayerName({
+                      name: player.name,
+                      team: player.team || null,
+                      playerId: player.playerId,
+                      className: "truncate text-xs font-semibold text-foreground",
+                    })}
                     <div className="text-[10px] text-muted-foreground">{player.team || "MLB"}</div>
                   </div>
                   <div className="text-right font-mono text-[11px]">
@@ -724,100 +804,123 @@ function MlbLifecycleCard({
               pitcher: mlbPregame.probablePitchers.home,
               stats: mlbPregame.probablePitcherStats.home,
             },
-          ].map((entry) => (
-            <div
-              key={`${entry.side}-${entry.team}`}
-              className="rounded-sm border border-border/60 bg-background/40 p-3"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                  {entry.team} probable
-                </div>
-                <div className="flex items-center gap-1">
-                  <MlbProbableBadge />
-                  {entry.stats ? (
-                    <Badge variant="outline" className="text-[10px] border-border/80">
-                      Advanced
-                    </Badge>
-                  ) : null}
-                </div>
-              </div>
+          ].map((entry) => {
+            const probablePitcherId = entry.pitcher?.name
+              ? resolvePlayerModalId({
+                  name: entry.pitcher.name,
+                  team: entry.team,
+                })
+              : null;
 
-              <div className="mt-2 text-sm font-semibold text-foreground">
-                {entry.pitcher?.name || "TBD"}
-              </div>
-              <div className="mt-1 text-xs text-muted-foreground">
-                {entry.stats?.summary ||
-                  entry.pitcher?.note ||
-                  "Statcast expected stats are not available for this starter yet."}
-              </div>
-
-              {showMlbAdvanced && entry.stats ? (
-                <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                  <div className="rounded-sm border border-border/60 bg-background/50 p-2">
-                    <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-                      ERA
-                    </div>
-                    <div className="mt-1 font-mono">{formatPitcherEra(entry.stats.era)}</div>
+            return (
+              <div
+                key={`${entry.side}-${entry.team}`}
+                className="rounded-sm border border-border/60 bg-background/40 p-3"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                    {entry.team} probable
                   </div>
-                  <div className="rounded-sm border border-border/60 bg-background/50 p-2">
-                    <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-                      xERA
-                    </div>
-                    <div className="mt-1 font-mono text-emerald-600 dark:text-emerald-400">
-                      {formatPitcherEra(entry.stats.xera)}
-                    </div>
-                  </div>
-                  <div className="rounded-sm border border-border/60 bg-background/50 p-2">
-                    <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-                      wOBA
-                    </div>
-                    <div className="mt-1 font-mono">{formatPitcherMetric(entry.stats.woba)}</div>
-                  </div>
-                  <div className="rounded-sm border border-border/60 bg-background/50 p-2">
-                    <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-                      xwOBA
-                    </div>
-                    <div className="mt-1 font-mono">
-                      {formatPitcherMetric(entry.stats.expectedWoba)}
-                    </div>
-                  </div>
-                  <div className="rounded-sm border border-border/60 bg-background/50 p-2">
-                    <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-                      AVG
-                    </div>
-                    <div className="mt-1 font-mono">
-                      {formatPitcherMetric(entry.stats.battingAverage)}
-                    </div>
-                  </div>
-                  <div className="rounded-sm border border-border/60 bg-background/50 p-2">
-                    <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-                      xAVG
-                    </div>
-                    <div className="mt-1 font-mono">
-                      {formatPitcherMetric(entry.stats.expectedBattingAverage)}
-                    </div>
-                  </div>
-                  <div className="rounded-sm border border-border/60 bg-background/50 p-2">
-                    <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-                      SLG
-                    </div>
-                    <div className="mt-1 font-mono">
-                      {formatPitcherMetric(entry.stats.slugging)}
-                    </div>
-                  </div>
-                  <div className="rounded-sm border border-border/60 bg-background/50 p-2">
-                    <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-                      xSLG
-                    </div>
-                    <div className="mt-1 font-mono">
-                      {formatPitcherMetric(entry.stats.expectedSlugging)}
-                    </div>
+                  <div className="flex items-center gap-1">
+                    <MlbProbableBadge />
+                    {entry.stats ? (
+                      <Badge variant="outline" className="text-[10px] border-border/80">
+                        Advanced
+                      </Badge>
+                    ) : null}
                   </div>
                 </div>
-              ) : null}
-            </div>
-          ))}
+
+                <div className="mt-2 text-sm font-semibold text-foreground">
+                  {entry.pitcher?.name ? (
+                    probablePitcherId ? (
+                      <button
+                        type="button"
+                        onClick={() => onOpenPlayerModal(probablePitcherId)}
+                        className="truncate text-left underline-offset-2 hover:underline focus-visible:underline"
+                      >
+                        {entry.pitcher.name}
+                      </button>
+                    ) : (
+                      entry.pitcher.name
+                    )
+                  ) : (
+                    "TBD"
+                  )}
+                </div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  {entry.stats?.summary ||
+                    entry.pitcher?.note ||
+                    "Statcast expected stats are not available for this starter yet."}
+                </div>
+
+                {showMlbAdvanced && entry.stats ? (
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                    <div className="rounded-sm border border-border/60 bg-background/50 p-2">
+                      <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                        ERA
+                      </div>
+                      <div className="mt-1 font-mono">{formatPitcherEra(entry.stats.era)}</div>
+                    </div>
+                    <div className="rounded-sm border border-border/60 bg-background/50 p-2">
+                      <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                        xERA
+                      </div>
+                      <div className="mt-1 font-mono text-emerald-600 dark:text-emerald-400">
+                        {formatPitcherEra(entry.stats.xera)}
+                      </div>
+                    </div>
+                    <div className="rounded-sm border border-border/60 bg-background/50 p-2">
+                      <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                        wOBA
+                      </div>
+                      <div className="mt-1 font-mono">{formatPitcherMetric(entry.stats.woba)}</div>
+                    </div>
+                    <div className="rounded-sm border border-border/60 bg-background/50 p-2">
+                      <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                        xwOBA
+                      </div>
+                      <div className="mt-1 font-mono">
+                        {formatPitcherMetric(entry.stats.expectedWoba)}
+                      </div>
+                    </div>
+                    <div className="rounded-sm border border-border/60 bg-background/50 p-2">
+                      <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                        AVG
+                      </div>
+                      <div className="mt-1 font-mono">
+                        {formatPitcherMetric(entry.stats.battingAverage)}
+                      </div>
+                    </div>
+                    <div className="rounded-sm border border-border/60 bg-background/50 p-2">
+                      <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                        xAVG
+                      </div>
+                      <div className="mt-1 font-mono">
+                        {formatPitcherMetric(entry.stats.expectedBattingAverage)}
+                      </div>
+                    </div>
+                    <div className="rounded-sm border border-border/60 bg-background/50 p-2">
+                      <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                        SLG
+                      </div>
+                      <div className="mt-1 font-mono">
+                        {formatPitcherMetric(entry.stats.slugging)}
+                      </div>
+                    </div>
+                    <div className="rounded-sm border border-border/60 bg-background/50 p-2">
+                      <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                        xSLG
+                      </div>
+                      <div className="mt-1 font-mono">
+                        {formatPitcherMetric(entry.stats.expectedSlugging)}
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -892,6 +995,7 @@ function MlbLifecycleCard({
                       const exposure = (
                         isPregame ? scheduledExposureByNameTeam : liveExposureByNameTeam
                       ).get(buildNameTeamKey(player.name, entry.team));
+                      const nameClass = `truncate font-medium ${exposure ? "text-purple-500" : "text-foreground"}`;
 
                       return (
                         <div
@@ -904,11 +1008,12 @@ function MlbLifecycleCard({
                                 <span className="font-mono text-muted-foreground">
                                   {player.slot}.
                                 </span>
-                                <span
-                                  className={`truncate font-medium ${exposure ? "text-purple-500" : "text-foreground"}`}
-                                >
-                                  {player.name}
-                                </span>
+                                {renderModalPlayerName({
+                                  name: player.name,
+                                  team: entry.team,
+                                  playerId: player.playerId,
+                                  className: nameClass,
+                                })}
                               </div>
                               {exposure ? (
                                 <div className="mt-1 pl-5 text-[11px] text-muted-foreground">
@@ -1024,9 +1129,11 @@ function MlbLifecycleCard({
                               <span className="font-mono text-[11px] text-muted-foreground">
                                 {player.slot}.
                               </span>
-                              <span className="truncate text-xs font-semibold text-foreground">
-                                {player.name}
-                              </span>
+                              {renderModalPlayerName({
+                                name: player.name,
+                                team: entry.team,
+                                className: "truncate text-xs font-semibold text-foreground",
+                              })}
                               {player.position ? (
                                 <span className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
                                   {player.position}
@@ -1127,69 +1234,6 @@ function MlbLifecycleCard({
   );
 }
 
-function MlbEnrichmentStatusCard({
-  game,
-  mlbEnrichment,
-  activeTab,
-}: {
-  game?: GameInsight | null;
-  mlbEnrichment?: GameInsight["mlbEnrichment"] | null;
-  activeTab: CommandCenterTab;
-}) {
-  if (!game || !mlbEnrichment) {
-    return null;
-  }
-
-  const isUnavailable = mlbEnrichment.state === "unavailable";
-
-  return (
-    <section className="mt-4 rounded-md border border-amber-500/35 bg-amber-500/5 p-3 sm:p-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-600 dark:text-amber-400">
-            {activeTab === "pre"
-              ? "Pregame box score"
-              : activeTab === "during"
-                ? "Live box score"
-                : "Final box score"}
-          </div>
-          <div className="mt-1 text-sm font-semibold text-foreground">
-            {isUnavailable
-              ? "Game-center updates are unavailable."
-              : "Game-center updates are still loading."}
-          </div>
-          <div className="mt-2 text-xs text-muted-foreground">
-            {isUnavailable
-              ? "Probable pitchers, lineups, and matchup extras are not available right now. Core game and share data are still available."
-              : activeTab === "pre"
-                ? "Probable pitchers, lineups, and matchup extras have not posted for this game yet."
-                : "Live matchup extras have not loaded yet for this game."}
-          </div>
-          {game.venue ? (
-            <div className="mt-2 text-xs text-muted-foreground">{game.venue}</div>
-          ) : null}
-        </div>
-
-        <Badge
-          variant="outline"
-          className="w-fit text-[10px] border-amber-500/40 text-amber-700 dark:text-amber-300"
-        >
-          {mlbEnrichment.state === "unavailable" ? "Unavailable" : "Pending"}
-        </Badge>
-      </div>
-
-      <div className="mt-3 rounded-sm border border-amber-500/20 bg-background/70 p-2.5">
-        <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-          Status
-        </div>
-        <div className="mt-1 text-xs text-foreground">
-          {mlbEnrichment.message || "MLB enrichment status is not available yet."}
-        </div>
-      </div>
-    </section>
-  );
-}
-
 const getPlayerIdVariants = (playerId: string, sport?: string) => {
   const rawId = String(playerId || "").trim();
   if (!rawId) return [] as string[];
@@ -1206,6 +1250,39 @@ const getPlayerIdVariants = (playerId: string, sport?: string) => {
   }
 
   return Array.from(variants);
+};
+
+const resolveModalPlayerIdCandidate = ({
+  playerId,
+  sport,
+  knownPlayerIds,
+}: {
+  playerId: string | null | undefined;
+  sport: string;
+  knownPlayerIds: Set<string>;
+}): string | null => {
+  const rawId = String(playerId || "").trim();
+  if (!rawId) return null;
+
+  const variants = getPlayerIdVariants(rawId, sport);
+  for (const variant of variants) {
+    if (/^(nba_|nfl_|mlb_|nascar_)/i.test(variant) && knownPlayerIds.has(variant)) {
+      return variant;
+    }
+  }
+  for (const variant of variants) {
+    if (knownPlayerIds.has(variant)) {
+      return variant;
+    }
+  }
+
+  const normalizedSport = (sport || "").toUpperCase();
+  const lowerRawId = rawId.toLowerCase();
+  if (normalizedSport === "NBA" && !lowerRawId.startsWith("nba_")) return `nba_${rawId}`;
+  if (normalizedSport === "NFL" && !lowerRawId.startsWith("nfl_")) return `nfl_${rawId}`;
+  if (normalizedSport === "MLB" && !lowerRawId.startsWith("mlb_")) return `mlb_${rawId}`;
+  if (normalizedSport === "NASCAR" && !lowerRawId.startsWith("nascar_")) return `nascar_${rawId}`;
+  return rawId;
 };
 
 const normalizePlayerName = (name: string) =>
@@ -1356,7 +1433,6 @@ export function GameCommandCenterModal({
   const userContext = insight?.userContext || game?.userContext || null;
   const boostSlotsRemaining = insight?.boostSlotsRemaining ?? null;
   const mlbPregame = liveSport === "MLB" ? game?.mlbPregame || null : null;
-  const mlbEnrichment = liveSport === "MLB" ? game?.mlbEnrichment || null : null;
   const isHydratingMlbDetails =
     liveSport === "MLB" && isLoading && Boolean(initialInsight?.mlbPregame) && !insight;
 
@@ -1574,6 +1650,186 @@ export function GameCommandCenterModal({
 
   const ownedPlayerIds = useMemo(() => new Set(ownedPlayerData.keys()), [ownedPlayerData]);
 
+  const knownPlayerIds = useMemo(() => {
+    const ids = new Set<string>();
+    const addPlayerId = (value: string | null | undefined) => {
+      const rawId = String(value || "").trim();
+      if (!rawId) return;
+      getPlayerIdVariants(rawId, liveSport).forEach((variant) => {
+        ids.add(variant);
+      });
+    };
+
+    (userContext?.ownedPlayers || []).forEach((player) => addPlayerId(player.playerId));
+    (userContext?.topMultiplierPlayers || []).forEach((player) => addPlayerId(player.playerId));
+    (insight?.topPlayers?.fantasy || []).forEach((player) => addPlayerId(player.playerId));
+    (insight?.topPlayers?.shares || []).forEach((player) => addPlayerId(player.playerId));
+    (insight?.topPlayers?.scouts || []).forEach((player) => addPlayerId(player.playerId));
+    liveHomePlayers.forEach((player) => addPlayerId(player.playerId));
+    liveAwayPlayers.forEach((player) => addPlayerId(player.playerId));
+    liveOwnedPlayers.forEach((player) => addPlayerId(player.playerId));
+    (mlbPregame?.startingLineups.away || []).forEach((player) => addPlayerId(player.playerId));
+    (mlbPregame?.startingLineups.home || []).forEach((player) => addPlayerId(player.playerId));
+
+    return ids;
+  }, [
+    insight?.topPlayers?.fantasy,
+    insight?.topPlayers?.scouts,
+    insight?.topPlayers?.shares,
+    liveAwayPlayers,
+    liveHomePlayers,
+    liveOwnedPlayers,
+    liveSport,
+    mlbPregame?.startingLineups.away,
+    mlbPregame?.startingLineups.home,
+    userContext?.ownedPlayers,
+    userContext?.topMultiplierPlayers,
+  ]);
+
+  const playerIdByNameTeam = useMemo(() => {
+    const map = new Map<string, string>();
+
+    const registerCandidate = ({
+      playerId,
+      name,
+      team,
+    }: {
+      playerId: string | null | undefined;
+      name: string | null | undefined;
+      team?: string | null;
+    }) => {
+      const resolvedPlayerId = resolveModalPlayerIdCandidate({
+        playerId,
+        sport: liveSport,
+        knownPlayerIds,
+      });
+      const normalizedName = String(name || "").trim();
+      if (!resolvedPlayerId || !normalizedName) return;
+
+      const exactKey = getPlayerNameTeamKey(normalizedName, team || undefined);
+      if (!map.has(exactKey)) {
+        map.set(exactKey, resolvedPlayerId);
+      }
+
+      const anyTeamKey = getPlayerNameTeamKey(normalizedName);
+      if (!map.has(anyTeamKey)) {
+        map.set(anyTeamKey, resolvedPlayerId);
+      }
+    };
+
+    (insight?.topPlayers?.fantasy || []).forEach((player) =>
+      registerCandidate({
+        playerId: player.playerId,
+        name: player.name,
+        team: player.team,
+      }),
+    );
+    (insight?.topPlayers?.shares || []).forEach((player) =>
+      registerCandidate({
+        playerId: player.playerId,
+        name: player.name,
+        team: player.team,
+      }),
+    );
+    (insight?.topPlayers?.scouts || []).forEach((player) =>
+      registerCandidate({
+        playerId: player.playerId,
+        name: player.name,
+        team: player.team,
+      }),
+    );
+    (userContext?.ownedPlayers || []).forEach((player) =>
+      registerCandidate({
+        playerId: player.playerId,
+        name: player.name,
+        team: player.team,
+      }),
+    );
+    (userContext?.topMultiplierPlayers || []).forEach((player) =>
+      registerCandidate({
+        playerId: player.playerId,
+        name: player.name,
+        team: player.team,
+      }),
+    );
+    liveHomePlayers.forEach((player) =>
+      registerCandidate({
+        playerId: player.playerId,
+        name: player.name,
+        team: player.team || liveStats?.homeTeam || game?.homeTeam,
+      }),
+    );
+    liveAwayPlayers.forEach((player) =>
+      registerCandidate({
+        playerId: player.playerId,
+        name: player.name,
+        team: player.team || liveStats?.awayTeam || game?.awayTeam,
+      }),
+    );
+    liveOwnedPlayers.forEach((player) =>
+      registerCandidate({
+        playerId: player.playerId,
+        name: player.name,
+        team: player.team,
+      }),
+    );
+    (mlbPregame?.startingLineups.away || []).forEach((player) =>
+      registerCandidate({
+        playerId: player.playerId,
+        name: player.name,
+        team: game?.awayTeam || liveStats?.awayTeam,
+      }),
+    );
+    (mlbPregame?.startingLineups.home || []).forEach((player) =>
+      registerCandidate({
+        playerId: player.playerId,
+        name: player.name,
+        team: game?.homeTeam || liveStats?.homeTeam,
+      }),
+    );
+
+    return map;
+  }, [
+    game?.awayTeam,
+    game?.homeTeam,
+    insight?.topPlayers?.fantasy,
+    insight?.topPlayers?.scouts,
+    insight?.topPlayers?.shares,
+    liveAwayPlayers,
+    liveHomePlayers,
+    liveOwnedPlayers,
+    liveStats?.awayTeam,
+    liveStats?.homeTeam,
+    mlbPregame?.startingLineups.away,
+    mlbPregame?.startingLineups.home,
+    userContext?.ownedPlayers,
+    userContext?.topMultiplierPlayers,
+    knownPlayerIds,
+    liveSport,
+  ]);
+
+  const resolvePlayerModalId = ({
+    playerId,
+    name,
+    team,
+  }: PlayerModalLookupInput): string | null => {
+    const byId = resolveModalPlayerIdCandidate({
+      playerId,
+      sport: liveSport,
+      knownPlayerIds,
+    });
+    if (byId) return byId;
+
+    const normalizedName = String(name || "").trim();
+    if (!normalizedName) return null;
+
+    const exactKey = getPlayerNameTeamKey(normalizedName, team || undefined);
+    const byTeam = playerIdByNameTeam.get(exactKey);
+    if (byTeam) return byTeam;
+
+    return playerIdByNameTeam.get(getPlayerNameTeamKey(normalizedName)) || null;
+  };
+
   const scoutCandidates = useMemo(() => {
     if (!insight?.topPlayers?.fantasy || !game) return [];
 
@@ -1761,14 +2017,88 @@ export function GameCommandCenterModal({
     if (player.playerId) {
       for (const candidateId of getPlayerIdVariants(player.playerId, liveSport)) {
         if (ownedPlayerIds.has(candidateId) || liveEarningsByPlayerId.has(candidateId)) {
-          return candidateId;
+          return (
+            resolveModalPlayerIdCandidate({
+              playerId: candidateId,
+              sport: liveSport,
+              knownPlayerIds,
+            }) || candidateId
+          );
         }
       }
 
-      return player.playerId;
+      const resolvedId = resolvePlayerModalId({
+        playerId: player.playerId,
+        name: player.name,
+        team,
+      });
+      if (resolvedId) return resolvedId;
     }
 
-    return liveOwnedPlayerIdByNameTeam.get(getPlayerNameTeamKey(player.name, team)) || null;
+    return (
+      resolvePlayerModalId({
+        name: player.name,
+        team,
+      }) ||
+      liveOwnedPlayerIdByNameTeam.get(getPlayerNameTeamKey(player.name, team)) ||
+      null
+    );
+  };
+  const renderModalPlayerName = ({
+    name,
+    team,
+    playerId,
+    className = "",
+    label,
+  }: {
+    name: string;
+    team?: string | null;
+    playerId?: string | null;
+    className?: string;
+    label?: string;
+  }) => {
+    const resolvedPlayerId = resolvePlayerModalId({ playerId, name, team });
+    const displayName = label || name;
+    if (!resolvedPlayerId) {
+      return <span className={className}>{displayName}</span>;
+    }
+
+    return (
+      <button
+        type="button"
+        onClick={() => setSelectedLivePlayerId(resolvedPlayerId)}
+        className={`${className} text-left underline-offset-2 hover:underline focus-visible:underline`}
+      >
+        {displayName}
+      </button>
+    );
+  };
+  const renderLiveModalPlayerName = ({
+    player,
+    team,
+    className = "",
+    label,
+  }: {
+    player: LivePlayerStats;
+    team: string;
+    className?: string;
+    label?: string;
+  }) => {
+    const resolvedPlayerId = resolveLivePlayerModalId(player, team);
+    const displayName = label || player.name;
+    if (!resolvedPlayerId) {
+      return <span className={className}>{displayName}</span>;
+    }
+
+    return (
+      <button
+        type="button"
+        onClick={() => setSelectedLivePlayerId(resolvedPlayerId)}
+        className={`${className} text-left underline-offset-2 hover:underline focus-visible:underline`}
+      >
+        {displayName}
+      </button>
+    );
   };
 
   const startTimeLabel = game ? new Date(game.startTime).toLocaleString() : "";
@@ -1795,26 +2125,20 @@ export function GameCommandCenterModal({
           </div>
         </DialogHeader>
 
-        {liveSport === "MLB" ? (
-          mlbPregame ? (
-            <MlbLifecycleCard
-              game={game}
-              mlbPregame={mlbPregame}
-              activeTab={activeTab}
-              liveStats={liveStats}
-              userContext={userContext}
-              isAuthenticated={isAuthenticated}
-              isHydratingDetails={isHydratingMlbDetails}
-              showMlbAdvanced={showMlbAdvanced}
-              onToggleAdvanced={() => setShowMlbAdvanced((current) => !current)}
-            />
-          ) : mlbEnrichment ? (
-            <MlbEnrichmentStatusCard
-              game={game}
-              mlbEnrichment={mlbEnrichment}
-              activeTab={activeTab}
-            />
-          ) : null
+        {liveSport === "MLB" && mlbPregame ? (
+          <MlbLifecycleCard
+            game={game}
+            mlbPregame={mlbPregame}
+            activeTab={activeTab}
+            liveStats={liveStats}
+            userContext={userContext}
+            isAuthenticated={isAuthenticated}
+            isHydratingDetails={isHydratingMlbDetails}
+            showMlbAdvanced={showMlbAdvanced}
+            onToggleAdvanced={() => setShowMlbAdvanced((current) => !current)}
+            resolvePlayerModalId={resolvePlayerModalId}
+            onOpenPlayerModal={(playerId) => setSelectedLivePlayerId(playerId)}
+          />
         ) : null}
 
         <Tabs value={activeTab} className="mt-4">
@@ -1869,15 +2193,15 @@ export function GameCommandCenterModal({
                             key={player.playerId}
                             className="flex items-center justify-between text-xs"
                           >
-                            <span
-                              className={
-                                ownedPlayerIds.has(player.playerId)
-                                  ? "text-purple-400 font-medium"
-                                  : ""
-                              }
-                            >
-                              {idx + 1}. {formatName(player.name)}
-                            </span>
+                            {renderModalPlayerName({
+                              name: player.name,
+                              team: player.team,
+                              playerId: player.playerId,
+                              className: ownedPlayerIds.has(player.playerId)
+                                ? "text-purple-400 font-medium"
+                                : "",
+                              label: `${idx + 1}. ${formatName(player.name)}`,
+                            })}
                             <span className="font-mono text-muted-foreground">
                               {player.avgFantasyPointsPerGame.toFixed(1)}
                             </span>
@@ -1903,15 +2227,15 @@ export function GameCommandCenterModal({
                             key={player.playerId}
                             className="flex items-center justify-between text-xs"
                           >
-                            <span
-                              className={
-                                ownedPlayerIds.has(player.playerId)
-                                  ? "text-purple-400 font-medium"
-                                  : ""
-                              }
-                            >
-                              {idx + 1}. {formatName(player.name)}
-                            </span>
+                            {renderModalPlayerName({
+                              name: player.name,
+                              team: player.team,
+                              playerId: player.playerId,
+                              className: ownedPlayerIds.has(player.playerId)
+                                ? "text-purple-400 font-medium"
+                                : "",
+                              label: `${idx + 1}. ${formatName(player.name)}`,
+                            })}
                             <span className="font-mono text-muted-foreground">
                               {player.avgFantasyPointsPerGame.toFixed(1)}
                             </span>
@@ -1979,9 +2303,13 @@ export function GameCommandCenterModal({
                           variant="outline"
                           className="text-[10px] gap-1.5 border-border/80 px-2 py-1"
                         >
-                          <span className="text-purple-500 font-medium">
-                            {formatName(player.name)}
-                          </span>
+                          {renderModalPlayerName({
+                            name: player.name,
+                            team: player.team,
+                            playerId: player.playerId,
+                            className: "text-purple-500 font-medium",
+                            label: formatName(player.name),
+                          })}
                           <span className="text-purple-500 font-mono">
                             {player.multiplier.toFixed(1)}x
                           </span>
@@ -2040,9 +2368,13 @@ export function GameCommandCenterModal({
                               className="flex items-center justify-between text-xs py-2 px-2 rounded bg-muted/30 hover:bg-purple-500/10 transition-colors"
                             >
                               <div className="flex items-center gap-2 min-w-0">
-                                <span className="font-medium truncate">
-                                  {formatName(player.name)}
-                                </span>
+                                {renderModalPlayerName({
+                                  name: player.name,
+                                  team: player.team,
+                                  playerId: player.playerId,
+                                  className: "font-medium truncate",
+                                  label: formatName(player.name),
+                                })}
                                 <span className="text-muted-foreground text-[10px]">
                                   {player.team}
                                 </span>
@@ -2128,11 +2460,13 @@ export function GameCommandCenterModal({
                               className="flex items-center justify-between gap-2 rounded-md border border-border/60 bg-background/60 px-2 py-1.5"
                             >
                               <div className="min-w-0 flex-1">
-                                <div
-                                  className={`truncate text-xs font-medium ${ownedData ? "text-purple-500" : ""}`}
-                                >
-                                  {idx + 1}. {formatName(player.name)}
-                                </div>
+                                {renderModalPlayerName({
+                                  name: player.name,
+                                  team: player.team,
+                                  playerId: player.playerId,
+                                  className: `truncate text-xs font-medium ${ownedData ? "text-purple-500" : ""}`,
+                                  label: `${idx + 1}. ${formatName(player.name)}`,
+                                })}
                                 <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
                                   <span>{player.team}</span>
                                   <span>•</span>
@@ -2234,7 +2568,13 @@ export function GameCommandCenterModal({
                             className="flex items-center justify-between text-xs"
                           >
                             <span className="truncate">
-                              {formatName(player.name)}{" "}
+                              {renderModalPlayerName({
+                                name: player.name,
+                                team: player.team,
+                                playerId: player.playerId,
+                                className: "truncate",
+                                label: formatName(player.name),
+                              })}{" "}
                               <span className="text-muted-foreground">({player.team})</span>
                             </span>
                             <Badge
@@ -2298,7 +2638,14 @@ export function GameCommandCenterModal({
                         <div className="mt-1 flex flex-wrap gap-1.5">
                           {(liveStats.awayTopPerformers || []).slice(0, 3).map((player) => (
                             <Badge key={`${liveStats.awayTeam}-${player.name}`} variant="outline">
-                              {formatName(player.name)} · {player.pts ?? 0}p
+                              {renderModalPlayerName({
+                                name: player.name,
+                                team: liveStats.awayTeam,
+                                playerId: player.playerId,
+                                className: "inline",
+                                label: formatName(player.name),
+                              })}{" "}
+                              · {player.pts ?? 0}p
                             </Badge>
                           ))}
                         </div>
@@ -2310,7 +2657,14 @@ export function GameCommandCenterModal({
                         <div className="mt-1 flex flex-wrap gap-1.5">
                           {(liveStats.homeTopPerformers || []).slice(0, 3).map((player) => (
                             <Badge key={`${liveStats.homeTeam}-${player.name}`} variant="outline">
-                              {formatName(player.name)} · {player.pts ?? 0}p
+                              {renderModalPlayerName({
+                                name: player.name,
+                                team: liveStats.homeTeam,
+                                playerId: player.playerId,
+                                className: "inline",
+                                label: formatName(player.name),
+                              })}{" "}
+                              · {player.pts ?? 0}p
                             </Badge>
                           ))}
                         </div>
@@ -2392,25 +2746,12 @@ export function GameCommandCenterModal({
                                         <td
                                           className={`sticky left-0 z-20 border-b border-border/40 px-1 py-1.5 ${stickyCellBg}`}
                                         >
-                                          {player.playerId ? (
-                                            <button
-                                              type="button"
-                                              onClick={() =>
-                                                setSelectedLivePlayerId(
-                                                  resolveLivePlayerModalId(player, section.team),
-                                                )
-                                              }
-                                              className={`truncate text-left underline-offset-2 hover:underline ${owned ? "font-medium text-purple-500" : ""}`}
-                                            >
-                                              {formatCompactName(player.name)}
-                                            </button>
-                                          ) : (
-                                            <div
-                                              className={`truncate ${owned ? "font-medium text-purple-500" : ""}`}
-                                            >
-                                              {formatCompactName(player.name)}
-                                            </div>
-                                          )}
+                                          {renderLiveModalPlayerName({
+                                            player,
+                                            team: section.team,
+                                            className: `truncate ${owned ? "font-medium text-purple-500" : ""}`,
+                                            label: formatCompactName(player.name),
+                                          })}
                                         </td>
                                         <td
                                           className={`sticky left-20 z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono ${stickyCellBg}`}
@@ -2513,25 +2854,12 @@ export function GameCommandCenterModal({
                                         <td
                                           className={`sticky left-0 z-20 border-b border-border/40 px-1 py-1.5 ${stickyCellBg}`}
                                         >
-                                          {player.playerId ? (
-                                            <button
-                                              type="button"
-                                              onClick={() =>
-                                                setSelectedLivePlayerId(
-                                                  resolveLivePlayerModalId(player, section.team),
-                                                )
-                                              }
-                                              className={`truncate text-left underline-offset-2 hover:underline ${owned ? "font-medium text-purple-500" : ""}`}
-                                            >
-                                              {formatCompactName(player.name)}
-                                            </button>
-                                          ) : (
-                                            <div
-                                              className={`truncate ${owned ? "font-medium text-purple-500" : ""}`}
-                                            >
-                                              {formatCompactName(player.name)}
-                                            </div>
-                                          )}
+                                          {renderLiveModalPlayerName({
+                                            player,
+                                            team: section.team,
+                                            className: `truncate ${owned ? "font-medium text-purple-500" : ""}`,
+                                            label: formatCompactName(player.name),
+                                          })}
                                         </td>
                                         <td
                                           className={`sticky left-20 z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono ${stickyCellBg}`}
@@ -2652,25 +2980,12 @@ export function GameCommandCenterModal({
                                         <td
                                           className={`sticky left-0 z-20 border-b border-border/40 px-1 py-1.5 ${stickyCellBg}`}
                                         >
-                                          {player.playerId ? (
-                                            <button
-                                              type="button"
-                                              onClick={() =>
-                                                setSelectedLivePlayerId(
-                                                  resolveLivePlayerModalId(player, section.team),
-                                                )
-                                              }
-                                              className={`truncate text-left underline-offset-2 hover:underline ${owned ? "font-medium text-purple-500" : ""}`}
-                                            >
-                                              {formatCompactName(player.name)}
-                                            </button>
-                                          ) : (
-                                            <div
-                                              className={`truncate ${owned ? "font-medium text-purple-500" : ""}`}
-                                            >
-                                              {formatCompactName(player.name)}
-                                            </div>
-                                          )}
+                                          {renderLiveModalPlayerName({
+                                            player,
+                                            team: section.team,
+                                            className: `truncate ${owned ? "font-medium text-purple-500" : ""}`,
+                                            label: formatCompactName(player.name),
+                                          })}
                                         </td>
                                         <td
                                           className={`sticky left-20 z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono ${stickyCellBg}`}
@@ -2804,9 +3119,13 @@ export function GameCommandCenterModal({
                               className="flex items-center justify-between gap-2 rounded-md border border-border/60 bg-background/60 px-2 py-1.5"
                             >
                               <div className="min-w-0 flex-1">
-                                <div className="truncate text-xs font-medium text-purple-500">
-                                  {formatName(player.name)}
-                                </div>
+                                {renderModalPlayerName({
+                                  name: player.name,
+                                  team: player.team,
+                                  playerId: player.playerId,
+                                  className: "truncate text-xs font-medium text-purple-500",
+                                  label: formatName(player.name),
+                                })}
                                 <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
                                   <span>{player.team}</span>
                                   <span>•</span>
@@ -2867,7 +3186,12 @@ export function GameCommandCenterModal({
                         >
                           <div className="flex items-center justify-between gap-2">
                             <div className="min-w-0">
-                              <div className="truncate font-semibold">{player.name}</div>
+                              {renderModalPlayerName({
+                                name: player.name,
+                                team: player.team || null,
+                                playerId: player.playerId,
+                                className: "truncate font-semibold",
+                              })}
                               <div className="text-muted-foreground">{player.team || "MLB"}</div>
                             </div>
                             <div className="text-right font-mono">
@@ -2892,7 +3216,14 @@ export function GameCommandCenterModal({
                           className="flex items-center justify-between gap-2"
                         >
                           <span className="truncate">
-                            {formatName(player.name)} • {player.team}
+                            {renderModalPlayerName({
+                              name: player.name,
+                              team: player.team,
+                              playerId: player.playerId,
+                              className: "inline",
+                              label: formatName(player.name),
+                            })}{" "}
+                            • {player.team}
                           </span>
                           <span className="font-mono">
                             {(player.fantasyPoints || 0).toFixed(1)}
@@ -2918,9 +3249,13 @@ export function GameCommandCenterModal({
                             className="flex items-center justify-between gap-2 rounded-sm border border-border/60 bg-background/60 px-2 py-1.5"
                           >
                             <div className="min-w-0 flex-1">
-                              <div className="truncate font-medium text-purple-500">
-                                {formatName(player.name)}
-                              </div>
+                              {renderModalPlayerName({
+                                name: player.name,
+                                team: player.team,
+                                playerId: player.playerId,
+                                className: "truncate font-medium text-purple-500",
+                                label: formatName(player.name),
+                              })}
                               <div className="text-[10px] text-muted-foreground">
                                 {player.team} • {player.fantasyPoints.toFixed(1)} FP
                               </div>
@@ -2959,14 +3294,20 @@ export function GameCommandCenterModal({
                     <div className="rounded-sm border border-border/60 p-3 text-xs">
                       <div className="text-muted-foreground">Top Scorer</div>
                       <div className="mt-1 font-semibold">
-                        {gameStats.topPerformers.topScorer.playerName}
+                        {renderModalPlayerName({
+                          name: gameStats.topPerformers.topScorer.playerName,
+                          className: "inline",
+                        })}
                       </div>
                       <div className="mt-1">{gameStats.topPerformers.topScorer.points} pts</div>
                     </div>
                     <div className="rounded-sm border border-border/60 p-3 text-xs">
                       <div className="text-muted-foreground">Top Rebounder</div>
                       <div className="mt-1 font-semibold">
-                        {gameStats.topPerformers.topRebounder.playerName}
+                        {renderModalPlayerName({
+                          name: gameStats.topPerformers.topRebounder.playerName,
+                          className: "inline",
+                        })}
                       </div>
                       <div className="mt-1">
                         {gameStats.topPerformers.topRebounder.rebounds} reb
@@ -2975,7 +3316,10 @@ export function GameCommandCenterModal({
                     <div className="rounded-sm border border-border/60 p-3 text-xs">
                       <div className="text-muted-foreground">Top Assister</div>
                       <div className="mt-1 font-semibold">
-                        {gameStats.topPerformers.topAssister.playerName}
+                        {renderModalPlayerName({
+                          name: gameStats.topPerformers.topAssister.playerName,
+                          className: "inline",
+                        })}
                       </div>
                       <div className="mt-1">{gameStats.topPerformers.topAssister.assists} ast</div>
                     </div>
@@ -2987,7 +3331,12 @@ export function GameCommandCenterModal({
                   <div className="mt-2 space-y-2 text-xs">
                     {topFantasy.map((player) => (
                       <div key={player.playerId} className="flex items-center justify-between">
-                        <span>{formatName(player.playerName)}</span>
+                        {renderModalPlayerName({
+                          name: player.playerName,
+                          playerId: player.playerId,
+                          className: "inline",
+                          label: formatName(player.playerName),
+                        })}
                         <span className="font-mono">{player.fantasyPoints.toFixed(1)}</span>
                       </div>
                     ))}

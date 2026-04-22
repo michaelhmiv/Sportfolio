@@ -608,7 +608,7 @@ export function MarketMobileHome({
   const { freshnessState, lastMessageAt } = useWebSocket();
   const [activeMoverTab, setActiveMoverTab] = useState<MoverDeckTab>("risers");
 
-  const overviewPollingInterval = shouldPoll && isMobile ? 20000 : false;
+  const overviewPollingInterval = shouldPoll && isMobile ? 60000 : false;
 
   const { data: overview, isLoading: overviewLoading } = useQuery<MobileMarketOverview>({
     queryKey: ["/api/market/mobile-overview", sport, isAuthenticated ? "auth" : "public"],

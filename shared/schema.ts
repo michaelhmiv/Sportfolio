@@ -139,6 +139,108 @@ export const userPhoneLinkTokens = pgTable(
   }),
 );
 
+export const discordUserLinks = pgTable(
+  "discord_user_links",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    discordUserId: varchar("discord_user_id", { length: 32 }).notNull(),
+    discordUsername: text("discord_username"),
+    discordGlobalName: text("discord_global_name"),
+    guildId: varchar("guild_id", { length: 32 }),
+    linkedAt: timestamp("linked_at").notNull().defaultNow(),
+    lastSeenAt: timestamp("last_seen_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    userIdx: uniqueIndex("discord_user_links_user_idx").on(table.userId),
+    discordUserIdx: uniqueIndex("discord_user_links_discord_user_idx").on(table.discordUserId),
+    guildIdx: index("discord_user_links_guild_idx").on(table.guildId),
+  }),
+);
+
+export const discordLinkStates = pgTable(
+  "discord_link_states",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    stateHash: text("state_hash").notNull(),
+    discordUserId: varchar("discord_user_id", { length: 32 }).notNull(),
+    discordUsername: text("discord_username"),
+    discordGlobalName: text("discord_global_name"),
+    guildId: varchar("guild_id", { length: 32 }),
+    channelId: varchar("channel_id", { length: 32 }),
+    expiresAt: timestamp("expires_at").notNull(),
+    consumedAt: timestamp("consumed_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    hashIdx: uniqueIndex("discord_link_states_hash_idx").on(table.stateHash),
+    userIdx: index("discord_link_states_discord_user_idx").on(table.discordUserId),
+    expiryIdx: index("discord_link_states_expiry_idx").on(table.expiresAt),
+  }),
+);
+
+export const discordTradeIntents = pgTable(
+  "discord_trade_intents",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    discordUserId: varchar("discord_user_id", { length: 32 }).notNull(),
+    guildId: varchar("guild_id", { length: 32 }),
+    commandType: text("command_type").notNull(), // buy | sell
+    playerId: varchar("player_id")
+      .notNull()
+      .references(() => players.id, { onDelete: "cascade" }),
+    amount: decimal("amount", { precision: 20, scale: 6 }).notNull(),
+    maxSlippage: decimal("max_slippage", { precision: 12, scale: 6 }),
+    expiresAt: timestamp("expires_at").notNull(),
+    consumedAt: timestamp("consumed_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    userIdx: index("discord_trade_intents_user_idx").on(table.userId, table.createdAt),
+    discordUserIdx: index("discord_trade_intents_discord_user_idx").on(
+      table.discordUserId,
+      table.createdAt,
+    ),
+    expiryIdx: index("discord_trade_intents_expiry_idx").on(table.expiresAt),
+  }),
+);
+
+export const discordPostHistory = pgTable(
+  "discord_post_history",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    channelId: varchar("channel_id", { length: 32 }).notNull(),
+    sourceType: text("source_type").notNull(), // news | hourly_digest
+    sourceKey: text("source_key").notNull(),
+    discordMessageId: varchar("discord_message_id", { length: 32 }),
+    postedAt: timestamp("posted_at").notNull().defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    dedupeIdx: uniqueIndex("discord_post_history_dedupe_idx").on(
+      table.channelId,
+      table.sourceType,
+      table.sourceKey,
+    ),
+    sourceIdx: index("discord_post_history_source_idx").on(table.sourceType, table.createdAt),
+  }),
+);
+
 // Players table - players from all sports (NBA, NFL, etc.)
 // Player IDs are prefixed with sport: nba_12345, nfl_67890
 export const players = pgTable(
@@ -1435,12 +1537,12 @@ export const userAgentProfiles = pgTable(
     systemPrompt: text("system_prompt")
       .notNull()
       .default(
-        "You are Hermes, the Sportfolio portfolio operator. Stay grounded in the provided Sportfolio gameplay context, treat the approved tool surface as the source of truth, reason across portfolio, market, boosts, scouts, watchlists, and related gameplay systems, and never imply access to code, arbitrary database data, files, or admin-only systems. When a requested move changes gameplay state, follow the active execution policy and confirmation boundary instead of bypassing it.",
+        "You are Hermes, Sportfolio's product operator. Stay inside Sportfolio gameplay and user experience: portfolio state, player markets, liquidity, boosts, scouts, watchlists, lineups, schedules, stats, and guardrailed strategies. Use Sportfolio-native tools as the source of truth for account and gameplay state. Treat built-in or user-connected MCP sources as optional enrichment after native Sportfolio context, not as canonical state. Keep the focus on the next useful Sportfolio decision instead of acting like a general personal assistant. Never imply access to code, arbitrary database state, files, or admin-only systems. When a request would change gameplay state, preview or stage it through the server-owned confirmation boundary instead of bypassing validation.",
       ),
     userPromptTemplate: text("user_prompt_template")
       .notNull()
       .default(
-        "Act like my Sportfolio portfolio operator. Review my live gameplay setup, explain the highest-signal risk and opportunity tradeoffs clearly, and when I ask for a plan, translate that into the safest high-leverage sequence the available Hermes tools can support.",
+        "Act like my Sportfolio portfolio operator. Keep me focused on the highest-signal Sportfolio decision, use lineups, schedules, stats, and news only when they change what I should do, and turn direct requests into the safest staged move the current Hermes tools support.",
       ),
     temperature: decimal("temperature", { precision: 3, scale: 2 }).notNull().default("0.20"),
     maxTokens: integer("max_tokens").notNull().default(1200),
@@ -3440,6 +3542,32 @@ export const insertUserPhoneLinkTokenSchema = createInsertSchema(userPhoneLinkTo
   createdAt: true,
 });
 
+export const insertDiscordUserLinkSchema = createInsertSchema(discordUserLinks).omit({
+  id: true,
+  linkedAt: true,
+  lastSeenAt: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertDiscordLinkStateSchema = createInsertSchema(discordLinkStates).omit({
+  id: true,
+  consumedAt: true,
+  createdAt: true,
+});
+
+export const insertDiscordTradeIntentSchema = createInsertSchema(discordTradeIntents).omit({
+  id: true,
+  consumedAt: true,
+  createdAt: true,
+});
+
+export const insertDiscordPostHistorySchema = createInsertSchema(discordPostHistory).omit({
+  id: true,
+  postedAt: true,
+  createdAt: true,
+});
+
 export const insertSmsMessageEventSchema = createInsertSchema(smsMessageEvents).omit({
   id: true,
   createdAt: true,
@@ -3453,3 +3581,15 @@ export type InsertUserPhoneLinkToken = z.infer<typeof insertUserPhoneLinkTokenSc
 
 export type SmsMessageEvent = typeof smsMessageEvents.$inferSelect;
 export type InsertSmsMessageEvent = z.infer<typeof insertSmsMessageEventSchema>;
+
+export type DiscordUserLink = typeof discordUserLinks.$inferSelect;
+export type InsertDiscordUserLink = z.infer<typeof insertDiscordUserLinkSchema>;
+
+export type DiscordLinkState = typeof discordLinkStates.$inferSelect;
+export type InsertDiscordLinkState = z.infer<typeof insertDiscordLinkStateSchema>;
+
+export type DiscordTradeIntent = typeof discordTradeIntents.$inferSelect;
+export type InsertDiscordTradeIntent = z.infer<typeof insertDiscordTradeIntentSchema>;
+
+export type DiscordPostHistory = typeof discordPostHistory.$inferSelect;
+export type InsertDiscordPostHistory = z.infer<typeof insertDiscordPostHistorySchema>;
