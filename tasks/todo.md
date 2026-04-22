@@ -1,3 +1,10 @@
+## 2026-04-22 Worktree Helper + PR Merge Train
+
+- [ ] Add a safe `worktree:close` helper and wire docs/scripts for the full worktree lifecycle
+- [ ] Open a GitHub PR for the workflow toolkit changes
+- [ ] Triage open GitHub PRs excluding `#120`, run validation for merge candidates, and merge safe ones
+- [ ] Verify post-merge stability signals for GitHub CI and Railway-facing health checks
+
 ## 2026-03-30 Production Crash Recovery + Android Release PR Hardening
 
 - [x] Investigate the production crash on Railway and identify the failing runtime path
