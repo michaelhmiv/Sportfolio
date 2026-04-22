@@ -153,7 +153,10 @@ export function WhaleAlertBanner({ className }: WhaleAlertBannerProps) {
                 )}
               >
                 <Waves
-                  className={cn("h-5 w-5 sm:h-6 sm:w-6", isBuy ? "text-emerald-500" : "text-red-500")}
+                  className={cn(
+                    "h-5 w-5 sm:h-6 sm:w-6",
+                    isBuy ? "text-emerald-500" : "text-red-500",
+                  )}
                 />
               </motion.div>
 
