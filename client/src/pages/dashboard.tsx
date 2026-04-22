@@ -678,13 +678,14 @@ export default function Dashboard() {
           )}
 
           {/* Balance Header - Only show for authenticated users */}
-          {isAuthenticated && data?.user && (
+          {isAuthenticated && data?.user && (() => {
+            const change24hAmount = data.user.change24h?.amount ?? 0;
+            return (
             <div
               className={cn(
                 "terminal-shell group relative hidden p-1.5 shadow-sm sm:block sm:p-2 transition-colors duration-700",
-                (data.user.change24h?.amount ?? 0) > 0 &&
-                  "border-emerald-500/25 bg-emerald-500/[0.04]",
-                (data.user.change24h?.amount ?? 0) < 0 && "border-red-500/20 bg-red-500/[0.04]",
+                change24hAmount > 0 && "border-emerald-500/25 bg-emerald-500/[0.04]",
+                change24hAmount < 0 && "border-red-500/20 bg-red-500/[0.04]",
               )}
             >
               {/* Background Pattern */}
@@ -788,7 +789,8 @@ export default function Dashboard() {
                 })}
               </div>
             </div>
-          )}
+            );
+          })()}
 
           {/* Boost Live Earnings Strip */}
           {isAuthenticated && data?.boosts && data.boosts.lockedBoosts > 0 && (
@@ -799,8 +801,7 @@ export default function Dashboard() {
                     <Zap className="h-3 w-3 text-yellow-500" />
                   </span>
                   <span className="text-sm font-semibold text-yellow-500">
-                    {data.boosts.lockedBoosts} boost
-                    {data.boosts.lockedBoosts !== 1 ? "s" : ""} live now
+                    {`${data.boosts.lockedBoosts} boost${data.boosts.lockedBoosts !== 1 ? "s" : ""} live now`}
                   </span>
                   {data.boosts.totalLivePayout !== "0.00" && (
                     <span className="text-xs text-muted-foreground">
