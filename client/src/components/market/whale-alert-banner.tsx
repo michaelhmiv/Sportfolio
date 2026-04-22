@@ -65,7 +65,7 @@ export function WhaleAlertBanner({ className }: WhaleAlertBannerProps) {
     if (!currentAlert) return;
 
     const timer = setTimeout(() => {
-      setCurrentAlert((activeAlert) => (activeAlert?.id === currentAlert.id ? null : activeAlert));
+      setCurrentAlert(null);
     }, WHALE_ALERT_DURATION_MS);
 
     return () => clearTimeout(timer);
@@ -118,7 +118,16 @@ export function WhaleAlertBanner({ className }: WhaleAlertBannerProps) {
               ? "border-emerald-500/50 shadow-emerald-500/20"
               : "border-red-500/50 shadow-red-500/20",
           )}
+          role="button"
+          tabIndex={0}
+          aria-label="Dismiss whale alert"
           onClick={dismissAlert}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              dismissAlert();
+            }
+          }}
           style={{ touchAction: "pan-y" }}
         >
           {/* Animated background wave */}
