@@ -970,15 +970,16 @@ export default function Analytics() {
       <Tabs
         value={activeSection}
         onValueChange={(value) => setActiveSection(value as AnalyticsSection)}
-        className="mx-auto max-w-7xl space-y-4 sm:space-y-5"
+        className="mx-auto max-w-7xl space-y-3 sm:space-y-4"
       >
         <FadeIn direction="up" distance={16}>
           <Card variant="terminal" className="relative overflow-hidden">
             <CardAccent variant="top" color="primary" intensity="medium" />
             <BackgroundPattern variant="gradient-mesh" color="primary" opacity={0.08} />
-            <CardHeader className="relative z-10 space-y-4 p-4 sm:p-5">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                <div className="space-y-1.5">
+            <CardHeader className="relative z-10 space-y-3 p-3 sm:p-5">
+              {/* Mobile-first: title + controls inline */}
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
                   <div className={ANALYTICS_COMPACT_TYPE.label}>Analytics</div>
                   <h1
                     className={ANALYTICS_COMPACT_TYPE.pageTitle}
@@ -986,20 +987,14 @@ export default function Analytics() {
                   >
                     Market Command Center
                   </h1>
-                  <p className={ANALYTICS_COMPACT_TYPE.body}>
+                  <p className={`${ANALYTICS_COMPACT_TYPE.body} hidden sm:block`}>
                     Interactive pulse, live leaders, compare drills, and relationship mapping.
                   </p>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-shrink-0 items-center gap-2">
                   <Badge
                     variant="outline"
-                    className={`rounded-sm border-border/70 bg-background/60 ${ANALYTICS_COMPACT_TYPE.chip}`}
-                  >
-                    30s refresh
-                  </Badge>
-                  <Badge
-                    variant="outline"
-                    className={`rounded-sm border-border/70 bg-background/60 ${ANALYTICS_COMPACT_TYPE.chip}`}
+                    className={`hidden rounded-sm border-border/70 bg-background/60 sm:inline-flex ${ANALYTICS_COMPACT_TYPE.chip}`}
                   >
                     {selectedSport === ALL_SPORTS ? "All sports" : selectedSport}
                   </Badge>
@@ -1008,7 +1003,7 @@ export default function Analytics() {
                     onValueChange={(value) => setTimeRange(value as TimeRange)}
                   >
                     <SelectTrigger
-                      className="h-8 w-[116px] rounded-sm border-border/70 bg-background/70 font-mono text-[11px]"
+                      className="h-8 w-[100px] rounded-sm border-border/70 bg-background/70 font-mono text-[11px] sm:w-[116px]"
                       data-testid="select-timerange"
                     >
                       <SelectValue />
@@ -1024,6 +1019,7 @@ export default function Analytics() {
                 </div>
               </div>
 
+              {/* Section tab bar — sticky on mobile so it stays visible while scrolled */}
               <div className="overflow-x-auto pb-1" data-testid="rail-section-tabs">
                 <TabsList variant="terminal" className="min-w-max gap-1">
                   {(Object.keys(SECTION_LABELS) as AnalyticsSection[]).map((section) => {
@@ -1041,7 +1037,7 @@ export default function Analytics() {
                         key={section}
                         value={section}
                         variant="terminal"
-                        className="gap-2 px-3 py-2 text-[10px] sm:text-[11px]"
+                        className="gap-1.5 px-2.5 py-2 text-[10px] sm:gap-2 sm:px-3 sm:text-[11px]"
                         data-testid={`tab-${section}`}
                       >
                         <Icon className="h-3.5 w-3.5" />
@@ -1062,7 +1058,7 @@ export default function Analytics() {
                 className="-mx-3 overflow-x-auto px-3 pb-1 sm:mx-0 sm:px-0"
                 data-testid="rail-metric-deck"
               >
-                <div className="flex snap-x snap-mandatory gap-3 sm:grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+                <div className="flex snap-x snap-mandatory gap-2 sm:gap-3 sm:grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
                   {(Object.keys(metricDescriptors) as MetricType[]).map((metric) => {
                     const descriptor = metricDescriptors[metric];
                     const Icon = descriptor.icon;
@@ -1075,7 +1071,7 @@ export default function Analytics() {
                         key={metric}
                         type="button"
                         onClick={() => setSelectedMetric(metric)}
-                        className="w-[220px] snap-start text-left sm:w-auto"
+                        className="w-[170px] snap-start text-left sm:w-auto"
                         data-testid={`button-metric-${metric}`}
                       >
                         <Card
@@ -1183,7 +1179,7 @@ export default function Analytics() {
                     {pulseChartData.length > 0 ? (
                       <ChartContainer
                         config={pulseChartConfig}
-                        className="h-[280px] w-full sm:h-[320px]"
+                        className="h-[200px] w-full sm:h-[280px] lg:h-[320px]"
                       >
                         <AreaChart
                           data={pulseChartData}

@@ -1,4 +1,4 @@
-import { Bot, Briefcase, Home, TrendingUp, Zap } from "lucide-react";
+import { BarChart3, Briefcase, Home, TrendingUp, Zap } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -38,9 +38,9 @@ const navItems = [
     icon: Briefcase,
   },
   {
-    title: "Agent",
-    url: "/agent",
-    icon: Bot,
+    title: "Analytics",
+    url: "/analytics",
+    icon: BarChart3,
   },
 ];
 

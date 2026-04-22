@@ -1,7 +1,6 @@
 import {
   BarChart3,
   BookOpen,
-  Bot,
   Crown,
   Home,
   Newspaper,
@@ -63,11 +62,6 @@ const menuItems = [
     icon: Crown,
   },
   {
-    title: "Agent",
-    url: "/agent",
-    icon: Bot,
-  },
-  {
     title: "News",
     url: "/news",
     icon: Newspaper,
@@ -84,7 +78,7 @@ export function AppSidebar() {
 
   const handleNavigation = (item: (typeof menuItems)[0], e: React.MouseEvent) => {
     const requiresAuth =
-      item.url === "/portfolio" || item.url === "/premium" || item.url === "/agent";
+      item.url === "/portfolio" || item.url === "/premium";
     if (requiresAuth && !isAuthenticated) {
       e.preventDefault();
       toast({
@@ -92,9 +86,7 @@ export function AppSidebar() {
         description:
           item.url === "/premium"
             ? "Please create an account or log in to access Premium features."
-            : item.url === "/agent"
-              ? "Please create an account or log in to use your agent."
-              : "Please create an account or log in to view your portfolio.",
+            : "Please create an account or log in to view your portfolio.",
         variant: "destructive",
       });
     }
