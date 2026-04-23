@@ -73,6 +73,8 @@ import {
   getMarketActivitySourceFetchWindow,
 } from "./market-activity-feed";
 import { registerMarketMobileRoutes } from "./routes/market-mobile";
+import { registerPlayersRoutes } from "./routes/players";
+import { normalizeEtDateParam } from "./routes/players-query";
 import { getPool } from "./amm/pool";
 import { normalizeSiteUrl } from "@shared/seo";
 import { ensureSmsSchema } from "./sms-service";
@@ -172,6 +174,16 @@ function toNumber(value: string | number | null | undefined): number {
 
 function roundToTwo(value: number): number {
   return Math.round(value * 100) / 100;
+}
+
+function resolveEtDateOrToday(value: unknown): string {
+  const normalizedDate = normalizeEtDateParam(value);
+  return normalizedDate ?? getTodayET();
+}
+
+function toNoonForEtDate(etDate: string): Date {
+  const { startOfDay } = getETDayBoundaries(etDate);
+  return new Date(startOfDay.getTime() + 12 * 60 * 60 * 1000);
 }
 
 async function loadEffectiveUserState(userId: string) {
@@ -3247,8 +3259,7 @@ ${items}
   app.get("/api/games/insights", optionalAuth, async (req, res) => {
     try {
       const sport = (req.query.sport as string) || "NBA";
-      const rawDate = typeof req.query.date === "string" ? req.query.date : getTodayET();
-      const dateStr = /^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? rawDate : getTodayET();
+      const dateStr = resolveEtDateOrToday(req.query.date);
       const { startOfDay, endOfDay } = getETDayBoundaries(dateStr);
       const games = await storage.getDailyGamesBySport(sport, startOfDay, endOfDay);
 
@@ -3276,8 +3287,7 @@ ${items}
   // NASCAR Races Insights - Returns race info with driver standings
   app.get("/api/races/insights", optionalAuth, async (req, res) => {
     try {
-      const rawDate = typeof req.query.date === "string" ? req.query.date : getTodayET();
-      const dateStr = /^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? rawDate : getTodayET();
+      const dateStr = resolveEtDateOrToday(req.query.date);
       const { startOfDay, endOfDay } = getETDayBoundaries(dateStr);
 
       // Get NASCAR games for the date
@@ -4787,349 +4797,16 @@ ${items}
     }
   });
 
-  // Batch price sparklines for multiple players — powers mini-sparkline UX in the marketplace
-  app.get("/api/players/sparklines", async (req, res) => {
-    try {
-      const raw = typeof req.query.ids === "string" ? req.query.ids : "";
-      const days = Math.min(365, Math.max(1, parseInt((req.query.days as string) || "7", 10)));
-      const withDates = req.query.dates === "true";
-      const ids = raw
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean)
-        .slice(0, 50); // cap at 50 players per request
-
-      if (ids.length === 0) {
-        return res.json({});
-      }
-
-      // Fetch price history for all requested players in parallel
-      const results = await Promise.all(
-        ids.map(async (playerId) => {
-          const rows = await storage.getPriceHistory(playerId, days);
-          if (withDates) {
-            return {
-              playerId,
-              points: rows.map((r) => ({
-                date: r.timestamp.toISOString(),
-                price: parseFloat(r.price),
-              })),
-            };
-          }
-          return {
-            playerId,
-            points: rows.map((r) => parseFloat(r.price)),
-          };
-        }),
-      );
-
-      const out: Record<string, any> = {};
-      for (const { playerId, points } of results) {
-        out[playerId] = points;
-      }
-      res.json(out);
-    } catch (error: any) {
-      console.error("[sparklines]", error.message);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // Get all players with advanced filtering
-  app.get("/api/players", async (req, res) => {
-    try {
-      const {
-        q,
-        search,
-        team,
-        position,
-        limit,
-        offset,
-        page,
-        sortBy,
-        sortOrder,
-        teamsPlayingOnDate,
-        sport,
-        isWatchlist,
-        watchlistId,
-      } = req.query;
-      const rawSearch = typeof q === "string" && q.trim().length > 0 ? q : (search as string);
-
-      // Handle watchlist filtering
-      // If isWatchlist=true or a specific watchlistId is provided, we need authentication
-      let watchlistUserId: string | undefined = undefined;
-      let scopedWatchlistId: string | undefined = undefined;
-      if (isWatchlist === "true" || typeof watchlistId === "string") {
-        // Support both session user (req.user.id) and token claims user (req.user.claims.sub)
-        const user = req.user as any;
-        const userId = user?.id || user?.claims?.sub;
-
-        if (!userId) {
-          // If asking for watchlist but not logged in, return empty
-          return res.json({ players: [], total: 0 });
-        }
-        watchlistUserId = userId;
-        if (typeof watchlistId === "string" && watchlistId !== "all") {
-          scopedWatchlistId = watchlistId;
-        }
-      }
-
-      // Parse and validate pagination params
-      const parsedLimit = limit ? parseInt(limit as string) : 50;
-      // Guard against invalid numeric input (NaN) - allow up to 5000 for high-volume list views
-      const safeLimit = isNaN(parsedLimit) ? 50 : Math.max(1, Math.min(parsedLimit, 5000));
-
-      // Support both explicit offset and page-based pagination (offset takes precedence)
-      const parsedPage = page ? parseInt(page as string) : NaN;
-      const pageDerivedOffset =
-        !isNaN(parsedPage) && parsedPage > 0 ? (parsedPage - 1) * safeLimit : 0;
-      const parsedOffset = offset ? parseInt(offset as string) : pageDerivedOffset;
-      const safeOffset = isNaN(parsedOffset) ? 0 : Math.max(0, parsedOffset);
-
-      // Parse sorting and filter params
-      const validSortBy = [
-        "price",
-        "volume",
-        "change",
-        "tvl",
-        "marketCap",
-        "sentiment",
-        "undervalued",
-        "fantasyPoints",
-        "name",
-        "team",
-      ];
-      const normalizedSortBy = sortBy === "liquidity" || sortBy === "poolSize" ? "tvl" : sortBy;
-      const safeSortBy =
-        normalizedSortBy && validSortBy.includes(normalizedSortBy as string)
-          ? (normalizedSortBy as
-              | "price"
-              | "volume"
-              | "change"
-              | "tvl"
-              | "marketCap"
-              | "sentiment"
-              | "undervalued"
-              | "fantasyPoints"
-              | "name"
-              | "team")
-          : "volume";
-      const safeSortOrder = sortOrder === "asc" ? "asc" : "desc";
-
-      // Handle teams playing on date filter
-      let teamsPlayingFilter: string[] | undefined = undefined;
-      if (teamsPlayingOnDate && typeof teamsPlayingOnDate === "string") {
-        // Parse the date string (expected format: YYYY-MM-DD)
-        const dateMatch = (teamsPlayingOnDate as string).match(/^(\d{4})-(\d{2})-(\d{2})$/);
-        if (dateMatch) {
-          const [, year, month, day] = dateMatch;
-          const etOffset = -5; // ET is UTC-5 (EST) or UTC-4 (EDT), using -5 for simplicity
-
-          // Create date in ET timezone
-          const startOfDayET = new Date(
-            parseInt(year),
-            parseInt(month) - 1,
-            parseInt(day),
-            0,
-            0,
-            0,
-          );
-          const endOfDayET = new Date(
-            parseInt(year),
-            parseInt(month) - 1,
-            parseInt(day),
-            23,
-            59,
-            59,
-          );
-
-          // Convert ET boundaries to UTC for database query
-          const startOfDayUTC = new Date(startOfDayET.getTime() - etOffset * 60 * 60 * 1000);
-          const endOfDayUTC = new Date(endOfDayET.getTime() - etOffset * 60 * 60 * 1000);
-
-          // Fetch games for that date
-          const games = await storage.getDailyGames(startOfDayUTC, endOfDayUTC);
-
-          // Extract unique team codes
-          const teamsSet = new Set<string>();
-          games.forEach((game) => {
-            teamsSet.add(game.homeTeam);
-            teamsSet.add(game.awayTeam);
-          });
-          teamsPlayingFilter = Array.from(teamsSet);
-        }
-      }
-
-      const { players: playersRaw, total } = await storage.getPlayersPaginated({
-        search: rawSearch,
-        team: team as string,
-        position: position as string,
-        sport: sport as string,
-        limit: safeLimit,
-        offset: safeOffset,
-        sortBy: safeSortBy,
-        sortOrder: safeSortOrder,
-        teamsPlayingOnDate: teamsPlayingFilter,
-        watchlistUserId: watchlistUserId,
-        watchlistId: scopedWatchlistId,
-      });
-
-      // Enrich only the returned page to keep response latency bounded.
-      const playerIds = playersRaw.map((p) => p.id);
-      const todayET = getTodayET();
-      const { startOfDay, endOfDay } = getETDayBoundaries(todayET);
-      const targetDate = new Date(startOfDay.getTime() + 12 * 60 * 60 * 1000);
-
-      const [
-        seasonStatsMap,
-        sentimentMap,
-        avgFantasyPointsMap,
-        priceChange24hMap,
-        globalScoutMap,
-        poolDataMap,
-        todaysGames,
-        communityBoosts,
-      ] = await Promise.all([
-        storage.getBatchPlayerSeasonStatsFromLogs(playerIds),
-        storage.getBatchSentiment(playerIds),
-        storage.getBatchAllTimeAvgFantasyPoints(playerIds),
-        storage.getBatchPlayerPriceChange24h(playerIds),
-        storage.getBatchActiveScoutCounts(playerIds),
-        storage.getBatchPoolData(playerIds),
-        sport && typeof sport === "string" && sport.toUpperCase() !== "ALL"
-          ? storage.getDailyGamesBySport(sport.toUpperCase(), startOfDay, endOfDay)
-          : storage.getDailyGames(startOfDay, endOfDay),
-        storage.getCommunityBoostsAllSports(targetDate),
-      ]);
-
-      const teamGameMap = new Map<
-        string,
-        {
-          gameId: string;
-          homeTeam: string;
-          awayTeam: string;
-          status: "none" | "upcoming" | "live" | "ended";
-          startTime: string | null;
-        }
-      >();
-      todaysGames.forEach((game) => {
-        const gameContext = {
-          gameId: game.gameId,
-          homeTeam: game.homeTeam,
-          awayTeam: game.awayTeam,
-          status: getMarketplaceGameStatus(game),
-          startTime: game.startTime ? new Date(game.startTime).toISOString() : null,
-        };
-        teamGameMap.set(game.homeTeam, gameContext);
-        teamGameMap.set(game.awayTeam, gameContext);
-      });
-
-      const communityBoostMap = new Map<string, number>();
-      communityBoosts.forEach((boost) => {
-        const current = communityBoostMap.get(boost.playerId) || 0;
-        communityBoostMap.set(boost.playerId, current + 1);
-      });
-
-      const hasMlbPlayersOnPage = playersRaw.some(
-        (player) => String(player.sport || "").toUpperCase() === "MLB",
-      );
-      const mlbPregameLookup = hasMlbPlayersOnPage
-        ? await getMlbPlayerPregameLookup(todaysGames, todayET)
-        : {
-            probableStarterKeys: new Set<string>(),
-            probableStarterContextByKey: new Map(),
-            matchupsByTeam: new Map(),
-          };
-
-      const players = playersRaw.map((player: any) => {
-        const enriched = enrichPlayerWithMarketValue(player);
-        const seasonStats = seasonStatsMap.get(player.id) || {
-          gamesPlayed: 0,
-          avgFantasyPointsPerGame: "0.0",
-        };
-        const sentimentData = sentimentMap.get(player.id) || {
-          buyPressure: 50,
-          totalVolume24h: 0,
-        };
-        const poolData = poolDataMap.get(player.id);
-        const ammSpotPrice =
-          poolData && poolData.shares > 0 ? poolData.playMoney / poolData.shares : null;
-
-        const LEAGUE_AVG_PE = 0.43;
-        const price = parseFloat(
-          (isAmmOnlyMode && ammSpotPrice !== null
-            ? ammSpotPrice.toFixed(2)
-            : player.lastTradePrice) || "0",
-        );
-        const avgFP = avgFantasyPointsMap.get(player.id) || 0;
-        const peRatio = avgFP > 0 ? price / avgFP : 0;
-        const derivedValueIndex = LEAGUE_AVG_PE > 0 ? (peRatio / LEAGUE_AVG_PE) * 100 : 0;
-
-        const metricBuyPressure =
-          player._metricBuyPressure != null ? parseFloat(player._metricBuyPressure) : null;
-        const metricValueIndex =
-          player._metricValueIndex != null ? parseFloat(player._metricValueIndex) : null;
-        const metricAvgFantasyPoints =
-          player._metricAvgFantasyPoints != null
-            ? parseFloat(player._metricAvgFantasyPoints)
-            : null;
-
-        const poolTvl =
-          poolData?.shares && poolData.shares > 0
-            ? poolData.playMoney * 2
-            : poolData?.playMoney || 0;
-        const gameContext = teamGameMap.get(player.team);
-        const priceChange24h = (priceChange24hMap.get(player.id) || 0).toFixed(2);
-        const mlbPregameContext =
-          String(player.sport || "").toUpperCase() === "MLB"
-            ? getMlbPitcherMatchupChip({
-                playerName: `${player.firstName} ${player.lastName}`.trim(),
-                playerTeam: player.team,
-                playerPosition: player.position,
-                probableStarterKeys: mlbPregameLookup.probableStarterKeys,
-                probableStarterContextByKey: mlbPregameLookup.probableStarterContextByKey,
-                matchupsByTeam: mlbPregameLookup.matchupsByTeam,
-              })
-            : {
-                isProbableStarter: false,
-                probablePitcherGameId: null,
-                mlbMatchupChip: null,
-                mlbPregameSummary: null,
-              };
-
-        return {
-          ...enriched,
-          ...(isAmmOnlyMode
-            ? {
-                lastTradePrice: ammSpotPrice !== null ? ammSpotPrice.toFixed(2) : null,
-                currentPrice: ammSpotPrice !== null ? ammSpotPrice.toFixed(2) : null,
-              }
-            : {}),
-          priceChange24h,
-          avgFantasyPointsPerGame: (
-            metricAvgFantasyPoints ?? parseFloat(seasonStats.avgFantasyPointsPerGame || "0")
-          ).toFixed(1),
-          buyPressure: metricBuyPressure ?? sentimentData.buyPressure,
-          valueIndex: metricValueIndex ?? derivedValueIndex,
-          globalScoutCount: globalScoutMap.get(player.id) || 0,
-          poolLiquidity: poolData?.playMoney || 0,
-          poolTvl,
-          poolShares: poolData?.shares || 0,
-          poolTotalTrades: poolData?.totalTrades || 0,
-          hasGameToday: Boolean(gameContext),
-          gameStatus: gameContext?.status || "none",
-          gameStartTime: gameContext?.startTime || null,
-          communityBoostCount: communityBoostMap.get(player.id) || 0,
-          isProbableStarter: mlbPregameContext.isProbableStarter,
-          probablePitcherGameId: mlbPregameContext.probablePitcherGameId,
-          mlbMatchupChip: mlbPregameContext.mlbMatchupChip,
-          mlbPregameSummary: mlbPregameContext.mlbPregameSummary,
-        };
-      });
-
-      res.json({ players, total });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
+  registerPlayersRoutes(app, {
+    storage,
+    optionalAuth,
+    getTodayET,
+    getETDayBoundaries,
+    getMarketplaceGameStatus,
+    enrichPlayerWithMarketValue,
+    isAmmOnlyMode,
+    getMlbPlayerPregameLookup,
+    getMlbPitcherMatchupChip,
   });
 
   // Market activity feed
@@ -10639,19 +10316,8 @@ ${items}
   app.get("/api/daily-boosts/all", isAuthenticated, async (req: any, res) => {
     try {
       const userId = getUserId(req);
-
-      const todayET = getTodayET();
-      let dateStr = todayET;
-      if (
-        req.query.date &&
-        typeof req.query.date === "string" &&
-        /^\d{4}-\d{2}-\d{2}$/.test(req.query.date)
-      ) {
-        dateStr = req.query.date;
-      }
-
-      const { startOfDay } = getETDayBoundaries(dateStr);
-      const targetDate = new Date(startOfDay.getTime() + 12 * 60 * 60 * 1000);
+      const dateStr = resolveEtDateOrToday(req.query.date);
+      const targetDate = toNoonForEtDate(dateStr);
 
       const boosts = await storage.getDailyBoostsAllSports(userId, targetDate);
 
@@ -10748,18 +10414,8 @@ ${items}
   // Get community boosts across all sports (for the community list)
   app.get("/api/community-boosts/all", isAuthenticated, async (req: any, res) => {
     try {
-      const todayET = getTodayET();
-      let dateStr = todayET;
-      if (
-        req.query.date &&
-        typeof req.query.date === "string" &&
-        /^\d{4}-\d{2}-\d{2}$/.test(req.query.date)
-      ) {
-        dateStr = req.query.date;
-      }
-
-      const { startOfDay } = getETDayBoundaries(dateStr);
-      const targetDate = new Date(startOfDay.getTime() + 12 * 60 * 60 * 1000);
+      const dateStr = resolveEtDateOrToday(req.query.date);
+      const targetDate = toNoonForEtDate(dateStr);
 
       const communityBoosts = await storage.getCommunityBoostsAllSports(targetDate);
 
@@ -10797,59 +10453,16 @@ ${items}
     }
   });
 
-  // Debug endpoint to test storage
-  app.get("/api/daily-boosts/debug", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = getUserId(req);
-      console.log("[DEBUG] userId:", userId);
-
-      const allUsers = await storage.getUsers();
-      console.log("[DEBUG] total users:", allUsers.length);
-
-      if (allUsers.length === 0) {
-        res.json({ error: "No users found" });
-        return;
-      }
-
-      const holdings = await storage.getAllHoldingsWithPlayers(userId);
-      console.log("[DEBUG] holdings count:", holdings.length);
-
-      res.json({
-        userId,
-        userCount: allUsers.length,
-        holdingsCount: holdings.length,
-        holdings: holdings.slice(0, 5).map((h) => ({
-          playerId: h.player.id,
-          name: `${h.player.firstName} ${h.player.lastName}`,
-          team: h.player.team,
-          sport: h.player.sport,
-          quantity: h.quantity,
-          effectiveShares: h.effectiveShares,
-          multiplier: h.multiplier,
-        })),
-      });
-    } catch (error: any) {
-      console.error("[DEBUG] Error:", error);
-      res.status(500).json({ error: error.message, stack: error.stack });
-    }
-  });
-
   // Get all holdings with players (for boost selector) - shows all held players regardless of game status
   app.get("/api/daily-boosts/eligible-all", isAuthenticated, async (req: any, res) => {
     try {
       const userId = getUserId(req);
 
       // Parse date query param (YYYY-MM-DD), default to today in ET
-      const todayET = getTodayET();
-      let dateStr = todayET;
-      if (req.query.date && typeof req.query.date === "string") {
-        if (/^\d{4}-\d{2}-\d{2}$/.test(req.query.date)) {
-          dateStr = req.query.date;
-        }
-      }
+      const dateStr = resolveEtDateOrToday(req.query.date);
 
       const { startOfDay, endOfDay } = getETDayBoundaries(dateStr);
-      const targetDate = new Date(startOfDay.getTime() + 12 * 60 * 60 * 1000);
+      const targetDate = toNoonForEtDate(dateStr);
 
       // Get all holdings with players
       const allHoldings = await storage.getAllHoldingsWithPlayers(userId);
@@ -11007,18 +10620,10 @@ ${items}
 
       // Parse date query param (YYYY-MM-DD), default to today in ET
       // Use getETDayBoundaries to get proper UTC boundaries for the ET date
-      const todayET = getTodayET();
-      let dateStr = todayET;
-      if (req.query.date && typeof req.query.date === "string") {
-        // Validate format YYYY-MM-DD
-        if (/^\d{4}-\d{2}-\d{2}$/.test(req.query.date)) {
-          dateStr = req.query.date;
-        }
-      }
+      const dateStr = resolveEtDateOrToday(req.query.date);
 
       // Create a Date object in the middle of the ET day (noon) to avoid timezone edge cases
-      const { startOfDay } = getETDayBoundaries(dateStr);
-      const targetDate = new Date(startOfDay.getTime() + 12 * 60 * 60 * 1000); // Noon on the ET day
+      const targetDate = toNoonForEtDate(dateStr); // Noon on the ET day
 
       const eligiblePlayers = await storage.getEligiblePlayersForBoost(userId, sport, targetDate);
 
@@ -11099,13 +10704,9 @@ ${items}
       const sportUpper = sport.toUpperCase();
       const canonicalPlayerId = await storage.getCanonicalPlayerId(playerId);
 
-      const todayET = getTodayET();
-      let dateStr = todayET;
-      if (typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
-        dateStr = date;
-      }
+      const dateStr = resolveEtDateOrToday(date);
       const { startOfDay } = getETDayBoundaries(dateStr);
-      const targetDate = new Date(startOfDay.getTime() + 12 * 60 * 60 * 1000);
+      const targetDate = toNoonForEtDate(dateStr);
 
       // Check if slot is already taken
       const currentBoosts = await storage.getDailyBoosts(userId, sportUpper, targetDate);
@@ -11258,18 +10859,8 @@ ${items}
     try {
       const userId = getUserId(req);
       const sport = req.params.sport.toUpperCase();
-
-      const todayET = getTodayET();
-      let dateStr = todayET;
-      if (
-        req.query.date &&
-        typeof req.query.date === "string" &&
-        /^\d{4}-\d{2}-\d{2}$/.test(req.query.date)
-      ) {
-        dateStr = req.query.date;
-      }
-      const { startOfDay } = getETDayBoundaries(dateStr);
-      const targetDate = new Date(startOfDay.getTime() + 12 * 60 * 60 * 1000);
+      const dateStr = resolveEtDateOrToday(req.query.date);
+      const targetDate = toNoonForEtDate(dateStr);
 
       const boosts = await storage.getDailyBoosts(userId, sport, targetDate);
 
@@ -11384,18 +10975,8 @@ ${items}
     try {
       const userId = getUserId(req);
       const sport = req.params.sport.toUpperCase();
-
-      const todayET = getTodayET();
-      let dateStr = todayET;
-      if (
-        req.query.date &&
-        typeof req.query.date === "string" &&
-        /^\d{4}-\d{2}-\d{2}$/.test(req.query.date)
-      ) {
-        dateStr = req.query.date;
-      }
-      const { startOfDay } = getETDayBoundaries(dateStr);
-      const targetDate = new Date(startOfDay.getTime() + 12 * 60 * 60 * 1000);
+      const dateStr = resolveEtDateOrToday(req.query.date);
+      const targetDate = toNoonForEtDate(dateStr);
 
       const boosts = await storage.getDailyBoosts(userId, sport, targetDate);
 
@@ -11441,17 +11022,8 @@ ${items}
       }
 
       const sport = req.params.sport.toUpperCase();
-      const todayET = getTodayET();
-      let dateStr = todayET;
-      if (
-        req.query.date &&
-        typeof req.query.date === "string" &&
-        /^\d{4}-\d{2}-\d{2}$/.test(req.query.date)
-      ) {
-        dateStr = req.query.date;
-      }
-      const { startOfDay } = getETDayBoundaries(dateStr);
-      const targetDate = new Date(startOfDay.getTime() + 12 * 60 * 60 * 1000);
+      const dateStr = resolveEtDateOrToday(req.query.date);
+      const targetDate = toNoonForEtDate(dateStr);
 
       const boosts = await storage.getCommunityBoostsForDate(sport, targetDate);
 
@@ -11475,13 +11047,9 @@ ${items}
       // 1. Verify player has a game today that hasn't started
       const sportUpper = sport.toUpperCase();
       const canonicalPlayerId = await storage.getCanonicalPlayerId(playerId);
-      const todayET = getTodayET();
-      let dateStr = todayET;
-      if (typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
-        dateStr = date;
-      }
+      const dateStr = resolveEtDateOrToday(date);
       const { startOfDay } = getETDayBoundaries(dateStr);
-      const targetDate = new Date(startOfDay.getTime() + 12 * 60 * 60 * 1000);
+      const targetDate = toNoonForEtDate(dateStr);
 
       const game = await storage.getPlayerGameForDate(canonicalPlayerId, sportUpper, targetDate);
 
@@ -11545,18 +11113,12 @@ ${items}
       const userId = getUserId(req);
 
       // Parse date query param (YYYY-MM-DD), default to today in ET
-      const todayET = getTodayET();
-      let dateStr = todayET;
-      if (req.query.date && typeof req.query.date === "string") {
-        if (/^\d{4}-\d{2}-\d{2}$/.test(req.query.date)) {
-          dateStr = req.query.date;
-        }
-      }
+      const dateStr = resolveEtDateOrToday(req.query.date);
 
       console.log(`[community-boosts/eligible-players] User ${userId}, date: ${dateStr}`);
 
       const { startOfDay, endOfDay } = getETDayBoundaries(dateStr);
-      const targetDate = new Date(startOfDay.getTime() + 12 * 60 * 60 * 1000);
+      const targetDate = toNoonForEtDate(dateStr);
 
       // Get all games today for all sports
       const todaysGames = await db

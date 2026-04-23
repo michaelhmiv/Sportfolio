@@ -3567,15 +3567,6 @@ const PUBLIC_EXCLUDED_CAPABILITIES: PublicExcludedCapability[] = [
       "Android-native rewarded ad session bootstrap stays outside the shared CLI and MCP capability surface.",
   },
   {
-    capabilityId: "daily_boost_debug",
-    kind: "excluded",
-    status: "excluded",
-    domain: "internal",
-    source: "/api/daily-boosts/debug",
-    notes:
-      "Debug-only diagnostics must not be exposed through the shared public capability surface.",
-  },
-  {
     capabilityId: "agent_thread_runtime_details",
     kind: "excluded",
     status: "excluded",
@@ -3934,7 +3925,6 @@ const PUBLIC_SITE_ROUTE_COVERAGE: PublicSiteRouteCoverageEntry[] = [
     path: "/api/community-boosts/all",
     capabilityIds: ["get_community_boost_state"],
   },
-  { method: "GET", path: "/api/daily-boosts/debug", excludedCapabilityId: "daily_boost_debug" },
   {
     method: "GET",
     path: "/api/daily-boosts/eligible-all",

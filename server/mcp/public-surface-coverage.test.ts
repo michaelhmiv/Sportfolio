@@ -8,6 +8,7 @@ import {
 
 const ROUTE_FILES = [
   path.resolve("server/routes.ts"),
+  path.resolve("server/routes/players.ts"),
   path.resolve("server/routes/amm.ts"),
   path.resolve("server/routes/lp.ts"),
   path.resolve("server/routes/mobile-rewarded-scout-boost.ts"),

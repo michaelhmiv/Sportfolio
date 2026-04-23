@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
+import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,10 +29,9 @@ import {
 } from "lucide-react";
 import { apiRequest, getAuthHeaders } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/hooks/useAuth";
 import type { Player } from "@shared/schema";
 import { PlayerName } from "@/components/player-name";
-import { format, addDays, subDays } from "date-fns";
+import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { CommunityBoostSelector } from "@/components/community-boost-selector";
@@ -42,6 +41,7 @@ import { LiveFantasyPoints } from "@/components/boost/live-fantasy-points";
 import { useBoostNearMissDetector } from "@/components/boost/boost-near-miss";
 import { SPORTS as GLOBAL_SPORTS } from "@/lib/sport-context";
 import { matchesPlayerSearch } from "@/lib/player-search";
+import { useBoostsDate } from "@/features/boosts/use-boosts-date";
 
 interface BoostCeremonyData {
   playerName: string;
@@ -125,27 +125,9 @@ const MULTIPLIER_SLOTS = [
 
 const COMMUNITY_FILTER_SPORTS = ["All", ...GLOBAL_SPORTS.filter((sport) => sport !== "ALL")];
 
-// Helper to get today's date in Eastern Time
-function getTodayET(): Date {
-  const now = new Date();
-  // Convert to ET by subtracting 5 hours (EST) or 4 hours (EDT)
-  // Simpler: just use midnight ET as the day boundary
-  const et = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
-  return et;
-}
-
-// Helper to format date as YYYY-MM-DD in ET
-function formatDateET(date: Date): string {
-  const et = new Date(date.toLocaleString("en-US", { timeZone: "America/New_York" }));
-  return format(et, "yyyy-MM-dd");
-}
-
 export default function BoostsPage() {
   const { toast } = useToast();
-  const { isAuthenticated } = useAuth();
-
-  // Initialize with Eastern Time date
-  const [selectedDate, setSelectedDate] = useState<Date>(() => getTodayET());
+  const { selectedDate, selectedDateKey, goToPreviousDay, goToNextDay } = useBoostsDate();
   const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
   const [search, setSearch] = useState("");
   const [communitySportFilter, setCommunitySportFilter] = useState("All");
@@ -165,15 +147,16 @@ export default function BoostsPage() {
     slotsRemaining: number;
     availableSlots: number[];
   }>({
-    queryKey: ["/api/daily-boosts/all", formatDateET(selectedDate)],
+    queryKey: ["/api/daily-boosts/all", selectedDateKey],
     queryFn: async () => {
-      const dateStr = formatDateET(selectedDate);
       const headers = await getAuthHeaders();
-      const res = await fetch(`/api/daily-boosts/all?date=${dateStr}`, { headers });
+      const res = await fetch(`/api/daily-boosts/all?date=${selectedDateKey}`, { headers });
       if (!res.ok) throw new Error("Failed to fetch boosts");
       return res.json();
     },
     refetchInterval: 10000, // Poll every 10 seconds for live updates
+    staleTime: 5000,
+    placeholderData: keepPreviousData,
   });
 
   // Fetch all eligible players across sports (for player selector)
@@ -186,16 +169,14 @@ export default function BoostsPage() {
     eligiblePlayers: EligiblePlayer[];
     totalEligible: number;
   }>({
-    queryKey: ["/api/daily-boosts/eligible-all", formatDateET(selectedDate)],
+    queryKey: ["/api/daily-boosts/eligible-all", selectedDateKey],
     queryFn: async () => {
-      const dateStr = formatDateET(selectedDate);
-      console.log("[Boosts] Fetching eligible players for date:", dateStr);
       const headers = await getAuthHeaders();
-      const res = await fetch(`/api/daily-boosts/eligible-all?date=${dateStr}`, { headers });
-      console.log("[Boosts] Response status:", res.status);
+      const res = await fetch(`/api/daily-boosts/eligible-all?date=${selectedDateKey}`, {
+        headers,
+      });
       if (!res.ok) {
         const responseText = await res.text();
-        console.error("[Boosts] Eligible fetch failed:", res.status, responseText);
         try {
           const errorData = JSON.parse(responseText);
           throw new Error(`${errorData.error || "Unknown error"}`);
@@ -203,46 +184,27 @@ export default function BoostsPage() {
           throw new Error(`Server error (${res.status})`);
         }
       }
-      const data = await res.json();
-      console.log("[Boosts] Eligible data received:", data.eligiblePlayers?.length, "players");
-      return data;
-    },
-    refetchInterval: 60000,
-  });
-
-  if (eligibleError) {
-    console.error("[Boosts] Eligible query error:", eligibleError);
-  }
-
-  // Debug query to test storage
-  const { data: debugData } = useQuery<any>({
-    queryKey: ["/api/daily-boosts/debug"],
-    queryFn: async () => {
-      const headers = await getAuthHeaders();
-      const res = await fetch(`/api/daily-boosts/debug`, { headers });
-      if (!res.ok) throw new Error("Debug endpoint failed");
       return res.json();
     },
-    retry: false,
+    refetchInterval: 60000,
+    staleTime: 15000,
+    placeholderData: keepPreviousData,
   });
-
-  if (debugData) {
-    console.log("[DEBUG] Storage test:", debugData);
-  }
 
   // Fetch community boosts across all sports
   const { data: communityData, refetch: refetchCommunity } = useQuery<{
     communityBoosts: CommunityBoostEntry[];
   }>({
-    queryKey: ["/api/community-boosts/all", formatDateET(selectedDate)],
+    queryKey: ["/api/community-boosts/all", selectedDateKey],
     queryFn: async () => {
-      const dateStr = formatDateET(selectedDate);
       const headers = await getAuthHeaders();
-      const res = await fetch(`/api/community-boosts/all?date=${dateStr}`, { headers });
+      const res = await fetch(`/api/community-boosts/all?date=${selectedDateKey}`, { headers });
       if (!res.ok) throw new Error("Failed to fetch community boosts");
       return res.json();
     },
     refetchInterval: 60000,
+    staleTime: 15000,
+    placeholderData: keepPreviousData,
   });
 
   // Fetch history
@@ -270,7 +232,7 @@ export default function BoostsPage() {
     }) => {
       return await apiRequest("POST", "/api/daily-boosts/assign", {
         ...data,
-        date: formatDateET(selectedDate),
+        date: selectedDateKey,
       });
     },
     onSuccess: (response, variables) => {
@@ -354,28 +316,22 @@ export default function BoostsPage() {
     return boostsData?.boosts?.find((b) => b.slotTier === tier);
   };
 
-  const filteredPlayers =
-    eligibleData?.eligiblePlayers?.filter((ep) => {
-      return matchesPlayerSearch(ep.player, search);
-    }) || [];
+  const filteredPlayers = useMemo(
+    () =>
+      (eligibleData?.eligiblePlayers || []).filter((eligiblePlayer) =>
+        matchesPlayerSearch(eligiblePlayer.player, search),
+      ),
+    [eligibleData?.eligiblePlayers, search],
+  );
 
-  // Debug logging
-  console.log(`[Boosts] eligibleData:`, eligibleData);
-  if (eligibleData?.eligiblePlayers) {
-    console.log(
-      `[Boosts] Total eligible: ${eligibleData.eligiblePlayers.length}, Filtered: ${filteredPlayers.length}, Search: "${search}"`,
-    );
-    eligibleData.eligiblePlayers.forEach((ep, i) => {
-      console.log(
-        `[Boosts] ${i}: ${ep.player?.firstName} ${ep.player?.lastName} - effective: ${ep.effectiveShares}, multi: ${ep.multiplier}`,
-      );
-    });
-  }
-
-  const filteredCommunityBoosts =
-    communityData?.communityBoosts?.filter((cb) => {
-      return communitySportFilter === "All" || cb.sport === communitySportFilter;
-    }) || [];
+  const filteredCommunityBoosts = useMemo(
+    () =>
+      (communityData?.communityBoosts || []).filter(
+        (communityBoost) =>
+          communitySportFilter === "All" || communityBoost.sport === communitySportFilter,
+      ),
+    [communityData?.communityBoosts, communitySportFilter],
+  );
 
   const totalEstimated = "0.00";
   const activeBoosts = boostsData?.boosts?.filter((b) => b.status === "active").length || 0;
@@ -383,15 +339,10 @@ export default function BoostsPage() {
   const userPremiumShares = eligibleData?.eligiblePlayers?.[0]?.userPremiumShares || 0;
 
   const handleSlotClick = (tier: number) => {
-    console.log("[Boosts] handleSlotClick called for tier:", tier);
     const boost = getSlotBoost(tier);
-    console.log("[Boosts] boost found:", boost);
     if (!boost) {
-      console.log("[Boosts] Setting selectedSlot and opening dialog");
       setSelectedSlot(tier);
       setPlayerSelectorOpen(true);
-    } else {
-      console.log("[Boosts] Slot already has a boost, skipping");
     }
   };
 
@@ -430,7 +381,7 @@ export default function BoostsPage() {
                 <Button
                   variant="terminalOutline"
                   size="icon"
-                  onClick={() => setSelectedDate(subDays(selectedDate, 1))}
+                  onClick={goToPreviousDay}
                   className="h-8 w-8"
                 >
                   <ChevronLeft className="w-4 h-4" />
@@ -442,7 +393,7 @@ export default function BoostsPage() {
                 <Button
                   variant="terminalOutline"
                   size="icon"
-                  onClick={() => setSelectedDate(addDays(selectedDate, 1))}
+                  onClick={goToNextDay}
                   className="h-8 w-8"
                 >
                   <ChevronRight className="w-4 h-4" />
@@ -788,7 +739,6 @@ export default function BoostsPage() {
           <Dialog
             open={playerSelectorOpen}
             onOpenChange={(open) => {
-              console.log("[Boosts] Dialog onOpenChange:", open);
               setPlayerSelectorOpen(open);
               if (!open) {
                 setSearch("");

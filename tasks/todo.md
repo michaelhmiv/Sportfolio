@@ -1,3 +1,20 @@
+## 2026-04-23 Repository-Wide Refactor + QA/QC Pass
+
+- [x] Complete repository assessment across architecture, critical workflows, and risk areas
+- [x] Refactor `/api/players` route handling for watchlist auth safety, query parsing clarity, and ET date consistency
+- [x] Extract shared server route date-query helpers and apply to daily/community boosts endpoints
+- [x] Remove debug-only boosts page behavior and consolidate authenticated fetch patterns
+- [x] Add targeted regression/unit tests for refactored server helpers
+- [x] Run `npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`, and `npm run build`
+
+## 2026-04-23 Follow-up Refactor Execution (Phase 2)
+
+- [x] Extract `/api/players*` route handlers into a dedicated domain route module
+- [x] Add API-level integration tests for watchlist-scoped player listing + sparkline route behavior
+- [x] Decompose boosts page date-state logic into a dedicated feature hook
+- [x] Remove non-product `/api/daily-boosts/debug` endpoint from runtime route surface
+- [x] Apply low-risk performance cleanup for date-switched boosts queries (`keepPreviousData` + stale tuning)
+
 ## 2026-04-22 No-Preseed AMM Initialization Cleanup
 
 - [x] Remove implicit pool seeding from AMM core paths and support explicit pool bootstrap via LP adds
