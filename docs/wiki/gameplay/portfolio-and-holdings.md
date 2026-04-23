@@ -13,138 +13,138 @@ surface: web,agent
 searchKeywords: portfolio,holdings,balance,lp,locks,premium,community shares
 ---
 
-# What your portfolio actually contains
+# Portfolio and Holdings
 
-Your portfolio is not just a list of player positions. It is the full state of your account's economy.
+Your portfolio is the full state of your account's economy — not just a player list.
 
-The main pieces are:
+It tracks everything: cash, shares, LP positions, premium inventory, community shares, and a complete activity history.
 
-- **cash balance**: liquid SB you can spend
-- **player holdings**: tradeable player shares
-- **stacked shares**: non-tradeable player-share inventory with higher multiplier strength
-- **LP positions**: ownership in AMM pools
-- **premium shares**: redeemable premium inventory
-- **community shares**: inventory that can be consumed for community boosts
-- **activity history**: the audit trail of how your state changed
+---
 
-## Why one player can appear more than once
+## What Your Portfolio Contains
 
-Sportfolio can store separate regular-share inventory and stacked-share multiplier state for the same player.
+| Asset | Description |
+|---|---|
+| **Cash balance (SB)** | Liquid spending power |
+| **Player holdings** | Raw tradeable shares per player |
+| **Stacked shares** | Non-tradeable, high-multiplier positions |
+| **LP positions** | Ownership in AMM liquidity pools |
+| **Premium shares** | Activate premium access windows |
+| **Community shares** | Spend to create community boosts |
+| **Activity history** | Complete audit trail of state changes |
 
-That is intentional. A single player may appear as:
+---
 
-- a regular holding row with `1x` multiplier
-- one stacked-share multiplier state with multiplier above `1x`
+## Why a Player Can Appear Twice
 
-This matters because boost and stack shares flows need to know which exact inventory is being consumed.
+One player can show up as two separate rows in your holdings: one for raw shares (1× multiplier) and one for stacked shares (2× or higher).
 
-## Multiplier inside holdings
+This is intentional. The system tracks them separately because boost and stack-shares flows consume different inventory types.
 
-Two terms show up repeatedly:
+---
 
-- **multiplier**: the strength of a single stacked share
-- **effective shares**: the economic share count a position contributes to value and holder payouts
+## Multipliers and Effective Shares
 
-Example:
+Two terms you'll see repeatedly:
 
-- `quantity = 5`, `multiplier = 1x` means five normal shares and `5` effective shares
-- `quantity = 1`, `multiplier = 4x` means one stacked share and `4` effective shares
+**Multiplier** — the strength of a single stacked share (e.g., 5×)
 
-Multiplier strength affects boost payouts directly, so the quality of a row can matter more than raw share count.
+**Effective shares** — the economic contribution of a position to value and payout math
 
-## Available versus locked inventory
+**Example:**
+- `quantity = 5, multiplier = 1×` → 5 effective shares (normal raw position)
+- `quantity = 1, multiplier = 5×` → 5 effective shares (one stacked share from stacking 10 raw)
 
-Not every share shown in your portfolio is always spendable.
+Same effective shares, very different boost utility. The stacked share wins every time for a single boost slot.
 
-The practical availability rule is:
+---
 
-`available shares = quantity - lockedQuantity`
+## Available vs. Locked Inventory
 
-Shares can be unavailable because they are reserved for an in-flight mechanic such as:
+> ⚠️ **Locked shares cannot be spent.** Always check availability before stacking or assigning a boost.
 
-- a pending or active boost
-- another protected flow that uses holding locks
+```
+available shares = quantity - lockedQuantity
+```
 
-Good rule: if a share is locked, do not mentally count it twice.
+Shares get locked when:
+- A boost is active or pending
+- Another protected flow has reserved them
 
-## What the holdings tab is for
+Locked shares remain in your account state — they're just temporarily off-limits.
 
-The holdings side of the Portfolio page is where you assess:
+---
 
-- cash balance
-- portfolio value
-- net worth
-- realized and unrealized P&L
-- the size and quality of each position
-- how concentrated you are by player and sport
+## The Holdings Tab
 
-This is the right view when your question is, "What do I own and how well is it working?"
+Use the Holdings tab to answer: *"What do I own and how is it performing?"*
 
-## What the liquidity tab is for
+It shows:
+- Cash balance, portfolio value, and net worth
+- Realized and unrealized P&L
+- Position size and quality (raw vs. stacked) per player
+- How concentrated you are by player and sport
+- Cost basis and accounting details
 
-The liquidity side tracks LP positions rather than direct shares.
+---
 
-It is where you review:
+## The Liquidity Tab
 
-- pool ownership percentage
-- current position value
-- fees earned to date
-- which player pools are consuming your capital
+Use the Liquidity tab to answer: *"How much capital am I deploying as an LP?"*
 
-If the holdings tab measures directional bets, the liquidity tab measures market-making exposure.
+It shows:
+- Each LP position and its pool
+- Your ownership percentage
+- Current position value
+- Fees earned to date
 
-## Premium and community inventory
+LP positions are market-making exposure, not directional bets. They earn from trading fees rather than share price movement.
 
-Portfolio also surfaces non-player assets:
+---
 
-- **premium shares** are used to activate premium access windows
-- **community shares** are spent when you create community boosts
+## Premium and Community Inventory
 
-These asset types matter because they compete with other uses of your balance and attention, even though they are not normal player trades.
+**Premium shares** — redeemed to activate premium access. Not tradeable, not the same as player shares.
 
-## Activity feed
+**Community shares** — spent when you create a community boost. Each community boost costs exactly one community share.
 
-Your activity feed is the account timeline. It helps you reconstruct what happened.
+Both compete for your attention and balance even though they're not standard player positions.
 
-Common categories include:
+---
 
-- **market**: buys, sells, and other market actions
-- **scout**: hourly share rewards and scout-related changes
-- **boosts**: boost-related burns, locks, and payout outcomes
+## Activity Feed
+
+The activity feed is your account timeline. Common categories:
+
+| Category | What it covers |
+|---|---|
+| **Market** | Buys, sells, and market actions |
+| **Scout** | Hourly share rewards and scout changes |
+| **Boosts** | Burns, locks, payout outcomes |
+| **LP** | Pool adds, removes, fee accrual |
 
 Use the feed when a balance or holding changed and you want to know why.
 
-## Stack Shares from the portfolio perspective
+---
 
-Stack Shares is easier to understand when you think about it as an inventory rewrite:
-
-- it debits unlocked regular shares
-- it increases the multiplier strength of retained inventory
-- it lowers raw count and raises per-share quality
-
-You are not "creating free value." You are converting quantity into higher-impact inventory.
-
-## Cost basis and accounting
-
-Sportfolio tracks basis and row-level accounting so that P&L and holdings stay coherent after:
-
-- trades
-- scout distributions
-- stack shares operations
-- LP mutations
-- boost burns and settlements
-
-That is why you should prefer official flows over mental shortcuts. The system is maintaining more accounting state than a simple share counter.
-
-## What can change your portfolio
+## What Can Change Your Portfolio
 
 Your portfolio can move because of:
-
 - AMM buys and sells
 - LP adds and removals
-- scout distributions
-- daily boost burns and payouts
-- community boost creation
-- premium share redemption
+- Scout distributions (every hour)
+- Daily boost burns and payouts
+- Game-performance share payouts (stacked positions)
+- Community boost creation
+- Premium share redemption
 
-That is why the portfolio is the best place to judge the combined effect of all Sportfolio systems, not just trading.
+The portfolio is the best place to see the combined effect of all Sportfolio systems.
+
+---
+
+## Next Steps
+
+- [Player Pools](/wiki/gameplay/player-pools) — how to trade
+- [Scouts and Rewards](/wiki/gameplay/scouts-and-rewards) — how inventory builds passively
+- [Stacking and Boosts](/wiki/gameplay/stacking-shares-and-boosts) — how to upgrade inventory quality
+- [Liquidity Providing](/wiki/gameplay/liquidity-providing) — LP positions explained

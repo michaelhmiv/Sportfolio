@@ -13,89 +13,96 @@ surface: web,cli,agent
 searchKeywords: mcp,model context protocol,streamable http,bearer token,api token,external access,endpoint,hermes
 ---
 
-# MCP access
+# MCP Access
 
-Sportfolio exposes a public authenticated Model Context Protocol endpoint at `/mcp`.
+Sportfolio exposes a public authenticated [Model Context Protocol](https://modelcontextprotocol.io) endpoint at `/mcp`.
 
-This is the protocol-facing external surface for MCP-compatible clients. It is separate from:
+This is the protocol-facing surface for MCP-compatible clients (like Claude Desktop, Cursor, or custom tool runners). It is separate from the CLI and separate from Hermes's internal routing.
 
-- Hermes runtime transport and sidecar routes
-- the built-in MLB enrichment source Hermes can consume internally
-- any user-connected external MCP sources that a user may attach inside Hermes
+---
 
-## Endpoint and transport
+## Endpoint and Auth
 
-- production endpoint: `https://www.sportfolio.market/mcp`
-- local development endpoint: `http://127.0.0.1:5000/mcp`
-- transport: Streamable HTTP
-- normal MCP traffic goes through `POST /mcp`
+| | Value |
+|---|---|
+| **Production** | `https://www.sportfolio.market/mcp` |
+| **Local dev** | `http://127.0.0.1:5000/mcp` |
+| **Transport** | Streamable HTTP (`POST /mcp`) |
+| **Auth** | Bearer token (same API token as CLI) |
 
-## Authentication
-
-MCP uses the same user-scoped API tokens used by the Sportfolio CLI.
-
-Send your token as:
-
-```text
+```
 Authorization: Bearer <your-token>
 ```
 
-That keeps MCP inside the same account boundary as the web app and CLI. It is not an admin or shared back door.
+Create your token at **Profile → CLI Access**.
 
-## How MCP fits into Hermes
+---
 
-Sportfolio uses three different MCP roles:
+## What MCP Includes
 
-1. Public `/mcp`
-   The external authenticated protocol surface for MCP-aware clients.
-2. Built-in internal MCP
-   The MLB bridge Hermes can use for bounded enrichment.
-3. User-connected external MCP
-   Optional per-user sources Hermes can call for outside context.
+The public MCP surface gives you access to the same shared capability catalog as the CLI, plus a read-only MLB extension when that service is available.
 
-Hermes does not treat all three roles the same way. Native Sportfolio tools stay canonical for portfolio and gameplay state. MCP sources are enrichment, not a second source of truth.
+**Included:**
 
-## What the public surface includes
+- Account, portfolio, holdings, pools, boosts, scouts, watchlists, schedules, news, and docs reads
+- Public resources: `sportfolio://docs/index`, `sportfolio://capabilities`, `sportfolio://action-surface`, `sportfolio://tool-catalog`
+- Starter prompts: `review_setup`, `review_idle_cash`, `find_boost_candidates`, `stage_trade`
+- Immediate account actions: profile updates, token management, watchlist CRUD, schedule CRUD, premium redeem
+- Staged gameplay actions: trades, LP flows, stack shares, daily boosts, community boosts, scout assignments — all confirmation-gated
+- Read-only `mlb_mcp__*` tools when the internal MLB service is reachable
 
-The public MCP surface includes the shared authenticated Sportfolio capability catalog plus a read-only MLB extension when the internal MLB data service is available.
+**Not included:**
 
-Core included areas today:
+- Billing, funding, checkout, and purchase flows
+- Admin and internal-only routes
 
-- reads across account, portfolio, holdings, players, pools, boosts, scouts, watchlists, schedules, docs, news, and thread state
-- read-only `mlb_mcp__*` tools that proxy the internal MLB MCP service through Sportfolio authentication when that service is enabled and reachable
-- public docs and resources including `sportfolio://docs/index`, `sportfolio://capabilities`, `sportfolio://action-surface`, and `sportfolio://tool-catalog`
-- public prompts including `review_setup`, `review_idle_cash`, `find_boost_candidates`, and `stage_trade`
-- selected account and profile actions such as token management, profile updates, agent profile updates, watchlist CRUD, schedule CRUD, and premium redeem
-- confirmation-gated gameplay staging for market trades, LP actions, stack shares, daily boosts, community boosts, scout assignments, and thread confirm and cancel flows
+---
 
-The discovery resources are live rather than purely static:
+## How MCP Fits Into Hermes
 
-- `sportfolio://capabilities` includes the shared capability inventory plus dynamic-provider availability metadata
-- `sportfolio://action-surface` summarizes the tool and action surface with confirmation and read-only hints
-- `sportfolio://tool-catalog` provides the richest tool metadata for agents, including live dynamic MLB tools, example prompts, and input-field summaries when available
+Sportfolio uses three distinct MCP roles internally:
 
-The public `/mcp` surface is a product capability server. It is not Hermes session-browsing server mode.
+1. **Public `/mcp`** — the external authenticated surface you're reading about here
+2. **Built-in MLB bridge** — bounded enrichment Hermes can use internally
+3. **User-connected external MCP** — optional per-user sources Hermes can pull from
 
-## Safety model
+> ℹ️ Native Sportfolio tools are always the canonical source for account and gameplay state. MCP sources are enrichment, not a second source of truth.
 
-MCP does not make the agent autonomous.
+---
 
-- reads are immediate
-- staged actions still require explicit confirmation
-- confirm and cancel operate on pending action bundles instead of bypassing server validation
+## Safety Model
 
-## What stays excluded
+MCP does not make the agent autonomous:
 
-The public MCP server is not full site parity.
+- Reads are immediate
+- State-changing actions are staged first — execution requires an explicit confirm step
+- Confirm and cancel operate on pending action bundles
 
-Excluded today:
+---
 
-- billing, funding, checkout, and external purchase flows
-- admin and internal-only routes
+## Discovery Resources
 
-## When to use MCP vs CLI
+Three resources provide live capability metadata for MCP clients:
 
-- use MCP if you are wiring Sportfolio into an MCP-aware client or tool runner
-- use the CLI if you want the simplest terminal workflow without MCP client setup
+| Resource | What it returns |
+|---|---|
+| `sportfolio://capabilities` | Capability inventory + dynamic provider availability |
+| `sportfolio://action-surface` | Summary of tools with confirmation and read-only hints |
+| `sportfolio://tool-catalog` | Full tool metadata, example prompts, and MLB tool list |
 
-For direct shell usage, read [CLI and External Access](/wiki/cli/overview) and [CLI Command Reference](/wiki/cli/command-reference).
+---
+
+## When to Use MCP vs CLI
+
+| Use MCP when... | Use CLI when... |
+|---|---|
+| Connecting to an MCP-aware client or tool runner | You want direct shell access without a protocol client |
+| Building external integrations | You want the simplest terminal workflow |
+
+---
+
+## Next Steps
+
+- [CLI and External Access](/wiki/cli/overview) — direct shell access via API token
+- [CLI Command Reference](/wiki/cli/command-reference) — full command syntax
+- [User Action Surface](/wiki/features/user-action-surface) — complete capability map across web, CLI, and MCP

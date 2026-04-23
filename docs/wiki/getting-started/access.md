@@ -13,78 +13,98 @@ surface: web,cli,agent
 searchKeywords: access,how do i access sportfolio,mcp,model context protocol,cli,api token,agent,wiki,mobile
 ---
 
-# How to access Sportfolio
+# How to Access Sportfolio
 
-Sportfolio currently gives you four documented access paths:
+Sportfolio has four documented access paths:
 
-- **Web agent** at `/agent`
-- **Wiki and handbook** at `/wiki`
-- **CLI** with a user-scoped API token
-- **Public MCP** at `/mcp`
+| Path | Best for |
+|---|---|
+| **Web app** | The primary experience — full UI, real-time updates |
+| **Mobile** | Responsive web; bottom nav optimized for touch |
+| **CLI** | Terminal workflows, scripting, fast doc lookup |
+| **MCP** | Connecting Sportfolio to external MCP-aware clients |
 
-If you want help or product explanations, the fastest starting point is the wiki. If you want account-specific conversational help, use the web agent. If you want protocol or terminal access, use MCP or the CLI.
+---
 
-## Web and mobile
+## Web and Mobile
 
-The main in-app access points are:
+The web app is the primary surface. It works on all modern browsers and is fully responsive on mobile.
 
-- **Dashboard** for the public front door
-- **Wiki** for handbook-style product and access documentation
-- **Agent** for account-aware questions and confirmation-gated action staging
+**Mobile navigation:**
+- Bottom bar for main pages (Agent, Portfolio, Boosts, etc.)
+- Top-bar help icon links directly to the wiki
 
-On mobile, the bottom navigation keeps the Agent tab available for chat while the top-bar help entry takes you to the wiki.
+**Key starting points:**
+- `/` — Dashboard (public, no login required)
+- `/wiki` — This handbook
+- `/agent` — In-app assistant
 
-## CLI access
+---
 
-CLI access uses a user API token created from your own profile page.
+## CLI Access
 
-The normal flow is:
+The CLI lets you use Sportfolio from a terminal using a user-scoped API token.
 
-1. Open your own profile.
-2. Create a CLI token from the CLI Access card.
-3. Authenticate from a terminal:
+**Step 1** — Create a token in your profile: **Profile → CLI Access**
+
+**Step 2** — Authenticate:
 
 ```bash
 sportfolio auth login --token <your-token>
 ```
 
-After that, the main command families are:
-
-- `docs`
-- `agent`
-- `portfolio`
-- `actions`
-
-## Repo-local CLI entrypoint
-
-The CLI package in this repo is currently private. If you are working directly from this codebase, use the repo-local entrypoint:
+Or, if you're running from the repository directly:
 
 ```bash
 node packages/sportfolio-cli/bin/sportfolio.mjs auth login --token <your-token>
 ```
 
-That gives you the same CLI command surface without requiring a published npm package.
+For local development:
 
-## MCP status
+```bash
+npm run cli -- auth login --token <your-token> --base-url http://127.0.0.1:5000
+```
 
-Sportfolio now exposes a public authenticated MCP endpoint at `/mcp`.
+**Main CLI command families:**
 
-Use MCP when you want to connect Sportfolio to an MCP-aware client instead of using the web app or CLI directly.
+- `docs` — search and browse the wiki
+- `agent` — ask questions, stage confirmed actions
+- `portfolio` — account summary
+- `actions` — staged gameplay actions (buy, sell, boost, scout)
 
-Authentication uses the same user API tokens used by CLI access. Send the token as a bearer token to:
+> ℹ️ The CLI uses the same confirmation rules as the web app. Mutating actions are staged first and require an explicit confirm.
 
-- `https://www.sportfolio.market/mcp` in production
-- `http://127.0.0.1:5000/mcp` in local development
+Also see: [CLI Command Reference](/wiki/cli/command-reference)
 
-The public MCP v1 surface is intentionally scoped:
+---
 
-- gameplay and account reads are included
-- docs resources and prompts are included
-- state-changing gameplay flows are staged first and still require explicit confirmation
-- billing, funding, checkout, and admin or internal routes are excluded
+## MCP Access
 
-Read [MCP Access](/wiki/getting-started/mcp-access) for the exact endpoint contract, public surface, and exclusions.
+Sportfolio exposes an authenticated MCP endpoint for external tool integrations.
 
-## Legacy SMS note
+- **Production:** `https://www.sportfolio.market/mcp`
+- **Local dev:** `http://127.0.0.1:5000/mcp`
+- **Auth:** Same user API token as CLI, sent as `Authorization: Bearer <token>`
 
-Legacy SMS linking infrastructure may still exist in the product, but it is not part of the active primary Hermes contract.
+Use MCP when you're wiring Sportfolio into an MCP-aware client (like Claude Desktop or another tool runner), rather than using the CLI directly.
+
+> ℹ️ MCP and CLI share the same public capability registry. Billing, purchase flows, and internal-only routes are excluded from both.
+
+Also see: [MCP Access](/wiki/getting-started/mcp-access)
+
+---
+
+## Token Safety
+
+- Create one token per device or automation task
+- Revoke tokens you no longer use (Profile → CLI Access)
+- Never commit tokens to source code or shell history
+- Always use HTTPS endpoints outside localhost
+
+---
+
+## Next Steps
+
+- [CLI Command Reference](/wiki/cli/command-reference) — full command syntax and examples
+- [MCP Access](/wiki/getting-started/mcp-access) — MCP endpoint contract and surface details
+- [Sportfolio Agent](/wiki/features/agent-operator) — in-app assistant overview

@@ -13,100 +13,87 @@ surface: web,cli
 searchKeywords: cli,api token,terminal,auth,actions,agent,docs,mcp,external access,model context protocol,hermes
 ---
 
-# CLI and external access
+# CLI and External Access
 
-The Sportfolio CLI gives you a terminal-native way to read docs, inspect your account, use the agent, and call the same shared public tool surface exposed through MCP.
+The Sportfolio CLI gives you terminal-native access to your account, docs, the agent, and the shared public tool surface. It's built for developers, power users, and anyone who prefers keyboard workflows over clicking through the UI.
 
-## Authentication model
+> ℹ️ **The CLI doesn't bypass any safety rules.** Confirmation-gated actions are still staged first and require an explicit confirm step.
 
-CLI access uses user-scoped API tokens. Create a token from your profile page, then authenticate from a terminal:
+---
+
+## Authentication
+
+CLI access uses a user-scoped API token. Create one in **Profile → CLI Access**, then authenticate:
 
 ```bash
+# Published package (when available)
+sportfolio auth login --token <your-token>
+
+# Repo-local entrypoint
+node packages/sportfolio-cli/bin/sportfolio.mjs auth login --token <your-token>
+
+# Against local dev server
+npm run cli -- auth login --token <your-token> --base-url http://127.0.0.1:5000
+
+# Against production
 npm run cli -- auth login --token <your-token> --base-url https://www.sportfolio.market
 ```
 
-The token is user-specific, so the CLI inherits the same account boundary as the web app.
+The token is user-specific — the CLI inherits the same account boundary as the web app.
 
-## Command families
+---
 
-If you are running against local development, use:
+## Command Families
 
-```bash
-npm run cli -- auth login --token <your-token> --base-url http://127.0.0.1:5000
-```
+| Family | What it does |
+|---|---|
+| `docs` | Browse, search, and open wiki articles |
+| `portfolio` | Account summary and holdings snapshot |
+| `agent` | Ask questions, view threads, confirm/cancel staged plans |
+| `actions` | Convenience commands for staged gameplay flows |
+| `tools` | Call the shared public capability surface directly |
+| `prompts` | List and render shared starter prompts |
+| `resources` | Read shared public resources |
 
-- `docs list`, `docs search`, `docs open`
-- `portfolio summary`
-- `agent ask`, `agent threads`, `agent confirm`, `agent cancel`
-- `actions ...` convenience commands for common staged flows
-- `tools list`, `tools call`
-- `prompts list`, `prompts render`
-- `resources list`, `resources read`
+For full syntax and examples, see [CLI Command Reference](/wiki/cli/command-reference).
 
-For exact syntax, examples, JSON mode, and troubleshooting, use [CLI Command Reference](/wiki/cli/command-reference).
+---
 
-In practice, the CLI is strongest when you want:
-
-- fast documentation access
-- direct shell access to the shared public capability catalog
-- agent-assisted workflows without opening the browser
-
-## Repo-local entrypoint
-
-The CLI package in this repo is private right now. If you are using this repository directly, run the local entrypoint instead of waiting for a published package:
-
-```bash
-node packages/sportfolio-cli/bin/sportfolio.mjs auth login --token <your-token>
-```
-
-From there you can use the same `docs`, `agent`, `portfolio`, `actions`, `tools`, `prompts`, and `resources` command families.
-
-## Safety model
-
-The CLI does not bypass confirmation-gated state changes. Mutating flows still stage a plan first, then require a confirm step.
-
-That means the CLI is an interface layer over the same server-owned capability catalog, not a privileged back door.
-
-## How the CLI relates to the rest of Sportfolio
-
-The CLI uses the same canonical docs and the same server-owned business logic as the rest of the product.
-
-So:
-
-- docs commands read the same wiki content used by the web docs hub
-- account and settings actions follow the same auth rules as the web app
-- MCP and CLI share one public capability registry for tools, prompts, and resources
-- agent commands use the same staged-plan and confirmation model
-
-## Good operational hygiene
-
-- use one token per device or automation task
-- revoke tokens you no longer use
-- avoid storing tokens in plain shell history
-- prefer HTTPS endpoints outside localhost development
-
-## Best use cases
+## Best Use Cases
 
 The CLI is especially useful for:
+- **Checking your portfolio** from a workstation or server
+- **Searching docs** while trading in another window
+- **Scripting account checks** as part of a workflow
+- **Using the agent** in developer-heavy or operations-heavy contexts
+- **Running shared tools** directly without a protocol client
 
-- checking your portfolio from a workstation
-- searching docs while you trade in another window
-- using the agent in an operations-heavy or developer workflow
+---
 
-If you want one cross-surface map of web, CLI, and MCP capabilities, read [User Action Surface](/wiki/features/user-action-surface).
+## How CLI Relates to MCP
 
-If you need rich visual scanning, the web app remains the better primary surface. If you need fast, scriptable access, the CLI is the right tool.
+Both CLI and MCP share the same public capability registry:
+- `docs` commands read the same wiki as the web docs hub
+- Account and settings actions follow the same auth rules
+- Staged actions use the same confirm/cancel model
 
-## MCP status
+The difference is the interface:
+- **Use CLI** when you want direct shell commands
+- **Use MCP** when you're connecting through an MCP-aware client
 
-Sportfolio now exposes a public authenticated MCP endpoint at `/mcp`.
+---
 
-That means terminal-friendly access now has two public paths:
+## Token Safety
 
-- use the CLI when you want the simplest shell workflow
-- use MCP when you are connecting through an MCP-aware client
-- use the web agent when you want the primary conversational surface instead of a protocol client
+- Create one token per device or automation task
+- Revoke unused tokens in **Profile → CLI Access**
+- Never store tokens in plain shell history
+- Always use HTTPS outside localhost
 
-MCP uses the same user API tokens as the CLI and shares the same non-purchase public capability surface. Hermes may also consume built-in or user-connected MCP sources internally, but that is separate from the public `/mcp` server.
+---
 
-For the exact endpoint, auth model, and public MCP surface, read [MCP Access](/wiki/getting-started/mcp-access).
+## Next Steps
+
+- [CLI Command Reference](/wiki/cli/command-reference) — full command syntax, examples, JSON mode, and troubleshooting
+- [MCP Access](/wiki/getting-started/mcp-access) — protocol access for MCP-aware clients
+- [User Action Surface](/wiki/features/user-action-surface) — full capability map across web, CLI, and MCP

@@ -13,84 +13,82 @@ surface: web,agent
 searchKeywords: leaderboards,rankings,progress,net worth,cash balance,trading volume,user profile
 ---
 
-# What leaderboards are for
+# Leaderboards and Progress
 
-Leaderboards are Sportfolio's public scoreboards.
+Leaderboards are Sportfolio's public scoreboard. They show how accounts are performing across core economic metrics — not a separate game mode, but a summary layer over everything you're already doing.
 
-They are not a separate game mode. They are a summary layer that shows how accounts are performing across core economic metrics.
+---
 
-## What they commonly measure
+## What Leaderboards Measure
 
-The public Leaderboards page can rank users by metrics such as:
+You can rank users by multiple categories:
 
-- net worth
-- cash balance
-- portfolio value
-- rolling 24-hour trading volume
-- market-order activity
+| Category | What it answers |
+|---|---|
+| **Net Worth** | Broadest snapshot — total account value |
+| **Cash Balance** | How much liquid SB a user holds right now |
+| **Portfolio Value** | How much value is tied up in held assets |
+| **Trading Volume (24h)** | Who has been most active in the market recently |
+| **Market Orders** | Execution activity (not necessarily profitability) |
 
-Each category answers a different question.
+> ℹ️ No single category tells the whole story. A user with high volume might be churning badly. A user with high portfolio value might just have bought early and stopped.
 
-## How to read the categories
+---
 
-- **Net Worth**: the broadest account snapshot. Good for overall standing.
-- **Cash Balance**: how much liquid SB a user is holding right now.
-- **Portfolio Value**: how much value is tied up in held assets.
-- **Trading Volume (24h)**: who has been most active in the market recently.
-- **Market Orders**: execution activity, not necessarily profitability.
+## What a Rank Change Can Mean
 
-No single category tells the whole story.
+A jump or drop in rank can come from many sources:
+- A large price move in one of your held players
+- A new trade or scout distribution
+- Boost settlements and related burns or payouts
+- **Another user moving faster than you** — even if your account improved
 
-## What a rank change can mean
+Rank is best used as context, not as your primary decision driver.
 
-A jump or drop in rank can come from:
+---
 
-- a large market move in held players
-- a new trade
-- scout output accumulating over time
-- boost settlements and related burns or payouts
-- another user moving faster than you, even if your account improved
+## Public Trader Profiles
 
-That is why rank is best used as context, not as your only decision tool.
+Leaderboard entries link to public trader profile pages. Each profile shows:
+- Current leaderboard standings
+- Recent account trend
+- Top public holdings
+- Recent public market activity
 
-## Public trader profiles
+Use profiles to understand what might be driving a rank — not just who is above or below you.
 
-Leaderboard rows link into public trader status pages.
+---
 
-Those profile pages are designed to show:
+## How to Use Leaderboards Well
 
-- current leaderboard standing,
-- recent account trend,
-- top public holdings,
-- recent public market activity.
+**Good uses:**
+- Benchmark whether your strategy is compounding over time
+- Spot whether your account is too conservative or over-exposed
+- Compare your strengths against other users
+- Sanity-check whether active effort is producing visible account progress
 
-Use them to understand what may be driving a rank, not just who is sitting above or below you.
+**Common traps to avoid:**
+- Treating high activity rank as proof of skill
+- Chasing short-term rank by making low-quality trades
+- Assuming a cash-heavy account is automatically better than an invested one
+- Confusing one good day with a durable strategy edge
 
-## Healthy ways to use leaderboards
+---
 
-Use leaderboards to:
-
-- benchmark whether your strategy is compounding over time
-- spot whether your account is too conservative or too exposed
-- compare your strengths against other users
-- sanity-check whether active effort is turning into visible account progress
-
-## Common mistakes
-
-Avoid these traps:
-
-- treating a high activity rank as proof of skill
-- chasing short-term rank movement with low-quality trades
-- assuming a cash-heavy account is automatically better than an invested one
-- confusing one good day with a durable strategy edge
-
-## The right mental model
+## The Mental Model
 
 Leaderboards are a scoreboard for the systems you already use:
 
-- trading
-- scouting
-- multiplier management
-- boost deployment
+```
+Trading + Scouting + Stacking + Boost deployment → Leaderboard outcome
+```
 
-They reward sustained account quality more than one isolated action.
+Sustained account quality produces better leaderboard results than isolated lucky trades.
+
+---
+
+## Next Steps
+
+- [Portfolio and Holdings](/wiki/gameplay/portfolio-and-holdings) — the underlying account state driving your rank
+- [Stacking and Boosts](/wiki/gameplay/stacking-shares-and-boosts) — the highest-leverage moves for rank improvement
+- [Player Pools](/wiki/gameplay/player-pools) — trading activity that affects volume and value rankings

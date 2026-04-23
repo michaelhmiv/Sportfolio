@@ -13,149 +13,197 @@ surface: web,agent
 searchKeywords: site map,platform tour,navigation,pages,features
 ---
 
-# Main navigation
+# Platform Tour
 
-Sportfolio's primary navigation is built around the pages most users touch every day:
+Sportfolio has a handful of core pages. This tour explains what each one is for and when to use it.
 
-- Dashboard
-- Player Pools
-- Analytics
-- Wiki
-- Boosts
-- Portfolio
-- Premium
-- Agent
-- News
+> 🗺️ **Navigation lives in the sidebar on desktop and the bottom bar on mobile.** The same pages are reachable from both.
 
-Additional routes such as leaderboards, watchlists, profiles, and player detail pages are linked contextually from those core surfaces.
+---
 
 ## Dashboard
 
-The dashboard is the public front door. It is designed to be useful before login and richer after login.
+**The daily control room.** Works before login and gains more depth after.
 
 On the dashboard you can:
 
-- switch between supported sports
-- move across nearby dates
-- review upcoming, live, or recently completed game windows
-- inspect market activity and featured names
-- open deeper game detail and command-center views
-- see balance, portfolio value, rankings, and boost status when authenticated
+- Switch between NBA, NFL, MLB, and NASCAR
+- Browse upcoming, live, and recently completed game windows
+- Scan market activity and featured player movements
+- Open game-detail and command-center views
+- See your balance, portfolio value, rank, and boost status (when logged in)
 
-Because the dashboard is public, it doubles as the landing page for non-authenticated visitors and as the daily control room for active users.
+> 💡 The dashboard is also the public landing page — it gives visitors useful market context without requiring an account.
+
+---
 
 ## Player Pools
 
-The Player Pools page is the market browser.
+**The market browser.** Use this to find, compare, and trade players.
 
-It combines:
+Features:
+- Sortable and filterable player lists
+- Sport, team, and position filters
+- Watchlist filtering to show only your tracked names
+- Market activity tabs — top movers, volume leaders, market-cap rankings
+- Scanner widgets for momentum and relative-value signals
 
-- sortable player lists
-- sport filters
-- search, team, and position filters
-- watchlist filtering
-- market activity tabs
-- scanners for momentum, market-cap leaders, and other high-signal names
+Go here first when your question is: *"What is moving and where should I be looking?"*
 
-Use this page when you want breadth: which players are active, which pools are moving, and where you may want to drill into a single player.
+---
 
-## Player pages
+## Player Pages
 
-A player page is the detailed execution surface for one athlete.
+**The single-player execution and research surface.**
 
-It is where you inspect:
-
-- current market price and recent price change
-- stats and recent games
-- AMM buy and sell flows
+Each player page shows:
+- Current price and recent change
+- Stats and recent game logs
+- Buy and sell controls
 - LP position details
-- boost relevance
-- your account-specific context for that player
+- Your holdings and account-specific context
 
-Player pages are authenticated because they include your own portfolio context and execution controls.
+> ⚠️ Player pages require login because they show your portfolio context and execution controls.
+
+---
 
 ## Portfolio
 
-Portfolio is your account ledger view.
+**Your account ledger.** Everything you own and how it's performing.
 
-It is split between:
+The Portfolio page has two tabs:
 
-- **Holdings**: player-share inventory, P&L, cost basis, stacked-share multiplier state, and account-level totals
-- **Liquidity**: LP positions, fee accrual, and pool ownership exposure
+**Holdings tab**
+- Cash balance and net worth
+- Realized and unrealized P&L
+- Each player-share position (raw and stacked)
+- Activity history
 
-It also contains portfolio history, asset breakdowns, and recent account activity so you can understand not only what you own, but how you got there.
+**Liquidity tab**
+- Your LP positions across player pools
+- Pool ownership percentage
+- Fees earned to date
+
+Also see: [Portfolio and Holdings](/wiki/gameplay/portfolio-and-holdings) for deeper detail.
+
+---
 
 ## Boosts
 
-Boosts is where inventory quality becomes active strategy.
+**Where inventory quality becomes competitive strategy.**
 
-This surface handles:
+Everything multiplier-related lives here:
 
-- stacking raw shares into multiplier inventory
-- assigning daily boosts
-- tracking which boost slots are open, locked, or settled
-- creating community boosts
-- monitoring live and historical boost payouts
+- Stack raw shares into higher-multiplier inventory
+- Assign daily boost slots (4 tiers: 5×, 4×, 3×, 2×)
+- Track which slots are open, locked, or settled
+- Create community boosts
+- View live and historical boost payouts
 
-If you treat the market as accumulation and the Boosts page as deployment, the product will make more sense.
+> 💡 Think of the market as accumulation and Boosts as deployment. You build inventory everywhere else; here you spend it.
+
+Also see: [Stacking and Boosts](/wiki/gameplay/stacking-shares-and-boosts) for full mechanics.
+
+---
 
 ## Analytics
 
-Analytics is the macro market view.
+**The macro market view.** Step back from individual players and see the whole ecosystem.
 
-It focuses on:
+Analytics covers:
+- Market health over time
+- Share issuance and burn trends
+- Sport-by-sport breakdowns
+- Player comparisons
+- Economy snapshots
 
-- market health over time
-- sport-by-sport breakdowns
-- player comparisons
-- share issuance and burn trends
-- economy snapshots
+Use this when your question is: *"What's the overall state of the market?"*
 
-This page is useful when you want to understand the shape of the overall ecosystem instead of only one position.
+---
 
-## News and Watchlists
+## News
 
-The News Hub is the narrative layer around the market. It combines:
+**The narrative layer around the market.**
 
-- general breaking sports stories
-- source links
-- a user-specific digest when signed in
+- General breaking sports news
+- Source links and recency context
+- A personalized digest when signed in (based on your holdings and watchlists)
 
-Watchlists are your custom tracking layer. They let you create named lists and attach players you want to monitor without trading them yet.
+News informs trading decisions. An injury report or lineup change can materially affect a player's market value.
 
-Together, these pages help you organize attention before you allocate capital.
+---
 
-## Premium, profiles, and access utilities
+## Watchlists
 
-- **Premium**: buy premium shares and redeem them for premium access.
-- **User profile**: public-facing user identity and personal account controls.
-- **Legacy SMS link**: archived account-link flow for the older SMS agent path.
-- **Wiki**: the canonical documentation hub you are reading now.
+**Your custom player-tracking layer.**
 
-These pages are support systems around the core economy rather than separate game loops.
+Create named lists of players you want to monitor without immediately buying them. Useful when:
+- You have conviction but no position yet
+- You want to track multiple sports in one filtered view
+- You're building a shortlist before a slate
 
-## Agent and cross-channel access
+Also see: [Watchlists and News](/wiki/features/watchlists-and-news) for full details.
 
-The Agent page is the main in-app assistant interface. It can:
+---
 
-- answer product questions
-- review your setup
-- use hosted research for current news
-- stage supported economic actions that you explicitly confirm
+## Premium
 
-The same product knowledge also powers:
+**Account-level entitlements.**
 
-- the Sportfolio CLI through API tokens
-- public MCP clients through `/mcp`
+Premium expands your scout capacity (from 5 to 10 scouts) and unlocks premium access windows. This page shows:
+- Your current premium status
+- Premium share inventory
+- Purchase history
+- Redemption controls
 
-## Real-time behavior
+Also see: [Premium](/wiki/features/premium) for what premium actually includes.
 
-Sportfolio uses live updates heavily. You will see:
+---
 
-- refreshed portfolio data after trades and settlements
-- live game and payout movement
-- notification badges
-- ceremony overlays for scout and boost milestones
-- market activity refresh without manual reloads
+## Agent
 
-That means many pages are not static reports. They are operational surfaces that react as the economy and game data change.
+**Your in-app product operator.**
+
+The Agent page gives you a conversational interface to Sportfolio. It can:
+- Answer questions about mechanics, your account, and the market
+- Research current injuries and news
+- Stage gameplay actions (trades, boosts, scouts) that you confirm before execution
+
+> ℹ️ The agent does not execute actions autonomously. It stages a plan; you confirm before anything changes.
+
+Also see: [Sportfolio Agent](/wiki/features/agent-operator) and [Agent Runtime Model](/wiki/agent/runtime-model).
+
+---
+
+## Wiki
+
+**The canonical product handbook.** You're reading it now.
+
+The wiki lives in-app at `/wiki`. It covers:
+- Getting started
+- Gameplay mechanics
+- Feature guides
+- CLI and MCP access
+- FAQs and the glossary
+
+The agent also uses this wiki as its product knowledge source, so what you read here is exactly what the agent knows.
+
+---
+
+## Real-time Behavior
+
+Sportfolio is a live product. Many pages update automatically:
+- Portfolio refreshes after trades and settlements
+- Scout payouts appear without a manual refresh
+- Boost settlements push live results
+- Whale alerts and trending-player signals update in the background
+- Notification badges stay current across tabs
+
+---
+
+## Next Steps
+
+- [Player Pools](/wiki/gameplay/player-pools) — how AMM trading and pricing work
+- [Scouts and Rewards](/wiki/gameplay/scouts-and-rewards) — passive share accumulation
+- [Stacking and Boosts](/wiki/gameplay/stacking-shares-and-boosts) — multipliers and payout mechanics
+- [How to Access Sportfolio](/wiki/getting-started/access) — web, mobile, CLI, and MCP

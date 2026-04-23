@@ -13,104 +13,94 @@ surface: web,cli,agent
 searchKeywords: capabilities,actions,feature map,web,cli,mcp,agent
 ---
 
-# Why this exists
+# User Action Surface
 
-Users and agents both need one clear source of truth for what actions are actually available right now.
+A single reference for what actions are available, which surface they live on, and whether they're immediate or confirmation-gated.
 
-This page lists current user-facing capabilities by surface and clarifies what is read-only, immediately executable, or confirmation-gated.
+> ℹ️ **Confirmation model:** Reads and explanations are immediate. State-changing actions are staged first and require an explicit confirm step. Cancel is always available before execution.
 
-# Web App Actions
+---
 
-## Market and Liquidity
+## Web App Actions
 
-- browse player pools and prices (`/pools`)
-- preview AMM quotes
-- execute buy and sell trades
-- add and remove LP liquidity and inspect LP history
+### Market and Liquidity
+- Browse player pools and prices
+- Preview AMM trade quotes
+- Execute buy and sell trades
+- Add and remove LP liquidity
+- View LP history
 
-## Portfolio and Inventory
+### Portfolio and Inventory
+- View holdings, net worth, and activity
+- Manage watchlists
+- View and manage scouts
+- Stack eligible shares into multiplier inventory
 
-- view holdings, net worth, and activity
-- manage watchlists
-- view and manage scouts
-- stack eligible shares into multiplier inventory
+### Boost and Slate Flows
+- View daily boost eligibility
+- Assign and remove daily boost slots
+- View community boost eligibility
+- Create community boosts (when eligible inventory exists)
 
-## Boost and Slate Flows
+### Account and Access
+- Update profile username and avatar
+- Generate and revoke CLI API tokens
+- Manage agent profile settings
 
-- view daily boost eligibility
-- assign and remove daily boost slots
-- view community boost eligibility and create community boosts when eligible inventory exists
+---
 
-## Account and Access
+## CLI Actions
 
-- update profile username and profile image
-- generate and revoke CLI API tokens
-- manage agent profile settings
+The CLI uses the same backend rules as the web. It does **not** bypass confirmation requirements.
 
-# CLI Actions
+### Immediate Actions
+- `docs browse`, `search`, `open` — wiki navigation
+- `auth whoami`, `logout` — auth status
+- `portfolio summary` — account snapshot
+- `agent threads` — view conversation history
+- `tools list`, `tools call` — shared tool surface
+- `prompts list`, `prompts render` — shared prompts
+- `resources list`, `resources read` — shared resources
 
-The CLI uses the same backend rules as web. It does not bypass confirmation requirements.
+### Confirmation-Gated (staged first)
+- `actions buy` / `actions sell` — trade staging
+- `actions watchlist add` / `remove` — watchlist staging
+- `actions community-boost` — community boost staging
+- `agent confirm` / `agent cancel` — execute or discard a staged plan
 
-## Shared Surface
+For full syntax, see [CLI Command Reference](/wiki/cli/command-reference).
 
-- docs browse, search, and open
-- account, profile, token, and agent-setting reads and actions
-- account summary and holdings snapshot
-- agent thread listing and conversational reads
-- full shared tool access through `tools list` and `tools call`
-- prompt and resource access through `prompts ...` and `resources ...`
+---
 
-## Confirmation-Gated Actions
+## MCP Actions
 
-- buy and sell staging
-- LP staging
-- boost staging
-- scout assignment staging
-- community boost staging
+The public `/mcp` endpoint shares the same capability registry as the CLI, designed for MCP-aware clients.
 
-Gameplay mutations that are confirmation-gated on the server remain confirmation-gated in CLI. Immediate account and settings actions stay immediate.
+### Included
+- All reads across portfolio, players, pools, boosts, scouts, watchlists, schedules, docs, news, and threads
+- Immediate account actions: profile updates, token management, watchlist CRUD, schedule CRUD, premium redeem
+- Staged gameplay actions: trades, LP flows, stack shares, boosts, scouts, community boosts
+- Confirm and cancel for pending action bundles
+- Public docs resources and prompts
 
-For exact syntax, read [CLI Command Reference](/wiki/cli/command-reference).
+### Excluded
+- Billing, funding, checkout, and external purchase flows
+- Admin and internal-only routes
 
-# MCP Actions
+For connection details, see [MCP Access](/wiki/getting-started/mcp-access).
 
-The public MCP server also uses user-scoped API tokens, but it is designed for MCP-aware clients rather than direct shell commands.
+---
 
-## Included in the Shared Public Surface
+## Known Practical Constraints
 
-- gameplay and account reads across portfolio, players, pools, boosts, scouts, watchlists, schedules, docs, news, account profile, and agent settings
-- public docs resources and prompts
-- immediate account and settings actions like token management, username and profile-image updates, agent profile updates, watchlist CRUD, schedule CRUD, and premium redeem
-- confirmation-gated staging for market trades, LP flows, stack shares, daily boosts, community boosts, scout assignments, and pending action confirm and cancel
+- Agent requests can be temporarily busy if another analysis is already running for the same account — retry after a few seconds
+- Community boost staging works best with full player names (e.g., `Nikola Jokic` not `jokic`)
+- Some advanced market operations are easier in the web UI because of richer context panels
 
-Public `/mcp` is the external product capability server. It is separate from Hermes's internal built-in or user-connected MCP enrichment sources.
+---
 
-## Excluded from the Shared Public Surface
+## Next Steps
 
-- billing, funding, checkout, and external purchase flows
-- admin and internal-only routes
-
-For connection details, read [MCP Access](/wiki/getting-started/mcp-access).
-
-# Legacy SMS Note
-
-Legacy SMS concierge and linking flows may still exist in the product, but they are not part of the active primary Hermes contract.
-
-# Confirmation Model
-
-- reads and explanations: immediate
-- potential state changes: staged first, explicit confirm required
-- cancel is always available for staged bundles before execution
-
-# Known Practical Constraints
-
-- agent requests can be temporarily busy when another analysis is already running for the same account
-- community boost staging resolves best with full player names
-- some advanced market operations remain easier in the web UI because of richer context panels
-
-# Related Docs
-
-- [Platform Tour](/wiki/getting-started/platform-tour)
-- [Sportfolio Agent](/wiki/features/agent-operator)
-- [Sportfolio CLI](/wiki/cli/overview)
-- [MCP Access](/wiki/getting-started/mcp-access)
+- [Sportfolio Agent](/wiki/features/agent-operator) — what the agent can and can't do
+- [CLI Command Reference](/wiki/cli/command-reference) — full CLI syntax
+- [MCP Access](/wiki/getting-started/mcp-access) — MCP endpoint and auth

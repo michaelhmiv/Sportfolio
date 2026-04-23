@@ -13,56 +13,62 @@ surface: web,cli,agent
 searchKeywords: cli commands,quickstart,token,json,automation,troubleshooting
 ---
 
-# Quickstart
+# CLI Command Reference
 
-The current CLI package is repo-local. From the project root, use:
+Full syntax, examples, and troubleshooting for the Sportfolio CLI.
+
+---
+
+## Quickstart
+
+The CLI package is currently repo-local. From the project root:
 
 ```bash
 npm run cli -- --help
 ```
 
-Create a user API token in **Profile -> CLI Access**, then authenticate:
+Create an API token at **Profile → CLI Access**, then authenticate:
 
 ```bash
+# Production
 npm run cli -- auth login --token <your-token> --base-url https://www.sportfolio.market
-```
 
-For local development against a local server:
-
-```bash
+# Local development
 npm run cli -- auth login --token <your-token> --base-url http://127.0.0.1:5000
 ```
 
-# Core Commands
+---
+
+## All Commands
 
 ```bash
-# auth
+# ── Auth ──────────────────────────────────────────────────
 npm run cli -- auth login --token <token> [--base-url <url>]
 npm run cli -- auth whoami
 npm run cli -- auth logout
 
-# docs
+# ── Docs ──────────────────────────────────────────────────
 npm run cli -- docs list
 npm run cli -- docs search <query>
 npm run cli -- docs open <section>/<slug>
 
-# portfolio
+# ── Portfolio ─────────────────────────────────────────────
 npm run cli -- portfolio summary
 
-# agent
+# ── Agent ─────────────────────────────────────────────────
 npm run cli -- agent threads
 npm run cli -- agent ask "<prompt>" [--thread <threadId>]
 npm run cli -- agent confirm <threadId> [--pending-bundle <bundleId>]
 npm run cli -- agent cancel <threadId> [--pending-bundle <bundleId>]
 
-# staged actions (still require explicit confirm)
+# ── Staged Actions (require explicit confirm) ──────────────
 npm run cli -- actions buy <player-name-or-id> --dollars <amount> [--thread <threadId>]
 npm run cli -- actions sell <player-name-or-id> --shares <amount> [--thread <threadId>]
 npm run cli -- actions watchlist add <player-name-or-id> [--thread <threadId>]
 npm run cli -- actions watchlist remove <player-name-or-id> [--thread <threadId>]
 npm run cli -- actions community-boost <player-name> [--timing today|tomorrow] [--thread <threadId>]
 
-# shared public capability surface
+# ── Shared Public Capability Surface ──────────────────────
 npm run cli -- tools list
 npm run cli -- tools call <tool-name> [--args-json '{"key":"value"}']
 npm run cli -- prompts list
@@ -71,35 +77,49 @@ npm run cli -- resources list
 npm run cli -- resources read <uri>
 ```
 
-# JSON Mode
+---
 
-Add `--json` to get machine-readable output:
+## JSON Mode
+
+Add `--json` to any command for machine-readable output:
 
 ```bash
 npm run cli -- --json auth whoami
 npm run cli -- --json agent ask "what is my available cash?"
+npm run cli -- --json portfolio summary
 npm run cli -- --json tools call get_account_profile
 ```
 
-# Shared Tool Surface
+JSON mode is useful for scripting, piping output to `jq`, or building automation workflows.
 
-The CLI now exposes the same shared public tool catalog used by MCP.
+---
 
-Use the direct tool families when you want full surface access instead of only the convenience commands:
+## Shared Tool Surface
 
-- `tools list` to see every shared tool
-- `tools call <tool-name>` to execute a read or action directly
-- `prompts render <prompt-name>` to expand a shared starter prompt
-- `resources read <uri>` to read a shared public resource like `sportfolio://docs/index`
+The CLI exposes the same shared capability catalog as MCP:
 
-# Troubleshooting
+| Command | What it does |
+|---|---|
+| `tools list` | See every available tool |
+| `tools call <name>` | Execute a read or action directly |
+| `prompts render <name>` | Expand a shared starter prompt |
+| `resources read <uri>` | Read a public resource (e.g., `sportfolio://docs/index`) |
 
-- `Not logged in`: run `auth login` with a valid API token.
-- `Network error contacting ...`: verify `--base-url` and that the target server is reachable.
-- `Agent is currently processing another request...`: retry after a few seconds.
-- Community boost staging is strict on identity resolution. Use full player names (for example `Nikola Jokic`) instead of short ids.
+---
 
-# Next Reads
+## Troubleshooting
 
-- [CLI Overview](/wiki/cli/overview)
-- [User Action Surface](/wiki/features/user-action-surface)
+| Error | Fix |
+|---|---|
+| `Not logged in` | Run `auth login` with a valid API token |
+| `Network error contacting ...` | Verify `--base-url` and that the server is reachable |
+| `Agent is currently processing...` | Retry after a few seconds |
+| Community boost not resolving | Use full player names (e.g., `Nikola Jokic` not `jokic`) |
+
+---
+
+## Next Steps
+
+- [CLI Overview](/wiki/cli/overview) — when to use CLI vs. MCP
+- [User Action Surface](/wiki/features/user-action-surface) — full capability map
+- [MCP Access](/wiki/getting-started/mcp-access) — protocol access for external clients

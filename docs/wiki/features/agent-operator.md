@@ -13,136 +13,128 @@ surface: web,cli,agent
 searchKeywords: agent,operator,confirmation,hermes,threads,strategies,mcp
 ---
 
-# What the Sportfolio agent is
+# Sportfolio Agent
 
-The Sportfolio agent is a Hermes-backed product operator. It is designed to help you understand Sportfolio state, review your account, read current context, and stage supported gameplay actions.
+The Sportfolio Agent (powered by Hermes) is your in-app product operator. It can review your account, explain mechanics, research current news, and stage gameplay actions — all through a conversational interface.
 
-It is not a general personal assistant or an autonomous trader.
+> ℹ️ **The agent does not execute on its own.** It stages a plan. You confirm before anything changes.
 
-Sportfolio still owns the real business rules, validation, and state changes. The agent helps orchestrate, explain, and prepare; it does not bypass server-owned protections.
+---
 
-## Hermes-first runtime model
+## What It Does Well
 
-Normal agent turns now route through Hermes first. In practice that means:
+| Task | Example prompt |
+|---|---|
+| Review your setup | `"Review my portfolio and tell me what stands out"` |
+| Explain mechanics | `"How does stacking work?"` |
+| Read account data | `"What's my available cash?"` |
+| Discuss strategy | `"Should I boost or hold this player tonight?"` |
+| Research news | `"Any injury updates on [player]?"` |
+| Stage an action | `"Buy $25 of [player]"` |
+| Run a saved strategy | Automatic via saved schedule |
 
-- the model can answer directly
-- the model can decide to use supported read or research tools
-- the model can stage a supported action plan
-- risky state changes still wait for your confirmation
-- native Sportfolio tools stay the source of truth for account and gameplay state
-- built-in or user-connected MCP sources are used only as enrichment when native tools do not already answer the question
+The more specific the question, the better the response.
 
-This is a model-first operator flow, not a hardcoded chatbot with a single canned response path.
+---
 
-## What it can do well
+## Supported Staged Actions
 
-The strongest current use cases are:
+These actions are prepared first and only applied after your explicit confirm:
 
-- reviewing your setup
-- explaining mechanics, holdings, boosts, scouts, and slate tradeoffs
-- reading across supported account and market surfaces
-- discussing whether you should buy, sell, LP, boost, condense, or wait
-- identifying what lineups, games, stats, or news matter to your current holdings
-- staging supported actions for explicit confirmation
-- running saved strategies inside approved guardrails
-- researching current injuries, news, and other time-sensitive context when needed
-
-## Supported staged actions
-
-The current staged mutation surface includes:
-
-- player-pool buys and sells
+- Player-pool buys and sells
 - LP add, remove, and zap flows
-- stack shares and stack-shares flows
-- daily boost assign and remove
-- watchlist add and remove
-- scout reallocations
-- community boost creation
+- Stack shares
+- Daily boost assign and remove
+- Scout reallocations
+- Watchlist add and remove
+- Community boost creation
 
-These actions are prepared first. They are only applied after a clear confirm step.
+---
 
-## Saved strategies
+## How a Typical Turn Works
 
-Saved strategies are the recurring layer on top of normal chat.
+```
+You send a message
+  → Agent decides: reply / read tool / research / stage action
+  → If action: plan is shown
+  → You confirm (or cancel)
+  → Server validates and executes
+```
 
-They let Hermes:
+The server re-validates the request at execution time, so stale plans can fail safely if your account state changed between plan and confirm.
 
-- wake on a saved schedule or trigger
-- reason from the same continuity state as manual chat
-- auto-execute only the approved strategy-safe gameplay subset
+---
 
-They do not turn Hermes into an unrestricted automation bot.
+## Threads and Continuity
 
-## Confirmation, cancel, and safety
+Conversations are organized into threads. Each thread maintains:
+- Recent message history
+- Staged-plan context
+- Research references
 
-The agent does not directly apply risky economic actions on its own.
+The agent also has per-user memory for patterns and preferences. This memory is user-local and Sportfolio-specific — it won't leak between accounts.
 
-Important rules:
+---
 
-- state-changing actions are staged first
-- you confirm before execution
-- you can cancel a staged plan instead of applying it
-- the server re-validates the request when execution actually happens
+## Research Capability
 
-This matters because account state can change between plan and confirm.
+When you ask about current news, injuries, or time-sensitive information:
+- The server performs hosted web research
+- The model receives structured results (not open browser access)
+- Responses include citations when research is used
 
-## Hosted research and citations
+---
 
-When you ask for current news or another time-sensitive topic, the agent can use hosted server-side research.
+## Saved Strategies
 
-Today that means:
+Strategies let the agent operate on a recurring schedule with your defined mandate.
 
-- the server performs the web research
-- the model receives structured results rather than open browser control
-- responses should include citations when research is used
+**What strategies can do:**
+- Wake on a saved schedule
+- Reason from continuity state (prior applied actions, pending work, fresh evidence)
+- Auto-execute a narrow, pre-approved action subset
 
-This is how the agent can discuss current information without giving the model unrestricted browser access.
+**What strategies cannot do:**
+- Automatically confirm risky portfolio actions without explicit approval
+- Access billing, payments, or purchase flows
+- Act outside their defined guardrails
 
-## Memory and continuity
-
-The agent keeps per-user memory and conversation threads so that:
-
-- your discussions have continuity
-- prior context can be reused
-- the same account's history can inform later turns
-
-That memory is user-scoped. It is not meant to leak or blend across users.
+---
 
 ## Channels
 
-The active primary Hermes contract is centered on:
+The active agent contract runs on:
+1. **Web Agent page** — primary conversational surface
+2. **Saved strategy runs** — recurring automated advisory
+3. **Sportfolio CLI** — secondary shell-based access
 
-- the web Agent page
-- saved strategy runs inside the web product
-- the Sportfolio CLI as a secondary access path
+> ℹ️ Legacy SMS infrastructure exists in the product but is not part of the active primary Hermes contract.
 
-Legacy SMS infrastructure may still exist in the product, but it is not part of the primary Hermes contract.
+---
 
-## What it does not do
+## What the Agent Is Not
 
-The current agent should not be treated as:
+- ❌ A general-purpose personal assistant
+- ❌ An autonomous execution bot
+- ❌ A replacement for all UI flows
+- ❌ A way to bypass auth, locks, or economic constraints
+- ❌ A source of truth that overrides the backend
 
-- a general personal assistant
-- an autonomous execution bot
-- a replacement for all site UI paths
-- a source of truth that overrides the backend
-- a way to bypass auth, locks, or economic constraints
+---
 
-## Best ways to use it
+## Best Practices
 
-High-quality prompts are concrete:
+**High-quality prompts are specific:**
+- `"Review my setup"` → good
+- `"What should I do with my idle balance?"` → good
+- `"Which of my holdings matter most tonight?"` → good
+- `"Buy $25 of Nikola Jokic"` → good
+- `"What's the market like?"` → too vague
 
-- `review my setup`
-- `what should i do with my idle balance?`
-- `which of my holdings matter most tonight?`
-- `should i use this player in a boost or just hold?`
-- `buy $25 of <player>`
-- `research the latest injury news on <player>`
+---
 
-The more specific the goal, the better the agent can decide whether to explain, read, research, or stage an action.
+## Next Steps
 
-## Canonical knowledge source
-
-The same wiki you are reading is also part of the canonical knowledge base the agent uses for product explanations. That keeps user docs and agent guidance aligned instead of maintaining separate, drifting copies.
-
-For a deeper operational explanation, read [Agent Runtime Model](/wiki/agent/runtime-model). For how public `/mcp` relates to Hermes, read [MCP Access](/wiki/getting-started/mcp-access).
+- [Agent Runtime Model](/wiki/agent/runtime-model) — deeper explanation of threads, memory, tool tiers, and strategies
+- [CLI and External Access](/wiki/cli/overview) — use the agent from a terminal
+- [MCP Access](/wiki/getting-started/mcp-access) — connect an MCP client to Sportfolio

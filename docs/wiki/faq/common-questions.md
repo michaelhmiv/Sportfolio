@@ -13,62 +13,115 @@ surface: web,cli,agent
 searchKeywords: faq,questions,how it works,trading,agent,sports,premium,boosts
 ---
 
-# How does trading work?
+# Common Questions
 
-Players trade in AMM-backed pools. You receive a live quote, then buy or sell directly against pool liquidity.
+---
 
-## Do scouts give free shares?
+## Trading and Markets
 
-Scouts distribute shares over time based on time-weighted participation. They are a long-horizon accumulation tool, not a guaranteed short-term edge.
+**How does trading work?**
+Players trade in AMM-backed pools. You receive a live quote, then buy or sell directly against pool liquidity — no waiting for another user.
 
-## Do boosts consume my portfolio shares?
+**What is slippage?**
+Slippage is the gap between the displayed spot price and your actual average execution price. It happens because your order moves the pool. Larger orders in thinner pools = more slippage.
 
-Yes. A daily boost burns one eligible share after the boost locks, so that share leaves your standing inventory.
+**Can I trade any player in any sport?**
+Any player with an active pool can be traded. Not every player on every roster has a pool — check Player Pools or search for the specific player.
 
-## Does stack shares create free value?
+---
 
-No. Stack Shares converts unlocked raw share quantity into a higher multiplier. You are trading quantity for quality, not minting a free gain.
+## Scouts
 
-## What is the difference between a raw share and a stacked share?
+**Do scouts give free shares?**
+Scouts distribute shares over time based on time-weighted participation (scout-minutes). They're a long-horizon accumulation tool, not a guaranteed short-term edge.
 
-A raw share has a `1x` multiplier. A stacked share has a multiplier above `1x`. Stacked shares matter most in the boost system because one boost slot burns exactly one share.
+**What happens if I don't log in for a day?**
+Scout assignments for accounts inactive more than 24 hours are automatically cleared. Your accumulated shares stay — only the active assignment is removed.
 
-## Can the agent execute actions on its own?
+**How many scouts can I have?**
+Standard accounts: 5. Premium accounts: 10.
 
-No. The agent can stage supported actions, but you still confirm before state changes are applied.
+---
 
-## Can the agent research current news?
+## Shares and Stacking
 
-Yes. The server can use hosted web search for current information and cite sources in the response.
+**What is the difference between a raw share and a stacked share?**
+A raw share has a 1× multiplier and is tradeable. A stacked share has a multiplier above 1× and is not tradeable — it's held as boost-ready inventory.
 
-## Which sports does Sportfolio cover?
+**Does stacking create free value?**
+No. Stacking converts unlocked raw shares into a higher multiplier. You are trading quantity for quality, not minting a gain. Minimum 4 shares, even count, `N` shares → `N/2` multiplier.
 
-The shared sport model currently includes NBA, NFL, MLB, and NASCAR, plus an `ALL` browsing mode. Not every page exposes every sport identically, so the exact surface varies by feature.
+**Can I sell stacked shares?**
+No. Stacked shares are non-tradeable. Only raw shares can be sold in the AMM.
 
-## Is vesting still part of the live game?
+---
 
-No. Legacy vesting code remains in the repo for compatibility, but vesting is retired and not part of the active product loop.
+## Boosts
 
-## What is premium for?
+**Do boosts consume my portfolio shares?**
+Yes. A daily boost burns one eligible share after the boost locks. That share permanently leaves your inventory.
 
-Premium is an account-level entitlement layer. The main user-facing benefit today is higher scout capacity, plus related premium access behavior.
+**When does the burn happen?**
+At game start (lock time) — not after you see the result. Boost assignment is a real, irreversible commitment.
 
-## Are premium shares normal player shares?
+**What if the player has a bad game?**
+The payout formula uses `max(0, ...)` — bad fantasy output means you earn nothing, but you can't go negative.
 
-No. Premium shares are a separate asset type tied to premium access flows. They should not be treated like normal player holdings.
+**Can I use the same player in multiple boost slots?**
+Only if you have separate eligible shares for each slot. Each slot burns exactly one share.
 
-## What does the Boosts page actually do?
+---
 
-It is the deployment surface for multiplier-related mechanics: stack shares, daily boosts, community boosts, and boost payout tracking.
+## Liquidity Providing (LP)
 
-## What do leaderboards measure?
+**What is LP?**
+LP (liquidity providing) means adding both shares and SB to a player pool. You earn a portion of trading fees in exchange for providing that liquidity.
 
-Leaderboards rank users across multiple outcome categories such as net worth, cash balance, portfolio value, shares mined, and market-order activity.
+**How is LP different from holding shares?**
+Holding = directional bet on price. LP = market-making exposure to both sides of a pool. LP earns fees; shares earn from price appreciation.
 
-## Do locked shares still count as available?
+**Where do I see my LP positions?**
+Portfolio → Liquidity tab.
 
-No. Locked shares remain in your account state, but they should not be treated as freely reusable inventory until the lock clears.
+---
 
-## Where should I start if the full product feels overwhelming?
+## The Agent
 
-Start with [Getting Started](/wiki/getting-started/overview), then read [Platform Tour](/wiki/getting-started/platform-tour), [Player Pools](/wiki/gameplay/player-pools), and [Glossary](/wiki/faq/glossary).
+**Can the agent execute actions on its own?**
+No. The agent stages supported actions, but you must confirm before any state changes are applied.
+
+**Can the agent research current news?**
+Yes. The server performs hosted web research and returns structured results with citations.
+
+**What channels does the agent support?**
+The active contract is the web Agent page and the CLI. Legacy SMS infrastructure exists but is not part of the primary contract.
+
+---
+
+## Account and Features
+
+**Which sports does Sportfolio cover?**
+NBA, NFL, MLB, and NASCAR, plus an `ALL` browsing mode. Coverage depth varies by sport — NBA, NFL, and MLB have the fullest surfaces.
+
+**What is premium for?**
+Premium expands scout capacity from 5 to 10 and unlocks premium access features. It's an account-level upgrade, not a separate game mode.
+
+**Are premium shares normal player shares?**
+No. Premium shares are a separate asset type used to redeem premium access. Don't treat them like player holdings.
+
+**Is vesting still part of the game?**
+No. Legacy vesting code exists in the repo for compatibility, but vesting is retired and not part of the active product loop.
+
+**Do locked shares count as available?**
+No. Locked shares are visible in your account state but can't be spent until the lock clears. Available = quantity minus lockedQuantity.
+
+---
+
+## Where to Start
+
+> 💡 If the full product feels overwhelming, start here:
+
+1. [Getting Started](/wiki/getting-started/overview) — the core loop in plain language
+2. [Platform Tour](/wiki/getting-started/platform-tour) — page-by-page walkthrough
+3. [Player Pools](/wiki/gameplay/player-pools) — how trading works
+4. [Glossary](/wiki/faq/glossary) — exact definitions for Sportfolio terms
