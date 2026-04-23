@@ -1,5 +1,12 @@
 # Lessons Learned
 
+## 2026-04-23
+
+- If a read endpoint supports optional authenticated scoping (for example watchlist-only player filters), it should use `optionalAuth`; otherwise valid auth context can be silently dropped and produce empty scoped results.
+- ET date parsing should be centralized and reused (`YYYY-MM-DD` normalize + `getETDayBoundaries`) instead of route-local regex/offset math, or DST and boundary logic drifts across gameplay endpoints.
+- Debug-only client queries should not remain active on production action screens; they add noise, extra requests, and can unintentionally normalize reliance on non-product debug routes.
+- When extracting authenticated routes into new modules, update the public-surface route coverage test file list in the same change or parity audits can fail even when endpoint behavior is correct.
+
 ## 2026-04-22
 
 - If product economics move to user-formed price discovery, remove every implicit pool-creation path (routes, agents, bots, admin tools), not just AMM math internals, or background helpers will silently reintroduce seeded liquidity.
