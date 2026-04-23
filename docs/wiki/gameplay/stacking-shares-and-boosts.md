@@ -13,141 +13,155 @@ surface: web,cli,agent
 searchKeywords: stack shares,stacked shares,multiplier,boosts,daily boosts,community boosts
 ---
 
-# Why Multipliers Matter
+# Stacking Shares and Boosts
 
-Stacking Shares is the quality layer on top of a player share.
+The Boosts system is where you convert accumulated inventory into competitive payouts.
 
-Two users can each own one share of the same player and still have very different boost value if one of those shares carries a higher multiplier.
+It has two parts:
+1. **Stack Shares** — upgrade raw shares into high-multiplier inventory
+2. **Daily Boosts** — deploy one share per slot around game windows to earn payouts
 
-In Sportfolio terms:
+> 💡 **Think of it as refinery + deployment.** You accumulate shares through trading and scouts, refine them by stacking, then spend them strategically in boost slots.
 
-- **stacked share** = the single non-tradeable share created by stacking
-- **multiplier** = the earning and boost strength of that stacked share
-- **effective shares** = the economic weight counted for value and payout math
+---
 
-For a one-share boost slot, the stacked share's multiplier is what matters most.
+## Part 1: Stack Shares
 
-## Stack Shares: converting quantity into quality
+### What Stacking Does
 
-Stack Shares turns regular shares into one stacked share with a multiplier.
+Stack Shares converts raw player shares into a single stacked share with a higher multiplier.
 
-Current rules:
+**Current rules:**
+- Minimum 4 raw shares to stack
+- Input must be an even number
+- `N` raw shares → 1 stacked share at `N/2` multiplier
 
-- minimum `4` regular shares
-- even counts only
-- `N` regular shares become `1` stacked share at `N/2` multiplier
+**Example:**
+- `10` raw shares → `1` stacked share at `5×`
+- That position now contributes `5` effective shares to value and payout math
+- The other `5` effective shares are burned as the cost of stacking
 
-Example:
+> ⚠️ **Stacking is a tradeoff, not a free bonus.** You give up share count to keep fewer, stronger units. Only stack when quality matters more than quantity.
 
-- `10` regular shares -> `1` stacked share at `5x`
-- portfolio value and payout weight now count that position as `5` effective shares
-- the other `5` effective shares are burned as the cost of stacking
+### Raw vs. Stacked Shares
 
-Stacking is a tradeoff, not a bonus button. You sacrifice share count to keep fewer, stronger units.
+| | Raw share | Stacked share |
+|---|---|---|
+| Multiplier | 1× | 2× or higher |
+| Tradeable | ✅ Yes | ❌ No |
+| Boost eligible | ✅ Yes | ✅ Yes (preferred) |
+| Earns game payouts | Only via boost | ✅ Yes |
 
-## The daily boost slots
+### Lock Checks
 
-Each day, the boost system gives you four slot tiers:
+Stacking only consumes **unlocked** shares. Locked shares (reserved for active boosts or other flows) cannot be stacked. Always check your available quantity before stacking.
 
-- `5x`
-- `4x`
-- `3x`
-- `2x`
+---
 
-Each slot takes exactly one share.
+## Part 2: Daily Boosts
 
-That rule is important. You are choosing the single most valuable share to burn in each slot, not combining multiple shares inside the slot itself.
+### The Four Slot Tiers
 
-## Eligibility rules
+Each day you get four boost slots:
 
-A share is only boost-eligible if it is actually available.
+| Slot | Base multiplier |
+|---|---|
+| Slot 1 | 5× |
+| Slot 2 | 4× |
+| Slot 3 | 3× |
+| Slot 4 | 2× |
 
-That means:
+Each slot burns **exactly one share.** You are choosing the single most valuable share for each slot — not combining multiple shares.
 
-- the share is in your holdings
-- it is not locked somewhere else
-- the player has a relevant game window
-- the slot has not already been filled by another share
+### Eligibility Rules
 
-When both regular and stacked inventory exist for the same player, the system prefers the highest-multiplier eligible share.
+A share is boost-eligible if:
+- It's in your holdings (raw or stacked)
+- It's not currently locked
+- The player has a game window relevant to that day's slate
+- The slot hasn't already been filled
 
-## Lock and burn lifecycle
+When both raw and stacked shares exist for the same player, the system automatically prefers the **highest-multiplier** eligible share.
 
-Boosts have a real lifecycle:
+### The Boost Lifecycle
+
+```
+Assign → Lock (at game start) → Burn → Game plays → Settle
+```
 
 1. You assign a share to a slot before lock.
-2. At game start, the boost transitions to locked.
-3. The assigned share is burned.
+2. At game start, the share locks (no longer reassignable).
+3. The share is **burned** — it leaves your inventory permanently.
 4. After the game completes and stats are available, the boost settles.
 
-The burn happens at lock, not after you see the result. That is why boost assignment is a real commitment.
+> ⚠️ **The burn happens at lock, not after the result.** Boost assignment is a real, irreversible commitment.
 
-## How payout is calculated
+### Payout Formula
 
-The core payout logic is:
-
-`payout = max(0, multiplier * fantasyPoints * effectiveMultiplier)`
+```
+payout = max(0, multiplier × fantasyPoints × effectiveMultiplier)
+```
 
 Where:
+- `multiplier` = stored value of the burned share (e.g., 5 for a 5× stacked share)
+- `fantasyPoints` = player's real-game fantasy output
+- `effectiveMultiplier` = slot tier + number of active community boosts
 
-- `multiplier` is the stored value of the single burned share
-- `fantasyPoints` comes from the player's real-game output
-- `effectiveMultiplier = slotTier + communityBoostCount`
+The `max(0, ...)` floor ensures bad or empty fantasy output can't create a negative payout.
 
-The `max(0, ...)` floor matters. Bad or empty fantasy output cannot create a negative payout.
+---
 
-## Community boosts
+## Community Boosts
 
-Community boosts change the multiplier environment for a player on a given day.
+Community boosts add `+1` to the effective multiplier for any daily boost on that player and day.
 
-To create one:
+**How to create one:**
+- Spend one community share
+- Boost is recorded for the specific player and date
 
-- you spend one community share
-- the boost is recorded for that specific player and day
+**Rules:**
+- Only one active community boost can exist per player per day
+- Community boosts don't replace your daily boost — they make your daily boost more valuable
 
-Each community boost adds `+1` to the multiplier for matching daily boosts on that player and date.
+**Example:**
+- Slot 1 (5×) + 2 active community boosts → effective multiplier = 7×
 
-Important constraint:
+---
 
-- only one active community boost can exist per player per day
+## Game Performance Payouts
 
-Community boosts do not replace your own daily boost. They increase the value of using that player in your own plan.
+Stacked shares (not in boost slots) can also earn payouts through a separate game-performance settlement:
 
-## Cross-sport behavior
+- Only stacked-share multiplier positions are eligible
+- Regular (raw) shares don't earn game-performance cash directly
+- Payout: `earningUnits × fantasyPoints × baseRate`
 
-The boosts surface is multi-sport, but the exact mix of eligible players depends on the slate and the page controls.
+This is separate from the daily boost settlement. It runs automatically for games that complete.
 
-In practice:
+---
 
-- daily boosts aggregate across supported sports
-- the main community-boost picker is centered on the primary ball-sport surfaces
-- settlement still follows each player's actual game lifecycle
+## Common Mistakes
 
-## The biggest strategic tradeoffs
+- Burning a top stacked share without noticing a better slot target
+- Stacking too aggressively, leaving too little flexible inventory for trades or LP
+- Forgetting that locked shares can't be reused until the lock clears
+- Treating community boosts as free value — they cost a community share each
 
-Every boost decision asks the same question:
+---
 
-"Is burning this exact share in this exact slot better than holding or selling it?"
+## Strategic Checklist
 
-The answer depends on:
+Before assigning a boost slot, ask:
+- What's the expected fantasy output for this player tonight?
+- What's the multiplier of the share I'd burn?
+- Is a community boost active for this player?
+- Is there a better player who fits this slot?
+- What's the opportunity cost of losing this share from my inventory?
 
-- the player's expected fantasy output
-- the multiplier of the share you would burn
-- whether a community boost is active
-- the opportunity cost of losing that inventory
-- whether another player fits that slot better
+---
 
-## Common mistakes
+## Next Steps
 
-- burning a top-stacked share without noticing a better slot target
-- stacking too aggressively and ending up with too little flexible inventory
-- forgetting that locked shares are no longer reusable
-- treating community boosts as free value instead of as inventory-consuming commitments
-
-## The right mental model
-
-Think of stacking as refined inventory.
-
-Trading and scouting help you accumulate.
-Stack Shares upgrades the quality of what you accumulated.
-Daily boosts are where you deliberately spend that quality for a game-window payout.
+- [Scouts and Rewards](/wiki/gameplay/scouts-and-rewards) — build the inventory that feeds stacking
+- [Portfolio and Holdings](/wiki/gameplay/portfolio-and-holdings) — track your stacked positions
+- [Sports and Slates](/wiki/gameplay/sports-and-slates) — understand game windows and lock timing

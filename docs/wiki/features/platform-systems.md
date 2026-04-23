@@ -13,136 +13,149 @@ surface: web,agent
 searchKeywords: dashboard,analytics,news,watchlists,premium,notifications,realtime
 ---
 
-# Dashboard intelligence
+# Platform Systems
 
-The dashboard is more than a welcome page. It is the site-wide operating view.
+Beyond core trading, scouting, and boosting, Sportfolio includes several platform-level features that help you stay informed and make better decisions.
 
-It combines:
+---
 
-- live or upcoming slate context
-- market activity and scanners
-- date navigation
-- sport selection
-- quick account status for authenticated users
-- links into deeper game and player views
+## Dashboard Intelligence
 
-For many users, the dashboard is the place where "what is happening?" becomes "what should I do?"
+The dashboard is your daily operating view — not just a welcome page.
 
-## Player research surfaces
+**What it combines:**
+- Live or upcoming slate context and game windows
+- Market activity and scanner widgets
+- Date navigation (look back and forward around nearby slates)
+- Sport selector
+- Balance, rankings, and boost status for logged-in users
 
-Outside the core trade widgets, Sportfolio gives you several ways to inspect context:
+> 💡 The dashboard is public. You can use it to assess market context without logging in.
 
-- player detail pages
-- player stats
-- recent games
-- financial metrics
-- live game detail and command-center flows
+---
 
-These tools exist so you can evaluate both the athlete and the market around that athlete, not only the last traded price.
+## Market Scanners and Activity Feeds
 
-## Market scanners and activity feeds
+Discovery widgets help you find movement without checking every player manually:
 
-Sportfolio includes market-intelligence widgets that help you find movement without checking every player manually.
+- Recent trade activity feed
+- Top risers (price movers)
+- Top market-cap names
+- Pool-size leaders
+- Market pulse indicators
 
-Common examples include:
+These are attention tools — they help you decide where to look, not what to buy.
 
-- recent trade activity
-- top risers
-- top market-cap names
-- pool-size leaders
-- generalized market pulse indicators
-
-These are discovery tools. They help you decide where to spend attention.
+---
 
 ## News Hub
 
-The News Hub gives Sportfolio a narrative layer around the market.
+The News Hub adds narrative context to your market decisions.
 
-It includes:
+**Features:**
+- General sports news with source links
+- Recency context for each story
+- A personalized digest for authenticated users (based on holdings and watchlists)
 
-- general sports stories
-- headline briefings
-- source links
-- recency context
-- a user-specific digest for authenticated users
+An injury report or lineup announcement can shift a player's market value significantly. The news hub is where you find those signals.
 
-The purpose is not only "read the news." It is "read the news in a form that can affect market and slate decisions."
+See [Watchlists and News](/wiki/features/watchlists-and-news) for full details.
+
+---
 
 ## Watchlists
 
-Watchlists are custom tracking lists for players you care about.
+Watchlists let you track players before you own them (or without owning them at all).
 
-You can:
+**You can:**
+- Create multiple named watchlists
+- Rename or delete them
+- Add and remove players
+- Filter the Player Pools view to show only watchlisted names
 
-- create multiple named watchlists
-- rename or delete them
-- add players
-- remove players
-- use them as a filter in market browsing
+Watchlists are useful for building a shortlist, monitoring conviction names across sports, or separating "interested" from "invested."
 
-Watchlists are useful when your conviction exists before your position, or when you want to monitor names across several sports without immediately buying.
+See [Watchlists and News](/wiki/features/watchlists-and-news) for full details.
+
+---
 
 ## Analytics
 
-Analytics is the macro observability layer for the market.
+Analytics is the macro view of the whole market ecosystem.
 
-It focuses on:
+**Focus areas:**
+- Market health over time
+- Time-series price and activity charts
+- Share issuance and burn trends
+- Player-to-player comparisons
+- Sport-level breakdowns
+- Economy snapshots
 
-- market health
-- time-series movement
-- share issuance and burn trends
-- player-to-player comparisons
-- sport-level breakdowns
-- economy snapshots
+Use Analytics when your question is about the overall market shape, not a single trade decision.
 
-Use it when you want to understand the shape of the whole ecosystem instead of a single trade.
+See [Analytics](/wiki/features/analytics) for full details.
 
-## Premium access
+---
 
-The Premium page is the entitlement and purchase surface for premium access.
+## Premium Access
 
-It covers:
+Premium is an account-level entitlement, not a separate game mode.
 
-- current premium status
-- premium share inventory
-- purchase history
-- redemption into premium access windows
+**Primary benefits:**
+- Scout capacity increases from 5 to 10
+- Access to premium-only windows and features
 
-Premium primarily changes account utility, most notably by expanding scout capacity. It is an account-level feature, not a separate gameplay league.
+**How it works:**
+- Buy premium shares on the Premium page
+- Redeem them to activate a premium access window
+- Premium shares are a separate asset type — not player shares
 
-## Profiles and social proof
+See [Premium](/wiki/features/premium) for full details.
 
-User profile pages and leaderboards create the public-facing status layer of the platform.
+---
 
-They make it possible to:
+## Profiles and Social Proof
 
-- inspect public identity
-- compare rankings
-- see who is performing well
-- turn account outcomes into a visible social signal
+Public user profiles and leaderboards create a visible social layer:
+- Inspect anyone's public identity and recent performance
+- Compare rankings across metrics
+- See who's performing well and what they're holding
 
-## Real-time updates and notifications
+Profiles make account outcomes visible and competitive.
 
-Sportfolio uses WebSocket-driven updates to keep the site live.
+---
 
-That powers:
+## Real-Time Updates
 
-- portfolio refresh after trades and settlements
-- scout payout updates
-- boost settlement updates
-- whale alerts
-- trending-player updates
-- unread badges and freshness indicators
+Sportfolio is a live product. Updates are WebSocket-driven and happen automatically:
 
-Many pages are designed around this real-time model, so they should be read as live operational surfaces rather than static reports.
+| Event | What updates |
+|---|---|
+| Trade or settlement | Portfolio refreshes |
+| Scout distribution | Holdings update |
+| Boost settlement | Payout appears |
+| Whale activity | Alert pushed |
+| Trending players | Badges update |
 
-## Mobile and cross-surface access
+You should treat most pages as live operational surfaces, not static reports.
 
-The product also supports:
+---
 
-- responsive web usage
-- mobile wrappers
-- CLI access through API tokens
-- public MCP access for external clients
+## Cross-Surface Access
 
-The exact controls differ by channel, but the goal is the same: keep the same account and economy accessible in multiple operating contexts.
+The same Sportfolio account and economy are accessible from:
+- **Web app** — primary experience
+- **Mobile** — responsive, bottom-nav optimized
+- **CLI** — terminal access via API token
+- **MCP** — protocol access for external clients
+
+See [How to Access Sportfolio](/wiki/getting-started/access) for setup details.
+
+---
+
+## Next Steps
+
+- [Analytics](/wiki/features/analytics) — macro market analysis
+- [Watchlists and News](/wiki/features/watchlists-and-news) — player tracking and news digest
+- [Premium](/wiki/features/premium) — expand scout capacity and unlock premium features
+- [Sportfolio Agent](/wiki/features/agent-operator) — conversational product operator

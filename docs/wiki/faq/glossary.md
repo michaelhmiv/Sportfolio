@@ -13,146 +13,157 @@ surface: web,cli,agent
 searchKeywords: glossary,terms,definitions,amm,boosts,scouts,lp
 ---
 
-# Core money and asset terms
+# Glossary
 
-## SB / Balance
+Quick reference for Sportfolio's core terms, organized by area.
 
-Your liquid virtual cash balance. This is what you spend on buys, boosts, LP adds, and other supported actions.
+---
 
-## Player Share
+## Money and Assets
 
-A tradeable unit of exposure to a specific player inside Sportfolio's economy.
+**SB / Balance**
+Your liquid virtual cash. Spend it on buys, boosts, LP adds, and other eligible actions.
 
-## Premium Share
+**Player Share**
+A tradeable unit of exposure to one player inside Sportfolio's economy.
 
-A separate asset type tied to premium-access flows. It is not the same as a player share.
+**Stacked Share**
+A non-tradeable share with a multiplier above 1×. Created by stacking raw shares. Used in boost slots and game-performance payouts.
 
-## Community Share
+**Premium Share**
+A separate asset type tied to premium-access flows. Not the same as a player share — used to redeem premium access windows.
 
+**Community Share**
 An asset consumed when creating a community boost.
 
-# Market terms
+---
 
-## AMM
+## Market Terms
 
-Automated market maker. Sportfolio uses AMM pools so users trade against liquidity instead of waiting for another user to match an order.
+**AMM (Automated Market Maker)**
+Sportfolio's trading model. Users trade against pooled liquidity instead of waiting for matching orders from other users.
 
-## Player Pool
+**Player Pool**
+The AMM pool for one player — contains player-share reserve and SB reserve.
 
-The AMM pool for one player, containing player-share reserve and SB reserve.
+**Constant-Product Formula**
+`x × y = k` — the pricing model. As shares are bought (x decreases), price rises. As shares are sold (x increases), price falls.
 
-## Slippage
+**Slippage**
+The gap between the displayed spot price and your actual average execution price caused by your order moving the pool.
 
-The difference between the displayed spot price and the average execution price caused by your order moving the pool.
+**TVL (Total Value Locked)**
+How much value sits in a pool. Higher TVL = deeper liquidity = less slippage.
 
-## TVL
+**Market Cap**
+A relative sizing metric used in analytics and listings. Not a promise of liquidity.
 
-Total value locked. In practice, a shorthand for how much value sits in a pool and how deep its liquidity is.
+**Volume**
+Recent trading activity on a player's pool. A signal of how active the market has been.
 
-## Market Cap
-
-A market-size signal used in Sportfolio's analytics and listings. It is a relative sizing metric, not a promise of liquidity.
-
-## Volume
-
-Recent trading activity, usually used as a signal for how active a player's market has been.
-
-## Buy Pressure / Sentiment
-
+**Buy Pressure / Sentiment**
 A directional flow signal derived from recent trading behavior.
 
-## Value Index
+**Value Index**
+A relative-value metric used to compare players beyond raw price.
 
-A relative-value style metric used to compare players beyond raw price alone.
+---
 
-# Liquidity terms
+## Liquidity Terms
 
-## LP
+**LP (Liquidity Provider)**
+A user who contributes assets to an AMM pool, earning trading fees in return.
 
-Liquidity provider. A user who contributes assets to an AMM pool instead of only taking directional market exposure.
+**LP Shares**
+The ownership units representing your stake in a pool after adding liquidity.
 
-## LP Shares
+**Zap**
+A single-sided liquidity add. Lets you contribute from one asset type instead of manually preparing both sides.
 
-The ownership units that represent your stake in a pool after adding liquidity.
+**Pool Fee**
+1% of each trade, distributed to LP holders.
 
-## Zap
+**Burn Fee**
+1% of each trade, permanently removed from supply.
 
-A convenience flow that helps add liquidity from one side instead of manually preparing both sides yourself.
+---
 
-# Scout terms
+## Scout Terms
 
-## Scout
+**Scout**
+An assignable unit that earns player shares over time on a per-hour basis.
 
-An assignable unit that earns player shares over time.
+**Scout-Minutes**
+The time-weighted basis for hourly scout distribution. More of the hour assigned = larger share of the reward.
 
-## Scout-Minutes
+**Shares Mined**
+The practical label for shares earned through the scout system over time.
 
-The time-weighted basis used to determine your share of hourly scout distribution on a player.
+---
 
-## Shares Mined
+## Multiplier and Boost Terms
 
-The practical user-facing idea of shares earned through the scout system over time.
+**Multiplier**
+The strength value carried by a share. Raw shares: 1×. Stacked shares: 2× or higher.
 
-# Multiplier and boost terms
+**Effective Shares**
+The economic weight a position contributes to value and payout math. `quantity × multiplier`.
 
-## Share Multiplier
+**Stack Shares**
+The conversion flow that burns unlocked raw shares to create a stacked share with a higher multiplier.
 
-The strength value carried by a single share.
+**Daily Boost**
+A one-share, slot-based mechanic that burns one eligible share at game lock and settles a payout after the player's game completes.
 
-## Multiplier
+**Boost Slot Tier**
+The base multiplier for a daily boost slot. Current tiers: 5×, 4×, 3×, 2×.
 
-The effective-share value contributed by a stacked share or holding row.
+**Effective Multiplier**
+The total multiplier applied to a boost payout. `slotTier + communityBoostCount`.
 
-## Stack Shares
+**Community Boost**
+A player-and-day-specific boost created by spending one community share. Each one adds +1 to the effective multiplier for matching daily boosts on that player and date.
 
-The conversion flow that burns unlocked raw shares in exchange for a stronger stacked-share multiplier.
+**Lock**
+A temporary state marking shares as reserved. Locked shares can't be spent in another flow until the lock clears.
 
-## Daily Boost
+---
 
-A one-share, slot-based mechanic that burns one eligible share at lock and settles a payout after the player's game completes.
+## Agent Terms
 
-## Boost Slot Tier
+**Thread**
+A persisted conversation for the agent. Keeps continuity and staged-plan context across messages.
 
-The base multiplier for a daily boost slot. Current tiers are `5x`, `4x`, `3x`, and `2x`.
-
-## Community Boost
-
-A player-and-day-specific boost created by spending a community share. Each one adds `+1` to the effective multiplier for matching daily boosts.
-
-## Lock
-
-A temporary state that marks cash or shares as reserved so they cannot be spent again in another flow.
-
-# Competition terms
-
-## Leaderboard
-
-A public ranking surface that compares users across selected performance metrics.
-
-# Data and operations terms
-
-## Digest
-
-A summarized news feed tailored for an authenticated user.
-
-## Thread
-
-A persisted conversation for the agent, used to keep continuity across messages.
-
-## Confirm
-
+**Confirm**
 The explicit user action that applies a staged agent plan.
 
-## Cancel
+**Cancel**
+The explicit user action that discards a staged plan without applying it.
 
-The explicit user action that discards a staged agent plan without applying it.
+**Staged Action**
+An action plan prepared by the agent, shown for review before any state changes are made.
 
-## WebSocket Event
+**Strategy**
+A saved mandate that lets the agent operate on a recurring schedule within defined guardrails.
 
-A real-time server push used to keep pages fresh without waiting for manual refresh.
+---
 
-# One-line mental model
+## Data and Operations
 
-If you want one summary sentence:
+**Digest**
+A personalized news summary for authenticated users, based on holdings and watchlists.
 
-Sportfolio is a multi-sport player-share market where you accumulate inventory, refine it into multiplier strength, deploy it into slate-based mechanics, and manage the whole loop through live market, analytics, and agent surfaces.
+**Watchlist**
+A custom named list of players you're tracking without necessarily owning.
+
+**WebSocket Event**
+A real-time server push that keeps pages live without manual refresh.
+
+**Continuity Brief**
+A server-owned runtime summary delivered to the agent each turn — covers prior actions, pending work, active strategies, and recent evidence.
+
+---
+
+## One-Line Summary
+
+> Sportfolio is a multi-sport player-share market where you accumulate inventory, refine it into multiplier strength, deploy it into slate-based mechanics, and manage the whole loop through live market, analytics, and agent surfaces.

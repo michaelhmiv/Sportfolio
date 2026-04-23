@@ -13,93 +13,113 @@ surface: web,cli,agent
 searchKeywords: scouts,share rewards,free shares,scout minutes,hourly distribution
 ---
 
-# What scouts are
+# Scouts and Share Rewards
 
-Scouts are assignable units that earn player shares over time. They are the main passive accumulation loop in the live Sportfolio product.
+Scouts are your passive share-accumulation engine. Assign a scout to a player and it earns shares for you over time — no active trading required.
 
-You are not placing a one-time vote. You are allocating a time-based resource.
+> 💡 **Scouts mint player-share inventory, not cash.** Those shares feed your future trades, boost slots, and stacking pipeline.
 
-## Capacity by account type
+---
 
-Scout capacity is tied to account tier:
+## Scout Capacity
 
-- standard users can assign up to `5` scouts
-- premium users can assign up to `10` scouts
+| Account type | Max scouts |
+|---|---|
+| Standard | 5 |
+| Premium | 10 |
 
-That means premium expands accumulation bandwidth, but the underlying distribution logic stays the same.
+Premium doubles your accumulation bandwidth. The underlying distribution math stays the same regardless of tier.
 
-## How rewards are calculated
+---
 
-Scout distributions run hourly.
+## How Rewards Are Calculated
 
-The critical concept is **scout-minutes**.
+Scout distributions run **every hour.**
 
-The system rewards time-weighted participation, not simply whether you assigned a scout at some point.
+The key concept is **scout-minutes** — the time you've had a scout assigned to a player during that hour. The more of the hour your scouts spent on a player, the larger your share of the hourly reward.
 
-The core payout formula is:
+**Formula:**
 
-`sharesEarned = floor((60 * userScoutMinutes / globalScoutMinutes) * 100) / 100`
+```
+sharesEarned = floor((60 × userScoutMinutes / globalScoutMinutes) × 100) / 100
+```
 
 In plain English:
+- Your reward = your scout-minutes ÷ all scout-minutes on that player × 100 shares distributed
+- Results are rounded down to two decimal places
 
-- the more of the hour your scouts spend on a player, the larger your claim
-- your share of the reward depends on your portion of all scout-minutes on that player
-- rewards are rounded down to two decimals
+**Example:**
+- 1,000 global scout-minutes on Player A this hour
+- Your scout was on Player A for 45 minutes → 45 scout-minutes
+- Your share: `floor((60 × 45 / 1000) × 100) / 100 = 2.7 shares`
 
-## Why time weighting matters
+---
 
-The system records scout history. That means changing scouts is not just a toggle in the current moment. It affects the time-weighted record that feeds the next distribution.
+## Why Timing Matters
 
-If you move late:
+Scout history is recorded continuously. Switching scouts late in an hour has real consequences:
 
-- you may have less effective time on the new player than you think
-- you may have already surrendered a large share of the hour on the old player
+- You lose scout-minutes you already built up on the old player
+- You start from zero on the new player for that hour
+- Last-minute moves can materially reduce your reward
 
-Scouts reward persistence and timing, not only conviction.
+> ⚠️ **Move scouts when your conviction changes — not impulsively.** The distribution is time-weighted, so persistence pays off.
 
-## Inactivity cleanup
+---
 
-Active scout assignments are not permanent if the account goes idle for too long.
+## Inactivity Cleanup
 
-The system can clear active assignments for users inactive for more than 24 hours. That keeps abandoned allocations from permanently farming shares without user participation.
+Scout assignments aren't permanent if an account goes idle.
 
-## What a strong scout setup looks like
+The system automatically clears active scout assignments for accounts **inactive for more than 24 hours.** This prevents abandoned accounts from farming shares indefinitely.
 
-Strong scout usage is usually:
+---
 
-- focused on a few conviction names
-- reviewed when news or slates change
-- aligned with your broader market plan
-- concentrated enough that the resulting rewards are meaningful
+## What a Strong Scout Setup Looks Like
 
-The most common weak setup is spraying scouts across too many players and learning nothing from the outcome.
+**Do:**
+- Focus scouts on a small number of conviction names (3–5 is usually better than spreading all 5 or 10)
+- Revisit assignments when news changes your outlook on a player
+- Align scouts with players you actually want more inventory of
+- Treat scouts as inventory builders, not lottery tickets
 
-## How scouts fit into the bigger economy
+**Don't:**
+- Spread scouts across too many players — small rewards in too many places add up to nothing useful
+- Forget the hourly cadence — last-minute changes affect your results
+- Leave scouts idle on players you've already sold out of
 
-Scouts do not directly mint cash. They mint player-share inventory.
+---
 
-That inventory can then become:
+## How Scouts Fit the Bigger Economy
 
-- a hold
-- a future sale
-- material for stack shares
-- inventory for a daily boost
+Scouts produce inventory that flows into the rest of your account:
 
-So scouts are best understood as the upstream supply engine for the rest of your account.
+```
+Scout → Player shares → Hold / Sell / Stack / Boost
+```
 
-## Practical habits
+- **Hold** for price appreciation
+- **Sell** to realize SB
+- **Stack** to convert raw shares into boost-ready multipliers
+- **Use in boosts** to earn game-window payouts
 
-- Revisit scouts when your convictions change, not just when you are bored.
-- Concentrate on names where you actually want more inventory.
-- Do not forget the hourly cadence. Last-minute changes can materially alter results.
-- Use scouts to build positions gradually instead of chasing every trade through the AMM.
+Scouts are the upstream supply engine. The better your scout allocation, the better your downstream options.
 
-## What scouts are not
+---
 
-Scouts are not:
+## What Scouts Are Not
 
-- guaranteed profit
-- instant cash
-- a replacement for active trading
+- ❌ Guaranteed profit
+- ❌ Instant cash
+- ❌ A replacement for active trading
+- ❌ Equally useful no matter how many players you spread them across
 
-They are a slow, compounding inventory tool. The users who treat them that way usually get more value out of them.
+They're a compounding inventory tool. The users who treat them that way get the most value.
+
+---
+
+## Next Steps
+
+- [Stacking and Boosts](/wiki/gameplay/stacking-shares-and-boosts) — what to do with the shares scouts build
+- [Portfolio and Holdings](/wiki/gameplay/portfolio-and-holdings) — see your scout-earned inventory
+- [Premium](/wiki/features/premium) — expand to 10 scouts
