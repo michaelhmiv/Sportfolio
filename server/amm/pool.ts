@@ -24,12 +24,6 @@
 import { eq, sql, and } from "drizzle-orm";
 import { db } from "../db";
 import {
-  INITIAL_POOL_K,
-  INITIAL_POOL_PLAY_MONEY,
-  INITIAL_POOL_SHARES,
-  shouldRepairSeedLiquidity,
-} from "./pool-seed";
-import {
   playerPools,
   players,
   trades,
@@ -57,15 +51,8 @@ const LP_BOOST_THRESHOLD = 0.01;
 // Minimum holding threshold before deleting a position (prevents dust)
 const MIN_HOLDING_THRESHOLD = 0.0001;
 
-// Pool initialization constants - scaled for better liquidity
-export { INITIAL_POOL_PLAY_MONEY, INITIAL_POOL_SHARES } from "./pool-seed";
-const INITIAL_POOL_PRICE = INITIAL_POOL_PLAY_MONEY / INITIAL_POOL_SHARES; // $10/share
-const POOL_VALUE_EPSILON = 0.0001;
-
-// Market Maker configuration
+// Market Maker identifier is still used for LP boost exclusion.
 const MARKET_MAKER_ID = "market_maker";
-const MARKET_MAKER_USERNAME = "Sportfolio Market Maker";
-const MARKET_MAKER_EMAIL = "marketmaker@system.sportfolio.internal";
 
 const poolSelect = {
   playerId: playerPools.playerId,
@@ -107,10 +94,6 @@ function toPool(row: PoolRow): Pool {
     totalTrades: row.totalTrades,
     currentPrice: playMoney / shares,
   };
-}
-
-function approximatelyEqual(value: number, target: number): boolean {
-  return Math.abs(value - target) < POOL_VALUE_EPSILON;
 }
 
 export interface Pool {
@@ -202,262 +185,7 @@ export async function getPool(playerId: string): Promise<Pool | null> {
     return null;
   }
 
-  if (shouldRepairSeedLiquidity(pool)) {
-    return initializePool(playerId);
-  }
-
   return toPool(pool);
-}
-
-/**
- * Initialize a new pool for a player with default liquidity
- * Creates pool with market maker as initial LP (50,000 shares / $500,000)
- */
-export async function initializePool(playerId: string): Promise<Pool> {
-  console.log(`[AMM] Initializing pool for player ${playerId}`);
-
-  try {
-    // First ensure market maker exists
-    await ensureMarketMakerExists();
-
-    return await db.transaction(async (tx) => {
-      const [existingPoolRow] = await tx
-        .select(poolSelect)
-        .from(playerPools)
-        .where(eq(playerPools.playerId, playerId))
-        .for("update");
-
-      let poolRowForReturn: PoolRow | null = null;
-      let didCreatePool = false;
-      let didRepairPool = false;
-      let playMoneyBeforeRepair = 0;
-
-      if (existingPoolRow) {
-        if (!shouldRepairSeedLiquidity(existingPoolRow)) {
-          return toPool(existingPoolRow);
-        }
-
-        didRepairPool = true;
-        playMoneyBeforeRepair = parseFloat(existingPoolRow.playMoney) || 0;
-
-        const repairedK = INITIAL_POOL_K.toFixed(2);
-        await tx
-          .update(playerPools)
-          .set({
-            shares: INITIAL_POOL_SHARES.toString(),
-            playMoney: INITIAL_POOL_PLAY_MONEY.toString(),
-            k: repairedK,
-            lpSharesTotal: INITIAL_POOL_SHARES.toString(),
-            feesAccumulated: "0",
-            feeGrowthPerLpShare: "0",
-            totalVolume: "0",
-            totalTrades: 0,
-            updatedAt: new Date(),
-          })
-          .where(eq(playerPools.playerId, playerId));
-
-        poolRowForReturn = {
-          ...existingPoolRow,
-          shares: INITIAL_POOL_SHARES.toString(),
-          playMoney: INITIAL_POOL_PLAY_MONEY.toString(),
-          k: repairedK,
-          lpSharesTotal: INITIAL_POOL_SHARES.toString(),
-          feesAccumulated: "0",
-          feeGrowthPerLpShare: "0",
-          totalVolume: "0",
-          totalTrades: 0,
-        };
-
-        console.log(
-          `[AMM] Repaired seed liquidity for ${playerId}: ${existingPoolRow.shares} shares / $${existingPoolRow.playMoney} -> ${INITIAL_POOL_SHARES} shares / $${INITIAL_POOL_PLAY_MONEY}`,
-        );
-      } else {
-        const initialK = INITIAL_POOL_K.toFixed(2);
-        const [newPool] = await tx
-          .insert(playerPools)
-          .values({
-            playerId,
-            shares: INITIAL_POOL_SHARES.toString(),
-            playMoney: INITIAL_POOL_PLAY_MONEY.toString(),
-            k: initialK,
-            lpSharesTotal: INITIAL_POOL_SHARES.toString(),
-            feesAccumulated: "0",
-            feeGrowthPerLpShare: "0",
-            totalVolume: "0",
-            totalTrades: 0,
-          })
-          .onConflictDoNothing({ target: playerPools.playerId })
-          .returning();
-
-        if (!newPool) {
-          // Another transaction created the pool first (race). Fetch within this transaction.
-          const [racePoolRow] = await tx
-            .select(poolSelect)
-            .from(playerPools)
-            .where(eq(playerPools.playerId, playerId));
-
-          if (!racePoolRow) {
-            throw new Error(
-              `Pool creation returned no data and pool does not exist for player ${playerId}`,
-            );
-          }
-
-          return toPool(racePoolRow);
-        }
-
-        didCreatePool = true;
-        poolRowForReturn = newPool;
-
-        console.log(
-          `[AMM] Pool created for player ${playerId} with ${INITIAL_POOL_SHARES} shares / $${INITIAL_POOL_PLAY_MONEY}`,
-        );
-      }
-
-      // Create/normalize market maker holding (idempotent)
-      const [existingMmHolding] = await tx
-        .select()
-        .from(holdings)
-        .where(
-          and(
-            eq(holdings.userId, MARKET_MAKER_ID),
-            eq(holdings.assetType, "player"),
-            eq(holdings.assetId, playerId),
-          ),
-        )
-        .limit(1);
-
-      if (existingMmHolding) {
-        await tx
-          .update(holdings)
-          .set({
-            quantity: INITIAL_POOL_SHARES.toString(),
-            avgCostBasis: INITIAL_POOL_PRICE.toString(),
-            totalCostBasis: INITIAL_POOL_PLAY_MONEY.toString(),
-            lastUpdated: new Date(),
-          })
-          .where(eq(holdings.id, existingMmHolding.id));
-      } else {
-        await tx.insert(holdings).values({
-          userId: MARKET_MAKER_ID,
-          assetType: "player",
-          assetId: playerId,
-          quantity: INITIAL_POOL_SHARES.toString(),
-          avgCostBasis: INITIAL_POOL_PRICE.toString(),
-          totalCostBasis: INITIAL_POOL_PLAY_MONEY.toString(),
-        });
-      }
-
-      let playMoneyToDeduct = 0;
-      if (didCreatePool) {
-        playMoneyToDeduct = INITIAL_POOL_PLAY_MONEY;
-      } else if (didRepairPool) {
-        playMoneyToDeduct = Math.max(0, INITIAL_POOL_PLAY_MONEY - playMoneyBeforeRepair);
-      }
-
-      if (playMoneyToDeduct > 0) {
-        // Deduct only the amount needed to top up liquidity.
-        try {
-          await tx
-            .update(users)
-            .set({
-              balance: sql`${users.balance} - ${playMoneyToDeduct.toString()}`,
-            })
-            .where(eq(users.id, MARKET_MAKER_ID));
-        } catch (e) {
-          console.warn(
-            `[AMM] Failed to deduct market maker balance for ${playerId}:`,
-            (e as Error).message,
-          );
-        }
-      }
-
-      const [existingLpPosition] = await tx
-        .select()
-        .from(lpPositions)
-        .where(and(eq(lpPositions.userId, MARKET_MAKER_ID), eq(lpPositions.playerId, playerId)))
-        .limit(1);
-
-      let lpPositionCreated = false;
-
-      if (existingLpPosition) {
-        const existingLpShares = parseFloat(existingLpPosition.lpShares);
-        if (
-          !isFinite(existingLpShares) ||
-          !approximatelyEqual(existingLpShares, INITIAL_POOL_SHARES)
-        ) {
-          await tx
-            .update(lpPositions)
-            .set({
-              lpShares: INITIAL_POOL_SHARES.toString(),
-              updatedAt: new Date(),
-            })
-            .where(eq(lpPositions.id, existingLpPosition.id));
-        }
-      } else {
-        const insertedPositions = await tx
-          .insert(lpPositions)
-          .values({
-            userId: MARKET_MAKER_ID,
-            playerId,
-            lpShares: INITIAL_POOL_SHARES.toString(),
-          })
-          .onConflictDoNothing({ target: [lpPositions.userId, lpPositions.playerId] })
-          .returning();
-        lpPositionCreated = insertedPositions.length > 0;
-      }
-
-      if (lpPositionCreated) {
-        // Record LP transaction only when we actually created the LP position
-        await tx.insert(lpTransactions).values({
-          userId: MARKET_MAKER_ID,
-          playerId,
-          transactionType: "add",
-          sharesAmount: INITIAL_POOL_SHARES.toString(),
-          playMoneyAmount: INITIAL_POOL_PLAY_MONEY.toString(),
-          lpShares: INITIAL_POOL_SHARES.toString(),
-          poolSharesBefore: didRepairPool && existingPoolRow ? existingPoolRow.shares : "0",
-          poolPlayMoneyBefore: didRepairPool && existingPoolRow ? existingPoolRow.playMoney : "0",
-          poolLpSharesTotalBefore:
-            didRepairPool && existingPoolRow ? existingPoolRow.lpSharesTotal : "0",
-        });
-      }
-
-      console.log(`[AMM] Market maker seed state normalized for ${playerId}`);
-
-      if (!poolRowForReturn) {
-        throw new Error(`Pool initialization state missing for player ${playerId}`);
-      }
-
-      return toPool(poolRowForReturn);
-    });
-  } catch (error: any) {
-    console.error(`[AMM] Failed to initialize pool for player ${playerId}:`, error.message);
-    if (error.message?.includes("foreign key") || error.message?.includes("violates foreign key")) {
-      throw new Error(`Player ${playerId} does not exist in database`);
-    }
-    throw error;
-  }
-}
-
-/**
- * Ensure market maker user exists in database
- * Creates if not exists with $500M starting balance
- */
-export async function ensureMarketMakerExists(): Promise<void> {
-  const existing = await db.select().from(users).where(eq(users.id, MARKET_MAKER_ID));
-
-  if (existing.length === 0) {
-    console.log(`[AMM] Creating market maker user: ${MARKET_MAKER_ID}`);
-    await db.insert(users).values({
-      id: MARKET_MAKER_ID,
-      email: MARKET_MAKER_EMAIL,
-      username: MARKET_MAKER_USERNAME,
-      balance: "500000000", // $500M starting balance
-      isBot: true,
-      isAdmin: false,
-    });
-    console.log(`[AMM] Market maker created with $500M balance`);
-  }
 }
 
 /**
@@ -468,14 +196,15 @@ export function isMarketMaker(userId: string): boolean {
 }
 
 /**
- * Get or create pool for a player
+ * Resolve a pool for a player.
+ * This helper intentionally never creates or seeds pool liquidity.
  */
 export async function getOrCreatePool(playerId: string): Promise<Pool> {
   const pool = await getPool(playerId);
   if (pool) {
     return pool;
   }
-  return initializePool(playerId);
+  throw new Error(`Pool not initialized for player ${playerId}`);
 }
 
 /**
@@ -620,7 +349,6 @@ export async function executeBuy(
   maxSlippage: number = MAX_SLIPPAGE_PERCENT,
 ): Promise<TradeResult> {
   console.log("[AMM] Executing buy for player:", playerId, "userId:", userId, "amount:", sbAmount);
-  await getOrCreatePool(playerId);
   return await db.transaction(async (tx) => {
     try {
       // 1. Lock the pool row to prevent race conditions
@@ -1240,7 +968,10 @@ export async function getZapAddQuoteSharesOnly(
   userId: string,
   sharesIn: number,
 ): Promise<ZapAddQuote> {
-  const pool = await getOrCreatePool(playerId);
+  const pool = await getPool(playerId);
+  if (!pool) {
+    throw new Error("Pool not initialized. Add two-sided liquidity first.");
+  }
 
   const holding = await db
     .select()
@@ -1293,7 +1024,10 @@ export async function getZapAddQuoteSbOnly(
   userId: string,
   sbIn: number,
 ): Promise<ZapAddQuoteSb> {
-  const pool = await getOrCreatePool(playerId);
+  const pool = await getPool(playerId);
+  if (!pool) {
+    throw new Error("Pool not initialized. Add two-sided liquidity first.");
+  }
 
   const [user] = await db.select().from(users).where(eq(users.id, userId));
 
@@ -1843,6 +1577,17 @@ export async function addLiquidity(
 ): Promise<AddLiquidityResult> {
   return await db.transaction(async (tx) => {
     try {
+      if (
+        !isFinite(sharesToDeposit) ||
+        isNaN(sharesToDeposit) ||
+        sharesToDeposit <= 0 ||
+        !isFinite(playMoneyToDeposit) ||
+        isNaN(playMoneyToDeposit) ||
+        playMoneyToDeposit <= 0
+      ) {
+        return { success: false, error: "Invalid liquidity amounts" };
+      }
+
       // 1. Lock the pool row
       const [pool] = await tx
         .select(poolSelect)
@@ -1850,33 +1595,33 @@ export async function addLiquidity(
         .where(eq(playerPools.playerId, playerId))
         .for("update");
 
-      if (!pool) {
-        return { success: false, error: "Pool not found" };
-      }
+      const poolData: Pool | null = pool
+        ? {
+            playerId: pool.playerId,
+            shares: parseFloat(pool.shares),
+            playMoney: parseFloat(pool.playMoney),
+            k: parseFloat(pool.k),
+            lpSharesTotal: parseFloat(pool.lpSharesTotal),
+            feesAccumulated: parseFloat(pool.feesAccumulated),
+            feeGrowthPerLpShare: parseFloat((pool as any).feeGrowthPerLpShare || "0"),
+            totalVolume: parseFloat(pool.totalVolume),
+            totalTrades: pool.totalTrades,
+            currentPrice: parseFloat(pool.playMoney) / parseFloat(pool.shares),
+          }
+        : null;
 
-      const poolData: Pool = {
-        playerId: pool.playerId,
-        shares: parseFloat(pool.shares),
-        playMoney: parseFloat(pool.playMoney),
-        k: parseFloat(pool.k),
-        lpSharesTotal: parseFloat(pool.lpSharesTotal),
-        feesAccumulated: parseFloat(pool.feesAccumulated),
-        feeGrowthPerLpShare: parseFloat((pool as any).feeGrowthPerLpShare || "0"),
-        totalVolume: parseFloat(pool.totalVolume),
-        totalTrades: pool.totalTrades,
-        currentPrice: parseFloat(pool.playMoney) / parseFloat(pool.shares),
-      };
+      // 2. Validate ratio for already-initialized pools.
+      if (poolData) {
+        const expectedPlayMoney = sharesToDeposit * poolData.currentPrice;
+        const ratioDiff = Math.abs(playMoneyToDeposit - expectedPlayMoney) / expectedPlayMoney;
 
-      // 2. Validate ratio matches current price
-      const expectedPlayMoney = sharesToDeposit * poolData.currentPrice;
-      const ratioDiff = Math.abs(playMoneyToDeposit - expectedPlayMoney) / expectedPlayMoney;
-
-      if (ratioDiff > 0.01) {
-        // 1% tolerance
-        return {
-          success: false,
-          error: `Deposit ratio must match current price. Expected $${expectedPlayMoney.toFixed(2)} play money for ${sharesToDeposit} shares`,
-        };
+        if (ratioDiff > 0.01) {
+          // 1% tolerance
+          return {
+            success: false,
+            error: `Deposit ratio must match current price. Expected $${expectedPlayMoney.toFixed(2)} play money for ${sharesToDeposit} shares`,
+          };
+        }
       }
 
       // 3. Verify user has sufficient holdings
@@ -1924,30 +1669,73 @@ export async function addLiquidity(
       }
 
       // 5. Calculate LP shares to mint
-      // Formula: lp_shares = (shares_deposited / pool_shares) * lp_shares_total
       let lpSharesToMint: number;
-      if (poolData.lpSharesTotal <= 0 || poolData.shares <= 0) {
-        // First liquidity provider or edge case: 1:1 with shares deposited
+      if (!poolData || poolData.lpSharesTotal <= 0 || poolData.shares <= 0) {
         lpSharesToMint = sharesToDeposit;
       } else {
         lpSharesToMint = (sharesToDeposit / poolData.shares) * poolData.lpSharesTotal;
       }
 
-      // 6. Update pool
-      const newPoolShares = poolData.shares + sharesToDeposit;
-      const newPoolPlayMoney = poolData.playMoney + playMoneyToDeposit;
-      const newK = newPoolShares * newPoolPlayMoney; // Recalculate K to maintain invariant
+      // 6. Upsert pool state.
+      let poolSharesBefore = 0;
+      let poolPlayMoneyBefore = 0;
+      let poolLpSharesTotalBefore = 0;
 
-      await tx
-        .update(playerPools)
-        .set({
-          shares: newPoolShares.toFixed(2),
-          playMoney: newPoolPlayMoney.toFixed(2),
-          k: newK.toFixed(2),
-          lpSharesTotal: (poolData.lpSharesTotal + lpSharesToMint).toFixed(2),
-          updatedAt: new Date(),
-        })
-        .where(eq(playerPools.playerId, playerId));
+      if (!poolData) {
+        const createdPoolRows = await tx
+          .insert(playerPools)
+          .values({
+            playerId,
+            shares: sharesToDeposit.toFixed(2),
+            playMoney: playMoneyToDeposit.toFixed(2),
+            k: (sharesToDeposit * playMoneyToDeposit).toFixed(2),
+            lpSharesTotal: lpSharesToMint.toFixed(2),
+            feesAccumulated: "0",
+            feeGrowthPerLpShare: "0",
+            totalVolume: "0",
+            totalTrades: 0,
+            updatedAt: new Date(),
+          })
+          .onConflictDoNothing({ target: playerPools.playerId })
+          .returning({ playerId: playerPools.playerId });
+
+        if (createdPoolRows.length === 0) {
+          return {
+            success: false,
+            error:
+              "Pool was initialized by another user just now. Refresh and retry your liquidity add.",
+          };
+        }
+
+        const initialSpotPrice = playMoneyToDeposit / sharesToDeposit;
+        await tx
+          .update(players)
+          .set({
+            currentPrice: initialSpotPrice.toFixed(2),
+            lastTradePrice: null,
+            lastUpdated: new Date(),
+          })
+          .where(eq(players.id, playerId));
+      } else {
+        const newPoolShares = poolData.shares + sharesToDeposit;
+        const newPoolPlayMoney = poolData.playMoney + playMoneyToDeposit;
+        const newK = newPoolShares * newPoolPlayMoney; // Recalculate K to maintain invariant
+
+        await tx
+          .update(playerPools)
+          .set({
+            shares: newPoolShares.toFixed(2),
+            playMoney: newPoolPlayMoney.toFixed(2),
+            k: newK.toFixed(2),
+            lpSharesTotal: (poolData.lpSharesTotal + lpSharesToMint).toFixed(2),
+            updatedAt: new Date(),
+          })
+          .where(eq(playerPools.playerId, playerId));
+
+        poolSharesBefore = poolData.shares;
+        poolPlayMoneyBefore = poolData.playMoney;
+        poolLpSharesTotalBefore = poolData.lpSharesTotal;
+      }
 
       // 7. Deduct shares from user holdings
       const newQuantity = userHoldingQuantity - sharesToDeposit;
@@ -1971,6 +1759,7 @@ export async function addLiquidity(
         .where(eq(users.id, userId));
 
       // 9. Create or update LP position (with fee accounting)
+      const feeGrowthSnapshot = poolData?.feeGrowthPerLpShare || 0;
       const [existingPosition] = await tx
         .select()
         .from(lpPositions)
@@ -1981,14 +1770,14 @@ export async function addLiquidity(
         const posLpShares = parseFloat(existingPosition.lpShares);
         const posSnapshot = parseFloat((existingPosition as any).feeGrowthSnapshot || "0");
         const posFeesTotal = parseFloat((existingPosition as any).feesEarnedTotal || "0");
-        const pendingFees = (poolData.feeGrowthPerLpShare - posSnapshot) * posLpShares;
+        const pendingFees = (feeGrowthSnapshot - posSnapshot) * posLpShares;
         const newFeesTotal = posFeesTotal + pendingFees;
 
         await tx
           .update(lpPositions)
           .set({
             lpShares: (posLpShares + lpSharesToMint).toFixed(2),
-            feeGrowthSnapshot: poolData.feeGrowthPerLpShare.toFixed(12),
+            feeGrowthSnapshot: feeGrowthSnapshot.toFixed(12),
             feesEarnedTotal: newFeesTotal.toFixed(2),
             updatedAt: new Date(),
           })
@@ -1999,7 +1788,7 @@ export async function addLiquidity(
           userId,
           playerId,
           lpShares: lpSharesToMint.toFixed(2),
-          feeGrowthSnapshot: poolData.feeGrowthPerLpShare.toFixed(12),
+          feeGrowthSnapshot: feeGrowthSnapshot.toFixed(12),
           feesEarnedTotal: "0",
           createdAt: new Date(),
           updatedAt: new Date(),
@@ -2014,14 +1803,16 @@ export async function addLiquidity(
         lpShares: lpSharesToMint.toFixed(2),
         sharesAmount: sharesToDeposit.toFixed(2),
         playMoneyAmount: playMoneyToDeposit.toFixed(2),
-        poolSharesBefore: poolData.shares.toFixed(2),
-        poolPlayMoneyBefore: poolData.playMoney.toFixed(2),
-        poolLpSharesTotalBefore: poolData.lpSharesTotal.toFixed(2),
+        poolSharesBefore: poolSharesBefore.toFixed(2),
+        poolPlayMoneyBefore: poolPlayMoneyBefore.toFixed(2),
+        poolLpSharesTotalBefore: poolLpSharesTotalBefore.toFixed(2),
         timestamp: new Date(),
       });
 
       // 11. Calculate ownership percentage
-      const ownershipPercentage = lpSharesToMint / (poolData.lpSharesTotal + lpSharesToMint);
+      const ownershipPercentage = !poolData
+        ? 1
+        : lpSharesToMint / (poolData.lpSharesTotal + lpSharesToMint);
 
       return {
         success: true,
@@ -2264,30 +2055,6 @@ export async function addLiquidityOptimal(
 ): Promise<AddLiquidityResult> {
   return await db.transaction(async (tx) => {
     try {
-      // 1. Lock the pool row
-      const [pool] = await tx
-        .select(poolSelect)
-        .from(playerPools)
-        .where(eq(playerPools.playerId, playerId))
-        .for("update");
-
-      if (!pool) {
-        return { success: false, error: "Pool not found" };
-      }
-
-      const poolData: Pool = {
-        playerId: pool.playerId,
-        shares: parseFloat(pool.shares),
-        playMoney: parseFloat(pool.playMoney),
-        k: parseFloat(pool.k),
-        lpSharesTotal: parseFloat(pool.lpSharesTotal),
-        feesAccumulated: parseFloat(pool.feesAccumulated),
-        feeGrowthPerLpShare: parseFloat((pool as any).feeGrowthPerLpShare || "0"),
-        totalVolume: parseFloat(pool.totalVolume),
-        totalTrades: pool.totalTrades,
-        currentPrice: parseFloat(pool.playMoney) / parseFloat(pool.shares),
-      };
-
       if (!isFinite(maxShares) || isNaN(maxShares) || maxShares <= 0) {
         return { success: false, error: "Invalid max shares amount" };
       }
@@ -2295,9 +2062,34 @@ export async function addLiquidityOptimal(
         return { success: false, error: "Invalid max play money amount" };
       }
 
-      // 2. Compute optimal deposit amounts at current ratio
-      const sharesToDeposit = Math.min(maxShares, maxPlayMoney / poolData.currentPrice);
-      const playMoneyToDeposit = sharesToDeposit * poolData.currentPrice;
+      // 1. Lock the pool row
+      const [pool] = await tx
+        .select(poolSelect)
+        .from(playerPools)
+        .where(eq(playerPools.playerId, playerId))
+        .for("update");
+
+      const poolData: Pool | null = pool
+        ? {
+            playerId: pool.playerId,
+            shares: parseFloat(pool.shares),
+            playMoney: parseFloat(pool.playMoney),
+            k: parseFloat(pool.k),
+            lpSharesTotal: parseFloat(pool.lpSharesTotal),
+            feesAccumulated: parseFloat(pool.feesAccumulated),
+            feeGrowthPerLpShare: parseFloat((pool as any).feeGrowthPerLpShare || "0"),
+            totalVolume: parseFloat(pool.totalVolume),
+            totalTrades: pool.totalTrades,
+            currentPrice: parseFloat(pool.playMoney) / parseFloat(pool.shares),
+          }
+        : null;
+
+      // 2. Compute deposit amounts.
+      // For uninitialized pools, the user's inputs define the initial ratio.
+      const sharesToDeposit = poolData
+        ? Math.min(maxShares, maxPlayMoney / poolData.currentPrice)
+        : maxShares;
+      const playMoneyToDeposit = poolData ? sharesToDeposit * poolData.currentPrice : maxPlayMoney;
 
       if (sharesToDeposit <= 0 || playMoneyToDeposit <= 0) {
         return { success: false, error: "Deposit too small" };
@@ -2352,27 +2144,72 @@ export async function addLiquidityOptimal(
 
       // 5. Calculate LP shares to mint
       let lpSharesToMint: number;
-      if (poolData.lpSharesTotal <= 0 || poolData.shares <= 0) {
+      if (!poolData || poolData.lpSharesTotal <= 0 || poolData.shares <= 0) {
         lpSharesToMint = sharesToDeposit;
       } else {
         lpSharesToMint = (sharesToDeposit / poolData.shares) * poolData.lpSharesTotal;
       }
 
-      // 6. Update pool
-      const newPoolShares = poolData.shares + sharesToDeposit;
-      const newPoolPlayMoney = poolData.playMoney + playMoneyToDeposit;
-      const newK = newPoolShares * newPoolPlayMoney;
+      // 6. Upsert pool
+      let poolSharesBefore = 0;
+      let poolPlayMoneyBefore = 0;
+      let poolLpSharesTotalBefore = 0;
 
-      await tx
-        .update(playerPools)
-        .set({
-          shares: newPoolShares.toFixed(2),
-          playMoney: newPoolPlayMoney.toFixed(2),
-          k: newK.toFixed(2),
-          lpSharesTotal: (poolData.lpSharesTotal + lpSharesToMint).toFixed(2),
-          updatedAt: new Date(),
-        })
-        .where(eq(playerPools.playerId, playerId));
+      if (!poolData) {
+        const createdPoolRows = await tx
+          .insert(playerPools)
+          .values({
+            playerId,
+            shares: sharesToDeposit.toFixed(2),
+            playMoney: playMoneyToDeposit.toFixed(2),
+            k: (sharesToDeposit * playMoneyToDeposit).toFixed(2),
+            lpSharesTotal: lpSharesToMint.toFixed(2),
+            feesAccumulated: "0",
+            feeGrowthPerLpShare: "0",
+            totalVolume: "0",
+            totalTrades: 0,
+            updatedAt: new Date(),
+          })
+          .onConflictDoNothing({ target: playerPools.playerId })
+          .returning({ playerId: playerPools.playerId });
+
+        if (createdPoolRows.length === 0) {
+          return {
+            success: false,
+            error:
+              "Pool was initialized by another user just now. Refresh and retry your liquidity add.",
+          };
+        }
+
+        const initialSpotPrice = playMoneyToDeposit / sharesToDeposit;
+        await tx
+          .update(players)
+          .set({
+            currentPrice: initialSpotPrice.toFixed(2),
+            lastTradePrice: null,
+            lastUpdated: new Date(),
+          })
+          .where(eq(players.id, playerId));
+      } else {
+        const newPoolShares = poolData.shares + sharesToDeposit;
+        const newPoolPlayMoney = poolData.playMoney + playMoneyToDeposit;
+        const newK = newPoolShares * newPoolPlayMoney;
+
+        await tx
+          .update(playerPools)
+          .set({
+            shares: newPoolShares.toFixed(2),
+            playMoney: newPoolPlayMoney.toFixed(2),
+            k: newK.toFixed(2),
+            lpSharesTotal: (poolData.lpSharesTotal + lpSharesToMint).toFixed(2),
+            updatedAt: new Date(),
+          })
+          .where(eq(playerPools.playerId, playerId));
+
+        poolSharesBefore = poolData.shares;
+        poolPlayMoneyBefore = poolData.playMoney;
+        poolLpSharesTotalBefore = poolData.lpSharesTotal;
+      }
 
       // 7. Deduct shares from user holdings
       const newQuantity = userHoldingQuantity - sharesToDeposit;
@@ -2396,6 +2233,7 @@ export async function addLiquidityOptimal(
         .where(eq(users.id, userId));
 
       // 9. Create or update LP position (with fee accounting)
+      const feeGrowthSnapshot = poolData?.feeGrowthPerLpShare || 0;
       const [existingPosition] = await tx
         .select()
         .from(lpPositions)
@@ -2405,14 +2243,14 @@ export async function addLiquidityOptimal(
         const posLpShares = parseFloat(existingPosition.lpShares);
         const posSnapshot = parseFloat((existingPosition as any).feeGrowthSnapshot || "0");
         const posFeesTotal = parseFloat((existingPosition as any).feesEarnedTotal || "0");
-        const pendingFees = (poolData.feeGrowthPerLpShare - posSnapshot) * posLpShares;
+        const pendingFees = (feeGrowthSnapshot - posSnapshot) * posLpShares;
         const newFeesTotal = posFeesTotal + pendingFees;
 
         await tx
           .update(lpPositions)
           .set({
             lpShares: (posLpShares + lpSharesToMint).toFixed(2),
-            feeGrowthSnapshot: poolData.feeGrowthPerLpShare.toFixed(12),
+            feeGrowthSnapshot: feeGrowthSnapshot.toFixed(12),
             feesEarnedTotal: newFeesTotal.toFixed(2),
             updatedAt: new Date(),
           })
@@ -2422,7 +2260,7 @@ export async function addLiquidityOptimal(
           userId,
           playerId,
           lpShares: lpSharesToMint.toFixed(2),
-          feeGrowthSnapshot: poolData.feeGrowthPerLpShare.toFixed(12),
+          feeGrowthSnapshot: feeGrowthSnapshot.toFixed(12),
           feesEarnedTotal: "0",
           createdAt: new Date(),
           updatedAt: new Date(),
@@ -2437,13 +2275,15 @@ export async function addLiquidityOptimal(
         lpShares: lpSharesToMint.toFixed(2),
         sharesAmount: sharesToDeposit.toFixed(2),
         playMoneyAmount: playMoneyToDeposit.toFixed(2),
-        poolSharesBefore: poolData.shares.toFixed(2),
-        poolPlayMoneyBefore: poolData.playMoney.toFixed(2),
-        poolLpSharesTotalBefore: poolData.lpSharesTotal.toFixed(2),
+        poolSharesBefore: poolSharesBefore.toFixed(2),
+        poolPlayMoneyBefore: poolPlayMoneyBefore.toFixed(2),
+        poolLpSharesTotalBefore: poolLpSharesTotalBefore.toFixed(2),
         timestamp: new Date(),
       });
 
-      const ownershipPercentage = lpSharesToMint / (poolData.lpSharesTotal + lpSharesToMint);
+      const ownershipPercentage = !poolData
+        ? 1
+        : lpSharesToMint / (poolData.lpSharesTotal + lpSharesToMint);
 
       return {
         success: true,

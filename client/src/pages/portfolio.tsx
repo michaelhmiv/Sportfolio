@@ -350,15 +350,14 @@ export default function Portfolio() {
     const seen = new Set<string>();
     return (data?.holdings ?? []).reduce(
       (acc, h) => {
-        if (!seen.has(h.playerId)) {
-          seen.add(h.playerId);
-          acc.push({
-            id: h.playerId,
-            name: h.player
-              ? `${h.player.firstName} ${h.player.lastName}`
-              : h.playerId,
-          });
-        }
+        const playerId = h.assetId || h.player?.id;
+        if (!playerId || seen.has(playerId)) return acc;
+
+        seen.add(playerId);
+        acc.push({
+          id: playerId,
+          name: h.player ? `${h.player.firstName} ${h.player.lastName}` : playerId,
+        });
         return acc;
       },
       [] as { id: string; name: string }[],

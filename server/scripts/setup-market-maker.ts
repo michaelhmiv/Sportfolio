@@ -1,10 +1,8 @@
 /**
- * Market Maker Setup Script
+ * Legacy market-maker seeding script.
  *
- * This script initializes the Sportfolio Market Maker account and sets up
- * LP positions for all existing players with the new 50K shares / $500K standard.
- *
- * Run this script once when deploying the AMM system to production.
+ * Disabled by default because pools must be initialized by users and price discovery
+ * should emerge from real liquidity + trading activity.
  */
 
 import { db } from "../db";
@@ -20,8 +18,22 @@ const OLD_PROTOCOL_ID = "protocol_lp_owner";
 const INITIAL_POOL_PRICE = INITIAL_POOL_PLAY_MONEY / INITIAL_POOL_SHARES;
 
 const MARKET_MAKER_STARTING_BALANCE = 500000000; // $500M
+const ALLOW_LEGACY_POOL_SEEDING = process.env.ALLOW_LEGACY_POOL_SEEDING === "true";
+
+function assertLegacySeedingEnabled() {
+  if (ALLOW_LEGACY_POOL_SEEDING) return;
+
+  console.error(
+    "[Setup] Legacy market-maker seeding is disabled. Pools must be initialized by user liquidity.",
+  );
+  console.error(
+    "[Setup] If you truly need one-off recovery behavior, rerun with ALLOW_LEGACY_POOL_SEEDING=true.",
+  );
+  process.exit(1);
+}
 
 async function setupMarketMaker() {
+  assertLegacySeedingEnabled();
   console.log("[Setup] Starting Market Maker setup...");
   console.log("[Setup] ============================================");
 

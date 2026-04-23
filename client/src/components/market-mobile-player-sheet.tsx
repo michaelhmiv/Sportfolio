@@ -278,9 +278,7 @@ export function MarketMobilePlayerSheet({
               </div>
 
               <div className="rounded-sm border border-border bg-muted/20 px-2 py-1 text-right">
-                <div className="font-mono text-sm font-semibold">
-                  {currentPrice > 0 ? `$${currentPrice.toFixed(2)}` : "--"}
-                </div>
+                <div className="font-mono text-sm font-semibold">${currentPrice.toFixed(2)}</div>
                 <div
                   className={cn(
                     "font-mono text-[11px]",

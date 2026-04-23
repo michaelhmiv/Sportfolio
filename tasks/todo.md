@@ -1,3 +1,13 @@
+## 2026-04-22 No-Preseed AMM Initialization Cleanup
+
+- [x] Remove implicit pool seeding from AMM core paths and support explicit pool bootstrap via LP adds
+- [x] Update AMM route, Discord, bot, and agent helper paths to respect uninitialized pools
+- [x] Update player/mobile trading and LP UX so uninitialized pools are handled cleanly
+- [x] Enforce strict DB env separation (`DEV_DATABASE_URL` for local, `DATABASE_URL` for production)
+- [x] Normalize live Supabase data so players without pools stay at `0.00` and seeded rows are gone
+- [x] Guard legacy manual seeding scripts behind explicit `ALLOW_LEGACY_POOL_SEEDING=true` opt-in
+- [x] Run `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`
+
 ## 2026-04-22 Worktree Helper + PR Merge Train
 
 - [x] Add a safe `worktree:close` helper and wire docs/scripts for the full worktree lifecycle

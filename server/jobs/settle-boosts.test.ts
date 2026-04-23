@@ -7,6 +7,7 @@ const storageMocks = vi.hoisted(() => ({
   getPlayerGameForDate: vi.fn(),
   getPlayerGameStatsForIdentity: vi.fn(),
   getCommunityBoostCountForPlayerIdentity: vi.fn(),
+  getPlayer: vi.fn(),
   getUser: vi.fn(),
   updateUserBalance: vi.fn(),
   createBoostPayout: vi.fn(),
@@ -25,6 +26,7 @@ vi.mock("../storage", () => ({
     getPlayerGameForDate: storageMocks.getPlayerGameForDate,
     getPlayerGameStatsForIdentity: storageMocks.getPlayerGameStatsForIdentity,
     getCommunityBoostCountForPlayerIdentity: storageMocks.getCommunityBoostCountForPlayerIdentity,
+    getPlayer: storageMocks.getPlayer,
     getUser: storageMocks.getUser,
     updateUserBalance: storageMocks.updateUserBalance,
     createBoostPayout: storageMocks.createBoostPayout,
@@ -100,6 +102,12 @@ describe("settleBoosts", () => {
     });
 
     storageMocks.getCommunityBoostCountForPlayerIdentity.mockResolvedValue(0);
+    storageMocks.getPlayer.mockResolvedValue({
+      id: "nba_42",
+      firstName: "Jayson",
+      lastName: "Tatum",
+      team: "BOS",
+    });
     storageMocks.getUser.mockResolvedValue({ id: "user_1", balance: "10.00" });
     storageMocks.updateUserBalance.mockResolvedValue(undefined);
     storageMocks.createBoostPayout.mockResolvedValue({ id: "payout_1" });

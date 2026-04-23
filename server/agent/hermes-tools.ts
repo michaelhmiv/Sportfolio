@@ -5,8 +5,8 @@ import { getETDayBoundaries, getTodayET } from "../lib/time";
 import { z } from "zod";
 import {
   getBuyQuote,
+  getPool,
   getLpPosition,
-  getOrCreatePool,
   getSellQuote,
   getUserLpPositions,
   getZapAddQuoteSbOnly,
@@ -2211,10 +2211,13 @@ async function buildPoolBuyPreview(input: {
   const { playerId, playerName } = await resolvePlayerReference(input);
   const [availableBalance, pool, quote] = await Promise.all([
     storage.getAvailableBalance(input.userId),
-    getOrCreatePool(playerId),
+    getPool(playerId),
     getBuyQuote(playerId, sbAmount),
   ]);
 
+  if (!pool) {
+    throw new Error("Pool is not initialized for this player yet.");
+  }
   if (!quote) {
     throw new Error("Could not calculate a buy quote");
   }
@@ -2313,21 +2316,22 @@ async function buildLpAddPreview(input: {
 
   const { playerId, playerName } = await resolvePlayerReference(input);
   const [pool, availableBalance, holdingInfo, existingPosition] = await Promise.all([
-    getOrCreatePool(playerId),
+    getPool(playerId),
     storage.getAvailableBalance(input.userId),
     storage.getHoldingMultiplierState(input.userId, playerId),
     getLpPosition(playerId, input.userId),
   ]);
 
-  const expectedPlayMoney = shares * pool.currentPrice;
+  const expectedPlayMoney = pool ? shares * pool.currentPrice : playMoney;
   const ratioDiff =
-    expectedPlayMoney > 0 ? Math.abs(playMoney - expectedPlayMoney) / expectedPlayMoney : 0;
+    pool && expectedPlayMoney > 0 ? Math.abs(playMoney - expectedPlayMoney) / expectedPlayMoney : 0;
   const lpSharesMinted =
-    pool.lpSharesTotal <= 0 || pool.shares <= 0
+    !pool || pool.lpSharesTotal <= 0 || pool.shares <= 0
       ? shares
       : (shares / pool.shares) * pool.lpSharesTotal;
-  const ownershipPercentage =
-    lpSharesMinted / Math.max(pool.lpSharesTotal + lpSharesMinted, Number.EPSILON);
+  const ownershipPercentage = pool
+    ? lpSharesMinted / Math.max(pool.lpSharesTotal + lpSharesMinted, Number.EPSILON)
+    : 1;
   const availableShares = Number(holdingInfo?.availableShares || 0);
   const warnings: string[] = [];
   let canStage = true;
@@ -2342,10 +2346,15 @@ async function buildLpAddPreview(input: {
       `Available balance is ${formatMoney(availableBalance)}, below the requested ${formatMoney(playMoney)}.`,
     );
   }
-  if (ratioDiff > 0.01) {
+  if (pool && ratioDiff > 0.01) {
     canStage = false;
     warnings.push(
       `Current pool ratio implies ${formatMoney(expectedPlayMoney)} for ${shares} shares, so the request is off-ratio.`,
+    );
+  }
+  if (!pool) {
+    warnings.push(
+      "This player pool is not initialized yet. This LP add would bootstrap the first market price.",
     );
   }
 
@@ -2359,7 +2368,7 @@ async function buildLpAddPreview(input: {
       availableBalance,
       availableShares,
       currentLpShares: existingPosition?.lpShares ?? 0,
-      currentPrice: pool.currentPrice,
+      currentPrice: pool?.currentPrice ?? 0,
     },
     afterState: {
       availableBalance: Math.max(0, availableBalance - playMoney),
@@ -2367,7 +2376,9 @@ async function buildLpAddPreview(input: {
       estimatedLpSharesMinted: lpSharesMinted,
       projectedOwnershipPercent: ownershipPercentage * 100,
     },
-    estimatedImpact: `At the current ratio, ${shares} shares should pair with ${formatMoney(expectedPlayMoney)} and mint about ${lpSharesMinted.toFixed(2)} LP shares.`,
+    estimatedImpact: pool
+      ? `At the current ratio, ${shares} shares should pair with ${formatMoney(expectedPlayMoney)} and mint about ${lpSharesMinted.toFixed(2)} LP shares.`
+      : `This would initialize the pool at ${formatMoney(playMoney / Math.max(shares, Number.EPSILON))} per share and mint about ${lpSharesMinted.toFixed(2)} LP shares.`,
     warnings,
   });
 }
@@ -2386,20 +2397,21 @@ async function buildLpAddOptimalPreview(input: {
 
   const { playerId, playerName } = await resolvePlayerReference(input);
   const [pool, availableBalance, holdingInfo, existingPosition] = await Promise.all([
-    getOrCreatePool(playerId),
+    getPool(playerId),
     storage.getAvailableBalance(input.userId),
     storage.getHoldingMultiplierState(input.userId, playerId),
     getLpPosition(playerId, input.userId),
   ]);
 
-  const sharesToDeposit = Math.min(maxShares, maxPlayMoney / pool.currentPrice);
-  const playMoneyToDeposit = sharesToDeposit * pool.currentPrice;
+  const sharesToDeposit = pool ? Math.min(maxShares, maxPlayMoney / pool.currentPrice) : maxShares;
+  const playMoneyToDeposit = pool ? sharesToDeposit * pool.currentPrice : maxPlayMoney;
   const lpSharesMinted =
-    pool.lpSharesTotal <= 0 || pool.shares <= 0
+    !pool || pool.lpSharesTotal <= 0 || pool.shares <= 0
       ? sharesToDeposit
       : (sharesToDeposit / pool.shares) * pool.lpSharesTotal;
-  const ownershipPercentage =
-    lpSharesMinted / Math.max(pool.lpSharesTotal + lpSharesMinted, Number.EPSILON);
+  const ownershipPercentage = pool
+    ? lpSharesMinted / Math.max(pool.lpSharesTotal + lpSharesMinted, Number.EPSILON)
+    : 1;
   const availableShares = Number(holdingInfo?.availableShares || 0);
   const warnings: string[] = [];
   let canStage = sharesToDeposit > 0;
@@ -2416,6 +2428,11 @@ async function buildLpAddOptimalPreview(input: {
       `Available balance is ${formatMoney(availableBalance)}, below the computed ${formatMoney(playMoneyToDeposit)} deposit.`,
     );
   }
+  if (!pool) {
+    warnings.push(
+      "This player pool is not initialized yet. The max values will bootstrap the first pool ratio.",
+    );
+  }
 
   return buildStructuredPreview({
     toolName: "preview_lp_add_optimal",
@@ -2427,7 +2444,7 @@ async function buildLpAddOptimalPreview(input: {
       availableBalance,
       availableShares,
       currentLpShares: existingPosition?.lpShares ?? 0,
-      currentPrice: pool.currentPrice,
+      currentPrice: pool?.currentPrice ?? 0,
     },
     afterState: {
       availableBalance: Math.max(0, availableBalance - playMoneyToDeposit),
@@ -2437,7 +2454,9 @@ async function buildLpAddOptimalPreview(input: {
       sharesUnused: Math.max(0, maxShares - sharesToDeposit),
       playMoneyUnused: Math.max(0, maxPlayMoney - playMoneyToDeposit),
     },
-    estimatedImpact: `At the current ratio this should use ${sharesToDeposit.toFixed(2)} shares and ${formatMoney(playMoneyToDeposit)}.`,
+    estimatedImpact: pool
+      ? `At the current ratio this should use ${sharesToDeposit.toFixed(2)} shares and ${formatMoney(playMoneyToDeposit)}.`
+      : `This should bootstrap the pool using ${sharesToDeposit.toFixed(2)} shares and ${formatMoney(playMoneyToDeposit)}.`,
     warnings,
   });
 }
@@ -2453,10 +2472,14 @@ async function buildLpRemovePreview(input: {
 
   const { playerId, playerName } = await resolvePlayerReference(input);
   const [pool, position, availableBalance] = await Promise.all([
-    getOrCreatePool(playerId),
+    getPool(playerId),
     getLpPosition(playerId, input.userId),
     storage.getAvailableBalance(input.userId),
   ]);
+
+  if (!pool) {
+    throw new Error("Pool is not initialized for this player yet.");
+  }
 
   const currentLpShares = position?.lpShares ?? 0;
   const warnings: string[] = [];
@@ -3645,7 +3668,21 @@ export async function runHermesReadTool(input: {
         throw new Error("playerId is required for get_amm_pool_state");
       }
       await requirePlayer(playerId);
-      return getOrCreatePool(playerId);
+      const pool = await getPool(playerId);
+      if (!pool) {
+        return {
+          playerId,
+          poolInitialized: false,
+          shares: 0,
+          playMoney: 0,
+          currentPrice: 0,
+          totalTrades: 0,
+          totalVolume: 0,
+          k: 0,
+          lpSharesTotal: 0,
+        };
+      }
+      return { ...pool, poolInitialized: true };
     }
     case "get_amm_trade_quote": {
       const playerId = toStringValue(input.args?.playerId);

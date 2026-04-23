@@ -1,5 +1,11 @@
 # Lessons Learned
 
+## 2026-04-22
+
+- If product economics move to user-formed price discovery, remove every implicit pool-creation path (routes, agents, bots, admin tools), not just AMM math internals, or background helpers will silently reintroduce seeded liquidity.
+- Local runtime DB selection should never fall back from `DEV_DATABASE_URL` to `DATABASE_URL`; strict env separation is safer than convenience when production and local Supabase URLs coexist.
+- Legacy one-off seeding scripts should be opt-in gated (not runnable by default) so emergency tooling cannot accidentally override live market-formation rules.
+
 ## 2026-04-06
 
 - For relative-time sports prompts, do not trust a model-supplied tool `date` arg over the user's actual wording. If the message says `today`, `later today`, `tonight`, or `tomorrow`, resolve that window server-side from ET before honoring any stale explicit tool date.

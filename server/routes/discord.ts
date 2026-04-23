@@ -20,7 +20,7 @@ import {
 import { buildDiscordSlashCommandDefinitions, syncDiscordGuildCommands } from "../discord-api";
 import { storage } from "../storage";
 import { db } from "../db";
-import { getBuyQuote, getSellQuote, executeBuy, executeSell, getOrCreatePool } from "../amm/pool";
+import { getBuyQuote, getSellQuote, executeBuy, executeSell, getPool } from "../amm/pool";
 import { newsFeed, players, trades } from "@shared/schema";
 import { getETDayBoundaries, getTodayET } from "../lib/time";
 import { hasGameStartedForBoost } from "@shared/game-status";
@@ -487,12 +487,12 @@ async function handlePlayer(
     return buildErrorResponse("Player not found.");
   }
 
-  const pool = await getOrCreatePool(player.id);
+  const pool = await getPool(player.id);
   const content = [
     `${player.firstName} ${player.lastName} (${player.team})`,
-    `Spot price: ${formatCurrency(pool.currentPrice)}`,
-    `Pool TVL est: ${formatCurrency(pool.playMoney * 2)}`,
-    `Pool trades: ${pool.totalTrades}`,
+    `Spot price: ${pool ? formatCurrency(pool.currentPrice) : "$0.00 (uninitialized pool)"}`,
+    `Pool TVL est: ${pool ? formatCurrency(pool.playMoney * 2) : "$0.00"}`,
+    `Pool trades: ${pool?.totalTrades ?? 0}`,
     `24h volume (player row): ${player.volume24h}`,
   ].join("\n");
 

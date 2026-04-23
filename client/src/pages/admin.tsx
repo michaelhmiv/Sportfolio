@@ -664,16 +664,18 @@ export default function Admin() {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] });
       toast({
         title:
-          data.status === "degraded"
-            ? "Pool seeding completed with errors"
-            : "Pool seeding completed",
+          data.status === "disabled"
+            ? "Pool seeding is disabled"
+            : data.status === "degraded"
+              ? "Pool seeding completed with errors"
+              : "Pool seeding completed",
         description: data.message,
         variant: data.status === "degraded" ? "destructive" : undefined,
       });
     },
     onError: (error: any) => {
       toast({
-        title: "Pool seeding failed",
+        title: "Pool operation failed",
         description: error.message,
         variant: "destructive",
       });
@@ -691,7 +693,11 @@ export default function Admin() {
   };
 
   const handleSeedMissingPools = () => {
-    if (confirm("Seed missing pools and repair unseeded legacy pools for all active players?")) {
+    if (
+      confirm(
+        "Pool seeding is disabled. Run this to normalize uninitialized players to $0.00 instead?",
+      )
+    ) {
       seedMissingPoolsMutation.mutate();
     }
   };
@@ -1414,17 +1420,17 @@ export default function Admin() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Activity className="w-5 h-5" />
-              AMM Pool Seeding
+              AMM Pool Initialization
             </CardTitle>
             <CardDescription>
-              Seed missing AMM pools and repair unseeded legacy pool liquidity.
+              Seeding is disabled. Keep uninitialized players at $0.00 until users add liquidity.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               <div className="p-4 rounded-lg border bg-muted/30 text-sm text-muted-foreground">
-                This initializes missing pools and repairs unseeded legacy pools with no trades.
-                Existing traded pools are not modified.
+                This does not create pools. It only normalizes active players without pools so they
+                remain at zero price until real market liquidity is added.
               </div>
               <Button
                 onClick={handleSeedMissingPools}
@@ -1436,23 +1442,22 @@ export default function Admin() {
                 {seedMissingPoolsMutation.isPending ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin" />
-                    Seeding...
+                    Normalizing...
                   </>
                 ) : (
                   <>
                     <Play className="w-4 h-4" />
-                    Seed Missing Pools
+                    Normalize Uninitialized Prices
                   </>
                 )}
               </Button>
               {seedMissingPoolsMutation.isSuccess && seedMissingPoolsMutation.data && (
                 <div className="p-3 rounded-lg border bg-positive/10 text-positive">
-                  <div className="font-semibold">Seeding Results:</div>
+                  <div className="font-semibold">Normalization Results:</div>
                   <div className="text-sm">{seedMissingPoolsMutation.data.message}</div>
                   <div className="text-xs mt-1">
-                    {seedMissingPoolsMutation.data.seededCount} seeded,{" "}
-                    {seedMissingPoolsMutation.data.repairedCount ?? 0} repaired,{" "}
-                    {seedMissingPoolsMutation.data.failedCount} failed
+                    {seedMissingPoolsMutation.data.normalizedPlayers ?? 0} normalized,{" "}
+                    {seedMissingPoolsMutation.data.totalMissingPools ?? 0} currently uninitialized
                   </div>
                 </div>
               )}

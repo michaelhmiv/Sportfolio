@@ -29,7 +29,7 @@ const storageMocks = vi.hoisted(() => ({
 }));
 
 const poolMocks = vi.hoisted(() => ({
-  getOrCreatePool: vi.fn(),
+  getPool: vi.fn(),
   getBuyQuote: vi.fn(),
   getSellQuote: vi.fn(),
   getLpPosition: vi.fn(),
@@ -56,7 +56,7 @@ vi.mock("../storage", () => ({
 }));
 
 vi.mock("../amm/pool", () => ({
-  getOrCreatePool: poolMocks.getOrCreatePool,
+  getPool: poolMocks.getPool,
   getBuyQuote: poolMocks.getBuyQuote,
   getSellQuote: poolMocks.getSellQuote,
   getLpPosition: poolMocks.getLpPosition,
@@ -265,7 +265,7 @@ describe("planDirectAgentOperation", () => {
       gameId: "game_1",
       startTime: new Date(Date.now() + 60 * 60 * 1000),
     });
-    poolMocks.getOrCreatePool.mockResolvedValue({
+    poolMocks.getPool.mockResolvedValue({
       shares: 1000,
       playMoney: 10000,
       lpSharesTotal: 1000,
@@ -972,7 +972,7 @@ describe("planDirectAgentOperation", () => {
           isActive: true,
         },
       ]);
-    poolMocks.getOrCreatePool.mockResolvedValue({
+    poolMocks.getPool.mockResolvedValue({
       playerId: "pool",
       playerName: "Pool",
       yesPrice: "0.50",

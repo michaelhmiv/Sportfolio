@@ -2,8 +2,8 @@ import { dailyBoosts, players } from "@shared/schema";
 import { and, desc, eq, or, sql } from "drizzle-orm";
 import {
   getBuyQuote,
+  getPool,
   getLpPosition,
-  getOrCreatePool,
   getSellQuote,
   getZapAddQuoteSbOnly,
   getZapAddQuoteSharesOnly,
@@ -1604,12 +1604,15 @@ async function estimateSpendForTargetShares(playerId: string, targetShares: numb
     return null;
   }
 
-  const pool = await getOrCreatePool(playerId);
+  const pool = await getPool(playerId);
+  if (!pool) {
+    return null;
+  }
   const currentPrice = Number(
     (pool && "currentPrice" in pool ? pool.currentPrice : null) ||
       (pool && "playMoney" in pool && "shares" in pool && Number(pool.shares) > 0
         ? Number(pool.playMoney) / Number(pool.shares)
-        : 10),
+        : 0),
   );
   let low = Math.max(0.01, currentPrice * targetShares * 0.5);
   let high = Math.max(currentPrice * targetShares * 1.5, currentPrice + 1);
@@ -3265,7 +3268,26 @@ async function buildSellFollowUpWorkflowPlan(
 
   const stackDirective = parseStackDirective(stackClause, rawPlayerReference);
   const player = playerResolution.player;
-  await getOrCreatePool(player.id);
+  const pool = await getPool(player.id);
+  if (!pool) {
+    return buildUnavailableResponse({
+      domain: "sportfolio",
+      requestMessage: message,
+      summary: `I could not quote a sale for ${getPlayerDisplayName(player)} yet because the pool is not initialized.`,
+      replyText:
+        "That player does not have an active pool yet, so sell quotes are unavailable until liquidity is added.",
+      warnings: playerResolution.warnings,
+      contextSnapshot: {
+        intent: "sell_follow_up_workflow",
+        playerId: player.id,
+      },
+      trace: {
+        framework: "deterministic-agent-operations",
+        intent: "sell_follow_up_workflow",
+        reason: "pool_not_initialized",
+      },
+    });
+  }
   const [quote, availableShares, breakdown, availableBalance, currentBoosts, game] =
     await Promise.all([
       getSellQuote(player.id, sharesAmount),
@@ -4924,7 +4946,26 @@ async function buildBuyPlan(
   }
 
   const player = playerResolution.player;
-  await getOrCreatePool(player.id);
+  const pool = await getPool(player.id);
+  if (!pool) {
+    return buildUnavailableResponse({
+      domain: "player_pools",
+      requestMessage: message,
+      summary: `I could not quote a buy for ${player.firstName} ${player.lastName} because the pool is not initialized.`,
+      replyText:
+        "That player has no active pool yet. Add initial liquidity first, then I can stage a buy.",
+      warnings: playerResolution.warnings,
+      contextSnapshot: {
+        intent: "pool_buy",
+        playerId: player.id,
+      },
+      trace: {
+        framework: "deterministic-agent-operations",
+        intent: "pool_buy",
+        reason: "pool_not_initialized",
+      },
+    });
+  }
   const availableBalance = roundCurrency(await storage.getAvailableBalance(userId));
   const assumedBuyTarget =
     buyAssumptionMode === "assumed_max_safe"
@@ -5227,7 +5268,27 @@ async function buildSellPlan(
   }
 
   const player = playerResolution.player;
-  await getOrCreatePool(player.id);
+  const pool = await getPool(player.id);
+  if (!pool) {
+    return buildUnavailableResponse({
+      domain: "player_pools",
+      requestMessage: message,
+      summary: `I could not quote a sale for ${player.firstName} ${player.lastName} because the pool is not initialized.`,
+      replyText:
+        "That player has no active pool yet. Sell orders are unavailable until liquidity is added.",
+      warnings: playerResolution.warnings,
+      contextSnapshot: {
+        intent: "pool_sell",
+        playerId: player.id,
+        sharesAmount,
+      },
+      trace: {
+        framework: "deterministic-agent-operations",
+        intent: "pool_sell",
+        reason: "pool_not_initialized",
+      },
+    });
+  }
   const [quote, availableShares, availableBalance] = await Promise.all([
     getSellQuote(player.id, sharesAmount),
     storage.getAvailableShares(userId, "player", player.id),
@@ -5408,7 +5469,7 @@ async function buildLiquidityPlan(
 
   const player = playerResolution.player;
   const [pool, availableShares, availableBalance] = await Promise.all([
-    getOrCreatePool(player.id),
+    getPool(player.id),
     storage.getAvailableShares(userId, "player", player.id),
     storage.getAvailableBalance(userId),
   ]);
@@ -5442,8 +5503,19 @@ async function buildLiquidityPlan(
     });
   }
 
-  const expectedPlayMoney = shares * pool.currentPrice;
-  if (!isOptimal && Math.abs(expectedPlayMoney - playMoney) > LIQUIDITY_RATIO_TOLERANCE) {
+  const hasInitializedPool = Boolean(pool);
+  const currentPrice = pool
+    ? pool.currentPrice
+    : shares > 0 && playMoney > 0
+      ? playMoney / shares
+      : 0;
+
+  const expectedPlayMoney = pool ? shares * pool.currentPrice : playMoney;
+  if (
+    hasInitializedPool &&
+    !isOptimal &&
+    Math.abs(expectedPlayMoney - playMoney) > LIQUIDITY_RATIO_TOLERANCE
+  ) {
     return buildUnavailableResponse({
       domain: "player_pools",
       requestMessage: message,
@@ -5461,7 +5533,7 @@ async function buildLiquidityPlan(
         shares,
         playMoney,
         expectedPlayMoney,
-        currentPrice: pool.currentPrice,
+        currentPrice,
       },
       trace: {
         framework: "deterministic-agent-operations",
@@ -5471,34 +5543,57 @@ async function buildLiquidityPlan(
     });
   }
 
-  const previewSharesUsed = isOptimal ? Math.min(shares, playMoney / pool.currentPrice) : shares;
+  const previewSharesUsed = isOptimal
+    ? hasInitializedPool && pool
+      ? Math.min(shares, playMoney / pool.currentPrice)
+      : shares
+    : shares;
   const previewPlayMoneyUsed = isOptimal
-    ? Math.min(playMoney, shares * pool.currentPrice)
+    ? hasInitializedPool && pool
+      ? Math.min(playMoney, shares * pool.currentPrice)
+      : playMoney
     : playMoney;
-  const estimatedOwnershipPercent = computeEstimatedOwnershipPercent({
-    currentPoolShares: pool.shares,
-    currentLpSharesTotal: pool.lpSharesTotal,
-    depositedShares: previewSharesUsed,
-  });
+  const estimatedOwnershipPercent =
+    hasInitializedPool && pool
+      ? computeEstimatedOwnershipPercent({
+          currentPoolShares: pool.shares,
+          currentLpSharesTotal: pool.lpSharesTotal,
+          depositedShares: previewSharesUsed,
+        })
+      : 100;
 
   const summary = isOptimal
     ? `Add up to ${formatNumber(shares, 2)} shares and ${formatMoney(playMoney)} to ${player.firstName} ${player.lastName}'s pool`
     : `Add ${formatNumber(shares, 2)} shares and ${formatMoney(playMoney)} to ${player.firstName} ${player.lastName}'s pool`;
-  const warnings = [
+  const warnings: string[] = [
     ...playerResolution.warnings,
     "LP ownership and final deposit amounts can shift if the pool moves before you confirm.",
   ];
+  if (!hasInitializedPool) {
+    warnings.push(
+      "This pool is not initialized yet. The first LP deposit sets the initial market price.",
+    );
+  }
+
+  const observations: string[] = hasInitializedPool
+    ? [
+        `Current pool price is ${formatMoney(currentPrice)}.`,
+        estimatedOwnershipPercent == null
+          ? "I could not estimate the post-deposit ownership cleanly from the current pool snapshot."
+          : `Estimated ownership after execution: ${formatNumber(estimatedOwnershipPercent)}%.`,
+      ]
+    : [
+        `Pool is not initialized yet. This deposit would bootstrap the pool at ${formatMoney(
+          currentPrice,
+        )}.`,
+        "Estimated ownership after execution: 100.00% (first LP provider).",
+      ];
 
   const basePlan = {
     domain: "player_pools" as const,
     requestMessage: message,
     summary,
-    observations: [
-      `Current pool price is ${formatMoney(pool.currentPrice)}.`,
-      estimatedOwnershipPercent == null
-        ? "I could not estimate the post-deposit ownership cleanly from the current pool snapshot."
-        : `Estimated ownership after execution: ${formatNumber(estimatedOwnershipPercent)}%.`,
-    ],
+    observations,
     warnings,
     errorMessage: null,
     contextSnapshot: {
@@ -5509,8 +5604,9 @@ async function buildLiquidityPlan(
       playMoney,
       availableShares,
       availableBalance,
-      currentPrice: pool.currentPrice,
+      currentPrice,
       estimatedOwnershipPercent,
+      poolInitialized: hasInitializedPool,
     },
     trace: {
       framework: "deterministic-agent-operations",
@@ -5532,22 +5628,31 @@ async function buildLiquidityPlan(
       availableSharesBefore: availableShares,
       availableSharesAfter: availableShares - previewSharesUsed,
       estimatedOwnershipPercent,
-      reasoning:
-        requestMode === "discussion"
+      reasoning: hasInitializedPool
+        ? requestMode === "discussion"
           ? "Previewing an optimal-ratio LP add using the current pool state."
-          : "This stages an optimal-ratio LP add capped by the provided share and cash limits.",
+          : "This stages an optimal-ratio LP add capped by the provided share and cash limits."
+        : requestMode === "discussion"
+          ? "Previewing a pool bootstrap using the provided share and cash caps."
+          : "This stages a pool bootstrap using the provided share and cash caps.",
       confidence: 0.91,
     };
 
     return {
       ...basePlan,
       replyText:
-        requestMode === "discussion"
-          ? `${summary}. At the current pool ratio, I would use up to ${formatNumber(
-              Math.min(shares, playMoney / pool.currentPrice),
-              2,
-            )} shares inside that cap. ${buildStageNudge(requestMode)}`
-          : `${summary}. I'll use the server-side optimal ratio at execution time so anything unused stays in your wallet. ${buildStageNudge(requestMode)}`,
+        hasInitializedPool && pool
+          ? requestMode === "discussion"
+            ? `${summary}. At the current pool ratio, I would use up to ${formatNumber(
+                Math.min(shares, playMoney / pool.currentPrice),
+                2,
+              )} shares inside that cap. ${buildStageNudge(requestMode)}`
+            : `${summary}. I'll use the server-side optimal ratio at execution time so anything unused stays in your wallet. ${buildStageNudge(requestMode)}`
+          : requestMode === "discussion"
+            ? `${summary}. There is no active pool yet, so this would bootstrap the market at ${formatMoney(
+                currentPrice,
+              )} per share using your cap amounts. ${buildStageNudge(requestMode)}`
+            : `${summary}. This will initialize the pool using your provided caps as the first ratio. ${buildStageNudge(requestMode)}`,
       actions: requestMode === "commit" ? [action] : [],
     };
   }
@@ -5563,21 +5668,29 @@ async function buildLiquidityPlan(
     availableSharesBefore: availableShares,
     availableSharesAfter: availableShares - shares,
     estimatedOwnershipPercent,
-    reasoning:
-      requestMode === "discussion"
+    reasoning: hasInitializedPool
+      ? requestMode === "discussion"
         ? "Previewing a fixed-ratio LP add using the exact requested amounts."
-        : "This stages the exact requested LP deposit into the player pool.",
+        : "This stages the exact requested LP deposit into the player pool."
+      : requestMode === "discussion"
+        ? "Previewing a pool bootstrap using the exact requested amounts."
+        : "This stages a pool bootstrap using the exact requested amounts.",
     confidence: 0.91,
   };
 
   return {
     ...basePlan,
-    replyText:
-      requestMode === "discussion"
+    replyText: hasInitializedPool
+      ? requestMode === "discussion"
         ? `${summary}. At the current pool price of ${formatMoney(
-            pool.currentPrice,
+            currentPrice,
           )}, that is a direct fixed-size LP add. ${buildStageNudge(requestMode)}`
-        : `${summary}. This uses the exact amounts you gave me at the current pool ratio. ${buildStageNudge(requestMode)}`,
+        : `${summary}. This uses the exact amounts you gave me at the current pool ratio. ${buildStageNudge(requestMode)}`
+      : requestMode === "discussion"
+        ? `${summary}. There is no active pool yet, so these exact amounts will set the initial price at ${formatMoney(
+            currentPrice,
+          )}. ${buildStageNudge(requestMode)}`
+        : `${summary}. This will create the initial pool with your exact amounts. ${buildStageNudge(requestMode)}`,
     actions: requestMode === "commit" ? [action] : [],
   };
 }

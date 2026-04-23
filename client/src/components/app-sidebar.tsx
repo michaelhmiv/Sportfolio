@@ -1,13 +1,4 @@
-import {
-  BarChart3,
-  BookOpen,
-  Crown,
-  Home,
-  Newspaper,
-  TrendingUp,
-  User,
-  Zap,
-} from "lucide-react";
+import { BarChart3, BookOpen, Crown, Home, Newspaper, TrendingUp, User, Zap } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -77,8 +68,7 @@ export function AppSidebar() {
   const isPremium = user?.isPremium || false;
 
   const handleNavigation = (item: (typeof menuItems)[0], e: React.MouseEvent) => {
-    const requiresAuth =
-      item.url === "/portfolio" || item.url === "/premium";
+    const requiresAuth = item.url === "/portfolio" || item.url === "/premium";
     if (requiresAuth && !isAuthenticated) {
       e.preventDefault();
       toast({

@@ -158,9 +158,7 @@ function ActivePositionsToday({
   onTrade,
 }: ActivePositionsTodayProps) {
   const slatePlayerIds = new Set(slatePlayers.map((sp) => sp.playerId));
-  const eligibleSet = new Map(
-    eligiblePlayers.map((ep) => [ep.playerId, ep]),
-  );
+  const eligibleSet = new Map(eligiblePlayers.map((ep) => [ep.playerId, ep]));
 
   // Positions the user owns that appear on today's slate
   const activePositions = topHoldings.filter((h) => slatePlayerIds.has(h.player.id));
@@ -203,13 +201,9 @@ function ActivePositionsToday({
                 !eligibleEntry.isAlreadyBoosted &&
                 eligibleEntry.availableShares > 0;
               const price = parseFloat(
-                holding.player.lastTradePrice ??
-                  holding.player.currentPrice ??
-                  "0",
+                holding.player.lastTradePrice ?? holding.player.currentPrice ?? "0",
               );
-              const change24h = parseFloat(
-                holding.player.priceChange24h ?? "0",
-              );
+              const change24h = parseFloat(holding.player.priceChange24h ?? "0");
 
               return (
                 <div
@@ -678,119 +672,124 @@ export default function Dashboard() {
           )}
 
           {/* Balance Header - Only show for authenticated users */}
-          {isAuthenticated && data?.user && (() => {
-            const change24hAmount = data.user.change24h?.amount ?? 0;
-            return (
-            <div
-              className={cn(
-                "terminal-shell group relative hidden p-1.5 shadow-sm sm:block sm:p-2 transition-colors duration-700",
-                change24hAmount > 0 && "border-emerald-500/25 bg-emerald-500/[0.04]",
-                change24hAmount < 0 && "border-red-500/20 bg-red-500/[0.04]",
-              )}
-            >
-              {/* Background Pattern */}
-              <BackgroundPattern variant="gradient-mesh" color="primary" opacity={0.05} />
+          {isAuthenticated &&
+            data?.user &&
+            (() => {
+              const change24hAmount = data.user.change24h?.amount ?? 0;
+              return (
+                <div
+                  className={cn(
+                    "terminal-shell group relative hidden p-1.5 shadow-sm sm:block sm:p-2 transition-colors duration-700",
+                    change24hAmount > 0 && "border-emerald-500/25 bg-emerald-500/[0.04]",
+                    change24hAmount < 0 && "border-red-500/20 bg-red-500/[0.04]",
+                  )}
+                >
+                  {/* Background Pattern */}
+                  <BackgroundPattern variant="gradient-mesh" color="primary" opacity={0.05} />
 
-              <div className="grid grid-cols-4 gap-3 sm:gap-6 relative z-10">
-                <div className="col-span-1 flex flex-col justify-center min-w-0">
-                  <div className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wider mb-1">
-                    Portfolio
-                  </div>
-                  <div className="flex items-center gap-1 min-w-0">
-                    <div
-                      className="font-mono font-bold text-sm sm:text-lg text-foreground truncate"
-                      data-testid="text-portfolio-value"
-                      title={`$${data?.user?.portfolioValue || "0"}`}
-                    >
-                      {formatAdaptiveCurrency(parseFloat(data?.user?.portfolioValue || "0"))}
-                    </div>
-                    {data?.user?.portfolioRank && data?.user.portfolioRank > 0 && (
-                      <button
-                        onClick={() => setLocation("/leaderboards#portfolioValue")}
-                        className="inline-flex flex-shrink-0 items-center gap-0.5 rounded-sm border border-border px-1 py-0 text-[9px] transition-colors hover:bg-secondary"
-                        data-testid="badge-portfolio-rank"
-                        aria-label={`Portfolio value rank #${data?.user.portfolioRank}, click to view leaderboard`}
-                      >
-                        #{data?.user.portfolioRank}
-                        {data?.user.portfolioRankChange !== null &&
-                          data?.user.portfolioRankChange !== 0 && (
-                            <span
-                              className={
-                                data?.user.portfolioRankChange > 0
-                                  ? "text-positive"
-                                  : "text-negative"
-                              }
-                            >
-                              {data?.user.portfolioRankChange > 0 ? "↑" : "↓"}
-                            </span>
-                          )}
-                      </button>
-                    )}
-                  </div>
-                  <div className="text-[9px] sm:text-[10px] text-muted-foreground mt-0.5 truncate">
-                    Cash: {formatAdaptiveCurrency(parseFloat(data?.user?.balance || "0"))}
-                    {data?.user?.cashRank && data?.user.cashRank > 0 && (
-                      <button
-                        onClick={() => setLocation("/leaderboards#cashBalance")}
-                        className="inline-flex items-center gap-0.5 border border-border px-0.5 py-0 rounded text-[9px] hover:bg-secondary transition-colors cursor-pointer flex-shrink-0 ml-0.5"
-                        data-testid="badge-cash-rank"
-                      >
-                        #{data?.user.cashRank}
-                        {data?.user.cashRankChange !== null && data?.user.cashRankChange !== 0 && (
-                          <span
-                            className={
-                              data?.user.cashRankChange > 0 ? "text-positive" : "text-negative"
-                            }
+                  <div className="grid grid-cols-4 gap-3 sm:gap-6 relative z-10">
+                    <div className="col-span-1 flex flex-col justify-center min-w-0">
+                      <div className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wider mb-1">
+                        Portfolio
+                      </div>
+                      <div className="flex items-center gap-1 min-w-0">
+                        <div
+                          className="font-mono font-bold text-sm sm:text-lg text-foreground truncate"
+                          data-testid="text-portfolio-value"
+                          title={`$${data?.user?.portfolioValue || "0"}`}
+                        >
+                          {formatAdaptiveCurrency(parseFloat(data?.user?.portfolioValue || "0"))}
+                        </div>
+                        {data?.user?.portfolioRank && data?.user.portfolioRank > 0 && (
+                          <button
+                            onClick={() => setLocation("/leaderboards#portfolioValue")}
+                            className="inline-flex flex-shrink-0 items-center gap-0.5 rounded-sm border border-border px-1 py-0 text-[9px] transition-colors hover:bg-secondary"
+                            data-testid="badge-portfolio-rank"
+                            aria-label={`Portfolio value rank #${data?.user.portfolioRank}, click to view leaderboard`}
                           >
-                            {data?.user.cashRankChange > 0 ? "↑" : "↓"}
-                          </span>
+                            #{data?.user.portfolioRank}
+                            {data?.user.portfolioRankChange !== null &&
+                              data?.user.portfolioRankChange !== 0 && (
+                                <span
+                                  className={
+                                    data?.user.portfolioRankChange > 0
+                                      ? "text-positive"
+                                      : "text-negative"
+                                  }
+                                >
+                                  {data?.user.portfolioRankChange > 0 ? "↑" : "↓"}
+                                </span>
+                              )}
+                          </button>
                         )}
-                      </button>
-                    )}
+                      </div>
+                      <div className="text-[9px] sm:text-[10px] text-muted-foreground mt-0.5 truncate">
+                        Cash: {formatAdaptiveCurrency(parseFloat(data?.user?.balance || "0"))}
+                        {data?.user?.cashRank && data?.user.cashRank > 0 && (
+                          <button
+                            onClick={() => setLocation("/leaderboards#cashBalance")}
+                            className="inline-flex items-center gap-0.5 border border-border px-0.5 py-0 rounded text-[9px] hover:bg-secondary transition-colors cursor-pointer flex-shrink-0 ml-0.5"
+                            data-testid="badge-cash-rank"
+                          >
+                            #{data?.user.cashRank}
+                            {data?.user.cashRankChange !== null &&
+                              data?.user.cashRankChange !== 0 && (
+                                <span
+                                  className={
+                                    data?.user.cashRankChange > 0
+                                      ? "text-positive"
+                                      : "text-negative"
+                                  }
+                                >
+                                  {data?.user.cashRankChange > 0 ? "↑" : "↓"}
+                                </span>
+                              )}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {[
+                      { key: "24h", change: data?.user?.change24h, testId: "button-networth-24h" },
+                      { key: "7d", change: data?.user?.change7d, testId: "button-networth-7d" },
+                      { key: "30d", change: data?.user?.change30d, testId: "button-networth-30d" },
+                    ].map((metric) => {
+                      const change = metric.change ?? { amount: null, percent: null, rank: null };
+                      return (
+                        <button
+                          key={metric.key}
+                          onClick={() => setLocation("/portfolio")}
+                          className="flex flex-col justify-center text-center rounded-md hover:bg-secondary/40 transition-colors p-1 -m-1 min-w-0"
+                          data-testid={metric.testId}
+                          aria-label={`Open portfolio details for ${metric.key} net worth change`}
+                        >
+                          <div className="text-[9px] sm:text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">
+                            {metric.key}
+                          </div>
+                          <div className="flex items-center justify-center gap-0.5 min-w-0">
+                            <div
+                              className={`font-mono font-semibold text-xs sm:text-sm truncate ${getChangeClassName(change.amount)}`}
+                            >
+                              {formatSignedCurrency(change.amount)}
+                            </div>
+                            {change.rank !== null && change.rank > 0 && (
+                              <span className="inline-flex items-center border border-border px-0.5 rounded text-[8px] text-muted-foreground flex-shrink-0">
+                                #{change.rank}
+                              </span>
+                            )}
+                          </div>
+                          <div
+                            className={`text-[9px] sm:text-[10px] font-medium ${getChangeClassName(change.percent)}`}
+                          >
+                            {formatSignedPercent(change.percent)}
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
-
-                {[
-                  { key: "24h", change: data?.user?.change24h, testId: "button-networth-24h" },
-                  { key: "7d", change: data?.user?.change7d, testId: "button-networth-7d" },
-                  { key: "30d", change: data?.user?.change30d, testId: "button-networth-30d" },
-                ].map((metric) => {
-                  const change = metric.change ?? { amount: null, percent: null, rank: null };
-                  return (
-                    <button
-                      key={metric.key}
-                      onClick={() => setLocation("/portfolio")}
-                      className="flex flex-col justify-center text-center rounded-md hover:bg-secondary/40 transition-colors p-1 -m-1 min-w-0"
-                      data-testid={metric.testId}
-                      aria-label={`Open portfolio details for ${metric.key} net worth change`}
-                    >
-                      <div className="text-[9px] sm:text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">
-                        {metric.key}
-                      </div>
-                      <div className="flex items-center justify-center gap-0.5 min-w-0">
-                        <div
-                          className={`font-mono font-semibold text-xs sm:text-sm truncate ${getChangeClassName(change.amount)}`}
-                        >
-                          {formatSignedCurrency(change.amount)}
-                        </div>
-                        {change.rank !== null && change.rank > 0 && (
-                          <span className="inline-flex items-center border border-border px-0.5 rounded text-[8px] text-muted-foreground flex-shrink-0">
-                            #{change.rank}
-                          </span>
-                        )}
-                      </div>
-                      <div
-                        className={`text-[9px] sm:text-[10px] font-medium ${getChangeClassName(change.percent)}`}
-                      >
-                        {formatSignedPercent(change.percent)}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-            );
-          })()}
+              );
+            })()}
 
           {/* Boost Live Earnings Strip */}
           {isAuthenticated && data?.boosts && data.boosts.lockedBoosts > 0 && (

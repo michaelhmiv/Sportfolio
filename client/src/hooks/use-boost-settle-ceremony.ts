@@ -26,38 +26,41 @@ interface CeremonyState {
 export function useBoostSettleCeremony() {
   const [state, setState] = useState<CeremonyState>({ isShowing: false, data: null });
 
-  const handleBoostSettled = useCallback((payload: {
-    payout: string;
-    fantasyPoints: number;
-    multiplier: number;
-    slotTier?: number;
-    shareMultiplier?: number;
-    sharesBurned?: number;
-    playerFirstName?: string;
-    playerLastName?: string;
-    playerTeam?: string;
-  }) => {
-    const playerFirstName = payload.playerFirstName?.trim() ?? "";
-    const playerLastName = payload.playerLastName?.trim() ?? "";
-    const playerName = [playerFirstName, playerLastName].filter(Boolean).join(" ");
+  const handleBoostSettled = useCallback(
+    (payload: {
+      payout: string;
+      fantasyPoints: number;
+      multiplier: number;
+      slotTier?: number;
+      shareMultiplier?: number;
+      sharesBurned?: number;
+      playerFirstName?: string;
+      playerLastName?: string;
+      playerTeam?: string;
+    }) => {
+      const playerFirstName = payload.playerFirstName?.trim() ?? "";
+      const playerLastName = payload.playerLastName?.trim() ?? "";
+      const playerName = [playerFirstName, playerLastName].filter(Boolean).join(" ");
 
-    // Skip ceremony if missing both player name and payout amount
-    if (!playerName && !payload.payout) return;
+      // Skip ceremony if missing both player name and payout amount
+      if (!playerName && !payload.payout) return;
 
-    setState({
-      isShowing: true,
-      data: {
-        playerName: playerName || "your player",
-        playerTeam: payload.playerTeam ?? "",
-        slotTier: payload.slotTier ?? payload.multiplier,
-        shareMultiplier: payload.shareMultiplier ?? 1,
-        totalMultiplier: payload.multiplier,
-        sharesBurned: payload.sharesBurned ?? 1,
-        payout: payload.payout,
-        fantasyPoints: payload.fantasyPoints,
-      },
-    });
-  }, []);
+      setState({
+        isShowing: true,
+        data: {
+          playerName: playerName || "your player",
+          playerTeam: payload.playerTeam ?? "",
+          slotTier: payload.slotTier ?? payload.multiplier,
+          shareMultiplier: payload.shareMultiplier ?? 1,
+          totalMultiplier: payload.multiplier,
+          sharesBurned: payload.sharesBurned ?? 1,
+          payout: payload.payout,
+          fantasyPoints: payload.fantasyPoints,
+        },
+      });
+    },
+    [],
+  );
 
   const closeCeremony = useCallback(() => {
     setState({ isShowing: false, data: null });
