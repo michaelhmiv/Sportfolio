@@ -504,272 +504,407 @@ export default function PlayerPools() {
         <div className="hidden md:flex gap-4 items-start">
           {/* Main content: tabs with player list and (on md/lg) activity tab */}
           <div className="flex-1 min-w-0">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-            <div className="flex items-center gap-2">
-              <TabsList
-                variant="terminal"
-                className="grid flex-1 grid-cols-2 sm:w-auto sm:inline-flex sm:flex-none xl:grid-cols-1 xl:flex"
-              >
-                <TabsTrigger variant="terminal" value="players" className="gap-2">
-                  <Activity className="w-4 h-4" />
-                  Players
-                </TabsTrigger>
-                <TabsTrigger variant="terminal" value="activity" className="gap-2 xl:hidden">
-                  <TrendingUp className="w-4 h-4" />
-                  Activity
-                </TabsTrigger>
-              </TabsList>
-            </div>
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+              <div className="flex items-center gap-2">
+                <TabsList
+                  variant="terminal"
+                  className="grid flex-1 grid-cols-2 sm:w-auto sm:inline-flex sm:flex-none xl:grid-cols-1 xl:flex"
+                >
+                  <TabsTrigger variant="terminal" value="players" className="gap-2">
+                    <Activity className="w-4 h-4" />
+                    Players
+                  </TabsTrigger>
+                  <TabsTrigger variant="terminal" value="activity" className="gap-2 xl:hidden">
+                    <TrendingUp className="w-4 h-4" />
+                    Activity
+                  </TabsTrigger>
+                </TabsList>
+              </div>
 
-            <TabsContent value="players" className="space-y-4">
-              {/* Scanners */}
-              <MarketplaceScanners />
+              <TabsContent value="players" className="space-y-4">
+                {/* Scanners */}
+                <MarketplaceScanners />
 
-              {/* Search and Filters */}
-              <Card variant="terminal" className="relative overflow-hidden">
-                <CardAccent variant="left" color="primary" intensity="low" />
-                <CardContent className="p-3 space-y-3 relative z-10">
-                  {/* Search */}
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                      variant="terminal"
-                      placeholder="Search players..."
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                      className="pl-9"
-                    />
-                    {search && (
-                      <Button
-                        variant="terminalOutline"
-                        size="sm"
-                        className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
-                        onClick={() => setSearch("")}
-                      >
-                        <X className="w-4 h-4" />
-                      </Button>
-                    )}
-                  </div>
-
-                  {/* Filter + Sort Controls */}
-                  <div className="flex items-center justify-between gap-2 flex-wrap">
-                    <Button
-                      variant="terminalOutline"
-                      size="sm"
-                      onClick={() => setShowFilters(!showFilters)}
-                      className="gap-2"
-                    >
-                      <Filter className="w-4 h-4" />
-                      Filters
-                      {hasActiveFilters && (
-                        <Badge variant="secondary" className="ml-1 font-mono text-[10px] uppercase">
-                          Active
-                        </Badge>
-                      )}
-                    </Button>
-
-                    <div className="flex items-center gap-2">
-                      <select
-                        value={sortField}
-                        onChange={(e) => setSortFieldFromSelector(e.target.value as SortField)}
-                        className="h-9 rounded-sm border border-border bg-[hsl(var(--card)/0.85)] px-3 font-mono text-sm"
-                      >
-                        <option value="volume">Volume</option>
-                        <option value="marketCap">Mkt Cap</option>
-                        <option value="price">Price</option>
-                        <option value="change">24h Change</option>
-                        <option value="tvl">TVL</option>
-                        <option value="sentiment">Sentiment</option>
-                        <option value="undervalued">Undervalued</option>
-                        <option value="fantasyPoints">Fantasy Pts</option>
-                        <option value="name">Name</option>
-                        <option value="team">Team</option>
-                      </select>
-
-                      <Button
-                        variant="terminalOutline"
-                        size="sm"
-                        onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
-                        className="gap-2"
-                      >
-                        <ArrowUpDown className="w-4 h-4" />
-                        {sortOrder === "asc" ? "Asc" : "Desc"}
-                      </Button>
-                    </div>
-                  </div>
-
-                  {/* Expanded Filters */}
-                  {showFilters && (
-                    <div className="grid grid-cols-1 gap-3 border-t border-border pt-3 sm:grid-cols-3">
-                      <div className="space-y-1">
-                        <label className="terminal-label">Team</label>
-                        <select
-                          value={teamFilter}
-                          onChange={(e) => setTeamFilter(e.target.value)}
-                          className="h-9 w-full rounded-sm border border-border bg-[hsl(var(--card)/0.85)] px-3 font-mono text-sm"
-                        >
-                          <option value="all">All Teams</option>
-                          {teams.map((team) => (
-                            <option key={team} value={team}>
-                              {team}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="space-y-1">
-                        <label className="terminal-label">Position</label>
-                        <select
-                          value={positionFilter}
-                          onChange={(e) => setPositionFilter(e.target.value)}
-                          className="h-9 w-full rounded-sm border border-border bg-[hsl(var(--card)/0.85)] px-3 font-mono text-sm"
-                        >
-                          <option value="all">All Positions</option>
-                          {positions.map((pos) => (
-                            <option key={pos} value={pos}>
-                              {pos}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="space-y-1">
-                        <label className="terminal-label">Watchlist</label>
-                        <select
-                          value={filterWatchlistId}
-                          onChange={(e) => setFilterWatchlistId(e.target.value)}
-                          className="h-9 w-full rounded-sm border border-border bg-[hsl(var(--card)/0.85)] px-3 font-mono text-sm"
-                        >
-                          <option value="none">All Players</option>
-                          <option value="all">My Watchlists</option>
-                          {watchlists?.map((w) => (
-                            <option key={w.id} value={w.id}>
-                              {w.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      {hasActiveFilters && (
-                        <div className="sm:col-span-3 flex justify-end">
-                          <Button variant="terminalOutline" size="sm" onClick={clearAllFilters}>
-                            Clear all filters
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Players Table */}
-              <Card variant="terminal" className="relative overflow-hidden">
-                <CardAccent variant="top" color="primary" intensity="low" />
-                <CardContent className="p-0 relative z-10">
-                  {isLoading ? (
-                    <div className="terminal-empty p-8 text-center text-muted-foreground">
-                      Loading players...
-                    </div>
-                  ) : players.length === 0 ? (
-                    <div className="terminal-empty p-8 text-center">
-                      <p className="text-muted-foreground">No players found</p>
-                      {hasActiveFilters && (
+                {/* Search and Filters */}
+                <Card variant="terminal" className="relative overflow-hidden">
+                  <CardAccent variant="left" color="primary" intensity="low" />
+                  <CardContent className="p-3 space-y-3 relative z-10">
+                    {/* Search */}
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        variant="terminal"
+                        placeholder="Search players..."
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        className="pl-9"
+                      />
+                      {search && (
                         <Button
                           variant="terminalOutline"
                           size="sm"
-                          className="mt-2"
-                          onClick={clearAllFilters}
+                          className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
+                          onClick={() => setSearch("")}
                         >
-                          Clear filters
+                          <X className="w-4 h-4" />
                         </Button>
                       )}
                     </div>
-                  ) : (
-                    <>
-                      {/* Desktop Table */}
-                      <div className="hidden md:block overflow-x-auto">
-                        <table className="w-full">
-                          <thead className="border-b border-border bg-muted/30">
-                            <tr>
-                              <th className="text-left p-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                                Player
-                              </th>
-                              <th
-                                className="text-right p-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground cursor-pointer hover:bg-muted/80"
-                                onClick={() => toggleSort("price")}
-                              >
-                                <div className="flex items-center justify-end">
-                                  Price
-                                  <SortIcon field="price" />
-                                </div>
-                              </th>
-                              <th className="text-right p-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground hidden lg:table-cell">
-                                7d
-                              </th>
-                              <th
-                                className="text-right p-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground cursor-pointer hover:bg-muted/80"
-                                onClick={() => toggleSort("volume")}
-                              >
-                                <div className="flex items-center justify-end">
-                                  Volume
-                                  <SortIcon field="volume" />
-                                </div>
-                              </th>
-                              <th
-                                className="text-right p-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground cursor-pointer hover:bg-muted/80"
-                                onClick={() => toggleSort("change")}
-                              >
-                                <div className="flex items-center justify-end">
-                                  24h Change
-                                  <SortIcon field="change" />
-                                </div>
-                              </th>
-                              <th
-                                className="text-right p-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground cursor-pointer hover:bg-muted/80 hidden lg:table-cell"
-                                onClick={() => toggleSort("tvl")}
-                              >
-                                <div className="flex items-center justify-end">
-                                  TVL
-                                  <SortIcon field="tvl" />
-                                </div>
-                              </th>
-                              <th className="text-center p-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                                Action
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {players.map((player) => {
-                              const change24h = parseFloat(player.priceChange24h || "0");
-                              const isLive = player.gameStatus === "live";
-                              const hasBuyPressure =
-                                (player.buyPressure ?? 0) >= 60;
-                              const hasCommunityBoost =
-                                (player.communityBoostCount ?? 0) > 0;
-                              const rowBorderClass =
-                                change24h > 0
-                                  ? "border-l-2 border-l-emerald-500/50"
-                                  : change24h < 0
-                                    ? "border-l-2 border-l-red-500/40"
-                                    : "";
-                              return (
-                              <tr
-                                key={player.id}
-                                className={cn(
-                                  "border-b border-border hover:bg-muted/20 transition-colors",
-                                  rowBorderClass,
-                                  isLive && "bg-emerald-500/[0.03]",
-                                )}
-                              >
-                                <td className="p-3">
-                                  <button
-                                    type="button"
-                                    className="flex items-center gap-2 cursor-pointer text-left"
-                                    onClick={() => {
-                                      setSelectedPlayerId(player.id);
-                                      setPlayerModalOpen(true);
-                                    }}
+
+                    {/* Filter + Sort Controls */}
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <Button
+                        variant="terminalOutline"
+                        size="sm"
+                        onClick={() => setShowFilters(!showFilters)}
+                        className="gap-2"
+                      >
+                        <Filter className="w-4 h-4" />
+                        Filters
+                        {hasActiveFilters && (
+                          <Badge
+                            variant="secondary"
+                            className="ml-1 font-mono text-[10px] uppercase"
+                          >
+                            Active
+                          </Badge>
+                        )}
+                      </Button>
+
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={sortField}
+                          onChange={(e) => setSortFieldFromSelector(e.target.value as SortField)}
+                          className="h-9 rounded-sm border border-border bg-[hsl(var(--card)/0.85)] px-3 font-mono text-sm"
+                        >
+                          <option value="volume">Volume</option>
+                          <option value="marketCap">Mkt Cap</option>
+                          <option value="price">Price</option>
+                          <option value="change">24h Change</option>
+                          <option value="tvl">TVL</option>
+                          <option value="sentiment">Sentiment</option>
+                          <option value="undervalued">Undervalued</option>
+                          <option value="fantasyPoints">Fantasy Pts</option>
+                          <option value="name">Name</option>
+                          <option value="team">Team</option>
+                        </select>
+
+                        <Button
+                          variant="terminalOutline"
+                          size="sm"
+                          onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
+                          className="gap-2"
+                        >
+                          <ArrowUpDown className="w-4 h-4" />
+                          {sortOrder === "asc" ? "Asc" : "Desc"}
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Expanded Filters */}
+                    {showFilters && (
+                      <div className="grid grid-cols-1 gap-3 border-t border-border pt-3 sm:grid-cols-3">
+                        <div className="space-y-1">
+                          <label className="terminal-label">Team</label>
+                          <select
+                            value={teamFilter}
+                            onChange={(e) => setTeamFilter(e.target.value)}
+                            className="h-9 w-full rounded-sm border border-border bg-[hsl(var(--card)/0.85)] px-3 font-mono text-sm"
+                          >
+                            <option value="all">All Teams</option>
+                            {teams.map((team) => (
+                              <option key={team} value={team}>
+                                {team}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="terminal-label">Position</label>
+                          <select
+                            value={positionFilter}
+                            onChange={(e) => setPositionFilter(e.target.value)}
+                            className="h-9 w-full rounded-sm border border-border bg-[hsl(var(--card)/0.85)] px-3 font-mono text-sm"
+                          >
+                            <option value="all">All Positions</option>
+                            {positions.map((pos) => (
+                              <option key={pos} value={pos}>
+                                {pos}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="terminal-label">Watchlist</label>
+                          <select
+                            value={filterWatchlistId}
+                            onChange={(e) => setFilterWatchlistId(e.target.value)}
+                            className="h-9 w-full rounded-sm border border-border bg-[hsl(var(--card)/0.85)] px-3 font-mono text-sm"
+                          >
+                            <option value="none">All Players</option>
+                            <option value="all">My Watchlists</option>
+                            {watchlists?.map((w) => (
+                              <option key={w.id} value={w.id}>
+                                {w.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {hasActiveFilters && (
+                          <div className="sm:col-span-3 flex justify-end">
+                            <Button variant="terminalOutline" size="sm" onClick={clearAllFilters}>
+                              Clear all filters
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Players Table */}
+                <Card variant="terminal" className="relative overflow-hidden">
+                  <CardAccent variant="top" color="primary" intensity="low" />
+                  <CardContent className="p-0 relative z-10">
+                    {isLoading ? (
+                      <div className="terminal-empty p-8 text-center text-muted-foreground">
+                        Loading players...
+                      </div>
+                    ) : players.length === 0 ? (
+                      <div className="terminal-empty p-8 text-center">
+                        <p className="text-muted-foreground">No players found</p>
+                        {hasActiveFilters && (
+                          <Button
+                            variant="terminalOutline"
+                            size="sm"
+                            className="mt-2"
+                            onClick={clearAllFilters}
+                          >
+                            Clear filters
+                          </Button>
+                        )}
+                      </div>
+                    ) : (
+                      <>
+                        {/* Desktop Table */}
+                        <div className="hidden md:block overflow-x-auto">
+                          <table className="w-full">
+                            <thead className="border-b border-border bg-muted/30">
+                              <tr>
+                                <th className="text-left p-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                  Player
+                                </th>
+                                <th
+                                  className="text-right p-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground cursor-pointer hover:bg-muted/80"
+                                  onClick={() => toggleSort("price")}
+                                >
+                                  <div className="flex items-center justify-end">
+                                    Price
+                                    <SortIcon field="price" />
+                                  </div>
+                                </th>
+                                <th className="text-right p-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground hidden lg:table-cell">
+                                  7d
+                                </th>
+                                <th
+                                  className="text-right p-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground cursor-pointer hover:bg-muted/80"
+                                  onClick={() => toggleSort("volume")}
+                                >
+                                  <div className="flex items-center justify-end">
+                                    Volume
+                                    <SortIcon field="volume" />
+                                  </div>
+                                </th>
+                                <th
+                                  className="text-right p-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground cursor-pointer hover:bg-muted/80"
+                                  onClick={() => toggleSort("change")}
+                                >
+                                  <div className="flex items-center justify-end">
+                                    24h Change
+                                    <SortIcon field="change" />
+                                  </div>
+                                </th>
+                                <th
+                                  className="text-right p-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground cursor-pointer hover:bg-muted/80 hidden lg:table-cell"
+                                  onClick={() => toggleSort("tvl")}
+                                >
+                                  <div className="flex items-center justify-end">
+                                    TVL
+                                    <SortIcon field="tvl" />
+                                  </div>
+                                </th>
+                                <th className="text-center p-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                  Action
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {players.map((player) => {
+                                const change24h = parseFloat(player.priceChange24h || "0");
+                                const isLive = player.gameStatus === "live";
+                                const hasBuyPressure = (player.buyPressure ?? 0) >= 60;
+                                const hasCommunityBoost = (player.communityBoostCount ?? 0) > 0;
+                                const rowBorderClass =
+                                  change24h > 0
+                                    ? "border-l-2 border-l-emerald-500/50"
+                                    : change24h < 0
+                                      ? "border-l-2 border-l-red-500/40"
+                                      : "";
+                                return (
+                                  <tr
+                                    key={player.id}
+                                    className={cn(
+                                      "border-b border-border hover:bg-muted/20 transition-colors",
+                                      rowBorderClass,
+                                      isLive && "bg-emerald-500/[0.03]",
+                                    )}
                                   >
+                                    <td className="p-3">
+                                      <button
+                                        type="button"
+                                        className="flex items-center gap-2 cursor-pointer text-left"
+                                        onClick={() => {
+                                          setSelectedPlayerId(player.id);
+                                          setPlayerModalOpen(true);
+                                        }}
+                                      >
+                                        <div className="terminal-avatar flex-shrink-0">
+                                          <span className="text-xs font-bold">
+                                            {player.firstName[0]}
+                                            {player.lastName[0]}
+                                          </span>
+                                        </div>
+                                        <div>
+                                          <div className="font-medium text-sm">
+                                            <PlayerName
+                                              playerId={player.id}
+                                              firstName={player.firstName}
+                                              lastName={player.lastName}
+                                            />
+                                          </div>
+                                          <div className="font-mono text-[11px] text-muted-foreground">
+                                            {player.team} • {player.position}
+                                          </div>
+                                          {/* Market signal chips */}
+                                          {isLive ||
+                                          hasBuyPressure ||
+                                          hasCommunityBoost ||
+                                          player.isProbableStarter ||
+                                          player.mlbMatchupChip ? (
+                                            <div className="mt-1 flex flex-wrap gap-1">
+                                              {isLive && (
+                                                <span className="inline-flex items-center gap-0.5 rounded-sm border border-emerald-500/40 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-500">
+                                                  <Radio className="w-2.5 h-2.5" />
+                                                  Live
+                                                </span>
+                                              )}
+                                              {hasBuyPressure && (
+                                                <span className="inline-flex items-center gap-0.5 rounded-sm border border-orange-500/30 bg-orange-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-orange-500">
+                                                  <Flame className="w-2.5 h-2.5" />
+                                                  Buy
+                                                </span>
+                                              )}
+                                              {hasCommunityBoost && (
+                                                <span className="inline-flex items-center gap-0.5 rounded-sm border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-500">
+                                                  <Users className="w-2.5 h-2.5" />
+                                                  {player.communityBoostCount}x
+                                                </span>
+                                              )}
+                                              {player.isProbableStarter ? (
+                                                <MlbProbableBadge compact />
+                                              ) : null}
+                                              {player.mlbMatchupChip ? (
+                                                <Badge
+                                                  variant="outline"
+                                                  className="h-5 border-border/70 bg-background/30 px-1.5 text-[10px] uppercase tracking-[0.08em] text-muted-foreground"
+                                                >
+                                                  {player.mlbMatchupChip}
+                                                </Badge>
+                                              ) : null}
+                                            </div>
+                                          ) : null}
+                                        </div>
+                                      </button>
+                                    </td>
+                                    <td className="p-3 text-right">
+                                      <AnimatedPrice
+                                        value={parseFloat(player.currentPrice?.toString() || "0")}
+                                        size="sm"
+                                        className="font-mono font-medium justify-end"
+                                      />
+                                    </td>
+                                    <td className="p-3 text-right hidden lg:table-cell">
+                                      <Sparkline
+                                        points={sparklines[player.id] ?? []}
+                                        positive={change24h >= 0}
+                                        width={48}
+                                        height={22}
+                                      />
+                                    </td>
+                                    <td className="p-3 text-right text-sm text-muted-foreground">
+                                      {player.volume24h?.toLocaleString() || 0}
+                                    </td>
+                                    <td className="p-3 text-right">
+                                      <div
+                                        className={cn(
+                                          "font-mono text-sm",
+                                          change24h >= 0 ? "text-positive" : "text-negative",
+                                        )}
+                                      >
+                                        {change24h >= 0 ? "+" : ""}
+                                        {change24h.toFixed(2)}%
+                                      </div>
+                                    </td>
+                                    <td className="p-3 text-right text-sm text-muted-foreground hidden lg:table-cell">
+                                      {player.poolTvl == null
+                                        ? "N/A"
+                                        : formatAdaptiveCurrency(player.poolTvl)}
+                                    </td>
+                                    <td className="p-3 text-center">
+                                      <Button
+                                        size="sm"
+                                        variant="terminal"
+                                        className="h-8 px-3"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          const pid = String(player.id || "").trim();
+                                          setSelectedPlayerId(pid);
+                                          setPlayerModalOpen(true);
+                                        }}
+                                      >
+                                        <ShoppingCart className="w-3 h-3 mr-1" />
+                                        Trade
+                                      </Button>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        {/* Mobile Cards */}
+                        <div className="hidden">
+                          {players.map((player) => {
+                            const mobileSortMetric = getMobileSortMetric(player, sortField);
+
+                            return (
+                              <div
+                                key={player.id}
+                                className="flex items-center justify-between p-3 hover:bg-muted/20"
+                              >
+                                <button
+                                  type="button"
+                                  className="flex-1"
+                                  onClick={() => {
+                                    setSelectedPlayerId(player.id);
+                                    setPlayerModalOpen(true);
+                                  }}
+                                >
+                                  <div className="flex items-center gap-2 cursor-pointer text-left">
                                     <div className="terminal-avatar flex-shrink-0">
                                       <span className="text-xs font-bold">
                                         {player.firstName[0]}
@@ -784,211 +919,75 @@ export default function PlayerPools() {
                                           lastName={player.lastName}
                                         />
                                       </div>
-                                      <div className="font-mono text-[11px] text-muted-foreground">
-                                        {player.team} • {player.position}
+                                      <div className="flex flex-wrap items-center gap-1.5 font-mono text-[11px] text-muted-foreground">
+                                        <span>{player.team}</span>
+                                        <span>•</span>
+                                        <span className="font-mono">
+                                          ${player.currentPrice || "0.00"}
+                                        </span>
+                                        <span>•</span>
+                                        <span className={mobileSortMetric.className || ""}>
+                                          {mobileSortMetric.text}
+                                        </span>
                                       </div>
-                                      {/* Market signal chips */}
-                                      {(isLive ||
-                                        hasBuyPressure ||
-                                        hasCommunityBoost ||
-                                        player.isProbableStarter ||
-                                        player.mlbMatchupChip) ? (
-                                        <div className="mt-1 flex flex-wrap gap-1">
-                                          {isLive && (
-                                            <span className="inline-flex items-center gap-0.5 rounded-sm border border-emerald-500/40 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-500">
-                                              <Radio className="w-2.5 h-2.5" />
-                                              Live
-                                            </span>
-                                          )}
-                                          {hasBuyPressure && (
-                                            <span className="inline-flex items-center gap-0.5 rounded-sm border border-orange-500/30 bg-orange-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-orange-500">
-                                              <Flame className="w-2.5 h-2.5" />
-                                              Buy
-                                            </span>
-                                          )}
-                                          {hasCommunityBoost && (
-                                            <span className="inline-flex items-center gap-0.5 rounded-sm border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-500">
-                                              <Users className="w-2.5 h-2.5" />
-                                              {player.communityBoostCount}x
-                                            </span>
-                                          )}
-                                          {player.isProbableStarter ? (
-                                            <MlbProbableBadge compact />
-                                          ) : null}
-                                          {player.mlbMatchupChip ? (
-                                            <Badge
-                                              variant="outline"
-                                              className="h-5 border-border/70 bg-background/30 px-1.5 text-[10px] uppercase tracking-[0.08em] text-muted-foreground"
-                                            >
-                                              {player.mlbMatchupChip}
-                                            </Badge>
-                                          ) : null}
-                                        </div>
-                                      ) : null}
                                     </div>
-                                  </button>
-                                </td>
-                                <td className="p-3 text-right">
-                                  <AnimatedPrice
-                                    value={parseFloat(player.currentPrice?.toString() || "0")}
-                                    size="sm"
-                                    className="font-mono font-medium justify-end"
-                                  />
-                                </td>
-                                <td className="p-3 text-right hidden lg:table-cell">
-                                  <Sparkline
-                                    points={sparklines[player.id] ?? []}
-                                    positive={change24h >= 0}
-                                    width={48}
-                                    height={22}
-                                  />
-                                </td>
-                                <td className="p-3 text-right text-sm text-muted-foreground">
-                                  {player.volume24h?.toLocaleString() || 0}
-                                </td>
-                                <td className="p-3 text-right">
-                                  <div
-                                    className={cn(
-                                      "font-mono text-sm",
-                                      change24h >= 0
-                                        ? "text-positive"
-                                        : "text-negative",
-                                    )}
-                                  >
-                                    {change24h >= 0 ? "+" : ""}
-                                    {change24h.toFixed(2)}%
                                   </div>
-                                </td>
-                                <td className="p-3 text-right text-sm text-muted-foreground hidden lg:table-cell">
-                                  {player.poolTvl == null
-                                    ? "N/A"
-                                    : formatAdaptiveCurrency(player.poolTvl)}
-                                </td>
-                                <td className="p-3 text-center">
+                                </button>
+                                <div className="flex items-center ml-2">
                                   <Button
                                     size="sm"
                                     variant="terminal"
-                                    className="h-8 px-3"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
+                                    className="h-7 px-3 text-xs"
+                                    onClick={() => {
                                       const pid = String(player.id || "").trim();
                                       setSelectedPlayerId(pid);
                                       setPlayerModalOpen(true);
                                     }}
                                   >
-                                    <ShoppingCart className="w-3 h-3 mr-1" />
                                     Trade
                                   </Button>
-                                </td>
-                              </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-
-                      {/* Mobile Cards */}
-                      <div className="hidden">
-                        {players.map((player) => {
-                          const mobileSortMetric = getMobileSortMetric(player, sortField);
-
-                          return (
-                            <div
-                              key={player.id}
-                              className="flex items-center justify-between p-3 hover:bg-muted/20"
-                            >
-                              <button
-                                type="button"
-                                className="flex-1"
-                                onClick={() => {
-                                  setSelectedPlayerId(player.id);
-                                  setPlayerModalOpen(true);
-                                }}
-                              >
-                                <div className="flex items-center gap-2 cursor-pointer text-left">
-                                  <div className="terminal-avatar flex-shrink-0">
-                                    <span className="text-xs font-bold">
-                                      {player.firstName[0]}
-                                      {player.lastName[0]}
-                                    </span>
-                                  </div>
-                                  <div>
-                                    <div className="font-medium text-sm">
-                                      <PlayerName
-                                        playerId={player.id}
-                                        firstName={player.firstName}
-                                        lastName={player.lastName}
-                                      />
-                                    </div>
-                                    <div className="flex flex-wrap items-center gap-1.5 font-mono text-[11px] text-muted-foreground">
-                                      <span>{player.team}</span>
-                                      <span>•</span>
-                                      <span className="font-mono">
-                                        ${player.currentPrice || "0.00"}
-                                      </span>
-                                      <span>•</span>
-                                      <span className={mobileSortMetric.className || ""}>
-                                        {mobileSortMetric.text}
-                                      </span>
-                                    </div>
-                                  </div>
                                 </div>
-                              </button>
-                              <div className="flex items-center ml-2">
-                                <Button
-                                  size="sm"
-                                  variant="terminal"
-                                  className="h-7 px-3 text-xs"
-                                  onClick={() => {
-                                    const pid = String(player.id || "").trim();
-                                    setSelectedPlayerId(pid);
-                                    setPlayerModalOpen(true);
-                                  }}
-                                >
-                                  Trade
-                                </Button>
                               </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-
-                      {/* Pagination */}
-                      {totalPages > 1 && (
-                        <div className="flex items-center justify-between border-t border-border p-3">
-                          <div className="font-mono text-[11px] text-muted-foreground">
-                            Page {page} of {totalPages}
-                          </div>
-                          <div className="flex gap-2">
-                            <Button
-                              variant="terminalOutline"
-                              size="sm"
-                              onClick={() => setPage(page - 1)}
-                              disabled={page <= 1}
-                            >
-                              <ChevronLeft className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              variant="terminalOutline"
-                              size="sm"
-                              onClick={() => setPage(page + 1)}
-                              disabled={page >= totalPages}
-                            >
-                              <ChevronRight className="w-4 h-4" />
-                            </Button>
-                          </div>
+                            );
+                          })}
                         </div>
-                      )}
-                    </>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
 
-            <TabsContent value="activity" className="xl:hidden">
-              <MarketActivityLedger sport={sport} />
-            </TabsContent>
-          </Tabs>
+                        {/* Pagination */}
+                        {totalPages > 1 && (
+                          <div className="flex items-center justify-between border-t border-border p-3">
+                            <div className="font-mono text-[11px] text-muted-foreground">
+                              Page {page} of {totalPages}
+                            </div>
+                            <div className="flex gap-2">
+                              <Button
+                                variant="terminalOutline"
+                                size="sm"
+                                onClick={() => setPage(page - 1)}
+                                disabled={page <= 1}
+                              >
+                                <ChevronLeft className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                variant="terminalOutline"
+                                size="sm"
+                                onClick={() => setPage(page + 1)}
+                                disabled={page >= totalPages}
+                              >
+                                <ChevronRight className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="activity" className="xl:hidden">
+                <MarketActivityLedger sport={sport} />
+              </TabsContent>
+            </Tabs>
           </div>
 
           {/* Persistent Market Feed sidebar — always visible on xl+ screens */}

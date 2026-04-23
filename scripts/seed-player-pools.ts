@@ -1,7 +1,7 @@
 #!/usr/bin/env tsx
 /**
- * Seed player pools for all active players
- * Run this after AMM migration if pools don't exist
+ * Legacy pre-seed script.
+ * Disabled by default because pools must be user-initialized from real liquidity adds.
  */
 
 import { db } from "../server/db";
@@ -13,7 +13,22 @@ import {
   INITIAL_POOL_SHARES,
 } from "../server/amm/pool-seed";
 
+const ALLOW_LEGACY_POOL_SEEDING = process.env.ALLOW_LEGACY_POOL_SEEDING === "true";
+
+function assertLegacySeedingEnabled(scriptLabel: string) {
+  if (ALLOW_LEGACY_POOL_SEEDING) return;
+
+  console.error(
+    `[${scriptLabel}] Legacy pool seeding is disabled. Pools must be initialized by user liquidity.`,
+  );
+  console.error(
+    `[${scriptLabel}] If you truly need one-off recovery behavior, rerun with ALLOW_LEGACY_POOL_SEEDING=true.`,
+  );
+  process.exit(1);
+}
+
 async function seedPlayerPools() {
+  assertLegacySeedingEnabled("SEED");
   console.log("[SEED] Starting player pool creation...");
 
   try {

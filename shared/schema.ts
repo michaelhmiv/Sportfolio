@@ -255,7 +255,7 @@ export const players = pgTable(
     jerseyNumber: text("jersey_number"),
     isActive: boolean("is_active").notNull().default(true), // On active roster
     isEligibleForVesting: boolean("is_eligible_for_vesting").notNull().default(true),
-    currentPrice: decimal("current_price", { precision: 10, scale: 2 }).notNull().default("10.00"), // Placeholder - use lastTradePrice for real market value
+    currentPrice: decimal("current_price", { precision: 10, scale: 2 }).notNull().default("0.00"), // Starts at 0 until user liquidity initializes a pool
     lastTradePrice: decimal("last_trade_price", { precision: 10, scale: 2 }), // Actual market price from last trade, null if no trades
     volume24h: integer("volume_24h").notNull().default(0),
     priceChange24h: decimal("price_change_24h", { precision: 10, scale: 2 })
@@ -547,12 +547,10 @@ export const playerPools = pgTable(
     playerId: varchar("player_id")
       .primaryKey()
       .references(() => players.id, { onDelete: "cascade" }),
-    shares: decimal("shares", { precision: 12, scale: 2 }).notNull().default("50000"),
-    playMoney: decimal("play_money", { precision: 12, scale: 2 }).notNull().default("500000"),
-    k: decimal("k", { precision: 24, scale: 2 }).notNull().default("25000000000"),
-    lpSharesTotal: decimal("lp_shares_total", { precision: 24, scale: 2 })
-      .notNull()
-      .default("50000"),
+    shares: decimal("shares", { precision: 12, scale: 2 }).notNull().default("0"),
+    playMoney: decimal("play_money", { precision: 12, scale: 2 }).notNull().default("0"),
+    k: decimal("k", { precision: 24, scale: 2 }).notNull().default("0"),
+    lpSharesTotal: decimal("lp_shares_total", { precision: 24, scale: 2 }).notNull().default("0"),
     feesAccumulated: decimal("fees_accumulated", { precision: 12, scale: 2 })
       .notNull()
       .default("0"),

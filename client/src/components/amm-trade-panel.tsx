@@ -48,6 +48,12 @@ interface QuoteData {
   newPoolPrice: number;
 }
 
+interface PoolSnapshot {
+  poolInitialized?: boolean;
+  shares?: number;
+  playMoney?: number;
+}
+
 // Fee constants
 const BURN_FEE_PERCENT = 1; // 1% burned
 const LP_FEE_PERCENT = 1; // 1% to LPs
@@ -76,10 +82,10 @@ export function AmmTradePanel({
   const [isLoadingQuote, setIsLoadingQuote] = useState(false);
 
   // Fetch pool data
-  const { data: poolData } = useQuery({
+  const { data: poolData } = useQuery<PoolSnapshot>({
     queryKey: ["/api/amm", playerId],
     queryFn: async () => {
-      const res = await fetch(`/api/amm/${playerId}`);
+      const res = await fetch(`/api/amm/${playerId}`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch pool data");
       return res.json();
     },
@@ -87,8 +93,10 @@ export function AmmTradePanel({
     refetchInterval: 5000,
     refetchIntervalInBackground: false,
   });
+  const isPoolInitialized = poolData?.poolInitialized !== false;
 
   const maxBuyAmountBySlippage = useMemo(() => {
+    if (!isPoolInitialized) return 0;
     if (tradeType !== "buy") return userBalance;
 
     const poolShares = Number(poolData?.shares ?? 0);
@@ -150,11 +158,14 @@ export function AmmTradePanel({
     }
 
     return low;
-  }, [tradeType, userBalance, poolData, maxSlippage]);
+  }, [tradeType, userBalance, poolData, maxSlippage, isPoolInitialized]);
 
   // Calculate max amount based on trade type and current slippage constraint
-  const maxAmount =
-    tradeType === "buy" ? Math.min(userBalance, maxBuyAmountBySlippage) : userShares;
+  const maxAmount = isPoolInitialized
+    ? tradeType === "buy"
+      ? Math.min(userBalance, maxBuyAmountBySlippage)
+      : userShares
+    : 0;
 
   const amountFromSliderPercentage = useCallback(
     (percentage: number) => {
@@ -218,6 +229,11 @@ export function AmmTradePanel({
 
   // Debounced quote fetch
   const fetchQuote = useCallback(async () => {
+    if (!isPoolInitialized) {
+      setQuote(null);
+      return;
+    }
+
     if (!amount || parseFloat(amount) <= 0) {
       setQuote(null);
       return;
@@ -239,7 +255,11 @@ export function AmmTradePanel({
     } catch (error) {
       console.error("Error fetching quote:", error);
       setQuote(null);
-      if (error instanceof Error && error.message !== "Failed to fetch quote") {
+      if (
+        error instanceof Error &&
+        !error.message.toLowerCase().includes("pool not initialized") &&
+        error.message !== "Failed to fetch quote"
+      ) {
         toast({
           title: "Quote Error",
           description: error.message,
@@ -249,7 +269,7 @@ export function AmmTradePanel({
     } finally {
       setIsLoadingQuote(false);
     }
-  }, [amount, tradeType, playerId, toast]);
+  }, [amount, tradeType, playerId, toast, isPoolInitialized]);
 
   // Fetch quote when amount or trade type changes
   useEffect(() => {
@@ -399,12 +419,19 @@ export function AmmTradePanel({
 
   return (
     <div className="space-y-4">
+      {!isPoolInitialized && (
+        <div className="p-3 border rounded-sm bg-muted/40 text-sm text-muted-foreground">
+          Pool not initialized yet. Add initial two-sided liquidity to start trading.
+        </div>
+      )}
+
       {/* Trade Type Toggle */}
       <div className="flex gap-2">
         <Button
           variant={tradeType === "buy" ? "default" : "outline"}
           className="flex-1"
           onClick={() => setTradeType("buy")}
+          disabled={!isPoolInitialized}
         >
           <TrendingUp className="w-4 h-4 mr-2" />
           Buy
@@ -413,6 +440,7 @@ export function AmmTradePanel({
           variant={tradeType === "sell" ? "default" : "outline"}
           className="flex-1"
           onClick={() => setTradeType("sell")}
+          disabled={!isPoolInitialized}
         >
           <TrendingDown className="w-4 h-4 mr-2" />
           Sell
@@ -439,6 +467,7 @@ export function AmmTradePanel({
             max={100}
             step={1}
             className="w-full"
+            disabled={!isPoolInitialized}
           />
           <div className="flex justify-between text-xs text-muted-foreground">
             <span>0%</span>
@@ -456,6 +485,7 @@ export function AmmTradePanel({
               size="sm"
               onClick={() => handleQuickSelect(percent)}
               className="text-xs"
+              disabled={!isPoolInitialized}
             >
               {percent === 100 ? "Max" : `${percent}%`}
             </Button>
@@ -479,6 +509,7 @@ export function AmmTradePanel({
             min={tradeType === "buy" ? 0.01 : 1}
             step={tradeType === "buy" ? 0.01 : 1}
             className="flex-1"
+            disabled={!isPoolInitialized}
           />
           <span className="text-sm text-muted-foreground whitespace-nowrap">
             {tradeType === "buy" ? "SB" : "shares"}
@@ -608,6 +639,7 @@ export function AmmTradePanel({
         className="w-full"
         size="lg"
         disabled={
+          !isPoolInitialized ||
           !quote ||
           isExecuting ||
           isLoadingQuote ||

@@ -5,19 +5,24 @@ import * as schema from "@shared/schema";
 // Determine which database to use based on environment
 const isProduction = process.env.NODE_ENV === "production";
 const isTestEnvironment = process.env.NODE_ENV === "test" || process.env.VITEST === "true";
-const configuredDatabaseUrl = isProduction
+const databaseUrl = isProduction
   ? process.env.DATABASE_URL
-  : process.env.DEV_DATABASE_URL || process.env.DATABASE_URL;
-const databaseUrl =
-  configuredDatabaseUrl ||
-  (isTestEnvironment ? "postgresql://postgres:postgres@127.0.0.1:5432/sportfolio_test" : null);
+  : isTestEnvironment
+    ? process.env.TEST_DATABASE_URL ||
+      process.env.DEV_DATABASE_URL ||
+      "postgresql://postgres:postgres@127.0.0.1:5432/sportfolio_test"
+    : process.env.DEV_DATABASE_URL;
 
 console.log(`[DB] Environment: ${process.env.NODE_ENV || "development"}`);
-console.log(`[DB] Using ${isProduction ? "PRODUCTION" : "DEVELOPMENT"} database`);
+console.log(
+  `[DB] Using ${isProduction ? "PRODUCTION (DATABASE_URL)" : "DEVELOPMENT (DEV_DATABASE_URL)"} database`,
+);
 
 if (!databaseUrl) {
   throw new Error(
-    "DATABASE_URL (or DEV_DATABASE_URL for local dev) must be set. Did you forget to provision a database?",
+    isProduction
+      ? "DATABASE_URL must be set in production."
+      : "DEV_DATABASE_URL must be set for local development (no fallback to DATABASE_URL).",
   );
 }
 

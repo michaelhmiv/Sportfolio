@@ -10,7 +10,7 @@ import { db } from "../db";
 import { players, holdings } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { logBotAction, updateBotVolume, type BotProfile } from "./bot-engine";
-import { executeBuy, executeSell, addLiquidityOptimal, getOrCreatePool } from "../amm/pool";
+import { executeBuy, executeSell, addLiquidityOptimal, getPool } from "../amm/pool";
 
 interface TradeConfig {
   userId: string;
@@ -74,7 +74,7 @@ function getFairPrice(player: {
   currentPrice: string | null;
   lastTradePrice: string | null;
 }): number {
-  const price = player.currentPrice || player.lastTradePrice || "1.00";
+  const price = player.lastTradePrice || player.currentPrice || "0.00";
   return parseFloat(price);
 }
 
@@ -89,7 +89,10 @@ async function executeTrade(
   amount: number,
 ): Promise<boolean> {
   try {
-    await getOrCreatePool(playerId);
+    const pool = await getPool(playerId);
+    if (!pool) {
+      return false;
+    }
 
     if (isBuy) {
       const result = await executeBuy(playerId, userId, amount);
@@ -112,6 +115,10 @@ function calculateTradeSize(
   fairPrice: number,
   hasExistingPosition: boolean,
 ): number {
+  if (!Number.isFinite(fairPrice) || fairPrice <= 0) {
+    return 0;
+  }
+
   // Base trade size as a percentage of max order size
   const baseSize = config.maxOrderSize * (0.1 + Math.random() * 0.3); // 10-40% of max
 
@@ -135,7 +142,10 @@ async function executeAddLiquidity(
   maxPlayMoney: number,
 ): Promise<boolean> {
   try {
-    await getOrCreatePool(playerId);
+    const pool = await getPool(playerId);
+    if (!pool) {
+      return false;
+    }
 
     const result = await addLiquidityOptimal(playerId, userId, maxShares, maxPlayMoney);
     return result.success;

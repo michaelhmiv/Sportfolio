@@ -44,6 +44,7 @@ interface PlayerPageData {
 
 interface AmmPoolData {
   playerId: string;
+  poolInitialized?: boolean;
   shares: number;
   playMoney: number;
   currentPrice: number;
@@ -164,6 +165,7 @@ export default function PlayerPage() {
     retry: 3,
     retryDelay: 1000,
   });
+  const isPoolInitialized = poolData?.poolInitialized !== false;
 
   // Fetch user's LP position
   const { data: lpPosition } = useQuery<UserLpPosition>({
@@ -185,17 +187,23 @@ export default function PlayerPage() {
     enabled: !!id && isAuthenticated,
   });
 
-  const currentPoolPrice = poolData?.currentPrice ?? null;
+  const currentPoolPrice = isPoolInitialized ? (poolData?.currentPrice ?? null) : null;
 
   const userSharesBalance = parseFloat(String(data?.userHolding?.quantity || 0));
   const userPlayMoneyBalance = parseFloat(String(data?.userBalance || 0));
 
-  const estimatedSharesDeposited = currentPoolPrice
-    ? Math.min(maxSharesToUse, maxPlayMoneyToUse / currentPoolPrice)
-    : 0;
-  const estimatedPlayMoneyDeposited = currentPoolPrice
-    ? estimatedSharesDeposited * currentPoolPrice
-    : 0;
+  const estimatedSharesDeposited =
+    currentPoolPrice && currentPoolPrice > 0
+      ? Math.min(maxSharesToUse, maxPlayMoneyToUse / currentPoolPrice)
+      : maxSharesToUse > 0 && maxPlayMoneyToUse > 0
+        ? maxSharesToUse
+        : 0;
+  const estimatedPlayMoneyDeposited =
+    currentPoolPrice && currentPoolPrice > 0
+      ? estimatedSharesDeposited * currentPoolPrice
+      : maxSharesToUse > 0 && maxPlayMoneyToUse > 0
+        ? maxPlayMoneyToUse
+        : 0;
   const estimatedTotalValue = estimatedPlayMoneyDeposited * 2;
   const estimatedSharesUnused = Math.max(0, maxSharesToUse - estimatedSharesDeposited);
   const estimatedPlayMoneyUnused = Math.max(0, maxPlayMoneyToUse - estimatedPlayMoneyDeposited);
@@ -241,10 +249,23 @@ export default function PlayerPage() {
     userPlayMoneyBalance,
   ]);
 
+  useEffect(() => {
+    if (!addLiquidityOpen) return;
+    if (isPoolInitialized) return;
+    if (addLiquidityMode !== "auto-detect") return;
+
+    setAddLiquidityMode("dual-max");
+    setZapQuote(null);
+  }, [addLiquidityOpen, isPoolInitialized, addLiquidityMode]);
+
   // Fetch zap quote for auto-detect mode
   useEffect(() => {
     const fetchZapQuote = async () => {
       if (addLiquidityMode !== "auto-detect") {
+        setZapQuote(null);
+        return;
+      }
+      if (!isPoolInitialized) {
         setZapQuote(null);
         return;
       }
@@ -293,11 +314,10 @@ export default function PlayerPage() {
 
     const timer = setTimeout(fetchZapQuote, 300);
     return () => clearTimeout(timer);
-  }, [addLiquidityMode, lastEdited, maxSharesToUse, maxPlayMoneyToUse, id]);
+  }, [addLiquidityMode, lastEdited, maxSharesToUse, maxPlayMoneyToUse, id, isPoolInitialized]);
 
   const addLiquidityOptimalMutation = useMutation({
     mutationFn: async () => {
-      if (!currentPoolPrice) throw new Error("Pool price unavailable");
       if (maxSharesToUse <= 0 || maxPlayMoneyToUse <= 0)
         throw new Error("Select shares and SB to use");
       const res = await apiRequest("POST", `/api/lp/${encodeURIComponent(id)}/add-optimal`, {
@@ -811,6 +831,12 @@ export default function PlayerPage() {
                         </div>
                       </div>
 
+                      {!isPoolInitialized && (
+                        <div className="rounded border bg-amber-500/10 border-amber-500/30 p-2 text-xs text-amber-700">
+                          Pool uninitialized. First two-sided LP add sets the starting market price.
+                        </div>
+                      )}
+
                       {lpPosition && lpPosition.lpShares > 0 && (
                         <div className="p-2 bg-blue-500/10 border border-blue-500/20 rounded">
                           <div className="text-[10px] text-blue-600 uppercase font-semibold">
@@ -853,7 +879,7 @@ export default function PlayerPage() {
                           className="w-full"
                           onClick={() => {
                             setAddLiquidityOpen(true);
-                            setAddLiquidityMode("auto-detect");
+                            setAddLiquidityMode(isPoolInitialized ? "auto-detect" : "dual-max");
                             setMaxSharesToUse(0);
                             setMaxPlayMoneyToUse(0);
                             setLinkAmounts(false);
@@ -941,6 +967,7 @@ export default function PlayerPage() {
                 variant={addLiquidityMode === "auto-detect" ? "default" : "outline"}
                 size="sm"
                 className="flex-1 text-xs"
+                disabled={!isPoolInitialized}
                 onClick={() => {
                   setAddLiquidityMode("auto-detect");
                   setMaxSharesToUse(0);
@@ -989,13 +1016,21 @@ export default function PlayerPage() {
             {/* Mode Description */}
             <div className="text-xs text-muted-foreground">
               {addLiquidityMode === "auto-detect" && (
-                <>Drag one slider. We auto-trade to balance your deposit. Simplest option.</>
+                <>
+                  {isPoolInitialized
+                    ? "Drag one slider. We auto-trade to balance your deposit. Simplest option."
+                    : "Auto-detect requires an existing pool. Initialize with Dual Max or Fixed Ratio first."}
+                </>
               )}
               {addLiquidityMode === "dual-max" && (
                 <>Use max of both assets. We'll balance at execution time.</>
               )}
               {addLiquidityMode === "fixed-ratio" && (
-                <>Both sliders linked. Deposit must match current pool price exactly.</>
+                <>
+                  {isPoolInitialized
+                    ? "Both sliders linked. Deposit must match current pool price exactly."
+                    : "No active pool yet. Your exact shares + SB set the starting pool price."}
+                </>
               )}
             </div>
 
@@ -1003,7 +1038,8 @@ export default function PlayerPage() {
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Current price</span>
                 <span className="font-mono">
-                  {currentPoolPrice ? `$${currentPoolPrice.toFixed(2)}` : "-"} / share
+                  {currentPoolPrice != null ? `$${currentPoolPrice.toFixed(2)}` : "Uninitialized"}
+                  {currentPoolPrice != null ? " / share" : ""}
                 </span>
               </div>
               <div className="flex justify-between">
@@ -1198,6 +1234,7 @@ export default function PlayerPage() {
                   }
                 }}
                 disabled={
+                  !isPoolInitialized ||
                   zapAddSharesMutation.isPending ||
                   zapAddSbMutation.isPending ||
                   !zapQuote ||

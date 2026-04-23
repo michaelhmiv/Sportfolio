@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
   listAgentKnowledgeArticles: vi.fn(),
   getBuyQuote: vi.fn(),
   getLpPosition: vi.fn(),
-  getOrCreatePool: vi.fn(),
+  getPool: vi.fn(),
   getSellQuote: vi.fn(),
   getUserLpPositions: vi.fn(),
   getZapAddQuoteSbOnly: vi.fn(),
@@ -92,7 +92,7 @@ vi.mock("../lib/time", () => ({
 vi.mock("../amm/pool", () => ({
   getBuyQuote: mocks.getBuyQuote,
   getLpPosition: mocks.getLpPosition,
-  getOrCreatePool: mocks.getOrCreatePool,
+  getPool: mocks.getPool,
   getSellQuote: mocks.getSellQuote,
   getUserLpPositions: mocks.getUserLpPositions,
   getZapAddQuoteSbOnly: mocks.getZapAddQuoteSbOnly,
@@ -262,7 +262,7 @@ describe("hermes-tools", () => {
 
   it("materializes a native pool buy preview into a staged plan", async () => {
     mocks.storage.getAvailableBalance.mockResolvedValue(125);
-    mocks.getOrCreatePool.mockResolvedValue({
+    mocks.getPool.mockResolvedValue({
       currentPrice: 4.5,
       lpSharesTotal: 100,
       shares: 200,
@@ -337,7 +337,7 @@ describe("hermes-tools", () => {
       },
     ]);
     mocks.storage.getAvailableBalance.mockResolvedValue(125);
-    mocks.getOrCreatePool.mockResolvedValue({
+    mocks.getPool.mockResolvedValue({
       currentPrice: 4.5,
       lpSharesTotal: 100,
       shares: 200,

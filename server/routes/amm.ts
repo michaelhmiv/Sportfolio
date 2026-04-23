@@ -9,14 +9,7 @@
  */
 
 import { Express } from "express";
-import {
-  getPool,
-  getOrCreatePool,
-  getBuyQuote,
-  getSellQuote,
-  executeBuy,
-  executeSell,
-} from "../amm/pool";
+import { getPool, getBuyQuote, getSellQuote, executeBuy, executeSell } from "../amm/pool";
 import { isAuthenticated } from "../supabaseAuth";
 import { storage } from "../storage";
 
@@ -24,6 +17,13 @@ import { storage } from "../storage";
 const MIN_SLIPPAGE = 0.001; // 0.1%
 const MAX_SLIPPAGE = 0.5; // 50%
 const DEFAULT_SLIPPAGE = 0.05; // 5%
+const POOL_NOT_INITIALIZED_MESSAGE = "Pool not initialized. Add liquidity first.";
+
+function isPoolNotInitializedErrorMessage(message: string | undefined): boolean {
+  if (!message) return false;
+  const normalized = message.toLowerCase();
+  return normalized.includes("pool not initialized");
+}
 
 export function registerAmmRoutes(app: Express) {
   // Helper to get user ID from authenticated request
@@ -36,7 +36,7 @@ export function registerAmmRoutes(app: Express) {
 
   /**
    * GET /api/amm/:playerId
-   * Get pool state for a player (auto-creates pool if it doesn't exist)
+   * Get pool state for a player
    */
   app.get("/api/amm/:playerId", async (req, res) => {
     try {
@@ -53,7 +53,23 @@ export function registerAmmRoutes(app: Express) {
         });
       }
 
-      const pool = await getOrCreatePool(playerId);
+      const pool = await getPool(playerId);
+      if (!pool) {
+        return res.json({
+          playerId,
+          poolInitialized: false,
+          shares: 0,
+          playMoney: 0,
+          currentPrice: 0,
+          totalVolume: 0,
+          totalTrades: 0,
+          k: 0,
+          lpSharesTotal: 0,
+          feesAccumulated: 0,
+          feeGrowthPerLpShare: 0,
+        });
+      }
+
       console.log(`[AMM API] Pool found for ${playerId}:`, {
         shares: pool.shares,
         playMoney: pool.playMoney,
@@ -61,12 +77,16 @@ export function registerAmmRoutes(app: Express) {
 
       res.json({
         playerId: pool.playerId,
+        poolInitialized: true,
         shares: pool.shares,
         playMoney: pool.playMoney,
         currentPrice: pool.currentPrice,
         totalVolume: pool.totalVolume,
         totalTrades: pool.totalTrades,
         k: pool.k,
+        lpSharesTotal: pool.lpSharesTotal,
+        feesAccumulated: pool.feesAccumulated,
+        feeGrowthPerLpShare: pool.feeGrowthPerLpShare,
       });
     } catch (error: any) {
       console.error("[AMM API] Error getting pool:", error);
@@ -102,7 +122,13 @@ export function registerAmmRoutes(app: Express) {
         return res.status(400).json({ error: "Invalid type. Must be 'buy' or 'sell'" });
       }
 
-      const pool = await getOrCreatePool(playerId);
+      const pool = await getPool(playerId);
+      if (!pool) {
+        return res.status(409).json({
+          error: POOL_NOT_INITIALIZED_MESSAGE,
+          code: "POOL_NOT_INITIALIZED",
+        });
+      }
 
       if (tradeType === "buy") {
         const quote = await getBuyQuote(playerId, tradeAmount);
@@ -172,6 +198,12 @@ export function registerAmmRoutes(app: Express) {
       const result = await executeBuy(playerId, userId, amount, maxSlippageDecimal);
 
       if (!result.success) {
+        if (isPoolNotInitializedErrorMessage(result.error)) {
+          return res.status(409).json({
+            error: POOL_NOT_INITIALIZED_MESSAGE,
+            code: "POOL_NOT_INITIALIZED",
+          });
+        }
         return res.status(400).json({ error: result.error });
       }
 
@@ -185,6 +217,12 @@ export function registerAmmRoutes(app: Express) {
       });
     } catch (error: any) {
       console.error("[AMM API] Error executing buy:", error);
+      if (isPoolNotInitializedErrorMessage(error?.message)) {
+        return res.status(409).json({
+          error: POOL_NOT_INITIALIZED_MESSAGE,
+          code: "POOL_NOT_INITIALIZED",
+        });
+      }
       res.status(500).json({ error: error.message });
     }
   });
@@ -220,6 +258,12 @@ export function registerAmmRoutes(app: Express) {
       const result = await executeSell(playerId, userId, amount, maxSlippageDecimal);
 
       if (!result.success) {
+        if (isPoolNotInitializedErrorMessage(result.error)) {
+          return res.status(409).json({
+            error: POOL_NOT_INITIALIZED_MESSAGE,
+            code: "POOL_NOT_INITIALIZED",
+          });
+        }
         return res.status(400).json({ error: result.error });
       }
 
@@ -235,6 +279,12 @@ export function registerAmmRoutes(app: Express) {
       });
     } catch (error: any) {
       console.error("[AMM API] Error executing sell:", error);
+      if (isPoolNotInitializedErrorMessage(error?.message)) {
+        return res.status(409).json({
+          error: POOL_NOT_INITIALIZED_MESSAGE,
+          code: "POOL_NOT_INITIALIZED",
+        });
+      }
       res.status(500).json({ error: error.message });
     }
   });

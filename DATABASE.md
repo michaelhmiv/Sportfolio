@@ -1,6 +1,7 @@
 # Database Configuration
 
-This project uses **environment-based database switching** for safe development.
+This project uses strict environment-based database switching to avoid local sessions
+accidentally pointing at production.
 
 ## Quick Reference
 
@@ -11,29 +12,30 @@ This project uses **environment-based database switching** for safe development.
 
 ## How It Works
 
-```
-NODE_ENV === 'production' → DATABASE_URL (Supabase)
-NODE_ENV !== 'production' → DEV_DATABASE_URL (fallback to DATABASE_URL)
+```text
+NODE_ENV === 'production' -> DATABASE_URL (Supabase)
+NODE_ENV !== 'production' -> DEV_DATABASE_URL (no fallback to DATABASE_URL)
 ```
 
 ## Local Development Setup
 
-1. **Start Docker PostgreSQL:**
+1. Start Docker PostgreSQL:
 
-   ```bash
-   docker-compose -f docker-compose.dev.yml up -d
-   ```
+```bash
+docker-compose -f docker-compose.dev.yml up -d
+```
 
-2. **Add to `.env`:**
+2. Add to `.env`:
 
-   ```
-   DEV_DATABASE_URL=postgresql://postgres:devpassword@localhost:5433/sportfolio_dev
-   ```
+```text
+DEV_DATABASE_URL=postgresql://postgres:devpassword@localhost:5433/sportfolio_dev
+```
 
-3. **Run migrations:**
-   ```bash
-   npm run db:push
-   ```
+3. Run migrations:
+
+```bash
+npm run db:push
+```
 
 See [/.agent/workflows/local-dev-database.md](.agent/workflows/local-dev-database.md) for full documentation.
 
@@ -46,5 +48,5 @@ See [/.agent/workflows/local-dev-database.md](.agent/workflows/local-dev-databas
 
 When running `npm run db:push`, look for:
 
-- ✅ `[Drizzle] Using DEVELOPMENT database`
-- ⚠️ `[Drizzle] Using PRODUCTION database`
+- `[Drizzle] Using DEVELOPMENT database`
+- `[Drizzle] Using PRODUCTION database`

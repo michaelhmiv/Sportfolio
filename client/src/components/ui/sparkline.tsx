@@ -12,9 +12,19 @@ interface SparklineProps {
  * Lightweight pure-SVG price sparkline.
  * Renders a 7-day (or N-point) mini line chart with no Recharts dependency.
  */
-export function Sparkline({ points, width = 48, height = 24, positive, className }: SparklineProps) {
+export function Sparkline({
+  points,
+  width = 48,
+  height = 24,
+  positive,
+  className,
+}: SparklineProps) {
   if (!points || points.length < 2) {
-    return <span className={cn("inline-block opacity-30 text-muted-foreground text-[10px]", className)}>–</span>;
+    return (
+      <span className={cn("inline-block opacity-30 text-muted-foreground text-[10px]", className)}>
+        –
+      </span>
+    );
   }
 
   const min = Math.min(...points);
@@ -39,7 +49,14 @@ export function Sparkline({ points, width = 48, height = 24, positive, className
       className={cn("inline-block flex-shrink-0", className)}
       aria-hidden="true"
     >
-      <path d={pathD} fill="none" stroke={stroke} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d={pathD}
+        fill="none"
+        stroke={stroke}
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }

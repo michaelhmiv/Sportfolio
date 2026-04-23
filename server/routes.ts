@@ -73,7 +73,7 @@ import {
   getMarketActivitySourceFetchWindow,
 } from "./market-activity-feed";
 import { registerMarketMobileRoutes } from "./routes/market-mobile";
-import { getOrCreatePool, initializePool } from "./amm/pool";
+import { getPool } from "./amm/pool";
 import { normalizeSiteUrl } from "@shared/seo";
 import { ensureSmsSchema } from "./sms-service";
 import { ensureDiscordSchema } from "./discord-service";
@@ -157,10 +157,6 @@ import { getBotStats, runBotEngineTick } from "./bot/bot-engine";
 import { getHermesBotRuntimeStatus } from "./bot/runtime";
 
 const SUPPORTED_SPORTS = ["NBA", "NFL", "MLB", "NASCAR"] as const;
-const LEGACY_POOL_SHARES = 1000;
-const LEGACY_POOL_PLAY_MONEY = 10000;
-const LEGACY_POOL_LP_SHARES = 1000;
-
 function toNumber(value: string | number | null | undefined): number {
   if (typeof value === "number") {
     return Number.isFinite(value) ? value : 0;
@@ -4838,7 +4834,7 @@ ${items}
     }
   });
 
-// Get all players with advanced filtering
+  // Get all players with advanced filtering
   app.get("/api/players", async (req, res) => {
     try {
       const {
@@ -5541,8 +5537,8 @@ ${items}
 
       // AMM-only parity: player page price should match pool spot price
       if (isAmmOnlyMode) {
-        const pool = await getOrCreatePool(player.id);
-        player.lastTradePrice = pool.currentPrice.toFixed(2);
+        const pool = await getPool(player.id);
+        player.lastTradePrice = pool ? pool.currentPrice.toFixed(2) : null;
       }
 
       // Parse time range for chart data (1D, 1W, 1M, 1Y)
@@ -8644,11 +8640,11 @@ ${items}
     }
   });
 
-  // Admin endpoint: Seed missing pools and repair unseeded legacy pools
+  // Admin endpoint kept for compatibility; pool seeding is intentionally disabled.
   app.post("/api/admin/seed-missing-pools", adminAuth, async (req, res) => {
     try {
       const clientIp = req.ip || req.connection.remoteAddress;
-      console.log(`[ADMIN] Seed missing pools requested by ${clientIp}`);
+      console.log(`[ADMIN] Seed missing pools requested by ${clientIp} (disabled endpoint)`);
 
       const missingPools = await db
         .select({ id: players.id })
@@ -8656,73 +8652,37 @@ ${items}
         .leftJoin(playerPools, eq(playerPools.playerId, players.id))
         .where(and(eq(players.isActive, true), sql`${playerPools.playerId} IS NULL`));
 
-      const unseededPools = await db
-        .select({ id: players.id })
-        .from(players)
-        .innerJoin(playerPools, eq(playerPools.playerId, players.id))
-        .where(
-          and(
-            eq(players.isActive, true),
-            eq(playerPools.totalTrades, 0),
-            sql`(
-              CAST(${playerPools.shares} AS numeric) <= 0
-              OR CAST(${playerPools.playMoney} AS numeric) <= 0
-              OR CAST(${playerPools.k} AS numeric) <= 0
-              OR CAST(${playerPools.lpSharesTotal} AS numeric) <= 0
-              OR ABS(
-                (CAST(${playerPools.shares} AS numeric) * CAST(${playerPools.playMoney} AS numeric))
-                - CAST(${playerPools.k} AS numeric)
-              ) > 0.01
-              OR (
-                CAST(${playerPools.shares} AS numeric) = ${LEGACY_POOL_SHARES}
-                AND CAST(${playerPools.playMoney} AS numeric) = ${LEGACY_POOL_PLAY_MONEY}
-                AND CAST(${playerPools.lpSharesTotal} AS numeric) = ${LEGACY_POOL_LP_SHARES}
-              )
-            )`,
-          ),
-        );
+      const uninitializedCount = missingPools.length;
+      const uninitializedPlayerIds = missingPools.map((entry) => entry.id);
+      const normalizedPlayers =
+        uninitializedPlayerIds.length === 0
+          ? []
+          : await db
+              .update(players)
+              .set({
+                currentPrice: "0.00",
+                lastTradePrice: null,
+                marketCap: "0.00",
+                volume24h: 0,
+                priceChange24h: "0.00",
+                lastUpdated: new Date(),
+              })
+              .where(inArray(players.id, uninitializedPlayerIds))
+              .returning({ id: players.id });
 
-      const missingPoolIds = new Set(missingPools.map((p) => p.id));
-      const repairPoolIds = new Set(unseededPools.map((p) => p.id));
-      const playerIds = Array.from(
-        new Set([...Array.from(missingPoolIds), ...Array.from(repairPoolIds)]),
-      );
-
-      let seededCount = 0;
-      let repairedCount = 0;
-      const failed: Array<{ playerId: string; action: "seed" | "repair"; error: string }> = [];
-
-      for (const playerId of playerIds) {
-        const action: "seed" | "repair" = missingPoolIds.has(playerId) ? "seed" : "repair";
-        try {
-          await initializePool(playerId);
-          if (action === "seed") {
-            seededCount += 1;
-          } else {
-            repairedCount += 1;
-          }
-        } catch (error: any) {
-          failed.push({ playerId, action, error: error.message || "Unknown error" });
-        }
-      }
-
-      const statusCode = failed.length > 0 ? 207 : 200;
       invalidateAdminStatsCache();
 
-      const successSummary = `Seeded ${seededCount} missing pools and repaired ${repairedCount} unseeded pools`;
-
-      res.status(statusCode).json({
-        ok: failed.length === 0,
-        status: failed.length > 0 ? "degraded" : "success",
+      res.status(200).json({
+        ok: true,
+        status: "disabled",
         message:
-          failed.length > 0 ? `${successSummary} with ${failed.length} failures` : successSummary,
-        totalCandidates: playerIds.length,
-        totalMissingPools: missingPoolIds.size,
-        totalRepairCandidates: repairPoolIds.size,
-        seededCount,
-        repairedCount,
-        failedCount: failed.length,
-        failed,
+          "Pool seeding is disabled. Active players without pools now remain uninitialized at $0.00 until users add liquidity.",
+        totalMissingPools: uninitializedCount,
+        normalizedPlayers: normalizedPlayers.length,
+        seededCount: 0,
+        repairedCount: 0,
+        failedCount: 0,
+        failed: [],
         adminContext: (req as any).adminContext || null,
       });
     } catch (error: any) {
