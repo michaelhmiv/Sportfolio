@@ -19,7 +19,7 @@ import { OnboardingModal } from "@/components/onboarding-modal";
 import Dashboard from "@/pages/dashboard";
 import { AnimatePresence, motion } from "framer-motion";
 import logoUrl from "@assets/Sportfolio png_1763227952318.png";
-import { BookOpen, Bot, LogOut, Newspaper, User } from "lucide-react";
+import { BookOpen, LogOut, Newspaper, User } from "lucide-react";
 import { SiDiscord } from "react-icons/si";
 import { SchemaOrg, schemas } from "@/components/schema-org";
 import { ScoutWidget } from "@/components/scout-widget";
@@ -31,6 +31,8 @@ import { InjuryProvider } from "@/lib/injury-context";
 import { ScoutCeremonyOverlay } from "@/components/ceremonies/scout-ceremony-overlay";
 import { ScoutReadyBanner } from "@/components/ceremonies/scout-ready-banner";
 import { useScoutCeremony } from "@/hooks/use-scout-ceremony";
+import { useBoostSettleCeremony } from "@/hooks/use-boost-settle-ceremony";
+import { BoostCeremonyOverlay } from "@/components/ceremonies/boost-ceremony-overlay";
 import { WhaleAlertBanner } from "@/components/market/whale-alert-banner";
 import { PlayerModal } from "@/components/player-modal";
 import { OPEN_PLAYER_MODAL_EVENT } from "@/lib/player-modal-events";
@@ -675,18 +677,6 @@ function Header() {
         </Button>
         {isAuthenticated ? (
           <>
-            <Button
-              size="icon"
-              variant="ghost"
-              asChild
-              className="hidden sm:inline-flex"
-              data-testid="button-agent-header"
-              title="Agent"
-            >
-              <Link href="/agent">
-                <Bot className="h-4 w-4" />
-              </Link>
-            </Button>
             <Link
               href={user?.id ? `/user/${user.id}` : "/profile"}
               className="hidden sm:block"
@@ -742,6 +732,36 @@ function Header() {
       </div>
     </header>
   );
+}
+
+function GlobalBoostCeremonyManager() {
+  const { isShowing, data, handleBoostSettled, closeCeremony } = useBoostSettleCeremony();
+  const { subscribe } = useWebSocket();
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if (!user) return;
+    const unsub = subscribe("boost_settled", (payload: any) => {
+      // Only show ceremony for the current user's boosts
+      if (payload.userId && payload.userId !== user.id) return;
+      handleBoostSettled(payload);
+    });
+    return unsub;
+  }, [subscribe, user, handleBoostSettled]);
+
+  if (!data) return null;
+
+  // BoostCeremonyOverlay expects BoostCeremonyData shape
+  const ceremonyData = {
+    playerName: data.playerName,
+    playerTeam: data.playerTeam,
+    slotTier: data.slotTier,
+    shareMultiplier: data.shareMultiplier,
+    totalMultiplier: data.totalMultiplier,
+    sharesBurned: data.sharesBurned,
+  };
+
+  return <BoostCeremonyOverlay isOpen={isShowing} data={ceremonyData} onClose={closeCeremony} />;
 }
 
 function ScoutCeremonyManager() {
@@ -852,6 +872,7 @@ function AppContent() {
       <OnboardingCheck />
       <ScoutDashboardModal />
       <ScoutCeremonyManager />
+      <GlobalBoostCeremonyManager />
       <WhaleAlertBanner />
       <GlobalPlayerModalHost />
     </SidebarProvider>

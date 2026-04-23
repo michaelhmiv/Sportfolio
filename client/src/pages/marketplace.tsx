@@ -20,13 +20,19 @@ import {
   X,
   Activity,
   ShoppingCart,
+  Radio,
+  Flame,
+  Users,
 } from "lucide-react";
+import { Sparkline } from "@/components/ui/sparkline";
+import { AnimatedPrice } from "@/components/ui/animated-price";
 import { useWebSocket } from "@/lib/websocket";
 import { queryClient } from "@/lib/queryClient";
 import type { Player } from "@shared/schema";
 import { PlayerName } from "@/components/player-name";
 import { SportSelector } from "@/components/sport-selector";
 import { MarketActivityLedger } from "@/components/market-activity-ledger";
+import { MarketActivityWidget } from "@/components/market-activity-widget";
 import { MlbProbableBadge } from "@/components/mlb-probable-badge";
 import { MarketplaceScanners } from "@/components/marketplace-scanners";
 import { MarketMobilePoolsBoard } from "@/components/market-mobile-pools-board";
@@ -323,6 +329,20 @@ export default function PlayerPools() {
   const totalPlayers = playersData?.total || 0;
   const totalPages = Math.ceil(totalPlayers / ITEMS_PER_PAGE);
 
+  // Batch sparkline fetch for all visible players
+  const playerIdKey = players.map((p) => p.id).join(",");
+  const { data: sparklines = {} } = useQuery<Record<string, number[]>>({
+    queryKey: ["/api/players/sparklines", playerIdKey],
+    queryFn: async () => {
+      if (!playerIdKey) return {};
+      const res = await fetch(`/api/players/sparklines?ids=${playerIdKey}&days=7`);
+      if (!res.ok) return {};
+      return res.json();
+    },
+    enabled: players.length > 0,
+    staleTime: 5 * 60 * 1000,
+  });
+
   useEffect(() => {
     if (!selectedMobilePlayer) {
       return;
@@ -481,18 +501,20 @@ export default function PlayerPools() {
           )}
         </div>
 
-        <div className="hidden md:block">
+        <div className="hidden md:flex gap-4 items-start">
+          {/* Main content: tabs with player list and (on md/lg) activity tab */}
+          <div className="flex-1 min-w-0">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
             <div className="flex items-center gap-2">
               <TabsList
                 variant="terminal"
-                className="grid flex-1 grid-cols-2 sm:w-auto sm:inline-flex sm:flex-none"
+                className="grid flex-1 grid-cols-2 sm:w-auto sm:inline-flex sm:flex-none xl:grid-cols-1 xl:flex"
               >
                 <TabsTrigger variant="terminal" value="players" className="gap-2">
                   <Activity className="w-4 h-4" />
                   Players
                 </TabsTrigger>
-                <TabsTrigger variant="terminal" value="activity" className="gap-2">
+                <TabsTrigger variant="terminal" value="activity" className="gap-2 xl:hidden">
                   <TrendingUp className="w-4 h-4" />
                   Activity
                 </TabsTrigger>
@@ -681,6 +703,9 @@ export default function PlayerPools() {
                                   <SortIcon field="price" />
                                 </div>
                               </th>
+                              <th className="text-right p-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground hidden lg:table-cell">
+                                7d
+                              </th>
                               <th
                                 className="text-right p-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground cursor-pointer hover:bg-muted/80"
                                 onClick={() => toggleSort("volume")}
@@ -714,10 +739,27 @@ export default function PlayerPools() {
                             </tr>
                           </thead>
                           <tbody>
-                            {players.map((player) => (
+                            {players.map((player) => {
+                              const change24h = parseFloat(player.priceChange24h || "0");
+                              const isLive = player.gameStatus === "live";
+                              const hasBuyPressure =
+                                (player.buyPressure ?? 0) >= 60;
+                              const hasCommunityBoost =
+                                (player.communityBoostCount ?? 0) > 0;
+                              const rowBorderClass =
+                                change24h > 0
+                                  ? "border-l-2 border-l-emerald-500/50"
+                                  : change24h < 0
+                                    ? "border-l-2 border-l-red-500/40"
+                                    : "";
+                              return (
                               <tr
                                 key={player.id}
-                                className="border-b border-border hover:bg-muted/20"
+                                className={cn(
+                                  "border-b border-border hover:bg-muted/20 transition-colors",
+                                  rowBorderClass,
+                                  isLive && "bg-emerald-500/[0.03]",
+                                )}
                               >
                                 <td className="p-3">
                                   <button
@@ -745,8 +787,31 @@ export default function PlayerPools() {
                                       <div className="font-mono text-[11px] text-muted-foreground">
                                         {player.team} • {player.position}
                                       </div>
-                                      {player.isProbableStarter || player.mlbMatchupChip ? (
+                                      {/* Market signal chips */}
+                                      {(isLive ||
+                                        hasBuyPressure ||
+                                        hasCommunityBoost ||
+                                        player.isProbableStarter ||
+                                        player.mlbMatchupChip) ? (
                                         <div className="mt-1 flex flex-wrap gap-1">
+                                          {isLive && (
+                                            <span className="inline-flex items-center gap-0.5 rounded-sm border border-emerald-500/40 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-500">
+                                              <Radio className="w-2.5 h-2.5" />
+                                              Live
+                                            </span>
+                                          )}
+                                          {hasBuyPressure && (
+                                            <span className="inline-flex items-center gap-0.5 rounded-sm border border-orange-500/30 bg-orange-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-orange-500">
+                                              <Flame className="w-2.5 h-2.5" />
+                                              Buy
+                                            </span>
+                                          )}
+                                          {hasCommunityBoost && (
+                                            <span className="inline-flex items-center gap-0.5 rounded-sm border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-500">
+                                              <Users className="w-2.5 h-2.5" />
+                                              {player.communityBoostCount}x
+                                            </span>
+                                          )}
                                           {player.isProbableStarter ? (
                                             <MlbProbableBadge compact />
                                           ) : null}
@@ -764,9 +829,19 @@ export default function PlayerPools() {
                                   </button>
                                 </td>
                                 <td className="p-3 text-right">
-                                  <div className="font-mono font-medium">
-                                    ${player.currentPrice || "0.00"}
-                                  </div>
+                                  <AnimatedPrice
+                                    value={parseFloat(player.currentPrice?.toString() || "0")}
+                                    size="sm"
+                                    className="font-mono font-medium justify-end"
+                                  />
+                                </td>
+                                <td className="p-3 text-right hidden lg:table-cell">
+                                  <Sparkline
+                                    points={sparklines[player.id] ?? []}
+                                    positive={change24h >= 0}
+                                    width={48}
+                                    height={22}
+                                  />
                                 </td>
                                 <td className="p-3 text-right text-sm text-muted-foreground">
                                   {player.volume24h?.toLocaleString() || 0}
@@ -775,13 +850,13 @@ export default function PlayerPools() {
                                   <div
                                     className={cn(
                                       "font-mono text-sm",
-                                      parseFloat(player.priceChange24h || "0") >= 0
+                                      change24h >= 0
                                         ? "text-positive"
                                         : "text-negative",
                                     )}
                                   >
-                                    {parseFloat(player.priceChange24h || "0") >= 0 ? "+" : ""}
-                                    {parseFloat(player.priceChange24h || "0").toFixed(2)}%
+                                    {change24h >= 0 ? "+" : ""}
+                                    {change24h.toFixed(2)}%
                                   </div>
                                 </td>
                                 <td className="p-3 text-right text-sm text-muted-foreground hidden lg:table-cell">
@@ -806,7 +881,8 @@ export default function PlayerPools() {
                                   </Button>
                                 </td>
                               </tr>
-                            ))}
+                              );
+                            })}
                           </tbody>
                         </table>
                       </div>
@@ -909,10 +985,16 @@ export default function PlayerPools() {
               </Card>
             </TabsContent>
 
-            <TabsContent value="activity">
+            <TabsContent value="activity" className="xl:hidden">
               <MarketActivityLedger sport={sport} />
             </TabsContent>
           </Tabs>
+          </div>
+
+          {/* Persistent Market Feed sidebar — always visible on xl+ screens */}
+          <div className="hidden xl:flex flex-col w-72 flex-shrink-0 sticky top-4 gap-4">
+            <MarketActivityWidget sport={sport} title="Market Feed" limit={15} className="h-full" />
+          </div>
         </div>
 
         <PlayerModal

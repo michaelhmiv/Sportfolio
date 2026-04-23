@@ -130,6 +130,7 @@ async function finalizeBoostWithoutStats(input: {
     },
   });
 
+  const player = await storage.getPlayer(input.boost.playerId);
   broadcast({
     type: "boost_settled",
     userId: input.boost.userId,
@@ -137,6 +138,12 @@ async function finalizeBoostWithoutStats(input: {
     payout: "0.00",
     fantasyPoints: 0,
     multiplier: effectiveMultiplier,
+    slotTier: input.boost.slotTier,
+    shareMultiplier: parseFloat(input.boost.shareMultiplier ?? "1"),
+    sharesBurned: input.boost.sharesEntered,
+    playerFirstName: player?.firstName ?? "",
+    playerLastName: player?.lastName ?? "",
+    playerTeam: player?.team ?? "",
   });
 }
 
@@ -341,6 +348,7 @@ export async function settleBoosts(progressCallback?: ProgressCallback): Promise
         });
 
         // Broadcast settlement to user
+        const player = await storage.getPlayer(boost.playerId);
         broadcast({
           type: "boost_settled",
           userId: boost.userId,
@@ -348,6 +356,12 @@ export async function settleBoosts(progressCallback?: ProgressCallback): Promise
           payout: payout.toFixed(2),
           fantasyPoints,
           multiplier: effectiveMultiplier,
+          slotTier: boost.slotTier,
+          shareMultiplier: parseFloat(boost.shareMultiplier?.toString() ?? "1"),
+          sharesBurned: boost.sharesEntered,
+          playerFirstName: player?.firstName ?? "",
+          playerLastName: player?.lastName ?? "",
+          playerTeam: player?.team ?? "",
         });
       } catch (boostError: any) {
         console.error(`[settle_boosts] Error settling boost ${boost.id}:`, boostError.message);
@@ -482,6 +496,7 @@ export async function settleBoosts(progressCallback?: ProgressCallback): Promise
             });
 
             // Broadcast settlement to user
+            const player = await storage.getPlayer(boost.playerId);
             broadcast({
               type: "boost_settled",
               userId: boost.userId,
@@ -489,6 +504,12 @@ export async function settleBoosts(progressCallback?: ProgressCallback): Promise
               payout: payout.toFixed(2),
               fantasyPoints,
               multiplier: effectiveMultiplier,
+              slotTier: boost.slotTier,
+              shareMultiplier: parseFloat(boost.shareMultiplier?.toString() ?? "1"),
+              sharesBurned: boost.sharesEntered,
+              playerFirstName: player?.firstName ?? "",
+              playerLastName: player?.lastName ?? "",
+              playerTeam: player?.team ?? "",
             });
           } catch (retryError: any) {
             console.error(`[settle_boosts] Retry error for boost ${boost.id}:`, retryError.message);

@@ -56,6 +56,7 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  Legend,
 } from "recharts";
 import { apiRequest, queryClient, authenticatedFetch } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -151,6 +152,7 @@ export default function Portfolio() {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState("holdings");
   const [chartTimeRange, setChartTimeRange] = useState("1M");
+  const [benchmarkPlayerId, setBenchmarkPlayerId] = useState<string | null>(null);
   const [sortField, setSortField] = useState<SortField>("value");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [lpSortField, setLpSortField] = useState<LpSortField>("value");
@@ -301,6 +303,67 @@ export default function Portfolio() {
       return res.json();
     },
   });
+
+  // Benchmark player price overlay
+  const RANGE_DAYS: Record<string, number> = {
+    "1D": 1,
+    "7D": 7,
+    "1M": 30,
+    "1Y": 365,
+    ALL: 3650,
+  };
+  const { data: benchmarkRaw } = useQuery<Record<string, Array<{ date: string; price: number }>>>({
+    queryKey: ["/api/players/sparklines/dated", benchmarkPlayerId, chartTimeRange],
+    queryFn: async () => {
+      const days = RANGE_DAYS[chartTimeRange] ?? 30;
+      const res = await fetch(
+        `/api/players/sparklines?ids=${benchmarkPlayerId}&days=${days}&dates=true`,
+      );
+      if (!res.ok) return {};
+      return res.json();
+    },
+    enabled: !!benchmarkPlayerId,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Merge benchmark prices into chart history by closest date
+  const mergedChartData = useMemo(() => {
+    const history = chartData?.history ?? [];
+    if (!benchmarkPlayerId || !benchmarkRaw?.[benchmarkPlayerId]?.length) {
+      return history;
+    }
+    const priceMap = new Map<string, number>();
+    for (const point of benchmarkRaw[benchmarkPlayerId]) {
+      const day = point.date.split("T")[0];
+      // price_history rows are ordered by timestamp ascending; later points for the same
+      // calendar day overwrite earlier ones, so we end up with the last recorded price per day
+      priceMap.set(day, point.price);
+    }
+    return history.map((pt) => ({
+      ...pt,
+      benchmarkPrice: priceMap.get(pt.date.split("T")[0]) ?? null,
+    }));
+  }, [chartData, benchmarkPlayerId, benchmarkRaw]);
+
+  // Unique held players for the benchmark selector
+  const heldPlayers = useMemo(() => {
+    const seen = new Set<string>();
+    return (data?.holdings ?? []).reduce(
+      (acc, h) => {
+        if (!seen.has(h.playerId)) {
+          seen.add(h.playerId);
+          acc.push({
+            id: h.playerId,
+            name: h.player
+              ? `${h.player.firstName} ${h.player.lastName}`
+              : h.playerId,
+          });
+        }
+        return acc;
+      },
+      [] as { id: string; name: string }[],
+    );
+  }, [data?.holdings]);
 
   // Clear notifications when viewing Activity tab
   useEffect(() => {
@@ -881,25 +944,45 @@ export default function Portfolio() {
             <CardTitle className="text-sm font-medium uppercase tracking-wide">
               Portfolio Value
             </CardTitle>
-            <div className="flex gap-1">
-              {["1D", "7D", "1M", "1Y", "ALL"].map((range) => (
-                <Button
-                  key={range}
-                  variant={chartTimeRange === range ? "terminal" : "terminalOutline"}
-                  size="sm"
-                  onClick={() => setChartTimeRange(range)}
-                  className="h-7 px-2 text-xs"
-                  data-testid={`button-chart-${range.toLowerCase()}`}
+            <div className="flex items-center gap-2 flex-wrap justify-end">
+              {heldPlayers.length > 0 && (
+                <Select
+                  value={benchmarkPlayerId ?? "none"}
+                  onValueChange={(v) => setBenchmarkPlayerId(v === "none" ? null : v)}
                 >
-                  {range}
-                </Button>
-              ))}
+                  <SelectTrigger className="h-7 w-36 text-xs border-border/50">
+                    <SelectValue placeholder="vs. player…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No comparison</SelectItem>
+                    {heldPlayers.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              <div className="flex gap-1">
+                {["1D", "7D", "1M", "1Y", "ALL"].map((range) => (
+                  <Button
+                    key={range}
+                    variant={chartTimeRange === range ? "terminal" : "terminalOutline"}
+                    size="sm"
+                    onClick={() => setChartTimeRange(range)}
+                    className="h-7 px-2 text-xs"
+                    data-testid={`button-chart-${range.toLowerCase()}`}
+                  >
+                    {range}
+                  </Button>
+                ))}
+              </div>
             </div>
           </CardHeader>
           <CardContent className="pt-2 relative z-10">
             {chartData && chartData.history.length > 0 ? (
               <ResponsiveContainer width="100%" height={200}>
-                <LineChart data={chartData.history}>
+                <LineChart data={mergedChartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                   <XAxis
                     dataKey="date"
@@ -911,10 +994,20 @@ export default function Portfolio() {
                     }}
                   />
                   <YAxis
+                    yAxisId="left"
                     stroke="hsl(var(--muted-foreground))"
                     fontSize={10}
                     tickFormatter={(value) => `$${value.toFixed(0)}`}
                   />
+                  {benchmarkPlayerId && (
+                    <YAxis
+                      yAxisId="right"
+                      orientation="right"
+                      stroke="#f59e0b"
+                      fontSize={10}
+                      tickFormatter={(value) => `$${parseFloat(value).toFixed(2)}`}
+                    />
+                  )}
                   <Tooltip
                     contentStyle={{
                       backgroundColor: "hsl(var(--card))",
@@ -922,16 +1015,22 @@ export default function Portfolio() {
                       borderRadius: "6px",
                       fontSize: "12px",
                     }}
-                    formatter={(value: any) => [
-                      `$${parseFloat(value).toFixed(2)}`,
-                      "Portfolio Value",
-                    ]}
+                    formatter={(value: any, name: string) => {
+                      const formatted = `$${parseFloat(value).toFixed(2)}`;
+                      if (name === "benchmarkPrice") {
+                        const player = heldPlayers.find((p) => p.id === benchmarkPlayerId);
+                        return [formatted, player?.name ?? "Player"];
+                      }
+                      return [formatted, "Portfolio Value"];
+                    }}
                     labelFormatter={(value) => {
                       const date = new Date(value);
                       return date.toLocaleDateString();
                     }}
                   />
+                  {benchmarkPlayerId && <Legend />}
                   <Line
+                    yAxisId="left"
                     type="monotone"
                     dataKey="portfolioValue"
                     stroke="hsl(var(--primary))"
@@ -940,7 +1039,22 @@ export default function Portfolio() {
                     isAnimationActive={true}
                     animationDuration={1200}
                     animationEasing="ease-out"
+                    name="Portfolio"
                   />
+                  {benchmarkPlayerId && (
+                    <Line
+                      yAxisId="right"
+                      type="monotone"
+                      dataKey="benchmarkPrice"
+                      stroke="#f59e0b"
+                      strokeWidth={1.5}
+                      strokeDasharray="4 2"
+                      dot={false}
+                      connectNulls={true}
+                      isAnimationActive={false}
+                      name={heldPlayers.find((p) => p.id === benchmarkPlayerId)?.name ?? "Player"}
+                    />
+                  )}
                 </LineChart>
               </ResponsiveContainer>
             ) : (

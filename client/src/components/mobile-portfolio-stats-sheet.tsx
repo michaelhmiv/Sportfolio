@@ -114,6 +114,20 @@ export function MobilePortfolioStatsSheet({
               {formatAdaptiveCurrency(netWorthValue)}
             </span>
           </span>
+          {user.change24h.amount !== null && (
+            <>
+              <span className="h-3 w-px bg-[#2a2e39]" />
+              <span
+                className={cn(
+                  "text-[11px] font-semibold font-mono tabular-nums",
+                  getChangeClassName(user.change24h.amount),
+                )}
+                data-testid="text-mobile-portfolio-trigger-24h"
+              >
+                {formatSignedCurrency(user.change24h.amount)}
+              </span>
+            </>
+          )}
         </button>
       </DrawerTrigger>
 

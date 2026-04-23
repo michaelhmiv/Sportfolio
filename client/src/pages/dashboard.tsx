@@ -41,6 +41,8 @@ import {
   Activity,
   Trophy,
   Clock,
+  ShoppingCart,
+  Radio,
 } from "lucide-react";
 import { useAppState } from "@/hooks/use-app-state";
 import { Link, useLocation } from "wouter";
@@ -69,6 +71,8 @@ import type {
 import { MobilePortfolioStatsSheet } from "@/components/mobile-portfolio-stats-sheet";
 import { MlbProbableBadge } from "@/components/mlb-probable-badge";
 import type { GameInsight, GameInsightsResponse } from "@/types/game-insights";
+import { AnimatedPrice } from "@/components/ui/animated-price";
+import { cn } from "@/lib/utils";
 
 interface NetWorthChangeSummary {
   amount: number | null;
@@ -134,6 +138,179 @@ const formatCompactPitcherName = (name: string | null | undefined) => {
   if (parts.length <= 1) return trimmed;
   return `${parts[0].charAt(0)}. ${parts[parts.length - 1]}`;
 };
+
+// ──────────────────────────────────────────────────────────────
+// Active Positions Today
+// Cross-references the user's top holdings with today's game slate.
+// Shows players you own who are active today with live market context.
+// ──────────────────────────────────────────────────────────────
+interface ActivePositionsTodayProps {
+  topHoldings: DashboardData["topHoldings"];
+  slatePlayers: DashboardShowcaseSlatePlayer[];
+  eligiblePlayers: DashboardShowcaseEligiblePlayer[];
+  onTrade: (playerId: string) => void;
+}
+
+function ActivePositionsToday({
+  topHoldings,
+  slatePlayers,
+  eligiblePlayers,
+  onTrade,
+}: ActivePositionsTodayProps) {
+  const slatePlayerIds = new Set(slatePlayers.map((sp) => sp.playerId));
+  const eligibleSet = new Map(
+    eligiblePlayers.map((ep) => [ep.playerId, ep]),
+  );
+
+  // Positions the user owns that appear on today's slate
+  const activePositions = topHoldings.filter((h) => slatePlayerIds.has(h.player.id));
+
+  if (activePositions.length === 0) return null;
+
+  const getLiveSlateStatus = (playerId: string) => {
+    const slateEntry = slatePlayers.find((sp) => sp.playerId === playerId);
+    return slateEntry?.status ?? null;
+  };
+
+  const getChangeClass = (val: string | null | undefined) => {
+    const n = parseFloat(val ?? "0");
+    if (n > 0) return "text-emerald-500";
+    if (n < 0) return "text-red-500";
+    return "text-muted-foreground";
+  };
+
+  return (
+    <ScrollReveal delay={0.08}>
+      <Card className="relative overflow-hidden">
+        <CardAccent variant="left" color="primary" intensity="medium" />
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative z-10">
+          <CardTitle className="text-sm font-medium uppercase tracking-wide flex items-center gap-1.5">
+            <Radio className="h-3.5 w-3.5 text-primary" />
+            Your Positions Today
+          </CardTitle>
+          <Badge variant="outline" className="font-mono text-[10px]">
+            {activePositions.length}
+          </Badge>
+        </CardHeader>
+        <CardContent className="relative z-10 p-0">
+          <div className="divide-y divide-border/60">
+            {activePositions.slice(0, 5).map((holding) => {
+              const slateStatus = getLiveSlateStatus(holding.player.id);
+              const isLiveGame = slateStatus === "inprogress";
+              const eligibleEntry = eligibleSet.get(holding.player.id);
+              const isBoostEligible =
+                eligibleEntry &&
+                !eligibleEntry.isAlreadyBoosted &&
+                eligibleEntry.availableShares > 0;
+              const price = parseFloat(
+                holding.player.lastTradePrice ??
+                  holding.player.currentPrice ??
+                  "0",
+              );
+              const change24h = parseFloat(
+                holding.player.priceChange24h ?? "0",
+              );
+
+              return (
+                <div
+                  key={holding.player.id}
+                  className={cn(
+                    "flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-muted/20",
+                    isLiveGame && "bg-emerald-500/[0.03]",
+                  )}
+                >
+                  {/* Status indicator */}
+                  <div
+                    className={cn(
+                      "h-1.5 w-1.5 flex-shrink-0 rounded-full",
+                      isLiveGame
+                        ? "animate-pulse bg-emerald-500"
+                        : slateStatus === "scheduled"
+                          ? "bg-blue-400"
+                          : "bg-muted-foreground/40",
+                    )}
+                  />
+
+                  {/* Player info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <PlayerName
+                        playerId={holding.player.id}
+                        firstName={holding.player.firstName}
+                        lastName={holding.player.lastName}
+                        className="text-sm font-semibold truncate"
+                      />
+                      {isLiveGame && (
+                        <span className="inline-flex items-center gap-0.5 rounded-sm border border-emerald-500/40 bg-emerald-500/10 px-1 py-0 text-[10px] font-semibold uppercase text-emerald-500">
+                          Live
+                        </span>
+                      )}
+                      {isBoostEligible && (
+                        <span className="inline-flex items-center gap-0.5 rounded-sm border border-yellow-500/40 bg-yellow-500/10 px-1 py-0 text-[10px] font-semibold uppercase text-yellow-500">
+                          <Zap className="h-2.5 w-2.5" />
+                          Boost
+                        </span>
+                      )}
+                    </div>
+                    <div className="font-mono text-[11px] text-muted-foreground">
+                      {holding.quantity} sh · {holding.player.team}
+                    </div>
+                  </div>
+
+                  {/* Price + change */}
+                  <div className="text-right flex-shrink-0">
+                    {price > 0 ? (
+                      <AnimatedPrice
+                        value={price}
+                        size="sm"
+                        className="font-mono font-semibold justify-end"
+                      />
+                    ) : (
+                      <span className="font-mono text-sm font-semibold text-muted-foreground">
+                        --
+                      </span>
+                    )}
+                    {change24h !== 0 && (
+                      <div
+                        className={cn(
+                          "font-mono text-[10px] font-medium",
+                          getChangeClass(holding.player.priceChange24h),
+                        )}
+                      >
+                        {change24h > 0 ? "+" : ""}
+                        {change24h.toFixed(2)}%
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Trade button */}
+                  <Button
+                    size="sm"
+                    variant="terminal"
+                    className="h-7 px-2.5 text-xs flex-shrink-0"
+                    onClick={() => onTrade(holding.player.id)}
+                  >
+                    <ShoppingCart className="h-3 w-3 mr-1" />
+                    Trade
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+          {activePositions.length > 5 && (
+            <div className="border-t border-border/60 px-3 py-2 text-center">
+              <Link href="/portfolio">
+                <span className="text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
+                  +{activePositions.length - 5} more positions →
+                </span>
+              </Link>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </ScrollReveal>
+  );
+}
 
 export default function Dashboard() {
   const { isAuthenticated } = useAuth();
@@ -501,8 +678,16 @@ export default function Dashboard() {
           )}
 
           {/* Balance Header - Only show for authenticated users */}
-          {isAuthenticated && data?.user && (
-            <div className="terminal-shell group relative hidden p-1.5 shadow-sm sm:block sm:p-2">
+          {isAuthenticated && data?.user && (() => {
+            const change24hAmount = data.user.change24h?.amount ?? 0;
+            return (
+            <div
+              className={cn(
+                "terminal-shell group relative hidden p-1.5 shadow-sm sm:block sm:p-2 transition-colors duration-700",
+                change24hAmount > 0 && "border-emerald-500/25 bg-emerald-500/[0.04]",
+                change24hAmount < 0 && "border-red-500/20 bg-red-500/[0.04]",
+              )}
+            >
               {/* Background Pattern */}
               <BackgroundPattern variant="gradient-mesh" color="primary" opacity={0.05} />
 
@@ -604,7 +789,46 @@ export default function Dashboard() {
                 })}
               </div>
             </div>
+            );
+          })()}
+
+          {/* Boost Live Earnings Strip */}
+          {isAuthenticated && data?.boosts && data.boosts.lockedBoosts > 0 && (
+            <Link href="/boosts">
+              <div className="flex cursor-pointer items-center justify-between rounded-md border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 transition-colors hover:bg-yellow-500/15">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-sm bg-yellow-500/20">
+                    <Zap className="h-3 w-3 text-yellow-500" />
+                  </span>
+                  <span className="text-sm font-semibold text-yellow-500">
+                    {`${data.boosts.lockedBoosts} boost${data.boosts.lockedBoosts !== 1 ? "s" : ""} live now`}
+                  </span>
+                  {data.boosts.totalLivePayout !== "0.00" && (
+                    <span className="text-xs text-muted-foreground">
+                      · Est.{" "}
+                      <span className="font-mono font-semibold text-emerald-500">
+                        +${data.boosts.totalLivePayout}
+                      </span>
+                    </span>
+                  )}
+                </div>
+                <ChevronRight className="h-4 w-4 text-yellow-500/60" />
+              </div>
+            </Link>
           )}
+
+          {/* Your Active Positions Today */}
+          {isAuthenticated &&
+            data?.topHoldings &&
+            data.topHoldings.length > 0 &&
+            slatePlayers.length > 0 && (
+              <ActivePositionsToday
+                topHoldings={data.topHoldings}
+                slatePlayers={slatePlayers}
+                eligiblePlayers={eligiblePlayers}
+                onTrade={(playerId) => setLocation(`/pools?player=${playerId}`)}
+              />
+            )}
 
           {/* Games Section */}
           <ScrollReveal delay={0.1}>

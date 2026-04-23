@@ -4791,7 +4791,54 @@ ${items}
     }
   });
 
-  // Get all players with advanced filtering
+  // Batch price sparklines for multiple players — powers mini-sparkline UX in the marketplace
+  app.get("/api/players/sparklines", async (req, res) => {
+    try {
+      const raw = typeof req.query.ids === "string" ? req.query.ids : "";
+      const days = Math.min(365, Math.max(1, parseInt((req.query.days as string) || "7", 10)));
+      const withDates = req.query.dates === "true";
+      const ids = raw
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .slice(0, 50); // cap at 50 players per request
+
+      if (ids.length === 0) {
+        return res.json({});
+      }
+
+      // Fetch price history for all requested players in parallel
+      const results = await Promise.all(
+        ids.map(async (playerId) => {
+          const rows = await storage.getPriceHistory(playerId, days);
+          if (withDates) {
+            return {
+              playerId,
+              points: rows.map((r) => ({
+                date: r.timestamp.toISOString(),
+                price: parseFloat(r.price),
+              })),
+            };
+          }
+          return {
+            playerId,
+            points: rows.map((r) => parseFloat(r.price)),
+          };
+        }),
+      );
+
+      const out: Record<string, any> = {};
+      for (const { playerId, points } of results) {
+        out[playerId] = points;
+      }
+      res.json(out);
+    } catch (error: any) {
+      console.error("[sparklines]", error.message);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+// Get all players with advanced filtering
   app.get("/api/players", async (req, res) => {
     try {
       const {
