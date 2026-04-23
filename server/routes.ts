@@ -43,6 +43,14 @@ import {
   USER_ACTIVITY_CATEGORIES,
   type UserActivityCategory,
 } from "@shared/activity-feed";
+import {
+  MARKET_ACTIVITY_SIGNAL_TAGS,
+  MARKET_ACTIVITY_SORTS,
+  type MarketActivityGameStateFilter,
+  type MarketActivitySideFilter,
+  type MarketActivitySignalTag,
+  type MarketActivitySort,
+} from "@shared/market-activity";
 import { getMarketplaceGameStatus, hasGameStartedForBoost } from "@shared/game-status";
 import { sql, eq, desc, and, gte, lte, inArray, lt, like, or } from "drizzle-orm";
 import { jobScheduler } from "./jobs/scheduler";
@@ -59,6 +67,11 @@ import {
   type MlbPregameInsight,
 } from "./mlb-pregame-insights";
 import { registerDomainRoutes } from "./routes/register-domain-routes";
+import { buildMobileMarketOverview } from "./market-mobile-overview";
+import {
+  buildMarketActivityFeed,
+  getMarketActivitySourceFetchWindow,
+} from "./market-activity-feed";
 import { registerMarketMobileRoutes } from "./routes/market-mobile";
 import { getOrCreatePool, initializePool } from "./amm/pool";
 import { normalizeSiteUrl } from "@shared/seo";
@@ -5126,36 +5139,91 @@ ${items}
   // Market activity feed
   app.get("/api/market/activity", async (req, res) => {
     try {
-      const { playerId, userId, playerSearch, limit, sport } = req.query;
+      const {
+        playerId,
+        userId,
+        playerSearch,
+        search,
+        team,
+        side,
+        signal,
+        gameState,
+        whalesOnly,
+        minNotional,
+        sort,
+        limit,
+        offset,
+        sport,
+      } = req.query;
 
-      const parsedLimit = limit ? parseInt(limit as string) : 50;
-      const safeLimit = isNaN(parsedLimit) ? 50 : Math.max(1, Math.min(parsedLimit, 200));
+      const parsedLimit = limit ? parseInt(limit as string, 10) : 40;
+      const parsedOffset = offset ? parseInt(offset as string, 10) : 0;
+      const safeLimit = Number.isNaN(parsedLimit) ? 40 : Math.max(1, Math.min(parsedLimit, 100));
+      const safeOffset = Number.isNaN(parsedOffset) ? 0 : Math.max(parsedOffset, 0);
+      const effectiveSearch =
+        typeof search === "string" && search.trim().length > 0
+          ? search.trim()
+          : typeof playerSearch === "string"
+            ? playerSearch.trim()
+            : "";
+      const normalizedSport = typeof sport === "string" && sport.trim().length > 0 ? sport : "ALL";
+      // Fetch deeper than the visible page so server-side filtering/sorting can still return
+      // a full ledger page plus summary/highlight context from recent site-wide activity.
+      const fetchWindow = getMarketActivitySourceFetchWindow(safeLimit, safeOffset);
+      const normalizedSide: MarketActivitySideFilter =
+        typeof side === "string" && ["buy", "sell", "peer", "all"].includes(side)
+          ? (side as MarketActivitySideFilter)
+          : "all";
+      const normalizedSignal: MarketActivitySignalTag | "all" =
+        typeof signal === "string" &&
+        (signal === "all" ||
+          MARKET_ACTIVITY_SIGNAL_TAGS.includes(signal as MarketActivitySignalTag))
+          ? (signal as MarketActivitySignalTag | "all")
+          : "all";
+      const normalizedGameState: MarketActivityGameStateFilter =
+        typeof gameState === "string" &&
+        ["all", "none", "upcoming", "live", "ended"].includes(gameState)
+          ? (gameState as MarketActivityGameStateFilter)
+          : "all";
+      const normalizedSort: MarketActivitySort =
+        typeof sort === "string" && MARKET_ACTIVITY_SORTS.includes(sort as MarketActivitySort)
+          ? (sort as MarketActivitySort)
+          : "recent";
+      const whalesOnlyEnabled = whalesOnly === "true" || whalesOnly === "1" || whalesOnly === "yes";
+      const minimumNotional =
+        typeof minNotional === "string" ? Math.max(parseFloat(minNotional) || 0, 0) : 0;
 
-      const activity = await storage.getMarketActivity({
-        playerId: playerId as string,
-        userId: userId as string,
-        playerSearch: playerSearch as string,
+      const [activity, overview] = await Promise.all([
+        storage.getMarketActivity({
+          playerId: playerId as string,
+          userId: userId as string,
+          playerSearch: effectiveSearch,
+          limit: fetchWindow,
+          sport: normalizedSport,
+        }),
+        buildMobileMarketOverview({ sport: normalizedSport }),
+      ]);
+
+      const feed = buildMarketActivityFeed({
+        activity,
+        overview,
         limit: safeLimit,
-        sport: sport as string,
-      });
-
-      // Enrich with player metrics for the activity feed.
-      const uniquePlayerIds = Array.from(new Set(activity.map((a: any) => a.playerId)));
-      const players = await storage.getPlayersByIds(uniquePlayerIds);
-      const priceChange24hMap = await storage.getBatchPlayerPriceChange24h(uniquePlayerIds);
-      const playerMap = new Map(players.map((p) => [p.id, p]));
-
-      const enrichedActivity = activity.map((item: any) => {
-        const player = playerMap.get(item.playerId);
-        return {
-          ...item,
-          priceChange24h: (priceChange24hMap.get(item.playerId) || 0).toFixed(2),
-          currentPrice: player?.lastTradePrice || null,
-        };
+        offset: safeOffset,
+        filters: {
+          search: effectiveSearch,
+          team: typeof team === "string" ? team : undefined,
+          playerId: typeof playerId === "string" ? playerId : undefined,
+          side: normalizedSide,
+          signal: normalizedSignal,
+          gameState: normalizedGameState,
+          whalesOnly: whalesOnlyEnabled,
+          minNotional: minimumNotional,
+          sort: normalizedSort,
+        },
       });
 
       res.json(
-        withPublicDataHeaders(res, enrichedActivity, {
+        withPublicDataHeaders(res, feed, {
           maxAgeSeconds: 60,
           sharedMaxAgeSeconds: 60,
         }),

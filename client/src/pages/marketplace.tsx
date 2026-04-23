@@ -31,6 +31,7 @@ import { queryClient } from "@/lib/queryClient";
 import type { Player } from "@shared/schema";
 import { PlayerName } from "@/components/player-name";
 import { SportSelector } from "@/components/sport-selector";
+import { MarketActivityLedger } from "@/components/market-activity-ledger";
 import { MarketActivityWidget } from "@/components/market-activity-widget";
 import { MlbProbableBadge } from "@/components/mlb-probable-badge";
 import { MarketplaceScanners } from "@/components/marketplace-scanners";
@@ -440,38 +441,65 @@ export default function PlayerPools() {
           </div>
         </div>
 
-        <MarketMobilePoolsBoard
-          sport={sport}
-          players={players}
-          isLoading={isLoading}
-          search={search}
-          onSearchChange={setSearch}
-          teamFilter={teamFilter}
-          onTeamFilterChange={setTeamFilter}
-          positionFilter={positionFilter}
-          onPositionFilterChange={setPositionFilter}
-          sortField={sortField}
-          onSortFieldChange={setSortFieldFromSelector}
-          sortOrder={sortOrder}
-          onSortOrderChange={(value) => {
-            setSortOrder(value);
-            setPage(1);
-          }}
-          filterWatchlistId={filterWatchlistId}
-          onWatchlistFilterChange={setFilterWatchlistId}
-          watchlists={watchlists}
-          teams={teams}
-          positions={positions}
-          hasActiveFilters={hasActiveFilters}
-          showFilters={showFilters}
-          onShowFiltersChange={setShowFilters}
-          onClearFilters={clearAllFilters}
-          totalPlayers={totalPlayers}
-          page={page}
-          totalPages={totalPages}
-          onPageChange={setPage}
-          onOpenPlayer={openMobileSheet}
-        />
+        <div className="space-y-3 md:hidden">
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              variant={activeTab === "players" ? "default" : "outline"}
+              size="sm"
+              className="gap-2"
+              onClick={() => setActiveTab("players")}
+            >
+              <Activity className="h-4 w-4" />
+              Players
+            </Button>
+            <Button
+              variant={activeTab === "activity" ? "default" : "outline"}
+              size="sm"
+              className="gap-2"
+              onClick={() => setActiveTab("activity")}
+            >
+              <TrendingUp className="h-4 w-4" />
+              Activity
+            </Button>
+          </div>
+
+          {activeTab === "activity" ? (
+            <MarketActivityLedger sport={sport} />
+          ) : (
+            <MarketMobilePoolsBoard
+              sport={sport}
+              players={players}
+              isLoading={isLoading}
+              search={search}
+              onSearchChange={setSearch}
+              teamFilter={teamFilter}
+              onTeamFilterChange={setTeamFilter}
+              positionFilter={positionFilter}
+              onPositionFilterChange={setPositionFilter}
+              sortField={sortField}
+              onSortFieldChange={setSortFieldFromSelector}
+              sortOrder={sortOrder}
+              onSortOrderChange={(value) => {
+                setSortOrder(value);
+                setPage(1);
+              }}
+              filterWatchlistId={filterWatchlistId}
+              onWatchlistFilterChange={setFilterWatchlistId}
+              watchlists={watchlists}
+              teams={teams}
+              positions={positions}
+              hasActiveFilters={hasActiveFilters}
+              showFilters={showFilters}
+              onShowFiltersChange={setShowFilters}
+              onClearFilters={clearAllFilters}
+              totalPlayers={totalPlayers}
+              page={page}
+              totalPages={totalPages}
+              onPageChange={setPage}
+              onOpenPlayer={openMobileSheet}
+            />
+          )}
+        </div>
 
         <div className="hidden md:flex gap-4 items-start">
           {/* Main content: tabs with player list and (on md/lg) activity tab */}
@@ -958,7 +986,7 @@ export default function PlayerPools() {
             </TabsContent>
 
             <TabsContent value="activity" className="xl:hidden">
-              <MarketActivityWidget sport={sport} />
+              <MarketActivityLedger sport={sport} />
             </TabsContent>
           </Tabs>
           </div>

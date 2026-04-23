@@ -33,6 +33,7 @@ import { useAppState } from "@/hooks/use-app-state";
 import { formatCompactCurrency } from "@/lib/currency";
 import { authenticatedFetch } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
+import type { MarketActivityFeedItem, MarketActivityFeedResponse } from "@shared/market-activity";
 
 export type MarketSheetAction = "default" | "buy" | "sell" | "boost" | "scout";
 
@@ -63,16 +64,6 @@ interface MarketSheetQuickContext {
   isBoostEligible?: boolean;
   scoutCount?: number;
   isWatchlisted?: boolean;
-}
-
-interface MarketActivityEntry {
-  id: string;
-  playerId: string;
-  buyerUsername: string | null;
-  sellerUsername: string | null;
-  quantity: number;
-  price: string | null;
-  timestamp: string;
 }
 
 interface MarketSheetPlayerData {
@@ -187,7 +178,7 @@ export function MarketMobilePlayerSheet({
     refetchIntervalInBackground: false,
   });
 
-  const { data: activity = [] } = useQuery<MarketActivityEntry[]>({
+  const { data: activity = [] } = useQuery<MarketActivityFeedItem[]>({
     queryKey: ["/api/market/activity", playerId, "sheet"],
     queryFn: async () => {
       const response = await fetch(
@@ -199,7 +190,8 @@ export function MarketMobilePlayerSheet({
       if (!response.ok) {
         throw new Error("Failed to fetch market activity");
       }
-      return response.json();
+      const payload = (await response.json()) as MarketActivityFeedResponse;
+      return payload.activities;
     },
     enabled: open && Boolean(playerId),
     refetchInterval: pollingInterval,
