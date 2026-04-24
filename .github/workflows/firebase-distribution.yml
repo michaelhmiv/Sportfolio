@@ -74,7 +74,7 @@ jobs:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
           set -euo pipefail
-          KEYSTORE_PATH="$(mktemp "${RUNNER_TEMP}/firebase-upload-keystore-XXXXXX.jks")"
+          KEYSTORE_PATH="$(mktemp "${RUNNER_TEMP}/android-release-keystore-XXXXXX.jks")"
           chmod 600 "$KEYSTORE_PATH"
           printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
           if [ ! -s "$KEYSTORE_PATH" ]; then
@@ -91,13 +91,19 @@ jobs:
           # 300000 to leave 100000 versionCode slots before the ranges overlap.
           # This keeps Firebase iteration builds installable over Play internal
           # builds without manual downgrades while preserving ample headroom for
-          # the workflow's per-file run counter.
+          # the workflow's per-file run counter. If this workflow ever nears
+          # 100000 runs, increase the reserved range in both release workflows.
           VERSION_CODE_BASE=300000
           VERSION_CODE=$((VERSION_CODE_BASE + ${GITHUB_RUN_NUMBER}))
           echo "MOBILE_VERSION_CODE=$VERSION_CODE" >> "$GITHUB_ENV"
 
           if [ -n "$INPUT_RELEASE_NAME" ]; then
-            SANITIZED_RELEASE_NAME="$(printf '%s' "$INPUT_RELEASE_NAME" | tr '\r\n' '-' | tr -cd '[:alnum:]_-' | cut -c1-50)"
+            SANITIZED_RELEASE_NAME="$(
+              printf '%s' "$INPUT_RELEASE_NAME" \
+                | sed 's/[\r\n]/-/g' \
+                | tr -cd '[:alnum:]_-' \
+                | cut -c1-50
+            )"
             if [ -z "$SANITIZED_RELEASE_NAME" ] || ! printf '%s' "$SANITIZED_RELEASE_NAME" | grep -q '[[:alnum:]]'; then
               echo "::error::release_name must contain at least one alphanumeric character after sanitization."
               exit 1
@@ -116,6 +122,8 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           MOBILE_VERSION_CODE: ${{ env.MOBILE_VERSION_CODE }}
           MOBILE_VERSION_NAME: ${{ env.FIREBASE_RELEASE_NAME }}
+        # The Gradle wrapper script forwards these env vars into the Android
+        # release signing config defined in mobile/android/app/build.gradle.
         run: node scripts/run-gradle-wrapper.mjs assembleRelease
 
       - name: Configure Firebase credentials (ADC)
