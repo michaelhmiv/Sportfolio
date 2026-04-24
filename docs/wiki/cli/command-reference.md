@@ -98,23 +98,23 @@ JSON mode is useful for scripting, piping output to `jq`, or building automation
 
 The CLI exposes the same shared capability catalog as MCP:
 
-| Command | What it does |
-|---|---|
-| `tools list` | See every available tool |
-| `tools call <name>` | Execute a read or action directly |
-| `prompts render <name>` | Expand a shared starter prompt |
-| `resources read <uri>` | Read a public resource (e.g., `sportfolio://docs/index`) |
+| Command                 | What it does                                             |
+| ----------------------- | -------------------------------------------------------- |
+| `tools list`            | See every available tool                                 |
+| `tools call <name>`     | Execute a read or action directly                        |
+| `prompts render <name>` | Expand a shared starter prompt                           |
+| `resources read <uri>`  | Read a public resource (e.g., `sportfolio://docs/index`) |
 
 ---
 
 ## Troubleshooting
 
-| Error | Fix |
-|---|---|
-| `Not logged in` | Run `auth login` with a valid API token |
-| `Network error contacting ...` | Verify `--base-url` and that the server is reachable |
-| `Agent is currently processing...` | Retry after a few seconds |
-| Community boost not resolving | Use full player names (e.g., `Nikola Jokic` not `jokic`) |
+| Error                              | Fix                                                      |
+| ---------------------------------- | -------------------------------------------------------- |
+| `Not logged in`                    | Run `auth login` with a valid API token                  |
+| `Network error contacting ...`     | Verify `--base-url` and that the server is reachable     |
+| `Agent is currently processing...` | Retry after a few seconds                                |
+| Community boost not resolving      | Use full player names (e.g., `Nikola Jokic` not `jokic`) |
 
 ---
 

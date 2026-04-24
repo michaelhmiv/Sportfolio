@@ -45,15 +45,15 @@ The token is user-specific — the CLI inherits the same account boundary as the
 
 ## Command Families
 
-| Family | What it does |
-|---|---|
-| `docs` | Browse, search, and open wiki articles |
-| `portfolio` | Account summary and holdings snapshot |
-| `agent` | Ask questions, view threads, confirm/cancel staged plans |
-| `actions` | Convenience commands for staged gameplay flows |
-| `tools` | Call the shared public capability surface directly |
-| `prompts` | List and render shared starter prompts |
-| `resources` | Read shared public resources |
+| Family      | What it does                                             |
+| ----------- | -------------------------------------------------------- |
+| `docs`      | Browse, search, and open wiki articles                   |
+| `portfolio` | Account summary and holdings snapshot                    |
+| `agent`     | Ask questions, view threads, confirm/cancel staged plans |
+| `actions`   | Convenience commands for staged gameplay flows           |
+| `tools`     | Call the shared public capability surface directly       |
+| `prompts`   | List and render shared starter prompts                   |
+| `resources` | Read shared public resources                             |
 
 For full syntax and examples, see [CLI Command Reference](/wiki/cli/command-reference).
 
@@ -62,6 +62,7 @@ For full syntax and examples, see [CLI Command Reference](/wiki/cli/command-refe
 ## Best Use Cases
 
 The CLI is especially useful for:
+
 - **Checking your portfolio** from a workstation or server
 - **Searching docs** while trading in another window
 - **Scripting account checks** as part of a workflow
@@ -73,11 +74,13 @@ The CLI is especially useful for:
 ## How CLI Relates to MCP
 
 Both CLI and MCP share the same public capability registry:
+
 - `docs` commands read the same wiki as the web docs hub
 - Account and settings actions follow the same auth rules
 - Staged actions use the same confirm/cancel model
 
 The difference is the interface:
+
 - **Use CLI** when you want direct shell commands
 - **Use MCP** when you're connecting through an MCP-aware client
 

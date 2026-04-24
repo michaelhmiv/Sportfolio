@@ -23,15 +23,15 @@ It tracks everything: cash, shares, LP positions, premium inventory, community s
 
 ## What Your Portfolio Contains
 
-| Asset | Description |
-|---|---|
-| **Cash balance (SB)** | Liquid spending power |
-| **Player holdings** | Raw tradeable shares per player |
-| **Stacked shares** | Non-tradeable, high-multiplier positions |
-| **LP positions** | Ownership in AMM liquidity pools |
-| **Premium shares** | Activate premium access windows |
-| **Community shares** | Spend to create community boosts |
-| **Activity history** | Complete audit trail of state changes |
+| Asset                 | Description                              |
+| --------------------- | ---------------------------------------- |
+| **Cash balance (SB)** | Liquid spending power                    |
+| **Player holdings**   | Raw tradeable shares per player          |
+| **Stacked shares**    | Non-tradeable, high-multiplier positions |
+| **LP positions**      | Ownership in AMM liquidity pools         |
+| **Premium shares**    | Activate premium access windows          |
+| **Community shares**  | Spend to create community boosts         |
+| **Activity history**  | Complete audit trail of state changes    |
 
 ---
 
@@ -52,6 +52,7 @@ Two terms you'll see repeatedly:
 **Effective shares** — the economic contribution of a position to value and payout math
 
 **Example:**
+
 - `quantity = 5, multiplier = 1×` → 5 effective shares (normal raw position)
 - `quantity = 1, multiplier = 5×` → 5 effective shares (one stacked share from stacking 10 raw)
 
@@ -68,6 +69,7 @@ available shares = quantity - lockedQuantity
 ```
 
 Shares get locked when:
+
 - A boost is active or pending
 - Another protected flow has reserved them
 
@@ -77,9 +79,10 @@ Locked shares remain in your account state — they're just temporarily off-limi
 
 ## The Holdings Tab
 
-Use the Holdings tab to answer: *"What do I own and how is it performing?"*
+Use the Holdings tab to answer: _"What do I own and how is it performing?"_
 
 It shows:
+
 - Cash balance, portfolio value, and net worth
 - Realized and unrealized P&L
 - Position size and quality (raw vs. stacked) per player
@@ -90,9 +93,10 @@ It shows:
 
 ## The Liquidity Tab
 
-Use the Liquidity tab to answer: *"How much capital am I deploying as an LP?"*
+Use the Liquidity tab to answer: _"How much capital am I deploying as an LP?"_
 
 It shows:
+
 - Each LP position and its pool
 - Your ownership percentage
 - Current position value
@@ -116,12 +120,12 @@ Both compete for your attention and balance even though they're not standard pla
 
 The activity feed is your account timeline. Common categories:
 
-| Category | What it covers |
-|---|---|
-| **Market** | Buys, sells, and market actions |
-| **Scout** | Hourly share rewards and scout changes |
-| **Boosts** | Burns, locks, payout outcomes |
-| **LP** | Pool adds, removes, fee accrual |
+| Category   | What it covers                         |
+| ---------- | -------------------------------------- |
+| **Market** | Buys, sells, and market actions        |
+| **Scout**  | Hourly share rewards and scout changes |
+| **Boosts** | Burns, locks, payout outcomes          |
+| **LP**     | Pool adds, removes, fee accrual        |
 
 Use the feed when a balance or holding changed and you want to know why.
 
@@ -130,6 +134,7 @@ Use the feed when a balance or holding changed and you want to know why.
 ## What Can Change Your Portfolio
 
 Your portfolio can move because of:
+
 - AMM buys and sells
 - LP adds and removals
 - Scout distributions (every hour)

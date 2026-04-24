@@ -42,13 +42,14 @@ On the dashboard you can:
 **The market browser.** Use this to find, compare, and trade players.
 
 Features:
+
 - Sortable and filterable player lists
 - Sport, team, and position filters
 - Watchlist filtering to show only your tracked names
 - Market activity tabs — top movers, volume leaders, market-cap rankings
 - Scanner widgets for momentum and relative-value signals
 
-Go here first when your question is: *"What is moving and where should I be looking?"*
+Go here first when your question is: _"What is moving and where should I be looking?"_
 
 ---
 
@@ -57,6 +58,7 @@ Go here first when your question is: *"What is moving and where should I be look
 **The single-player execution and research surface.**
 
 Each player page shows:
+
 - Current price and recent change
 - Stats and recent game logs
 - Buy and sell controls
@@ -74,12 +76,14 @@ Each player page shows:
 The Portfolio page has two tabs:
 
 **Holdings tab**
+
 - Cash balance and net worth
 - Realized and unrealized P&L
 - Each player-share position (raw and stacked)
 - Activity history
 
 **Liquidity tab**
+
 - Your LP positions across player pools
 - Pool ownership percentage
 - Fees earned to date
@@ -111,13 +115,14 @@ Also see: [Stacking and Boosts](/wiki/gameplay/stacking-shares-and-boosts) for f
 **The macro market view.** Step back from individual players and see the whole ecosystem.
 
 Analytics covers:
+
 - Market health over time
 - Share issuance and burn trends
 - Sport-by-sport breakdowns
 - Player comparisons
 - Economy snapshots
 
-Use this when your question is: *"What's the overall state of the market?"*
+Use this when your question is: _"What's the overall state of the market?"_
 
 ---
 
@@ -138,6 +143,7 @@ News informs trading decisions. An injury report or lineup change can materially
 **Your custom player-tracking layer.**
 
 Create named lists of players you want to monitor without immediately buying them. Useful when:
+
 - You have conviction but no position yet
 - You want to track multiple sports in one filtered view
 - You're building a shortlist before a slate
@@ -151,6 +157,7 @@ Also see: [Watchlists and News](/wiki/features/watchlists-and-news) for full det
 **Account-level entitlements.**
 
 Premium expands your scout capacity (from 5 to 10 scouts) and unlocks premium access windows. This page shows:
+
 - Your current premium status
 - Premium share inventory
 - Purchase history
@@ -165,6 +172,7 @@ Also see: [Premium](/wiki/features/premium) for what premium actually includes.
 **Your in-app product operator.**
 
 The Agent page gives you a conversational interface to Sportfolio. It can:
+
 - Answer questions about mechanics, your account, and the market
 - Research current injuries and news
 - Stage gameplay actions (trades, boosts, scouts) that you confirm before execution
@@ -180,6 +188,7 @@ Also see: [Sportfolio Agent](/wiki/features/agent-operator) and [Agent Runtime M
 **The canonical product handbook.** You're reading it now.
 
 The wiki lives in-app at `/wiki`. It covers:
+
 - Getting started
 - Gameplay mechanics
 - Feature guides
@@ -193,6 +202,7 @@ The agent also uses this wiki as its product knowledge source, so what you read 
 ## Real-time Behavior
 
 Sportfolio is a live product. Many pages update automatically:
+
 - Portfolio refreshes after trades and settlements
 - Scout payouts appear without a manual refresh
 - Boost settlements push live results

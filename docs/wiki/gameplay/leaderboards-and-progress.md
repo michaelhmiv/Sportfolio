@@ -23,13 +23,13 @@ Leaderboards are Sportfolio's public scoreboard. They show how accounts are perf
 
 You can rank users by multiple categories:
 
-| Category | What it answers |
-|---|---|
-| **Net Worth** | Broadest snapshot — total account value |
-| **Cash Balance** | How much liquid SB a user holds right now |
-| **Portfolio Value** | How much value is tied up in held assets |
-| **Trading Volume (24h)** | Who has been most active in the market recently |
-| **Market Orders** | Execution activity (not necessarily profitability) |
+| Category                 | What it answers                                    |
+| ------------------------ | -------------------------------------------------- |
+| **Net Worth**            | Broadest snapshot — total account value            |
+| **Cash Balance**         | How much liquid SB a user holds right now          |
+| **Portfolio Value**      | How much value is tied up in held assets           |
+| **Trading Volume (24h)** | Who has been most active in the market recently    |
+| **Market Orders**        | Execution activity (not necessarily profitability) |
 
 > ℹ️ No single category tells the whole story. A user with high volume might be churning badly. A user with high portfolio value might just have bought early and stopped.
 
@@ -38,6 +38,7 @@ You can rank users by multiple categories:
 ## What a Rank Change Can Mean
 
 A jump or drop in rank can come from many sources:
+
 - A large price move in one of your held players
 - A new trade or scout distribution
 - Boost settlements and related burns or payouts
@@ -50,6 +51,7 @@ Rank is best used as context, not as your primary decision driver.
 ## Public Trader Profiles
 
 Leaderboard entries link to public trader profile pages. Each profile shows:
+
 - Current leaderboard standings
 - Recent account trend
 - Top public holdings
@@ -62,12 +64,14 @@ Use profiles to understand what might be driving a rank — not just who is abov
 ## How to Use Leaderboards Well
 
 **Good uses:**
+
 - Benchmark whether your strategy is compounding over time
 - Spot whether your account is too conservative or over-exposed
 - Compare your strengths against other users
 - Sanity-check whether active effort is producing visible account progress
 
 **Common traps to avoid:**
+
 - Treating high activity rank as proof of skill
 - Chasing short-term rank by making low-quality trades
 - Assuming a cash-heavy account is automatically better than an invested one
