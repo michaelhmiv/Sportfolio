@@ -464,6 +464,9 @@ function Router() {
 
     let listener: { remove: () => Promise<void> } | null = null;
 
+    // Derive root routes from NAV_ITEMS — single source of truth
+    const rootRoutes = new Set(NAV_ITEMS.map((item) => item.url));
+
     const register = async () => {
       listener = await CapacitorApp.addListener("backButton", ({ canGoBack }) => {
         // If the browser history has entries, go back
@@ -472,7 +475,6 @@ function Router() {
           return;
         }
         // If on a root tab, minimize the app instead of exiting
-        const rootRoutes = new Set(["/", "/pools", "/boosts", "/portfolio", "/analytics"]);
         if (rootRoutes.has(location)) {
           void CapacitorApp.minimizeApp();
           return;
@@ -498,19 +500,25 @@ function Router() {
   }, []);
 
   // P3 — 5.2: Update StatusBar when theme changes (dark/light)
+  const [isDark, setIsDark] = useState(() =>
+    typeof document !== "undefined" ? document.documentElement.classList.contains("dark") : true,
+  );
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setIsDark(document.documentElement.classList.contains("dark"));
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    return () => observer.disconnect();
+  }, []);
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
-
-    const html = document.documentElement;
-    const isDark = html.classList.contains("dark");
-
     void StatusBar.setStyle({
       style: isDark ? StatusBarStyle.Dark : StatusBarStyle.Light,
     }).catch(() => undefined);
     void StatusBar.setBackgroundColor({
       color: isDark ? "#0f1420" : "#ffffff",
     }).catch(() => undefined);
-  });
+  }, [isDark]);
 
   // P1 — 1.1: Keyboard — resize body instead of overlapping content
   useEffect(() => {
@@ -642,6 +650,13 @@ function Router() {
 
   // Public routes (accessible without authentication)
   return (
+    /*
+     * AnimatePresence mode="popLayout" — chosen for directional page transitions.
+     * Unlike "wait" (which waits for exit to finish before entering), "popLayout"
+     * removes the exiting element from the layout flow immediately, allowing the
+     * entering element to take its place and slide in concurrently. This creates
+     * the native horizontal-tab and drill-down slide feel with no layout jump.
+     */
     <AnimatePresence mode="popLayout">
       <motion.div
         key={location}

@@ -161,12 +161,12 @@ export function BottomNav() {
                   href={item.url}
                   aria-label={item.title}
                   aria-current={isActive ? "page" : undefined}
-                  className="flex items-center justify-center w-full h-full touch-manipulation"
+                  className="flex items-center justify-center w-full h-full min-h-[48px] touch-manipulation"
                   onClick={(e) => handleClick(e, item.url)}
                 >
                   <motion.div
                     className={cn(
-                      "flex flex-col items-center justify-center gap-1 py-1 rounded-none transition-colors w-full h-full relative min-h-[48px]",
+                      "flex flex-col items-center justify-center gap-1 py-1 rounded-none transition-colors w-full h-full relative",
                       isActive ? "text-primary" : "text-muted-foreground",
                     )}
                     data-testid={`button - nav - ${item.title.toLowerCase()} `}

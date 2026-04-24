@@ -7,9 +7,7 @@ import { cn } from "@/lib/utils";
 
 /** Generic animated shimmer base */
 function SkeletonBox({ className }: { className?: string }) {
-  return (
-    <div className={cn("animate-pulse rounded-sm bg-muted/60", className)} aria-hidden="true" />
-  );
+  return <div className={cn("animate-pulse rounded-sm bg-muted/60", className)} />;
 }
 
 /** Skeleton for the Dashboard page */

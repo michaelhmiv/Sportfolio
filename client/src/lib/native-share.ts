@@ -1,7 +1,8 @@
 /**
  * Native share utility using @capacitor/share.
  * Falls back to the Web Share API on browsers that support it,
- * and does nothing silently if neither is available.
+ * and copies the URL to clipboard as a last resort — notifying the caller
+ * so they can show a toast or confirmation to the user.
  */
 
 import { Capacitor } from "@capacitor/core";
@@ -12,6 +13,8 @@ interface ShareOptions {
   text: string;
   url: string;
   dialogTitle?: string;
+  /** Called when the URL was copied to clipboard (no native share sheet was shown). */
+  onClipboardFallback?: () => void;
 }
 
 export async function nativeShare(options: ShareOptions): Promise<void> {
@@ -36,8 +39,9 @@ export async function nativeShare(options: ShareOptions): Promise<void> {
       return;
     }
 
-    // Last resort: copy URL to clipboard
+    // Last resort: copy URL to clipboard and inform caller so they can show feedback.
     await navigator.clipboard.writeText(options.url);
+    options.onClipboardFallback?.();
   } catch {
     // Share cancelled or unavailable — ignore
   }
@@ -48,6 +52,7 @@ export async function sharePlayer(
   playerId: string,
   playerName: string,
   price?: number,
+  onClipboardFallback?: () => void,
 ): Promise<void> {
   const url = `https://www.sportfolio.market/player/${playerId}`;
   const priceText = price != null ? ` @ $${price.toFixed(2)}` : "";
@@ -56,5 +61,6 @@ export async function sharePlayer(
     text: `Check out ${playerName}${priceText} on Sportfolio — the fantasy sports stock market.`,
     url,
     dialogTitle: `Share ${playerName}`,
+    onClipboardFallback,
   });
 }

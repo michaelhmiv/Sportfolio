@@ -12,7 +12,6 @@
             android:data="sportfolio://pools"
             android:targetPackage="sportfolio.market"
             android:targetClass="sportfolio.market.MainActivity" />
-        <categories android:name="android.shortcut.conversation" />
     </shortcut>
 
     <shortcut
@@ -26,7 +25,6 @@
             android:data="sportfolio://portfolio"
             android:targetPackage="sportfolio.market"
             android:targetClass="sportfolio.market.MainActivity" />
-        <categories android:name="android.shortcut.conversation" />
     </shortcut>
 
     <shortcut
@@ -40,7 +38,6 @@
             android:data="sportfolio://boosts"
             android:targetPackage="sportfolio.market"
             android:targetClass="sportfolio.market.MainActivity" />
-        <categories android:name="android.shortcut.conversation" />
     </shortcut>
 
 </shortcuts>

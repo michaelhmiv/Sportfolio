@@ -63,7 +63,9 @@ export function usePullToRefresh<T extends HTMLElement>({
       }
       const delta = e.touches[0].clientY - startY.current;
       if (delta < 0) return;
-      // Damp the pull so it feels resistive
+      // Damp the pull so it feels resistive (rubber-band effect).
+      // 0.45 = roughly half gravity, matching native iOS/Android pull-to-refresh feel.
+      // Cap at 1.1x the trigger distance to give a small over-pull affordance.
       const damped = Math.min(delta * 0.45, TRIGGER_DISTANCE * 1.1);
       setPullDistance(damped);
 
