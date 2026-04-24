@@ -73,8 +73,10 @@ jobs:
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
-          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > mobile/android/upload-keystore.jks
-          chmod 600 mobile/android/upload-keystore.jks
+          KEYSTORE_PATH="$(mktemp "${RUNNER_TEMP}/firebase-upload-keystore-XXXXXX.jks")"
+          chmod 600 "$KEYSTORE_PATH"
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
+          echo "ANDROID_KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
 
       - name: Compute release metadata
         env:
@@ -103,7 +105,7 @@ jobs:
 
       - name: Build signed release APK
         env:
-          ANDROID_KEYSTORE_PATH: ${{ github.workspace }}/mobile/android/upload-keystore.jks
+          ANDROID_KEYSTORE_PATH: ${{ env.ANDROID_KEYSTORE_PATH }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
@@ -161,4 +163,13 @@ jobs:
 
       - name: Remove decoded keystore
         if: ${{ always() }}
-        run: rm -f "${{ github.workspace }}/mobile/android/upload-keystore.jks"
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ env.ANDROID_KEYSTORE_PATH }}
+        run: |
+          if [ -n "${ANDROID_KEYSTORE_PATH:-}" ] && [ -f "$ANDROID_KEYSTORE_PATH" ]; then
+            if command -v shred >/dev/null 2>&1; then
+              shred -u -- "$ANDROID_KEYSTORE_PATH"
+            else
+              rm -- "$ANDROID_KEYSTORE_PATH"
+            fi
+          fi
