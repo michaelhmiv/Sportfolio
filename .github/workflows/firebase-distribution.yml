@@ -80,6 +80,9 @@ jobs:
         env:
           INPUT_RELEASE_NAME: ${{ github.event.inputs.release_name }}
         run: |
+          # Keep Firebase iteration builds above the Play internal workflow's
+          # 200000-based versionCode range so testers can install newer Firebase
+          # APKs over Play-delivered builds without manual downgrades.
           VERSION_CODE=$((300000 + ${GITHUB_RUN_NUMBER}))
           echo "MOBILE_VERSION_CODE=$VERSION_CODE" >> "$GITHUB_ENV"
 
@@ -97,7 +100,7 @@ jobs:
 
       - name: Build signed release APK
         env:
-          ANDROID_KEYSTORE_PATH: ../upload-keystore.jks
+          ANDROID_KEYSTORE_PATH: ${{ github.workspace }}/mobile/android/upload-keystore.jks
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
