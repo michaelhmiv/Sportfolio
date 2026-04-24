@@ -36,6 +36,7 @@ import { BoostCeremonyOverlay } from "@/components/ceremonies/boost-ceremony-ove
 import { WhaleAlertBanner } from "@/components/market/whale-alert-banner";
 import { PlayerModal } from "@/components/player-modal";
 import { OPEN_PLAYER_MODAL_EVENT } from "@/lib/player-modal-events";
+import { MobilePushManager } from "@/components/mobile-push-manager";
 import { Capacitor } from "@capacitor/core";
 import { App as CapacitorApp } from "@capacitor/app";
 import { Browser } from "@capacitor/browser";
@@ -871,6 +872,7 @@ function AppContent() {
       <BottomNav />
       <OnboardingCheck />
       <ScoutDashboardModal />
+      <MobilePushManager />
       <ScoutCeremonyManager />
       <GlobalBoostCeremonyManager />
       <WhaleAlertBanner />

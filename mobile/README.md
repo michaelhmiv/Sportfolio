@@ -9,7 +9,7 @@ This project uses Capacitor with native projects in:
 
 - Node.js + npm
 - Java 21
-- Android SDK + `adb` in `PATH` (for install to device/emulator)
+- Android SDK + emulator tooling (`adb`, `sdkmanager`, `avdmanager`) in `PATH`
 - Xcode (macOS only, for iOS)
 - Firebase CLI (`firebase`)
 
@@ -19,12 +19,33 @@ This project uses Capacitor with native projects in:
 npx cap doctor
 firebase --version
 firebase projects:list
+npm run android:sdk:check
 ```
 
 Confirm Firebase Android config matches app package:
 
 - file: `mobile/android/app/google-services.json`
 - expected package: `sportfolio.market`
+
+## Android Emulator Setup
+
+Run the SDK/emulator bootstrap helper (installs platform-tools, emulator, API image, and creates an AVD):
+
+```bash
+npm run android:emulator:setup
+```
+
+Optional flags:
+
+```bash
+node scripts/android-emulator-setup.mjs --api 36 --avd sportfolio-api-36 --sdk-root C:\Users\<you>\AppData\Local\Android\Sdk
+```
+
+After setup, start the emulator, then verify:
+
+```bash
+adb devices
+```
 
 ## Sync Web + Native Projects
 
@@ -123,6 +144,37 @@ npm run mobile:sync
 
 Default fallback is `https://www.sportfolio.market`.
 
+## Android Push Notifications (FCM)
+
+Sportfolio Android push uses Capacitor Push Notifications + Firebase Cloud Messaging.
+
+### Backend credentials
+
+Set one of:
+
+- `FIREBASE_ADMIN_SDK_JSON` (raw or base64 service-account JSON)
+- `FIREBASE_ADMIN_SDK_FILE` (absolute path to JSON file)
+
+If missing, the backend logs a warning and safely no-ops push sends (no crash in dev/test).
+
+### Android app requirements
+
+- `google-services.json` present at `mobile/android/app/google-services.json`
+- Android permission `POST_NOTIFICATIONS` is declared in manifest
+- Capacitor push plugin synced via:
+
+```bash
+npm run mobile:sync
+```
+
+### Runtime behavior
+
+- Push registration is attempted only after sign-in on native Android.
+- Notification permission is requested after auth bootstrap (not on app cold-start/login).
+- FCM token is sent to backend (`/api/mobile/push/register`) and refreshed on re-registration.
+- Logout unregisters/deactivates token via `/api/mobile/push/unregister`.
+- Notification taps route only to safe internal paths.
+
 ## Common Install Failures
 
 - `INSTALL_FAILED_VERSION_DOWNGRADE`: uninstall old app or increase `MOBILE_VERSION_CODE`.
@@ -201,3 +253,38 @@ Optional overrides:
 ```bash
 node scripts/play-billing-doctor.mjs --ensure --package sportfolio.market --product premium_share_1 --price-usd 5
 ```
+
+## Android QA Smoke Checklist
+
+Use this checklist for Android app smoke validation after push/backend changes:
+
+1. Build debug:
+   `npm run mobile:install:android`
+2. Build release:
+   `npm run mobile:build:android`
+3. Push token registration:
+   sign in on Android and verify backend receives token via `/api/mobile/push/register`.
+4. Notification permission request timing:
+   confirm prompt is not shown before sign-in/auth bootstrap completes.
+5. Foreground notification behavior:
+   send test push and verify in-app toast/display behavior while app is open.
+6. Background notification behavior:
+   send test push while app is backgrounded and verify system notification appears.
+7. Notification tap routing:
+   verify taps route correctly for `/boosts`, `/portfolio`, `/pools`, `/player/:id`, `/watchlists`, `/premium`, `/news`, or `/`.
+8. Logout token deactivation:
+   log out and verify `/api/mobile/push/unregister` deactivates current token.
+9. Boost settled trigger:
+   verify boost settlement creates a push notification to `/boosts`.
+10. Scout complete trigger:
+    verify scout completion creates a push notification to `/portfolio`.
+11. Invalid token handling:
+    force an invalid token response and confirm token is marked inactive.
+12. Missing Firebase credentials behavior:
+    run without Firebase credentials and confirm warning/no-op behavior (no server crash).
+13. Billing regression:
+    verify Google Play Billing purchase flow still works.
+14. Rewarded ads regression:
+    verify rewarded scout boost flow still works.
+15. Auth deep link regression:
+    verify `sportfolio://auth/callback` still resumes session correctly.
