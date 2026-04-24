@@ -23,12 +23,12 @@ This is the protocol-facing surface for MCP-compatible clients (like Claude Desk
 
 ## Endpoint and Auth
 
-| | Value |
-|---|---|
-| **Production** | `https://www.sportfolio.market/mcp` |
-| **Local dev** | `http://127.0.0.1:5000/mcp` |
-| **Transport** | Streamable HTTP (`POST /mcp`) |
-| **Auth** | Bearer token (same API token as CLI) |
+|                | Value                                |
+| -------------- | ------------------------------------ |
+| **Production** | `https://www.sportfolio.market/mcp`  |
+| **Local dev**  | `http://127.0.0.1:5000/mcp`          |
+| **Transport**  | Streamable HTTP (`POST /mcp`)        |
+| **Auth**       | Bearer token (same API token as CLI) |
 
 ```
 Authorization: Bearer <your-token>
@@ -84,20 +84,20 @@ MCP does not make the agent autonomous:
 
 Three resources provide live capability metadata for MCP clients:
 
-| Resource | What it returns |
-|---|---|
-| `sportfolio://capabilities` | Capability inventory + dynamic provider availability |
+| Resource                      | What it returns                                        |
+| ----------------------------- | ------------------------------------------------------ |
+| `sportfolio://capabilities`   | Capability inventory + dynamic provider availability   |
 | `sportfolio://action-surface` | Summary of tools with confirmation and read-only hints |
-| `sportfolio://tool-catalog` | Full tool metadata, example prompts, and MLB tool list |
+| `sportfolio://tool-catalog`   | Full tool metadata, example prompts, and MLB tool list |
 
 ---
 
 ## When to Use MCP vs CLI
 
-| Use MCP when... | Use CLI when... |
-|---|---|
+| Use MCP when...                                  | Use CLI when...                                        |
+| ------------------------------------------------ | ------------------------------------------------------ |
 | Connecting to an MCP-aware client or tool runner | You want direct shell access without a protocol client |
-| Building external integrations | You want the simplest terminal workflow |
+| Building external integrations                   | You want the simplest terminal workflow                |
 
 ---
 

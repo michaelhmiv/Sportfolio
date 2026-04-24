@@ -1,3 +1,16 @@
+## 2026-04-24 Android Push + Backend Event Infrastructure (Phase 1)
+
+- [x] Audit existing Android/Capacitor/Firebase/auth/deep-link/websocket/event/build surfaces
+- [x] Add backend schema + storage support for Android push tokens, notification preferences, and push event history
+- [x] Add authenticated mobile push token register/unregister routes and backend preference routes
+- [x] Add Firebase-backed push sending service with graceful no-op behavior when credentials are missing
+- [x] Wire safe push triggers for boost settled, boost locking soon, and scout complete events
+- [x] Add Android client push manager for sign-in-gated registration, delayed permission request, token sync, and safe tap routing
+- [x] Add logout token deactivation flow on mobile auth sign-out
+- [x] Add Android emulator/sdk setup/check scripts and mobile runbook updates
+- [x] Run full validation + smoke commands and capture results
+- [ ] Open PR, merge to main, then monitor Railway build/deploy status
+
 ## 2026-04-23 Upload Key Activation + Billing Product Finalization
 
 - [x] Re-run Play internal upload after Google upload-key reset propagation

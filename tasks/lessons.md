@@ -1,5 +1,12 @@
 # Lessons Learned
 
+## 2026-04-24
+
+- For mobile push in this stack, route registration should stay module-scoped (like other mobile-only surfaces) and be mounted before the `/api` 404 fallback, otherwise authenticated token routes will silently 404 behind the catch-all.
+- Push delivery infrastructure should reserve and update deduped notification-event rows in the database before and after provider calls; this gives safe duplicate suppression and future in-app history without requiring a UI build in the same phase.
+- Android permission timing matters for retention: requesting notification permission only after sign-in and post-auth bootstrap (instead of on cold start) keeps onboarding/auth flows stable while still enabling push registration.
+- Emulator readiness drift is common on Windows even when `local.properties` exists; include explicit SDK checks and repeatable setup scripts so QA can distinguish "configured path" from "installed tooling."
+
 ## 2026-04-23
 
 - If a read endpoint supports optional authenticated scoping (for example watchlist-only player filters), it should use `optionalAuth`; otherwise valid auth context can be silently dropped and produce empty scoped results.

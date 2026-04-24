@@ -12,6 +12,10 @@ const storageMocks = vi.hoisted(() => ({
   updateUserBalance: vi.fn(),
   createBoostPayout: vi.fn(),
   updateDailyBoost: vi.fn(),
+  getUserNotificationPreferences: vi.fn(),
+  createPushNotificationEvent: vi.fn(),
+  listActiveUserPushTokens: vi.fn(),
+  updatePushNotificationEvent: vi.fn(),
 }));
 
 const websocketMocks = vi.hoisted(() => ({
@@ -31,6 +35,10 @@ vi.mock("../storage", () => ({
     updateUserBalance: storageMocks.updateUserBalance,
     createBoostPayout: storageMocks.createBoostPayout,
     updateDailyBoost: storageMocks.updateDailyBoost,
+    getUserNotificationPreferences: storageMocks.getUserNotificationPreferences,
+    createPushNotificationEvent: storageMocks.createPushNotificationEvent,
+    listActiveUserPushTokens: storageMocks.listActiveUserPushTokens,
+    updatePushNotificationEvent: storageMocks.updatePushNotificationEvent,
   },
 }));
 
@@ -41,6 +49,10 @@ vi.mock("../websocket", () => ({
 describe("settleBoosts", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    storageMocks.getUserNotificationPreferences.mockResolvedValue([]);
+    storageMocks.createPushNotificationEvent.mockResolvedValue({ id: "event_1" });
+    storageMocks.listActiveUserPushTokens.mockResolvedValue([]);
+    storageMocks.updatePushNotificationEvent.mockResolvedValue(undefined);
   });
 
   it("repairs legacy NBA gameIds and settles using canonical stats", async () => {

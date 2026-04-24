@@ -24,6 +24,7 @@ Instead of only holding player shares directionally, you can add liquidity to a 
 ## How LP Works
 
 When you add liquidity to a player pool:
+
 1. You contribute both **player shares** and **SB** to the pool
 2. You receive **LP shares** representing your ownership percentage
 3. Every trade through that pool generates a 1% pool fee
@@ -32,6 +33,7 @@ When you add liquidity to a player pool:
 ### The Fee Math
 
 Every trade has a 2% total fee:
+
 - **1% pool fee** — accrues to LP holders proportionally
 - **1% burn fee** — permanently removed from supply
 
@@ -44,12 +46,15 @@ The more trading volume a pool generates, the more your LP position earns.
 You have three ways to add liquidity to a player pool:
 
 ### Standard Add
+
 Provide explicit amounts of both player shares and SB. You control both sides of the contribution.
 
 ### Optimal Add
+
 Set a maximum for shares and/or SB. The system calculates the optimal ratio based on current pool state and uses up to your specified maximums.
 
 ### Single-Sided Zap
+
 Add liquidity from just one side — either shares only or SB only. The system handles the rebalancing internally. Useful when you only have one asset readily available.
 
 ---
@@ -57,6 +62,7 @@ Add liquidity from just one side — either shares only or SB only. The system h
 ## Removing Liquidity
 
 When you remove LP:
+
 - Your LP shares are burned
 - You receive back player shares and SB proportional to your pool ownership at that moment
 - The exact amounts depend on the pool's current state (which may differ from when you added)
@@ -65,24 +71,26 @@ When you remove LP:
 
 ## LP vs. Holding Shares
 
-| | Holding shares | LP position |
-|---|---|---|
-| Exposure type | Directional — benefits if price rises | Both sides — earns from trading volume |
-| Revenue source | Price appreciation | Trading fees |
-| Inventory type | Player shares (tradeable) | LP shares (non-tradeable) |
-| Risk type | Price risk | Pool composition risk |
-| Where tracked | Portfolio → Holdings | Portfolio → Liquidity |
+|                | Holding shares                        | LP position                            |
+| -------------- | ------------------------------------- | -------------------------------------- |
+| Exposure type  | Directional — benefits if price rises | Both sides — earns from trading volume |
+| Revenue source | Price appreciation                    | Trading fees                           |
+| Inventory type | Player shares (tradeable)             | LP shares (non-tradeable)              |
+| Risk type      | Price risk                            | Pool composition risk                  |
+| Where tracked  | Portfolio → Holdings                  | Portfolio → Liquidity                  |
 
 ---
 
 ## What Drives LP Returns
 
 LP positions earn more when:
+
 - **Trading volume is high** — more trades = more fees
 - **Your ownership percentage is significant** — larger stake = larger fee cut
 - **The pool stays active** — idle pools earn nothing
 
 LP positions are less attractive when:
+
 - **Volume dries up** — fees stop accumulating
 - **You need the underlying shares** — LP locks your shares into the pool
 
@@ -99,6 +107,7 @@ When the pool ratio shifts significantly (e.g., the player's price drops a lot),
 ## Tracking Your LP Positions
 
 All LP positions are visible in **Portfolio → Liquidity tab.** Each position shows:
+
 - The player pool you're providing for
 - Your LP share count and ownership percentage
 - Current estimated position value
@@ -109,6 +118,7 @@ All LP positions are visible in **Portfolio → Liquidity tab.** Each position s
 ## When LP Makes Sense
 
 LP tends to work best when you:
+
 - Believe a player's market will stay actively traded regardless of price direction
 - Want to earn passive fee income rather than speculate on one-way price moves
 - Have spare shares and SB you're comfortable committing for a period

@@ -23,15 +23,15 @@ The Sportfolio Agent (powered by Hermes) is your in-app product operator. It can
 
 ## What It Does Well
 
-| Task | Example prompt |
-|---|---|
-| Review your setup | `"Review my portfolio and tell me what stands out"` |
-| Explain mechanics | `"How does stacking work?"` |
-| Read account data | `"What's my available cash?"` |
-| Discuss strategy | `"Should I boost or hold this player tonight?"` |
-| Research news | `"Any injury updates on [player]?"` |
-| Stage an action | `"Buy $25 of [player]"` |
-| Run a saved strategy | Automatic via saved schedule |
+| Task                 | Example prompt                                      |
+| -------------------- | --------------------------------------------------- |
+| Review your setup    | `"Review my portfolio and tell me what stands out"` |
+| Explain mechanics    | `"How does stacking work?"`                         |
+| Read account data    | `"What's my available cash?"`                       |
+| Discuss strategy     | `"Should I boost or hold this player tonight?"`     |
+| Research news        | `"Any injury updates on [player]?"`                 |
+| Stage an action      | `"Buy $25 of [player]"`                             |
+| Run a saved strategy | Automatic via saved schedule                        |
 
 The more specific the question, the better the response.
 
@@ -68,6 +68,7 @@ The server re-validates the request at execution time, so stale plans can fail s
 ## Threads and Continuity
 
 Conversations are organized into threads. Each thread maintains:
+
 - Recent message history
 - Staged-plan context
 - Research references
@@ -79,6 +80,7 @@ The agent also has per-user memory for patterns and preferences. This memory is 
 ## Research Capability
 
 When you ask about current news, injuries, or time-sensitive information:
+
 - The server performs hosted web research
 - The model receives structured results (not open browser access)
 - Responses include citations when research is used
@@ -90,11 +92,13 @@ When you ask about current news, injuries, or time-sensitive information:
 Strategies let the agent operate on a recurring schedule with your defined mandate.
 
 **What strategies can do:**
+
 - Wake on a saved schedule
 - Reason from continuity state (prior applied actions, pending work, fresh evidence)
 - Auto-execute a narrow, pre-approved action subset
 
 **What strategies cannot do:**
+
 - Automatically confirm risky portfolio actions without explicit approval
 - Access billing, payments, or purchase flows
 - Act outside their defined guardrails
@@ -104,6 +108,7 @@ Strategies let the agent operate on a recurring schedule with your defined manda
 ## Channels
 
 The active agent contract runs on:
+
 1. **Web Agent page** — primary conversational surface
 2. **Saved strategy runs** — recurring automated advisory
 3. **Sportfolio CLI** — secondary shell-based access
@@ -125,6 +130,7 @@ The active agent contract runs on:
 ## Best Practices
 
 **High-quality prompts are specific:**
+
 - `"Review my setup"` → good
 - `"What should I do with my idle balance?"` → good
 - `"Which of my holdings matter most tonight?"` → good

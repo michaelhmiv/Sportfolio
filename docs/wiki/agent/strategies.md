@@ -24,6 +24,7 @@ Saved strategies are a recurring-advisory layer on top of the Sportfolio Agent. 
 ## What a Strategy Is
 
 A strategy stores:
+
 - **Your mandate** — the goal and rules you set
 - **A rule sheet** — specific conditions and preferences
 - **Guardrails** — the boundaries Hermes must stay within
@@ -36,11 +37,13 @@ On each run, Hermes wakes up, reads the continuity brief (recent actions, pendin
 ## What Strategies Can Automate
 
 The strategy-safe action subset is intentionally narrow. Strategies can auto-execute:
+
 - Scout reallocations within defined parameters
 - Watchlist adds and removes based on your criteria
 - Pre-approved informational actions (e.g., "flag any player on my watchlist with injury news")
 
 Strategies can stage (but not auto-execute without confirmation):
+
 - Trades above threshold amounts
 - Boost assignments
 - LP changes
@@ -59,6 +62,7 @@ Strategies can stage (but not auto-execute without confirmation):
 ## The Continuity Brief
 
 Every strategy run begins with a server-assembled continuity brief that gives Hermes:
+
 - What it did on previous runs
 - What's pending or awaiting confirmation
 - Fresh evidence (news, market moves, slate changes)
@@ -71,6 +75,7 @@ This prevents strategies from starting fresh each time and repeating decisions t
 ## Audit Trail
 
 Every strategy run is logged with:
+
 - What actions were taken or staged
 - The runtime metadata (whether Hermes ran locally or through a configured sidecar)
 - Timestamp and outcome
@@ -83,11 +88,11 @@ This lets you verify what happened and holds the system accountable.
 
 The product maintains a clear line:
 
-| Mode | What it does |
-|---|---|
-| **Advisory** | Generates guidance, surfaces relevant info, flags decisions for you |
-| **Auto-execution** | Runs only pre-approved, strategy-safe actions |
-| **Staged actions** | Prepares a plan for your explicit confirmation |
+| Mode               | What it does                                                        |
+| ------------------ | ------------------------------------------------------------------- |
+| **Advisory**       | Generates guidance, surfaces relevant info, flags decisions for you |
+| **Auto-execution** | Runs only pre-approved, strategy-safe actions                       |
+| **Staged actions** | Prepares a plan for your explicit confirmation                      |
 
 Strategies can operate in all three modes, but the boundary between them is defined by your mandate and guardrails.
 
@@ -96,6 +101,7 @@ Strategies can operate in all three modes, but the boundary between them is defi
 ## The Right Mental Model
 
 Think of a saved strategy as:
+
 - A standing instruction you've given to a knowledgeable assistant
 - Within defined guardrails
 - That checks in on your behalf

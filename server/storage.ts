@@ -41,9 +41,14 @@ import {
   lpPositions,
   lpTransactions,
   userApiTokens,
+  userPushTokens,
+  userNotificationPreferences,
+  pushNotificationEvents,
   type User,
   type InsertUser,
   type InsertUserApiToken,
+  type InsertUserNotificationPreference,
+  type InsertPushNotificationEvent,
   type UpsertUser,
   type Player,
   type InsertPlayer,
@@ -95,6 +100,9 @@ import {
   type InsertCommunityBoost,
   type CommunityCheckoutSession,
   type UserApiToken,
+  type UserPushToken,
+  type UserNotificationPreference,
+  type PushNotificationEvent,
 } from "@shared/schema";
 import {
   DEFAULT_ACTIVITY_FEED_CATEGORIES,
@@ -207,6 +215,45 @@ export interface IStorage {
   getUserApiTokenByHash(tokenHash: string): Promise<UserApiToken | undefined>;
   markUserApiTokenUsed(tokenId: string): Promise<void>;
   revokeUserApiToken(userId: string, tokenId: string): Promise<boolean>;
+  listActiveUserPushTokens(userId: string, platform?: string): Promise<UserPushToken[]>;
+  upsertUserPushToken(token: {
+    userId: string;
+    platform: string;
+    token: string;
+    deviceId?: string | null;
+    appVersion?: string | null;
+    osVersion?: string | null;
+    deviceModel?: string | null;
+  }): Promise<UserPushToken>;
+  deactivateUserPushTokens(
+    userId: string,
+    input: { token?: string; deviceId?: string; reason?: string },
+  ): Promise<number>;
+  markUserPushTokenDeliverySuccess(tokenId: string): Promise<void>;
+  markUserPushTokenDeliveryFailure(
+    tokenId: string,
+    error: string,
+    options?: { deactivate?: boolean },
+  ): Promise<void>;
+  getUserNotificationPreferences(userId: string): Promise<UserNotificationPreference[]>;
+  upsertUserNotificationPreference(
+    preference: InsertUserNotificationPreference,
+  ): Promise<UserNotificationPreference>;
+  upsertUserNotificationPreferences(
+    userId: string,
+    preferences: Array<{ notificationType: string; enabled: boolean }>,
+  ): Promise<UserNotificationPreference[]>;
+  createPushNotificationEvent(
+    event: InsertPushNotificationEvent,
+  ): Promise<PushNotificationEvent | undefined>;
+  updatePushNotificationEvent(
+    eventId: string,
+    updates: Partial<PushNotificationEvent>,
+  ): Promise<void>;
+  getPushNotificationEvents(
+    userId: string,
+    options?: { limit?: number; offset?: number },
+  ): Promise<PushNotificationEvent[]>;
 
   // Player methods
   getPlayers(filters?: { search?: string; team?: string; position?: string }): Promise<Player[]>;
@@ -1190,6 +1237,22 @@ export class DatabaseStorage implements IStorage {
           .set({ userId: newId })
           .where(eq(rewardedScoutBoostGrants.userId, oldId));
 
+        // Update push notification delivery state
+        await tx
+          .update(userPushTokens)
+          .set({ userId: newId })
+          .where(eq(userPushTokens.userId, oldId));
+
+        await tx
+          .update(userNotificationPreferences)
+          .set({ userId: newId })
+          .where(eq(userNotificationPreferences.userId, oldId));
+
+        await tx
+          .update(pushNotificationEvents)
+          .set({ userId: newId })
+          .where(eq(pushNotificationEvents.userId, oldId));
+
         // Update blog posts (author)
         await tx.update(blogPosts).set({ authorId: newId }).where(eq(blogPosts.authorId, oldId));
 
@@ -1274,6 +1337,284 @@ export class DatabaseStorage implements IStorage {
       .returning({ id: userApiTokens.id });
 
     return Boolean(revoked);
+  }
+
+  async listActiveUserPushTokens(userId: string, platform?: string): Promise<UserPushToken[]> {
+    const conditions = [eq(userPushTokens.userId, userId), eq(userPushTokens.isActive, true)];
+
+    if (platform) {
+      conditions.push(eq(userPushTokens.platform, platform.toLowerCase()));
+    }
+
+    return db
+      .select()
+      .from(userPushTokens)
+      .where(and(...conditions))
+      .orderBy(desc(userPushTokens.lastRegisteredAt));
+  }
+
+  async upsertUserPushToken(tokenInput: {
+    userId: string;
+    platform: string;
+    token: string;
+    deviceId?: string | null;
+    appVersion?: string | null;
+    osVersion?: string | null;
+    deviceModel?: string | null;
+  }): Promise<UserPushToken> {
+    const now = new Date();
+    const normalizedToken = tokenInput.token.trim();
+    const normalizedPlatform = tokenInput.platform.trim().toLowerCase();
+    const normalizedDeviceId = tokenInput.deviceId?.trim() || null;
+
+    if (!normalizedToken) {
+      throw new Error("Push token is required");
+    }
+
+    return db.transaction(async (tx) => {
+      if (normalizedDeviceId) {
+        await tx
+          .update(userPushTokens)
+          .set({
+            isActive: false,
+            invalidatedAt: now,
+            lastError: "token_rotated",
+            updatedAt: now,
+          })
+          .where(
+            and(
+              eq(userPushTokens.userId, tokenInput.userId),
+              eq(userPushTokens.platform, normalizedPlatform),
+              eq(userPushTokens.deviceId, normalizedDeviceId),
+              ne(userPushTokens.token, normalizedToken),
+              eq(userPushTokens.isActive, true),
+            ),
+          );
+      }
+
+      const [upserted] = await tx
+        .insert(userPushTokens)
+        .values({
+          userId: tokenInput.userId,
+          platform: normalizedPlatform,
+          token: normalizedToken,
+          deviceId: normalizedDeviceId,
+          appVersion: tokenInput.appVersion ?? null,
+          osVersion: tokenInput.osVersion ?? null,
+          deviceModel: tokenInput.deviceModel ?? null,
+          isActive: true,
+          lastRegisteredAt: now,
+          invalidatedAt: null,
+          lastError: null,
+          updatedAt: now,
+        })
+        .onConflictDoUpdate({
+          target: [userPushTokens.token],
+          set: {
+            userId: tokenInput.userId,
+            platform: normalizedPlatform,
+            deviceId: normalizedDeviceId,
+            appVersion: tokenInput.appVersion ?? null,
+            osVersion: tokenInput.osVersion ?? null,
+            deviceModel: tokenInput.deviceModel ?? null,
+            isActive: true,
+            lastRegisteredAt: now,
+            invalidatedAt: null,
+            lastError: null,
+            updatedAt: now,
+          },
+        })
+        .returning();
+
+      return upserted;
+    });
+  }
+
+  async deactivateUserPushTokens(
+    userId: string,
+    input: { token?: string; deviceId?: string; reason?: string },
+  ): Promise<number> {
+    const normalizedToken = input.token?.trim();
+    const normalizedDeviceId = input.deviceId?.trim();
+
+    if (!normalizedToken && !normalizedDeviceId) {
+      return 0;
+    }
+
+    const now = new Date();
+    const conditions = [eq(userPushTokens.userId, userId), eq(userPushTokens.isActive, true)];
+
+    if (normalizedToken) {
+      conditions.push(eq(userPushTokens.token, normalizedToken));
+    }
+
+    if (normalizedDeviceId) {
+      conditions.push(eq(userPushTokens.deviceId, normalizedDeviceId));
+    }
+
+    const updated = await db
+      .update(userPushTokens)
+      .set({
+        isActive: false,
+        invalidatedAt: now,
+        lastError: input.reason?.trim() || "deactivated",
+        updatedAt: now,
+      })
+      .where(and(...conditions))
+      .returning({ id: userPushTokens.id });
+
+    return updated.length;
+  }
+
+  async markUserPushTokenDeliverySuccess(tokenId: string): Promise<void> {
+    await db
+      .update(userPushTokens)
+      .set({
+        lastSuccessfulAt: new Date(),
+        failureCount: 0,
+        lastError: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(userPushTokens.id, tokenId));
+  }
+
+  async markUserPushTokenDeliveryFailure(
+    tokenId: string,
+    errorMessage: string,
+    options?: { deactivate?: boolean },
+  ): Promise<void> {
+    const now = new Date();
+    const setValues: any = {
+      lastFailureAt: now,
+      failureCount: sql`${userPushTokens.failureCount} + 1`,
+      lastError: errorMessage.slice(0, 800),
+      updatedAt: now,
+    };
+
+    if (options?.deactivate) {
+      setValues.isActive = false;
+      setValues.invalidatedAt = now;
+    }
+
+    await db.update(userPushTokens).set(setValues).where(eq(userPushTokens.id, tokenId));
+  }
+
+  async getUserNotificationPreferences(userId: string): Promise<UserNotificationPreference[]> {
+    return db
+      .select()
+      .from(userNotificationPreferences)
+      .where(eq(userNotificationPreferences.userId, userId))
+      .orderBy(asc(userNotificationPreferences.notificationType));
+  }
+
+  async upsertUserNotificationPreference(
+    preference: InsertUserNotificationPreference,
+  ): Promise<UserNotificationPreference> {
+    const now = new Date();
+    const [upserted] = await db
+      .insert(userNotificationPreferences)
+      .values({
+        userId: preference.userId,
+        notificationType: preference.notificationType,
+        enabled: preference.enabled,
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: [userNotificationPreferences.userId, userNotificationPreferences.notificationType],
+        set: {
+          enabled: preference.enabled,
+          updatedAt: now,
+        },
+      })
+      .returning();
+
+    return upserted;
+  }
+
+  async upsertUserNotificationPreferences(
+    userId: string,
+    preferences: Array<{ notificationType: string; enabled: boolean }>,
+  ): Promise<UserNotificationPreference[]> {
+    if (preferences.length === 0) {
+      return this.getUserNotificationPreferences(userId);
+    }
+
+    await db.transaction(async (tx) => {
+      const now = new Date();
+      for (const preference of preferences) {
+        await tx
+          .insert(userNotificationPreferences)
+          .values({
+            userId,
+            notificationType: preference.notificationType,
+            enabled: preference.enabled,
+            updatedAt: now,
+          })
+          .onConflictDoUpdate({
+            target: [
+              userNotificationPreferences.userId,
+              userNotificationPreferences.notificationType,
+            ],
+            set: {
+              enabled: preference.enabled,
+              updatedAt: now,
+            },
+          });
+      }
+    });
+
+    return this.getUserNotificationPreferences(userId);
+  }
+
+  async createPushNotificationEvent(
+    event: InsertPushNotificationEvent,
+  ): Promise<PushNotificationEvent | undefined> {
+    const now = new Date();
+    const values = {
+      ...event,
+      route: event.route || "/",
+      metadata: event.metadata ?? {},
+      updatedAt: now,
+    };
+
+    const query = db.insert(pushNotificationEvents).values(values);
+    const insertWithConflict = event.dedupeKey
+      ? query.onConflictDoNothing({
+          target: [pushNotificationEvents.userId, pushNotificationEvents.dedupeKey],
+        })
+      : query;
+
+    const [created] = await insertWithConflict.returning();
+    return created || undefined;
+  }
+
+  async updatePushNotificationEvent(
+    eventId: string,
+    updates: Partial<PushNotificationEvent>,
+  ): Promise<void> {
+    await db
+      .update(pushNotificationEvents)
+      .set({
+        ...updates,
+        updatedAt: new Date(),
+      })
+      .where(eq(pushNotificationEvents.id, eventId));
+  }
+
+  async getPushNotificationEvents(
+    userId: string,
+    options: { limit?: number; offset?: number } = {},
+  ): Promise<PushNotificationEvent[]> {
+    const limit = Math.max(1, Math.min(200, options.limit ?? 50));
+    const offset = Math.max(0, options.offset ?? 0);
+
+    return db
+      .select()
+      .from(pushNotificationEvents)
+      .where(eq(pushNotificationEvents.userId, userId))
+      .orderBy(desc(pushNotificationEvents.createdAt))
+      .limit(limit)
+      .offset(offset);
   }
 
   async updateUserBalance(userId: string, amount: string): Promise<void> {

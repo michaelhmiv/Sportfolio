@@ -40,6 +40,7 @@ The re-validation step matters. Account state can change between plan and confir
 ## Threads and Conversation State
 
 Every agent conversation is organized into a thread. A thread stores:
+
 - Recent message history
 - Staged-plan context
 - Research references
@@ -54,6 +55,7 @@ This is why the agent can handle follow-up questions cleanly — it's not starti
 At the start of each turn, Hermes receives a **server-owned continuity brief.** This is not free-form AI memory — it's a product-owned runtime summary assembled from real Sportfolio state.
 
 The brief covers:
+
 - Recent actions Hermes has already applied
 - Pending staged work awaiting confirmation
 - Active strategies and their next scheduled evaluations
@@ -65,6 +67,7 @@ The brief covers:
 ## Per-User Memory
 
 The agent stores durable memory per user to improve continuity over time. It can remember:
+
 - Recurring preferences
 - Prior account discussions
 - Useful patterns from past interactions
@@ -82,6 +85,7 @@ Hermes doesn't use a single giant always-on tool universe. The runtime is tiered
 - **Advanced internals** — stay out of the default allowlist
 
 **MCP follows the same boundary:**
+
 - Native Sportfolio tools = canonical source for account and gameplay state
 - Built-in MLB MCP bridge = bounded enrichment
 - User-connected external MCP = optional enrichment
@@ -93,6 +97,7 @@ MCP sources are never a competing source of truth for account state.
 ## Research Turns
 
 For time-sensitive questions (injuries, news, current events):
+
 1. The server performs the search
 2. The model receives structured results (not open browser access)
 3. Citations are attached to the answer
@@ -105,10 +110,10 @@ This keeps query policy server-controlled while still enabling current-events re
 
 Two commands exist for the staged-plan model:
 
-| Command | Effect |
-|---|---|
-| `confirm` | Apply the pending plan |
-| `cancel` | Discard the pending plan without applying anything |
+| Command   | Effect                                             |
+| --------- | -------------------------------------------------- |
+| `confirm` | Apply the pending plan                             |
+| `cancel`  | Discard the pending plan without applying anything |
 
 This means you can use the agent for planning and analysis without risking accidental execution.
 
@@ -117,6 +122,7 @@ This means you can use the agent for planning and analysis without risking accid
 ## Runtime Skills
 
 The Hermes runtime can create constrained reusable workflow macros (skills). The key boundaries:
+
 - Skills are macros over approved tools — not new backend powers
 - Skills don't bypass confirmation
 - Skills don't expand the normal user-facing capability surface
@@ -130,11 +136,13 @@ Skills allow Hermes to become more reusable without silently expanding what it's
 Strategies are saved mandates that let Hermes operate on a recurring schedule.
 
 **What strategies can do:**
+
 - Wake on a saved schedule
 - Reason from the continuity brief (prior actions, pending work, fresh evidence)
 - Auto-execute the strategy-safe approved action subset
 
 **What strategies cannot do:**
+
 - Auto-confirm risky portfolio actions without explicit approval
 - Handle payments, checkout, or external purchase flows
 - Act outside their defined guardrails
@@ -146,8 +154,9 @@ Each strategy run is audited with runtime transport metadata — so the product 
 ## Advisory Boundary
 
 The product maintains a strict line between:
-- *"Remind me what matters"* — allowed in scheduled advisory runs
-- *"Move my money for me"* — not allowed without explicit confirmation
+
+- _"Remind me what matters"_ — allowed in scheduled advisory runs
+- _"Move my money for me"_ — not allowed without explicit confirmation
 
 ---
 

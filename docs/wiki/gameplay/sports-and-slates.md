@@ -21,13 +21,13 @@ Sportfolio supports multiple sports in one shared economy. The same account, cas
 
 ## Supported Sports
 
-| Sport | Coverage |
-|---|---|
-| **NBA** | Full — trading, boosts, analytics, player surfaces |
-| **NFL** | Full — trading, boosts, analytics, player surfaces |
-| **MLB** | Full — trading, boosts, analytics, player surfaces |
+| Sport      | Coverage                                                                                     |
+| ---------- | -------------------------------------------------------------------------------------------- |
+| **NBA**    | Full — trading, boosts, analytics, player surfaces                                           |
+| **NFL**    | Full — trading, boosts, analytics, player surfaces                                           |
+| **MLB**    | Full — trading, boosts, analytics, player surfaces                                           |
 | **NASCAR** | Supported — markets, race-oriented insights; narrower surface than ball sports on some pages |
-| **ALL** | Aggregate browsing mode; not a separate sport |
+| **ALL**    | Aggregate browsing mode; not a separate sport                                                |
 
 > ℹ️ "Supported" can mean the sport exists in the data model and economy, or that it's front-and-center in a specific UI. Those aren't always identical — check the specific page if you're unsure.
 
@@ -36,6 +36,7 @@ Sportfolio supports multiple sports in one shared economy. The same account, cas
 ## The Global Sport Selector
 
 The sport selector in the app header (and at the top of the dashboard) drives:
+
 - Dashboard slate and game windows
 - Player Pools listings
 - Some analytics and scanner views
@@ -53,6 +54,7 @@ Sportfolio's daily mechanics are **Eastern Time (ET) based:**
 - Boosts and community boosts are assigned against a specific ET day
 
 **Practical impact:**
+
 - A player with a 10 PM ET game locks near game start ET
 - The dashboard date navigator works in ET day windows
 - The same player can be relevant today for a boost, visible tomorrow for an upcoming game, and still tradeable either way
@@ -62,6 +64,7 @@ Sportfolio's daily mechanics are **Eastern Time (ET) based:**
 ## How Game Status Works
 
 For team sports (NBA, NFL, MLB), the app tracks:
+
 - Scheduled
 - In progress
 - Completed
@@ -74,11 +77,13 @@ For NASCAR, live context is race-oriented rather than team-vs-team game flow. Th
 ## Using the ALL Mode
 
 **Use `ALL` when you want:**
+
 - The broadest market scan across all sports at once
 - A cross-sport view of what's moving
 - A faster way to spot unusual volume or price activity
 
 **Use a single sport when you want:**
+
 - Clean comparisons inside one league
 - Boost or trade decisions tied to one specific slate
 - Position or team filters that only make sense inside that league

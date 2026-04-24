@@ -21,11 +21,11 @@ Premium is an account-level upgrade that expands your Sportfolio capabilities. I
 
 ## What Premium Includes
 
-| Feature | Standard | Premium |
-|---|---|---|
-| Scout capacity | 5 scouts | 10 scouts |
-| Premium access windows | ❌ | ✅ |
-| All core gameplay features | ✅ | ✅ |
+| Feature                    | Standard | Premium   |
+| -------------------------- | -------- | --------- |
+| Scout capacity             | 5 scouts | 10 scouts |
+| Premium access windows     | ❌       | ✅        |
+| All core gameplay features | ✅       | ✅        |
 
 The most impactful upgrade is **scout capacity.** Doubling from 5 to 10 scouts significantly increases your passive share accumulation bandwidth — more scouts means more inventory building without additional active trading.
 
@@ -48,6 +48,7 @@ Premium shares are a separate asset type — they're not player shares and they 
 ## The Premium Page
 
 The Premium page is your entitlement dashboard. It shows:
+
 - Your current premium status (active or inactive)
 - Premium share inventory
 - Purchase history
@@ -59,12 +60,12 @@ Access it from the main navigation.
 
 ## Premium Shares vs. Player Shares
 
-| | Premium shares | Player shares |
-|---|---|---|
-| Purpose | Activate premium access | Market trading |
-| Tradeable | ❌ No | ✅ Yes |
-| Used for boosts | ❌ No | ✅ Yes |
-| Visible in | Portfolio (separate) | Portfolio → Holdings |
+|                 | Premium shares          | Player shares        |
+| --------------- | ----------------------- | -------------------- |
+| Purpose         | Activate premium access | Market trading       |
+| Tradeable       | ❌ No                   | ✅ Yes               |
+| Used for boosts | ❌ No                   | ✅ Yes               |
+| Visible in      | Portfolio (separate)    | Portfolio → Holdings |
 
 Don't treat premium shares like player inventory — they serve a completely different purpose.
 
@@ -73,6 +74,7 @@ Don't treat premium shares like player inventory — they serve a completely dif
 ## Is Premium Worth It?
 
 Premium is most valuable if you:
+
 - Have 5 scouts fully assigned and want more accumulation capacity
 - Follow many players across multiple sports
 - Want to build deeper inventory in more names passively
