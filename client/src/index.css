@@ -803,3 +803,85 @@
     text-decoration-color: rgb(147 197 253 / 0.6);
   }
 }
+
+/* =====================================================
+   MOBILE / NATIVE APP ENHANCEMENTS
+   ===================================================== */
+
+/**
+ * Safe area insets for edge-to-edge Android/iOS layouts.
+ * Components that live near the edges reference these utilities.
+ */
+@layer utilities {
+  .pt-safe {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .pl-safe {
+    padding-left: env(safe-area-inset-left);
+  }
+
+  .pr-safe {
+    padding-right: env(safe-area-inset-right);
+  }
+
+  .mt-safe {
+    margin-top: env(safe-area-inset-top);
+  }
+
+  .mb-safe {
+    margin-bottom: env(safe-area-inset-bottom);
+  }
+
+  /** Minimum touch target — 48×48 dp per Material / HIG guidelines */
+  .touch-target {
+    min-height: 48px;
+    min-width: 48px;
+  }
+
+  /**
+   * Suppress the 300 ms tap delay and long-press context menu on
+   * interactive elements inside the WebView.
+   */
+  .touch-manipulation {
+    touch-action: manipulation;
+  }
+}
+
+/**
+ * Global touch improvements for the native WebView:
+ * 1. Eliminate 300 ms tap delay on all clickable elements.
+ * 2. Prevent the browser context menu on long-press for non-text elements.
+ * 3. Disable text selection on UI chrome (nav, buttons, cards) while
+ *    keeping it enabled on actual content (inputs, articles).
+ */
+button,
+a,
+[role="button"],
+[role="tab"],
+[role="menuitem"],
+label {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+img,
+svg,
+video {
+  -webkit-user-callout: none;
+  user-select: none;
+}
+
+nav,
+header,
+footer,
+[data-radix-collection-item],
+[class*="BottomNav"],
+[class*="bottom-nav"] {
+  user-select: none;
+  -webkit-user-select: none;
+}

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { addNetworkListener, initNetworkMonitor } from "@/lib/native-network";
 
 /**
  * Hook to track app visibility, network status, and provide smart polling intervals.
@@ -6,6 +7,9 @@ import { useState, useEffect, useCallback } from "react";
  * 1. Pausing polling when app is backgrounded
  * 2. Pausing polling when offline
  * 3. Reducing polling frequency on mobile devices
+ *
+ * Network status is detected via @capacitor/network on native platforms
+ * and via window online/offline events on web (P3 — 6.1).
  */
 
 export interface AppState {
@@ -21,9 +25,16 @@ export function useAppState(): AppState {
   const hasNavigator = typeof navigator !== "undefined";
 
   const [isVisible, setIsVisible] = useState(() => (hasDOM ? !document.hidden : true));
-  const [isOnline, setIsOnline] = useState(() => (hasNavigator ? navigator.onLine : true));
+  const [isOnline, setIsOnline] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
   const [isPWA, setIsPWA] = useState(false);
+
+  // Initialize the native (or web) network monitor once per app lifetime
+  useEffect(() => {
+    initNetworkMonitor();
+    const remove = addNetworkListener(setIsOnline);
+    return remove;
+  }, []);
 
   useEffect(() => {
     if (!hasDOM || !hasNavigator) return;
@@ -53,19 +64,11 @@ export function useAppState(): AppState {
     };
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
-    // Network status
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
-
     return () => {
       window.removeEventListener("resize", checkMobile);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
     };
-  }, []);
+  }, [hasDOM, hasNavigator]);
 
   const shouldPoll = isVisible && isOnline;
 

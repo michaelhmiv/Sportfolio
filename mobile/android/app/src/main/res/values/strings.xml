@@ -4,4 +4,12 @@
     <string name="title_activity_main">Sportfolio</string>
     <string name="package_name">sportfolio.market</string>
     <string name="custom_url_scheme">sportfolio</string>
+
+    <!-- App shortcut labels (P4 — 4.5) -->
+    <string name="shortcut_quick_trade_short">Trade</string>
+    <string name="shortcut_quick_trade_long">Quick Trade</string>
+    <string name="shortcut_portfolio_short">Portfolio</string>
+    <string name="shortcut_portfolio_long">My Portfolio</string>
+    <string name="shortcut_boosts_short">Boosts</string>
+    <string name="shortcut_boosts_long">Today\'s Boosts</string>
 </resources>

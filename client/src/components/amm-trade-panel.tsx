@@ -23,6 +23,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { formatAdaptiveCurrency } from "@/lib/currency";
 import { apiRequest } from "@/lib/queryClient";
+import { hapticSuccess, hapticError, hapticMedium } from "@/lib/haptics";
 
 interface AmmTradePanelProps {
   playerId: string;
@@ -305,6 +306,7 @@ export function AmmTradePanel({
       return res.json();
     },
     onSuccess: (data) => {
+      void hapticSuccess();
       toast({
         title: "Purchase Successful!",
         description: `Bought ${data.sharesReceived.toFixed(2)} shares at $${data.pricePerShare.toFixed(2)}`,
@@ -320,6 +322,7 @@ export function AmmTradePanel({
       onTradeSuccess?.();
     },
     onError: (error: Error) => {
+      void hapticError();
       toast({
         title: "Purchase Failed",
         description: error.message,
@@ -338,6 +341,7 @@ export function AmmTradePanel({
       return res.json();
     },
     onSuccess: (data) => {
+      void hapticSuccess();
       toast({
         title: "Sale Successful!",
         description: `Sold ${data.sharesSold} shares at $${data.pricePerShare.toFixed(2)}`,
@@ -353,6 +357,7 @@ export function AmmTradePanel({
       onTradeSuccess?.();
     },
     onError: (error: Error) => {
+      void hapticError();
       toast({
         title: "Sale Failed",
         description: error.message,
@@ -367,6 +372,7 @@ export function AmmTradePanel({
     if (tradeType === "buy") {
       const sbAmount = parseFloat(amount);
       if (sbAmount > userBalance) {
+        void hapticError();
         toast({
           title: "Insufficient Balance",
           description: `You need $${sbAmount.toFixed(2)} but only have $${userBalance.toFixed(2)}`,
@@ -374,10 +380,12 @@ export function AmmTradePanel({
         });
         return;
       }
+      void hapticMedium();
       buyMutation.mutate(sbAmount);
     } else {
       const sharesAmount = parseFloat(amount);
       if (sharesAmount > userShares) {
+        void hapticError();
         toast({
           title: "Insufficient Shares",
           description: `You want to sell ${sharesAmount} shares but only have ${userShares}`,
@@ -385,6 +393,7 @@ export function AmmTradePanel({
         });
         return;
       }
+      void hapticMedium();
       sellMutation.mutate(sharesAmount);
     }
   };

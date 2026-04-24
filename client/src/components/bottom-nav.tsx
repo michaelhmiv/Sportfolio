@@ -15,6 +15,7 @@ import {
   DrawerDescription,
 } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
+import { hapticLight } from "@/lib/haptics";
 
 const navItems = [
   {
@@ -44,6 +45,9 @@ const navItems = [
   },
 ];
 
+/** Exported so App.tsx can read the active tab index for directional transitions */
+export const NAV_ITEMS = navItems;
+
 export function BottomNav() {
   const [location] = useLocation();
   const { unreadCount } = useNotifications();
@@ -56,19 +60,14 @@ export function BottomNav() {
   const { sport, setSport } = useSport();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
-  // Haptic feedback helper
-  const triggerHaptic = () => {
-    if (typeof navigator !== "undefined" && navigator.vibrate) {
-      navigator.vibrate(50);
-    }
-  };
-
   const handleClick = (e: React.MouseEvent, url: string) => {
     // If clicking Dashboard while already on Dashboard, open filter
     if (url === "/" && location === "/") {
       e.preventDefault();
       setIsDrawerOpen(true);
-      triggerHaptic();
+      void hapticLight();
+    } else {
+      void hapticLight();
     }
   };
 
@@ -125,11 +124,11 @@ export function BottomNav() {
                 <Button
                   key={s}
                   variant={sport === s ? "default" : "outline"}
-                  className="h-14 text-lg justify-start gap-4 px-6 relative overflow-hidden"
+                  className="h-14 text-lg justify-start gap-4 px-6 relative overflow-hidden touch-manipulation"
                   onClick={() => {
                     setSport(s);
                     setIsDrawerOpen(false);
-                    triggerHaptic();
+                    void hapticLight();
                   }}
                 >
                   <span className="text-2xl">{getSportIcon(s)}</span>
@@ -145,10 +144,12 @@ export function BottomNav() {
       </Drawer>
 
       <nav
+        aria-label="Main navigation"
         className={cn(
           "fixed bottom-0 left-0 right-0 z-50 bg-sidebar border-t sm:hidden select-none",
           isPremium && "border-t-yellow-500/30",
         )}
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
         <div className="grid grid-cols-5 h-16 max-w-md mx-auto">
           {navItems.map((item) => {
@@ -158,12 +159,14 @@ export function BottomNav() {
               <div key={item.title} className="flex items-center justify-center">
                 <Link
                   href={item.url}
-                  className="flex items-center justify-center w-full h-full"
+                  aria-label={item.title}
+                  aria-current={isActive ? "page" : undefined}
+                  className="flex items-center justify-center w-full h-full touch-manipulation"
                   onClick={(e) => handleClick(e, item.url)}
                 >
                   <motion.div
                     className={cn(
-                      "flex flex-col items-center justify-center gap-1 py-1 rounded-none transition-colors w-full h-full relative",
+                      "flex flex-col items-center justify-center gap-1 py-1 rounded-none transition-colors w-full h-full relative min-h-[48px]",
                       isActive ? "text-primary" : "text-muted-foreground",
                     )}
                     data-testid={`button - nav - ${item.title.toLowerCase()} `}
@@ -191,7 +194,7 @@ export function BottomNav() {
                       }
                       transition={{ duration: 0.3 }}
                     >
-                      <item.icon className="w-5 h-5" />
+                      <item.icon className="w-5 h-5" aria-hidden="true" />
                     </motion.div>
                     <span className="text-[10px] font-medium">{item.title}</span>
 
@@ -212,8 +215,6 @@ export function BottomNav() {
                         </motion.div>
                       )}
                     </AnimatePresence>
-
-                    {/* Standard Dot Backup if we don't want the icon (Optional, using Icon for now) */}
 
                     {item.title === "Portfolio" && unreadCount > 0 && (
                       <motion.div
