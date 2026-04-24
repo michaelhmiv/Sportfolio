@@ -83,7 +83,11 @@ function ScoutPlayerCard({
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: prefersReducedMotion ? 0 : 20, scale: prefersReducedMotion ? 1 : 0.9 }}
+      initial={{
+        opacity: 0,
+        y: prefersReducedMotion ? 0 : 20,
+        scale: prefersReducedMotion ? 1 : 0.9,
+      }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={
         prefersReducedMotion
@@ -302,7 +306,9 @@ export function ScoutCeremonyOverlay({
               scale: prefersReducedMotion ? 1 : phase === "celebration" ? 1 : 0.95,
             }}
             transition={
-              prefersReducedMotion ? { duration: 0 } : { type: "spring", stiffness: 400, damping: 20 }
+              prefersReducedMotion
+                ? { duration: 0 }
+                : { type: "spring", stiffness: 400, damping: 20 }
             }
             className="text-center"
           >

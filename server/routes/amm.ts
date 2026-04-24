@@ -71,7 +71,10 @@ export function registerAmmRoutes(app: Express) {
         });
       }
 
-      logger.info({ playerId, shares: pool.shares, playMoney: pool.playMoney }, "[AMM API] Pool found");
+      logger.info(
+        { playerId, shares: pool.shares, playMoney: pool.playMoney },
+        "[AMM API] Pool found",
+      );
 
       res.json({
         playerId: pool.playerId,

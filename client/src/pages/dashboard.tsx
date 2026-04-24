@@ -51,7 +51,12 @@ import { useAuth } from "@/hooks/useAuth";
 import { DashboardScanners } from "@/components/marketplace-scanners";
 import { PlayerName } from "@/components/player-name";
 import { SportSelector } from "@/components/sport-selector";
-import { Shimmer, ShimmerCard, ScrollReveal, PullToRefreshIndicator } from "@/components/ui/animations";
+import {
+  Shimmer,
+  ShimmerCard,
+  ScrollReveal,
+  PullToRefreshIndicator,
+} from "@/components/ui/animations";
 import { SPORTS, useSport } from "@/lib/sport-context";
 import { authenticatedFetch, queryClient } from "@/lib/queryClient";
 import { OnboardingMissions } from "@/components/onboarding-missions";
@@ -321,7 +326,11 @@ export default function Dashboard() {
   // Disable polling when app is backgrounded or offline; reduce frequency on mobile
   const pollingInterval = shouldPoll ? 60000 : false;
 
-  const { data, isLoading, refetch: dashboardRefetch } = useQuery<DashboardData>({
+  const {
+    data,
+    isLoading,
+    refetch: dashboardRefetch,
+  } = useQuery<DashboardData>({
     queryKey: ["/api/dashboard"],
     queryFn: async () => {
       // Add 10-second timeout to prevent infinite loading
@@ -625,10 +634,7 @@ export default function Dashboard() {
   return (
     <>
       <div ref={containerRef} className="terminal-page max-w-full overflow-x-hidden">
-        <PullToRefreshIndicator
-          pullProgress={pullDistance / 72}
-          isRefreshing={isRefreshing}
-        />
+        <PullToRefreshIndicator pullProgress={pullDistance / 72} isRefreshing={isRefreshing} />
         {/* Login Banner for Non-Authenticated Users */}
         {!isAuthenticated && (
           <div className="bg-primary text-primary-foreground border-b border-primary/20">
