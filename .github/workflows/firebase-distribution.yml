@@ -92,7 +92,8 @@ jobs:
           # This keeps Firebase iteration builds installable over Play internal
           # builds without manual downgrades while preserving ample headroom for
           # the workflow's per-file run counter. If this workflow ever nears
-          # 100000 runs, increase the reserved range in both release workflows.
+          # 100000 runs, increase the reserved range here and in
+          # .github/workflows/play-internal-testing.yml.
           VERSION_CODE_BASE=300000
           VERSION_CODE=$((VERSION_CODE_BASE + ${GITHUB_RUN_NUMBER}))
           echo "MOBILE_VERSION_CODE=$VERSION_CODE" >> "$GITHUB_ENV"
@@ -122,8 +123,9 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           MOBILE_VERSION_CODE: ${{ env.MOBILE_VERSION_CODE }}
           MOBILE_VERSION_NAME: ${{ env.FIREBASE_RELEASE_NAME }}
-        # The Gradle wrapper script forwards these env vars into the Android
-        # release signing config defined in mobile/android/app/build.gradle.
+        # The Node wrapper calls the checked-in Gradle wrapper from the repo root
+        # so CI can reuse the same command shape as local scripts while passing
+        # these signing env vars into mobile/android/app/build.gradle.
         run: node scripts/run-gradle-wrapper.mjs assembleRelease
 
       - name: Configure Firebase credentials (ADC)
