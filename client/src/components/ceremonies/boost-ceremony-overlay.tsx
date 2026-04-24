@@ -191,7 +191,10 @@ export function BoostCeremonyOverlay({ isOpen, data, onClose }: BoostCeremonyOve
             <motion.div
               initial={{ opacity: 0, scale: prefersReducedMotion ? 1 : 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: prefersReducedMotion ? 0 : 0.3, delay: prefersReducedMotion ? 0 : 0.1 }}
+              transition={{
+                duration: prefersReducedMotion ? 0 : 0.3,
+                delay: prefersReducedMotion ? 0 : 0.1,
+              }}
               className={cn(
                 "relative mb-4 overflow-hidden rounded-sm border bg-card p-4",
                 phase === "charge" && "ring-2",
@@ -233,7 +236,9 @@ export function BoostCeremonyOverlay({ isOpen, data, onClose }: BoostCeremonyOve
 
             {/* Energy beam */}
             <div className="relative h-8 flex items-center justify-center">
-              {phase === "boost" && !prefersReducedMotion && <EnergyBeam color={visuals.color} delay={0} />}
+              {phase === "boost" && !prefersReducedMotion && (
+                <EnergyBeam color={visuals.color} delay={0} />
+              )}
               <motion.div
                 animate={phase === "boost" && !prefersReducedMotion ? { scale: [1, 1.2, 1] } : {}}
                 transition={{ duration: 0.3 }}
@@ -283,7 +288,9 @@ export function BoostCeremonyOverlay({ isOpen, data, onClose }: BoostCeremonyOve
               <p className="text-lg font-semibold mt-1">{data.totalMultiplier}x</p>
 
               {/* Particle burst on complete */}
-              {phase === "complete" && !prefersReducedMotion && <ParticleBurst color={visuals.color} count={12} />}
+              {phase === "complete" && !prefersReducedMotion && (
+                <ParticleBurst color={visuals.color} count={12} />
+              )}
             </motion.div>
 
             {/* Stats */}

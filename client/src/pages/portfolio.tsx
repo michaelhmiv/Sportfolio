@@ -187,7 +187,11 @@ export default function Portfolio() {
   const [expandedShareSortDir, setExpandedShareSortDir] = useState<"asc" | "desc">("desc");
   const [selectedHoldingIds, setSelectedHoldingIds] = useState<Set<string>>(new Set());
 
-  const { data, isLoading, refetch: portfolioRefetch } = useQuery<PortfolioData>({
+  const {
+    data,
+    isLoading,
+    refetch: portfolioRefetch,
+  } = useQuery<PortfolioData>({
     queryKey: ["/api/portfolio"],
   });
 
@@ -769,10 +773,7 @@ export default function Portfolio() {
 
   return (
     <div ref={containerRef} className="terminal-page p-3 sm:p-4">
-      <PullToRefreshIndicator
-        pullProgress={pullDistance / 72}
-        isRefreshing={isRefreshing}
-      />
+      <PullToRefreshIndicator pullProgress={pullDistance / 72} isRefreshing={isRefreshing} />
       <div className="max-w-7xl mx-auto">
         <div className="mb-3">
           <div className="flex items-center justify-between mb-3">

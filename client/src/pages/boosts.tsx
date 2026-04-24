@@ -373,10 +373,7 @@ export default function BoostsPage() {
 
   return (
     <div ref={containerRef} className="terminal-page px-2 py-3 sm:p-3">
-      <PullToRefreshIndicator
-        pullProgress={pullDistance / 72}
-        isRefreshing={isRefreshing}
-      />
+      <PullToRefreshIndicator pullProgress={pullDistance / 72} isRefreshing={isRefreshing} />
       <div className="mx-auto max-w-5xl py-1 space-y-3">
         <ErrorBoundary>
           {/* Header */}
