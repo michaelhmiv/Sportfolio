@@ -90,6 +90,7 @@ const loadBoostsPage = () => import("@/pages/boosts");
 const loadLoginPage = () => import("@/pages/Login");
 const loadAuthCallbackPage = () => import("@/pages/AuthCallback");
 const loadCheckoutSuccessPage = () => import("@/pages/checkout-success");
+const loadOnboardingPage = () => import("@/pages/onboarding");
 
 const PlayerPools = lazy(loadPlayerPoolsPage);
 const PlayerPage = lazy(loadPlayerPage);
@@ -121,6 +122,7 @@ const Boosts = lazy(loadBoostsPage);
 const Login = lazy(loadLoginPage);
 const AuthCallback = lazy(loadAuthCallbackPage);
 const CheckoutSuccess = lazy(loadCheckoutSuccessPage);
+const OnboardingPage = lazy(loadOnboardingPage);
 
 function upsertMetaTag(attribute: "name" | "property", value: string): HTMLMetaElement {
   let tag = document.head.querySelector(`meta[${attribute}="${value}"]`) as HTMLMetaElement | null;
@@ -159,18 +161,27 @@ function LegacyMarketplaceRedirect() {
 
 function OnboardingCheck() {
   const { user, isAuthenticated } = useAuth();
+  const [, navigate] = useLocation();
   const [showOnboarding, setShowOnboarding] = useState(false);
 
   useEffect(() => {
     if (isAuthenticated && user && user.hasSeenOnboarding === false) {
-      setShowOnboarding(true);
+      if (Capacitor.isNativePlatform()) {
+        // Native: use the dedicated full-screen onboarding route.
+        navigate("/onboarding", { replace: false });
+      } else {
+        // Web / Playwright: keep the existing modal behaviour.
+        setShowOnboarding(true);
+      }
     }
-  }, [isAuthenticated, user]);
+  }, [isAuthenticated, user, navigate]);
 
   const handleComplete = () => {
     setShowOnboarding(false);
   };
 
+  // On native the onboarding route handles everything; nothing to render here.
+  if (Capacitor.isNativePlatform()) return null;
   return <OnboardingModal open={showOnboarding} onComplete={handleComplete} />;
 }
 
@@ -243,6 +254,7 @@ function getTransitionVariants(
 
 const AUTH_BOOTSTRAP_REQUIRED_PREFIXES = [
   "/login",
+  "/onboarding",
   "/auth/callback",
   "/agent",
   "/power",
@@ -356,7 +368,10 @@ function Router() {
       listener = await CapacitorApp.addListener("appUrlOpen", async ({ url }) => {
         if (!url) return;
 
-        // Handle auth callback
+        // Handle auth callback — close the in-app browser first, then hand the
+        // code/tokens to the AuthCallback page so it is the single PKCE exchange
+        // point (avoids the race condition where App.tsx consumes the one-time
+        // code before AuthCallback can see it).
         if (url.startsWith("sportfolio://auth/callback")) {
           try {
             const callbackUrl = new URL(url);
@@ -365,25 +380,26 @@ function Router() {
             const accessToken = hashParams.get("access_token");
             const refreshToken = hashParams.get("refresh_token");
 
-            const supabase = await getSupabase();
+            // Close the in-app browser immediately so the WebView becomes
+            // active again before we navigate.
+            await Browser.close().catch(() => undefined);
+
             if (code) {
-              const { error } = await supabase.auth.exchangeCodeForSession(code);
-              if (error) {
-                console.error("[MOBILE_AUTH] Code exchange failed:", error);
-              }
+              navigate(`/auth/callback?code=${encodeURIComponent(code)}`, { replace: true });
             } else if (accessToken && refreshToken) {
-              const { error } = await supabase.auth.setSession({
-                access_token: accessToken,
-                refresh_token: refreshToken,
-              });
-              if (error) {
-                console.error("[MOBILE_AUTH] Session set failed:", error);
-              }
+              // Implicit/hash flow — forward as hash fragment so AuthCallback can read it.
+              navigate(
+                `/auth/callback#access_token=${encodeURIComponent(accessToken)}&refresh_token=${encodeURIComponent(refreshToken)}`,
+                { replace: true },
+              );
+            } else {
+              // No recognisable payload — let AuthCallback attempt a session lookup.
+              navigate("/auth/callback", { replace: true });
             }
           } catch (error) {
+            // URL parsing or navigation failed; navigate to the callback page
+            // which will attempt a getSession() recovery.
             console.error("[MOBILE_AUTH] Callback handling failed:", error);
-          } finally {
-            await Browser.close().catch(() => undefined);
             navigate("/auth/callback", { replace: true });
           }
           return;
@@ -470,9 +486,13 @@ function Router() {
     const rootRoutes = new Set(NAV_ITEMS.map((item) => item.url));
 
     const register = async () => {
-      listener = await CapacitorApp.addListener("backButton", ({ canGoBack }) => {
+      listener = await CapacitorApp.addListener("backButton", ({ canGoBack: browserCanGoBack }) => {
+        // The onboarding page registers its own backButton listener to manage
+        // slide-level navigation.  Yield here so we don't double-navigate.
+        if (location === "/onboarding") return;
+
         // If the browser history has entries, go back
-        if (canGoBack) {
+        if (browserCanGoBack) {
           history.back();
           return;
         }
@@ -682,6 +702,8 @@ function Router() {
               <Route path="/login" component={Login} />
               <Route path="/auth/callback" component={AuthCallback} />
               <Route path="/checkout/success" component={CheckoutSuccess} />
+              {/* Native full-screen onboarding — replaces the modal on Android/iOS */}
+              <Route path="/onboarding" component={OnboardingPage} />
 
               {/* Dashboard is now public - shows live data with login CTAs for non-authenticated users */}
               <Route path="/" component={Dashboard} />
