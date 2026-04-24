@@ -99,7 +99,38 @@ test("signup shows inline validation for malformed email", async ({ page }) => {
   await expect(page.getByTestId("button-signup-submit")).toBeDisabled();
 });
 
-test("onboarding CTA marks complete and navigates to pools", async ({ page }) => {
+test("deep-link callback: used/expired code shows link_expired error page", async ({ page }) => {
+  await mockSupabaseConfig(page);
+
+  await page.route(/.*\/api\/auth\/user(\?.*)?$/, async (route) => {
+    await route.fulfill({
+      status: 401,
+      contentType: "application/json",
+      body: JSON.stringify({ message: "Unauthorized" }),
+    });
+  });
+
+  // Supabase responds with invalid_grant (code already used or expired).
+  await page.route("**/mock-supabase/auth/v1/token**", async (route) => {
+    await route.fulfill({
+      status: 400,
+      contentType: "application/json",
+      body: JSON.stringify({
+        error: "invalid_grant",
+        error_description: "Authorization code not found or already used",
+      }),
+    });
+  });
+
+  // Navigate as if App.tsx's appUrlOpen handler forwarded the deep-link code here.
+  await page.goto("/auth/callback?code=already-used-deep-link-code");
+
+  // Should redirect to the auth error page with the link_expired error code.
+  await expect(page).toHaveURL(/\/auth\/error/);
+  await expect(page.getByTestId("text-error-title")).toHaveText("Link Expired");
+  await expect(page.getByTestId("text-error-code")).toHaveText("link_expired");
+});
+
   let onboardingCompleteCalls = 0;
   let hasSeenOnboarding = false;
 

@@ -6,8 +6,9 @@
  * experience with:
  *   1. Welcome — brand / value prop overview
  *   2. Trade — AMM / player pools feature
- *   3. Boost — daily boost lifecycle
- *   4. Notifications — in-context push permission ask
+ *   3. Scout — time-weighted share earning
+ *   4. Boost — daily boost lifecycle
+ *   5. Notifications — in-context push permission ask
  *
  * On completion it calls /api/user/onboarding/complete and navigates to the
  * dashboard, mirroring OnboardingModal behaviour so the same server endpoint
@@ -27,7 +28,7 @@ import {
   CarouselItem,
   type CarouselApi,
 } from "@/components/ui/carousel";
-import { Activity, Bell, TrendingUp, Trophy } from "lucide-react";
+import { Activity, Bell, Eye, TrendingUp, Trophy } from "lucide-react";
 import { SiDiscord } from "react-icons/si";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -35,7 +36,7 @@ import { Capacitor } from "@capacitor/core";
 import { App as CapacitorApp } from "@capacitor/app";
 import { PushNotifications } from "@capacitor/push-notifications";
 import { StatusBar, Style as StatusBarStyle } from "@capacitor/status-bar";
-import { hapticLight, hapticMedium, hapticSuccess } from "@/lib/haptics";
+import { hapticLight, hapticHeavy, hapticMedium, hapticSuccess } from "@/lib/haptics";
 import {
   hasPromptedForPushPermission,
   isAndroidNativePushSupported,
@@ -74,6 +75,15 @@ const SLIDES: OnboardingSlide[] = [
     title: "Trade Player Shares",
     subtitle: "Instant AMM pricing — no order book needed",
     body: "Buy or sell any player instantly at the pool price.  Add liquidity to capture fee flow, or scout players to earn shares over time.",
+  },
+  {
+    id: "scout",
+    icon: Eye,
+    iconColor: "text-violet-400",
+    iconBg: "bg-violet-400/10",
+    title: "Earn with Scouts",
+    subtitle: "Time-weighted share rewards — no luck required",
+    body: "Assign up to 5 scouts to players you believe in. Every hour you earn shares proportional to your share of scout-minutes across the pool.",
   },
   {
     id: "boost",
@@ -178,13 +188,25 @@ export default function OnboardingPage() {
   }, []);
 
   // ---------------------------------------------------------------------------
-  // Carousel: track current slide index.
+  // Carousel: track current slide index and persist position across interruptions.
   // ---------------------------------------------------------------------------
   useEffect(() => {
     if (!api) return;
 
+    // Restore saved slide position (e.g. after Android destroys the WebView).
+    const saved = parseInt(localStorage.getItem("onboarding_slide") ?? "0", 10);
+    if (saved > 0 && saved < SLIDES.length) {
+      api.scrollTo(saved, true);
+    }
+
     const handleSelect = () => {
-      setCurrent(api.selectedScrollSnap());
+      const idx = api.selectedScrollSnap();
+      setCurrent(idx);
+      try {
+        localStorage.setItem("onboarding_slide", String(idx));
+      } catch {
+        // Ignore storage errors — non-critical.
+      }
     };
 
     setCurrent(api.selectedScrollSnap());
@@ -202,7 +224,13 @@ export default function OnboardingPage() {
       await apiRequest("POST", "/api/user/onboarding/complete");
     },
     onSuccess: () => {
+      try {
+        localStorage.removeItem("onboarding_slide");
+      } catch {
+        // non-critical
+      }
       queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      void hapticHeavy();
       void hapticSuccess();
       navigate("/", { replace: true });
     },

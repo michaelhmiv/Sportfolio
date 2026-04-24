@@ -101,6 +101,16 @@ export default function AuthCallback() {
           return;
         }
 
+        if (
+          normalizedDescription.includes("not found or already used") ||
+          normalizedDescription.includes("already been used") ||
+          normalizedDescription.includes("authorization code not found") ||
+          normalizedDescription.includes("invalid_grant")
+        ) {
+          redirectToError("link_expired", description);
+          return;
+        }
+
         redirectToError("callback_failed", description);
       }
     }
