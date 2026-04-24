@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <shortcut
+        android:shortcutId="quick_trade"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_quick_trade_short"
+        android:shortcutLongLabel="@string/shortcut_quick_trade_long"
+        android:shortcutDisabledMessage="@string/shortcut_quick_trade_disabled">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="sportfolio://pools"
+            android:targetPackage="sportfolio.market"
+            android:targetClass="sportfolio.market.MainActivity" />
+    </shortcut>
+
+    <shortcut
+        android:shortcutId="my_portfolio"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_portfolio_short"
+        android:shortcutLongLabel="@string/shortcut_portfolio_long"
+        android:shortcutDisabledMessage="@string/shortcut_portfolio_disabled">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="sportfolio://portfolio"
+            android:targetPackage="sportfolio.market"
+            android:targetClass="sportfolio.market.MainActivity" />
+    </shortcut>
+
+    <shortcut
+        android:shortcutId="todays_boosts"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_boosts_short"
+        android:shortcutLongLabel="@string/shortcut_boosts_long"
+        android:shortcutDisabledMessage="@string/shortcut_boosts_disabled">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="sportfolio://boosts"
+            android:targetPackage="sportfolio.market"
+            android:targetClass="sportfolio.market.MainActivity" />
+    </shortcut>
+
+</shortcuts>

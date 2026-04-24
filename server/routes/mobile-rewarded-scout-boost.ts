@@ -8,6 +8,7 @@ import {
   verifyAdMobSsvCallbackUrl,
 } from "../services/rewarded-scout-boost";
 import { loadUserEntitlements } from "../services/user-entitlements";
+import { logger } from "../lib/logger";
 
 type MobileRewardedScoutBoostStorage = Pick<
   IStorage,
@@ -43,7 +44,7 @@ export async function registerMobileRewardedScoutBoostRoutes(
     try {
       verifiedCallback = await verifyAdMobSsvCallbackUrl(callbackUrl);
     } catch (error: any) {
-      console.warn("[REWARDED_SCOUT_BOOST] Invalid AdMob callback:", error?.message || error);
+      logger.warn({ err: error }, "[REWARDED_SCOUT_BOOST] Invalid AdMob callback");
       return res.status(400).json({ error: "Invalid reward verification callback" });
     }
 
@@ -51,12 +52,14 @@ export async function registerMobileRewardedScoutBoostRoutes(
       const result = await grantVerifiedRewardedScoutBoost(storageLayer, verifiedCallback);
 
       if (result.outcome === "granted") {
-        console.log(
-          `[REWARDED_SCOUT_BOOST] Granted reward session ${result.rewardSessionId} through ${result.expiresAt.toISOString()}`,
+        logger.info(
+          { rewardSessionId: result.rewardSessionId, expiresAt: result.expiresAt },
+          "[REWARDED_SCOUT_BOOST] Granted reward session",
         );
       } else {
-        console.log(
-          `[REWARDED_SCOUT_BOOST] Ignored callback ${verifiedCallback.transactionId}: ${result.outcome}`,
+        logger.info(
+          { transactionId: verifiedCallback.transactionId, outcome: result.outcome },
+          "[REWARDED_SCOUT_BOOST] Ignored callback",
         );
       }
 
@@ -68,7 +71,7 @@ export async function registerMobileRewardedScoutBoostRoutes(
         expiresAt: "expiresAt" in result ? result.expiresAt : null,
       });
     } catch (error: any) {
-      console.error("[REWARDED_SCOUT_BOOST] Failed to grant reward:", error);
+      logger.error({ err: error }, "[REWARDED_SCOUT_BOOST] Failed to grant reward");
       const message = error?.message || "Failed to grant reward";
       const isValidationError =
         message.includes("custom data") ||
@@ -128,7 +131,7 @@ export async function registerMobileRewardedScoutBoostRoutes(
         maxScouts: userState.entitlements.maxScouts,
       });
     } catch (error: any) {
-      console.error("[REWARDED_SCOUT_BOOST] Failed to create session:", error);
+      logger.error({ err: error }, "[REWARDED_SCOUT_BOOST] Failed to create session");
       return res.status(500).json({ error: error.message });
     }
   });

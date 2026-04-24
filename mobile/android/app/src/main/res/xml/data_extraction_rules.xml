@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Android 12+ data extraction rules.
+    Prevents cloud backup and device-to-device transfer of any app data.
+
+    Sportfolio stores Supabase auth tokens in WebView localStorage. If these were
+    backed up and restored onto a different device (or attacker-controlled device),
+    they would grant full account access. Since tokens are short-lived and
+    automatically refreshed from Supabase, excluding all storage is safe — users
+    simply re-authenticate after a device restore.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" />
+        <exclude domain="file" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" />
+        <exclude domain="file" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+    </device-transfer>
+</data-extraction-rules>

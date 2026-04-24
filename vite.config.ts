@@ -4,6 +4,11 @@ import path from "path";
 
 export default defineConfig({
   plugins: [react()],
+  define: {
+    "import.meta.env.VITE_APP_VERSION": JSON.stringify(
+      process.env.npm_package_version ?? "0.0.0",
+    ),
+  },
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "client", "src"),

@@ -34,6 +34,7 @@ import {
   lpTransactions,
 } from "@shared/schema";
 import { broadcast } from "../websocket";
+import { logger } from "../lib/logger";
 
 // Fee structure - easily adjustable
 const POOL_FEE_PERCENT = 0.01; // 1% to pool (benefits LPs)
@@ -348,7 +349,7 @@ export async function executeBuy(
   sbAmount: number,
   maxSlippage: number = MAX_SLIPPAGE_PERCENT,
 ): Promise<TradeResult> {
-  console.log("[AMM] Executing buy for player:", playerId, "userId:", userId, "amount:", sbAmount);
+  logger.info({ playerId, userId, sbAmount }, "[AMM] Executing buy");
   return await db.transaction(async (tx) => {
     try {
       // 1. Lock the pool row to prevent race conditions
@@ -600,7 +601,7 @@ export async function executeBuy(
         burnFee: quote.burnFee,
       };
     } catch (error: any) {
-      console.error("[AMM] Buy execution failed:", error);
+      logger.error({ err: error }, "[AMM] Buy execution failed");
       return { success: false, error: error.message };
     }
   });
@@ -813,7 +814,7 @@ export async function executeSell(
         burnFee: quote.burnFee,
       };
     } catch (error: any) {
-      console.error("[AMM] Sell execution failed:", error);
+      logger.error({ err: error }, "[AMM] Sell execution failed");
       return { success: false, error: error.message };
     }
   });
@@ -1335,7 +1336,7 @@ export async function zapAddLiquiditySharesOnly(
         priceAfterSwap,
       };
     } catch (error: any) {
-      console.error("[AMM] Zap add liquidity failed:", error);
+      logger.error({ err: error }, "[AMM] Zap add liquidity failed");
       return { success: false, error: error.message };
     }
   });
@@ -1559,7 +1560,7 @@ export async function zapAddLiquiditySbOnly(
         priceAfterSwap,
       };
     } catch (error: any) {
-      console.error("[AMM] Zap add liquidity (SB) failed:", error);
+      logger.error({ err: error }, "[AMM] Zap add liquidity (SB) failed");
       return { success: false, error: error.message };
     }
   });
@@ -1822,7 +1823,7 @@ export async function addLiquidity(
         ownershipPercentage,
       };
     } catch (error: any) {
-      console.error("[AMM] Add liquidity failed:", error);
+      logger.error({ err: error }, "[AMM] Add liquidity failed");
       return { success: false, error: error.message };
     }
   });
@@ -1989,7 +1990,7 @@ export async function removeLiquidity(
         playMoneyReceived: playMoneyToReturn,
       };
     } catch (error: any) {
-      console.error("[AMM] Remove liquidity failed:", error);
+      logger.error({ err: error }, "[AMM] Remove liquidity failed");
       return { success: false, error: error.message };
     }
   });
@@ -2295,7 +2296,7 @@ export async function addLiquidityOptimal(
         playMoneyUnused,
       };
     } catch (error: any) {
-      console.error("[AMM] Add liquidity (optimal) failed:", error);
+      logger.error({ err: error }, "[AMM] Add liquidity (optimal) failed");
       return { success: false, error: error.message };
     }
   });
