@@ -104,8 +104,7 @@ export default function AuthCallback() {
         if (
           normalizedDescription.includes("not found or already used") ||
           normalizedDescription.includes("already been used") ||
-          normalizedDescription.includes("authorization code not found") ||
-          normalizedDescription.includes("invalid_grant")
+          normalizedDescription.includes("authorization code not found")
         ) {
           redirectToError("link_expired", description);
           return;

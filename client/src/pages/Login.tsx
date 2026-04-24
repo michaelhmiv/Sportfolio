@@ -62,7 +62,7 @@ export default function Login() {
     return () => {
       cleanupBrowserListener();
     };
-  }, []);
+  }, [cleanupBrowserListener]);
   const postAuthRedirect = useMemo(() => {
     if (typeof window === "undefined") {
       return "/";
@@ -229,12 +229,13 @@ export default function Login() {
     // On native the browser is now open.  If the user dismisses it without
     // completing OAuth, browserFinished fires and we reset the loading state.
     if (isNative) {
-      void Browser.addListener("browserFinished", () => {
-        setIsLoading(false);
-        cleanupBrowserListener();
-      }).then((listener) => {
+      void (async () => {
+        const listener = await Browser.addListener("browserFinished", () => {
+          setIsLoading(false);
+          cleanupBrowserListener();
+        });
         browserFinishedListenerRef.current = listener;
-      });
+      })();
     }
   };
 
@@ -256,12 +257,13 @@ export default function Login() {
 
     // Same browserFinished safety net as Google.
     if (isNative) {
-      void Browser.addListener("browserFinished", () => {
-        setIsLoading(false);
-        cleanupBrowserListener();
-      }).then((listener) => {
+      void (async () => {
+        const listener = await Browser.addListener("browserFinished", () => {
+          setIsLoading(false);
+          cleanupBrowserListener();
+        });
         browserFinishedListenerRef.current = listener;
-      });
+      })();
     }
   };
 
