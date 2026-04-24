@@ -207,6 +207,7 @@ const PERSISTABLE_PREFIXES = [
 ];
 
 function isCacheable(queryKey: readonly unknown[]): boolean {
+  if (!queryKey.length) return false;
   const key = queryKey[0];
   return typeof key === "string" && PERSISTABLE_PREFIXES.some((p) => key.startsWith(p));
 }
