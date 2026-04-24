@@ -204,6 +204,7 @@ const PERSISTABLE_PREFIXES = [
   "/api/news",
   "/api/sports",
   "/api/games",
+  "/api/market/mobile-overview",
 ];
 
 function isCacheable(queryKey: readonly unknown[]): boolean {

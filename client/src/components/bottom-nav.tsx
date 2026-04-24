@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { useNotifications } from "@/lib/notification-context";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useSport, SPORTS, Sport } from "@/lib/sport-context";
@@ -55,6 +55,7 @@ export function BottomNav() {
   const isPremium = user?.isPremium || false;
   const [previousLocation, setPreviousLocation] = useState(location);
   const [justActivated, setJustActivated] = useState<string | null>(null);
+  const prefersReducedMotion = useReducedMotion();
 
   // Sport Context & Filter
   const { sport, setSport } = useSport();
@@ -125,6 +126,7 @@ export function BottomNav() {
                   key={s}
                   variant={sport === s ? "default" : "outline"}
                   className="h-14 text-lg justify-start gap-4 px-6 relative overflow-hidden touch-manipulation"
+                  aria-label={getSportLabel(s)}
                   onClick={() => {
                     setSport(s);
                     setIsDrawerOpen(false);
@@ -171,7 +173,7 @@ export function BottomNav() {
                     )}
                     data-testid={`button - nav - ${item.title.toLowerCase()} `}
                     animate={
-                      wasJustActivated
+                      wasJustActivated && !prefersReducedMotion
                         ? {
                             scale: [1, 1.15, 0.95, 1.05, 1],
                             y: [0, -6, 0, -2, 0],
@@ -185,7 +187,7 @@ export function BottomNav() {
                   >
                     <motion.div
                       animate={
-                        wasJustActivated
+                        wasJustActivated && !prefersReducedMotion
                           ? {
                               scale: [1, 1.3, 1],
                               rotate: [0, -10, 10, 0],
@@ -220,7 +222,11 @@ export function BottomNav() {
                       <motion.div
                         initial={{ scale: 0 }}
                         animate={{ scale: 1 }}
-                        transition={{ type: "spring", stiffness: 500, damping: 25 }}
+                        transition={
+                          prefersReducedMotion
+                            ? { duration: 0 }
+                            : { type: "spring", stiffness: 500, damping: 25 }
+                        }
                         className="absolute top-1 right-2 z-[51]"
                       >
                         <Badge

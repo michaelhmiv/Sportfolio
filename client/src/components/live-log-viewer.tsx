@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+const IS_DEV = import.meta.env.DEV;
+
 interface LogEvent {
   type: "info" | "warning" | "error" | "progress" | "complete" | "debug";
   timestamp: string;
@@ -57,7 +59,7 @@ export function LiveLogViewer({
     eventSourceRef.current = eventSource;
 
     eventSource.onopen = () => {
-      console.log("[LiveLogViewer] Connected to stream:", operationId);
+      if (IS_DEV) console.log("[LiveLogViewer] Connected to stream:", operationId);
       setStatus("running");
     };
 

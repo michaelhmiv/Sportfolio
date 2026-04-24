@@ -63,7 +63,7 @@ import { useToast } from "@/hooks/use-toast";
 import { invalidatePortfolioQueries } from "@/lib/cache-invalidation";
 import type { Holding, Player } from "@shared/schema";
 import { PlayerName } from "@/components/player-name";
-import { Shimmer, ShimmerCard } from "@/components/ui/animations";
+import { Shimmer, ShimmerCard, PullToRefreshIndicator } from "@/components/ui/animations";
 import { AnimatedPrice } from "@/components/ui/animated-price";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useSport } from "@/lib/sport-context";
@@ -77,6 +77,7 @@ import {
   buildStackingCandidates,
   type PortfolioStackingEligibility,
 } from "@/pages/portfolio-stacking-helpers";
+import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 
 interface PortfolioData {
   balance: string;
@@ -186,7 +187,7 @@ export default function Portfolio() {
   const [expandedShareSortDir, setExpandedShareSortDir] = useState<"asc" | "desc">("desc");
   const [selectedHoldingIds, setSelectedHoldingIds] = useState<Set<string>>(new Set());
 
-  const { data, isLoading } = useQuery<PortfolioData>({
+  const { data, isLoading, refetch: portfolioRefetch } = useQuery<PortfolioData>({
     queryKey: ["/api/portfolio"],
   });
 
@@ -388,6 +389,13 @@ export default function Portfolio() {
       unsubTrade();
     };
   }, [subscribe]);
+
+  // Pull-to-refresh
+  const { containerRef, isRefreshing, pullDistance } = usePullToRefresh<HTMLDivElement>({
+    onRefresh: async () => {
+      await Promise.all([portfolioRefetch(), lpRefetch()]);
+    },
+  });
 
   const redeemPremiumMutation = useMutation({
     mutationFn: async () => {
@@ -760,7 +768,11 @@ export default function Portfolio() {
   }
 
   return (
-    <div className="terminal-page p-3 sm:p-4">
+    <div ref={containerRef} className="terminal-page p-3 sm:p-4">
+      <PullToRefreshIndicator
+        pullProgress={pullDistance / 72}
+        isRefreshing={isRefreshing}
+      />
       <div className="max-w-7xl mx-auto">
         <div className="mb-3">
           <div className="flex items-center justify-between mb-3">

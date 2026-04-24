@@ -6,7 +6,8 @@
         android:enabled="true"
         android:icon="@mipmap/ic_launcher"
         android:shortcutShortLabel="@string/shortcut_quick_trade_short"
-        android:shortcutLongLabel="@string/shortcut_quick_trade_long">
+        android:shortcutLongLabel="@string/shortcut_quick_trade_long"
+        android:shortcutDisabledMessage="@string/shortcut_quick_trade_disabled">
         <intent
             android:action="android.intent.action.VIEW"
             android:data="sportfolio://pools"
@@ -19,7 +20,8 @@
         android:enabled="true"
         android:icon="@mipmap/ic_launcher"
         android:shortcutShortLabel="@string/shortcut_portfolio_short"
-        android:shortcutLongLabel="@string/shortcut_portfolio_long">
+        android:shortcutLongLabel="@string/shortcut_portfolio_long"
+        android:shortcutDisabledMessage="@string/shortcut_portfolio_disabled">
         <intent
             android:action="android.intent.action.VIEW"
             android:data="sportfolio://portfolio"
@@ -32,7 +34,8 @@
         android:enabled="true"
         android:icon="@mipmap/ic_launcher"
         android:shortcutShortLabel="@string/shortcut_boosts_short"
-        android:shortcutLongLabel="@string/shortcut_boosts_long">
+        android:shortcutLongLabel="@string/shortcut_boosts_long"
+        android:shortcutDisabledMessage="@string/shortcut_boosts_disabled">
         <intent
             android:action="android.intent.action.VIEW"
             android:data="sportfolio://boosts"
