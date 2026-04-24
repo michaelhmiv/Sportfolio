@@ -213,57 +213,58 @@ export default function Login() {
   const handleGoogleLogin = async () => {
     void hapticMedium();
     setIsLoading(true);
+
+    // On native, register the listener BEFORE calling loginWithGoogle so it
+    // is in place before Browser.open() returns — eliminating the window
+    // where browserFinished could fire without a handler.
+    if (isNative) {
+      const listener = await Browser.addListener("browserFinished", () => {
+        setIsLoading(false);
+        cleanupBrowserListener();
+      });
+      browserFinishedListenerRef.current = listener;
+    }
+
     const result = await loginWithGoogle(postAuthRedirect);
 
     if (!result.success) {
       void hapticError();
+      // Browser never opened — remove the pre-registered listener.
+      cleanupBrowserListener();
       toast({
         title: "Login failed",
         description: result.error || "Could not sign in with Google",
         variant: "destructive",
       });
       setIsLoading(false);
-      return;
-    }
-
-    // On native the browser is now open.  If the user dismisses it without
-    // completing OAuth, browserFinished fires and we reset the loading state.
-    if (isNative) {
-      void (async () => {
-        const listener = await Browser.addListener("browserFinished", () => {
-          setIsLoading(false);
-          cleanupBrowserListener();
-        });
-        browserFinishedListenerRef.current = listener;
-      })();
     }
   };
 
   const handleDiscordLogin = async () => {
     void hapticMedium();
     setIsLoading(true);
+
+    // Same pre-registration pattern as Google.
+    if (isNative) {
+      const listener = await Browser.addListener("browserFinished", () => {
+        setIsLoading(false);
+        cleanupBrowserListener();
+      });
+      browserFinishedListenerRef.current = listener;
+    }
+
     const result = await loginWithDiscord(postAuthRedirect);
 
     if (!result.success) {
       void hapticError();
+      // Browser never opened — remove the pre-registered listener.
+      cleanupBrowserListener();
       toast({
         title: "Login failed",
         description: result.error || "Could not sign in with Discord",
         variant: "destructive",
       });
       setIsLoading(false);
-      return;
-    }
-
-    // Same browserFinished safety net as Google.
-    if (isNative) {
-      void (async () => {
-        const listener = await Browser.addListener("browserFinished", () => {
-          setIsLoading(false);
-          cleanupBrowserListener();
-        });
-        browserFinishedListenerRef.current = listener;
-      })();
     }
   };
 

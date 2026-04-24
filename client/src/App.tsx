@@ -380,10 +380,6 @@ function Router() {
             const accessToken = hashParams.get("access_token");
             const refreshToken = hashParams.get("refresh_token");
 
-            // Close the in-app browser immediately so the WebView becomes
-            // active again before we navigate.
-            await Browser.close().catch(() => undefined);
-
             if (code) {
               navigate(`/auth/callback?code=${encodeURIComponent(code)}`, { replace: true });
             } else if (accessToken && refreshToken) {
@@ -401,6 +397,10 @@ function Router() {
             // which will attempt a getSession() recovery.
             console.error("[MOBILE_AUTH] Callback handling failed:", error);
             navigate("/auth/callback", { replace: true });
+          } finally {
+            // Always close the in-app browser for auth callback deep links —
+            // even if URL parsing throws before reaching the normal close call.
+            await Browser.close().catch(() => undefined);
           }
           return;
         }

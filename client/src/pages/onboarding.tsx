@@ -150,33 +150,52 @@ export default function OnboardingPage() {
   // Keep a ref to the back-button listener so we can clean it up.
   const backButtonListenerRef = useRef<{ remove: () => Promise<void> } | null>(null);
 
+  // Refs so the back-button handler (registered once) can always read the
+  // latest carousel state without causing the effect to re-run.
+  const currentRef = useRef(current);
+  const apiRef = useRef(api);
+  useEffect(() => {
+    currentRef.current = current;
+  }, [current]);
+  useEffect(() => {
+    apiRef.current = api;
+  }, [api]);
+
   // ---------------------------------------------------------------------------
   // Back-button: go to previous slide, or minimise on first slide.
+  // Registered once on mount; current/api are read from refs to avoid
+  // re-registration (which can leave duplicate listeners) on each slide change.
   // ---------------------------------------------------------------------------
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
 
+    let cancelled = false;
+
     const register = async () => {
-      backButtonListenerRef.current = await CapacitorApp.addListener(
-        "backButton",
-        ({ canGoBack: _canGoBack }) => {
-          if (current > 0) {
-            void hapticLight();
-            api?.scrollPrev();
-          } else {
-            void CapacitorApp.minimizeApp();
-          }
-        },
-      );
+      const handle = await CapacitorApp.addListener("backButton", () => {
+        if (currentRef.current > 0) {
+          void hapticLight();
+          apiRef.current?.scrollPrev();
+        } else {
+          void CapacitorApp.minimizeApp();
+        }
+      });
+      if (cancelled) {
+        // Component unmounted before the promise resolved — drop the handle.
+        void handle.remove();
+      } else {
+        backButtonListenerRef.current = handle;
+      }
     };
 
     void register();
 
     return () => {
+      cancelled = true;
       void backButtonListenerRef.current?.remove();
       backButtonListenerRef.current = null;
     };
-  }, [current, api]);
+  }, []); // ← empty: register once, never re-register
 
   // Status bar — Dark style to match the onboarding dark background.
   // App.tsx's global status bar effect restores the correct state on route change,
@@ -194,7 +213,12 @@ export default function OnboardingPage() {
     if (!api) return;
 
     // Restore saved slide position (e.g. after Android destroys the WebView).
-    const saved = parseInt(localStorage.getItem("onboarding_slide") ?? "0", 10);
+    let saved = 0;
+    try {
+      saved = parseInt(localStorage.getItem("onboarding_slide") ?? "0", 10);
+    } catch {
+      // Storage unavailable — start from the first slide.
+    }
     if (saved > 0 && saved < SLIDES.length) {
       api.scrollTo(saved, true);
     }
