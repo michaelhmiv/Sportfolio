@@ -1,3 +1,22 @@
+## 2026-04-23 Upload Key Activation + Billing Product Finalization
+
+- [x] Re-run Play internal upload after Google upload-key reset propagation
+- [x] Confirm upload now succeeds with new upload certificate
+- [x] Ensure Play billing one-time product exists and has an active purchase option
+- [x] Fix Play billing doctor purchase-option activation endpoint path regression
+- [x] Re-run Play preflight and verify all automated blockers are cleared
+
+Review:
+
+- Play internal testing run `24866290531` succeeded end-to-end on branch `codex/play-store-readiness`, confirming the new upload key is active.
+- PR #120 (`Google Play billing integration and Play release automation`) was merged to `main` with merge commit `c2c09c765e29433cbb15bbb4418afa693eeaf7ac`, preserving the full Play workflow and billing integration in the canonical branch.
+- `scripts/play-billing-doctor.mjs` was patched to use the correct purchase-option state endpoint:
+- from `/applications/{packageName}/oneTimeProducts/purchaseOptions:batchUpdateStates`
+- to `/applications/{packageName}/oneTimeProducts/{productId}/purchaseOptions:batchUpdateStates`
+- After the fix, `npm run play:billing:ensure-product` succeeded and reported `purchaseOptions=1 active=1` for `premium_share_1`.
+- `npm run play:release:preflight` now passes with only one non-blocking warning:
+- `ANDROID_KEYSTORE_PASSWORD` not set locally (so local fingerprint check is skipped).
+
 ## 2026-04-23 Bot Liquidity Spread Upgrade + Execution Parity
 
 - [x] Create dedicated worktree `C:\Users\micha\OneDrive\Documents\Antigravity\Sportfolio-Replit-bot-liquidity-spread-parity` on branch `codex/bot-liquidity-spread-parity`
@@ -165,6 +184,7 @@ Review:
 - `npm run lint` passed.
 - `npm run test:run` passed.
 - `npm run format:check` passed.
+
 ## 2026-04-21 Play Upload-Key Reset Wait-Window Hardening
 
 - [x] Upgrade Play internal testing workflow actions to current major versions and force Node 24 JS action runtime

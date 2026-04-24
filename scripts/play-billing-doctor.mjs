@@ -233,7 +233,7 @@ function countActivePurchaseOptions(product) {
 
 async function activatePurchaseOption({ token, packageName, productId, purchaseOptionId }) {
   const response = await apiRequest(
-    `/applications/${encodeURIComponent(packageName)}/oneTimeProducts/purchaseOptions:batchUpdateStates`,
+    `/applications/${encodeURIComponent(packageName)}/oneTimeProducts/${encodeURIComponent(productId)}/purchaseOptions:batchUpdateStates`,
     token,
     {
       method: "POST",
