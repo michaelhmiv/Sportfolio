@@ -5,6 +5,13 @@ import { Link, useLocation } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import type { AndroidPlayProduct, AndroidPlayPurchase } from "@/lib/android-play-billing";
+import {
+  getAndroidPlayPurchases,
+  isAndroidPlayBillingAvailable,
+  purchaseAndroidPlayProduct,
+  queryAndroidPlayProducts,
+} from "@/lib/android-play-billing";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -52,7 +59,21 @@ interface RewardedScoutBoostSessionResponse {
   maxScouts: number;
 }
 
+interface GooglePlayVerifyResponse {
+  success: boolean;
+  state: string;
+  credited: boolean;
+  alreadyCredited: boolean;
+  premiumShares: number;
+  quantity: number;
+  consumed?: boolean;
+  consumePending?: boolean;
+}
+
 const PRICE_PER_SHARE = 5;
+const ANDROID_PREMIUM_PRODUCT_ID = (
+  import.meta.env.VITE_ANDROID_PREMIUM_PRODUCT_ID || "premium_share_1"
+).trim();
 
 const webPremiumBenefits = [
   {
@@ -96,6 +117,11 @@ export default function Premium() {
   const [rewardedAdAvailable, setRewardedAdAvailable] = useState(!androidBuild);
   const [rewardedAdLoading, setRewardedAdLoading] = useState(false);
   const [rewardedVerificationPending, setRewardedVerificationPending] = useState(false);
+  const [playBillingAvailable, setPlayBillingAvailable] = useState(!androidBuild);
+  const [playProduct, setPlayProduct] = useState<AndroidPlayProduct | null>(null);
+  const [playProductLoading, setPlayProductLoading] = useState(false);
+  const [playPurchaseLoading, setPlayPurchaseLoading] = useState(false);
+  const [playRestoreLoading, setPlayRestoreLoading] = useState(false);
   const [, setClockTick] = useState(0);
 
   const { data: premiumStatus, isLoading } = useQuery<PremiumStatus>({
@@ -114,6 +140,54 @@ export default function Premium() {
         setRewardedAdAvailable(available);
       }
     });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [androidBuild]);
+
+  useEffect(() => {
+    if (!androidBuild) {
+      return;
+    }
+
+    let cancelled = false;
+    setPlayProductLoading(true);
+
+    void (async () => {
+      try {
+        const available = await isAndroidPlayBillingAvailable();
+        if (cancelled) {
+          return;
+        }
+
+        setPlayBillingAvailable(available);
+        if (!available) {
+          setPlayProduct(null);
+          return;
+        }
+
+        const products = await queryAndroidPlayProducts([ANDROID_PREMIUM_PRODUCT_ID]);
+        if (cancelled) {
+          return;
+        }
+
+        const matched =
+          products.find((product) => product.productId === ANDROID_PREMIUM_PRODUCT_ID) ||
+          products[0] ||
+          null;
+        setPlayProduct(matched);
+      } catch {
+        if (!cancelled) {
+          setPlayProduct(null);
+          setPlayBillingAvailable(false);
+        }
+      } finally {
+        if (!cancelled) {
+          setPlayProductLoading(false);
+        }
+      }
+    })();
 
     return () => {
       cancelled = true;
@@ -193,6 +267,176 @@ export default function Premium() {
       });
     },
   });
+
+  const verifyGooglePlayPurchase = async (purchase: AndroidPlayPurchase) => {
+    const response = await apiRequest("POST", "/api/mobile/google-play/verify-purchase", {
+      purchaseToken: purchase.purchaseToken,
+      productId: ANDROID_PREMIUM_PRODUCT_ID,
+      orderId: purchase.orderId,
+    });
+    return (await response.json()) as GooglePlayVerifyResponse;
+  };
+
+  const handleGooglePlayPurchase = async () => {
+    if (!androidBuild) {
+      return;
+    }
+
+    if (!playBillingAvailable) {
+      toast({
+        title: "Google Play Billing Unavailable",
+        description: "Play Billing is not available on this Android build right now.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!playProduct) {
+      toast({
+        title: "Product Not Ready",
+        description: "Premium purchase details are still syncing from Google Play.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setPlayPurchaseLoading(true);
+    try {
+      const purchase = await purchaseAndroidPlayProduct({
+        productId: playProduct.productId,
+        obfuscatedAccountId: user?.id || undefined,
+      });
+
+      if (purchase.purchaseState === "pending") {
+        toast({
+          title: "Purchase Pending",
+          description:
+            "Google Play marked this purchase as pending. We'll credit it once payment clears.",
+        });
+        return;
+      }
+
+      if (purchase.purchaseState !== "purchased") {
+        toast({
+          title: "Purchase Not Completed",
+          description: "The purchase did not complete yet.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const verification = await verifyGooglePlayPurchase(purchase);
+      await invalidateEntitlementQueries();
+
+      if (verification.credited) {
+        toast({
+          title: "Premium Share Credited",
+          description: `${verification.quantity} Premium Share${verification.quantity > 1 ? "s" : ""} added to your account.`,
+        });
+      } else if (verification.alreadyCredited) {
+        toast({
+          title: "Purchase Synced",
+          description: "This Google Play purchase was already credited on your account.",
+        });
+      }
+
+      if (verification.consumePending) {
+        toast({
+          title: "Repurchase Sync Pending",
+          description:
+            "Your share was credited, but Google Play consumption is still syncing in the background.",
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: "Google Play Purchase Failed",
+        description: error.message || "Could not complete Google Play purchase.",
+        variant: "destructive",
+      });
+    } finally {
+      setPlayPurchaseLoading(false);
+    }
+  };
+
+  const handleRestoreGooglePlayPurchases = async () => {
+    if (!androidBuild) {
+      return;
+    }
+
+    setPlayRestoreLoading(true);
+    try {
+      const purchases = await getAndroidPlayPurchases();
+      const uniquePurchases = new Map<string, AndroidPlayPurchase>();
+
+      for (const purchase of purchases) {
+        const ownsProduct = purchase.products?.includes(ANDROID_PREMIUM_PRODUCT_ID);
+        if (!ownsProduct || !purchase.purchaseToken) {
+          continue;
+        }
+        uniquePurchases.set(purchase.purchaseToken, purchase);
+      }
+
+      if (uniquePurchases.size === 0) {
+        toast({
+          title: "No Purchases Found",
+          description: "No unverified Premium Share purchases were found on this Google account.",
+        });
+        return;
+      }
+
+      let credited = 0;
+      let alreadyCredited = 0;
+      let pending = 0;
+      let consumePending = 0;
+
+      for (const purchase of uniquePurchases.values()) {
+        if (purchase.purchaseState === "pending") {
+          pending += 1;
+          continue;
+        }
+
+        if (purchase.purchaseState !== "purchased") {
+          continue;
+        }
+
+        const verification = await verifyGooglePlayPurchase(purchase);
+        if (verification.credited) {
+          credited += 1;
+        } else if (verification.alreadyCredited) {
+          alreadyCredited += 1;
+        }
+
+        if (verification.consumePending) {
+          consumePending += 1;
+        }
+      }
+
+      await invalidateEntitlementQueries();
+      toast({
+        title: "Google Play Sync Complete",
+        description:
+          credited > 0
+            ? `Credited ${credited} purchase${credited > 1 ? "s" : ""}. ${alreadyCredited} already synced.${pending > 0 ? ` ${pending} still pending.` : ""}`
+            : `${alreadyCredited} already synced.${pending > 0 ? ` ${pending} still pending.` : ""}`,
+      });
+
+      if (consumePending > 0) {
+        toast({
+          title: "Consumption Retry Pending",
+          description:
+            "Some purchases were credited but are still waiting for Play consumption retries.",
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: "Google Play Sync Failed",
+        description: error.message || "Could not sync purchases from Google Play.",
+        variant: "destructive",
+      });
+    } finally {
+      setPlayRestoreLoading(false);
+    }
+  };
 
   const handleCheckout = async () => {
     setCheckoutLoading(true);
@@ -362,6 +606,7 @@ export default function Premium() {
 
   const showAndroidRewardedCta = androidBuild && !premiumActive && !rewardedScoutBoostActive;
   const benefits = androidBuild ? androidPremiumBenefits : webPremiumBenefits;
+  const androidPurchasePrice = playProduct?.formattedPrice || `$${PRICE_PER_SHARE.toFixed(2)}`;
 
   return (
     <div className="terminal-page">
@@ -376,7 +621,7 @@ export default function Premium() {
           </h1>
           <p className="mx-auto mt-3 max-w-xl text-sm text-muted-foreground">
             {androidBuild
-              ? "Redeem Premium Shares you already own, or watch a rewarded ad to unlock a 12-hour scout boost on Android."
+              ? "Buy Premium Shares with Google Play, redeem shares for 30-day Premium access, or watch a rewarded ad for a 12-hour scout boost."
               : "Purchase tradeable Premium Shares for $5 each. Redeem for 30 days of premium access or hold them for later use."}
           </p>
         </div>
@@ -428,7 +673,24 @@ export default function Premium() {
                           )}
                           <span className="ml-1">Sync</span>
                         </Button>
-                      ) : null}
+                      ) : (
+                        <Button
+                          variant="terminalOutline"
+                          size="sm"
+                          onClick={handleRestoreGooglePlayPurchases}
+                          disabled={playRestoreLoading || playPurchaseLoading}
+                          data-testid="button-sync-google-play"
+                          className="h-6 px-2 text-xs"
+                          title="Sync purchases from Google Play"
+                        >
+                          {playRestoreLoading ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <RefreshCw className="h-3 w-3" />
+                          )}
+                          <span className="ml-1">Sync</span>
+                        </Button>
+                      )}
                     </div>
                     <div className="text-3xl font-bold" data-testid="text-premium-shares">
                       {ownedPremiumShares}
@@ -464,7 +726,7 @@ export default function Premium() {
                         <div className="text-lg font-semibold text-muted-foreground">Inactive</div>
                         <div className="mt-1 font-mono text-[11px] text-muted-foreground">
                           {androidBuild
-                            ? "Redeem a Premium Share or watch a rewarded ad to boost scouts."
+                            ? "Buy or redeem a Premium Share, or watch a rewarded ad to boost scouts."
                             : "Redeem a share to activate premium."}
                         </div>
                       </>
@@ -560,6 +822,82 @@ export default function Premium() {
             )}
           </CardContent>
         </Card>
+
+        {androidBuild && (
+          <Card variant="terminal">
+            <CardHeader>
+              <CardTitle className="terminal-heading flex items-center gap-2 text-sm">
+                <ShoppingCart className="h-5 w-5" />
+                Buy Premium Share (Google Play)
+              </CardTitle>
+              <CardDescription>
+                One-time Google Play purchase. Each completed purchase credits 1 Premium Share.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {playProductLoading ? (
+                <div className="flex items-center justify-center py-6">
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                </div>
+              ) : (
+                <>
+                  <div className="terminal-shell p-4">
+                    <div className="terminal-label mb-1">Google Play Product</div>
+                    <div className="text-base font-semibold">
+                      {playProduct?.title || "Premium Share"}
+                    </div>
+                    <div className="mt-1 font-mono text-[11px] text-muted-foreground">
+                      Product ID: {ANDROID_PREMIUM_PRODUCT_ID}
+                    </div>
+                    <div className="mt-2 text-2xl font-bold">{androidPurchasePrice}</div>
+                  </div>
+
+                  <Button
+                    variant="terminal"
+                    className="w-full"
+                    size="lg"
+                    onClick={handleGooglePlayPurchase}
+                    disabled={
+                      playPurchaseLoading ||
+                      playRestoreLoading ||
+                      !playBillingAvailable ||
+                      !playProduct
+                    }
+                    data-testid="button-google-play-purchase"
+                  >
+                    {playPurchaseLoading ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <ShoppingCart className="h-4 w-4 mr-2" />
+                    )}
+                    {playPurchaseLoading ? "Processing Purchase" : "Buy with Google Play"}
+                  </Button>
+
+                  <Button
+                    variant="terminalOutline"
+                    className="w-full"
+                    onClick={handleRestoreGooglePlayPurchases}
+                    disabled={playRestoreLoading || playPurchaseLoading}
+                    data-testid="button-google-play-restore"
+                  >
+                    {playRestoreLoading ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                    )}
+                    Restore Existing Purchases
+                  </Button>
+
+                  {!playBillingAvailable && (
+                    <div className="terminal-empty text-center text-sm text-muted-foreground p-3">
+                      Google Play Billing is currently unavailable on this build.
+                    </div>
+                  )}
+                </>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {!androidBuild && (
           <Card variant="terminal">

@@ -1429,6 +1429,39 @@ export const whopPayments = pgTable(
   }),
 );
 
+// Google Play purchases table - tracks verified Android in-app purchases for premium crediting
+export const googlePlayPurchases = pgTable(
+  "google_play_purchases",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    purchaseToken: varchar("purchase_token").notNull().unique(),
+    orderId: varchar("order_id"),
+    userId: varchar("user_id").references(() => users.id, { onDelete: "set null" }),
+    productId: text("product_id").notNull(),
+    packageName: text("package_name").notNull(),
+    quantity: integer("quantity").notNull().default(1),
+    purchaseState: integer("purchase_state"),
+    acknowledgementState: integer("acknowledgement_state"),
+    consumptionState: integer("consumption_state"),
+    purchaseTime: timestamp("purchase_time"),
+    isTestPurchase: boolean("is_test_purchase").notNull().default(false),
+    creditedAt: timestamp("credited_at"),
+    consumedAt: timestamp("consumed_at"),
+    lastVerifiedAt: timestamp("last_verified_at").notNull().defaultNow(),
+    rawPayload: jsonb("raw_payload").notNull().default({}),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    tokenIdx: uniqueIndex("google_play_purchases_token_idx").on(table.purchaseToken),
+    orderIdx: index("google_play_purchases_order_idx").on(table.orderId),
+    userIdx: index("google_play_purchases_user_idx").on(table.userId),
+    creditedIdx: index("google_play_purchases_credited_idx").on(table.creditedAt),
+  }),
+);
+
 // Tweet settings table - stores configuration for automated tweets
 export const tweetSettings = pgTable("tweet_settings", {
   id: varchar("id")
@@ -3121,6 +3154,15 @@ export const insertWhopPaymentSchema = createInsertSchema(whopPayments).omit({
 
 export type WhopPayment = typeof whopPayments.$inferSelect;
 export type InsertWhopPayment = z.infer<typeof insertWhopPaymentSchema>;
+
+export const insertGooglePlayPurchaseSchema = createInsertSchema(googlePlayPurchases).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type GooglePlayPurchase = typeof googlePlayPurchases.$inferSelect;
+export type InsertGooglePlayPurchase = z.infer<typeof insertGooglePlayPurchaseSchema>;
 
 // Tweet settings schemas and types
 export const insertTweetSettingsSchema = createInsertSchema(tweetSettings).omit({
