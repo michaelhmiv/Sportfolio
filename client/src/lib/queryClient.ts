@@ -213,6 +213,12 @@ function isCacheable(queryKey: readonly unknown[]): boolean {
   return typeof key === "string" && PERSISTABLE_PREFIXES.some((p) => key.startsWith(p));
 }
 
+/**
+ * Tears down the query cache persistence subscription set up at module load.
+ * No-op before persistence is initialized (e.g. in SSR or non-browser envs).
+ */
+export let cleanupQueryPersistence: () => void = () => undefined;
+
 if (typeof window !== "undefined" && window.localStorage) {
   // Restore on startup
   try {
@@ -263,9 +269,3 @@ if (typeof window !== "undefined" && window.localStorage) {
     cleanupQueryPersistence = () => undefined; // idempotent
   };
 }
-
-/**
- * Tears down the query cache persistence subscription set up at module load.
- * No-op before persistence is initialized (e.g. in SSR or non-browser envs).
- */
-export let cleanupQueryPersistence: () => void = () => undefined;

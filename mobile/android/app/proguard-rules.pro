@@ -5,7 +5,8 @@
 # For more details, see
 #   http://developer.android.com/guide/developing/tools/proguard.html
 
-# Preserve line numbers and source file names in crash stack traces.
+# Preserve line numbers in crash stack traces while overwriting source file
+# names to the constant "SourceFile".
 -keepattributes SourceFile,LineNumberTable
 -renamesourcefileattribute SourceFile
 
