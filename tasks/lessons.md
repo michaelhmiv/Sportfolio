@@ -6,6 +6,7 @@
 - ET date parsing should be centralized and reused (`YYYY-MM-DD` normalize + `getETDayBoundaries`) instead of route-local regex/offset math, or DST and boundary logic drifts across gameplay endpoints.
 - Debug-only client queries should not remain active on production action screens; they add noise, extra requests, and can unintentionally normalize reliance on non-product debug routes.
 - When extracting authenticated routes into new modules, update the public-surface route coverage test file list in the same change or parity audits can fail even when endpoint behavior is correct.
+- For bot liquidity-policy changes, ship a repo-owned DB report command that compares current vs previous 24h concentration metrics; this avoids one-off SQL and makes spread improvements auditable before/after deploys.
 
 ## 2026-04-22
 

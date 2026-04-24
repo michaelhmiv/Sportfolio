@@ -394,7 +394,7 @@ export async function loadScoutAgentContext(
       (left: any, right: any) =>
         toNumericString(right?.holding?.quantity) - toNumericString(left?.holding?.quantity),
     )
-    .slice(0, 5)
+    .slice(0, 25)
     .map((entry: any) => {
       const quantity = toNumericString(entry?.holding?.quantity);
       const multiplier = toNumericString(entry?.holding?.multiplier || "1");

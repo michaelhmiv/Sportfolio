@@ -51,6 +51,7 @@
     "cli:audit": "tsx scripts/cli-audit.ts",
     "mcp:audit": "tsx scripts/mcp-audit.ts",
     "mcp:smoke": "tsx scripts/mcp-smoke.ts",
+    "bot:liquidity:report": "tsx scripts/bot-liquidity-spread-report.ts",
     "mlb-mcp:start": "node scripts/mlb-mcp-local.mjs start",
     "mlb-mcp:start:detached": "node scripts/mlb-mcp-local.mjs start-detached",
     "mlb-mcp:status": "node scripts/mlb-mcp-local.mjs status",

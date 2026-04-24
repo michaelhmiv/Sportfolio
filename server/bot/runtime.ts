@@ -4,11 +4,13 @@ import {
   botProfiles,
   botRunLogs,
   jobExecutionLogs,
+  playerPools,
+  players,
   userAgentThreads,
   users,
   type UserAgentProfile,
 } from "@shared/schema";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { persistProposedMemoryWrites } from "../agent/memory";
 import { loadScoutAgentContext } from "../agent/context-loader";
 import { planDirectAgentOperation } from "../agent/operations-planner";
@@ -40,6 +42,30 @@ const DIRECT_TOOL_LOOP_FAILURE_PATTERN = /direct tool loop/i;
 const GENERIC_BRIEF_PATTERN = /\bmodel answered directly\b/i;
 const MAX_SYNTHETIC_BRIEF_PLAYERS = 4;
 const MAX_FALLBACK_CANDIDATES = 6;
+const LP_SPREAD_ACTION_TYPES = [
+  "pool_add_liquidity",
+  "pool_add_liquidity_optimal",
+  "pool_zap_add_shares",
+  "pool_zap_add_sb",
+] as const;
+const PLAYER_PARITY_ACTION_TYPES = [
+  "pool_buy",
+  "pool_sell",
+  "pool_add_liquidity",
+  "pool_add_liquidity_optimal",
+  "pool_zap_add_shares",
+  "pool_zap_add_sb",
+  "pool_remove_liquidity",
+  "scout_set_count",
+  "daily_boost_assign",
+  "daily_boost_remove",
+] as const;
+const DEFAULT_SPREAD_POLICY_WINDOW_HOURS = 6;
+const DEFAULT_SPREAD_POLICY_PLAYER_CAP = 4;
+const DEFAULT_SPREAD_POLICY_PLAYER_COOLDOWN_HOURS = 12;
+const DEFAULT_SPREAD_POLICY_SPORT_MIN_SHARE = 0.1;
+const DEFAULT_SPREAD_POLICY_SPORT_MAX_SHARE = 0.55;
+const DEFAULT_SPREAD_POLICY_SPORT_MIN_INITIALIZED_POOLS = 20;
 
 type BotMechanic = (typeof DEFAULT_ALLOWED_MECHANICS)[number];
 type BotRunFailureClass =
@@ -65,6 +91,14 @@ type BotRunMetrics = {
   mechanicCounts: Partial<Record<BotMechanic, number>>;
   usedSharedResearch: boolean;
   usedSyntheticBrief: boolean;
+  spreadPolicyEnabled: boolean;
+  spreadRewrites: number;
+  spreadDrops: number;
+  spreadPlayerCapHits: number;
+  spreadCooldownHits: number;
+  spreadSportCapHits: number;
+  bootstrapScoutsPlaced: number;
+  bootstrapPoolInitializations: number;
 };
 
 type BotRuntimeProfile = typeof botProfiles.$inferSelect & {
@@ -120,6 +154,61 @@ type ExecutedBotAction = {
   actionType: AgentAction["actionType"];
   success: boolean;
   errorMessage?: string;
+};
+
+type SpreadPolicyConfig = {
+  enabled: boolean;
+  windowHours: number;
+  playerCapPerWindow: number;
+  playerCooldownHours: number;
+  sportMinShare: number;
+  sportMaxShare: number;
+  sportMinInitializedPools: number;
+};
+
+type SpreadPolicyStats = {
+  totalLpActionsInWindow: number;
+  lpActionsByPlayer: Map<string, number>;
+  lpActionsBySport: Map<string, number>;
+  botLastLpActionAtByPlayer: Map<string, Date>;
+  initializedPoolsBySport: Map<string, number>;
+};
+
+type SpreadPolicyCandidate = {
+  playerId: string;
+  playerName: string;
+  sport: string;
+  availableShares: number;
+  hasPool: boolean;
+  totalTrades: number;
+  hoursSinceUpdate: number;
+  estimatedPrice: number;
+  lpActionsInWindow: number;
+  sportLpActionsInWindow: number;
+  score: number;
+};
+
+type SpreadPolicyCandidateMeta = {
+  playerId: string;
+  sport: string;
+  hasPool: boolean;
+  totalTrades: number;
+  updatedAt: Date | null;
+};
+
+type SpreadPolicyEnforcementResult = {
+  executable: AgentAction[];
+  warnings: string[];
+  spreadPolicyEnabled: boolean;
+  parityDroppedCount: number;
+  mechanicDroppedCount: number;
+  spreadDroppedCount: number;
+  spreadRewrites: number;
+  spreadPlayerCapHits: number;
+  spreadCooldownHits: number;
+  spreadSportCapHits: number;
+  bootstrapScoutsPlaced: number;
+  bootstrapPoolInitializations: number;
 };
 
 type BotPlanResult = {
@@ -218,6 +307,63 @@ function safeJsonClone<T>(value: T): T {
 function parsePositiveInt(value: string | undefined, fallback: number) {
   const parsed = Number.parseInt(String(value || ""), 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function parsePositiveFloat(value: string | undefined, fallback: number) {
+  const parsed = Number.parseFloat(String(value || ""));
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function isSpreadPolicyEnabled() {
+  const raw = String(process.env.BOT_SPREAD_POLICY_ENABLED ?? "true")
+    .trim()
+    .toLowerCase();
+  return raw !== "0" && raw !== "false";
+}
+
+function getSpreadPolicyConfig(): SpreadPolicyConfig {
+  const sportMinShare = clamp(
+    parsePositiveFloat(
+      process.env.BOT_SPREAD_POLICY_SPORT_MIN_SHARE,
+      DEFAULT_SPREAD_POLICY_SPORT_MIN_SHARE,
+    ),
+    0.01,
+    0.95,
+  );
+  const sportMaxShare = clamp(
+    parsePositiveFloat(
+      process.env.BOT_SPREAD_POLICY_SPORT_MAX_SHARE,
+      DEFAULT_SPREAD_POLICY_SPORT_MAX_SHARE,
+    ),
+    sportMinShare,
+    0.99,
+  );
+
+  return {
+    enabled: isSpreadPolicyEnabled(),
+    windowHours: parsePositiveInt(
+      process.env.BOT_SPREAD_POLICY_WINDOW_HOURS,
+      DEFAULT_SPREAD_POLICY_WINDOW_HOURS,
+    ),
+    playerCapPerWindow: parsePositiveInt(
+      process.env.BOT_SPREAD_POLICY_PLAYER_CAP_PER_WINDOW,
+      DEFAULT_SPREAD_POLICY_PLAYER_CAP,
+    ),
+    playerCooldownHours: parsePositiveInt(
+      process.env.BOT_SPREAD_POLICY_PLAYER_COOLDOWN_HOURS,
+      DEFAULT_SPREAD_POLICY_PLAYER_COOLDOWN_HOURS,
+    ),
+    sportMinShare,
+    sportMaxShare,
+    sportMinInitializedPools: parsePositiveInt(
+      process.env.BOT_SPREAD_POLICY_SPORT_MIN_INITIALIZED_POOLS,
+      DEFAULT_SPREAD_POLICY_SPORT_MIN_INITIALIZED_POOLS,
+    ),
+  };
 }
 
 function getBotCycleIntervalMinutes() {
@@ -446,6 +592,35 @@ function mapActionToMechanic(action: AgentAction): BotMechanic | null {
   }
 }
 
+function isLpSpreadActionType(actionType: AgentAction["actionType"]): boolean {
+  return (LP_SPREAD_ACTION_TYPES as readonly string[]).includes(actionType);
+}
+
+function isPlayerParityActionType(actionType: AgentAction["actionType"]): boolean {
+  return (PLAYER_PARITY_ACTION_TYPES as readonly string[]).includes(actionType);
+}
+
+function extractActionPlayerId(action: AgentAction): string | null {
+  const candidate =
+    "playerId" in action && typeof action.playerId === "string" ? action.playerId.trim() : "";
+  return candidate.length > 0 ? candidate : null;
+}
+
+function estimateActionCashSpend(action: AgentAction): number {
+  switch (action.actionType) {
+    case "pool_buy":
+      return Math.max(0, action.sbAmount || 0);
+    case "pool_add_liquidity":
+      return Math.max(0, action.playMoney || 0);
+    case "pool_add_liquidity_optimal":
+      return Math.max(0, action.maxPlayMoney || 0);
+    case "pool_zap_add_sb":
+      return Math.max(0, action.sb || 0);
+    default:
+      return 0;
+  }
+}
+
 function filterExecutableActions(
   actions: AgentAction[],
   allowedMechanics: BotMechanic[],
@@ -470,6 +645,695 @@ function filterExecutableActions(
   }
 
   return { executable, dropped };
+}
+
+function enforcePlayerExecutionParity(actions: AgentAction[]) {
+  const allowed: AgentAction[] = [];
+  const blocked: AgentAction[] = [];
+  const blockedTypes = new Set<string>();
+
+  for (const action of actions) {
+    if (isPlayerParityActionType(action.actionType)) {
+      allowed.push(action);
+      continue;
+    }
+    blocked.push(action);
+    blockedTypes.add(action.actionType);
+  }
+
+  const warnings =
+    blocked.length > 0
+      ? [
+          `Blocked ${blocked.length} non-parity action(s): ${Array.from(blockedTypes)
+            .sort()
+            .join(", ")}.`,
+        ]
+      : [];
+
+  return {
+    allowed,
+    blocked,
+    warnings,
+  };
+}
+
+async function loadSpreadPolicyStats(
+  botUserId: string,
+  now: Date,
+  config: SpreadPolicyConfig,
+): Promise<SpreadPolicyStats> {
+  const windowStartedAt = new Date(now.getTime() - config.windowHours * 60 * 60 * 1000);
+  const cooldownStartedAt = new Date(now.getTime() - config.playerCooldownHours * 60 * 60 * 1000);
+
+  const [playerCounts, sportCounts, botCooldown, initializedPools] = await Promise.all([
+    db.execute(sql`
+      select
+        coalesce(action_details->'action'->>'playerId', action_details->>'playerId') as player_id,
+        count(*)::int as action_count
+      from bot_actions_log
+      where success = true
+        and created_at >= ${windowStartedAt}
+        and action_type = any(
+          array['pool_add_liquidity', 'pool_add_liquidity_optimal', 'pool_zap_add_shares', 'pool_zap_add_sb']::text[]
+        )
+      group by 1
+    `),
+    db.execute(sql`
+      with lp_actions as (
+        select coalesce(action_details->'action'->>'playerId', action_details->>'playerId') as player_id
+        from bot_actions_log
+        where success = true
+          and created_at >= ${windowStartedAt}
+          and action_type = any(
+            array['pool_add_liquidity', 'pool_add_liquidity_optimal', 'pool_zap_add_shares', 'pool_zap_add_sb']::text[]
+          )
+      )
+      select
+        p.sport as sport,
+        count(*)::int as action_count
+      from lp_actions
+      inner join players p on p.id = lp_actions.player_id
+      group by p.sport
+    `),
+    db.execute(sql`
+      select
+        coalesce(action_details->'action'->>'playerId', action_details->>'playerId') as player_id,
+        max(created_at) as last_action_at
+      from bot_actions_log
+      where success = true
+        and bot_user_id = ${botUserId}
+        and created_at >= ${cooldownStartedAt}
+        and action_type = any(
+          array['pool_add_liquidity', 'pool_add_liquidity_optimal', 'pool_zap_add_shares', 'pool_zap_add_sb']::text[]
+        )
+      group by 1
+    `),
+    db
+      .select({
+        sport: players.sport,
+        initializedPoolCount: sql<number>`count(*)::int`,
+      })
+      .from(playerPools)
+      .innerJoin(players, eq(playerPools.playerId, players.id))
+      .where(eq(players.isActive, true))
+      .groupBy(players.sport),
+  ]);
+
+  const lpActionsByPlayer = new Map<string, number>();
+  const lpActionsBySport = new Map<string, number>();
+  const botLastLpActionAtByPlayer = new Map<string, Date>();
+  const initializedPoolsBySport = new Map<string, number>();
+  let totalLpActionsInWindow = 0;
+
+  for (const row of playerCounts.rows) {
+    const playerId =
+      typeof (row as Record<string, unknown>).player_id === "string"
+        ? String((row as Record<string, unknown>).player_id)
+        : "";
+    if (!playerId) {
+      continue;
+    }
+    const count = Number((row as Record<string, unknown>).action_count || 0);
+    lpActionsByPlayer.set(playerId, count);
+    totalLpActionsInWindow += count;
+  }
+
+  for (const row of sportCounts.rows) {
+    const sport =
+      typeof (row as Record<string, unknown>).sport === "string"
+        ? String((row as Record<string, unknown>).sport)
+        : "";
+    if (!sport) {
+      continue;
+    }
+    lpActionsBySport.set(sport, Number((row as Record<string, unknown>).action_count || 0));
+  }
+
+  for (const row of botCooldown.rows) {
+    const playerId =
+      typeof (row as Record<string, unknown>).player_id === "string"
+        ? String((row as Record<string, unknown>).player_id)
+        : "";
+    if (!playerId) {
+      continue;
+    }
+    const rawLastActionAt = (row as Record<string, unknown>).last_action_at;
+    const parsed = rawLastActionAt ? new Date(String(rawLastActionAt)) : null;
+    if (parsed && Number.isFinite(parsed.getTime())) {
+      botLastLpActionAtByPlayer.set(playerId, parsed);
+    }
+  }
+
+  for (const row of initializedPools) {
+    initializedPoolsBySport.set(row.sport, Number(row.initializedPoolCount || 0));
+  }
+
+  return {
+    totalLpActionsInWindow,
+    lpActionsByPlayer,
+    lpActionsBySport,
+    botLastLpActionAtByPlayer,
+    initializedPoolsBySport,
+  };
+}
+
+async function loadSpreadPlayerMeta(
+  playerIds: string[],
+): Promise<Map<string, SpreadPolicyCandidateMeta>> {
+  if (playerIds.length === 0) {
+    return new Map();
+  }
+
+  const rows = await db
+    .select({
+      playerId: players.id,
+      sport: players.sport,
+      poolPlayerId: playerPools.playerId,
+      totalTrades: playerPools.totalTrades,
+      updatedAt: playerPools.updatedAt,
+    })
+    .from(players)
+    .leftJoin(playerPools, eq(players.id, playerPools.playerId))
+    .where(inArray(players.id, playerIds));
+
+  const result = new Map<string, SpreadPolicyCandidateMeta>();
+  for (const row of rows) {
+    result.set(row.playerId, {
+      playerId: row.playerId,
+      sport: row.sport,
+      hasPool: Boolean(row.poolPlayerId),
+      totalTrades: Number(row.totalTrades || 0),
+      updatedAt: row.updatedAt || null,
+    });
+  }
+
+  return result;
+}
+
+function buildSpreadPolicyCandidates(input: {
+  context: ScoutAgentContext;
+  snapshot: SharedMarketSnapshot | null;
+  recentPlayerIds: Set<string>;
+  playerMetaById: Map<string, SpreadPolicyCandidateMeta>;
+  spreadStats: SpreadPolicyStats;
+  config: SpreadPolicyConfig;
+}): SpreadPolicyCandidate[] {
+  const now = Date.now();
+  const holdingByPlayer = new Map<
+    string,
+    {
+      playerId: string;
+      playerName: string;
+      sport: string;
+      availableShares: number;
+    }
+  >();
+
+  for (const holding of input.context.operatorOverview.topHoldings) {
+    if (holding.availableShares < 1) {
+      continue;
+    }
+    const meta = input.playerMetaById.get(holding.playerId);
+    const sport = holding.sport || meta?.sport || "";
+    if (!sport) {
+      continue;
+    }
+    const existing = holdingByPlayer.get(holding.playerId);
+    if (existing) {
+      existing.availableShares += holding.availableShares;
+      continue;
+    }
+    holdingByPlayer.set(holding.playerId, {
+      playerId: holding.playerId,
+      playerName: holding.name,
+      sport,
+      availableShares: holding.availableShares,
+    });
+  }
+
+  const candidates: SpreadPolicyCandidate[] = [];
+  for (const holding of holdingByPlayer.values()) {
+    const meta = input.playerMetaById.get(holding.playerId);
+    const hasPool = Boolean(meta?.hasPool);
+    const totalTrades = Number(meta?.totalTrades || 0);
+    const hoursSinceUpdate =
+      meta?.updatedAt && Number.isFinite(meta.updatedAt.getTime())
+        ? Math.max(0, (now - meta.updatedAt.getTime()) / (60 * 60 * 1000))
+        : 72;
+    const estimatedPrice = Math.max(
+      1,
+      getEstimatedPlayerPrice(input.snapshot, holding.playerId, 10),
+    );
+    const lpActionsInWindow = input.spreadStats.lpActionsByPlayer.get(holding.playerId) || 0;
+    const sportLpActionsInWindow = input.spreadStats.lpActionsBySport.get(holding.sport) || 0;
+    const sportInitializedPools = input.spreadStats.initializedPoolsBySport.get(holding.sport) || 0;
+    const sportShare =
+      input.spreadStats.totalLpActionsInWindow > 0
+        ? sportLpActionsInWindow / input.spreadStats.totalLpActionsInWindow
+        : 0;
+    const sportDeficit =
+      sportInitializedPools >= input.config.sportMinInitializedPools
+        ? Math.max(0, input.config.sportMinShare - sportShare)
+        : 0;
+    const coldScore = hasPool
+      ? Math.max(0, 12 - Math.min(12, totalTrades)) * 8 + Math.min(72, hoursSinceUpdate) * 0.4
+      : 95;
+    const spreadScore = Math.max(0, input.config.playerCapPerWindow - lpActionsInWindow) * 14;
+    const sharesScore = Math.min(20, holding.availableShares) * 1.5;
+    const recentPenalty = input.recentPlayerIds.has(holding.playerId) ? 50 : 0;
+
+    candidates.push({
+      playerId: holding.playerId,
+      playerName: holding.playerName,
+      sport: holding.sport,
+      availableShares: holding.availableShares,
+      hasPool,
+      totalTrades,
+      hoursSinceUpdate,
+      estimatedPrice,
+      lpActionsInWindow,
+      sportLpActionsInWindow,
+      score: sportDeficit * 300 + coldScore + spreadScore + sharesScore - recentPenalty,
+    });
+  }
+
+  return candidates.sort((left, right) => right.score - left.score);
+}
+
+function buildSpreadBootstrapScoutCandidates(input: {
+  context: ScoutAgentContext;
+  recentPlayerIds: Set<string>;
+  playerMetaById: Map<string, SpreadPolicyCandidateMeta>;
+}) {
+  return input.context.candidates
+    .filter((candidate) => {
+      if (input.recentPlayerIds.has(candidate.playerId)) {
+        return false;
+      }
+      const meta = input.playerMetaById.get(candidate.playerId);
+      return !meta?.hasPool;
+    })
+    .sort((left, right) => {
+      const leftScore = (left.hasGameInFocusWindow ? 100 : 0) + left.scoutOpportunityScore;
+      const rightScore = (right.hasGameInFocusWindow ? 100 : 0) + right.scoutOpportunityScore;
+      return rightScore - leftScore;
+    });
+}
+
+function createSpreadBootstrapScoutAction(
+  candidate: ScoutAgentContext["candidates"][number],
+): AgentAction {
+  return {
+    actionType: "scout_set_count",
+    playerId: candidate.playerId,
+    playerName: candidate.name,
+    currentCount: candidate.currentScoutCount,
+    targetCount: candidate.currentScoutCount + 1,
+    reasoning:
+      "Scout-only bootstrap: no eligible shares were available to initialize this no-pool player directly.",
+    confidence: 0.54,
+    evidence: {
+      nextGameAt: candidate.upcomingGame,
+      sport: candidate.sport,
+      team: candidate.team,
+    },
+    riskFlags: candidate.injuryStatus ? [`injury: ${candidate.injuryStatus}`] : [],
+  };
+}
+
+function createSpreadRerouteLiquidityAction(input: {
+  sourceAction: AgentAction;
+  candidate: SpreadPolicyCandidate;
+  availableBalance: number;
+}): AgentAction | null {
+  if (input.availableBalance < 10 || input.candidate.availableShares < 1) {
+    return null;
+  }
+
+  const maxShares = input.candidate.hasPool
+    ? Math.min(3, Math.max(1, Math.floor(input.candidate.availableShares)))
+    : 1;
+  if (maxShares < 1) {
+    return null;
+  }
+
+  const basePlayMoney = input.candidate.hasPool
+    ? Math.ceil(maxShares * input.candidate.estimatedPrice * 1.15)
+    : Math.ceil(Math.max(1, input.candidate.estimatedPrice) * 1.2);
+  const cappedTarget = input.candidate.hasPool ? basePlayMoney : Math.min(25, basePlayMoney);
+  const maxPlayMoney = Math.max(10, Math.min(Math.floor(input.availableBalance), cappedTarget));
+
+  if (maxPlayMoney < 10) {
+    return null;
+  }
+
+  const sourcePlayerId = extractActionPlayerId(input.sourceAction);
+  return {
+    actionType: "pool_add_liquidity_optimal",
+    playerId: input.candidate.playerId,
+    playerName: input.candidate.playerName,
+    maxShares,
+    maxPlayMoney,
+    reasoning: `Spread policy reroute from ${sourcePlayerId || "the original target"} into a lower-concentration liquidity target.`,
+    confidence:
+      "confidence" in input.sourceAction
+        ? clamp(
+            Number((input.sourceAction as { confidence?: number }).confidence || 0.55),
+            0.35,
+            0.85,
+          )
+        : 0.55,
+  };
+}
+
+function evaluateSpreadViolations(input: {
+  playerId: string;
+  sport: string;
+  now: Date;
+  config: SpreadPolicyConfig;
+  totalLpActionsInWindow: number;
+  mutablePlayerCounts: Map<string, number>;
+  mutableSportCounts: Map<string, number>;
+  mutableBotLastLpActionAtByPlayer: Map<string, Date>;
+  initializedPoolsBySport: Map<string, number>;
+}) {
+  const violations: Array<"player_cap" | "cooldown" | "sport_cap"> = [];
+  const currentPlayerCount = input.mutablePlayerCounts.get(input.playerId) || 0;
+  if (currentPlayerCount >= input.config.playerCapPerWindow) {
+    violations.push("player_cap");
+  }
+
+  const cooldownMs = input.config.playerCooldownHours * 60 * 60 * 1000;
+  const lastActionAt = input.mutableBotLastLpActionAtByPlayer.get(input.playerId);
+  if (
+    lastActionAt &&
+    Number.isFinite(lastActionAt.getTime()) &&
+    input.now.getTime() - lastActionAt.getTime() < cooldownMs
+  ) {
+    violations.push("cooldown");
+  }
+
+  const initializedPoolCount = input.initializedPoolsBySport.get(input.sport) || 0;
+  if (initializedPoolCount >= input.config.sportMinInitializedPools) {
+    const currentSportCount = input.mutableSportCounts.get(input.sport) || 0;
+    const nextTotal = input.totalLpActionsInWindow + 1;
+    const nextSportShare = nextTotal > 0 ? (currentSportCount + 1) / nextTotal : 1;
+    if (nextTotal > 1 && nextSportShare > input.config.sportMaxShare + 1e-9) {
+      violations.push("sport_cap");
+    }
+  }
+
+  return violations;
+}
+
+function applySpreadPolicyToActions(input: {
+  actions: AgentAction[];
+  now: Date;
+  config: SpreadPolicyConfig;
+  spreadStats: SpreadPolicyStats;
+  spreadCandidates: SpreadPolicyCandidate[];
+  playerMetaById: Map<string, SpreadPolicyCandidateMeta>;
+  allowedMechanics: BotMechanic[];
+  availableBalance: number;
+  remainingScouts: number;
+  noPoolScoutCandidates: ScoutAgentContext["candidates"];
+}): Omit<
+  SpreadPolicyEnforcementResult,
+  "parityDroppedCount" | "mechanicDroppedCount" | "spreadPolicyEnabled"
+> {
+  const executable: AgentAction[] = [];
+  const warnings: string[] = [];
+  const usedReroutePlayers = new Set<string>();
+  const usedScoutPlayers = new Set<string>();
+  const mutablePlayerCounts = new Map(input.spreadStats.lpActionsByPlayer);
+  const mutableSportCounts = new Map(input.spreadStats.lpActionsBySport);
+  const mutableBotLastLpActionAtByPlayer = new Map(input.spreadStats.botLastLpActionAtByPlayer);
+  let totalLpActionsInWindow = input.spreadStats.totalLpActionsInWindow;
+  let spreadDroppedCount = 0;
+  let spreadRewrites = 0;
+  let spreadPlayerCapHits = 0;
+  let spreadCooldownHits = 0;
+  let spreadSportCapHits = 0;
+  let bootstrapScoutsPlaced = 0;
+  let bootstrapPoolInitializations = 0;
+  let remainingBalance = Math.max(0, Math.floor(input.availableBalance));
+  let remainingScouts = Math.max(0, input.remainingScouts);
+
+  const registerAcceptedLpAction = (playerId: string, sport: string, hasPool: boolean) => {
+    mutablePlayerCounts.set(playerId, (mutablePlayerCounts.get(playerId) || 0) + 1);
+    mutableSportCounts.set(sport, (mutableSportCounts.get(sport) || 0) + 1);
+    mutableBotLastLpActionAtByPlayer.set(playerId, input.now);
+    totalLpActionsInWindow += 1;
+    if (!hasPool) {
+      bootstrapPoolInitializations += 1;
+    }
+  };
+
+  for (const action of input.actions) {
+    if (!isLpSpreadActionType(action.actionType)) {
+      executable.push(action);
+      remainingBalance = Math.max(0, remainingBalance - estimateActionCashSpend(action));
+      continue;
+    }
+
+    const playerId = extractActionPlayerId(action);
+    if (!playerId) {
+      executable.push(action);
+      remainingBalance = Math.max(0, remainingBalance - estimateActionCashSpend(action));
+      continue;
+    }
+    const meta = input.playerMetaById.get(playerId);
+    const sport =
+      meta?.sport ||
+      input.spreadCandidates.find((candidate) => candidate.playerId === playerId)?.sport ||
+      "";
+    if (!sport) {
+      executable.push(action);
+      remainingBalance = Math.max(0, remainingBalance - estimateActionCashSpend(action));
+      continue;
+    }
+
+    const violations = evaluateSpreadViolations({
+      playerId,
+      sport,
+      now: input.now,
+      config: input.config,
+      totalLpActionsInWindow,
+      mutablePlayerCounts,
+      mutableSportCounts,
+      mutableBotLastLpActionAtByPlayer,
+      initializedPoolsBySport: input.spreadStats.initializedPoolsBySport,
+    });
+
+    if (violations.length === 0) {
+      executable.push(action);
+      remainingBalance = Math.max(0, remainingBalance - estimateActionCashSpend(action));
+      registerAcceptedLpAction(playerId, sport, Boolean(meta?.hasPool));
+      continue;
+    }
+
+    if (violations.includes("player_cap")) {
+      spreadPlayerCapHits += 1;
+    }
+    if (violations.includes("cooldown")) {
+      spreadCooldownHits += 1;
+    }
+    if (violations.includes("sport_cap")) {
+      spreadSportCapHits += 1;
+    }
+
+    let rerouteAction: AgentAction | null = null;
+    let rerouteTarget: SpreadPolicyCandidate | null = null;
+    for (const candidate of input.spreadCandidates) {
+      if (candidate.availableShares < 1) {
+        continue;
+      }
+      if (candidate.playerId === playerId || usedReroutePlayers.has(candidate.playerId)) {
+        continue;
+      }
+      const rerouteViolations = evaluateSpreadViolations({
+        playerId: candidate.playerId,
+        sport: candidate.sport,
+        now: input.now,
+        config: input.config,
+        totalLpActionsInWindow,
+        mutablePlayerCounts,
+        mutableSportCounts,
+        mutableBotLastLpActionAtByPlayer,
+        initializedPoolsBySport: input.spreadStats.initializedPoolsBySport,
+      });
+      if (rerouteViolations.length > 0) {
+        continue;
+      }
+      const nextAction = createSpreadRerouteLiquidityAction({
+        sourceAction: action,
+        candidate,
+        availableBalance: remainingBalance,
+      });
+      if (!nextAction) {
+        continue;
+      }
+      rerouteAction = nextAction;
+      rerouteTarget = candidate;
+      break;
+    }
+
+    if (rerouteAction && rerouteTarget) {
+      executable.push(rerouteAction);
+      remainingBalance = Math.max(0, remainingBalance - estimateActionCashSpend(rerouteAction));
+      registerAcceptedLpAction(rerouteTarget.playerId, rerouteTarget.sport, rerouteTarget.hasPool);
+      spreadRewrites += 1;
+      usedReroutePlayers.add(rerouteTarget.playerId);
+      warnings.push(
+        `Spread policy rerouted LP action from ${playerId} to ${rerouteTarget.playerId}.`,
+      );
+      continue;
+    }
+
+    const canBootstrapScout = input.allowedMechanics.includes("scouting") && remainingScouts > 0;
+    if (canBootstrapScout) {
+      const scoutCandidate = input.noPoolScoutCandidates.find(
+        (candidate) =>
+          !usedScoutPlayers.has(candidate.playerId) &&
+          !input.playerMetaById.get(candidate.playerId)?.hasPool,
+      );
+      if (scoutCandidate) {
+        executable.push(createSpreadBootstrapScoutAction(scoutCandidate));
+        remainingScouts -= 1;
+        bootstrapScoutsPlaced += 1;
+        usedScoutPlayers.add(scoutCandidate.playerId);
+        warnings.push(
+          `Spread policy converted an LP action into scout bootstrap for ${scoutCandidate.playerId}.`,
+        );
+        continue;
+      }
+    }
+
+    spreadDroppedCount += 1;
+    warnings.push(
+      `Spread policy dropped LP action on ${playerId} due to concentration constraints.`,
+    );
+  }
+
+  return {
+    executable,
+    warnings,
+    spreadDroppedCount,
+    spreadRewrites,
+    spreadPlayerCapHits,
+    spreadCooldownHits,
+    spreadSportCapHits,
+    bootstrapScoutsPlaced,
+    bootstrapPoolInitializations,
+  };
+}
+
+async function enforceBotExecutionPolicies(input: {
+  profile: BotRuntimeProfile;
+  context: ScoutAgentContext;
+  sharedBrief: SharedBriefRecord;
+  recentActions: (typeof botActionsLog.$inferSelect)[];
+  actions: AgentAction[];
+  allowedMechanics: BotMechanic[];
+  maxActionsPerTick: number;
+  now?: Date;
+}): Promise<SpreadPolicyEnforcementResult> {
+  const parity = enforcePlayerExecutionParity(input.actions);
+  const filtered = filterExecutableActions(
+    parity.allowed,
+    input.allowedMechanics,
+    input.maxActionsPerTick,
+  );
+  const spreadConfig = getSpreadPolicyConfig();
+  const now = input.now || new Date();
+
+  let spreadResult: Omit<
+    SpreadPolicyEnforcementResult,
+    "parityDroppedCount" | "mechanicDroppedCount" | "spreadPolicyEnabled"
+  > = {
+    executable: filtered.executable,
+    warnings: [],
+    spreadDroppedCount: 0,
+    spreadRewrites: 0,
+    spreadPlayerCapHits: 0,
+    spreadCooldownHits: 0,
+    spreadSportCapHits: 0,
+    bootstrapScoutsPlaced: 0,
+    bootstrapPoolInitializations: 0,
+  };
+
+  if (
+    spreadConfig.enabled &&
+    filtered.executable.some((action) => isLpSpreadActionType(action.actionType))
+  ) {
+    const snapshot = getSnapshotFromBrief(input.sharedBrief);
+    const recentPlayerIds = getRecentActionPlayerIds(input.recentActions);
+    const candidatePlayerIds = new Set<string>();
+    for (const holding of input.context.operatorOverview.topHoldings) {
+      candidatePlayerIds.add(holding.playerId);
+    }
+    for (const candidate of input.context.candidates) {
+      candidatePlayerIds.add(candidate.playerId);
+    }
+    for (const action of filtered.executable) {
+      const playerId = extractActionPlayerId(action);
+      if (playerId) {
+        candidatePlayerIds.add(playerId);
+      }
+    }
+    for (const cold of snapshot?.coldPools || []) {
+      candidatePlayerIds.add(cold.playerId);
+    }
+    for (const mover of snapshot?.movers || []) {
+      candidatePlayerIds.add(mover.playerId);
+    }
+
+    const [spreadStats, playerMetaById] = await Promise.all([
+      loadSpreadPolicyStats(input.profile.userId, now, spreadConfig),
+      loadSpreadPlayerMeta(Array.from(candidatePlayerIds)),
+    ]);
+    const spreadCandidates = buildSpreadPolicyCandidates({
+      context: input.context,
+      snapshot,
+      recentPlayerIds,
+      playerMetaById,
+      spreadStats,
+      config: spreadConfig,
+    });
+    const noPoolScoutCandidates = buildSpreadBootstrapScoutCandidates({
+      context: input.context,
+      recentPlayerIds,
+      playerMetaById,
+    });
+
+    spreadResult = applySpreadPolicyToActions({
+      actions: filtered.executable,
+      now,
+      config: spreadConfig,
+      spreadStats,
+      spreadCandidates,
+      playerMetaById,
+      allowedMechanics: input.allowedMechanics,
+      availableBalance: input.context.operatorOverview.availableBalance,
+      remainingScouts: input.context.remainingScouts,
+      noPoolScoutCandidates,
+    });
+  }
+
+  return {
+    executable: spreadResult.executable,
+    warnings: [...parity.warnings, ...spreadResult.warnings],
+    spreadPolicyEnabled: spreadConfig.enabled,
+    parityDroppedCount: parity.blocked.length,
+    mechanicDroppedCount: filtered.dropped.length,
+    spreadDroppedCount: spreadResult.spreadDroppedCount,
+    spreadRewrites: spreadResult.spreadRewrites,
+    spreadPlayerCapHits: spreadResult.spreadPlayerCapHits,
+    spreadCooldownHits: spreadResult.spreadCooldownHits,
+    spreadSportCapHits: spreadResult.spreadSportCapHits,
+    bootstrapScoutsPlaced: spreadResult.bootstrapScoutsPlaced,
+    bootstrapPoolInitializations: spreadResult.bootstrapPoolInitializations,
+  };
 }
 
 function estimateActionVolume(action: AgentAction): number {
@@ -1039,26 +1903,90 @@ async function chooseFallbackPlan(input: {
     0,
     Math.floor(input.context.operatorOverview.availableBalance || 0),
   );
+  const spreadConfig = getSpreadPolicyConfig();
+  const playerIdsForMeta = Array.from(
+    new Set([
+      ...input.context.operatorOverview.topHoldings.map((holding) => holding.playerId),
+      ...input.context.candidates.map((candidate) => candidate.playerId),
+      ...(snapshot?.coldPools || []).map((entry) => entry.playerId),
+      ...(snapshot?.movers || []).map((entry) => entry.playerId),
+    ]),
+  );
+  const [playerMetaById, spreadStats] = await Promise.all([
+    loadSpreadPlayerMeta(playerIdsForMeta),
+    spreadConfig.enabled
+      ? loadSpreadPolicyStats(input.profile.userId, new Date(), spreadConfig)
+      : Promise.resolve<SpreadPolicyStats>({
+          totalLpActionsInWindow: 0,
+          lpActionsByPlayer: new Map(),
+          lpActionsBySport: new Map(),
+          botLastLpActionAtByPlayer: new Map(),
+          initializedPoolsBySport: new Map(),
+        }),
+  ]);
+  const spreadCandidates = buildSpreadPolicyCandidates({
+    context: input.context,
+    snapshot,
+    recentPlayerIds,
+    playerMetaById,
+    spreadStats,
+    config: spreadConfig,
+  });
+  const noPoolScoutCandidates = buildSpreadBootstrapScoutCandidates({
+    context: input.context,
+    recentPlayerIds,
+    playerMetaById,
+  });
 
-  const liquidityCandidate =
-    snapshot?.coldPools.find((entry) => !recentPlayerIds.has(entry.playerId)) ||
-    snapshot?.movers.find((entry) => !recentPlayerIds.has(entry.playerId)) ||
-    input.context.recommendedTargets.find((entry) => !recentPlayerIds.has(entry.playerId)) ||
-    null;
+  const coldPoolLiquidityTarget =
+    snapshot?.coldPools.find((entry) => !recentPlayerIds.has(entry.playerId)) || null;
+  const moverLiquidityTarget =
+    snapshot?.movers.find((entry) => !recentPlayerIds.has(entry.playerId)) || null;
+  const recommendedLiquidityTarget =
+    input.context.recommendedTargets.find((entry) => !recentPlayerIds.has(entry.playerId)) || null;
+  const liquidityCandidate = spreadCandidates[0]
+    ? {
+        playerId: spreadCandidates[0].playerId,
+        playerName: spreadCandidates[0].playerName,
+      }
+    : coldPoolLiquidityTarget
+      ? {
+          playerId: coldPoolLiquidityTarget.playerId,
+          playerName: coldPoolLiquidityTarget.playerName,
+        }
+      : moverLiquidityTarget
+        ? {
+            playerId: moverLiquidityTarget.playerId,
+            playerName: moverLiquidityTarget.playerName,
+          }
+        : recommendedLiquidityTarget
+          ? {
+              playerId: recommendedLiquidityTarget.playerId,
+              playerName: recommendedLiquidityTarget.name,
+            }
+          : null;
   const moverMap = new Map(
     (snapshot?.movers || []).map((entry) => [entry.playerId, entry.priceChange24h]),
   );
   const holdingCandidates = input.context.operatorOverview.topHoldings
     .filter((holding) => holding.availableShares > 0 && !recentPlayerIds.has(holding.playerId))
     .sort((left, right) => {
+      const leftLpCount = spreadStats.lpActionsByPlayer.get(left.playerId) || 0;
+      const rightLpCount = spreadStats.lpActionsByPlayer.get(right.playerId) || 0;
+      const leftSportCount = spreadStats.lpActionsBySport.get(left.sport) || 0;
+      const rightSportCount = spreadStats.lpActionsBySport.get(right.sport) || 0;
       const leftScore =
         Math.abs(moverMap.get(left.playerId) || 0) +
         Math.min(20, left.availableShares) +
-        (left.nextGameAt ? 10 : 0);
+        (left.nextGameAt ? 10 : 0) +
+        Math.max(0, 3 - leftLpCount) * 4 +
+        Math.max(0, 5 - leftSportCount);
       const rightScore =
         Math.abs(moverMap.get(right.playerId) || 0) +
         Math.min(20, right.availableShares) +
-        (right.nextGameAt ? 10 : 0);
+        (right.nextGameAt ? 10 : 0) +
+        Math.max(0, 3 - rightLpCount) * 4 +
+        Math.max(0, 5 - rightSportCount);
       return rightScore - leftScore;
     });
   const scoutFallback = chooseFallbackAction({
@@ -1102,10 +2030,26 @@ async function chooseFallbackPlan(input: {
     .filter((position) => position.lpShares > 0.25 && !recentPlayerIds.has(position.playerId))
     .sort((left, right) => right.lpShares - left.lpShares);
 
-  const lpAddHolding = holdingCandidates[0] || null;
+  const lpAddHolding = spreadCandidates[0]
+    ? {
+        playerId: spreadCandidates[0].playerId,
+        playerName: spreadCandidates[0].playerName,
+        availableShares: spreadCandidates[0].availableShares,
+        hasPool: spreadCandidates[0].hasPool,
+      }
+    : holdingCandidates[0]
+      ? {
+          playerId: holdingCandidates[0].playerId,
+          playerName: holdingCandidates[0].name,
+          availableShares: holdingCandidates[0].availableShares,
+          hasPool: Boolean(playerMetaById.get(holdingCandidates[0].playerId)?.hasPool),
+        }
+      : null;
   const sellHolding = holdingCandidates.find(
     (holding) => Math.abs(moverMap.get(holding.playerId) || 0) >= 3 && holding.availableShares >= 1,
   );
+  const lpAddPlayerLabel = lpAddHolding?.playerName || null;
+  const lpAddHasPool = lpAddHolding?.hasPool ?? true;
 
   const buySpend =
     liquidityCandidate || holdingCandidates[0]
@@ -1200,17 +2144,19 @@ async function chooseFallbackPlan(input: {
       return null;
     }
 
-    const maxShares = Math.min(3, Math.max(1, Math.floor(lpAddHolding.availableShares)));
+    const maxShares = lpAddHasPool
+      ? Math.min(3, Math.max(1, Math.floor(lpAddHolding.availableShares)))
+      : 1;
     const estimatedPrice = Math.max(
       1,
       getEstimatedPlayerPrice(snapshot, lpAddHolding.playerId, 10),
     );
-    const maxPlayMoney = Math.max(
-      10,
-      Math.min(availableBalance, Math.ceil(maxShares * estimatedPrice * 1.15)),
-    );
+    const targetPlayMoney = lpAddHasPool
+      ? Math.ceil(maxShares * estimatedPrice * 1.15)
+      : Math.min(25, Math.ceil(Math.max(1, estimatedPrice) * 1.2));
+    const maxPlayMoney = Math.max(10, Math.min(availableBalance, targetPlayMoney));
     const trailingBuyBudget =
-      input.allowedMechanics.includes("market") && input.maxActionsPerTick >= 2
+      lpAddHasPool && input.allowedMechanics.includes("market") && input.maxActionsPerTick >= 2
         ? resolveFallbackBuySize(
             input.profile,
             Math.max(0, availableBalance - maxPlayMoney),
@@ -1234,9 +2180,39 @@ async function chooseFallbackPlan(input: {
       maxActionsPerTick: input.maxActionsPerTick,
       warning:
         trailingBuyBudget > 0
-          ? `Used fallback LP-plus-buy bundle for ${lpAddHolding.name}.`
-          : `Used fallback LP add for ${lpAddHolding.name}.`,
+          ? `Used fallback LP-plus-buy bundle for ${lpAddPlayerLabel || lpAddHolding.playerId}.`
+          : `Used fallback LP add for ${lpAddPlayerLabel || lpAddHolding.playerId}.`,
     });
+  };
+
+  const tryScoutBootstrap = async () => {
+    if (
+      !input.allowedMechanics.includes("scouting") ||
+      input.context.remainingScouts <= 0 ||
+      noPoolScoutCandidates.length === 0
+    ) {
+      return null;
+    }
+
+    const hasNoPoolHoldingWithShares = spreadCandidates.some(
+      (candidate) => !candidate.hasPool && candidate.availableShares >= 1,
+    );
+    if (hasNoPoolHoldingWithShares) {
+      return null;
+    }
+
+    const target = noPoolScoutCandidates[0];
+    if (!target) {
+      return null;
+    }
+
+    return {
+      plannedActions: [createSpreadBootstrapScoutAction(target)],
+      warnings: [
+        `Scout-only bootstrap targeted ${target.name} because no eligible no-pool holdings had available shares.`,
+      ],
+      summary: `Fallback staged scout bootstrap for ${target.name}.`,
+    } satisfies FallbackPlanChoice;
   };
 
   const tryLiquidityZap = async () => {
@@ -1254,7 +2230,7 @@ async function chooseFallbackPlan(input: {
       messages: [`zap $${liquidityBudget} into ${liquidityCandidate.playerId} pool`],
       allowedMechanics: input.allowedMechanics,
       maxActionsPerTick: input.maxActionsPerTick,
-      warning: `Used fallback LP zap for ${"playerName" in liquidityCandidate ? liquidityCandidate.playerName : liquidityCandidate.name}.`,
+      warning: `Used fallback LP zap for ${liquidityCandidate.playerName}.`,
     });
   };
 
@@ -1305,13 +2281,20 @@ async function chooseFallbackPlan(input: {
   };
 
   const roleAttempts: Record<string, Array<() => Promise<FallbackPlanChoice | null>>> = {
-    contest: [tryBoostAssign, tryScoutAction, tryMarketSell, tryLiquidityAdd],
-    market_maker: [tryLiquidityAdd, tryLiquidityZap, tryLiquidityRemove, tryBoostAssign],
-    casual: [tryScoutAction, tryLiquidityAdd, tryBoostAssign, tryLiquidityZap],
-    trader: [tryMarketSell, tryBoostAssign, tryLiquidityRemove, tryLiquidityAdd],
+    contest: [tryScoutBootstrap, tryBoostAssign, tryScoutAction, tryMarketSell, tryLiquidityAdd],
+    market_maker: [
+      tryScoutBootstrap,
+      tryLiquidityAdd,
+      tryLiquidityZap,
+      tryLiquidityRemove,
+      tryBoostAssign,
+    ],
+    casual: [tryScoutBootstrap, tryScoutAction, tryLiquidityAdd, tryBoostAssign, tryLiquidityZap],
+    trader: [tryScoutBootstrap, tryMarketSell, tryBoostAssign, tryLiquidityRemove, tryLiquidityAdd],
   };
 
   const attempts = roleAttempts[input.profile.botRole] || [
+    tryScoutBootstrap,
     tryBoostAssign,
     tryLiquidityAdd,
     tryScoutAction,
@@ -2154,6 +3137,14 @@ function buildRunMetrics(input: {
   hermesNative?: boolean;
   usedSharedResearch?: boolean;
   usedSyntheticBrief?: boolean;
+  spreadPolicyEnabled?: boolean;
+  spreadRewrites?: number;
+  spreadDrops?: number;
+  spreadPlayerCapHits?: number;
+  spreadCooldownHits?: number;
+  spreadSportCapHits?: number;
+  bootstrapScoutsPlaced?: number;
+  bootstrapPoolInitializations?: number;
 }): BotRunMetrics {
   const plannedActions = input.plannedActions || [];
   return {
@@ -2172,6 +3163,14 @@ function buildRunMetrics(input: {
     mechanicCounts: summarizeMechanicCounts(plannedActions),
     usedSharedResearch: Boolean(input.usedSharedResearch),
     usedSyntheticBrief: Boolean(input.usedSyntheticBrief),
+    spreadPolicyEnabled: Boolean(input.spreadPolicyEnabled),
+    spreadRewrites: Number(input.spreadRewrites || 0),
+    spreadDrops: Number(input.spreadDrops || 0),
+    spreadPlayerCapHits: Number(input.spreadPlayerCapHits || 0),
+    spreadCooldownHits: Number(input.spreadCooldownHits || 0),
+    spreadSportCapHits: Number(input.spreadSportCapHits || 0),
+    bootstrapScoutsPlaced: Number(input.bootstrapScoutsPlaced || 0),
+    bootstrapPoolInitializations: Number(input.bootstrapPoolInitializations || 0),
   };
 }
 
@@ -2214,7 +3213,19 @@ async function executeFallbackPlan(input: {
     allowedMechanics: input.allowedMechanics,
     maxActionsPerTick: input.maxActionsPerTick,
   });
-  const plannedActions = fallback?.plannedActions || [];
+  const fallbackPlannedActions = fallback?.plannedActions || [];
+  const policy = await enforceBotExecutionPolicies({
+    profile: input.profile,
+    context: input.context,
+    sharedBrief: input.cycleBrief,
+    recentActions: input.recentActions,
+    actions: fallbackPlannedActions,
+    allowedMechanics: input.allowedMechanics,
+    maxActionsPerTick: input.maxActionsPerTick,
+  });
+  const plannedActions = policy.executable;
+  const totalDroppedCount =
+    policy.parityDroppedCount + policy.mechanicDroppedCount + policy.spreadDroppedCount;
   const executionStartedAt = Date.now();
   const executedActions =
     plannedActions.length > 0
@@ -2226,23 +3237,36 @@ async function executeFallbackPlan(input: {
   const metrics = buildRunMetrics({
     planningLatencyMs: input.planningLatencyMs,
     executionLatencyMs,
-    proposedActionCount: plannedActions.length,
+    proposedActionCount: fallbackPlannedActions.length,
     executableActionCount: plannedActions.length,
-    droppedActionCount: 0,
+    droppedActionCount: totalDroppedCount,
     successfulActionCount,
     failedActionCount,
     timedOut: /timed out/i.test(input.reason),
-    plannedActions,
+    plannedActions: fallbackPlannedActions,
     fallbackUsed: true,
     hermesNative: false,
     usedSharedResearch: Boolean(input.cycleBrief.usedResearch),
     usedSyntheticBrief: Boolean(
       (input.cycleBrief.briefPayload as Record<string, unknown> | null)?.synthetic,
     ),
+    spreadPolicyEnabled: policy.spreadPolicyEnabled,
+    spreadRewrites: policy.spreadRewrites,
+    spreadDrops: policy.spreadDroppedCount,
+    spreadPlayerCapHits: policy.spreadPlayerCapHits,
+    spreadCooldownHits: policy.spreadCooldownHits,
+    spreadSportCapHits: policy.spreadSportCapHits,
+    bootstrapScoutsPlaced: policy.bootstrapScoutsPlaced,
+    bootstrapPoolInitializations: policy.bootstrapPoolInitializations,
   });
-  const warnings = [...(fallback?.warnings || []), `Fallback reason: ${input.reason}`].filter(
-    (entry): entry is string => Boolean(entry),
-  );
+  const warnings = [
+    ...(fallback?.warnings || []),
+    ...policy.warnings,
+    ...(totalDroppedCount > 0
+      ? [`Dropped ${totalDroppedCount} fallback action(s) due to parity/spread constraints.`]
+      : []),
+    `Fallback reason: ${input.reason}`,
+  ].filter((entry): entry is string => Boolean(entry));
 
   if (successfulActionCount > 0) {
     return {
@@ -2270,7 +3294,7 @@ async function executeFallbackPlan(input: {
         fallback?.summary ||
         `Fallback planned an action, but execution did not complete: ${input.reason}`,
       warnings,
-      plannedActions,
+      plannedActions: fallbackPlannedActions,
       executedActions,
       citations: [],
       toolTrace: [],
@@ -2285,7 +3309,10 @@ async function executeFallbackPlan(input: {
   return {
     status: "no_action",
     failureClass: null,
-    summary: `NO_ACTION: ${fallback?.warnings[0] || "Fallback planner found no coherent action."}`,
+    summary:
+      totalDroppedCount > 0
+        ? "NO_ACTION: Fallback actions were filtered by parity/spread policy."
+        : `NO_ACTION: ${fallback?.warnings[0] || "Fallback planner found no coherent action."}`,
     warnings,
     plannedActions: [],
     executedActions: [],
@@ -2537,9 +3564,9 @@ async function runBotPlan(profile: BotRuntimeProfile, cycleBrief: SharedBriefRec
   });
   const context = compactBotContext(rawContext, {
     assignments: 6,
-    candidates: 12,
-    recommendedTargets: 6,
-    topHoldings: 6,
+    candidates: 16,
+    recommendedTargets: 8,
+    topHoldings: 20,
     nextBestLevers: 4,
     knowledgeBrief: 4,
   });
@@ -2631,11 +3658,18 @@ async function runBotPlan(profile: BotRuntimeProfile, cycleBrief: SharedBriefRec
     }
   }
 
-  const { executable, dropped } = filterExecutableActions(
-    planTurn.proposedActions,
+  const policy = await enforceBotExecutionPolicies({
+    profile: normalizedProfile,
+    context,
+    sharedBrief: cycleBrief,
+    recentActions,
+    actions: planTurn.proposedActions,
     allowedMechanics,
     maxActionsPerTick,
-  );
+  });
+  const executable = policy.executable;
+  const totalDroppedCount =
+    policy.parityDroppedCount + policy.mechanicDroppedCount + policy.spreadDroppedCount;
   const executionStartedAt = Date.now();
   const executedActions = await executePlannedActions(normalizedProfile, cycleBrief, executable);
   const executionLatencyMs = Math.max(0, Date.now() - executionStartedAt);
@@ -2646,7 +3680,7 @@ async function runBotPlan(profile: BotRuntimeProfile, cycleBrief: SharedBriefRec
     executionLatencyMs,
     proposedActionCount: planTurn.proposedActions.length,
     executableActionCount: executable.length,
-    droppedActionCount: dropped.length,
+    droppedActionCount: totalDroppedCount,
     successfulActionCount,
     failedActionCount,
     timedOut,
@@ -2657,6 +3691,14 @@ async function runBotPlan(profile: BotRuntimeProfile, cycleBrief: SharedBriefRec
     usedSyntheticBrief: Boolean(
       (cycleBrief.briefPayload as Record<string, unknown> | null)?.synthetic,
     ),
+    spreadPolicyEnabled: policy.spreadPolicyEnabled,
+    spreadRewrites: policy.spreadRewrites,
+    spreadDrops: policy.spreadDroppedCount,
+    spreadPlayerCapHits: policy.spreadPlayerCapHits,
+    spreadCooldownHits: policy.spreadCooldownHits,
+    spreadSportCapHits: policy.spreadSportCapHits,
+    bootstrapScoutsPlaced: policy.bootstrapScoutsPlaced,
+    bootstrapPoolInitializations: policy.bootstrapPoolInitializations,
   });
 
   if (planTurn.proposedMemoryWrites.length > 0) {
@@ -2670,8 +3712,9 @@ async function runBotPlan(profile: BotRuntimeProfile, cycleBrief: SharedBriefRec
   const summary = summarizeTurn(planTurn, `${normalizedProfile.botName} cycle`);
   const warnings = [
     ...planTurn.warnings,
-    ...(dropped.length > 0
-      ? [`Dropped ${dropped.length} action(s) outside the bot policy or action cap.`]
+    ...policy.warnings,
+    ...(totalDroppedCount > 0
+      ? [`Dropped ${totalDroppedCount} action(s) due to parity/spread policy or action cap.`]
       : []),
   ];
 
@@ -2692,11 +3735,11 @@ async function runBotPlan(profile: BotRuntimeProfile, cycleBrief: SharedBriefRec
     } satisfies BotPlanResult;
   }
 
-  if (planTurn.proposedActions.length > 0 && executable.length === 0 && dropped.length > 0) {
+  if (planTurn.proposedActions.length > 0 && executable.length === 0 && totalDroppedCount > 0) {
     return {
       status: "policy_filtered",
       failureClass: "policy_filtered",
-      summary,
+      summary: "NO_ACTION: All proposed actions were filtered by parity/spread policy.",
       warnings,
       plannedActions: planTurn.proposedActions,
       executedActions,
@@ -3050,6 +4093,14 @@ export const __botRuntime = {
   normalizeAllowedMechanics,
   normalizeObjectiveWeights,
   buildSyntheticSharedBrief,
+  isLpSpreadActionType,
+  isPlayerParityActionType,
+  enforcePlayerExecutionParity,
+  applySpreadPolicyToActions,
+  createSpreadBootstrapScoutAction,
+  createSpreadRerouteLiquidityAction,
+  evaluateSpreadViolations,
+  getSpreadPolicyConfig,
   chooseFallbackAction,
   chooseFallbackPlan,
   getNextOpenBoostSlotTier,
