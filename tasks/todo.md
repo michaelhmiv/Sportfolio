@@ -1,3 +1,22 @@
+## 2026-04-23 Bot Liquidity Spread Upgrade + Execution Parity
+
+- [x] Create dedicated worktree `C:\Users\micha\OneDrive\Documents\Antigravity\Sportfolio-Replit-bot-liquidity-spread-parity` on branch `codex/bot-liquidity-spread-parity`
+- [x] Add bot execution parity gate so runtime only executes player-equivalent economic actions through existing `executeAgentActions` paths
+- [x] Add spread policy enforcement for LP actions (rolling player cap, per-bot cooldown, sport floor/ceiling checks, reroute or `NO_ACTION`)
+- [x] Broaden fallback liquidity candidate selection and keep scout-only bootstrap for no-pool/no-share players
+- [x] Add/extend `server/bot/runtime.test.ts` coverage for parity blocking, spread reroute/cooldown/caps, and scout bootstrap behavior
+- [x] Run required validation in worktree: `npm run check`, `npm run lint`, `npm run test:run`
+- [x] Run `npm run format:check` and confirm failures are pre-existing docs formatting drift only (no touched code files flagged)
+- [x] Add a post-change metrics query runner (`npm run bot:liquidity:report`) for 24h LP spread verification
+- [ ] Execute live DB verification report once `DEV_DATABASE_URL` is available in this environment
+
+Review:
+
+- Implemented runtime parity/spread policy enforcement in `server/bot/runtime.ts` with policy metrics surfaced in bot run telemetry.
+- Increased holdings breadth in `server/agent/context-loader.ts` so bot planning has a wider candidate set.
+- Added a reusable report script at `scripts/bot-liquidity-spread-report.ts` to measure distinct LP targets, top-player LP share, sport LP concentration, and initialized-pool sport coverage.
+- Validation passed for typecheck/lint/tests; `format:check` remains blocked by pre-existing docs/wiki formatting drift in untouched files.
+
 ## 2026-04-23 Repository-Wide Refactor + QA/QC Pass
 
 - [x] Complete repository assessment across architecture, critical workflows, and risk areas
