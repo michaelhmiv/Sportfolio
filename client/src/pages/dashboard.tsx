@@ -515,6 +515,7 @@ export default function Dashboard() {
     onRefresh: async () => {
       await dashboardRefetch();
     },
+    scrollContainerId: "app-main-scroll-container",
   });
 
   // Navigation helpers with validation

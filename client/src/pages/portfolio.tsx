@@ -395,6 +395,7 @@ export default function Portfolio() {
     onRefresh: async () => {
       await Promise.all([portfolioRefetch(), lpRefetch()]);
     },
+    scrollContainerId: "app-main-scroll-container",
   });
 
   const redeemPremiumMutation = useMutation({

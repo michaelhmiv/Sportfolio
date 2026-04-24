@@ -229,6 +229,7 @@ export default function BoostsPage() {
     onRefresh: async () => {
       await Promise.all([refetchBoosts(), refetchEligible(), refetchCommunity()]);
     },
+    scrollContainerId: "app-main-scroll-container",
   });
 
   // Assign boost mutation

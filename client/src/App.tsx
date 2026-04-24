@@ -56,6 +56,7 @@ import {
 const CANONICAL_SITE_URL = normalizeSiteUrl(
   import.meta.env.VITE_PUBLIC_SITE_URL || import.meta.env.PUBLIC_SITE_URL,
 );
+const MAIN_SCROLL_CONTAINER_ID = "app-main-scroll-container";
 
 const loadPlayerPoolsPage = () => import("@/pages/marketplace");
 const loadPlayerPage = () => import("@/pages/player");
@@ -496,7 +497,7 @@ function Router() {
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
 
-    void StatusBar.setStyle({ style: StatusBarStyle.Dark }).catch(() => undefined);
+    void StatusBar.setStyle({ style: StatusBarStyle.Light }).catch(() => undefined);
     void StatusBar.setBackgroundColor({ color: "#0f1420" }).catch(() => undefined);
     void StatusBar.setOverlaysWebView({ overlay: true }).catch(() => undefined);
   }, []);
@@ -515,7 +516,7 @@ function Router() {
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
     void StatusBar.setStyle({
-      style: isDark ? StatusBarStyle.Dark : StatusBarStyle.Light,
+      style: isDark ? StatusBarStyle.Light : StatusBarStyle.Dark,
     }).catch(() => undefined);
     void StatusBar.setBackgroundColor({
       color: isDark ? "#0f1420" : "#ffffff",
@@ -1041,7 +1042,10 @@ function AppContent() {
           </div>
           <div className="flex flex-col flex-1 overflow-x-hidden">
             <Header />
-            <main className="flex flex-1 flex-col overflow-x-hidden overflow-y-auto pb-0 sm:pb-0">
+            <main
+              id={MAIN_SCROLL_CONTAINER_ID}
+              className="flex flex-1 flex-col overflow-x-hidden overflow-y-auto pb-0 sm:pb-0"
+            >
               <div className="flex-1 pb-20 sm:pb-0">
                 <Router />
               </div>

@@ -16,11 +16,13 @@ const TRIGGER_DISTANCE = 72; // px of drag before triggering
 interface PullToRefreshOptions {
   onRefresh: () => Promise<void> | void;
   enabled?: boolean;
+  scrollContainerId?: string;
 }
 
 export function usePullToRefresh<T extends HTMLElement>({
   onRefresh,
   enabled = true,
+  scrollContainerId,
 }: PullToRefreshOptions) {
   const containerRef = useRef<T>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -44,20 +46,31 @@ export function usePullToRefresh<T extends HTMLElement>({
     }
   }, [onRefresh]);
 
+  const getScrollElement = useCallback((): HTMLElement | null => {
+    if (!scrollContainerId || typeof document === "undefined") {
+      return containerRef.current;
+    }
+    return document.getElementById(scrollContainerId);
+  }, [scrollContainerId]);
+
+  const getScrollTop = useCallback((): number => {
+    return getScrollElement()?.scrollTop ?? 0;
+  }, [getScrollElement]);
+
   useEffect(() => {
     if (!enabled) return;
     const el = containerRef.current;
     if (!el) return;
 
     const onTouchStart = (e: TouchEvent) => {
-      if (el.scrollTop > 0) return;
+      if (getScrollTop() > 0) return;
       startY.current = e.touches[0].clientY;
       triggered.current = false;
     };
 
     const onTouchMove = (e: TouchEvent) => {
       if (startY.current === null) return;
-      if (el.scrollTop > 0) {
+      if (getScrollTop() > 0) {
         startY.current = null;
         return;
       }
@@ -93,7 +106,7 @@ export function usePullToRefresh<T extends HTMLElement>({
       el.removeEventListener("touchmove", onTouchMove);
       el.removeEventListener("touchend", onTouchEnd);
     };
-  }, [enabled, handleRefresh]);
+  }, [enabled, getScrollTop, handleRefresh]);
 
   return { containerRef, isRefreshing, pullDistance };
 }

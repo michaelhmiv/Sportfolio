@@ -23,7 +23,7 @@ const config: CapacitorConfig = {
     },
     StatusBar: {
       // Set in JS after the app loads (P1 — 1.1)
-      style: "DARK",
+      style: "LIGHT",
       backgroundColor: "#0f1420",
       overlaysWebView: true,
     },
