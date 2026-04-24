@@ -5,17 +5,48 @@
 # For more details, see
 #   http://developer.android.com/guide/developing/tools/proguard.html
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# Preserve line numbers and source file names in crash stack traces.
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# ── Capacitor bridge ──────────────────────────────────────────────────────────
+# R8/ProGuard cannot statically trace which plugin methods are called from JS.
+# Keep all Capacitor bridge, plugin, and WebView interface classes intact.
+-keep class com.getcapacitor.** { *; }
+-keep interface com.getcapacitor.** { *; }
+-dontwarn com.getcapacitor.**
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# Custom Sportfolio Capacitor plugins (Java side)
+-keep class sportfolio.market.AndroidRewardedAdsPlugin { *; }
+-keep class sportfolio.market.AndroidPlayBillingPlugin { *; }
+
+# ── WebView JavaScript interface ──────────────────────────────────────────────
+# Any class that is accessed from JS via @JavascriptInterface must not be
+# renamed or removed.
+-keepclassmembers class * {
+    @android.webkit.JavascriptInterface <methods>;
+}
+
+# ── Google Play Billing ───────────────────────────────────────────────────────
+-keep class com.android.billingclient.** { *; }
+-dontwarn com.android.billingclient.**
+
+# ── Google Mobile Ads (AdMob) ─────────────────────────────────────────────────
+-keep class com.google.android.gms.ads.** { *; }
+-keep class com.google.ads.** { *; }
+-dontwarn com.google.android.gms.ads.**
+
+# ── Firebase / Google Play Services ──────────────────────────────────────────
+-keep class com.google.firebase.** { *; }
+-keep class com.google.android.gms.** { *; }
+-dontwarn com.google.firebase.**
+-dontwarn com.google.android.gms.**
+
+# ── Cordova/Capacitor plugin bridge (capacitor-cordova-android-plugins) ───────
+-keep class org.apache.cordova.** { *; }
+-dontwarn org.apache.cordova.**
+
+# ── Kotlin metadata (required for reflection-based libraries) ─────────────────
+-keepattributes RuntimeVisibleAnnotations
+-keep class kotlin.Metadata { *; }
+-dontwarn kotlin.**

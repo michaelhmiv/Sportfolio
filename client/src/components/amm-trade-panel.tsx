@@ -305,6 +305,25 @@ export function AmmTradePanel({
       });
       return res.json();
     },
+    onMutate: async (sbAmount: number) => {
+      // Cancel any in-flight refetches so they don't overwrite our optimistic update
+      await queryClient.cancelQueries({ queryKey: ["/api/user"] });
+      await queryClient.cancelQueries({ queryKey: ["/api/holdings"] });
+
+      // Snapshot the current cache values for rollback
+      const previousUser = queryClient.getQueryData<{ balance?: number }>(["/api/user"]);
+      const previousHoldings = queryClient.getQueryData(["/api/holdings"]);
+
+      // Optimistically deduct balance (approximate — server confirms exact shares received)
+      if (previousUser?.balance !== undefined) {
+        queryClient.setQueryData(["/api/user"], {
+          ...previousUser,
+          balance: Math.max(0, previousUser.balance - sbAmount),
+        });
+      }
+
+      return { previousUser, previousHoldings };
+    },
     onSuccess: (data) => {
       void hapticSuccess();
       toast({
@@ -321,7 +340,15 @@ export function AmmTradePanel({
       setQuote(null);
       onTradeSuccess?.();
     },
-    onError: (error: Error) => {
+    onError: (error: Error, _sbAmount, context) => {
+      // Roll back to the pre-mutation snapshots
+      if (context?.previousUser !== undefined) {
+        queryClient.setQueryData(["/api/user"], context.previousUser);
+      }
+      if (context?.previousHoldings !== undefined) {
+        queryClient.setQueryData(["/api/holdings"], context.previousHoldings);
+      }
+
       void hapticError();
       toast({
         title: "Purchase Failed",
@@ -340,6 +367,28 @@ export function AmmTradePanel({
       });
       return res.json();
     },
+    onMutate: async (sharesAmount: number) => {
+      // Cancel any in-flight refetches so they don't overwrite our optimistic update
+      await queryClient.cancelQueries({ queryKey: ["/api/user"] });
+      await queryClient.cancelQueries({ queryKey: ["/api/holdings"] });
+
+      // Snapshot the current cache values for rollback
+      const previousUser = queryClient.getQueryData(["/api/user"]);
+      const previousHoldings = queryClient.getQueryData(["/api/holdings"]);
+
+      // Optimistically deduct shares (approximate — server confirms exact SB received)
+      if (quote?.effectivePrice !== undefined) {
+        const currentUser = queryClient.getQueryData<{ balance?: number }>(["/api/user"]);
+        if (currentUser?.balance !== undefined) {
+          queryClient.setQueryData(["/api/user"], {
+            ...currentUser,
+            balance: currentUser.balance + sharesAmount * quote.effectivePrice,
+          });
+        }
+      }
+
+      return { previousUser, previousHoldings };
+    },
     onSuccess: (data) => {
       void hapticSuccess();
       toast({
@@ -356,7 +405,15 @@ export function AmmTradePanel({
       setQuote(null);
       onTradeSuccess?.();
     },
-    onError: (error: Error) => {
+    onError: (error: Error, _sharesAmount, context) => {
+      // Roll back to the pre-mutation snapshots
+      if (context?.previousUser !== undefined) {
+        queryClient.setQueryData(["/api/user"], context.previousUser);
+      }
+      if (context?.previousHoldings !== undefined) {
+        queryClient.setQueryData(["/api/holdings"], context.previousHoldings);
+      }
+
       void hapticError();
       toast({
         title: "Sale Failed",

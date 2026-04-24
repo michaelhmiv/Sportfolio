@@ -18,7 +18,7 @@ import { NotificationProvider } from "@/lib/notification-context";
 import { useAuth, AuthProvider } from "@/hooks/useAuth";
 import { OnboardingModal } from "@/components/onboarding-modal";
 import Dashboard from "@/pages/dashboard";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import logoUrl from "@assets/Sportfolio png_1763227952318.png";
 import { BookOpen, LogOut, Newspaper, User } from "lucide-react";
 import { SiDiscord } from "react-icons/si";
@@ -303,7 +303,8 @@ function Router() {
     Boolean(initError) && requiresAuthBootstrap && !authRouteBypass;
 
   // Compute directional transition for the current route change (P2 — 7.3)
-  const [initial, animate, exit] = getTransitionVariants(location, previousLocationRef.current);
+  const prefersReducedMotion = useReducedMotion();
+  const [initial, , exit] = getTransitionVariants(location, previousLocationRef.current);
   useEffect(() => {
     previousLocationRef.current = location;
   }, [location]);
@@ -660,10 +661,10 @@ function Router() {
     <AnimatePresence mode="popLayout">
       <motion.div
         key={location}
-        initial={{ opacity: 0, x: initial.x, y: 0 }}
+        initial={{ opacity: 0, x: prefersReducedMotion ? 0 : initial.x, y: 0 }}
         animate={{ opacity: 1, x: "0%", y: 0 }}
-        exit={{ opacity: 0, x: exit.x, y: 0 }}
-        transition={{ duration: 0.22, ease: "easeOut" }}
+        exit={{ opacity: 0, x: prefersReducedMotion ? 0 : exit.x, y: 0 }}
+        transition={{ duration: prefersReducedMotion ? 0 : 0.22, ease: "easeOut" }}
         className={cn("w-full", location.startsWith("/agent") && "h-full min-h-0")}
         style={{ position: "relative", overflow: "hidden" }}
       >
