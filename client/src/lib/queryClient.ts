@@ -214,10 +214,20 @@ function isCacheable(queryKey: readonly unknown[]): boolean {
 }
 
 /**
+ * Backing callback for query persistence cleanup.
+ *
+ * Kept as an internal mutable binding so browser initialization can safely
+ * install cleanup logic without relying on exported `let` reassignment order.
+ */
+let cleanupQueryPersistenceImpl: () => void = () => undefined;
+
+/**
  * Tears down the query cache persistence subscription set up at module load.
  * No-op before persistence is initialized (e.g. in SSR or non-browser envs).
  */
-export let cleanupQueryPersistence: () => void = () => undefined;
+export function cleanupQueryPersistence() {
+  cleanupQueryPersistenceImpl();
+}
 
 if (typeof window !== "undefined" && window.localStorage) {
   // Restore on startup
@@ -263,9 +273,9 @@ if (typeof window !== "undefined" && window.localStorage) {
    * debounce timer. Call this in tests that create a fresh QueryClient to
    * prevent subscription accumulation across test runs.
    */
-  cleanupQueryPersistence = () => {
+  cleanupQueryPersistenceImpl = () => {
     unsubscribePersist();
     if (persistTimer) clearTimeout(persistTimer);
-    cleanupQueryPersistence = () => undefined; // idempotent
+    cleanupQueryPersistenceImpl = () => undefined; // idempotent
   };
 }
