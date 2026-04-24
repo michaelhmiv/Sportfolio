@@ -80,15 +80,18 @@ jobs:
         env:
           INPUT_RELEASE_NAME: ${{ github.event.inputs.release_name }}
         run: |
-          # Keep Firebase iteration builds above the Play internal workflow's
-          # 200000-based versionCode range so testers can install newer Firebase
-          # APKs over Play-delivered builds without manual downgrades.
-          VERSION_CODE=$((300000 + ${GITHUB_RUN_NUMBER}))
+          # Reserve 200000-299999 for Play internal builds and start Firebase at
+          # 300000 to leave 100000 versionCode slots before the ranges overlap.
+          # This keeps Firebase iteration builds installable over Play internal
+          # builds without manual downgrades while preserving ample headroom for
+          # the workflow's per-file run counter.
+          VERSION_CODE_BASE=300000
+          VERSION_CODE=$((VERSION_CODE_BASE + ${GITHUB_RUN_NUMBER}))
           echo "MOBILE_VERSION_CODE=$VERSION_CODE" >> "$GITHUB_ENV"
 
           if [ -n "$INPUT_RELEASE_NAME" ]; then
             SANITIZED_RELEASE_NAME="$(printf '%s' "$INPUT_RELEASE_NAME" | tr '\r\n' '-' | tr -cd '[:alnum:]._-' | cut -c1-50)"
-            if [ -z "$SANITIZED_RELEASE_NAME" ]; then
+            if [ -z "$SANITIZED_RELEASE_NAME" ] || ! printf '%s' "$SANITIZED_RELEASE_NAME" | grep -q '[[:alnum:]]'; then
               echo "::error::release_name must contain at least one alphanumeric character after sanitization."
               exit 1
             fi
@@ -155,3 +158,7 @@ jobs:
               --app "$FIREBASE_APP_ID" \
               --release-notes "$RELEASE_NOTES" | tee "$DISTRIBUTION_LOG"
           fi
+
+      - name: Remove decoded keystore
+        if: ${{ always() }}
+        run: rm -f "${{ github.workspace }}/mobile/android/upload-keystore.jks"
