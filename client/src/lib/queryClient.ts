@@ -230,10 +230,10 @@ if (typeof window !== "undefined" && window.localStorage) {
   }
 
   // Persist on cache changes (debounced to avoid excessive writes).
-  // The unsubscribe handle is intentionally retained at module scope so the
-  // subscription is not garbage-collected, and to allow cleanup in tests.
+  // The unsubscribe handle is retained at module scope so the subscription is
+  // not garbage-collected until cleanupQueryPersistence() is called.
   let persistTimer: ReturnType<typeof setTimeout> | null = null;
-  const _unsubscribePersist = queryClient.getQueryCache().subscribe(() => {
+  const unsubscribePersist = queryClient.getQueryCache().subscribe(() => {
     if (persistTimer) clearTimeout(persistTimer);
     persistTimer = setTimeout(() => {
       try {
@@ -250,9 +250,21 @@ if (typeof window !== "undefined" && window.localStorage) {
       }
     }, 2000);
   });
-  // Exported for tests that need to clean up the subscription.
-  (queryClient as QueryClient & { _cleanupPersist?: () => void })._cleanupPersist = () => {
-    _unsubscribePersist();
+
+  /**
+   * Tears down the cache persistence subscription and clears any pending
+   * debounce timer. Call this in tests that create a fresh QueryClient to
+   * prevent subscription accumulation across test runs.
+   */
+  cleanupQueryPersistence = () => {
+    unsubscribePersist();
     if (persistTimer) clearTimeout(persistTimer);
+    cleanupQueryPersistence = () => undefined; // idempotent
   };
 }
+
+/**
+ * Tears down the query cache persistence subscription set up at module load.
+ * No-op before persistence is initialized (e.g. in SSR or non-browser envs).
+ */
+export let cleanupQueryPersistence: () => void = () => undefined;
