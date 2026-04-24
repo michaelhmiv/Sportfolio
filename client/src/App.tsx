@@ -38,6 +38,7 @@ import { WhaleAlertBanner } from "@/components/market/whale-alert-banner";
 import { PlayerModal } from "@/components/player-modal";
 import { OPEN_PLAYER_MODAL_EVENT } from "@/lib/player-modal-events";
 import { MobilePushManager } from "@/components/mobile-push-manager";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { Capacitor } from "@capacitor/core";
 import { App as CapacitorApp } from "@capacitor/app";
 import { Browser } from "@capacitor/browser";
@@ -668,80 +669,90 @@ function Router() {
         className={cn("w-full", location.startsWith("/agent") && "h-full min-h-0")}
         style={{ position: "relative", overflow: "hidden" }}
       >
-        <Suspense fallback={<RouteLoadingState />}>
-          <Switch>
-            {/* Auth routes */}
-            <Route path="/login" component={Login} />
-            <Route path="/auth/callback" component={AuthCallback} />
-            <Route path="/checkout/success" component={CheckoutSuccess} />
+        {/*
+         * ErrorBoundary wraps Suspense so that lazy-chunk load failures
+         * (bad network, CDN error, code bug) show a recoverable UI instead
+         * of crashing the entire app — critical on Android where there is
+         * no browser reload option and a crash is logged by Play Store.
+         */}
+        <ErrorBoundary>
+          <Suspense fallback={<RouteLoadingState />}>
+            <Switch>
+              {/* Auth routes */}
+              <Route path="/login" component={Login} />
+              <Route path="/auth/callback" component={AuthCallback} />
+              <Route path="/checkout/success" component={CheckoutSuccess} />
 
-            {/* Dashboard is now public - shows live data with login CTAs for non-authenticated users */}
-            <Route path="/" component={Dashboard} />
+              {/* Dashboard is now public - shows live data with login CTAs for non-authenticated users */}
+              <Route path="/" component={Dashboard} />
 
-            {/* Public routes */}
-            <Route path="/leaderboards" component={Leaderboards} />
-            <Route path="/user/:id" component={UserProfile} />
-            <Route path="/pools" component={PlayerPools} />
-            <Route path="/marketplace" component={LegacyMarketplaceRedirect} />
-            <Route path="/blog" component={Blog} />
-            <Route path="/blog/:slug" component={BlogPost} />
-            <Route path="/privacy" component={Privacy} />
-            <Route path="/terms" component={Terms} />
-            <Route path="/account-deletion" component={AccountDeletion} />
-            <Route path="/about" component={About} />
-            <Route path="/contact" component={Contact} />
-            <Route path="/how-it-works" component={HowItWorks} />
-            <Route path="/wiki" component={Wiki} />
-            <Route path="/wiki/:section" component={Wiki} />
-            <Route path="/wiki/:section/:slug" component={WikiArticle} />
-            <Route path="/sms/link" component={SmsLink} />
-            <Route path="/discord/link" component={DiscordLink} />
-            <Route path="/analytics" component={Analytics} />
-            <Route path="/news" component={News} />
-            <Route path="/agent">{canAccessProtectedRoutes ? <Agent /> : <AgentPreview />}</Route>
+              {/* Public routes */}
+              <Route path="/leaderboards" component={Leaderboards} />
+              <Route path="/user/:id" component={UserProfile} />
+              <Route path="/pools" component={PlayerPools} />
+              <Route path="/marketplace" component={LegacyMarketplaceRedirect} />
+              <Route path="/blog" component={Blog} />
+              <Route path="/blog/:slug" component={BlogPost} />
+              <Route path="/privacy" component={Privacy} />
+              <Route path="/terms" component={Terms} />
+              <Route path="/account-deletion" component={AccountDeletion} />
+              <Route path="/about" component={About} />
+              <Route path="/contact" component={Contact} />
+              <Route path="/how-it-works" component={HowItWorks} />
+              <Route path="/wiki" component={Wiki} />
+              <Route path="/wiki/:section" component={Wiki} />
+              <Route path="/wiki/:section/:slug" component={WikiArticle} />
+              <Route path="/sms/link" component={SmsLink} />
+              <Route path="/discord/link" component={DiscordLink} />
+              <Route path="/analytics" component={Analytics} />
+              <Route path="/news" component={News} />
+              <Route path="/agent">{canAccessProtectedRoutes ? <Agent /> : <AgentPreview />}</Route>
 
-            {/* Boosts - requires authentication */}
-            <Route path="/power">{canAccessProtectedRoutes ? <Boosts /> : <Dashboard />}</Route>
-            <Route path="/boosts">{canAccessProtectedRoutes ? <Boosts /> : <Dashboard />}</Route>
+              {/* Boosts - requires authentication */}
+              <Route path="/power">{canAccessProtectedRoutes ? <Boosts /> : <Dashboard />}</Route>
+              <Route path="/boosts">{canAccessProtectedRoutes ? <Boosts /> : <Dashboard />}</Route>
 
-            {/* Protected routes - require authentication, redirect to dashboard if not logged in */}
-            <Route path="/player/:id">
-              {canAccessProtectedRoutes ? <PlayerPage /> : <Dashboard />}
-            </Route>
+              {/* Protected routes - require authentication, redirect to dashboard if not logged in */}
+              <Route path="/player/:id">
+                {canAccessProtectedRoutes ? <PlayerPage /> : <Dashboard />}
+              </Route>
 
-            {/* Canonical player route used across the app (some data uses prefixed ids like nba_123) */}
-            <Route path="/player/nba_:id">
-              {canAccessProtectedRoutes ? <PlayerPage /> : <Dashboard />}
-            </Route>
-            <Route path="/player/nfl_:id">
-              {canAccessProtectedRoutes ? <PlayerPage /> : <Dashboard />}
-            </Route>
-            <Route path="/player/mlb_:id">
-              {canAccessProtectedRoutes ? <PlayerPage /> : <Dashboard />}
-            </Route>
-            <Route path="/portfolio">
-              {canAccessProtectedRoutes ? <Portfolio /> : <Dashboard />}
-            </Route>
-            <Route path="/admin">{canAccessProtectedRoutes ? <Admin /> : <Dashboard />}</Route>
-            <Route path="/premium">{canAccessProtectedRoutes ? <Premium /> : <Dashboard />}</Route>
-            {/* Premium share trading removed; premium shares are redeemed for premium access */}
-            <Route path="/watchlists">
-              {canAccessProtectedRoutes ? <Watchlists /> : <Dashboard />}
-            </Route>
-            <Route path="/profile">
-              {canAccessProtectedRoutes && user ? (
-                <ProfileRedirect userId={user.id} />
-              ) : (
-                <Dashboard />
-              )}
-            </Route>
+              {/* Canonical player route used across the app (some data uses prefixed ids like nba_123) */}
+              <Route path="/player/nba_:id">
+                {canAccessProtectedRoutes ? <PlayerPage /> : <Dashboard />}
+              </Route>
+              <Route path="/player/nfl_:id">
+                {canAccessProtectedRoutes ? <PlayerPage /> : <Dashboard />}
+              </Route>
+              <Route path="/player/mlb_:id">
+                {canAccessProtectedRoutes ? <PlayerPage /> : <Dashboard />}
+              </Route>
+              <Route path="/portfolio">
+                {canAccessProtectedRoutes ? <Portfolio /> : <Dashboard />}
+              </Route>
+              <Route path="/admin">{canAccessProtectedRoutes ? <Admin /> : <Dashboard />}</Route>
+              <Route path="/premium">
+                {canAccessProtectedRoutes ? <Premium /> : <Dashboard />}
+              </Route>
+              {/* Premium share trading removed; premium shares are redeemed for premium access */}
+              <Route path="/watchlists">
+                {canAccessProtectedRoutes ? <Watchlists /> : <Dashboard />}
+              </Route>
+              <Route path="/profile">
+                {canAccessProtectedRoutes && user ? (
+                  <ProfileRedirect userId={user.id} />
+                ) : (
+                  <Dashboard />
+                )}
+              </Route>
 
-            {/* Auth error page - public, always accessible */}
-            <Route path="/auth/error" component={AuthError} />
+              {/* Auth error page - public, always accessible */}
+              <Route path="/auth/error" component={AuthError} />
 
-            <Route component={NotFound} />
-          </Switch>
-        </Suspense>
+              <Route component={NotFound} />
+            </Switch>
+          </Suspense>
+        </ErrorBoundary>
       </motion.div>
     </AnimatePresence>
   );

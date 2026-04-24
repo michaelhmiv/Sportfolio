@@ -229,9 +229,11 @@ if (typeof window !== "undefined" && window.localStorage) {
     localStorage.removeItem(CACHE_KEY);
   }
 
-  // Persist on cache changes (debounced to avoid excessive writes)
+  // Persist on cache changes (debounced to avoid excessive writes).
+  // The unsubscribe handle is intentionally retained at module scope so the
+  // subscription is not garbage-collected, and to allow cleanup in tests.
   let persistTimer: ReturnType<typeof setTimeout> | null = null;
-  queryClient.getQueryCache().subscribe(() => {
+  const _unsubscribePersist = queryClient.getQueryCache().subscribe(() => {
     if (persistTimer) clearTimeout(persistTimer);
     persistTimer = setTimeout(() => {
       try {
@@ -248,4 +250,9 @@ if (typeof window !== "undefined" && window.localStorage) {
       }
     }, 2000);
   });
+  // Exported for tests that need to clean up the subscription.
+  (queryClient as QueryClient & { _cleanupPersist?: () => void })._cleanupPersist = () => {
+    _unsubscribePersist();
+    if (persistTimer) clearTimeout(persistTimer);
+  };
 }
