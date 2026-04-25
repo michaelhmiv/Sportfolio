@@ -1,5 +1,5 @@
 import { QueryClient, QueryFunction, dehydrate, hydrate } from "@tanstack/react-query";
-import { getSupabase } from "./supabase";
+import { getAuthSession, getSupabase } from "./supabase";
 
 const IS_DEV = import.meta.env.DEV;
 
@@ -19,9 +19,7 @@ async function throwIfResNotOk(res: Response) {
 export async function getAuthHeaders(): Promise<HeadersInit> {
   try {
     const supabase = await getSupabase();
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
+    const session = await getAuthSession(supabase);
     if (session?.access_token) {
       return { Authorization: `Bearer ${session.access_token}` };
     }
