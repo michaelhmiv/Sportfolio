@@ -94,6 +94,8 @@ function setStoredPermissionState(state: AndroidPushPermissionState) {
 }
 
 function normalizePermissionState(receive: string | undefined): AndroidPushPermissionState {
+  // Android push permissions resolve to granted / denied / prompt on supported devices.
+  // "unsupported" is reserved for the non-Android/non-native guard paths above.
   if (receive === "granted") return "granted";
   if (receive === "denied") return "denied";
   return "prompt";

@@ -62,6 +62,10 @@ const PUSH_LABELS: Record<PushNotificationType, string> = {
   system_announcements: "System announcements",
 };
 
+function buildMobilePushStatusQueryKey(deviceId: string | null) {
+  return `/api/mobile/push/status${deviceId ? `?deviceId=${encodeURIComponent(deviceId)}` : ""}`;
+}
+
 function formatTimestamp(value: string | null) {
   if (!value) return "—";
   return new Date(value).toLocaleString();
@@ -79,7 +83,7 @@ export function MobilePushCard() {
     isAndroidNativePushSupported() ? "prompt" : "unsupported",
   );
   const deviceId = useMemo(() => getPushInstallationId(), []);
-  const statusQueryKey = `/api/mobile/push/status${deviceId ? `?deviceId=${encodeURIComponent(deviceId)}` : ""}`;
+  const statusQueryKey = buildMobilePushStatusQueryKey(deviceId);
 
   const refreshPermissionState = async () => {
     const snapshot = await getAndroidPushPermissionSnapshot();

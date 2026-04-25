@@ -128,7 +128,7 @@ export default function OnboardingPage() {
   const [notificationState, setNotificationState] = useState<
     "idle" | "requesting" | "granted" | "denied"
   >("idle");
-  const notificationPromptedOnSlideRef = useRef(false);
+  const hasPromptedOnNotificationSlideRef = useRef(false);
 
   const isLastSlide = current === SLIDES.length - 1;
   const isNotificationSlide = SLIDES[current]?.id === "notifications";
@@ -308,8 +308,8 @@ export default function OnboardingPage() {
         return;
       }
 
-      if (!notificationPromptedOnSlideRef.current) {
-        notificationPromptedOnSlideRef.current = true;
+      if (!hasPromptedOnNotificationSlideRef.current) {
+        hasPromptedOnNotificationSlideRef.current = true;
         await handleEnableNotifications();
         return;
       }
