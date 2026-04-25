@@ -34,14 +34,14 @@ import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Capacitor } from "@capacitor/core";
 import { App as CapacitorApp } from "@capacitor/app";
-import { PushNotifications } from "@capacitor/push-notifications";
 import { StatusBar, Style as StatusBarStyle } from "@capacitor/status-bar";
 import { hapticLight, hapticHeavy, hapticMedium, hapticSuccess } from "@/lib/haptics";
 import {
-  hasPromptedForPushPermission,
+  getAndroidPushPermissionSnapshot,
   isAndroidNativePushSupported,
-  markPushPermissionPrompted,
+  registerForAndroidPushes,
 } from "@/lib/mobile-push";
+import { openAndroidNotificationSettings } from "@/lib/android-notification-settings";
 
 // ---------------------------------------------------------------------------
 // Slide definitions
@@ -109,27 +109,12 @@ const SLIDES: OnboardingSlide[] = [
 // Helpers
 // ---------------------------------------------------------------------------
 
-async function requestPushPermission(): Promise<boolean> {
-  if (!isAndroidNativePushSupported()) return false;
-
-  try {
-    const status = await PushNotifications.checkPermissions();
-    let receive = status.receive;
-
-    if (receive === "prompt" && !hasPromptedForPushPermission()) {
-      markPushPermissionPrompted();
-      const requested = await PushNotifications.requestPermissions();
-      receive = requested.receive;
-    }
-
-    if (receive === "granted") {
-      await PushNotifications.register();
-      return true;
-    }
-  } catch {
-    // Ignore — non-critical
-  }
-  return false;
+async function requestPushPermission() {
+  return registerForAndroidPushes({
+    allowPrompt: true,
+    promptSource: "explicit",
+    logLabel: "onboarding",
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -143,6 +128,7 @@ export default function OnboardingPage() {
   const [notificationState, setNotificationState] = useState<
     "idle" | "requesting" | "granted" | "denied"
   >("idle");
+  const hasPromptedOnNotificationSlideRef = useRef(false);
 
   const isLastSlide = current === SLIDES.length - 1;
   const isNotificationSlide = SLIDES[current]?.id === "notifications";
@@ -285,10 +271,80 @@ export default function OnboardingPage() {
   const handleEnableNotifications = useCallback(async () => {
     setNotificationState("requesting");
     void hapticMedium();
-    const granted = await requestPushPermission();
+    const result = await requestPushPermission().catch(() => null);
+    const granted = Boolean(result?.registered);
     setNotificationState(granted ? "granted" : "denied");
     void (granted ? hapticSuccess() : hapticMedium());
   }, []);
+
+  const handleOpenNotificationSettings = useCallback(async () => {
+    setNotificationState("requesting");
+    try {
+      await openAndroidNotificationSettings();
+      setNotificationState("denied");
+    } catch {
+      setNotificationState("denied");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isAndroidNativePushSupported()) {
+      return;
+    }
+
+    if (!isNotificationSlide) {
+      return;
+    }
+
+    const sync = async () => {
+      const snapshot = await getAndroidPushPermissionSnapshot();
+      if (snapshot.state === "granted") {
+        setNotificationState("granted");
+        return;
+      }
+
+      if (snapshot.state === "denied") {
+        setNotificationState("denied");
+        return;
+      }
+
+      if (!hasPromptedOnNotificationSlideRef.current) {
+        hasPromptedOnNotificationSlideRef.current = true;
+        await handleEnableNotifications();
+        return;
+      }
+
+      setNotificationState("idle");
+    };
+
+    void sync();
+  }, [handleEnableNotifications, isNotificationSlide]);
+
+  useEffect(() => {
+    if (!isAndroidNativePushSupported() || !isNotificationSlide) {
+      return;
+    }
+
+    let handle: { remove: () => Promise<void> } | null = null;
+    const attach = async () => {
+      handle = await CapacitorApp.addListener("appStateChange", async ({ isActive }) => {
+        if (!isActive) return;
+        const snapshot = await getAndroidPushPermissionSnapshot();
+        setNotificationState(
+          snapshot.state === "granted"
+            ? "granted"
+            : snapshot.state === "denied"
+              ? "denied"
+              : "idle",
+        );
+      });
+    };
+
+    void attach();
+    return () => {
+      void handle?.remove();
+    };
+  }, [isNotificationSlide]);
 
   // ---------------------------------------------------------------------------
   // Render
@@ -364,9 +420,28 @@ export default function OnboardingPage() {
                           </p>
                         )}
                         {notificationState === "denied" && (
-                          <p className="font-mono text-[11px] text-muted-foreground">
-                            You can enable them later in Settings.
-                          </p>
+                          <div className="space-y-3">
+                            <p className="font-mono text-[11px] text-muted-foreground">
+                              Notifications are off right now. You can retry or open Android
+                              settings.
+                            </p>
+                            <div className="flex flex-col gap-2">
+                              <Button
+                                variant="terminal"
+                                className="w-full"
+                                onClick={handleEnableNotifications}
+                              >
+                                Retry Permission
+                              </Button>
+                              <Button
+                                variant="terminalOutline"
+                                className="w-full"
+                                onClick={handleOpenNotificationSettings}
+                              >
+                                Open Android Settings
+                              </Button>
+                            </div>
+                          </div>
                         )}
                       </div>
                     )}
