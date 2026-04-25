@@ -154,13 +154,14 @@ export async function getAndroidPushPermissionSnapshot(): Promise<AndroidPushPer
 
   const status = await PushNotifications.checkPermissions();
   const state = normalizePermissionState(status.receive);
+  const lastKnownState = getStoredPermissionState();
   setStoredPermissionState(state);
 
   return {
     state,
     canPrompt: state === "prompt",
     hasAutoPrompted: hasAutoPromptedForPushPermission(),
-    lastKnownState: getStoredPermissionState(),
+    lastKnownState,
   };
 }
 
@@ -182,12 +183,11 @@ export async function registerForAndroidPushes(options?: {
   let prompted = false;
 
   if (state === "prompt" && allowPrompt) {
+    console.info(`[MOBILE_PUSH] Requesting Android notification permission (${logLabel})`);
+    const requested = await PushNotifications.requestPermissions();
     if (promptSource === "auto") {
       markPushPermissionAutoPrompted();
     }
-
-    console.info(`[MOBILE_PUSH] Requesting Android notification permission (${logLabel})`);
-    const requested = await PushNotifications.requestPermissions();
     state = normalizePermissionState(requested.receive);
     prompted = true;
   }
