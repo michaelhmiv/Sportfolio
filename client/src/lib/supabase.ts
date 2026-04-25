@@ -166,8 +166,8 @@ function createSupabaseFromConfig(config: SupabaseConfigResponse): SupabaseClien
   });
 }
 
-function sessionExpiresSoon(session: Pick<Session, "expires_at"> | null | undefined): boolean {
-  if (!session?.expires_at) {
+function sessionNeedsRefresh(session: Pick<Session, "expires_at">): boolean {
+  if (!session.expires_at) {
     return true;
   }
 
@@ -283,7 +283,7 @@ export async function getAuthSession(client?: SupabaseClient): Promise<Session |
     throw error;
   }
 
-  if (!Capacitor.isNativePlatform() || !session?.refresh_token || !sessionExpiresSoon(session)) {
+  if (!Capacitor.isNativePlatform() || !session?.refresh_token || !sessionNeedsRefresh(session)) {
     return session;
   }
 

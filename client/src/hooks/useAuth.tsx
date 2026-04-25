@@ -239,13 +239,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       debugLog("SESSION", "Calling client.auth.getSession()...");
       const sessionStart = performance.now();
-      try {
-        await updateNativeAuthRefreshState(true, client);
-      } catch (error) {
-        debugLog("SESSION", "Native auto refresh setup failed", {
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
 
       let initialSession: Session | null = null;
       let sessionError: Error | null = null;
@@ -253,6 +246,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
         initialSession = await getAuthSession(client);
       } catch (error) {
         sessionError = error instanceof Error ? error : new Error(String(error));
+      }
+
+      try {
+        await updateNativeAuthRefreshState(true, client);
+      } catch (error) {
+        debugLog("SESSION", "Native auto refresh setup failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
       debugLog(
         "SESSION",

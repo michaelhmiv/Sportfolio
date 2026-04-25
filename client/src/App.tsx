@@ -468,8 +468,8 @@ function Router() {
 
         try {
           const supabase = await getSupabase();
-          await updateNativeAuthRefreshState(true, supabase);
           await getAuthSession(supabase);
+          await updateNativeAuthRefreshState(true, supabase);
         } catch (error) {
           console.error("[MOBILE_AUTH] Session refresh on resume failed:", error);
         }
