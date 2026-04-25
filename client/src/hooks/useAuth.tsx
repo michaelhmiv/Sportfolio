@@ -9,7 +9,12 @@ import {
   ReactNode,
 } from "react";
 import type { User } from "@shared/schema";
-import { getSupabase, resetSupabase } from "@/lib/supabase";
+import {
+  getAuthSession,
+  getSupabase,
+  resetSupabase,
+  updateNativeAuthRefreshState,
+} from "@/lib/supabase";
 import { isValidEmail, normalizeEmail } from "@/lib/auth-input";
 import { useToast } from "@/hooks/use-toast";
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
@@ -234,10 +239,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       debugLog("SESSION", "Calling client.auth.getSession()...");
       const sessionStart = performance.now();
-      const {
-        data: { session: initialSession },
-        error: sessionError,
-      } = await client.auth.getSession();
+      try {
+        await updateNativeAuthRefreshState(true, client);
+      } catch (error) {
+        debugLog("SESSION", "Native auto refresh setup failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+
+      let initialSession: Session | null = null;
+      let sessionError: Error | null = null;
+      try {
+        initialSession = await getAuthSession(client);
+      } catch (error) {
+        sessionError = error instanceof Error ? error : new Error(String(error));
+      }
       debugLog(
         "SESSION",
         `getSession() completed in ${(performance.now() - sessionStart).toFixed(0)}ms`,

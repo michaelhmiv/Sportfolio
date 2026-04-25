@@ -45,7 +45,7 @@ import { Browser } from "@capacitor/browser";
 import { StatusBar, Style as StatusBarStyle } from "@capacitor/status-bar";
 import { Keyboard, KeyboardResize } from "@capacitor/keyboard";
 import { SplashScreen } from "@capacitor/splash-screen";
-import { getSupabase } from "@/lib/supabase";
+import { getAuthSession, getSupabase, updateNativeAuthRefreshState } from "@/lib/supabase";
 import { initNetworkMonitor } from "@/lib/native-network";
 import {
   getRouteSeoMeta,
@@ -447,6 +447,12 @@ function Router() {
     const register = async () => {
       listener = await CapacitorApp.addListener("appStateChange", async ({ isActive }) => {
         if (!isActive) {
+          try {
+            const supabase = await getSupabase();
+            await updateNativeAuthRefreshState(false, supabase);
+          } catch (error) {
+            console.error("[MOBILE_AUTH] Failed to pause native refresh state:", error);
+          }
           return;
         }
 
@@ -462,7 +468,8 @@ function Router() {
 
         try {
           const supabase = await getSupabase();
-          await supabase.auth.getSession();
+          await updateNativeAuthRefreshState(true, supabase);
+          await getAuthSession(supabase);
         } catch (error) {
           console.error("[MOBILE_AUTH] Session refresh on resume failed:", error);
         }
