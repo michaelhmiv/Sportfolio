@@ -8,6 +8,9 @@ on:
 jobs:
   build-and-distribute:
     runs-on: ubuntu-latest
+    env:
+      # Always include the core internal tester so new builds do not require manual email entry.
+      DEFAULT_FIREBASE_DISTRIBUTION_TESTERS: michaelhmiv@gmail.com
 
     steps:
       - name: Checkout code
@@ -74,6 +77,7 @@ jobs:
           FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
           FIREBASE_DISTRIBUTION_TESTERS: ${{ secrets.FIREBASE_DISTRIBUTION_TESTERS }}
           FIREBASE_DISTRIBUTION_GROUPS: ${{ secrets.FIREBASE_DISTRIBUTION_GROUPS }}
+          DEFAULT_FIREBASE_DISTRIBUTION_TESTERS: ${{ env.DEFAULT_FIREBASE_DISTRIBUTION_TESTERS }}
         run: |
           RELEASE_NOTES=$(cat <<EOF
           Build from commit ${GITHUB_SHA}
@@ -85,18 +89,45 @@ jobs:
           DISTRIBUTION_LOG="$RUNNER_TEMP/firebase-distribution.log"
           set -euo pipefail
 
-          if [ -n "$FIREBASE_DISTRIBUTION_TESTERS" ]; then
-            firebase appdistribution:distribute mobile/android/app/build/outputs/apk/debug/app-debug.apk \
-              --app "$FIREBASE_APP_ID" \
-              --testers "$FIREBASE_DISTRIBUTION_TESTERS" \
-              --release-notes "$RELEASE_NOTES" | tee "$DISTRIBUTION_LOG"
-          elif [ -n "$FIREBASE_DISTRIBUTION_GROUPS" ]; then
-            firebase appdistribution:distribute mobile/android/app/build/outputs/apk/debug/app-debug.apk \
-              --app "$FIREBASE_APP_ID" \
-              --groups "$FIREBASE_DISTRIBUTION_GROUPS" \
-              --release-notes "$RELEASE_NOTES" | tee "$DISTRIBUTION_LOG"
-          else
-            firebase appdistribution:distribute mobile/android/app/build/outputs/apk/debug/app-debug.apk \
-              --app "$FIREBASE_APP_ID" \
-              --release-notes "$RELEASE_NOTES" | tee "$DISTRIBUTION_LOG"
+          RAW_TESTERS="$DEFAULT_FIREBASE_DISTRIBUTION_TESTERS"
+          if [ -n "${FIREBASE_DISTRIBUTION_TESTERS:-}" ]; then
+            RAW_TESTERS="${RAW_TESTERS},${FIREBASE_DISTRIBUTION_TESTERS}"
           fi
+
+          NORMALIZED_TESTERS="$(
+            printf '%s\n' "$RAW_TESTERS" \
+              | tr ',;' '\n' \
+              | tr -d '\r' \
+              | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' \
+              | awk 'NF' \
+              | awk '!seen[tolower($0)]++' \
+              | paste -sd, -
+          )"
+
+          NORMALIZED_GROUPS="$(
+            printf '%s\n' "${FIREBASE_DISTRIBUTION_GROUPS:-}" \
+              | tr ',;' '\n' \
+              | tr -d '\r' \
+              | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' \
+              | awk 'NF' \
+              | awk '!seen[tolower($0)]++' \
+              | paste -sd, -
+          )"
+
+          DISTRIBUTE_ARGS=(
+            mobile/android/app/build/outputs/apk/debug/app-debug.apk
+            --app "$FIREBASE_APP_ID"
+            --release-notes "$RELEASE_NOTES"
+          )
+
+          if [ -n "$NORMALIZED_TESTERS" ]; then
+            echo "Firebase testers: $NORMALIZED_TESTERS"
+            DISTRIBUTE_ARGS+=(--testers "$NORMALIZED_TESTERS")
+          fi
+
+          if [ -n "$NORMALIZED_GROUPS" ]; then
+            echo "Firebase groups: $NORMALIZED_GROUPS"
+            DISTRIBUTE_ARGS+=(--groups "$NORMALIZED_GROUPS")
+          fi
+
+          firebase appdistribution:distribute "${DISTRIBUTE_ARGS[@]}" | tee "$DISTRIBUTION_LOG"

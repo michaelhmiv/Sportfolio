@@ -169,6 +169,44 @@ Notes:
 - Internal testing is private and suitable for getting release process moving before public launch.
 - For some personal Play developer accounts, Google requires a closed testing phase before production access.
 
+## Play Closed Testing (Manual)
+
+A second manual workflow is included:
+
+- `.github/workflows/play-closed-testing.yml`
+
+This uploads a signed `.aab` to a Play Console closed testing track.
+
+Run it from GitHub Actions:
+
+1. Open **Actions**.
+2. Select **Play Closed Testing**.
+3. Click **Run workflow**.
+4. Optionally set `closed_track` (default `alpha`) to match your Play closed track ID.
+
+Required GitHub repository secrets are the same as internal testing:
+
+- `PLAY_SERVICE_ACCOUNT_JSON`
+- `ANDROID_KEYSTORE_BASE64`
+- `ANDROID_KEYSTORE_PASSWORD`
+- `ANDROID_KEY_ALIAS`
+- `ANDROID_KEY_PASSWORD`
+
+## Firebase App Distribution (Auto on Main)
+
+Workflow:
+
+- `.github/workflows/firebase-distribution.yml`
+
+Behavior:
+
+- Runs automatically on each push to `main` and can also be run manually.
+- Always includes `michaelhmiv@gmail.com` as a tester by default.
+- Still supports optional repository secrets:
+- `FIREBASE_DISTRIBUTION_TESTERS` (comma-separated emails)
+- `FIREBASE_DISTRIBUTION_GROUPS` (comma-separated group aliases)
+- Testers/groups are combined and deduplicated before upload.
+
 ## Google Play Billing Automation
 
 Android Premium Share purchases now use Google Play Billing in native Android builds.
