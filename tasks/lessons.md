@@ -6,6 +6,7 @@
 - Push delivery infrastructure should reserve and update deduped notification-event rows in the database before and after provider calls; this gives safe duplicate suppression and future in-app history without requiring a UI build in the same phase.
 - Android permission timing matters for retention: requesting notification permission only after sign-in and post-auth bootstrap (instead of on cold start) keeps onboarding/auth flows stable while still enabling push registration.
 - Emulator readiness drift is common on Windows even when `local.properties` exists; include explicit SDK checks and repeatable setup scripts so QA can distinguish "configured path" from "installed tooling."
+- Before opening or updating a PR, run a sequential `git fetch origin` followed by `git merge origin/main` (or rebase) on the branch; parallel fetch/merge can race and leave GitHub showing conflicts that were never integrated locally.
 
 ## 2026-04-23
 
