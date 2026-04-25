@@ -79,6 +79,14 @@ export interface SendPushNotificationResult {
 let providerPromise: Promise<PushMessagingProvider | null> | null = null;
 let didWarnMissingFirebaseCredentials = false;
 
+export function hasFirebasePushCredentialsConfigured(): boolean {
+  return Boolean(
+    process.env.FIREBASE_ADMIN_SDK_JSON?.trim() ||
+    process.env.FIREBASE_ADMIN_SDK_FILE?.trim() ||
+    process.env.GOOGLE_APPLICATION_CREDENTIALS?.trim(),
+  );
+}
+
 function warnMissingFirebaseCredentials(message: string) {
   if (didWarnMissingFirebaseCredentials) {
     return;

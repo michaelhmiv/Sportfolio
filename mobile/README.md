@@ -170,10 +170,13 @@ npm run mobile:sync
 ### Runtime behavior
 
 - Push registration is attempted only after sign-in on native Android.
-- Notification permission is requested after auth bootstrap (not on app cold-start/login).
+- New users are prompted from the native onboarding notification step, and returning users get a single automatic prompt after auth bootstrap if permission is still pending.
 - FCM token is sent to backend (`/api/mobile/push/register`) and refreshed on re-registration.
 - Logout unregisters/deactivates token via `/api/mobile/push/unregister`.
 - Notification taps route only to safe internal paths.
+- The Android app creates a dedicated default notification channel (`sportfolio_general`) on-device.
+- Users can manage permission state, per-notification preferences, and recent delivery diagnostics from the in-app profile push card and can jump straight to Android notification settings.
+- Push diagnostics are available from `/api/mobile/push/status`.
 
 ## Common Install Failures
 

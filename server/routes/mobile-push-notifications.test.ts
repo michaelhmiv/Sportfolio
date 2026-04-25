@@ -36,6 +36,7 @@ describe("registerMobilePushNotificationRoutes", () => {
     const storageMock = {
       upsertUserPushToken: vi.fn().mockResolvedValue(undefined),
       deactivateUserPushTokens: vi.fn().mockResolvedValue(0),
+      listActiveUserPushTokens: vi.fn().mockResolvedValue([]),
       getUserNotificationPreferences: vi.fn().mockResolvedValue([]),
       upsertUserNotificationPreferences: vi.fn().mockResolvedValue([]),
       getPushNotificationEvents: vi.fn().mockResolvedValue([]),
@@ -85,6 +86,7 @@ describe("registerMobilePushNotificationRoutes", () => {
       storage: {
         upsertUserPushToken: vi.fn(),
         deactivateUserPushTokens: vi.fn(),
+        listActiveUserPushTokens: vi.fn().mockResolvedValue([]),
         getUserNotificationPreferences: vi.fn().mockResolvedValue([]),
         upsertUserNotificationPreferences: vi.fn().mockResolvedValue([]),
         getPushNotificationEvents: vi.fn().mockResolvedValue([]),
@@ -130,6 +132,7 @@ describe("registerMobilePushNotificationRoutes", () => {
     const storageMock = {
       upsertUserPushToken: vi.fn(),
       deactivateUserPushTokens: vi.fn().mockResolvedValue(0),
+      listActiveUserPushTokens: vi.fn().mockResolvedValue([]),
       getUserNotificationPreferences: getPreferences,
       upsertUserNotificationPreferences: vi.fn().mockResolvedValue([]),
       getPushNotificationEvents: vi.fn().mockResolvedValue([]),
@@ -166,6 +169,76 @@ describe("registerMobilePushNotificationRoutes", () => {
       ]);
       await expect(update.json()).resolves.toMatchObject({
         updatedCount: 2,
+      });
+    } finally {
+      await close();
+    }
+  });
+
+  it("returns push status diagnostics for the current Android device", async () => {
+    const { app, baseUrl, close } = createTestServer();
+    const authMiddleware: RequestHandler = (req: any, _res, next) => {
+      req.user = { claims: { sub: "user-123" } };
+      next();
+    };
+
+    const storageMock = {
+      upsertUserPushToken: vi.fn(),
+      deactivateUserPushTokens: vi.fn().mockResolvedValue(0),
+      listActiveUserPushTokens: vi.fn().mockResolvedValue([
+        {
+          id: "tok_1",
+          userId: "user-123",
+          token: "fcm_token_abcdefghijklmnopqrstuvwxyz123456",
+          platform: "android",
+          deviceId: "device-1",
+          isActive: true,
+          lastRegisteredAt: new Date("2026-04-20T10:00:00Z"),
+          lastSuccessfulAt: new Date("2026-04-20T11:00:00Z"),
+          lastFailureAt: null,
+          lastError: null,
+        },
+      ]),
+      getUserNotificationPreferences: vi.fn().mockResolvedValue([]),
+      upsertUserNotificationPreferences: vi.fn().mockResolvedValue([]),
+      getPushNotificationEvents: vi.fn().mockResolvedValue([
+        {
+          id: "evt_1",
+          userId: "user-123",
+          notificationType: "boost_settled",
+          title: "Boost settled",
+          body: "Done",
+          route: "/boosts",
+          deliveryStatus: "sent",
+          createdAt: new Date("2026-04-20T11:05:00Z"),
+          sentAt: new Date("2026-04-20T11:05:10Z"),
+        },
+      ]),
+    };
+
+    await registerMobilePushNotificationRoutes(app, {
+      authMiddleware,
+      storage: storageMock as any,
+    });
+    app.use("/api", (_req, res) => res.status(404).json({ error: "Not found" }));
+
+    try {
+      const response = await fetch(`${baseUrl}/api/mobile/push/status?deviceId=device-1`);
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toMatchObject({
+        activeTokenCount: 1,
+        currentDevice: {
+          deviceId: "device-1",
+          registered: true,
+          lastError: null,
+        },
+        recentEvents: [
+          expect.objectContaining({
+            notificationType: "boost_settled",
+            deliveryStatus: "sent",
+            route: "/boosts",
+          }),
+        ],
       });
     } finally {
       await close();

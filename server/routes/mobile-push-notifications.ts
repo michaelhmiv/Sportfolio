@@ -4,11 +4,13 @@ import {
   isPushNotificationType,
 } from "@shared/push-notifications";
 import { storage, type IStorage } from "../storage";
+import { hasFirebasePushCredentialsConfigured } from "../services/push-notifications";
 
 type MobilePushStorage = Pick<
   IStorage,
   | "upsertUserPushToken"
   | "deactivateUserPushTokens"
+  | "listActiveUserPushTokens"
   | "getUserNotificationPreferences"
   | "upsertUserNotificationPreferences"
   | "getPushNotificationEvents"
@@ -72,6 +74,11 @@ export async function registerMobilePushNotificationRoutes(
         return res.status(400).json({ error: "Invalid push token" });
       }
 
+      console.info("[MOBILE_PUSH] Registering Android token", {
+        userId,
+        deviceId: typeof req.body?.deviceId === "string" ? req.body.deviceId.trim() : null,
+      });
+
       await storageLayer.upsertUserPushToken({
         userId,
         platform: "android",
@@ -105,10 +112,53 @@ export async function registerMobilePushNotificationRoutes(
         reason: typeof req.body?.reason === "string" ? req.body.reason.trim() : "user_logout",
       });
 
+      console.info("[MOBILE_PUSH] Deactivated Android tokens", {
+        userId,
+        deviceId: deviceId || null,
+        deactivated,
+      });
+
       return res.json({ success: true, deactivated });
     } catch (error: any) {
       console.error("[MOBILE_PUSH] Failed to unregister token:", error);
       return res.status(500).json({ error: error?.message || "Failed to unregister push token" });
+    }
+  });
+
+  app.get("/api/mobile/push/status", authMiddleware, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const deviceId = typeof req.query.deviceId === "string" ? req.query.deviceId.trim() : "";
+      const tokens = await storageLayer.listActiveUserPushTokens(userId, "android");
+      const currentDeviceToken = deviceId
+        ? tokens.find((token) => token.deviceId === deviceId) || null
+        : null;
+      const events = await storageLayer.getPushNotificationEvents(userId, { limit: 10, offset: 0 });
+
+      return res.json({
+        providerConfigured: hasFirebasePushCredentialsConfigured(),
+        activeTokenCount: tokens.length,
+        currentDevice: {
+          deviceId: deviceId || null,
+          registered: Boolean(currentDeviceToken),
+          lastRegisteredAt: currentDeviceToken?.lastRegisteredAt ?? null,
+          lastSuccessfulAt: currentDeviceToken?.lastSuccessfulAt ?? null,
+          lastFailureAt: currentDeviceToken?.lastFailureAt ?? null,
+          lastError: currentDeviceToken?.lastError ?? null,
+        },
+        recentEvents: events.map((event) => ({
+          id: event.id,
+          notificationType: event.notificationType,
+          title: event.title,
+          deliveryStatus: event.deliveryStatus,
+          createdAt: event.createdAt,
+          sentAt: event.sentAt,
+          route: event.route,
+        })),
+      });
+    } catch (error: any) {
+      console.error("[MOBILE_PUSH] Failed to load push status:", error);
+      return res.status(500).json({ error: error?.message || "Failed to load push status" });
     }
   });
 
