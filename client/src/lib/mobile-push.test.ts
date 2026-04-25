@@ -50,6 +50,7 @@ describe("mobile push helpers", () => {
     mockCreateChannel.mockReset();
     const localStorage = new LocalStorageMock();
     vi.stubGlobal("window", { localStorage });
+    vi.stubGlobal("localStorage", localStorage);
     vi.stubGlobal("crypto", { randomUUID: () => "uuid-1" });
   });
 

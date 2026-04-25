@@ -131,6 +131,7 @@ test("deep-link callback: used/expired code shows link_expired error page", asyn
   await expect(page.getByTestId("text-error-code")).toHaveText("link_expired");
 });
 
+test("onboarding CTA completes onboarding and routes to pools", async ({ page }) => {
   let onboardingCompleteCalls = 0;
   let hasSeenOnboarding = false;
 
