@@ -1,3 +1,15 @@
+## 2026-04-25 PR #136 Conflict Resolution
+
+- [x] Fetch latest `origin/main` and reproduce PR merge conflicts locally
+- [x] Resolve workflow and task-log conflicts while preserving both upstream updates and PR intent
+- [x] Re-run `npm run check`, `npm run lint`, and `npm run test:run`
+- [ ] Push resolved merge commit and confirm PR #136 is mergeable
+
+Review:
+
+- Resolved conflicts in `.github/workflows/firebase-distribution.yml` by keeping upstream release-signing/build updates and preserving the PR behavior to always include `michaelhmiv@gmail.com` with tester/group dedupe support.
+- Resolved `tasks/todo.md` conflict by retaining upstream Android push tracking section and restoring this branch's Play closed-testing + icon-branding tracking entries.
+
 ## 2026-04-24 Android/Play Icon Branding Alignment
 
 - [x] Locate the canonical Sportfolio header logo asset used by the web app
@@ -27,6 +39,19 @@ Review:
 - Updated `.github/workflows/firebase-distribution.yml` to always include `michaelhmiv@gmail.com`, merge with optional tester/group secrets, dedupe recipients, and pass combined targets to a single `firebase appdistribution:distribute` call.
 - Updated `mobile/README.md` with usage docs for Play closed testing and Firebase auto-distribution behavior.
 - Validation passed: `npm run check`, `npm run lint`, `npm run test:run`.
+
+## 2026-04-24 Android Push + Backend Event Infrastructure (Phase 1)
+
+- [x] Audit existing Android/Capacitor/Firebase/auth/deep-link/websocket/event/build surfaces
+- [x] Add backend schema + storage support for Android push tokens, notification preferences, and push event history
+- [x] Add authenticated mobile push token register/unregister routes and backend preference routes
+- [x] Add Firebase-backed push sending service with graceful no-op behavior when credentials are missing
+- [x] Wire safe push triggers for boost settled, boost locking soon, and scout complete events
+- [x] Add Android client push manager for sign-in-gated registration, delayed permission request, token sync, and safe tap routing
+- [x] Add logout token deactivation flow on mobile auth sign-out
+- [x] Add Android emulator/sdk setup/check scripts and mobile runbook updates
+- [x] Run full validation + smoke commands and capture results
+- [ ] Open PR, merge to main, then monitor Railway build/deploy status
 
 ## 2026-04-23 Upload Key Activation + Billing Product Finalization
 

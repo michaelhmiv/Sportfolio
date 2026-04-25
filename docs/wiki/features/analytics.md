@@ -26,6 +26,7 @@ Analytics is the macro view of Sportfolio's market ecosystem. Use it when you wa
 ### Market Health
 
 Overview metrics that show whether the overall market is growing, contracting, or stable:
+
 - Active pool count and total TVL
 - Aggregate trading volume over time
 - Overall market sentiment indicators
@@ -33,6 +34,7 @@ Overview metrics that show whether the overall market is growing, contracting, o
 ### Share Issuance and Burn Trends
 
 Track how shares are entering and leaving the supply:
+
 - New shares minted through scout distributions
 - Shares burned through boost assignments and the 1% burn fee on trades
 - Net supply change over time
@@ -42,6 +44,7 @@ Understanding issuance vs. burn helps you gauge whether a player's market is in 
 ### Time-Series Charts
 
 See how key metrics have moved over time:
+
 - Price history across player markets
 - Volume trends by sport and date range
 - Pool size (TVL) evolution
@@ -49,6 +52,7 @@ See how key metrics have moved over time:
 ### Sport-Level Breakdowns
 
 Compare market activity across NBA, NFL, MLB, and NASCAR:
+
 - Which league is most active right now?
 - Where is volume concentrated?
 - How do different sports' markets behave during their respective seasons?
@@ -56,6 +60,7 @@ Compare market activity across NBA, NFL, MLB, and NASCAR:
 ### Player Comparisons
 
 Compare up to several players side-by-side across metrics like:
+
 - Market cap
 - Volume
 - Price change
@@ -66,6 +71,7 @@ Useful for deciding between similar players or identifying which name has more m
 ### Economy Snapshots
 
 Point-in-time summaries of the whole Sportfolio economy:
+
 - Total shares outstanding
 - Total market capitalization
 - Cash in circulation vs. cash deployed in pools

@@ -69,6 +69,7 @@ The News Hub is the narrative layer around the market. It's where breaking sport
 Market prices respond to information. An injury report, lineup change, or trade news can shift a player's value significantly before the broader market reacts.
 
 Using the News Hub alongside your portfolio gives you:
+
 - Context for why a price might be moving
 - Early signals for players worth adding to your watchlist
 - Timing cues for boost deployment (don't boost an injured player)
@@ -76,6 +77,7 @@ Using the News Hub alongside your portfolio gives you:
 ### The Digest
 
 When logged in, the News Hub generates a personalized digest focused on:
+
 - Players you currently hold
 - Players on your watchlists
 

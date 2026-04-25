@@ -16,6 +16,7 @@ import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import { Capacitor } from "@capacitor/core";
 import { Browser } from "@capacitor/browser";
 import { normalizeSiteUrl } from "@shared/seo";
+import { unregisterPushTokenOnLogout } from "@/lib/mobile-push";
 
 const MOBILE_AUTH_REDIRECT_URL = "sportfolio://auth/callback";
 const IS_DEV = import.meta.env.DEV;
@@ -541,6 +542,7 @@ export function useAuth() {
         throw new Error("Auth not initialized");
       }
 
+      await unregisterPushTokenOnLogout();
       await supabaseClient.auth.signOut();
 
       queryClient.removeQueries({
@@ -552,7 +554,6 @@ export function useAuth() {
             "/api/dashboard",
             "/api/holdings",
             "/api/portfolio",
-            "/api/mining",
             "/api/admin",
             "/api/whop",
           ];

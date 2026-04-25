@@ -24,9 +24,9 @@ Scouts are your passive share-accumulation engine. Assign a scout to a player an
 ## Scout Capacity
 
 | Account type | Max scouts |
-|---|---|
-| Standard | 5 |
-| Premium | 10 |
+| ------------ | ---------- |
+| Standard     | 5          |
+| Premium      | 10         |
 
 Premium doubles your accumulation bandwidth. The underlying distribution math stays the same regardless of tier.
 
@@ -45,10 +45,12 @@ sharesEarned = floor((60 × userScoutMinutes / globalScoutMinutes) × 100) / 100
 ```
 
 In plain English:
+
 - Your reward = your scout-minutes ÷ all scout-minutes on that player × 100 shares distributed
 - Results are rounded down to two decimal places
 
 **Example:**
+
 - 1,000 global scout-minutes on Player A this hour
 - Your scout was on Player A for 45 minutes → 45 scout-minutes
 - Your share: `floor((60 × 45 / 1000) × 100) / 100 = 2.7 shares`
@@ -78,12 +80,14 @@ The system automatically clears active scout assignments for accounts **inactive
 ## What a Strong Scout Setup Looks Like
 
 **Do:**
+
 - Focus scouts on a small number of conviction names (3–5 is usually better than spreading all 5 or 10)
 - Revisit assignments when news changes your outlook on a player
 - Align scouts with players you actually want more inventory of
 - Treat scouts as inventory builders, not lottery tickets
 
 **Don't:**
+
 - Spread scouts across too many players — small rewards in too many places add up to nothing useful
 - Forget the hourly cadence — last-minute changes affect your results
 - Leave scouts idle on players you've already sold out of

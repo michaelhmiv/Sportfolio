@@ -26,6 +26,7 @@ The SMS flow was designed so a user could start a conversation before completing
 ### Before Linking: Guest Concierge Mode
 
 Before a phone number was linked to an account, the SMS agent could:
+
 - Explain shares, scouts, boosts, and core mechanics
 - Discuss player and game concepts
 - Help new users understand how Sportfolio works
@@ -35,6 +36,7 @@ This was product guidance by text, not account access.
 ### When Linking Was Required
 
 The agent prompted linking when the conversation moved from general explanation to account-specific work:
+
 - Portfolio-specific reads
 - Staging trades or in-game actions
 - Confirming a pending action by text
@@ -57,6 +59,7 @@ After linking, the SMS channel could access the same user-scoped agent context a
 ## What the Linked Channel Could Do
 
 Once linked, the SMS agent could:
+
 - Answer account-specific questions
 - Read supported account surfaces
 - Stage supported in-game actions
@@ -77,6 +80,7 @@ It followed the same confirm-before-execute rules as the web and CLI agent.
 ## Current Status
 
 SMS is legacy infrastructure. The active agent contract uses:
+
 - **Web Agent page** — primary conversational surface
 - **Sportfolio CLI** — terminal access
 - **Public MCP** — protocol access for external clients

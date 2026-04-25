@@ -27,13 +27,13 @@ You are not just picking athletes you like — you are allocating cash, warehous
 
 Every account manages five types of assets:
 
-| Asset | What it is |
-|---|---|
-| **SB (cash balance)** | Liquid spending power for trades, boosts, and LP |
-| **Player shares** | Tradeable positions in individual player pools |
-| **Stacked shares** | Non-tradeable, high-multiplier inventory for boosts |
-| **Premium shares** | Redeemable to activate premium access windows |
-| **Community shares** | Consumed to create community boosts |
+| Asset                 | What it is                                          |
+| --------------------- | --------------------------------------------------- |
+| **SB (cash balance)** | Liquid spending power for trades, boosts, and LP    |
+| **Player shares**     | Tradeable positions in individual player pools      |
+| **Stacked shares**    | Non-tradeable, high-multiplier inventory for boosts |
+| **Premium shares**    | Redeemable to activate premium access windows       |
+| **Community shares**  | Consumed to create community boosts                 |
 
 ---
 
@@ -82,15 +82,15 @@ Most of Sportfolio runs on a daily loop tied to the sports schedule:
 
 ## Main Pages at a Glance
 
-| Page | Purpose |
-|---|---|
-| **Dashboard** | Live slate context, market activity, account snapshot |
-| **Player Pools** | Market browser — trade, compare, scan |
-| **Player page** | Detailed execution and research for one athlete |
-| **Portfolio** | Your holdings, LP positions, P&L, and activity |
-| **Boosts** | Stack shares, assign boosts, track payouts |
-| **News** | Breaking stories + personalized digest |
-| **Agent** | Ask questions, get analysis, stage confirmed actions |
+| Page             | Purpose                                               |
+| ---------------- | ----------------------------------------------------- |
+| **Dashboard**    | Live slate context, market activity, account snapshot |
+| **Player Pools** | Market browser — trade, compare, scan                 |
+| **Player page**  | Detailed execution and research for one athlete       |
+| **Portfolio**    | Your holdings, LP positions, P&L, and activity        |
+| **Boosts**       | Stack shares, assign boosts, track payouts            |
+| **News**         | Breaking stories + personalized digest                |
+| **Agent**        | Ask questions, get analysis, stage confirmed actions  |
 
 ---
 

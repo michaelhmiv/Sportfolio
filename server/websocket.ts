@@ -10,6 +10,7 @@
  */
 
 import { WebSocket } from "ws";
+import { logger } from "./lib/logger";
 
 // Subscription types for filtering
 export type SubscriptionType =
@@ -48,7 +49,7 @@ export function addClient(ws: WebSocket, userId?: string) {
   });
   const now = Date.now();
   if (now - lastBroadcastLogTime > BROADCAST_LOG_INTERVAL) {
-    console.log(`[WebSocket] Client connected (total: ${wsClients.size})`);
+    logger.info({ totalClients: wsClients.size }, "[WebSocket] Client connected");
     lastBroadcastLogTime = now;
   }
 }
@@ -57,7 +58,7 @@ export function removeClient(ws: WebSocket) {
   wsClients.delete(ws);
   const now = Date.now();
   if (now - lastBroadcastLogTime > BROADCAST_LOG_INTERVAL) {
-    console.log(`[WebSocket] Client disconnected (total: ${wsClients.size})`);
+    logger.info({ totalClients: wsClients.size }, "[WebSocket] Client disconnected");
     lastBroadcastLogTime = now;
   }
 }
@@ -120,7 +121,7 @@ export function broadcast(
 
   // Only log periodically to reduce I/O
   if (sent > 0 && now - lastBroadcastLogTime > BROADCAST_LOG_INTERVAL) {
-    console.log(`[WebSocket] Broadcasted ${message.type} to ${sent} clients`);
+    logger.info({ type: message.type, sentTo: sent }, "[WebSocket] Broadcast");
     lastBroadcastLogTime = now;
   }
 }
@@ -139,7 +140,7 @@ export function broadcastToAll(message: any) {
   });
 
   if (sent > 0 && now - lastBroadcastLogTime > BROADCAST_LOG_INTERVAL) {
-    console.log(`[WebSocket] Broadcasted ${message.type} to ${sent} clients`);
+    logger.info({ type: message.type, sentTo: sent }, "[WebSocket] Broadcast (all)");
     lastBroadcastLogTime = now;
   }
 }
@@ -212,7 +213,7 @@ export function broadcastToUser(
 
   // Only log periodically to reduce I/O
   if (sent > 0 && now - lastBroadcastLogTime > BROADCAST_LOG_INTERVAL) {
-    console.log(`[WebSocket] Broadcasted ${message.type} to user ${userId} (${sent} clients)`);
+    logger.info({ type: message.type, userId, sentTo: sent }, "[WebSocket] Broadcast to user");
     lastBroadcastLogTime = now;
   }
 }

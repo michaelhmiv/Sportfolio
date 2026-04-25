@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { isValidEmail, normalizeEmail } from "@/lib/auth-input";
@@ -10,6 +10,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { CheckCircle2, Loader2, Mail } from "lucide-react";
 import { SiDiscord, SiGoogle } from "react-icons/si";
+import { Capacitor } from "@capacitor/core";
+import { Browser } from "@capacitor/browser";
+import { hapticMedium, hapticError } from "@/lib/haptics";
 
 type AuthTab = "login" | "signup";
 
@@ -34,6 +37,8 @@ export default function Login() {
   } = useAuth();
   const { toast } = useToast();
 
+  const isNative = Capacitor.isNativePlatform();
+
   const [activeTab, setActiveTab] = useState<AuthTab>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -42,6 +47,22 @@ export default function Login() {
   const [isResendingVerification, setIsResendingVerification] = useState(false);
   const [emailTouched, setEmailTouched] = useState(false);
   const [signupSuccessEmail, setSignupSuccessEmail] = useState<string | null>(null);
+
+  // Ref that holds the browserFinished listener so we can remove it on cleanup or
+  // when OAuth completes.  Prevents isLoading from being stuck true if the user
+  // dismisses the OAuth browser without completing sign-in.
+  const browserFinishedListenerRef = useRef<{ remove: () => Promise<void> } | null>(null);
+
+  const cleanupBrowserListener = useCallback(() => {
+    void browserFinishedListenerRef.current?.remove();
+    browserFinishedListenerRef.current = null;
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      cleanupBrowserListener();
+    };
+  }, [cleanupBrowserListener]);
   const postAuthRedirect = useMemo(() => {
     if (typeof window === "undefined") {
       return "/";
@@ -190,10 +211,26 @@ export default function Login() {
   };
 
   const handleGoogleLogin = async () => {
+    void hapticMedium();
     setIsLoading(true);
+
+    // On native, register the listener BEFORE calling loginWithGoogle so it
+    // is in place before Browser.open() returns — eliminating the window
+    // where browserFinished could fire without a handler.
+    if (isNative) {
+      const listener = await Browser.addListener("browserFinished", () => {
+        setIsLoading(false);
+        cleanupBrowserListener();
+      });
+      browserFinishedListenerRef.current = listener;
+    }
+
     const result = await loginWithGoogle(postAuthRedirect);
 
     if (!result.success) {
+      void hapticError();
+      // Browser never opened — remove the pre-registered listener.
+      cleanupBrowserListener();
       toast({
         title: "Login failed",
         description: result.error || "Could not sign in with Google",
@@ -204,10 +241,24 @@ export default function Login() {
   };
 
   const handleDiscordLogin = async () => {
+    void hapticMedium();
     setIsLoading(true);
+
+    // Same pre-registration pattern as Google.
+    if (isNative) {
+      const listener = await Browser.addListener("browserFinished", () => {
+        setIsLoading(false);
+        cleanupBrowserListener();
+      });
+      browserFinishedListenerRef.current = listener;
+    }
+
     const result = await loginWithDiscord(postAuthRedirect);
 
     if (!result.success) {
+      void hapticError();
+      // Browser never opened — remove the pre-registered listener.
+      cleanupBrowserListener();
       toast({
         title: "Login failed",
         description: result.error || "Could not sign in with Discord",
@@ -227,14 +278,66 @@ export default function Login() {
           <div className="terminal-strip">Account Access</div>
           <div>
             <CardTitle className="terminal-heading text-2xl" data-testid="login-title">
-              User Terminal
+              {isNative ? "Sign in to Sportfolio" : "User Terminal"}
             </CardTitle>
             <CardDescription className="terminal-subtle mt-2">
-              Sign in to your account or create a new one.
+              {isNative
+                ? "Trade player shares, boost game outcomes, and compete on the leaderboard."
+                : "Sign in to your account or create a new one."}
             </CardDescription>
           </div>
         </CardHeader>
         <CardContent className="pt-4">
+          {/* On native: OAuth buttons are the primary CTAs, shown above email/password */}
+          {isNative && (
+            <div className="mb-5 space-y-3">
+              <Button
+                type="button"
+                variant="terminal"
+                className="w-full"
+                onClick={handleGoogleLogin}
+                disabled={isLoading}
+                data-testid="button-google-login"
+              >
+                {isLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <>
+                    <SiGoogle className="h-4 w-4 mr-2" />
+                    Continue with Google
+                  </>
+                )}
+              </Button>
+              <Button
+                type="button"
+                variant="terminalOutline"
+                className="w-full"
+                onClick={handleDiscordLogin}
+                disabled={isLoading}
+                data-testid="button-discord-login"
+              >
+                {isLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <>
+                    <SiDiscord className="mr-2 h-4 w-4" />
+                    Continue with Discord
+                  </>
+                )}
+              </Button>
+              <div className="relative my-2">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t border-border" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-card px-2 font-mono text-[11px] tracking-[0.08em] text-muted-foreground">
+                    or use email
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
           <Tabs
             value={activeTab}
             onValueChange={(value) => setActiveTab(value as AuthTab)}
@@ -420,51 +523,56 @@ export default function Login() {
             </TabsContent>
           </Tabs>
 
-          <div className="relative my-6">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t border-border" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-card px-2 font-mono text-[11px] tracking-[0.08em] text-muted-foreground">
-                Or continue with
-              </span>
-            </div>
-          </div>
+          {/* On web: OAuth buttons are shown below the email form */}
+          {!isNative && (
+            <>
+              <div className="relative my-6">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t border-border" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-card px-2 font-mono text-[11px] tracking-[0.08em] text-muted-foreground">
+                    Or continue with
+                  </span>
+                </div>
+              </div>
 
-          <Button
-            type="button"
-            variant="terminalOutline"
-            className="w-full"
-            onClick={handleGoogleLogin}
-            disabled={isLoading}
-            data-testid="button-google-login"
-          >
-            {isLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <>
-                <SiGoogle className="h-4 w-4 mr-2" />
-                Sign in with Google
-              </>
-            )}
-          </Button>
-          <Button
-            type="button"
-            variant="terminalOutline"
-            className="mt-3 w-full"
-            onClick={handleDiscordLogin}
-            disabled={isLoading}
-            data-testid="button-discord-login"
-          >
-            {isLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <>
-                <SiDiscord className="mr-2 h-4 w-4" />
-                Sign in with Discord
-              </>
-            )}
-          </Button>
+              <Button
+                type="button"
+                variant="terminalOutline"
+                className="w-full"
+                onClick={handleGoogleLogin}
+                disabled={isLoading}
+                data-testid="button-google-login"
+              >
+                {isLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <>
+                    <SiGoogle className="h-4 w-4 mr-2" />
+                    Sign in with Google
+                  </>
+                )}
+              </Button>
+              <Button
+                type="button"
+                variant="terminalOutline"
+                className="mt-3 w-full"
+                onClick={handleDiscordLogin}
+                disabled={isLoading}
+                data-testid="button-discord-login"
+              >
+                {isLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <>
+                    <SiDiscord className="mr-2 h-4 w-4" />
+                    Sign in with Discord
+                  </>
+                )}
+              </Button>
+            </>
+          )}
         </CardContent>
       </Card>
     </div>

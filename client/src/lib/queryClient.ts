@@ -1,4 +1,4 @@
-import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import { QueryClient, QueryFunction, dehydrate, hydrate } from "@tanstack/react-query";
 import { getSupabase } from "./supabase";
 
 const IS_DEV = import.meta.env.DEV;
@@ -181,3 +181,91 @@ export const queryClient = new QueryClient({
     },
   },
 });
+
+/**
+ * Query cache persistence via localStorage.
+ *
+ * Persists public/display queries so that the app shows content instantly
+ * on cold start — no spinner on the first open after the initial load.
+ * The native WebView localStorage survives app restarts.
+ *
+ * Only public display-layer queries are persisted. User financial data
+ * (holdings, balance, auth) is intentionally excluded so it is always fresh.
+ *
+ * Cache is invalidated after 24 hours to prevent stale data.
+ */
+const CACHE_KEY = "sf-query-cache-v1";
+const CACHE_MAX_AGE_MS = 1000 * 60 * 60 * 24; // 24 hours
+
+/** Query key prefixes that are safe to persist across restarts. */
+const PERSISTABLE_PREFIXES = [
+  "/api/players",
+  "/api/leaderboard",
+  "/api/news",
+  "/api/sports",
+  "/api/games",
+  "/api/market/mobile-overview",
+];
+
+function isCacheable(queryKey: readonly unknown[]): boolean {
+  if (!queryKey.length) return false;
+  const key = queryKey[0];
+  return typeof key === "string" && PERSISTABLE_PREFIXES.some((p) => key.startsWith(p));
+}
+
+/**
+ * Tears down the query cache persistence subscription set up at module load.
+ * No-op before persistence is initialized (e.g. in SSR or non-browser envs).
+ */
+export let cleanupQueryPersistence: () => void = () => undefined;
+
+if (typeof window !== "undefined" && window.localStorage) {
+  // Restore on startup
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (raw) {
+      const { timestamp, state } = JSON.parse(raw) as { timestamp: number; state: unknown };
+      if (Date.now() - timestamp < CACHE_MAX_AGE_MS) {
+        hydrate(queryClient, state);
+      } else {
+        localStorage.removeItem(CACHE_KEY);
+      }
+    }
+  } catch {
+    // Corrupted cache — ignore and start fresh
+    localStorage.removeItem(CACHE_KEY);
+  }
+
+  // Persist on cache changes (debounced to avoid excessive writes).
+  // The unsubscribe handle is retained at module scope so the subscription is
+  // not garbage-collected until cleanupQueryPersistence() is called.
+  let persistTimer: ReturnType<typeof setTimeout> | null = null;
+  const unsubscribePersist = queryClient.getQueryCache().subscribe(() => {
+    if (persistTimer) clearTimeout(persistTimer);
+    persistTimer = setTimeout(() => {
+      try {
+        const dehydrated = dehydrate(queryClient, {
+          shouldDehydrateQuery: (query) =>
+            isCacheable(query.queryKey) && query.state.status === "success",
+        });
+        localStorage.setItem(
+          CACHE_KEY,
+          JSON.stringify({ timestamp: Date.now(), state: dehydrated }),
+        );
+      } catch {
+        // QuotaExceededError or serialization failure — silently skip
+      }
+    }, 2000);
+  });
+
+  /**
+   * Tears down the cache persistence subscription and clears any pending
+   * debounce timer. Call this in tests that create a fresh QueryClient to
+   * prevent subscription accumulation across test runs.
+   */
+  cleanupQueryPersistence = () => {
+    unsubscribePersist();
+    if (persistTimer) clearTimeout(persistTimer);
+    cleanupQueryPersistence = () => undefined; // idempotent
+  };
+}

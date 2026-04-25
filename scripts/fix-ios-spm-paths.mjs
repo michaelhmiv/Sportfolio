@@ -33,6 +33,10 @@ rewriteFile(
       .replace(
         /path:\s*"[^"]*node_modules\/@capacitor\/browser"/g,
         'path: "../../../../node_modules/@capacitor/browser"',
+      )
+      .replace(
+        /path:\s*"[^"]*node_modules\/@capacitor\/push-notifications"/g,
+        'path: "../../../../node_modules/@capacitor/push-notifications"',
       ),
   "[mobile] iOS Package.swift not found; skipping SPM path normalization.",
   "iOS SPM paths",
@@ -54,6 +58,10 @@ rewriteFile(
       .replace(
         /project\(':capacitor-browser'\)\.projectDir = new File\('[^']*node_modules\/@capacitor\/browser\/android'\)/g,
         "project(':capacitor-browser').projectDir = new File('../../node_modules/@capacitor/browser/android')",
+      )
+      .replace(
+        /project\(':capacitor-push-notifications'\)\.projectDir = new File\('[^']*node_modules\/@capacitor\/push-notifications\/android'\)/g,
+        "project(':capacitor-push-notifications').projectDir = new File('../../node_modules/@capacitor/push-notifications/android')",
       ),
   "[mobile] Android capacitor.settings.gradle not found; skipping path normalization.",
   "Android Capacitor plugin paths",

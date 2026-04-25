@@ -1,4 +1,4 @@
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 interface PageTransitionProps {
@@ -8,6 +8,8 @@ interface PageTransitionProps {
 }
 
 export function PageTransition({ children, className, mode = "fade" }: PageTransitionProps) {
+  const prefersReducedMotion = useReducedMotion();
+
   const variants = {
     fade: {
       initial: { opacity: 0 },
@@ -15,19 +17,19 @@ export function PageTransition({ children, className, mode = "fade" }: PageTrans
       exit: { opacity: 0 },
     },
     slide: {
-      initial: { opacity: 0, x: 20 },
+      initial: { opacity: 0, x: prefersReducedMotion ? 0 : 20 },
       animate: { opacity: 1, x: 0 },
-      exit: { opacity: 0, x: -20 },
+      exit: { opacity: 0, x: prefersReducedMotion ? 0 : -20 },
     },
     slideUp: {
-      initial: { opacity: 0, y: 20 },
+      initial: { opacity: 0, y: prefersReducedMotion ? 0 : 20 },
       animate: { opacity: 1, y: 0 },
-      exit: { opacity: 0, y: -20 },
+      exit: { opacity: 0, y: prefersReducedMotion ? 0 : -20 },
     },
     scale: {
-      initial: { opacity: 0, scale: 0.95 },
+      initial: { opacity: 0, scale: prefersReducedMotion ? 1 : 0.95 },
       animate: { opacity: 1, scale: 1 },
-      exit: { opacity: 0, scale: 0.95 },
+      exit: { opacity: 0, scale: prefersReducedMotion ? 1 : 0.95 },
     },
   };
 
@@ -38,7 +40,7 @@ export function PageTransition({ children, className, mode = "fade" }: PageTrans
       initial={selectedVariants.initial}
       animate={selectedVariants.animate}
       exit={selectedVariants.exit}
-      transition={{ duration: 0.3, ease: "easeOut" }}
+      transition={{ duration: prefersReducedMotion ? 0 : 0.3, ease: "easeOut" }}
       className={cn("w-full", className)}
     >
       {children}
@@ -53,14 +55,16 @@ interface AnimatedRouteProps {
 }
 
 export function AnimatedRoute({ children, routeKey, className }: AnimatedRouteProps) {
+  const prefersReducedMotion = useReducedMotion();
+
   return (
     <AnimatePresence mode="wait">
       <motion.div
         key={routeKey}
-        initial={{ opacity: 0, y: 10 }}
+        initial={{ opacity: 0, y: prefersReducedMotion ? 0 : 10 }}
         animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -10 }}
-        transition={{ duration: 0.25, ease: "easeInOut" }}
+        exit={{ opacity: 0, y: prefersReducedMotion ? 0 : -10 }}
+        transition={{ duration: prefersReducedMotion ? 0 : 0.25, ease: "easeInOut" }}
         className={className}
       >
         {children}
@@ -82,26 +86,28 @@ export function SectionTransition({
   className,
   direction = "vertical",
 }: SectionTransitionProps) {
+  const prefersReducedMotion = useReducedMotion();
+
   return (
     <AnimatePresence mode="wait">
       {show && (
         <motion.div
           initial={{
             opacity: 0,
-            height: direction === "vertical" ? 0 : "auto",
-            width: direction === "horizontal" ? 0 : "auto",
+            height: !prefersReducedMotion && direction === "vertical" ? 0 : "auto",
+            width: !prefersReducedMotion && direction === "horizontal" ? 0 : "auto",
           }}
           animate={{
             opacity: 1,
-            height: direction === "vertical" ? "auto" : "auto",
-            width: direction === "horizontal" ? "auto" : "auto",
+            height: "auto",
+            width: "auto",
           }}
           exit={{
             opacity: 0,
-            height: direction === "vertical" ? 0 : "auto",
-            width: direction === "horizontal" ? 0 : "auto",
+            height: !prefersReducedMotion && direction === "vertical" ? 0 : "auto",
+            width: !prefersReducedMotion && direction === "horizontal" ? 0 : "auto",
           }}
-          transition={{ duration: 0.3, ease: "easeInOut" }}
+          transition={{ duration: prefersReducedMotion ? 0 : 0.3, ease: "easeInOut" }}
           className={cn("overflow-hidden", className)}
         >
           {children}
@@ -124,16 +130,17 @@ export function TabTransition({
   direction = "right",
   className,
 }: TabTransitionProps) {
+  const prefersReducedMotion = useReducedMotion();
   const offset = direction === "right" ? 20 : -20;
 
   return (
     <AnimatePresence mode="wait">
       <motion.div
         key={tabKey}
-        initial={{ opacity: 0, x: offset }}
+        initial={{ opacity: 0, x: prefersReducedMotion ? 0 : offset }}
         animate={{ opacity: 1, x: 0 }}
-        exit={{ opacity: 0, x: -offset }}
-        transition={{ duration: 0.2, ease: "easeOut" }}
+        exit={{ opacity: 0, x: prefersReducedMotion ? 0 : -offset }}
+        transition={{ duration: prefersReducedMotion ? 0 : 0.2, ease: "easeOut" }}
         className={className}
       >
         {children}

@@ -12,6 +12,7 @@ import { Express } from "express";
 import { getPool, getBuyQuote, getSellQuote, executeBuy, executeSell } from "../amm/pool";
 import { isAuthenticated } from "../supabaseAuth";
 import { storage } from "../storage";
+import { logger } from "../lib/logger";
 
 // Slippage validation bounds
 const MIN_SLIPPAGE = 0.001; // 0.1%
@@ -41,12 +42,12 @@ export function registerAmmRoutes(app: Express) {
   app.get("/api/amm/:playerId", async (req, res) => {
     try {
       const { playerId } = req.params;
-      console.log(`[AMM API] Fetching pool for player: ${playerId}`);
+      logger.info({ playerId }, "[AMM API] Fetching pool for player");
 
       // First check if player exists
       const player = await storage.getPlayer(playerId);
       if (!player) {
-        console.error(`[AMM API] Player not found: ${playerId}`);
+        logger.info({ playerId }, "[AMM API] Player not found");
         return res.status(404).json({
           error: "Player not found",
           playerId: playerId,
@@ -70,10 +71,10 @@ export function registerAmmRoutes(app: Express) {
         });
       }
 
-      console.log(`[AMM API] Pool found for ${playerId}:`, {
-        shares: pool.shares,
-        playMoney: pool.playMoney,
-      });
+      logger.info(
+        { playerId, shares: pool.shares, playMoney: pool.playMoney },
+        "[AMM API] Pool found",
+      );
 
       res.json({
         playerId: pool.playerId,
@@ -89,7 +90,7 @@ export function registerAmmRoutes(app: Express) {
         feeGrowthPerLpShare: pool.feeGrowthPerLpShare,
       });
     } catch (error: any) {
-      console.error("[AMM API] Error getting pool:", error);
+      logger.error({ err: error }, "[AMM API] Error getting pool");
       res.status(500).json({
         error: error.message,
         details: error.stack?.split("\n")[0] || "No additional details",
@@ -162,7 +163,7 @@ export function registerAmmRoutes(app: Express) {
         });
       }
     } catch (error: any) {
-      console.error("[AMM API] Error getting quote:", error);
+      logger.error({ err: error }, "[AMM API] Error getting quote");
       res.status(500).json({ error: error.message });
     }
   });
@@ -216,7 +217,7 @@ export function registerAmmRoutes(app: Express) {
         slippagePercent: (result.slippagePercent || 0) * 100,
       });
     } catch (error: any) {
-      console.error("[AMM API] Error executing buy:", error);
+      logger.error({ err: error }, "[AMM API] Error executing buy");
       if (isPoolNotInitializedErrorMessage(error?.message)) {
         return res.status(409).json({
           error: POOL_NOT_INITIALIZED_MESSAGE,
@@ -278,7 +279,7 @@ export function registerAmmRoutes(app: Express) {
         burnFee: result.burnFee,
       });
     } catch (error: any) {
-      console.error("[AMM API] Error executing sell:", error);
+      logger.error({ err: error }, "[AMM API] Error executing sell");
       if (isPoolNotInitializedErrorMessage(error?.message)) {
         return res.status(409).json({
           error: POOL_NOT_INITIALIZED_MESSAGE,

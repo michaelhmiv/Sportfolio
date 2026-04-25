@@ -1,23 +1,24 @@
 import { Switch, Route, Link, useLocation } from "wouter";
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
-import { BottomNav } from "@/components/bottom-nav";
+import { BottomNav, NAV_ITEMS } from "@/components/bottom-nav";
 import { HelpDialog } from "@/components/help-dialog";
 import { Footer } from "@/components/footer";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { WebSocketProvider, useWebSocket } from "@/lib/websocket";
 import { ConnectionStatus } from "@/components/connection-status";
+import { OfflineBanner } from "@/components/offline-banner";
 import { NotificationProvider } from "@/lib/notification-context";
 import { useAuth, AuthProvider } from "@/hooks/useAuth";
 import { OnboardingModal } from "@/components/onboarding-modal";
 import Dashboard from "@/pages/dashboard";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import logoUrl from "@assets/Sportfolio png_1763227952318.png";
 import { BookOpen, LogOut, Newspaper, User } from "lucide-react";
 import { SiDiscord } from "react-icons/si";
@@ -36,10 +37,16 @@ import { BoostCeremonyOverlay } from "@/components/ceremonies/boost-ceremony-ove
 import { WhaleAlertBanner } from "@/components/market/whale-alert-banner";
 import { PlayerModal } from "@/components/player-modal";
 import { OPEN_PLAYER_MODAL_EVENT } from "@/lib/player-modal-events";
+import { MobilePushManager } from "@/components/mobile-push-manager";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { Capacitor } from "@capacitor/core";
 import { App as CapacitorApp } from "@capacitor/app";
 import { Browser } from "@capacitor/browser";
+import { StatusBar, Style as StatusBarStyle } from "@capacitor/status-bar";
+import { Keyboard, KeyboardResize } from "@capacitor/keyboard";
+import { SplashScreen } from "@capacitor/splash-screen";
 import { getSupabase } from "@/lib/supabase";
+import { initNetworkMonitor } from "@/lib/native-network";
 import {
   getRouteSeoMeta,
   normalizeSiteUrl,
@@ -83,6 +90,7 @@ const loadBoostsPage = () => import("@/pages/boosts");
 const loadLoginPage = () => import("@/pages/Login");
 const loadAuthCallbackPage = () => import("@/pages/AuthCallback");
 const loadCheckoutSuccessPage = () => import("@/pages/checkout-success");
+const loadOnboardingPage = () => import("@/pages/onboarding");
 
 const PlayerPools = lazy(loadPlayerPoolsPage);
 const PlayerPage = lazy(loadPlayerPage);
@@ -114,6 +122,7 @@ const Boosts = lazy(loadBoostsPage);
 const Login = lazy(loadLoginPage);
 const AuthCallback = lazy(loadAuthCallbackPage);
 const CheckoutSuccess = lazy(loadCheckoutSuccessPage);
+const OnboardingPage = lazy(loadOnboardingPage);
 
 function upsertMetaTag(attribute: "name" | "property", value: string): HTMLMetaElement {
   let tag = document.head.querySelector(`meta[${attribute}="${value}"]`) as HTMLMetaElement | null;
@@ -152,18 +161,27 @@ function LegacyMarketplaceRedirect() {
 
 function OnboardingCheck() {
   const { user, isAuthenticated } = useAuth();
+  const [, navigate] = useLocation();
   const [showOnboarding, setShowOnboarding] = useState(false);
 
   useEffect(() => {
     if (isAuthenticated && user && user.hasSeenOnboarding === false) {
-      setShowOnboarding(true);
+      if (Capacitor.isNativePlatform()) {
+        // Native: use the dedicated full-screen onboarding route.
+        navigate("/onboarding", { replace: false });
+      } else {
+        // Web / Playwright: keep the existing modal behaviour.
+        setShowOnboarding(true);
+      }
     }
-  }, [isAuthenticated, user]);
+  }, [isAuthenticated, user, navigate]);
 
   const handleComplete = () => {
     setShowOnboarding(false);
   };
 
+  // On native the onboarding route handles everything; nothing to render here.
+  if (Capacitor.isNativePlatform()) return null;
   return <OnboardingModal open={showOnboarding} onComplete={handleComplete} />;
 }
 
@@ -189,8 +207,54 @@ function RouteLoadingState() {
   );
 }
 
+/** Map URL roots to a tab index so transitions can slide left/right (P2 — 7.3) */
+const TAB_ORDER: Record<string, number> = {};
+NAV_ITEMS.forEach((item, i) => {
+  TAB_ORDER[item.url] = i;
+});
+
+function getTabIndex(path: string): number | null {
+  const exact = TAB_ORDER[path];
+  if (exact !== undefined) return exact;
+  // Partial match for nested routes under a tab root
+  for (const [url, idx] of Object.entries(TAB_ORDER)) {
+    if (url !== "/" && path.startsWith(url)) return idx;
+  }
+  return null;
+}
+
+/**
+ * Determine the slide direction for page transitions.
+ * Tab-level routes slide horizontally; drill-down routes slide right-to-left.
+ */
+function getTransitionVariants(
+  currentPath: string,
+  previousPath: string,
+): { x: string; opacity: number }[] {
+  const currentIdx = getTabIndex(currentPath);
+  const previousIdx = getTabIndex(previousPath);
+
+  if (currentIdx !== null && previousIdx !== null) {
+    // Horizontal slide between tabs
+    const direction = currentIdx > previousIdx ? 1 : -1;
+    return [
+      { x: `${direction * 100}%`, opacity: 0 },
+      { x: "0%", opacity: 1 },
+      { x: `${-direction * 100}%`, opacity: 0 },
+    ];
+  }
+
+  // Drill-down: slide in from right, exit to left
+  return [
+    { x: "100%", opacity: 0 },
+    { x: "0%", opacity: 1 },
+    { x: "-100%", opacity: 0 },
+  ];
+}
+
 const AUTH_BOOTSTRAP_REQUIRED_PREFIXES = [
   "/login",
+  "/onboarding",
   "/auth/callback",
   "/agent",
   "/power",
@@ -236,6 +300,7 @@ function Router() {
   const { user, isAuthenticated, isLoading, initError, retryInit } = useAuth();
   const [location, navigate] = useLocation();
   const [loadingTime, setLoadingTime] = useState(0);
+  const previousLocationRef = useRef(location);
   const isLoopbackHost =
     typeof window !== "undefined" &&
     (window.location.hostname === "127.0.0.1" || window.location.hostname === "localhost");
@@ -249,6 +314,13 @@ function Router() {
   const shouldShowAuthBootstrapLoading = isLoading && requiresAuthBootstrap && !authRouteBypass;
   const shouldShowAuthBootstrapError =
     Boolean(initError) && requiresAuthBootstrap && !authRouteBypass;
+
+  // Compute directional transition for the current route change (P2 — 7.3)
+  const prefersReducedMotion = useReducedMotion();
+  const [initial, , exit] = getTransitionVariants(location, previousLocationRef.current);
+  useEffect(() => {
+    previousLocationRef.current = location;
+  }, [location]);
 
   // Keep canonical + robots metadata aligned with the active route.
   useEffect(() => {
@@ -294,37 +366,66 @@ function Router() {
 
     const register = async () => {
       listener = await CapacitorApp.addListener("appUrlOpen", async ({ url }) => {
-        if (!url?.startsWith("sportfolio://auth/callback")) {
+        if (!url) return;
+
+        // Handle auth callback — close the in-app browser first, then hand the
+        // code/tokens to the AuthCallback page so it is the single PKCE exchange
+        // point (avoids the race condition where App.tsx consumes the one-time
+        // code before AuthCallback can see it).
+        if (url.startsWith("sportfolio://auth/callback")) {
+          try {
+            const callbackUrl = new URL(url);
+            const code = callbackUrl.searchParams.get("code");
+            const hashParams = new URLSearchParams(callbackUrl.hash.replace(/^#/, ""));
+            const accessToken = hashParams.get("access_token");
+            const refreshToken = hashParams.get("refresh_token");
+
+            if (code) {
+              navigate(`/auth/callback?code=${encodeURIComponent(code)}`, { replace: true });
+            } else if (accessToken && refreshToken) {
+              // Implicit/hash flow — forward as hash fragment so AuthCallback can read it.
+              navigate(
+                `/auth/callback#access_token=${encodeURIComponent(accessToken)}&refresh_token=${encodeURIComponent(refreshToken)}`,
+                { replace: true },
+              );
+            } else {
+              // No recognisable payload — let AuthCallback attempt a session lookup.
+              navigate("/auth/callback", { replace: true });
+            }
+          } catch (error) {
+            // URL parsing or navigation failed; navigate to the callback page
+            // which will attempt a getSession() recovery.
+            console.error("[MOBILE_AUTH] Callback handling failed:", error);
+            navigate("/auth/callback", { replace: true });
+          } finally {
+            // Always close the in-app browser for auth callback deep links —
+            // even if URL parsing throws before reaching the normal close call.
+            await Browser.close().catch(() => undefined);
+          }
           return;
         }
 
+        // Handle other deep links (P1 — 4.3)
         try {
-          const callbackUrl = new URL(url);
-          const code = callbackUrl.searchParams.get("code");
-          const hashParams = new URLSearchParams(callbackUrl.hash.replace(/^#/, ""));
-          const accessToken = hashParams.get("access_token");
-          const refreshToken = hashParams.get("refresh_token");
+          const parsed = new URL(url);
+          const host = parsed.host; // e.g. "player", "portfolio", "boosts", "pools", "leaderboards"
+          const pathname = parsed.pathname; // e.g. "/123" for player/{id}
 
-          const supabase = await getSupabase();
-          if (code) {
-            const { error } = await supabase.auth.exchangeCodeForSession(code);
-            if (error) {
-              console.error("[MOBILE_AUTH] Code exchange failed:", error);
-            }
-          } else if (accessToken && refreshToken) {
-            const { error } = await supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken,
-            });
-            if (error) {
-              console.error("[MOBILE_AUTH] Session set failed:", error);
-            }
+          const routeMap: Record<string, string> = {
+            portfolio: "/portfolio",
+            boosts: "/boosts",
+            pools: "/pools",
+            leaderboards: "/leaderboards",
+          };
+
+          if (host === "player" && pathname && pathname.length > 1) {
+            const playerId = pathname.replace(/^\//, "");
+            navigate(`/player/${playerId}`);
+          } else if (routeMap[host]) {
+            navigate(routeMap[host]);
           }
-        } catch (error) {
-          console.error("[MOBILE_AUTH] Callback handling failed:", error);
-        } finally {
-          await Browser.close().catch(() => undefined);
-          navigate("/auth/callback", { replace: true });
+        } catch {
+          // ignore malformed deep links
         }
       });
     };
@@ -349,6 +450,16 @@ function Router() {
           return;
         }
 
+        // Fire mobile analytics event on resume (P3 — 7.6)
+        try {
+          const gtag = (window as any).gtag;
+          if (typeof gtag === "function") {
+            gtag("event", "app_open", { source: "resume" });
+          }
+        } catch {
+          // ignore
+        }
+
         try {
           const supabase = await getSupabase();
           await supabase.auth.getSession();
@@ -364,6 +475,88 @@ function Router() {
       void listener?.remove();
     };
   }, []);
+
+  // P0 — 1.2: Android back button handling (prevents Play Store rejection)
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+
+    let listener: { remove: () => Promise<void> } | null = null;
+
+    // Derive root routes from NAV_ITEMS — single source of truth
+    const rootRoutes = new Set(NAV_ITEMS.map((item) => item.url));
+
+    const register = async () => {
+      listener = await CapacitorApp.addListener("backButton", ({ canGoBack: browserCanGoBack }) => {
+        // The onboarding page registers its own backButton listener to manage
+        // slide-level navigation.  Yield here so we don't double-navigate.
+        if (location === "/onboarding") return;
+
+        // If the browser history has entries, go back
+        if (browserCanGoBack) {
+          history.back();
+          return;
+        }
+        // If on a root tab, minimize the app instead of exiting
+        if (rootRoutes.has(location)) {
+          void CapacitorApp.minimizeApp();
+          return;
+        }
+        // Otherwise navigate back
+        history.back();
+      });
+    };
+
+    register();
+    return () => {
+      void listener?.remove();
+    };
+  }, [location]);
+
+  // P1 — 1.1: StatusBar — set to match app's dark theme, enable edge-to-edge
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+
+    void StatusBar.setStyle({ style: StatusBarStyle.Dark }).catch(() => undefined);
+    void StatusBar.setBackgroundColor({ color: "#0f1420" }).catch(() => undefined);
+    void StatusBar.setOverlaysWebView({ overlay: true }).catch(() => undefined);
+  }, []);
+
+  // P3 — 5.2: Update StatusBar when theme changes (dark/light)
+  const [isDark, setIsDark] = useState(() =>
+    typeof document !== "undefined" ? document.documentElement.classList.contains("dark") : true,
+  );
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setIsDark(document.documentElement.classList.contains("dark"));
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    return () => observer.disconnect();
+  }, []);
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    void StatusBar.setStyle({
+      style: isDark ? StatusBarStyle.Dark : StatusBarStyle.Light,
+    }).catch(() => undefined);
+    void StatusBar.setBackgroundColor({
+      color: isDark ? "#0f1420" : "#ffffff",
+    }).catch(() => undefined);
+  }, [isDark]);
+
+  // P1 — 1.1: Keyboard — resize body instead of overlapping content
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+
+    void Keyboard.setResizeMode({ mode: KeyboardResize.Body }).catch(() => undefined);
+  }, []);
+
+  // P3 — 7.1: Splash screen — hide after auth resolves
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    if (isLoading) return;
+
+    // Auth bootstrap complete — hide the splash with a fade
+    void SplashScreen.hide({ fadeOutDuration: 300 }).catch(() => undefined);
+  }, [isLoading]);
 
   // Warm likely next-route chunks during idle time to improve transition latency.
   useEffect(() => {
@@ -409,28 +602,6 @@ function Router() {
       setLoadingTime(0);
     }
   }, [shouldShowAuthBootstrapLoading]);
-
-  // Ensure viewport is properly set after OAuth redirect on mobile
-  useEffect(() => {
-    const viewport = document.querySelector('meta[name="viewport"]');
-    if (viewport) {
-      viewport.setAttribute(
-        "content",
-        "width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=yes",
-      );
-    }
-  }, [isAuthenticated]);
-
-  // Also restore viewport on mount to catch initial load
-  useEffect(() => {
-    const viewport = document.querySelector('meta[name="viewport"]');
-    if (viewport) {
-      viewport.setAttribute(
-        "content",
-        "width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=yes",
-      );
-    }
-  }, []);
 
   // Show error state with retry option
   if (shouldShowAuthBootstrapError) {
@@ -501,90 +672,109 @@ function Router() {
 
   // Public routes (accessible without authentication)
   return (
-    <AnimatePresence mode="wait">
+    /*
+     * AnimatePresence mode="popLayout" — chosen for directional page transitions.
+     * Unlike "wait" (which waits for exit to finish before entering), "popLayout"
+     * removes the exiting element from the layout flow immediately, allowing the
+     * entering element to take its place and slide in concurrently. This creates
+     * the native horizontal-tab and drill-down slide feel with no layout jump.
+     */
+    <AnimatePresence mode="popLayout">
       <motion.div
         key={location}
-        initial="initial"
-        animate="animate"
-        exit="exit"
-        variants={pageTransitionVariants}
-        transition={pageTransitionSettings}
+        initial={{ opacity: 0, x: prefersReducedMotion ? 0 : initial.x, y: 0 }}
+        animate={{ opacity: 1, x: "0%", y: 0 }}
+        exit={{ opacity: 0, x: prefersReducedMotion ? 0 : exit.x, y: 0 }}
+        transition={{ duration: prefersReducedMotion ? 0 : 0.22, ease: "easeOut" }}
         className={cn("w-full", location.startsWith("/agent") && "h-full min-h-0")}
+        style={{ position: "relative", overflow: "hidden" }}
       >
-        <Suspense fallback={<RouteLoadingState />}>
-          <Switch>
-            {/* Auth routes */}
-            <Route path="/login" component={Login} />
-            <Route path="/auth/callback" component={AuthCallback} />
-            <Route path="/checkout/success" component={CheckoutSuccess} />
+        {/*
+         * ErrorBoundary wraps Suspense so that lazy-chunk load failures
+         * (bad network, CDN error, code bug) show a recoverable UI instead
+         * of crashing the entire app — critical on Android where there is
+         * no browser reload option and a crash is logged by Play Store.
+         */}
+        <ErrorBoundary>
+          <Suspense fallback={<RouteLoadingState />}>
+            <Switch>
+              {/* Auth routes */}
+              <Route path="/login" component={Login} />
+              <Route path="/auth/callback" component={AuthCallback} />
+              <Route path="/checkout/success" component={CheckoutSuccess} />
+              {/* Native full-screen onboarding — replaces the modal on Android/iOS */}
+              <Route path="/onboarding" component={OnboardingPage} />
 
-            {/* Dashboard is now public - shows live data with login CTAs for non-authenticated users */}
-            <Route path="/" component={Dashboard} />
+              {/* Dashboard is now public - shows live data with login CTAs for non-authenticated users */}
+              <Route path="/" component={Dashboard} />
 
-            {/* Public routes */}
-            <Route path="/leaderboards" component={Leaderboards} />
-            <Route path="/user/:id" component={UserProfile} />
-            <Route path="/pools" component={PlayerPools} />
-            <Route path="/marketplace" component={LegacyMarketplaceRedirect} />
-            <Route path="/blog" component={Blog} />
-            <Route path="/blog/:slug" component={BlogPost} />
-            <Route path="/privacy" component={Privacy} />
-            <Route path="/terms" component={Terms} />
-            <Route path="/account-deletion" component={AccountDeletion} />
-            <Route path="/about" component={About} />
-            <Route path="/contact" component={Contact} />
-            <Route path="/how-it-works" component={HowItWorks} />
-            <Route path="/wiki" component={Wiki} />
-            <Route path="/wiki/:section" component={Wiki} />
-            <Route path="/wiki/:section/:slug" component={WikiArticle} />
-            <Route path="/sms/link" component={SmsLink} />
-            <Route path="/discord/link" component={DiscordLink} />
-            <Route path="/analytics" component={Analytics} />
-            <Route path="/news" component={News} />
-            <Route path="/agent">{canAccessProtectedRoutes ? <Agent /> : <AgentPreview />}</Route>
+              {/* Public routes */}
+              <Route path="/leaderboards" component={Leaderboards} />
+              <Route path="/user/:id" component={UserProfile} />
+              <Route path="/pools" component={PlayerPools} />
+              <Route path="/marketplace" component={LegacyMarketplaceRedirect} />
+              <Route path="/blog" component={Blog} />
+              <Route path="/blog/:slug" component={BlogPost} />
+              <Route path="/privacy" component={Privacy} />
+              <Route path="/terms" component={Terms} />
+              <Route path="/account-deletion" component={AccountDeletion} />
+              <Route path="/about" component={About} />
+              <Route path="/contact" component={Contact} />
+              <Route path="/how-it-works" component={HowItWorks} />
+              <Route path="/wiki" component={Wiki} />
+              <Route path="/wiki/:section" component={Wiki} />
+              <Route path="/wiki/:section/:slug" component={WikiArticle} />
+              <Route path="/sms/link" component={SmsLink} />
+              <Route path="/discord/link" component={DiscordLink} />
+              <Route path="/analytics" component={Analytics} />
+              <Route path="/news" component={News} />
+              <Route path="/agent">{canAccessProtectedRoutes ? <Agent /> : <AgentPreview />}</Route>
 
-            {/* Boosts - requires authentication */}
-            <Route path="/power">{canAccessProtectedRoutes ? <Boosts /> : <Dashboard />}</Route>
-            <Route path="/boosts">{canAccessProtectedRoutes ? <Boosts /> : <Dashboard />}</Route>
+              {/* Boosts - requires authentication */}
+              <Route path="/power">{canAccessProtectedRoutes ? <Boosts /> : <Dashboard />}</Route>
+              <Route path="/boosts">{canAccessProtectedRoutes ? <Boosts /> : <Dashboard />}</Route>
 
-            {/* Protected routes - require authentication, redirect to dashboard if not logged in */}
-            <Route path="/player/:id">
-              {canAccessProtectedRoutes ? <PlayerPage /> : <Dashboard />}
-            </Route>
+              {/* Protected routes - require authentication, redirect to dashboard if not logged in */}
+              <Route path="/player/:id">
+                {canAccessProtectedRoutes ? <PlayerPage /> : <Dashboard />}
+              </Route>
 
-            {/* Canonical player route used across the app (some data uses prefixed ids like nba_123) */}
-            <Route path="/player/nba_:id">
-              {canAccessProtectedRoutes ? <PlayerPage /> : <Dashboard />}
-            </Route>
-            <Route path="/player/nfl_:id">
-              {canAccessProtectedRoutes ? <PlayerPage /> : <Dashboard />}
-            </Route>
-            <Route path="/player/mlb_:id">
-              {canAccessProtectedRoutes ? <PlayerPage /> : <Dashboard />}
-            </Route>
-            <Route path="/portfolio">
-              {canAccessProtectedRoutes ? <Portfolio /> : <Dashboard />}
-            </Route>
-            <Route path="/admin">{canAccessProtectedRoutes ? <Admin /> : <Dashboard />}</Route>
-            <Route path="/premium">{canAccessProtectedRoutes ? <Premium /> : <Dashboard />}</Route>
-            {/* Premium share trading removed; premium shares are redeemed for premium access */}
-            <Route path="/watchlists">
-              {canAccessProtectedRoutes ? <Watchlists /> : <Dashboard />}
-            </Route>
-            <Route path="/profile">
-              {canAccessProtectedRoutes && user ? (
-                <ProfileRedirect userId={user.id} />
-              ) : (
-                <Dashboard />
-              )}
-            </Route>
+              {/* Canonical player route used across the app (some data uses prefixed ids like nba_123) */}
+              <Route path="/player/nba_:id">
+                {canAccessProtectedRoutes ? <PlayerPage /> : <Dashboard />}
+              </Route>
+              <Route path="/player/nfl_:id">
+                {canAccessProtectedRoutes ? <PlayerPage /> : <Dashboard />}
+              </Route>
+              <Route path="/player/mlb_:id">
+                {canAccessProtectedRoutes ? <PlayerPage /> : <Dashboard />}
+              </Route>
+              <Route path="/portfolio">
+                {canAccessProtectedRoutes ? <Portfolio /> : <Dashboard />}
+              </Route>
+              <Route path="/admin">{canAccessProtectedRoutes ? <Admin /> : <Dashboard />}</Route>
+              <Route path="/premium">
+                {canAccessProtectedRoutes ? <Premium /> : <Dashboard />}
+              </Route>
+              {/* Premium share trading removed; premium shares are redeemed for premium access */}
+              <Route path="/watchlists">
+                {canAccessProtectedRoutes ? <Watchlists /> : <Dashboard />}
+              </Route>
+              <Route path="/profile">
+                {canAccessProtectedRoutes && user ? (
+                  <ProfileRedirect userId={user.id} />
+                ) : (
+                  <Dashboard />
+                )}
+              </Route>
 
-            {/* Auth error page - public, always accessible */}
-            <Route path="/auth/error" component={AuthError} />
+              {/* Auth error page - public, always accessible */}
+              <Route path="/auth/error" component={AuthError} />
 
-            <Route component={NotFound} />
-          </Switch>
-        </Suspense>
+              <Route component={NotFound} />
+            </Switch>
+          </Suspense>
+        </ErrorBoundary>
       </motion.div>
     </AnimatePresence>
   );
@@ -622,13 +812,17 @@ function Header() {
   return (
     <header
       className={cn(
-        "flex items-center justify-between h-16 px-4 border-b bg-sidebar sticky top-0 z-10",
+        "flex items-center justify-between px-4 border-b bg-sidebar sticky top-0 z-10",
         isPremium && "border-b-yellow-500/30",
       )}
+      style={{
+        height: "calc(4rem + env(safe-area-inset-top))",
+        paddingTop: "env(safe-area-inset-top)",
+      }}
     >
       <div className="flex items-center gap-4">
         <div className="hidden sm:block">
-          <SidebarTrigger data-testid="button-sidebar-toggle" />
+          <SidebarTrigger data-testid="button-sidebar-toggle" aria-label="Toggle sidebar" />
         </div>
         <div className="flex items-center gap-2">
           <img src={logoUrl} alt="Sportfolio" className="w-10 h-10" />
@@ -653,13 +847,17 @@ function Header() {
           variant="ghost"
           size="icon"
           asChild
-          className="relative"
+          className="relative min-h-[44px] min-w-[44px]"
           data-testid="button-news-header"
+          aria-label="News"
         >
           <Link href="/news">
-            <Newspaper className="h-4 w-4" />
+            <Newspaper className="h-4 w-4" aria-hidden="true" />
             {(hasUnreadDigest || unreadNewsCount > 0) && (
-              <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-red-500" />
+              <span
+                className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-red-500"
+                aria-label="Unread news"
+              />
             )}
           </Link>
         </Button>
@@ -667,12 +865,12 @@ function Header() {
           size="icon"
           variant="ghost"
           asChild
-          className="sm:hidden"
+          className="sm:hidden min-h-[44px] min-w-[44px]"
           data-testid="button-wiki-header-mobile"
-          title="Wiki"
+          aria-label="Wiki"
         >
           <Link href="/wiki">
-            <BookOpen className="h-4 w-4" />
+            <BookOpen className="h-4 w-4" aria-hidden="true" />
           </Link>
         </Button>
         {isAuthenticated ? (
@@ -691,11 +889,11 @@ function Header() {
               variant="ghost"
               asChild
               data-testid="button-profile"
-              title="Profile"
-              className="flex"
+              aria-label="Profile"
+              className="flex min-h-[44px] min-w-[44px]"
             >
               <Link href={user?.id ? `/user/${user.id}` : "/profile"}>
-                <User className="h-4 w-4" />
+                <User className="h-4 w-4" aria-hidden="true" />
               </Link>
             </Button>
             {isProfilePage && (
@@ -707,9 +905,10 @@ function Header() {
                   navigate("/");
                 }}
                 data-testid="button-logout"
-                title="Logout"
+                aria-label="Logout"
+                className="min-h-[44px] min-w-[44px]"
               >
-                <LogOut className="h-4 w-4" />
+                <LogOut className="h-4 w-4" aria-hidden="true" />
               </Button>
             )}
           </>
@@ -723,10 +922,10 @@ function Header() {
           size="icon"
           onClick={() => window.open("https://discord.gg/r8MsduNvXG", "_blank")}
           data-testid="button-discord"
-          title="Join our Discord"
-          className="hover-elevate active-elevate-2"
+          aria-label="Join our Discord"
+          className="hover-elevate active-elevate-2 min-h-[44px] min-w-[44px]"
         >
-          <SiDiscord className="w-5 h-5" />
+          <SiDiscord className="w-5 h-5" aria-hidden="true" />
         </Button>
         {isProfilePage && <HelpDialog />}
       </div>
@@ -842,10 +1041,15 @@ function AppContent() {
     "--sidebar-width-icon": "3rem",
   };
 
-  // Scout context - managed via ScoutDashboardModal
+  // Initialize native network monitor (P3 — 6.1)
+  useEffect(() => {
+    initNetworkMonitor();
+  }, []);
 
   return (
     <SidebarProvider style={style as React.CSSProperties}>
+      {/* Offline banner lives above everything — shown when network is lost (P3 — 6.1) */}
+      <OfflineBanner />
       {isAgentRoute ? (
         <div className="flex h-[100dvh] w-full min-h-0 flex-col overflow-hidden overscroll-none bg-[#0a0e1a] pb-16 sm:pb-0">
           <main className="flex min-h-0 flex-1 flex-col overflow-hidden overscroll-none">
@@ -871,6 +1075,7 @@ function AppContent() {
       <BottomNav />
       <OnboardingCheck />
       <ScoutDashboardModal />
+      <MobilePushManager />
       <ScoutCeremonyManager />
       <GlobalBoostCeremonyManager />
       <WhaleAlertBanner />

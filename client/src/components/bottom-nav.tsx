@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { useNotifications } from "@/lib/notification-context";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useSport, SPORTS, Sport } from "@/lib/sport-context";
@@ -15,6 +15,7 @@ import {
   DrawerDescription,
 } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
+import { hapticLight } from "@/lib/haptics";
 
 const navItems = [
   {
@@ -44,6 +45,9 @@ const navItems = [
   },
 ];
 
+/** Exported so App.tsx can read the active tab index for directional transitions */
+export const NAV_ITEMS = navItems;
+
 export function BottomNav() {
   const [location] = useLocation();
   const { unreadCount } = useNotifications();
@@ -51,24 +55,20 @@ export function BottomNav() {
   const isPremium = user?.isPremium || false;
   const [previousLocation, setPreviousLocation] = useState(location);
   const [justActivated, setJustActivated] = useState<string | null>(null);
+  const prefersReducedMotion = useReducedMotion();
 
   // Sport Context & Filter
   const { sport, setSport } = useSport();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-
-  // Haptic feedback helper
-  const triggerHaptic = () => {
-    if (typeof navigator !== "undefined" && navigator.vibrate) {
-      navigator.vibrate(50);
-    }
-  };
 
   const handleClick = (e: React.MouseEvent, url: string) => {
     // If clicking Dashboard while already on Dashboard, open filter
     if (url === "/" && location === "/") {
       e.preventDefault();
       setIsDrawerOpen(true);
-      triggerHaptic();
+      void hapticLight();
+    } else {
+      void hapticLight();
     }
   };
 
@@ -125,11 +125,12 @@ export function BottomNav() {
                 <Button
                   key={s}
                   variant={sport === s ? "default" : "outline"}
-                  className="h-14 text-lg justify-start gap-4 px-6 relative overflow-hidden"
+                  className="h-14 text-lg justify-start gap-4 px-6 relative overflow-hidden touch-manipulation"
+                  aria-label={getSportLabel(s)}
                   onClick={() => {
                     setSport(s);
                     setIsDrawerOpen(false);
-                    triggerHaptic();
+                    void hapticLight();
                   }}
                 >
                   <span className="text-2xl">{getSportIcon(s)}</span>
@@ -145,10 +146,12 @@ export function BottomNav() {
       </Drawer>
 
       <nav
+        aria-label="Main navigation"
         className={cn(
           "fixed bottom-0 left-0 right-0 z-50 bg-sidebar border-t sm:hidden select-none",
           isPremium && "border-t-yellow-500/30",
         )}
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
         <div className="grid grid-cols-5 h-16 max-w-md mx-auto">
           {navItems.map((item) => {
@@ -158,7 +161,9 @@ export function BottomNav() {
               <div key={item.title} className="flex items-center justify-center">
                 <Link
                   href={item.url}
-                  className="flex items-center justify-center w-full h-full"
+                  aria-label={item.title}
+                  aria-current={isActive ? "page" : undefined}
+                  className="flex items-center justify-center w-full h-full min-h-[48px] touch-manipulation"
                   onClick={(e) => handleClick(e, item.url)}
                 >
                   <motion.div
@@ -168,7 +173,7 @@ export function BottomNav() {
                     )}
                     data-testid={`button - nav - ${item.title.toLowerCase()} `}
                     animate={
-                      wasJustActivated
+                      wasJustActivated && !prefersReducedMotion
                         ? {
                             scale: [1, 1.15, 0.95, 1.05, 1],
                             y: [0, -6, 0, -2, 0],
@@ -182,7 +187,7 @@ export function BottomNav() {
                   >
                     <motion.div
                       animate={
-                        wasJustActivated
+                        wasJustActivated && !prefersReducedMotion
                           ? {
                               scale: [1, 1.3, 1],
                               rotate: [0, -10, 10, 0],
@@ -191,7 +196,7 @@ export function BottomNav() {
                       }
                       transition={{ duration: 0.3 }}
                     >
-                      <item.icon className="w-5 h-5" />
+                      <item.icon className="w-5 h-5" aria-hidden="true" />
                     </motion.div>
                     <span className="text-[10px] font-medium">{item.title}</span>
 
@@ -213,13 +218,15 @@ export function BottomNav() {
                       )}
                     </AnimatePresence>
 
-                    {/* Standard Dot Backup if we don't want the icon (Optional, using Icon for now) */}
-
                     {item.title === "Portfolio" && unreadCount > 0 && (
                       <motion.div
                         initial={{ scale: 0 }}
                         animate={{ scale: 1 }}
-                        transition={{ type: "spring", stiffness: 500, damping: 25 }}
+                        transition={
+                          prefersReducedMotion
+                            ? { duration: 0 }
+                            : { type: "spring", stiffness: 500, damping: 25 }
+                        }
                         className="absolute top-1 right-2 z-[51]"
                       >
                         <Badge
