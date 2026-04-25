@@ -3,12 +3,13 @@
 - [x] Fetch latest `origin/main` and reproduce PR merge conflicts locally
 - [x] Resolve workflow and task-log conflicts while preserving both upstream updates and PR intent
 - [x] Re-run `npm run check`, `npm run lint`, and `npm run test:run`
-- [ ] Push resolved merge commit and confirm PR #136 is mergeable
+- [x] Push resolved merge commit and confirm PR #136 is mergeable
 
 Review:
 
 - Resolved conflicts in `.github/workflows/firebase-distribution.yml` by keeping upstream release-signing/build updates and preserving the PR behavior to always include `michaelhmiv@gmail.com` with tester/group dedupe support.
 - Resolved `tasks/todo.md` conflict by retaining upstream Android push tracking section and restoring this branch's Play closed-testing + icon-branding tracking entries.
+- Pushed merge commit `7c0a779` and confirmed PR #136 is now `MERGEABLE` / `CLEAN` on GitHub.
 
 ## 2026-04-24 Android/Play Icon Branding Alignment
 
