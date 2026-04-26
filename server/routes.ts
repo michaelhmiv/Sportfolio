@@ -82,6 +82,7 @@ import { normalizeSiteUrl } from "@shared/seo";
 import { ensureSmsSchema } from "./sms-service";
 import { ensureDiscordSchema } from "./discord-service";
 import { redeemPremiumShare } from "./services/premium-redemption";
+import { sendUserNotification } from "./services/notification-dispatcher";
 import { loadUserEntitlements } from "./services/user-entitlements";
 import {
   getApiHealthStaleThresholdMs,
@@ -4586,6 +4587,16 @@ ${items}
 
       const updatedUser = await storage.updateUsername(userId, username);
       if (updatedUser) {
+        void sendUserNotification({
+          userId,
+          category: "account_security",
+          title: "Account Updated",
+          body: "Your username was updated successfully.",
+          deepLink: "/user/" + userId,
+          dedupeKey: `security:username:${new Date().toISOString().slice(0, 16)}`,
+        }).catch((error) => {
+          console.error("[Account] Failed to send username security push:", error);
+        });
         res.json({ username: updatedUser.username });
       } else {
         res.status(500).json({ error: "Failed to update username" });
@@ -4615,6 +4626,16 @@ ${items}
 
       const updatedUser = await storage.updateProfileImage(userId, profileImageUrl);
       if (updatedUser) {
+        void sendUserNotification({
+          userId,
+          category: "account_security",
+          title: "Account Updated",
+          body: "Your profile image was updated.",
+          deepLink: "/user/" + userId,
+          dedupeKey: `security:avatar:${new Date().toISOString().slice(0, 16)}`,
+        }).catch((error) => {
+          console.error("[Account] Failed to send avatar security push:", error);
+        });
         res.json({ profileImageUrl: updatedUser.profileImageUrl });
       } else {
         res.status(500).json({ error: "Failed to update profile image" });
@@ -5883,6 +5904,24 @@ ${items}
           count: parsedCount,
           userId, // Optional: helps client ignore self-echo if optimistically updated
         },
+      });
+
+      void sendUserNotification({
+        userId,
+        category: "scout_lifecycle",
+        title: "Scouts Updated",
+        body:
+          parsedCount === 0
+            ? "Scout assignment removed."
+            : `You now have ${parsedCount} scouts assigned.`,
+        deepLink: `/player/${playerId}`,
+        data: {
+          playerId,
+          scoutCount: String(parsedCount),
+        },
+        dedupeKey: `scout_assign:${playerId}:${parsedCount}`,
+      }).catch((error) => {
+        console.error("[Scout API] Failed to send scout notification:", error);
       });
 
       res.json({
@@ -7313,7 +7352,21 @@ ${items}
   // Premium redeem
   app.post("/api/premium/redeem", isAuthenticated, async (req, res) => {
     try {
-      res.json(await redeemPremiumShare(getUserId(req)));
+      const userId = getUserId(req);
+      const result = await redeemPremiumShare(userId);
+
+      void sendUserNotification({
+        userId,
+        category: "billing_premium",
+        title: "Premium Share Redeemed",
+        body: "Your premium share redemption has been processed.",
+        deepLink: "/premium",
+        dedupeKey: `premium_redeem:${new Date().toISOString().slice(0, 16)}`,
+      }).catch((error) => {
+        console.error("[Premium] Failed to send redemption push:", error);
+      });
+
+      res.json(result);
     } catch (error: any) {
       const status =
         error?.message === "User not found"
@@ -7592,6 +7645,22 @@ ${items}
         });
 
         broadcast({ type: "portfolio" });
+
+        void sendUserNotification({
+          userId,
+          category: "billing_premium",
+          title: "Premium Purchase Confirmed",
+          body: `Added ${quantity} premium share${quantity === 1 ? "" : "s"} to your account.`,
+          deepLink: "/premium",
+          data: {
+            quantity: String(quantity),
+            productId,
+            orderId: orderId || "",
+          },
+          dedupeKey: `play_billing:${purchaseToken}`,
+        }).catch((error) => {
+          console.error("[GOOGLE_PLAY] Failed to send premium push:", error);
+        });
       }
 
       const premiumHolding = await storage.getHolding(userId, "premium", "premium");
@@ -7954,6 +8023,22 @@ ${items}
             receiptId,
             sessionId: matched.session.id,
           },
+        });
+
+        void sendUserNotification({
+          userId,
+          category: "billing_premium",
+          title: "Premium Purchase Confirmed",
+          body: `Added ${quantity} premium share${quantity === 1 ? "" : "s"} to your account.`,
+          deepLink: "/premium",
+          data: {
+            quantity: String(quantity),
+            receiptId,
+            sessionId: matched.session.id,
+          },
+          dedupeKey: `checkout_finalize:${receiptId}`,
+        }).catch((error) => {
+          console.error("[CHECKOUT FINALIZE] Failed to send premium push:", error);
         });
       }
 
@@ -11262,6 +11347,23 @@ ${items}
       // Get player info for response
       const player = await storage.getPlayer(canonicalPlayerId);
 
+      void sendUserNotification({
+        userId,
+        category: "boost_lifecycle",
+        title: "Boost Assigned",
+        body: `${player?.firstName || "Player"} ${player?.lastName || ""} is now in your ${tierNum}x slot.`,
+        deepLink: "/boosts",
+        data: {
+          boostId: boost.id,
+          playerId: canonicalPlayerId,
+          slotTier: String(tierNum),
+          shareMultiplier,
+        },
+        dedupeKey: `boost_assigned:${boost.id}`,
+      }).catch((error) => {
+        console.error("[daily-boosts/assign] Failed to send boost assignment push:", error);
+      });
+
       res.json({
         success: true,
         boost: {
@@ -11537,6 +11639,23 @@ ${items}
         sport: sportUpper,
         boostDate,
         gameId: game.gameId,
+      });
+
+      void sendUserNotification({
+        userId,
+        category: "community_boosts",
+        title: "Community Boost Activated",
+        body: "1 Community Share was redeemed to activate a boost.",
+        deepLink: "/boosts",
+        data: {
+          boostId: boost.id,
+          playerId: canonicalPlayerId,
+          sport: sportUpper,
+          gameId: game.gameId || "",
+        },
+        dedupeKey: `community_boost_created:${boost.id}`,
+      }).catch((error) => {
+        console.error("[community-boosts/create] Failed to send push:", error);
       });
 
       res.json({

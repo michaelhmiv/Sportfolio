@@ -13,6 +13,7 @@ import { hasGameStartedForBoost } from "@shared/game-status";
 import { notifyBoostLockingSoonPush } from "../services/push-notification-events";
 import type { JobResult } from "./scheduler";
 import type { ProgressCallback } from "../lib/admin-stream";
+import { sendUserNotification } from "../services/notification-dispatcher";
 
 function isLegacyNbaGameId(sport: unknown, gameId: unknown): boolean {
   return String(sport || "").toUpperCase() === "NBA" && String(gameId || "").startsWith("18447");
@@ -130,6 +131,22 @@ export async function lockBoostShares(progressCallback?: ProgressCallback): Prom
 
           await storage.lockBoostShares(boost.id);
           boostsLocked++;
+
+          void sendUserNotification({
+            userId: boost.userId,
+            category: "boost_lifecycle",
+            title: "Boost Locked",
+            body: "Your boost is now locked because the game has started.",
+            deepLink: "/boosts",
+            data: {
+              boostId: boost.id,
+              playerId: boost.playerId,
+              gameId: game.gameId,
+            },
+            dedupeKey: `boost_locked:${boost.id}`,
+          }).catch((error) => {
+            console.error("[lock_boost_shares] Failed to send lock push:", error);
+          });
 
           progressCallback?.({
             type: "info",

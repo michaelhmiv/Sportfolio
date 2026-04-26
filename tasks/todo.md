@@ -1,3 +1,33 @@
+## 2026-04-26 Full Android Push Notifications + Profile Toggles
+
+- [x] Complete backend push pipeline hardening (FCM bootstrap, category dispatch, dedupe/cooldown, invalid token cleanup)
+- [x] Finish wiring notification dispatch into gameplay/account/billing event sources for shipped categories
+- [x] Add server routes and persistence coverage for notification settings + push device token lifecycle
+- [x] Implement Android Capacitor push lifecycle in client (permission, register/unregister, tap deep links, resume refresh)
+- [x] Add profile notification settings UI with master toggle + all category toggles + permission state + test send action
+- [x] Add detector/cron jobs needed for derived notification categories and daily digest timing
+- [x] Add/extend unit + API + integration tests for filtering, backfill mapping, routes, and event dispatch behavior
+- [x] Run required validation (`npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`) and document results
+
+Review:
+
+- Added full notification category catalog/types, user settings storage, push device lifecycle storage, and migration backfill for legacy news preference mapping.
+- Added FCM provider bootstrap + multicast sender (`firebase-admin`) and resilient category dispatcher with cooldown/dedupe + invalid token cleanup handling.
+- Added notification API surface for account settings/device register/unregister/test + admin broadcast routes, and registered the route module.
+- Wired shipped categories into existing event sources (trades, payouts, boosts, scout lifecycle, premium/account updates, community boosts, digest/news flows).
+- Added `notification_signals` detector job and scheduler/manual hooks for watchlist alerts, market pulse, condense opportunities, leaderboard movement, relevant game lifecycle, and premium expiry reminders.
+- Added Android runtime permission plumbing and Capacitor push plugin wiring (`@capacitor/push-notifications`) plus client native push lifecycle/provider.
+- Added profile “Notification Settings” card with master toggle, all category toggles, permission status, enable action, and test notification action.
+- Added tests:
+- `shared/notifications.test.ts`
+- `server/services/notification-dispatcher.test.ts`
+- `server/routes/notifications.test.ts`
+- Validation:
+- `npm run check` passed
+- `npm run lint` passed
+- `npm run test:run` passed
+- `npm run format:check` fails only on pre-existing docs/wiki markdown files unrelated to this notification implementation.
+
 ## 2026-04-25 PR #136 Conflict Resolution
 
 - [x] Fetch latest `origin/main` and reproduce PR merge conflicts locally
@@ -71,6 +101,26 @@ Review:
 - After the fix, `npm run play:billing:ensure-product` succeeded and reported `purchaseOptions=1 active=1` for `premium_share_1`.
 - `npm run play:release:preflight` now passes with only one non-blocking warning:
 - `ANDROID_KEYSTORE_PASSWORD` not set locally (so local fingerprint check is skipped).
+
+## 2026-04-26 Boost Popup Undefined Fix + PR
+
+- [x] Trace the daily boost success popup flow and identify why the boosted item label renders as `undefined`
+- [x] Patch the minimal client/server contract issue so boost success messaging always names the boosted player/slot correctly
+- [x] Add or update targeted regression coverage for the affected boost flow
+- [x] Run required validation for the touched surface (`npm run check`, `npm run lint`, `npm run test:run`)
+- [ ] Commit the fix on a dedicated branch, push it, and open a GitHub PR with the root cause and validation summary
+
+Review:
+
+- Root cause: the Boosts page success ceremony rebuilt the boosted player name from a cached eligible-player lookup using an unsafe template string (`${firstName} ${lastName}`), so any missing name part surfaced to users as the literal string `undefined` in the popup.
+- Fix: `client/src/pages/boosts.tsx` now parses the assign response JSON and uses a small helper (`client/src/features/boosts/assign-boost-feedback.ts`) that prefers the server-returned assigned player, falls back safely to the eligible-player snapshot, and never renders `undefined` for missing name parts.
+- Added focused regression coverage in `client/src/features/boosts/assign-boost-feedback.test.ts` for full-name, partial-name, and no-name fallback cases.
+- Validation status:
+- `npx vitest run client/src/features/boosts/assign-boost-feedback.test.ts` passed.
+- `npm run lint` passed.
+- `npm run test:run` passed.
+- `npm run check` is currently blocked by a pre-existing unrelated type error in `server/jobs/compile-digest.ts:767` (`Property 'toISOString' does not exist on type 'string'`).
+- `npm run format:check` still reports pre-existing formatting drift in unrelated files; the new helper/test files were formatted.
 
 ## 2026-04-23 Bot Liquidity Spread Upgrade + Execution Parity
 

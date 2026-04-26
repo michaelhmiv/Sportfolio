@@ -1,5 +1,6 @@
 import { storage } from "../storage";
 import { broadcastToUser } from "../websocket";
+import { sendUserNotification } from "../services/notification-dispatcher";
 import type { JobResult } from "./scheduler";
 import type { ProgressCallback } from "../lib/admin-stream";
 
@@ -85,6 +86,23 @@ export async function settleSharePayouts(progressCallback?: ProgressCallback): P
           gameId: payout.gameId,
           playerId: payout.playerId,
           amount: amount.toFixed(2),
+        });
+
+        void sendUserNotification({
+          userId: payout.userId,
+          category: "portfolio_changes",
+          title: "Share Payout Credited",
+          body: `You received $${amount.toFixed(2)} from a completed game.`,
+          deepLink: "/portfolio",
+          data: {
+            gameId: payout.gameId,
+            playerId: payout.playerId,
+            payoutId: payout.id,
+            amount: amount.toFixed(2),
+          },
+          dedupeKey: `share_payout:${payout.id}`,
+        }).catch((error) => {
+          console.error("[settle_share_payouts] Failed to send push:", error);
         });
       } catch (err: any) {
         errorCount++;

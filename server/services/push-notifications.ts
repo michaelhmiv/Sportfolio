@@ -17,6 +17,7 @@ const INVALID_TOKEN_ERROR_CODES = new Set([
 ]);
 
 const FIREBASE_APP_NAME = "sportfolio-push";
+const MAX_MULTICAST_TOKENS = 500;
 
 interface PushMessagingResultItem {
   success: boolean;
@@ -74,6 +75,20 @@ export interface SendPushNotificationResult {
     | "duplicate";
   successCount: number;
   failureCount: number;
+}
+
+export interface PushMulticastPayload {
+  title: string;
+  body: string;
+  data?: Record<string, string>;
+}
+
+export interface PushMulticastResult {
+  providerEnabled: boolean;
+  attempted: number;
+  sentCount: number;
+  failureCount: number;
+  invalidTokens: string[];
 }
 
 let providerPromise: Promise<PushMessagingProvider | null> | null = null;
@@ -201,6 +216,65 @@ function getPushProvider(): Promise<PushMessagingProvider | null> {
   }
 
   return providerPromise;
+}
+
+export async function sendPushMulticast(
+  tokens: string[],
+  payload: PushMulticastPayload,
+): Promise<PushMulticastResult> {
+  if (tokens.length === 0) {
+    return {
+      providerEnabled: true,
+      attempted: 0,
+      sentCount: 0,
+      failureCount: 0,
+      invalidTokens: [],
+    };
+  }
+
+  const provider = await getPushProvider();
+  if (!provider) {
+    return {
+      providerEnabled: false,
+      attempted: tokens.length,
+      sentCount: 0,
+      failureCount: 0,
+      invalidTokens: [],
+    };
+  }
+
+  let sentCount = 0;
+  let failureCount = 0;
+  const invalidTokens = new Set<string>();
+
+  for (let index = 0; index < tokens.length; index += MAX_MULTICAST_TOKENS) {
+    const chunk = tokens.slice(index, index + MAX_MULTICAST_TOKENS);
+    const result = await provider.sendMulticast({
+      tokens: chunk,
+      title: payload.title,
+      body: payload.body,
+      data: payload.data ?? {},
+    });
+
+    sentCount += result.successCount;
+    failureCount += result.failureCount;
+
+    result.results.forEach((item, itemIndex) => {
+      if (item.success) return;
+      const errorCode = item.errorCode || "";
+      if (INVALID_TOKEN_ERROR_CODES.has(errorCode) && chunk[itemIndex]) {
+        invalidTokens.add(chunk[itemIndex]);
+      }
+    });
+  }
+
+  return {
+    providerEnabled: true,
+    attempted: tokens.length,
+    sentCount,
+    failureCount,
+    invalidTokens: Array.from(invalidTokens),
+  };
 }
 
 function serializeMetadata(metadata?: Record<string, unknown>): string {

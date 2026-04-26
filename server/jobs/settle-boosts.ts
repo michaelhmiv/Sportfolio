@@ -13,6 +13,7 @@ import { storage } from "../storage";
 import { broadcast } from "../websocket";
 import { choosePreferredDailyGame } from "../lib/daily-game-dedupe";
 import { getETDayBoundaries, getGameDay } from "../lib/time";
+import { sendUserNotification } from "../services/notification-dispatcher";
 import { notifyBoostSettledPush } from "../services/push-notification-events";
 import type { JobResult } from "./scheduler";
 import type { ProgressCallback } from "../lib/admin-stream";
@@ -145,6 +146,23 @@ async function finalizeBoostWithoutStats(input: {
     playerFirstName: player?.firstName ?? "",
     playerLastName: player?.lastName ?? "",
     playerTeam: player?.team ?? "",
+  });
+
+  void sendUserNotification({
+    userId: input.boost.userId,
+    category: "boost_lifecycle",
+    title: "Boost Settled",
+    body: "A daily boost settled after stats were unavailable.",
+    deepLink: "/boosts",
+    data: {
+      boostId: input.boost.id,
+      playerId: input.boost.playerId,
+      payout: "0.00",
+      fantasyPoints: "0",
+    },
+    dedupeKey: `boost_settled:${input.boost.id}`,
+  }).catch((error) => {
+    console.error("[settle_boosts] Failed to send stale settle push:", error);
   });
 
   await notifyBoostSettledPush({
@@ -374,6 +392,23 @@ export async function settleBoosts(progressCallback?: ProgressCallback): Promise
           playerTeam: player?.team ?? "",
         });
 
+        void sendUserNotification({
+          userId: boost.userId,
+          category: "boost_lifecycle",
+          title: "Boost Settled",
+          body: `Your boost paid out $${payout.toFixed(2)}.`,
+          deepLink: "/boosts",
+          data: {
+            boostId: boost.id,
+            playerId: boost.playerId,
+            payout: payout.toFixed(2),
+            fantasyPoints: fantasyPoints.toFixed(2),
+          },
+          dedupeKey: `boost_settled:${boost.id}`,
+        }).catch((error) => {
+          console.error("[settle_boosts] Failed to send settle push:", error);
+        });
+
         await notifyBoostSettledPush({
           userId: boost.userId,
           boostId: boost.id,
@@ -529,6 +564,24 @@ export async function settleBoosts(progressCallback?: ProgressCallback): Promise
               playerFirstName: player?.firstName ?? "",
               playerLastName: player?.lastName ?? "",
               playerTeam: player?.team ?? "",
+            });
+
+            void sendUserNotification({
+              userId: boost.userId,
+              category: "boost_lifecycle",
+              title: "Boost Settled",
+              body: `Your boost paid out $${payout.toFixed(2)}.`,
+              deepLink: "/boosts",
+              data: {
+                boostId: boost.id,
+                playerId: boost.playerId,
+                payout: payout.toFixed(2),
+                fantasyPoints: fantasyPoints.toFixed(2),
+                retry: String(retry),
+              },
+              dedupeKey: `boost_settled:${boost.id}`,
+            }).catch((error) => {
+              console.error("[settle_boosts] Failed to send retry settle push:", error);
             });
 
             await notifyBoostSettledPush({

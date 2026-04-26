@@ -10,11 +10,12 @@
  */
 
 import { db } from "../db";
-import { newsFeed } from "@shared/schema";
+import { holdings, newsFeed, players, watchList } from "@shared/schema";
 import { perplexityService } from "../services/perplexity";
 import { createHash } from "crypto";
-import { desc, lt, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, lt, sql } from "drizzle-orm";
 import type { ProgressCallback } from "../lib/admin-stream";
+import { sendNotificationToUsers } from "../services/notification-dispatcher";
 
 interface NewsResult {
   success: boolean;
@@ -264,6 +265,95 @@ function parseMultiStoryResponse(content: string, citations?: string[]): ParsedS
   return stories;
 }
 
+function normalizeText(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+async function findMentionedPlayers(story: ParsedStory): Promise<
+  Array<{
+    id: string;
+    firstName: string;
+    lastName: string;
+  }>
+> {
+  const text = normalizeText(`${story.headline} ${story.briefing}`);
+  if (!text) {
+    return [];
+  }
+
+  const candidates = await db
+    .select({
+      id: players.id,
+      firstName: players.firstName,
+      lastName: players.lastName,
+    })
+    .from(players)
+    .where(eq(players.sport, story.sport));
+
+  const mentions = candidates.filter((candidate) => {
+    const fullName = normalizeText(`${candidate.firstName} ${candidate.lastName}`);
+    if (fullName.length < 5) {
+      return false;
+    }
+    return text.includes(fullName);
+  });
+
+  return mentions.slice(0, 12);
+}
+
+async function notifyRelevantUsersForStory(story: ParsedStory, contentHash: string) {
+  const mentionedPlayers = await findMentionedPlayers(story);
+  if (mentionedPlayers.length === 0) {
+    return;
+  }
+
+  const playerIds = mentionedPlayers.map((player) => player.id);
+  const [holderRows, watchlistRows] = await Promise.all([
+    db
+      .selectDistinct({ userId: holdings.userId })
+      .from(holdings)
+      .where(
+        and(
+          eq(holdings.assetType, "player"),
+          inArray(holdings.assetId, playerIds),
+          sql`${holdings.quantity}::numeric > 0`,
+        ),
+      ),
+    db
+      .selectDistinct({ userId: watchList.userId })
+      .from(watchList)
+      .where(inArray(watchList.playerId, playerIds)),
+  ]);
+
+  const userIds = Array.from(
+    new Set([...holderRows.map((row) => row.userId), ...watchlistRows.map((row) => row.userId)]),
+  );
+  if (userIds.length === 0) {
+    return;
+  }
+
+  const lead = mentionedPlayers[0];
+  await sendNotificationToUsers({
+    userIds,
+    category: "player_news",
+    title: story.headline.slice(0, 120),
+    body: story.briefing.slice(0, 220),
+    deepLink: "/news",
+    data: {
+      sport: story.sport,
+      leadPlayerId: lead.id,
+      leadPlayerName: `${lead.firstName} ${lead.lastName}`,
+      sourceUrl: story.sourceUrl || "",
+    },
+    dedupeKey: `player_news:${contentHash}`,
+    cooldownMs: 30 * 60 * 1000,
+  });
+}
+
 /**
  * Fetch news from Perplexity and store in database
  */
@@ -374,6 +464,22 @@ export async function fetchNews(progressCallback?: ProgressCallback): Promise<Ne
         contentHash,
         sport: story.sport,
       });
+
+      processedStories.push({
+        headline: story.headline,
+        briefing: story.briefing,
+        sport: story.sport,
+        type: story.type,
+      });
+
+      try {
+        await notifyRelevantUsersForStory(story, contentHash);
+      } catch (notificationError) {
+        console.error(
+          `[News] Failed to send relevant player news notification for "${story.headline}":`,
+          notificationError,
+        );
+      }
 
       console.log(`[News] Stored ${story.type} ${story.sport} news: "${story.headline}"`);
       progressCallback?.({
