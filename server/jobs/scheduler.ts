@@ -42,6 +42,7 @@ import { settleBoosts } from "./settle-boosts";
 import { settleCommunityBoosts } from "./settle-community-boosts";
 import { snapshotSharePayouts } from "./snapshot-share-payouts";
 import { settleSharePayouts } from "./settle-share-payouts";
+import { runNotificationSignalDetectors } from "./notification-signals";
 import { cleanupJobLogs } from "./cleanup-job-logs";
 import { prunePriceHistory } from "./prune-price-history";
 import { updateCollectionsJob } from "./update-collections";
@@ -295,6 +296,12 @@ export class JobScheduler {
         schedule: "9-59/10 * * * *", // Every 10 minutes (offset 9m) - settle community boosts
         enabled: true,
         handler: settleCommunityBoosts,
+      },
+      {
+        name: "notification_signals",
+        schedule: "*/15 * * * *", // Every 15 minutes - compute derived notification categories
+        enabled: true,
+        handler: runNotificationSignalDetectors,
       },
       // Maintenance jobs (lower frequency)
       {
@@ -658,6 +665,7 @@ export class JobScheduler {
       settle_boosts: (callback) => settleBoosts(callback),
       settle_share_payouts: (callback) => settleSharePayouts(callback),
       settle_community_boosts: (callback) => settleCommunityBoosts(callback),
+      notification_signals: (callback) => runNotificationSignalDetectors(callback),
       cleanup_job_logs: (callback) => cleanupJobLogs(callback),
       prune_price_history: (callback) => prunePriceHistory(callback),
       update_collections: async () => {
@@ -899,6 +907,7 @@ export class JobScheduler {
       "settle_boosts",
       "settle_share_payouts",
       "settle_community_boosts",
+      "notification_signals",
       "cleanup_job_logs",
       "prune_price_history",
       "update_collections",

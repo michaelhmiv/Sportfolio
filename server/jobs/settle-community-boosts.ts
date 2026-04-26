@@ -10,6 +10,7 @@
 
 import { storage } from "../storage";
 import { broadcast } from "../websocket";
+import { sendUserNotification } from "../services/notification-dispatcher";
 import type { JobResult } from "./scheduler";
 import type { ProgressCallback } from "../lib/admin-stream";
 
@@ -100,6 +101,22 @@ export async function settleCommunityBoosts(
             totalPayout: boostTotalPayout,
             beneficiaryCount,
           },
+        });
+
+        void sendUserNotification({
+          userId: boost.creatorId,
+          category: "community_boosts",
+          title: "Community Boost Settled",
+          body: "Your community boost finished and has been processed.",
+          deepLink: "/boosts",
+          data: {
+            boostId: boost.id,
+            playerId: boost.playerId,
+            sport: boost.sport,
+          },
+          dedupeKey: `community_boost_settled:${boost.id}`,
+        }).catch((error) => {
+          console.error("[settle_community_boosts] Failed to send push:", error);
         });
 
         boostsSettled++;

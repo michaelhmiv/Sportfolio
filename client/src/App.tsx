@@ -40,6 +40,7 @@ import { Capacitor } from "@capacitor/core";
 import { App as CapacitorApp } from "@capacitor/app";
 import { Browser } from "@capacitor/browser";
 import { getSupabase } from "@/lib/supabase";
+import { PushNotificationProvider } from "@/lib/push-notification-context";
 import {
   getRouteSeoMeta,
   normalizeSiteUrl,
@@ -886,20 +887,22 @@ function App() {
         <SchemaOrg schema={[schemas.organization, schemas.website, schemas.webApplication]} />
         <WebSocketProvider>
           <ConnectionStatus />
-          <NotificationProvider>
-            <TooltipProvider>
-              <ScoutProvider>
-                <SportProvider>
-                  <InjuryProvider>
-                    <NewsNotificationProvider>
-                      <AppContent />
-                    </NewsNotificationProvider>
-                  </InjuryProvider>
-                </SportProvider>
-                <Toaster />
-              </ScoutProvider>
-            </TooltipProvider>
-          </NotificationProvider>
+          <PushNotificationProvider>
+            <NotificationProvider>
+              <TooltipProvider>
+                <ScoutProvider>
+                  <SportProvider>
+                    <InjuryProvider>
+                      <NewsNotificationProvider>
+                        <AppContent />
+                      </NewsNotificationProvider>
+                    </InjuryProvider>
+                  </SportProvider>
+                  <Toaster />
+                </ScoutProvider>
+              </TooltipProvider>
+            </NotificationProvider>
+          </PushNotificationProvider>
         </WebSocketProvider>
       </AuthProvider>
     </QueryClientProvider>

@@ -139,6 +139,60 @@ export const userPhoneLinkTokens = pgTable(
   }),
 );
 
+export const userNotificationSettings = pgTable(
+  "user_notification_settings",
+  {
+    userId: varchar("user_id")
+      .primaryKey()
+      .references(() => users.id, { onDelete: "cascade" }),
+    pushEnabled: boolean("push_enabled").notNull().default(true),
+    categoryPreferences: jsonb("category_preferences")
+      .$type<Record<string, boolean>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    pushEnabledIdx: index("user_notification_settings_push_enabled_idx").on(table.pushEnabled),
+    updatedAtIdx: index("user_notification_settings_updated_at_idx").on(table.updatedAt),
+  }),
+);
+
+export const userPushDevices = pgTable(
+  "user_push_devices",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    platform: text("platform").notNull().default("android"),
+    token: text("token").notNull(),
+    deviceId: varchar("device_id", { length: 128 }),
+    appVersion: varchar("app_version", { length: 64 }),
+    permissionStatus: text("permission_status").notNull().default("unknown"),
+    lastSeenAt: timestamp("last_seen_at").notNull().defaultNow(),
+    enabled: boolean("enabled").notNull().default(true),
+    invalidatedAt: timestamp("invalidated_at"),
+    invalidReason: text("invalid_reason"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    tokenIdx: uniqueIndex("user_push_devices_token_idx").on(table.token),
+    userIdx: index("user_push_devices_user_idx").on(table.userId),
+    userEnabledIdx: index("user_push_devices_user_enabled_idx").on(
+      table.userId,
+      table.enabled,
+      table.invalidatedAt,
+    ),
+    deviceIdx: index("user_push_devices_device_idx").on(table.deviceId),
+    permissionIdx: index("user_push_devices_permission_idx").on(table.permissionStatus),
+  }),
+);
+
 export const discordUserLinks = pgTable(
   "discord_user_links",
   {
@@ -2507,6 +2561,8 @@ export const usersRelations = relations(users, ({ many }) => ({
   agentMessages: many(userAgentMessages),
   collections: many(userCollections),
   milestones: many(userMilestones),
+  notificationSettings: many(userNotificationSettings),
+  pushDevices: many(userPushDevices),
 }));
 
 export const watchlistsRelations = relations(watchlists, ({ one, many }) => ({
@@ -3521,6 +3577,20 @@ export const userMilestonesRelations = relations(userMilestones, ({ one }) => ({
   }),
 }));
 
+export const userNotificationSettingsRelations = relations(userNotificationSettings, ({ one }) => ({
+  user: one(users, {
+    fields: [userNotificationSettings.userId],
+    references: [users.id],
+  }),
+}));
+
+export const userPushDevicesRelations = relations(userPushDevices, ({ one }) => ({
+  user: one(users, {
+    fields: [userPushDevices.userId],
+    references: [users.id],
+  }),
+}));
+
 // Insert schemas for new tables
 export const insertUserCollectionSchema = createInsertSchema(userCollections).omit({
   id: true,
@@ -3536,12 +3606,34 @@ export const insertUserMilestoneSchema = createInsertSchema(userMilestones).omit
   celebrated: true,
 });
 
+export const insertUserNotificationSettingsSchema = createInsertSchema(
+  userNotificationSettings,
+).omit({
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertUserPushDeviceSchema = createInsertSchema(userPushDevices).omit({
+  id: true,
+  lastSeenAt: true,
+  invalidatedAt: true,
+  invalidReason: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Types for new tables
 export type UserCollection = typeof userCollections.$inferSelect;
 export type InsertUserCollection = z.infer<typeof insertUserCollectionSchema>;
 
 export type UserMilestone = typeof userMilestones.$inferSelect;
 export type InsertUserMilestone = z.infer<typeof insertUserMilestoneSchema>;
+
+export type UserNotificationSettings = typeof userNotificationSettings.$inferSelect;
+export type InsertUserNotificationSettings = z.infer<typeof insertUserNotificationSettingsSchema>;
+
+export type UserPushDevice = typeof userPushDevices.$inferSelect;
+export type InsertUserPushDevice = z.infer<typeof insertUserPushDeviceSchema>;
 
 // AMM Pool types
 export type PlayerPool = typeof playerPools.$inferSelect;

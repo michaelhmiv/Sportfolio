@@ -34,6 +34,7 @@ import {
 } from "recharts";
 import type { Player } from "@shared/schema";
 import { CliAccessCard } from "@/components/cli-access-card";
+import { NotificationSettingsCard } from "@/components/notification-settings-card";
 import { PlayerName } from "@/components/player-name";
 import { SmsAccessCard } from "@/components/sms-access-card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -970,6 +971,7 @@ export default function UserProfile() {
           </div>
 
           <div className="space-y-4">
+            {isOwnProfile && <NotificationSettingsCard />}
             {isOwnProfile && <SmsAccessCard />}
             {isOwnProfile && <CliAccessCard />}
             {isOwnProfile && (

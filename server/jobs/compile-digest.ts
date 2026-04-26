@@ -29,6 +29,8 @@ import {
 import { desc, eq, gte, and, sql, lte, lt, or } from "drizzle-orm";
 import type { ProgressCallback } from "../lib/admin-stream";
 import { getETDayBoundaries, getGameDay, getTodayET } from "../lib/time";
+import { sendNotificationToUsers, sendUserNotification } from "../services/notification-dispatcher";
+import { getAllUsersEligibleForCategory } from "../services/notification-settings";
 
 export interface DigestSection {
   title: string;
@@ -732,11 +734,8 @@ export async function compileAllDigests(progressCallback?: ProgressCallback): Pr
     });
     console.log("[Digest] Starting daily digest compilation...");
 
-    // Get all users with notifications enabled
-    const activeUsers = await db
-      .select({ id: users.id })
-      .from(users)
-      .where(and(eq(users.isBot, false), eq(users.newsNotificationsEnabled, true)));
+    const eligibleUserIds = await getAllUsersEligibleForCategory("daily_digest");
+    const activeUsers = eligibleUserIds.map((id) => ({ id }));
 
     console.log(`[Digest] Compiling digests for ${activeUsers.length} users`);
     progressCallback?.({
@@ -747,14 +746,60 @@ export async function compileAllDigests(progressCallback?: ProgressCallback): Pr
 
     let processed = 0;
     let errors = 0;
+    const processedUserIds: string[] = [];
 
     for (const user of activeUsers) {
       try {
         await compileUserDigest(user.id);
         processed++;
+        processedUserIds.push(user.id);
       } catch (error: any) {
         console.error(`[Digest] Error for user ${user.id}:`, error.message);
         errors++;
+      }
+    }
+
+    if (processedUserIds.length > 0) {
+      const digestDate = getTodayET();
+
+      try {
+        await sendNotificationToUsers({
+          userIds: processedUserIds,
+          category: "daily_digest",
+          title: "Your Daily Digest Is Ready",
+          body: "Fresh portfolio, scout, boost, and market highlights are available now.",
+          deepLink: "/news",
+          dedupeKey: `daily_digest:${digestDate}`,
+          cooldownMs: 60 * 60 * 1000,
+        });
+      } catch (broadcastError) {
+        console.error("[Digest] Failed to broadcast digest push notices:", broadcastError);
+      }
+
+      const failedUserIds = activeUsers
+        .map((user) => user.id)
+        .filter((id) => !processedUserIds.includes(id));
+      if (failedUserIds.length > 0) {
+        await Promise.all(
+          failedUserIds.map(async (userId) => {
+            try {
+              await sendUserNotification({
+                userId,
+                category: "daily_digest",
+                title: "Digest Delayed",
+                body: "We hit an issue compiling today's digest and will retry shortly.",
+                deepLink: "/news",
+                dedupeKey: `daily_digest_error:${digestDate}`,
+                cooldownMs: 2 * 60 * 60 * 1000,
+              });
+            } catch (notifyError) {
+              console.error(
+                `[Digest] Failed to send digest failure notice for user ${userId}:`,
+                notifyError,
+              );
+            }
+          }),
+        );
       }
     }
 

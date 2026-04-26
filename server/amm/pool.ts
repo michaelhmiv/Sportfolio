@@ -34,6 +34,10 @@ import {
   lpTransactions,
 } from "@shared/schema";
 import { broadcast } from "../websocket";
+import {
+  sendCategoryBroadcastNotification,
+  sendUserNotification,
+} from "../services/notification-dispatcher";
 
 // Fee structure - easily adjustable
 const POOL_FEE_PERCENT = 0.01; // 1% to pool (benefits LPs)
@@ -53,6 +57,18 @@ const MIN_HOLDING_THRESHOLD = 0.0001;
 
 // Market Maker identifier is still used for LP boost exclusion.
 const MARKET_MAKER_ID = "market_maker";
+
+function fireUserNotification(input: Parameters<typeof sendUserNotification>[0]) {
+  void sendUserNotification(input).catch((error) => {
+    console.error("[AMM] Push notification error:", error);
+  });
+}
+
+function fireBroadcastNotification(input: Parameters<typeof sendCategoryBroadcastNotification>[0]) {
+  void sendCategoryBroadcastNotification(input).catch((error) => {
+    console.error("[AMM] Broadcast notification error:", error);
+  });
+}
 
 const poolSelect = {
   playerId: playerPools.playerId,
@@ -587,7 +603,38 @@ export async function executeBuy(
           tradeValue: quote.totalCost,
           tradeType: "buy",
         });
+
+        fireBroadcastNotification({
+          category: "whale_alerts",
+          title: "Whale Alert",
+          body: `${trader?.username || "A trader"} made a large buy on ${player?.firstName || ""} ${player?.lastName || ""}.`,
+          deepLink: `/player/${playerId}`,
+          data: {
+            playerId,
+            tradeType: "buy",
+            tradeValue: quote.totalCost.toFixed(2),
+          },
+          dedupeKey: `whale:${trade.id}`,
+          cooldownMs: 60_000,
+        });
       }
+
+      fireUserNotification({
+        userId,
+        category: "trade_execution",
+        title: "Buy Order Filled",
+        body: `Bought ${sharesOutRounded.toFixed(2)} shares.`,
+        deepLink: `/player/${playerId}`,
+        data: {
+          playerId,
+          tradeId: trade.id,
+          side: "buy",
+          shares: sharesOutRounded.toFixed(4),
+          totalValue: quote.totalCost.toFixed(2),
+          pricePerShare: quote.effectivePrice.toFixed(4),
+        },
+        dedupeKey: `trade:${trade.id}`,
+      });
 
       return {
         success: true,
@@ -800,7 +847,38 @@ export async function executeSell(
           tradeValue: quote.sbOut,
           tradeType: "sell",
         });
+
+        fireBroadcastNotification({
+          category: "whale_alerts",
+          title: "Whale Alert",
+          body: `${trader?.username || "A trader"} made a large sell on ${player?.firstName || ""} ${player?.lastName || ""}.`,
+          deepLink: `/player/${playerId}`,
+          data: {
+            playerId,
+            tradeType: "sell",
+            tradeValue: quote.sbOut.toFixed(2),
+          },
+          dedupeKey: `whale:${trade.id}`,
+          cooldownMs: 60_000,
+        });
       }
+
+      fireUserNotification({
+        userId,
+        category: "trade_execution",
+        title: "Sell Order Filled",
+        body: `Sold ${sharesAmount.toFixed(2)} shares.`,
+        deepLink: `/player/${playerId}`,
+        data: {
+          playerId,
+          tradeId: trade.id,
+          side: "sell",
+          shares: sharesAmount.toFixed(4),
+          totalValue: quote.sbOut.toFixed(2),
+          pricePerShare: quote.effectivePrice.toFixed(4),
+        },
+        dedupeKey: `trade:${trade.id}`,
+      });
 
       return {
         success: true,
@@ -1323,6 +1401,22 @@ export async function zapAddLiquiditySharesOnly(
       });
       broadcast({ type: "marketActivity" });
 
+      fireUserNotification({
+        userId,
+        category: "lp_liquidity",
+        title: "Liquidity Added",
+        body: `Added liquidity and minted ${lpSharesToMint.toFixed(2)} LP shares.`,
+        deepLink: `/player/${playerId}`,
+        data: {
+          playerId,
+          lpSharesMinted: lpSharesToMint.toFixed(4),
+          sharesDeposited: sharesDeposited.toFixed(4),
+          playMoneyDeposited: playMoneyDeposited.toFixed(2),
+          source: "zap_shares_only",
+        },
+        dedupeKey: `lp_add:${userId}:${playerId}:${lpSharesToMint.toFixed(4)}`,
+      });
+
       return {
         success: true,
         sharesIn,
@@ -1545,6 +1639,22 @@ export async function zapAddLiquiditySbOnly(
       });
       broadcast({ type: "portfolio", userId, balance: newBalance.toFixed(2) });
       broadcast({ type: "marketActivity" });
+
+      fireUserNotification({
+        userId,
+        category: "lp_liquidity",
+        title: "Liquidity Added",
+        body: `Added liquidity and minted ${lpSharesToMint.toFixed(2)} LP shares.`,
+        deepLink: `/player/${playerId}`,
+        data: {
+          playerId,
+          lpSharesMinted: lpSharesToMint.toFixed(4),
+          sharesDeposited: sharesDeposited.toFixed(4),
+          playMoneyDeposited: playMoneyDeposited.toFixed(2),
+          source: "zap_sb_only",
+        },
+        dedupeKey: `lp_add:${userId}:${playerId}:${lpSharesToMint.toFixed(4)}`,
+      });
 
       return {
         success: true,
@@ -1814,6 +1924,22 @@ export async function addLiquidity(
         ? 1
         : lpSharesToMint / (poolData.lpSharesTotal + lpSharesToMint);
 
+      fireUserNotification({
+        userId,
+        category: "lp_liquidity",
+        title: "Liquidity Added",
+        body: `Minted ${lpSharesToMint.toFixed(2)} LP shares.`,
+        deepLink: `/player/${playerId}`,
+        data: {
+          playerId,
+          lpSharesMinted: lpSharesToMint.toFixed(4),
+          sharesDeposited: sharesToDeposit.toFixed(4),
+          playMoneyDeposited: playMoneyToDeposit.toFixed(2),
+          source: "add_liquidity",
+        },
+        dedupeKey: `lp_add:${userId}:${playerId}:${lpSharesToMint.toFixed(4)}`,
+      });
+
       return {
         success: true,
         lpSharesMinted: lpSharesToMint,
@@ -1980,6 +2106,22 @@ export async function removeLiquidity(
         poolPlayMoneyBefore: poolData.playMoney.toFixed(2),
         poolLpSharesTotalBefore: poolData.lpSharesTotal.toFixed(2),
         timestamp: new Date(),
+      });
+
+      fireUserNotification({
+        userId,
+        category: "lp_liquidity",
+        title: "Liquidity Removed",
+        body: `Removed ${lpSharesToRemove.toFixed(2)} LP shares.`,
+        deepLink: `/player/${playerId}`,
+        data: {
+          playerId,
+          lpSharesBurned: lpSharesToRemove.toFixed(4),
+          sharesReceived: sharesToReturn.toFixed(4),
+          playMoneyReceived: playMoneyToReturn.toFixed(2),
+          source: "remove_liquidity",
+        },
+        dedupeKey: `lp_remove:${userId}:${playerId}:${lpSharesToRemove.toFixed(4)}`,
       });
 
       return {
@@ -2284,6 +2426,22 @@ export async function addLiquidityOptimal(
       const ownershipPercentage = !poolData
         ? 1
         : lpSharesToMint / (poolData.lpSharesTotal + lpSharesToMint);
+
+      fireUserNotification({
+        userId,
+        category: "lp_liquidity",
+        title: "Liquidity Added",
+        body: `Minted ${lpSharesToMint.toFixed(2)} LP shares.`,
+        deepLink: `/player/${playerId}`,
+        data: {
+          playerId,
+          lpSharesMinted: lpSharesToMint.toFixed(4),
+          sharesDeposited: sharesToDeposit.toFixed(4),
+          playMoneyDeposited: playMoneyToDeposit.toFixed(2),
+          source: "add_liquidity_optimal",
+        },
+        dedupeKey: `lp_add:${userId}:${playerId}:${lpSharesToMint.toFixed(4)}`,
+      });
 
       return {
         success: true,

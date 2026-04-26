@@ -18,6 +18,7 @@ import { db } from "../db";
 import { sql, eq, and, lte, inArray } from "drizzle-orm";
 import { users, scoutAssignments, scoutHistory, players } from "@shared/schema";
 import { broadcast, broadcastToUser } from "../websocket";
+import { sendUserNotification } from "../services/notification-dispatcher";
 import type { JobResult } from "./scheduler";
 
 // In-memory ceremony cache (30 minute TTL)
@@ -316,6 +317,22 @@ export async function distributeScoutShares(): Promise<JobResult> {
       broadcastToUser(userId, {
         type: "scout_ready",
         data: ceremonyData,
+      });
+
+      void sendUserNotification({
+        userId,
+        category: "scout_lifecycle",
+        title: "Scout Distribution Ready",
+        body: `You earned ${totalShares.toFixed(2)} shares across ${distributions.length} players.`,
+        deepLink: "/portfolio",
+        data: {
+          totalShares: totalShares.toFixed(2),
+          playerCount: String(distributions.length),
+          highlightPlayerId: highlight?.playerId || "",
+        },
+        dedupeKey: `scout_ready:${hourEnd.toISOString()}`,
+      }).catch((error) => {
+        console.error("[scout_distribution] Failed to send push notification:", error);
       });
 
       console.log(
