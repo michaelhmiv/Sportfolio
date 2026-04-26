@@ -17,12 +17,12 @@ searchKeywords: access,how do i access sportfolio,mcp,model context protocol,cli
 
 Sportfolio has four documented access paths:
 
-| Path | Best for |
-|---|---|
+| Path        | Best for                                            |
+| ----------- | --------------------------------------------------- |
 | **Web app** | The primary experience — full UI, real-time updates |
-| **Mobile** | Responsive web; bottom nav optimized for touch |
-| **CLI** | Terminal workflows, scripting, fast doc lookup |
-| **MCP** | Connecting Sportfolio to external MCP-aware clients |
+| **Mobile**  | Responsive web; bottom nav optimized for touch      |
+| **CLI**     | Terminal workflows, scripting, fast doc lookup      |
+| **MCP**     | Connecting Sportfolio to external MCP-aware clients |
 
 ---
 
@@ -31,10 +31,12 @@ Sportfolio has four documented access paths:
 The web app is the primary surface. It works on all modern browsers and is fully responsive on mobile.
 
 **Mobile navigation:**
+
 - Bottom bar for main pages (Agent, Portfolio, Boosts, etc.)
 - Top-bar help icon links directly to the wiki
 
 **Key starting points:**
+
 - `/` — Dashboard (public, no login required)
 - `/wiki` — This handbook
 - `/agent` — In-app assistant

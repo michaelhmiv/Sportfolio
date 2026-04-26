@@ -28,6 +28,14 @@ export default function AuthError() {
   // Map error codes to user-friendly messages
   const getErrorMessage = () => {
     switch (error) {
+      case "link_expired":
+        return {
+          title: "Link Expired",
+          message: "This sign-in link has already been used or has expired.",
+          suggestion: "Please sign in again to get a fresh link.",
+          canAutoRetry: false,
+          isMobileIssue: false,
+        };
       case "access_denied":
         return {
           title: "Access Denied",

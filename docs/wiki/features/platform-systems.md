@@ -24,6 +24,7 @@ Beyond core trading, scouting, and boosting, Sportfolio includes several platfor
 The dashboard is your daily operating view — not just a welcome page.
 
 **What it combines:**
+
 - Live or upcoming slate context and game windows
 - Market activity and scanner widgets
 - Date navigation (look back and forward around nearby slates)
@@ -53,6 +54,7 @@ These are attention tools — they help you decide where to look, not what to bu
 The News Hub adds narrative context to your market decisions.
 
 **Features:**
+
 - General sports news with source links
 - Recency context for each story
 - A personalized digest for authenticated users (based on holdings and watchlists)
@@ -68,6 +70,7 @@ See [Watchlists and News](/wiki/features/watchlists-and-news) for full details.
 Watchlists let you track players before you own them (or without owning them at all).
 
 **You can:**
+
 - Create multiple named watchlists
 - Rename or delete them
 - Add and remove players
@@ -84,6 +87,7 @@ See [Watchlists and News](/wiki/features/watchlists-and-news) for full details.
 Analytics is the macro view of the whole market ecosystem.
 
 **Focus areas:**
+
 - Market health over time
 - Time-series price and activity charts
 - Share issuance and burn trends
@@ -102,10 +106,12 @@ See [Analytics](/wiki/features/analytics) for full details.
 Premium is an account-level entitlement, not a separate game mode.
 
 **Primary benefits:**
+
 - Scout capacity increases from 5 to 10
 - Access to premium-only windows and features
 
 **How it works:**
+
 - Buy premium shares on the Premium page
 - Redeem them to activate a premium access window
 - Premium shares are a separate asset type — not player shares
@@ -117,6 +123,7 @@ See [Premium](/wiki/features/premium) for full details.
 ## Profiles and Social Proof
 
 Public user profiles and leaderboards create a visible social layer:
+
 - Inspect anyone's public identity and recent performance
 - Compare rankings across metrics
 - See who's performing well and what they're holding
@@ -129,13 +136,13 @@ Profiles make account outcomes visible and competitive.
 
 Sportfolio is a live product. Updates are WebSocket-driven and happen automatically:
 
-| Event | What updates |
-|---|---|
+| Event               | What updates        |
+| ------------------- | ------------------- |
 | Trade or settlement | Portfolio refreshes |
-| Scout distribution | Holdings update |
-| Boost settlement | Payout appears |
-| Whale activity | Alert pushed |
-| Trending players | Badges update |
+| Scout distribution  | Holdings update     |
+| Boost settlement    | Payout appears      |
+| Whale activity      | Alert pushed        |
+| Trending players    | Badges update       |
 
 You should treat most pages as live operational surfaces, not static reports.
 
@@ -144,6 +151,7 @@ You should treat most pages as live operational surfaces, not static reports.
 ## Cross-Surface Access
 
 The same Sportfolio account and economy are accessible from:
+
 - **Web app** — primary experience
 - **Mobile** — responsive, bottom-nav optimized
 - **CLI** — terminal access via API token

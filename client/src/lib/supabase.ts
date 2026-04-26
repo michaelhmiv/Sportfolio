@@ -1,4 +1,5 @@
-import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import { Capacitor } from "@capacitor/core";
+import { createClient, type Session, SupabaseClient } from "@supabase/supabase-js";
 
 let supabaseInstance: SupabaseClient | null = null;
 let initializationPromise: Promise<SupabaseClient> | null = null;
@@ -7,6 +8,7 @@ const IS_DEV = import.meta.env.DEV;
 const CONFIG_CACHE_KEY = "supabase_config_v2";
 const LEGACY_CONFIG_CACHE_KEY = "supabase_config";
 const CONFIG_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const NATIVE_SESSION_REFRESH_BUFFER_MS = 60 * 1000;
 // IMPORTANT: Supabase client defaults to a specific storage key; using a custom key can break
 // session persistence across contexts (e.g., installed PWA vs browser tab) and across upgrades.
 // Prefer the default key unless there's a strong reason to customize.
@@ -164,6 +166,14 @@ function createSupabaseFromConfig(config: SupabaseConfigResponse): SupabaseClien
   });
 }
 
+function sessionNeedsRefresh(session: Pick<Session, "expires_at">): boolean {
+  if (!session.expires_at) {
+    return true;
+  }
+
+  return session.expires_at * 1000 <= Date.now() + NATIVE_SESSION_REFRESH_BUFFER_MS;
+}
+
 async function fetchSupabaseConfig(): Promise<SupabaseConfigResponse> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => {
@@ -260,6 +270,54 @@ export function getSupabase(): Promise<SupabaseClient> {
     });
   }
   return initializationPromise;
+}
+
+export async function getAuthSession(client?: SupabaseClient): Promise<Session | null> {
+  const supabase = client ?? (await getSupabase());
+  const {
+    data: { session },
+    error,
+  } = await supabase.auth.getSession();
+
+  if (error) {
+    throw error;
+  }
+
+  if (!Capacitor.isNativePlatform() || !session?.refresh_token || !sessionNeedsRefresh(session)) {
+    return session;
+  }
+
+  const {
+    data: { session: refreshedSession },
+    error: refreshError,
+  } = await supabase.auth.refreshSession({ refresh_token: session.refresh_token });
+
+  if (refreshError) {
+    debugLog("SESSION", "Native refresh failed; falling back to stored session", {
+      error: refreshError.message,
+    });
+    return session;
+  }
+
+  return refreshedSession ?? session;
+}
+
+export async function updateNativeAuthRefreshState(
+  isActive: boolean,
+  client?: SupabaseClient,
+): Promise<void> {
+  if (!Capacitor.isNativePlatform()) {
+    return;
+  }
+
+  const supabase = client ?? (await getSupabase());
+
+  if (isActive) {
+    await supabase.auth.startAutoRefresh();
+    return;
+  }
+
+  await supabase.auth.stopAutoRefresh();
 }
 
 export function resetSupabase() {

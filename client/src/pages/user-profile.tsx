@@ -1,7 +1,7 @@
 ﻿import { formatDistanceToNow } from "date-fns";
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Link, useParams } from "wouter";
+import { Link, useLocation, useParams } from "wouter";
 import {
   Activity,
   ArrowDownRight,
@@ -15,6 +15,7 @@ import {
   Edit2,
   LineChart as LineChartIcon,
   Loader2,
+  LogOut,
   Moon,
   Settings,
   Trash2,
@@ -35,6 +36,7 @@ import {
 import type { Player } from "@shared/schema";
 import { CliAccessCard } from "@/components/cli-access-card";
 import { NotificationSettingsCard } from "@/components/notification-settings-card";
+import { MobilePushCard } from "@/components/mobile-push-card";
 import { PlayerName } from "@/components/player-name";
 import { SmsAccessCard } from "@/components/sms-access-card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -306,9 +308,10 @@ function SortIcon({
 }
 
 export default function UserProfile() {
+  const [, navigate] = useLocation();
   const params = useParams();
   const userId = params.id;
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, logout } = useAuth();
   const { toast } = useToast();
   const { subscribe, connectionState, isConnected } = useWebSocket();
 
@@ -972,6 +975,7 @@ export default function UserProfile() {
 
           <div className="space-y-4">
             {isOwnProfile && <NotificationSettingsCard />}
+            {isOwnProfile && <MobilePushCard />}
             {isOwnProfile && <SmsAccessCard />}
             {isOwnProfile && <CliAccessCard />}
             {isOwnProfile && (
@@ -982,6 +986,31 @@ export default function UserProfile() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
+                  <Button
+                    variant="destructive"
+                    className="w-full gap-2"
+                    onClick={async () => {
+                      const result = await logout();
+
+                      if (!result.success) {
+                        toast({
+                          title: "Logout failed",
+                          description: result.error || "Could not log out right now.",
+                          variant: "destructive",
+                        });
+                        return;
+                      }
+
+                      toast({
+                        title: "Logged out",
+                        description: "You have been signed out.",
+                      });
+                      navigate("/");
+                    }}
+                  >
+                    <LogOut className="h-4 w-4" />
+                    Log Out
+                  </Button>
                   <p className={PROFILE_COMPACT_TYPE.body}>
                     Need to close your account? Start the deletion request from the dedicated page.
                   </p>

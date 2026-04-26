@@ -18,6 +18,7 @@ searchKeywords: stack shares,stacked shares,multiplier,boosts,daily boosts,commu
 The Boosts system is where you convert accumulated inventory into competitive payouts.
 
 It has two parts:
+
 1. **Stack Shares** — upgrade raw shares into high-multiplier inventory
 2. **Daily Boosts** — deploy one share per slot around game windows to earn payouts
 
@@ -32,11 +33,13 @@ It has two parts:
 Stack Shares converts raw player shares into a single stacked share with a higher multiplier.
 
 **Current rules:**
+
 - Minimum 4 raw shares to stack
 - Input must be an even number
 - `N` raw shares → 1 stacked share at `N/2` multiplier
 
 **Example:**
+
 - `10` raw shares → `1` stacked share at `5×`
 - That position now contributes `5` effective shares to value and payout math
 - The other `5` effective shares are burned as the cost of stacking
@@ -45,12 +48,12 @@ Stack Shares converts raw player shares into a single stacked share with a highe
 
 ### Raw vs. Stacked Shares
 
-| | Raw share | Stacked share |
-|---|---|---|
-| Multiplier | 1× | 2× or higher |
-| Tradeable | ✅ Yes | ❌ No |
-| Boost eligible | ✅ Yes | ✅ Yes (preferred) |
-| Earns game payouts | Only via boost | ✅ Yes |
+|                    | Raw share      | Stacked share      |
+| ------------------ | -------------- | ------------------ |
+| Multiplier         | 1×             | 2× or higher       |
+| Tradeable          | ✅ Yes         | ❌ No              |
+| Boost eligible     | ✅ Yes         | ✅ Yes (preferred) |
+| Earns game payouts | Only via boost | ✅ Yes             |
 
 ### Lock Checks
 
@@ -64,18 +67,19 @@ Stacking only consumes **unlocked** shares. Locked shares (reserved for active b
 
 Each day you get four boost slots:
 
-| Slot | Base multiplier |
-|---|---|
-| Slot 1 | 5× |
-| Slot 2 | 4× |
-| Slot 3 | 3× |
-| Slot 4 | 2× |
+| Slot   | Base multiplier |
+| ------ | --------------- |
+| Slot 1 | 5×              |
+| Slot 2 | 4×              |
+| Slot 3 | 3×              |
+| Slot 4 | 2×              |
 
 Each slot burns **exactly one share.** You are choosing the single most valuable share for each slot — not combining multiple shares.
 
 ### Eligibility Rules
 
 A share is boost-eligible if:
+
 - It's in your holdings (raw or stacked)
 - It's not currently locked
 - The player has a game window relevant to that day's slate
@@ -103,6 +107,7 @@ payout = max(0, multiplier × fantasyPoints × effectiveMultiplier)
 ```
 
 Where:
+
 - `multiplier` = stored value of the burned share (e.g., 5 for a 5× stacked share)
 - `fantasyPoints` = player's real-game fantasy output
 - `effectiveMultiplier` = slot tier + number of active community boosts
@@ -116,14 +121,17 @@ The `max(0, ...)` floor ensures bad or empty fantasy output can't create a negat
 Community boosts add `+1` to the effective multiplier for any daily boost on that player and day.
 
 **How to create one:**
+
 - Spend one community share
 - Boost is recorded for the specific player and date
 
 **Rules:**
+
 - Only one active community boost can exist per player per day
 - Community boosts don't replace your daily boost — they make your daily boost more valuable
 
 **Example:**
+
 - Slot 1 (5×) + 2 active community boosts → effective multiplier = 7×
 
 ---
@@ -152,6 +160,7 @@ This is separate from the daily boost settlement. It runs automatically for game
 ## Strategic Checklist
 
 Before assigning a boost slot, ask:
+
 - What's the expected fantasy output for this player tonight?
 - What's the multiplier of the share I'd burn?
 - Is a community boost active for this player?

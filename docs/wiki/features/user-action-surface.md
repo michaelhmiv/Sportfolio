@@ -24,6 +24,7 @@ A single reference for what actions are available, which surface they live on, a
 ## Web App Actions
 
 ### Market and Liquidity
+
 - Browse player pools and prices
 - Preview AMM trade quotes
 - Execute buy and sell trades
@@ -31,18 +32,21 @@ A single reference for what actions are available, which surface they live on, a
 - View LP history
 
 ### Portfolio and Inventory
+
 - View holdings, net worth, and activity
 - Manage watchlists
 - View and manage scouts
 - Stack eligible shares into multiplier inventory
 
 ### Boost and Slate Flows
+
 - View daily boost eligibility
 - Assign and remove daily boost slots
 - View community boost eligibility
 - Create community boosts (when eligible inventory exists)
 
 ### Account and Access
+
 - Update profile username and avatar
 - Generate and revoke CLI API tokens
 - Manage agent profile settings
@@ -54,6 +58,7 @@ A single reference for what actions are available, which surface they live on, a
 The CLI uses the same backend rules as the web. It does **not** bypass confirmation requirements.
 
 ### Immediate Actions
+
 - `docs browse`, `search`, `open` — wiki navigation
 - `auth whoami`, `logout` — auth status
 - `portfolio summary` — account snapshot
@@ -63,6 +68,7 @@ The CLI uses the same backend rules as the web. It does **not** bypass confirmat
 - `resources list`, `resources read` — shared resources
 
 ### Confirmation-Gated (staged first)
+
 - `actions buy` / `actions sell` — trade staging
 - `actions watchlist add` / `remove` — watchlist staging
 - `actions community-boost` — community boost staging
@@ -77,6 +83,7 @@ For full syntax, see [CLI Command Reference](/wiki/cli/command-reference).
 The public `/mcp` endpoint shares the same capability registry as the CLI, designed for MCP-aware clients.
 
 ### Included
+
 - All reads across portfolio, players, pools, boosts, scouts, watchlists, schedules, docs, news, and threads
 - Immediate account actions: profile updates, token management, watchlist CRUD, schedule CRUD, premium redeem
 - Staged gameplay actions: trades, LP flows, stack shares, boosts, scouts, community boosts
@@ -84,6 +91,7 @@ The public `/mcp` endpoint shares the same capability registry as the CLI, desig
 - Public docs resources and prompts
 
 ### Excluded
+
 - Billing, funding, checkout, and external purchase flows
 - Admin and internal-only routes
 

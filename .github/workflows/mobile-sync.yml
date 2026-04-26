@@ -12,6 +12,8 @@ permissions:
 jobs:
   build-and-sync:
     runs-on: ubuntu-latest
+    env:
+      CAP_SERVER_URL: https://www.sportfolio.market
 
     steps:
       - name: Checkout code

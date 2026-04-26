@@ -209,9 +209,22 @@
 
   body {
     @apply font-sans antialiased bg-background text-foreground tracking-tight;
+    /* Prevent the native elastic overscroll bounce in the Capacitor WebView.
+     * Without this, fast scrolls produce the browser's rubber-band effect
+     * which conflicts with the pull-to-refresh hook and looks like a web page. */
+    overscroll-behavior: contain;
     transition:
       background-color 0.3s ease-in-out,
       color 0.2s ease-in-out;
+  }
+
+  /* Inputs: enforce 16px minimum to prevent WebView auto-zoom on focus.
+   * Any value below 16px triggers an automatic zoom on iOS and some Android
+   * WebViews, breaking the layout until the user dismisses the keyboard. */
+  input,
+  textarea,
+  select {
+    font-size: max(16px, 1rem);
   }
 
   /* Smooth theme transitions for key surfaces */
@@ -231,6 +244,20 @@
       background-color 0.3s ease-in-out,
       border-color 0.25s ease-in-out,
       color 0.2s ease-in-out;
+  }
+
+  /* Respect the OS "Reduce Motion" accessibility setting.
+   * Disables all CSS transitions and animations when the user has opted in.
+   * JS-side animations (Framer Motion) are handled via useReducedMotion(). */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }
 
@@ -802,4 +829,86 @@
   .agent-markdown a:hover {
     text-decoration-color: rgb(147 197 253 / 0.6);
   }
+}
+
+/* =====================================================
+   MOBILE / NATIVE APP ENHANCEMENTS
+   ===================================================== */
+
+/**
+ * Safe area insets for edge-to-edge Android/iOS layouts.
+ * Components that live near the edges reference these utilities.
+ */
+@layer utilities {
+  .pt-safe {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .pl-safe {
+    padding-left: env(safe-area-inset-left);
+  }
+
+  .pr-safe {
+    padding-right: env(safe-area-inset-right);
+  }
+
+  .mt-safe {
+    margin-top: env(safe-area-inset-top);
+  }
+
+  .mb-safe {
+    margin-bottom: env(safe-area-inset-bottom);
+  }
+
+  /** Minimum touch target — 48×48 dp per Material / HIG guidelines */
+  .touch-target {
+    min-height: 48px;
+    min-width: 48px;
+  }
+
+  /**
+   * Suppress the 300 ms tap delay and long-press context menu on
+   * interactive elements inside the WebView.
+   */
+  .touch-manipulation {
+    touch-action: manipulation;
+  }
+}
+
+/**
+ * Global touch improvements for the native WebView:
+ * 1. Eliminate 300 ms tap delay on all clickable elements.
+ * 2. Prevent the browser context menu on long-press for non-text elements.
+ * 3. Disable text selection on UI chrome (nav, buttons, cards) while
+ *    keeping it enabled on actual content (inputs, articles).
+ */
+button,
+a,
+[role="button"],
+[role="tab"],
+[role="menuitem"],
+label {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+img,
+svg,
+video {
+  -webkit-user-callout: none;
+  user-select: none;
+}
+
+nav,
+header,
+footer,
+[data-radix-collection-item],
+[class*="BottomNav"],
+[class*="bottom-nav"] {
+  user-select: none;
+  -webkit-user-select: none;
 }

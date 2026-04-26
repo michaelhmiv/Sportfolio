@@ -1,4 +1,4 @@
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useEffect, useState, useRef } from "react";
 import { X, Binoculars } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -30,6 +30,8 @@ interface ScoutCeremonyOverlayProps {
   onClose: () => void;
   onComplete?: () => void;
 }
+
+const IS_DEV = import.meta.env.DEV;
 
 // Data particle component
 function DataParticle({
@@ -71,6 +73,7 @@ function ScoutPlayerCard({
   index: number;
   isHighlight: boolean;
 }) {
+  const prefersReducedMotion = useReducedMotion();
   const efficiencyColor =
     distribution.efficiency < 20
       ? "#F59E0B" // Amber
@@ -80,14 +83,22 @@ function ScoutPlayerCard({
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20, scale: 0.9 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{
-        type: "spring",
-        stiffness: 300,
-        damping: 25,
-        delay: index * 0.05,
+      initial={{
+        opacity: 0,
+        y: prefersReducedMotion ? 0 : 20,
+        scale: prefersReducedMotion ? 1 : 0.9,
       }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={
+        prefersReducedMotion
+          ? { duration: 0 }
+          : {
+              type: "spring",
+              stiffness: 300,
+              damping: 25,
+              delay: index * 0.05,
+            }
+      }
       className={cn(
         "relative rounded-sm border bg-card p-2 sm:p-3",
         isHighlight && "ring-2 ring-emerald-500/50",
@@ -120,7 +131,7 @@ function ScoutPlayerCard({
         className="mt-1 sm:mt-2 text-center"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ delay: 0.3 + index * 0.05 }}
+        transition={{ delay: prefersReducedMotion ? 0 : 0.3 + index * 0.05 }}
       >
         <span className="text-base sm:text-lg font-bold text-emerald-500">
           +{distribution.sharesEarned.toFixed(2)}
@@ -182,6 +193,7 @@ export function ScoutCeremonyOverlay({
   const [phase, setPhase] = useState<"intro" | "flow" | "celebration" | "outro">("intro");
   const [showSkip, setShowSkip] = useState(false);
   const startTimeRef = useRef<number>(0);
+  const prefersReducedMotion = useReducedMotion();
 
   useEffect(() => {
     if (isOpen && data) {
@@ -212,7 +224,7 @@ export function ScoutCeremonyOverlay({
   const handleSkip = () => {
     const duration = Date.now() - startTimeRef.current;
     // Track analytics here if needed
-    console.log(`[ScoutCeremony] Skipped after ${duration}ms`);
+    if (IS_DEV) console.log(`[ScoutCeremony] Skipped after ${duration}ms`);
     onClose();
   };
 
@@ -228,7 +240,7 @@ export function ScoutCeremonyOverlay({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        transition={{ duration: 0.3 }}
+        transition={{ duration: prefersReducedMotion ? 0 : 0.3 }}
         className="fixed inset-0 z-50 flex items-center justify-center bg-background/95 backdrop-blur-sm overflow-y-auto"
         onClick={handleSkip}
       >
@@ -237,6 +249,7 @@ export function ScoutCeremonyOverlay({
           <motion.button
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
+            transition={{ duration: prefersReducedMotion ? 0 : 0.2 }}
             className="absolute top-4 right-4 p-2 text-muted-foreground hover:text-foreground transition-colors z-10"
             onClick={(e) => {
               e.stopPropagation();
@@ -250,9 +263,9 @@ export function ScoutCeremonyOverlay({
         <div className="w-full max-w-2xl mx-4 py-8" onClick={(e) => e.stopPropagation()}>
           {/* Header */}
           <motion.div
-            initial={{ opacity: 0, y: -20 }}
+            initial={{ opacity: 0, y: prefersReducedMotion ? 0 : -20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
+            transition={{ duration: prefersReducedMotion ? 0 : 0.3 }}
             className="text-center mb-6"
           >
             <div className="inline-flex items-center gap-2 rounded-sm border border-amber-500/20 bg-amber-500/10 px-4 py-2">
@@ -287,12 +300,16 @@ export function ScoutCeremonyOverlay({
 
           {/* Total counter */}
           <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
+            initial={{ opacity: 0, scale: prefersReducedMotion ? 1 : 0.9 }}
             animate={{
               opacity: phase === "celebration" ? 1 : 0.5,
-              scale: phase === "celebration" ? 1 : 0.95,
+              scale: prefersReducedMotion ? 1 : phase === "celebration" ? 1 : 0.95,
             }}
-            transition={{ type: "spring", stiffness: 400, damping: 20 }}
+            transition={
+              prefersReducedMotion
+                ? { duration: 0 }
+                : { type: "spring", stiffness: 400, damping: 20 }
+            }
             className="text-center"
           >
             <div className="inline-flex flex-col items-center rounded-sm border border-emerald-500/20 bg-emerald-500/10 p-6">

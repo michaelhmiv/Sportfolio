@@ -1,115 +1,80 @@
-import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { readFile } from "node:fs/promises";
 import { cert, getApps, initializeApp, type ServiceAccount } from "firebase-admin/app";
-import { getMessaging, type MulticastMessage } from "firebase-admin/messaging";
+import { getMessaging } from "firebase-admin/messaging";
+import {
+  DEFAULT_PUSH_NOTIFICATION_PREFERENCES,
+  isPushNotificationType,
+  normalizeInternalNotificationRoute,
+  resolvePushNotificationPreferences,
+  type PushNotificationType,
+} from "@shared/push-notifications";
+import { storage, type IStorage } from "../storage";
 
+const INVALID_TOKEN_ERROR_CODES = new Set([
+  "messaging/registration-token-not-registered",
+  "messaging/invalid-registration-token",
+  "messaging/invalid-argument",
+]);
+
+const FIREBASE_APP_NAME = "sportfolio-push";
 const MAX_MULTICAST_TOKENS = 500;
-let hasWarnedMissingCredentials = false;
-let hasWarnedInitializationFailure = false;
-let hasInitializedPushApp = false;
 
-function parsePossiblyBase64Json(raw: string): Record<string, unknown> | null {
-  if (!raw || raw.trim().length === 0) {
-    return null;
-  }
-
-  const value = raw.trim();
-  try {
-    return JSON.parse(value) as Record<string, unknown>;
-  } catch {
-    // Continue into base64 decode path.
-  }
-
-  try {
-    const decoded = Buffer.from(value, "base64").toString("utf8");
-    return JSON.parse(decoded) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
+interface PushMessagingResultItem {
+  success: boolean;
+  messageId?: string;
+  errorCode?: string;
+  errorMessage?: string;
 }
 
-function loadServiceAccountFromEnvironment(): ServiceAccount | null {
-  const fromInline =
-    parsePossiblyBase64Json(process.env.FIREBASE_SERVICE_ACCOUNT_JSON || "") ||
-    parsePossiblyBase64Json(process.env.FIREBASE_ADMIN_CREDENTIALS || "");
-
-  if (fromInline) {
-    return fromInline as ServiceAccount;
-  }
-
-  const configuredPath =
-    process.env.FIREBASE_SERVICE_ACCOUNT_FILE || process.env.FIREBASE_ADMIN_CREDENTIALS_FILE;
-
-  const candidates = [configuredPath, ".env.firebase-admin.json"]
-    .map((entry) => (entry || "").trim())
-    .filter(Boolean)
-    .map((entry) => resolve(entry));
-
-  for (const candidate of candidates) {
-    if (!existsSync(candidate)) {
-      continue;
-    }
-
-    try {
-      const raw = readFileSync(candidate, "utf8");
-      return JSON.parse(raw) as ServiceAccount;
-    } catch (error) {
-      console.error(`[Push] Failed to parse Firebase service account file ${candidate}:`, error);
-    }
-  }
-
-  return null;
+interface PushMessagingResult {
+  successCount: number;
+  failureCount: number;
+  results: PushMessagingResultItem[];
 }
 
-function ensurePushAppInitialized(): boolean {
-  if (hasInitializedPushApp) {
-    return true;
-  }
-
-  const serviceAccount = loadServiceAccountFromEnvironment();
-  if (!serviceAccount) {
-    if (!hasWarnedMissingCredentials) {
-      hasWarnedMissingCredentials = true;
-      console.warn(
-        "[Push] Firebase credentials are missing. Push notifications are disabled until credentials are configured.",
-      );
-    }
-    return false;
-  }
-
-  try {
-    const existing = getApps().find((app) => app.name === "push-notifications");
-    if (!existing) {
-      initializeApp(
-        {
-          credential: cert(serviceAccount),
-        },
-        "push-notifications",
-      );
-    }
-    hasInitializedPushApp = true;
-    return true;
-  } catch (error) {
-    if (!hasWarnedInitializationFailure) {
-      hasWarnedInitializationFailure = true;
-      console.error("[Push] Failed to initialize Firebase Admin app:", error);
-    }
-    return false;
-  }
+interface PushMessagingProvider {
+  sendMulticast(input: {
+    tokens: string[];
+    title: string;
+    body: string;
+    data: Record<string, string>;
+  }): Promise<PushMessagingResult>;
 }
 
-function getPushMessaging() {
-  if (!ensurePushAppInitialized()) {
-    return null;
-  }
-  return getMessaging(getApps().find((app) => app.name === "push-notifications"));
+type PushStorage = Pick<
+  IStorage,
+  | "listActiveUserPushTokens"
+  | "markUserPushTokenDeliverySuccess"
+  | "markUserPushTokenDeliveryFailure"
+  | "getUserNotificationPreferences"
+  | "createPushNotificationEvent"
+  | "updatePushNotificationEvent"
+>;
+
+export interface SendPushNotificationInput {
+  userId: string;
+  type: PushNotificationType;
+  title: string;
+  body: string;
+  route: string;
+  entityType?: string;
+  entityId?: string;
+  metadata?: Record<string, unknown>;
+  dedupeKey?: string;
 }
 
-function isInvalidTokenError(code?: string): boolean {
-  return (
-    code === "messaging/registration-token-not-registered" ||
-    code === "messaging/invalid-registration-token"
-  );
+export interface SendPushNotificationResult {
+  delivered: boolean;
+  status:
+    | "sent"
+    | "partial"
+    | "failed"
+    | "skipped_preferences"
+    | "skipped_no_tokens"
+    | "provider_unavailable"
+    | "duplicate";
+  successCount: number;
+  failureCount: number;
 }
 
 export interface PushMulticastPayload {
@@ -126,6 +91,133 @@ export interface PushMulticastResult {
   invalidTokens: string[];
 }
 
+let providerPromise: Promise<PushMessagingProvider | null> | null = null;
+let didWarnMissingFirebaseCredentials = false;
+
+export function hasFirebasePushCredentialsConfigured(): boolean {
+  return Boolean(
+    process.env.FIREBASE_ADMIN_SDK_JSON?.trim() ||
+    process.env.FIREBASE_ADMIN_SDK_FILE?.trim() ||
+    process.env.GOOGLE_APPLICATION_CREDENTIALS?.trim(),
+  );
+}
+
+function warnMissingFirebaseCredentials(message: string) {
+  if (didWarnMissingFirebaseCredentials) {
+    return;
+  }
+
+  didWarnMissingFirebaseCredentials = true;
+  console.warn(`[PUSH] ${message}`);
+}
+
+function parseFirebaseAdminServiceAccount(raw: string): ServiceAccount {
+  const parsed = JSON.parse(raw) as Record<string, unknown>;
+  const clientEmail = String(parsed.clientEmail || parsed.client_email || "");
+  const privateKey = String(parsed.privateKey || parsed.private_key || "");
+  const projectId = String(parsed.projectId || parsed.project_id || "");
+
+  if (!clientEmail || !privateKey) {
+    throw new Error("Firebase service account JSON is missing client_email/private_key");
+  }
+
+  return {
+    projectId: projectId || undefined,
+    clientEmail,
+    privateKey,
+  };
+}
+
+async function resolveFirebaseAdminServiceAccount(): Promise<ServiceAccount | null> {
+  const inlineValue = process.env.FIREBASE_ADMIN_SDK_JSON?.trim();
+  const filePath =
+    process.env.FIREBASE_ADMIN_SDK_FILE?.trim() ||
+    process.env.GOOGLE_APPLICATION_CREDENTIALS?.trim();
+
+  if (inlineValue) {
+    try {
+      return parseFirebaseAdminServiceAccount(inlineValue);
+    } catch {
+      const decoded = Buffer.from(inlineValue, "base64").toString("utf8");
+      return parseFirebaseAdminServiceAccount(decoded);
+    }
+  }
+
+  if (filePath) {
+    const fileContents = await readFile(filePath, "utf8");
+    return parseFirebaseAdminServiceAccount(fileContents);
+  }
+
+  return null;
+}
+
+async function createFirebasePushProvider(): Promise<PushMessagingProvider | null> {
+  let credentials: ServiceAccount | null = null;
+
+  try {
+    credentials = await resolveFirebaseAdminServiceAccount();
+  } catch (error: any) {
+    warnMissingFirebaseCredentials(
+      `Could not parse Firebase credentials. Push delivery disabled: ${error?.message || error}`,
+    );
+    return null;
+  }
+
+  if (!credentials) {
+    warnMissingFirebaseCredentials(
+      "Firebase credentials are missing (set FIREBASE_ADMIN_SDK_JSON or FIREBASE_ADMIN_SDK_FILE). Push delivery will be a no-op.",
+    );
+    return null;
+  }
+
+  const existing = getApps().find((app) => app.name === FIREBASE_APP_NAME);
+  const app =
+    existing ||
+    initializeApp(
+      {
+        credential: cert(credentials),
+        projectId: credentials.projectId,
+      },
+      FIREBASE_APP_NAME,
+    );
+  const messaging = getMessaging(app);
+
+  return {
+    async sendMulticast(input) {
+      const response = await messaging.sendEachForMulticast({
+        tokens: input.tokens,
+        notification: {
+          title: input.title,
+          body: input.body,
+        },
+        data: input.data,
+        android: {
+          priority: "high",
+        },
+      });
+
+      return {
+        successCount: response.successCount,
+        failureCount: response.failureCount,
+        results: response.responses.map((item) => ({
+          success: item.success,
+          messageId: item.messageId,
+          errorCode: (item.error as any)?.code,
+          errorMessage: item.error?.message,
+        })),
+      };
+    },
+  };
+}
+
+function getPushProvider(): Promise<PushMessagingProvider | null> {
+  if (!providerPromise) {
+    providerPromise = createFirebasePushProvider();
+  }
+
+  return providerPromise;
+}
+
 export async function sendPushMulticast(
   tokens: string[],
   payload: PushMulticastPayload,
@@ -140,8 +232,8 @@ export async function sendPushMulticast(
     };
   }
 
-  const messaging = getPushMessaging();
-  if (!messaging) {
+  const provider = await getPushProvider();
+  if (!provider) {
     return {
       providerEnabled: false,
       attempted: tokens.length,
@@ -157,29 +249,21 @@ export async function sendPushMulticast(
 
   for (let index = 0; index < tokens.length; index += MAX_MULTICAST_TOKENS) {
     const chunk = tokens.slice(index, index + MAX_MULTICAST_TOKENS);
-
-    const message: MulticastMessage = {
+    const result = await provider.sendMulticast({
       tokens: chunk,
-      notification: {
-        title: payload.title,
-        body: payload.body,
-      },
-      android: {
-        priority: "high",
-      },
-      data: payload.data,
-    };
+      title: payload.title,
+      body: payload.body,
+      data: payload.data ?? {},
+    });
 
-    const response = await messaging.sendEachForMulticast(message);
-    sentCount += response.successCount;
-    failureCount += response.failureCount;
+    sentCount += result.successCount;
+    failureCount += result.failureCount;
 
-    response.responses.forEach((result, chunkIndex) => {
-      if (result.success) {
-        return;
-      }
-      if (isInvalidTokenError(result.error?.code)) {
-        invalidTokens.add(chunk[chunkIndex]);
+    result.results.forEach((item, itemIndex) => {
+      if (item.success) return;
+      const errorCode = item.errorCode || "";
+      if (INVALID_TOKEN_ERROR_CODES.has(errorCode) && chunk[itemIndex]) {
+        invalidTokens.add(chunk[itemIndex]);
       }
     });
   }
@@ -191,4 +275,205 @@ export async function sendPushMulticast(
     failureCount,
     invalidTokens: Array.from(invalidTokens),
   };
+}
+
+function serializeMetadata(metadata?: Record<string, unknown>): string {
+  if (!metadata || Object.keys(metadata).length === 0) {
+    return "";
+  }
+
+  const raw = JSON.stringify(metadata);
+  if (raw.length <= 1800) {
+    return raw;
+  }
+
+  return raw.slice(0, 1800);
+}
+
+function normalizePreferenceOverrides(
+  rows: Array<{ notificationType: string; enabled: boolean }>,
+): Partial<Record<PushNotificationType, boolean>> {
+  const result: Partial<Record<PushNotificationType, boolean>> = {};
+  for (const row of rows) {
+    if (isPushNotificationType(row.notificationType)) {
+      result[row.notificationType] = row.enabled;
+    }
+  }
+  return result;
+}
+
+export class PushNotificationService {
+  constructor(
+    private readonly deps: {
+      storageLayer?: PushStorage;
+      providerFactory?: () => Promise<PushMessagingProvider | null>;
+    } = {},
+  ) {}
+
+  private get storageLayer(): PushStorage {
+    return this.deps.storageLayer ?? storage;
+  }
+
+  private async getProvider(): Promise<PushMessagingProvider | null> {
+    if (this.deps.providerFactory) {
+      return this.deps.providerFactory();
+    }
+    return getPushProvider();
+  }
+
+  async send(input: SendPushNotificationInput): Promise<SendPushNotificationResult> {
+    const safeRoute = normalizeInternalNotificationRoute(input.route) || "/";
+    const rows = await this.storageLayer.getUserNotificationPreferences(input.userId);
+    const preferenceMap = resolvePushNotificationPreferences(normalizePreferenceOverrides(rows));
+    const isEnabled =
+      preferenceMap[input.type] ?? DEFAULT_PUSH_NOTIFICATION_PREFERENCES[input.type];
+
+    const createdEvent = await this.storageLayer.createPushNotificationEvent({
+      userId: input.userId,
+      notificationType: input.type,
+      title: input.title,
+      body: input.body,
+      route: safeRoute,
+      entityType: input.entityType ?? null,
+      entityId: input.entityId ?? null,
+      metadata: input.metadata ?? {},
+      deliveryStatus: isEnabled ? "pending" : "skipped_preferences",
+      provider: "firebase",
+      dedupeKey: input.dedupeKey ?? null,
+    });
+
+    if (!createdEvent && input.dedupeKey) {
+      return {
+        delivered: false,
+        status: "duplicate",
+        successCount: 0,
+        failureCount: 0,
+      };
+    }
+
+    if (!isEnabled) {
+      return {
+        delivered: false,
+        status: "skipped_preferences",
+        successCount: 0,
+        failureCount: 0,
+      };
+    }
+
+    const tokens = await this.storageLayer.listActiveUserPushTokens(input.userId, "android");
+    if (tokens.length === 0) {
+      if (createdEvent) {
+        await this.storageLayer.updatePushNotificationEvent(createdEvent.id, {
+          deliveryStatus: "skipped_no_tokens",
+        });
+      }
+      return {
+        delivered: false,
+        status: "skipped_no_tokens",
+        successCount: 0,
+        failureCount: 0,
+      };
+    }
+
+    const provider = await this.getProvider();
+    if (!provider) {
+      if (createdEvent) {
+        await this.storageLayer.updatePushNotificationEvent(createdEvent.id, {
+          deliveryStatus: "provider_unavailable",
+        });
+      }
+      return {
+        delivered: false,
+        status: "provider_unavailable",
+        successCount: 0,
+        failureCount: tokens.length,
+      };
+    }
+
+    const dataPayload: Record<string, string> = {
+      route: safeRoute,
+      notificationType: input.type,
+      entityType: input.entityType ?? "",
+      entityId: input.entityId ?? "",
+      metadata: serializeMetadata(input.metadata),
+    };
+
+    const providerResult = await provider.sendMulticast({
+      tokens: tokens.map((token) => token.token),
+      title: input.title,
+      body: input.body,
+      data: dataPayload,
+    });
+
+    let firstMessageId: string | null = null;
+
+    for (let index = 0; index < providerResult.results.length; index += 1) {
+      const token = tokens[index];
+      const result = providerResult.results[index];
+      if (!token || !result) continue;
+
+      if (result.success) {
+        if (!firstMessageId && result.messageId) {
+          firstMessageId = result.messageId;
+        }
+        await this.storageLayer.markUserPushTokenDeliverySuccess(token.id);
+        continue;
+      }
+
+      const errorCode = result.errorCode || "unknown";
+      const errorMessage = result.errorMessage || "Push delivery failed";
+      const deactivate = INVALID_TOKEN_ERROR_CODES.has(errorCode);
+
+      await this.storageLayer.markUserPushTokenDeliveryFailure(
+        token.id,
+        `${errorCode}: ${errorMessage}`,
+        { deactivate },
+      );
+    }
+
+    const status =
+      providerResult.successCount > 0 && providerResult.failureCount === 0
+        ? "sent"
+        : providerResult.successCount > 0
+          ? "partial"
+          : "failed";
+
+    if (createdEvent) {
+      await this.storageLayer.updatePushNotificationEvent(createdEvent.id, {
+        deliveryStatus: status,
+        providerMessageId: firstMessageId,
+        sentAt: new Date(),
+        metadata: {
+          ...(input.metadata ?? {}),
+          delivery: {
+            successCount: providerResult.successCount,
+            failureCount: providerResult.failureCount,
+          },
+        },
+      });
+    }
+
+    return {
+      delivered: providerResult.successCount > 0,
+      status,
+      successCount: providerResult.successCount,
+      failureCount: providerResult.failureCount,
+    };
+  }
+}
+
+export const pushNotificationService = new PushNotificationService();
+
+export async function sendPushNotificationBestEffort(input: SendPushNotificationInput) {
+  try {
+    return await pushNotificationService.send(input);
+  } catch (error: any) {
+    console.error("[PUSH] Notification send failed:", error?.message || error);
+    return {
+      delivered: false,
+      status: "failed" as const,
+      successCount: 0,
+      failureCount: 0,
+    };
+  }
 }

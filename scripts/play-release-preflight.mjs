@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { access } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
 import path from "node:path";
 import process from "node:process";
@@ -253,6 +253,47 @@ async function checkBillingDoctor(skipBilling, warnings, blockers) {
   blockers.push(`Play billing doctor failed (exit ${billingResult.code}).`);
 }
 
+async function checkAndroidPushPrereqs(warnings, blockers) {
+  const googleServicesPath = path.resolve(process.cwd(), "mobile/android/app/google-services.json");
+  if (!existsSync(googleServicesPath)) {
+    blockers.push(`Missing Android Firebase config file: ${googleServicesPath}`);
+    return;
+  }
+
+  try {
+    const raw = await readFile(googleServicesPath, "utf8");
+    const parsed = JSON.parse(raw);
+    const packageNames = new Set(
+      (parsed?.client || [])
+        .map((client) => client?.client_info?.android_client_info?.package_name)
+        .filter(Boolean),
+    );
+
+    if (!packageNames.has(DEFAULT_PACKAGE_NAME)) {
+      blockers.push(
+        `google-services.json does not include expected package '${DEFAULT_PACKAGE_NAME}'.`,
+      );
+    }
+  } catch (error) {
+    blockers.push(`Could not parse google-services.json: ${error.message || error}`);
+  }
+
+  const hasFirebaseInline = Boolean(process.env.FIREBASE_ADMIN_SDK_JSON?.trim());
+  const firebaseFile = process.env.FIREBASE_ADMIN_SDK_FILE?.trim();
+  const hasFirebaseFile = Boolean(
+    firebaseFile && existsSync(path.resolve(process.cwd(), firebaseFile)),
+  );
+  const hasLocalFirebaseReference = existsSync(
+    path.resolve(process.cwd(), ".env.firebase-admin.json"),
+  );
+
+  if (!hasFirebaseInline && !hasFirebaseFile && !hasLocalFirebaseReference) {
+    warnings.push(
+      "Firebase Admin credentials not detected locally (FIREBASE_ADMIN_SDK_JSON/FIREBASE_ADMIN_SDK_FILE). Push delivery will no-op until configured in runtime env.",
+    );
+  }
+}
+
 async function main() {
   console.log("[play-release-preflight] starting checks...");
 
@@ -270,6 +311,7 @@ async function main() {
 
   await resolveAndCheckKeystore(warnings, blockers);
   await checkBillingDoctor(skipBilling, warnings, blockers);
+  await checkAndroidPushPrereqs(warnings, blockers);
 
   if (warnings.length > 0) {
     console.log("[play-release-preflight] warnings:");

@@ -9,7 +9,7 @@ This project uses Capacitor with native projects in:
 
 - Node.js + npm
 - Java 21
-- Android SDK + `adb` in `PATH` (for install to device/emulator)
+- Android SDK + emulator tooling (`adb`, `sdkmanager`, `avdmanager`) in `PATH`
 - Xcode (macOS only, for iOS)
 - Firebase CLI (`firebase`)
 
@@ -19,12 +19,33 @@ This project uses Capacitor with native projects in:
 npx cap doctor
 firebase --version
 firebase projects:list
+npm run android:sdk:check
 ```
 
 Confirm Firebase Android config matches app package:
 
 - file: `mobile/android/app/google-services.json`
 - expected package: `sportfolio.market`
+
+## Android Emulator Setup
+
+Run the SDK/emulator bootstrap helper (installs platform-tools, emulator, API image, and creates an AVD):
+
+```bash
+npm run android:emulator:setup
+```
+
+Optional flags:
+
+```bash
+node scripts/android-emulator-setup.mjs --api 36 --avd sportfolio-api-36 --sdk-root C:\Users\<you>\AppData\Local\Android\Sdk
+```
+
+After setup, start the emulator, then verify:
+
+```bash
+adb devices
+```
 
 ## Sync Web + Native Projects
 
@@ -123,6 +144,40 @@ npm run mobile:sync
 
 Default fallback is `https://www.sportfolio.market`.
 
+## Android Push Notifications (FCM)
+
+Sportfolio Android push uses Capacitor Push Notifications + Firebase Cloud Messaging.
+
+### Backend credentials
+
+Set one of:
+
+- `FIREBASE_ADMIN_SDK_JSON` (raw or base64 service-account JSON)
+- `FIREBASE_ADMIN_SDK_FILE` (absolute path to JSON file)
+
+If missing, the backend logs a warning and safely no-ops push sends (no crash in dev/test).
+
+### Android app requirements
+
+- `google-services.json` present at `mobile/android/app/google-services.json`
+- Android permission `POST_NOTIFICATIONS` is declared in manifest
+- Capacitor push plugin synced via:
+
+```bash
+npm run mobile:sync
+```
+
+### Runtime behavior
+
+- Push registration is attempted only after sign-in on native Android.
+- New users are prompted from the native onboarding notification step, and returning users get a single automatic prompt after auth bootstrap if permission is still pending.
+- FCM token is sent to backend (`/api/mobile/push/register`) and refreshed on re-registration.
+- Logout unregisters/deactivates token via `/api/mobile/push/unregister`.
+- Notification taps route only to safe internal paths.
+- The Android app creates a dedicated default notification channel (`sportfolio_general`) on-device.
+- Users can manage permission state, per-notification preferences, and recent delivery diagnostics from the in-app profile push card and can jump straight to Android notification settings.
+- Push diagnostics are available from `/api/mobile/push/status`.
+
 ## Common Install Failures
 
 - `INSTALL_FAILED_VERSION_DOWNGRADE`: uninstall old app or increase `MOBILE_VERSION_CODE`.
@@ -169,6 +224,44 @@ Notes:
 - Internal testing is private and suitable for getting release process moving before public launch.
 - For some personal Play developer accounts, Google requires a closed testing phase before production access.
 
+## Play Closed Testing (Manual)
+
+A second manual workflow is included:
+
+- `.github/workflows/play-closed-testing.yml`
+
+This uploads a signed `.aab` to a Play Console closed testing track.
+
+Run it from GitHub Actions:
+
+1. Open **Actions**.
+2. Select **Play Closed Testing**.
+3. Click **Run workflow**.
+4. Optionally set `closed_track` (default `alpha`) to match your Play closed track ID.
+
+Required GitHub repository secrets are the same as internal testing:
+
+- `PLAY_SERVICE_ACCOUNT_JSON`
+- `ANDROID_KEYSTORE_BASE64`
+- `ANDROID_KEYSTORE_PASSWORD`
+- `ANDROID_KEY_ALIAS`
+- `ANDROID_KEY_PASSWORD`
+
+## Firebase App Distribution (Auto on Main)
+
+Workflow:
+
+- `.github/workflows/firebase-distribution.yml`
+
+Behavior:
+
+- Runs automatically on each push to `main` and can also be run manually.
+- Always includes `michaelhmiv@gmail.com` as a tester by default.
+- Still supports optional repository secrets:
+- `FIREBASE_DISTRIBUTION_TESTERS` (comma-separated emails)
+- `FIREBASE_DISTRIBUTION_GROUPS` (comma-separated group aliases)
+- Testers/groups are combined and deduplicated before upload.
+
 ## Google Play Billing Automation
 
 Android Premium Share purchases now use Google Play Billing in native Android builds.
@@ -201,3 +294,38 @@ Optional overrides:
 ```bash
 node scripts/play-billing-doctor.mjs --ensure --package sportfolio.market --product premium_share_1 --price-usd 5
 ```
+
+## Android QA Smoke Checklist
+
+Use this checklist for Android app smoke validation after push/backend changes:
+
+1. Build debug:
+   `npm run mobile:install:android`
+2. Build release:
+   `npm run mobile:build:android`
+3. Push token registration:
+   sign in on Android and verify backend receives token via `/api/mobile/push/register`.
+4. Notification permission request timing:
+   confirm prompt is not shown before sign-in/auth bootstrap completes.
+5. Foreground notification behavior:
+   send test push and verify in-app toast/display behavior while app is open.
+6. Background notification behavior:
+   send test push while app is backgrounded and verify system notification appears.
+7. Notification tap routing:
+   verify taps route correctly for `/boosts`, `/portfolio`, `/pools`, `/player/:id`, `/watchlists`, `/premium`, `/news`, or `/`.
+8. Logout token deactivation:
+   log out and verify `/api/mobile/push/unregister` deactivates current token.
+9. Boost settled trigger:
+   verify boost settlement creates a push notification to `/boosts`.
+10. Scout complete trigger:
+    verify scout completion creates a push notification to `/portfolio`.
+11. Invalid token handling:
+    force an invalid token response and confirm token is marked inactive.
+12. Missing Firebase credentials behavior:
+    run without Firebase credentials and confirm warning/no-op behavior (no server crash).
+13. Billing regression:
+    verify Google Play Billing purchase flow still works.
+14. Rewarded ads regression:
+    verify rewarded scout boost flow still works.
+15. Auth deep link regression:
+    verify `sportfolio://auth/callback` still resumes session correctly.

@@ -34,9 +34,11 @@ x × y = k
 - implied spot price = `y / x`
 
 **When you buy:**
+
 - pool gives up shares, receives SB → price rises
 
 **When you sell:**
+
 - pool receives shares, gives up SB → price falls
 
 This means price is path-dependent — the same player can quote differently based on your order size.
@@ -47,16 +49,17 @@ This means price is path-dependent — the same player can quote differently bas
 
 Every trade has a **2% total fee:**
 
-| Fee | Who benefits |
-|---|---|
+| Fee         | Who benefits                     |
+| ----------- | -------------------------------- |
 | 1% pool fee | LP holders (liquidity providers) |
-| 1% burn fee | Removed from supply |
+| 1% burn fee | Removed from supply              |
 
 **Slippage** is the gap between the displayed spot price and your actual average execution price. Before you execute, the API gives you a quote with slippage bounds.
 
 > ⚠️ Check your quote before confirming large trades. A thin pool can move significantly on a single order.
 
 **Practical rules:**
+
 - Size up slowly in thin pools
 - Re-check quotes when news breaks
 - Urgency has a cost in shallow markets
@@ -67,15 +70,15 @@ Every trade has a **2% total fee:**
 
 On Player Pools and player detail pages, you'll see:
 
-| Signal | What it means |
-|---|---|
-| **Price** | Current share price |
-| **24h change** | Recent percentage move |
-| **Volume** | Recent trading activity |
-| **Market cap** | Relative sizing metric |
-| **TVL / pool size** | How deep the liquidity is |
-| **Buy pressure** | Directional flow signal |
-| **Value index** | Composite relative-value metric |
+| Signal              | What it means                            |
+| ------------------- | ---------------------------------------- |
+| **Price**           | Current share price                      |
+| **24h change**      | Recent percentage move                   |
+| **Volume**          | Recent trading activity                  |
+| **Market cap**      | Relative sizing metric                   |
+| **TVL / pool size** | How deep the liquidity is                |
+| **Buy pressure**    | Directional flow signal                  |
+| **Value index**     | Composite relative-value metric          |
 | **Fantasy metrics** | Context for why the market may be moving |
 
 These are context signals, not guarantees.
@@ -87,6 +90,7 @@ These are context signals, not guarantees.
 Use buying when you want direct exposure to a player's future market value and downstream utility (scouts, boosts, LP).
 
 Before buying, check:
+
 - The current quote and expected slippage
 - How much cash remains after the trade
 - Whether you're over-concentrating in one player or sport
@@ -100,6 +104,7 @@ Before buying, check:
 ## Selling Shares
 
 Before selling, check:
+
 - Available shares after lock checks (locked shares can't be sold)
 - Whether the shares are raw or stacked — only raw shares are tradeable
 - Whether the player is relevant for an upcoming boost window
@@ -114,17 +119,20 @@ Before selling, check:
 Instead of only taking directional positions, you can add liquidity to a player pool and earn fees.
 
 **LP basics:**
+
 - You add both shares and SB to a pool
 - You receive LP shares representing your pool ownership percentage
 - Fee value accrues as trading activity generates pool fees
 
 **LP flows available:**
+
 - Standard add (explicit share + SB amounts)
 - Optimal add (max constraints, system balances for you)
 - Single-sided zap add (add from one side only)
 - Remove liquidity
 
 **LP vs. holding shares:**
+
 - Holding = directional bet on one player
 - LP = market-making exposure to both sides of a pool
 - LP earns fees; holding earns from price appreciation
@@ -138,6 +146,7 @@ For a full LP guide, see [Liquidity Providing](/wiki/gameplay/liquidity-providin
 ## What Player Pools Are Not
 
 Player pools are not:
+
 - An order book with resting bids and asks
 - A guaranteed low-slippage environment
 - A direct reflection of fantasy performance

@@ -28,6 +28,61 @@ Review:
 - `npm run test:run` passed
 - `npm run format:check` fails only on pre-existing docs/wiki markdown files unrelated to this notification implementation.
 
+## 2026-04-25 PR #136 Conflict Resolution
+
+- [x] Fetch latest `origin/main` and reproduce PR merge conflicts locally
+- [x] Resolve workflow and task-log conflicts while preserving both upstream updates and PR intent
+- [x] Re-run `npm run check`, `npm run lint`, and `npm run test:run`
+- [ ] Push resolved merge commit and confirm PR #136 is mergeable
+
+Review:
+
+- Resolved conflicts in `.github/workflows/firebase-distribution.yml` by keeping upstream release-signing/build updates and preserving the PR behavior to always include `michaelhmiv@gmail.com` with tester/group dedupe support.
+- Resolved `tasks/todo.md` conflict by retaining upstream Android push tracking section and restoring this branch's Play closed-testing + icon-branding tracking entries.
+
+## 2026-04-24 Android/Play Icon Branding Alignment
+
+- [x] Locate the canonical Sportfolio header logo asset used by the web app
+- [x] Replace Android launcher icon assets (`ic_launcher*`) across all mipmap densities with the Sportfolio logo
+- [x] Verify resulting icon preview output for launcher and adaptive icon foreground assets
+- [x] Run `npm run check`, `npm run lint`, and `npm run test:run`
+
+Review:
+
+- Confirmed the in-app header logo source at `attached_assets/Sportfolio png_1763227952318.png`.
+- Re-generated all Android launcher PNGs in `mobile/android/app/src/main/res/mipmap-*/` so Play/internal distributed builds use the Sportfolio branding instead of the Capacitor default icon.
+- Ensured legacy launcher PNGs are composited on white and adaptive foreground PNGs preserve transparency against the existing launcher background color contract.
+- Validation passed: `npm run check`, `npm run lint`, `npm run test:run`.
+
+## 2026-04-24 Play Closed Testing Workflow + Firebase Auto-Invite Defaults
+
+- [x] Add a one-click GitHub Actions workflow to upload Android release bundles to Play Console closed testing
+- [x] Keep closed-track selection configurable at dispatch time while defaulting to a closed-testing track value
+- [x] Update Firebase App Distribution workflow to always include `michaelhmiv@gmail.com` without manual entry
+- [x] Keep Firebase distribution compatible with existing tester/group secrets and allow both to be used together
+- [x] Update mobile runbook docs for the new closed testing workflow and Firebase auto-invite behavior
+- [x] Run `npm run check`, `npm run lint`, and `npm run test:run`
+
+Review:
+
+- Added `.github/workflows/play-closed-testing.yml` as a manual workflow that mirrors the internal release pipeline and uploads to a configurable closed track (`closed_track`, default `alpha`).
+- Updated `.github/workflows/firebase-distribution.yml` to always include `michaelhmiv@gmail.com`, merge with optional tester/group secrets, dedupe recipients, and pass combined targets to a single `firebase appdistribution:distribute` call.
+- Updated `mobile/README.md` with usage docs for Play closed testing and Firebase auto-distribution behavior.
+- Validation passed: `npm run check`, `npm run lint`, `npm run test:run`.
+
+## 2026-04-24 Android Push + Backend Event Infrastructure (Phase 1)
+
+- [x] Audit existing Android/Capacitor/Firebase/auth/deep-link/websocket/event/build surfaces
+- [x] Add backend schema + storage support for Android push tokens, notification preferences, and push event history
+- [x] Add authenticated mobile push token register/unregister routes and backend preference routes
+- [x] Add Firebase-backed push sending service with graceful no-op behavior when credentials are missing
+- [x] Wire safe push triggers for boost settled, boost locking soon, and scout complete events
+- [x] Add Android client push manager for sign-in-gated registration, delayed permission request, token sync, and safe tap routing
+- [x] Add logout token deactivation flow on mobile auth sign-out
+- [x] Add Android emulator/sdk setup/check scripts and mobile runbook updates
+- [x] Run full validation + smoke commands and capture results
+- [ ] Open PR, merge to main, then monitor Railway build/deploy status
+
 ## 2026-04-23 Upload Key Activation + Billing Product Finalization
 
 - [x] Re-run Play internal upload after Google upload-key reset propagation

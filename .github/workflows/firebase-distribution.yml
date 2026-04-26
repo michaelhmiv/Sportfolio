@@ -3,11 +3,20 @@ name: Firebase App Distribution
 on:
   push:
     branches: [main]
-  workflow_dispatch: # Manual trigger
+  workflow_dispatch:
+    inputs:
+      release_name:
+        description: "Optional Firebase release name (defaults to commit SHA)"
+        required: false
+        type: string
 
 jobs:
   build-and-distribute:
     runs-on: ubuntu-latest
+    env:
+      CAP_SERVER_URL: https://www.sportfolio.market
+      # Always include the core internal tester so new builds do not require manual email entry.
+      DEFAULT_FIREBASE_DISTRIBUTION_TESTERS: michaelhmiv@gmail.com
 
     steps:
       - name: Checkout code
@@ -37,25 +46,89 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Build Debug APK
-        run: |
-          cd mobile/android
-          ./gradlew assembleDebug
-
-      - name: Validate Firebase secrets
+      - name: Validate Firebase + signing secrets
         env:
           FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          if [ -z "$FIREBASE_APP_ID" ]; then
-            echo "::error::Missing required secret FIREBASE_APP_ID"
+          required=(
+            FIREBASE_APP_ID
+            FIREBASE_SERVICE_ACCOUNT
+            ANDROID_KEYSTORE_BASE64
+            ANDROID_KEYSTORE_PASSWORD
+            ANDROID_KEY_ALIAS
+            ANDROID_KEY_PASSWORD
+          )
+
+          for name in "${required[@]}"; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing required secret ${name}"
+              exit 1
+            fi
+          done
+
+      - name: Decode Android upload keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          KEYSTORE_PATH="$(mktemp "${RUNNER_TEMP}/android-release-keystore-XXXXXX.jks")"
+          chmod 600 "$KEYSTORE_PATH"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
+          if [ ! -s "$KEYSTORE_PATH" ]; then
+            echo "::error::Decoded Android keystore is empty."
             exit 1
+          fi
+          echo "ANDROID_KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
+
+      - name: Compute release metadata
+        env:
+          INPUT_RELEASE_NAME: ${{ github.event.inputs.release_name }}
+        run: |
+          # Reserve 200000-299999 for Play internal builds and start Firebase at
+          # 300000 to leave 100000 versionCode slots before the ranges overlap.
+          # This keeps Firebase iteration builds installable over Play internal
+          # builds without manual downgrades while preserving ample headroom for
+          # the workflow's per-file run counter. If this workflow ever nears
+          # 100000 runs, increase the reserved range here and in
+          # .github/workflows/play-internal-testing.yml.
+          VERSION_CODE_BASE=300000
+          VERSION_CODE=$((VERSION_CODE_BASE + ${GITHUB_RUN_NUMBER}))
+          echo "MOBILE_VERSION_CODE=$VERSION_CODE" >> "$GITHUB_ENV"
+
+          if [ -n "$INPUT_RELEASE_NAME" ]; then
+            SANITIZED_RELEASE_NAME="$(
+              printf '%s' "$INPUT_RELEASE_NAME" \
+                | sed 's/[\r\n]/-/g' \
+                | tr -cd '[:alnum:]_-' \
+                | cut -c1-50
+            )"
+            if [ -z "$SANITIZED_RELEASE_NAME" ] || ! printf '%s' "$SANITIZED_RELEASE_NAME" | grep -q '[[:alnum:]]'; then
+              echo "::error::release_name must contain at least one alphanumeric character after sanitization."
+              exit 1
+            fi
+            echo "FIREBASE_RELEASE_NAME=$SANITIZED_RELEASE_NAME" >> "$GITHUB_ENV"
+          else
+            SHORT_SHA="${GITHUB_SHA:0:7}"
+            echo "FIREBASE_RELEASE_NAME=firebase-${SHORT_SHA}" >> "$GITHUB_ENV"
           fi
 
-          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
-            echo "::error::Missing required secret FIREBASE_SERVICE_ACCOUNT"
-            exit 1
-          fi
+      - name: Build signed release APK
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ env.ANDROID_KEYSTORE_PATH }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          MOBILE_VERSION_CODE: ${{ env.MOBILE_VERSION_CODE }}
+          MOBILE_VERSION_NAME: ${{ env.FIREBASE_RELEASE_NAME }}
+        # The Node wrapper calls the checked-in Gradle wrapper from the repo root
+        # so CI can reuse the same command shape as local scripts while passing
+        # these signing env vars into mobile/android/app/build.gradle.
+        run: node scripts/run-gradle-wrapper.mjs assembleRelease
 
       - name: Configure Firebase credentials (ADC)
         env:
@@ -74,29 +147,74 @@ jobs:
           FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
           FIREBASE_DISTRIBUTION_TESTERS: ${{ secrets.FIREBASE_DISTRIBUTION_TESTERS }}
           FIREBASE_DISTRIBUTION_GROUPS: ${{ secrets.FIREBASE_DISTRIBUTION_GROUPS }}
+          FIREBASE_RELEASE_NAME: ${{ env.FIREBASE_RELEASE_NAME }}
+          MOBILE_VERSION_CODE: ${{ env.MOBILE_VERSION_CODE }}
+          DEFAULT_FIREBASE_DISTRIBUTION_TESTERS: ${{ env.DEFAULT_FIREBASE_DISTRIBUTION_TESTERS }}
         run: |
           RELEASE_NOTES=$(cat <<EOF
           Build from commit ${GITHUB_SHA}
           Branch: ${GITHUB_REF_NAME}
           Triggered by: ${GITHUB_ACTOR}
+          Release: ${FIREBASE_RELEASE_NAME}
+          Version code: ${MOBILE_VERSION_CODE}
           EOF
           )
 
           DISTRIBUTION_LOG="$RUNNER_TEMP/firebase-distribution.log"
           set -euo pipefail
 
-          if [ -n "$FIREBASE_DISTRIBUTION_TESTERS" ]; then
-            firebase appdistribution:distribute mobile/android/app/build/outputs/apk/debug/app-debug.apk \
-              --app "$FIREBASE_APP_ID" \
-              --testers "$FIREBASE_DISTRIBUTION_TESTERS" \
-              --release-notes "$RELEASE_NOTES" | tee "$DISTRIBUTION_LOG"
-          elif [ -n "$FIREBASE_DISTRIBUTION_GROUPS" ]; then
-            firebase appdistribution:distribute mobile/android/app/build/outputs/apk/debug/app-debug.apk \
-              --app "$FIREBASE_APP_ID" \
-              --groups "$FIREBASE_DISTRIBUTION_GROUPS" \
-              --release-notes "$RELEASE_NOTES" | tee "$DISTRIBUTION_LOG"
-          else
-            firebase appdistribution:distribute mobile/android/app/build/outputs/apk/debug/app-debug.apk \
-              --app "$FIREBASE_APP_ID" \
-              --release-notes "$RELEASE_NOTES" | tee "$DISTRIBUTION_LOG"
+          RAW_TESTERS="$DEFAULT_FIREBASE_DISTRIBUTION_TESTERS"
+          if [ -n "${FIREBASE_DISTRIBUTION_TESTERS:-}" ]; then
+            RAW_TESTERS="${RAW_TESTERS},${FIREBASE_DISTRIBUTION_TESTERS}"
+          fi
+
+          NORMALIZED_TESTERS="$(
+            printf '%s\n' "$RAW_TESTERS" \
+              | tr ',;' '\n' \
+              | tr -d '\r' \
+              | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' \
+              | awk 'NF' \
+              | awk '!seen[tolower($0)]++' \
+              | paste -sd, -
+          )"
+
+          NORMALIZED_GROUPS="$(
+            printf '%s\n' "${FIREBASE_DISTRIBUTION_GROUPS:-}" \
+              | tr ',;' '\n' \
+              | tr -d '\r' \
+              | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' \
+              | awk 'NF' \
+              | awk '!seen[tolower($0)]++' \
+              | paste -sd, -
+          )"
+
+          DISTRIBUTE_ARGS=(
+            mobile/android/app/build/outputs/apk/release/app-release.apk
+            --app "$FIREBASE_APP_ID"
+            --release-notes "$RELEASE_NOTES"
+          )
+
+          if [ -n "$NORMALIZED_TESTERS" ]; then
+            echo "Firebase testers: $NORMALIZED_TESTERS"
+            DISTRIBUTE_ARGS+=(--testers "$NORMALIZED_TESTERS")
+          fi
+
+          if [ -n "$NORMALIZED_GROUPS" ]; then
+            echo "Firebase groups: $NORMALIZED_GROUPS"
+            DISTRIBUTE_ARGS+=(--groups "$NORMALIZED_GROUPS")
+          fi
+
+          firebase appdistribution:distribute "${DISTRIBUTE_ARGS[@]}" | tee "$DISTRIBUTION_LOG"
+
+      - name: Remove decoded keystore
+        if: ${{ always() }}
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ env.ANDROID_KEYSTORE_PATH }}
+        run: |
+          if [ -n "${ANDROID_KEYSTORE_PATH:-}" ] && [ -f "$ANDROID_KEYSTORE_PATH" ]; then
+            if command -v shred >/dev/null 2>&1; then
+              shred -uz -- "$ANDROID_KEYSTORE_PATH"
+            else
+              rm -- "$ANDROID_KEYSTORE_PATH"
+            fi
           fi

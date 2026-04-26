@@ -9,13 +9,19 @@ import {
   ReactNode,
 } from "react";
 import type { User } from "@shared/schema";
-import { getSupabase, resetSupabase } from "@/lib/supabase";
+import {
+  getAuthSession,
+  getSupabase,
+  resetSupabase,
+  updateNativeAuthRefreshState,
+} from "@/lib/supabase";
 import { isValidEmail, normalizeEmail } from "@/lib/auth-input";
 import { useToast } from "@/hooks/use-toast";
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import { Capacitor } from "@capacitor/core";
 import { Browser } from "@capacitor/browser";
 import { normalizeSiteUrl } from "@shared/seo";
+import { unregisterPushTokenOnLogout } from "@/lib/mobile-push";
 
 const MOBILE_AUTH_REDIRECT_URL = "sportfolio://auth/callback";
 const IS_DEV = import.meta.env.DEV;
@@ -233,10 +239,22 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       debugLog("SESSION", "Calling client.auth.getSession()...");
       const sessionStart = performance.now();
-      const {
-        data: { session: initialSession },
-        error: sessionError,
-      } = await client.auth.getSession();
+
+      let initialSession: Session | null = null;
+      let sessionError: Error | null = null;
+      try {
+        initialSession = await getAuthSession(client);
+      } catch (error) {
+        sessionError = error instanceof Error ? error : new Error(String(error));
+      }
+
+      try {
+        await updateNativeAuthRefreshState(true, client);
+      } catch (error) {
+        debugLog("SESSION", "Native auto refresh setup failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
       debugLog(
         "SESSION",
         `getSession() completed in ${(performance.now() - sessionStart).toFixed(0)}ms`,
@@ -541,6 +559,7 @@ export function useAuth() {
         throw new Error("Auth not initialized");
       }
 
+      await unregisterPushTokenOnLogout();
       await supabaseClient.auth.signOut();
 
       queryClient.removeQueries({
@@ -552,7 +571,6 @@ export function useAuth() {
             "/api/dashboard",
             "/api/holdings",
             "/api/portfolio",
-            "/api/mining",
             "/api/admin",
             "/api/whop",
           ];

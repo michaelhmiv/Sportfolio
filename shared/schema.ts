@@ -86,6 +86,113 @@ export const userApiTokens = pgTable(
   }),
 );
 
+export const userPushTokens = pgTable(
+  "user_push_tokens",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    platform: text("platform").notNull().default("android"),
+    token: text("token").notNull(),
+    deviceId: text("device_id"),
+    appVersion: text("app_version"),
+    osVersion: text("os_version"),
+    deviceModel: text("device_model"),
+    isActive: boolean("is_active").notNull().default(true),
+    lastRegisteredAt: timestamp("last_registered_at").notNull().defaultNow(),
+    lastSuccessfulAt: timestamp("last_successful_at"),
+    lastFailureAt: timestamp("last_failure_at"),
+    failureCount: integer("failure_count").notNull().default(0),
+    lastError: text("last_error"),
+    invalidatedAt: timestamp("invalidated_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    userIdx: index("user_push_tokens_user_idx").on(table.userId),
+    userPlatformActiveIdx: index("user_push_tokens_user_platform_active_idx").on(
+      table.userId,
+      table.platform,
+      table.isActive,
+    ),
+    tokenIdx: uniqueIndex("user_push_tokens_token_idx").on(table.token),
+    deviceIdx: index("user_push_tokens_device_idx").on(
+      table.userId,
+      table.platform,
+      table.deviceId,
+    ),
+  }),
+);
+
+export const userNotificationPreferences = pgTable(
+  "user_notification_preferences",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    notificationType: text("notification_type").notNull(),
+    enabled: boolean("enabled").notNull().default(true),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    userTypeIdx: uniqueIndex("user_notification_prefs_user_type_idx").on(
+      table.userId,
+      table.notificationType,
+    ),
+    userIdx: index("user_notification_prefs_user_idx").on(table.userId),
+  }),
+);
+
+export const pushNotificationEvents = pgTable(
+  "push_notification_events",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    notificationType: text("notification_type").notNull(),
+    title: text("title").notNull(),
+    body: text("body").notNull(),
+    route: text("route").notNull().default("/"),
+    entityType: text("entity_type"),
+    entityId: text("entity_id"),
+    metadata: jsonb("metadata")
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    deliveryStatus: text("delivery_status").notNull().default("pending"),
+    provider: text("provider").notNull().default("firebase"),
+    providerMessageId: text("provider_message_id"),
+    dedupeKey: text("dedupe_key"),
+    sentAt: timestamp("sent_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    userCreatedIdx: index("push_notification_events_user_created_idx").on(
+      table.userId,
+      table.createdAt,
+    ),
+    typeCreatedIdx: index("push_notification_events_type_created_idx").on(
+      table.notificationType,
+      table.createdAt,
+    ),
+    statusIdx: index("push_notification_events_status_idx").on(table.deliveryStatus),
+    userDedupeIdx: uniqueIndex("push_notification_events_user_dedupe_idx").on(
+      table.userId,
+      table.dedupeKey,
+    ),
+  }),
+);
+
 export const userPhoneLinks = pgTable(
   "user_phone_links",
   {
@@ -2548,6 +2655,9 @@ export const usersRelations = relations(users, ({ many }) => ({
   boostPayouts: many(boostPayouts),
   sharePayouts: many(sharePayouts),
   communityBoosts: many(communityBoosts),
+  pushTokens: many(userPushTokens),
+  notificationPreferences: many(userNotificationPreferences),
+  pushNotificationEvents: many(pushNotificationEvents),
   premiumActivityEvents: many(premiumActivityEvents),
   rewardedScoutBoostGrants: many(rewardedScoutBoostGrants),
   agentProfiles: many(userAgentProfiles),
@@ -2677,6 +2787,30 @@ export const boostPayoutsRelations = relations(boostPayouts, ({ one }) => ({
   player: one(players, {
     fields: [boostPayouts.playerId],
     references: [players.id],
+  }),
+}));
+
+export const userPushTokensRelations = relations(userPushTokens, ({ one }) => ({
+  user: one(users, {
+    fields: [userPushTokens.userId],
+    references: [users.id],
+  }),
+}));
+
+export const userNotificationPreferencesRelations = relations(
+  userNotificationPreferences,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [userNotificationPreferences.userId],
+      references: [users.id],
+    }),
+  }),
+);
+
+export const pushNotificationEventsRelations = relations(pushNotificationEvents, ({ one }) => ({
+  user: one(users, {
+    fields: [pushNotificationEvents.userId],
+    references: [users.id],
   }),
 }));
 
@@ -3655,6 +3789,43 @@ export const insertUserApiTokenSchema = createInsertSchema(userApiTokens).omit({
 
 export type UserApiToken = typeof userApiTokens.$inferSelect;
 export type InsertUserApiToken = z.infer<typeof insertUserApiTokenSchema>;
+
+export const insertUserPushTokenSchema = createInsertSchema(userPushTokens).omit({
+  id: true,
+  lastRegisteredAt: true,
+  lastSuccessfulAt: true,
+  lastFailureAt: true,
+  failureCount: true,
+  invalidatedAt: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertUserNotificationPreferenceSchema = createInsertSchema(
+  userNotificationPreferences,
+).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertPushNotificationEventSchema = createInsertSchema(pushNotificationEvents).omit({
+  id: true,
+  sentAt: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type UserPushToken = typeof userPushTokens.$inferSelect;
+export type InsertUserPushToken = z.infer<typeof insertUserPushTokenSchema>;
+
+export type UserNotificationPreference = typeof userNotificationPreferences.$inferSelect;
+export type InsertUserNotificationPreference = z.infer<
+  typeof insertUserNotificationPreferenceSchema
+>;
+
+export type PushNotificationEvent = typeof pushNotificationEvents.$inferSelect;
+export type InsertPushNotificationEvent = z.infer<typeof insertPushNotificationEventSchema>;
 
 export const insertUserPhoneLinkSchema = createInsertSchema(userPhoneLinks).omit({
   id: true,

@@ -10,6 +10,7 @@ import { storage } from "../storage";
 import { choosePreferredDailyGame } from "../lib/daily-game-dedupe";
 import { getETDayBoundaries, getGameDay } from "../lib/time";
 import { hasGameStartedForBoost } from "@shared/game-status";
+import { notifyBoostLockingSoonPush } from "../services/push-notification-events";
 import type { JobResult } from "./scheduler";
 import type { ProgressCallback } from "../lib/admin-stream";
 import { sendUserNotification } from "../services/notification-dispatcher";
@@ -20,6 +21,10 @@ function isLegacyNbaGameId(sport: unknown, gameId: unknown): boolean {
 
 export async function lockBoostShares(progressCallback?: ProgressCallback): Promise<JobResult> {
   console.log("[lock_boost_shares] Starting boost share locking...");
+  const lockingSoonWindowMinutes = Math.max(
+    5,
+    Number.parseInt(process.env.BOOST_LOCKING_SOON_WINDOW_MINUTES || "25", 10) || 25,
+  );
 
   progressCallback?.({
     type: "info",
@@ -107,6 +112,16 @@ export async function lockBoostShares(progressCallback?: ProgressCallback): Prom
         }
 
         const gameStart = new Date(game.startTime);
+        const msUntilStart = gameStart.getTime() - now.getTime();
+        if (msUntilStart > 0 && msUntilStart <= lockingSoonWindowMinutes * 60 * 1000) {
+          const player = await storage.getPlayer(boost.playerId);
+          await notifyBoostLockingSoonPush({
+            userId: boost.userId,
+            boostId: boost.id,
+            playerName: `${player?.firstName ?? ""} ${player?.lastName ?? ""}`.trim() || "Player",
+            minutesUntilLock: msUntilStart / (60 * 1000),
+          });
+        }
 
         // Lock once the game is actually live/completed rather than purely by scheduled tipoff time.
         if (hasGameStartedForBoost(game, new Date(now.getTime() + 60000))) {

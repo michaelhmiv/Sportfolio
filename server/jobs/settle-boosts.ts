@@ -14,6 +14,7 @@ import { broadcast } from "../websocket";
 import { choosePreferredDailyGame } from "../lib/daily-game-dedupe";
 import { getETDayBoundaries, getGameDay } from "../lib/time";
 import { sendUserNotification } from "../services/notification-dispatcher";
+import { notifyBoostSettledPush } from "../services/push-notification-events";
 import type { JobResult } from "./scheduler";
 import type { ProgressCallback } from "../lib/admin-stream";
 
@@ -162,6 +163,15 @@ async function finalizeBoostWithoutStats(input: {
     dedupeKey: `boost_settled:${input.boost.id}`,
   }).catch((error) => {
     console.error("[settle_boosts] Failed to send stale settle push:", error);
+  });
+
+  await notifyBoostSettledPush({
+    userId: input.boost.userId,
+    boostId: input.boost.id,
+    playerName: `${player?.firstName ?? ""} ${player?.lastName ?? ""}`.trim() || "Player",
+    payout: "0.00",
+    fantasyPoints: 0,
+    slotTier: input.boost.slotTier,
   });
 }
 
@@ -398,6 +408,15 @@ export async function settleBoosts(progressCallback?: ProgressCallback): Promise
         }).catch((error) => {
           console.error("[settle_boosts] Failed to send settle push:", error);
         });
+
+        await notifyBoostSettledPush({
+          userId: boost.userId,
+          boostId: boost.id,
+          playerName: `${player?.firstName ?? ""} ${player?.lastName ?? ""}`.trim() || "Player",
+          payout: payout.toFixed(2),
+          fantasyPoints,
+          slotTier: boost.slotTier,
+        });
       } catch (boostError: any) {
         console.error(`[settle_boosts] Error settling boost ${boost.id}:`, boostError.message);
         errorCount++;
@@ -563,6 +582,15 @@ export async function settleBoosts(progressCallback?: ProgressCallback): Promise
               dedupeKey: `boost_settled:${boost.id}`,
             }).catch((error) => {
               console.error("[settle_boosts] Failed to send retry settle push:", error);
+            });
+
+            await notifyBoostSettledPush({
+              userId: boost.userId,
+              boostId: boost.id,
+              playerName: `${player?.firstName ?? ""} ${player?.lastName ?? ""}`.trim() || "Player",
+              payout: payout.toFixed(2),
+              fantasyPoints,
+              slotTier: boost.slotTier,
             });
           } catch (retryError: any) {
             console.error(`[settle_boosts] Retry error for boost ${boost.id}:`, retryError.message);

@@ -1,4 +1,4 @@
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { X, Zap, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -121,6 +121,7 @@ function getTierVisuals(tier: number) {
 
 export function BoostCeremonyOverlay({ isOpen, data, onClose }: BoostCeremonyOverlayProps) {
   const [phase, setPhase] = useState<"intro" | "charge" | "boost" | "complete">("intro");
+  const prefersReducedMotion = useReducedMotion();
 
   useEffect(() => {
     if (isOpen && data) {
@@ -147,14 +148,14 @@ export function BoostCeremonyOverlay({ isOpen, data, onClose }: BoostCeremonyOve
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        transition={{ duration: 0.2 }}
+        transition={{ duration: prefersReducedMotion ? 0 : 0.2 }}
         className="fixed inset-0 z-50 flex items-center justify-center bg-background/90 backdrop-blur-sm"
         onClick={onClose}
       >
         <motion.button
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
+          transition={{ delay: prefersReducedMotion ? 0 : 0.5 }}
           className="absolute top-4 right-4 rounded-sm border border-border/60 p-2 text-muted-foreground transition-colors hover:text-foreground"
           onClick={(e) => {
             e.stopPropagation();
@@ -167,9 +168,9 @@ export function BoostCeremonyOverlay({ isOpen, data, onClose }: BoostCeremonyOve
         <div className="w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
           {/* Header */}
           <motion.div
-            initial={{ opacity: 0, y: -20 }}
+            initial={{ opacity: 0, y: prefersReducedMotion ? 0 : -20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
+            transition={{ duration: prefersReducedMotion ? 0 : 0.3 }}
             className="text-center mb-8"
           >
             <div
@@ -188,9 +189,12 @@ export function BoostCeremonyOverlay({ isOpen, data, onClose }: BoostCeremonyOve
           <div className="relative">
             {/* Share card */}
             <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
+              initial={{ opacity: 0, scale: prefersReducedMotion ? 1 : 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.3, delay: 0.1 }}
+              transition={{
+                duration: prefersReducedMotion ? 0 : 0.3,
+                delay: prefersReducedMotion ? 0 : 0.1,
+              }}
               className={cn(
                 "relative mb-4 overflow-hidden rounded-sm border bg-card p-4",
                 phase === "charge" && "ring-2",
@@ -215,7 +219,7 @@ export function BoostCeremonyOverlay({ isOpen, data, onClose }: BoostCeremonyOve
               </div>
 
               {/* Energy effect during charge phase */}
-              {phase === "charge" && (
+              {phase === "charge" && !prefersReducedMotion && (
                 <motion.div
                   className="absolute inset-0 pointer-events-none"
                   animate={{
@@ -232,9 +236,11 @@ export function BoostCeremonyOverlay({ isOpen, data, onClose }: BoostCeremonyOve
 
             {/* Energy beam */}
             <div className="relative h-8 flex items-center justify-center">
-              {phase === "boost" && <EnergyBeam color={visuals.color} delay={0} />}
+              {phase === "boost" && !prefersReducedMotion && (
+                <EnergyBeam color={visuals.color} delay={0} />
+              )}
               <motion.div
-                animate={phase === "boost" ? { scale: [1, 1.2, 1] } : {}}
+                animate={phase === "boost" && !prefersReducedMotion ? { scale: [1, 1.2, 1] } : {}}
                 transition={{ duration: 0.3 }}
                 className={cn(
                   "z-10 flex h-8 w-8 items-center justify-center rounded-sm",
@@ -247,14 +253,14 @@ export function BoostCeremonyOverlay({ isOpen, data, onClose }: BoostCeremonyOve
 
             {/* Boost slot */}
             <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
+              initial={{ opacity: 0, scale: prefersReducedMotion ? 1 : 0.9 }}
               animate={{
                 opacity: 1,
-                scale: phase === "complete" ? [1, 1.05, 1] : 1,
+                scale: !prefersReducedMotion && phase === "complete" ? [1, 1.05, 1] : 1,
               }}
               transition={{
-                duration: 0.3,
-                delay: 0.2,
+                duration: prefersReducedMotion ? 0 : 0.3,
+                delay: prefersReducedMotion ? 0 : 0.2,
                 scale: { duration: 0.4, delay: 0 },
               }}
               className={cn(
@@ -266,7 +272,7 @@ export function BoostCeremonyOverlay({ isOpen, data, onClose }: BoostCeremonyOve
             >
               <motion.div
                 animate={
-                  phase === "complete"
+                  !prefersReducedMotion && phase === "complete"
                     ? {
                         scale: [1, 1.2, 1],
                         opacity: [0.5, 1, 0.5],
@@ -282,14 +288,16 @@ export function BoostCeremonyOverlay({ isOpen, data, onClose }: BoostCeremonyOve
               <p className="text-lg font-semibold mt-1">{data.totalMultiplier}x</p>
 
               {/* Particle burst on complete */}
-              {phase === "complete" && <ParticleBurst color={visuals.color} count={12} />}
+              {phase === "complete" && !prefersReducedMotion && (
+                <ParticleBurst color={visuals.color} count={12} />
+              )}
             </motion.div>
 
             {/* Stats */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: phase === "complete" ? 1 : 0 }}
-              transition={{ delay: 0.3 }}
+              transition={{ delay: prefersReducedMotion ? 0 : 0.3 }}
               className="mt-6 grid grid-cols-2 gap-4"
             >
               <div className="rounded-sm bg-muted p-3 text-center">
@@ -309,7 +317,7 @@ export function BoostCeremonyOverlay({ isOpen, data, onClose }: BoostCeremonyOve
           <motion.p
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ delay: 0.5 }}
+            transition={{ delay: prefersReducedMotion ? 0 : 0.5 }}
             className="text-center text-xs text-muted-foreground mt-6"
           >
             Click anywhere to close
