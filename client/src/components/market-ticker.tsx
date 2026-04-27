@@ -27,7 +27,7 @@ export function MarketTicker() {
         symbol: `${item.playerFirstName?.charAt(0) || ""}. ${item.playerLastName || "Unknown"}`,
         price: item.currentPrice || 0,
         change: item.priceChange24h || 0,
-        link: `/player/${item.playerId}`,
+        playerId: item.playerId,
       };
     })
     .filter((item) => item.price > 0);

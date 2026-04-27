@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { useEffect, useState, useRef } from "react";
 import { cn } from "@/lib/utils";
+import { openPlayerModal } from "@/lib/player-modal-events";
 
 interface AnimatedPriceProps {
   value: number;
@@ -225,7 +226,7 @@ export function LivePriceTicker({ prices, className }: LivePriceTickerProps) {
 function TickerItem({
   item,
 }: {
-  item: { symbol: string; price: number; change: number; link?: string };
+  item: { symbol: string; price: number; change: number; link?: string; playerId?: string };
 }) {
   const content = (
     <>
@@ -244,6 +245,18 @@ function TickerItem({
     "inline-flex items-center gap-2 text-sm",
     item.change >= 0 ? "text-emerald-500" : "text-red-500",
   );
+
+  if (item.playerId) {
+    return (
+      <button
+        type="button"
+        onClick={() => openPlayerModal(item.playerId!)}
+        className={cn(containerClass, "cursor-pointer bg-transparent border-0 p-0")}
+      >
+        {content}
+      </button>
+    );
+  }
 
   if (item.link) {
     return (

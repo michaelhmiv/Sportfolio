@@ -581,80 +581,92 @@ function ModalPlayerName({
 
 function ScannerRowExpanded({ rank, player, label, value, color, type }: any) {
   return (
-    <Link href={`/player/${player.id}`}>
-      <div className="group/row flex cursor-pointer items-center justify-between border border-transparent p-2 transition-colors hover:border-border/50 hover:bg-muted/30">
-        <div className="flex items-center gap-3 overflow-hidden min-w-0 flex-1">
-          <span className="text-xs font-mono font-bold w-5 text-muted-foreground/50 text-center">
-            {rank}
-          </span>
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => openPlayerModal(player.id)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") openPlayerModal(player.id);
+      }}
+      className="group/row flex cursor-pointer items-center justify-between border border-transparent p-2 transition-colors hover:border-border/50 hover:bg-muted/30"
+    >
+      <div className="flex items-center gap-3 overflow-hidden min-w-0 flex-1">
+        <span className="text-xs font-mono font-bold w-5 text-muted-foreground/50 text-center">
+          {rank}
+        </span>
 
-          {/* Player Info */}
-          <div className="flex flex-col min-w-0">
-            <ModalPlayerName
-              playerId={player.id}
-              name={`${player.firstName} ${player.lastName}`}
-              className="text-sm font-bold truncate group-hover/row:text-primary transition-colors"
-            />
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className="h-4 px-1 py-0 font-mono text-[10px] uppercase">
-                {player.team}
-              </Badge>
-              <span className="text-[10px] text-muted-foreground">{player.position}</span>
-            </div>
+        {/* Player Info */}
+        <div className="flex flex-col min-w-0">
+          <ModalPlayerName
+            playerId={player.id}
+            name={`${player.firstName} ${player.lastName}`}
+            className="text-sm font-bold truncate group-hover/row:text-primary transition-colors"
+          />
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="h-4 px-1 py-0 font-mono text-[10px] uppercase">
+              {player.team}
+            </Badge>
+            <span className="text-[10px] text-muted-foreground">{player.position}</span>
           </div>
-        </div>
-
-        <div className="flex items-center gap-6 text-right">
-          {/* Price */}
-          <div className="flex flex-col items-end w-16">
-            <span className="text-sm font-mono font-bold">
-              ${parseFloat(player.currentPrice || player.price || "0").toFixed(2)}
-            </span>
-            <span className="text-[10px] text-muted-foreground uppercase opacity-50">Price</span>
-          </div>
-
-          {/* Metric */}
-          <div className="flex flex-col items-end w-16">
-            <span className={`text-sm font-bold ${color}`}>{value}</span>
-            <span className="text-[10px] text-muted-foreground uppercase tracking-tighter opacity-70">
-              {label}
-            </span>
-          </div>
-
-          <ArrowRight className="w-4 h-4 text-muted-foreground/50 opacity-0 group-hover/row:opacity-100 -ml-2" />
         </div>
       </div>
-    </Link>
+
+      <div className="flex items-center gap-6 text-right">
+        {/* Price */}
+        <div className="flex flex-col items-end w-16">
+          <span className="text-sm font-mono font-bold">
+            ${parseFloat(player.currentPrice || player.price || "0").toFixed(2)}
+          </span>
+          <span className="text-[10px] text-muted-foreground uppercase opacity-50">Price</span>
+        </div>
+
+        {/* Metric */}
+        <div className="flex flex-col items-end w-16">
+          <span className={`text-sm font-bold ${color}`}>{value}</span>
+          <span className="text-[10px] text-muted-foreground uppercase tracking-tighter opacity-70">
+            {label}
+          </span>
+        </div>
+
+        <ArrowRight className="w-4 h-4 text-muted-foreground/50 opacity-0 group-hover/row:opacity-100 -ml-2" />
+      </div>
+    </div>
   );
 }
 
 function ScannerRowCompact({ rank, player, label, value, color }: any) {
   return (
-    <Link href={`/player/${player.id}`}>
-      <div className="flex h-full cursor-pointer items-center gap-2 border border-transparent bg-muted/20 p-1.5 transition-colors hover:border-border hover:bg-muted/30">
-        <span className="text-[9px] font-mono text-muted-foreground w-3 text-center flex-shrink-0">
-          {rank}
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => openPlayerModal(player.id)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") openPlayerModal(player.id);
+      }}
+      className="flex h-full cursor-pointer items-center gap-2 border border-transparent bg-muted/20 p-1.5 transition-colors hover:border-border hover:bg-muted/30"
+    >
+      <span className="text-[9px] font-mono text-muted-foreground w-3 text-center flex-shrink-0">
+        {rank}
+      </span>
+
+      <div className="flex-1 min-w-0 flex items-baseline gap-1.5">
+        <ModalPlayerName
+          playerId={player.id}
+          name={player.lastName}
+          className="text-[11px] font-bold truncate"
+        />
+        <span className="text-[9px] text-muted-foreground uppercase truncate flex-shrink-0">
+          {player.team}
         </span>
-
-        <div className="flex-1 min-w-0 flex items-baseline gap-1.5">
-          <ModalPlayerName
-            playerId={player.id}
-            name={player.lastName}
-            className="text-[11px] font-bold truncate"
-          />
-          <span className="text-[9px] text-muted-foreground uppercase truncate flex-shrink-0">
-            {player.team}
-          </span>
-        </div>
-
-        <div className="flex flex-col items-end flex-shrink-0 leading-none">
-          <span className={`text-[10px] font-bold ${color}`}>{value}</span>
-          <span className="text-[8px] text-muted-foreground uppercase scale-90 origin-right">
-            {label}
-          </span>
-        </div>
       </div>
-    </Link>
+
+      <div className="flex flex-col items-end flex-shrink-0 leading-none">
+        <span className={`text-[10px] font-bold ${color}`}>{value}</span>
+        <span className="text-[8px] text-muted-foreground uppercase scale-90 origin-right">
+          {label}
+        </span>
+      </div>
+    </div>
   );
 }
 
@@ -682,30 +694,36 @@ function ScannerCard({ title, icon, colorConfig, children }: any) {
 
 function ScannerRow({ rank, player, metricLabel, metricValue, metricColor }: any) {
   return (
-    <Link href={`/player/${player.id}`}>
-      <div className="group/row flex cursor-pointer items-center justify-between p-2 transition-colors hover:bg-muted/30">
-        <div className="flex items-center gap-3 overflow-hidden">
-          <span className={`text-xs font-mono font-bold w-4 text-muted-foreground/50`}>{rank}</span>
-          <div className="flex flex-col min-w-0">
-            <ModalPlayerName
-              playerId={player.id}
-              name={`${player.firstName.charAt(0)}. ${player.lastName}`}
-              className="text-xs font-bold truncate group-hover/row:text-primary transition-colors"
-            />
-            <span className="text-[10px] text-muted-foreground uppercase">
-              {player.team} • {player.position}
-            </span>
-          </div>
-        </div>
-
-        <div className="flex flex-col items-end">
-          <span className={`text-xs font-bold ${metricColor}`}>{metricValue}</span>
-          <span className="text-[9px] text-muted-foreground uppercase tracking-tighter">
-            {metricLabel}
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => openPlayerModal(player.id)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") openPlayerModal(player.id);
+      }}
+      className="group/row flex cursor-pointer items-center justify-between p-2 transition-colors hover:bg-muted/30"
+    >
+      <div className="flex items-center gap-3 overflow-hidden">
+        <span className={`text-xs font-mono font-bold w-4 text-muted-foreground/50`}>{rank}</span>
+        <div className="flex flex-col min-w-0">
+          <ModalPlayerName
+            playerId={player.id}
+            name={`${player.firstName.charAt(0)}. ${player.lastName}`}
+            className="text-xs font-bold truncate group-hover/row:text-primary transition-colors"
+          />
+          <span className="text-[10px] text-muted-foreground uppercase">
+            {player.team} • {player.position}
           </span>
         </div>
       </div>
-    </Link>
+
+      <div className="flex flex-col items-end">
+        <span className={`text-xs font-bold ${metricColor}`}>{metricValue}</span>
+        <span className="text-[9px] text-muted-foreground uppercase tracking-tighter">
+          {metricLabel}
+        </span>
+      </div>
+    </div>
   );
 }
 
