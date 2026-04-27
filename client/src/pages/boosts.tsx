@@ -428,7 +428,32 @@ export default function BoostsPage() {
     }
   }, [preselectPlayerId, preselectHandled, loadingBoosts, boostsData]);
 
-  const totalEstimated = "0.00";
+  // Compute estimated payout from actual data:
+  //   1. Settled boosts: sum actual payout fields
+  //   2. Locked boosts with live FP: estimate using slotTier × liveFP × (shareMultiplier + communityBoostCount)
+  //   3. Active-only (pre-game): no estimate possible → null (renders as "--")
+  const totalEstimated = useMemo<string | null>(() => {
+    const boosts = boostsData?.boosts ?? [];
+
+    const settledTotal = boosts
+      .filter((b) => b.payout != null && parseFloat(b.payout) > 0)
+      .reduce((sum, b) => sum + parseFloat(b.payout!), 0);
+    if (settledTotal > 0) return settledTotal.toFixed(2);
+
+    const liveTotal = boosts
+      .filter(
+        (b) => b.status === "locked" && b.liveFantasyPoints != null && b.liveFantasyPoints > 0,
+      )
+      .reduce((sum, b) => {
+        const fp = b.liveFantasyPoints!;
+        const shareMult = parseFloat(b.shareMultiplier) || 1;
+        return sum + b.slotTier * fp * (shareMult + b.communityBoostCount);
+      }, 0);
+    if (liveTotal > 0) return liveTotal.toFixed(2);
+
+    return null;
+  }, [boostsData?.boosts]);
+
   const activeBoosts = boostsData?.boosts?.filter((b) => b.status === "active").length || 0;
   const lockedBoosts = boostsData?.boosts?.filter((b) => b.status === "locked").length || 0;
   const userPremiumShares = eligibleData?.eligiblePlayers?.[0]?.userPremiumShares || 0;
@@ -517,7 +542,9 @@ export default function BoostsPage() {
               )}
               <div className="terminal-shell min-w-[8rem] px-2.5 py-1.5 sm:min-w-0 sm:px-3 sm:py-2">
                 <p className="terminal-label">Est. Payout</p>
-                <p className="terminal-value text-sm">${totalEstimated}</p>
+                <p className="terminal-value text-sm">
+                  {totalEstimated != null ? `$${totalEstimated}` : "--"}
+                </p>
               </div>
             </div>
           </div>
