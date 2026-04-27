@@ -130,6 +130,18 @@ interface AssignBoostResponse {
   estimatedPayout: string;
 }
 
+function formatCountdown(gameStartTime: string, now: Date): string | null {
+  const target = new Date(gameStartTime);
+  const diffMs = target.getTime() - now.getTime();
+  if (diffMs <= 0) return null;
+  const totalSeconds = Math.floor(diffMs / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
+}
+
 const MULTIPLIER_SLOTS = [
   { tier: 5, label: "5x", color: "bg-yellow-500", icon: Flame },
   { tier: 4, label: "4x", color: "bg-orange-500", icon: Zap },
@@ -150,6 +162,13 @@ export default function BoostsPage() {
   const [boostCeremonyOpen, setBoostCeremonyOpen] = useState(false);
   const [boostCeremonyData, setBoostCeremonyData] = useState<BoostCeremonyData | null>(null);
   const [resultsPodiumOpen, setResultsPodiumOpen] = useState(false);
+
+  // Countdown clock — ticks every second for active boost slot timers
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
 
   // Parse ?preselect=<playerId> from the URL — one-shot: handled flag prevents re-trigger
   const searchString = useSearch();
@@ -525,6 +544,13 @@ export default function BoostsPage() {
               {MULTIPLIER_SLOTS.map(({ tier, label, color }) => {
                 const boost = getSlotBoost(tier);
                 const isAvailable = boostsData?.availableSlots?.includes(tier);
+                const boostEp = boost
+                  ? (eligibleData?.eligiblePlayers?.find((p) => p.playerId === boost.playerId) ??
+                    null)
+                  : null;
+                const gameCountdown = boostEp?.gameStartTime
+                  ? formatCountdown(boostEp.gameStartTime, now)
+                  : null;
 
                 return (
                   <Card
@@ -618,7 +644,7 @@ export default function BoostsPage() {
                               className="w-full justify-center font-mono text-[10px] uppercase"
                             >
                               <Clock className="w-3 h-3 mr-1" />
-                              Waiting
+                              {gameCountdown ? `Tipoff ${gameCountdown}` : "Waiting"}
                             </Badge>
                           )}
                           {boost.status === "locked" &&
