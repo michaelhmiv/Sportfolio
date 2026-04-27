@@ -20,6 +20,30 @@ const MAX_SLIPPAGE = 0.5; // 50%
 const DEFAULT_SLIPPAGE = 0.05; // 5%
 const POOL_NOT_INITIALIZED_MESSAGE = "Pool not initialized. Add liquidity first.";
 
+type AmmErrorCode =
+  | "INSUFFICIENT_BALANCE"
+  | "SLIPPAGE_EXCEEDED"
+  | "INSUFFICIENT_SHARES"
+  | "SHARES_LOCKED"
+  | "INVALID_INPUT"
+  | "POOL_NOT_INITIALIZED";
+
+/** Derives a structured error code from a raw AMM error message string. */
+function mapAmmErrorCode(message: string | undefined): AmmErrorCode {
+  if (!message) return "INVALID_INPUT";
+  const lower = message.toLowerCase();
+  if (lower.includes("pool not")) return "POOL_NOT_INITIALIZED";
+  if (lower.includes("slippage")) return "SLIPPAGE_EXCEEDED";
+  if (lower.includes("insufficient balance") || lower.includes("available balance")) {
+    return "INSUFFICIENT_BALANCE";
+  }
+  if (lower.includes("locked")) return "SHARES_LOCKED";
+  if (lower.includes("insufficient shares") || lower.includes("available shares")) {
+    return "INSUFFICIENT_SHARES";
+  }
+  return "INVALID_INPUT";
+}
+
 function isPoolNotInitializedErrorMessage(message: string | undefined): boolean {
   if (!message) return false;
   const normalized = message.toLowerCase();
@@ -205,7 +229,7 @@ export function registerAmmRoutes(app: Express) {
             code: "POOL_NOT_INITIALIZED",
           });
         }
-        return res.status(400).json({ error: result.error });
+        return res.status(400).json({ error: result.error, code: mapAmmErrorCode(result.error) });
       }
 
       res.json({
@@ -224,7 +248,7 @@ export function registerAmmRoutes(app: Express) {
           code: "POOL_NOT_INITIALIZED",
         });
       }
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: error.message, code: mapAmmErrorCode(error.message) });
     }
   });
 
@@ -265,7 +289,7 @@ export function registerAmmRoutes(app: Express) {
             code: "POOL_NOT_INITIALIZED",
           });
         }
-        return res.status(400).json({ error: result.error });
+        return res.status(400).json({ error: result.error, code: mapAmmErrorCode(result.error) });
       }
 
       res.json({
@@ -286,7 +310,7 @@ export function registerAmmRoutes(app: Express) {
           code: "POOL_NOT_INITIALIZED",
         });
       }
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: error.message, code: mapAmmErrorCode(error.message) });
     }
   });
 }

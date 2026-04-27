@@ -18,12 +18,25 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
-import { ArrowRightLeft, TrendingUp, TrendingDown, Loader2, Flame, Droplets } from "lucide-react";
+import {
+  ArrowRightLeft,
+  TrendingUp,
+  TrendingDown,
+  Loader2,
+  Flame,
+  Droplets,
+  CheckCircle2,
+  AlertCircle,
+  TriangleAlert,
+  X,
+} from "lucide-react";
+import { ShareCounter, MoneyCounter } from "@/components/ui/animated-counter";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { formatAdaptiveCurrency } from "@/lib/currency";
 import { apiRequest } from "@/lib/queryClient";
 import { hapticSuccess, hapticError, hapticMedium } from "@/lib/haptics";
+import { cn } from "@/lib/utils";
 
 interface AmmTradePanelProps {
   playerId: string;
@@ -60,6 +73,69 @@ const BURN_FEE_PERCENT = 1; // 1% burned
 const LP_FEE_PERCENT = 1; // 1% to LPs
 const TOTAL_FEE_PERCENT = BURN_FEE_PERCENT + LP_FEE_PERCENT; // 2% total
 const SLIPPAGE_SAFETY_BUFFER_PERCENT = 0.05;
+/** Net factor applied to gross SB output after LP + burn fees (1 − 0.01 − 0.01). */
+const SELLER_NET_FACTOR = 0.98;
+
+/**
+ * Closed-form inverse of the AMM sell formula.
+ * Returns the raw (un-ceiled) shares needed to receive `targetSB` after fees.
+ * Formula: sharesNeeded = k / (playMoney − targetSB / SELLER_NET_FACTOR) − poolShares
+ */
+function deriveSellShares(targetSB: number, poolShares: number, poolPlayMoney: number): number {
+  const k = poolShares * poolPlayMoney;
+  const denominator = poolPlayMoney - targetSB / SELLER_NET_FACTOR;
+  if (denominator <= 0) return Infinity;
+  return Math.max(0, k / denominator - poolShares);
+}
+
+/**
+ * Maps a raw server/network error to a short, human-readable inline message.
+ * Prefers the structured `code` field from JSON error responses (FU1);
+ * falls back to substring matching for legacy/network errors.
+ */
+function classifyTradeError(error: Error): string {
+  // throwIfResNotOk wraps errors as "STATUS: bodyText"
+  const colonIdx = error.message.indexOf(": ");
+  if (colonIdx !== -1) {
+    const body = error.message.slice(colonIdx + 2);
+    try {
+      const parsed = JSON.parse(body) as { code?: string };
+      if (parsed.code) {
+        switch (parsed.code) {
+          case "INSUFFICIENT_BALANCE":
+            return "Insufficient balance to complete this trade.";
+          case "SLIPPAGE_EXCEEDED":
+            return "Slippage tolerance exceeded. Try a smaller amount or raise the limit in Advanced settings.";
+          case "INSUFFICIENT_SHARES":
+            return "Insufficient available shares.";
+          case "SHARES_LOCKED":
+            return "These shares are locked and cannot be traded.";
+          case "POOL_NOT_INITIALIZED":
+            return "Pool not initialized. Add liquidity first.";
+          case "INVALID_INPUT":
+            return "Invalid trade input. Please check the amount and try again.";
+        }
+      }
+    } catch {
+      // Not JSON — fall through to substring matching
+    }
+  }
+  // Fallback: substring matching on the full message
+  const msg = error.message.toLowerCase();
+  if (msg.includes("insufficient balance") || msg.includes("available balance")) {
+    return "Insufficient balance to complete this trade.";
+  }
+  if (msg.includes("slippage")) {
+    return "Slippage tolerance exceeded. Try a smaller amount or raise the limit in Advanced settings.";
+  }
+  if ((msg.includes("insufficient") || msg.includes("available")) && msg.includes("shares")) {
+    return "Insufficient available shares. Some may be locked.";
+  }
+  if (msg.includes("locked")) {
+    return "These shares are locked and cannot be traded.";
+  }
+  return "Trade failed. Please try again.";
+}
 
 export function AmmTradePanel({
   playerId,
@@ -81,6 +157,14 @@ export function AmmTradePanel({
   const [showAdvanced, setShowAdvanced] = useState<boolean>(false);
   const [quote, setQuote] = useState<QuoteData | null>(null);
   const [isLoadingQuote, setIsLoadingQuote] = useState(false);
+  const [inlineError, setInlineError] = useState<string | null>(null);
+  const [tradeResult, setTradeResult] = useState<{
+    type: TradeType;
+    shares: number;
+    sbAmount: number;
+  } | null>(null);
+  /** FU2: whether the sell input is in "shares" or "sb" (target SB to receive) mode. */
+  const [sellInputMode, setSellInputMode] = useState<"shares" | "sb">("shares");
 
   // Fetch pool data
   const { data: poolData } = useQuery<PoolSnapshot>({
@@ -161,6 +245,39 @@ export function AmmTradePanel({
     return low;
   }, [tradeType, userBalance, poolData, maxSlippage, isPoolInitialized]);
 
+  /**
+   * FU2: Maximum SB a user can receive by selling all their shares.
+   * Used as the slider ceiling when sellInputMode === "sb".
+   */
+  const maxSBFromSelling = useMemo(() => {
+    if (!isPoolInitialized || tradeType !== "sell") return 0;
+    if (!userShares || userShares <= 0) return 0;
+    const poolShares = Number(poolData?.shares ?? 0);
+    const poolPlayMoney = Number(poolData?.playMoney ?? 0);
+    if (!poolShares || !poolPlayMoney) return 0;
+    const k = poolShares * poolPlayMoney;
+    const newPoolShares = poolShares + userShares;
+    const newPoolPlayMoney = k / newPoolShares;
+    const grossSB = poolPlayMoney - newPoolPlayMoney;
+    return Math.max(0, grossSB * SELLER_NET_FACTOR);
+  }, [isPoolInitialized, tradeType, userShares, poolData]);
+
+  /**
+   * FU2: Whole-integer share count derived from the SB target the user typed.
+   * Only meaningful when sellInputMode === "sb".
+   */
+  const derivedSellSharesCount = useMemo(() => {
+    if (sellInputMode !== "sb") return 0;
+    const targetSB = parseFloat(amount || "0");
+    if (!targetSB || targetSB <= 0) return 0;
+    const poolShares = Number(poolData?.shares ?? 0);
+    const poolPlayMoney = Number(poolData?.playMoney ?? 0);
+    if (!poolShares || !poolPlayMoney) return 0;
+    const raw = deriveSellShares(targetSB, poolShares, poolPlayMoney);
+    if (!isFinite(raw) || raw <= 0) return 0;
+    return Math.ceil(raw);
+  }, [sellInputMode, amount, poolData]);
+
   // Calculate max amount based on trade type and current slippage constraint
   const maxAmount = isPoolInitialized
     ? tradeType === "buy"
@@ -170,13 +287,16 @@ export function AmmTradePanel({
 
   const amountFromSliderPercentage = useCallback(
     (percentage: number) => {
+      if (tradeType === "sell" && sellInputMode === "sb") {
+        return ((maxSBFromSelling * percentage) / 100).toFixed(2);
+      }
       const rawAmount = (maxAmount * percentage) / 100;
       if (tradeType === "buy") {
         return rawAmount.toFixed(2);
       }
       return Math.floor(rawAmount).toString();
     },
-    [maxAmount, tradeType],
+    [maxAmount, maxSBFromSelling, tradeType, sellInputMode],
   );
 
   // Handle slider change
@@ -184,31 +304,41 @@ export function AmmTradePanel({
     (value: number[]) => {
       const percentage = value[0];
       setSliderValue(percentage);
+      setInlineError(null);
 
-      if (maxAmount > 0) {
+      if (
+        maxAmount > 0 ||
+        (tradeType === "sell" && sellInputMode === "sb" && maxSBFromSelling > 0)
+      ) {
         setAmount(amountFromSliderPercentage(percentage));
       }
     },
-    [maxAmount, amountFromSliderPercentage],
+    [maxAmount, maxSBFromSelling, amountFromSliderPercentage, tradeType, sellInputMode],
   );
 
   // Handle quick select buttons
   const handleQuickSelect = useCallback(
     (percentage: number) => {
       setSliderValue(percentage);
+      setInlineError(null);
 
-      if (maxAmount > 0) {
+      if (
+        maxAmount > 0 ||
+        (tradeType === "sell" && sellInputMode === "sb" && maxSBFromSelling > 0)
+      ) {
         setAmount(amountFromSliderPercentage(percentage));
       }
     },
-    [maxAmount, amountFromSliderPercentage],
+    [maxAmount, maxSBFromSelling, amountFromSliderPercentage, tradeType, sellInputMode],
   );
 
   // Handle manual input change
   const handleManualInputChange = useCallback(
     (value: string) => {
-      // For selling shares, ensure whole numbers
-      if (tradeType === "sell") {
+      setInlineError(null);
+      setTradeResult(null);
+      // For selling shares in shares mode, enforce whole numbers
+      if (tradeType === "sell" && sellInputMode === "shares") {
         const intValue = Math.floor(parseFloat(value || "0"));
         setAmount(intValue.toString());
       } else {
@@ -217,15 +347,16 @@ export function AmmTradePanel({
 
       // Update slider to match manual input
       const numValue = parseFloat(value || "0");
-      if (!isNaN(numValue) && maxAmount > 0) {
-        const clampedValue = Math.min(numValue, maxAmount);
-        const percentage = Math.min((clampedValue / maxAmount) * 100, 100);
+      const modeMax = tradeType === "sell" && sellInputMode === "sb" ? maxSBFromSelling : maxAmount;
+      if (!isNaN(numValue) && modeMax > 0) {
+        const clampedValue = Math.min(numValue, modeMax);
+        const percentage = Math.min((clampedValue / modeMax) * 100, 100);
         setSliderValue(percentage);
       } else {
         setSliderValue(0);
       }
     },
-    [maxAmount, tradeType],
+    [maxAmount, maxSBFromSelling, tradeType, sellInputMode],
   );
 
   // Debounced quote fetch
@@ -242,10 +373,22 @@ export function AmmTradePanel({
 
     setIsLoadingQuote(true);
     try {
-      const value = parseFloat(amount);
       const queryType = tradeType === "buy" ? "buy" : "sell";
+      let queryAmount: number;
 
-      const res = await fetch(`/api/amm/${playerId}/quote?type=${queryType}&amount=${value}`);
+      if (tradeType === "sell" && sellInputMode === "sb") {
+        // Derive the required shares from the target SB amount
+        queryAmount = derivedSellSharesCount;
+        if (!queryAmount || queryAmount <= 0) {
+          setQuote(null);
+          setIsLoadingQuote(false);
+          return;
+        }
+      } else {
+        queryAmount = parseFloat(amount);
+      }
+
+      const res = await fetch(`/api/amm/${playerId}/quote?type=${queryType}&amount=${queryAmount}`);
 
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({ error: "Failed to fetch quote" }));
@@ -270,31 +413,50 @@ export function AmmTradePanel({
     } finally {
       setIsLoadingQuote(false);
     }
-  }, [amount, tradeType, playerId, toast, isPoolInitialized]);
+  }, [
+    amount,
+    tradeType,
+    sellInputMode,
+    derivedSellSharesCount,
+    playerId,
+    toast,
+    isPoolInitialized,
+  ]);
 
-  // Fetch quote when amount or trade type changes
+  // Fetch quote when amount, trade type, or sell mode changes
   useEffect(() => {
     const timer = setTimeout(fetchQuote, 300);
     return () => clearTimeout(timer);
   }, [fetchQuote]);
 
-  // Reset amount when trade type changes
+  // Reset amount, feedback, and sell mode when trade type changes
   useEffect(() => {
     setAmount("");
     setSliderValue(0);
     setQuote(null);
+    setInlineError(null);
+    setTradeResult(null);
+    setSellInputMode("shares"); // FU2: always reset to shares mode on trade type switch
   }, [tradeType]);
 
   useEffect(() => {
     const amountValue = parseFloat(amount || "0");
-    if (!amount || !isFinite(amountValue) || amountValue <= maxAmount) {
+    const modeMax = tradeType === "sell" && sellInputMode === "sb" ? maxSBFromSelling : maxAmount;
+    if (!amount || !isFinite(amountValue) || amountValue <= modeMax) {
       return;
     }
 
-    const clampedPercentage = maxAmount > 0 ? 100 : 0;
+    const clampedPercentage = modeMax > 0 ? 100 : 0;
     setSliderValue(clampedPercentage);
     setAmount(amountFromSliderPercentage(clampedPercentage));
-  }, [amount, maxAmount, amountFromSliderPercentage]);
+  }, [amount, maxAmount, maxSBFromSelling, amountFromSliderPercentage, tradeType, sellInputMode]);
+
+  // Auto-dismiss the inline success banner after 6 seconds
+  useEffect(() => {
+    if (!tradeResult) return;
+    const timer = setTimeout(() => setTradeResult(null), 6000);
+    return () => clearTimeout(timer);
+  }, [tradeResult]);
 
   // Execute buy mutation
   const buyMutation = useMutation({
@@ -335,6 +497,11 @@ export function AmmTradePanel({
       queryClient.invalidateQueries({ queryKey: ["/api/user"] });
       queryClient.invalidateQueries({ queryKey: ["/api/holdings"] });
 
+      setTradeResult({
+        type: "buy",
+        shares: data.sharesReceived,
+        sbAmount: data.totalCost,
+      });
       setAmount("");
       setSliderValue(0);
       setQuote(null);
@@ -350,6 +517,7 @@ export function AmmTradePanel({
       }
 
       void hapticError();
+      setInlineError(classifyTradeError(error));
       toast({
         title: "Purchase Failed",
         description: error.message,
@@ -400,6 +568,11 @@ export function AmmTradePanel({
       queryClient.invalidateQueries({ queryKey: ["/api/user"] });
       queryClient.invalidateQueries({ queryKey: ["/api/holdings"] });
 
+      setTradeResult({
+        type: "sell",
+        shares: data.sharesSold,
+        sbAmount: data.totalProceeds,
+      });
       setAmount("");
       setSliderValue(0);
       setQuote(null);
@@ -415,6 +588,7 @@ export function AmmTradePanel({
       }
 
       void hapticError();
+      setInlineError(classifyTradeError(error));
       toast({
         title: "Sale Failed",
         description: error.message,
@@ -430,24 +604,21 @@ export function AmmTradePanel({
       const sbAmount = parseFloat(amount);
       if (sbAmount > userBalance) {
         void hapticError();
-        toast({
-          title: "Insufficient Balance",
-          description: `You need $${sbAmount.toFixed(2)} but only have $${userBalance.toFixed(2)}`,
-          variant: "destructive",
-        });
+        setInlineError(
+          `Insufficient balance. Need $${sbAmount.toFixed(2)} but you have $${userBalance.toFixed(2)}.`,
+        );
         return;
       }
       void hapticMedium();
       buyMutation.mutate(sbAmount);
     } else {
-      const sharesAmount = parseFloat(amount);
+      // FU2: use derived share count when in SB-target mode
+      const sharesAmount = sellInputMode === "sb" ? derivedSellSharesCount : parseFloat(amount);
       if (sharesAmount > userShares) {
         void hapticError();
-        toast({
-          title: "Insufficient Shares",
-          description: `You want to sell ${sharesAmount} shares but only have ${userShares}`,
-          variant: "destructive",
-        });
+        setInlineError(
+          `Insufficient shares. You have ${userShares} but tried to sell ${sharesAmount}.`,
+        );
         return;
       }
       void hapticMedium();
@@ -474,6 +645,14 @@ export function AmmTradePanel({
   };
 
   const fees = calculateFees();
+
+  /** FU4: Computed slippage warning level based on quote vs maxSlippage. */
+  const slippageWarningLevel = useMemo<"none" | "warn" | "exceeded">(() => {
+    if (!quote) return "none";
+    if (quote.slippagePercent >= maxSlippage) return "exceeded";
+    if (quote.slippagePercent >= maxSlippage * 0.75) return "warn";
+    return "none";
+  }, [quote, maxSlippage]);
 
   if (!isAuthenticated) {
     return (
@@ -517,13 +696,53 @@ export function AmmTradePanel({
       <div className="space-y-4">
         {/* Label with balance */}
         <div className="flex justify-between items-center">
-          <Label>{tradeType === "buy" ? "Amount to Spend" : "Shares to Sell"}</Label>
+          <Label>
+            {tradeType === "buy"
+              ? "Amount to Spend"
+              : sellInputMode === "sb"
+                ? "Target SB to Receive"
+                : "Shares to Sell"}
+          </Label>
           <span className="text-xs text-muted-foreground">
             {tradeType === "buy"
               ? `Balance: $${userBalance.toFixed(2)}`
               : `Owned: ${Math.floor(userShares)} shares`}
           </span>
         </div>
+
+        {/* FU2: Sell input mode toggle — only shown in sell mode */}
+        {tradeType === "sell" && (
+          <div className="flex gap-1">
+            <Button
+              variant={sellInputMode === "shares" ? "default" : "outline"}
+              size="sm"
+              className="flex-1 text-xs"
+              onClick={() => {
+                setSellInputMode("shares");
+                setAmount("");
+                setSliderValue(0);
+                setQuote(null);
+              }}
+              disabled={!isPoolInitialized}
+            >
+              # Shares
+            </Button>
+            <Button
+              variant={sellInputMode === "sb" ? "default" : "outline"}
+              size="sm"
+              className="flex-1 text-xs"
+              onClick={() => {
+                setSellInputMode("sb");
+                setAmount("");
+                setSliderValue(0);
+                setQuote(null);
+              }}
+              disabled={!isPoolInitialized}
+            >
+              $ SB Target
+            </Button>
+          </div>
+        )}
 
         {/* Slider */}
         <div className="space-y-2">
@@ -569,18 +788,30 @@ export function AmmTradePanel({
           <Input
             id="manual-amount"
             type="number"
-            placeholder={tradeType === "buy" ? "100" : "10"}
+            inputMode={
+              tradeType === "buy" || (tradeType === "sell" && sellInputMode === "sb")
+                ? "decimal"
+                : "numeric"
+            }
+            placeholder={tradeType === "buy" ? "100" : sellInputMode === "sb" ? "50" : "10"}
             value={amount}
             onChange={(e) => handleManualInputChange(e.target.value)}
-            min={tradeType === "buy" ? 0.01 : 1}
-            step={tradeType === "buy" ? 0.01 : 1}
+            min={tradeType === "buy" ? 0.01 : sellInputMode === "sb" ? 0.01 : 1}
+            step={tradeType === "buy" ? 0.01 : sellInputMode === "sb" ? 0.01 : 1}
             className="flex-1"
             disabled={!isPoolInitialized}
           />
-          <span className="text-sm text-muted-foreground whitespace-nowrap">
-            {tradeType === "buy" ? "SB" : "shares"}
+          <span className="text-xs font-medium text-foreground/70 whitespace-nowrap px-2 py-1 bg-muted rounded-sm">
+            {tradeType === "buy" || sellInputMode === "sb" ? "SB" : "shares"}
           </span>
         </div>
+
+        {/* FU2: Show derived share count when in SB-target mode */}
+        {tradeType === "sell" && sellInputMode === "sb" && derivedSellSharesCount > 0 && (
+          <p className="text-xs text-muted-foreground">
+            ≈ {derivedSellSharesCount} share{derivedSellSharesCount !== 1 ? "s" : ""} required
+          </p>
+        )}
       </div>
 
       {/* Quote Display */}
@@ -661,6 +892,25 @@ export function AmmTradePanel({
         </div>
       )}
 
+      {/* FU4: Slippage warning — shown between quote and Advanced Settings */}
+      {slippageWarningLevel !== "none" && (
+        <div
+          className={cn(
+            "flex items-start gap-3 p-3 rounded-sm border text-sm",
+            slippageWarningLevel === "warn"
+              ? "bg-yellow-500/10 border-yellow-500/20 text-yellow-700 dark:text-yellow-400"
+              : "bg-destructive/10 border-destructive/20 text-destructive",
+          )}
+        >
+          <TriangleAlert className="w-4 h-4 shrink-0 mt-0.5" />
+          <p className="flex-1">
+            {slippageWarningLevel === "warn"
+              ? `High slippage: ${quote!.slippagePercent.toFixed(1)}% (limit: ${maxSlippage}%). Consider a smaller amount.`
+              : `Slippage ${quote!.slippagePercent.toFixed(1)}% exceeds your ${maxSlippage}% limit — this trade will be rejected.`}
+          </p>
+        </div>
+      )}
+
       {/* Advanced Settings Toggle */}
       <div className="pt-2">
         <Button
@@ -700,6 +950,24 @@ export function AmmTradePanel({
         </div>
       )}
 
+      {/* Inline error message */}
+      {inlineError && (
+        <div className="flex items-start gap-3 p-3 rounded-sm bg-destructive/10 border border-destructive/20 text-destructive">
+          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+          <p className="flex-1 text-sm">{inlineError}</p>
+          {/* FU5: use Button component for accessible dismiss */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 shrink-0 text-destructive/60 hover:text-destructive hover:bg-destructive/10"
+            onClick={() => setInlineError(null)}
+            aria-label="Dismiss error"
+          >
+            <X className="w-3 h-3" />
+          </Button>
+        </div>
+      )}
+
       {/* Execute Button */}
       <Button
         className="w-full"
@@ -710,7 +978,8 @@ export function AmmTradePanel({
           isExecuting ||
           isLoadingQuote ||
           (tradeType === "buy" && parseFloat(amount) > userBalance) ||
-          (tradeType === "sell" && parseFloat(amount) > userShares)
+          (tradeType === "sell" && sellInputMode === "shares" && parseFloat(amount) > userShares) ||
+          (tradeType === "sell" && sellInputMode === "sb" && derivedSellSharesCount > userShares)
         }
         onClick={handleExecute}
       >
@@ -726,6 +995,40 @@ export function AmmTradePanel({
           </>
         )}
       </Button>
+
+      {/* Inline success banner — primary confirmation after server confirmation */}
+      {tradeResult && (
+        <div className="flex items-center gap-3 p-3 rounded-sm bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400">
+          <CheckCircle2 className="w-4 h-4 shrink-0" />
+          <div className="flex-1 text-sm">
+            <span className="font-medium">Trade complete</span>
+            <span className="mx-1">·</span>
+            {tradeResult.type === "buy" ? (
+              <>
+                +<ShareCounter value={tradeResult.shares} decimals={2} />
+              </>
+            ) : (
+              <>
+                +<MoneyCounter value={tradeResult.sbAmount} decimals={2} />
+              </>
+            )}
+            {/* FU3: show updated balance using MoneyCounter so it animates on refetch */}
+            <span className="mx-1">·</span>
+            <span>Balance: $</span>
+            <MoneyCounter value={userBalance} decimals={2} />
+          </div>
+          {/* FU5: use Button component for accessible dismiss */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 shrink-0 text-emerald-600/60 dark:text-emerald-400/60 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-500/10"
+            onClick={() => setTradeResult(null)}
+            aria-label="Dismiss"
+          >
+            <X className="w-3 h-3" />
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
