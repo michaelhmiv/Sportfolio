@@ -666,6 +666,32 @@ export default function Dashboard() {
 
         {/* Main Dashboard Grid */}
         <div className="p-3 sm:p-4 max-w-full overflow-x-hidden space-y-4 sm:space-y-6">
+          {/* Sport filter chips — visible at page top so users can switch context instantly */}
+          <div
+            className="flex gap-1.5 overflow-x-auto pb-0.5 no-scrollbar"
+            data-testid="strip-sport-filter"
+          >
+            {filterTabs.map((sportOption) => {
+              const isActive = sport === sportOption;
+              return (
+                <button
+                  key={sportOption}
+                  type="button"
+                  onClick={() => setSport(sportOption as typeof sport)}
+                  data-testid={`sport-chip-${sportOption.toLowerCase()}`}
+                  className={cn(
+                    "flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-semibold uppercase whitespace-nowrap transition-colors",
+                    isActive
+                      ? "border-primary/60 bg-primary/10 text-primary"
+                      : "border-border/70 bg-background/40 text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {sportOption === "ALL" ? "All" : sportOption}
+                </button>
+              );
+            })}
+          </div>
+
           <ScrollReveal delay={0.05}>
             <DashboardShowcaseCard
               isAuthenticated={isAuthenticated}
