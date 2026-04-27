@@ -79,6 +79,7 @@ import type { GameInsight, GameInsightsResponse } from "@/types/game-insights";
 import { AnimatedPrice } from "@/components/ui/animated-price";
 import { cn } from "@/lib/utils";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
+import { openPlayerModal } from "@/lib/player-modal-events";
 
 interface NetWorthChangeSummary {
   amount: number | null;
@@ -899,7 +900,7 @@ export default function Dashboard() {
                 topHoldings={data.topHoldings}
                 slatePlayers={slatePlayers}
                 eligiblePlayers={eligiblePlayers}
-                onTrade={(playerId) => setLocation(`/pools?player=${playerId}`)}
+                onTrade={(playerId) => openPlayerModal(playerId)}
               />
             )}
 
