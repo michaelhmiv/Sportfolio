@@ -5,6 +5,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
   Sheet,
   SheetContent,
   SheetHeader,
@@ -643,18 +654,36 @@ export default function BoostsPage() {
                               </div>
                             </div>
                             {boost.status === "active" && (
-                              <Button
-                                size="icon"
-                                variant="terminalOutline"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  removeBoostMutation.mutate(boost.id);
-                                }}
-                                disabled={removeBoostMutation.isPending}
-                                className="h-6 w-6 shrink-0"
-                              >
-                                <X className="w-3 h-3" />
-                              </Button>
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button
+                                    size="icon"
+                                    variant="terminalOutline"
+                                    onClick={(e) => e.stopPropagation()}
+                                    disabled={removeBoostMutation.isPending}
+                                    className="h-6 w-6 shrink-0"
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Remove boost?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      This will free up the {label} slot. The share will be returned
+                                      to your portfolio.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction
+                                      onClick={() => removeBoostMutation.mutate(boost.id)}
+                                    >
+                                      Remove
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
                             )}
                           </div>
                           {boost.communityBoostCount > 0 && (
