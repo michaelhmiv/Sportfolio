@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -17,9 +17,13 @@ import {
   TicketPercent,
   ShoppingCart,
   Droplets,
+  Heart,
+  Eye,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 import { ScoutSelector } from "@/components/scout-selector";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { InjuryIndicator } from "@/components/player-name";
@@ -158,6 +162,8 @@ export function PlayerModal({ playerId, open, onOpenChange }: PlayerModalProps) 
   const [gamesToShow, setGamesToShow] = useState(5);
   const { isAuthenticated } = useAuth();
   const { getInjury } = useInjuries();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   // Fetch all player data
   const { data: statsData, isLoading: statsLoading } = useQuery<any>({
@@ -181,6 +187,30 @@ export function PlayerModal({ playerId, open, onOpenChange }: PlayerModalProps) 
       enabled: open && !!cleanPlayerId,
     },
   );
+
+  // Watchlist state
+  const { data: watchlistIds = [] } = useQuery<string[]>({
+    queryKey: ["/api/watchlist"],
+    enabled: open && isAuthenticated,
+  });
+  const isWatchlisted = watchlistIds.includes(cleanPlayerId);
+
+  const toggleWatchlistMutation = useMutation({
+    mutationFn: async (currentlyWatchlisted: boolean) => {
+      if (currentlyWatchlisted) {
+        await apiRequest("DELETE", `/api/watchlist/${cleanPlayerId}`);
+      } else {
+        await apiRequest("POST", `/api/watchlist/${cleanPlayerId}`);
+      }
+    },
+    onSuccess: (_data, wasWatchlisted) => {
+      void queryClient.invalidateQueries({ queryKey: ["/api/watchlist"] });
+      toast({ title: wasWatchlisted ? "Removed from watchlist" : "Added to Favorites" });
+    },
+    onError: () => {
+      toast({ title: "Failed to update watchlist", variant: "destructive" });
+    },
+  });
 
   if (!cleanPlayerId) return null;
 
@@ -264,6 +294,37 @@ export function PlayerModal({ playerId, open, onOpenChange }: PlayerModalProps) 
             <div className="flex items-center justify-end flex-wrap gap-2">
               {cleanPlayerId && (
                 <div className="flex items-center flex-wrap justify-end gap-2">
+                  {/* Watchlist toggle */}
+                  {isAuthenticated && (
+                    <Button
+                      size="sm"
+                      variant={isWatchlisted ? "default" : "outline"}
+                      className="h-8 px-2"
+                      onClick={() => toggleWatchlistMutation.mutate(isWatchlisted)}
+                      disabled={toggleWatchlistMutation.isPending}
+                      data-testid="button-modal-watchlist"
+                      aria-label={isWatchlisted ? "Remove from watchlist" : "Add to watchlist"}
+                    >
+                      <Heart className={`w-4 h-4 ${isWatchlisted ? "fill-current" : ""}`} />
+                    </Button>
+                  )}
+                  {/* Boost shortcut (links to /boosts?preselect=<id> — PR 1) */}
+                  {isAuthenticated && (
+                    <Link
+                      href={`/boosts?preselect=${cleanPlayerId}`}
+                      onClick={() => onOpenChange(false)}
+                    >
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 px-2 text-xs"
+                        data-testid="button-modal-boost"
+                      >
+                        <Zap className="w-4 h-4 mr-1" />
+                        Boost
+                      </Button>
+                    </Link>
+                  )}
                   <Link
                     href={`/player/${cleanPlayerId}?tab=buy`}
                     onClick={() => onOpenChange(false)}
@@ -299,6 +360,18 @@ export function PlayerModal({ playerId, open, onOpenChange }: PlayerModalProps) 
                     >
                       <Droplets className="w-4 h-4 mr-1" />
                       Pool
+                    </Button>
+                  </Link>
+                  {/* View full player detail page */}
+                  <Link href={`/player/${cleanPlayerId}`} onClick={() => onOpenChange(false)}>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 px-2 text-xs"
+                      data-testid="button-modal-detail"
+                    >
+                      <Eye className="w-4 h-4 mr-1" />
+                      Detail
                     </Button>
                   </Link>
                 </div>
