@@ -18,15 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
-import {
-  ArrowRightLeft,
-  TrendingUp,
-  TrendingDown,
-  Loader2,
-  Flame,
-  Droplets,
-  LogIn,
-} from "lucide-react";
+import { TrendingUp, TrendingDown, Loader2, Flame, Droplets, LogIn } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { formatAdaptiveCurrency } from "@/lib/currency";
@@ -594,7 +586,7 @@ export function AmmTradePanel({
             htmlFor="manual-amount"
             className="text-sm text-muted-foreground whitespace-nowrap"
           >
-            Manual:
+            Amount:
           </Label>
           <Input
             id="manual-amount"
@@ -777,7 +769,11 @@ export function AmmTradePanel({
           </>
         ) : (
           <>
-            <ArrowRightLeft className="w-4 h-4 mr-2" />
+            {tradeType === "buy" ? (
+              <TrendingUp className="w-4 h-4 mr-2" />
+            ) : (
+              <TrendingDown className="w-4 h-4 mr-2" />
+            )}
             {tradeType === "buy" ? "Buy Shares" : "Sell Shares"}
           </>
         )}
