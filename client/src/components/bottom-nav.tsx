@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import { hapticLight } from "@/lib/haptics";
+import { useQuery } from "@tanstack/react-query";
 
 const navItems = [
   {
@@ -60,6 +61,10 @@ export function BottomNav() {
   // Sport Context & Filter
   const { sport, setSport } = useSport();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+
+  // Urgency data for badges — reuses the dashboard query cache
+  const { data: dashData } = useQuery<any>({ queryKey: ["/api/dashboard"] });
+  const slotsRemaining = (dashData?.boosts?.slotsRemaining ?? 0) as number;
 
   const handleClick = (e: React.MouseEvent, url: string) => {
     // If clicking Dashboard while already on Dashboard, open filter
@@ -235,6 +240,26 @@ export function BottomNav() {
                           data-testid="badge-notification-count-mobile"
                         >
                           {unreadCount}
+                        </Badge>
+                      </motion.div>
+                    )}
+
+                    {item.title === "Boosts" && slotsRemaining > 0 && (
+                      <motion.div
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        transition={
+                          prefersReducedMotion
+                            ? { duration: 0 }
+                            : { type: "spring", stiffness: 500, damping: 25 }
+                        }
+                        className="absolute top-1 right-2 z-[51]"
+                      >
+                        <Badge
+                          className="min-w-5 h-5 flex items-center justify-center px-1.5 text-xs bg-yellow-500 text-black border-0 hover:bg-yellow-500"
+                          data-testid="badge-boost-slots-remaining"
+                        >
+                          {slotsRemaining}
                         </Badge>
                       </motion.div>
                     )}
