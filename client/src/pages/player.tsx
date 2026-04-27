@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useParams, useSearch } from "wouter";
+import { useParams, useSearch, Link } from "wouter";
 import { useWebSocket } from "@/lib/websocket";
 import { useAuth } from "@/hooks/useAuth";
 import { useAppState } from "@/hooks/use-app-state";
@@ -11,7 +11,16 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
-import { TrendingUp, TrendingDown, BarChart2, Droplets, Info } from "lucide-react";
+import {
+  TrendingUp,
+  TrendingDown,
+  BarChart2,
+  Droplets,
+  Info,
+  Heart,
+  Zap,
+  ShoppingCart,
+} from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   LineChart,
@@ -86,6 +95,29 @@ export default function PlayerPage() {
   const [timeRange, setTimeRange] = useState<TimeRange>("1D");
   const [celebrationKey, setCelebrationKey] = useState(0);
   const [statsModalOpen, setStatsModalOpen] = useState(false);
+
+  // Watchlist state
+  const { data: watchlistIds = [] } = useQuery<string[]>({
+    queryKey: ["/api/watchlist"],
+    enabled: isAuthenticated,
+  });
+  const isWatchlisted = watchlistIds.includes(id);
+  const toggleWatchlistMutation = useMutation({
+    mutationFn: async (currentlyWatchlisted: boolean) => {
+      if (currentlyWatchlisted) {
+        await apiRequest("DELETE", `/api/watchlist/${id}`);
+      } else {
+        await apiRequest("POST", `/api/watchlist/${id}`);
+      }
+    },
+    onSuccess: (_data, wasWatchlisted) => {
+      void queryClient.invalidateQueries({ queryKey: ["/api/watchlist"] });
+      toast({ title: wasWatchlisted ? "Removed from watchlist" : "Added to Favorites" });
+    },
+    onError: () => {
+      toast({ title: "Failed to update watchlist", variant: "destructive" });
+    },
+  });
 
   // Liquidity UI (simple, no jargon)
   const [addLiquidityOpen, setAddLiquidityOpen] = useState(false);
@@ -939,7 +971,7 @@ export default function PlayerPage() {
           </div>
 
           {/* Right Column - Trading Panel */}
-          <div className="space-y-3">
+          <div id="trade-panel" className="space-y-3">
             <AmmTradePanel
               playerId={id}
               playerName={playerName}
@@ -1364,6 +1396,60 @@ export default function PlayerPage() {
 
       {/* Player Stats Modal */}
       <PlayerModal playerId={id} open={statsModalOpen} onOpenChange={setStatsModalOpen} />
+
+      {/* Sticky action bar — mobile/tablet only (hidden on lg+ where trade panel is in-view) */}
+      {isAuthenticated && (
+        <div
+          className="lg:hidden fixed bottom-16 sm:bottom-0 left-0 right-0 z-40 border-t bg-background/95 backdrop-blur px-3 py-2"
+          data-testid="sticky-action-bar"
+        >
+          <div className="flex items-center gap-2 max-w-7xl mx-auto">
+            <Button
+              className="flex-1 h-9 text-xs"
+              size="sm"
+              onClick={() =>
+                document.getElementById("trade-panel")?.scrollIntoView({ behavior: "smooth" })
+              }
+              data-testid="button-sticky-trade"
+            >
+              <ShoppingCart className="w-3.5 h-3.5 mr-1" />
+              Trade
+            </Button>
+            <Button
+              variant="terminalOutline"
+              size="sm"
+              className="h-9 text-xs px-3"
+              asChild
+              data-testid="button-sticky-boost"
+            >
+              <Link href={`/boosts?preselect=${id}`}>
+                <Zap className="w-3.5 h-3.5 mr-1" />
+                Boost
+              </Link>
+            </Button>
+            <Button
+              variant="terminalOutline"
+              size="sm"
+              className={`h-9 px-3 ${isWatchlisted ? "text-red-500" : ""}`}
+              onClick={() => toggleWatchlistMutation.mutate(isWatchlisted)}
+              disabled={toggleWatchlistMutation.isPending}
+              aria-label={isWatchlisted ? "Remove from watchlist" : "Add to watchlist"}
+              data-testid="button-sticky-watchlist"
+            >
+              <Heart className={`w-3.5 h-3.5 ${isWatchlisted ? "fill-current" : ""}`} />
+            </Button>
+            <Button
+              variant="terminalOutline"
+              size="sm"
+              className="h-9 text-xs px-3"
+              asChild
+              data-testid="button-sticky-scout"
+            >
+              <Link href="/scout">Scout</Link>
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
