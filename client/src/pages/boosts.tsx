@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,7 @@ import {
   Plus,
 } from "lucide-react";
 import { apiRequest, getAuthHeaders } from "@/lib/queryClient";
+import { useSearch } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import type { Player } from "@shared/schema";
 import { PlayerName } from "@/components/player-name";
@@ -139,6 +140,14 @@ export default function BoostsPage() {
   const [boostCeremonyOpen, setBoostCeremonyOpen] = useState(false);
   const [boostCeremonyData, setBoostCeremonyData] = useState<BoostCeremonyData | null>(null);
   const [resultsPodiumOpen, setResultsPodiumOpen] = useState(false);
+
+  // Parse ?preselect=<playerId> from the URL
+  const searchString = useSearch();
+  const preselectPlayerId = useMemo(
+    () => new URLSearchParams(searchString).get("preselect") || null,
+    [searchString],
+  );
+  const [preselectHandled, setPreselectHandled] = useState(false);
 
   const {
     data: boostsData,
@@ -347,6 +356,21 @@ export default function BoostsPage() {
       ),
     [communityData?.communityBoosts, communitySportFilter],
   );
+
+  // Auto-open player selector and highlight the preselected player
+  useEffect(() => {
+    if (!preselectPlayerId || preselectHandled || loadingBoosts) return;
+    if (!boostsData?.availableSlots?.length) return;
+
+    const firstAvailableSlot = MULTIPLIER_SLOTS.find((s) =>
+      boostsData.availableSlots.includes(s.tier),
+    );
+    if (firstAvailableSlot) {
+      setSelectedSlot(firstAvailableSlot.tier);
+      setPlayerSelectorOpen(true);
+      setPreselectHandled(true);
+    }
+  }, [preselectPlayerId, preselectHandled, loadingBoosts, boostsData]);
 
   const totalEstimated = "0.00";
   const activeBoosts = boostsData?.boosts?.filter((b) => b.status === "active").length || 0;
@@ -839,6 +863,8 @@ export default function BoostsPage() {
                             "flex items-center justify-between gap-2 p-3",
                             ep.gameStatus === "live" && "bg-yellow-500/5",
                             ep.gameStatus === "ended" && "bg-muted/20",
+                            ep.playerId === preselectPlayerId &&
+                              "border-l-2 border-primary bg-primary/5",
                           )}
                         >
                           <div className="flex items-center gap-2 min-w-0 flex-1">

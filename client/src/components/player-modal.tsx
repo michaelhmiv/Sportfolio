@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useMemo } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -17,11 +17,17 @@ import {
   TicketPercent,
   ShoppingCart,
   Droplets,
+  Heart,
+  ChevronDown,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
+import { authenticatedFetch } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import { ScoutSelector } from "@/components/scout-selector";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useScout } from "@/lib/scout-context";
 import { InjuryIndicator } from "@/components/player-name";
 import { useInjuries } from "@/lib/injury-context";
 
@@ -156,8 +162,119 @@ interface RecentGame {
 export function PlayerModal({ playerId, open, onOpenChange }: PlayerModalProps) {
   const cleanPlayerId = (playerId || "").split("?")[0].split("#")[0].trim();
   const [gamesToShow, setGamesToShow] = useState(5);
+  const [watchlistPickerOpen, setWatchlistPickerOpen] = useState(false);
   const { isAuthenticated } = useAuth();
   const { getInjury } = useInjuries();
+  const { openScoutDashboard } = useScout();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  // Today's date key (YYYY-MM-DD) for boost eligibility check
+  const todayDateKey = useMemo(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }, []);
+
+  // ---------------------------------------------------------------------------
+  // Watchlist state — query the flat player-ID list, optimistically toggle
+  // ---------------------------------------------------------------------------
+  const { data: watchlistIds = [] } = useQuery<string[]>({
+    queryKey: ["/api/watchlist"],
+    enabled: open && isAuthenticated,
+  });
+
+  const isWatchlisted = cleanPlayerId ? watchlistIds.includes(cleanPlayerId) : false;
+
+  const toggleWatchlistMutation = useMutation({
+    mutationFn: async (add: boolean) => {
+      const res = await authenticatedFetch(
+        `/api/watchlist/${encodeURIComponent(cleanPlayerId)}`,
+        { method: add ? "POST" : "DELETE" },
+      );
+      if (!res.ok) throw new Error("Failed to update watchlist");
+    },
+    onMutate: async (add: boolean) => {
+      await queryClient.cancelQueries({ queryKey: ["/api/watchlist"] });
+      const previous = queryClient.getQueryData<string[]>(["/api/watchlist"]);
+      queryClient.setQueryData<string[]>(
+        ["/api/watchlist"],
+        add
+          ? [...(previous ?? []), cleanPlayerId]
+          : (previous ?? []).filter((id) => id !== cleanPlayerId),
+      );
+      return { previous };
+    },
+    onError: (_err: any, _add: boolean, context: any) => {
+      if (context?.previous !== undefined) {
+        queryClient.setQueryData(["/api/watchlist"], context.previous);
+      }
+      toast({ title: "Failed to update watchlist", variant: "destructive" });
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/watchlist"] });
+    },
+  });
+
+  // Named watchlists for the picker popover
+  const { data: watchlists = [] } = useQuery<
+    { id: string; name: string; isDefault: boolean; color: string; itemCount: number }[]
+  >({
+    queryKey: ["/api/watchlists"],
+    enabled: open && isAuthenticated,
+  });
+
+  // Add player to a specific named watchlist
+  const addToWatchlistMutation = useMutation({
+    mutationFn: async (watchlistId: string) => {
+      const res = await authenticatedFetch(
+        `/api/watchlist/${encodeURIComponent(cleanPlayerId)}`,
+        {
+          method: "POST",
+          body: JSON.stringify({ watchlistId }),
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+      if (!res.ok) throw new Error("Failed to add to watchlist");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/watchlist"] });
+      setWatchlistPickerOpen(false);
+      toast({ title: "Added to list" });
+    },
+    onError: () => {
+      toast({ title: "Failed to add to list", variant: "destructive" });
+    },
+  });
+
+  // Boost eligibility for today — used to gate the Boost button
+  const { data: eligibleData } = useQuery<{
+    eligiblePlayers: {
+      playerId: string;
+      hasGameToday: boolean;
+      gameStatus: string;
+      isAlreadyBoosted: boolean;
+    }[];
+  }>({
+    queryKey: [`/api/daily-boosts/eligible-all?date=${todayDateKey}`],
+    enabled: open && isAuthenticated && !!cleanPlayerId,
+  });
+
+  const eligiblePlayer = eligibleData?.eligiblePlayers?.find(
+    (ep) => ep.playerId === cleanPlayerId,
+  );
+  const isBoostEligible =
+    eligiblePlayer?.hasGameToday === true &&
+    eligiblePlayer?.gameStatus === "upcoming" &&
+    eligiblePlayer?.isAlreadyBoosted === false;
+  // Show boost active when unauthenticated, data not yet loaded, or player is eligible
+  const showBoostActive = !isAuthenticated || !eligibleData || isBoostEligible;
+
+  // Scout data — used for slot-full inline CTA
+  const { data: scoutData } = useQuery<{ remaining: number; maxScouts: number }>({
+    queryKey: ["/api/scouts"],
+    enabled: open && isAuthenticated,
+  });
+  const scoutSlotsFull = isAuthenticated && scoutData !== undefined && scoutData.remaining === 0;
 
   // Fetch all player data
   const { data: statsData, isLoading: statsLoading } = useQuery<any>({
@@ -472,6 +589,144 @@ export function PlayerModal({ playerId, open, onOpenChange }: PlayerModalProps) 
               <div className="text-center text-xs text-muted-foreground py-2">No data</div>
             )}
           </div>
+
+          {/* Quick Actions: Watchlist, Boost Tonight, View Detail */}
+          {cleanPlayerId && (
+            <div
+              className="flex items-center gap-1 border rounded-md p-1 bg-accent/5"
+              data-testid="section-modal-quick-actions"
+            >
+              {/* Watchlist toggle + named-list picker — authenticated only */}
+              {isAuthenticated && (
+                <div className="flex flex-1 items-stretch min-w-0">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className={`flex-1 h-8 px-2 text-xs gap-1 rounded-r-none ${
+                      isWatchlisted
+                        ? "text-rose-500 hover:text-rose-600 hover:bg-rose-500/10"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                    onClick={() => toggleWatchlistMutation.mutate(!isWatchlisted)}
+                    disabled={toggleWatchlistMutation.isPending}
+                    data-testid="button-modal-watchlist"
+                  >
+                    <Heart
+                      className={`w-3.5 h-3.5 ${isWatchlisted ? "fill-rose-500 text-rose-500" : ""}`}
+                    />
+                    <span>{isWatchlisted ? "Saved" : "Watchlist"}</span>
+                  </Button>
+                  <Popover open={watchlistPickerOpen} onOpenChange={setWatchlistPickerOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-6 px-0 rounded-l-none border-l border-border/50 text-muted-foreground hover:text-foreground"
+                        data-testid="button-modal-watchlist-picker"
+                      >
+                        <ChevronDown className="w-3 h-3" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent align="start" className="w-48 p-2">
+                      <div className="text-[10px] font-semibold mb-2 text-muted-foreground uppercase tracking-wide">
+                        Add to list
+                      </div>
+                      {watchlists.length === 0 ? (
+                        <div className="text-xs text-muted-foreground py-2 text-center">
+                          No lists found
+                        </div>
+                      ) : (
+                        <div className="space-y-0.5">
+                          {watchlists.map((list) => (
+                            <Button
+                              key={list.id}
+                              variant="ghost"
+                              size="sm"
+                              className="w-full justify-start h-7 px-2 text-xs"
+                              onClick={() => addToWatchlistMutation.mutate(list.id)}
+                              disabled={addToWatchlistMutation.isPending}
+                            >
+                              <span
+                                className="w-2 h-2 rounded-full mr-2 shrink-0"
+                                style={{ backgroundColor: list.color || "#888" }}
+                              />
+                              {list.name}
+                            </Button>
+                          ))}
+                        </div>
+                      )}
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              )}
+
+              {/* Boost Tonight — eligibility-gated for authenticated users */}
+              {showBoostActive ? (
+                <Link
+                  href={`/boosts?preselect=${cleanPlayerId}`}
+                  onClick={() => onOpenChange(false)}
+                  className="flex-1"
+                >
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full h-8 px-2 text-xs gap-1"
+                    data-testid="button-modal-boost"
+                  >
+                    <Zap className="w-3.5 h-3.5 text-yellow-500" />
+                    <span>Boost</span>
+                  </Button>
+                </Link>
+              ) : (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="flex-1 h-8 px-2 text-xs gap-1 opacity-40 cursor-not-allowed"
+                  disabled
+                  data-testid="button-modal-boost-ineligible"
+                >
+                  <Zap className="w-3.5 h-3.5" />
+                  <span>Boost</span>
+                </Button>
+              )}
+
+              {/* View Full Detail */}
+              <Link
+                href={`/player/${cleanPlayerId}`}
+                onClick={() => onOpenChange(false)}
+                className="flex-1"
+              >
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full h-8 px-2 text-xs gap-1 text-muted-foreground"
+                  data-testid="button-modal-detail"
+                >
+                  <span>Detail</span>
+                  <ArrowRight className="w-3 h-3" />
+                </Button>
+              </Link>
+            </div>
+          )}
+
+          {/* Scout slot-full inline CTA */}
+          {isAuthenticated && scoutSlotsFull && (
+            <div
+              className="flex items-center justify-between border rounded-md px-3 py-2 bg-accent/5"
+              data-testid="section-modal-scout-full"
+            >
+              <span className="text-xs text-muted-foreground">Scout slots full</span>
+              <Button
+                variant="link"
+                size="sm"
+                className="h-auto p-0 text-xs"
+                onClick={openScoutDashboard}
+                data-testid="button-modal-scout-manage"
+              >
+                Manage
+              </Button>
+            </div>
+          )}
 
           {/* Scout Assignment - Only for authenticated users */}
           {isAuthenticated && playerId && <ScoutSelector playerId={playerId} />}
