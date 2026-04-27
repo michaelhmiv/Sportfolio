@@ -42,9 +42,7 @@ import { useBoostNearMissDetector } from "@/components/boost/boost-near-miss";
 import { SPORTS as GLOBAL_SPORTS } from "@/lib/sport-context";
 import { matchesPlayerSearch } from "@/lib/player-search";
 import { useBoostsDate } from "@/features/boosts/use-boosts-date";
-import { hapticSuccess, hapticError } from "@/lib/haptics";
-import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
-import { PullToRefreshIndicator } from "@/components/ui/animations";
+import { resolveAssignBoostFeedback } from "@/features/boosts/assign-boost-feedback";
 
 interface BoostCeremonyData {
   playerName: string;
@@ -119,6 +117,15 @@ interface BoostHistory {
   player?: Player;
 }
 
+interface AssignBoostResponse {
+  success: boolean;
+  boost: {
+    player?: Player | null;
+    shareMultiplier?: string | null;
+  };
+  estimatedPayout: string;
+}
+
 const MULTIPLIER_SLOTS = [
   { tier: 5, label: "5x", color: "bg-yellow-500", icon: Flame },
   { tier: 4, label: "4x", color: "bg-orange-500", icon: Zap },
@@ -140,6 +147,7 @@ export default function BoostsPage() {
   const [boostCeremonyData, setBoostCeremonyData] = useState<BoostCeremonyData | null>(null);
   const [resultsPodiumOpen, setResultsPodiumOpen] = useState(false);
 
+  // Fetch all boosts across sports
   const {
     data: boostsData,
     isLoading: loadingBoosts,
@@ -224,13 +232,6 @@ export default function BoostsPage() {
     },
   });
 
-  // Pull-to-refresh
-  const { containerRef, isRefreshing, pullDistance } = usePullToRefresh<HTMLDivElement>({
-    onRefresh: async () => {
-      await Promise.all([refetchBoosts(), refetchEligible(), refetchCommunity()]);
-    },
-  });
-
   // Assign boost mutation
   const assignBoostMutation = useMutation({
     mutationFn: async (data: {
@@ -239,28 +240,30 @@ export default function BoostsPage() {
       sharesEntered: number;
       sport: string;
     }) => {
-      return await apiRequest("POST", "/api/daily-boosts/assign", {
+      const response = await apiRequest("POST", "/api/daily-boosts/assign", {
         ...data,
         date: selectedDateKey,
       });
+      return (await response.json()) as AssignBoostResponse;
     },
     onSuccess: (response, variables) => {
-      void hapticSuccess();
       // Get player details for ceremony
-      const player = eligibleData?.eligiblePlayers?.find(
+      const eligiblePlayer = eligibleData?.eligiblePlayers?.find(
         (ep) => ep.playerId === variables.playerId,
       );
+      const feedback = resolveAssignBoostFeedback({
+        response,
+        eligiblePlayer,
+        slotTier: variables.slotTier,
+      });
 
-      if (player) {
-        const communityBoostCount = player.communityBoostCount || 0;
-        const totalMultiplier = variables.slotTier + communityBoostCount;
-
+      if (response.boost.player || eligiblePlayer?.player) {
         setBoostCeremonyData({
-          playerName: `${player.player.firstName} ${player.player.lastName}`,
-          playerTeam: player.player.team,
+          playerName: feedback.playerName,
+          playerTeam: feedback.playerTeam,
           slotTier: variables.slotTier,
-          shareMultiplier: player.bestShareMultiplier || 1,
-          totalMultiplier: totalMultiplier,
+          shareMultiplier: feedback.shareMultiplier,
+          totalMultiplier: feedback.totalMultiplier,
           sharesBurned: variables.sharesEntered,
         });
         setBoostCeremonyOpen(true);
@@ -269,10 +272,9 @@ export default function BoostsPage() {
       const slotLabel =
         MULTIPLIER_SLOTS.find((s) => s.tier === variables.slotTier)?.label ||
         `${variables.slotTier}x`;
-      const shareMultiplier = player?.bestShareMultiplier || 1;
       toast({
         title: "Boost slot filled!",
-        description: `Added 1 share to the ${slotLabel} slot (share multiplier ${shareMultiplier}). Share will be burned when the game starts.`,
+        description: `Added 1 share to the ${slotLabel} slot (share multiplier ${feedback.shareMultiplier}). Share will be burned when the game starts.`,
       });
       refetchBoosts();
       refetchEligible();
@@ -280,7 +282,6 @@ export default function BoostsPage() {
       setPlayerSelectorOpen(false);
     },
     onError: (error: Error) => {
-      void hapticError();
       toast({ title: "Boost failed", description: error.message, variant: "destructive" });
     },
   });
@@ -291,13 +292,11 @@ export default function BoostsPage() {
       return await apiRequest("DELETE", `/api/daily-boosts/${boostId}`);
     },
     onSuccess: () => {
-      void hapticSuccess();
       toast({ title: "Boost removed" });
       refetchBoosts();
       refetchEligible();
     },
     onError: (error: Error) => {
-      void hapticError();
       toast({ title: "Remove failed", description: error.message, variant: "destructive" });
     },
   });
@@ -308,7 +307,6 @@ export default function BoostsPage() {
       return await apiRequest("POST", "/api/community-boosts/create", data);
     },
     onSuccess: () => {
-      void hapticSuccess();
       toast({
         title: "Community Boost activated!",
         description: "1 Premium Share redeemed. +1x multiplier applied.",
@@ -318,7 +316,6 @@ export default function BoostsPage() {
       refetchCommunity();
     },
     onError: (error: Error) => {
-      void hapticError();
       toast({
         title: "Community Boost failed",
         description: error.message,
@@ -372,8 +369,7 @@ export default function BoostsPage() {
   };
 
   return (
-    <div ref={containerRef} className="terminal-page px-2 py-3 sm:p-3">
-      <PullToRefreshIndicator pullProgress={pullDistance / 72} isRefreshing={isRefreshing} />
+    <div className="terminal-page px-2 py-3 sm:p-3">
       <div className="mx-auto max-w-5xl py-1 space-y-3">
         <ErrorBoundary>
           {/* Header */}
@@ -629,7 +625,7 @@ export default function BoostsPage() {
                   <Users className="w-4 h-4" />
                   Community Boosts
                 </CardTitle>
-                <div className="flex items-center gap-1">
+                <div className="hidden items-center gap-1 sm:flex">
                   <Button
                     size="sm"
                     variant="terminal"
