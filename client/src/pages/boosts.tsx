@@ -42,6 +42,7 @@ import { useBoostNearMissDetector } from "@/components/boost/boost-near-miss";
 import { SPORTS as GLOBAL_SPORTS } from "@/lib/sport-context";
 import { matchesPlayerSearch } from "@/lib/player-search";
 import { useBoostsDate } from "@/features/boosts/use-boosts-date";
+import { resolveAssignBoostFeedback } from "@/features/boosts/assign-boost-feedback";
 import { hapticSuccess, hapticError } from "@/lib/haptics";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { PullToRefreshIndicator } from "@/components/ui/animations";
@@ -117,6 +118,15 @@ interface BoostHistory {
   payoutAmount: string;
   createdAt: string;
   player?: Player;
+}
+
+interface AssignBoostResponse {
+  success: boolean;
+  boost: {
+    player?: Player | null;
+    shareMultiplier?: string | null;
+  };
+  estimatedPayout: string;
 }
 
 const MULTIPLIER_SLOTS = [
@@ -239,28 +249,31 @@ export default function BoostsPage() {
       sharesEntered: number;
       sport: string;
     }) => {
-      return await apiRequest("POST", "/api/daily-boosts/assign", {
+      const response = await apiRequest("POST", "/api/daily-boosts/assign", {
         ...data,
         date: selectedDateKey,
       });
+      return (await response.json()) as AssignBoostResponse;
     },
     onSuccess: (response, variables) => {
       void hapticSuccess();
       // Get player details for ceremony
-      const player = eligibleData?.eligiblePlayers?.find(
+      const eligiblePlayer = eligibleData?.eligiblePlayers?.find(
         (ep) => ep.playerId === variables.playerId,
       );
+      const feedback = resolveAssignBoostFeedback({
+        response,
+        eligiblePlayer,
+        slotTier: variables.slotTier,
+      });
 
-      if (player) {
-        const communityBoostCount = player.communityBoostCount || 0;
-        const totalMultiplier = variables.slotTier + communityBoostCount;
-
+      if (response.boost.player || eligiblePlayer?.player) {
         setBoostCeremonyData({
-          playerName: `${player.player.firstName} ${player.player.lastName}`,
-          playerTeam: player.player.team,
+          playerName: feedback.playerName,
+          playerTeam: feedback.playerTeam,
           slotTier: variables.slotTier,
-          shareMultiplier: player.bestShareMultiplier || 1,
-          totalMultiplier: totalMultiplier,
+          shareMultiplier: feedback.shareMultiplier,
+          totalMultiplier: feedback.totalMultiplier,
           sharesBurned: variables.sharesEntered,
         });
         setBoostCeremonyOpen(true);
@@ -269,10 +282,9 @@ export default function BoostsPage() {
       const slotLabel =
         MULTIPLIER_SLOTS.find((s) => s.tier === variables.slotTier)?.label ||
         `${variables.slotTier}x`;
-      const shareMultiplier = player?.bestShareMultiplier || 1;
       toast({
         title: "Boost slot filled!",
-        description: `Added 1 share to the ${slotLabel} slot (share multiplier ${shareMultiplier}). Share will be burned when the game starts.`,
+        description: `Added 1 share to the ${slotLabel} slot (share multiplier ${feedback.shareMultiplier}). Share will be burned when the game starts.`,
       });
       refetchBoosts();
       refetchEligible();
