@@ -561,12 +561,12 @@ export default function BoostsPage() {
           </div>
 
           {/* Warning */}
-          <Card variant="terminal" className="mb-3 border-red-500/20 bg-red-500/5">
+          <Card variant="terminal" className="mb-3 border-amber-500/20 bg-amber-500/5">
             <CardContent className="p-3">
               <div className="flex items-start gap-2">
-                <AlertTriangle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
+                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
                 <p className="terminal-subtle">
-                  Shares are <span className="font-semibold text-red-300">burned</span> when games
+                  Shares are <span className="font-semibold text-amber-300">burned</span> when games
                   begin. Only assign slots you intend to settle.
                 </p>
               </div>
