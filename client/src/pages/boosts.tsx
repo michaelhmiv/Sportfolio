@@ -777,6 +777,12 @@ export default function BoostsPage() {
                     size="sm"
                     variant="terminal"
                     onClick={() => setCommunityBoostSelectorOpen(true)}
+                    disabled={userPremiumShares === 0}
+                    title={
+                      userPremiumShares === 0
+                        ? "Premium shares required to add community boosts"
+                        : undefined
+                    }
                     className="h-7 px-2"
                   >
                     <Plus className="h-3 w-3 mr-1" />
