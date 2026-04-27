@@ -520,7 +520,9 @@ export default function PlayerPage() {
               <Button variant="outline" onClick={() => window.location.reload()}>
                 Refresh
               </Button>
-              <Button onClick={() => (window.location.href = "/")}>Back</Button>
+              <Button asChild>
+                <Link href={`/login?redirect=${encodeURIComponent(`/player/${id}`)}`}>Sign In</Link>
+              </Button>
             </div>
           </CardContent>
         </Card>
