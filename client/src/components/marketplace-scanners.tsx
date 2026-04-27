@@ -25,7 +25,7 @@ import {
 import { useSport } from "@/lib/sport-context";
 import { Button } from "@/components/ui/button";
 import { openPlayerModal } from "@/lib/player-modal-events";
-import { InjuryIndicator } from "@/components/player-name";
+import { StatusChip } from "@/components/player-name";
 
 // Simplified type for the API response
 interface ScannerResponse {
@@ -608,24 +608,12 @@ function ScannerRowExpanded({ rank, player, label, value, color, type }: any) {
               {player.team}
             </Badge>
             <span className="text-[10px] text-muted-foreground">{player.position}</span>
-            {!player.isActive && (
-              <Badge
-                variant="outline"
-                className="h-4 px-1 py-0 text-[9px] text-muted-foreground uppercase"
-              >
-                Inactive
-              </Badge>
-            )}
-            {player.injuryStatus && (
-              <InjuryIndicator
-                injury={{
-                  injuryStatus: player.injuryStatus,
-                  injuryDescription: player.injuryDescription,
-                  injuryReturnDate: player.injuryReturnDate,
-                }}
-                size="sm"
-              />
-            )}
+            <StatusChip
+              isActive={player.isActive}
+              injuryStatus={player.injuryStatus}
+              injuryDescription={player.injuryDescription}
+              injuryReturnDate={player.injuryReturnDate}
+            />
           </div>
         </div>
       </div>
@@ -677,16 +665,12 @@ function ScannerRowCompact({ rank, player, label, value, color }: any) {
         <span className="text-[9px] text-muted-foreground uppercase truncate flex-shrink-0">
           {player.team}
         </span>
-        {player.injuryStatus && (
-          <InjuryIndicator
-            injury={{
-              injuryStatus: player.injuryStatus,
-              injuryDescription: player.injuryDescription,
-              injuryReturnDate: player.injuryReturnDate,
-            }}
-            size="sm"
-          />
-        )}
+        <StatusChip
+          isActive={player.isActive}
+          injuryStatus={player.injuryStatus}
+          injuryDescription={player.injuryDescription}
+          injuryReturnDate={player.injuryReturnDate}
+        />
       </div>
 
       <div className="flex flex-col items-end flex-shrink-0 leading-none">
@@ -744,24 +728,12 @@ function ScannerRow({ rank, player, metricLabel, metricValue, metricColor }: any
             <span className="text-[10px] text-muted-foreground uppercase">
               {player.team} • {player.position}
             </span>
-            {!player.isActive && (
-              <Badge
-                variant="outline"
-                className="h-4 px-1 py-0 text-[9px] text-muted-foreground uppercase"
-              >
-                Inactive
-              </Badge>
-            )}
-            {player.injuryStatus && (
-              <InjuryIndicator
-                injury={{
-                  injuryStatus: player.injuryStatus,
-                  injuryDescription: player.injuryDescription,
-                  injuryReturnDate: player.injuryReturnDate,
-                }}
-                size="sm"
-              />
-            )}
+            <StatusChip
+              isActive={player.isActive}
+              injuryStatus={player.injuryStatus}
+              injuryDescription={player.injuryDescription}
+              injuryReturnDate={player.injuryReturnDate}
+            />
           </div>
         </div>
       </div>
