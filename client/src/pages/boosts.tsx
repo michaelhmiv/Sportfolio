@@ -753,7 +753,7 @@ export default function BoostsPage() {
                               Tap to add
                             </div>
                           ) : (
-                            <span className="terminal-subtle">Filled</span>
+                            <span className="terminal-subtle">Unavailable</span>
                           )}
                         </div>
                       )}
