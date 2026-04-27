@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,7 @@ import {
   Plus,
 } from "lucide-react";
 import { apiRequest, getAuthHeaders } from "@/lib/queryClient";
+import { useSearch } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import type { Player } from "@shared/schema";
 import { PlayerName } from "@/components/player-name";
@@ -149,6 +150,14 @@ export default function BoostsPage() {
   const [boostCeremonyOpen, setBoostCeremonyOpen] = useState(false);
   const [boostCeremonyData, setBoostCeremonyData] = useState<BoostCeremonyData | null>(null);
   const [resultsPodiumOpen, setResultsPodiumOpen] = useState(false);
+
+  // Parse ?preselect=<playerId> from the URL — one-shot: handled flag prevents re-trigger
+  const searchString = useSearch();
+  const preselectPlayerId = useMemo(
+    () => new URLSearchParams(searchString).get("preselect") || null,
+    [searchString],
+  );
+  const [preselectHandled, setPreselectHandled] = useState(false);
 
   const {
     data: boostsData,
@@ -343,13 +352,20 @@ export default function BoostsPage() {
     return boostsData?.boosts?.find((b) => b.slotTier === tier);
   };
 
-  const filteredPlayers = useMemo(
-    () =>
-      (eligibleData?.eligiblePlayers || []).filter((eligiblePlayer) =>
-        matchesPlayerSearch(eligiblePlayer.player, search),
-      ),
-    [eligibleData?.eligiblePlayers, search],
-  );
+  const filteredPlayers = useMemo(() => {
+    const players = (eligibleData?.eligiblePlayers || []).filter((eligiblePlayer) =>
+      matchesPlayerSearch(eligiblePlayer.player, search),
+    );
+    // Surface the preselected player first when a ?preselect param is present
+    if (preselectPlayerId) {
+      const idx = players.findIndex((p) => p.playerId === preselectPlayerId);
+      if (idx > 0) {
+        const [target] = players.splice(idx, 1);
+        players.unshift(target);
+      }
+    }
+    return players;
+  }, [eligibleData?.eligiblePlayers, search, preselectPlayerId]);
 
   const filteredCommunityBoosts = useMemo(
     () =>
@@ -359,6 +375,39 @@ export default function BoostsPage() {
       ),
     [communityData?.communityBoosts, communitySportFilter],
   );
+
+  // Preselect: find the player in the eligible list and compute an ineligibility message
+  const preselectEligiblePlayer = useMemo(
+    () =>
+      preselectPlayerId
+        ? ((eligibleData?.eligiblePlayers || []).find((ep) => ep.playerId === preselectPlayerId) ??
+          null)
+        : null,
+    [preselectPlayerId, eligibleData?.eligiblePlayers],
+  );
+
+  const preselectIneligibleMsg = useMemo<string | null>(() => {
+    if (!preselectPlayerId || loadingEligible) return null;
+    if (!preselectEligiblePlayer) return "This player is not eligible for today's boost.";
+    if (preselectEligiblePlayer.isAlreadyBoosted) return "This player is already boosted today.";
+    if (!preselectEligiblePlayer.hasGameToday || preselectEligiblePlayer.gameStatus !== "upcoming")
+      return "This player is not eligible for today's boost.";
+    return null;
+  }, [preselectPlayerId, loadingEligible, preselectEligiblePlayer]);
+
+  // Auto-open the player selector for the first available slot when ?preselect is set
+  useEffect(() => {
+    if (!preselectPlayerId || preselectHandled || loadingBoosts) return;
+    if (!boostsData?.availableSlots?.length) return;
+    const firstAvailableSlot = MULTIPLIER_SLOTS.find((s) =>
+      boostsData.availableSlots.includes(s.tier),
+    );
+    if (firstAvailableSlot) {
+      setSelectedSlot(firstAvailableSlot.tier);
+      setPlayerSelectorOpen(true);
+      setPreselectHandled(true);
+    }
+  }, [preselectPlayerId, preselectHandled, loadingBoosts, boostsData]);
 
   const totalEstimated = "0.00";
   const activeBoosts = boostsData?.boosts?.filter((b) => b.status === "active").length || 0;
@@ -797,6 +846,13 @@ export default function BoostsPage() {
                 />
               </div>
 
+              {/* Preselect ineligibility notice */}
+              {preselectIneligibleMsg && (
+                <div className="mb-2 rounded-sm border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-400">
+                  {preselectIneligibleMsg}
+                </div>
+              )}
+
               <div className="flex-1 overflow-y-auto">
                 {loadingEligible ? (
                   <div className="py-8 text-center text-muted-foreground text-sm">Loading...</div>
@@ -851,6 +907,8 @@ export default function BoostsPage() {
                             "flex items-center justify-between gap-2 p-3",
                             ep.gameStatus === "live" && "bg-yellow-500/5",
                             ep.gameStatus === "ended" && "bg-muted/20",
+                            ep.playerId === preselectPlayerId &&
+                              "border-l-2 border-primary bg-primary/5",
                           )}
                         >
                           <div className="flex items-center gap-2 min-w-0 flex-1">
