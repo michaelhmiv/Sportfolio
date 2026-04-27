@@ -18,12 +18,21 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
-import { ArrowRightLeft, TrendingUp, TrendingDown, Loader2, Flame, Droplets } from "lucide-react";
+import {
+  ArrowRightLeft,
+  TrendingUp,
+  TrendingDown,
+  Loader2,
+  Flame,
+  Droplets,
+  LogIn,
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { formatAdaptiveCurrency } from "@/lib/currency";
 import { apiRequest } from "@/lib/queryClient";
 import { hapticSuccess, hapticError, hapticMedium } from "@/lib/haptics";
+import { Link } from "wouter";
 
 interface AmmTradePanelProps {
   playerId: string;
@@ -492,8 +501,14 @@ export function AmmTradePanel({
 
   if (!isAuthenticated) {
     return (
-      <div className="p-4 border rounded-sm bg-muted/40 text-center">
+      <div className="p-4 border rounded-sm bg-muted/40 text-center space-y-3">
         <p className="text-sm text-muted-foreground">Sign in to trade shares</p>
+        <Button variant="default" size="sm" asChild>
+          <Link href="/login" className="flex items-center gap-2">
+            <LogIn className="w-3.5 h-3.5" />
+            Sign In
+          </Link>
+        </Button>
       </div>
     );
   }
