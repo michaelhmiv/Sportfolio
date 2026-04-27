@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { getBoostDisplayPlayerName, resolveAssignBoostFeedback } from "./assign-boost-feedback";
+import {
+  getBoostDisplayPlayerName,
+  getBoostEstimatedPayout,
+  getTotalEstimatedBoostPayout,
+  resolveAssignBoostFeedback,
+} from "./assign-boost-feedback";
 
 describe("getBoostDisplayPlayerName", () => {
   it("joins available name parts without rendering undefined", () => {
@@ -84,5 +89,64 @@ describe("resolveAssignBoostFeedback", () => {
       shareMultiplier: 1,
       totalMultiplier: 2,
     });
+  });
+});
+
+describe("getBoostEstimatedPayout", () => {
+  it("returns settled payout for processed boosts", () => {
+    expect(
+      getBoostEstimatedPayout({
+        status: "processed",
+        payout: "18.75",
+        shareMultiplier: "2",
+        slotTier: 5,
+        communityBoostCount: 1,
+        liveFantasyPoints: 4,
+      }),
+    ).toBe(18.75);
+  });
+
+  it("computes live estimated payout for locked boosts", () => {
+    expect(
+      getBoostEstimatedPayout({
+        status: "locked",
+        shareMultiplier: "2.5",
+        slotTier: 4,
+        communityBoostCount: 1,
+        liveFantasyPoints: 6,
+      }),
+    ).toBe(75);
+  });
+
+  it("returns zero when no live points are available", () => {
+    expect(
+      getBoostEstimatedPayout({
+        status: "active",
+        shareMultiplier: "2.5",
+        slotTier: 4,
+        communityBoostCount: 1,
+        liveFantasyPoints: null,
+      }),
+    ).toBe(0);
+  });
+});
+
+describe("getTotalEstimatedBoostPayout", () => {
+  it("sums live and settled boosts safely", () => {
+    expect(
+      getTotalEstimatedBoostPayout([
+        {
+          status: "processed",
+          payout: "10.50",
+        },
+        {
+          status: "locked",
+          shareMultiplier: "2",
+          slotTier: 3,
+          communityBoostCount: 1,
+          liveFantasyPoints: 5,
+        },
+      ]),
+    ).toBe(50.5);
   });
 });

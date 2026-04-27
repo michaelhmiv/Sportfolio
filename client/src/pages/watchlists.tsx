@@ -178,6 +178,9 @@ export default function Watchlists() {
       refetchExpandedPlayers();
       queryClient.invalidateQueries({ queryKey: ["/api/watchlist"] });
       queryClient.invalidateQueries({ queryKey: ["/api/players", "watchlist"] });
+      setAddPlayerDialogOpen(false);
+      setPlayerSearch("");
+      setAddToWatchlistId(null);
       toast({ title: "Player added to watchlist" });
     },
     onError: () => {
@@ -560,7 +563,7 @@ export default function Watchlists() {
                       key={player.id}
                       className="terminal-shell flex cursor-pointer items-center justify-between gap-2 p-2 transition-colors hover:border-primary/30"
                       onClick={() => {
-                        if (addToWatchlistId) {
+                        if (addToWatchlistId && !addPlayerMutation.isPending) {
                           addPlayerMutation.mutate({
                             playerId: player.id,
                             watchlistId: addToWatchlistId,

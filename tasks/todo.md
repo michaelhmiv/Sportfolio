@@ -1,3 +1,18 @@
+## 2026-04-27 Repository Stabilization Pass
+
+- [x] Inventory app architecture, routes, and test surface
+- [x] Audit boosts, player, and watchlists interactions for stability gaps
+- [x] Implement targeted fixes for high-confidence issues
+- [x] Run validators (`npm run check`, `npm run lint`, `npm run test:run`)
+- [x] Capture review summary and remaining risks
+
+Review:
+
+- Restored mobile access to community-boost creation and filters, replaced the stale boosts estimated-payout placeholder with live/settled math, and wired the processed-results podium to a real CTA.
+- Swapped player-page hard reload/back behavior for query invalidation plus in-app navigation, and closed the watchlist add-player dialog on success to avoid ambiguous repeat taps.
+- Added focused Vitest coverage for boost payout helpers and Playwright smoke coverage for the boosts mobile/results path plus player error recovery.
+- Validation passed: `npm run check`, `npm run lint`, `npm run test:run`, and `npx playwright test tests/e2e/boosts-player.spec.ts`.
+
 ## 2026-04-26 Full Android Push Notifications + Profile Toggles
 
 - [x] Complete backend push pipeline hardening (FCM bootstrap, category dispatch, dedupe/cooldown, invalid token cleanup)

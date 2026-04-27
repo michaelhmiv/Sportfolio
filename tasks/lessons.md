@@ -1,5 +1,9 @@
 # Lessons Learned
 
+## 2026-04-27
+
+- When replacing hard reload/back behavior on routed React pages, use query invalidation plus in-app navigation so retry flows preserve SPA state and mobile context.
+
 ## 2026-04-24
 
 - For mobile push in this stack, route registration should stay module-scoped (like other mobile-only surfaces) and be mounted before the `/api` 404 fallback, otherwise authenticated token routes will silently 404 behind the catch-all.
