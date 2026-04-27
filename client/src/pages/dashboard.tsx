@@ -156,6 +156,7 @@ interface ActivePositionsTodayProps {
   slatePlayers: DashboardShowcaseSlatePlayer[];
   eligiblePlayers: DashboardShowcaseEligiblePlayer[];
   onTrade: (playerId: string) => void;
+  onBoost: (playerId: string) => void;
 }
 
 function ActivePositionsToday({
@@ -163,6 +164,7 @@ function ActivePositionsToday({
   slatePlayers,
   eligiblePlayers,
   onTrade,
+  onBoost,
 }: ActivePositionsTodayProps) {
   const slatePlayerIds = new Set(slatePlayers.map((sp) => sp.playerId));
   const eligibleSet = new Map(eligiblePlayers.map((ep) => [ep.playerId, ep]));
@@ -247,10 +249,13 @@ function ActivePositionsToday({
                         </span>
                       )}
                       {isBoostEligible && (
-                        <span className="inline-flex items-center gap-0.5 rounded-sm border border-yellow-500/40 bg-yellow-500/10 px-1 py-0 text-[10px] font-semibold uppercase text-yellow-500">
+                        <button
+                          onClick={() => onBoost(holding.player.id)}
+                          className="inline-flex items-center gap-0.5 rounded-sm border border-yellow-500/40 bg-yellow-500/10 px-1 py-0 text-[10px] font-semibold uppercase text-yellow-500 hover:bg-yellow-500/20 transition-colors cursor-pointer"
+                        >
                           <Zap className="h-2.5 w-2.5" />
                           Boost
-                        </span>
+                        </button>
                       )}
                     </div>
                     <div className="font-mono text-[11px] text-muted-foreground">
@@ -901,6 +906,7 @@ export default function Dashboard() {
                 slatePlayers={slatePlayers}
                 eligiblePlayers={eligiblePlayers}
                 onTrade={(playerId) => openPlayerModal(playerId)}
+                onBoost={(playerId) => setLocation(`/boosts?preselect=${playerId}`)}
               />
             )}
 
