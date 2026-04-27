@@ -28,7 +28,7 @@ import {
   Plus,
 } from "lucide-react";
 import { apiRequest, getAuthHeaders } from "@/lib/queryClient";
-import { useSearch } from "wouter";
+import { useSearch, Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import type { Player } from "@shared/schema";
 import { PlayerName } from "@/components/player-name";
@@ -902,14 +902,16 @@ export default function BoostsPage() {
                   <div className="terminal-empty py-8 text-center text-sm text-muted-foreground">
                     No players held
                     <br />
-                    <Button
-                      size="sm"
-                      variant="terminalOutline"
-                      onClick={() => refetchEligible()}
-                      className="mt-2"
-                    >
-                      Refresh
-                    </Button>
+                    <div className="flex flex-col items-center gap-2 mt-2">
+                      <Button size="sm" variant="terminalOutline" onClick={() => refetchEligible()}>
+                        Refresh
+                      </Button>
+                      <Link href="/pools" onClick={() => setPlayerSelectorOpen(false)}>
+                        <Button size="sm" variant="terminal">
+                          Browse Players
+                        </Button>
+                      </Link>
+                    </div>
                   </div>
                 ) : filteredPlayers.length === 0 ? (
                   <div className="terminal-empty py-8 text-center text-sm text-muted-foreground">
