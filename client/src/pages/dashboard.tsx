@@ -982,7 +982,7 @@ export default function Dashboard() {
                       variant="default"
                       size="sm"
                       onClick={goToToday}
-                      className="h-8 px-2 sm:px-3 hidden sm:inline-flex"
+                      className="h-8 px-2 sm:px-3"
                       data-testid="button-today"
                     >
                       Today
