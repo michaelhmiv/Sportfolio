@@ -5,12 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
 import {
   Zap,
   TrendingUp,
@@ -838,8 +838,8 @@ export default function BoostsPage() {
             </CardContent>
           </Card>
 
-          {/* Player Selector Dialog */}
-          <Dialog
+          {/* Player Selector Sheet */}
+          <Sheet
             open={playerSelectorOpen}
             onOpenChange={(open) => {
               setPlayerSelectorOpen(open);
@@ -849,17 +849,18 @@ export default function BoostsPage() {
               }
             }}
           >
-            <DialogContent
-              className="max-h-[80vh] max-w-md rounded-sm border border-border bg-card flex flex-col"
+            <SheetContent
+              side="bottom"
+              className="max-h-[80vh] flex flex-col rounded-t-lg"
               onClick={(e) => e.stopPropagation()}
             >
-              <DialogHeader>
-                <DialogTitle className="terminal-heading text-base">Select Player</DialogTitle>
-                <DialogDescription className="terminal-subtle text-[11px] uppercase">
+              <SheetHeader>
+                <SheetTitle className="terminal-heading text-base">Select Player</SheetTitle>
+                <SheetDescription className="terminal-subtle text-[11px] uppercase">
                   Choose a player for {MULTIPLIER_SLOTS.find((s) => s.tier === selectedSlot)?.label}{" "}
                   slot
-                </DialogDescription>
-              </DialogHeader>
+                </SheetDescription>
+              </SheetHeader>
 
               <div className="relative mb-2">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -1060,8 +1061,8 @@ export default function BoostsPage() {
                   </div>
                 )}
               </div>
-            </DialogContent>
-          </Dialog>
+            </SheetContent>
+          </Sheet>
 
           {/* Community Boost Selector Dialog */}
           <CommunityBoostSelector
