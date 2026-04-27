@@ -29,6 +29,8 @@ import {
   List,
   HelpCircle,
   RefreshCw,
+  ArrowRightLeft,
+  Zap,
 } from "lucide-react";
 import {
   Select,
@@ -1517,6 +1519,30 @@ export default function Portfolio() {
                                         <Button
                                           variant="terminalOutline"
                                           size="sm"
+                                          className="h-7 w-7 p-0"
+                                          asChild
+                                          title="Trade"
+                                          data-testid={`button-trade-${group.player.id}`}
+                                        >
+                                          <Link href={`/player/${group.player.id}`}>
+                                            <ArrowRightLeft className="w-3 h-3" />
+                                          </Link>
+                                        </Button>
+                                        <Button
+                                          variant="terminalOutline"
+                                          size="sm"
+                                          className="h-7 w-7 p-0"
+                                          asChild
+                                          title="Boost"
+                                          data-testid={`button-boost-${group.player.id}`}
+                                        >
+                                          <Link href={`/boosts?preselect=${group.player.id}`}>
+                                            <Zap className="w-3 h-3" />
+                                          </Link>
+                                        </Button>
+                                        <Button
+                                          variant="terminalOutline"
+                                          size="sm"
                                           className="h-7 px-2 text-xs"
                                           onClick={(e) => {
                                             e.stopPropagation();
@@ -1585,6 +1611,30 @@ export default function Portfolio() {
                                         <div className="text-xs text-muted-foreground md:hidden">
                                           {group.player.team} • {group.player.position}
                                         </div>
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          className="h-7 px-2 text-xs ml-2 hidden md:inline-flex"
+                                          asChild
+                                          data-testid={`button-trade-desktop-${group.player.id}`}
+                                        >
+                                          <Link href={`/player/${group.player.id}`}>
+                                            <ArrowRightLeft className="w-3 h-3 mr-1" />
+                                            Trade
+                                          </Link>
+                                        </Button>
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          className="h-7 px-2 text-xs hidden md:inline-flex"
+                                          asChild
+                                          data-testid={`button-boost-desktop-${group.player.id}`}
+                                        >
+                                          <Link href={`/boosts?preselect=${group.player.id}`}>
+                                            <Zap className="w-3 h-3 mr-1" />
+                                            Boost
+                                          </Link>
+                                        </Button>
                                         <Button
                                           variant="outline"
                                           size="sm"
