@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, ChevronUp, RefreshCw, X } from "lucide-react";
+import { resolveApiUrl } from "@/lib/native-runtime";
 import { Shimmer } from "@/components/ui/animations";
 import { Badge } from "@/components/ui/badge";
 import { openPlayerModal } from "@/lib/player-modal-events";
@@ -124,7 +125,7 @@ export function LiveGameStats({ gameId, sport, teams, scores, status }: LiveGame
   } = useQuery<LiveStats>({
     queryKey: [`/api/games/${gameId}/live-stats`],
     queryFn: async () => {
-      const res = await fetch(`/api/games/${gameId}/live-stats`);
+      const res = await fetch(resolveApiUrl(`/api/games/${gameId}/live-stats`));
       if (!res.ok) throw new Error("Failed to fetch live stats");
       return res.json();
     },

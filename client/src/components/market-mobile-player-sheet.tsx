@@ -165,9 +165,7 @@ export function MarketMobilePlayerSheet({
   const { data: poolData, isLoading: poolLoading } = useQuery<AmmPoolData>({
     queryKey: ["/api/amm", playerId, "sheet"],
     queryFn: async () => {
-      const response = await fetch(`/api/amm/${encodeURIComponent(playerId)}`, {
-        credentials: "include",
-      });
+      const response = await authenticatedFetch(`/api/amm/${encodeURIComponent(playerId)}`);
       if (!response.ok) {
         throw new Error("Failed to fetch pool data");
       }
@@ -181,11 +179,8 @@ export function MarketMobilePlayerSheet({
   const { data: activity = [] } = useQuery<MarketActivityFeedItem[]>({
     queryKey: ["/api/market/activity", playerId, "sheet"],
     queryFn: async () => {
-      const response = await fetch(
+      const response = await authenticatedFetch(
         `/api/market/activity?playerId=${encodeURIComponent(playerId)}&limit=6`,
-        {
-          credentials: "include",
-        },
       );
       if (!response.ok) {
         throw new Error("Failed to fetch market activity");
@@ -201,9 +196,9 @@ export function MarketMobilePlayerSheet({
   const { data: financials } = useQuery<PlayerFinancialMetrics>({
     queryKey: ["/api/player", playerId, "sheet-financials"],
     queryFn: async () => {
-      const response = await fetch(`/api/player/${encodeURIComponent(playerId)}/financials`, {
-        credentials: "include",
-      });
+      const response = await authenticatedFetch(
+        `/api/player/${encodeURIComponent(playerId)}/financials`,
+      );
       if (!response.ok) {
         throw new Error("Failed to fetch financials");
       }

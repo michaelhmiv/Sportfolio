@@ -27,7 +27,7 @@ import {
 import { Sparkline } from "@/components/ui/sparkline";
 import { AnimatedPrice } from "@/components/ui/animated-price";
 import { useWebSocket } from "@/lib/websocket";
-import { queryClient } from "@/lib/queryClient";
+import { authenticatedFetch, queryClient } from "@/lib/queryClient";
 import type { Player } from "@shared/schema";
 import { PlayerName } from "@/components/player-name";
 import { SportSelector } from "@/components/sport-selector";
@@ -290,9 +290,7 @@ export default function PlayerPools() {
         }
       }
 
-      const res = await fetch(`/api/players?${params.toString()}`, {
-        credentials: "include",
-      });
+      const res = await authenticatedFetch(`/api/players?${params.toString()}`);
       if (!res.ok) throw new Error("Failed to fetch players");
       return res.json();
     },
@@ -305,7 +303,7 @@ export default function PlayerPools() {
   const { data: watchlists } = useQuery<{ id: string; name: string }[]>({
     queryKey: ["/api/watchlists"],
     queryFn: async () => {
-      const res = await fetch("/api/watchlists", { credentials: "include" });
+      const res = await authenticatedFetch("/api/watchlists");
       if (!res.ok) return [];
       return res.json();
     },
@@ -335,7 +333,7 @@ export default function PlayerPools() {
     queryKey: ["/api/players/sparklines", playerIdKey],
     queryFn: async () => {
       if (!playerIdKey) return {};
-      const res = await fetch(`/api/players/sparklines?ids=${playerIdKey}&days=7`);
+      const res = await authenticatedFetch(`/api/players/sparklines?ids=${playerIdKey}&days=7`);
       if (!res.ok) return {};
       return res.json();
     },

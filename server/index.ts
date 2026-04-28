@@ -13,6 +13,7 @@ import {
   metricsEnabled,
   metricsMiddleware,
 } from "./observability/metrics";
+import { apiCorsMiddleware } from "./cors";
 import { registerRoutes } from "./routes";
 import { registerMobilePushNotificationRoutes } from "./routes/mobile-push-notifications";
 import { registerMobileRewardedScoutBoostRoutes } from "./routes/mobile-rewarded-scout-boost";
@@ -130,6 +131,7 @@ app.use("/api", (req, res, next) => {
   res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
   next();
 });
+app.use("/api", apiCorsMiddleware);
 
 // Health check endpoint - always available, even during startup
 app.get("/api/health", (_req, res) => {

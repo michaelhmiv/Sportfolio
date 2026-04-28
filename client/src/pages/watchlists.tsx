@@ -87,7 +87,7 @@ export default function Watchlists() {
       params.set("limit", "20");
       params.set("sortBy", "volume");
       params.set("sortOrder", "desc");
-      const res = await fetch(`/api/players?${params.toString()}`);
+      const res = await authenticatedFetch(`/api/players?${params.toString()}`);
       if (!res.ok) return { players: [], total: 0 };
       return res.json();
     },

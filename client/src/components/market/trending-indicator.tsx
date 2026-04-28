@@ -3,6 +3,7 @@ import { Flame, TrendingUp, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { resolveApiUrl } from "@/lib/native-runtime";
 
 interface TrendingIndicatorProps {
   scoutVelocity: number; // Scouts added per hour
@@ -166,7 +167,7 @@ export function useScoutVelocity(playerId: string) {
     // Fetch initial data
     const fetchInitialData = async () => {
       try {
-        const res = await fetch(`/api/scouts/velocity/${playerId}`);
+        const res = await fetch(resolveApiUrl(`/api/scouts/velocity/${playerId}`));
         if (res.ok) {
           const result = await res.json();
           setData({
@@ -205,7 +206,7 @@ export function useTrendingPlayers() {
     // Fetch initial trending players
     const fetchTrending = async () => {
       try {
-        const res = await fetch("/api/scouts/trending");
+        const res = await fetch(resolveApiUrl("/api/scouts/trending"));
         if (res.ok) {
           const result = await res.json();
           setTrendingPlayers(result.playerIds || []);

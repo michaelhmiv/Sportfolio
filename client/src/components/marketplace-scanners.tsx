@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/carousel";
 import { useSport } from "@/lib/sport-context";
 import { Button } from "@/components/ui/button";
+import { resolveApiUrl } from "@/lib/native-runtime";
 import { openPlayerModal } from "@/lib/player-modal-events";
 import { StatusChip } from "@/components/player-name";
 
@@ -42,7 +43,7 @@ function useScannerData() {
   const { data: scanData, isLoading: scanLoading } = useQuery<ScannerResponse>({
     queryKey: ["/api/market/scanners", sport], // Includes sport in key
     queryFn: async () => {
-      const res = await fetch(`/api/market/scanners?sport=${sport}`);
+      const res = await fetch(resolveApiUrl(`/api/market/scanners?sport=${sport}`));
       if (!res.ok) throw new Error("Failed");
       return res.json();
     },
@@ -52,7 +53,9 @@ function useScannerData() {
   const { data: topRisers, isLoading: risersLoading } = useQuery<any[]>({
     queryKey: ["/api/players/spotlight/top-risers", sport, "limit-10"],
     queryFn: async () => {
-      const res = await fetch(`/api/players/spotlight/top-risers?sport=${sport}&limit=10`);
+      const res = await fetch(
+        resolveApiUrl(`/api/players/spotlight/top-risers?sport=${sport}&limit=10`),
+      );
       if (!res.ok) throw new Error("Failed");
       return res.json();
     },
@@ -61,7 +64,9 @@ function useScannerData() {
   const { data: topMc, isLoading: mcLoading } = useQuery<any[]>({
     queryKey: ["/api/players/spotlight/top-market-cap", sport, "limit-10"],
     queryFn: async () => {
-      const res = await fetch(`/api/players/spotlight/top-market-cap?sport=${sport}&limit=10`);
+      const res = await fetch(
+        resolveApiUrl(`/api/players/spotlight/top-market-cap?sport=${sport}&limit=10`),
+      );
       if (!res.ok) throw new Error("Failed");
       return res.json();
     },
@@ -70,7 +75,9 @@ function useScannerData() {
   const { data: topPools, isLoading: poolsLoading } = useQuery<any[]>({
     queryKey: ["/api/players/spotlight/top-pools", sport, "limit-10"],
     queryFn: async () => {
-      const res = await fetch(`/api/players/spotlight/top-pools?sport=${sport}&limit=10`);
+      const res = await fetch(
+        resolveApiUrl(`/api/players/spotlight/top-pools?sport=${sport}&limit=10`),
+      );
       if (!res.ok) throw new Error("Failed");
       return res.json();
     },

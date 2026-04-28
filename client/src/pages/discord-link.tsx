@@ -4,7 +4,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { CheckCircle2, Link2, Loader2 } from "lucide-react";
 
 import { useAuth } from "@/hooks/useAuth";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, authenticatedFetch } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -59,9 +59,9 @@ export default function DiscordLinkPage() {
     queryKey: ["/api/discord/link/state", state],
     enabled: Boolean(state),
     queryFn: async () => {
-      const response = await fetch(`/api/discord/link/state?state=${encodeURIComponent(state)}`, {
-        credentials: "include",
-      });
+      const response = await authenticatedFetch(
+        `/api/discord/link/state?state=${encodeURIComponent(state)}`,
+      );
       return (await response.json()) as DiscordLinkStateResponse;
     },
     retry: false,

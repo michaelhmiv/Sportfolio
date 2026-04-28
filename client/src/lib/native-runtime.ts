@@ -1,6 +1,7 @@
 import { Capacitor } from "@capacitor/core";
 
 const LOCAL_API_ORIGIN = "https://www.sportfolio.market";
+const DEV_NATIVE_ORIGIN = "http://10.0.2.2:5000";
 
 function trimTrailingSlash(value: string) {
   return value.replace(/\/+$/, "");
@@ -18,6 +19,15 @@ export function getNativeApiOrigin() {
 
   if (configuredOrigin) {
     return trimTrailingSlash(configuredOrigin);
+  }
+
+  if (
+    typeof import.meta.env.DEV === "boolean" &&
+    import.meta.env.DEV &&
+    typeof window !== "undefined" &&
+    window.location.host === "10.0.2.2:5000"
+  ) {
+    return DEV_NATIVE_ORIGIN;
   }
 
   return LOCAL_API_ORIGIN;

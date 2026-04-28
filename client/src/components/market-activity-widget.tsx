@@ -7,6 +7,7 @@ import { Link } from "wouter";
 import { formatDistanceToNow } from "date-fns";
 import { useWebSocket } from "@/lib/websocket";
 import { queryClient } from "@/lib/queryClient";
+import { resolveApiUrl } from "@/lib/native-runtime";
 import { PlayerName } from "@/components/player-name";
 import { UserName } from "@/components/user-name";
 import { AnimatedList } from "@/components/ui/animated-list";
@@ -39,7 +40,7 @@ export function MarketActivityWidget({
         params.set("sport", sport);
       }
 
-      const response = await fetch(`/api/market/activity?${params.toString()}`);
+      const response = await fetch(resolveApiUrl(`/api/market/activity?${params.toString()}`));
       if (!response.ok) throw new Error("Failed to fetch market activity");
       const payload = (await response.json()) as MarketActivityFeedResponse;
       return payload.activities;

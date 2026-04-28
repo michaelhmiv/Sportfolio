@@ -1,3 +1,21 @@
+## 2026-04-28 Mobile API Base URL Investigation + Fix
+
+- [x] Audit remaining direct client `/api` fetches that bypass native-safe routing
+- [x] Replace affected client fetches with `authenticatedFetch(...)` or `resolveApiUrl(...)`
+- [x] Add API CORS support for native localhost origins and verify with targeted coverage
+- [x] Run validators (`npm run check`, `npm run lint`, `npm run test:run`)
+- [x] Build/sync and verify the fix in the Android emulator
+- [ ] Review changes, commit, push branch, and open a PR
+
+Review:
+
+- Replaced the remaining mobile-visible direct `/api` fetches with native-safe request paths so Capacitor requests consistently use `authenticatedFetch(...)` or `resolveApiUrl(...)`.
+- Added API CORS handling for native localhost origins plus focused server coverage, and added a native-runtime regression test for the emulator fallback origin.
+- Emulator verification findings:
+  - remote hosted origin path no longer fails due to missing relative request rewriting, but hosted API still blocks native WebView origins without the new server CORS headers deployed remotely;
+  - local branch backend served through the emulator now routes requests to `10.0.2.2:5000`, but production-style `https://localhost` shells still block insecure `http://10.0.2.2:5000` requests as mixed content, so full local-data validation needs either HTTPS/WSS on the local backend or deployment of this branch to a CORS-enabled remote origin.
+- Validation passed locally: `npm run check`, `npm run lint`, `npm run test:run`.
+
 ## 2026-04-27 Repository Stabilization Pass
 
 - [x] Inventory app architecture, routes, and test surface
