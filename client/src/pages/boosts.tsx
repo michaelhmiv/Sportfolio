@@ -38,7 +38,7 @@ import {
   Trophy,
   Plus,
 } from "lucide-react";
-import { apiRequest, getAuthHeaders } from "@/lib/queryClient";
+import { apiRequest, authenticatedFetch, getAuthHeaders } from "@/lib/queryClient";
 import { useSearch } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import type { Player } from "@shared/schema";
@@ -200,7 +200,9 @@ export default function BoostsPage() {
     queryKey: ["/api/daily-boosts/all", selectedDateKey],
     queryFn: async () => {
       const headers = await getAuthHeaders();
-      const res = await fetch(`/api/daily-boosts/all?date=${selectedDateKey}`, { headers });
+      const res = await authenticatedFetch(`/api/daily-boosts/all?date=${selectedDateKey}`, {
+        headers,
+      });
       if (!res.ok) throw new Error("Failed to fetch boosts");
       return res.json();
     },
@@ -222,9 +224,12 @@ export default function BoostsPage() {
     queryKey: ["/api/daily-boosts/eligible-all", selectedDateKey],
     queryFn: async () => {
       const headers = await getAuthHeaders();
-      const res = await fetch(`/api/daily-boosts/eligible-all?date=${selectedDateKey}`, {
-        headers,
-      });
+      const res = await authenticatedFetch(
+        `/api/daily-boosts/eligible-all?date=${selectedDateKey}`,
+        {
+          headers,
+        },
+      );
       if (!res.ok) {
         const responseText = await res.text();
         try {
@@ -248,7 +253,9 @@ export default function BoostsPage() {
     queryKey: ["/api/community-boosts/all", selectedDateKey],
     queryFn: async () => {
       const headers = await getAuthHeaders();
-      const res = await fetch(`/api/community-boosts/all?date=${selectedDateKey}`, { headers });
+      const res = await authenticatedFetch(`/api/community-boosts/all?date=${selectedDateKey}`, {
+        headers,
+      });
       if (!res.ok) throw new Error("Failed to fetch community boosts");
       return res.json();
     },
@@ -266,7 +273,7 @@ export default function BoostsPage() {
     queryKey: ["/api/daily-boosts/history"],
     queryFn: async () => {
       const headers = await getAuthHeaders();
-      const res = await fetch("/api/daily-boosts/history", { headers });
+      const res = await authenticatedFetch("/api/daily-boosts/history", { headers });
       if (!res.ok) throw new Error("Failed to fetch history");
       return res.json();
     },

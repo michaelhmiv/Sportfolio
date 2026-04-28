@@ -346,14 +346,9 @@ export default function Dashboard() {
       }, 10000);
 
       try {
-        const res = isAuthenticated
-          ? await authenticatedFetch("/api/dashboard", {
-              signal: controller.signal,
-            })
-          : await fetch("/api/dashboard", {
-              credentials: "include",
-              signal: controller.signal,
-            });
+        const res = await authenticatedFetch("/api/dashboard", {
+          signal: controller.signal,
+        });
         clearTimeout(timeoutId);
 
         if (!res.ok) {

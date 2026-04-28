@@ -22,7 +22,7 @@ import { TrendingUp, TrendingDown, Loader2, Flame, Droplets, LogIn } from "lucid
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { formatAdaptiveCurrency } from "@/lib/currency";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, authenticatedFetch } from "@/lib/queryClient";
 import { hapticSuccess, hapticError, hapticMedium } from "@/lib/haptics";
 import { Link } from "wouter";
 
@@ -91,7 +91,7 @@ export function AmmTradePanel({
   const { data: poolData } = useQuery<PoolSnapshot>({
     queryKey: ["/api/amm", playerId],
     queryFn: async () => {
-      const res = await fetch(`/api/amm/${playerId}`, { credentials: "include" });
+      const res = await authenticatedFetch(`/api/amm/${playerId}`);
       if (!res.ok) throw new Error("Failed to fetch pool data");
       return res.json();
     },
@@ -250,7 +250,9 @@ export function AmmTradePanel({
       const value = parseFloat(amount);
       const queryType = tradeType === "buy" ? "buy" : "sell";
 
-      const res = await fetch(`/api/amm/${playerId}/quote?type=${queryType}&amount=${value}`);
+      const res = await authenticatedFetch(
+        `/api/amm/${playerId}/quote?type=${queryType}&amount=${value}`,
+      );
 
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({ error: "Failed to fetch quote" }));

@@ -23,6 +23,7 @@ import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { useScout } from "@/lib/scout-context";
 import { useWebSocket } from "@/lib/websocket";
+import { resolveApiUrl } from "@/lib/native-runtime";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
 import {
@@ -318,9 +319,9 @@ export function ScoutDashboardModal() {
     queryFn: async () => {
       // Fetch games for all supported Ball Don't Lie sports
       const [nbaRes, nflRes, mlbRes] = await Promise.all([
-        fetch("/api/games/today?sport=NBA"),
-        fetch("/api/games/today?sport=NFL"),
-        fetch("/api/games/today?sport=MLB"),
+        fetch(resolveApiUrl("/api/games/today?sport=NBA")),
+        fetch(resolveApiUrl("/api/games/today?sport=NFL")),
+        fetch(resolveApiUrl("/api/games/today?sport=MLB")),
       ]);
       const [nbaGames, nflGames, mlbGames] = await Promise.all([
         nbaRes.json(),

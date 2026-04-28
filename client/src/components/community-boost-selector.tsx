@@ -24,6 +24,7 @@ import {
   Minus,
   ArrowUpDown,
 } from "lucide-react";
+import { resolveApiUrl } from "@/lib/native-runtime";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -123,9 +124,9 @@ export function CommunityBoostSelector({
     queryKey: ["/api/games/today"],
     queryFn: async () => {
       const [nbaRes, nflRes, mlbRes] = await Promise.all([
-        fetch("/api/games/today?sport=NBA"),
-        fetch("/api/games/today?sport=NFL"),
-        fetch("/api/games/today?sport=MLB"),
+        fetch(resolveApiUrl("/api/games/today?sport=NBA")),
+        fetch(resolveApiUrl("/api/games/today?sport=NFL")),
+        fetch(resolveApiUrl("/api/games/today?sport=MLB")),
       ]);
       const [nbaGames, nflGames, mlbGames] = await Promise.all([
         nbaRes.json(),

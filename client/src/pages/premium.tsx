@@ -14,7 +14,7 @@ import {
 } from "@/lib/android-play-billing";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest, authenticatedFetch, queryClient } from "@/lib/queryClient";
 import { canShowAndroidRewardedAd, showAndroidRewardedAd } from "@/lib/android-rewarded-ads";
 import { isNativeAndroid } from "@/lib/native-platform";
 import { Check, Crown, Loader2, Minus, Plus, RefreshCw, ShoppingCart, Zap } from "lucide-react";
@@ -471,9 +471,7 @@ export default function Premium() {
 
   const waitForRewardedBoostActivation = async () => {
     for (let attempt = 0; attempt < 8; attempt += 1) {
-      const response = await fetch("/api/premium/status", {
-        credentials: "include",
-      });
+      const response = await authenticatedFetch("/api/premium/status");
 
       if (!response.ok) {
         break;

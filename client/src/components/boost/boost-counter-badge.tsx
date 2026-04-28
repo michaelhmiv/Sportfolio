@@ -92,6 +92,7 @@ export function CommunityBoostIndicator({ count, className }: CommunityBoostIndi
 
 import { useEffect, useState } from "react";
 import { useWebSocket } from "@/lib/websocket";
+import { resolveApiUrl } from "@/lib/native-runtime";
 
 export function useLiveBoostCount(playerId: string, date: string) {
   const [count, setCount] = useState(0);
@@ -108,7 +109,7 @@ export function useLiveBoostCount(playerId: string, date: string) {
     // Fetch initial count
     const fetchInitialCount = async () => {
       try {
-        const res = await fetch(`/api/boosts/count/${playerId}/${date}`);
+        const res = await fetch(resolveApiUrl(`/api/boosts/count/${playerId}/${date}`));
         if (res.ok) {
           const data = await res.json();
           setCount(data.count);
