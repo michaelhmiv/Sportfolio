@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { resolveApiUrl } from "@/lib/native-runtime";
 
 interface ScoutDistribution {
   playerId: string;
@@ -62,7 +63,7 @@ export function useScoutCeremony() {
       if (prev.startTime && prev.data) {
         const duration = Date.now() - prev.startTime;
         // Send analytics to server
-        fetch("/api/scouts/ceremony-viewed", {
+        fetch(resolveApiUrl("/api/scouts/ceremony-viewed"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -89,7 +90,7 @@ export function useScoutCeremony() {
     setState((prev) => {
       // Track as skipped
       if (prev.data) {
-        fetch("/api/scouts/ceremony-viewed", {
+        fetch(resolveApiUrl("/api/scouts/ceremony-viewed"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

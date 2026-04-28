@@ -17,6 +17,7 @@ import {
 } from "recharts";
 import { Crown, TrendingUp, Users } from "lucide-react";
 import { format } from "date-fns";
+import { resolveApiUrl } from "@/lib/native-runtime";
 
 type TimePeriod = "1D" | "1W" | "1M" | "3M" | "ALL";
 
@@ -40,7 +41,7 @@ export function PremiumPriceChart() {
   const { data, isLoading } = useQuery<PremiumMarketData>({
     queryKey: ["/api/premium/market-data", period],
     queryFn: async () => {
-      const res = await fetch(`/api/premium/market-data?period=${period}`);
+      const res = await fetch(resolveApiUrl(`/api/premium/market-data?period=${period}`));
       if (!res.ok) throw new Error("Failed to fetch market data");
       return res.json();
     },

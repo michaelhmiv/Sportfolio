@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { X, RefreshCw, Loader2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { resolveApiUrl } from "@/lib/native-runtime";
 import { openPlayerModal } from "@/lib/player-modal-events";
 
 // Types
@@ -117,7 +118,7 @@ export function GameStatsModal({ gameId, sport, onClose }: GameStatsModalProps) 
   } = useQuery<LiveStats>({
     queryKey: [`/api/games/${gameId}/live-stats`],
     queryFn: async () => {
-      const res = await fetch(`/api/games/${gameId}/live-stats`);
+      const res = await fetch(resolveApiUrl(`/api/games/${gameId}/live-stats`));
       if (!res.ok) throw new Error("Failed to fetch live stats");
       return res.json();
     },

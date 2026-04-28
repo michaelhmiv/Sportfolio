@@ -183,9 +183,7 @@ export default function PlayerPage() {
   } = useQuery<AmmPoolData>({
     queryKey: ["/api/amm", id],
     queryFn: async () => {
-      const res = await fetch(`/api/amm/${encodeURIComponent(id)}`, {
-        credentials: "include",
-      });
+      const res = await authenticatedFetch(`/api/amm/${encodeURIComponent(id)}`);
       if (!res.ok) {
         const errorText = await res.text();
         throw new Error(`Failed to fetch pool data: ${res.status} ${errorText}`);

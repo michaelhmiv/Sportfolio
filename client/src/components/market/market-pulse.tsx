@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { resolveApiUrl } from "@/lib/native-runtime";
 
 interface MarketPulseProps {
   children: React.ReactNode;
@@ -28,7 +29,7 @@ export function MarketPulse({ children }: MarketPulseProps) {
     // Fetch market activity level
     const fetchActivity = async () => {
       try {
-        const res = await fetch("/api/market/activity-level");
+        const res = await fetch(resolveApiUrl("/api/market/activity-level"));
         if (res.ok) {
           const data: MarketActivity = await res.json();
           setActivityLevel(data.activityLevel);
@@ -120,7 +121,7 @@ export function ActivityIndicator({ className }: ActivityIndicatorProps) {
   useEffect(() => {
     const fetchActivity = async () => {
       try {
-        const res = await fetch("/api/market/activity-level");
+        const res = await fetch(resolveApiUrl("/api/market/activity-level"));
         if (res.ok) {
           const data: MarketActivity = await res.json();
           setActivityLevel(data.activityLevel);

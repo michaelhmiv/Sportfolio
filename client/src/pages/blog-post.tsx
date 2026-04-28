@@ -7,6 +7,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useEffect } from "react";
 import { SchemaOrg, schemas } from "@/components/schema-org";
+import { resolveApiUrl } from "@/lib/native-runtime";
 
 interface BlogPost {
   id: string;
@@ -34,7 +35,7 @@ export default function BlogPost() {
     queryKey: ["/api/blog", slug],
     enabled: !!slug,
     queryFn: async () => {
-      const response = await fetch(`/api/blog/${slug}`);
+      const response = await fetch(resolveApiUrl(`/api/blog/${slug}`));
       if (!response.ok) {
         throw new Error("Failed to fetch blog post");
       }

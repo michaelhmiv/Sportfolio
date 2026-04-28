@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Activity } from "lucide-react";
 import { useSport } from "@/lib/sport-context";
+import { resolveApiUrl } from "@/lib/native-runtime";
 import { LivePriceTicker } from "@/components/ui/animated-price";
 import type { MarketActivityFeedItem, MarketActivityFeedResponse } from "@shared/market-activity";
 
@@ -10,7 +11,7 @@ export function MarketTicker() {
   const { data: activity } = useQuery<MarketActivityFeedItem[]>({
     queryKey: ["/api/market/activity", sport],
     queryFn: async () => {
-      const res = await fetch(`/api/market/activity?sport=${sport}&limit=30`); // Queue up last 30
+      const res = await fetch(resolveApiUrl(`/api/market/activity?sport=${sport}&limit=30`)); // Queue up last 30
       if (!res.ok) throw new Error("Failed to fetch market activity");
       const payload = (await res.json()) as MarketActivityFeedResponse;
       return payload.activities;
