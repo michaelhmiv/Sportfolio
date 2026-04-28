@@ -147,10 +147,10 @@ export function MobilePushManager() {
       const launchNotification = await PushNotifications.getDeliveredNotifications().catch(
         () => null,
       );
-      const _launchNotifications = launchNotification?.notifications;
+      const launchNotifications = launchNotification?.notifications;
       const latestLaunchNotification =
-        _launchNotifications && _launchNotifications.length > 0
-          ? _launchNotifications[_launchNotifications.length - 1]
+        launchNotifications && launchNotifications.length > 0
+          ? launchNotifications[launchNotifications.length - 1]
           : undefined;
       const coldStartRoute = resolveNotificationRoute(
         latestLaunchNotification?.data as Record<string, unknown> | undefined,
