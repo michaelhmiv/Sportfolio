@@ -22,6 +22,7 @@ import { Capacitor } from "@capacitor/core";
 import { Browser } from "@capacitor/browser";
 import { normalizeSiteUrl } from "@shared/seo";
 import { unregisterPushTokenOnLogout } from "@/lib/mobile-push";
+import { resolveApiUrl, resolvePublicAppUrl } from "@/lib/native-runtime";
 
 const MOBILE_AUTH_REDIRECT_URL = "sportfolio://auth/callback";
 const IS_DEV = import.meta.env.DEV;
@@ -34,7 +35,7 @@ function getWebAuthRedirectUrl(): string | undefined {
   const configuredSiteUrl = normalizeSiteUrl(
     import.meta.env.VITE_PUBLIC_SITE_URL ||
       import.meta.env.PUBLIC_SITE_URL ||
-      window.location.origin,
+      resolvePublicAppUrl("/"),
   );
 
   return `${configuredSiteUrl}/auth/callback`;
@@ -65,7 +66,7 @@ function trackAuthEvent(event: string, data?: Record<string, unknown>) {
     code: typeof data?.code === "string" ? data.code : undefined,
   };
 
-  void fetch("/api/auth/telemetry", {
+  void fetch(resolveApiUrl("/api/auth/telemetry"), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -380,7 +381,7 @@ export function useAuth() {
         debugLog("FETCH_USER", "Dev mode: Fetching without token to trigger backend bypass");
       }
 
-      const response = await fetch("/api/auth/user?sync=true", {
+      const response = await fetch(resolveApiUrl("/api/auth/user?sync=true"), {
         headers,
         signal: controller.signal,
       });

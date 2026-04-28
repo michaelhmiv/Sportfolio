@@ -7,7 +7,9 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import {
-  ensureAndroidPushChannel,
+  ensureAndroidPushChannels,
+  getDefaultAndroidPushChannelId,
+  getNativeAppVersion,
   getPushInstallationId,
   isAndroidNativePushSupported,
   hasAutoPromptedForPushPermission,
@@ -16,6 +18,8 @@ import {
 } from "@/lib/mobile-push";
 
 const AUTH_BOOTSTRAP_ROUTES = new Set(["/login", "/auth/callback"]);
+const PUSH_COLD_START_ROUTE_STORAGE_KEY = "android_push_cold_start_route_v1";
+const PUSH_LAST_OPEN_EVENT_ID_STORAGE_KEY = "android_push_last_open_event_id_v1";
 
 function resolveNotificationRoute(
   data: Record<string, unknown> | null | undefined,
@@ -48,15 +52,6 @@ export function MobilePushManager() {
   });
   const registrationInFlightRef = useRef(false);
 
-  useEffect(() => {
-    authRef.current = { isAuthenticated, userId: user?.id };
-  }, [isAuthenticated, user?.id]);
-
-  useEffect(() => {
-    if (isAuthenticated) return;
-    registrationInFlightRef.current = false;
-  }, [isAuthenticated]);
-
   const invalidatePushQueries = useCallback(() => {
     void queryClient.invalidateQueries({
       predicate: (query) => query.queryKey[0] === "/api/notifications/preferences",
@@ -67,6 +62,46 @@ export function MobilePushManager() {
         query.queryKey[0].startsWith("/api/mobile/push/status"),
     });
   }, []);
+
+  const navigateFromPushPayload = useCallback(
+    (payload: Record<string, unknown> | null | undefined, fallback = "/") => {
+      const route = resolveNotificationRoute(payload, fallback);
+      navigate(route);
+    },
+    [navigate],
+  );
+
+  const markPushOpened = useCallback(
+    async (data: Record<string, unknown> | null | undefined) => {
+      const eventId = typeof data?.eventId === "string" ? data.eventId.trim() : "";
+      if (!eventId || typeof window === "undefined") return;
+
+      const alreadyOpened = window.sessionStorage.getItem(PUSH_LAST_OPEN_EVENT_ID_STORAGE_KEY);
+      if (alreadyOpened === eventId) return;
+
+      try {
+        await apiRequest("POST", "/api/mobile/push/opened", {
+          eventId,
+          openedFrom: "tap",
+          route: resolveNotificationRoute(data),
+        });
+        window.sessionStorage.setItem(PUSH_LAST_OPEN_EVENT_ID_STORAGE_KEY, eventId);
+        invalidatePushQueries();
+      } catch (error) {
+        console.warn("[MOBILE_PUSH] Failed to mark notification as opened:", error);
+      }
+    },
+    [invalidatePushQueries],
+  );
+
+  useEffect(() => {
+    authRef.current = { isAuthenticated, userId: user?.id };
+  }, [isAuthenticated, user?.id]);
+
+  useEffect(() => {
+    if (isAuthenticated) return;
+    registrationInFlightRef.current = false;
+  }, [isAuthenticated]);
 
   const syncAndroidPushRegistration = useCallback(
     async (options: {
@@ -107,10 +142,26 @@ export function MobilePushManager() {
     let appStateListener: { remove: () => Promise<void> } | null = null;
 
     const attachListeners = async () => {
-      await ensureAndroidPushChannel();
+      await ensureAndroidPushChannels();
+
+      const launchNotification = await PushNotifications.getDeliveredNotifications().catch(
+        () => null,
+      );
+      const launchNotifications = launchNotification?.notifications;
+      const latestLaunchNotification =
+        launchNotifications && launchNotifications.length > 0
+          ? launchNotifications[launchNotifications.length - 1]
+          : undefined;
+      const coldStartRoute = resolveNotificationRoute(
+        latestLaunchNotification?.data as Record<string, unknown> | undefined,
+      );
+      if (coldStartRoute && typeof window !== "undefined") {
+        window.sessionStorage.setItem(PUSH_COLD_START_ROUTE_STORAGE_KEY, coldStartRoute);
+      }
 
       registrationListener = await PushNotifications.addListener("registration", async (token) => {
         setLastRegisteredPushToken(token.value);
+        const appVersion = await getNativeAppVersion();
 
         if (!authRef.current.isAuthenticated || !authRef.current.userId) {
           return;
@@ -120,9 +171,10 @@ export function MobilePushManager() {
           token: token.value,
           platform: "android",
           deviceId: getPushInstallationId(),
-          appVersion: import.meta.env.VITE_APP_VERSION || null,
+          appVersion: appVersion || import.meta.env.VITE_APP_VERSION || null,
           osVersion: navigator.userAgent,
           deviceModel: null,
+          channelId: getDefaultAndroidPushChannelId(),
         })
           .catch((error) => {
             console.warn("[MOBILE_PUSH] Failed to sync token with backend:", error);
@@ -155,10 +207,9 @@ export function MobilePushManager() {
       actionListener = await PushNotifications.addListener(
         "pushNotificationActionPerformed",
         (action) => {
-          const route = resolveNotificationRoute(
-            action.notification?.data as Record<string, unknown>,
-          );
-          navigate(route);
+          const data = action.notification?.data as Record<string, unknown>;
+          void markPushOpened(data);
+          navigateFromPushPayload(data);
         },
       );
 
@@ -189,11 +240,20 @@ export function MobilePushManager() {
     };
   }, [
     invalidatePushQueries,
-    navigate,
+    markPushOpened,
+    navigateFromPushPayload,
     syncAndroidPushRegistration,
     toast,
     user?.hasSeenOnboarding,
   ]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const pendingRoute = window.sessionStorage.getItem(PUSH_COLD_START_ROUTE_STORAGE_KEY);
+    if (!pendingRoute) return;
+    window.sessionStorage.removeItem(PUSH_COLD_START_ROUTE_STORAGE_KEY);
+    navigate(pendingRoute);
+  }, [navigate]);
 
   useEffect(() => {
     if (!isAndroidNativePushSupported()) return;

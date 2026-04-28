@@ -1,23 +1,18 @@
 import { Capacitor } from "@capacitor/core";
+import { App as CapacitorApp } from "@capacitor/app";
 import { PushNotifications } from "@capacitor/push-notifications";
 import { apiRequest } from "@/lib/queryClient";
+import {
+  DEFAULT_ANDROID_PUSH_CHANNEL_ID,
+  PUSH_NOTIFICATION_ANDROID_CHANNELS,
+  type PushNotificationAndroidChannelId,
+} from "@shared/push-notifications";
 
 const PUSH_INSTALLATION_ID_STORAGE_KEY = "android_push_installation_id_v1";
 const PUSH_LAST_TOKEN_STORAGE_KEY = "android_push_last_token_v1";
 const PUSH_AUTO_PROMPTED_STORAGE_KEY = "android_push_auto_prompted_v2";
 const PUSH_PERMISSION_STATUS_STORAGE_KEY = "android_push_permission_status_v2";
 const LEGACY_PUSH_PROMPTED_STORAGE_KEY = "android_push_prompted_v1";
-
-export const DEFAULT_ANDROID_PUSH_CHANNEL = {
-  id: "sportfolio_general",
-  name: "Sportfolio Alerts",
-  description: "Boost, scout, portfolio, and market notifications from Sportfolio.",
-  importance: 4 as const,
-  visibility: 1 as const,
-  lights: true,
-  lightColor: "#3b82f6",
-  vibration: true,
-};
 
 export type AndroidPushPermissionState = "unsupported" | "prompt" | "granted" | "denied";
 
@@ -132,14 +127,38 @@ export function markPushPermissionAutoPrompted() {
   safeStorageSet(PUSH_AUTO_PROMPTED_STORAGE_KEY, "true");
 }
 
-export async function ensureAndroidPushChannel() {
+export async function ensureAndroidPushChannels() {
   if (!isAndroidNativePushSupported()) {
     return;
   }
 
-  await PushNotifications.createChannel(DEFAULT_ANDROID_PUSH_CHANNEL).catch((error) => {
-    console.warn("[MOBILE_PUSH] Could not create Android notification channel:", error);
-  });
+  await Promise.all(
+    PUSH_NOTIFICATION_ANDROID_CHANNELS.map((channel) =>
+      PushNotifications.createChannel(channel).catch((error) => {
+        console.warn("[MOBILE_PUSH] Could not create Android notification channel:", {
+          channelId: channel.id,
+          error,
+        });
+      }),
+    ),
+  );
+}
+
+export function getDefaultAndroidPushChannelId(): PushNotificationAndroidChannelId {
+  return DEFAULT_ANDROID_PUSH_CHANNEL_ID;
+}
+
+export async function getNativeAppVersion(): Promise<string | null> {
+  if (!isAndroidNativePushSupported()) {
+    return null;
+  }
+
+  try {
+    const info = await CapacitorApp.getInfo();
+    return info.version || null;
+  } catch {
+    return null;
+  }
 }
 
 export async function getAndroidPushPermissionSnapshot(): Promise<AndroidPushPermissionSnapshot> {
@@ -201,7 +220,7 @@ export async function registerForAndroidPushes(options?: {
     return { state, prompted, registered: false };
   }
 
-  await ensureAndroidPushChannel();
+  await ensureAndroidPushChannels();
   await PushNotifications.register();
   console.info(`[MOBILE_PUSH] Android push registration requested (${logLabel})`);
   return { state, prompted, registered: true };

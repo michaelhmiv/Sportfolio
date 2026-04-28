@@ -14,6 +14,11 @@ export const PUSH_NOTIFICATION_TYPES = [
 export type PushNotificationType = (typeof PUSH_NOTIFICATION_TYPES)[number];
 
 export type PushNotificationPlatform = "android";
+export type PushNotificationAndroidChannelId =
+  | "sportfolio_gameplay"
+  | "sportfolio_market"
+  | "sportfolio_watchlist"
+  | "sportfolio_system";
 
 export const DEFAULT_PUSH_NOTIFICATION_PREFERENCES: Record<PushNotificationType, boolean> = {
   scout_complete: true,
@@ -29,6 +34,65 @@ export const DEFAULT_PUSH_NOTIFICATION_PREFERENCES: Record<PushNotificationType,
 };
 
 export type PushNotificationPreferenceMap = Record<PushNotificationType, boolean>;
+
+export const PUSH_NOTIFICATION_ANDROID_CHANNELS: Array<{
+  id: PushNotificationAndroidChannelId;
+  name: string;
+  description: string;
+  importance: 4;
+  visibility: 1;
+  lights: true;
+  lightColor: string;
+  vibration: true;
+}> = [
+  {
+    id: "sportfolio_gameplay",
+    name: "Gameplay Alerts",
+    description: "Scouting, boosts, orders, and premium reward updates.",
+    importance: 4,
+    visibility: 1,
+    lights: true,
+    lightColor: "#3b82f6",
+    vibration: true,
+  },
+  {
+    id: "sportfolio_market",
+    name: "Market Activity",
+    description: "Portfolio movement and trading activity notifications.",
+    importance: 4,
+    visibility: 1,
+    lights: true,
+    lightColor: "#22c55e",
+    vibration: true,
+  },
+  {
+    id: "sportfolio_watchlist",
+    name: "Watchlist Alerts",
+    description: "Watchlist news and price movement updates.",
+    importance: 4,
+    visibility: 1,
+    lights: true,
+    lightColor: "#f59e0b",
+    vibration: true,
+  },
+  {
+    id: "sportfolio_system",
+    name: "System Updates",
+    description: "Important account, release, and diagnostic messages.",
+    importance: 4,
+    visibility: 1,
+    lights: true,
+    lightColor: "#a855f7",
+    vibration: true,
+  },
+];
+
+export const DEFAULT_ANDROID_PUSH_CHANNEL_ID: PushNotificationAndroidChannelId =
+  "sportfolio_gameplay";
+export const PUSH_NOTIFICATION_APP_LINK_HOSTS = [
+  "www.sportfolio.market",
+  "sportfolio.market",
+] as const;
 
 export const ALLOWED_INTERNAL_NOTIFICATION_ROUTES = [
   "/",
@@ -65,6 +129,28 @@ export function resolvePushNotificationPreferences(
   }
 
   return resolved;
+}
+
+export function getPushNotificationAndroidChannelId(
+  type: PushNotificationType,
+): PushNotificationAndroidChannelId {
+  switch (type) {
+    case "watchlist_news":
+    case "watchlist_price_move":
+      return "sportfolio_watchlist";
+    case "portfolio_movement":
+      return "sportfolio_market";
+    case "system_announcements":
+      return "sportfolio_system";
+    case "scout_complete":
+    case "scout_capacity_available":
+    case "boost_locking_soon":
+    case "boost_settled":
+    case "order_filled":
+    case "premium_reward_available":
+    default:
+      return "sportfolio_gameplay";
+  }
 }
 
 export function normalizeInternalNotificationRoute(route: unknown): string | null {

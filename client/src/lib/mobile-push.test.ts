@@ -4,6 +4,8 @@ const mockCheckPermissions = vi.fn();
 const mockRequestPermissions = vi.fn();
 const mockRegister = vi.fn();
 const mockCreateChannel = vi.fn();
+const mockGetDeliveredNotifications = vi.fn();
+const mockGetInfo = vi.fn();
 
 vi.mock("@capacitor/core", () => ({
   Capacitor: {
@@ -18,6 +20,13 @@ vi.mock("@capacitor/push-notifications", () => ({
     requestPermissions: mockRequestPermissions,
     register: mockRegister,
     createChannel: mockCreateChannel,
+    getDeliveredNotifications: mockGetDeliveredNotifications,
+  },
+}));
+
+vi.mock("@capacitor/app", () => ({
+  App: {
+    getInfo: mockGetInfo,
   },
 }));
 
@@ -48,6 +57,8 @@ describe("mobile push helpers", () => {
     mockRequestPermissions.mockReset();
     mockRegister.mockReset();
     mockCreateChannel.mockReset();
+    mockGetDeliveredNotifications.mockReset();
+    mockGetInfo.mockReset();
     const localStorage = new LocalStorageMock();
     vi.stubGlobal("window", { localStorage });
     vi.stubGlobal("localStorage", localStorage);
@@ -115,7 +126,7 @@ describe("mobile push helpers", () => {
       registered: true,
     });
     expect(hasAutoPromptedForPushPermission()).toBe(true);
-    expect(mockCreateChannel).toHaveBeenCalledTimes(1);
+    expect(mockCreateChannel).toHaveBeenCalledTimes(4);
     expect(mockRegister).toHaveBeenCalledTimes(1);
   });
 
@@ -136,5 +147,12 @@ describe("mobile push helpers", () => {
 
     expect(hasAutoPromptedForPushPermission()).toBe(false);
     expect(mockRegister).not.toHaveBeenCalled();
+  });
+
+  it("returns the native app version when available", async () => {
+    mockGetInfo.mockResolvedValue({ version: "1.2.3" });
+    const { getNativeAppVersion } = await import("./mobile-push");
+
+    await expect(getNativeAppVersion()).resolves.toBe("1.2.3");
   });
 });

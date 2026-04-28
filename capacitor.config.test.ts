@@ -17,15 +17,12 @@ afterEach(() => {
 });
 
 describe("capacitor.config", () => {
-  it("defaults native builds to the hosted production app", async () => {
+  it("defaults native builds to the bundled production shell", async () => {
     delete process.env.CAP_SERVER_URL;
 
     const config = await loadConfig();
 
-    expect(config.server).toEqual({
-      url: "https://www.sportfolio.market",
-      cleartext: false,
-    });
+    expect(config.server).toBeUndefined();
   });
 
   it("allows overriding the native server URL per environment", async () => {

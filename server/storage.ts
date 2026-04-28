@@ -250,6 +250,7 @@ export interface IStorage {
     eventId: string,
     updates: Partial<PushNotificationEvent>,
   ): Promise<void>;
+  getPushNotificationEventById(eventId: string): Promise<PushNotificationEvent | undefined>;
   getPushNotificationEvents(
     userId: string,
     options?: { limit?: number; offset?: number },
@@ -1599,6 +1600,16 @@ export class DatabaseStorage implements IStorage {
         updatedAt: new Date(),
       })
       .where(eq(pushNotificationEvents.id, eventId));
+  }
+
+  async getPushNotificationEventById(eventId: string): Promise<PushNotificationEvent | undefined> {
+    const [event] = await db
+      .select()
+      .from(pushNotificationEvents)
+      .where(eq(pushNotificationEvents.id, eventId))
+      .limit(1);
+
+    return event;
   }
 
   async getPushNotificationEvents(

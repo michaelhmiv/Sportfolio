@@ -14,7 +14,6 @@ jobs:
   build-and-distribute:
     runs-on: ubuntu-latest
     env:
-      CAP_SERVER_URL: https://www.sportfolio.market
       # Always include the core internal tester so new builds do not require manual email entry.
       DEFAULT_FIREBASE_DISTRIBUTION_TESTERS: michaelhmiv@gmail.com
 

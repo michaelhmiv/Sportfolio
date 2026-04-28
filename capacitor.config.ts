@@ -1,7 +1,6 @@
 import type { CapacitorConfig } from "@capacitor/cli";
 
-const DEFAULT_NATIVE_SERVER_URL = "https://www.sportfolio.market";
-const nativeServerUrl = process.env.CAP_SERVER_URL?.trim() || DEFAULT_NATIVE_SERVER_URL;
+const nativeServerUrl = process.env.CAP_SERVER_URL?.trim();
 
 const config: CapacitorConfig = {
   appId: "sportfolio.market",
@@ -36,10 +35,13 @@ const config: CapacitorConfig = {
       presentationOptions: ["badge", "sound", "alert"],
     },
   },
-  server: {
+};
+
+if (nativeServerUrl) {
+  config.server = {
     url: nativeServerUrl,
     cleartext: nativeServerUrl.startsWith("http://"),
-  },
-};
+  };
+}
 
 export default config;
