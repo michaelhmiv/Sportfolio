@@ -1,5 +1,6 @@
 import { QueryClient, QueryFunction, dehydrate, hydrate } from "@tanstack/react-query";
 import { getAuthSession, getSupabase } from "./supabase";
+import { resolveApiUrl } from "./native-runtime";
 
 const IS_DEV = import.meta.env.DEV;
 
@@ -34,7 +35,7 @@ export async function authenticatedFetch(
   options: RequestInit = {},
 ): Promise<Response> {
   const authHeaders = await getAuthHeaders();
-  return fetch(url, {
+  return fetch(resolveApiUrl(url), {
     ...options,
     headers: {
       ...authHeaders,
@@ -50,7 +51,7 @@ export async function apiRequest(
   data?: unknown | undefined,
 ): Promise<Response> {
   const authHeaders = await getAuthHeaders();
-  const res = await fetch(url, {
+  const res = await fetch(resolveApiUrl(url), {
     method,
     headers: {
       ...authHeaders,
@@ -73,9 +74,10 @@ async function sleep(ms: number) {
 export const getQueryFn: <T>(options: { on401: UnauthorizedBehavior }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    const url = queryKey.join("/") as string;
+    const queryPath = queryKey.join("/") as string;
+    const url = resolveApiUrl(queryPath);
     const startTime = performance.now();
-    debugLog("FETCH", `Starting request: ${url}`);
+    debugLog("FETCH", `Starting request: ${queryPath}`);
 
     try {
       const authHeaders = await getAuthHeaders();
@@ -87,7 +89,7 @@ export const getQueryFn: <T>(options: { on401: UnauthorizedBehavior }) => QueryF
         for (let attempt = 0; attempt <= maxRetries; attempt++) {
           const controller = new AbortController();
           const timeoutId = setTimeout(() => {
-            debugLog("FETCH", `TIMEOUT on attempt ${attempt + 1}: ${url}`);
+            debugLog("FETCH", `TIMEOUT on attempt ${attempt + 1}: ${queryPath}`);
             controller.abort();
           }, 15000);
 
@@ -113,13 +115,16 @@ export const getQueryFn: <T>(options: { on401: UnauthorizedBehavior }) => QueryF
               return null;
             }
 
-            debugLog("FETCH", `Completed in ${elapsed}ms: ${url}`, { status: res.status });
+            debugLog("FETCH", `Completed in ${elapsed}ms: ${queryPath}`, { status: res.status });
             await throwIfResNotOk(res);
             return await res.json();
           } catch (error) {
             clearTimeout(timeoutId);
             if (error instanceof Error && error.name === "AbortError") {
-              debugLog("FETCH", `Request aborted (timeout) on attempt ${attempt + 1}: ${url}`);
+              debugLog(
+                "FETCH",
+                `Request aborted (timeout) on attempt ${attempt + 1}: ${queryPath}`,
+              );
               if (attempt < maxRetries) {
                 await sleep(retryDelays[attempt]);
                 continue;
@@ -133,7 +138,7 @@ export const getQueryFn: <T>(options: { on401: UnauthorizedBehavior }) => QueryF
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => {
-        debugLog("FETCH", `TIMEOUT: ${url}`);
+        debugLog("FETCH", `TIMEOUT: ${queryPath}`);
         controller.abort();
       }, 15000);
 
@@ -145,13 +150,13 @@ export const getQueryFn: <T>(options: { on401: UnauthorizedBehavior }) => QueryF
       clearTimeout(timeoutId);
 
       const elapsed = (performance.now() - startTime).toFixed(0);
-      debugLog("FETCH", `Completed in ${elapsed}ms: ${url}`, { status: res.status });
+      debugLog("FETCH", `Completed in ${elapsed}ms: ${queryPath}`, { status: res.status });
 
       await throwIfResNotOk(res);
       return await res.json();
     } catch (error) {
       const elapsed = (performance.now() - startTime).toFixed(0);
-      debugLog("FETCH", `FAILED after ${elapsed}ms: ${url}`, {
+      debugLog("FETCH", `FAILED after ${elapsed}ms: ${queryPath}`, {
         error: error instanceof Error ? error.message : "Unknown error",
         isAbort: error instanceof Error && error.name === "AbortError",
       });

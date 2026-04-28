@@ -11,6 +11,8 @@ type MobilePushStorage = Pick<
   | "upsertUserPushToken"
   | "deactivateUserPushTokens"
   | "listActiveUserPushTokens"
+  | "getPushNotificationEventById"
+  | "updatePushNotificationEvent"
   | "getUserNotificationPreferences"
   | "upsertUserNotificationPreferences"
   | "getPushNotificationEvents"
@@ -51,6 +53,21 @@ function isLikelyFcmToken(token: string): boolean {
   return token.length >= 20 && token.length <= 4096 && !/\s/.test(token);
 }
 
+function mergeEventMetadata(
+  event: { metadata: unknown } | undefined,
+  patch: Record<string, unknown>,
+): Record<string, unknown> {
+  const base =
+    event?.metadata && typeof event.metadata === "object" && !Array.isArray(event.metadata)
+      ? (event.metadata as Record<string, unknown>)
+      : {};
+
+  return {
+    ...base,
+    ...patch,
+  };
+}
+
 export async function registerMobilePushNotificationRoutes(
   app: Express,
   options: RegisterMobilePushNotificationRoutesOptions = {},
@@ -85,8 +102,12 @@ export async function registerMobilePushNotificationRoutes(
         token,
         deviceId: typeof req.body?.deviceId === "string" ? req.body.deviceId.trim() : null,
         appVersion: typeof req.body?.appVersion === "string" ? req.body.appVersion.trim() : null,
-        osVersion: typeof req.body?.osVersion === "string" ? req.body.osVersion.trim() : null,
-        deviceModel: typeof req.body?.deviceModel === "string" ? req.body.deviceModel.trim() : null,
+        osVersion:
+          typeof req.body?.osVersion === "string" ? req.body.osVersion.trim().slice(0, 255) : null,
+        deviceModel:
+          typeof req.body?.deviceModel === "string"
+            ? req.body.deviceModel.trim().slice(0, 255)
+            : null,
       });
 
       return res.json({ success: true });
@@ -146,6 +167,12 @@ export async function registerMobilePushNotificationRoutes(
           lastFailureAt: currentDeviceToken?.lastFailureAt ?? null,
           lastError: currentDeviceToken?.lastError ?? null,
         },
+        diagnostics: {
+          runtime: "firebase-admin",
+          platform: "android",
+          deviceCount: tokens.length,
+          latestTokenSeenAt: tokens[0]?.lastRegisteredAt ?? null,
+        },
         recentEvents: events.map((event) => ({
           id: event.id,
           notificationType: event.notificationType,
@@ -154,6 +181,7 @@ export async function registerMobilePushNotificationRoutes(
           createdAt: event.createdAt,
           sentAt: event.sentAt,
           route: event.route,
+          metadata: event.metadata,
         })),
       });
     } catch (error: any) {
@@ -221,6 +249,37 @@ export async function registerMobilePushNotificationRoutes(
       return res
         .status(500)
         .json({ error: error?.message || "Failed to load notification history" });
+    }
+  });
+
+  app.post("/api/mobile/push/opened", authMiddleware, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const eventId = typeof req.body?.eventId === "string" ? req.body.eventId.trim() : "";
+
+      if (!eventId) {
+        return res.status(400).json({ error: "eventId is required" });
+      }
+
+      const event = await storageLayer.getPushNotificationEventById(eventId);
+      if (!event || event.userId !== userId) {
+        return res.status(404).json({ error: "Push event not found" });
+      }
+
+      await storageLayer.updatePushNotificationEvent(eventId, {
+        deliveryStatus: event.deliveryStatus === "sent" ? "opened" : event.deliveryStatus,
+        metadata: mergeEventMetadata(event, {
+          openedAt: new Date().toISOString(),
+          openedFrom: typeof req.body?.openedFrom === "string" ? req.body.openedFrom : "tap",
+          lastOpenedRoute:
+            typeof req.body?.route === "string" ? req.body.route.trim().slice(0, 255) : event.route,
+        }),
+      });
+
+      return res.json({ success: true });
+    } catch (error: any) {
+      console.error("[MOBILE_PUSH] Failed to mark push as opened:", error);
+      return res.status(500).json({ error: error?.message || "Failed to mark push as opened" });
     }
   });
 }

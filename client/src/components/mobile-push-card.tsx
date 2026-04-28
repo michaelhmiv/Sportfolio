@@ -42,8 +42,19 @@ type MobilePushStatusResponse = {
     createdAt: string;
     sentAt: string | null;
     route: string;
+    metadata?: Record<string, unknown>;
   }>;
+  diagnostics?: {
+    runtime: string;
+    platform: string;
+    deviceCount: number;
+    latestTokenSeenAt: string | null;
+  };
 };
+
+function getOpenedAt(metadata: Record<string, unknown> | undefined): string | null {
+  return typeof metadata?.openedAt === "string" ? metadata.openedAt : null;
+}
 
 type NotificationPreferencesResponse = {
   preferences: PushNotificationPreferenceMap;
@@ -265,6 +276,10 @@ export function MobilePushCard() {
                     Active tokens: {status?.activeTokenCount ?? 0}
                   </div>
                   <div className="text-xs text-muted-foreground">
+                    Latest token seen:{" "}
+                    {formatTimestamp(status?.diagnostics?.latestTokenSeenAt ?? null)}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
                     Last registered:{" "}
                     {formatTimestamp(status?.currentDevice.lastRegisteredAt ?? null)}
                   </div>
@@ -375,6 +390,11 @@ export function MobilePushCard() {
                       <div className="text-xs text-muted-foreground">
                         {event.notificationType} · {event.deliveryStatus} · {event.route}
                       </div>
+                      {getOpenedAt(event.metadata) && (
+                        <div className="text-xs text-muted-foreground">
+                          Opened: {formatTimestamp(getOpenedAt(event.metadata))}
+                        </div>
+                      )}
                     </div>
                     <div className="text-right text-xs text-muted-foreground">
                       <div>{formatTimestamp(event.sentAt || event.createdAt)}</div>

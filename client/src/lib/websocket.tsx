@@ -6,6 +6,7 @@ import {
   debouncedInvalidatePlayer,
   debouncedInvalidateMarketActivity,
 } from "@/lib/cache-invalidation";
+import { resolveWebSocketUrl } from "@/lib/native-runtime";
 
 const IS_DEV = import.meta.env.DEV;
 
@@ -48,9 +49,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const connect = () => {
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const host = window.location.host;
-    const wsUrl = `${protocol}//${host}/ws`;
+    const wsUrl = resolveWebSocketUrl("/ws");
 
     debugLog("CONNECT", `Attempting to connect to ${wsUrl}`, {
       attempt: reconnectAttemptsRef.current + 1,

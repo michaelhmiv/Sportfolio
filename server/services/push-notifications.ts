@@ -3,6 +3,7 @@ import { cert, getApps, initializeApp, type ServiceAccount } from "firebase-admi
 import { getMessaging } from "firebase-admin/messaging";
 import {
   DEFAULT_PUSH_NOTIFICATION_PREFERENCES,
+  getPushNotificationAndroidChannelId,
   isPushNotificationType,
   normalizeInternalNotificationRoute,
   resolvePushNotificationPreferences,
@@ -38,6 +39,9 @@ interface PushMessagingProvider {
     title: string;
     body: string;
     data: Record<string, string>;
+    channelId?: string;
+    ttlSeconds?: number;
+    collapseKey?: string;
   }): Promise<PushMessagingResult>;
 }
 
@@ -81,6 +85,9 @@ export interface PushMulticastPayload {
   title: string;
   body: string;
   data?: Record<string, string>;
+  channelId?: string;
+  ttlSeconds?: number;
+  collapseKey?: string;
 }
 
 export interface PushMulticastResult {
@@ -93,6 +100,7 @@ export interface PushMulticastResult {
 
 let providerPromise: Promise<PushMessagingProvider | null> | null = null;
 let didWarnMissingFirebaseCredentials = false;
+const DEFAULT_ANDROID_PUSH_TTL_SECONDS = 60 * 60 * 6;
 
 export function hasFirebasePushCredentialsConfigured(): boolean {
   return Boolean(
@@ -193,6 +201,11 @@ async function createFirebasePushProvider(): Promise<PushMessagingProvider | nul
         data: input.data,
         android: {
           priority: "high",
+          ttl: (input.ttlSeconds ?? DEFAULT_ANDROID_PUSH_TTL_SECONDS) * 1000,
+          collapseKey: input.collapseKey,
+          notification: {
+            channelId: input.channelId,
+          },
         },
       });
 
@@ -254,6 +267,9 @@ export async function sendPushMulticast(
       title: payload.title,
       body: payload.body,
       data: payload.data ?? {},
+      channelId: payload.channelId,
+      ttlSeconds: payload.ttlSeconds,
+      collapseKey: payload.collapseKey,
     });
 
     sentCount += result.successCount;
@@ -397,12 +413,20 @@ export class PushNotificationService {
       entityId: input.entityId ?? "",
       metadata: serializeMetadata(input.metadata),
     };
+    if (createdEvent?.id) {
+      dataPayload.eventId = createdEvent.id;
+    }
+    const channelId = getPushNotificationAndroidChannelId(input.type);
+    const collapseKey = input.dedupeKey ?? `${input.type}:${input.userId}`;
 
     const providerResult = await provider.sendMulticast({
       tokens: tokens.map((token) => token.token),
       title: input.title,
       body: input.body,
       data: dataPayload,
+      channelId,
+      ttlSeconds: DEFAULT_ANDROID_PUSH_TTL_SECONDS,
+      collapseKey,
     });
 
     let firstMessageId: string | null = null;
@@ -448,6 +472,8 @@ export class PushNotificationService {
           delivery: {
             successCount: providerResult.successCount,
             failureCount: providerResult.failureCount,
+            channelId,
+            collapseKey,
           },
         },
       });

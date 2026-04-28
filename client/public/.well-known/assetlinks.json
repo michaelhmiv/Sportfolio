@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "sportfolio.market",
+      "sha256_cert_fingerprints": [
+        "C2:D7:BD:1B:60:EC:34:66:58:1A:7C:8F:93:8C:DA:18:14:B7:9B:AE:2A:24:2D:E9:FF:A4:00:A1:00:59:94:4F"
+      ]
+    }
+  }
+]

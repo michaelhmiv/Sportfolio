@@ -1,5 +1,6 @@
 import { Capacitor } from "@capacitor/core";
 import { createClient, type Session, SupabaseClient } from "@supabase/supabase-js";
+import { resolveApiUrl } from "./native-runtime";
 
 let supabaseInstance: SupabaseClient | null = null;
 let initializationPromise: Promise<SupabaseClient> | null = null;
@@ -86,6 +87,9 @@ function getCachedConfigFromV2(): CachedConfig | null {
     }
 
     if (config.origin !== window.location.origin || age > CONFIG_CACHE_TTL_MS) {
+      if (Capacitor.isNativePlatform() && age <= CONFIG_CACHE_TTL_MS) {
+        return config;
+      }
       localStorage.removeItem(CONFIG_CACHE_KEY);
       return null;
     }
@@ -184,7 +188,7 @@ async function fetchSupabaseConfig(): Promise<SupabaseConfigResponse> {
   const startTime = performance.now();
   let response: Response;
   try {
-    response = await fetch("/api/auth/config", {
+    response = await fetch(resolveApiUrl("/api/auth/config"), {
       signal: controller.signal,
     });
   } finally {

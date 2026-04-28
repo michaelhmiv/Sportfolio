@@ -113,10 +113,27 @@ describe("PushNotificationService", () => {
       expect.stringContaining("messaging/registration-token-not-registered"),
       { deactivate: true },
     );
+    expect(providerFactory).toHaveBeenCalled();
     expect(storageMock.updatePushNotificationEvent).toHaveBeenCalledWith(
       "event_2",
       expect.objectContaining({
         deliveryStatus: "partial",
+        metadata: expect.objectContaining({
+          delivery: expect.objectContaining({
+            channelId: "sportfolio_gameplay",
+            collapseKey: "boost-1",
+          }),
+        }),
+      }),
+    );
+    const sendMulticast = await providerFactory.mock.results[0]?.value.then(
+      (provider: { sendMulticast: unknown }) => provider.sendMulticast,
+    );
+    expect(sendMulticast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          eventId: "event_2",
+        }),
       }),
     );
   });

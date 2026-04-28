@@ -132,6 +132,8 @@ describe("registerMobilePushNotificationRoutes", () => {
     const storageMock = {
       upsertUserPushToken: vi.fn(),
       deactivateUserPushTokens: vi.fn().mockResolvedValue(0),
+      getPushNotificationEventById: vi.fn(),
+      updatePushNotificationEvent: vi.fn(),
       listActiveUserPushTokens: vi.fn().mockResolvedValue([]),
       getUserNotificationPreferences: getPreferences,
       upsertUserNotificationPreferences: vi.fn().mockResolvedValue([]),
@@ -185,6 +187,8 @@ describe("registerMobilePushNotificationRoutes", () => {
     const storageMock = {
       upsertUserPushToken: vi.fn(),
       deactivateUserPushTokens: vi.fn().mockResolvedValue(0),
+      getPushNotificationEventById: vi.fn(),
+      updatePushNotificationEvent: vi.fn(),
       listActiveUserPushTokens: vi.fn().mockResolvedValue([
         {
           id: "tok_1",
@@ -210,6 +214,7 @@ describe("registerMobilePushNotificationRoutes", () => {
           body: "Done",
           route: "/boosts",
           deliveryStatus: "sent",
+          metadata: { openedAt: "2026-04-20T11:07:00Z" },
           createdAt: new Date("2026-04-20T11:05:00Z"),
           sentAt: new Date("2026-04-20T11:05:10Z"),
         },
@@ -232,14 +237,79 @@ describe("registerMobilePushNotificationRoutes", () => {
           registered: true,
           lastError: null,
         },
+        diagnostics: {
+          runtime: "firebase-admin",
+          platform: "android",
+          deviceCount: 1,
+        },
         recentEvents: [
           expect.objectContaining({
             notificationType: "boost_settled",
             deliveryStatus: "sent",
             route: "/boosts",
+            metadata: expect.objectContaining({
+              openedAt: "2026-04-20T11:07:00Z",
+            }),
           }),
         ],
       });
+    } finally {
+      await close();
+    }
+  });
+
+  it("marks a push event as opened for the authenticated user", async () => {
+    const { app, baseUrl, close } = createTestServer();
+    const authMiddleware: RequestHandler = (req: any, _res, next) => {
+      req.user = { claims: { sub: "user-123" } };
+      next();
+    };
+
+    const storageMock = {
+      upsertUserPushToken: vi.fn(),
+      deactivateUserPushTokens: vi.fn().mockResolvedValue(0),
+      getPushNotificationEventById: vi.fn().mockResolvedValue({
+        id: "evt_1",
+        userId: "user-123",
+        route: "/boosts",
+        deliveryStatus: "sent",
+        metadata: {},
+      }),
+      updatePushNotificationEvent: vi.fn().mockResolvedValue(undefined),
+      listActiveUserPushTokens: vi.fn().mockResolvedValue([]),
+      getUserNotificationPreferences: vi.fn().mockResolvedValue([]),
+      upsertUserNotificationPreferences: vi.fn().mockResolvedValue([]),
+      getPushNotificationEvents: vi.fn().mockResolvedValue([]),
+    };
+
+    await registerMobilePushNotificationRoutes(app, {
+      authMiddleware,
+      storage: storageMock as any,
+    });
+    app.use("/api", (_req, res) => res.status(404).json({ error: "Not found" }));
+
+    try {
+      const response = await fetch(`${baseUrl}/api/mobile/push/opened`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eventId: "evt_1",
+          route: "/boosts",
+          openedFrom: "tap",
+        }),
+      });
+
+      expect(response.status).toBe(200);
+      expect(storageMock.updatePushNotificationEvent).toHaveBeenCalledWith(
+        "evt_1",
+        expect.objectContaining({
+          deliveryStatus: "opened",
+          metadata: expect.objectContaining({
+            openedFrom: "tap",
+            lastOpenedRoute: "/boosts",
+          }),
+        }),
+      );
     } finally {
       await close();
     }

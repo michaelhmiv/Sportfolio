@@ -48,6 +48,11 @@ import { Keyboard, KeyboardResize } from "@capacitor/keyboard";
 import { SplashScreen } from "@capacitor/splash-screen";
 import { getAuthSession, getSupabase, updateNativeAuthRefreshState } from "@/lib/supabase";
 import { initNetworkMonitor } from "@/lib/native-network";
+import { resolvePublicAppUrl } from "@/lib/native-runtime";
+import {
+  normalizeInternalNotificationRoute,
+  PUSH_NOTIFICATION_APP_LINK_HOSTS,
+} from "@shared/push-notifications";
 import {
   getRouteSeoMeta,
   normalizeSiteUrl,
@@ -55,7 +60,9 @@ import {
 } from "@shared/seo";
 
 const CANONICAL_SITE_URL = normalizeSiteUrl(
-  import.meta.env.VITE_PUBLIC_SITE_URL || import.meta.env.PUBLIC_SITE_URL,
+  import.meta.env.VITE_PUBLIC_SITE_URL ||
+    import.meta.env.PUBLIC_SITE_URL ||
+    resolvePublicAppUrl("/"),
 );
 
 const loadPlayerPoolsPage = () => import("@/pages/marketplace");
@@ -133,6 +140,45 @@ function upsertMetaTag(attribute: "name" | "property", value: string): HTMLMetaE
     document.head.appendChild(tag);
   }
   return tag;
+}
+
+function resolveNativeAppUrlToRoute(url: string): string | null {
+  try {
+    const parsed = new URL(url);
+
+    if (
+      (parsed.protocol === "https:" || parsed.protocol === "http:") &&
+      PUSH_NOTIFICATION_APP_LINK_HOSTS.includes(
+        parsed.host as (typeof PUSH_NOTIFICATION_APP_LINK_HOSTS)[number],
+      )
+    ) {
+      const route = normalizeInternalNotificationRoute(`${parsed.pathname}${parsed.search}`);
+      return route;
+    }
+
+    const routeMap: Record<string, string> = {
+      portfolio: "/portfolio",
+      boosts: "/boosts",
+      pools: "/pools",
+      leaderboards: "/leaderboards",
+    };
+
+    if (
+      parsed.protocol === "sportfolio:" &&
+      parsed.host === "player" &&
+      parsed.pathname.length > 1
+    ) {
+      return normalizeInternalNotificationRoute(`/player/${parsed.pathname.replace(/^\//, "")}`);
+    }
+
+    if (parsed.protocol === "sportfolio:" && routeMap[parsed.host]) {
+      return routeMap[parsed.host];
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
 }
 
 function upsertCanonicalLink(): HTMLLinkElement {
@@ -406,27 +452,9 @@ function Router() {
           return;
         }
 
-        // Handle other deep links (P1 — 4.3)
-        try {
-          const parsed = new URL(url);
-          const host = parsed.host; // e.g. "player", "portfolio", "boosts", "pools", "leaderboards"
-          const pathname = parsed.pathname; // e.g. "/123" for player/{id}
-
-          const routeMap: Record<string, string> = {
-            portfolio: "/portfolio",
-            boosts: "/boosts",
-            pools: "/pools",
-            leaderboards: "/leaderboards",
-          };
-
-          if (host === "player" && pathname && pathname.length > 1) {
-            const playerId = pathname.replace(/^\//, "");
-            navigate(`/player/${playerId}`);
-          } else if (routeMap[host]) {
-            navigate(routeMap[host]);
-          }
-        } catch {
-          // ignore malformed deep links
+        const route = resolveNativeAppUrlToRoute(url);
+        if (route) {
+          navigate(route);
         }
       });
     };
