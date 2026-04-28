@@ -528,9 +528,7 @@ export default function PlayerPage() {
               <Button variant="outline" onClick={handleRetryPlayerLoad}>
                 Refresh
               </Button>
-              <Button asChild>
-                <Link href={`/login?redirect=${encodeURIComponent(`/player/${id}`)}`}>Sign In</Link>
-              </Button>
+              <Button onClick={() => setLocation("/")}>Back</Button>
             </div>
           </CardContent>
         </Card>
