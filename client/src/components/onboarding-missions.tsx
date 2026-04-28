@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   CheckCircle2,
   Star,
@@ -36,7 +37,7 @@ interface BoostHistoryData {
 export function OnboardingMissions() {
   const { user, isLoading: userLoading } = useAuth();
   const queryClient = useQueryClient();
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(true);
 
   const shouldShowMissions = !!user && user.hasSeenOnboarding === false;
 
@@ -123,7 +124,22 @@ export function OnboardingMissions() {
     watchlistLoading ||
     skipMissionsMutation.isPending;
 
-  if (isLoading) return null;
+  if (isLoading)
+    return (
+      <Card variant="terminal" className="relative overflow-hidden border-primary/20">
+        <CardHeader className="py-3 px-4">
+          <div className="flex items-center justify-between">
+            <Skeleton className="h-5 w-36" />
+            <Skeleton className="h-5 w-10" />
+          </div>
+        </CardHeader>
+        <CardContent className="px-4 pb-4 flex flex-col gap-3">
+          {[1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} className="h-12 w-full" />
+          ))}
+        </CardContent>
+      </Card>
+    );
 
   const completedCount = missions.filter((m) => m.completed).length;
   const progress = (completedCount / missions.length) * 100;

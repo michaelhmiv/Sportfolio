@@ -169,7 +169,7 @@ const getMobileSortMetric = (player: PlayerWithPool, sortField: SortField) => {
 };
 
 export default function PlayerPools() {
-  const { sport } = useSport();
+  const { sport, setSport } = useSport();
   const { shouldPoll, isMobile } = useAppState();
   const searchString = useSearch();
   const searchParams = useMemo(() => new URLSearchParams(searchString), [searchString]);
@@ -676,7 +676,7 @@ export default function PlayerPools() {
                     ) : players.length === 0 ? (
                       <div className="terminal-empty p-8 text-center">
                         <p className="text-muted-foreground">No players found</p>
-                        {hasActiveFilters && (
+                        {hasActiveFilters ? (
                           <Button
                             variant="terminalOutline"
                             size="sm"
@@ -684,6 +684,15 @@ export default function PlayerPools() {
                             onClick={clearAllFilters}
                           >
                             Clear filters
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="terminalOutline"
+                            size="sm"
+                            className="mt-2"
+                            onClick={() => setSport("ALL")}
+                          >
+                            Show all sports
                           </Button>
                         )}
                       </div>

@@ -2,6 +2,7 @@ import { useInjuries, getInjurySeverity } from "@/lib/injury-context";
 import { openPlayerModal } from "@/lib/player-modal-events";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { HeartPulse } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 interface PlayerNameProps {
   playerId: string;
@@ -90,5 +91,41 @@ export function InjuryIndicator({ injury, size = "sm" }: InjuryIndicatorProps) {
         {tooltipContent}
       </TooltipContent>
     </Tooltip>
+  );
+}
+
+interface StatusChipProps {
+  isActive?: boolean;
+  injuryStatus?: string | null;
+  injuryDescription?: string | null;
+  injuryReturnDate?: string | null;
+  size?: "sm" | "md";
+}
+
+/** Renders an "Inactive" badge and/or InjuryIndicator based on player status. */
+export function StatusChip({
+  isActive = true,
+  injuryStatus,
+  injuryDescription,
+  injuryReturnDate,
+  size = "sm",
+}: StatusChipProps) {
+  return (
+    <>
+      {!isActive && (
+        <Badge
+          variant="outline"
+          className="h-4 px-1 py-0 text-[9px] text-muted-foreground uppercase"
+        >
+          Inactive
+        </Badge>
+      )}
+      {injuryStatus && (
+        <InjuryIndicator
+          injury={{ injuryStatus, injuryDescription, injuryReturnDate }}
+          size={size}
+        />
+      )}
+    </>
   );
 }

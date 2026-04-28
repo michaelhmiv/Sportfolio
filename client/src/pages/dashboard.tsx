@@ -79,6 +79,7 @@ import type { GameInsight, GameInsightsResponse } from "@/types/game-insights";
 import { AnimatedPrice } from "@/components/ui/animated-price";
 import { cn } from "@/lib/utils";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
+import { openPlayerModal } from "@/lib/player-modal-events";
 
 interface NetWorthChangeSummary {
   amount: number | null;
@@ -155,6 +156,7 @@ interface ActivePositionsTodayProps {
   slatePlayers: DashboardShowcaseSlatePlayer[];
   eligiblePlayers: DashboardShowcaseEligiblePlayer[];
   onTrade: (playerId: string) => void;
+  onBoost: (playerId: string) => void;
 }
 
 function ActivePositionsToday({
@@ -162,6 +164,7 @@ function ActivePositionsToday({
   slatePlayers,
   eligiblePlayers,
   onTrade,
+  onBoost,
 }: ActivePositionsTodayProps) {
   const slatePlayerIds = new Set(slatePlayers.map((sp) => sp.playerId));
   const eligibleSet = new Map(eligiblePlayers.map((ep) => [ep.playerId, ep]));
@@ -246,10 +249,13 @@ function ActivePositionsToday({
                         </span>
                       )}
                       {isBoostEligible && (
-                        <span className="inline-flex items-center gap-0.5 rounded-sm border border-yellow-500/40 bg-yellow-500/10 px-1 py-0 text-[10px] font-semibold uppercase text-yellow-500">
+                        <button
+                          onClick={() => onBoost(holding.player.id)}
+                          className="inline-flex items-center gap-0.5 rounded-sm border border-yellow-500/40 bg-yellow-500/10 px-1 py-0 text-[10px] font-semibold uppercase text-yellow-500 hover:bg-yellow-500/20 transition-colors cursor-pointer"
+                        >
                           <Zap className="h-2.5 w-2.5" />
                           Boost
-                        </span>
+                        </button>
                       )}
                     </div>
                     <div className="font-mono text-[11px] text-muted-foreground">
@@ -666,6 +672,32 @@ export default function Dashboard() {
 
         {/* Main Dashboard Grid */}
         <div className="p-3 sm:p-4 max-w-full overflow-x-hidden space-y-4 sm:space-y-6">
+          {/* Sport filter chips — visible at page top so users can switch context instantly */}
+          <div
+            className="flex gap-1.5 overflow-x-auto pb-0.5 no-scrollbar"
+            data-testid="strip-sport-filter"
+          >
+            {filterTabs.map((sportOption) => {
+              const isActive = sport === sportOption;
+              return (
+                <button
+                  key={sportOption}
+                  type="button"
+                  onClick={() => setSport(sportOption as typeof sport)}
+                  data-testid={`sport-chip-${sportOption.toLowerCase()}`}
+                  className={cn(
+                    "flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-semibold uppercase whitespace-nowrap transition-colors",
+                    isActive
+                      ? "border-primary/60 bg-primary/10 text-primary"
+                      : "border-border/70 bg-background/40 text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {sportOption === "ALL" ? "All" : sportOption}
+                </button>
+              );
+            })}
+          </div>
+
           <ScrollReveal delay={0.05}>
             <DashboardShowcaseCard
               isAuthenticated={isAuthenticated}
@@ -809,6 +841,36 @@ export default function Dashboard() {
               );
             })()}
 
+          {/* Today's Actions chip strip */}
+          {isAuthenticated && (
+            <div
+              className="flex gap-2 overflow-x-auto pb-0.5 no-scrollbar"
+              data-testid="strip-todays-actions"
+            >
+              <Link href="/scout">
+                <button className="flex items-center gap-1.5 whitespace-nowrap rounded-full border border-blue-500/40 bg-blue-500/10 px-3 py-1.5 text-xs font-medium text-blue-400 transition-colors hover:bg-blue-500/20">
+                  <Activity className="h-3 w-3" />
+                  Scout
+                </button>
+              </Link>
+              {(data?.boosts?.slotsRemaining ?? 0) > 0 && (
+                <Link href="/boosts">
+                  <button className="flex items-center gap-1.5 whitespace-nowrap rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-500 transition-colors hover:bg-amber-500/20">
+                    <Zap className="h-3 w-3" />
+                    {data!.boosts!.slotsRemaining} boost slot
+                    {data!.boosts!.slotsRemaining !== 1 ? "s" : ""} open
+                  </button>
+                </Link>
+              )}
+              {liveGames.length > 0 && (
+                <span className="flex items-center gap-1.5 whitespace-nowrap rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-500">
+                  <Radio className="h-3 w-3 animate-pulse" />
+                  {liveGames.length} live now
+                </span>
+              )}
+            </div>
+          )}
+
           {/* Boost Live Earnings Strip */}
           {isAuthenticated && data?.boosts && data.boosts.lockedBoosts > 0 && (
             <Link href="/boosts">
@@ -843,7 +905,8 @@ export default function Dashboard() {
                 topHoldings={data.topHoldings}
                 slatePlayers={slatePlayers}
                 eligiblePlayers={eligiblePlayers}
-                onTrade={(playerId) => setLocation(`/pools?player=${playerId}`)}
+                onTrade={(playerId) => openPlayerModal(playerId)}
+                onBoost={(playerId) => setLocation(`/boosts?preselect=${playerId}`)}
               />
             )}
 
@@ -919,7 +982,7 @@ export default function Dashboard() {
                       variant="default"
                       size="sm"
                       onClick={goToToday}
-                      className="h-8 px-2 sm:px-3 hidden sm:inline-flex"
+                      className="h-8 px-2 sm:px-3"
                       data-testid="button-today"
                     >
                       Today

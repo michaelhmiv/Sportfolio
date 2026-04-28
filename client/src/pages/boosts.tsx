@@ -1,16 +1,27 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
 import {
   Zap,
   TrendingUp,
@@ -28,6 +39,7 @@ import {
   Plus,
 } from "lucide-react";
 import { apiRequest, getAuthHeaders } from "@/lib/queryClient";
+import { useSearch } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import type { Player } from "@shared/schema";
 import { PlayerName } from "@/components/player-name";
@@ -130,6 +142,17 @@ interface AssignBoostResponse {
   estimatedPayout: string;
 }
 
+function formatCountdown(gameStartTime: string, now: Date): string | null {
+  const target = new Date(gameStartTime);
+  const diffMs = target.getTime() - now.getTime();
+  if (diffMs <= 0) return null;
+  const totalSeconds = Math.floor(diffMs / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
+}
 const MULTIPLIER_SLOTS = [
   { tier: 5, label: "5x", color: "bg-yellow-500", icon: Flame },
   { tier: 4, label: "4x", color: "bg-orange-500", icon: Zap },
@@ -151,7 +174,20 @@ export default function BoostsPage() {
   const [boostCeremonyData, setBoostCeremonyData] = useState<BoostCeremonyData | null>(null);
   const [resultsPodiumOpen, setResultsPodiumOpen] = useState(false);
 
-  // Fetch all boosts across sports
+  // Countdown clock — ticks every second for active boost slot timers
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Parse ?preselect=<playerId> from the URL — one-shot: handled flag prevents re-trigger
+  const searchString = useSearch();
+  const preselectPlayerId = useMemo(
+    () => new URLSearchParams(searchString).get("preselect") || null,
+    [searchString],
+  );
+  const [preselectHandled, setPreselectHandled] = useState(false);
   const {
     data: boostsData,
     isLoading: loadingBoosts,
@@ -206,7 +242,7 @@ export default function BoostsPage() {
   });
 
   // Fetch community boosts across all sports
-  const { data: communityData, refetch: refetchCommunity } = useQuery<{
+  const { data: communityData } = useQuery<{
     communityBoosts: CommunityBoostEntry[];
   }>({
     queryKey: ["/api/community-boosts/all", selectedDateKey],
@@ -305,40 +341,24 @@ export default function BoostsPage() {
     },
   });
 
-  // Create community boost mutation
-  const createCommunityBoostMutation = useMutation({
-    mutationFn: async (data: { playerId: string; sport: string }) => {
-      return await apiRequest("POST", "/api/community-boosts/create", data);
-    },
-    onSuccess: () => {
-      toast({
-        title: "Community Boost activated!",
-        description: "1 Premium Share redeemed. +1x multiplier applied.",
-      });
-      refetchBoosts();
-      refetchEligible();
-      refetchCommunity();
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Community Boost failed",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
   const getSlotBoost = (tier: number) => {
     return boostsData?.boosts?.find((b) => b.slotTier === tier);
   };
 
-  const filteredPlayers = useMemo(
-    () =>
-      (eligibleData?.eligiblePlayers || []).filter((eligiblePlayer) =>
-        matchesPlayerSearch(eligiblePlayer.player, search),
-      ),
-    [eligibleData?.eligiblePlayers, search],
-  );
+  const filteredPlayers = useMemo(() => {
+    const players = (eligibleData?.eligiblePlayers || []).filter((eligiblePlayer) =>
+      matchesPlayerSearch(eligiblePlayer.player, search),
+    );
+    // Surface the preselected player first when a ?preselect param is present
+    if (preselectPlayerId) {
+      const idx = players.findIndex((p) => p.playerId === preselectPlayerId);
+      if (idx > 0) {
+        const [target] = players.splice(idx, 1);
+        players.unshift(target);
+      }
+    }
+    return players;
+  }, [eligibleData?.eligiblePlayers, search, preselectPlayerId]);
 
   const filteredCommunityBoosts = useMemo(
     () =>
@@ -365,6 +385,37 @@ export default function BoostsPage() {
     [boostsData?.boosts],
   );
   const totalEstimated = getTotalEstimatedBoostPayout(boostsData?.boosts).toFixed(2);
+  const preselectEligiblePlayer = useMemo(
+    () =>
+      preselectPlayerId
+        ? ((eligibleData?.eligiblePlayers || []).find((ep) => ep.playerId === preselectPlayerId) ??
+          null)
+        : null,
+    [preselectPlayerId, eligibleData?.eligiblePlayers],
+  );
+
+  const preselectIneligibleMsg = useMemo<string | null>(() => {
+    if (!preselectPlayerId || loadingEligible) return null;
+    if (!preselectEligiblePlayer) return "This player is not eligible for today's boost.";
+    if (preselectEligiblePlayer.isAlreadyBoosted) return "This player is already boosted today.";
+    if (!preselectEligiblePlayer.hasGameToday || preselectEligiblePlayer.gameStatus !== "upcoming")
+      return "This player is not eligible for today's boost.";
+    return null;
+  }, [preselectPlayerId, loadingEligible, preselectEligiblePlayer]);
+
+  // Auto-open the player selector for the first available slot when ?preselect is set
+  useEffect(() => {
+    if (!preselectPlayerId || preselectHandled || loadingBoosts) return;
+    if (!boostsData?.availableSlots?.length) return;
+    const firstAvailableSlot = MULTIPLIER_SLOTS.find((s) =>
+      boostsData.availableSlots.includes(s.tier),
+    );
+    if (firstAvailableSlot) {
+      setSelectedSlot(firstAvailableSlot.tier);
+      setPlayerSelectorOpen(true);
+      setPreselectHandled(true);
+    }
+  }, [preselectPlayerId, preselectHandled, loadingBoosts, boostsData]);
   const activeBoosts = boostsData?.boosts?.filter((b) => b.status === "active").length || 0;
   const lockedBoosts = boostsData?.boosts?.filter((b) => b.status === "locked").length || 0;
   const userPremiumShares = eligibleData?.eligiblePlayers?.[0]?.userPremiumShares || 0;
@@ -465,12 +516,12 @@ export default function BoostsPage() {
           </div>
 
           {/* Warning */}
-          <Card variant="terminal" className="mb-3 border-red-500/20 bg-red-500/5">
+          <Card variant="terminal" className="mb-3 border-amber-500/20 bg-amber-500/5">
             <CardContent className="p-3">
               <div className="flex items-start gap-2">
-                <AlertTriangle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
+                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
                 <p className="terminal-subtle">
-                  Shares are <span className="font-semibold text-red-300">burned</span> when games
+                  Shares are <span className="font-semibold text-amber-300">burned</span> when games
                   begin. Only assign slots you intend to settle.
                 </p>
               </div>
@@ -486,6 +537,13 @@ export default function BoostsPage() {
               {MULTIPLIER_SLOTS.map(({ tier, label, color }) => {
                 const boost = getSlotBoost(tier);
                 const isAvailable = boostsData?.availableSlots?.includes(tier);
+                const boostEp = boost
+                  ? (eligibleData?.eligiblePlayers?.find((p) => p.playerId === boost.playerId) ??
+                    null)
+                  : null;
+                const gameCountdown = boostEp?.gameStartTime
+                  ? formatCountdown(boostEp.gameStartTime, now)
+                  : null;
 
                 return (
                   <Card
@@ -551,18 +609,36 @@ export default function BoostsPage() {
                               </div>
                             </div>
                             {boost.status === "active" && (
-                              <Button
-                                size="icon"
-                                variant="terminalOutline"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  removeBoostMutation.mutate(boost.id);
-                                }}
-                                disabled={removeBoostMutation.isPending}
-                                className="h-6 w-6 shrink-0"
-                              >
-                                <X className="w-3 h-3" />
-                              </Button>
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button
+                                    size="icon"
+                                    variant="terminalOutline"
+                                    onClick={(e) => e.stopPropagation()}
+                                    disabled={removeBoostMutation.isPending}
+                                    className="h-6 w-6 shrink-0"
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Remove boost?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      This will free up the {label} slot. The share will be returned
+                                      to your portfolio.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction
+                                      onClick={() => removeBoostMutation.mutate(boost.id)}
+                                    >
+                                      Remove
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
                             )}
                           </div>
                           {boost.communityBoostCount > 0 && (
@@ -579,7 +655,7 @@ export default function BoostsPage() {
                               className="w-full justify-center font-mono text-[10px] uppercase"
                             >
                               <Clock className="w-3 h-3 mr-1" />
-                              Waiting
+                              {gameCountdown ? `Tipoff ${gameCountdown}` : "Waiting"}
                             </Badge>
                           )}
                           {boost.status === "locked" &&
@@ -632,7 +708,7 @@ export default function BoostsPage() {
                               Tap to add
                             </div>
                           ) : (
-                            <span className="terminal-subtle">Filled</span>
+                            <span className="terminal-subtle">Unavailable</span>
                           )}
                         </div>
                       )}
@@ -656,6 +732,12 @@ export default function BoostsPage() {
                     size="sm"
                     variant="terminal"
                     onClick={() => setCommunityBoostSelectorOpen(true)}
+                    disabled={userPremiumShares === 0}
+                    title={
+                      userPremiumShares === 0
+                        ? "Premium shares required to add community boosts"
+                        : undefined
+                    }
                     className="h-7 px-2"
                   >
                     <Plus className="h-3 w-3 mr-1" />
@@ -801,8 +883,8 @@ export default function BoostsPage() {
             </CardContent>
           </Card>
 
-          {/* Player Selector Dialog */}
-          <Dialog
+          {/* Player Selector Sheet */}
+          <Sheet
             open={playerSelectorOpen}
             onOpenChange={(open) => {
               setPlayerSelectorOpen(open);
@@ -812,17 +894,18 @@ export default function BoostsPage() {
               }
             }}
           >
-            <DialogContent
-              className="max-h-[80vh] max-w-md rounded-sm border border-border bg-card flex flex-col"
+            <SheetContent
+              side="bottom"
+              className="max-h-[80vh] flex flex-col rounded-t-lg"
               onClick={(e) => e.stopPropagation()}
             >
-              <DialogHeader>
-                <DialogTitle className="terminal-heading text-base">Select Player</DialogTitle>
-                <DialogDescription className="terminal-subtle text-[11px] uppercase">
+              <SheetHeader>
+                <SheetTitle className="terminal-heading text-base">Select Player</SheetTitle>
+                <SheetDescription className="terminal-subtle text-[11px] uppercase">
                   Choose a player for {MULTIPLIER_SLOTS.find((s) => s.tier === selectedSlot)?.label}{" "}
                   slot
-                </DialogDescription>
-              </DialogHeader>
+                </SheetDescription>
+              </SheetHeader>
 
               <div className="relative mb-2">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -834,6 +917,12 @@ export default function BoostsPage() {
                   className="pl-9 h-9"
                 />
               </div>
+
+              {preselectIneligibleMsg && (
+                <div className="mb-2 rounded-sm border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-400">
+                  {preselectIneligibleMsg}
+                </div>
+              )}
 
               <div className="flex-1 overflow-y-auto">
                 {loadingEligible ? (
@@ -1014,8 +1103,8 @@ export default function BoostsPage() {
                   </div>
                 )}
               </div>
-            </DialogContent>
-          </Dialog>
+            </SheetContent>
+          </Sheet>
 
           {/* Community Boost Selector Dialog */}
           <CommunityBoostSelector

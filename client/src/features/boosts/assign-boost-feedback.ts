@@ -32,7 +32,6 @@ export interface BoostPayoutLike {
   payout?: string | number | null;
   liveFantasyPoints?: number | null;
 }
-
 export function getBoostDisplayPlayerName(player: BoostPlayerLike | null | undefined) {
   return [player?.firstName, player?.lastName].filter(Boolean).join(" ") || "Selected player";
 }
@@ -64,7 +63,6 @@ export function getBoostEstimatedPayout(boost: BoostPayoutLike | null | undefine
 export function getTotalEstimatedBoostPayout(boosts: BoostPayoutLike[] | null | undefined) {
   return (boosts || []).reduce((sum, boost) => sum + getBoostEstimatedPayout(boost), 0);
 }
-
 export function resolveAssignBoostFeedback({
   response,
   eligiblePlayer,

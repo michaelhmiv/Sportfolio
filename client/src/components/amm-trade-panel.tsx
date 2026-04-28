@@ -18,12 +18,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
-import { ArrowRightLeft, TrendingUp, TrendingDown, Loader2, Flame, Droplets } from "lucide-react";
+import { TrendingUp, TrendingDown, Loader2, Flame, Droplets, LogIn } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { formatAdaptiveCurrency } from "@/lib/currency";
 import { apiRequest } from "@/lib/queryClient";
 import { hapticSuccess, hapticError, hapticMedium } from "@/lib/haptics";
+import { Link } from "wouter";
 
 interface AmmTradePanelProps {
   playerId: string;
@@ -81,6 +82,10 @@ export function AmmTradePanel({
   const [showAdvanced, setShowAdvanced] = useState<boolean>(false);
   const [quote, setQuote] = useState<QuoteData | null>(null);
   const [isLoadingQuote, setIsLoadingQuote] = useState(false);
+  const [lastTradeResult, setLastTradeResult] = useState<{
+    type: TradeType;
+    description: string;
+  } | null>(null);
 
   // Fetch pool data
   const { data: poolData } = useQuery<PoolSnapshot>({
@@ -283,6 +288,7 @@ export function AmmTradePanel({
     setAmount("");
     setSliderValue(0);
     setQuote(null);
+    setLastTradeResult(null);
   }, [tradeType]);
 
   useEffect(() => {
@@ -339,6 +345,11 @@ export function AmmTradePanel({
       setSliderValue(0);
       setQuote(null);
       onTradeSuccess?.();
+      setLastTradeResult({
+        type: "buy",
+        description: `Bought ${data.sharesReceived.toFixed(2)} shares @ $${data.pricePerShare.toFixed(2)}/share`,
+      });
+      setTimeout(() => setLastTradeResult(null), 6000);
     },
     onError: (error: Error, _sbAmount, context) => {
       // Roll back to the pre-mutation snapshots
@@ -404,6 +415,11 @@ export function AmmTradePanel({
       setSliderValue(0);
       setQuote(null);
       onTradeSuccess?.();
+      setLastTradeResult({
+        type: "sell",
+        description: `Sold ${data.sharesSold} shares @ $${data.pricePerShare.toFixed(2)}/share`,
+      });
+      setTimeout(() => setLastTradeResult(null), 6000);
     },
     onError: (error: Error, _sharesAmount, context) => {
       // Roll back to the pre-mutation snapshots
@@ -477,8 +493,14 @@ export function AmmTradePanel({
 
   if (!isAuthenticated) {
     return (
-      <div className="p-4 border rounded-sm bg-muted/40 text-center">
+      <div className="p-4 border rounded-sm bg-muted/40 text-center space-y-3">
         <p className="text-sm text-muted-foreground">Sign in to trade shares</p>
+        <Button variant="default" size="sm" asChild>
+          <Link href="/login" className="flex items-center gap-2">
+            <LogIn className="w-3.5 h-3.5" />
+            Sign In
+          </Link>
+        </Button>
       </div>
     );
   }
@@ -564,11 +586,12 @@ export function AmmTradePanel({
             htmlFor="manual-amount"
             className="text-sm text-muted-foreground whitespace-nowrap"
           >
-            Manual:
+            Amount:
           </Label>
           <Input
             id="manual-amount"
             type="number"
+            inputMode={tradeType === "buy" ? "decimal" : "numeric"}
             placeholder={tradeType === "buy" ? "100" : "10"}
             value={amount}
             onChange={(e) => handleManualInputChange(e.target.value)}
@@ -581,7 +604,31 @@ export function AmmTradePanel({
             {tradeType === "buy" ? "SB" : "shares"}
           </span>
         </div>
+        {amount &&
+          parseFloat(amount) > 0 &&
+          tradeType === "buy" &&
+          parseFloat(amount) > userBalance && (
+            <p className="text-xs text-destructive">
+              Exceeds your balance (${userBalance.toFixed(2)} available)
+            </p>
+          )}
+        {amount &&
+          parseFloat(amount) > 0 &&
+          tradeType === "sell" &&
+          parseFloat(amount) > userShares && (
+            <p className="text-xs text-destructive">
+              Exceeds your {Math.floor(userShares)} available shares
+            </p>
+          )}
       </div>
+
+      {/* Quote Loading Indicator */}
+      {isLoadingQuote && !quote && parseFloat(amount) > 0 && (
+        <div className="flex items-center gap-2 py-1 text-sm text-muted-foreground">
+          <Loader2 className="w-3 h-3 animate-spin" />
+          Fetching quote...
+        </div>
+      )}
 
       {/* Quote Display */}
       {quote && (
@@ -594,7 +641,7 @@ export function AmmTradePanel({
                 : `$${quote.sbOut?.toFixed(2)}`}
             </div>
             <div className="text-sm text-muted-foreground">
-              {tradeType === "buy" ? "Shares You'll Receive" : "SB You'll Receive"}
+              {tradeType === "buy" ? "Shares You'll Receive" : "SportsBucks You'll Receive"}
             </div>
           </div>
 
@@ -682,6 +729,7 @@ export function AmmTradePanel({
           <Input
             id="maxSlippage"
             type="number"
+            inputMode="decimal"
             value={maxSlippage}
             onChange={(e) => {
               const value = parseFloat(e.target.value);
@@ -721,11 +769,22 @@ export function AmmTradePanel({
           </>
         ) : (
           <>
-            <ArrowRightLeft className="w-4 h-4 mr-2" />
+            {tradeType === "buy" ? (
+              <TrendingUp className="w-4 h-4 mr-2" />
+            ) : (
+              <TrendingDown className="w-4 h-4 mr-2" />
+            )}
             {tradeType === "buy" ? "Buy Shares" : "Sell Shares"}
           </>
         )}
       </Button>
+
+      {/* Inline trade confirmation */}
+      {lastTradeResult && (
+        <div className="p-3 rounded-sm text-sm border border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-400">
+          {lastTradeResult.description}
+        </div>
+      )}
     </div>
   );
 }
