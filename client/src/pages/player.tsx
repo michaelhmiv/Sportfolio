@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useParams, useSearch, Link } from "wouter";
+import { useLocation, useParams, useSearch, Link } from "wouter";
 import { useWebSocket } from "@/lib/websocket";
 import { useAuth } from "@/hooks/useAuth";
 import { useAppState } from "@/hooks/use-app-state";
@@ -78,6 +78,7 @@ type TimeRange = "1D" | "1W" | "1M" | "1Y";
 
 export default function PlayerPage() {
   const { id: rawId } = useParams<{ id: string }>();
+  const [, setLocation] = useLocation();
   const id = (rawId || "").split("?")[0].split("#")[0].trim();
   const searchParams = new URLSearchParams(useSearch());
   const initialTradeType =
@@ -509,6 +510,13 @@ export default function PlayerPage() {
     });
   };
 
+  const handleRetryPlayerLoad = () => {
+    queryClient.invalidateQueries({ queryKey: ["/api/player", id] });
+    queryClient.invalidateQueries({ queryKey: ["/api/player", id, timeRange] });
+    queryClient.invalidateQueries({ queryKey: ["/api/amm", id] });
+    queryClient.invalidateQueries({ queryKey: ["/api/lp", id, "position"] });
+  };
+
   if (!authLoading && !isAuthenticated) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -517,12 +525,10 @@ export default function PlayerPage() {
             <h2 className="text-xl font-bold mb-2">Sign In Required</h2>
             <p className="text-muted-foreground mb-4">Please sign in to view player pages.</p>
             <div className="flex items-center justify-center gap-2">
-              <Button variant="outline" onClick={() => window.location.reload()}>
+              <Button variant="outline" onClick={handleRetryPlayerLoad}>
                 Refresh
               </Button>
-              <Button asChild>
-                <Link href={`/login?redirect=${encodeURIComponent(`/player/${id}`)}`}>Sign In</Link>
-              </Button>
+              <Button onClick={() => setLocation("/")}>Back</Button>
             </div>
           </CardContent>
         </Card>
@@ -555,10 +561,10 @@ export default function PlayerPage() {
             <h2 className="text-xl font-bold mb-2">{title}</h2>
             <p className="text-muted-foreground mb-4">{description}</p>
             <div className="flex items-center justify-center gap-2">
-              <Button variant="outline" onClick={() => window.location.reload()}>
+              <Button variant="outline" onClick={handleRetryPlayerLoad}>
                 Refresh
               </Button>
-              <Button onClick={() => (window.location.href = "/")}>Back</Button>
+              <Button onClick={() => setLocation("/")}>Back</Button>
             </div>
           </CardContent>
         </Card>

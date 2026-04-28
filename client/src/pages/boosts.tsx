@@ -39,7 +39,7 @@ import {
   Plus,
 } from "lucide-react";
 import { apiRequest, getAuthHeaders } from "@/lib/queryClient";
-import { useSearch, Link } from "wouter";
+import { useSearch } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import type { Player } from "@shared/schema";
 import { PlayerName } from "@/components/player-name";
@@ -54,10 +54,11 @@ import { useBoostNearMissDetector } from "@/components/boost/boost-near-miss";
 import { SPORTS as GLOBAL_SPORTS } from "@/lib/sport-context";
 import { matchesPlayerSearch } from "@/lib/player-search";
 import { useBoostsDate } from "@/features/boosts/use-boosts-date";
-import { resolveAssignBoostFeedback } from "@/features/boosts/assign-boost-feedback";
-import { hapticSuccess, hapticError } from "@/lib/haptics";
-import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
-import { PullToRefreshIndicator } from "@/components/ui/animations";
+import {
+  getBoostDisplayPlayerName,
+  getTotalEstimatedBoostPayout,
+  resolveAssignBoostFeedback,
+} from "@/features/boosts/assign-boost-feedback";
 
 interface BoostCeremonyData {
   playerName: string;
@@ -152,7 +153,6 @@ function formatCountdown(gameStartTime: string, now: Date): string | null {
   if (hours > 0) return `${hours}h ${minutes}m`;
   return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
 }
-
 const MULTIPLIER_SLOTS = [
   { tier: 5, label: "5x", color: "bg-yellow-500", icon: Flame },
   { tier: 4, label: "4x", color: "bg-orange-500", icon: Zap },
@@ -188,7 +188,6 @@ export default function BoostsPage() {
     [searchString],
   );
   const [preselectHandled, setPreselectHandled] = useState(false);
-
   const {
     data: boostsData,
     isLoading: loadingBoosts,
@@ -243,7 +242,7 @@ export default function BoostsPage() {
   });
 
   // Fetch community boosts across all sports
-  const { data: communityData, refetch: refetchCommunity } = useQuery<{
+  const { data: communityData } = useQuery<{
     communityBoosts: CommunityBoostEntry[];
   }>({
     queryKey: ["/api/community-boosts/all", selectedDateKey],
@@ -273,13 +272,6 @@ export default function BoostsPage() {
     },
   });
 
-  // Pull-to-refresh
-  const { containerRef, isRefreshing, pullDistance } = usePullToRefresh<HTMLDivElement>({
-    onRefresh: async () => {
-      await Promise.all([refetchBoosts(), refetchEligible(), refetchCommunity()]);
-    },
-  });
-
   // Assign boost mutation
   const assignBoostMutation = useMutation({
     mutationFn: async (data: {
@@ -295,7 +287,6 @@ export default function BoostsPage() {
       return (await response.json()) as AssignBoostResponse;
     },
     onSuccess: (response, variables) => {
-      void hapticSuccess();
       // Get player details for ceremony
       const eligiblePlayer = eligibleData?.eligiblePlayers?.find(
         (ep) => ep.playerId === variables.playerId,
@@ -331,7 +322,6 @@ export default function BoostsPage() {
       setPlayerSelectorOpen(false);
     },
     onError: (error: Error) => {
-      void hapticError();
       toast({ title: "Boost failed", description: error.message, variant: "destructive" });
     },
   });
@@ -342,39 +332,12 @@ export default function BoostsPage() {
       return await apiRequest("DELETE", `/api/daily-boosts/${boostId}`);
     },
     onSuccess: () => {
-      void hapticSuccess();
       toast({ title: "Boost removed" });
       refetchBoosts();
       refetchEligible();
     },
     onError: (error: Error) => {
-      void hapticError();
       toast({ title: "Remove failed", description: error.message, variant: "destructive" });
-    },
-  });
-
-  // Create community boost mutation
-  const createCommunityBoostMutation = useMutation({
-    mutationFn: async (data: { playerId: string; sport: string }) => {
-      return await apiRequest("POST", "/api/community-boosts/create", data);
-    },
-    onSuccess: () => {
-      void hapticSuccess();
-      toast({
-        title: "Community Boost activated!",
-        description: "1 Premium Share redeemed. +1x multiplier applied.",
-      });
-      refetchBoosts();
-      refetchEligible();
-      refetchCommunity();
-    },
-    onError: (error: Error) => {
-      void hapticError();
-      toast({
-        title: "Community Boost failed",
-        description: error.message,
-        variant: "destructive",
-      });
     },
   });
 
@@ -406,7 +369,22 @@ export default function BoostsPage() {
     [communityData?.communityBoosts, communitySportFilter],
   );
 
-  // Preselect: find the player in the eligible list and compute an ineligibility message
+  const processedBoostResults = useMemo(
+    () =>
+      (boostsData?.boosts || [])
+        .filter((boost) => boost.status === "processed")
+        .map((boost) => ({
+          slotTier: boost.slotTier,
+          playerName: getBoostDisplayPlayerName(boost.player),
+          playerTeam: boost.player?.team || "",
+          fantasyPoints: parseFloat(boost.fantasyPoints || "0"),
+          multiplier: boost.slotTier + boost.communityBoostCount,
+          shareMultiplier: parseFloat(boost.shareMultiplier),
+          payout: parseFloat(boost.payout || "0"),
+        })),
+    [boostsData?.boosts],
+  );
+  const totalEstimated = getTotalEstimatedBoostPayout(boostsData?.boosts).toFixed(2);
   const preselectEligiblePlayer = useMemo(
     () =>
       preselectPlayerId
@@ -438,36 +416,16 @@ export default function BoostsPage() {
       setPreselectHandled(true);
     }
   }, [preselectPlayerId, preselectHandled, loadingBoosts, boostsData]);
-
-  // Compute estimated payout from actual data:
-  //   1. Settled boosts: sum actual payout fields
-  //   2. Locked boosts with live FP: estimate using slotTier × liveFP × (shareMultiplier + communityBoostCount)
-  //   3. Active-only (pre-game): no estimate possible → null (renders as "--")
-  const totalEstimated = useMemo<string | null>(() => {
-    const boosts = boostsData?.boosts ?? [];
-
-    const settledTotal = boosts
-      .filter((b) => b.payout != null && parseFloat(b.payout) > 0)
-      .reduce((sum, b) => sum + parseFloat(b.payout!), 0);
-    if (settledTotal > 0) return settledTotal.toFixed(2);
-
-    const liveTotal = boosts
-      .filter(
-        (b) => b.status === "locked" && b.liveFantasyPoints != null && b.liveFantasyPoints > 0,
-      )
-      .reduce((sum, b) => {
-        const fp = b.liveFantasyPoints!;
-        const shareMult = parseFloat(b.shareMultiplier) || 1;
-        return sum + b.slotTier * fp * (shareMult + b.communityBoostCount);
-      }, 0);
-    if (liveTotal > 0) return liveTotal.toFixed(2);
-
-    return null;
-  }, [boostsData?.boosts]);
-
   const activeBoosts = boostsData?.boosts?.filter((b) => b.status === "active").length || 0;
   const lockedBoosts = boostsData?.boosts?.filter((b) => b.status === "locked").length || 0;
   const userPremiumShares = eligibleData?.eligiblePlayers?.[0]?.userPremiumShares || 0;
+
+  const openResultsPodium = () => {
+    if (processedBoostResults.length === 0) {
+      return;
+    }
+    setResultsPodiumOpen(true);
+  };
 
   const handleSlotClick = (tier: number) => {
     const boost = getSlotBoost(tier);
@@ -488,8 +446,7 @@ export default function BoostsPage() {
   };
 
   return (
-    <div ref={containerRef} className="terminal-page px-2 py-3 sm:p-3">
-      <PullToRefreshIndicator pullProgress={pullDistance / 72} isRefreshing={isRefreshing} />
+    <div className="terminal-page px-2 py-3 sm:p-3">
       <div className="mx-auto max-w-5xl py-1 space-y-3">
         <ErrorBoundary>
           {/* Header */}
@@ -553,9 +510,7 @@ export default function BoostsPage() {
               )}
               <div className="terminal-shell min-w-[8rem] px-2.5 py-1.5 sm:min-w-0 sm:px-3 sm:py-2">
                 <p className="terminal-label">Est. Payout</p>
-                <p className="terminal-value text-sm">
-                  {totalEstimated != null ? `$${totalEstimated}` : "--"}
-                </p>
+                <p className="terminal-value text-sm">${totalEstimated}</p>
               </div>
             </div>
           </div>
@@ -788,18 +743,33 @@ export default function BoostsPage() {
                     <Plus className="h-3 w-3 mr-1" />
                     Add
                   </Button>
-                  {COMMUNITY_FILTER_SPORTS.map((sport) => (
-                    <Button
-                      key={sport}
-                      size="sm"
-                      variant={communitySportFilter === sport ? "terminal" : "terminalOutline"}
-                      onClick={() => setCommunitySportFilter(sport)}
-                      className="h-7 px-2"
-                    >
-                      {sport}
-                    </Button>
-                  ))}
+                  <div className="hidden items-center gap-1 sm:flex">
+                    {COMMUNITY_FILTER_SPORTS.map((sport) => (
+                      <Button
+                        key={sport}
+                        size="sm"
+                        variant={communitySportFilter === sport ? "terminal" : "terminalOutline"}
+                        onClick={() => setCommunitySportFilter(sport)}
+                        className="h-7 px-2"
+                      >
+                        {sport}
+                      </Button>
+                    ))}
+                  </div>
                 </div>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-1 sm:hidden">
+                {COMMUNITY_FILTER_SPORTS.map((sport) => (
+                  <Button
+                    key={sport}
+                    size="sm"
+                    variant={communitySportFilter === sport ? "terminal" : "terminalOutline"}
+                    onClick={() => setCommunitySportFilter(sport)}
+                    className="h-7 px-2"
+                  >
+                    {sport}
+                  </Button>
+                ))}
               </div>
             </CardHeader>
             <CardContent className="p-0">
@@ -858,11 +828,24 @@ export default function BoostsPage() {
                   <History className="w-4 h-4" />
                   Payouts
                 </CardTitle>
-                {historyData && (
-                  <Badge variant="outline" className="font-mono text-[10px] uppercase">
-                    Total: ${historyData.totalEarned}
-                  </Badge>
-                )}
+                <div className="flex items-center gap-2">
+                  {processedBoostResults.length > 0 && (
+                    <Button
+                      size="sm"
+                      variant="terminalOutline"
+                      onClick={openResultsPodium}
+                      className="h-7 px-2"
+                    >
+                      <Trophy className="mr-1 h-3 w-3" />
+                      Results
+                    </Button>
+                  )}
+                  {historyData && (
+                    <Badge variant="outline" className="font-mono text-[10px] uppercase">
+                      Total: ${historyData.totalEarned}
+                    </Badge>
+                  )}
+                </div>
               </div>
             </CardHeader>
             <CardContent className="p-0">
@@ -935,7 +918,6 @@ export default function BoostsPage() {
                 />
               </div>
 
-              {/* Preselect ineligibility notice */}
               {preselectIneligibleMsg && (
                 <div className="mb-2 rounded-sm border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-400">
                   {preselectIneligibleMsg}
@@ -964,16 +946,14 @@ export default function BoostsPage() {
                   <div className="terminal-empty py-8 text-center text-sm text-muted-foreground">
                     No players held
                     <br />
-                    <div className="flex flex-col items-center gap-2 mt-2">
-                      <Button size="sm" variant="terminalOutline" onClick={() => refetchEligible()}>
-                        Refresh
-                      </Button>
-                      <Link href="/pools" onClick={() => setPlayerSelectorOpen(false)}>
-                        <Button size="sm" variant="terminal">
-                          Browse Players
-                        </Button>
-                      </Link>
-                    </div>
+                    <Button
+                      size="sm"
+                      variant="terminalOutline"
+                      onClick={() => refetchEligible()}
+                      className="mt-2"
+                    >
+                      Refresh
+                    </Button>
                   </div>
                 ) : filteredPlayers.length === 0 ? (
                   <div className="terminal-empty py-8 text-center text-sm text-muted-foreground">
@@ -998,8 +978,6 @@ export default function BoostsPage() {
                             "flex items-center justify-between gap-2 p-3",
                             ep.gameStatus === "live" && "bg-yellow-500/5",
                             ep.gameStatus === "ended" && "bg-muted/20",
-                            ep.playerId === preselectPlayerId &&
-                              "border-l-2 border-primary bg-primary/5",
                           )}
                         >
                           <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -1145,19 +1123,7 @@ export default function BoostsPage() {
           {/* Boost Results Podium */}
           <BoostResultsPodium
             isOpen={resultsPodiumOpen}
-            results={
-              boostsData?.boosts
-                ?.filter((b) => b.status === "processed")
-                ?.map((b) => ({
-                  slotTier: b.slotTier,
-                  playerName: b.player ? `${b.player.firstName} ${b.player.lastName}` : "Unknown",
-                  playerTeam: b.player?.team || "",
-                  fantasyPoints: parseFloat(b.fantasyPoints || "0"),
-                  multiplier: b.slotTier + b.communityBoostCount,
-                  shareMultiplier: parseFloat(b.shareMultiplier),
-                  payout: parseFloat(b.payout || "0"),
-                })) || []
-            }
+            results={processedBoostResults}
             totalPayout={parseFloat(historyData?.totalEarned || "0")}
             onClose={() => setResultsPodiumOpen(false)}
           />
