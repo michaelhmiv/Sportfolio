@@ -296,6 +296,7 @@ export default function PlayerPools() {
     },
     refetchInterval: playersPollingInterval,
     refetchIntervalInBackground: false,
+    staleTime: 30000,
     placeholderData: (previousData) => previousData,
   });
 
@@ -307,6 +308,8 @@ export default function PlayerPools() {
       if (!res.ok) return [];
       return res.json();
     },
+    staleTime: 60000,
+    placeholderData: (previousData) => previousData,
   });
 
   // Extract unique teams and positions for filters

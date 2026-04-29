@@ -5,7 +5,15 @@
  * Persists selection to localStorage for user convenience.
  */
 
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useState,
+  useEffect,
+  useMemo,
+  ReactNode,
+} from "react";
 
 export type Sport = "NBA" | "NFL" | "MLB" | "NASCAR" | "ALL";
 
@@ -50,17 +58,16 @@ export function SportProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(STORAGE_KEY, sport);
   }, [sport]);
 
-  const setSport = (newSport: Sport) => {
+  const setSport = useCallback((newSport: Sport) => {
     if (SPORTS.includes(newSport)) {
       setSportState(newSport);
     }
-  };
+  }, []);
 
-  const isSport = (checkSport: Sport) => sport === checkSport;
+  const isSport = useCallback((checkSport: Sport) => sport === checkSport, [sport]);
+  const value = useMemo(() => ({ sport, setSport, isSport }), [isSport, setSport, sport]);
 
-  return (
-    <SportContext.Provider value={{ sport, setSport, isSport }}>{children}</SportContext.Provider>
-  );
+  return <SportContext.Provider value={value}>{children}</SportContext.Provider>;
 }
 
 /**

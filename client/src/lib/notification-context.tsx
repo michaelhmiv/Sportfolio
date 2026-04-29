@@ -1,4 +1,12 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useState,
+  useEffect,
+  ReactNode,
+} from "react";
 import { useWebSocket } from "./websocket";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -52,14 +60,14 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     };
   }, [subscribe, user?.id]);
 
-  const incrementUnread = () => setUnreadCount((prev) => prev + 1);
-  const clearUnread = () => setUnreadCount(0);
-
-  return (
-    <NotificationContext.Provider value={{ unreadCount, incrementUnread, clearUnread }}>
-      {children}
-    </NotificationContext.Provider>
+  const incrementUnread = useCallback(() => setUnreadCount((prev) => prev + 1), []);
+  const clearUnread = useCallback(() => setUnreadCount(0), []);
+  const value = useMemo(
+    () => ({ unreadCount, incrementUnread, clearUnread }),
+    [clearUnread, incrementUnread, unreadCount],
   );
+
+  return <NotificationContext.Provider value={value}>{children}</NotificationContext.Provider>;
 }
 
 export function useNotifications() {

@@ -1,5 +1,5 @@
 import { Switch, Route, Link, useLocation } from "wouter";
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -17,38 +17,26 @@ import { OfflineBanner } from "@/components/offline-banner";
 import { NotificationProvider } from "@/lib/notification-context";
 import { useAuth, AuthProvider } from "@/hooks/useAuth";
 import { OnboardingModal } from "@/components/onboarding-modal";
-import Dashboard from "@/pages/dashboard";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import logoUrl from "@assets/Sportfolio png_1763227952318.png";
 import { BookOpen, LogOut, Newspaper, User } from "lucide-react";
 import { SiDiscord } from "react-icons/si";
 import { SchemaOrg, schemas } from "@/components/schema-org";
 import { ScoutWidget } from "@/components/scout-widget";
-import { ScoutDashboardModal } from "@/components/scout-dashboard-modal";
-import { ScoutProvider } from "@/lib/scout-context";
+import { ScoutProvider, useScout } from "@/lib/scout-context";
 import { SportProvider } from "@/lib/sport-context";
 import { NewsNotificationProvider, useNewsNotifications } from "@/lib/news-notification-context";
 import { InjuryProvider } from "@/lib/injury-context";
-import { ScoutCeremonyOverlay } from "@/components/ceremonies/scout-ceremony-overlay";
-import { ScoutReadyBanner } from "@/components/ceremonies/scout-ready-banner";
 import { useScoutCeremony } from "@/hooks/use-scout-ceremony";
 import { useBoostSettleCeremony } from "@/hooks/use-boost-settle-ceremony";
-import { BoostCeremonyOverlay } from "@/components/ceremonies/boost-ceremony-overlay";
-import { WhaleAlertBanner } from "@/components/market/whale-alert-banner";
-import { PlayerModal } from "@/components/player-modal";
 import { OPEN_PLAYER_MODAL_EVENT } from "@/lib/player-modal-events";
-import { MobilePushManager } from "@/components/mobile-push-manager";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { Capacitor } from "@capacitor/core";
-import { App as CapacitorApp } from "@capacitor/app";
-import { Browser } from "@capacitor/browser";
 import { PushNotificationProvider } from "@/lib/push-notification-context";
-import { StatusBar, Style as StatusBarStyle } from "@capacitor/status-bar";
-import { Keyboard, KeyboardResize } from "@capacitor/keyboard";
-import { SplashScreen } from "@capacitor/splash-screen";
 import { getAuthSession, getSupabase, updateNativeAuthRefreshState } from "@/lib/supabase";
 import { initNetworkMonitor } from "@/lib/native-network";
 import { resolvePublicAppUrl } from "@/lib/native-runtime";
+import { preloadRoute } from "@/lib/route-preload";
 import {
   normalizeInternalNotificationRoute,
   PUSH_NOTIFICATION_APP_LINK_HOSTS,
@@ -66,6 +54,7 @@ const CANONICAL_SITE_URL = normalizeSiteUrl(
 );
 
 const loadPlayerPoolsPage = () => import("@/pages/marketplace");
+const loadDashboardPage = () => import("@/pages/dashboard");
 const loadPlayerPage = () => import("@/pages/player");
 const loadPortfolioPage = () => import("@/pages/portfolio");
 const loadUserProfilePage = () => import("@/pages/user-profile");
@@ -99,7 +88,30 @@ const loadLoginPage = () => import("@/pages/Login");
 const loadAuthCallbackPage = () => import("@/pages/AuthCallback");
 const loadCheckoutSuccessPage = () => import("@/pages/checkout-success");
 const loadOnboardingPage = () => import("@/pages/onboarding");
+const loadScoutDashboardModal = () =>
+  import("@/components/scout-dashboard-modal").then((m) => ({ default: m.ScoutDashboardModal }));
+const loadPlayerModal = () =>
+  import("@/components/player-modal").then((m) => ({ default: m.PlayerModal }));
+const loadMobilePushManager = () =>
+  import("@/components/mobile-push-manager").then((m) => ({ default: m.MobilePushManager }));
+const loadWhaleAlertBanner = () =>
+  import("@/components/market/whale-alert-banner").then((m) => ({
+    default: m.WhaleAlertBanner,
+  }));
+const loadBoostCeremonyOverlay = () =>
+  import("@/components/ceremonies/boost-ceremony-overlay").then((m) => ({
+    default: m.BoostCeremonyOverlay,
+  }));
+const loadScoutCeremonyOverlay = () =>
+  import("@/components/ceremonies/scout-ceremony-overlay").then((m) => ({
+    default: m.ScoutCeremonyOverlay,
+  }));
+const loadScoutReadyBanner = () =>
+  import("@/components/ceremonies/scout-ready-banner").then((m) => ({
+    default: m.ScoutReadyBanner,
+  }));
 
+const Dashboard = lazy(loadDashboardPage);
 const PlayerPools = lazy(loadPlayerPoolsPage);
 const PlayerPage = lazy(loadPlayerPage);
 const Portfolio = lazy(loadPortfolioPage);
@@ -131,6 +143,13 @@ const Login = lazy(loadLoginPage);
 const AuthCallback = lazy(loadAuthCallbackPage);
 const CheckoutSuccess = lazy(loadCheckoutSuccessPage);
 const OnboardingPage = lazy(loadOnboardingPage);
+const ScoutDashboardModal = lazy(loadScoutDashboardModal);
+const PlayerModal = lazy(loadPlayerModal);
+const MobilePushManager = lazy(loadMobilePushManager);
+const WhaleAlertBanner = lazy(loadWhaleAlertBanner);
+const BoostCeremonyOverlay = lazy(loadBoostCeremonyOverlay);
+const ScoutCeremonyOverlay = lazy(loadScoutCeremonyOverlay);
+const ScoutReadyBanner = lazy(loadScoutReadyBanner);
 
 function upsertMetaTag(attribute: "name" | "property", value: string): HTMLMetaElement {
   let tag = document.head.querySelector(`meta[${attribute}="${value}"]`) as HTMLMetaElement | null;
@@ -243,12 +262,43 @@ const pageTransitionSettings = {
   ease: "easeOut" as const,
 };
 
-function RouteLoadingState() {
+function DashboardRouteSkeleton() {
   return (
-    <div className="flex items-center justify-center h-[40vh]">
-      <div className="text-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-3" />
-        <p className="text-sm text-muted-foreground">Loading page...</p>
+    <div className="terminal-page p-3 sm:p-4">
+      <div className="mx-auto max-w-7xl space-y-4">
+        <div className="terminal-shell overflow-hidden p-4 md:p-6">
+          <div className="terminal-strip mb-3 h-5 w-40 animate-pulse bg-muted/70" />
+          <div className="h-8 w-56 animate-pulse rounded-sm bg-muted" />
+          <div className="mt-3 h-4 w-72 max-w-full animate-pulse rounded-sm bg-muted/70" />
+        </div>
+        <div className="grid gap-3 md:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <div key={index} className="terminal-shell h-28 animate-pulse bg-muted/35" />
+          ))}
+        </div>
+        <div className="terminal-shell h-72 animate-pulse bg-muted/25" />
+      </div>
+    </div>
+  );
+}
+
+function RouteLoadingState({ location }: { location: string }) {
+  if (location === "/") {
+    return <DashboardRouteSkeleton />;
+  }
+
+  return (
+    <div className="terminal-page p-3 sm:p-4">
+      <div className="mx-auto max-w-7xl space-y-4">
+        <div className="terminal-shell p-4">
+          <div className="h-5 w-32 animate-pulse rounded-sm bg-muted/70" />
+          <div className="mt-3 h-8 w-52 animate-pulse rounded-sm bg-muted" />
+        </div>
+        <div className="grid gap-3 md:grid-cols-2">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div key={index} className="terminal-shell h-32 animate-pulse bg-muted/30" />
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -412,6 +462,7 @@ function Router() {
     let listener: { remove: () => Promise<void> } | null = null;
 
     const register = async () => {
+      const { App: CapacitorApp } = await import("@capacitor/app");
       listener = await CapacitorApp.addListener("appUrlOpen", async ({ url }) => {
         if (!url) return;
 
@@ -447,6 +498,7 @@ function Router() {
           } finally {
             // Always close the in-app browser for auth callback deep links —
             // even if URL parsing throws before reaching the normal close call.
+            const { Browser } = await import("@capacitor/browser");
             await Browser.close().catch(() => undefined);
           }
           return;
@@ -474,6 +526,7 @@ function Router() {
     let listener: { remove: () => Promise<void> } | null = null;
 
     const register = async () => {
+      const { App: CapacitorApp } = await import("@capacitor/app");
       listener = await CapacitorApp.addListener("appStateChange", async ({ isActive }) => {
         if (!isActive) {
           try {
@@ -522,6 +575,7 @@ function Router() {
     const rootRoutes = new Set(NAV_ITEMS.map((item) => item.url));
 
     const register = async () => {
+      const { App: CapacitorApp } = await import("@capacitor/app");
       listener = await CapacitorApp.addListener("backButton", ({ canGoBack: browserCanGoBack }) => {
         // The onboarding page registers its own backButton listener to manage
         // slide-level navigation.  Yield here so we don't double-navigate.
@@ -552,9 +606,11 @@ function Router() {
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
 
-    void StatusBar.setStyle({ style: StatusBarStyle.Dark }).catch(() => undefined);
-    void StatusBar.setBackgroundColor({ color: "#0f1420" }).catch(() => undefined);
-    void StatusBar.setOverlaysWebView({ overlay: true }).catch(() => undefined);
+    void import("@capacitor/status-bar").then(({ StatusBar, Style }) => {
+      void StatusBar.setStyle({ style: Style.Dark }).catch(() => undefined);
+      void StatusBar.setBackgroundColor({ color: "#0f1420" }).catch(() => undefined);
+      void StatusBar.setOverlaysWebView({ overlay: true }).catch(() => undefined);
+    });
   }, []);
 
   // P3 — 5.2: Update StatusBar when theme changes (dark/light)
@@ -570,19 +626,23 @@ function Router() {
   }, []);
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
-    void StatusBar.setStyle({
-      style: isDark ? StatusBarStyle.Dark : StatusBarStyle.Light,
-    }).catch(() => undefined);
-    void StatusBar.setBackgroundColor({
-      color: isDark ? "#0f1420" : "#ffffff",
-    }).catch(() => undefined);
+    void import("@capacitor/status-bar").then(({ StatusBar, Style }) => {
+      void StatusBar.setStyle({
+        style: isDark ? Style.Dark : Style.Light,
+      }).catch(() => undefined);
+      void StatusBar.setBackgroundColor({
+        color: isDark ? "#0f1420" : "#ffffff",
+      }).catch(() => undefined);
+    });
   }, [isDark]);
 
   // P1 — 1.1: Keyboard — resize body instead of overlapping content
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
 
-    void Keyboard.setResizeMode({ mode: KeyboardResize.Body }).catch(() => undefined);
+    void import("@capacitor/keyboard").then(({ Keyboard, KeyboardResize }) => {
+      void Keyboard.setResizeMode({ mode: KeyboardResize.Body }).catch(() => undefined);
+    });
   }, []);
 
   // P3 — 7.1: Splash screen — hide after auth resolves
@@ -591,7 +651,9 @@ function Router() {
     if (isLoading) return;
 
     // Auth bootstrap complete — hide the splash with a fade
-    void SplashScreen.hide({ fadeOutDuration: 300 }).catch(() => undefined);
+    void import("@capacitor/splash-screen").then(({ SplashScreen }) => {
+      void SplashScreen.hide({ fadeOutDuration: 300 }).catch(() => undefined);
+    });
   }, [isLoading]);
 
   // Warm likely next-route chunks during idle time to improve transition latency.
@@ -732,7 +794,7 @@ function Router() {
          * no browser reload option and a crash is logged by Play Store.
          */}
         <ErrorBoundary>
-          <Suspense fallback={<RouteLoadingState />}>
+          <Suspense fallback={<RouteLoadingState location={location} />}>
             <Switch>
               {/* Auth routes */}
               <Route path="/login" component={Login} />
@@ -861,7 +923,14 @@ function Header() {
           <SidebarTrigger data-testid="button-sidebar-toggle" aria-label="Toggle sidebar" />
         </div>
         <div className="flex items-center gap-2">
-          <img src={logoUrl} alt="Sportfolio" className="w-10 h-10" />
+          <img
+            src={logoUrl}
+            alt="Sportfolio"
+            width={40}
+            height={40}
+            decoding="async"
+            className="h-10 w-10"
+          />
           {isAuthenticated ? (
             <>
               <ScoutWidget className="hidden sm:flex" />
@@ -887,7 +956,11 @@ function Header() {
           data-testid="button-news-header"
           aria-label="News"
         >
-          <Link href="/news">
+          <Link
+            href="/news"
+            onMouseEnter={() => preloadRoute("/news")}
+            onFocus={() => preloadRoute("/news")}
+          >
             <Newspaper className="h-4 w-4" aria-hidden="true" />
             {(hasUnreadDigest || unreadNewsCount > 0) && (
               <span
@@ -905,7 +978,11 @@ function Header() {
           data-testid="button-wiki-header-mobile"
           aria-label="Wiki"
         >
-          <Link href="/wiki">
+          <Link
+            href="/wiki"
+            onMouseEnter={() => preloadRoute("/wiki")}
+            onFocus={() => preloadRoute("/wiki")}
+          >
             <BookOpen className="h-4 w-4" aria-hidden="true" />
           </Link>
         </Button>
@@ -928,7 +1005,11 @@ function Header() {
               aria-label="Profile"
               className="flex min-h-[44px] min-w-[44px]"
             >
-              <Link href={user?.id ? `/user/${user.id}` : "/profile"}>
+              <Link
+                href={user?.id ? `/user/${user.id}` : "/profile"}
+                onMouseEnter={loadUserProfilePage}
+                onFocus={loadUserProfilePage}
+              >
                 <User className="h-4 w-4" aria-hidden="true" />
               </Link>
             </Button>
@@ -996,7 +1077,11 @@ function GlobalBoostCeremonyManager() {
     sharesBurned: data.sharesBurned,
   };
 
-  return <BoostCeremonyOverlay isOpen={isShowing} data={ceremonyData} onClose={closeCeremony} />;
+  return (
+    <Suspense fallback={null}>
+      <BoostCeremonyOverlay isOpen={isShowing} data={ceremonyData} onClose={closeCeremony} />
+    </Suspense>
+  );
 }
 
 function ScoutCeremonyManager() {
@@ -1020,15 +1105,23 @@ function ScoutCeremonyManager() {
 
   return (
     <>
-      <ScoutReadyBanner
-        isVisible={isReady}
-        totalShares={data?.totalShares || 0}
-        playerCount={data?.totalPlayers || 0}
-        onView={showCeremony}
-        onDismiss={dismissReady}
-        onViewPortfolio={handleViewPortfolio}
-      />
-      <ScoutCeremonyOverlay isOpen={isShowing} data={data} onClose={closeCeremony} />
+      {isReady && (
+        <Suspense fallback={null}>
+          <ScoutReadyBanner
+            isVisible={isReady}
+            totalShares={data?.totalShares || 0}
+            playerCount={data?.totalPlayers || 0}
+            onView={showCeremony}
+            onDismiss={dismissReady}
+            onViewPortfolio={handleViewPortfolio}
+          />
+        </Suspense>
+      )}
+      {isShowing && (
+        <Suspense fallback={null}>
+          <ScoutCeremonyOverlay isOpen={isShowing} data={data} onClose={closeCeremony} />
+        </Suspense>
+      )}
     </>
   );
 }
@@ -1055,27 +1148,79 @@ function GlobalPlayerModalHost() {
     };
   }, []);
 
+  if (!open) return null;
+
   return (
-    <PlayerModal
-      playerId={selectedPlayerId}
-      open={open}
-      onOpenChange={(nextOpen) => {
-        setOpen(nextOpen);
-        if (!nextOpen) {
-          setSelectedPlayerId(null);
-        }
-      }}
-    />
+    <Suspense fallback={null}>
+      <PlayerModal
+        playerId={selectedPlayerId}
+        open={open}
+        onOpenChange={(nextOpen) => {
+          setOpen(nextOpen);
+          if (!nextOpen) {
+            setSelectedPlayerId(null);
+          }
+        }}
+      />
+    </Suspense>
+  );
+}
+
+function ScoutDashboardModalHost() {
+  const { isScoutDashboardOpen } = useScout();
+
+  if (!isScoutDashboardOpen) return null;
+
+  return (
+    <Suspense fallback={null}>
+      <ScoutDashboardModal />
+    </Suspense>
+  );
+}
+
+function MobilePushManagerHost() {
+  if (!Capacitor.isNativePlatform()) return null;
+
+  return (
+    <Suspense fallback={null}>
+      <MobilePushManager />
+    </Suspense>
+  );
+}
+
+function WhaleAlertBannerHost() {
+  const { subscribe } = useWebSocket();
+  const [initialMessage, setInitialMessage] = useState<any>(null);
+
+  useEffect(() => {
+    if (initialMessage) return;
+
+    const unsubscribe = subscribe("whale_alert", (message) => {
+      setInitialMessage(message);
+    });
+
+    return unsubscribe;
+  }, [initialMessage, subscribe]);
+
+  if (!initialMessage) return null;
+
+  return (
+    <Suspense fallback={null}>
+      <WhaleAlertBanner initialMessage={initialMessage} />
+    </Suspense>
   );
 }
 
 function AppContent() {
   const [location] = useLocation();
   const isAgentRoute = location === "/agent" || location.startsWith("/agent/");
-  const style = {
-    "--sidebar-width": "16rem",
-    "--sidebar-width-icon": "3rem",
-  };
+  const style = useMemo(
+    () => ({
+      "--sidebar-width": "16rem",
+      "--sidebar-width-icon": "3rem",
+    }),
+    [],
+  );
 
   // Initialize native network monitor (P3 — 6.1)
   useEffect(() => {
@@ -1110,11 +1255,11 @@ function AppContent() {
       )}
       <BottomNav />
       <OnboardingCheck />
-      <ScoutDashboardModal />
-      <MobilePushManager />
+      <ScoutDashboardModalHost />
+      <MobilePushManagerHost />
       <ScoutCeremonyManager />
       <GlobalBoostCeremonyManager />
-      <WhaleAlertBanner />
+      <WhaleAlertBannerHost />
       <GlobalPlayerModalHost />
     </SidebarProvider>
   );

@@ -195,6 +195,9 @@ export default function Portfolio() {
     refetch: portfolioRefetch,
   } = useQuery<PortfolioData>({
     queryKey: ["/api/portfolio"],
+    enabled: isAuthenticated,
+    staleTime: 15000,
+    placeholderData: (previousData) => previousData,
   });
 
   // LP Positions data
@@ -212,6 +215,8 @@ export default function Portfolio() {
     },
     enabled: isAuthenticated,
     retry: 2,
+    staleTime: 30000,
+    placeholderData: (previousData) => previousData,
   });
 
   const { data: stackingEligibility } = useQuery<{
@@ -228,6 +233,7 @@ export default function Portfolio() {
     enabled: isAuthenticated,
     retry: 1,
     staleTime: 30_000,
+    placeholderData: (previousData) => previousData,
   });
 
   // Compute LP aggregate totals and sorted positions
@@ -295,6 +301,8 @@ export default function Portfolio() {
 
   const { data: premiumMarketData } = useQuery<PremiumMarketData>({
     queryKey: ["/api/premium/market-data"],
+    staleTime: 60000,
+    placeholderData: (previousData) => previousData,
   });
 
   const { data: chartData } = useQuery<{
@@ -309,6 +317,9 @@ export default function Portfolio() {
       if (!res.ok) throw new Error("Failed to fetch portfolio history");
       return res.json();
     },
+    enabled: activeTab === "holdings",
+    staleTime: 60000,
+    placeholderData: (previousData) => previousData,
   });
 
   // Benchmark player price overlay
@@ -323,7 +334,7 @@ export default function Portfolio() {
     queryKey: ["/api/players/sparklines/dated", benchmarkPlayerId, chartTimeRange],
     queryFn: async () => {
       const days = RANGE_DAYS[chartTimeRange] ?? 30;
-      const res = await fetch(
+      const res = await authenticatedFetch(
         `/api/players/sparklines?ids=${benchmarkPlayerId}&days=${days}&dates=true`,
       );
       if (!res.ok) return {};
@@ -331,6 +342,7 @@ export default function Portfolio() {
     },
     enabled: !!benchmarkPlayerId,
     staleTime: 5 * 60 * 1000,
+    placeholderData: (previousData) => previousData,
   });
 
   // Merge benchmark prices into chart history by closest date

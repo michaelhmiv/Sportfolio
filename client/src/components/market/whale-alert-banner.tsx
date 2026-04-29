@@ -19,6 +19,7 @@ interface WhaleAlert {
 
 interface WhaleAlertBannerProps {
   className?: string;
+  initialMessage?: any;
 }
 
 const WHALE_ALERT_DURATION_MS = 3000;
@@ -29,25 +30,29 @@ function maskUsername(username: string): string {
   return username.slice(0, 2) + "***" + username.slice(-1);
 }
 
-export function WhaleAlertBanner({ className }: WhaleAlertBannerProps) {
+function toWhaleAlert(message: any): WhaleAlert {
+  return {
+    id: `${Date.now()}-${Math.random()}`,
+    playerId: message.playerId,
+    playerName: message.playerName,
+    traderUsername: message.traderUsername,
+    tradeValue: message.tradeValue,
+    type: message.tradeType,
+    timestamp: Date.now(),
+  };
+}
+
+export function WhaleAlertBanner({ className, initialMessage }: WhaleAlertBannerProps) {
   const [alerts, setAlerts] = useState<WhaleAlert[]>([]);
-  const [currentAlert, setCurrentAlert] = useState<WhaleAlert | null>(null);
+  const [currentAlert, setCurrentAlert] = useState<WhaleAlert | null>(() =>
+    initialMessage ? toWhaleAlert(initialMessage) : null,
+  );
   const { subscribe } = useWebSocket();
   const [, navigate] = useLocation();
 
   useEffect(() => {
     const unsubscribe = subscribe("whale_alert", (message) => {
-      const newAlert: WhaleAlert = {
-        id: `${Date.now()}-${Math.random()}`,
-        playerId: message.playerId,
-        playerName: message.playerName,
-        traderUsername: message.traderUsername,
-        tradeValue: message.tradeValue,
-        type: message.tradeType,
-        timestamp: Date.now(),
-      };
-
-      setAlerts((prev) => [...prev, newAlert]);
+      setAlerts((prev) => [...prev, toWhaleAlert(message)]);
     });
 
     return () => unsubscribe();

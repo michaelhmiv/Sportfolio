@@ -15,6 +15,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useNotifications } from "@/lib/notification-context";
 import { useNewsNotifications } from "@/lib/news-notification-context";
+import { preloadRoute } from "@/lib/route-preload";
 
 const menuItems = [
   {
@@ -100,6 +101,8 @@ export function AppSidebar() {
                       href={item.url}
                       data-testid={`link-${item.title.toLowerCase()}`}
                       onClick={(e) => handleNavigation(item, e)}
+                      onFocus={() => preloadRoute(item.url)}
+                      onMouseEnter={() => preloadRoute(item.url)}
                       className={
                         item.title === "Premium" ? "text-yellow-500 hover:text-yellow-400" : ""
                       }
