@@ -48,7 +48,7 @@ describe("registerMobileRewardedScoutBoostRoutes", () => {
         getUser: vi.fn(),
         updateUserPremiumStatus: vi.fn(),
         getActiveRewardedScoutBoostForUser: vi.fn(),
-        createRewardedScoutBoostGrant: vi.fn(),
+        createStackedRewardedScoutBoostGrant: vi.fn(),
       },
     });
     app.use("/api", (_req, res) => {
@@ -83,7 +83,7 @@ describe("registerMobileRewardedScoutBoostRoutes", () => {
         }),
         updateUserPremiumStatus: vi.fn(),
         getActiveRewardedScoutBoostForUser: vi.fn().mockResolvedValue(undefined),
-        createRewardedScoutBoostGrant: vi.fn(),
+        createStackedRewardedScoutBoostGrant: vi.fn(),
       },
     });
     app.use("/api", (_req, res) => {
@@ -109,6 +109,54 @@ describe("registerMobileRewardedScoutBoostRoutes", () => {
     }
   });
 
+  it("creates a new rewarded scout boost session while an existing boost is active", async () => {
+    const { app, baseUrl, close } = createTestServer();
+    const activeExpiresAt = new Date("2099-04-15T12:00:00.000Z");
+    const authMiddleware: RequestHandler = (req: any, _res, next) => {
+      req.user = { claims: { sub: "user-active-reward" } };
+      next();
+    };
+
+    await registerMobileRewardedScoutBoostRoutes(app, {
+      authMiddleware,
+      storage: {
+        getUser: vi.fn().mockResolvedValue({
+          id: "user-active-reward",
+          isPremium: false,
+          premiumExpiresAt: null,
+        }),
+        updateUserPremiumStatus: vi.fn(),
+        getActiveRewardedScoutBoostForUser: vi.fn().mockResolvedValue({
+          expiresAt: activeExpiresAt,
+          revokedAt: null,
+        }),
+        createStackedRewardedScoutBoostGrant: vi.fn(),
+      },
+    });
+    app.use("/api", (_req, res) => {
+      res.status(404).json({ error: "Not found" });
+    });
+
+    try {
+      const response = await fetch(`${baseUrl}/api/mobile/rewarded-scout-boost/session`, {
+        method: "POST",
+      });
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toMatchObject({
+        eligible: true,
+        adNetwork: "admob",
+        boostDurationHours: 12,
+        premiumActive: false,
+        rewardedScoutBoostActive: true,
+        rewardedScoutBoostExpiresAt: activeExpiresAt.toISOString(),
+        maxScouts: 10,
+      });
+    } finally {
+      await close();
+    }
+  });
+
   it("marks premium users as ineligible for rewarded scout boost sessions", async () => {
     const { app, baseUrl, close } = createTestServer();
     const authMiddleware: RequestHandler = (req: any, _res, next) => {
@@ -126,7 +174,7 @@ describe("registerMobileRewardedScoutBoostRoutes", () => {
         }),
         updateUserPremiumStatus: vi.fn(),
         getActiveRewardedScoutBoostForUser: vi.fn().mockResolvedValue(undefined),
-        createRewardedScoutBoostGrant: vi.fn(),
+        createStackedRewardedScoutBoostGrant: vi.fn(),
       },
     });
     app.use("/api", (_req, res) => {

@@ -113,14 +113,17 @@ describe("grantVerifiedRewardedScoutBoost", () => {
       process.env.REWARDED_SCOUT_BOOST_SECRET,
     );
 
-    const createRewardedScoutBoostGrant = vi.fn().mockImplementation(async (grant) => ({
-      id: "grant-1",
-      grantedAt: now,
-      createdAt: now,
-      revokedAt: null,
-      metadata: {},
-      ...grant,
-    }));
+    const createStackedRewardedScoutBoostGrant = vi
+      .fn()
+      .mockImplementation(async (grant, durationMs, grantNow) => ({
+        id: "grant-1",
+        grantedAt: now,
+        createdAt: now,
+        revokedAt: null,
+        metadata: {},
+        ...grant,
+        expiresAt: new Date(grantNow.getTime() + durationMs),
+      }));
 
     const result = await grantVerifiedRewardedScoutBoost(
       {
@@ -130,25 +133,36 @@ describe("grantVerifiedRewardedScoutBoost", () => {
           premiumExpiresAt: null,
         }),
         updateUserPremiumStatus: vi.fn().mockResolvedValue(undefined),
-        getActiveRewardedScoutBoostForUser: vi.fn().mockResolvedValue(undefined),
-        createRewardedScoutBoostGrant,
+        createStackedRewardedScoutBoostGrant,
       },
       buildVerifiedCallback(session.customData),
       now,
     );
 
     expect(result.outcome).toBe("granted");
-    expect(createRewardedScoutBoostGrant).toHaveBeenCalledTimes(1);
+    expect(result.expiresAt).toEqual(new Date("2026-03-30T00:00:00.000Z"));
+    expect(createStackedRewardedScoutBoostGrant).toHaveBeenCalledTimes(1);
   });
 
-  it("does not stack a second rewarded boost while one is already active", async () => {
+  it("extends from the existing expiration when a rewarded boost is already active", async () => {
     const now = new Date("2026-03-29T12:00:00.000Z");
     const session = createRewardedScoutBoostSessionToken(
       "user-active",
       now,
       process.env.REWARDED_SCOUT_BOOST_SECRET,
     );
-    const createRewardedScoutBoostGrant = vi.fn();
+    const existingExpiresAt = new Date("2026-03-29T18:00:00.000Z");
+    const createStackedRewardedScoutBoostGrant = vi
+      .fn()
+      .mockImplementation(async (grant, durationMs) => ({
+        id: "grant-active",
+        grantedAt: now,
+        createdAt: now,
+        revokedAt: null,
+        metadata: {},
+        ...grant,
+        expiresAt: new Date(existingExpiresAt.getTime() + durationMs),
+      }));
 
     const result = await grantVerifiedRewardedScoutBoost(
       {
@@ -158,18 +172,19 @@ describe("grantVerifiedRewardedScoutBoost", () => {
           premiumExpiresAt: null,
         }),
         updateUserPremiumStatus: vi.fn().mockResolvedValue(undefined),
-        getActiveRewardedScoutBoostForUser: vi.fn().mockResolvedValue({
-          expiresAt: new Date("2026-03-29T18:00:00.000Z"),
-          revokedAt: null,
-        }),
-        createRewardedScoutBoostGrant,
+        createStackedRewardedScoutBoostGrant,
       },
       buildVerifiedCallback(session.customData, "tx-active-1", "user-active"),
       now,
     );
 
-    expect(result.outcome).toBe("already_active");
-    expect(createRewardedScoutBoostGrant).not.toHaveBeenCalled();
+    expect(result.outcome).toBe("granted");
+    expect(result.expiresAt).toEqual(new Date("2026-03-30T06:00:00.000Z"));
+    expect(createStackedRewardedScoutBoostGrant).toHaveBeenCalledWith(
+      expect.objectContaining({ transactionId: "tx-active-1" }),
+      12 * 60 * 60 * 1000,
+      now,
+    );
   });
 
   it("treats repeated SSV callbacks as duplicates when the grant insert is idempotent", async () => {
@@ -188,8 +203,7 @@ describe("grantVerifiedRewardedScoutBoost", () => {
           premiumExpiresAt: null,
         }),
         updateUserPremiumStatus: vi.fn().mockResolvedValue(undefined),
-        getActiveRewardedScoutBoostForUser: vi.fn().mockResolvedValue(undefined),
-        createRewardedScoutBoostGrant: vi.fn().mockResolvedValue(undefined),
+        createStackedRewardedScoutBoostGrant: vi.fn().mockResolvedValue(undefined),
       },
       buildVerifiedCallback(session.customData, "tx-duplicate-1", "user-duplicate"),
       now,
@@ -206,13 +220,14 @@ describe("grantVerifiedRewardedScoutBoost", () => {
       process.env.REWARDED_SCOUT_BOOST_SECRET,
     );
     const updateUserPremiumStatus = vi.fn().mockResolvedValue(undefined);
-    const createRewardedScoutBoostGrant = vi.fn().mockImplementation(async (grant) => ({
+    const createStackedRewardedScoutBoostGrant = vi.fn().mockImplementation(async (grant) => ({
       id: "grant-stale-premium",
       grantedAt: now,
       createdAt: now,
       revokedAt: null,
       metadata: {},
       ...grant,
+      expiresAt: new Date("2026-03-30T00:00:00.000Z"),
     }));
 
     const result = await grantVerifiedRewardedScoutBoost(
@@ -223,8 +238,7 @@ describe("grantVerifiedRewardedScoutBoost", () => {
           premiumExpiresAt: new Date("2026-03-28T12:00:00.000Z"),
         }),
         updateUserPremiumStatus,
-        getActiveRewardedScoutBoostForUser: vi.fn().mockResolvedValue(undefined),
-        createRewardedScoutBoostGrant,
+        createStackedRewardedScoutBoostGrant,
       },
       buildVerifiedCallback(session.customData, "tx-stale-premium-1", "user-stale-premium"),
       now,
@@ -236,6 +250,90 @@ describe("grantVerifiedRewardedScoutBoost", () => {
       false,
       new Date("2026-03-28T12:00:00.000Z"),
     );
-    expect(createRewardedScoutBoostGrant).toHaveBeenCalledTimes(1);
+    expect(createStackedRewardedScoutBoostGrant).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not bank rewarded scout boost time for active premium users", async () => {
+    const now = new Date("2026-03-29T12:00:00.000Z");
+    const session = createRewardedScoutBoostSessionToken(
+      "user-premium",
+      now,
+      process.env.REWARDED_SCOUT_BOOST_SECRET,
+    );
+    const createStackedRewardedScoutBoostGrant = vi.fn();
+
+    const result = await grantVerifiedRewardedScoutBoost(
+      {
+        getUser: vi.fn().mockResolvedValue({
+          id: "user-premium",
+          isPremium: true,
+          premiumExpiresAt: new Date("2026-03-30T12:00:00.000Z"),
+        }),
+        updateUserPremiumStatus: vi.fn().mockResolvedValue(undefined),
+        createStackedRewardedScoutBoostGrant,
+      },
+      buildVerifiedCallback(session.customData, "tx-premium-1", "user-premium"),
+      now,
+    );
+
+    expect(result.outcome).toBe("premium_active");
+    expect(createStackedRewardedScoutBoostGrant).not.toHaveBeenCalled();
+  });
+
+  it("stacks two unique verified callbacks into 24 hours of boost time", async () => {
+    const now = new Date("2026-03-29T12:00:00.000Z");
+    const firstSession = createRewardedScoutBoostSessionToken(
+      "user-stack",
+      now,
+      process.env.REWARDED_SCOUT_BOOST_SECRET,
+    );
+    const secondSession = createRewardedScoutBoostSessionToken(
+      "user-stack",
+      new Date("2026-03-29T12:01:00.000Z"),
+      process.env.REWARDED_SCOUT_BOOST_SECRET,
+    );
+    let currentExpiresAt: Date | null = null;
+    const createStackedRewardedScoutBoostGrant = vi
+      .fn()
+      .mockImplementation(async (grant, durationMs, grantNow) => {
+        const baseTime =
+          currentExpiresAt && currentExpiresAt > grantNow ? currentExpiresAt : grantNow;
+        currentExpiresAt = new Date(baseTime.getTime() + durationMs);
+        return {
+          id: `grant-${grant.transactionId}`,
+          grantedAt: grantNow,
+          createdAt: grantNow,
+          revokedAt: null,
+          metadata: {},
+          ...grant,
+          expiresAt: currentExpiresAt,
+        };
+      });
+
+    const storage = {
+      getUser: vi.fn().mockResolvedValue({
+        id: "user-stack",
+        isPremium: false,
+        premiumExpiresAt: null,
+      }),
+      updateUserPremiumStatus: vi.fn().mockResolvedValue(undefined),
+      createStackedRewardedScoutBoostGrant,
+    };
+
+    const first = await grantVerifiedRewardedScoutBoost(
+      storage,
+      buildVerifiedCallback(firstSession.customData, "tx-stack-1", "user-stack"),
+      now,
+    );
+    const second = await grantVerifiedRewardedScoutBoost(
+      storage,
+      buildVerifiedCallback(secondSession.customData, "tx-stack-2", "user-stack"),
+      now,
+    );
+
+    expect(first.outcome).toBe("granted");
+    expect(second.outcome).toBe("granted");
+    expect(second.expiresAt).toEqual(new Date("2026-03-30T12:00:00.000Z"));
+    expect(createStackedRewardedScoutBoostGrant).toHaveBeenCalledTimes(2);
   });
 });

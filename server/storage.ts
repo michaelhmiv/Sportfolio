@@ -644,6 +644,11 @@ export interface IStorage {
   createRewardedScoutBoostGrant(
     grant: InsertRewardedScoutBoostGrant,
   ): Promise<RewardedScoutBoostGrant | undefined>;
+  createStackedRewardedScoutBoostGrant(
+    grant: InsertRewardedScoutBoostGrant,
+    durationMs: number,
+    now?: Date,
+  ): Promise<RewardedScoutBoostGrant | undefined>;
 
   // Community checkout session methods
   createCommunityCheckoutSession(session: {
@@ -5972,6 +5977,66 @@ export class DatabaseStorage implements IStorage {
       .returning();
 
     return created || undefined;
+  }
+
+  async createStackedRewardedScoutBoostGrant(
+    grant: InsertRewardedScoutBoostGrant,
+    durationMs: number,
+    now: Date = new Date(),
+  ): Promise<RewardedScoutBoostGrant | undefined> {
+    return db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${grant.userId})::bigint)`);
+
+      const [activeGrant] = await tx
+        .select()
+        .from(rewardedScoutBoostGrants)
+        .where(
+          and(
+            eq(rewardedScoutBoostGrants.userId, grant.userId),
+            isNull(rewardedScoutBoostGrants.revokedAt),
+            gt(rewardedScoutBoostGrants.expiresAt, now),
+          ),
+        )
+        .orderBy(desc(rewardedScoutBoostGrants.expiresAt))
+        .limit(1);
+
+      const baseTime =
+        activeGrant && activeGrant.expiresAt.getTime() > now.getTime()
+          ? activeGrant.expiresAt
+          : now;
+      const expiresAt = new Date(baseTime.getTime() + durationMs);
+
+      const [created] = await tx
+        .insert(rewardedScoutBoostGrants)
+        .values({
+          userId: grant.userId,
+          platform: grant.platform ?? "android",
+          adNetwork: grant.adNetwork ?? "admob",
+          adUnitId: grant.adUnitId ?? null,
+          rewardItem: grant.rewardItem ?? null,
+          rewardAmount: grant.rewardAmount ?? null,
+          rewardSessionId: grant.rewardSessionId,
+          transactionId: grant.transactionId,
+          customData: grant.customData ?? null,
+          rewardedAt: new Date(grant.rewardedAt),
+          expiresAt,
+          revokedAt: grant.revokedAt ? new Date(grant.revokedAt) : null,
+          metadata: {
+            ...((grant.metadata &&
+            typeof grant.metadata === "object" &&
+            !Array.isArray(grant.metadata)
+              ? grant.metadata
+              : {}) as Record<string, unknown>),
+            stackedFromExpiresAt: activeGrant?.expiresAt?.toISOString() ?? null,
+          },
+        })
+        .onConflictDoNothing({
+          target: [rewardedScoutBoostGrants.transactionId],
+        })
+        .returning();
+
+      return created || undefined;
+    });
   }
 
   // Community checkout session methods

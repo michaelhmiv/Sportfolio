@@ -14,8 +14,12 @@ import {
 } from "@/lib/android-play-billing";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest, authenticatedFetch, queryClient } from "@/lib/queryClient";
-import { canShowAndroidRewardedAd, showAndroidRewardedAd } from "@/lib/android-rewarded-ads";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import {
+  getRewardedScoutBoostUnavailableMessage,
+  useRewardedScoutBoost,
+  type RewardedScoutBoostStatus,
+} from "@/hooks/use-rewarded-scout-boost";
 import { isNativeAndroid } from "@/lib/native-platform";
 import { Check, Crown, Loader2, Minus, Plus, RefreshCw, ShoppingCart, Zap } from "lucide-react";
 
@@ -43,20 +47,6 @@ interface CheckoutSession {
   amountCents: number;
   email?: string;
   purchaseUrl?: string;
-}
-
-interface RewardedScoutBoostSessionResponse {
-  eligible: boolean;
-  reason?: string;
-  adUnitId?: string;
-  customData?: string;
-  rewardSessionId?: string;
-  expiresAt?: string;
-  boostDurationHours?: number;
-  premiumActive: boolean;
-  rewardedScoutBoostActive: boolean;
-  rewardedScoutBoostExpiresAt?: string | null;
-  maxScouts: number;
 }
 
 interface GooglePlayVerifyResponse {
@@ -101,10 +91,6 @@ const androidPremiumBenefits = [
   },
 ];
 
-function sleep(ms: number) {
-  return new Promise((resolve) => window.setTimeout(resolve, ms));
-}
-
 export default function Premium() {
   const { toast } = useToast();
   const { isAuthenticated, user } = useAuth();
@@ -114,9 +100,12 @@ export default function Premium() {
   const [quantity, setQuantity] = useState(1);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
-  const [rewardedAdAvailable, setRewardedAdAvailable] = useState(!androidBuild);
-  const [rewardedAdLoading, setRewardedAdLoading] = useState(false);
-  const [rewardedVerificationPending, setRewardedVerificationPending] = useState(false);
+  const {
+    rewardedAdAvailable,
+    rewardedAdLoading,
+    rewardedVerificationPending,
+    startRewardedScoutBoost,
+  } = useRewardedScoutBoost({ userId: user?.id });
   const [playBillingAvailable, setPlayBillingAvailable] = useState(!androidBuild);
   const [playProduct, setPlayProduct] = useState<AndroidPlayProduct | null>(null);
   const [playProductLoading, setPlayProductLoading] = useState(false);
@@ -128,23 +117,6 @@ export default function Premium() {
     queryKey: ["/api/premium/status"],
     enabled: isAuthenticated,
   });
-
-  useEffect(() => {
-    if (!androidBuild) {
-      return;
-    }
-
-    let cancelled = false;
-    void canShowAndroidRewardedAd().then((available) => {
-      if (!cancelled) {
-        setRewardedAdAvailable(available);
-      }
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [androidBuild]);
 
   useEffect(() => {
     if (!androidBuild) {
@@ -469,87 +441,39 @@ export default function Premium() {
     }
   };
 
-  const waitForRewardedBoostActivation = async () => {
-    for (let attempt = 0; attempt < 8; attempt += 1) {
-      const response = await authenticatedFetch("/api/premium/status");
-
-      if (!response.ok) {
-        break;
-      }
-
-      const latestStatus = (await response.json()) as PremiumStatus;
-      queryClient.setQueryData(["/api/premium/status"], latestStatus);
-
-      if (latestStatus.rewardedScoutBoostActive) {
-        await invalidateEntitlementQueries();
-        return latestStatus;
-      }
-
-      await sleep(1500);
-    }
-
-    await invalidateEntitlementQueries();
-    return null;
-  };
-
   const handleRewardedScoutBoost = async () => {
-    if (!androidBuild) {
-      return;
-    }
-
-    if (!rewardedAdAvailable) {
-      toast({
-        title: "Rewarded Ads Unavailable",
-        description: "This Android build does not have rewarded ads ready yet.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setRewardedAdLoading(true);
     try {
-      const sessionResponse = await apiRequest("POST", "/api/mobile/rewarded-scout-boost/session");
-      const session = (await sessionResponse.json()) as RewardedScoutBoostSessionResponse;
+      const result = await startRewardedScoutBoost({
+        previousExpiresAt: premiumStatus?.rewardedScoutBoostExpiresAt,
+      });
 
-      if (!session.eligible || !session.adUnitId || !session.customData) {
+      if (!result.session.eligible) {
         toast({
           title: "Scout Boost Unavailable",
-          description:
-            session.reason === "already_active"
-              ? "Your 12-hour scout boost is already active on this account."
-              : session.reason === "premium_active"
-                ? "Premium already gives you the full 10-scout cap on this account."
-                : "A rewarded scout boost cannot be started right now.",
+          description: getRewardedScoutBoostUnavailableMessage(result.session.reason),
         });
         await invalidateEntitlementQueries();
         return;
       }
 
-      const result = await showAndroidRewardedAd({
-        adUnitId: session.adUnitId,
-        customData: session.customData,
-        userId: user?.id,
-      });
-
-      if (!result.rewardEarned) {
+      if (result.outcome === "closed_early") {
         toast({
           title: "Ad Closed Early",
-          description: "Finish the rewarded ad to unlock the 12-hour scout boost.",
+          description: "Finish the rewarded ad to add 12 hours of scout boost time.",
         });
         return;
       }
 
-      setRewardedVerificationPending(true);
       toast({
         title: "Reward Received",
         description: "Verifying your scout boost with Google now.",
       });
 
-      const activatedStatus = await waitForRewardedBoostActivation();
-      if (activatedStatus?.rewardedScoutBoostActive) {
+      if (result.status?.rewardedScoutBoostActive) {
+        queryClient.setQueryData<RewardedScoutBoostStatus>(["/api/premium/status"], result.status);
         toast({
-          title: "Scout Boost Active",
-          description: "You now have boosted scouts for the next 12 hours on this account.",
+          title: "Scout Boost Time Added",
+          description: "Your 10-scout boost was extended by 12 hours.",
         });
       } else {
         toast({
@@ -558,15 +482,13 @@ export default function Premium() {
             "The ad completed, but the reward is still syncing. Refresh again in a moment.",
         });
       }
+      await invalidateEntitlementQueries();
     } catch (error: any) {
       toast({
         title: "Rewarded Ad Failed",
         description: error.message || "Could not start the rewarded scout boost.",
         variant: "destructive",
       });
-    } finally {
-      setRewardedVerificationPending(false);
-      setRewardedAdLoading(false);
     }
   };
 
@@ -602,7 +524,7 @@ export default function Premium() {
       })
     : null;
 
-  const showAndroidRewardedCta = androidBuild && !premiumActive && !rewardedScoutBoostActive;
+  const showAndroidRewardedCta = androidBuild && !premiumActive;
   const benefits = androidBuild ? androidPremiumBenefits : webPremiumBenefits;
   const androidPurchasePrice = playProduct?.formattedPrice || `$${PRICE_PER_SHARE.toFixed(2)}`;
 
@@ -750,15 +672,39 @@ export default function Premium() {
                     </div>
 
                     {rewardedScoutBoostActive ? (
-                      <div className="text-sm text-muted-foreground">
-                        Your Android-earned scout boost is active until{" "}
-                        <span className="font-medium text-foreground">
-                          {rewardedScoutBoostCountdown}
-                        </span>
-                        .{" "}
-                        {premiumActive
-                          ? "Premium already caps scouts at 10, so this does not stack beyond that."
-                          : "You can use up to 10 scouts while it runs."}
+                      <div className="space-y-3">
+                        <div className="text-sm text-muted-foreground">
+                          Your Android-earned scout boost is active until{" "}
+                          <span className="font-medium text-foreground">
+                            {rewardedScoutBoostCountdown}
+                          </span>
+                          .{" "}
+                          {premiumActive
+                            ? "Premium already caps scouts at 10, so rewarded ads stay hidden while premium is active."
+                            : "You can watch another rewarded ad to add 12 more hours."}
+                        </div>
+                        {!premiumActive && androidBuild && (
+                          <Button
+                            variant="terminal"
+                            onClick={handleRewardedScoutBoost}
+                            disabled={
+                              rewardedAdLoading ||
+                              rewardedVerificationPending ||
+                              !rewardedAdAvailable
+                            }
+                            className="border-amber-500/40 bg-amber-500/15 text-amber-900 hover:bg-amber-500/25 disabled:text-amber-900/60 dark:text-amber-100 dark:disabled:text-amber-100/60"
+                            data-testid="button-watch-rewarded-scout-boost"
+                          >
+                            {rewardedAdLoading || rewardedVerificationPending ? (
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            ) : (
+                              <Zap className="h-4 w-4 mr-2" />
+                            )}
+                            {rewardedVerificationPending
+                              ? "Verifying Scout Boost"
+                              : "Watch Ad for +12h Scout Boost"}
+                          </Button>
+                        )}
                       </div>
                     ) : premiumActive ? (
                       <div className="text-sm text-muted-foreground">
@@ -768,8 +714,8 @@ export default function Premium() {
                     ) : showAndroidRewardedCta ? (
                       <div className="space-y-3">
                         <div className="text-sm text-muted-foreground">
-                          Watch one rewarded ad to move from 5 scouts to 10 scouts for the next 12
-                          hours on this account.
+                          Watch one rewarded ad to add 12 hours of 10-scout capacity on this
+                          account. Boost time stacks when you watch more.
                         </div>
                         <Button
                           variant="terminal"
@@ -777,7 +723,7 @@ export default function Premium() {
                           disabled={
                             rewardedAdLoading || rewardedVerificationPending || !rewardedAdAvailable
                           }
-                          className="border-amber-500/30 bg-amber-500/20 text-amber-100 hover:bg-amber-500/25"
+                          className="border-amber-500/40 bg-amber-500/15 text-amber-900 hover:bg-amber-500/25 disabled:text-amber-900/60 dark:text-amber-100 dark:disabled:text-amber-100/60"
                           data-testid="button-watch-rewarded-scout-boost"
                         >
                           {rewardedAdLoading || rewardedVerificationPending ? (
@@ -787,7 +733,7 @@ export default function Premium() {
                           )}
                           {rewardedVerificationPending
                             ? "Verifying Scout Boost"
-                            : "Watch Ad for 12-Hour Scout Boost"}
+                            : "Watch Ad for +12h Scout Boost"}
                         </Button>
                       </div>
                     ) : (
