@@ -21,6 +21,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
+import {
+  getRewardedScoutBoostUnavailableMessage,
+  useRewardedScoutBoost,
+} from "@/hooks/use-rewarded-scout-boost";
 import { useScout } from "@/lib/scout-context";
 import { useWebSocket } from "@/lib/websocket";
 import { resolveApiUrl } from "@/lib/native-runtime";
@@ -38,6 +43,7 @@ import {
   ChevronDown,
   ChevronUp,
   Sparkles,
+  Zap,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -116,6 +122,28 @@ type SortField =
   | "volume"
   | "marketCap";
 type SortDirection = "asc" | "desc";
+
+function formatBoostTimeRemaining(expiresAt?: string | null) {
+  if (!expiresAt) {
+    return "0h 00m";
+  }
+
+  const diffMs = new Date(expiresAt).getTime() - Date.now();
+  if (diffMs <= 0) {
+    return "0h 00m";
+  }
+
+  const totalMinutes = Math.floor(diffMs / 60000);
+  const days = Math.floor(totalMinutes / 1440);
+  const hours = Math.floor((totalMinutes % 1440) / 60);
+  const minutes = totalMinutes % 60;
+
+  if (days > 0) {
+    return `${days}d ${hours}h ${minutes.toString().padStart(2, "0")}m`;
+  }
+
+  return `${hours}h ${minutes.toString().padStart(2, "0")}m`;
+}
 
 // --- Sub-Component: Scout Roster ---
 function ScoutRoster({ playerId, globalTotal }: { playerId: string; globalTotal: number }) {
@@ -231,8 +259,16 @@ function HowItWorks() {
 export function ScoutDashboardModal() {
   const { isScoutDashboardOpen, closeScoutDashboard } = useScout();
   const { toast } = useToast();
+  const { isAuthenticated, user } = useAuth();
   const { subscribe } = useWebSocket();
   const [, navigate] = useLocation();
+  const {
+    androidBuild,
+    rewardedAdAvailable,
+    rewardedAdLoading,
+    rewardedVerificationPending,
+    startRewardedScoutBoost,
+  } = useRewardedScoutBoost({ userId: user?.id });
 
   // Listen for real-time scout updates
   useEffect(() => {
@@ -278,6 +314,8 @@ export function ScoutDashboardModal() {
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [limit, setLimit] = useState(50); // Server-side paging limit
   const [activeTab, setActiveTab] = useState<string>("market");
+  const [isBoostPanelOpen, setIsBoostPanelOpen] = useState(false);
+  const [, setBoostClockTick] = useState(0);
 
   // Expanded rows state (for Scout Roster)
   const [expandedPlayerId, setExpandedPlayerId] = useState<string | null>(null);
@@ -292,6 +330,18 @@ export function ScoutDashboardModal() {
     queryKey: ["/api/scouts"],
     enabled: isScoutDashboardOpen,
   });
+
+  useEffect(() => {
+    if (!scoutData?.rewardedScoutBoostExpiresAt || !isScoutDashboardOpen) {
+      return;
+    }
+
+    const interval = window.setInterval(() => {
+      setBoostClockTick((current) => current + 1);
+    }, 30000);
+
+    return () => window.clearInterval(interval);
+  }, [isScoutDashboardOpen, scoutData?.rewardedScoutBoostExpiresAt]);
 
   // 1b. Fetch Scout Status (Timer)
   const { data: scoutStatus } = useQuery<{
@@ -442,7 +492,53 @@ export function ScoutDashboardModal() {
   const remaining = scoutData?.remaining || 0;
   const premiumActive = scoutData?.premiumActive ?? scoutData?.isPremium ?? false;
   const rewardedScoutBoostActive = scoutData?.rewardedScoutBoostActive || false;
+  const rewardedScoutBoostExpiresAt = scoutData?.rewardedScoutBoostExpiresAt || null;
+  const boostTimeRemaining = formatBoostTimeRemaining(rewardedScoutBoostExpiresAt);
   const assignments = scoutData?.assignments || [];
+
+  const handleRewardedScoutBoost = async () => {
+    try {
+      const result = await startRewardedScoutBoost({
+        previousExpiresAt: rewardedScoutBoostExpiresAt,
+      });
+
+      if (!result.session.eligible) {
+        toast({
+          title: "Scout Boost Unavailable",
+          description: getRewardedScoutBoostUnavailableMessage(result.session.reason),
+        });
+        return;
+      }
+
+      if (result.outcome === "closed_early") {
+        toast({
+          title: "Ad Closed Early",
+          description: "Finish the rewarded ad to add 12 hours of scout boost time.",
+        });
+        return;
+      }
+
+      if (result.status?.rewardedScoutBoostActive) {
+        toast({
+          title: "Scout Boost Time Added",
+          description: "Your 10-scout boost was extended by 12 hours.",
+        });
+        setIsBoostPanelOpen(false);
+      } else {
+        toast({
+          title: "Verification Pending",
+          description:
+            "The ad completed, but the reward is still syncing. Refresh again in a moment.",
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: "Rewarded Ad Failed",
+        description: error.message || "Could not start the rewarded scout boost.",
+        variant: "destructive",
+      });
+    }
+  };
 
   // Helper to compute game status for a player
   const getGameStatusForPlayer = (
@@ -692,7 +788,7 @@ export function ScoutDashboardModal() {
           </div>
           {/* Compact Capacity Bar & Status */}
           <div className="bg-card border rounded-md p-2 shadow-sm space-y-2">
-            <div className="flex justify-between items-center text-xs">
+            <div className="flex justify-between items-center gap-2 text-xs">
               <span className="text-muted-foreground flex items-center gap-1.5">
                 <span
                   className={cn(
@@ -703,7 +799,105 @@ export function ScoutDashboardModal() {
                   {totalScouts}
                 </span>
                 <span className="text-muted-foreground">/ {maxScouts} Assigned</span>
+                {rewardedScoutBoostActive && (
+                  <Badge
+                    variant="secondary"
+                    className="h-5 rounded-[3px] border-amber-500/30 bg-amber-500/10 px-1.5 font-mono text-[9px] uppercase text-amber-700 dark:text-amber-300"
+                  >
+                    <Zap className="mr-1 h-2.5 w-2.5" />
+                    {boostTimeRemaining}
+                  </Badge>
+                )}
               </span>
+              <Popover open={isBoostPanelOpen} onOpenChange={setIsBoostPanelOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="outline"
+                    className="h-7 w-7 shrink-0 border-amber-500/30 bg-amber-500/10 text-amber-700 hover:bg-amber-500/20 dark:text-amber-300"
+                    aria-label="Add rewarded scout boost time"
+                    data-testid="button-scout-rewarded-boost"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-80 space-y-3 p-4" align="end">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="terminal-label">Rewarded Scout Boost</div>
+                      <div className="mt-1 text-sm font-semibold">
+                        {rewardedScoutBoostActive ? "10-scout boost active" : "Add 10-scout time"}
+                      </div>
+                    </div>
+                    <Badge className="rounded-[3px] border-amber-500/30 bg-amber-500/20 text-amber-800 dark:text-amber-200">
+                      +12h
+                    </Badge>
+                  </div>
+
+                  <div className="rounded-sm border bg-muted/30 p-3 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Current cap</span>
+                      <span className="font-mono font-semibold">{maxScouts} scouts</span>
+                    </div>
+                    <div className="mt-2 flex items-center justify-between">
+                      <span className="text-muted-foreground">Boost time banked</span>
+                      <span className="font-mono font-semibold text-amber-700 dark:text-amber-300">
+                        {rewardedScoutBoostActive ? boostTimeRemaining : "0h 00m"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-muted-foreground">
+                    Watch a verified rewarded ad to add 12 hours of 10-scout capacity. Time stacks,
+                    but Google must confirm the completed ad before the boost is credited.
+                  </p>
+
+                  {!isAuthenticated ? (
+                    <p className="text-xs text-muted-foreground">
+                      Sign in to earn scout boost time.
+                    </p>
+                  ) : premiumActive ? (
+                    <p className="text-xs text-muted-foreground">
+                      Premium already gives you 10 scouts, so rewarded ads are unavailable while
+                      premium is active.
+                    </p>
+                  ) : !androidBuild ? (
+                    <p className="text-xs text-muted-foreground">
+                      Rewarded scout boosts are available in the Android app.
+                    </p>
+                  ) : !rewardedAdAvailable ? (
+                    <p className="text-xs text-muted-foreground">
+                      Rewarded ads are not available in this Android build yet.
+                    </p>
+                  ) : null}
+
+                  <Button
+                    type="button"
+                    variant="terminal"
+                    className="w-full border-amber-500/40 bg-amber-500/15 text-amber-900 hover:bg-amber-500/25 disabled:text-amber-900/60 dark:text-amber-100 dark:disabled:text-amber-100/60"
+                    onClick={handleRewardedScoutBoost}
+                    disabled={
+                      !isAuthenticated ||
+                      !androidBuild ||
+                      premiumActive ||
+                      !rewardedAdAvailable ||
+                      rewardedAdLoading ||
+                      rewardedVerificationPending
+                    }
+                    data-testid="button-watch-scout-rewarded-ad"
+                  >
+                    {rewardedAdLoading || rewardedVerificationPending ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Zap className="mr-2 h-4 w-4" />
+                    )}
+                    {rewardedVerificationPending
+                      ? "Verifying Scout Boost"
+                      : "Watch Ad for +12h Scout Boost"}
+                  </Button>
+                </PopoverContent>
+              </Popover>
             </div>
             <Progress
               value={(totalScouts / maxScouts) * 100}

@@ -1,3 +1,41 @@
+## 2026-04-29 Google Ad Manager Account Recovery
+
+- [x] Confirm `sportfolio-f1b70` is the active Google Cloud project for local CLI/API testing
+- [x] Enable and verify `admanager.googleapis.com` access on the Sportfolio Google Cloud project
+- [x] Enable AdSense Management API and verify the `sportfolioholdings@gmail.com` AdSense account via API
+- [x] Confirm Ad Manager API connectivity still returns no accessible GAM networks
+- [x] Replace the broken production `/ads.txt` redirect path with a direct Google seller declaration
+- [ ] Add `https://www.sportfolio.market` in the AdSense Sites UI and request review
+- [ ] Retry Google Ad Manager signup/contact flow once the site is visible/ready in AdSense
+- [ ] Re-run `GET https://admanager.googleapis.com/v1/networks` and confirm a network code is returned
+
+Review:
+
+- Google Cloud is now pointed at `sportfolio-f1b70`, and local ADC has Ad Manager and AdSense read scopes.
+- `adsense.googleapis.com` and `admanager.googleapis.com` are enabled on the project.
+- AdSense `accounts.list` returns `accounts/pub-2708638041809482` with display name `Sportfolio` and state `READY`.
+- AdSense `sites.list`, `adclients.list`, and `policyIssues.list` currently return empty responses, so the Sportfolio web domain still needs to be added/reviewed in the AdSense UI.
+- Ad Manager `networks.list` succeeds at the API/auth layer but returns `{}`, so `sportfolioholdings@gmail.com` still has no accessible GAM network through the API.
+- The live `/ads.txt` currently redirects to `srv.adstxtmanager.com/19390/sportfolio.market`, which returns 404. Local code now serves `google.com, pub-2708638041809482, DIRECT, f08c47fec0942fa0` directly from `/ads.txt` with an `ADSENSE_PUBLISHER_ID` override.
+
+## 2026-04-29 Stackable Rewarded Scout Boosts
+
+- [x] Convert rewarded scout boosts from one-active-grant behavior to stackable 12-hour extensions
+- [x] Keep AdMob SSV as the only grant authority and preserve duplicate transaction id idempotency
+- [x] Add scout-modal rewarded boost entry point, timer, and Android-only ad CTA
+- [x] Update Premium page rewarded boost copy for stackable time
+- [x] Add/extend targeted backend and frontend coverage
+- [x] Run required validation (`npm run check`, `npm run lint`, `npm run test:run`)
+
+Review:
+
+- Rewarded scout sessions now remain eligible for free Android users who already have an active rewarded boost, while active premium users remain blocked from ad banking.
+- Verified AdMob callbacks now grant through a transaction-owned stacked insert path that locks per user, extends from the latest active expiration, and keeps duplicate `transaction_id` callbacks idempotent.
+- The scout modal capacity bar now has a plus-button entry point with current cap, banked boost timer, Android/ad-availability states, and a `Watch Ad for +12h Scout Boost` CTA.
+- Premium page rewarded-boost copy and CTA now reflect stackable +12h time.
+- Added coverage for active-session eligibility, stack extension, duplicate callbacks, premium blocking, two unique callbacks producing 24 hours, and frontend boost-expiration polling helpers.
+- Validation passed: `npm run check`, `npm run lint`, `npm run test:run`.
+
 ## 2026-04-28 Mobile API Base URL Investigation + Fix
 
 - [x] Audit remaining direct client `/api` fetches that bypass native-safe routing

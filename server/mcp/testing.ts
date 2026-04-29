@@ -372,6 +372,7 @@ export function createMockPublicMcpDependencies(
       return undefined;
     },
     getActiveRewardedScoutBoostForUser: async () => undefined,
+    createStackedRewardedScoutBoostGrant: async () => undefined,
     getUserByUsername: async (username: string) =>
       state.user.username === username ? state.user : null,
     getHolding: async (_userId: string, assetType: string, assetId: string) =>

@@ -169,6 +169,7 @@ For each job below, create a new cron job in cron-job.org:
 
 If you are shipping the Android rewarded scout boost flow, configure these production variables on the live Railway service before publishing a build:
 
+- `ADSENSE_PUBLISHER_ID`
 - `ADMOB_APP_ID_ANDROID`
 - `ADMOB_REWARDED_SCOUT_AD_UNIT_ID`
 - `REWARDED_SCOUT_BOOST_SECRET`
@@ -177,6 +178,7 @@ Current production values for the Sportfolio Android app are:
 
 - App ID: `ca-app-pub-2708638041809482~8217225961`
 - Rewarded ad unit: `ca-app-pub-2708638041809482/7806162422`
+- AdSense publisher ID: `pub-2708638041809482`
 
 The backend is already wired to verify AdMob server-side reward callbacks at:
 
@@ -193,6 +195,7 @@ AdMob console setup notes:
 
 Operational notes:
 
+- `ADSENSE_PUBLISHER_ID` is served from `/ads.txt` so AdSense and Ad Manager crawlers can verify the Sportfolio seller record directly.
 - `ADMOB_APP_ID_ANDROID` is needed by the native Android build.
 - `ADMOB_REWARDED_SCOUT_AD_UNIT_ID` is served dynamically by `/api/mobile/rewarded-scout-boost/session`.
 - `REWARDED_SCOUT_BOOST_SECRET` signs the `custom_data` payload that the backend later verifies when AdMob calls the SSV route.

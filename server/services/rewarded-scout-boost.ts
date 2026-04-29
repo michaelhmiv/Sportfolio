@@ -13,10 +13,7 @@ export const ADMOB_VERIFIER_KEYS_URL = "https://www.gstatic.com/admob/reward/ver
 
 type RewardedScoutBoostStorage = Pick<
   IStorage,
-  | "getUser"
-  | "updateUserPremiumStatus"
-  | "getActiveRewardedScoutBoostForUser"
-  | "createRewardedScoutBoostGrant"
+  "getUser" | "updateUserPremiumStatus" | "createStackedRewardedScoutBoostGrant"
 >;
 
 export interface RewardedScoutBoostSessionToken {
@@ -277,15 +274,12 @@ export async function grantVerifiedRewardedScoutBoost(
     entitlements = resolveUserEntitlements(effectiveUser, null, now);
   }
 
-  const activeReward = await storage.getActiveRewardedScoutBoostForUser(user.id, now);
-  entitlements = resolveUserEntitlements(effectiveUser, activeReward, now);
-
-  if (entitlements.rewardedScoutBoostActive) {
+  if (entitlements.premiumActive) {
     return {
-      outcome: "already_active" as const,
+      outcome: "premium_active" as const,
       rewardSessionId: session.sid,
       transactionId: verifiedCallback.transactionId,
-      expiresAt: entitlements.rewardedScoutBoostExpiresAt,
+      expiresAt: entitlements.premiumExpiresAt,
     };
   }
 
@@ -309,7 +303,11 @@ export async function grantVerifiedRewardedScoutBoost(
     },
   };
 
-  const createdGrant = await storage.createRewardedScoutBoostGrant(grantPayload);
+  const createdGrant = await storage.createStackedRewardedScoutBoostGrant(
+    grantPayload,
+    REWARDED_SCOUT_BOOST_DURATION_MS,
+    now,
+  );
   if (!createdGrant) {
     return {
       outcome: "duplicate" as const,
@@ -322,7 +320,7 @@ export async function grantVerifiedRewardedScoutBoost(
     outcome: "granted" as const,
     rewardSessionId: session.sid,
     transactionId: verifiedCallback.transactionId,
-    expiresAt,
+    expiresAt: createdGrant.expiresAt,
     grant: createdGrant,
   };
 }

@@ -15,7 +15,7 @@ type MobileRewardedScoutBoostStorage = Pick<
   | "getUser"
   | "updateUserPremiumStatus"
   | "getActiveRewardedScoutBoostForUser"
-  | "createRewardedScoutBoostGrant"
+  | "createStackedRewardedScoutBoostGrant"
 >;
 
 interface RegisterMobileRewardedScoutBoostRoutesOptions {
@@ -93,17 +93,6 @@ export async function registerMobileRewardedScoutBoostRoutes(
         return res.status(404).json({ error: "User not found" });
       }
 
-      if (userState.entitlements.rewardedScoutBoostActive) {
-        return res.json({
-          eligible: false,
-          reason: "already_active",
-          premiumActive: userState.entitlements.premiumActive,
-          rewardedScoutBoostActive: true,
-          rewardedScoutBoostExpiresAt: userState.entitlements.rewardedScoutBoostExpiresAt,
-          maxScouts: userState.entitlements.maxScouts,
-        });
-      }
-
       if (userState.entitlements.premiumActive) {
         return res.json({
           eligible: false,
@@ -127,7 +116,8 @@ export async function registerMobileRewardedScoutBoostRoutes(
         expiresAt: session.expiresAt,
         boostDurationHours: 12,
         premiumActive: userState.entitlements.premiumActive,
-        rewardedScoutBoostActive: false,
+        rewardedScoutBoostActive: userState.entitlements.rewardedScoutBoostActive,
+        rewardedScoutBoostExpiresAt: userState.entitlements.rewardedScoutBoostExpiresAt,
         maxScouts: userState.entitlements.maxScouts,
       });
     } catch (error: any) {
