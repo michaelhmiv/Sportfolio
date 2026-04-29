@@ -2644,9 +2644,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return Array.from(new Set(explicitIds));
   }
 
-  // Ezoic ads.txt redirect
+  // Keep ads.txt directly crawlable for AdSense / Ad Manager site verification.
   app.get("/ads.txt", (_req, res) => {
-    res.redirect(301, "https://srv.adstxtmanager.com/19390/sportfolio.market");
+    const publisherId = (process.env.ADSENSE_PUBLISHER_ID || "pub-2708638041809482").trim();
+    res.type("text/plain");
+    res.set("Cache-Control", "public, max-age=3600");
+    res.send(`google.com, ${publisherId}, DIRECT, f08c47fec0942fa0\n`);
   });
 
   // Canonicalize legacy marketplace route for crawlers and users.
