@@ -514,6 +514,24 @@ export default function PlayerPage() {
     queryClient.invalidateQueries({ queryKey: ["/api/lp", id, "position"] });
   };
 
+  // Calculate Y-axis domain with 5% padding for better chart visualization.
+  const chartDomain = useMemo(() => {
+    const priceHistory = data?.priceHistory ?? [];
+    if (priceHistory.length === 0) return undefined;
+    const prices = priceHistory.map((p) =>
+      typeof p.price === "string" ? parseFloat(p.price) : p.price,
+    );
+    const minPrice = Math.min(...prices);
+    const maxPrice = Math.max(...prices);
+    if (minPrice === maxPrice) {
+      const value = minPrice || 1;
+      return [Math.max(0, value * 0.9), value * 1.1];
+    }
+    const range = maxPrice - minPrice;
+    const padding = range * 0.05;
+    return [Math.max(0, minPrice - padding), maxPrice + padding];
+  }, [data?.priceHistory]);
+
   if (!authLoading && !isAuthenticated) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -600,23 +618,6 @@ export default function PlayerPage() {
           ? parseFloat(priceHistory[0].price)
           : priceHistory[0].price)
       : null;
-
-  // Calculate Y-axis domain with 5% padding for better chart visualization
-  const chartDomain = useMemo(() => {
-    if (priceHistory.length === 0) return undefined;
-    const prices = priceHistory.map((p) =>
-      typeof p.price === "string" ? parseFloat(p.price) : p.price,
-    );
-    const minPrice = Math.min(...prices);
-    const maxPrice = Math.max(...prices);
-    if (minPrice === maxPrice) {
-      const value = minPrice || 1;
-      return [Math.max(0, value * 0.9), value * 1.1];
-    }
-    const range = maxPrice - minPrice;
-    const padding = range * 0.05;
-    return [Math.max(0, minPrice - padding), maxPrice + padding];
-  }, [priceHistory]);
 
   return (
     <div className="terminal-page p-2 sm:p-3 lg:p-4">
