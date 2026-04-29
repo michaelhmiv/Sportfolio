@@ -17,6 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { hapticLight } from "@/lib/haptics";
 import { useQuery } from "@tanstack/react-query";
+import { preloadRoute } from "@/lib/route-preload";
 
 const navItems = [
   {
@@ -170,6 +171,8 @@ export function BottomNav() {
                   aria-current={isActive ? "page" : undefined}
                   className="flex items-center justify-center w-full h-full min-h-[48px] touch-manipulation"
                   onClick={(e) => handleClick(e, item.url)}
+                  onFocus={() => preloadRoute(item.url)}
+                  onMouseEnter={() => preloadRoute(item.url)}
                 >
                   <motion.div
                     className={cn(

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation, useParams, useSearch, Link } from "wouter";
 import { useWebSocket } from "@/lib/websocket";
@@ -173,6 +173,8 @@ export default function PlayerPage() {
       return res.json();
     },
     enabled: !!id && !authLoading && isAuthenticated,
+    staleTime: 15000,
+    placeholderData: (previousData) => previousData,
   });
 
   // Fetch AMM pool data with proper error handling
@@ -191,8 +193,9 @@ export default function PlayerPage() {
       return res.json();
     },
     enabled: !!id,
-    refetchInterval: 5000,
+    refetchInterval: shouldPoll ? (isMobile ? 10000 : 5000) : false,
     refetchIntervalInBackground: false, // Don't poll when tab is inactive
+    staleTime: 5000,
     retry: 3,
     retryDelay: 1000,
   });
@@ -216,6 +219,8 @@ export default function PlayerPage() {
       return data.position;
     },
     enabled: !!id && isAuthenticated,
+    staleTime: 30000,
+    placeholderData: (previousData) => previousData,
   });
 
   const currentPoolPrice = isPoolInitialized ? (poolData?.currentPrice ?? null) : null;
@@ -305,11 +310,8 @@ export default function PlayerPage() {
       if (lastEdited === "shares" && maxSharesToUse > 0) {
         setIsLoadingZapQuote(true);
         try {
-          const res = await fetch(
+          const res = await authenticatedFetch(
             `/api/lp/${encodeURIComponent(id)}/zap-quote?shares=${maxSharesToUse}`,
-            {
-              credentials: "include",
-            },
           );
           if (res.ok) {
             const data = await res.json();
@@ -323,11 +325,8 @@ export default function PlayerPage() {
       } else if (lastEdited === "sb" && maxPlayMoneyToUse > 0) {
         setIsLoadingZapQuote(true);
         try {
-          const res = await fetch(
+          const res = await authenticatedFetch(
             `/api/lp/${encodeURIComponent(id)}/zap-quote?sb=${maxPlayMoneyToUse}`,
-            {
-              credentials: "include",
-            },
           );
           if (res.ok) {
             const data = await res.json();
@@ -603,7 +602,7 @@ export default function PlayerPage() {
       : null;
 
   // Calculate Y-axis domain with 5% padding for better chart visualization
-  const chartDomain = (() => {
+  const chartDomain = useMemo(() => {
     if (priceHistory.length === 0) return undefined;
     const prices = priceHistory.map((p) =>
       typeof p.price === "string" ? parseFloat(p.price) : p.price,
@@ -617,7 +616,7 @@ export default function PlayerPage() {
     const range = maxPrice - minPrice;
     const padding = range * 0.05;
     return [Math.max(0, minPrice - padding), maxPrice + padding];
-  })();
+  }, [priceHistory]);
 
   return (
     <div className="terminal-page p-2 sm:p-3 lg:p-4">

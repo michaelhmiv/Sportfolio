@@ -1,4 +1,4 @@
-import { useDeferredValue, useState } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import {
@@ -745,11 +745,15 @@ export default function Analytics() {
   const { data: analyticsData, isLoading } = useQuery<AnalyticsData>({
     queryKey: [`/api/analytics?timeRange=${timeRange}`],
     refetchInterval: 30000,
+    staleTime: 30000,
+    placeholderData: (previousData) => previousData,
   });
 
   const { data: snapshotsData } = useQuery<SnapshotsResponse>({
     queryKey: [`/api/analytics/snapshots?timeRange=${timeRange}`],
     refetchInterval: 60000,
+    staleTime: 60000,
+    placeholderData: (previousData) => previousData,
   });
 
   const { data: comparisonData, isLoading: comparisonLoading } = useQuery<{
@@ -759,80 +763,117 @@ export default function Analytics() {
       `/api/analytics/compare?playerIds=${selectedPlayers.join(",")}&timeRange=${timeRange}`,
     ],
     enabled: selectedPlayers.length > 0,
+    staleTime: 30000,
+    placeholderData: (previousData) => previousData,
   });
 
   const { data: correlationsData } = useQuery<CorrelationPair[]>({
     queryKey: ["/api/analytics/correlations"],
     refetchInterval: 60000,
+    staleTime: 60000,
+    placeholderData: (previousData) => previousData,
   });
 
   const { data: playersData } = useQuery<{ players: Player[] }>({
     queryKey: ["/api/players"],
+    staleTime: 60000,
+    placeholderData: (previousData) => previousData,
   });
 
   const marketHealth = analyticsData?.marketHealth;
   const snapshots = Array.isArray(snapshotsData?.snapshots) ? snapshotsData.snapshots : [];
-  const allPlayers = Array.isArray(playersData?.players) ? playersData.players : [];
-  const playerById = allPlayers.reduce<Record<string, Player>>((acc, player) => {
-    acc[player.id] = player;
-    return acc;
-  }, {});
-
-  const matchesSelectedSport = (playerId: string) => {
-    if (selectedSport === ALL_SPORTS || allPlayers.length === 0) {
-      return true;
-    }
-
-    return playerById[playerId]?.sport?.toUpperCase() === selectedSport;
-  };
-
-  const powerRankings = Array.isArray(analyticsData?.powerRankings)
-    ? analyticsData.powerRankings
-    : [];
-  const positionRankings = Array.isArray(analyticsData?.positionRankings)
-    ? analyticsData.positionRankings
-    : [];
-  const sportBreakdown = Array.isArray(analyticsData?.sportBreakdown)
-    ? analyticsData.sportBreakdown
-    : [];
-  const filteredPowerRankings = powerRankings.filter((ranking) =>
-    matchesSelectedSport(ranking.player.id),
+  const allPlayers = useMemo(
+    () => (Array.isArray(playersData?.players) ? playersData.players : []),
+    [playersData?.players],
   );
-  const filteredPositionRankings = positionRankings
-    .map((positionRanking) => ({
-      ...positionRanking,
-      players: positionRanking.players.filter((ranking) => matchesSelectedSport(ranking.player.id)),
-    }))
-    .filter((positionRanking) => positionRanking.players.length > 0);
-  const filteredSportBreakdown =
-    selectedSport === ALL_SPORTS
-      ? sportBreakdown
-      : sportBreakdown.filter((sport) => sport.sport === selectedSport);
-  const recommendedComparePlayers = filteredPowerRankings
-    .slice(0, 6)
-    .map((ranking) => playerById[ranking.player.id])
-    .filter((player): player is Player =>
-      Boolean(player && player.isActive && !selectedPlayers.includes(player.id)),
-    );
-  const filteredPlayerSearchResults = allPlayers
-    .filter((player) => {
-      if (
-        !player.isActive ||
-        selectedPlayers.includes(player.id) ||
-        !matchesSelectedSport(player.id)
-      ) {
-        return false;
-      }
+  const playerById = useMemo(
+    () =>
+      allPlayers.reduce<Record<string, Player>>((acc, player) => {
+        acc[player.id] = player;
+        return acc;
+      }, {}),
+    [allPlayers],
+  );
 
-      if (!deferredCompareSearch.trim()) {
-        return true;
-      }
+  const powerRankings = useMemo(
+    () => (Array.isArray(analyticsData?.powerRankings) ? analyticsData.powerRankings : []),
+    [analyticsData?.powerRankings],
+  );
+  const positionRankings = useMemo(
+    () => (Array.isArray(analyticsData?.positionRankings) ? analyticsData.positionRankings : []),
+    [analyticsData?.positionRankings],
+  );
+  const sportBreakdown = useMemo(
+    () => (Array.isArray(analyticsData?.sportBreakdown) ? analyticsData.sportBreakdown : []),
+    [analyticsData?.sportBreakdown],
+  );
+  const filteredPowerRankings = useMemo(
+    () =>
+      powerRankings.filter(
+        (ranking) =>
+          selectedSport === ALL_SPORTS ||
+          allPlayers.length === 0 ||
+          playerById[ranking.player.id]?.sport?.toUpperCase() === selectedSport,
+      ),
+    [allPlayers.length, playerById, powerRankings, selectedSport],
+  );
+  const filteredPositionRankings = useMemo(
+    () =>
+      positionRankings
+        .map((positionRanking) => ({
+          ...positionRanking,
+          players: positionRanking.players.filter(
+            (ranking) =>
+              selectedSport === ALL_SPORTS ||
+              allPlayers.length === 0 ||
+              playerById[ranking.player.id]?.sport?.toUpperCase() === selectedSport,
+          ),
+        }))
+        .filter((positionRanking) => positionRanking.players.length > 0),
+    [allPlayers.length, playerById, positionRankings, selectedSport],
+  );
+  const filteredSportBreakdown = useMemo(
+    () =>
+      selectedSport === ALL_SPORTS
+        ? sportBreakdown
+        : sportBreakdown.filter((sport) => sport.sport === selectedSport),
+    [selectedSport, sportBreakdown],
+  );
+  const recommendedComparePlayers = useMemo(
+    () =>
+      filteredPowerRankings
+        .slice(0, 6)
+        .map((ranking) => playerById[ranking.player.id])
+        .filter((player): player is Player =>
+          Boolean(player && player.isActive && !selectedPlayers.includes(player.id)),
+        ),
+    [filteredPowerRankings, playerById, selectedPlayers],
+  );
+  const filteredPlayerSearchResults = useMemo(
+    () =>
+      allPlayers
+        .filter((player) => {
+          if (
+            !player.isActive ||
+            selectedPlayers.includes(player.id) ||
+            (selectedSport !== ALL_SPORTS &&
+              allPlayers.length > 0 &&
+              playerById[player.id]?.sport?.toUpperCase() !== selectedSport)
+          ) {
+            return false;
+          }
 
-      const haystack =
-        `${player.firstName} ${player.lastName} ${player.team} ${player.position} ${player.sport || ""}`.toLowerCase();
-      return haystack.includes(deferredCompareSearch.trim().toLowerCase());
-    })
-    .slice(0, 12);
+          if (!deferredCompareSearch.trim()) {
+            return true;
+          }
+
+          const haystack =
+            `${player.firstName} ${player.lastName} ${player.team} ${player.position} ${player.sport || ""}`.toLowerCase();
+          return haystack.includes(deferredCompareSearch.trim().toLowerCase());
+        })
+        .slice(0, 12),
+    [allPlayers, deferredCompareSearch, playerById, selectedPlayers, selectedSport],
+  );
 
   const spotlightRanking =
     filteredPowerRankings.find((ranking) => ranking.player.id === selectedSpotlightId) ??

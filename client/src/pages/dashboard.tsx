@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -35,7 +35,6 @@ import {
   ChevronRight,
   ExternalLink,
   ArrowUpDown,
-  LogIn,
   Zap,
   Flame,
   Activity,
@@ -367,6 +366,7 @@ export default function Dashboard() {
     },
     refetchInterval: pollingInterval,
     refetchIntervalInBackground: false,
+    staleTime: 30000,
     placeholderData: (previousData) => previousData,
   });
 
@@ -435,6 +435,8 @@ export default function Dashboard() {
     enabled: isNascar,
     refetchInterval: isToday(selectedDate) ? pollingInterval : false,
     refetchIntervalInBackground: false,
+    staleTime: 30000,
+    placeholderData: (previousData) => previousData,
   });
 
   // NBA/NFL query using /api/games/insights
@@ -450,6 +452,8 @@ export default function Dashboard() {
     enabled: !isNascar,
     refetchInterval: isToday(selectedDate) ? pollingInterval : false,
     refetchIntervalInBackground: false,
+    staleTime: 30000,
+    placeholderData: (previousData) => previousData,
   });
 
   const { data: boostEligibility } = useQuery<BoostEligibilityResponse>({
@@ -462,27 +466,45 @@ export default function Dashboard() {
     enabled: isAuthenticated,
     refetchInterval: isToday(selectedDate) ? 60000 : false,
     refetchIntervalInBackground: false,
+    staleTime: 30000,
     placeholderData: (previousData) => previousData,
   });
 
-  const games = gameInsights?.games || [];
-  const races = raceInsights?.races || [];
-  const raceHoldings = raceInsights?.userHoldings || [];
-  const slatePlayers = isNascar
-    ? raceInsights?.slateDrivers || []
-    : gameInsights?.slatePlayers || [];
-  const eligiblePlayers = boostEligibility?.eligiblePlayers || [];
-  const filterTabs = ["ALL", ...SPORTS.filter((sportOption) => sportOption !== "ALL")] as const;
+  const games = useMemo(() => gameInsights?.games || [], [gameInsights?.games]);
+  const races = useMemo(() => raceInsights?.races || [], [raceInsights?.races]);
+  const raceHoldings = useMemo(
+    () => raceInsights?.userHoldings || [],
+    [raceInsights?.userHoldings],
+  );
+  const slatePlayers = useMemo(
+    () => (isNascar ? raceInsights?.slateDrivers || [] : gameInsights?.slatePlayers || []),
+    [gameInsights?.slatePlayers, isNascar, raceInsights?.slateDrivers],
+  );
+  const eligiblePlayers = useMemo(
+    () => boostEligibility?.eligiblePlayers || [],
+    [boostEligibility?.eligiblePlayers],
+  );
+  const filterTabs = useMemo(
+    () => ["ALL", ...SPORTS.filter((sportOption) => sportOption !== "ALL")] as const,
+    [],
+  );
   // Use global sport context for filtering (syncs with other pages)
   const globalSportFilter = sport === "ALL" ? "ALL" : sport;
-  const filteredGamesBySport =
-    globalSportFilter === "ALL"
-      ? games
-      : games.filter((game) => (game.sport || "").toUpperCase() === globalSportFilter);
-  const gameEntries: DashboardShowcaseGameEntry[] = filteredGamesBySport.map((game) => ({
-    game,
-    effectiveStatus: getEffectiveGameStatus(game),
-  }));
+  const filteredGamesBySport = useMemo(
+    () =>
+      globalSportFilter === "ALL"
+        ? games
+        : games.filter((game) => (game.sport || "").toUpperCase() === globalSportFilter),
+    [games, globalSportFilter],
+  );
+  const gameEntries: DashboardShowcaseGameEntry[] = useMemo(
+    () =>
+      filteredGamesBySport.map((game) => ({
+        game,
+        effectiveStatus: getEffectiveGameStatus(game),
+      })),
+    [filteredGamesBySport],
+  );
 
   const sortGamesByStartAsc = (a: GameInsight, b: GameInsight) =>
     new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
@@ -493,31 +515,39 @@ export default function Dashboard() {
   const sortRacesByDateDesc = (a: DashboardShowcaseRace, b: DashboardShowcaseRace) =>
     new Date(b.raceDate).getTime() - new Date(a.raceDate).getTime();
 
-  const liveGames = gameEntries
-    .filter((entry) => entry.effectiveStatus === "inprogress")
-    .map((entry) => entry.game)
-    .sort(sortGamesByStartAsc);
-  const upcomingGames = gameEntries
-    .filter((entry) => entry.effectiveStatus === "scheduled")
-    .map((entry) => entry.game)
-    .sort(sortGamesByStartAsc);
-  const finalGames = gameEntries
-    .filter(
-      (entry) => entry.effectiveStatus === "completed" || entry.effectiveStatus === "postponed",
-    )
-    .map((entry) => entry.game)
-    .sort(sortGamesByStartDesc);
+  const { liveGames, upcomingGames, finalGames } = useMemo(
+    () => ({
+      liveGames: gameEntries
+        .filter((entry) => entry.effectiveStatus === "inprogress")
+        .map((entry) => entry.game)
+        .sort(sortGamesByStartAsc),
+      upcomingGames: gameEntries
+        .filter((entry) => entry.effectiveStatus === "scheduled")
+        .map((entry) => entry.game)
+        .sort(sortGamesByStartAsc),
+      finalGames: gameEntries
+        .filter(
+          (entry) => entry.effectiveStatus === "completed" || entry.effectiveStatus === "postponed",
+        )
+        .map((entry) => entry.game)
+        .sort(sortGamesByStartDesc),
+    }),
+    [gameEntries],
+  );
 
   // NASCAR race filtering
-  const liveRaces = races
-    .filter((race: any) => race.status === "inprogress")
-    .sort(sortRacesByDateAsc);
-  const upcomingRaces = races
-    .filter((race: any) => race.status === "scheduled")
-    .sort(sortRacesByDateAsc);
-  const completedRaces = races
-    .filter((race: any) => race.status === "completed")
-    .sort(sortRacesByDateDesc);
+  const { liveRaces, upcomingRaces, completedRaces } = useMemo(
+    () => ({
+      liveRaces: races.filter((race: any) => race.status === "inprogress").sort(sortRacesByDateAsc),
+      upcomingRaces: races
+        .filter((race: any) => race.status === "scheduled")
+        .sort(sortRacesByDateAsc),
+      completedRaces: races
+        .filter((race: any) => race.status === "completed")
+        .sort(sortRacesByDateDesc),
+    }),
+    [races],
+  );
   const isLoadingInsights = isNascar ? isLoadingRaces : isLoadingGames;
 
   // Pull-to-refresh
@@ -636,32 +666,6 @@ export default function Dashboard() {
     <>
       <div ref={containerRef} className="terminal-page max-w-full overflow-x-hidden">
         <PullToRefreshIndicator pullProgress={pullDistance / 72} isRefreshing={isRefreshing} />
-        {/* Login Banner for Non-Authenticated Users */}
-        {!isAuthenticated && (
-          <div className="bg-primary text-primary-foreground border-b border-primary/20">
-            <div className="container mx-auto px-4 py-3 flex items-center justify-between gap-4">
-              <div className="flex items-center gap-2 text-sm sm:text-base">
-                <LogIn className="w-4 h-4 flex-shrink-0" />
-                <span className="font-medium">
-                  Sign in to start trading, scouting, and competing.
-                </span>
-              </div>
-              <Button
-                variant="secondary"
-                size="sm"
-                asChild
-                className="flex-shrink-0"
-                data-testid="button-banner-login"
-              >
-                <Link href="/login" className="flex items-center gap-2">
-                  Sign In
-                  <LogIn className="w-3 h-3" />
-                </Link>
-              </Button>
-            </div>
-          </div>
-        )}
-
         {/* Market Activity Ticker */}
         <MarketTicker />
 

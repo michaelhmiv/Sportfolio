@@ -366,6 +366,9 @@ export default function UserProfile() {
 
   const { data: profile, isLoading } = useQuery<UserProfileResponse>({
     queryKey: [`/api/user/${userId}/profile`],
+    enabled: !!userId,
+    staleTime: 30000,
+    placeholderData: (previousData) => previousData,
   });
 
   const updateUsernameMutation = useMutation({

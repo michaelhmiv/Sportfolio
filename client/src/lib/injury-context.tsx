@@ -1,4 +1,4 @@
-import { createContext, useContext, ReactNode } from "react";
+import { createContext, useCallback, useContext, useMemo, ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 const IS_DEV = import.meta.env.DEV;
@@ -39,21 +39,24 @@ export function InjuryProvider({ children }: { children: ReactNode }) {
   }
 
   // Build a map for O(1) lookup
-  const injuries = new Map<string, InjuryInfo>();
-  if (injuredPlayers) {
-    for (const player of injuredPlayers) {
-      injuries.set(player.id, player);
+  const injuries = useMemo(() => {
+    const injuryMap = new Map<string, InjuryInfo>();
+    if (injuredPlayers) {
+      for (const player of injuredPlayers) {
+        injuryMap.set(player.id, player);
+      }
     }
-  }
+    return injuryMap;
+  }, [injuredPlayers]);
 
-  const getInjury = (playerId: string) => injuries.get(playerId);
-  const isInjured = (playerId: string) => injuries.has(playerId);
-
-  return (
-    <InjuryContext.Provider value={{ injuries, isLoading, getInjury, isInjured }}>
-      {children}
-    </InjuryContext.Provider>
+  const getInjury = useCallback((playerId: string) => injuries.get(playerId), [injuries]);
+  const isInjured = useCallback((playerId: string) => injuries.has(playerId), [injuries]);
+  const value = useMemo(
+    () => ({ injuries, isLoading, getInjury, isInjured }),
+    [getInjury, injuries, isInjured, isLoading],
   );
+
+  return <InjuryContext.Provider value={value}>{children}</InjuryContext.Provider>;
 }
 
 export function useInjuries() {

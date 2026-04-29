@@ -5,7 +5,7 @@
 
  */
 
-import { createContext, useContext, useState, ReactNode } from "react";
+import { createContext, useCallback, useContext, useMemo, useState, ReactNode } from "react";
 
 interface ScoutContextType {
   isScoutDashboardOpen: boolean;
@@ -17,18 +17,18 @@ const ScoutContext = createContext<ScoutContextType | null>(null);
 
 export function ScoutProvider({ children }: { children: ReactNode }) {
   const [isScoutDashboardOpen, setIsScoutDashboardOpen] = useState(false);
-
-  return (
-    <ScoutContext.Provider
-      value={{
-        isScoutDashboardOpen,
-        openScoutDashboard: () => setIsScoutDashboardOpen(true),
-        closeScoutDashboard: () => setIsScoutDashboardOpen(false),
-      }}
-    >
-      {children}
-    </ScoutContext.Provider>
+  const openScoutDashboard = useCallback(() => setIsScoutDashboardOpen(true), []);
+  const closeScoutDashboard = useCallback(() => setIsScoutDashboardOpen(false), []);
+  const value = useMemo(
+    () => ({
+      isScoutDashboardOpen,
+      openScoutDashboard,
+      closeScoutDashboard,
+    }),
+    [closeScoutDashboard, isScoutDashboardOpen, openScoutDashboard],
   );
+
+  return <ScoutContext.Provider value={value}>{children}</ScoutContext.Provider>;
 }
 
 export function useScout() {

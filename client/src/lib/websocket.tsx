@@ -1,4 +1,12 @@
-import { createContext, useContext, useEffect, useRef, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { queryClient } from "@/lib/queryClient";
 import {
   debouncedInvalidatePortfolio,
@@ -228,7 +236,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const subscribe = (eventType: string, handler: (data: any) => void) => {
+  const subscribe = useCallback((eventType: string, handler: (data: any) => void) => {
     if (!handlersRef.current.has(eventType)) {
       handlersRef.current.set(eventType, new Set());
     }
@@ -243,7 +251,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
         }
       }
     };
-  };
+  }, []);
 
   const freshnessState: "live" | "catching_up" | "offline" =
     connectionState !== "connected"
@@ -258,20 +266,19 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
             ? "catching_up"
             : "offline";
 
-  return (
-    <WebSocketContext.Provider
-      value={{
-        isConnected,
-        connectionState,
-        reconnectAttempts,
-        lastMessageAt,
-        freshnessState,
-        subscribe,
-      }}
-    >
-      {children}
-    </WebSocketContext.Provider>
+  const value = useMemo(
+    () => ({
+      isConnected,
+      connectionState,
+      reconnectAttempts,
+      lastMessageAt,
+      freshnessState,
+      subscribe,
+    }),
+    [connectionState, freshnessState, isConnected, lastMessageAt, reconnectAttempts, subscribe],
   );
+
+  return <WebSocketContext.Provider value={value}>{children}</WebSocketContext.Provider>;
 }
 
 export function useWebSocket() {

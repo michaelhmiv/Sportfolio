@@ -2592,3 +2592,22 @@ Review:
 - Added regressions in `server/agent/mcp-sources.test.ts` and `server/agent/data-sources.test.ts` to lock down bootstrap-on-missing-schema and fail-soft capability loading.
 - Validation passed: `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`.
 - Local dev DB repair passed via the new ensure path, and `user_mcp_sources` now exists locally with the expected columns: `id`, `user_id`, `name`, `url`, `auth_type`, `auth_token`, `enabled`, `discovered_tools`, `last_verified_at`, `last_error`, `created_at`, and `updated_at`.
+
+## 2026-04-28 App Performance Pass
+
+- [x] Lazy-load initial dashboard/global modal/native surfaces
+- [x] Improve route loading skeletons and prefetch behavior
+- [x] Memoize provider values and expensive derived page data
+- [x] Tune safe client query caching/fetch paths
+- [x] Run validation (`npm run check`, `npm run lint`, `npm run test:run`, `npm run build`)
+
+Review:
+
+- Moved the dashboard and global modal/ceremony/native surfaces out of the initial app path, added route-shaped skeletons, and prefetch main route chunks on nav hover/focus.
+- Stabilized provider values and memoized heavier dashboard/analytics derived data to reduce avoidable rerender work.
+- Added safe stale/placeholder behavior to repeated route queries and replaced touched direct API fetches with the app's authenticated/native-safe helper.
+- Production build now emits a smaller app entry chunk (`index` 423.31 kB minified / 124.79 kB gzip) instead of the prior 1,126.46 kB / 327.05 kB monolith, with stable vendor chunks split for React, UI, markdown, query, and native code.
+- Android emulator QA caught an unsafe manual chart vendor split (`ReferenceError: Cannot access '_' before initialization` from the WebView chart chunk); that split was removed, the app was rebuilt/reinstalled, and the fatal log signature no longer appears.
+- Android emulator timing smoke after the corrected build: cold launch `am start -W` total time 6,155 ms; observed route asset request after tap was 524 ms for Player Pools and 303 ms for Analytics, while protected unauth tabs/dashboard return reused cached/fallback content.
+- Removed the duplicate dashboard sign-in banner on mobile so unauthenticated users see the persistent top-nav sign-in only.
+- Validation passed: `npm run check`, `npm run lint`, `npm run test:run`, `npm run build`, and `npm run mobile:install:android`.

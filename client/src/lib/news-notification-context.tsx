@@ -1,4 +1,12 @@
-import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+  useCallback,
+  useMemo,
+} from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { authenticatedFetch } from "@/lib/queryClient";
 
@@ -74,18 +82,19 @@ export function NewsNotificationProvider({ children }: { children: ReactNode }) 
     return () => clearInterval(interval);
   }, [isAuthenticated, refreshUnreadCount]);
 
+  const value = useMemo(
+    () => ({
+      unreadNewsCount,
+      unreadDigestCount,
+      hasUnreadDigest,
+      markNewsAsRead,
+      refreshUnreadCount,
+    }),
+    [hasUnreadDigest, markNewsAsRead, refreshUnreadCount, unreadDigestCount, unreadNewsCount],
+  );
+
   return (
-    <NewsNotificationContext.Provider
-      value={{
-        unreadNewsCount,
-        unreadDigestCount,
-        hasUnreadDigest,
-        markNewsAsRead,
-        refreshUnreadCount,
-      }}
-    >
-      {children}
-    </NewsNotificationContext.Provider>
+    <NewsNotificationContext.Provider value={value}>{children}</NewsNotificationContext.Provider>
   );
 }
 

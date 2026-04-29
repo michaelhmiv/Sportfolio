@@ -18,6 +18,26 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return;
+          if (
+            id.includes("react-markdown") ||
+            id.includes("remark-") ||
+            id.includes("rehype-") ||
+            id.includes("micromark") ||
+            id.includes("unified")
+          ) {
+            return "vendor-markdown";
+          }
+          if (id.includes("@capacitor")) return "vendor-native";
+          if (id.includes("@radix-ui") || id.includes("vaul")) return "vendor-ui";
+          if (id.includes("@tanstack")) return "vendor-query";
+          if (id.includes("react") || id.includes("wouter")) return "vendor-react";
+        },
+      },
+    },
   },
   server: {
     fs: {
