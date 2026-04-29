@@ -5985,7 +5985,7 @@ export class DatabaseStorage implements IStorage {
     now: Date = new Date(),
   ): Promise<RewardedScoutBoostGrant | undefined> {
     return db.transaction(async (tx) => {
-      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${grant.userId})::bigint)`);
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${grant.userId}, 0))`);
 
       const [activeGrant] = await tx
         .select()

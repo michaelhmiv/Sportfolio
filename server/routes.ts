@@ -2646,7 +2646,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Keep ads.txt directly crawlable for AdSense / Ad Manager site verification.
   app.get("/ads.txt", (_req, res) => {
-    const publisherId = (process.env.ADSENSE_PUBLISHER_ID || "pub-2708638041809482").trim();
+    const fallbackId = "pub-2708638041809482";
+    const raw = (process.env.ADSENSE_PUBLISHER_ID ?? fallbackId).replace(/\s+/g, "");
+    const publisherId = /^pub-\d+$/.test(raw) ? raw : fallbackId;
     res.type("text/plain");
     res.set("Cache-Control", "public, max-age=3600");
     res.send(`google.com, ${publisherId}, DIRECT, f08c47fec0942fa0\n`);

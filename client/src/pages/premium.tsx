@@ -18,7 +18,6 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import {
   getRewardedScoutBoostUnavailableMessage,
   useRewardedScoutBoost,
-  type RewardedScoutBoostStatus,
 } from "@/hooks/use-rewarded-scout-boost";
 import { isNativeAndroid } from "@/lib/native-platform";
 import { Check, Crown, Loader2, Minus, Plus, RefreshCw, ShoppingCart, Zap } from "lucide-react";
@@ -470,7 +469,9 @@ export default function Premium() {
       });
 
       if (result.status?.rewardedScoutBoostActive) {
-        queryClient.setQueryData<RewardedScoutBoostStatus>(["/api/premium/status"], result.status);
+        queryClient.setQueryData<PremiumStatus>(["/api/premium/status"], (prev) =>
+          prev ? { ...prev, ...result.status } : prev,
+        );
         toast({
           title: "Scout Boost Time Added",
           description: "Your 10-scout boost was extended by 12 hours.",
