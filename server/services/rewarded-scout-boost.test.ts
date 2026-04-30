@@ -36,23 +36,27 @@ describe("verifyAdMobSsvCallbackUrl", () => {
   function buildSignedCallbackUrl(
     customData?: string,
     signatureEncoding: "base64url" | "escapedBase64" = "base64url",
+    rewardItem = "scout_boost",
   ) {
     const { privateKey, publicKey } = generateKeyPairSync("ec", {
       namedCurve: "prime256v1",
     });
-    const params = new URLSearchParams({
-      ad_network: "5450213213286189855",
-      ad_unit: "ca-app-pub-3940256099942544/5224354917",
-      reward_amount: "1",
-      reward_item: "scout_boost",
-      timestamp: "1774785600000",
-      transaction_id: "tx-signed-1",
-    });
+    const signedParams = [
+      ["ad_network", "5450213213286189855"],
+      ["ad_unit", "ca-app-pub-3940256099942544/5224354917"],
+      ["reward_amount", "1"],
+      ["reward_item", rewardItem],
+      ["timestamp", "1774785600000"],
+      ["transaction_id", "tx-signed-1"],
+    ];
     if (customData) {
-      params.set("custom_data", customData);
+      signedParams.push(["custom_data", customData]);
     }
-    const queryWithoutSignature = params.toString();
-    const signatureBytes = sign("sha256", Buffer.from(queryWithoutSignature, "utf8"), privateKey);
+    const signedContent = signedParams.map(([key, value]) => `${key}=${value}`).join("&");
+    const queryWithoutSignature = signedParams
+      .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
+      .join("&");
+    const signatureBytes = sign("sha256", Buffer.from(signedContent, "utf8"), privateKey);
     const signature =
       signatureEncoding === "escapedBase64"
         ? encodeURIComponent(signatureBytes.toString("base64"))
@@ -86,6 +90,15 @@ describe("verifyAdMobSsvCallbackUrl", () => {
     const verified = await verifyAdMobSsvCallbackUrl(callbackUrl, async () => keyMap);
 
     expect(verified.transactionId).toBe("tx-signed-1");
+    expect(verified.customData).toBeNull();
+  });
+
+  it("accepts a valid signed AdMob setup probe with percent-escaped reward text", async () => {
+    const { callbackUrl, keyMap } = buildSignedCallbackUrl(undefined, "base64url", "Scout Boost");
+    const verified = await verifyAdMobSsvCallbackUrl(callbackUrl, async () => keyMap);
+
+    expect(callbackUrl).toContain("reward_item=Scout%20Boost");
+    expect(verified.rewardItem).toBe("Scout Boost");
     expect(verified.customData).toBeNull();
   });
 
