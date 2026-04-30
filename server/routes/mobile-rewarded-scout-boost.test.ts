@@ -416,6 +416,12 @@ describe("registerMobileRewardedScoutBoostRoutes", () => {
           body: JSON.stringify({
             customData: session.customData,
             adUnitId: "ca-app-pub-2708638041809482/7806162422",
+            adResponseId: "response-route-123",
+            mediationAdapterClassName: "com.google.ads.mediation.admob.AdMobAdapter",
+            ssvOptionsAttached: true,
+            ssvCustomDataAttached: true,
+            ssvUserIdAttached: true,
+            ssvCustomDataLength: session.customData.length,
             rewardAmount: 1,
             rewardType: "scout_boost",
           }),
@@ -434,7 +440,16 @@ describe("registerMobileRewardedScoutBoostRoutes", () => {
       expect(createStackedRewardedScoutBoostGrant).toHaveBeenCalledWith(
         expect.objectContaining({
           transactionId: `client:${session.rewardSessionId}`,
-          metadata: expect.objectContaining({ verificationStatus: "pending_ssv" }),
+          metadata: expect.objectContaining({
+            verificationStatus: "pending_ssv",
+            androidAdDiagnostics: expect.objectContaining({
+              adResponseId: "response-route-123",
+              ssvOptionsAttached: true,
+              ssvCustomDataAttached: true,
+              ssvUserIdAttached: true,
+              ssvCustomDataLength: session.customData.length,
+            }),
+          }),
         }),
         12 * 60 * 60 * 1000,
         expect.any(Date),

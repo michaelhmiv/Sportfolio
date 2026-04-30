@@ -56,6 +56,18 @@ function getGrantVerificationStatus(grant: { metadata?: unknown } | null | undef
   return typeof metadata.verificationStatus === "string" ? metadata.verificationStatus : null;
 }
 
+function optionalString(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function optionalBoolean(value: unknown) {
+  return typeof value === "boolean" ? value : undefined;
+}
+
+function optionalNumber(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
 export async function registerMobileRewardedScoutBoostRoutes(
   app: Express,
   options: RegisterMobileRewardedScoutBoostRoutesOptions = {},
@@ -213,10 +225,16 @@ export async function registerMobileRewardedScoutBoostRoutes(
           authenticatedUserId: userId,
           rewardSessionId,
           customData,
-          adUnitId: req.body?.adUnitId,
+          adUnitId: optionalString(req.body?.adUnitId),
+          adResponseId: optionalString(req.body?.adResponseId),
+          mediationAdapterClassName: optionalString(req.body?.mediationAdapterClassName),
+          ssvOptionsAttached: optionalBoolean(req.body?.ssvOptionsAttached),
+          ssvCustomDataAttached: optionalBoolean(req.body?.ssvCustomDataAttached),
+          ssvUserIdAttached: optionalBoolean(req.body?.ssvUserIdAttached),
+          ssvCustomDataLength: optionalNumber(req.body?.ssvCustomDataLength),
           rewardAmount:
             typeof req.body?.rewardAmount === "number" ? req.body.rewardAmount : undefined,
-          rewardType: req.body?.rewardType,
+          rewardType: optionalString(req.body?.rewardType),
         });
 
         logger.info(
@@ -225,6 +243,12 @@ export async function registerMobileRewardedScoutBoostRoutes(
             userIdHash: safeUserPrefix(userId),
             outcome: result.outcome,
             expiresAt: "expiresAt" in result ? result.expiresAt : null,
+            adUnitId: optionalString(req.body?.adUnitId),
+            adResponseId: optionalString(req.body?.adResponseId),
+            ssvOptionsAttached: optionalBoolean(req.body?.ssvOptionsAttached),
+            ssvCustomDataAttached: optionalBoolean(req.body?.ssvCustomDataAttached),
+            ssvUserIdAttached: optionalBoolean(req.body?.ssvUserIdAttached),
+            ssvCustomDataLength: optionalNumber(req.body?.ssvCustomDataLength),
           },
           "[REWARDED_SCOUT_BOOST] Client reward callback recorded",
         );
