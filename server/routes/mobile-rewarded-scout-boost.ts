@@ -15,6 +15,7 @@ type MobileRewardedScoutBoostStorage = Pick<
   | "getUser"
   | "updateUserPremiumStatus"
   | "getActiveRewardedScoutBoostForUser"
+  | "getLatestRewardedScoutBoostGrantBySessionId"
   | "createStackedRewardedScoutBoostGrant"
 >;
 
@@ -29,6 +30,10 @@ function getUserId(req: any): string {
   }
 
   return req.user.claims.sub;
+}
+
+function applyNoStore(res: any) {
+  res.set("Cache-Control", "no-store, max-age=0");
 }
 
 export async function registerMobileRewardedScoutBoostRoutes(
@@ -86,6 +91,8 @@ export async function registerMobileRewardedScoutBoostRoutes(
     options.authMiddleware ?? (await import("../supabaseAuth")).isAuthenticated;
 
   app.post("/api/mobile/rewarded-scout-boost/session", authMiddleware, async (req, res) => {
+    applyNoStore(res);
+
     try {
       const userId = getUserId(req);
       const userState = await loadUserEntitlements(storageLayer, userId);
@@ -112,6 +119,7 @@ export async function registerMobileRewardedScoutBoostRoutes(
         adUnitId: getRewardedScoutBoostAdUnitId(),
         customData: session.customData,
         rewardSessionId: session.rewardSessionId,
+        statusCheckUrl: `/api/mobile/rewarded-scout-boost/session/${session.rewardSessionId}/status`,
         issuedAt: session.issuedAt,
         expiresAt: session.expiresAt,
         boostDurationHours: 12,
@@ -125,4 +133,46 @@ export async function registerMobileRewardedScoutBoostRoutes(
       return res.status(500).json({ error: error.message });
     }
   });
+
+  app.get(
+    "/api/mobile/rewarded-scout-boost/session/:rewardSessionId/status",
+    authMiddleware,
+    async (req, res) => {
+      applyNoStore(res);
+
+      try {
+        const userId = getUserId(req);
+        const rewardSessionId = String(req.params.rewardSessionId || "").trim();
+
+        if (!rewardSessionId) {
+          return res.status(400).json({ error: "rewardSessionId is required" });
+        }
+
+        const [userState, grant] = await Promise.all([
+          loadUserEntitlements(storageLayer, userId),
+          storageLayer.getLatestRewardedScoutBoostGrantBySessionId(userId, rewardSessionId),
+        ]);
+
+        if (!userState) {
+          return res.status(404).json({ error: "User not found" });
+        }
+
+        return res.json({
+          outcome: grant ? "granted" : "pending",
+          rewardSessionId,
+          expiresAt: grant?.expiresAt ?? null,
+          premiumActive: userState.entitlements.premiumActive,
+          rewardedScoutBoostActive: userState.entitlements.rewardedScoutBoostActive,
+          rewardedScoutBoostExpiresAt: userState.entitlements.rewardedScoutBoostExpiresAt,
+          maxScouts: userState.entitlements.maxScouts,
+        });
+      } catch (error: any) {
+        logger.error(
+          { err: error },
+          "[REWARDED_SCOUT_BOOST] Failed to load rewarded scout boost session status",
+        );
+        return res.status(500).json({ error: error.message });
+      }
+    },
+  );
 }

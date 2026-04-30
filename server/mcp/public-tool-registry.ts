@@ -3567,6 +3567,15 @@ const PUBLIC_EXCLUDED_CAPABILITIES: PublicExcludedCapability[] = [
       "Android-native rewarded ad session bootstrap stays outside the shared CLI and MCP capability surface.",
   },
   {
+    capabilityId: "mobile_rewarded_scout_boost_session_status",
+    kind: "excluded",
+    status: "excluded",
+    domain: "mobile",
+    source: "/api/mobile/rewarded-scout-boost/session/:rewardSessionId/status",
+    notes:
+      "Android-native rewarded ad verification polling stays outside the shared CLI and MCP capability surface.",
+  },
+  {
     capabilityId: "mobile_google_play_verify_purchase",
     kind: "excluded",
     status: "excluded",
@@ -3925,6 +3934,11 @@ const PUBLIC_SITE_ROUTE_COVERAGE: PublicSiteRouteCoverageEntry[] = [
     method: "POST",
     path: "/api/mobile/rewarded-scout-boost/session",
     excludedCapabilityId: "mobile_rewarded_scout_boost_session",
+  },
+  {
+    method: "GET",
+    path: "/api/mobile/rewarded-scout-boost/session/:rewardSessionId/status",
+    excludedCapabilityId: "mobile_rewarded_scout_boost_session_status",
   },
   {
     method: "POST",

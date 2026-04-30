@@ -16,6 +16,7 @@ export interface RewardedScoutBoostSessionResponse extends RewardedScoutBoostSta
   adUnitId?: string;
   customData?: string;
   rewardSessionId?: string;
+  statusCheckUrl?: string;
   expiresAt?: string;
   boostDurationHours?: number;
 }
@@ -110,6 +111,46 @@ async function waitForRewardedBoostExtension(previousExpiresAt?: string | null) 
   return null;
 }
 
+async function fetchRewardedScoutBoostSessionStatus(statusCheckUrl: string) {
+  const response = await authenticatedFetch(statusCheckUrl, {
+    headers: {
+      "Cache-Control": "no-cache",
+      Pragma: "no-cache",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to verify rewarded scout boost status");
+  }
+
+  return (await response.json()) as RewardedScoutBoostStatus & {
+    outcome: "pending" | "granted";
+    rewardSessionId: string;
+    expiresAt?: string | null;
+  };
+}
+
+async function waitForRewardedBoostGrantBySession(
+  statusCheckUrl: string,
+  previousExpiresAt?: string | null,
+) {
+  const maxAttempts = 10;
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const status = await fetchRewardedScoutBoostSessionStatus(statusCheckUrl);
+    queryClient.setQueryData(["/api/premium/status"], status);
+
+    if (status.outcome === "granted" || hasBoostExpirationAdvanced(status, previousExpiresAt)) {
+      await invalidateRewardedScoutBoostQueries();
+      return status;
+    }
+
+    await sleep(1000 + attempt * 500);
+  }
+
+  await invalidateRewardedScoutBoostQueries();
+  return null;
+}
+
 export function useRewardedScoutBoost({ userId }: { userId?: string | null }) {
   const androidBuild = isNativeAndroid();
   const rewardFlowInFlightRef = useRef(false);
@@ -173,9 +214,15 @@ export function useRewardedScoutBoost({ userId }: { userId?: string | null }) {
       }
 
       setRewardedVerificationPending(true);
-      const status = await waitForRewardedBoostExtension(
-        previousExpiresAt ?? session.rewardedScoutBoostExpiresAt,
-      );
+      const status =
+        session.rewardSessionId && session.statusCheckUrl
+          ? await waitForRewardedBoostGrantBySession(
+              session.statusCheckUrl,
+              previousExpiresAt ?? session.rewardedScoutBoostExpiresAt,
+            )
+          : await waitForRewardedBoostExtension(
+              previousExpiresAt ?? session.rewardedScoutBoostExpiresAt,
+            );
       return { outcome: "completed", session, status };
     } finally {
       rewardFlowInFlightRef.current = false;

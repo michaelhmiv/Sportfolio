@@ -641,6 +641,10 @@ export interface IStorage {
     userId: string,
     now?: Date,
   ): Promise<RewardedScoutBoostGrant | undefined>;
+  getLatestRewardedScoutBoostGrantBySessionId(
+    userId: string,
+    rewardSessionId: string,
+  ): Promise<RewardedScoutBoostGrant | undefined>;
   createRewardedScoutBoostGrant(
     grant: InsertRewardedScoutBoostGrant,
   ): Promise<RewardedScoutBoostGrant | undefined>;
@@ -5943,6 +5947,26 @@ export class DatabaseStorage implements IStorage {
           eq(rewardedScoutBoostGrants.userId, userId),
           isNull(rewardedScoutBoostGrants.revokedAt),
           gt(rewardedScoutBoostGrants.expiresAt, now),
+        ),
+      )
+      .orderBy(desc(rewardedScoutBoostGrants.expiresAt))
+      .limit(1);
+
+    return grant || undefined;
+  }
+
+  async getLatestRewardedScoutBoostGrantBySessionId(
+    userId: string,
+    rewardSessionId: string,
+  ): Promise<RewardedScoutBoostGrant | undefined> {
+    const [grant] = await db
+      .select()
+      .from(rewardedScoutBoostGrants)
+      .where(
+        and(
+          eq(rewardedScoutBoostGrants.userId, userId),
+          eq(rewardedScoutBoostGrants.rewardSessionId, rewardSessionId),
+          isNull(rewardedScoutBoostGrants.revokedAt),
         ),
       )
       .orderBy(desc(rewardedScoutBoostGrants.expiresAt))

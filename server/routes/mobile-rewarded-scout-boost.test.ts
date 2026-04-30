@@ -48,6 +48,7 @@ describe("registerMobileRewardedScoutBoostRoutes", () => {
         getUser: vi.fn(),
         updateUserPremiumStatus: vi.fn(),
         getActiveRewardedScoutBoostForUser: vi.fn(),
+        getLatestRewardedScoutBoostGrantBySessionId: vi.fn(),
         createStackedRewardedScoutBoostGrant: vi.fn(),
       },
     });
@@ -83,6 +84,7 @@ describe("registerMobileRewardedScoutBoostRoutes", () => {
         }),
         updateUserPremiumStatus: vi.fn(),
         getActiveRewardedScoutBoostForUser: vi.fn().mockResolvedValue(undefined),
+        getLatestRewardedScoutBoostGrantBySessionId: vi.fn().mockResolvedValue(undefined),
         createStackedRewardedScoutBoostGrant: vi.fn(),
       },
     });
@@ -99,6 +101,7 @@ describe("registerMobileRewardedScoutBoostRoutes", () => {
       await expect(response.json()).resolves.toMatchObject({
         eligible: true,
         adNetwork: "admob",
+        statusCheckUrl: expect.stringContaining("/api/mobile/rewarded-scout-boost/session/"),
         boostDurationHours: 12,
         premiumActive: false,
         rewardedScoutBoostActive: false,
@@ -130,6 +133,7 @@ describe("registerMobileRewardedScoutBoostRoutes", () => {
           expiresAt: activeExpiresAt,
           revokedAt: null,
         }),
+        getLatestRewardedScoutBoostGrantBySessionId: vi.fn().mockResolvedValue(undefined),
         createStackedRewardedScoutBoostGrant: vi.fn(),
       },
     });
@@ -146,6 +150,7 @@ describe("registerMobileRewardedScoutBoostRoutes", () => {
       await expect(response.json()).resolves.toMatchObject({
         eligible: true,
         adNetwork: "admob",
+        statusCheckUrl: expect.stringContaining("/api/mobile/rewarded-scout-boost/session/"),
         boostDurationHours: 12,
         premiumActive: false,
         rewardedScoutBoostActive: true,
@@ -174,6 +179,7 @@ describe("registerMobileRewardedScoutBoostRoutes", () => {
         }),
         updateUserPremiumStatus: vi.fn(),
         getActiveRewardedScoutBoostForUser: vi.fn().mockResolvedValue(undefined),
+        getLatestRewardedScoutBoostGrantBySessionId: vi.fn().mockResolvedValue(undefined),
         createStackedRewardedScoutBoostGrant: vi.fn(),
       },
     });
@@ -192,6 +198,93 @@ describe("registerMobileRewardedScoutBoostRoutes", () => {
         reason: "premium_active",
         premiumActive: true,
         rewardedScoutBoostActive: false,
+        maxScouts: 10,
+      });
+    } finally {
+      await close();
+    }
+  });
+
+  it("returns pending status for a reward session before the SSV grant lands", async () => {
+    const { app, baseUrl, close } = createTestServer();
+    const authMiddleware: RequestHandler = (req: any, _res, next) => {
+      req.user = { claims: { sub: "user-status-pending" } };
+      next();
+    };
+
+    await registerMobileRewardedScoutBoostRoutes(app, {
+      authMiddleware,
+      storage: {
+        getUser: vi.fn().mockResolvedValue({
+          id: "user-status-pending",
+          isPremium: false,
+          premiumExpiresAt: null,
+        }),
+        updateUserPremiumStatus: vi.fn(),
+        getActiveRewardedScoutBoostForUser: vi.fn().mockResolvedValue(undefined),
+        getLatestRewardedScoutBoostGrantBySessionId: vi.fn().mockResolvedValue(undefined),
+        createStackedRewardedScoutBoostGrant: vi.fn(),
+      },
+    });
+
+    try {
+      const response = await fetch(
+        `${baseUrl}/api/mobile/rewarded-scout-boost/session/session-pending/status`,
+      );
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toMatchObject({
+        outcome: "pending",
+        rewardSessionId: "session-pending",
+        rewardedScoutBoostActive: false,
+        maxScouts: 5,
+      });
+    } finally {
+      await close();
+    }
+  });
+
+  it("returns granted status for a reward session after the SSV grant lands", async () => {
+    const { app, baseUrl, close } = createTestServer();
+    const grantedExpiresAt = new Date("2099-04-16T00:00:00.000Z");
+    const authMiddleware: RequestHandler = (req: any, _res, next) => {
+      req.user = { claims: { sub: "user-status-granted" } };
+      next();
+    };
+
+    await registerMobileRewardedScoutBoostRoutes(app, {
+      authMiddleware,
+      storage: {
+        getUser: vi.fn().mockResolvedValue({
+          id: "user-status-granted",
+          isPremium: false,
+          premiumExpiresAt: null,
+        }),
+        updateUserPremiumStatus: vi.fn(),
+        getActiveRewardedScoutBoostForUser: vi.fn().mockResolvedValue({
+          expiresAt: grantedExpiresAt,
+          revokedAt: null,
+        }),
+        getLatestRewardedScoutBoostGrantBySessionId: vi.fn().mockResolvedValue({
+          expiresAt: grantedExpiresAt,
+          revokedAt: null,
+        }),
+        createStackedRewardedScoutBoostGrant: vi.fn(),
+      },
+    });
+
+    try {
+      const response = await fetch(
+        `${baseUrl}/api/mobile/rewarded-scout-boost/session/session-granted/status`,
+      );
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toMatchObject({
+        outcome: "granted",
+        rewardSessionId: "session-granted",
+        expiresAt: grantedExpiresAt.toISOString(),
+        rewardedScoutBoostActive: true,
+        rewardedScoutBoostExpiresAt: grantedExpiresAt.toISOString(),
         maxScouts: 10,
       });
     } finally {
