@@ -3576,6 +3576,24 @@ const PUBLIC_EXCLUDED_CAPABILITIES: PublicExcludedCapability[] = [
       "Android-native rewarded ad verification polling stays outside the shared CLI and MCP capability surface.",
   },
   {
+    capabilityId: "mobile_rewarded_scout_boost_client_complete",
+    kind: "excluded",
+    status: "excluded",
+    domain: "mobile",
+    source: "/api/mobile/rewarded-scout-boost/session/:rewardSessionId/client-complete",
+    notes:
+      "Android-native rewarded ad client completion stays outside the shared CLI and MCP capability surface.",
+  },
+  {
+    capabilityId: "admin_rewarded_scout_boost_session_debug",
+    kind: "excluded",
+    status: "excluded",
+    domain: "admin",
+    source: "/api/admin/rewarded-scout-boost/session/:rewardSessionId",
+    notes:
+      "Admin-only rewarded ad session diagnostics stay outside the shared CLI and MCP capability surface.",
+  },
+  {
     capabilityId: "mobile_google_play_verify_purchase",
     kind: "excluded",
     status: "excluded",
@@ -3939,6 +3957,16 @@ const PUBLIC_SITE_ROUTE_COVERAGE: PublicSiteRouteCoverageEntry[] = [
     method: "GET",
     path: "/api/mobile/rewarded-scout-boost/session/:rewardSessionId/status",
     excludedCapabilityId: "mobile_rewarded_scout_boost_session_status",
+  },
+  {
+    method: "POST",
+    path: "/api/mobile/rewarded-scout-boost/session/:rewardSessionId/client-complete",
+    excludedCapabilityId: "mobile_rewarded_scout_boost_client_complete",
+  },
+  {
+    method: "GET",
+    path: "/api/admin/rewarded-scout-boost/session/:rewardSessionId",
+    excludedCapabilityId: "admin_rewarded_scout_boost_session_debug",
   },
   {
     method: "POST",

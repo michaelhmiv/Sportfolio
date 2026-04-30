@@ -520,15 +520,21 @@ export function ScoutDashboardModal() {
 
       if (result.status?.rewardedScoutBoostActive) {
         toast({
-          title: "Scout Boost Time Added",
-          description: "Your 10-scout boost was extended by 12 hours.",
+          title:
+            result.status.verificationStatus === "pending_ssv"
+              ? "Scout Boost Time Added"
+              : "Scout Boost Verified",
+          description:
+            result.status.verificationStatus === "pending_ssv"
+              ? "Your boost was credited now while Google server-side verification finishes."
+              : "Your 10-scout boost was extended by 12 hours.",
         });
         setIsBoostPanelOpen(false);
       } else {
         toast({
-          title: "Verification Pending",
+          title: "Unable to Verify Yet",
           description:
-            "The ad completed, but the reward is still syncing. Refresh again in a moment.",
+            "The ad completed, but no reward confirmation reached Sportfolio yet. Refresh again in a moment.",
         });
       }
     } catch (error: any) {
