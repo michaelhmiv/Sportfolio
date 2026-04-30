@@ -17,9 +17,17 @@ interface WhaleAlert {
   timestamp: number;
 }
 
+interface WhaleAlertMessage {
+  playerId: string;
+  playerName: string;
+  traderUsername: string;
+  tradeValue: number;
+  tradeType: "buy" | "sell";
+}
+
 interface WhaleAlertBannerProps {
   className?: string;
-  initialMessage?: any;
+  initialMessage?: WhaleAlertMessage;
 }
 
 const WHALE_ALERT_DURATION_MS = 3000;
@@ -30,7 +38,7 @@ function maskUsername(username: string): string {
   return username.slice(0, 2) + "***" + username.slice(-1);
 }
 
-function toWhaleAlert(message: any): WhaleAlert {
+function toWhaleAlert(message: WhaleAlertMessage): WhaleAlert {
   return {
     id: `${Date.now()}-${Math.random()}`,
     playerId: message.playerId,

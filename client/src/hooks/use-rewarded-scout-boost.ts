@@ -97,7 +97,6 @@ async function waitForRewardedBoostExtension(previousExpiresAt?: string | null) 
     }
 
     const latestStatus = (await response.json()) as RewardedScoutBoostStatus;
-    queryClient.setQueryData(["/api/premium/status"], latestStatus);
 
     if (hasBoostExpirationAdvanced(latestStatus, previousExpiresAt)) {
       await invalidateRewardedScoutBoostQueries();
@@ -137,7 +136,6 @@ async function waitForRewardedBoostGrantBySession(
   const maxAttempts = 10;
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     const status = await fetchRewardedScoutBoostSessionStatus(statusCheckUrl);
-    queryClient.setQueryData(["/api/premium/status"], status);
 
     if (status.outcome === "granted" || hasBoostExpirationAdvanced(status, previousExpiresAt)) {
       await invalidateRewardedScoutBoostQueries();
