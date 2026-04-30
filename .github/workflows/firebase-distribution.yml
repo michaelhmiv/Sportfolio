@@ -44,6 +44,12 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # The action's default package list includes the legacy "tools"
+          # package, which can pull emulator downloads this release build does
+          # not need. Keep this setup narrow so Firebase distribution is not
+          # blocked by emulator archive/download issues.
+          packages: platform-tools
 
       - name: Validate Firebase + signing secrets
         env:
