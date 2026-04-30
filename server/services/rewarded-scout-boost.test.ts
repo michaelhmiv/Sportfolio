@@ -33,7 +33,10 @@ describe("rewarded scout boost session tokens", () => {
 });
 
 describe("verifyAdMobSsvCallbackUrl", () => {
-  function buildSignedCallbackUrl(customData?: string) {
+  function buildSignedCallbackUrl(
+    customData?: string,
+    signatureEncoding: "base64url" | "escapedBase64" = "base64url",
+  ) {
     const { privateKey, publicKey } = generateKeyPairSync("ec", {
       namedCurve: "prime256v1",
     });
@@ -49,11 +52,11 @@ describe("verifyAdMobSsvCallbackUrl", () => {
       params.set("custom_data", customData);
     }
     const queryWithoutSignature = params.toString();
-    const signature = sign(
-      "sha256",
-      Buffer.from(queryWithoutSignature, "utf8"),
-      privateKey,
-    ).toString("base64url");
+    const signatureBytes = sign("sha256", Buffer.from(queryWithoutSignature, "utf8"), privateKey);
+    const signature =
+      signatureEncoding === "escapedBase64"
+        ? encodeURIComponent(signatureBytes.toString("base64"))
+        : signatureBytes.toString("base64url");
 
     return {
       callbackUrl: `https://example.com/api/mobile/rewarded-scout-boost/admob/ssv?${queryWithoutSignature}&signature=${signature}&key_id=test-key`,
@@ -72,6 +75,14 @@ describe("verifyAdMobSsvCallbackUrl", () => {
 
   it("accepts a valid signed AdMob setup probe without custom data", async () => {
     const { callbackUrl, keyMap } = buildSignedCallbackUrl();
+    const verified = await verifyAdMobSsvCallbackUrl(callbackUrl, async () => keyMap);
+
+    expect(verified.transactionId).toBe("tx-signed-1");
+    expect(verified.customData).toBeNull();
+  });
+
+  it("accepts a valid signed AdMob callback with a percent-escaped base64 signature", async () => {
+    const { callbackUrl, keyMap } = buildSignedCallbackUrl(undefined, "escapedBase64");
     const verified = await verifyAdMobSsvCallbackUrl(callbackUrl, async () => keyMap);
 
     expect(verified.transactionId).toBe("tx-signed-1");
