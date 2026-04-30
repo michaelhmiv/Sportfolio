@@ -653,6 +653,10 @@ export interface IStorage {
     durationMs: number,
     now?: Date,
   ): Promise<RewardedScoutBoostGrant | undefined>;
+  updateRewardedScoutBoostGrantMetadata(
+    grantId: string,
+    metadata: Record<string, unknown>,
+  ): Promise<RewardedScoutBoostGrant | undefined>;
 
   // Community checkout session methods
   createCommunityCheckoutSession(session: {
@@ -6061,6 +6065,19 @@ export class DatabaseStorage implements IStorage {
 
       return created || undefined;
     });
+  }
+
+  async updateRewardedScoutBoostGrantMetadata(
+    grantId: string,
+    metadata: Record<string, unknown>,
+  ): Promise<RewardedScoutBoostGrant | undefined> {
+    const [updated] = await db
+      .update(rewardedScoutBoostGrants)
+      .set({ metadata })
+      .where(eq(rewardedScoutBoostGrants.id, grantId))
+      .returning();
+
+    return updated || undefined;
   }
 
   // Community checkout session methods

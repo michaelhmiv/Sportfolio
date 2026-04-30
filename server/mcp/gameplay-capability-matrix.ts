@@ -691,6 +691,22 @@ export const EXCLUDED_GAMEPLAY_CAPABILITIES: GameplayCapabilityEntry[] = [
     notes: "Android-native rewarded ad verification polling is out of scope for MCP v1.",
   },
   {
+    capabilityId: "mobile_rewarded_scout_boost_client_complete",
+    kind: "excluded",
+    status: "excluded",
+    domain: "mobile",
+    source: "/api/mobile/rewarded-scout-boost/session/:rewardSessionId/client-complete",
+    notes: "Android-native rewarded ad client completion is out of scope for MCP v1.",
+  },
+  {
+    capabilityId: "admin_rewarded_scout_boost_session_debug",
+    kind: "excluded",
+    status: "excluded",
+    domain: "admin",
+    source: "/api/admin/rewarded-scout-boost/session/:rewardSessionId",
+    notes: "Admin-only rewarded ad session diagnostics are out of scope for MCP v1.",
+  },
+  {
     capabilityId: "premium_redeem",
     kind: "excluded",
     status: "excluded",

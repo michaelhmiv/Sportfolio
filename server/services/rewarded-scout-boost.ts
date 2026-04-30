@@ -10,10 +10,16 @@ export const REWARDED_SCOUT_BOOST_DURATION_MS = 12 * 60 * 60 * 1000;
 export const REWARDED_SCOUT_BOOST_SESSION_TTL_MS = 15 * 60 * 1000;
 export const ADMOB_REWARDED_TEST_AD_UNIT_ID = "ca-app-pub-3940256099942544/5224354917";
 export const ADMOB_VERIFIER_KEYS_URL = "https://www.gstatic.com/admob/reward/verifier-keys.json";
+export const REWARDED_SCOUT_BOOST_CALLBACK_PATH = "/api/mobile/rewarded-scout-boost/admob/ssv";
+export const REWARDED_SCOUT_BOOST_SSV_MISSING_AFTER_MS = 5 * 60 * 1000;
 
 type RewardedScoutBoostStorage = Pick<
   IStorage,
-  "getUser" | "updateUserPremiumStatus" | "createStackedRewardedScoutBoostGrant"
+  | "getUser"
+  | "updateUserPremiumStatus"
+  | "getLatestRewardedScoutBoostGrantBySessionId"
+  | "createStackedRewardedScoutBoostGrant"
+  | "updateRewardedScoutBoostGrantMetadata"
 >;
 
 export interface RewardedScoutBoostSessionToken {
@@ -71,7 +77,35 @@ function requireRewardedScoutBoostSecret() {
 }
 
 export function getRewardedScoutBoostAdUnitId() {
-  return process.env.ADMOB_REWARDED_SCOUT_AD_UNIT_ID?.trim() || ADMOB_REWARDED_TEST_AD_UNIT_ID;
+  const adUnitId = process.env.ADMOB_REWARDED_SCOUT_AD_UNIT_ID?.trim();
+  if (adUnitId) {
+    return adUnitId;
+  }
+
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("ADMOB_REWARDED_SCOUT_AD_UNIT_ID is not configured");
+  }
+
+  return ADMOB_REWARDED_TEST_AD_UNIT_ID;
+}
+
+export function getRewardedScoutBoostCallbackUrl() {
+  const siteUrl = (process.env.PUBLIC_SITE_URL || process.env.SITE_URL)?.trim();
+  if (!siteUrl) {
+    return REWARDED_SCOUT_BOOST_CALLBACK_PATH;
+  }
+
+  const url = new URL(siteUrl);
+  url.pathname = REWARDED_SCOUT_BOOST_CALLBACK_PATH;
+  url.search = "";
+  url.hash = "";
+  return url.toString();
+}
+
+function getGrantMetadata(grant: { metadata?: unknown }) {
+  return grant.metadata && typeof grant.metadata === "object" && !Array.isArray(grant.metadata)
+    ? (grant.metadata as Record<string, unknown>)
+    : {};
 }
 
 export function createRewardedScoutBoostSessionToken(
@@ -283,6 +317,31 @@ export async function grantVerifiedRewardedScoutBoost(
     };
   }
 
+  const existingGrant = await storage.getLatestRewardedScoutBoostGrantBySessionId(
+    user.id,
+    session.sid,
+  );
+  if (existingGrant) {
+    const updatedGrant = await storage.updateRewardedScoutBoostGrantMetadata(existingGrant.id, {
+      ...getGrantMetadata(existingGrant),
+      verificationStatus: "verified",
+      ssvVerifiedAt: now.toISOString(),
+      ssvTransactionId: verifiedCallback.transactionId,
+      ssvRewardedAt: verifiedCallback.rewardedAt.toISOString(),
+      keyId: verifiedCallback.keyId,
+      adNetwork: verifiedCallback.adNetwork,
+      rewardUserId: verifiedCallback.rewardUserId,
+    });
+
+    return {
+      outcome: "verified_existing" as const,
+      rewardSessionId: session.sid,
+      transactionId: verifiedCallback.transactionId,
+      expiresAt: (updatedGrant ?? existingGrant).expiresAt,
+      grant: updatedGrant ?? existingGrant,
+    };
+  }
+
   const expiresAt = new Date(now.getTime() + REWARDED_SCOUT_BOOST_DURATION_MS);
   const grantPayload: InsertRewardedScoutBoostGrant = {
     userId: user.id,
@@ -297,6 +356,9 @@ export async function grantVerifiedRewardedScoutBoost(
     rewardedAt: verifiedCallback.rewardedAt,
     expiresAt,
     metadata: {
+      verificationStatus: "verified",
+      source: "admob_ssv",
+      ssvVerifiedAt: now.toISOString(),
       keyId: verifiedCallback.keyId,
       adNetwork: verifiedCallback.adNetwork,
       rewardUserId: verifiedCallback.rewardUserId,
@@ -320,6 +382,120 @@ export async function grantVerifiedRewardedScoutBoost(
     outcome: "granted" as const,
     rewardSessionId: session.sid,
     transactionId: verifiedCallback.transactionId,
+    expiresAt: createdGrant.expiresAt,
+    grant: createdGrant,
+  };
+}
+
+export async function grantClientCompletedRewardedScoutBoost(
+  storage: RewardedScoutBoostStorage,
+  input: {
+    authenticatedUserId: string;
+    rewardSessionId: string;
+    customData: string;
+    adUnitId?: string | null;
+    rewardAmount?: number | null;
+    rewardType?: string | null;
+  },
+  now: Date = new Date(),
+) {
+  const session = verifyRewardedScoutBoostCustomData(input.customData, now);
+  if (session.uid !== input.authenticatedUserId) {
+    throw new Error("Reward session user mismatch");
+  }
+
+  if (session.sid !== input.rewardSessionId) {
+    throw new Error("Reward session id mismatch");
+  }
+
+  const user = await storage.getUser(session.uid);
+
+  if (!user) {
+    return {
+      outcome: "user_not_found" as const,
+      rewardSessionId: session.sid,
+      transactionId: `client:${session.sid}`,
+    };
+  }
+
+  let effectiveUser = user;
+  let entitlements = resolveUserEntitlements(effectiveUser, null, now);
+  if (entitlements.hasExpiredPremiumFlag) {
+    await storage.updateUserPremiumStatus(user.id, false, user.premiumExpiresAt ?? null);
+    effectiveUser = { ...user, isPremium: false };
+    entitlements = resolveUserEntitlements(effectiveUser, null, now);
+  }
+
+  if (entitlements.premiumActive) {
+    return {
+      outcome: "premium_active" as const,
+      rewardSessionId: session.sid,
+      transactionId: `client:${session.sid}`,
+      expiresAt: entitlements.premiumExpiresAt,
+    };
+  }
+
+  const existingGrant = await storage.getLatestRewardedScoutBoostGrantBySessionId(
+    user.id,
+    session.sid,
+  );
+  if (existingGrant) {
+    return {
+      outcome: "duplicate" as const,
+      rewardSessionId: session.sid,
+      transactionId: `client:${session.sid}`,
+      expiresAt: existingGrant.expiresAt,
+      grant: existingGrant,
+    };
+  }
+
+  const expiresAt = new Date(now.getTime() + REWARDED_SCOUT_BOOST_DURATION_MS);
+  const grantPayload: InsertRewardedScoutBoostGrant = {
+    userId: user.id,
+    platform: "android",
+    adNetwork: "admob",
+    adUnitId: input.adUnitId ?? getRewardedScoutBoostAdUnitId(),
+    rewardItem: input.rewardType ?? "scout_boost",
+    rewardAmount: input.rewardAmount ?? undefined,
+    rewardSessionId: session.sid,
+    transactionId: `client:${session.sid}`,
+    customData: input.customData,
+    rewardedAt: now,
+    expiresAt,
+    metadata: {
+      verificationStatus: "pending_ssv",
+      source: "client_reward_callback",
+      clientCompletedAt: now.toISOString(),
+      ssvMissingAfter: new Date(
+        now.getTime() + REWARDED_SCOUT_BOOST_SSV_MISSING_AFTER_MS,
+      ).toISOString(),
+    },
+  };
+
+  const createdGrant = await storage.createStackedRewardedScoutBoostGrant(
+    grantPayload,
+    REWARDED_SCOUT_BOOST_DURATION_MS,
+    now,
+  );
+
+  if (!createdGrant) {
+    const duplicateGrant = await storage.getLatestRewardedScoutBoostGrantBySessionId(
+      user.id,
+      session.sid,
+    );
+    return {
+      outcome: "duplicate" as const,
+      rewardSessionId: session.sid,
+      transactionId: `client:${session.sid}`,
+      expiresAt: duplicateGrant?.expiresAt ?? expiresAt,
+      grant: duplicateGrant,
+    };
+  }
+
+  return {
+    outcome: "granted" as const,
+    rewardSessionId: session.sid,
+    transactionId: `client:${session.sid}`,
     expiresAt: createdGrant.expiresAt,
     grant: createdGrant,
   };

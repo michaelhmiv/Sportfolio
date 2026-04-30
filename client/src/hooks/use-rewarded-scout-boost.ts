@@ -8,6 +8,7 @@ export interface RewardedScoutBoostStatus {
   rewardedScoutBoostActive: boolean;
   rewardedScoutBoostExpiresAt?: string | null;
   maxScouts: number;
+  verificationStatus?: "pending_ssv" | "verified" | string;
 }
 
 export interface RewardedScoutBoostSessionResponse extends RewardedScoutBoostStatus {
@@ -19,6 +20,14 @@ export interface RewardedScoutBoostSessionResponse extends RewardedScoutBoostSta
   statusCheckUrl?: string;
   expiresAt?: string;
   boostDurationHours?: number;
+}
+
+export interface RewardedScoutBoostClientCompleteResponse extends RewardedScoutBoostStatus {
+  success: boolean;
+  outcome: "granted" | "duplicate" | "premium_active" | "user_not_found";
+  rewardSessionId: string;
+  expiresAt?: string | null;
+  verificationStatus?: "pending_ssv" | "verified" | string;
 }
 
 type RewardedScoutBoostStartResult =
@@ -129,6 +138,31 @@ async function fetchRewardedScoutBoostSessionStatus(statusCheckUrl: string) {
   };
 }
 
+async function recordRewardedScoutBoostClientComplete({
+  session,
+  adResult,
+}: {
+  session: RewardedScoutBoostSessionResponse;
+  adResult: Awaited<ReturnType<typeof showAndroidRewardedAd>>;
+}) {
+  if (!session.rewardSessionId || !session.customData) {
+    return null;
+  }
+
+  const response = await apiRequest(
+    "POST",
+    `/api/mobile/rewarded-scout-boost/session/${session.rewardSessionId}/client-complete`,
+    {
+      customData: session.customData,
+      adUnitId: session.adUnitId,
+      rewardAmount: adResult.rewardAmount,
+      rewardType: adResult.rewardType,
+    },
+  );
+
+  return (await response.json()) as RewardedScoutBoostClientCompleteResponse;
+}
+
 async function waitForRewardedBoostGrantBySession(
   statusCheckUrl: string,
   previousExpiresAt?: string | null,
@@ -212,6 +246,16 @@ export function useRewardedScoutBoost({ userId }: { userId?: string | null }) {
       }
 
       setRewardedVerificationPending(true);
+      const clientCompleteStatus = await recordRewardedScoutBoostClientComplete({
+        session,
+        adResult: result,
+      });
+
+      if (clientCompleteStatus?.rewardedScoutBoostActive) {
+        await invalidateRewardedScoutBoostQueries();
+        return { outcome: "completed", session, status: clientCompleteStatus };
+      }
+
       const status =
         session.rewardSessionId && session.statusCheckUrl
           ? await waitForRewardedBoostGrantBySession(
