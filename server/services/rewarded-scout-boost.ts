@@ -242,7 +242,7 @@ export async function verifyAdMobSsvCallbackUrl(
     "sha256",
     Buffer.from(dataToVerify, "utf8"),
     publicKey,
-    Buffer.from(signature, "base64url"),
+    decodeAdMobSignature(signature),
   );
 
   if (!isValid) {
@@ -270,6 +270,11 @@ export async function verifyAdMobSsvCallbackUrl(
     signature,
     keyId,
   } satisfies VerifiedAdMobSsvCallback;
+}
+
+function decodeAdMobSignature(signature: string) {
+  const decodedSignature = decodeURIComponent(signature);
+  return Buffer.from(decodedSignature, "base64");
 }
 
 export async function grantVerifiedRewardedScoutBoost(
