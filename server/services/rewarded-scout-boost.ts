@@ -222,7 +222,7 @@ export async function verifyAdMobSsvCallbackUrl(
   }
 
   const keyMarker = "&key_id=";
-  const dataToVerify = queryString.slice(0, signatureIndex);
+  const dataToVerify = decodeAdMobSignedContent(queryString.slice(0, signatureIndex));
   const signatureAndKey = queryString.slice(signatureIndex + 1);
   const keyIndex = signatureAndKey.indexOf(keyMarker);
   if (keyIndex < 0) {
@@ -275,6 +275,10 @@ export async function verifyAdMobSsvCallbackUrl(
 function decodeAdMobSignature(signature: string) {
   const decodedSignature = decodeURIComponent(signature);
   return Buffer.from(decodedSignature, "base64");
+}
+
+function decodeAdMobSignedContent(signedContent: string) {
+  return decodeURIComponent(signedContent);
 }
 
 export async function grantVerifiedRewardedScoutBoost(
