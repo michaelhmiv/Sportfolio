@@ -108,13 +108,35 @@ public class AndroidRewardedAdsPlugin extends Plugin {
 
                 if (hasVerificationOptions) {
                     rewardedAd.setServerSideVerificationOptions(verificationOptionsBuilder.build());
-                    Log.d(TAG, "Rewarded ad SSV options attached");
+                    Log.d(
+                        TAG,
+                        "Rewarded ad SSV options attached: customData=" +
+                        (customData != null && !customData.trim().isEmpty()) +
+                        ", userId=" +
+                        (userId != null && !userId.trim().isEmpty())
+                    );
+                } else {
+                    Log.w(TAG, "Rewarded ad SSV options were not attached");
+                }
+
+                String responseId = null;
+                String mediationAdapterClassName = null;
+                if (rewardedAd.getResponseInfo() != null) {
+                    responseId = rewardedAd.getResponseInfo().getResponseId();
+                    mediationAdapterClassName =
+                        rewardedAd.getResponseInfo().getMediationAdapterClassName();
                 }
 
                 AtomicBoolean resolved = new AtomicBoolean(false);
                 AtomicBoolean rewardEarned = new AtomicBoolean(false);
                 final int[] rewardAmount = {0};
                 final String[] rewardType = {""};
+                final String adResponseId = responseId;
+                final String adMediationAdapterClassName = mediationAdapterClassName;
+                final boolean ssvOptionsAttached = hasVerificationOptions;
+                final boolean ssvCustomDataAttached = customData != null && !customData.trim().isEmpty();
+                final boolean ssvUserIdAttached = userId != null && !userId.trim().isEmpty();
+                final int ssvCustomDataLength = customData == null ? 0 : customData.length();
 
                 rewardedAd.setFullScreenContentCallback(new FullScreenContentCallback() {
                     @Override
@@ -126,6 +148,13 @@ public class AndroidRewardedAdsPlugin extends Plugin {
                             result.put("rewardEarned", rewardEarned.get());
                             result.put("rewardAmount", rewardAmount[0]);
                             result.put("rewardType", rewardType[0]);
+                            result.put("adUnitId", adUnitId);
+                            result.put("adResponseId", adResponseId);
+                            result.put("mediationAdapterClassName", adMediationAdapterClassName);
+                            result.put("ssvOptionsAttached", ssvOptionsAttached);
+                            result.put("ssvCustomDataAttached", ssvCustomDataAttached);
+                            result.put("ssvUserIdAttached", ssvUserIdAttached);
+                            result.put("ssvCustomDataLength", ssvCustomDataLength);
                             call.resolve(result);
                         }
                     }

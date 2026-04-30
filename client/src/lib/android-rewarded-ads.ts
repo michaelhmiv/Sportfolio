@@ -12,6 +12,13 @@ interface ShowRewardedAdResult {
   rewardEarned: boolean;
   rewardAmount: number;
   rewardType: string;
+  adUnitId?: string;
+  adResponseId?: string | null;
+  mediationAdapterClassName?: string | null;
+  ssvOptionsAttached?: boolean;
+  ssvCustomDataAttached?: boolean;
+  ssvUserIdAttached?: boolean;
+  ssvCustomDataLength?: number;
 }
 
 interface AndroidRewardedAdsPlugin {

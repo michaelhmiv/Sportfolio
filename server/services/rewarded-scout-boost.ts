@@ -403,6 +403,12 @@ export async function grantClientCompletedRewardedScoutBoost(
     rewardSessionId: string;
     customData: string;
     adUnitId?: string | null;
+    adResponseId?: string | null;
+    mediationAdapterClassName?: string | null;
+    ssvOptionsAttached?: boolean | null;
+    ssvCustomDataAttached?: boolean | null;
+    ssvUserIdAttached?: boolean | null;
+    ssvCustomDataLength?: number | null;
     rewardAmount?: number | null;
     rewardType?: string | null;
   },
@@ -475,6 +481,14 @@ export async function grantClientCompletedRewardedScoutBoost(
       verificationStatus: "pending_ssv",
       source: "client_reward_callback",
       clientCompletedAt: now.toISOString(),
+      androidAdDiagnostics: {
+        adResponseId: input.adResponseId ?? null,
+        mediationAdapterClassName: input.mediationAdapterClassName ?? null,
+        ssvOptionsAttached: input.ssvOptionsAttached ?? null,
+        ssvCustomDataAttached: input.ssvCustomDataAttached ?? null,
+        ssvUserIdAttached: input.ssvUserIdAttached ?? null,
+        ssvCustomDataLength: input.ssvCustomDataLength ?? null,
+      },
       ssvMissingAfter: new Date(
         now.getTime() + REWARDED_SCOUT_BOOST_SSV_MISSING_AFTER_MS,
       ).toISOString(),
