@@ -13,10 +13,24 @@ This project uses Capacitor with native projects in:
 - Xcode (macOS only, for iOS)
 - Firebase CLI (`firebase`)
 
-## One-time Verification
+## Required Environment Variables
+
+At minimum:
+
+- Web app env: copy `.env.example` to `.env` and configure the normal app requirements needed by `npm run dev` (same requirements as web development).
+- `CAP_SERVER_URL` for native shell routing (optional, defaults to production URL when omitted).
+
+Common `CAP_SERVER_URL` values:
+
+- iOS local dev server: `http://localhost:5000`
+- Android emulator local dev server: `http://10.0.2.2:5000`
+- Production hosted app: `https://www.sportfolio.market`
+
+## One-time Verification / Guardrails
 
 ```bash
 npx cap doctor
+npm run mobile:ios:doctor
 firebase --version
 firebase projects:list
 npm run android:sdk:check
@@ -26,6 +40,72 @@ Confirm Firebase Android config matches app package:
 
 - file: `mobile/android/app/google-services.json`
 - expected package: `sportfolio.market`
+
+## iOS Quickstart (Capacitor Shell)
+
+### 1) Run the web app locally
+
+```bash
+npm run dev
+```
+
+Default local URL: `http://127.0.0.1:5000` (native iOS can use `http://localhost:5000`).
+
+### 2) Sync iOS with explicit URL target
+
+Local iOS dev target:
+
+```bash
+npm run mobile:sync:ios:dev
+```
+
+Production hosted target:
+
+```bash
+npm run mobile:sync:prod
+```
+
+Generic iOS sync (uses current `CAP_SERVER_URL` env or default production URL):
+
+```bash
+npm run mobile:sync:ios
+```
+
+### 3) Open in Xcode (macOS only)
+
+```bash
+npm run mobile:ios
+```
+
+### 4) Build iOS (macOS only)
+
+```bash
+npm run mobile:build:ios
+```
+
+The project uses `App.xcodeproj` (`mobile/ios/App/App.xcodeproj`).
+
+### OAuth Deep Link
+
+The native auth callback is:
+
+- `sportfolio://auth/callback`
+
+Configured in:
+
+- iOS `Info.plist` URL types
+- Client deep-link handling (`client/src/App.tsx`)
+
+## Sync Commands by Target
+
+- `npm run mobile:sync`: build + full Capacitor sync (both platforms)
+- `npm run mobile:sync:ios`: build + iOS sync only
+- `npm run mobile:sync:android`: build + Android sync only
+- `npm run mobile:sync:ios:dev`: iOS sync with `CAP_SERVER_URL=http://localhost:5000`
+- `npm run mobile:sync:android:dev`: Android sync with `CAP_SERVER_URL=http://10.0.2.2:5000`
+- `npm run mobile:sync:prod`: full sync with `CAP_SERVER_URL=https://www.sportfolio.market`
+
+`mobile:ios:doctor` fails fast when iOS native config is accidentally synced with Android's `10.0.2.2` host.
 
 ## Android Emulator Setup
 
@@ -143,6 +223,46 @@ npm run mobile:sync
 ```
 
 Default fallback is `https://www.sportfolio.market`.
+
+### URL Routing Guardrails
+
+- iOS local simulator/device should use `http://localhost:5000`.
+- Android emulator should use `http://10.0.2.2:5000`.
+- `10.0.2.2` is Android-emulator-only and should not be used for iOS syncs.
+- Use `npm run mobile:ios:doctor` after syncing to verify generated iOS config.
+
+## Known Limitations
+
+- iOS builds and simulator/device runs require macOS + Xcode; they cannot be fully validated from this Windows environment.
+- If `CAP_SERVER_URL` points to a local URL, that server must be running before opening the native app shell.
+- `mobile:ios:doctor` validates config and deep-link guardrails, but it does not replace a real Xcode run/signing check.
+
+## GitHub CI Verification
+
+Use GitHub CLI to quickly verify the required CI surface before merge:
+
+```bash
+gh pr checks --watch
+gh run watch <run-id>
+gh run view <run-id> --log-failed
+```
+
+Expected PR checks for mobile-impacting changes:
+
+- `Pull Request CI / Validate Code`
+- `iOS PR CI / ios-validate`
+
+## Required Check Rollout (Post-Upgrade)
+
+After upgrading repository plan to support private-repo rulesets/required checks:
+
+1. Add required checks on `main`:
+   - `Pull Request CI / Validate Code`
+   - `iOS PR CI / ios-validate`
+2. Require pull request before merge.
+3. Enable stale-approval dismissal when new commits are pushed.
+
+This enforces iOS gate failures as merge blockers, even for Windows-based contributors.
 
 ## Android Push Notifications (FCM)
 

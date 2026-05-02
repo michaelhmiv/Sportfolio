@@ -1,0 +1,69 @@
+name: iOS PR CI
+
+on:
+  pull_request:
+    branches:
+      - main
+      - master
+    paths:
+      - ".github/workflows/ios-pr-ci.yml"
+      - "capacitor.config.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "mobile/ios/**"
+      - "mobile/README.md"
+      - "scripts/fix-ios-spm-paths.mjs"
+      - "scripts/mobile-ios-doctor.mjs"
+      - "client/src/App.tsx"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-pr-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ios-validate:
+    name: ios-validate
+    runs-on: macos-latest
+    env:
+      CAP_SERVER_URL: https://www.sportfolio.market
+      IOS_BUILD_LOG: tmp/ios-build.log
+      IOS_DERIVED_DATA: tmp/ios-derived-data
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Sync Capacitor iOS
+        run: npm run mobile:sync:ios
+
+      - name: Run iOS guardrail doctor
+        run: npm run mobile:ios:doctor
+
+      - name: Build unsigned iOS simulator app
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf "${IOS_DERIVED_DATA}"
+          npm run mobile:build:ios:ci 2>&1 | tee "${IOS_BUILD_LOG}"
+
+      - name: Upload iOS build artifacts on failure
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-pr-ci-failure-artifacts
+          if-no-files-found: warn
+          path: |
+            ${{ env.IOS_BUILD_LOG }}
+            ${{ env.IOS_DERIVED_DATA }}
