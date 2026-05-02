@@ -1,3 +1,18 @@
+---
+id: agent-api-map
+title: API Map
+summary: Practical map of the API surface most likely to affect gameplay and economics, organized by auth mode and endpoint domain.
+audience: public
+category: agent
+status: published
+owner: product-engineering
+lastReviewedAt: 2026-05-02
+changeTriggers: server/routes.ts,server/routes/amm.ts,server/routes/lp.ts
+slug: api-map
+surface: agent
+searchKeywords: api,endpoints,routes,auth,amm,lp,scouts,boosts,admin,websocket
+---
+
 # API Map (Agent-Oriented)
 
 Primary sources:

@@ -149,11 +149,17 @@ function HandbookNavigation({
                 href={`#${section.anchorId}`}
                 onClick={() => onNavigate?.()}
                 className={cn(
-                  "flex-1 rounded-sm border px-3 py-2 font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground transition-colors hover:text-foreground",
+                  "flex-1 rounded-sm border px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground flex items-center justify-between gap-2",
                   isSectionHighlighted && "border-primary/40 bg-primary/5 text-foreground",
                 )}
               >
-                {section.label}
+                <span>{section.label}</span>
+                <Badge
+                  variant="secondary"
+                  className="rounded-sm border border-border bg-[hsl(var(--sidebar)/0.45)] font-mono text-[11px] shrink-0"
+                >
+                  {section.chapters.length}
+                </Badge>
               </a>
               <CollapsibleTrigger asChild>
                 <button
@@ -611,6 +617,40 @@ export default function WikiPage() {
             </CardContent>
           </Card>
         )}
+
+        <div className="mb-8">
+          <div className="flex items-center gap-3 mb-4">
+            <h2 className="terminal-heading text-lg">Sections</h2>
+            <Badge
+              variant="secondary"
+              className="rounded-sm border border-border bg-[hsl(var(--sidebar)/0.45)] font-mono text-[11px]"
+            >
+              {handbook.sections.length}
+            </Badge>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {handbook.sections.map((section) => (
+              <a
+                key={section.id}
+                href={`#${section.anchorId}`}
+                className="group block rounded-sm border p-4 transition-colors hover:border-primary/40 hover:bg-primary/[0.02]"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="font-medium text-sm">{section.label}</h3>
+                  <Badge
+                    variant="secondary"
+                    className="rounded-sm border border-border bg-[hsl(var(--sidebar)/0.45)] font-mono text-[11px] shrink-0"
+                  >
+                    {section.chapters.length}
+                  </Badge>
+                </div>
+                <p className="terminal-subtle mt-1 text-sm line-clamp-2">
+                  {section.chapters.map((c) => c.title).join(" · ")}
+                </p>
+              </a>
+            ))}
+          </div>
+        </div>
 
         <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
           <Card

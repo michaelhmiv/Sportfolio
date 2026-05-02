@@ -1,3 +1,18 @@
+---
+id: agent-task-definitions
+title: Agent Task Definitions
+summary: Minimal task contracts for autonomous PLAN → IMPLEMENT → BUILD → TEST → FIX loops with quality gates.
+audience: public
+category: agent
+status: published
+owner: product-engineering
+lastReviewedAt: 2026-05-02
+changeTriggers: AGENTS.md,CLAUDE.md
+slug: task-definitions
+surface: agent
+searchKeywords: tasks,plan,implement,build,test,fix,quality gates,checklist
+---
+
 # Agent Task Definitions
 
 Minimal task contracts for autonomous PLAN → IMPLEMENT → BUILD → TEST → FIX loops.

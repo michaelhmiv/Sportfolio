@@ -22,10 +22,10 @@ Operational guidance for Factory droids working in this repository.
 
 ## Canonical Agent Docs (Read Before Domain Changes)
 
-- `docs/agent/product-mechanics.md`
-- `docs/agent/api-map.md`
-- `docs/agent/data-model-economy.md`
-- `docs/agent/runbooks.md`
+- `docs/wiki/agent/product-mechanics.md`
+- `docs/wiki/agent/api-map.md`
+- `docs/wiki/agent/data-model-economy.md`
+- `docs/wiki/agent/runbooks.md`
 
 ## External Sports Data Contract (BallDontLie)
 
@@ -104,7 +104,7 @@ Power is modeled per holding row and directly impacts boost payouts.
    - `/api/daily-boosts/eligible*`
    - `/api/daily-boosts/assign`
 
-If your change affects economics, read `docs/agent/runbooks.md` first and follow the relevant checklist.
+If your change affects economics, read `docs/wiki/agent/runbooks.md` first and follow the relevant checklist.
 
 ## Auth & Access Patterns
 

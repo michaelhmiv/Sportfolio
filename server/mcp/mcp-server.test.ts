@@ -199,7 +199,7 @@ describe("sportfolio MCP server", () => {
           "sportfolio://capabilities",
           "sportfolio://action-surface",
           "sportfolio://tool-catalog",
-          "sportfolio://docs/agent/product-mechanics",
+          "sportfolio://docs/wiki/agent/product-mechanics",
         ]),
       );
       expect(docsIndex.contents[0]?.uri).toBe("sportfolio://docs/index");

@@ -1,3 +1,18 @@
+---
+id: agent-mcp-tool-reference
+title: MCP Tool Reference
+summary: Deep-dive reference for the public Sportfolio MCP server: tool catalog, response semantics, staged actions, truncation handling.
+audience: public
+category: agent
+status: published
+owner: product-engineering
+lastReviewedAt: 2026-05-02
+changeTriggers: server/mcp/public-tool-registry.ts,server/routes/mcp.ts
+slug: mcp-tool-reference
+surface: web,agent
+searchKeywords: mcp,tools,catalog,truncation,statcast,pagination,structuredContent,confirmation
+---
+
 # MCP Tool Reference
 
 Deep-dive reference for the public Sportfolio MCP server at `https://www.sportfolio.market/mcp`. This doc captures the live tool surface, response semantics, and operational quirks discovered through hands-on reverse-engineering.

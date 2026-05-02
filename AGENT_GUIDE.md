@@ -103,7 +103,7 @@ Automated loop feasibility is good for syntax/type/test regressions because stan
 - Aliases: `@` (client source), `@shared` (shared), `@assets`.
 - Prefer existing patterns in large route/storage modules before introducing abstractions.
 - Follow auth middleware conventions (`isAuthenticated`, `optionalAuth`, `adminAuth`).
-- Avoid altering economics without validating runbooks in `docs/agent/runbooks.md`.
+- Avoid altering economics without validating runbooks in `docs/wiki/agent/runbooks.md`.
 
 ## Agent Readiness Notes
 
@@ -140,10 +140,10 @@ Use this minimal loop after any implementation attempt:
 
 1. Read `AGENTS.md` and `CLAUDE.md` first.
 2. For economics/API changes, read:
-   - `docs/agent/product-mechanics.md`
-   - `docs/agent/api-map.md`
-   - `docs/agent/data-model-economy.md`
-   - `docs/agent/runbooks.md`
+   - `docs/wiki/agent/product-mechanics.md`
+   - `docs/wiki/agent/api-map.md`
+   - `docs/wiki/agent/data-model-economy.md`
+   - `docs/wiki/agent/runbooks.md`
 3. Scope change to one vertical (route + storage + tests) at a time.
 4. Run at minimum: `npm run check && npm run lint && npm run test:run`.
 5. For risky changes, add targeted tests near touched modules.
