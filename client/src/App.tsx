@@ -398,6 +398,10 @@ function Router() {
   const [location, navigate] = useLocation();
   const [loadingTime, setLoadingTime] = useState(0);
   const previousLocationRef = useRef(location);
+  const nativePlatform = Capacitor.isNativePlatform() ? Capacitor.getPlatform() : "web";
+  const isNativePlatform = nativePlatform !== "web";
+  const isNativeIOS = nativePlatform === "ios";
+  const isNativeAndroid = nativePlatform === "android";
   const isLoopbackHost =
     typeof window !== "undefined" &&
     (window.location.hostname === "127.0.0.1" || window.location.hostname === "localhost");
@@ -455,7 +459,7 @@ function Router() {
   }, [navigate]);
 
   useEffect(() => {
-    if (!Capacitor.isNativePlatform()) {
+    if (!isNativePlatform) {
       return;
     }
 
@@ -516,10 +520,10 @@ function Router() {
     return () => {
       void listener?.remove();
     };
-  }, [navigate]);
+  }, [isNativePlatform, navigate]);
 
   useEffect(() => {
-    if (!Capacitor.isNativePlatform()) {
+    if (!isNativePlatform) {
       return;
     }
 
@@ -563,11 +567,11 @@ function Router() {
     return () => {
       void listener?.remove();
     };
-  }, []);
+  }, [isNativePlatform]);
 
   // P0 — 1.2: Android back button handling (prevents Play Store rejection)
   useEffect(() => {
-    if (!Capacitor.isNativePlatform()) return;
+    if (!isNativeAndroid) return;
 
     let listener: { remove: () => Promise<void> } | null = null;
 
@@ -600,18 +604,20 @@ function Router() {
     return () => {
       void listener?.remove();
     };
-  }, [location]);
+  }, [isNativeAndroid, location]);
 
   // P1 — 1.1: StatusBar — set to match app's dark theme, enable edge-to-edge
   useEffect(() => {
-    if (!Capacitor.isNativePlatform()) return;
+    if (!isNativePlatform) return;
 
     void import("@capacitor/status-bar").then(({ StatusBar, Style }) => {
       void StatusBar.setStyle({ style: Style.Dark }).catch(() => undefined);
-      void StatusBar.setBackgroundColor({ color: "#0f1420" }).catch(() => undefined);
-      void StatusBar.setOverlaysWebView({ overlay: true }).catch(() => undefined);
+      if (isNativeAndroid) {
+        void StatusBar.setBackgroundColor({ color: "#0f1420" }).catch(() => undefined);
+        void StatusBar.setOverlaysWebView({ overlay: true }).catch(() => undefined);
+      }
     });
-  }, []);
+  }, [isNativeAndroid, isNativePlatform]);
 
   // P3 — 5.2: Update StatusBar when theme changes (dark/light)
   const [isDark, setIsDark] = useState(() =>
@@ -625,36 +631,38 @@ function Router() {
     return () => observer.disconnect();
   }, []);
   useEffect(() => {
-    if (!Capacitor.isNativePlatform()) return;
+    if (!isNativePlatform) return;
     void import("@capacitor/status-bar").then(({ StatusBar, Style }) => {
       void StatusBar.setStyle({
         style: isDark ? Style.Dark : Style.Light,
       }).catch(() => undefined);
-      void StatusBar.setBackgroundColor({
-        color: isDark ? "#0f1420" : "#ffffff",
-      }).catch(() => undefined);
+      if (isNativeAndroid) {
+        void StatusBar.setBackgroundColor({
+          color: isDark ? "#0f1420" : "#ffffff",
+        }).catch(() => undefined);
+      }
     });
-  }, [isDark]);
+  }, [isDark, isNativeAndroid, isNativePlatform]);
 
   // P1 — 1.1: Keyboard — resize body instead of overlapping content
   useEffect(() => {
-    if (!Capacitor.isNativePlatform()) return;
+    if (!isNativeIOS) return;
 
     void import("@capacitor/keyboard").then(({ Keyboard, KeyboardResize }) => {
       void Keyboard.setResizeMode({ mode: KeyboardResize.Body }).catch(() => undefined);
     });
-  }, []);
+  }, [isNativeIOS]);
 
   // P3 — 7.1: Splash screen — hide after auth resolves
   useEffect(() => {
-    if (!Capacitor.isNativePlatform()) return;
+    if (!isNativePlatform) return;
     if (isLoading) return;
 
     // Auth bootstrap complete — hide the splash with a fade
     void import("@capacitor/splash-screen").then(({ SplashScreen }) => {
       void SplashScreen.hide({ fadeOutDuration: 300 }).catch(() => undefined);
     });
-  }, [isLoading]);
+  }, [isLoading, isNativePlatform]);
 
   // Warm likely next-route chunks during idle time to improve transition latency.
   useEffect(() => {
@@ -1214,6 +1222,9 @@ function WhaleAlertBannerHost() {
 function AppContent() {
   const [location] = useLocation();
   const isAgentRoute = location === "/agent" || location.startsWith("/agent/");
+  const nativeShellHeightClass = Capacitor.isNativePlatform()
+    ? "h-[100dvh] min-h-[100dvh]"
+    : "h-screen";
   const style = useMemo(
     () => ({
       "--sidebar-width": "16rem",
@@ -1238,7 +1249,7 @@ function AppContent() {
           </main>
         </div>
       ) : (
-        <div className="flex h-screen w-full overflow-x-hidden">
+        <div className={cn("flex w-full overflow-x-hidden", nativeShellHeightClass)}>
           <div className="hidden sm:flex">
             <AppSidebar />
           </div>

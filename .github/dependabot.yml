@@ -26,3 +26,15 @@ updates:
     ignore:
       - dependency-name: "react"
         versions: ["18.x"]
+
+  - package-ecosystem: "swift"
+    directory: "/mobile/ios/App/CapApp-SPM"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "10:00"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "ios"
+      - "mobile"

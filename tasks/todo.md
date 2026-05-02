@@ -2631,6 +2631,27 @@ Review:
 - Validation passed: `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`.
 - Local dev DB repair passed via the new ensure path, and `user_mcp_sources` now exists locally with the expected columns: `id`, `user_id`, `name`, `url`, `auth_type`, `auth_token`, `enabled`, `discovered_tools`, `last_verified_at`, `last_error`, `created_at`, and `updated_at`.
 
+## 2026-05-02 iOS Capacitor Foundation Hardening
+
+- [x] Add platform-targeted mobile sync scripts for iOS/Android/dev/prod URL presets without removing existing scripts
+- [x] Add lightweight iOS doctor guardrail script (`mobile:ios:doctor`) for config/deep-link/server-url checks
+- [x] Tighten native bootstrap platform gating in `client/src/App.tsx` and keep behavior low risk
+- [x] Add iOS-first mobile runbook updates (prereqs, env vars, local dev, sync/open/build, URL routing, limitations)
+- [x] Run validation commands and capture results (`npm run check`, `npm run build`, `npm run mobile:ios:doctor`, `npm run mobile:sync:ios:dev`)
+
+## 2026-05-02 iOS PR CI + GitHub Governance Enablement
+
+- [x] Add macOS `iOS PR CI` workflow with mobile/iOS path filters and concurrency controls
+- [x] Add CI-safe unsigned iOS simulator build script (`mobile:build:ios:ci`) and wire into workflow steps
+- [x] Upload iOS build logs + DerivedData artifacts on CI failure
+- [x] Tighten `mobile-sync.yml` permissions to read-only
+- [x] Add Dependabot Swift Package Manager coverage for `mobile/ios/App/CapApp-SPM`
+- [x] Normalize PR template and add explicit mobile/iOS checklist requirements
+- [x] Add `.github/CODEOWNERS` entries for iOS/capacitor/mobile guardrail paths
+- [x] Document GitHub CLI verification commands and required-check rollout guidance in mobile runbook
+- [x] Create GitHub tracker issue and labels (`#182`: iOS CI hardening + governance rollout)
+- [x] Run validation commands and capture results (`npm run check`, `npm run build`, `npm run mobile:ios:doctor`)
+
 ## 2026-04-28 App Performance Pass
 
 - [x] Lazy-load initial dashboard/global modal/native surfaces

@@ -104,9 +104,15 @@ For full syntax and troubleshooting:
 
 ```bash
 npm run mobile:sync
+npm run mobile:sync:ios:dev
+npm run mobile:sync:android:dev
+npm run mobile:ios:doctor
+npm run mobile:build:ios:ci
 npm run mobile:ios
 npm run mobile:android
 ```
+
+See [`mobile/README.md`](mobile/README.md) for the full iOS/Android runbook, environment routing presets, and Xcode build steps.
 
 ## License
 

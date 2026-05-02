@@ -1,0 +1,6 @@
+# Mobile and Capacitor ownership
+/mobile/ios/ @michaelhmiv
+/mobile/README.md @michaelhmiv
+/capacitor.config.ts @michaelhmiv
+/scripts/mobile-ios-doctor.mjs @michaelhmiv
+/scripts/fix-ios-spm-paths.mjs @michaelhmiv
