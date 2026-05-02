@@ -2408,13 +2408,14 @@ export class DatabaseStorage implements IStorage {
 
   async getPlayer(id: string): Promise<Player | undefined> {
     const trimmedId = (id || "").trim();
-    if (!trimmedId) return undefined;
+    const normalizedId = trimmedId.toLowerCase();
+    if (!normalizedId) return undefined;
 
-    const [player] = await db.select().from(players).where(eq(players.id, trimmedId));
+    const [player] = await db.select().from(players).where(eq(players.id, normalizedId));
     if (player) return player;
 
-    const canonicalId = await this.getCanonicalPlayerId(trimmedId);
-    if (canonicalId && canonicalId !== trimmedId) {
+    const canonicalId = await this.getCanonicalPlayerId(normalizedId);
+    if (canonicalId && canonicalId !== normalizedId) {
       const [canonicalPlayer] = await db
         .select()
         .from(players)
@@ -2425,8 +2426,8 @@ export class DatabaseStorage implements IStorage {
 
     // Backwards compatibility: allow passing raw numeric IDs and resolve to prefixed IDs.
     // The canonical format is sport-prefixed (e.g., nba_12345, nfl_67890, mlb_99999).
-    if (/^\d+$/.test(trimmedId)) {
-      const candidates = [`nba_${trimmedId}`, `nfl_${trimmedId}`, `mlb_${trimmedId}`];
+    if (/^\d+$/.test(normalizedId)) {
+      const candidates = [`nba_${normalizedId}`, `nfl_${normalizedId}`, `mlb_${normalizedId}`];
       const resolved = await db
         .select()
         .from(players)

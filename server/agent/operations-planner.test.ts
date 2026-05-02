@@ -1402,6 +1402,68 @@ describe("planDirectAgentOperation", () => {
     expect(result?.replyText).toContain("Pull all scouts off Nikola Jokic");
   });
 
+  it("stages scout removal directly from a lowercase player id", async () => {
+    const { planDirectAgentOperation } = await import("./operations-planner");
+    const crochet = {
+      id: "mlb_555",
+      firstName: "Garrett",
+      lastName: "Crochet",
+      sport: "MLB",
+      team: "BOS",
+      isActive: true,
+      volume24h: 875,
+    };
+
+    storageMocks.getPlayer.mockResolvedValueOnce(crochet);
+
+    const result = await planDirectAgentOperation({
+      userId: "user_1",
+      message: "remove scouts from mlb_555",
+      profile,
+    });
+
+    expect(result).not.toBeNull();
+    expect(result?.domain).toBe("scouting");
+    expect(result?.actions).toHaveLength(1);
+    expect(result?.actions[0]).toMatchObject({
+      actionType: "scout_set_count",
+      playerId: "mlb_555",
+      targetCount: 0,
+    });
+    expect(dbMocks.limit).not.toHaveBeenCalled();
+  });
+
+  it("falls back to planner resolution when an uppercase player id misses direct lookup", async () => {
+    const { planDirectAgentOperation } = await import("./operations-planner");
+    const crochet = {
+      id: "mlb_555",
+      firstName: "Garrett",
+      lastName: "Crochet",
+      sport: "MLB",
+      team: "BOS",
+      isActive: true,
+      volume24h: 875,
+    };
+
+    storageMocks.getPlayer.mockResolvedValueOnce(undefined);
+    dbMocks.limit.mockResolvedValueOnce([crochet]);
+
+    const result = await planDirectAgentOperation({
+      userId: "user_1",
+      message: "remove scouts from MLB_555",
+      profile,
+    });
+
+    expect(result).not.toBeNull();
+    expect(result?.domain).toBe("scouting");
+    expect(result?.actions).toHaveLength(1);
+    expect(result?.actions[0]).toMatchObject({
+      actionType: "scout_set_count",
+      playerId: "mlb_555",
+      targetCount: 0,
+    });
+  });
+
   it("stages one scout when the user omits the scout count", async () => {
     const { planDirectAgentOperation } = await import("./operations-planner");
 
@@ -1420,6 +1482,36 @@ describe("planDirectAgentOperation", () => {
       targetCount: 1,
     });
     expect(result?.warnings).toContain("I assumed you wanted to assign 1 scout.");
+  });
+
+  it("resolves a scout target when candidate names contain null parts", async () => {
+    const { planDirectAgentOperation } = await import("./operations-planner");
+    const crochet = {
+      id: "mlb_555",
+      firstName: null,
+      lastName: "Crochet",
+      sport: "MLB",
+      team: "BOS",
+      isActive: true,
+      volume24h: 875,
+    };
+
+    dbMocks.limit.mockResolvedValueOnce([]).mockResolvedValueOnce([crochet]);
+
+    const result = await planDirectAgentOperation({
+      userId: "user_1",
+      message: "scout Crochet",
+      profile,
+    });
+
+    expect(result).not.toBeNull();
+    expect(result?.domain).toBe("scouting");
+    expect(result?.actions).toHaveLength(1);
+    expect(result?.actions[0]).toMatchObject({
+      actionType: "scout_set_count",
+      playerId: "mlb_555",
+      targetCount: 1,
+    });
   });
 
   it("returns a broad operator review for setup-review prompts", async () => {
