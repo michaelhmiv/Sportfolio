@@ -103,6 +103,7 @@ Three resources provide live capability metadata for MCP clients:
 
 ## Next Steps
 
+- [MCP Tool Reference](/docs/agent/mcp-tool-reference.md) — full tool catalog, response shapes, truncation handling, and parameter quirks
 - [CLI and External Access](/wiki/cli/overview) — direct shell access via API token
 - [CLI Command Reference](/wiki/cli/command-reference) — full command syntax
 - [User Action Surface](/wiki/features/user-action-surface) — complete capability map across web, CLI, and MCP
