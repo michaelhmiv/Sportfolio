@@ -6,6 +6,85 @@ For endpoint and auth basics, see [MCP Access](/wiki/getting-started/mcp-access)
 
 ---
 
+## Machine-Readable Discovery Resources
+
+The MCP server exposes three JSON resources designed for agent consumption. These are the canonical machine-readable surfaces — easier to parse than markdown wikis.
+
+| Resource | URI | Purpose |
+|----------|-----|---------|
+| **Capabilities** | `sportfolio://capabilities` | Full capability inventory + dynamic provider availability |
+| **Action Surface** | `sportfolio://action-surface` | Tools with confirmation/read-only hints |
+| **Tool Catalog** | `sportfolio://tool-catalog` | Complete tool metadata, example prompts, MLB tool list |
+
+### Tool Catalog Schema
+
+The `sportfolio://tool-catalog` resource returns a JSON object with this shape:
+
+```json
+{
+  "generatedAt": "2026-05-02T03:55:00.000Z",
+  "dynamicSources": [
+    {
+      "name": "internal_mlb_mcp",
+      "provider": "internal_mlb_mcp",
+      "available": true,
+      "toolCount": 40,
+      "error": null
+    }
+  ],
+  "tools": [
+    {
+      "name": "get_balance_state",
+      "title": null,
+      "description": "Returns the user's available balance, open daily boost slots, and community share availability.",
+      "domain": "account",
+      "provider": "sportfolio",
+      "source": "public_registry:tool",
+      "category": "read",
+      "readOnly": true,
+      "confirmationModel": "immediate",
+      "riskLevel": "low",
+      "whenToUse": [],
+      "whenNotToUse": [],
+      "examplePrompts": [],
+      "resultShapeHint": null,
+      "presentationProfile": null,
+      "primaryEntityType": null,
+      "preferredColumns": [],
+      "inputFieldNames": [],
+      "fixtureArgs": {},
+      "routeRefs": ["server/routes.ts"]
+    }
+  ]
+}
+```
+
+**Key fields for agent parsing:**
+
+| Field | Meaning |
+|-------|---------|
+| `readOnly` | `true` = safe to call without confirmation |
+| `confirmationModel` | `immediate` / `staged_confirmation` / `finalizer` |
+| `riskLevel` | `low` / `medium` / `high` |
+| `inputFieldNames` | Parameter keys the tool accepts |
+| `fixtureArgs` | Example arguments for testing |
+| `routeRefs` | Server source files for this tool |
+
+**For MLB tools**, the catalog also includes richer agent metadata:
+
+| Field | Meaning |
+|-------|---------|
+| `whenToUse` | Recommended usage scenarios |
+| `whenNotToUse` | Anti-patterns |
+| `examplePrompts` | Natural language prompts that map to this tool |
+| `resultShapeHint` | Expected response structure description |
+| `presentationProfile` | How to format results (table, chart, etc.) |
+| `preferredColumns` | Suggested column order for tabular output |
+
+> **Note:** These resources are only accessible via the MCP protocol (after `initialize` + session negotiation). If you need a static offline copy, run the MCP `resources/read` method against each URI and save the JSON.
+
+---
+
 ## Tool Catalog
 
 Tools are grouped by domain. **R** = read-only. **W** = write/state-changing.
