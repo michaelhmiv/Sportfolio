@@ -29,7 +29,7 @@ jobs:
     runs-on: macos-latest
     env:
       CAP_SERVER_URL: https://www.sportfolio.market
-      IOS_BUILD_LOG: ${{ runner.temp }}/ios-build.log
+      IOS_BUILD_LOG: tmp/ios-build.log
       IOS_DERIVED_DATA: tmp/ios-derived-data
 
     steps:
