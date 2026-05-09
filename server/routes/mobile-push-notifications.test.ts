@@ -25,6 +25,16 @@ function createTestServer() {
   };
 }
 
+function createNotificationSyncMocks() {
+  return {
+    registerNotificationDevice: vi.fn().mockResolvedValue({
+      isNewToken: false,
+      isNewDeviceForUser: false,
+    }),
+    unregisterNotificationDevice: vi.fn().mockResolvedValue({ disabledCount: 0 }),
+  };
+}
+
 describe("registerMobilePushNotificationRoutes", () => {
   it("registers an android push token for the authenticated user", async () => {
     const { app, baseUrl, close } = createTestServer();
@@ -41,10 +51,12 @@ describe("registerMobilePushNotificationRoutes", () => {
       upsertUserNotificationPreferences: vi.fn().mockResolvedValue([]),
       getPushNotificationEvents: vi.fn().mockResolvedValue([]),
     };
+    const syncMocks = createNotificationSyncMocks();
 
     await registerMobilePushNotificationRoutes(app, {
       authMiddleware,
       storage: storageMock,
+      ...syncMocks,
     });
     app.use("/api", (_req, res) => res.status(404).json({ error: "Not found" }));
 
@@ -69,6 +81,14 @@ describe("registerMobilePushNotificationRoutes", () => {
         osVersion: null,
         deviceModel: null,
       });
+      expect(syncMocks.registerNotificationDevice).toHaveBeenCalledWith({
+        userId: "user-123",
+        platform: "android",
+        token: "fcm_token_abcdefghijklmnopqrstuvwxyz123456",
+        deviceId: "device-1",
+        appVersion: undefined,
+        permissionStatus: "granted",
+      });
     } finally {
       await close();
     }
@@ -80,6 +100,7 @@ describe("registerMobilePushNotificationRoutes", () => {
       req.user = { claims: { sub: "user-123" } };
       next();
     };
+    const syncMocks = createNotificationSyncMocks();
 
     await registerMobilePushNotificationRoutes(app, {
       authMiddleware,
@@ -91,6 +112,7 @@ describe("registerMobilePushNotificationRoutes", () => {
         upsertUserNotificationPreferences: vi.fn().mockResolvedValue([]),
         getPushNotificationEvents: vi.fn().mockResolvedValue([]),
       },
+      ...syncMocks,
     });
     app.use("/api", (_req, res) => res.status(404).json({ error: "Not found" }));
 
@@ -103,6 +125,7 @@ describe("registerMobilePushNotificationRoutes", () => {
 
       expect(response.status).toBe(400);
       await expect(response.json()).resolves.toMatchObject({ error: "Invalid push token" });
+      expect(syncMocks.registerNotificationDevice).not.toHaveBeenCalled();
     } finally {
       await close();
     }
@@ -139,10 +162,12 @@ describe("registerMobilePushNotificationRoutes", () => {
       upsertUserNotificationPreferences: vi.fn().mockResolvedValue([]),
       getPushNotificationEvents: vi.fn().mockResolvedValue([]),
     };
+    const syncMocks = createNotificationSyncMocks();
 
     await registerMobilePushNotificationRoutes(app, {
       authMiddleware,
       storage: storageMock,
+      ...syncMocks,
     });
     app.use("/api", (_req, res) => res.status(404).json({ error: "Not found" }));
 
@@ -220,10 +245,12 @@ describe("registerMobilePushNotificationRoutes", () => {
         },
       ]),
     };
+    const syncMocks = createNotificationSyncMocks();
 
     await registerMobilePushNotificationRoutes(app, {
       authMiddleware,
       storage: storageMock as any,
+      ...syncMocks,
     });
     app.use("/api", (_req, res) => res.status(404).json({ error: "Not found" }));
 
@@ -281,10 +308,12 @@ describe("registerMobilePushNotificationRoutes", () => {
       upsertUserNotificationPreferences: vi.fn().mockResolvedValue([]),
       getPushNotificationEvents: vi.fn().mockResolvedValue([]),
     };
+    const syncMocks = createNotificationSyncMocks();
 
     await registerMobilePushNotificationRoutes(app, {
       authMiddleware,
       storage: storageMock as any,
+      ...syncMocks,
     });
     app.use("/api", (_req, res) => res.status(404).json({ error: "Not found" }));
 
@@ -310,6 +339,58 @@ describe("registerMobilePushNotificationRoutes", () => {
           }),
         }),
       );
+    } finally {
+      await close();
+    }
+  });
+
+  it("deactivates matching android tokens in both token stores on unregister", async () => {
+    const { app, baseUrl, close } = createTestServer();
+    const authMiddleware: RequestHandler = (req: any, _res, next) => {
+      req.user = { claims: { sub: "user-123" } };
+      next();
+    };
+
+    const storageMock = {
+      upsertUserPushToken: vi.fn(),
+      deactivateUserPushTokens: vi.fn().mockResolvedValue(1),
+      getPushNotificationEventById: vi.fn(),
+      updatePushNotificationEvent: vi.fn(),
+      listActiveUserPushTokens: vi.fn().mockResolvedValue([]),
+      getUserNotificationPreferences: vi.fn().mockResolvedValue([]),
+      upsertUserNotificationPreferences: vi.fn().mockResolvedValue([]),
+      getPushNotificationEvents: vi.fn().mockResolvedValue([]),
+    };
+    const syncMocks = createNotificationSyncMocks();
+
+    await registerMobilePushNotificationRoutes(app, {
+      authMiddleware,
+      storage: storageMock as any,
+      ...syncMocks,
+    });
+    app.use("/api", (_req, res) => res.status(404).json({ error: "Not found" }));
+
+    try {
+      const response = await fetch(`${baseUrl}/api/mobile/push/unregister`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token: "fcm_token_abcdefghijklmnopqrstuvwxyz123456",
+          reason: "logout",
+        }),
+      });
+
+      expect(response.status).toBe(200);
+      expect(storageMock.deactivateUserPushTokens).toHaveBeenCalledWith("user-123", {
+        token: "fcm_token_abcdefghijklmnopqrstuvwxyz123456",
+        deviceId: undefined,
+        reason: "logout",
+      });
+      expect(syncMocks.unregisterNotificationDevice).toHaveBeenCalledWith({
+        userId: "user-123",
+        token: "fcm_token_abcdefghijklmnopqrstuvwxyz123456",
+        deviceId: undefined,
+      });
     } finally {
       await close();
     }
