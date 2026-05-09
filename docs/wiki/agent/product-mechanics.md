@@ -1,3 +1,18 @@
+---
+id: agent-product-mechanics
+title: Product Mechanics
+summary: Gameplay and economic loops as implemented in code: AMM trading, LP, scouts, boosts, community boosts, and payouts.
+audience: public
+category: agent
+status: published
+owner: product-engineering
+lastReviewedAt: 2026-05-02
+changeTriggers: server/amm/pool.ts,server/routes/amm.ts,server/routes/lp.ts,server/routes.ts,server/jobs/scout-distribution.ts,server/jobs/settle-boosts.ts,shared/schema.ts
+slug: product-mechanics
+surface: web,agent
+searchKeywords: amm,lp,scouts,boosts,payouts,trading,economics,formulas
+---
+
 # Product Mechanics (Agent Source of Truth)
 
 This document explains the current gameplay/economic loops as implemented in code.
@@ -147,4 +162,4 @@ Critical invariants:
 ## Agent Notes
 
 - If mechanics in UI copy conflict with backend behavior, backend route/job code is authoritative.
-- Any change to formulas, burn/credit behavior, or caps requires runbook validation in `docs/agent/runbooks.md`.
+- Any change to formulas, burn/credit behavior, or caps requires runbook validation in `docs/wiki/agent/runbooks.md`.

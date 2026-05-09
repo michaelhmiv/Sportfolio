@@ -1,3 +1,18 @@
+---
+id: agent-binary-files-root-cause
+title: Binary File Commit Failures
+summary: Root cause analysis for intermittent commit/PR failures when binary files are involved in agent-generated changes.
+audience: public
+category: agent
+status: published
+owner: product-engineering
+lastReviewedAt: 2026-05-02
+changeTriggers: .agent/workflows/*
+slug: binary-files-root-cause
+surface: agent
+searchKeywords: binary,commit,pr,failure,git,root cause
+---
+
 # Binary-file Commit Failure: Root Cause Analysis
 
 ## Symptom

@@ -1,3 +1,18 @@
+---
+id: agent-data-model-economy
+title: Data Model & Economy
+summary: Core schema and economic primitives: holdings, players, users, AMM pools, LP positions, scout history, and vesting.
+audience: public
+category: agent
+status: published
+owner: product-engineering
+lastReviewedAt: 2026-05-02
+changeTriggers: shared/schema.ts,server/amm/pool.ts,shared/vesting-utils.ts
+slug: data-model-economy
+surface: agent
+searchKeywords: schema,holdings,players,users,pools,lp,scouts,vesting,schema
+---
+
 # Data Model & Economy Reference
 
 Primary source: `shared/schema.ts`.
@@ -117,4 +132,4 @@ Before changing schema or economic logic:
 1. Trace all writers for affected fields in `server/routes.ts`, `server/storage.ts`, and `server/jobs/*`.
 2. Confirm lock semantics are still valid.
 3. Confirm activity/ledger rows still reconcile with primary state.
-4. Run validation commands from `docs/agent/runbooks.md`.
+4. Run validation commands from `docs/wiki/agent/runbooks.md`.

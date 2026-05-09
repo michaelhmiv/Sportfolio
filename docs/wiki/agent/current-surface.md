@@ -1,3 +1,18 @@
+---
+id: agent-current-surface
+title: Agent Current Surface
+summary: The stable Hermes contract for testing and curation: tool tiers, MCP roles, staged mutations, autonomous strategy scope.
+audience: public
+category: agent
+status: published
+owner: product-engineering
+lastReviewedAt: 2026-05-02
+changeTriggers: server/agent/hermes-orchestrator.ts,server/agent/hermes-tools.ts,server/mcp/public-tool-registry.ts
+slug: current-surface
+surface: agent
+searchKeywords: hermes,contract,tools,mcp,strategies,autonomous,confirmation,memory
+---
+
 # Agent Current Surface (Hermes Runtime Milestone)
 
 This document defines the current Hermes contract that is considered stable enough for testing and curation.

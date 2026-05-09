@@ -6,7 +6,7 @@ const checks = [
     mustInclude: ['power: integer("power")', 'powerLevel: decimal("power_level",'],
   },
   {
-    file: "docs/agent/api-map.md",
+    file: "docs/wiki/agent/api-map.md",
     mustInclude: ["/api/holdings/condense", "/api/daily-boosts/assign"],
   },
 ];

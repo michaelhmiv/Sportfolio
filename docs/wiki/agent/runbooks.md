@@ -1,3 +1,18 @@
+---
+id: agent-runbooks
+title: Agent Runbooks
+summary: Safe change procedures for any modification that affects formulas, balances, share supply, payouts, or job timing.
+audience: public
+category: agent
+status: published
+owner: product-engineering
+lastReviewedAt: 2026-05-02
+changeTriggers: server/amm/pool.ts,server/routes/amm.ts,server/routes/lp.ts,server/routes.ts,server/storage.ts,server/jobs/*
+slug: runbooks
+surface: agent
+searchKeywords: runbook,validation,checklist,amm,boost,vesting,auth,safety
+---
+
 # Agent Runbooks (Safe Change Procedures)
 
 Use this file for any change that affects formulas, balances, share supply, payouts, or job timing.
@@ -5,8 +20,8 @@ Use this file for any change that affects formulas, balances, share supply, payo
 ## Global Pre-Flight (All Non-Trivial Changes)
 
 1. Read:
-   - `docs/agent/product-mechanics.md`
-   - `docs/agent/data-model-economy.md`
+   - `docs/wiki/agent/product-mechanics.md`
+   - `docs/wiki/agent/data-model-economy.md`
 2. Identify impacted writers in:
    - `server/routes.ts`
    - `server/storage.ts`

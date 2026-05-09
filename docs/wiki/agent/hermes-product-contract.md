@@ -1,3 +1,18 @@
+---
+id: agent-hermes-product-contract
+title: Hermes Product Contract
+summary: Canonical internal contract for how Hermes should behave inside Sportfolio: tool tiers, MCP precedence, confirmation boundaries.
+audience: public
+category: agent
+status: published
+owner: product-engineering
+lastReviewedAt: 2026-05-02
+changeTriggers: server/agent/hermes-orchestrator.ts,server/agent/hermes-tools.ts,server/mcp/public-tool-registry.ts,docs/wiki/agent/hermes-product-contract.md
+slug: hermes-product-contract
+surface: agent
+searchKeywords: hermes,contract,tool tiers,mcp,confirmation,memory,skills,non-goals
+---
+
 # Hermes Product Contract
 
 This document is the canonical internal contract for how Hermes should behave inside Sportfolio.
