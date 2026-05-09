@@ -1,3 +1,18 @@
+## 2026-05-09 Android Notifications End-to-End Debug + Fix
+
+- [x] Audit Android notification stack end-to-end (manifest/runtime permission/channel/plugin/backend token path)
+- [x] Identify root cause for missing notifications and implement minimal fix
+- [x] Add or update targeted automated tests for the fixed path
+- [x] Run required validation (`npm run check`, `npm run lint`, `npm run test:run`)
+- [x] Document root cause, QA checklist, and remaining risks
+
+Review:
+
+- Root cause: the Android client’s canonical registration path (`/api/mobile/push/register`) only upserted `user_push_tokens`, while much of the live notification dispatcher still resolves recipients from `user_push_devices`, causing missing deliveries when `user_push_devices` was stale/empty.
+- Fix: `server/routes/mobile-push-notifications.ts` now synchronizes both stores on register/unregister by bridging to `registerPushDevice`/`unregisterPushDevice` so the same Android token lifecycle powers both dispatch paths.
+- Added regression coverage in `server/routes/mobile-push-notifications.test.ts` for the dual-store register/unregister behavior.
+- Validation passed: `npm run check`, `npm run lint`, `npm run test:run`.
+
 ## 2026-04-29 Google Ad Manager Account Recovery
 
 - [x] Confirm `sportfolio-f1b70` is the active Google Cloud project for local CLI/API testing

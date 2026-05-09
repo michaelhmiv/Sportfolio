@@ -5,6 +5,11 @@ import {
 } from "@shared/push-notifications";
 import { storage, type IStorage } from "../storage";
 import { hasFirebasePushCredentialsConfigured } from "../services/push-notifications";
+import {
+  registerPushDevice,
+  unregisterPushDevice,
+  type RegisterPushDeviceInput,
+} from "../services/notification-settings";
 
 type MobilePushStorage = Pick<
   IStorage,
@@ -21,6 +26,14 @@ type MobilePushStorage = Pick<
 interface RegisterMobilePushNotificationRoutesOptions {
   authMiddleware?: RequestHandler;
   storage?: MobilePushStorage;
+  registerNotificationDevice?: (
+    input: RegisterPushDeviceInput,
+  ) => Promise<{ isNewToken: boolean; isNewDeviceForUser: boolean }>;
+  unregisterNotificationDevice?: (input: {
+    userId: string;
+    token?: string;
+    deviceId?: string;
+  }) => Promise<{ disabledCount: number }>;
 }
 
 function getUserId(req: any): string {
@@ -53,6 +66,24 @@ function isLikelyFcmToken(token: string): boolean {
   return token.length >= 20 && token.length <= 4096 && !/\s/.test(token);
 }
 
+function normalizePermissionStatus(value: unknown): RegisterPushDeviceInput["permissionStatus"] {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const normalized = value.trim();
+  if (
+    normalized === "prompt" ||
+    normalized === "prompt-with-rationale" ||
+    normalized === "granted" ||
+    normalized === "denied"
+  ) {
+    return normalized;
+  }
+
+  return undefined;
+}
+
 function mergeEventMetadata(
   event: { metadata: unknown } | undefined,
   patch: Record<string, unknown>,
@@ -73,6 +104,8 @@ export async function registerMobilePushNotificationRoutes(
   options: RegisterMobilePushNotificationRoutesOptions = {},
 ) {
   const storageLayer = options.storage ?? storage;
+  const registerNotificationDevice = options.registerNotificationDevice ?? registerPushDevice;
+  const unregisterNotificationDevice = options.unregisterNotificationDevice ?? unregisterPushDevice;
   const authMiddleware =
     options.authMiddleware ?? (await import("../supabaseAuth")).isAuthenticated;
 
@@ -82,6 +115,13 @@ export async function registerMobilePushNotificationRoutes(
       const token = typeof req.body?.token === "string" ? req.body.token.trim() : "";
       const platform =
         typeof req.body?.platform === "string" ? req.body.platform.trim() : "android";
+      const deviceId = typeof req.body?.deviceId === "string" ? req.body.deviceId.trim() : "";
+      const appVersion = typeof req.body?.appVersion === "string" ? req.body.appVersion.trim() : "";
+      const osVersion =
+        typeof req.body?.osVersion === "string" ? req.body.osVersion.trim().slice(0, 255) : "";
+      const deviceModel =
+        typeof req.body?.deviceModel === "string" ? req.body.deviceModel.trim().slice(0, 255) : "";
+      const permissionStatus = normalizePermissionStatus(req.body?.permissionStatus) ?? "granted";
 
       if (platform.toLowerCase() !== "android") {
         return res.status(400).json({ error: "Only android platform is supported" });
@@ -93,21 +133,25 @@ export async function registerMobilePushNotificationRoutes(
 
       console.info("[MOBILE_PUSH] Registering Android token", {
         userId,
-        deviceId: typeof req.body?.deviceId === "string" ? req.body.deviceId.trim() : null,
+        deviceId: deviceId || null,
       });
 
       await storageLayer.upsertUserPushToken({
         userId,
         platform: "android",
         token,
-        deviceId: typeof req.body?.deviceId === "string" ? req.body.deviceId.trim() : null,
-        appVersion: typeof req.body?.appVersion === "string" ? req.body.appVersion.trim() : null,
-        osVersion:
-          typeof req.body?.osVersion === "string" ? req.body.osVersion.trim().slice(0, 255) : null,
-        deviceModel:
-          typeof req.body?.deviceModel === "string"
-            ? req.body.deviceModel.trim().slice(0, 255)
-            : null,
+        deviceId: deviceId || null,
+        appVersion: appVersion || null,
+        osVersion: osVersion || null,
+        deviceModel: deviceModel || null,
+      });
+      await registerNotificationDevice({
+        userId,
+        platform: "android",
+        token,
+        deviceId: deviceId || undefined,
+        appVersion: appVersion || undefined,
+        permissionStatus,
       });
 
       return res.json({ success: true });
@@ -131,6 +175,11 @@ export async function registerMobilePushNotificationRoutes(
         token: token || undefined,
         deviceId: deviceId || undefined,
         reason: typeof req.body?.reason === "string" ? req.body.reason.trim() : "user_logout",
+      });
+      await unregisterNotificationDevice({
+        userId,
+        token: token || undefined,
+        deviceId: deviceId || undefined,
       });
 
       console.info("[MOBILE_PUSH] Deactivated Android tokens", {
