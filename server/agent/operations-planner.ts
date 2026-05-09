@@ -668,10 +668,9 @@ async function resolvePlayerByReference(
 
   if (/^(nba|nfl|mlb|nascar)_[a-z0-9_-]+$/i.test(normalizedReference)) {
     const player = await storage.getPlayer(normalizedReference);
-    if (!player) {
-      return null;
+    if (player) {
+      return { player, warnings: [] };
     }
-    return { player, warnings: [] };
   }
 
   const explicitSportHint =
@@ -688,7 +687,10 @@ async function resolvePlayerByReference(
     .where(
       and(
         ...conditions,
-        sql`LOWER(${players.firstName} || ' ' || ${players.lastName}) = ${normalizedReference.toLowerCase()}`,
+        or(
+          sql`LOWER(${players.id}) = ${normalizedReference.toLowerCase()}`,
+          sql`LOWER(CONCAT_WS(' ', ${players.firstName}, ${players.lastName})) = ${normalizedReference.toLowerCase()}`,
+        ),
       ),
     )
     .orderBy(desc(players.volume24h))
@@ -721,7 +723,8 @@ async function resolvePlayerByReference(
       and(
         ...conditions,
         or(
-          sql`LOWER(${players.firstName} || ' ' || ${players.lastName}) LIKE ${likePattern}`,
+          sql`LOWER(${players.id}) LIKE ${likePattern}`,
+          sql`LOWER(CONCAT_WS(' ', ${players.firstName}, ${players.lastName})) LIKE ${likePattern}`,
           sql`LOWER(${players.firstName}) LIKE ${tokenPattern}`,
           sql`LOWER(${players.lastName}) LIKE ${tokenPattern}`,
         ),
@@ -737,18 +740,21 @@ async function resolvePlayerByReference(
   const normalizedTokens = normalizedReference.toLowerCase().split(/\s+/).filter(Boolean);
   const scored = candidates
     .map((candidate) => {
-      const fullName = `${candidate.firstName} ${candidate.lastName}`.toLowerCase();
+      const firstName = (candidate.firstName || "").trim();
+      const lastName = (candidate.lastName || "").trim();
+      const fullName = `${firstName} ${lastName}`.trim().toLowerCase();
+      const normalizedCandidateId = (candidate.id || "").toLowerCase();
       let score = 0;
 
+      if (normalizedCandidateId === normalizedReference.toLowerCase()) score += 240;
       if (fullName === normalizedReference.toLowerCase()) score += 200;
       if (fullName.startsWith(normalizedReference.toLowerCase())) score += 120;
       if (fullName.includes(normalizedReference.toLowerCase())) score += 90;
 
       for (const nameToken of normalizedTokens) {
-        if (
-          candidate.firstName.toLowerCase() === nameToken ||
-          candidate.lastName.toLowerCase() === nameToken
-        ) {
+        const normalizedFirstName = firstName.toLowerCase();
+        const normalizedLastName = lastName.toLowerCase();
+        if (normalizedFirstName === nameToken || normalizedLastName === nameToken) {
           score += 45;
         } else if (fullName.includes(nameToken)) {
           score += 18;
