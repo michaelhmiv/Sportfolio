@@ -43,7 +43,9 @@ The more trading volume a pool generates, the more your LP position earns.
 
 ## Adding Liquidity
 
-You have three ways to add liquidity to a player pool:
+If a player has no active pool yet, the first LP deposit initializes the pool and sets the opening price from your shares/SB ratio.
+
+After a pool is active, you have three ways to add liquidity:
 
 ### Standard Add
 

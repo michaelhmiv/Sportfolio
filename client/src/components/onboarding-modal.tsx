@@ -48,7 +48,7 @@ const slides: OnboardingSlide[] = [
     title: "TRADE PLAYER POOLS",
     subtitle: "Instant AMM pricing with live quotes",
     description:
-      "Buy and sell against constant-product pools instantly, or add liquidity to capture fee flow over time.",
+      "Buy and sell instantly on initialized player pools, or add opening liquidity to bootstrap a pool and earn fee flow over time.",
     color: "text-emerald-500",
     ctaLabel: "Go to Pools",
     ctaPath: "/pools",

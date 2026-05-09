@@ -49,6 +49,7 @@ type MarketChipLabel =
   | "Heat check";
 
 type PlayerWithPool = Player & {
+  poolInitialized?: boolean;
   currentPrice?: string | number | null;
   priceChange24h?: string | number | null;
   volume24h?: number | null;
@@ -1178,7 +1179,8 @@ export function MarketMobileHome({
                 const primaryChip = getPrimaryChip(player, signal, quickContext, whalePlayerIds);
                 const priceChange = toNumber(player.priceChange24h);
                 const currentPrice = toNumber(player.currentPrice);
-                const showSell = (quickContext.availableShares || 0) > 0;
+                const poolInitialized = player.poolInitialized !== false;
+                const showSell = poolInitialized && (quickContext.availableShares || 0) > 0;
                 const boardMetricValue = formatBoardMetricValue(player, boardMetricField, signal);
                 const secondaryAction = quickContext.isBoostEligible
                   ? "boost"
@@ -1293,7 +1295,7 @@ export function MarketMobileHome({
                         className="h-7 w-full px-0 text-[10px]"
                         onClick={() => onOpenPlayer(player, "buy", quickContext)}
                       >
-                        Buy
+                        {poolInitialized ? "Buy" : "Init Pool"}
                       </Button>
                       {secondaryAction === "boost" && (
                         <Button

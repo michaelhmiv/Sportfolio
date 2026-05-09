@@ -1007,78 +1007,78 @@ export default function PlayerPage() {
 
           <div className="space-y-4">
             {/* Mode Selector */}
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant={addLiquidityMode === "auto-detect" ? "default" : "outline"}
-                size="sm"
-                className="flex-1 text-xs"
-                disabled={!isPoolInitialized}
-                onClick={() => {
-                  setAddLiquidityMode("auto-detect");
-                  setMaxSharesToUse(0);
-                  setMaxPlayMoneyToUse(0);
-                  setLastEdited(null);
-                  setZapQuote(null);
-                  setLinkAmounts(false);
-                }}
-              >
-                Auto-Detect
-              </Button>
-              <Button
-                type="button"
-                variant={addLiquidityMode === "dual-max" ? "default" : "outline"}
-                size="sm"
-                className="flex-1 text-xs"
-                onClick={() => {
-                  setAddLiquidityMode("dual-max");
-                  setMaxSharesToUse(0);
-                  setMaxPlayMoneyToUse(0);
-                  setLastEdited(null);
-                  setZapQuote(null);
-                  setLinkAmounts(false);
-                }}
-              >
-                Dual Max
-              </Button>
-              <Button
-                type="button"
-                variant={addLiquidityMode === "fixed-ratio" ? "default" : "outline"}
-                size="sm"
-                className="flex-1 text-xs"
-                onClick={() => {
-                  setAddLiquidityMode("fixed-ratio");
-                  setMaxSharesToUse(0);
-                  setMaxPlayMoneyToUse(0);
-                  setLastEdited(null);
-                  setZapQuote(null);
-                  setLinkAmounts(true);
-                }}
-              >
-                Fixed Ratio
-              </Button>
-            </div>
+            {isPoolInitialized ? (
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant={addLiquidityMode === "auto-detect" ? "default" : "outline"}
+                  size="sm"
+                  className="flex-1 text-xs"
+                  onClick={() => {
+                    setAddLiquidityMode("auto-detect");
+                    setMaxSharesToUse(0);
+                    setMaxPlayMoneyToUse(0);
+                    setLastEdited(null);
+                    setZapQuote(null);
+                    setLinkAmounts(false);
+                  }}
+                >
+                  Auto-Detect
+                </Button>
+                <Button
+                  type="button"
+                  variant={addLiquidityMode === "dual-max" ? "default" : "outline"}
+                  size="sm"
+                  className="flex-1 text-xs"
+                  onClick={() => {
+                    setAddLiquidityMode("dual-max");
+                    setMaxSharesToUse(0);
+                    setMaxPlayMoneyToUse(0);
+                    setLastEdited(null);
+                    setZapQuote(null);
+                    setLinkAmounts(false);
+                  }}
+                >
+                  Dual Max
+                </Button>
+                <Button
+                  type="button"
+                  variant={addLiquidityMode === "fixed-ratio" ? "default" : "outline"}
+                  size="sm"
+                  className="flex-1 text-xs"
+                  onClick={() => {
+                    setAddLiquidityMode("fixed-ratio");
+                    setMaxSharesToUse(0);
+                    setMaxPlayMoneyToUse(0);
+                    setLastEdited(null);
+                    setZapQuote(null);
+                    setLinkAmounts(true);
+                  }}
+                >
+                  Fixed Ratio
+                </Button>
+              </div>
+            ) : (
+              <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
+                Set opening shares and SB to initialize this pool. Your first deposit sets the
+                starting market price.
+              </div>
+            )}
 
             {/* Mode Description */}
-            <div className="text-xs text-muted-foreground">
-              {addLiquidityMode === "auto-detect" && (
-                <>
-                  {isPoolInitialized
-                    ? "Drag one slider. We auto-trade to balance your deposit. Simplest option."
-                    : "Auto-detect requires an existing pool. Initialize with Dual Max or Fixed Ratio first."}
-                </>
-              )}
-              {addLiquidityMode === "dual-max" && (
-                <>Use max of both assets. We'll balance at execution time.</>
-              )}
-              {addLiquidityMode === "fixed-ratio" && (
-                <>
-                  {isPoolInitialized
-                    ? "Both sliders linked. Deposit must match current pool price exactly."
-                    : "No active pool yet. Your exact shares + SB set the starting pool price."}
-                </>
-              )}
-            </div>
+            {isPoolInitialized && (
+              <div className="text-xs text-muted-foreground">
+                {addLiquidityMode === "auto-detect" && (
+                  <>Drag one slider. We auto-trade to balance your deposit. Simplest option.</>
+                )}
+                {addLiquidityMode === "dual-max" && (
+                  <>Use max of both assets. We'll balance at execution time.</>
+                )}
+                {addLiquidityMode === "fixed-ratio" && (
+                  <>Both sliders linked. Deposit must match current pool price exactly.</>
+                )}
+              </div>
+            )}
 
             <div className="rounded-md border bg-muted/30 p-3 text-xs space-y-1">
               <div className="flex justify-between">
@@ -1100,11 +1100,13 @@ export default function PlayerPage() {
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm">
                 <span>
-                  {addLiquidityMode === "auto-detect" && lastEdited === "sb"
-                    ? "Shares to buy"
-                    : addLiquidityMode === "auto-detect" && lastEdited === "shares"
-                      ? "Shares to deposit"
-                      : "Max shares to use"}
+                  {!isPoolInitialized
+                    ? "Shares to deposit"
+                    : addLiquidityMode === "auto-detect" && lastEdited === "sb"
+                      ? "Shares to buy"
+                      : addLiquidityMode === "auto-detect" && lastEdited === "shares"
+                        ? "Shares to deposit"
+                        : "Max shares to use"}
                 </span>
                 <div className="flex items-center gap-2">
                   <span className="font-mono">{maxSharesToUse.toFixed(4)}</span>
@@ -1140,11 +1142,13 @@ export default function PlayerPage() {
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm">
                 <span>
-                  {addLiquidityMode === "auto-detect" && lastEdited === "shares"
-                    ? "SB from sale"
-                    : addLiquidityMode === "auto-detect" && lastEdited === "sb"
-                      ? "SB to deposit"
-                      : "Max SB to use"}
+                  {!isPoolInitialized
+                    ? "SB to deposit"
+                    : addLiquidityMode === "auto-detect" && lastEdited === "shares"
+                      ? "SB from sale"
+                      : addLiquidityMode === "auto-detect" && lastEdited === "sb"
+                        ? "SB to deposit"
+                        : "Max SB to use"}
                 </span>
                 <div className="flex items-center gap-2">
                   <span className="font-mono">${maxPlayMoneyToUse.toFixed(2)}</span>
@@ -1304,7 +1308,11 @@ export default function PlayerPage() {
                   estimatedPlayMoneyDeposited <= 0
                 }
               >
-                {addLiquidityOptimalMutation.isPending ? "Adding..." : "Add Liquidity"}
+                {addLiquidityOptimalMutation.isPending
+                  ? "Adding..."
+                  : isPoolInitialized
+                    ? "Add Liquidity"
+                    : "Initialize Pool"}
               </Button>
             )}
 

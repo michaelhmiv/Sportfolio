@@ -55,6 +55,9 @@ const LP_BOOST_THRESHOLD = 0.01;
 
 // Minimum holding threshold before deleting a position (prevents dust)
 const MIN_HOLDING_THRESHOLD = 0.0001;
+const HOLDING_QUANTITY_DECIMALS = 4;
+const HOLDING_QUANTITY_FACTOR = 10 ** HOLDING_QUANTITY_DECIMALS;
+const HOLDING_QUANTITY_EPSILON = 1e-9;
 
 // Market Maker identifier is still used for LP boost exclusion.
 const MARKET_MAKER_ID = "market_maker";
@@ -69,6 +72,14 @@ function fireBroadcastNotification(input: Parameters<typeof sendCategoryBroadcas
   void sendCategoryBroadcastNotification(input).catch((error) => {
     console.error("[AMM] Broadcast notification error:", error);
   });
+}
+
+function roundHoldingQuantity(value: number): number {
+  return Math.round(value * HOLDING_QUANTITY_FACTOR) / HOLDING_QUANTITY_FACTOR;
+}
+
+function formatHoldingQuantity(value: number): string {
+  return roundHoldingQuantity(value).toFixed(HOLDING_QUANTITY_DECIMALS);
 }
 
 const poolSelect = {
@@ -491,7 +502,7 @@ export async function executeBuy(
         .set({ balance: newBalance.toFixed(2) })
         .where(eq(users.id, userId));
 
-      // 7. Add shares to user holdings (rounded to whole numbers)
+      // 7. Add shares to user holdings
       const [existingHolding] = await tx
         .select()
         .from(holdings)
@@ -513,7 +524,7 @@ export async function executeBuy(
         await tx
           .update(holdings)
           .set({
-            quantity: Math.round(newQuantity).toString(),
+            quantity: formatHoldingQuantity(newQuantity),
             avgCostBasis: newAvgCost.toFixed(4),
             totalCostBasis: newTotalCost.toFixed(2),
             lastUpdated: new Date(),
@@ -525,7 +536,7 @@ export async function executeBuy(
           userId,
           assetType: "player",
           assetId: playerId,
-          quantity: Math.round(newQuantity).toString(),
+          quantity: formatHoldingQuantity(newQuantity),
           avgCostBasis: quote.effectivePrice.toFixed(4),
           totalCostBasis: quote.totalCost.toFixed(2),
           lastUpdated: new Date(),
@@ -701,7 +712,7 @@ export async function executeSell(
         };
       }
 
-      // 4. Verify user has enough shares
+      // 4. Verify user has enough unlocked shares
       const [holding] = await tx
         .select()
         .from(holdings)
@@ -711,15 +722,31 @@ export async function executeSell(
             eq(holdings.assetType, "player"),
             eq(holdings.assetId, playerId),
           ),
-        );
+        )
+        .for("update");
 
       if (!holding) {
-        return { success: false, error: "Insufficient shares" };
+        return { success: false, error: "Insufficient available shares" };
       }
 
       const holdingQuantity = parseFloat(holding.quantity);
-      if (holdingQuantity < sharesAmount) {
-        return { success: false, error: "Insufficient shares" };
+      const lockedResult = await tx
+        .select({ total: sql<number>`COALESCE(SUM(${holdingsLocks.lockedQuantity}), 0)` })
+        .from(holdingsLocks)
+        .where(
+          and(
+            eq(holdingsLocks.userId, userId),
+            eq(holdingsLocks.assetType, "player"),
+            eq(holdingsLocks.assetId, playerId),
+          ),
+        );
+      const lockedQuantity = Number(lockedResult[0]?.total || 0);
+      const availableShares = Math.max(0, holdingQuantity - lockedQuantity);
+      if (availableShares + HOLDING_QUANTITY_EPSILON < sharesAmount) {
+        return {
+          success: false,
+          error: `Insufficient available shares. Have ${availableShares.toFixed(4)} available, need ${sharesAmount.toFixed(4)}`,
+        };
       }
 
       // 5. Update pool state
@@ -758,7 +785,7 @@ export async function executeSell(
         await tx
           .update(holdings)
           .set({
-            quantity: Math.round(newQuantity).toString(),
+            quantity: formatHoldingQuantity(newQuantity),
             lastUpdated: new Date(),
           })
           .where(eq(holdings.id, holding.id));
@@ -788,7 +815,7 @@ export async function executeSell(
           sellerId: userId,
           buyOrderId: null,
           sellOrderId: null,
-          quantity: Math.round(sharesAmount).toString(),
+          quantity: formatHoldingQuantity(sharesAmount),
           price: quote.effectivePrice.toFixed(2),
           executedAt: new Date(),
         })
@@ -1262,7 +1289,7 @@ export async function zapAddLiquiditySharesOnly(
           sellerId: userId,
           buyOrderId: null,
           sellOrderId: null,
-          quantity: Math.round(sharesSold).toString(),
+          quantity: formatHoldingQuantity(sharesSold),
           price: sellQuote.effectivePrice.toFixed(2),
           executedAt: new Date(),
         })
@@ -1323,7 +1350,7 @@ export async function zapAddLiquiditySharesOnly(
         await tx
           .update(holdings)
           .set({
-            quantity: Math.round(qtyAfterAdd).toString(),
+            quantity: formatHoldingQuantity(qtyAfterAdd),
             lastUpdated: new Date(),
           })
           .where(eq(holdings.id, holding.id));
@@ -1526,7 +1553,7 @@ export async function zapAddLiquiditySbOnly(
         sellerId: "pool",
         buyOrderId: null,
         sellOrderId: null,
-        quantity: Math.round(buyQuote.sharesOut).toString(),
+        quantity: formatHoldingQuantity(buyQuote.sharesOut),
         price: buyQuote.effectivePrice.toFixed(2),
         executedAt: new Date(),
       });
@@ -2068,7 +2095,7 @@ export async function removeLiquidity(
         await tx
           .update(holdings)
           .set({
-            quantity: Math.round(newQuantity).toString(),
+            quantity: formatHoldingQuantity(newQuantity),
             lastUpdated: new Date(),
           })
           .where(eq(holdings.id, existingHolding.id));
@@ -2077,7 +2104,7 @@ export async function removeLiquidity(
           userId,
           assetType: "player",
           assetId: playerId,
-          quantity: Math.round(sharesToReturn).toString(),
+          quantity: formatHoldingQuantity(sharesToReturn),
           avgCostBasis: poolData.currentPrice.toFixed(4),
           totalCostBasis: playMoneyToReturn.toFixed(2),
           lastUpdated: new Date(),

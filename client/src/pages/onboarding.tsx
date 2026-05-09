@@ -74,7 +74,7 @@ const SLIDES: OnboardingSlide[] = [
     iconBg: "bg-emerald-400/10",
     title: "Trade Player Shares",
     subtitle: "Instant AMM pricing — no order book needed",
-    body: "Buy or sell any player instantly at the pool price.  Add liquidity to capture fee flow, or scout players to earn shares over time.",
+    body: "Buy or sell instantly once a player pool is initialized. Add opening liquidity to start a new pool, then trade, LP, or scout over time.",
   },
   {
     id: "scout",

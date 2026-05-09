@@ -20,13 +20,13 @@ searchKeywords: faq,questions,how it works,trading,agent,sports,premium,boosts
 ## Trading and Markets
 
 **How does trading work?**
-Players trade in AMM-backed pools. You receive a live quote, then buy or sell directly against pool liquidity — no waiting for another user.
+Players trade in AMM-backed pools. On initialized pools, you receive a live quote and buy or sell directly against pool liquidity - no waiting for another user.
 
 **What is slippage?**
 Slippage is the gap between the displayed spot price and your actual average execution price. It happens because your order moves the pool. Larger orders in thinner pools = more slippage.
 
 **Can I trade any player in any sport?**
-Any player with an active pool can be traded. Not every player on every roster has a pool — check Player Pools or search for the specific player.
+Any player with an active pool can be traded. Not every player on every roster has a pool - check Player Pools or search for the specific player.
 
 ---
 
@@ -36,7 +36,7 @@ Any player with an active pool can be traded. Not every player on every roster h
 Scouts distribute shares over time based on time-weighted participation (scout-minutes). They're a long-horizon accumulation tool, not a guaranteed short-term edge.
 
 **What happens if I don't log in for a day?**
-Scout assignments for accounts inactive more than 24 hours are automatically cleared. Your accumulated shares stay — only the active assignment is removed.
+Scout assignments for accounts inactive more than 24 hours are automatically cleared. Your accumulated shares stay - only the active assignment is removed.
 
 **How many scouts can I have?**
 Standard accounts: 5. Premium accounts: 10.
@@ -46,10 +46,10 @@ Standard accounts: 5. Premium accounts: 10.
 ## Shares and Stacking
 
 **What is the difference between a raw share and a stacked share?**
-A raw share has a 1× multiplier and is tradeable. A stacked share has a multiplier above 1× and is not tradeable — it's held as boost-ready inventory.
+A raw share has a 1x multiplier and is tradeable. A stacked share has a multiplier above 1x and is not tradeable - it's held as boost-ready inventory.
 
 **Does stacking create free value?**
-No. Stacking converts unlocked raw shares into a higher multiplier. You are trading quantity for quality, not minting a gain. Minimum 4 shares, even count, `N` shares → `N/2` multiplier.
+No. Stacking converts unlocked raw shares into a higher multiplier. You are trading quantity for quality, not minting a gain. Minimum 4 shares, even count, `N` shares -> `N/2` multiplier.
 
 **Can I sell stacked shares?**
 No. Stacked shares are non-tradeable. Only raw shares can be sold in the AMM.
@@ -62,10 +62,10 @@ No. Stacked shares are non-tradeable. Only raw shares can be sold in the AMM.
 Yes. A daily boost burns one eligible share after the boost locks. That share permanently leaves your inventory.
 
 **When does the burn happen?**
-At game start (lock time) — not after you see the result. Boost assignment is a real, irreversible commitment.
+At game start (lock time) - not after you see the result. Boost assignment is a real, irreversible commitment.
 
 **What if the player has a bad game?**
-The payout formula uses `max(0, ...)` — bad fantasy output means you earn nothing, but you can't go negative.
+The payout formula uses `max(0, ...)` - bad fantasy output means you earn nothing, but you can't go negative.
 
 **Can I use the same player in multiple boost slots?**
 Only if you have separate eligible shares for each slot. Each slot burns exactly one share.
@@ -81,7 +81,7 @@ LP (liquidity providing) means adding both shares and SB to a player pool. You e
 Holding = directional bet on price. LP = market-making exposure to both sides of a pool. LP earns fees; shares earn from price appreciation.
 
 **Where do I see my LP positions?**
-Portfolio → Liquidity tab.
+Portfolio -> Liquidity tab.
 
 ---
 
@@ -101,7 +101,7 @@ The active contract is the web Agent page and the CLI. Legacy SMS infrastructure
 ## Account and Features
 
 **Which sports does Sportfolio cover?**
-NBA, NFL, MLB, and NASCAR, plus an `ALL` browsing mode. Coverage depth varies by sport — NBA, NFL, and MLB have the fullest surfaces.
+NBA, NFL, MLB, and NASCAR, plus an `ALL` browsing mode. Coverage depth varies by sport - NBA, NFL, and MLB have the fullest surfaces.
 
 **What is premium for?**
 Premium expands scout capacity from 5 to 10 and unlocks premium access features. It's an account-level upgrade, not a separate game mode.
@@ -119,9 +119,9 @@ No. Locked shares are visible in your account state but can't be spent until the
 
 ## Where to Start
 
-> 💡 If the full product feels overwhelming, start here:
+> Tip: If the full product feels overwhelming, start here:
 
-1. [Getting Started](/wiki/getting-started/overview) — the core loop in plain language
-2. [Platform Tour](/wiki/getting-started/platform-tour) — page-by-page walkthrough
-3. [Player Pools](/wiki/gameplay/player-pools) — how trading works
-4. [Glossary](/wiki/faq/glossary) — exact definitions for Sportfolio terms
+1. [Getting Started](/wiki/getting-started/overview) - the core loop in plain language
+2. [Platform Tour](/wiki/getting-started/platform-tour) - page-by-page walkthrough
+3. [Player Pools](/wiki/gameplay/player-pools) - how trading works
+4. [Glossary](/wiki/faq/glossary) - exact definitions for Sportfolio terms

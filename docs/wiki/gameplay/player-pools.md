@@ -15,9 +15,11 @@ searchKeywords: amm,pools,buy,sell,liquidity,quotes,slippage,lp
 
 # Player Pools
 
-Every tradeable player sits in an AMM (automated market maker) pool. You trade directly against pooled liquidity — there's no order book, no waiting for a matching bid.
+Player trading uses AMM (automated market maker) pools. If a player pool is initialized, you trade directly against pooled liquidity - there is no order book and no waiting for a matching bid.
 
-> 💡 **Execution is always instant.** The tradeoff is that your order moves the price. Larger orders = more price impact.
+If a player has no active pool yet, the first liquidity deposit bootstraps that market and sets its opening price.
+
+> **Execution is instant once a pool is active.** The tradeoff is that your order moves the price. Larger orders = more price impact.
 
 ---
 
@@ -26,7 +28,7 @@ Every tradeable player sits in an AMM (automated market maker) pool. You trade d
 Sportfolio uses a **constant-product model:**
 
 ```
-x × y = k
+x * y = k
 ```
 
 - `x` = player-share reserve in the pool
@@ -35,13 +37,13 @@ x × y = k
 
 **When you buy:**
 
-- pool gives up shares, receives SB → price rises
+- pool gives up shares, receives SB -> price rises
 
 **When you sell:**
 
-- pool receives shares, gives up SB → price falls
+- pool receives shares, gives up SB -> price falls
 
-This means price is path-dependent — the same player can quote differently based on your order size.
+This means price is path-dependent - the same player can quote differently based on your order size.
 
 ---
 
@@ -56,7 +58,7 @@ Every trade has a **2% total fee:**
 
 **Slippage** is the gap between the displayed spot price and your actual average execution price. Before you execute, the API gives you a quote with slippage bounds.
 
-> ⚠️ Check your quote before confirming large trades. A thin pool can move significantly on a single order.
+> Warning: Check your quote before confirming large trades. A thin pool can move significantly on a single order.
 
 **Practical rules:**
 
@@ -106,11 +108,11 @@ Before buying, check:
 Before selling, check:
 
 - Available shares after lock checks (locked shares can't be sold)
-- Whether the shares are raw or stacked — only raw shares are tradeable
+- Whether the shares are raw or stacked - only raw shares are tradeable
 - Whether the player is relevant for an upcoming boost window
 - Whether you're selling into a thin pool and eating avoidable slippage
 
-> ⚠️ The highest-cost sale is often the one that quietly removes your best boost-ready inventory.
+> Warning: The highest-cost sale is often the one that quietly removes your best boost-ready inventory.
 
 ---
 
@@ -137,7 +139,7 @@ Instead of only taking directional positions, you can add liquidity to a player 
 - LP = market-making exposure to both sides of a pool
 - LP earns fees; holding earns from price appreciation
 
-> ℹ️ LP positions are visible in your Portfolio → Liquidity tab.
+> Note: LP positions are visible in your Portfolio -> Liquidity tab.
 
 For a full LP guide, see [Liquidity Providing](/wiki/gameplay/liquidity-providing).
 
@@ -151,12 +153,12 @@ Player pools are not:
 - A guaranteed low-slippage environment
 - A direct reflection of fantasy performance
 
-They are instant, transparent liquidity surfaces. Price reflects supply and demand in the pool — not always the same thing as athlete performance.
+They are instant, transparent liquidity surfaces. Price reflects supply and demand in the pool - not always the same thing as athlete performance.
 
 ---
 
 ## Next Steps
 
-- [Liquidity Providing](/wiki/gameplay/liquidity-providing) — LP mechanics in depth
-- [Portfolio and Holdings](/wiki/gameplay/portfolio-and-holdings) — how your positions are tracked
-- [Stacking and Boosts](/wiki/gameplay/stacking-shares-and-boosts) — what to do with the shares you accumulate
+- [Liquidity Providing](/wiki/gameplay/liquidity-providing) - LP mechanics in depth
+- [Portfolio and Holdings](/wiki/gameplay/portfolio-and-holdings) - how your positions are tracked
+- [Stacking and Boosts](/wiki/gameplay/stacking-shares-and-boosts) - what to do with the shares you accumulate

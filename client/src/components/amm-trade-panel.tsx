@@ -511,7 +511,8 @@ export function AmmTradePanel({
     <div className="space-y-4">
       {!isPoolInitialized && (
         <div className="p-3 border rounded-sm bg-muted/40 text-sm text-muted-foreground">
-          Pool not initialized yet. Add initial two-sided liquidity to start trading.
+          Pool not initialized yet. Add opening two-sided liquidity in the Pool panel to unlock
+          buy/sell.
         </div>
       )}
 
