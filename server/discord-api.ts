@@ -7,11 +7,44 @@ interface DiscordApiError {
   code?: number;
 }
 
-interface DiscordApiResponse<T> {
+export interface DiscordApiResponse<T> {
   ok: boolean;
   status: number;
   data?: T;
   error?: DiscordApiError;
+}
+
+export interface DiscordChannelObject {
+  id: string;
+  type: number;
+  guild_id?: string;
+  parent_id?: string | null;
+  name?: string;
+}
+
+export interface DiscordMessageAuthor {
+  id: string;
+  username: string;
+  global_name?: string | null;
+  bot?: boolean;
+}
+
+export interface DiscordMessageAttachment {
+  id: string;
+  filename: string;
+  url: string;
+  content_type?: string | null;
+  size?: number;
+}
+
+export interface DiscordMessageObject {
+  id: string;
+  channel_id: string;
+  type: number;
+  content: string;
+  timestamp: string;
+  author: DiscordMessageAuthor;
+  attachments: DiscordMessageAttachment[];
 }
 
 export interface DiscordChannelMessagePayload {
@@ -24,10 +57,28 @@ export interface DiscordChannelMessagePayload {
   };
 }
 
-export async function postDiscordChannelMessage(
-  channelId: string,
-  payload: DiscordChannelMessagePayload,
-): Promise<DiscordApiResponse<{ id: string }>> {
+function buildDiscordRequestHeaders(botToken: string, includeJsonContentType: boolean) {
+  return {
+    Authorization: `Bot ${botToken}`,
+    ...(includeJsonContentType ? { "Content-Type": "application/json" } : {}),
+  };
+}
+
+async function parseDiscordApiError(response: Response): Promise<DiscordApiError> {
+  try {
+    return (await response.json()) as DiscordApiError;
+  } catch {
+    return { message: `Discord API request failed with status ${response.status}` };
+  }
+}
+
+async function requestDiscordApi<T>(
+  path: string,
+  input: {
+    method?: "GET" | "POST" | "PUT";
+    body?: unknown;
+  } = {},
+): Promise<DiscordApiResponse<T>> {
   const config = getDiscordRuntimeConfig();
   if (!config.botToken) {
     return {
@@ -37,37 +88,83 @@ export async function postDiscordChannelMessage(
     };
   }
 
-  const response = await fetch(`${DISCORD_API_BASE}/channels/${channelId}/messages`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bot ${config.botToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
+  const hasBody = input.body !== undefined;
+  const response = await fetch(`${DISCORD_API_BASE}${path}`, {
+    method: input.method || "GET",
+    headers: buildDiscordRequestHeaders(config.botToken, hasBody),
+    ...(hasBody ? { body: JSON.stringify(input.body) } : {}),
   });
 
   if (!response.ok) {
-    let errorPayload: DiscordApiError | undefined;
-    try {
-      errorPayload = (await response.json()) as DiscordApiError;
-    } catch {
-      errorPayload = { message: `Discord API request failed with status ${response.status}` };
-    }
-
     return {
       ok: false,
       status: response.status,
-      error: errorPayload,
+      error: await parseDiscordApiError(response),
     };
   }
 
-  const data = (await response.json()) as { id: string };
+  if (response.status === 204) {
+    return {
+      ok: true,
+      status: response.status,
+      data: undefined,
+    };
+  }
+
+  const data = (await response.json()) as T;
 
   return {
     ok: true,
     status: response.status,
     data,
   };
+}
+
+export async function postDiscordChannelMessage(
+  channelId: string,
+  payload: DiscordChannelMessagePayload,
+): Promise<DiscordApiResponse<{ id: string }>> {
+  return requestDiscordApi<{ id: string }>(`/channels/${channelId}/messages`, {
+    method: "POST",
+    body: payload,
+  });
+}
+
+export async function getDiscordChannel(
+  channelId: string,
+): Promise<DiscordApiResponse<DiscordChannelObject>> {
+  return requestDiscordApi<DiscordChannelObject>(`/channels/${channelId}`);
+}
+
+export async function listDiscordChannelMessages(
+  channelId: string,
+  input: {
+    before?: string | null;
+    limit?: number;
+  } = {},
+): Promise<DiscordApiResponse<DiscordMessageObject[]>> {
+  const params = new URLSearchParams();
+  const requestedLimit = input.limit ?? 100;
+  const boundedLimit = Math.max(1, Math.min(requestedLimit, 100));
+  params.set("limit", String(boundedLimit));
+  if (input.before) {
+    params.set("before", input.before);
+  }
+
+  return requestDiscordApi<DiscordMessageObject[]>(
+    `/channels/${channelId}/messages?${params.toString()}`,
+  );
+}
+
+export async function addDiscordMessageReaction(
+  channelId: string,
+  messageId: string,
+  emoji = "%E2%9C%85",
+): Promise<DiscordApiResponse<null>> {
+  return requestDiscordApi<null>(
+    `/channels/${channelId}/messages/${messageId}/reactions/${emoji}/@me`,
+    { method: "PUT" },
+  );
 }
 
 export function buildDiscordSlashCommandDefinitions() {
@@ -394,6 +491,18 @@ export function buildDiscordSlashCommandDefinitions() {
         },
       ],
     },
+    {
+      name: "report",
+      description: "Closed-testing report actions",
+      type: 1,
+      options: [
+        {
+          type: 1,
+          name: "submit",
+          description: "Submit this report thread to GitHub issues",
+        },
+      ],
+    },
   ];
 }
 
@@ -407,38 +516,11 @@ export async function syncDiscordGuildCommands(): Promise<DiscordApiResponse<unk
     };
   }
 
-  const response = await fetch(
-    `${DISCORD_API_BASE}/applications/${config.appId}/guilds/${config.guildId}/commands`,
+  return requestDiscordApi<unknown>(
+    `/applications/${config.appId}/guilds/${config.guildId}/commands`,
     {
       method: "PUT",
-      headers: {
-        Authorization: `Bot ${config.botToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(buildDiscordSlashCommandDefinitions()),
+      body: buildDiscordSlashCommandDefinitions(),
     },
   );
-
-  if (!response.ok) {
-    let errorPayload: DiscordApiError | undefined;
-    try {
-      errorPayload = (await response.json()) as DiscordApiError;
-    } catch {
-      errorPayload = { message: `Discord API request failed with status ${response.status}` };
-    }
-
-    return {
-      ok: false,
-      status: response.status,
-      error: errorPayload,
-    };
-  }
-
-  const data = (await response.json()) as unknown;
-
-  return {
-    ok: true,
-    status: response.status,
-    data,
-  };
 }

@@ -402,6 +402,37 @@ export const discordPostHistory = pgTable(
   }),
 );
 
+export const discordReportSyncs = pgTable(
+  "discord_report_syncs",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    threadChannelId: varchar("thread_channel_id", { length: 32 }).notNull(),
+    parentChannelId: varchar("parent_channel_id", { length: 32 }).notNull(),
+    reportType: text("report_type").notNull(), // bug | feature
+    threadName: text("thread_name"),
+    githubOwner: text("github_owner").notNull(),
+    githubRepo: text("github_repo").notNull(),
+    githubIssueNumber: integer("github_issue_number").notNull(),
+    githubIssueUrl: text("github_issue_url").notNull(),
+    createdByDiscordUserId: varchar("created_by_discord_user_id", { length: 32 }),
+    lastSyncedMessageId: varchar("last_synced_message_id", { length: 32 }),
+    lastSyncedAt: timestamp("last_synced_at").notNull().defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    threadIdx: uniqueIndex("discord_report_syncs_thread_idx").on(table.threadChannelId),
+    issueIdx: uniqueIndex("discord_report_syncs_issue_idx").on(
+      table.githubOwner,
+      table.githubRepo,
+      table.githubIssueNumber,
+    ),
+    reportTypeIdx: index("discord_report_syncs_type_idx").on(table.reportType, table.createdAt),
+  }),
+);
+
 // Players table - players from all sports (NBA, NFL, etc.)
 // Player IDs are prefixed with sport: nba_12345, nfl_67890
 export const players = pgTable(
@@ -3871,6 +3902,13 @@ export const insertDiscordPostHistorySchema = createInsertSchema(discordPostHist
   createdAt: true,
 });
 
+export const insertDiscordReportSyncSchema = createInsertSchema(discordReportSyncs).omit({
+  id: true,
+  lastSyncedAt: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const insertSmsMessageEventSchema = createInsertSchema(smsMessageEvents).omit({
   id: true,
   createdAt: true,
@@ -3896,3 +3934,6 @@ export type InsertDiscordTradeIntent = z.infer<typeof insertDiscordTradeIntentSc
 
 export type DiscordPostHistory = typeof discordPostHistory.$inferSelect;
 export type InsertDiscordPostHistory = z.infer<typeof insertDiscordPostHistorySchema>;
+
+export type DiscordReportSync = typeof discordReportSyncs.$inferSelect;
+export type InsertDiscordReportSync = z.infer<typeof insertDiscordReportSyncSchema>;

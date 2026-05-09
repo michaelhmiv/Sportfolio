@@ -1,5 +1,9 @@
 # Lessons Learned
 
+## 2026-05-09
+
+- When wiring automation between Discord and GitHub, verify the current canonical repository owner/name before coding defaults so issue-sync endpoints and labels do not target deprecated repos.
+
 ## 2026-04-27
 
 - When replacing hard reload/back behavior on routed React pages, use query invalidation plus in-app navigation so retry flows preserve SPA state and mobile context.

@@ -1,3 +1,27 @@
+## 2026-05-09 Discord Closed-Testing Report Sync to GitHub
+
+- [x] Add Discord `/report submit` slash command definition and interaction handling
+- [x] Add report sync persistence schema + migration (`discord_report_syncs`) with idempotent cursor tracking
+- [x] Implement Discord thread ingestion + GitHub issue/comment sync service with label automation
+- [x] Add focused unit coverage for report-type inference, cursor slicing, and issue-title formatting
+- [x] Extend runtime configuration + `.env.example` for report forum channels, mod role, and GitHub issue target/token
+- [x] Run required validation (`npm run check`, `npm run lint`, `npm run test:run`)
+- [x] Run formatter validation (`npm run format:check`)
+
+Review:
+
+- Added a new `report` command (`/report submit`) and wired it through the Discord interactions route with staff-role gating and configuration checks.
+- Added `discord_report_syncs` storage in both Drizzle schema and SQL migration, plus runtime schema bootstrapping and upsert helpers in `server/discord-service.ts`.
+- Implemented `server/discord-report-sync.ts` to:
+- validate thread parent forum channel (`bug` vs `feature`),
+- fetch + format Discord thread transcript/attachments,
+- create labeled GitHub issues on first submit,
+- append follow-up comments on later submits,
+- persist `last_synced_message_id` for incremental sync.
+- Added `server/discord-report-sync.test.ts` for core deterministic helpers.
+- Added Discord + GitHub report-sync environment variables in `.env.example`.
+- Validation passed locally: `npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`.
+
 ## 2026-05-09 Android Notifications End-to-End Debug + Fix
 
 - [x] Audit Android notification stack end-to-end (manifest/runtime permission/channel/plugin/backend token path)

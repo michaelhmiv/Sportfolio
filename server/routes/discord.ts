@@ -18,6 +18,7 @@ import {
   validateDiscordLinkState,
 } from "../discord-service";
 import { buildDiscordSlashCommandDefinitions, syncDiscordGuildCommands } from "../discord-api";
+import { syncDiscordReportThreadToGitHub } from "../discord-report-sync";
 import { storage } from "../storage";
 import { db } from "../db";
 import { getBuyQuote, getSellQuote, executeBuy, executeSell, getPool } from "../amm/pool";
@@ -387,6 +388,7 @@ function handleHelp() {
     "`/buy`, `/sell`, `/stack` support `amount` as number, `%`, or `max`",
     "`/boost` daily boost actions (global slots across sports)",
     "`/scout` scout actions",
+    "`/report submit` staff-only GitHub issue sync for closed-testing threads",
     "`/market` movers + indicators",
     "`/news` latest stories",
     "Examples:",
@@ -1115,6 +1117,79 @@ async function handleScout(
   return buildErrorResponse("Unknown scout subcommand.");
 }
 
+async function handleReport(
+  ctx: DiscordCommandContext,
+  options: DiscordCommandOption[] | undefined,
+) {
+  const config = getDiscordRuntimeConfig();
+  const sub = extractSubcommand(options);
+
+  if (sub.name !== "submit") {
+    return buildErrorResponse("Unknown report subcommand.");
+  }
+
+  if (!config.reportingEnabled) {
+    return buildErrorResponse("Discord -> GitHub reporting is not configured yet.");
+  }
+
+  if (!isMutationAllowed(ctx.roles, config.reportModRoleId)) {
+    return buildErrorResponse("You do not have permission to submit reports to GitHub.");
+  }
+
+  if (!ctx.interaction.guild_id || !ctx.interaction.channel_id) {
+    return buildErrorResponse("This command must be run inside a Discord server thread.");
+  }
+
+  if (!config.bugForumChannelId || !config.featureForumChannelId || !config.githubIssueToken) {
+    return buildErrorResponse("Missing report forum or GitHub sync configuration.");
+  }
+
+  const submitterDisplayName =
+    ctx.discordUser.global_name || ctx.discordUser.username || ctx.discordUser.id;
+
+  try {
+    const result = await syncDiscordReportThreadToGitHub({
+      guildId: ctx.interaction.guild_id,
+      threadChannelId: ctx.interaction.channel_id,
+      submittedByDiscordUserId: ctx.discordUser.id,
+      submittedByDisplayName: submitterDisplayName,
+      bugForumChannelId: config.bugForumChannelId,
+      featureForumChannelId: config.featureForumChannelId,
+      githubToken: config.githubIssueToken,
+      githubOwner: config.githubIssueOwner,
+      githubRepo: config.githubIssueRepo,
+    });
+
+    if (result.status === "created") {
+      return buildEphemeralResponse(
+        [
+          `Created GitHub issue #${result.issueNumber} from this ${result.reportType} report thread.`,
+          `Synced messages: ${result.syncedMessageCount}`,
+          `Issue: ${result.issueUrl}`,
+        ].join("\n"),
+      );
+    }
+
+    if (result.status === "updated") {
+      return buildEphemeralResponse(
+        [
+          `Posted ${result.syncedMessageCount} new message(s) to GitHub issue #${result.issueNumber}.`,
+          `Issue: ${result.issueUrl}`,
+        ].join("\n"),
+      );
+    }
+
+    return buildEphemeralResponse(
+      [
+        `No new messages to sync for GitHub issue #${result.issueNumber}.`,
+        `Issue: ${result.issueUrl}`,
+      ].join("\n"),
+    );
+  } catch (error: any) {
+    return buildErrorResponse(`Report submit failed: ${String(error?.message || "Unknown error")}`);
+  }
+}
+
 async function handleTradeComponent(
   ctx: DiscordCommandContext,
   customId: string,
@@ -1350,6 +1425,8 @@ async function handleApplicationCommand(ctx: DiscordCommandContext) {
       return handleBoost(ctx, options);
     case "scout":
       return handleScout(ctx, options);
+    case "report":
+      return handleReport(ctx, options);
     default:
       return buildErrorResponse("Unsupported command.");
   }
@@ -1379,6 +1456,13 @@ export function registerDiscordRoutes(app: Express): void {
       hasLinkStateSecret: Boolean(config.linkStateSecret),
       hasNewsChannel: Boolean(config.newsChannelId),
       hasHourlyChannel: Boolean(config.hourlyChannelId),
+      hasBugForumChannel: Boolean(config.bugForumChannelId),
+      hasFeatureForumChannel: Boolean(config.featureForumChannelId),
+      hasReportModRole: Boolean(config.reportModRoleId),
+      hasGithubIssueSyncToken: Boolean(config.githubIssueToken),
+      githubIssueOwner: config.githubIssueOwner,
+      githubIssueRepo: config.githubIssueRepo,
+      reportingEnabled: config.reportingEnabled,
     });
   });
 
