@@ -25,11 +25,11 @@ For endpoint and auth basics, see [MCP Access](/wiki/getting-started/mcp-access)
 
 The MCP server exposes three JSON resources designed for agent consumption. These are the canonical machine-readable surfaces — easier to parse than markdown wikis.
 
-| Resource | URI | Purpose |
-|----------|-----|---------|
-| **Capabilities** | `sportfolio://capabilities` | Full capability inventory + dynamic provider availability |
-| **Action Surface** | `sportfolio://action-surface` | Tools with confirmation/read-only hints |
-| **Tool Catalog** | `sportfolio://tool-catalog` | Complete tool metadata, example prompts, MLB tool list |
+| Resource           | URI                           | Purpose                                                   |
+| ------------------ | ----------------------------- | --------------------------------------------------------- |
+| **Capabilities**   | `sportfolio://capabilities`   | Full capability inventory + dynamic provider availability |
+| **Action Surface** | `sportfolio://action-surface` | Tools with confirmation/read-only hints                   |
+| **Tool Catalog**   | `sportfolio://tool-catalog`   | Complete tool metadata, example prompts, MLB tool list    |
 
 ### Tool Catalog Schema
 
@@ -76,25 +76,25 @@ The `sportfolio://tool-catalog` resource returns a JSON object with this shape:
 
 **Key fields for agent parsing:**
 
-| Field | Meaning |
-|-------|---------|
-| `readOnly` | `true` = safe to call without confirmation |
+| Field               | Meaning                                           |
+| ------------------- | ------------------------------------------------- |
+| `readOnly`          | `true` = safe to call without confirmation        |
 | `confirmationModel` | `immediate` / `staged_confirmation` / `finalizer` |
-| `riskLevel` | `low` / `medium` / `high` |
-| `inputFieldNames` | Parameter keys the tool accepts |
-| `fixtureArgs` | Example arguments for testing |
-| `routeRefs` | Server source files for this tool |
+| `riskLevel`         | `low` / `medium` / `high`                         |
+| `inputFieldNames`   | Parameter keys the tool accepts                   |
+| `fixtureArgs`       | Example arguments for testing                     |
+| `routeRefs`         | Server source files for this tool                 |
 
 **For MLB tools**, the catalog also includes richer agent metadata:
 
-| Field | Meaning |
-|-------|---------|
-| `whenToUse` | Recommended usage scenarios |
-| `whenNotToUse` | Anti-patterns |
-| `examplePrompts` | Natural language prompts that map to this tool |
-| `resultShapeHint` | Expected response structure description |
-| `presentationProfile` | How to format results (table, chart, etc.) |
-| `preferredColumns` | Suggested column order for tabular output |
+| Field                 | Meaning                                        |
+| --------------------- | ---------------------------------------------- |
+| `whenToUse`           | Recommended usage scenarios                    |
+| `whenNotToUse`        | Anti-patterns                                  |
+| `examplePrompts`      | Natural language prompts that map to this tool |
+| `resultShapeHint`     | Expected response structure description        |
+| `presentationProfile` | How to format results (table, chart, etc.)     |
+| `preferredColumns`    | Suggested column order for tabular output      |
 
 > **Note:** These resources are only accessible via the MCP protocol (after `initialize` + session negotiation). If you need a static offline copy, run the MCP `resources/read` method against each URI and save the JSON.
 
@@ -106,126 +106,126 @@ Tools are grouped by domain. **R** = read-only. **W** = write/state-changing.
 
 ### Account
 
-| Tool | Type | Description |
-|------|------|-------------|
-| `get_balance_state` | R | Cash balance, open boost slots, community shares |
-| `get_account_profile` | R | Core profile (username, balance, premium status) |
-| `get_activity_feed` | R | Account activity feed |
-| `list_api_tokens` | R | List API tokens |
-| `revoke_api_token` | W | Revoke a token |
-| `update_username` | W | Update username |
-| `update_profile_image` | W | Update profile image |
-| `complete_onboarding` | W | Mark onboarding complete |
+| Tool                   | Type | Description                                      |
+| ---------------------- | ---- | ------------------------------------------------ |
+| `get_balance_state`    | R    | Cash balance, open boost slots, community shares |
+| `get_account_profile`  | R    | Core profile (username, balance, premium status) |
+| `get_activity_feed`    | R    | Account activity feed                            |
+| `list_api_tokens`      | R    | List API tokens                                  |
+| `revoke_api_token`     | W    | Revoke a token                                   |
+| `update_username`      | W    | Update username                                  |
+| `update_profile_image` | W    | Update profile image                             |
+| `complete_onboarding`  | W    | Mark onboarding complete                         |
 
 ### Market
 
-| Tool | Type | Description |
-|------|------|-------------|
-| `list_market_opportunities` | R | Strongest current market-facing opportunities |
-| `get_market_scanners` | R | Scanner buckets (undervalued, premium, sentiment, momentum) |
-| `get_amm_pool_state` | R | AMM pool state for a player |
-| `get_trade_quote` | R | Buy or sell quote preview |
-| `get_trade_history` | R | Recent market activity for user |
-| `stage_market_buy` | W | Stage a buy order |
-| `stage_market_sell` | W | Stage a sell order |
+| Tool                        | Type | Description                                                 |
+| --------------------------- | ---- | ----------------------------------------------------------- |
+| `list_market_opportunities` | R    | Strongest current market-facing opportunities               |
+| `get_market_scanners`       | R    | Scanner buckets (undervalued, premium, sentiment, momentum) |
+| `get_amm_pool_state`        | R    | AMM pool state for a player                                 |
+| `get_trade_quote`           | R    | Buy or sell quote preview                                   |
+| `get_trade_history`         | R    | Recent market activity for user                             |
+| `stage_market_buy`          | W    | Stage a buy order                                           |
+| `stage_market_sell`         | W    | Stage a sell order                                          |
 
 ### Players
 
-| Tool | Type | Description |
-|------|------|-------------|
-| `search_players` | R | Search by name, team, position |
-| `get_player_detail` | R | Detail, stats, recent games, market context, holding state |
-| `get_player_stats` | R | Season stats |
-| `get_player_recent_games` | R | Recent game logs |
-| `get_player_financial_metrics` | R | Market and financial metrics |
-| `get_player_shares_info` | R | Share structure info |
+| Tool                           | Type | Description                                                |
+| ------------------------------ | ---- | ---------------------------------------------------------- |
+| `search_players`               | R    | Search by name, team, position                             |
+| `get_player_detail`            | R    | Detail, stats, recent games, market context, holding state |
+| `get_player_stats`             | R    | Season stats                                               |
+| `get_player_recent_games`      | R    | Recent game logs                                           |
+| `get_player_financial_metrics` | R    | Market and financial metrics                               |
+| `get_player_shares_info`       | R    | Share structure info                                       |
 
 ### Portfolio
 
-| Tool | Type | Description |
-|------|------|-------------|
-| `get_portfolio_summary` | R | Summary + operator overview |
-| `get_holdings` | R | Holdings, multiplier state, available shares |
-| `get_portfolio_history` | R | Portfolio history snapshots |
-| `get_holding_multiplier_state` | R | Multiplier & share state for a player |
-| `stage_stack_shares` | W | Stage Stack Shares action |
+| Tool                           | Type | Description                                  |
+| ------------------------------ | ---- | -------------------------------------------- |
+| `get_portfolio_summary`        | R    | Summary + operator overview                  |
+| `get_holdings`                 | R    | Holdings, multiplier state, available shares |
+| `get_portfolio_history`        | R    | Portfolio history snapshots                  |
+| `get_holding_multiplier_state` | R    | Multiplier & share state for a player        |
+| `stage_stack_shares`           | W    | Stage Stack Shares action                    |
 
 ### Scouting
 
-| Tool | Type | Description |
-|------|------|-------------|
-| `get_scout_status` | R | Scout count, assignment totals, next distribution |
-| `list_scout_assignments` | R | Current scout assignments |
-| `list_scout_opportunities` | R | Platform-recommended targets |
-| `get_scout_roster` | R | Who else is scouting a player |
-| `stage_scout_assignment` | W | Stage scout reallocation |
+| Tool                       | Type | Description                                       |
+| -------------------------- | ---- | ------------------------------------------------- |
+| `get_scout_status`         | R    | Scout count, assignment totals, next distribution |
+| `list_scout_assignments`   | R    | Current scout assignments                         |
+| `list_scout_opportunities` | R    | Platform-recommended targets                      |
+| `get_scout_roster`         | R    | Who else is scouting a player                     |
+| `stage_scout_assignment`   | W    | Stage scout reallocation                          |
 
 ### Boosts
 
-| Tool | Type | Description |
-|------|------|-------------|
-| `list_daily_boosts` | R | Active daily boosts |
-| `list_daily_boost_history` | R | Recent boost history & payouts |
-| `list_daily_boost_eligible_players` | R | Holdings eligible for daily boost |
-| `list_boost_candidates` | R | Ranked best daily boost candidates |
-| `stage_daily_boost_assign` | W | Stage a boost assignment |
-| `stage_daily_boost_remove` | W | Stage a boost removal |
+| Tool                                | Type | Description                        |
+| ----------------------------------- | ---- | ---------------------------------- |
+| `list_daily_boosts`                 | R    | Active daily boosts                |
+| `list_daily_boost_history`          | R    | Recent boost history & payouts     |
+| `list_daily_boost_eligible_players` | R    | Holdings eligible for daily boost  |
+| `list_boost_candidates`             | R    | Ranked best daily boost candidates |
+| `stage_daily_boost_assign`          | W    | Stage a boost assignment           |
+| `stage_daily_boost_remove`          | W    | Stage a boost removal              |
 
 ### Liquidity (LP)
 
-| Tool | Type | Description |
-|------|------|-------------|
-| `list_lp_positions` | R | User's LP positions |
-| `get_lp_position` | R | Single LP position by player ID |
-| `list_lp_history` | R | Recent LP transaction history |
-| `get_lp_zap_quote` | R | Preview quote for single-sided LP zap |
-| `stage_lp_add` | W | Stage fixed-ratio LP add |
-| `stage_lp_add_optimal` | W | Stage optimal-ratio LP add |
-| `stage_lp_zap_add` | W | Stage single-sided LP zap |
-| `stage_lp_remove` | W | Stage LP removal |
+| Tool                   | Type | Description                           |
+| ---------------------- | ---- | ------------------------------------- |
+| `list_lp_positions`    | R    | User's LP positions                   |
+| `get_lp_position`      | R    | Single LP position by player ID       |
+| `list_lp_history`      | R    | Recent LP transaction history         |
+| `get_lp_zap_quote`     | R    | Preview quote for single-sided LP zap |
+| `stage_lp_add`         | W    | Stage fixed-ratio LP add              |
+| `stage_lp_add_optimal` | W    | Stage optimal-ratio LP add            |
+| `stage_lp_zap_add`     | W    | Stage single-sided LP zap             |
+| `stage_lp_remove`      | W    | Stage LP removal                      |
 
 ### Games
 
-| Tool | Type | Description |
-|------|------|-------------|
-| `get_games_today` | R | Games for today or requested date |
-| `get_game_insights` | R | Game-centric view with user context |
+| Tool                | Type | Description                         |
+| ------------------- | ---- | ----------------------------------- |
+| `get_games_today`   | R    | Games for today or requested date   |
+| `get_game_insights` | R    | Game-centric view with user context |
 
 ### Dashboard & Advisory
 
-| Tool | Type | Description |
-|------|------|-------------|
-| `get_dashboard_overview` | R | Composed overview: balance, portfolio, boosts, scouts, watchlists |
-| `review_idle_cash` | R | Idle balance deployment context |
-| `review_portfolio_cleanup` | R | Stale / overexposed cleanup levers |
-| `review_setup` | R | Broad gameplay setup review |
+| Tool                       | Type | Description                                                       |
+| -------------------------- | ---- | ----------------------------------------------------------------- |
+| `get_dashboard_overview`   | R    | Composed overview: balance, portfolio, boosts, scouts, watchlists |
+| `review_idle_cash`         | R    | Idle balance deployment context                                   |
+| `review_portfolio_cleanup` | R    | Stale / overexposed cleanup levers                                |
+| `review_setup`             | R    | Broad gameplay setup review                                       |
 
 ### Watchlists
 
-| Tool | Type | Description |
-|------|------|-------------|
-| `list_watchlists` | R | User's watchlists |
-| `list_watchlist_player_ids` | R | Every player ID across watchlists |
-| `get_watchlist_items` | R | Player IDs in a watchlist |
-| `create_watchlist` | W | Create watchlist |
-| `update_watchlist` | W | Update watchlist |
-| `delete_watchlist` | W | Delete watchlist |
-| `add_watchlist_player` | W | Add player to watchlist |
-| `remove_watchlist_player` | W | Remove player from watchlist |
+| Tool                        | Type | Description                       |
+| --------------------------- | ---- | --------------------------------- |
+| `list_watchlists`           | R    | User's watchlists                 |
+| `list_watchlist_player_ids` | R    | Every player ID across watchlists |
+| `get_watchlist_items`       | R    | Player IDs in a watchlist         |
+| `create_watchlist`          | W    | Create watchlist                  |
+| `update_watchlist`          | W    | Update watchlist                  |
+| `delete_watchlist`          | W    | Delete watchlist                  |
+| `add_watchlist_player`      | W    | Add player to watchlist           |
+| `remove_watchlist_player`   | W    | Remove player from watchlist      |
 
 ### Threads (Agent Conversations)
 
-| Tool | Type | Description |
-|------|------|-------------|
-| `list_agent_threads` | R | Recent agent threads |
-| `get_thread_state` | R | Thread state & messages |
-| `list_thread_messages` | R | Messages for a thread |
-| `list_thread_research_sources` | R | Research sources attached |
-| `get_pending_action` | R | Active pending action bundle |
-| `create_agent_thread` | W | Create agent thread |
-| `send_agent_message` | W | Send message into thread |
-| `confirm_pending_action` | W | **Finalize** staged pending action |
-| `cancel_pending_action` | W | **Cancel** staged pending action |
+| Tool                           | Type | Description                        |
+| ------------------------------ | ---- | ---------------------------------- |
+| `list_agent_threads`           | R    | Recent agent threads               |
+| `get_thread_state`             | R    | Thread state & messages            |
+| `list_thread_messages`         | R    | Messages for a thread              |
+| `list_thread_research_sources` | R    | Research sources attached          |
+| `get_pending_action`           | R    | Active pending action bundle       |
+| `create_agent_thread`          | W    | Create agent thread                |
+| `send_agent_message`           | W    | Send message into thread           |
+| `confirm_pending_action`       | W    | **Finalize** staged pending action |
+| `cancel_pending_action`        | W    | **Cancel** staged pending action   |
 
 ### MLB StatsAPI / pybaseball
 
@@ -241,10 +241,10 @@ Tools are grouped by domain. **R** = read-only. **W** = write/state-changing.
 
 Every tool result has **two** top-level fields:
 
-| Field | Purpose |
-|-------|---------|
-| `content` | Natural-language summary: `[{type: "text", text: "Found 4 player result(s)."}]` |
-| `structuredContent` | **Actual JSON payload** with arrays, objects, IDs, prices |
+| Field               | Purpose                                                                         |
+| ------------------- | ------------------------------------------------------------------------------- |
+| `content`           | Natural-language summary: `[{type: "text", text: "Found 4 player result(s)."}]` |
+| `structuredContent` | **Actual JSON payload** with arrays, objects, IDs, prices                       |
 
 **Always read `structuredContent` first.** Code that only reads `content` will appear to get no data.
 
@@ -285,6 +285,7 @@ client.call_tool("confirm_pending_action", {
 ## Response Shape Examples
 
 ### `search_players`
+
 ```json
 {
   "summary": "Found 4 player result(s).",
@@ -305,6 +306,7 @@ client.call_tool("confirm_pending_action", {
 ```
 
 ### `get_balance_state`
+
 ```json
 {
   "availableBalance": 3077,
@@ -314,6 +316,7 @@ client.call_tool("confirm_pending_action", {
 ```
 
 ### `get_portfolio_summary`
+
 ```json
 {
   "summary": "Loaded portfolio summary.",
@@ -337,6 +340,7 @@ client.call_tool("confirm_pending_action", {
 ```
 
 ### `stage_market_buy` (success)
+
 ```json
 {
   "threadId": "uuid",
@@ -359,7 +363,7 @@ client.call_tool("confirm_pending_action", {
         "estimatedSharesOut": 1.3923,
         "availableBalanceAfter": 3067,
         "estimatedPricePerShare": 7.3255,
-        "estimatedSlippagePercent": 1.0920
+        "estimatedSlippagePercent": 1.092
       }
     ]
   }
@@ -367,6 +371,7 @@ client.call_tool("confirm_pending_action", {
 ```
 
 ### `get_market_scanners`
+
 ```json
 {
   "summary": "Loaded ALL market scanners.",
@@ -396,20 +401,20 @@ client.call_tool("confirm_pending_action", {
 
 ## Parameter Conventions
 
-| What you might guess | Actual field name |
-|----------------------|-------------------|
-| `player_id` | `playerId` |
-| `shares` | `quantity` (holdings), `amount` (trades) |
-| `price` | `currentPrice`, `lastTradePrice` |
-| `price_change_24h` | `priceChange24h` |
-| `volume_24h` | `volume24h` |
-| `avg_price` | `avgCostBasis` |
-| `available_balance` | `availableBalance` |
-| `open_boost_slots` | `openDailyBoostSlots` |
-| `total_shares` | `totalSharesOutstanding` |
-| `user_holding` | `userHolding` |
-| `first_name` | `firstName` |
-| `full_name` | `fullName` |
+| What you might guess | Actual field name                        |
+| -------------------- | ---------------------------------------- |
+| `player_id`          | `playerId`                               |
+| `shares`             | `quantity` (holdings), `amount` (trades) |
+| `price`              | `currentPrice`, `lastTradePrice`         |
+| `price_change_24h`   | `priceChange24h`                         |
+| `volume_24h`         | `volume24h`                              |
+| `avg_price`          | `avgCostBasis`                           |
+| `available_balance`  | `availableBalance`                       |
+| `open_boost_slots`   | `openDailyBoostSlots`                    |
+| `total_shares`       | `totalSharesOutstanding`                 |
+| `user_holding`       | `userHolding`                            |
+| `first_name`         | `firstName`                              |
+| `full_name`          | `fullName`                               |
 
 **All parameter keys are camelCase.** Do not use snake_case.
 
@@ -451,18 +456,19 @@ client.call_tool("mlb_mcp__get_statcast_batter_exitvelo_barrels", {
 })
 ```
 
-| Tool | Pagination Works? | Max Safe Rows |
-|------|-------------------|---------------|
-| `get_statcast_batter_exitvelo_barrels` | ✅ | ~50 |
-| `get_statcast_batter_expected_stats` | ✅ | ~50 |
-| `get_statcast_batter_percentile_ranks` | ✅ | ~50 |
-| `get_statcast_pitcher_exitvelo_barrels` | ✅ | ~50 |
-| `get_statcast_pitcher_expected_stats` | ✅ | ~50 |
-| `get_statcast_pitcher_percentile_ranks` | ✅ | ~50 |
-| `get_statcast_data` | ❌ | Use narrow date ranges |
-| `get_pitching_stats_range` | ❌ | Use narrow date ranges |
+| Tool                                    | Pagination Works? | Max Safe Rows          |
+| --------------------------------------- | ----------------- | ---------------------- |
+| `get_statcast_batter_exitvelo_barrels`  | ✅                | ~50                    |
+| `get_statcast_batter_expected_stats`    | ✅                | ~50                    |
+| `get_statcast_batter_percentile_ranks`  | ✅                | ~50                    |
+| `get_statcast_pitcher_exitvelo_barrels` | ✅                | ~50                    |
+| `get_statcast_pitcher_expected_stats`   | ✅                | ~50                    |
+| `get_statcast_pitcher_percentile_ranks` | ✅                | ~50                    |
+| `get_statcast_data`                     | ❌                | Use narrow date ranges |
+| `get_pitching_stats_range`              | ❌                | Use narrow date ranges |
 
 **Strategy for "top N by X":**
+
 1. Call with `start_row=0, end_row=50`
 2. Parse full JSON
 3. Sort locally by desired metric
@@ -470,15 +476,15 @@ client.call_tool("mlb_mcp__get_statcast_batter_exitvelo_barrels", {
 
 ### Affected Tools (High Truncation Risk)
 
-| Tool | Typical Size |
-|------|-------------|
-| `get_statcast_batter_exitvelo_barrels` | ~150K chars |
-| `get_statcast_batter_expected_stats` | ~100K chars |
-| `get_statcast_batter_percentile_ranks` | ~80K chars |
-| `get_statcast_pitcher_*` | ~80-120K chars |
-| `get_schedule` | ~20-50K chars |
-| `get_team_roster` | ~5-15K chars |
-| `get_pybaseball_standings` | ~5K chars |
+| Tool                                   | Typical Size   |
+| -------------------------------------- | -------------- |
+| `get_statcast_batter_exitvelo_barrels` | ~150K chars    |
+| `get_statcast_batter_expected_stats`   | ~100K chars    |
+| `get_statcast_batter_percentile_ranks` | ~80K chars     |
+| `get_statcast_pitcher_*`               | ~80-120K chars |
+| `get_schedule`                         | ~20-50K chars  |
+| `get_team_roster`                      | ~5-15K chars   |
+| `get_pybaseball_standings`             | ~5K chars      |
 
 ---
 
