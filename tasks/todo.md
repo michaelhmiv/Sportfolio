@@ -1,3 +1,19 @@
+## 2026-05-10 GitHub Actions Node24 Runtime Upgrade
+
+- [x] Identify workflows still pinned to Node20-era action majors
+- [x] Verify upstream Node24-compatible majors for checkout/setup-node/setup-java/setup-android
+- [x] Upgrade `mobile-sync.yml`, `firebase-distribution.yml`, and `pr-ci.yml` action pins
+- [x] Run validation (`npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`)
+
+Review:
+
+- Upgraded remaining deprecated action pins:
+- `actions/checkout` from `v4` to `v5`
+- `actions/setup-node` from `v4` to `v6`
+- `actions/setup-java` from `v4` to `v5`
+- `android-actions/setup-android` from `v3` to `v4`
+- Scope was intentionally limited to workflow action-version bumps; no build/test command behavior or app code paths were changed.
+
 ## 2026-05-09 Discord Closed-Testing Report Sync to GitHub
 
 - [x] Add Discord `/report submit` slash command definition and interaction handling
