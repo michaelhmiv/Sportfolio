@@ -301,6 +301,7 @@ export function registerPlayersRoutes(app: Express, deps: RegisterPlayersRoutesD
                 currentPrice: ammSpotPrice !== null ? ammSpotPrice.toFixed(2) : null,
               }
             : {}),
+          poolInitialized: Boolean(poolData),
           priceChange24h,
           avgFantasyPointsPerGame: (
             metricAvgFantasyPoints ?? parseFloat(seasonStats.avgFantasyPointsPerGame || "0")

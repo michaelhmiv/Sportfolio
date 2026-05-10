@@ -44,6 +44,7 @@ type MarketChipLabel =
   | "Heat check";
 
 type PlayerWithPool = Player & {
+  poolInitialized?: boolean;
   currentPrice?: string | number | null;
   priceChange24h?: string | number | null;
   volume24h?: number | null;
@@ -717,11 +718,19 @@ function getCompactStatusToken(params: {
   };
 }
 
-function getRowActionLabel() {
+function getRowActionLabel(player: PlayerWithPool) {
+  if (player.poolInitialized === false) {
+    return "Init" as const;
+  }
+
   return "Trade" as const;
 }
 
-function getRowActionType(quickContext: PlayerQuickContext) {
+function getRowActionType(player: PlayerWithPool, quickContext: PlayerQuickContext) {
+  if (player.poolInitialized === false) {
+    return "buy" as const;
+  }
+
   if (quickContext.isBoostEligible) {
     return "boost" as const;
   }
@@ -1347,8 +1356,8 @@ export function MarketMobilePoolsBoard({
                   whalePlayerIds,
                   hasLpPosition: lpEdgeMap.has(player.id),
                 });
-                const rowAction = getRowActionType(quickContext);
-                const rowActionLabel = getRowActionLabel();
+                const rowAction = getRowActionType(player, quickContext);
+                const rowActionLabel = getRowActionLabel(player);
 
                 return (
                   <div

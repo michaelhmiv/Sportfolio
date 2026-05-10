@@ -71,7 +71,7 @@ Source: `server/routes/amm.ts`
 
 | Method | Path                       | Auth            | Notes                                                       |
 | ------ | -------------------------- | --------------- | ----------------------------------------------------------- |
-| GET    | `/api/amm/:playerId`       | Public          | Returns pool state (auto-creates pool if needed)            |
+| GET    | `/api/amm/:playerId`       | Public          | Returns pool state (`poolInitialized=false` when missing)   |
 | GET    | `/api/amm/:playerId/quote` | Public          | `type=buy` or `type=sell`, plus `amount`                    |
 | POST   | `/api/amm/:playerId/buy`   | isAuthenticated | Body: `sbAmount`, optional `maxSlippage`                    |
 | POST   | `/api/amm/:playerId/sell`  | isAuthenticated | Body: `sharesAmount` (whole number), optional `maxSlippage` |

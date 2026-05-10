@@ -43,6 +43,7 @@ interface MarketSheetPlayer {
   lastName: string;
   team: string;
   position: string;
+  poolInitialized?: boolean;
   currentPrice?: string | number | null;
   priceChange24h?: string | number | null;
   poolTvl?: number | null;
@@ -73,6 +74,7 @@ interface MarketSheetPlayerData {
 }
 
 interface AmmPoolData {
+  poolInitialized?: boolean;
   currentPrice: number;
   totalTrades: number;
   totalVolume: number;
@@ -212,6 +214,8 @@ export function MarketMobilePlayerSheet({
   const userBalance = toNumber(userPlayerData?.userBalance);
   const userShares = toNumber(userPlayerData?.userHolding?.quantity);
   const showBoostContext = Boolean(quickContext?.isBoostEligible);
+  const isPoolInitialized =
+    poolData?.poolInitialized !== false && player?.poolInitialized !== false;
 
   const actionButtons = useMemo(
     () =>
@@ -220,13 +224,13 @@ export function MarketMobilePlayerSheet({
           id: "buy" as const,
           label: "Buy",
           icon: ShoppingCart,
-          show: true,
+          show: isPoolInitialized,
         },
         {
           id: "sell" as const,
           label: "Sell",
           icon: TrendingDown,
-          show: userShares > 0 || (quickContext?.availableShares || 0) > 0,
+          show: isPoolInitialized && (userShares > 0 || (quickContext?.availableShares || 0) > 0),
         },
         {
           id: "boost" as const,
@@ -241,7 +245,13 @@ export function MarketMobilePlayerSheet({
           show: isAuthenticated,
         },
       ].filter((item) => item.show),
-    [isAuthenticated, quickContext?.availableShares, showBoostContext, userShares],
+    [
+      isAuthenticated,
+      isPoolInitialized,
+      quickContext?.availableShares,
+      showBoostContext,
+      userShares,
+    ],
   );
 
   if (!player) {
@@ -375,6 +385,14 @@ export function MarketMobilePlayerSheet({
             ) : null}
 
             <div className="flex flex-wrap gap-2">
+              {!isPoolInitialized && (
+                <Link href={`/player/${player.id}?panel=lp`} onClick={() => onOpenChange(false)}>
+                  <Button type="button" variant="terminal" size="sm" className="h-8 gap-1.5 px-3">
+                    <Droplets className="h-3.5 w-3.5" />
+                    Init Pool
+                  </Button>
+                </Link>
+              )}
               {actionButtons.map((entry) => {
                 const Icon = entry.icon;
                 return (
@@ -446,7 +464,22 @@ export function MarketMobilePlayerSheet({
 
             {(activeAction === "buy" || activeAction === "sell" || activeAction === "default") && (
               <div className="rounded-sm border border-border bg-muted/10 p-3">
-                {poolLoading ? (
+                {!isPoolInitialized ? (
+                  <div className="space-y-3">
+                    <div className="text-sm text-muted-foreground">
+                      This player pool is uninitialized. Add opening liquidity to enable buy/sell.
+                    </div>
+                    <Link
+                      href={`/player/${player.id}?panel=lp`}
+                      onClick={() => onOpenChange(false)}
+                    >
+                      <Button type="button" variant="terminal" size="sm" className="h-8 gap-1.5">
+                        <Droplets className="h-3.5 w-3.5" />
+                        Initialize Pool
+                      </Button>
+                    </Link>
+                  </div>
+                ) : poolLoading ? (
                   <div className="flex items-center justify-center py-6 text-muted-foreground">
                     <Loader2 className="h-4 w-4 animate-spin" />
                   </div>

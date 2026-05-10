@@ -20,6 +20,7 @@ import {
   X,
   Activity,
   ShoppingCart,
+  Droplets,
   Radio,
   Flame,
   Users,
@@ -46,6 +47,7 @@ import { PlayerModal } from "@/components/player-modal";
 import { appendPlayerSearchParam } from "@/lib/player-search";
 
 type PlayerWithPool = Player & {
+  poolInitialized?: boolean;
   poolLiquidity?: number | null;
   poolTvl?: number | null;
   poolShares?: number | null;
@@ -384,6 +386,10 @@ export default function PlayerPools() {
     action: MarketSheetAction,
     quickContext?: MobileQuickContext,
   ) => {
+    if ((action === "buy" || action === "sell") && player.poolInitialized === false) {
+      setLocation(`/player/${player.id}?panel=lp`);
+      return;
+    }
     setSelectedMobilePlayer(player);
     setSelectedMobileAction(action);
     setSelectedMobileQuickContext(quickContext);
@@ -434,7 +440,7 @@ export default function PlayerPools() {
             <div>
               <div className="terminal-strip mb-3">Market Directory</div>
               <h1 className="terminal-heading text-xl sm:text-2xl">Player Pools</h1>
-              <p className="text-sm text-muted-foreground">Instant buy/sell</p>
+              <p className="text-sm text-muted-foreground">Instant buy/sell on initialized pools</p>
             </div>
             <div className="flex items-center gap-2">
               <SportSelector />
@@ -874,20 +880,35 @@ export default function PlayerPools() {
                                         : formatAdaptiveCurrency(player.poolTvl)}
                                     </td>
                                     <td className="p-3 text-center">
-                                      <Button
-                                        size="sm"
-                                        variant="terminal"
-                                        className="h-8 px-3"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          const pid = String(player.id || "").trim();
-                                          setSelectedPlayerId(pid);
-                                          setPlayerModalOpen(true);
-                                        }}
-                                      >
-                                        <ShoppingCart className="w-3 h-3 mr-1" />
-                                        Trade
-                                      </Button>
+                                      {player.poolInitialized === false ? (
+                                        <Button
+                                          size="sm"
+                                          variant="terminalOutline"
+                                          className="h-8 px-3"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setLocation(`/player/${player.id}?panel=lp`);
+                                          }}
+                                        >
+                                          <Droplets className="w-3 h-3 mr-1" />
+                                          Init Pool
+                                        </Button>
+                                      ) : (
+                                        <Button
+                                          size="sm"
+                                          variant="terminal"
+                                          className="h-8 px-3"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            const pid = String(player.id || "").trim();
+                                            setSelectedPlayerId(pid);
+                                            setPlayerModalOpen(true);
+                                          }}
+                                        >
+                                          <ShoppingCart className="w-3 h-3 mr-1" />
+                                          Trade
+                                        </Button>
+                                      )}
                                     </td>
                                   </tr>
                                 );
@@ -944,18 +965,31 @@ export default function PlayerPools() {
                                   </div>
                                 </button>
                                 <div className="flex items-center ml-2">
-                                  <Button
-                                    size="sm"
-                                    variant="terminal"
-                                    className="h-7 px-3 text-xs"
-                                    onClick={() => {
-                                      const pid = String(player.id || "").trim();
-                                      setSelectedPlayerId(pid);
-                                      setPlayerModalOpen(true);
-                                    }}
-                                  >
-                                    Trade
-                                  </Button>
+                                  {player.poolInitialized === false ? (
+                                    <Button
+                                      size="sm"
+                                      variant="terminalOutline"
+                                      className="h-7 px-3 text-xs"
+                                      onClick={() => {
+                                        setLocation(`/player/${player.id}?panel=lp`);
+                                      }}
+                                    >
+                                      Init Pool
+                                    </Button>
+                                  ) : (
+                                    <Button
+                                      size="sm"
+                                      variant="terminal"
+                                      className="h-7 px-3 text-xs"
+                                      onClick={() => {
+                                        const pid = String(player.id || "").trim();
+                                        setSelectedPlayerId(pid);
+                                        setPlayerModalOpen(true);
+                                      }}
+                                    >
+                                      Trade
+                                    </Button>
+                                  )}
                                 </div>
                               </div>
                             );

@@ -8,7 +8,7 @@ const faqs = [
   {
     question: "How does trading player shares work on Sportfolio?",
     answer:
-      "Players are represented as tradable shares backed by AMM pools. You can buy or sell instantly against pool liquidity with real-time quotes, and prices move as capital flows in or out of each market.",
+      "Players are represented as tradable shares backed by AMM pools. Once a pool is initialized, you can buy or sell instantly against its liquidity with real-time quotes, and prices move as capital flows in or out.",
   },
   {
     question: "What is the Scout System and how do I earn free shares?",
@@ -37,7 +37,7 @@ const sections = [
     icon: TrendingUp,
     title: "1. Trade Player Shares",
     body: [
-      "Sportfolio turns athletes into live player markets. Each player has an AMM-backed pool, so you can buy or sell instantly instead of waiting for another user to match your order.",
+      "Sportfolio turns athletes into live player markets. Pools trade instantly once initialized, so execution happens against AMM liquidity instead of waiting for another user.",
       "Prices rise when users buy and fall when users sell. Quote previews, slippage handling, and pool liquidity make the market mechanics transparent before you commit capital.",
     ],
   },
