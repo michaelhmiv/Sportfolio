@@ -3,6 +3,7 @@ import { createHmac, randomBytes } from "crypto";
 import {
   discordLinkStates,
   discordPostHistory,
+  discordReportSyncs,
   discordTradeIntents,
   discordUserLinks,
 } from "@shared/schema";
@@ -10,6 +11,7 @@ import { db } from "./db";
 import type {
   DiscordLinkState,
   DiscordPostHistory,
+  DiscordReportSync,
   DiscordTradeIntent,
   DiscordUserLink,
 } from "@shared/schema";
@@ -125,6 +127,37 @@ export async function ensureDiscordSchema(): Promise<void> {
   await db.execute(sql`
     CREATE INDEX IF NOT EXISTS "discord_post_history_source_idx"
       ON "discord_post_history" ("source_type", "created_at");
+  `);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS "discord_report_syncs" (
+      "id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+      "thread_channel_id" varchar(32) NOT NULL,
+      "parent_channel_id" varchar(32) NOT NULL,
+      "report_type" text NOT NULL,
+      "thread_name" text,
+      "github_owner" text NOT NULL,
+      "github_repo" text NOT NULL,
+      "github_issue_number" integer NOT NULL,
+      "github_issue_url" text NOT NULL,
+      "created_by_discord_user_id" varchar(32),
+      "last_synced_message_id" varchar(32),
+      "last_synced_at" timestamp NOT NULL DEFAULT now(),
+      "created_at" timestamp NOT NULL DEFAULT now(),
+      "updated_at" timestamp NOT NULL DEFAULT now()
+    );
+  `);
+  await db.execute(sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS "discord_report_syncs_thread_idx"
+      ON "discord_report_syncs" ("thread_channel_id");
+  `);
+  await db.execute(sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS "discord_report_syncs_issue_idx"
+      ON "discord_report_syncs" ("github_owner", "github_repo", "github_issue_number");
+  `);
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS "discord_report_syncs_type_idx"
+      ON "discord_report_syncs" ("report_type", "created_at");
   `);
 }
 
@@ -442,6 +475,69 @@ export async function hasDiscordPost(input: {
     .limit(1);
 
   return Boolean(row);
+}
+
+export async function getDiscordReportSyncByThreadChannelId(
+  threadChannelId: string,
+): Promise<DiscordReportSync | null> {
+  const [row] = await db
+    .select()
+    .from(discordReportSyncs)
+    .where(eq(discordReportSyncs.threadChannelId, threadChannelId))
+    .limit(1);
+
+  return row || null;
+}
+
+export async function upsertDiscordReportSync(input: {
+  threadChannelId: string;
+  parentChannelId: string;
+  reportType: "bug" | "feature";
+  threadName?: string | null;
+  githubOwner: string;
+  githubRepo: string;
+  githubIssueNumber: number;
+  githubIssueUrl: string;
+  createdByDiscordUserId?: string | null;
+  lastSyncedMessageId?: string | null;
+  lastSyncedAt?: Date;
+}): Promise<DiscordReportSync> {
+  const now = new Date();
+  const [row] = await db
+    .insert(discordReportSyncs)
+    .values({
+      threadChannelId: input.threadChannelId,
+      parentChannelId: input.parentChannelId,
+      reportType: input.reportType,
+      threadName: input.threadName ?? null,
+      githubOwner: input.githubOwner,
+      githubRepo: input.githubRepo,
+      githubIssueNumber: input.githubIssueNumber,
+      githubIssueUrl: input.githubIssueUrl,
+      createdByDiscordUserId: input.createdByDiscordUserId ?? null,
+      lastSyncedMessageId: input.lastSyncedMessageId ?? null,
+      lastSyncedAt: input.lastSyncedAt ?? now,
+      updatedAt: now,
+    })
+    .onConflictDoUpdate({
+      target: discordReportSyncs.threadChannelId,
+      set: {
+        parentChannelId: input.parentChannelId,
+        reportType: input.reportType,
+        threadName: input.threadName ?? null,
+        githubOwner: input.githubOwner,
+        githubRepo: input.githubRepo,
+        githubIssueNumber: input.githubIssueNumber,
+        githubIssueUrl: input.githubIssueUrl,
+        createdByDiscordUserId: input.createdByDiscordUserId ?? null,
+        lastSyncedMessageId: input.lastSyncedMessageId ?? null,
+        lastSyncedAt: input.lastSyncedAt ?? now,
+        updatedAt: now,
+      },
+    })
+    .returning();
+
+  return row;
 }
 
 export async function cleanupExpiredDiscordLinkStates(): Promise<number> {
