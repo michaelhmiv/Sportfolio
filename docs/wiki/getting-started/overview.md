@@ -6,7 +6,7 @@ audience: public
 category: getting-started
 status: published
 owner: product-engineering
-lastReviewedAt: 2026-03-04
+lastReviewedAt: 2026-05-12
 changeTriggers: client/src/App.tsx,client/src/pages/dashboard.tsx,client/src/pages/marketplace.tsx,server/routes.ts,server/storage.ts
 slug: overview
 surface: web,cli,agent
@@ -82,15 +82,17 @@ Most of Sportfolio runs on a daily loop tied to the sports schedule:
 
 ## Main Pages at a Glance
 
-| Page             | Purpose                                               |
-| ---------------- | ----------------------------------------------------- |
-| **Dashboard**    | Live slate context, market activity, account snapshot |
-| **Player Pools** | Market browser — trade, compare, scan                 |
-| **Player page**  | Detailed execution and research for one athlete       |
-| **Portfolio**    | Your holdings, LP positions, P&L, and activity        |
-| **Boosts**       | Stack shares, assign boosts, track payouts            |
-| **News**         | Breaking stories + personalized digest                |
-| **Agent**        | Ask questions, get analysis, stage confirmed actions  |
+| Page             | Purpose                                                             |
+| ---------------- | ------------------------------------------------------------------- |
+| **Dashboard**    | Live slate context, market activity, account snapshot               |
+| **Player Pools** | Market browser — trade, compare, scan                               |
+| **Player page**  | Detailed execution and research for one athlete                     |
+| **Portfolio**    | Your holdings, LP positions, P&L, and activity                      |
+| **Boosts**       | Stack shares, assign boosts, track payouts                          |
+| **News**         | Breaking stories + personalized digest                              |
+| **Agent**        | Ask questions, get analysis, stage confirmed actions (manual turns) |
+
+Saved live strategies can auto-execute an allowlisted gameplay subset inside guardrails. Payments, purchases, checkout, and community boost creation are excluded from auto-runs.
 
 ---
 

@@ -6,7 +6,7 @@ audience: public
 category: cli
 status: published
 owner: product-engineering
-lastReviewedAt: 2026-04-02
+lastReviewedAt: 2026-05-12
 changeTriggers: packages/sportfolio-cli,server/routes/cli.ts,server/api-token-auth.ts,server/routes/mcp.ts
 slug: overview
 surface: web,cli
@@ -50,7 +50,7 @@ The token is user-specific — the CLI inherits the same account boundary as the
 | `docs`      | Browse, search, and open wiki articles                   |
 | `portfolio` | Account summary and holdings snapshot                    |
 | `agent`     | Ask questions, view threads, confirm/cancel staged plans |
-| `actions`   | Convenience commands for staged gameplay flows           |
+| `actions`   | Helper staging for buy/sell/watchlist/community-boost    |
 | `tools`     | Call the shared public capability surface directly       |
 | `prompts`   | List and render shared starter prompts                   |
 | `resources` | Read shared public resources                             |
@@ -83,6 +83,8 @@ The difference is the interface:
 
 - **Use CLI** when you want direct shell commands
 - **Use MCP** when you're connecting through an MCP-aware client
+
+For scout, daily-boost, LP, and advanced staged flows, use `agent` or `tools` commands.
 
 ---
 

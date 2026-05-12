@@ -6,7 +6,7 @@ audience: public
 category: agent
 status: published
 owner: product-engineering
-lastReviewedAt: 2026-05-02
+lastReviewedAt: 2026-05-12
 changeTriggers: server/agent/hermes-orchestrator.ts,server/agent/hermes-tools.ts,server/mcp/public-tool-registry.ts,docs/wiki/agent/hermes-product-contract.md
 slug: hermes-product-contract
 surface: agent
@@ -110,6 +110,7 @@ MCP is not a second parallel source of truth for portfolio or gameplay state.
 Hermes should not:
 
 - initiate payments, checkout, or add-cash flows
+- auto-run community boost creation
 - expose admin-only behavior to normal users
 - act like a generic code, file, or database assistant
 - rely on external MCP when native Sportfolio tools already answer the question

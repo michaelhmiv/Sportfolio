@@ -1,3 +1,21 @@
+## 2026-05-12 Wiki Accuracy Refresh (Agent/CLI/MCP)
+
+- [x] Align agent behavior contract wording across wiki sections using `docs/wiki/agent/current-surface.md` as canonical
+- [x] Correct CLI command and helper-scope documentation drift (`docs list`, `actions` boundaries)
+- [x] Update MCP docs for initialize/session lifecycle, headers, and hybrid catalog model
+- [x] Run whole-wiki consistency cleanup (player-pools flow wording, legacy tooling language normalization)
+- [x] Refresh `lastReviewedAt`, add changelog summary entry, and add docs drift-policy note
+- [x] Run documentation validation/build and targeted consistency checks
+
+Review:
+
+- Updated agent contract wording across `agent`, `features`, `getting-started`, and `faq` so manual chat/CLI confirmation boundaries and saved live strategy auto-execution boundaries match the canonical `current-surface` semantics.
+- Corrected CLI drift (`docs list` naming and `actions` helper scope) and reinforced command-reference authority.
+- Refreshed MCP docs with explicit `initialize` + `mcp-session-id` lifecycle, request header expectations, dynamic `mlb_mcp__*` naming, and catalog-backed exhaustive inventory references.
+- Corrected Player Pools buy/sell flow wording and normalized legacy SMS/settings references as compatibility-only where still exposed.
+- Added changelog entry `docs/wiki/changelog/2026-05-12-interface-contract-refresh.md` and added a wiki drift policy section to `docs/wiki/agent/runbooks.md`.
+- Validation: `npm run docs:check` and `npm run docs:build` passed. Live prod spot-checks for CLI and MCP surfaces passed (`/api/cli/*`, MCP initialize/tools/resources flow, and `sportfolio://tool-catalog` conventions). Repo-wide `check/lint/test/format` commands are currently blocked in this environment because `tsc`, `eslint`, `vitest`, and `prettier` binaries are not available.
+
 ## 2026-05-10 GitHub Actions Node24 Runtime Upgrade
 
 - [x] Identify workflows still pinned to Node20-era action majors

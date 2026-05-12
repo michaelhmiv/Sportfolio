@@ -1,12 +1,12 @@
 ---
 id: agent-strategies
 title: Saved Strategies
-summary: How saved strategies work in Sportfolio — what they can automate, how mandates and guardrails are set, and what stays outside their scope.
+summary: How saved strategies work in Sportfolio - what they can automate, how mandates and guardrails are set, and what stays outside their scope.
 audience: public
 category: agent
 status: published
 owner: product-engineering
-lastReviewedAt: 2026-04-23
+lastReviewedAt: 2026-05-12
 changeTriggers: server/agent/schedules.ts,server/agent/hermes-orchestrator.ts,client/src/features/agent,shared/schema.ts
 slug: strategies
 surface: web,agent
@@ -15,60 +15,66 @@ searchKeywords: strategies,saved strategies,scheduled,automation,mandate,guardra
 
 # Saved Strategies
 
-Saved strategies are a recurring-advisory layer on top of the Sportfolio Agent. They let Hermes check in on your account on a schedule and take approved actions without you needing to manually trigger each one.
+Saved strategies are a recurring layer on top of the Sportfolio Agent. They let Hermes check your account on schedule and auto-execute an allowlisted gameplay subset within saved guardrails.
 
-> ⚠️ **Strategies are not an autonomous trading bot.** They operate within strict guardrails, follow your defined mandate, and can only execute the pre-approved strategy-safe action subset.
+> Strategies are not unbounded autonomy. They are constrained by mandate, guardrails, and fixed exclusion rules.
 
 ---
 
-## What a Strategy Is
+## What a Strategy Stores
 
 A strategy stores:
 
-- **Your mandate** — the goal and rules you set
-- **A rule sheet** — specific conditions and preferences
-- **Guardrails** — the boundaries Hermes must stay within
-- **A schedule** — when the strategy runs (daily, pre-game, etc.)
+- **Mandate** - goal and rules you set
+- **Rule sheet** - specific conditions and preferences
+- **Guardrails** - boundaries Hermes must stay inside
+- **Schedule** - when the strategy runs
 
-On each run, Hermes wakes up, reads the continuity brief (recent actions, pending work, fresh evidence), reasons within your mandate, and either takes approved actions or generates a summary for your review.
-
----
-
-## What Strategies Can Automate
-
-The strategy-safe action subset is intentionally narrow. Strategies can auto-execute:
-
-- Scout reallocations within defined parameters
-- Watchlist adds and removes based on your criteria
-- Pre-approved informational actions (e.g., "flag any player on my watchlist with injury news")
-
-Strategies can stage (but not auto-execute without confirmation):
-
-- Trades above threshold amounts
-- Boost assignments
-- LP changes
+On each run, Hermes reads continuity state (recent actions, pending work, fresh evidence), reasons within the mandate, then either auto-executes allowlisted actions or stages follow-up work when clarification is needed.
 
 ---
 
-## What Strategies Cannot Do
+## What Strategies Can Auto-Execute
 
-- ❌ Automatically confirm trades without explicit approval
-- ❌ Handle billing, payments, or premium purchases
-- ❌ Act outside the defined guardrails
-- ❌ Bypass the server's confirmation requirements for risky actions
+Saved live strategies can auto-execute:
+
+- Player-pool buys and sells
+- LP add, remove, and zap flows
+- Stack shares and multiplier flows
+- Scout reallocations
+- Daily boost assign and remove
+- Watchlist add and remove
 
 ---
 
-## The Continuity Brief
+## What Strategies Cannot Auto-Run
 
-Every strategy run begins with a server-assembled continuity brief that gives Hermes:
+- Billing, payments, checkout, or other external purchase flows
+- Premium-share and premium-access purchase flows
+- Community boost creation
+- Actions outside saved guardrails
 
-- What it did on previous runs
-- What's pending or awaiting confirmation
+---
+
+## Manual vs Strategy Boundary
+
+| Context                   | Execution model                                        |
+| ------------------------- | ------------------------------------------------------ |
+| Manual chat and CLI turns | Stage first, then explicit `confirm` or `cancel`       |
+| Saved live strategy runs  | Allowlisted actions may auto-execute within guardrails |
+
+---
+
+## Continuity Brief
+
+Every strategy run begins with a server-assembled continuity brief that includes:
+
+- Prior applied actions
+- Pending or blocked work
 - Fresh evidence (news, market moves, slate changes)
-- Any blocked loops or recurring issues
+- Active strategy state
 
-This prevents strategies from starting fresh each time and repeating decisions that already happened.
+This keeps runs stateful and reduces repeated decisions.
 
 ---
 
@@ -76,43 +82,24 @@ This prevents strategies from starting fresh each time and repeating decisions t
 
 Every strategy run is logged with:
 
-- What actions were taken or staged
-- The runtime metadata (whether Hermes ran locally or through a configured sidecar)
+- Actions taken or staged
+- Runtime transport metadata
 - Timestamp and outcome
-
-This lets you verify what happened and holds the system accountable.
-
----
-
-## Advisory vs. Execution
-
-The product maintains a clear line:
-
-| Mode               | What it does                                                        |
-| ------------------ | ------------------------------------------------------------------- |
-| **Advisory**       | Generates guidance, surfaces relevant info, flags decisions for you |
-| **Auto-execution** | Runs only pre-approved, strategy-safe actions                       |
-| **Staged actions** | Prepares a plan for your explicit confirmation                      |
-
-Strategies can operate in all three modes, but the boundary between them is defined by your mandate and guardrails.
 
 ---
 
 ## The Right Mental Model
 
-Think of a saved strategy as:
+Think of a saved strategy as a standing instruction set:
 
-- A standing instruction you've given to a knowledgeable assistant
-- Within defined guardrails
-- That checks in on your behalf
-- And escalates anything outside its scope to you
-
-It's not "set it and forget it" — it's "delegate the routine, escalate the edge cases."
+- Delegate routine portfolio management loops
+- Keep explicit guardrails
+- Escalate excluded or out-of-policy actions back to manual confirmation
 
 ---
 
 ## Next Steps
 
-- [Agent Runtime Model](/wiki/agent/runtime-model) — how the agent processes strategy runs (continuity brief, tool tiers, audit trail)
-- [Sportfolio Agent](/wiki/features/agent-operator) — the full agent capability overview
-- [User Action Surface](/wiki/features/user-action-surface) — which actions are available for strategies to use
+- [Agent Runtime Model](/wiki/agent/runtime-model) - continuity, tool tiers, and audit semantics
+- [Sportfolio Agent](/wiki/features/agent-operator) - full capability overview
+- [User Action Surface](/wiki/features/user-action-surface) - actions by interface

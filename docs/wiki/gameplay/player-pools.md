@@ -6,7 +6,7 @@ audience: public
 category: gameplay
 status: published
 owner: product-engineering
-lastReviewedAt: 2026-03-04
+lastReviewedAt: 2026-05-12
 changeTriggers: server/routes/amm.ts,server/routes/lp.ts,server/amm/pool.ts,client/src/pages/marketplace.tsx,client/src/pages/player.tsx,shared/schema.ts
 slug: player-pools
 surface: web,cli,agent
@@ -98,8 +98,8 @@ Before buying, check:
 - Whether you're over-concentrating in one player or sport
 - Whether you might need that cash for a boost window later
 
-**Sell flow:** uses SB amount (you specify how much to spend)  
-**Buy flow:** uses whole-share quantities
+**Buy flow:** uses SB amount (you specify how much to spend)  
+**Sell flow:** uses share quantities
 
 ---
 

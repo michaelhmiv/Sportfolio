@@ -6,7 +6,7 @@ audience: public
 category: getting-started
 status: published
 owner: product-engineering
-lastReviewedAt: 2026-03-04
+lastReviewedAt: 2026-05-12
 changeTriggers: client/src/App.tsx,client/src/components/app-sidebar.tsx,client/src/pages/dashboard.tsx,client/src/pages/marketplace.tsx,client/src/pages/portfolio.tsx,client/src/pages/boosts.tsx
 slug: platform-tour
 surface: web,agent
@@ -177,7 +177,7 @@ The Agent page gives you a conversational interface to Sportfolio. It can:
 - Research current injuries and news
 - Stage gameplay actions (trades, boosts, scouts) that you confirm before execution
 
-> ℹ️ The agent does not execute actions autonomously. It stages a plan; you confirm before anything changes.
+> ℹ️ Manual Agent turns stage first and require explicit confirm. Saved live strategies can auto-execute an allowlisted gameplay subset in guardrails, but payments, purchases, checkout, and community boost creation are excluded from auto-runs.
 
 Also see: [Sportfolio Agent](/wiki/features/agent-operator) and [Agent Runtime Model](/wiki/agent/runtime-model).
 

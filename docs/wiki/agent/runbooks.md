@@ -6,7 +6,7 @@ audience: public
 category: agent
 status: published
 owner: product-engineering
-lastReviewedAt: 2026-05-02
+lastReviewedAt: 2026-05-12
 changeTriggers: server/amm/pool.ts,server/routes/amm.ts,server/routes/lp.ts,server/routes.ts,server/storage.ts,server/jobs/*
 slug: runbooks
 surface: agent
@@ -148,7 +148,7 @@ Checklist:
 1. Keep Hermes as the primary orchestrator and PI as fallback-only.
 2. Keep all risky portfolio mutations confirmation-gated.
 3. Preserve strict per-user memory isolation and do not widen scope across users or channels.
-4. Keep scheduled Hermes jobs advisory-only unless a separate explicit auto-execution policy is introduced.
+4. Keep default advisory schedules assistant-message-only; allow auto-execution only for saved live strategies and only inside the approved strategy-safe subset.
 5. Re-run the full validation stack after changing request/response contracts, tool names, or schedule defaults.
 6. If you change Hermes routing, verify that normal user turns still enter Hermes first, that the model-first router owns intent/tool selection, and that no heuristic scan pre-routing has crept back into the primary path.
 7. Treat runtime skills as constrained macros over approved tools only; do not add unreviewed tool access under the banner of "learning."
@@ -159,7 +159,7 @@ Must-verify behaviors:
 
 - A normal `/agent` message resolves through Hermes through the model-first routing path without requiring the PI fallback path.
 - When sidecar mode is enabled, runtime sessions record `sidecar` transport metadata and failed sidecar requests do not silently fall back to the local runtime.
-- Scheduled advisory runs write assistant messages only and never auto-confirm or auto-apply economic actions.
+- Scheduled advisory runs write assistant messages only and do not auto-apply economic actions.
 - Live strategies only run through the shared Hermes runtime contract and only auto-execute the explicitly approved strategy-safe action subset inside saved guardrails.
 - Global skill candidates stay inert until an admin explicitly approves them.
 
@@ -218,3 +218,11 @@ When user-facing product behavior, mechanics copy, or agent guidance changes:
 3. Do not duplicate the same explainer copy in multiple prompts or pages unless there is a rendering-only reason.
 
 The agent now reads a compact knowledge brief from wiki articles marked with `surface: agent`, so those docs are the shared source for both the public wiki and agent-facing product guidance.
+
+## Wiki Drift Policy
+
+Before publishing capability documentation changes (agent, CLI, MCP):
+
+1. Spot-check CLI reality against `packages/sportfolio-cli/src/index.mjs` and the command reference.
+2. Spot-check MCP protocol and inventory against a live `initialize -> tools/list -> resources/list` session.
+3. For exhaustive MCP inventory claims, reference `sportfolio://tool-catalog` instead of hand-maintained static lists.
