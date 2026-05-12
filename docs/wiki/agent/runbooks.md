@@ -163,6 +163,43 @@ Must-verify behaviors:
 - Live strategies only run through the shared Hermes runtime contract and only auto-execute the explicitly approved strategy-safe action subset inside saved guardrails.
 - Global skill candidates stay inert until an admin explicitly approves them.
 
+## Runbook F: NASCAR Results Ingestion / Reconciliation
+
+Primary files:
+
+- `server/nascar-api.ts`
+- `server/jobs/sync-nascar-live.ts`
+- `server/jobs/sync-nascar-stats.ts`
+- `server/jobs/scheduler.ts`
+
+Source hierarchy for NASCAR race results:
+
+1. `https://feed.racinginsights.com/feedtest/enhancedcurrentresults?raceID=<raceId>`
+2. `https://cf.nascar.com/cacher/{year}/{seriesId}/{raceId}/weekend-feed.json` (fallback)
+3. `https://cf.nascar.com/live/feeds/live-feed.json` (final fallback for just-finished races)
+
+Operational cadence:
+
+- `nascar_live_sync`: every 5 minutes for live position/stat updates.
+- `nascar_stats_sync`: hourly reconciliation/backfill over the last 30 days to recover missed race-final writes.
+
+Checklist:
+
+1. Preserve `nascar_<driverId>` player ID convention and avoid introducing mixed ID namespaces.
+2. Ensure missing NASCAR `players` rows are upserted before `player_game_stats` writes.
+3. Keep “mark game completed only after successful stat persistence” semantics.
+4. Verify `nascar_stats_sync` remains in:
+   - scheduler config,
+   - manual trigger handler map,
+   - configured/manual job name lists.
+5. If provider payload shape changes, update mapping tests and keep graceful fallback behavior.
+
+Must-verify behaviors:
+
+- Recent completed races (last 30 days) produce driver result rows even when weekend feed lacks `run_type=3`.
+- Stats writes do not fail with `player_game_stats_player_id_players_id_fk` for NASCAR rows.
+- Admin/scheduler surfaces show `nascar_stats_sync` with current status/logs.
+
 ## Documentation Sync Rule
 
 If you change any of these, update docs in the same PR:
