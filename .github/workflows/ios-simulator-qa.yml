@@ -27,7 +27,8 @@ jobs:
     runs-on: macos-latest
     env:
       CAP_SERVER_URL: ${{ inputs.cap_server_url }}
-      IOS_DERIVED_DATA: tmp/ios-derived-data
+      IOS_DERIVED_DATA: ${{ github.workspace }}/tmp/ios-derived-data
+      IOS_APP_PATH: ${{ github.workspace }}/tmp/ios-derived-data/Build/Products/Debug-iphonesimulator/App.app
       IOS_BUILD_LOG: tmp/ios-build.log
       IOS_SIM_ARTIFACT_DIR: tmp/ios-simulator-artifacts
       IOS_SIMULATOR_NAME: ${{ inputs.simulator_name }}
@@ -57,7 +58,13 @@ jobs:
           set -euo pipefail
           rm -rf "${IOS_DERIVED_DATA}" "${IOS_SIM_ARTIFACT_DIR}"
           mkdir -p "$(dirname "${IOS_BUILD_LOG}")"
-          npm run mobile:build:ios:ci 2>&1 | tee "${IOS_BUILD_LOG}"
+          (
+            cd mobile/ios/App
+            xcodebuild -project App.xcodeproj -scheme App -configuration Debug \
+              -destination 'generic/platform=iOS Simulator' \
+              -derivedDataPath "${IOS_DERIVED_DATA}" \
+              CODE_SIGNING_ALLOWED=NO
+          ) 2>&1 | tee "${IOS_BUILD_LOG}"
 
       - name: Run simulator smoke and capture screenshots
         run: node scripts/ios-simulator-smoke.mjs
@@ -67,7 +74,7 @@ jobs:
         run: |
           set -euo pipefail
           ditto -c -k --sequesterRsrc --keepParent \
-            "${IOS_DERIVED_DATA}/Build/Products/Debug-iphonesimulator/App.app" \
+            "${IOS_APP_PATH}" \
             tmp/ios-simulator-app.zip
 
       - name: Upload simulator QA artifacts
