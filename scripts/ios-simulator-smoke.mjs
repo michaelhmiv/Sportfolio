@@ -12,13 +12,7 @@ const ARTIFACT_DIR = path.resolve(
 const SCREENSHOT_DIR = path.join(ARTIFACT_DIR, "screenshots");
 const APP_PATH = process.env.IOS_APP_PATH?.trim()
   ? path.resolve(process.env.IOS_APP_PATH)
-  : path.join(
-      DERIVED_DATA_PATH,
-      "Build",
-      "Products",
-      "Debug-iphonesimulator",
-      "App.app",
-    );
+  : path.join(DERIVED_DATA_PATH, "Build", "Products", "Debug-iphonesimulator", "App.app");
 
 mkdirSync(SCREENSHOT_DIR, { recursive: true });
 
