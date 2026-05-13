@@ -1,0 +1,84 @@
+name: iOS Simulator QA
+
+on:
+  workflow_dispatch:
+    inputs:
+      cap_server_url:
+        description: "Capacitor server URL for the iOS shell"
+        required: true
+        default: "https://www.sportfolio.market"
+        type: string
+      simulator_name:
+        description: "Installed simulator device name"
+        required: true
+        default: "iPhone 16"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-simulator-qa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  simulator-smoke:
+    name: simulator-smoke
+    runs-on: macos-latest
+    env:
+      CAP_SERVER_URL: ${{ inputs.cap_server_url }}
+      IOS_DERIVED_DATA: tmp/ios-derived-data
+      IOS_BUILD_LOG: tmp/ios-build.log
+      IOS_SIM_ARTIFACT_DIR: tmp/ios-simulator-artifacts
+      IOS_SIMULATOR_NAME: ${{ inputs.simulator_name }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Sync Capacitor iOS
+        run: npm run mobile:sync:ios
+
+      - name: Run iOS guardrail doctor
+        run: npm run mobile:ios:doctor
+
+      - name: Build unsigned iOS simulator app
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf "${IOS_DERIVED_DATA}" "${IOS_SIM_ARTIFACT_DIR}"
+          mkdir -p "$(dirname "${IOS_BUILD_LOG}")"
+          npm run mobile:build:ios:ci 2>&1 | tee "${IOS_BUILD_LOG}"
+
+      - name: Run simulator smoke and capture screenshots
+        run: node scripts/ios-simulator-smoke.mjs
+
+      - name: Zip built simulator app
+        shell: bash
+        run: |
+          set -euo pipefail
+          ditto -c -k --sequesterRsrc --keepParent \
+            "${IOS_DERIVED_DATA}/Build/Products/Debug-iphonesimulator/App.app" \
+            tmp/ios-simulator-app.zip
+
+      - name: Upload simulator QA artifacts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-simulator-qa-${{ github.run_id }}
+          retention-days: 14
+          if-no-files-found: warn
+          path: |
+            ${{ env.IOS_BUILD_LOG }}
+            ${{ env.IOS_DERIVED_DATA }}
+            ${{ env.IOS_SIM_ARTIFACT_DIR }}
+            tmp/ios-simulator-app.zip
