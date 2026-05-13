@@ -7,6 +7,7 @@
  * Endpoints used:
  * - GET /live/feeds/live-feed.json - Real-time race data
  * - GET /cacher/{year}/{seriesID}/{raceID}/weekend-feed.json - Race weekend data
+ * - GET /feedtest/enhancedcurrentresults?raceID={raceID} - Historical race results by race ID
  *
  * Series IDs:
  * - 1 = Cup Series (NCS)
@@ -19,6 +20,8 @@ import { HttpsProxyAgent } from "https-proxy-agent";
 import { fromZonedTime } from "date-fns-tz";
 
 const NASCAR_API_BASE = "https://cf.nascar.com";
+const NASCAR_ENHANCED_RESULTS_BASE = "https://feed.racinginsights.com";
+const NASCAR_ENHANCED_RESULTS_PATH = "/feedtest/enhancedcurrentresults";
 const NASCAR_PROXY_URL = process.env.NASCAR_PROXY_URL;
 const NASCAR_ET_TIMEZONE = "America/New_York";
 
@@ -40,9 +43,9 @@ function parseProxyUrl(
 // Create axios instance for NASCAR API
 // When NASCAR_PROXY_URL is set, requests will be routed through that proxy
 // This is needed when hosting on cloud platforms that NASCAR API blocks
-function createApiClient(): AxiosInstance {
+function createApiClient(baseURL: string = NASCAR_API_BASE): AxiosInstance {
   const config: any = {
-    baseURL: NASCAR_API_BASE,
+    baseURL,
     timeout: 30000,
     headers: {
       "User-Agent": "Sportfolio/1.0",
@@ -66,6 +69,7 @@ function createApiClient(): AxiosInstance {
 }
 
 const apiClient = createApiClient();
+const enhancedResultsClient = createApiClient(NASCAR_ENHANCED_RESULTS_BASE);
 
 // ============================================================================
 // Types
@@ -282,6 +286,38 @@ export interface NascarWeekendFeed {
   sessions: NascarWeekendSession[];
 }
 
+interface NascarEnhancedRunData {
+  RaceID?: number | string;
+  RunID?: number | string;
+  RunType?: number | string;
+  LapsToGo?: number | string;
+  FlagState?: string;
+}
+
+interface NascarEnhancedResultRow {
+  Number?: string | number;
+  Manufacturer?: string;
+  DriverNameTag?: string;
+  DriverFirstName?: string;
+  DriverLastName?: string;
+  DriverID?: number | string;
+  NASCARDriverID?: number | string;
+  RunningPos?: number | string;
+  StartPos?: number | string;
+  LapsLed?: number | string;
+  FastestLapsRun?: number | string;
+  FastestLap?: number | string;
+  PointsThisRace?: number | string;
+  Status?: string;
+  iStatus?: number | string;
+  CompLaps?: number | string;
+}
+
+interface NascarEnhancedRaceResultsResponse {
+  RunData?: NascarEnhancedRunData[];
+  Results?: NascarEnhancedResultRow[];
+}
+
 // Fantasy-relevant race stats
 export interface NascarRaceResult {
   driverId: number;
@@ -329,6 +365,163 @@ export function parseNascarEtDateTime(rawDateTime: string): Date {
 
 export function isNascarRaceSession(runType: number | null | undefined): boolean {
   return runType === 3;
+}
+
+function parseOptionalNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
+}
+
+function parseOptionalString(value: unknown): string {
+  if (typeof value !== "string") return "";
+  return value.trim();
+}
+
+function normalizeEnhancedStatus(
+  status: NascarEnhancedResultRow["Status"],
+  iStatus: NascarEnhancedResultRow["iStatus"],
+): string {
+  const normalizedStatus = parseOptionalString(status);
+  if (normalizedStatus) return normalizedStatus;
+
+  const statusCode = parseOptionalNumber(iStatus);
+  if (statusCode === 1) return "Running";
+  if (statusCode === 2) return "Finished";
+  return "Unknown";
+}
+
+export function normalizeEnhancedNascarDriverId(
+  row: Pick<NascarEnhancedResultRow, "NASCARDriverID" | "DriverID">,
+): number | null {
+  const canonicalDriverId = parseOptionalNumber(row.NASCARDriverID);
+  if (canonicalDriverId && canonicalDriverId > 0) return canonicalDriverId;
+
+  const fallbackDriverId = parseOptionalNumber(row.DriverID);
+  if (fallbackDriverId && fallbackDriverId > 0) return fallbackDriverId;
+
+  return null;
+}
+
+export function mapEnhancedResultsToRaceResults(
+  payload: NascarEnhancedRaceResultsResponse,
+  raceId: number,
+): NascarRaceResult[] {
+  if (!payload || !Array.isArray(payload.Results)) {
+    return [];
+  }
+
+  const runData = Array.isArray(payload.RunData) ? payload.RunData[0] : null;
+  const responseRaceId = parseOptionalNumber(runData?.RaceID);
+  if (responseRaceId !== null && responseRaceId !== raceId) {
+    console.warn(
+      `[NASCAR API] Enhanced results race mismatch: requested=${raceId}, got=${responseRaceId}`,
+    );
+    return [];
+  }
+
+  const runType = parseOptionalNumber(runData?.RunType);
+  if (runType !== null && runType !== 3) {
+    console.log(
+      `[NASCAR API] Enhanced results race ${raceId} is not a race run (runType=${runType})`,
+    );
+    return [];
+  }
+
+  const lapsToGo = parseOptionalNumber(runData?.LapsToGo);
+  const flagState = parseOptionalString(runData?.FlagState).toLowerCase();
+  const isRaceComplete =
+    (lapsToGo !== null && lapsToGo <= 0) ||
+    flagState === "finish" ||
+    flagState === "not active" ||
+    flagState === "final" ||
+    flagState === "checkered";
+
+  if (!isRaceComplete) {
+    console.log(
+      `[NASCAR API] Enhanced results race ${raceId} is still live (lapsToGo=${lapsToGo ?? "unknown"}, flag=${flagState || "unknown"})`,
+    );
+    return [];
+  }
+
+  let skippedMissingDriverIds = 0;
+  const mappedResults: NascarRaceResult[] = [];
+
+  for (const row of payload.Results) {
+    const finishPosition = parseOptionalNumber(row.RunningPos);
+    if (!finishPosition || finishPosition <= 0) continue;
+
+    const driverId = normalizeEnhancedNascarDriverId(row);
+    if (!driverId) {
+      skippedMissingDriverIds++;
+      continue;
+    }
+
+    const startPosition = parseOptionalNumber(row.StartPos) ?? finishPosition;
+    const lapsLed = Math.max(0, parseOptionalNumber(row.LapsLed) ?? 0);
+    const fastestLaps = Math.max(
+      0,
+      parseOptionalNumber(row.FastestLapsRun) ?? parseOptionalNumber(row.FastestLap) ?? 0,
+    );
+    const pointsThisRace = parseOptionalNumber(row.PointsThisRace);
+    const driverName =
+      parseOptionalString(row.DriverNameTag) ||
+      [parseOptionalString(row.DriverFirstName), parseOptionalString(row.DriverLastName)]
+        .filter(Boolean)
+        .join(" ") ||
+      `Driver ${driverId}`;
+
+    mappedResults.push({
+      driverId,
+      driverName,
+      carNumber: String(row.Number ?? ""),
+      manufacturer: parseOptionalString(row.Manufacturer),
+      finishPosition,
+      startPosition,
+      positionDifferential: startPosition - finishPosition,
+      lapsCompleted: Math.max(0, parseOptionalNumber(row.CompLaps) ?? 0),
+      lapsLed,
+      fastestLaps,
+      points: pointsThisRace ?? 0,
+      status: normalizeEnhancedStatus(row.Status, row.iStatus),
+    });
+  }
+
+  mappedResults.sort((a, b) => a.finishPosition - b.finishPosition);
+
+  mappedResults.forEach((result, index) => {
+    if (result.points > 0) return;
+    result.points = calculatePoints(index + 1, result.lapsLed > 0);
+  });
+
+  if (skippedMissingDriverIds > 0) {
+    console.warn(
+      `[NASCAR API] Enhanced results skipped ${skippedMissingDriverIds} rows with missing driver IDs for race ${raceId}`,
+    );
+  }
+
+  return mappedResults;
+}
+
+async function fetchEnhancedRaceResults(raceId: number): Promise<NascarRaceResult[]> {
+  const response = await enhancedResultsClient.get<NascarEnhancedRaceResultsResponse>(
+    NASCAR_ENHANCED_RESULTS_PATH,
+    {
+      params: { raceID: raceId },
+    },
+  );
+
+  const mappedResults = mapEnhancedResultsToRaceResults(response.data, raceId);
+  if (mappedResults.length > 0) {
+    console.log(`[NASCAR API] Fetched ${mappedResults.length} enhanced results for race ${raceId}`);
+  } else {
+    console.log(`[NASCAR API] No enhanced results available for race ${raceId}`);
+  }
+
+  return mappedResults;
 }
 
 /**
@@ -502,6 +695,17 @@ export async function fetchRaceResults(
   raceId: number,
 ): Promise<NascarRaceResult[]> {
   try {
+    try {
+      const enhancedResults = await fetchEnhancedRaceResults(raceId);
+      if (enhancedResults.length > 0) {
+        return enhancedResults;
+      }
+    } catch (error: any) {
+      console.warn(
+        `[NASCAR API] Enhanced results request failed for race ${raceId}, falling back to weekend/live feed: ${error.message}`,
+      );
+    }
+
     const weekendFeed = await fetchWeekendFeed(year, seriesId, raceId);
 
     // Try to find race session in weekend feed (runType 3 = Race)

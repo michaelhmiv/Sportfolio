@@ -33,6 +33,7 @@ import { syncMLBRoster } from "./sync-mlb-roster";
 import { syncNascarRoster, syncNascarActiveRoster } from "./sync-nascar-roster";
 import { syncNascarSchedule } from "./sync-nascar-schedule";
 import { syncNascarLive } from "./sync-nascar-live";
+import { syncNascarStats } from "./sync-nascar-stats";
 import { syncPlayerInjuries } from "./sync-injuries";
 import { fetchNews } from "./fetch-news";
 import { postDiscordHourlyMarketDigest, postDiscordNewsUpdates } from "./discord-posting";
@@ -539,6 +540,19 @@ export class JobScheduler {
         },
       },
       {
+        name: "nascar_stats_sync",
+        schedule: "20 * * * *", // Hourly at :20 - reconcile completed race results + backfill recent gaps
+        enabled: true,
+        handler: async () => {
+          const result = await syncNascarStats();
+          return {
+            requestCount: result.requestCount,
+            recordsProcessed: result.recordsProcessed,
+            errorCount: result.errorCount,
+          };
+        },
+      },
+      {
         name: "nascar_live_sync",
         schedule: "*/5 * * * *", // Every 5 minutes - sync live race data during events
         enabled: true,
@@ -772,6 +786,14 @@ export class JobScheduler {
           errorCount: result.errorCount,
         };
       },
+      nascar_stats_sync: async () => {
+        const result = await syncNascarStats();
+        return {
+          requestCount: result.requestCount,
+          recordsProcessed: result.recordsProcessed,
+          errorCount: result.errorCount,
+        };
+      },
       nascar_live_sync: async () => {
         const result = await syncNascarLive();
         return {
@@ -924,6 +946,7 @@ export class JobScheduler {
       "mlb_roster_sync",
       "nascar_roster_sync",
       "nascar_schedule_sync",
+      "nascar_stats_sync",
       "nascar_live_sync",
     ];
   }

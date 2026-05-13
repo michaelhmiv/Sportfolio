@@ -12,7 +12,6 @@ import {
   fetchRaceSchedule,
   calculateFantasyPoints,
   parseNascarEtDateTime,
-  NASCAR_SERIES,
   NASCAR_SERIES_NAMES,
   NASCAR_SERIES_CODES,
   NascarSeriesId,
@@ -22,6 +21,7 @@ import type { JobResult } from "./scheduler";
 import type { ProgressCallback } from "../lib/admin-stream";
 
 const NASCAR_SPORT = "NASCAR";
+const NASCAR_RESULTS_LOOKBACK_DAYS = 30;
 
 /**
  * Create a NASCAR player ID from driver ID
@@ -38,6 +38,77 @@ function createNascarPlayerId(driverId: number, _seriesId: NascarSeriesId): stri
 function createNascarGameId(raceId: number, seriesId: NascarSeriesId): string {
   const seriesCode = NASCAR_SERIES_CODES[seriesId];
   return `nascar_${seriesCode}_${raceId}`;
+}
+
+function splitNascarDriverName(driverName: string): { firstName: string; lastName: string } {
+  const trimmedName = (driverName || "").trim();
+  if (!trimmedName) return { firstName: "Unknown", lastName: "Driver" };
+
+  const nameParts = trimmedName.split(/\s+/);
+  if (nameParts.length === 1) {
+    return { firstName: nameParts[0], lastName: "Driver" };
+  }
+
+  return {
+    firstName: nameParts[0],
+    lastName: nameParts.slice(1).join(" "),
+  };
+}
+
+async function ensureNascarPlayersForResults(
+  results: NascarRaceResult[],
+  seriesId: NascarSeriesId,
+): Promise<{ createdCount: number; errorCount: number }> {
+  const uniqueDriverResults = new Map<number, NascarRaceResult>();
+  for (const result of results) {
+    if (!uniqueDriverResults.has(result.driverId)) {
+      uniqueDriverResults.set(result.driverId, result);
+    }
+  }
+
+  const playerIds = Array.from(uniqueDriverResults.keys()).map((driverId) =>
+    createNascarPlayerId(driverId, seriesId),
+  );
+  if (playerIds.length === 0) {
+    return { createdCount: 0, errorCount: 0 };
+  }
+
+  const existingPlayers = await storage.getPlayersByIds(playerIds);
+  const existingPlayerIds = new Set(existingPlayers.map((player) => player.id));
+
+  let createdCount = 0;
+  let errorCount = 0;
+
+  for (const [driverId, driverResult] of uniqueDriverResults) {
+    const playerId = createNascarPlayerId(driverId, seriesId);
+    if (existingPlayerIds.has(playerId)) continue;
+
+    const { firstName, lastName } = splitNascarDriverName(driverResult.driverName);
+
+    try {
+      await storage.upsertPlayer({
+        id: playerId,
+        sport: NASCAR_SPORT,
+        firstName,
+        lastName,
+        team: NASCAR_SERIES_CODES[seriesId],
+        position: "DRV",
+        jerseyNumber: driverResult.carNumber || "",
+        isActive: true,
+        isEligibleForVesting: true,
+      });
+      existingPlayerIds.add(playerId);
+      createdCount++;
+    } catch (error: any) {
+      console.error(
+        `[nascar_stats_sync] Failed to upsert missing NASCAR player ${playerId}:`,
+        error.message,
+      );
+      errorCount++;
+    }
+  }
+
+  return { createdCount, errorCount };
 }
 
 /**
@@ -130,8 +201,25 @@ export async function syncNascarRaceResults(
 
     console.log(`[nascar_stats_sync] Fetched ${results.length} driver results for race ${raceId}`);
 
+    const ensuredPlayers = await ensureNascarPlayersForResults(results, seriesId);
+    if (ensuredPlayers.createdCount > 0) {
+      console.log(
+        `[nascar_stats_sync] Created ${ensuredPlayers.createdCount} missing NASCAR players before stats sync for race ${raceId}`,
+      );
+    }
+    errorCount += ensuredPlayers.errorCount;
+
     // Determine season string (e.g., "2024", "2025")
     const season = String(year);
+    const knownPlayerIds = new Set(
+      (
+        await storage.getPlayersByIds(
+          Array.from(
+            new Set(results.map((result) => createNascarPlayerId(result.driverId, seriesId))),
+          ),
+        )
+      ).map((player) => player.id),
+    );
 
     // Store stats in database
     for (const result of results) {
@@ -143,6 +231,14 @@ export async function syncNascarRaceResults(
           raceDate,
           season,
         );
+
+        if (!knownPlayerIds.has(statsData.playerId)) {
+          console.error(
+            `[nascar_stats_sync] Missing local player ${statsData.playerId}; skipping stat write for race ${raceId}`,
+          );
+          errorCount++;
+          continue;
+        }
 
         await storage.upsertPlayerGameStats({
           playerId: statsData.playerId,
@@ -220,11 +316,6 @@ export async function syncNascarStats(progressCallback?: ProgressCallback): Prom
   console.log("[nascar_stats_sync] Starting NASCAR stats sync...");
 
   const currentYear = new Date().getFullYear();
-  const seriesList: NascarSeriesId[] = [
-    NASCAR_SERIES.CUP,
-    NASCAR_SERIES.XFINITY,
-    NASCAR_SERIES.TRUCKS,
-  ];
 
   let totalRequestCount = 0;
   let totalRecordsProcessed = 0;
@@ -242,23 +333,26 @@ export async function syncNascarStats(progressCallback?: ProgressCallback): Prom
     };
   }
 
-  // Filter races to get only completed or recent ones
-  // (In production, you'd want to track which races have been synced)
+  // Reconcile completed races from the recent lookback window so we recover any missed live writes.
   const now = new Date();
+  const lookbackStart = new Date(now);
+  lookbackStart.setDate(lookbackStart.getDate() - NASCAR_RESULTS_LOOKBACK_DAYS);
+
   const recentRaces = schedule.filter((race) => {
     const raceDate = parseNascarEtDateTime(race.race_date);
     if (!Number.isFinite(raceDate.getTime())) return false;
-    // Get races from last 7 days
-    const sevenDaysAgo = new Date(now);
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    return raceDate >= sevenDaysAgo && raceDate <= now;
+    return raceDate >= lookbackStart && raceDate <= now;
   });
 
   progressCallback?.({
     type: "info",
     timestamp: new Date().toISOString(),
-    message: `Syncing stats for ${recentRaces.length} recent races`,
-    data: { recentRaces: recentRaces.length, totalSchedule: schedule.length },
+    message: `Syncing stats for ${recentRaces.length} races in the last ${NASCAR_RESULTS_LOOKBACK_DAYS} days`,
+    data: {
+      recentRaces: recentRaces.length,
+      totalSchedule: schedule.length,
+      lookbackDays: NASCAR_RESULTS_LOOKBACK_DAYS,
+    },
   });
 
   for (const race of recentRaces) {
