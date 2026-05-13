@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-02T04:24:05.301Z",
+  "generatedAt": "2026-05-12T20:36:07.038Z",
   "articles": [
     {
       "id": "agent-api-map",
@@ -52,7 +52,7 @@
       "category": "agent",
       "status": "published",
       "owner": "product-engineering",
-      "lastReviewedAt": "2026-05-02",
+      "lastReviewedAt": "2026-05-12",
       "changeTriggers": [
         "server/agent/hermes-orchestrator.ts",
         "server/agent/hermes-tools.ts",
@@ -107,7 +107,7 @@
       "category": "agent",
       "status": "published",
       "owner": "product-engineering",
-      "lastReviewedAt": "2026-05-02",
+      "lastReviewedAt": "2026-05-12",
       "changeTriggers": [
         "server/agent/hermes-orchestrator.ts",
         "server/agent/hermes-tools.ts",
@@ -132,12 +132,12 @@
     {
       "id": "agent-mcp-tool-reference",
       "title": "MCP Tool Reference",
-      "summary": "Deep-dive reference for the public Sportfolio MCP server: tool catalog, response semantics, staged actions, truncation handling.",
+      "summary": "Curated high-signal reference for Sportfolio public MCP behavior: naming, confirmation semantics, payload structure, and truncation handling.",
       "audience": "public",
       "category": "agent",
       "status": "published",
       "owner": "product-engineering",
-      "lastReviewedAt": "2026-05-02",
+      "lastReviewedAt": "2026-05-12",
       "changeTriggers": ["server/mcp/public-tool-registry.ts", "server/routes/mcp.ts"],
       "slug": "mcp-tool-reference",
       "section": "agent",
@@ -147,10 +147,9 @@
         "tools",
         "catalog",
         "truncation",
-        "statcast",
-        "pagination",
         "structuredContent",
-        "confirmation"
+        "confirmation",
+        "mlb"
       ],
       "urlPath": "/wiki/agent/mcp-tool-reference"
     },
@@ -195,7 +194,7 @@
       "category": "agent",
       "status": "published",
       "owner": "product-engineering",
-      "lastReviewedAt": "2026-05-02",
+      "lastReviewedAt": "2026-05-12",
       "changeTriggers": [
         "server/amm/pool.ts",
         "server/routes/amm.ts",
@@ -227,7 +226,7 @@
       "category": "agent",
       "status": "published",
       "owner": "product-engineering",
-      "lastReviewedAt": "2026-04-02",
+      "lastReviewedAt": "2026-05-12",
       "changeTriggers": [
         "server/agent/hermes-orchestrator.ts",
         "server/agent/hermes-tools.ts",
@@ -254,12 +253,12 @@
     {
       "id": "agent-strategies",
       "title": "Saved Strategies",
-      "summary": "How saved strategies work in Sportfolio — what they can automate, how mandates and guardrails are set, and what stays outside their scope.",
+      "summary": "How saved strategies work in Sportfolio - what they can automate, how mandates and guardrails are set, and what stays outside their scope.",
       "audience": "public",
       "category": "agent",
       "status": "published",
       "owner": "product-engineering",
-      "lastReviewedAt": "2026-04-23",
+      "lastReviewedAt": "2026-05-12",
       "changeTriggers": [
         "server/agent/schedules.ts",
         "server/agent/hermes-orchestrator.ts",
@@ -323,6 +322,36 @@
       "urlPath": "/wiki/changelog/2026-03-02-knowledge-hub"
     },
     {
+      "id": "changelog-2026-05-12-interface-contract-refresh",
+      "title": "Agent, CLI, and MCP Contract Refresh",
+      "summary": "Wiki contract refresh that aligns agent autonomy language, corrects CLI helper docs, and moves MCP inventory claims to live catalog resources.",
+      "audience": "public",
+      "category": "changelog",
+      "status": "published",
+      "owner": "product-engineering",
+      "lastReviewedAt": "2026-05-12",
+      "changeTriggers": [
+        "docs/wiki/agent/current-surface.md",
+        "docs/wiki/getting-started/mcp-access.md",
+        "docs/wiki/features/user-action-surface.md",
+        "packages/sportfolio-cli/src/index.mjs",
+        "server/routes/mcp.ts",
+        "server/mcp/public-tool-registry.ts"
+      ],
+      "slug": "2026-05-12-interface-contract-refresh",
+      "section": "changelog",
+      "surface": ["web", "cli", "agent"],
+      "searchKeywords": [
+        "changelog",
+        "agent contract",
+        "cli docs",
+        "mcp catalog",
+        "session lifecycle",
+        "wiki drift"
+      ],
+      "urlPath": "/wiki/changelog/2026-05-12-interface-contract-refresh"
+    },
+    {
       "id": "cli-command-reference",
       "title": "CLI Command Reference",
       "summary": "End-to-end setup, command syntax, JSON automation mode, and troubleshooting for the Sportfolio CLI.",
@@ -359,7 +388,7 @@
       "category": "cli",
       "status": "published",
       "owner": "product-engineering",
-      "lastReviewedAt": "2026-04-02",
+      "lastReviewedAt": "2026-05-12",
       "changeTriggers": [
         "packages/sportfolio-cli",
         "server/routes/cli.ts",
@@ -387,12 +416,12 @@
     {
       "id": "faq-common-questions",
       "title": "Common Questions",
-      "summary": "High-signal answers to the most common questions about Sportfolio's economy, sports coverage, features, and agent behavior.",
+      "summary": "High-signal answers to common questions about Sportfolio's economy, sports coverage, features, and agent behavior.",
       "audience": "public",
       "category": "faq",
       "status": "published",
       "owner": "product-engineering",
-      "lastReviewedAt": "2026-03-04",
+      "lastReviewedAt": "2026-05-12",
       "changeTriggers": [
         "client/src/App.tsx",
         "client/src/pages/how-it-works.tsx",
@@ -445,7 +474,7 @@
       "category": "features",
       "status": "published",
       "owner": "product-engineering",
-      "lastReviewedAt": "2026-04-02",
+      "lastReviewedAt": "2026-05-12",
       "changeTriggers": [
         "server/agent",
         "client/src/features/agent",
@@ -559,7 +588,7 @@
       "category": "features",
       "status": "published",
       "owner": "product-engineering",
-      "lastReviewedAt": "2026-04-02",
+      "lastReviewedAt": "2026-05-12",
       "changeTriggers": [
         "server/sms-service.ts",
         "server/routes/sms.ts",
@@ -588,7 +617,7 @@
       "category": "features",
       "status": "published",
       "owner": "product-engineering",
-      "lastReviewedAt": "2026-04-02",
+      "lastReviewedAt": "2026-05-12",
       "changeTriggers": [
         "client/src/App.tsx",
         "client/src/components/app-sidebar.tsx",
@@ -705,7 +734,7 @@
       "category": "gameplay",
       "status": "published",
       "owner": "product-engineering",
-      "lastReviewedAt": "2026-03-04",
+      "lastReviewedAt": "2026-05-12",
       "changeTriggers": [
         "server/routes/amm.ts",
         "server/routes/lp.ts",
@@ -847,7 +876,7 @@
       "category": "getting-started",
       "status": "published",
       "owner": "product-engineering",
-      "lastReviewedAt": "2026-04-02",
+      "lastReviewedAt": "2026-05-12",
       "changeTriggers": [
         "client/src/App.tsx",
         "client/src/components/bottom-nav.tsx",
@@ -876,12 +905,12 @@
     {
       "id": "getting-started-mcp-access",
       "title": "MCP Access",
-      "summary": "How to connect to Sportfolio's public authenticated MCP endpoint, how it relates to Hermes, and what stays inside or outside the public MCP surface.",
+      "summary": "How to connect to Sportfolio's public authenticated MCP endpoint, including auth, session lifecycle, and capability boundaries.",
       "audience": "public",
       "category": "getting-started",
       "status": "published",
       "owner": "product-engineering",
-      "lastReviewedAt": "2026-04-02",
+      "lastReviewedAt": "2026-05-12",
       "changeTriggers": [
         "server/routes/mcp.ts",
         "server/mcp/public-tool-registry.ts",
@@ -899,7 +928,8 @@
         "api token",
         "external access",
         "endpoint",
-        "hermes"
+        "hermes",
+        "session"
       ],
       "urlPath": "/wiki/getting-started/mcp-access"
     },
@@ -911,7 +941,7 @@
       "category": "getting-started",
       "status": "published",
       "owner": "product-engineering",
-      "lastReviewedAt": "2026-03-04",
+      "lastReviewedAt": "2026-05-12",
       "changeTriggers": [
         "client/src/App.tsx",
         "client/src/pages/dashboard.tsx",
@@ -941,7 +971,7 @@
       "category": "getting-started",
       "status": "published",
       "owner": "product-engineering",
-      "lastReviewedAt": "2026-03-04",
+      "lastReviewedAt": "2026-05-12",
       "changeTriggers": [
         "client/src/App.tsx",
         "client/src/components/app-sidebar.tsx",

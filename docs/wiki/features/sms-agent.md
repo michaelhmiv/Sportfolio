@@ -6,7 +6,7 @@ audience: public
 category: features
 status: published
 owner: product-engineering
-lastReviewedAt: 2026-04-02
+lastReviewedAt: 2026-05-12
 changeTriggers: server/sms-service.ts,server/routes/sms.ts,server/services/telnyx-sms.ts,client/src/components/sms-access-card.tsx,client/src/pages/sms-link.tsx
 slug: sms-agent
 surface: web,agent
@@ -79,7 +79,7 @@ It followed the same confirm-before-execute rules as the web and CLI agent.
 
 ## Current Status
 
-SMS is legacy infrastructure. The active agent contract uses:
+SMS is legacy infrastructure. Some SMS compatibility settings/tools may still appear in public capability inventories, but SMS is not a primary Hermes channel. The active contract uses:
 
 - **Web Agent page** — primary conversational surface
 - **Sportfolio CLI** — terminal access
