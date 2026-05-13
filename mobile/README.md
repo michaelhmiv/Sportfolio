@@ -5,6 +5,11 @@ This project uses Capacitor with native projects in:
 - `mobile/android`
 - `mobile/ios`
 
+Related audit:
+
+- `docs/ios-readiness-audit.md` for the current iPhone-ready surface, tooling blockers, and Apple-specific implementation gaps.
+- `docs/ios-github-actions-rollout.md` for the GitHub-hosted iOS simulator workflow and App Store/TestFlight prep sequence.
+
 ## Prerequisites
 
 - Node.js + npm
@@ -251,6 +256,33 @@ Expected PR checks for mobile-impacting changes:
 
 - `Pull Request CI / Validate Code`
 - `iOS PR CI / ios-validate`
+
+## GitHub iOS Simulator QA
+
+A manual simulator QA workflow is included:
+
+- `.github/workflows/ios-simulator-qa.yml`
+
+Use it when you want GitHub-hosted macOS runners to:
+
+- sync the iOS shell,
+- build the simulator app,
+- boot an iPhone simulator,
+- install and launch the app,
+- open a few core deep links,
+- upload screenshots and logs as artifacts.
+
+Run it from GitHub Actions:
+
+1. Open **Actions**.
+2. Select **iOS Simulator QA**.
+3. Click **Run workflow**.
+4. Use the default production `cap_server_url` for the safest first pass.
+
+Notes:
+
+- This is for simulator QA only, not App Store signing or real-device install.
+- See `docs/ios-github-actions-rollout.md` for the full rollout sequence.
 
 ## Required Check Rollout (Post-Upgrade)
 

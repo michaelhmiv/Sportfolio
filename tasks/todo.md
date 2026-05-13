@@ -1,3 +1,40 @@
+## 2026-05-13 GitHub Actions iPhone QA Enablement
+
+- [x] Review current iOS GitHub workflow surface and existing build scripts
+- [x] Add a reusable iOS simulator smoke script for GitHub macOS runners
+- [x] Add a manual GitHub Actions workflow for iOS simulator QA with artifact uploads
+- [x] Document how to use GitHub-hosted iOS simulator QA and what still requires Apple signing/device access
+- [ ] Run required validation (`npm run check`, `npm run lint`, `npm run test:run`)
+- [ ] Run formatter validation (`npm run format:check`)
+
+Review:
+
+- Added a repo-owned `scripts/ios-simulator-smoke.mjs` helper that selects an available iPhone simulator, boots it, installs the built app, launches it, opens a few deep links, and captures screenshots into workflow artifacts.
+- Added a manual `.github/workflows/ios-simulator-qa.yml` workflow so GitHub Actions minutes can be used for repeatable iPhone-shell QA on macOS runners.
+- Added `docs/ios-github-actions-rollout.md` and linked it from `mobile/README.md` so the team has a concrete next-step playbook for simulator QA and App Store/TestFlight prerequisites.
+- Validation remains blocked in this worktree because local dev dependencies are not installed, so `tsc`, `eslint`, `vitest`, and `prettier` are unavailable on PATH.
+
+## 2026-05-13 Sportfolio iPhone Readiness Audit
+
+- [x] Audit current iOS native shell, Capacitor config, and Xcode project surface
+- [x] Verify client/runtime branches for iOS-safe behavior versus Android-only behavior
+- [x] Trace backend/mobile endpoints for platform-specific acceptance or rejection
+- [x] Document current iPhone-ready surface, macOS/Xcode-only blockers, and implementation gaps
+- [x] Link the audit from the mobile runbook for future execution
+- [ ] Run required validation (`npm run check`, `npm run lint`, `npm run test:run`)
+- [ ] Run formatter validation (`npm run format:check`)
+
+Review:
+
+- Confirmed Sportfolio already has a checked-in Capacitor iOS shell under `mobile/ios` with app assets, deep-link handling, Xcode build scripts, and a macOS PR build workflow.
+- Confirmed the current iOS app is a native shell around the existing React app, with native integrations already in use for auth deep links, splash/status bar behavior, iOS keyboard resizing, haptics, sharing, and network monitoring.
+- Confirmed several product paths remain Android-specific today:
+- push registration/status UI and backend routes,
+- Google Play Billing purchase/restore flows,
+- rewarded-ad scout boosts.
+- Captured the current gaps and next steps in a repo-owned audit document and linked it from `mobile/README.md`.
+- Validation is currently blocked in this worktree because local dev dependencies are not installed, so `tsc`, `eslint`, `vitest`, and `prettier` are unavailable on PATH.
+
 ## 2026-05-12 Wiki Accuracy Refresh (Agent/CLI/MCP)
 
 - [x] Align agent behavior contract wording across wiki sections using `docs/wiki/agent/current-surface.md` as canonical
