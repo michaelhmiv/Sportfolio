@@ -62,7 +62,7 @@ export const schemas = {
     "@type": "Organization",
     name: "Sportfolio",
     description:
-      "Fantasy sports stock market platform where you can trade player shares like stocks, vest shares, and use boost mechanics.",
+      "Fantasy sports strategy platform with virtual-currency player shares, scouting, and boost mechanics. No real-money wagering or cash-out.",
     url: SITE_URL,
     logo: `${SITE_URL}/favicon.png`,
     sameAs: [],
@@ -73,7 +73,7 @@ export const schemas = {
     "@type": "WebSite",
     name: "Sportfolio",
     description:
-      "Trade player shares like stocks. Vest, trade, and use daily boosts with real-time pricing.",
+      "Trade virtual player shares, scout, and use daily boosts with real-time pricing in a virtual-currency gameplay system.",
     url: SITE_URL,
     potentialAction: {
       "@type": "SearchAction",
@@ -86,7 +86,7 @@ export const schemas = {
     "@context": "https://schema.org",
     "@type": "WebApplication",
     name: "Sportfolio",
-    description: "Fantasy sports stock market platform",
+    description: "Fantasy sports strategy game with virtual-currency player-share mechanics",
     applicationCategory: "GameApplication",
     offers: {
       "@type": "Offer",

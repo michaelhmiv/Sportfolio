@@ -1,0 +1,1 @@
+app_identifier(ENV["IOS_APP_IDENTIFIER"] || "com.sportfoliomarket.app")

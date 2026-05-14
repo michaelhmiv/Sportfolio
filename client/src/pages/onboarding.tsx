@@ -65,7 +65,7 @@ const SLIDES: OnboardingSlide[] = [
     iconBg: "bg-primary/10",
     title: "Welcome to Sportfolio",
     subtitle: "The sports trading game",
-    body: "Build your portfolio of player shares, trade against live AMM pools, and let game performance do the rest.",
+    body: "Build your portfolio of player shares, trade against live AMM pools, and let game performance do the rest. Sportfolio uses virtual currency and does not support real-money wagering or cash-out.",
   },
   {
     id: "trade",
@@ -92,7 +92,7 @@ const SLIDES: OnboardingSlide[] = [
     iconBg: "bg-amber-400/10",
     title: "Boost Game Outcomes",
     subtitle: "Turn strong performances into portfolio upside",
-    body: "Assign shares to daily boost slots before tip-off.  Post-game settlement multiplies your payout based on your player's performance.",
+    body: "Assign shares to daily boost slots before tip-off. Post-game settlement multiplies your virtual payout based on your player's performance.",
   },
   {
     id: "notifications",

@@ -4,7 +4,7 @@ import process from "node:process";
 import { spawnSync } from "node:child_process";
 
 const SIMULATOR_NAME = process.env.IOS_SIMULATOR_NAME?.trim() || "iPhone 16";
-const BUNDLE_ID = process.env.IOS_BUNDLE_ID?.trim() || "com.sportfolio.app";
+const BUNDLE_ID = process.env.IOS_BUNDLE_ID?.trim() || "com.sportfoliomarket.app";
 const DERIVED_DATA_PATH = path.resolve(process.env.IOS_DERIVED_DATA || "tmp/ios-derived-data");
 const ARTIFACT_DIR = path.resolve(
   process.env.IOS_SIM_ARTIFACT_DIR || "tmp/ios-simulator-artifacts",

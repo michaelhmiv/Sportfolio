@@ -1,0 +1,85 @@
+default_platform(:ios)
+
+platform :ios do
+  desc "Build signed iOS IPA and optionally upload to TestFlight"
+  lane :testflight_ci do |options|
+    required_env = %w[
+      IOS_APP_IDENTIFIER
+      IOS_PROJECT_PATH
+      IOS_SCHEME
+      IOS_BUILD_NUMBER
+      IOS_PROFILE_NAME
+      IOS_TEAM_ID
+    ]
+
+    required_env.each do |name|
+      UI.user_error!("Missing required environment variable: #{name}") if ENV[name].to_s.strip.empty?
+    end
+
+    skip_upload = options[:skip_upload].to_s == "true"
+    release_name = options[:release_name].to_s.strip
+    output_directory = ENV["IOS_OUTPUT_DIR"].to_s.strip
+    output_directory = "tmp/ios-testflight" if output_directory.empty?
+
+    increment_build_number(
+      xcodeproj: ENV.fetch("IOS_PROJECT_PATH"),
+      build_number: ENV.fetch("IOS_BUILD_NUMBER")
+    )
+
+    update_code_signing_settings(
+      use_automatic_signing: false,
+      path: ENV.fetch("IOS_PROJECT_PATH"),
+      team_id: ENV.fetch("IOS_TEAM_ID"),
+      code_sign_identity: "Apple Distribution",
+      profile_name: ENV.fetch("IOS_PROFILE_NAME"),
+      bundle_identifier: ENV.fetch("IOS_APP_IDENTIFIER")
+    )
+
+    build_app(
+      project: ENV.fetch("IOS_PROJECT_PATH"),
+      scheme: ENV.fetch("IOS_SCHEME"),
+      configuration: "Release",
+      clean: true,
+      export_method: "app-store",
+      include_symbols: true,
+      include_bitcode: false,
+      output_directory: output_directory,
+      output_name: "Sportfolio.ipa",
+      export_options: {
+        provisioningProfiles: {
+          ENV.fetch("IOS_APP_IDENTIFIER") => ENV.fetch("IOS_PROFILE_NAME")
+        }
+      }
+    )
+
+    if skip_upload
+      UI.important("skip_upload=true, signed IPA built without TestFlight upload.")
+      next
+    end
+
+    required_upload_env = %w[
+      APP_STORE_CONNECT_KEY_ID
+      APP_STORE_CONNECT_ISSUER_ID
+      APP_STORE_CONNECT_API_KEY_BASE64
+    ]
+    required_upload_env.each do |name|
+      UI.user_error!("Missing required upload environment variable: #{name}") if ENV[name].to_s.strip.empty?
+    end
+
+    api_key = app_store_connect_api_key(
+      key_id: ENV.fetch("APP_STORE_CONNECT_KEY_ID"),
+      issuer_id: ENV.fetch("APP_STORE_CONNECT_ISSUER_ID"),
+      key_content: ENV.fetch("APP_STORE_CONNECT_API_KEY_BASE64"),
+      is_key_content_base64: true
+    )
+
+    changelog = release_name.empty? ? nil : "Release #{release_name}"
+    upload_to_testflight(
+      api_key: api_key,
+      skip_waiting_for_build_processing: true,
+      distribute_external: false,
+      notify_external_testers: false,
+      changelog: changelog
+    )
+  end
+end

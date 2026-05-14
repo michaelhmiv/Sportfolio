@@ -19,8 +19,18 @@ import {
   getRewardedScoutBoostUnavailableMessage,
   useRewardedScoutBoost,
 } from "@/hooks/use-rewarded-scout-boost";
-import { isNativeAndroid } from "@/lib/native-platform";
-import { Check, Crown, Loader2, Minus, Plus, RefreshCw, ShoppingCart, Zap } from "lucide-react";
+import { isNativeAndroid, isNativeIOS } from "@/lib/native-platform";
+import {
+  AlertTriangle,
+  Check,
+  Crown,
+  Loader2,
+  Minus,
+  Plus,
+  RefreshCw,
+  ShoppingCart,
+  Zap,
+} from "lucide-react";
 
 interface PremiumStatus {
   isPremium: boolean;
@@ -95,6 +105,7 @@ export default function Premium() {
   const { isAuthenticated, user } = useAuth();
   const [, setLocation] = useLocation();
   const androidBuild = isNativeAndroid();
+  const iosBuild = isNativeIOS();
 
   const [quantity, setQuantity] = useState(1);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
@@ -549,7 +560,9 @@ export default function Premium() {
           <p className="mx-auto mt-3 max-w-xl text-sm text-muted-foreground">
             {androidBuild
               ? "Buy Premium Shares with Google Play, redeem shares for 30-day Premium access, or watch a rewarded ad for a 12-hour scout boost."
-              : "Purchase tradeable Premium Shares for $5 each. Redeem for 30 days of premium access or hold them for later use."}
+              : iosBuild
+                ? "Premium purchases are temporarily unavailable on iOS while Apple in-app purchase rollout is in progress. Existing premium access and core gameplay continue to work."
+                : "Purchase tradeable Premium Shares for $5 each. Redeem for 30 days of premium access or hold them for later use."}
           </p>
         </div>
 
@@ -583,7 +596,7 @@ export default function Premium() {
                   <div className="terminal-shell p-4">
                     <div className="flex items-center justify-between mb-1">
                       <div className="terminal-label">Premium Shares Owned</div>
-                      {!androidBuild ? (
+                      {!androidBuild && !iosBuild ? (
                         <Button
                           variant="terminalOutline"
                           size="sm"
@@ -600,7 +613,7 @@ export default function Premium() {
                           )}
                           <span className="ml-1">Sync</span>
                         </Button>
-                      ) : (
+                      ) : androidBuild ? (
                         <Button
                           variant="terminalOutline"
                           size="sm"
@@ -617,6 +630,14 @@ export default function Premium() {
                           )}
                           <span className="ml-1">Sync</span>
                         </Button>
+                      ) : null}
+                      {iosBuild && (
+                        <Badge
+                          variant="outline"
+                          className="font-mono text-[10px] uppercase text-muted-foreground"
+                        >
+                          iOS Purchase Lock
+                        </Badge>
                       )}
                     </div>
                     <div className="text-3xl font-bold" data-testid="text-premium-shares">
@@ -654,7 +675,9 @@ export default function Premium() {
                         <div className="mt-1 font-mono text-[11px] text-muted-foreground">
                           {androidBuild
                             ? "Buy or redeem a Premium Share, or watch a rewarded ad to boost scouts."
-                            : "Redeem a share to activate premium."}
+                            : iosBuild
+                              ? "Premium purchases are currently disabled on iOS while Apple in-app purchase support is being finalized."
+                              : "Redeem a share to activate premium."}
                         </div>
                       </>
                     )}
@@ -850,7 +873,32 @@ export default function Premium() {
           </Card>
         )}
 
-        {!androidBuild && (
+        {iosBuild && (
+          <Card variant="terminal">
+            <CardHeader>
+              <CardTitle className="terminal-heading flex items-center gap-2 text-sm">
+                <AlertTriangle className="h-5 w-5 text-amber-500" />
+                iOS Purchase Availability
+              </CardTitle>
+              <CardDescription>
+                External checkout and purchase sync are intentionally disabled in the iOS app for
+                App Review compliance.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm text-muted-foreground">
+              <p>
+                Sportfolio gameplay remains available on iOS, including portfolio tracking, trading,
+                scouts, and boosts.
+              </p>
+              <p>
+                Sportfolio uses virtual currency and does not provide real-money gambling or
+                cash-out.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
+        {!androidBuild && !iosBuild && (
           <Card variant="terminal">
             <CardHeader>
               <CardTitle className="terminal-heading flex items-center gap-2 text-sm">
@@ -954,44 +1002,51 @@ export default function Premium() {
           </CardContent>
         </Card>
 
-        {premiumStatus?.recentPurchases && premiumStatus.recentPurchases.length > 0 && (
-          <Card variant="terminal">
-            <CardHeader>
-              <CardTitle className="terminal-heading text-sm">Recent Purchases</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {premiumStatus.recentPurchases.map((purchase) => (
-                  <div
-                    key={purchase.id}
-                    className="terminal-shell flex items-center justify-between p-3"
-                  >
-                    <div>
-                      <div className="font-medium">
-                        {purchase.quantity} Premium Share{purchase.quantity > 1 ? "s" : ""}
+        {!iosBuild &&
+          premiumStatus?.recentPurchases &&
+          premiumStatus.recentPurchases.length > 0 && (
+            <Card variant="terminal">
+              <CardHeader>
+                <CardTitle className="terminal-heading text-sm">Recent Purchases</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {premiumStatus.recentPurchases.map((purchase) => (
+                    <div
+                      key={purchase.id}
+                      className="terminal-shell flex items-center justify-between p-3"
+                    >
+                      <div>
+                        <div className="font-medium">
+                          {purchase.quantity} Premium Share{purchase.quantity > 1 ? "s" : ""}
+                        </div>
+                        <div className="font-mono text-[11px] text-muted-foreground">
+                          {formatDistanceToNow(
+                            new Date(purchase.completedAt || purchase.createdAt),
+                            {
+                              addSuffix: true,
+                            },
+                          )}
+                        </div>
                       </div>
-                      <div className="font-mono text-[11px] text-muted-foreground">
-                        {formatDistanceToNow(new Date(purchase.completedAt || purchase.createdAt), {
-                          addSuffix: true,
-                        })}
+                      <div className="text-right">
+                        <div className="font-medium">
+                          ${(purchase.amountCents / 100).toFixed(2)}
+                        </div>
+                        <Badge
+                          variant="outline"
+                          className="font-mono text-[10px] uppercase text-green-500"
+                        >
+                          <Check className="h-3 w-3 mr-1" />
+                          Completed
+                        </Badge>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className="font-medium">${(purchase.amountCents / 100).toFixed(2)}</div>
-                      <Badge
-                        variant="outline"
-                        className="font-mono text-[10px] uppercase text-green-500"
-                      >
-                        <Check className="h-3 w-3 mr-1" />
-                        Completed
-                      </Badge>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
         {androidBuild && (
           <div className="flex justify-center">

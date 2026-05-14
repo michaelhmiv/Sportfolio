@@ -124,6 +124,9 @@ export default function Landing() {
                 Your portfolio lasts a player's entire career. Trade shares, vest value, and own the
                 game.
               </p>
+              <p className="font-mono text-[11px] uppercase tracking-wide text-muted-foreground/80">
+                Virtual-currency strategy game. No real-money wagering or cash-out.
+              </p>
               <div className="flex flex-col sm:flex-row gap-4">
                 <Button
                   asChild

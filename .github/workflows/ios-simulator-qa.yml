@@ -32,6 +32,7 @@ jobs:
       IOS_BUILD_LOG: tmp/ios-build.log
       IOS_SIM_ARTIFACT_DIR: tmp/ios-simulator-artifacts
       IOS_SIMULATOR_NAME: ${{ inputs.simulator_name }}
+      IOS_BUNDLE_ID: com.sportfoliomarket.app
 
     steps:
       - name: Checkout code

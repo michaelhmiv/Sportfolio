@@ -3,7 +3,7 @@ title: Sportfolio iPhone Readiness Audit
 summary: Current state of the Capacitor iOS shell, what is testable now on iPhone, and the remaining Apple-specific platform gaps.
 status: draft
 owner: product-engineering
-lastReviewedAt: 2026-05-13
+lastReviewedAt: 2026-05-14
 ---
 
 # Sportfolio iPhone Readiness Audit
@@ -113,10 +113,12 @@ Premium purchase flows are currently split between web checkout and Android Play
 - `client/src/pages/premium.tsx` only shows native purchase/restore flows on Android.
 - The native billing library is `client/src/lib/android-play-billing.ts`.
 - Backend verification is Google Play specific.
+- iOS-native clients now hard-block external premium/community checkout endpoints and Whop sync calls to avoid App Review payment-policy violations before Apple IAP is implemented.
 
 Implication:
 
 - There is no Apple in-app purchase path in the repo today.
+- iOS currently ships with purchase flows intentionally disabled rather than routing users to external checkout from inside the app.
 - Shipping a true iPhone app with native premium purchasing would require StoreKit/App Store purchase implementation and corresponding backend verification logic.
 
 ### Rewarded ads
@@ -143,7 +145,7 @@ The current repo does not yet show evidence of several Apple-specific capabiliti
 - No `aps-environment` entitlement is visible.
 - No Associated Domains capability is visible.
 - No StoreKit or Apple purchase-specific native code is visible.
-- The Xcode project currently uses `PRODUCT_BUNDLE_IDENTIFIER = com.sportfolio.app`, while Capacitor app identity is `sportfolio.market`.
+- The Xcode project currently uses `PRODUCT_BUNDLE_IDENTIFIER = com.sportfoliomarket.app`, while Capacitor app identity is `sportfolio.market`.
 - No Apple signing team is committed in project config, which is normal for shared repos but still means real device build setup remains open.
 
 ## Current Audit Split

@@ -1238,7 +1238,7 @@ function buildDeterministicReviewPlan(input: {
           ? `There is still an uncovered edge in ${topOpportunitySummary}, so concentrating only makes sense if you want to press that specific signal.`
           : "I do not see a single uncovered target clearly strong enough to justify collapsing your exposure tonight.",
         input.context.remainingScouts === 0
-          ? "Because you are fully allocated, any sharper bet means pulling coverage off an existing player."
+          ? "Because you are fully allocated, any sharper position means pulling coverage off an existing player."
           : `You still have ${input.context.remainingScouts} open scout${input.context.remainingScouts === 1 ? "" : "s"}, so you can press conviction without fully giving up diversification.`,
       ]
         .join(" ")
@@ -1248,7 +1248,7 @@ function buildDeterministicReviewPlan(input: {
           `My baseline scouting philosophy right now is ${topUnscoutedTargets.length > 0 ? "patient, selective conviction" : "patient diversification"}.`,
           topUnscoutedTargets.length > 0
             ? `You already cover the core of the board, and the one extra edge I would consider pressing is ${topOpportunitySummary}.`
-            : "You already cover the strongest signals I can support with the current context, so there is no obvious reason to collapse your board into one bet.",
+            : "You already cover the strongest signals I can support with the current context, so there is no obvious reason to collapse your board into one concentrated position.",
           input.context.remainingScouts === 0
             ? "Because you are fully allocated, I would only move one scout at a time when a player clearly separates instead of rebuilding the whole setup in one swing."
             : `Because you still have ${input.context.remainingScouts} open scout${input.context.remainingScouts === 1 ? "" : "s"}, you can add conviction gradually without giving up your existing coverage.`,
