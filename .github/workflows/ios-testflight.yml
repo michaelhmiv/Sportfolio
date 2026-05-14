@@ -40,6 +40,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v5
 
+      - name: Select Xcode 26 SDK toolchain
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Verify active Xcode version
+        run: xcodebuild -version
+
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
@@ -190,7 +198,7 @@ jobs:
 
       - name: Upload iOS TestFlight artifacts on failure
         if: ${{ failure() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ios-testflight-failure-artifacts-${{ github.run_id }}
           retention-days: 14
