@@ -1,3 +1,19 @@
+## 2026-05-14 GitHub Actions Node24 Deprecation Follow-up
+
+- [x] Inventory workflow actions still pinned on the Node20 deprecation path
+- [x] Upgrade Node20-flagged artifact and coverage actions to current Node24-safe majors
+- [x] Replace the PR secret-scan action with a Node24-safe alternative and preserve report-only behavior
+- [ ] Run required validation (`npm run check`, `npm run lint`, `npm run test:run`)
+- [ ] Run formatter validation (`npm run format:check`)
+
+Review:
+
+- Updated iOS artifact uploads in `.github/workflows/ios-simulator-qa.yml` and `.github/workflows/ios-pr-ci.yml` from `actions/upload-artifact@v4` to `@v7`, which now publishes a Node24 action runtime.
+- Updated PR coverage upload from `codecov/codecov-action@v4` to `@v5`, the current recommended major from Codecov.
+- Replaced `gitleaks/gitleaks-action@v2` in `.github/workflows/pr-ci.yml` with `gacts/gitleaks@v1`, because the pinned official Gitleaks action still declares `runs.using: node20` while the replacement publishes `runs.using: node24`.
+- Added `fetch-depth: 0` to the PR checkout step so the new Gitleaks action can scan with full git history as documented.
+- Local validation commands still depend on repo dev tools that are not installed in this worktree.
+
 ## 2026-05-13 Firebase Internal APK Workflow Minute Reduction
 
 - [x] Identify which GitHub Actions workflow still auto-builds internal Android APKs on `main`

@@ -60,7 +60,7 @@ jobs:
 
       - name: Upload iOS build artifacts on failure
         if: ${{ failure() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ios-pr-ci-failure-artifacts
           if-no-files-found: warn
