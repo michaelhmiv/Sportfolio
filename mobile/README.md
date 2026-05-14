@@ -399,7 +399,7 @@ Required GitHub repository secrets are the same as internal testing:
 - `ANDROID_KEY_ALIAS`
 - `ANDROID_KEY_PASSWORD`
 
-## Firebase App Distribution (Auto on Main)
+## Firebase App Distribution (Manual)
 
 Workflow:
 
@@ -407,12 +407,19 @@ Workflow:
 
 Behavior:
 
-- Runs automatically on each push to `main` and can also be run manually.
+- Runs only when you manually dispatch it from GitHub Actions.
 - Always includes `michaelhmiv@gmail.com` as a tester by default.
 - Still supports optional repository secrets:
 - `FIREBASE_DISTRIBUTION_TESTERS` (comma-separated emails)
 - `FIREBASE_DISTRIBUTION_GROUPS` (comma-separated group aliases)
 - Testers/groups are combined and deduplicated before upload.
+
+Run it from GitHub Actions:
+
+1. Open **Actions**.
+2. Select **Firebase App Distribution**.
+3. Click **Run workflow**.
+4. Optionally set `release_name` to make the Firebase release easier to identify.
 
 ## Google Play Billing Automation
 

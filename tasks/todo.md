@@ -1,3 +1,18 @@
+## 2026-05-13 Firebase Internal APK Workflow Minute Reduction
+
+- [x] Identify which GitHub Actions workflow still auto-builds internal Android APKs on `main`
+- [x] Change the Firebase internal APK distribution workflow to manual-only dispatch
+- [x] Update mobile runbook docs so the workflow trigger behavior matches reality
+- [ ] Run required validation (`npm run check`, `npm run lint`, `npm run test:run`)
+- [ ] Run formatter validation (`npm run format:check`)
+
+Review:
+
+- Changed `.github/workflows/firebase-distribution.yml` so internal Firebase APK distribution no longer runs on every merge/push to `main`.
+- Kept the existing manual `workflow_dispatch` entry point and optional `release_name` input so APK builds are now created only when explicitly requested from GitHub Actions.
+- Updated `mobile/README.md` to describe the new manual-only Firebase distribution flow and the exact click path to run it.
+- Local validation commands still need to be run in an environment with repo dev dependencies available.
+
 ## 2026-05-13 GitHub Actions iPhone QA Enablement
 
 - [x] Review current iOS GitHub workflow surface and existing build scripts
