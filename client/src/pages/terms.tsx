@@ -19,6 +19,7 @@ const sections = [
     title: "Virtual Currency and Trading",
     body: [
       "Sportfolio uses virtual currency for trades, boosts, and other platform systems. Virtual currency has no real-world monetary value and cannot be exchanged for money or prizes.",
+      "Sportfolio does not provide real-money gambling, sports betting, or cash-out functionality.",
       "All activity is for entertainment purposes only.",
     ],
   },
@@ -121,7 +122,7 @@ export default function Terms() {
           </Card>
         </div>
 
-        <p className="terminal-subtle mt-8">Last updated: November 21, 2025</p>
+        <p className="terminal-subtle mt-8">Last updated: May 14, 2026</p>
       </div>
     </div>
   );

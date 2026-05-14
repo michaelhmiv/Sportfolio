@@ -45,7 +45,7 @@
     "mobile:ios:doctor": "node scripts/mobile-ios-doctor.mjs",
     "mobile:android": "npx cap open android",
     "mobile:build:ios": "cd mobile/ios/App && xcodebuild -project App.xcodeproj -scheme App -configuration Release -destination generic/platform=iOS",
-    "mobile:build:ios:ci": "cd mobile/ios/App && xcodebuild -project App.xcodeproj -scheme App -configuration Debug -destination 'generic/platform=iOS Simulator' -derivedDataPath ../../../../tmp/ios-derived-data CODE_SIGNING_ALLOWED=NO",
+    "mobile:build:ios:ci": "cd mobile/ios/App && xcodebuild -project App.xcodeproj -scheme App -configuration Debug -destination 'generic/platform=iOS Simulator' -derivedDataPath ../../../tmp/ios-derived-data CODE_SIGNING_ALLOWED=NO",
     "mobile:build:android": "npm run mobile:sync && node scripts/run-gradle-wrapper.mjs assembleRelease",
     "mobile:install:android": "npm run mobile:sync && node scripts/run-gradle-wrapper.mjs installDebug",
     "android:sdk:check": "node scripts/android-sdk-check.mjs",

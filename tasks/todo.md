@@ -29,6 +29,64 @@ Review:
 - Updated `mobile/README.md` to describe the new manual-only Firebase distribution flow and the exact click path to run it.
 - Local validation commands still need to be run in an environment with repo dev dependencies available.
 
+## 2026-05-14 iOS App Review Hardening (Gambling + Payment Flag Reduction)
+
+- [x] Audit Apple policy-sensitive iOS surfaces (simulated gambling framing + external digital purchases)
+- [x] Add iOS-native purchase hard blocks in client and backend for external checkout/sync paths
+- [x] Add explicit virtual-currency / no cash-out disclosures in onboarding and public product copy
+- [x] Reduce "bet" phrasing in user-facing agent guidance
+- [x] Update iOS rollout docs with App Review hardening checklist + notes template
+- [x] Run required validation (`npm run check`, `npm run lint`, `npm run test:run`)
+- [x] Run formatter validation (`npm run format:check`)
+
+Review:
+
+- Added iOS platform signaling headers in `client/src/lib/queryClient.ts` and `client/src/hooks/useAuth.tsx` so backend routes can reliably identify native iOS requests.
+- Added backend iOS hard-block responses for external digital purchase routes:
+  - `POST /api/premium/checkout-session`
+  - `POST /api/community/checkout-session`
+  - `POST /api/whop/sync`
+- Prevented background auth-time Whop sync for native iOS (`/api/auth/user?sync=true` now gated client-side and server-side).
+- Updated iOS Premium and Community Boost purchase UI to show explicit iOS purchase lock messaging and remove buy/sync CTAs from native iOS surfaces.
+- Added virtual-currency/no-cash-out compliance copy to onboarding, landing, how-it-works, terms, and schema metadata.
+- Updated iOS rollout docs (`docs/ios-github-actions-rollout.md`, `mobile/README.md`, `docs/ios-readiness-audit.md`) with a concrete App Review hardening checklist and review-notes template.
+- Validation results:
+  - `npm run check` passed
+  - `npm run lint` passed
+  - `npm run test:run` passed (`109` files / `731` tests)
+  - `npm run format:check` passed
+
+## 2026-05-14 iOS TestFlight Automation (Fastlane + GitHub Actions)
+
+- [x] Audit existing iOS CI/workflow/docs surface and preserve current simulator/PR guardrails
+- [x] Add iOS fastlane lane + app config for signed IPA build and optional TestFlight upload
+- [x] Add manual GitHub Actions workflow for iOS TestFlight release with secrets validation and signing setup/cleanup
+- [x] Update iOS rollout docs and mobile runbook with preflight checklist + release usage instructions
+- [x] Align iOS release target bundle identifier to `com.sportfoliomarket.app`
+- [x] Add Windows helper scripts for CSR/P12 generation and GitHub secret upload
+- [x] Run required validation (`npm run check`, `npm run lint`, `npm run test:run`)
+- [x] Run formatter validation (`npm run format:check`)
+
+Review:
+
+- Added `.github/workflows/ios-testflight.yml` with manual dispatch inputs (`release_name`, `cap_server_url`, `skip_upload`), strict secret validation, temporary keychain/profile install, fastlane invocation, failure artifacts, and signing cleanup.
+- Added iOS fastlane setup under `mobile/ios/App`:
+  - `fastlane/Fastfile` (`ios testflight_ci` lane with deterministic build number support, signed IPA build, optional TestFlight upload),
+  - `fastlane/Appfile`,
+  - `Gemfile`,
+  - `Gemfile.lock`.
+- Updated `docs/ios-github-actions-rollout.md` and `mobile/README.md` with iOS TestFlight workflow usage, required secrets, and preflight checklist guidance.
+- Updated `mobile/ios/.gitignore` for fastlane outputs and bundled Ruby cache paths.
+- Updated iOS bundle identifier references used by release/smoke paths to `com.sportfoliomarket.app` (`ios-testflight` workflow env, fastlane `Appfile`, Xcode project `PRODUCT_BUNDLE_IDENTIFIER`, and simulator smoke defaults).
+- Added Windows automation scripts:
+  - `scripts/ios-signing-bootstrap.ps1` for CSR + `.p12` generation via OpenSSL or built-in Windows `certreq`.
+  - `scripts/ios-set-testflight-secrets.ps1` for one-shot GitHub secret upload via `gh`.
+- Validation results:
+  - `npm run check` passed
+  - `npm run lint` passed
+  - `npm run format:check` passed
+  - `npm run test:run` passed on final validation run (`109` files / `731` tests).
+
 ## 2026-05-13 GitHub Actions iPhone QA Enablement
 
 - [x] Review current iOS GitHub workflow surface and existing build scripts

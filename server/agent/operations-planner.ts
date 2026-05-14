@@ -4499,7 +4499,7 @@ async function buildGameplayStrategyPlan(
       domain: "sportfolio",
       requestMessage: message,
       replyText:
-        "If you're deciding between buying shares and adding liquidity, buying is the cleaner directional bet. It gives you pure price exposure and is the easiest thing to unwind later. LP is more of a balance-and-fees position: you get exposure on both sides of the pool, but you give up some upside if the player runs hard because part of the position sits in cash. Use a direct buy when you have conviction on the player; use LP when you want steadier exposure and you care more about staying flexible around the pool. If you want, send me the player plus your amount and I'll compare the exact move.",
+        "If you're deciding between buying shares and adding liquidity, buying is the cleaner directional position. It gives you pure price exposure and is the easiest thing to unwind later. LP is more of a balance-and-fees position: you get exposure on both sides of the pool, but you give up some upside if the player runs hard because part of the position sits in cash. Use a direct buy when you have conviction on the player; use LP when you want steadier exposure and you care more about staying flexible around the pool. If you want, send me the player plus your amount and I'll compare the exact move.",
       summary:
         "Direct buys maximize player exposure; LP trades upside for a steadier, balanced position.",
       observations: [

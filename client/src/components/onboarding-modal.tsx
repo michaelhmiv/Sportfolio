@@ -240,6 +240,9 @@ export function OnboardingModal({ open, onComplete }: OnboardingModalProps) {
               {isLastSlide ? "Finish" : "Next"}
             </Button>
           </div>
+          <p className="text-center font-mono text-[10px] uppercase tracking-wide text-muted-foreground/80">
+            Virtual-currency gameplay only. No real-money wagering or cash-out.
+          </p>
         </div>
       </DialogContent>
     </Dialog>

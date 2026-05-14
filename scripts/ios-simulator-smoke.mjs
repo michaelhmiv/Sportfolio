@@ -1,18 +1,17 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { spawnSync } from "node:child_process";
 
 const SIMULATOR_NAME = process.env.IOS_SIMULATOR_NAME?.trim() || "iPhone 16";
-const BUNDLE_ID = process.env.IOS_BUNDLE_ID?.trim() || "com.sportfolio.app";
+const BUNDLE_ID = process.env.IOS_BUNDLE_ID?.trim() || "com.sportfoliomarket.app";
 const DERIVED_DATA_PATH = path.resolve(process.env.IOS_DERIVED_DATA || "tmp/ios-derived-data");
 const ARTIFACT_DIR = path.resolve(
   process.env.IOS_SIM_ARTIFACT_DIR || "tmp/ios-simulator-artifacts",
 );
 const SCREENSHOT_DIR = path.join(ARTIFACT_DIR, "screenshots");
-const APP_PATH = process.env.IOS_APP_PATH?.trim()
-  ? path.resolve(process.env.IOS_APP_PATH)
-  : path.join(DERIVED_DATA_PATH, "Build", "Products", "Debug-iphonesimulator", "App.app");
+const PRODUCTS_DIR = path.join(DERIVED_DATA_PATH, "Build", "Products", "Debug-iphonesimulator");
+const DEFAULT_APP_PATH = path.join(PRODUCTS_DIR, "App.app");
 
 mkdirSync(SCREENSHOT_DIR, { recursive: true });
 
@@ -108,15 +107,47 @@ function wait(milliseconds) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds);
 }
 
+function resolveBuiltAppPath() {
+  if (process.env.IOS_APP_PATH?.trim()) {
+    const explicitPath = path.resolve(process.env.IOS_APP_PATH.trim());
+    if (!existsSync(explicitPath)) {
+      throw new Error(`IOS_APP_PATH does not exist: ${explicitPath}`);
+    }
+    return explicitPath;
+  }
+
+  if (existsSync(DEFAULT_APP_PATH)) {
+    return DEFAULT_APP_PATH;
+  }
+
+  if (!existsSync(PRODUCTS_DIR)) {
+    throw new Error(`Simulator products directory does not exist: ${PRODUCTS_DIR}`);
+  }
+
+  const appBundles = readdirSync(PRODUCTS_DIR, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && entry.name.endsWith(".app"))
+    .map((entry) => path.join(PRODUCTS_DIR, entry.name))
+    .sort();
+
+  if (appBundles.length === 0) {
+    throw new Error(
+      `No .app bundle found under ${PRODUCTS_DIR}. Contents: ${readdirSync(PRODUCTS_DIR).join(", ")}`,
+    );
+  }
+
+  return appBundles[0];
+}
+
 function main() {
   const simulator = findSimulator();
+  const appPath = resolveBuiltAppPath();
 
   tryRun("xcrun", ["simctl", "shutdown", simulator.udid]);
   tryRun("xcrun", ["simctl", "boot", simulator.udid]);
   run("xcrun", ["simctl", "bootstatus", simulator.udid, "-b"]);
 
   tryRun("xcrun", ["simctl", "uninstall", simulator.udid, BUNDLE_ID]);
-  run("xcrun", ["simctl", "install", simulator.udid, APP_PATH]);
+  run("xcrun", ["simctl", "install", simulator.udid, appPath]);
   run("xcrun", ["simctl", "launch", simulator.udid, BUNDLE_ID]);
 
   wait(4000);
@@ -146,7 +177,7 @@ function main() {
       {
         simulator,
         bundleId: BUNDLE_ID,
-        appPath: APP_PATH,
+        appPath,
         appContainer,
         screenshots: deepLinks.length + 1,
       },

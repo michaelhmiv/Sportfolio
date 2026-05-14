@@ -18,7 +18,7 @@ const faqs = [
   {
     question: "How do Daily Boosts work?",
     answer:
-      "Daily Boosts let you commit a single share to a started-game payout mechanic. Slot tier, share multiplier, and any active community multiplier determine the payout after the game settles.",
+      "Daily Boosts let you commit a single share to a started-game virtual outcome mechanic. Slot tier, share multiplier, and any active community multiplier determine the virtual payout after the game settles.",
   },
   {
     question: "What happens when I use a share in a boost?",
@@ -54,7 +54,7 @@ const sections = [
     title: "3. Use Daily Boosts",
     body: [
       "Daily Boosts are the short-horizon action layer. You assign one eligible share to a boost slot and the system records that share's multiplier for settlement.",
-      "When the underlying game starts, the share enters the boost lifecycle. After the game settles, payouts depend on slot tier, the share's multiplier, and any community multiplier affecting that boost.",
+      "When the underlying game starts, the share enters the boost lifecycle. After the game settles, virtual payouts depend on slot tier, the share's multiplier, and any community multiplier affecting that boost.",
     ],
   },
   {
@@ -90,6 +90,10 @@ export default function HowItWorks() {
           </h1>
           <p className="mt-3 text-sm text-muted-foreground md:text-base">
             Learn how trading, scouting, boosts, and leaderboards fit together.
+          </p>
+          <p className="mt-2 font-mono text-[11px] uppercase tracking-wide text-muted-foreground/80">
+            Sportfolio uses virtual currency only and does not offer real-money gambling or
+            cash-out.
           </p>
         </div>
 

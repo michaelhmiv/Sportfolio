@@ -381,10 +381,18 @@ export function useAuth() {
         debugLog("FETCH_USER", "Dev mode: Fetching without token to trigger backend bypass");
       }
 
-      const response = await fetch(resolveApiUrl("/api/auth/user?sync=true"), {
-        headers,
-        signal: controller.signal,
-      });
+      const clientPlatform = Capacitor.isNativePlatform() ? Capacitor.getPlatform() : "web";
+      const syncWhopOnAuth = clientPlatform !== "ios";
+      headers["x-sportfolio-client-platform"] = clientPlatform;
+      headers["x-sportfolio-client-runtime"] = clientPlatform === "web" ? "web" : "native";
+
+      const response = await fetch(
+        resolveApiUrl(`/api/auth/user?sync=${syncWhopOnAuth ? "true" : "false"}`),
+        {
+          headers,
+          signal: controller.signal,
+        },
+      );
 
       clearTimeout(timeoutId);
       const elapsed = (performance.now() - startTime).toFixed(0);

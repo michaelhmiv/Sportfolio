@@ -1,6 +1,7 @@
 import { QueryClient, QueryFunction, dehydrate, hydrate } from "@tanstack/react-query";
 import { getAuthSession, getSupabase } from "./supabase";
 import { resolveApiUrl } from "./native-runtime";
+import { getClientPlatform } from "./native-platform";
 
 const IS_DEV = import.meta.env.DEV;
 
@@ -15,6 +16,14 @@ async function throwIfResNotOk(res: Response) {
     const text = (await res.text()) || res.statusText;
     throw new Error(`${res.status}: ${text}`);
   }
+}
+
+function getClientMetadataHeaders(): HeadersInit {
+  const platform = getClientPlatform();
+  return {
+    "x-sportfolio-client-platform": platform,
+    "x-sportfolio-client-runtime": platform === "web" ? "web" : "native",
+  };
 }
 
 export async function getAuthHeaders(): Promise<HeadersInit> {
@@ -35,10 +44,12 @@ export async function authenticatedFetch(
   options: RequestInit = {},
 ): Promise<Response> {
   const authHeaders = await getAuthHeaders();
+  const clientHeaders = getClientMetadataHeaders();
   return fetch(resolveApiUrl(url), {
     ...options,
     headers: {
       ...authHeaders,
+      ...clientHeaders,
       ...options.headers,
     },
     credentials: "include",
@@ -51,10 +62,12 @@ export async function apiRequest(
   data?: unknown | undefined,
 ): Promise<Response> {
   const authHeaders = await getAuthHeaders();
+  const clientHeaders = getClientMetadataHeaders();
   const res = await fetch(resolveApiUrl(url), {
     method,
     headers: {
       ...authHeaders,
+      ...clientHeaders,
       ...(data ? { "Content-Type": "application/json" } : {}),
     },
     body: data ? JSON.stringify(data) : undefined,
@@ -81,6 +94,7 @@ export const getQueryFn: <T>(options: { on401: UnauthorizedBehavior }) => QueryF
 
     try {
       const authHeaders = await getAuthHeaders();
+      const clientHeaders = getClientMetadataHeaders();
 
       if (unauthorizedBehavior === "returnNull") {
         const maxRetries = 3;
@@ -96,7 +110,10 @@ export const getQueryFn: <T>(options: { on401: UnauthorizedBehavior }) => QueryF
           try {
             const res = await fetch(url, {
               credentials: "include",
-              headers: authHeaders,
+              headers: {
+                ...authHeaders,
+                ...clientHeaders,
+              },
               signal: controller.signal,
             });
             clearTimeout(timeoutId);
@@ -144,7 +161,10 @@ export const getQueryFn: <T>(options: { on401: UnauthorizedBehavior }) => QueryF
 
       const res = await fetch(url, {
         credentials: "include",
-        headers: authHeaders,
+        headers: {
+          ...authHeaders,
+          ...clientHeaders,
+        },
         signal: controller.signal,
       });
       clearTimeout(timeoutId);

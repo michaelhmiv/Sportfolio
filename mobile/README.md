@@ -284,6 +284,67 @@ Notes:
 - This is for simulator QA only, not App Store signing or real-device install.
 - See `docs/ios-github-actions-rollout.md` for the full rollout sequence.
 
+## GitHub iOS TestFlight Release (Manual)
+
+A manual TestFlight release workflow is included:
+
+- `.github/workflows/ios-testflight.yml`
+
+This workflow:
+
+- syncs iOS shell using `cap_server_url`,
+- validates required iOS signing secrets,
+- imports certificate/profile into temporary keychain/profile locations,
+- builds a signed IPA through fastlane (`ios testflight_ci`),
+- optionally uploads to TestFlight.
+
+Workflow inputs:
+
+- `release_name` (optional)
+- `cap_server_url` (default `https://www.sportfolio.market`)
+- `skip_upload` (default `false`; set `true` for signed-build dry run)
+
+Required GitHub secrets:
+
+- `BUILD_CERTIFICATE_BASE64`
+- `P12_PASSWORD`
+- `BUILD_PROVISION_PROFILE_BASE64`
+- `KEYCHAIN_PASSWORD`
+- `APP_STORE_CONNECT_KEY_ID`
+- `APP_STORE_CONNECT_ISSUER_ID`
+- `APP_STORE_CONNECT_API_KEY_BASE64`
+
+Windows helper scripts:
+
+- Generate CSR and (after Apple returns `.cer`) create `.p12`:
+  - `pwsh -File scripts/ios-signing-bootstrap.ps1 -EmailAddress "<you@example.com>"`
+  - `pwsh -File scripts/ios-signing-bootstrap.ps1 -EmailAddress "<you@example.com>" -CerPath "C:\path\ios_distribution.cer" -P12Password "<p12-password>"`
+- Set all iOS TestFlight GitHub secrets in one command:
+  - `pwsh -File scripts/ios-set-testflight-secrets.ps1 -P12Path "C:\path\ios_distribution.p12" -P12Password "<p12-password>" -MobileProvisionPath "C:\path\profile.mobileprovision" -AppStoreConnectP8Path "C:\path\AuthKey_ABC123XYZ.p8" -AppStoreConnectKeyId "<key-id>" -AppStoreConnectIssuerId "<issuer-id>" -KeychainPassword "<random-strong-password>"`
+
+Run it from GitHub Actions:
+
+1. Open **Actions**.
+2. Select **iOS TestFlight**.
+3. Click **Run workflow**.
+4. For first verification, set `skip_upload=true` to validate signed archive path.
+5. Re-run with `skip_upload=false` to upload to TestFlight.
+
+Preflight checklist:
+
+1. Confirm App Store Connect app record exists for `com.sportfoliomarket.app`.
+2. Confirm provisioning profile bundle ID is `com.sportfoliomarket.app`.
+3. Confirm `.p12` contains the matching Apple Distribution private key.
+4. Run `iOS Simulator QA` before the first upload.
+5. Confirm the uploaded build appears in App Store Connect TestFlight.
+
+Apple review hardening checklist:
+
+1. Confirm iOS-native clients cannot start external digital checkout (`/api/premium/checkout-session`, `/api/community/checkout-session`) and cannot run Whop purchase sync from inside the app.
+2. Confirm onboarding/help/terms copy states virtual currency only, no real-money gambling, and no cash-out.
+3. Complete the App Store Connect age-rating questionnaire with simulated-gambling descriptors that match actual gameplay.
+4. In App Review notes, explicitly explain gameplay mechanics and virtual-currency boundaries, and provide full reviewer credentials/access.
+
 ## Required Check Rollout (Post-Upgrade)
 
 After upgrading repository plan to support private-repo rulesets/required checks:

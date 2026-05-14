@@ -193,6 +193,24 @@ async function loadEffectiveUserState(userId: string) {
   return loadUserEntitlements(storage, userId);
 }
 
+function getClientPlatformFromRequest(req: Request): "ios" | "android" | "web" | "unknown" {
+  const explicitPlatform = req.header("x-sportfolio-client-platform")?.trim().toLowerCase();
+  if (explicitPlatform === "ios" || explicitPlatform === "android" || explicitPlatform === "web") {
+    return explicitPlatform;
+  }
+
+  const runtime = req.header("x-sportfolio-client-runtime")?.trim().toLowerCase();
+  if (runtime === "web") {
+    return "web";
+  }
+
+  return "unknown";
+}
+
+function isNativeIOSRequest(req: Request): boolean {
+  return getClientPlatformFromRequest(req) === "ios";
+}
+
 /**
  * Get boosts summary data for the dashboard
  */
@@ -2857,7 +2875,7 @@ ${items}
       }
 
       // Fire-and-forget: Trigger Whop sync in background if user has email and sync is requested
-      if (user?.email && req.query.sync === "true") {
+      if (user?.email && req.query.sync === "true" && !isNativeIOSRequest(req)) {
         syncWhopPaymentsForUser(userId, user.email)
           .then((whopSync) => {
             console.log(
@@ -2877,6 +2895,14 @@ ${items}
   // Whop payment sync endpoint - manual sync for logged-in users
   app.post("/api/whop/sync", isAuthenticated, async (req: any, res) => {
     try {
+      if (isNativeIOSRequest(req)) {
+        return res.status(403).json({
+          code: "ios_purchase_disabled",
+          error:
+            "Whop premium sync is unavailable in the iOS app while Apple in-app purchase rollout is in progress.",
+        });
+      }
+
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
 
@@ -7694,6 +7720,14 @@ ${items}
   // For multi-quantity purchases we create an inline plan with the aggregated price.
   app.post("/api/premium/checkout-session", isAuthenticated, async (req, res) => {
     try {
+      if (isNativeIOSRequest(req)) {
+        return res.status(403).json({
+          code: "ios_purchase_disabled",
+          error:
+            "Premium purchases are temporarily unavailable in the iOS app while Apple in-app purchase rollout is in progress.",
+        });
+      }
+
       const userId = getUserId(req);
       const user = await storage.getUser(userId);
       if (!user) {
@@ -7806,6 +7840,14 @@ ${items}
   // Community shares are used to create community boosts (+1x multiplier for all holders)
   app.post("/api/community/checkout-session", isAuthenticated, async (req, res) => {
     try {
+      if (isNativeIOSRequest(req)) {
+        return res.status(403).json({
+          code: "ios_purchase_disabled",
+          error:
+            "Community Share purchases are temporarily unavailable in the iOS app while Apple in-app purchase rollout is in progress.",
+        });
+      }
+
       const userId = getUserId(req);
       const user = await storage.getUser(userId);
       if (!user) {

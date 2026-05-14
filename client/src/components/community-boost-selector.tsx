@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/select";
 import { PlayerName } from "@/components/player-name";
 import { appendPlayerSearchParam } from "@/lib/player-search";
+import { isNativeIOS } from "@/lib/native-platform";
 
 interface CommunityBoostSelectorProps {
   open: boolean;
@@ -91,6 +92,7 @@ export function CommunityBoostSelector({
 }: CommunityBoostSelectorProps) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const iosBuild = isNativeIOS();
 
   // State
   const [search, setSearch] = useState("");
@@ -322,6 +324,12 @@ export function CommunityBoostSelector({
   // Buy community shares mutation
   const buyMutation = useMutation({
     mutationFn: async () => {
+      if (iosBuild) {
+        throw new Error(
+          "Community Share purchases are temporarily unavailable on iOS while Apple in-app purchase rollout is in progress.",
+        );
+      }
+
       const res = await apiRequest("POST", "/api/community/checkout-session", {
         quantity: buyQuantity,
       });
@@ -399,47 +407,62 @@ export function CommunityBoostSelector({
                 <span className="text-sm text-muted-foreground">0</span>
               )}
             </div>
-            <div className="flex items-center gap-2">
-              <Button
-                size="icon"
-                variant="outline"
-                className="h-7 w-7 border-amber-500/30 text-amber-600 hover:bg-amber-500/10"
-                onClick={() => setBuyQuantity((q) => Math.max(1, q - 1))}
-                disabled={buyMutation.isPending || buyQuantity <= 1}
-              >
-                <Minus className="h-3 w-3" />
-              </Button>
+            {iosBuild ? (
               <Badge
                 variant="outline"
-                className="min-w-8 justify-center border-amber-500/30 text-amber-600"
+                className="border-amber-500/30 bg-amber-500/10 font-mono text-[10px] uppercase text-amber-600"
               >
-                {buyQuantity}
+                iOS Purchase Lock
               </Badge>
-              <Button
-                size="icon"
-                variant="outline"
-                className="h-7 w-7 border-amber-500/30 text-amber-600 hover:bg-amber-500/10"
-                onClick={() => setBuyQuantity((q) => Math.min(25, q + 1))}
-                disabled={buyMutation.isPending}
-              >
-                <Plus className="h-3 w-3" />
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="border-amber-500/30 text-amber-600 hover:bg-amber-500/10"
-                onClick={() => buyMutation.mutate()}
-                disabled={buyMutation.isPending}
-              >
-                {buyMutation.isPending ? (
-                  <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                ) : (
-                  <Plus className="h-3 w-3 mr-1" />
-                )}
-                Buy {buyQuantity}
-              </Button>
-            </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Button
+                  size="icon"
+                  variant="outline"
+                  className="h-7 w-7 border-amber-500/30 text-amber-600 hover:bg-amber-500/10"
+                  onClick={() => setBuyQuantity((q) => Math.max(1, q - 1))}
+                  disabled={buyMutation.isPending || buyQuantity <= 1}
+                >
+                  <Minus className="h-3 w-3" />
+                </Button>
+                <Badge
+                  variant="outline"
+                  className="min-w-8 justify-center border-amber-500/30 text-amber-600"
+                >
+                  {buyQuantity}
+                </Badge>
+                <Button
+                  size="icon"
+                  variant="outline"
+                  className="h-7 w-7 border-amber-500/30 text-amber-600 hover:bg-amber-500/10"
+                  onClick={() => setBuyQuantity((q) => Math.min(25, q + 1))}
+                  disabled={buyMutation.isPending}
+                >
+                  <Plus className="h-3 w-3" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="border-amber-500/30 text-amber-600 hover:bg-amber-500/10"
+                  onClick={() => buyMutation.mutate()}
+                  disabled={buyMutation.isPending}
+                >
+                  {buyMutation.isPending ? (
+                    <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                  ) : (
+                    <Plus className="h-3 w-3 mr-1" />
+                  )}
+                  Buy {buyQuantity}
+                </Button>
+              </div>
+            )}
           </div>
+          {iosBuild && (
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              Community Share purchases are disabled in the iOS app while Apple in-app purchase
+              support is being finalized.
+            </p>
+          )}
 
           {/* Filters */}
           <div className="flex flex-wrap gap-2 items-center">
