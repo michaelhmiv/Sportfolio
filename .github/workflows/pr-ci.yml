@@ -8,7 +8,6 @@ on:
 
 env:
   NODE_VERSION: "20"
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 jobs:
   validate:
     name: Validate Code
@@ -56,7 +55,7 @@ jobs:
         uses: gacts/gitleaks@v1
         continue-on-error: true
       - name: Upload coverage reports
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           token: "${{ secrets.CODECOV_TOKEN }}"
           files: ./coverage/coverage-final.json
