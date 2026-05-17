@@ -43,6 +43,7 @@
     "mobile:sync:prod": "cross-env CAP_SERVER_URL=https://www.sportfolio.market npm run mobile:sync",
     "mobile:ios": "npx cap open ios",
     "mobile:ios:doctor": "node scripts/mobile-ios-doctor.mjs",
+    "mobile:ios:app-store-prep": "node scripts/app-store-connect-submission-prep.mjs",
     "mobile:android": "npx cap open android",
     "mobile:build:ios": "cd mobile/ios/App && xcodebuild -project App.xcodeproj -scheme App -configuration Release -destination generic/platform=iOS",
     "mobile:build:ios:ci": "cd mobile/ios/App && xcodebuild -project App.xcodeproj -scheme App -configuration Debug -destination 'generic/platform=iOS Simulator' -derivedDataPath ../../../tmp/ios-derived-data CODE_SIGNING_ALLOWED=NO",

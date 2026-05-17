@@ -1,3 +1,24 @@
+## 2026-05-17 iOS App Store Declaration Automation
+
+- [x] Add an App Store Connect API helper for code-derived content rights and age-rating declarations
+- [x] Add committed default App Store declaration source for `com.sportfoliomarket.app`
+- [x] Declare exempt encryption in the iOS app plist
+- [x] Wire declaration application into the manual App Store listing workflow
+- [x] Reduce screenshot workflow scope and add command-level timeout logging for easier Actions monitoring
+- [x] Run required validation (`npm run check`, `npm run lint`, `npm run test:run`)
+- [x] Run formatter validation (`npm run format:check`)
+- [ ] Open, merge, and monitor the follow-up PR
+- [ ] Rerun `iOS App Store Listing` on `main` and confirm listing upload completes
+
+Review:
+
+- App Store Connect content rights and age-rating declarations are now sourced from `mobile/ios/app-store-submission-defaults.json` and applied by `scripts/app-store-connect-submission-prep.mjs`.
+- The declaration helper supports dry-run mode by default and only mutates App Store Connect with `--apply`.
+- The listing workflow applies those declarations before syncing/building the iOS shell, then captures a single required iPhone screenshot set with per-command logging and an eight-minute step timeout.
+- Local App Store Connect API validation succeeded with the stored local credentials: the app record was found, content rights were updated, and the age-rating declaration was updated.
+- Validation results: `node --check scripts/app-store-connect-submission-prep.mjs` passed, `node --check scripts/ios-app-store-screenshots.mjs` passed, `npm run check` passed, `npm run lint` passed, `npm run format:check` passed, and `npx vitest run --testTimeout=10000` passed (`109` files / `731` tests). A plain `npm run test:run` hit three local Windows 5-second startup timeouts; those same files passed directly.
+- App privacy nutrition labels remain an App Store Connect UI task unless Apple exposes a supported public API for editing those answers.
+
 ## 2026-05-17 iOS App Store Listing Prep
 
 - [x] Add Fastlane App Store listing upload lane that uses GitHub Actions App Store Connect secrets
