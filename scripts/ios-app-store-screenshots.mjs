@@ -58,19 +58,23 @@ function run(command, args, options = {}) {
     ...options,
   });
 
+  if (result.error) {
+    const detail =
+      result.error.code === "ETIMEDOUT" ? `timed out after ${timeout}ms` : result.error.message;
+    throw new Error(`Command failed: ${command} ${args.join(" ")}\n${detail}`);
+  }
+
   if (result.status !== 0) {
-    const message = [
+    const details = [
       `Command failed: ${command} ${args.join(" ")}`,
+      result.signal ? `Signal: ${result.signal}` : null,
+      typeof result.status === "number" ? `Exit status: ${result.status}` : null,
       result.stdout?.trim(),
       result.stderr?.trim(),
     ]
       .filter(Boolean)
       .join("\n");
-    throw new Error(message);
-  }
-
-  if (result.error) {
-    throw result.error;
+    throw new Error(details);
   }
 
   return result.stdout;
@@ -224,7 +228,9 @@ function captureSimulator(simulator, appPath) {
 
   tryRun("xcrun", ["simctl", "uninstall", simulator.udid, BUNDLE_ID]);
   run("xcrun", ["simctl", "install", simulator.udid, appPath], { timeout: 180000 });
-  run("xcrun", ["simctl", "launch", simulator.udid, BUNDLE_ID], { timeout: 60000 });
+  run("xcrun", ["simctl", "launch", "--terminate-running-process", simulator.udid, BUNDLE_ID], {
+    timeout: 180000,
+  });
 
   const copied = [];
   wait(4500);
