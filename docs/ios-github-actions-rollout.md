@@ -63,6 +63,7 @@ Manual App Store listing preparation workflow:
 
 - syncs iOS shell with configurable `cap_server_url`,
 - validates App Store Connect upload secrets,
+- applies code-derived App Store declarations for content rights and age rating,
 - builds an unsigned simulator app,
 - captures real iPhone simulator screenshots for the main listing screens,
 - uploads Fastlane metadata and screenshots through lane `ios app_store_listing_ci`,
@@ -133,9 +134,16 @@ Before the first manual Apple review submission:
 2. Run `iOS App Store Listing` with the default production `cap_server_url`.
 3. Download the workflow artifact and inspect generated screenshots.
 4. Confirm the App Store Connect listing has the metadata and screenshots.
-5. Complete Apple-side questionnaires that cannot be safely inferred from the repo, including age rating, privacy nutrition labels, and export compliance.
+5. Complete remaining Apple-side questionnaires that do not have a public App Store Connect API edit path, especially App privacy nutrition labels.
 
 This workflow prepares the listing only. It uses App Store Connect API secrets from GitHub Actions, skips binary upload, and leaves review submission to a later explicit step.
+
+Listing source files:
+
+- Fastlane metadata: `mobile/ios/App/fastlane/metadata`
+- Screenshot capture: `scripts/ios-app-store-screenshots.mjs`
+- App Store declarations: `mobile/ios/app-store-submission-defaults.json`
+- App Store declaration helper: `scripts/app-store-connect-submission-prep.mjs`
 
 ## App Review Hardening (Gambling + Payments)
 
@@ -144,7 +152,7 @@ Before the first TestFlight build intended for Apple review, verify:
 1. iOS app does not expose external checkout CTAs for digital goods (`/api/premium/checkout-session`, `/api/community/checkout-session`, `/api/whop/sync` are blocked for iOS-native clients).
 2. User-facing copy keeps gameplay framed as virtual-currency strategy play (no real-money betting or cash-out).
 3. Terms/Help/Onboarding mention virtual currency, no cash-out, and no real-money gambling.
-4. App Store Connect age-rating questionnaire is completed accurately; choose simulated-gambling descriptors that match observed gameplay and resulting Apple global age rating.
+4. App Store Connect age-rating declaration matches `mobile/ios/app-store-submission-defaults.json`, including simulated-gambling descriptors that match observed gameplay.
 5. App Review notes include a short explanation of gameplay mechanics, virtual-currency boundaries, and exactly how reviewers can access core features.
 
 ### App Review Notes Template (Recommended)

@@ -348,6 +348,7 @@ This workflow:
 
 - syncs iOS shell using `cap_server_url`,
 - validates App Store Connect upload secrets,
+- applies code-derived App Store declarations for content rights and age rating,
 - builds an unsigned simulator app,
 - captures App Store screenshots from real simulator screens,
 - uploads Fastlane listing metadata and screenshots,
@@ -367,8 +368,10 @@ Required GitHub secrets:
 Listing source files:
 
 - Metadata: `mobile/ios/App/fastlane/metadata`
+- Submission declarations: `mobile/ios/app-store-submission-defaults.json`
 - Generated screenshots: `mobile/ios/App/fastlane/screenshots` during workflow runs
 - Screenshot helper: `scripts/ios-app-store-screenshots.mjs`
+- App Store Connect declaration helper: `scripts/app-store-connect-submission-prep.mjs`
 
 Run it from GitHub Actions:
 
@@ -382,13 +385,13 @@ Notes:
 
 - This workflow uses the existing App Store Connect API key from GitHub secrets only.
 - It prepares the listing but does not select a build, upload an IPA, or submit for Apple review.
-- Age rating, privacy nutrition labels, export compliance, and other Apple questionnaires still need manual completion in App Store Connect.
+- App privacy nutrition labels are still an App Store Connect UI task; Apple does not expose the same public App Store Connect API surface for editing those privacy answers.
 
 Apple review hardening checklist:
 
 1. Confirm iOS-native clients cannot start external digital checkout (`/api/premium/checkout-session`, `/api/community/checkout-session`) and cannot run Whop purchase sync from inside the app.
 2. Confirm onboarding/help/terms copy states virtual currency only, no real-money gambling, and no cash-out.
-3. Complete the App Store Connect age-rating questionnaire with simulated-gambling descriptors that match actual gameplay.
+3. Confirm the App Store Connect age-rating questionnaire reflects the committed `mobile/ios/app-store-submission-defaults.json` declaration.
 4. In App Review notes, explicitly explain gameplay mechanics and virtual-currency boundaries, and provide full reviewer credentials/access.
 
 ## Required Check Rollout (Post-Upgrade)

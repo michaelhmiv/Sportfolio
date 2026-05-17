@@ -15,8 +15,12 @@ const DELIVER_SCREENSHOT_DIR = path.resolve(
 );
 const PRODUCTS_DIR = path.join(DERIVED_DATA_PATH, "Build", "Products", "Debug-iphonesimulator");
 const DEFAULT_APP_PATH = path.join(PRODUCTS_DIR, "App.app");
+const DEFAULT_COMMAND_TIMEOUT_MS = Number.parseInt(
+  process.env.IOS_APP_STORE_SCREENSHOT_COMMAND_TIMEOUT_MS || "120000",
+  10,
+);
 
-const DEFAULT_SIMULATORS = ["iPhone 16 Pro Max", "iPhone 16", "iPhone 15 Pro Max"];
+const DEFAULT_SIMULATORS = ["iPhone 16 Pro Max"];
 const DEFAULT_SHOTS = [
   ["01-home", null],
   ["02-portfolio", "sportfolio://portfolio"],
@@ -45,9 +49,12 @@ const SCREENSHOTS = splitList(process.env.IOS_APP_STORE_SCREENSHOT_ROUTES, []).l
   : DEFAULT_SHOTS;
 
 function run(command, args, options = {}) {
+  const timeout = options.timeout ?? DEFAULT_COMMAND_TIMEOUT_MS;
+  log(`$ ${command} ${args.join(" ")}`);
   const result = spawnSync(command, args, {
     encoding: "utf8",
     stdio: "pipe",
+    timeout,
     ...options,
   });
 
@@ -62,19 +69,31 @@ function run(command, args, options = {}) {
     throw new Error(message);
   }
 
+  if (result.error) {
+    throw result.error;
+  }
+
   return result.stdout;
 }
 
 function tryRun(command, args, options = {}) {
+  log(`$ ${command} ${args.join(" ")} (best effort)`);
   return spawnSync(command, args, {
     encoding: "utf8",
     stdio: "pipe",
+    timeout: options.timeout ?? 30000,
     ...options,
   });
 }
 
 function wait(milliseconds) {
+  log(`Waiting ${milliseconds}ms`);
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds);
+}
+
+function log(message) {
+  const timestamp = new Date().toISOString();
+  console.log(`[ios-app-store-screenshots] ${timestamp} ${message}`);
 }
 
 function parseRuntimeVersion(runtimeKey) {
@@ -190,27 +209,30 @@ function sanitizeName(value) {
 }
 
 function captureScreenshot(udid, outputPath) {
-  run("xcrun", ["simctl", "io", udid, "screenshot", outputPath]);
+  log(`Capturing screenshot: ${outputPath}`);
+  run("xcrun", ["simctl", "io", udid, "screenshot", outputPath], { timeout: 60000 });
 }
 
 function captureSimulator(simulator, appPath) {
+  log(`Starting capture for ${simulator.name} (${simulator.runtime}, ${simulator.udid})`);
   const rawDeviceDir = path.join(RAW_SCREENSHOT_DIR, sanitizeName(simulator.name));
   mkdirSync(rawDeviceDir, { recursive: true });
 
   tryRun("xcrun", ["simctl", "shutdown", simulator.udid]);
   tryRun("xcrun", ["simctl", "boot", simulator.udid]);
-  run("xcrun", ["simctl", "bootstatus", simulator.udid, "-b"]);
+  run("xcrun", ["simctl", "bootstatus", simulator.udid, "-b"], { timeout: 180000 });
 
   tryRun("xcrun", ["simctl", "uninstall", simulator.udid, BUNDLE_ID]);
-  run("xcrun", ["simctl", "install", simulator.udid, appPath]);
-  run("xcrun", ["simctl", "launch", simulator.udid, BUNDLE_ID]);
+  run("xcrun", ["simctl", "install", simulator.udid, appPath], { timeout: 180000 });
+  run("xcrun", ["simctl", "launch", simulator.udid, BUNDLE_ID], { timeout: 60000 });
 
   const copied = [];
   wait(4500);
 
   for (const [shotName, url] of SCREENSHOTS) {
+    log(`Preparing screenshot ${shotName}${url ? ` via ${url}` : " from launch screen"}`);
     if (url) {
-      run("xcrun", ["simctl", "openurl", simulator.udid, url]);
+      run("xcrun", ["simctl", "openurl", simulator.udid, url], { timeout: 60000 });
       wait(3000);
     }
 
@@ -220,14 +242,19 @@ function captureSimulator(simulator, appPath) {
     captureScreenshot(simulator.udid, rawPath);
     copyFileSync(rawPath, deliverPath);
     copied.push({ name: shotName, url, rawPath, deliverPath });
+    log(`Copied screenshot to ${deliverPath}`);
   }
 
+  log(`Finished capture for ${simulator.name}`);
   return copied;
 }
 
 function main() {
+  log("Resolving simulator app path");
   const appPath = resolveBuiltAppPath();
+  log(`Using app bundle: ${appPath}`);
   const simulators = selectSimulators();
+  log(`Selected simulators: ${simulators.map((simulator) => simulator.name).join(", ")}`);
   safeResetDirectory(RAW_SCREENSHOT_DIR, ARTIFACT_DIR);
   safeResetDirectory(DELIVER_SCREENSHOT_DIR, path.resolve("mobile/ios/App/fastlane/screenshots"));
 
@@ -253,6 +280,7 @@ function main() {
     ),
     "utf8",
   );
+  log(`Wrote summary to ${path.join(ARTIFACT_DIR, "app-store-screenshot-summary.json")}`);
 }
 
 main();
