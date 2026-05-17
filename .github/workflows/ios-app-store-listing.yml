@@ -1,0 +1,126 @@
+name: iOS App Store Listing
+
+on:
+  workflow_dispatch:
+    inputs:
+      cap_server_url:
+        description: "Capacitor server URL for App Store screenshots"
+        required: true
+        default: "https://www.sportfolio.market"
+        type: string
+      simulator_names:
+        description: "Comma-separated simulator names for screenshot capture"
+        required: true
+        default: "iPhone 16 Pro Max,iPhone 16"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-app-store-listing-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prepare-listing:
+    name: prepare-listing
+    runs-on: macos-latest
+    env:
+      CAP_SERVER_URL: ${{ inputs.cap_server_url }}
+      IOS_APP_IDENTIFIER: com.sportfoliomarket.app
+      IOS_DERIVED_DATA: ${{ github.workspace }}/tmp/ios-derived-data
+      IOS_APP_PATH: ${{ github.workspace }}/tmp/ios-derived-data/Build/Products/Debug-iphonesimulator/App.app
+      IOS_BUILD_LOG: tmp/ios-app-store-build.log
+      IOS_APP_STORE_ARTIFACT_DIR: tmp/ios-app-store-listing
+      IOS_APP_STORE_SCREENSHOT_DIR: ${{ github.workspace }}/mobile/ios/App/fastlane/screenshots/en-US
+      IOS_APP_STORE_SCREENSHOT_SIMULATORS: ${{ inputs.simulator_names }}
+      IOS_BUNDLE_ID: com.sportfoliomarket.app
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate App Store Connect secrets
+        env:
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+        run: |
+          required=(
+            APP_STORE_CONNECT_KEY_ID
+            APP_STORE_CONNECT_ISSUER_ID
+            APP_STORE_CONNECT_API_KEY_BASE64
+          )
+
+          for name in "${required[@]}"; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing required App Store Connect secret ${name}"
+              exit 1
+            fi
+          done
+
+      - name: Sync Capacitor iOS
+        run: npm run mobile:sync:ios
+
+      - name: Run iOS guardrail doctor
+        run: npm run mobile:ios:doctor
+
+      - name: Build unsigned iOS simulator app
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf "${IOS_DERIVED_DATA}" "${IOS_APP_STORE_ARTIFACT_DIR}"
+          mkdir -p "$(dirname "${IOS_BUILD_LOG}")"
+          (
+            cd mobile/ios/App
+            xcodebuild -project App.xcodeproj -scheme App -configuration Debug \
+              -destination 'generic/platform=iOS Simulator' \
+              -derivedDataPath "${IOS_DERIVED_DATA}" \
+              CODE_SIGNING_ALLOWED=NO
+          ) 2>&1 | tee "${IOS_BUILD_LOG}"
+
+      - name: Capture App Store screenshots
+        run: node scripts/ios-app-store-screenshots.mjs
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+
+      - name: Install fastlane gems
+        working-directory: mobile/ios/App
+        run: bundle install --path vendor/bundle
+
+      - name: Upload listing metadata and screenshots
+        working-directory: mobile/ios/App
+        env:
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+        run: |
+          set -euo pipefail
+          bundle exec fastlane ios app_store_listing_ci \
+            metadata_path:"fastlane/metadata" \
+            screenshots_path:"fastlane/screenshots"
+
+      - name: Upload listing artifacts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: ios-app-store-listing-${{ github.run_id }}
+          retention-days: 14
+          if-no-files-found: warn
+          path: |
+            ${{ env.IOS_BUILD_LOG }}
+            ${{ env.IOS_APP_STORE_ARTIFACT_DIR }}
+            mobile/ios/App/fastlane/metadata
+            mobile/ios/App/fastlane/screenshots

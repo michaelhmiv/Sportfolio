@@ -1,18 +1,19 @@
 ---
 title: iOS GitHub Actions Rollout
-summary: How Sportfolio uses GitHub-hosted macOS runners for iOS simulator QA and manual TestFlight release automation.
+summary: How Sportfolio uses GitHub-hosted macOS runners for iOS simulator QA, App Store listing prep, and manual TestFlight release automation.
 status: draft
 owner: product-engineering
-lastReviewedAt: 2026-05-14
+lastReviewedAt: 2026-05-17
 ---
 
 # iOS GitHub Actions Rollout
 
 ## Goal
 
-Use GitHub-hosted macOS runners for two concrete iOS gates:
+Use GitHub-hosted macOS runners for three concrete iOS gates:
 
 - repeatable simulator QA,
+- App Store listing metadata and screenshot preparation,
 - and manual, controlled TestFlight uploads for signed release builds.
 
 ## What GitHub Actions Covers
@@ -20,6 +21,8 @@ Use GitHub-hosted macOS runners for two concrete iOS gates:
 - Sync the Capacitor iOS shell.
 - Run iOS guardrail checks.
 - Build unsigned simulator apps for smoke QA.
+- Capture App Store screenshots from the production-hosted iOS shell.
+- Upload App Store listing metadata and screenshots without submitting for review.
 - Build signed release IPAs with imported signing assets.
 - Upload signed release builds to TestFlight using App Store Connect API keys.
 
@@ -34,6 +37,7 @@ Use GitHub-hosted macOS runners for two concrete iOS gates:
 
 - `.github/workflows/ios-pr-ci.yml`
 - `.github/workflows/ios-simulator-qa.yml`
+- `.github/workflows/ios-app-store-listing.yml`
 - `.github/workflows/ios-testflight.yml`
 
 ### `iOS PR CI`
@@ -52,6 +56,17 @@ Manual simulator smoke run with screenshots/artifacts:
 - builds simulator app,
 - boots hosted iPhone simulator,
 - launches deep links and captures evidence.
+
+### `iOS App Store Listing`
+
+Manual App Store listing preparation workflow:
+
+- syncs iOS shell with configurable `cap_server_url`,
+- validates App Store Connect upload secrets,
+- builds an unsigned simulator app,
+- captures real iPhone simulator screenshots for the main listing screens,
+- uploads Fastlane metadata and screenshots through lane `ios app_store_listing_ci`,
+- does not upload a binary and does not submit the app for review.
 
 ### `iOS TestFlight`
 
@@ -80,6 +95,14 @@ Upload (required only when `skip_upload=false`):
 - `APP_STORE_CONNECT_ISSUER_ID`
 - `APP_STORE_CONNECT_API_KEY_BASE64`
 
+## Required GitHub Secrets (`iOS App Store Listing`)
+
+Listing upload:
+
+- `APP_STORE_CONNECT_KEY_ID`
+- `APP_STORE_CONNECT_ISSUER_ID`
+- `APP_STORE_CONNECT_API_KEY_BASE64`
+
 ## Windows-First Signing Bootstrap
 
 If you do not have a Mac, this repo now includes helper scripts to prepare signing assets and secrets:
@@ -101,6 +124,18 @@ Before running `iOS TestFlight`:
 4. Confirm cert/profile are current (not expired/revoked).
 5. Run `iOS Simulator QA` against `https://www.sportfolio.market` first.
 6. First run `iOS TestFlight` with `skip_upload=true` to validate signing/archive path.
+
+## App Store Listing Preparation
+
+Before the first manual Apple review submission:
+
+1. Review Fastlane listing copy under `mobile/ios/App/fastlane/metadata`.
+2. Run `iOS App Store Listing` with the default production `cap_server_url`.
+3. Download the workflow artifact and inspect generated screenshots.
+4. Confirm the App Store Connect listing has the metadata and screenshots.
+5. Complete Apple-side questionnaires that cannot be safely inferred from the repo, including age rating, privacy nutrition labels, and export compliance.
+
+This workflow prepares the listing only. It uses App Store Connect API secrets from GitHub Actions, skips binary upload, and leaves review submission to a later explicit step.
 
 ## App Review Hardening (Gambling + Payments)
 
@@ -125,10 +160,11 @@ Use this in App Store Connect "Notes for Review" and tailor specifics:
 ## Recommended Sequence
 
 1. Use `iOS PR CI` and `iOS Simulator QA` to keep shell behavior stable.
-2. Run `iOS TestFlight` with `skip_upload=true` after signing secrets are configured.
-3. Run `iOS TestFlight` with `skip_upload=false` for the first real upload.
-4. Confirm the build appears under App Store Connect TestFlight and assign testers.
+2. Run `iOS App Store Listing` to populate listing copy and screenshots.
+3. Run `iOS TestFlight` with `skip_upload=true` after signing secrets are configured.
+4. Run `iOS TestFlight` with `skip_upload=false` for the first real upload.
+5. Confirm the build appears under App Store Connect TestFlight and assign testers.
 
 ## Bottom Line
 
-GitHub Actions now covers both iOS simulator QA and manual TestFlight release automation for this repo. Real iPhone validation and Apple-side product readiness decisions still remain required before broader App Store rollout.
+GitHub Actions now covers iOS simulator QA, App Store listing preparation, and manual TestFlight release automation for this repo. Real iPhone validation and Apple-side product readiness decisions still remain required before broader App Store rollout.
