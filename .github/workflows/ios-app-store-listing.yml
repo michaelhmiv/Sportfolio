@@ -96,7 +96,7 @@ jobs:
           ) 2>&1 | tee "${IOS_BUILD_LOG}"
 
       - name: Capture App Store screenshots
-        timeout-minutes: 12
+        timeout-minutes: 25
         run: node scripts/ios-app-store-screenshots.mjs
 
       - name: Setup Ruby

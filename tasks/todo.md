@@ -24,6 +24,7 @@ Follow-up:
 - The first `main` run of `iOS App Store Listing` passed secret validation, declaration application, Capacitor sync, iOS doctor, and unsigned simulator build, then failed during screenshot capture because `xcrun simctl launch` exceeded the initial 60-second command timeout on the hosted macOS runner.
 - Increased the launch timeout, added `--terminate-running-process`, expanded the screenshot step timeout, and improved command error detail so future runner failures identify timeout/status/signal clearly.
 - The next `main` run passed screenshot capture and reached Fastlane deliver, then Apple rejected listing name `Sportfolio` because it is already used by another account. Updated the App Store listing name to `Sportfolio Market`.
+- The successful upload run produced five screenshots, but artifact inspection showed the route screenshots captured an iOS deep-link confirmation prompt. Reworked screenshot capture to relaunch the app with a route-specific bundled Capacitor `server.url` instead of opening `sportfolio://` links from outside the app.
 
 ## 2026-05-17 iOS App Store Listing Prep
 
