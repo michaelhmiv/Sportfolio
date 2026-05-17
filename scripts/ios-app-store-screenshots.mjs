@@ -1,4 +1,12 @@
-import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { spawnSync } from "node:child_process";
@@ -23,10 +31,10 @@ const DEFAULT_COMMAND_TIMEOUT_MS = Number.parseInt(
 const DEFAULT_SIMULATORS = ["iPhone 16 Pro Max"];
 const DEFAULT_SHOTS = [
   ["01-home", null],
-  ["02-portfolio", "sportfolio://portfolio"],
-  ["03-boosts", "sportfolio://boosts"],
-  ["04-player-pools", "sportfolio://pools"],
-  ["05-leaderboards", "sportfolio://leaderboards"],
+  ["02-portfolio", "/portfolio"],
+  ["03-boosts", "/boosts"],
+  ["04-player-pools", "/pools"],
+  ["05-leaderboards", "/leaderboards"],
 ];
 
 function splitList(value, fallback) {
@@ -217,6 +225,28 @@ function captureScreenshot(udid, outputPath) {
   run("xcrun", ["simctl", "io", udid, "screenshot", outputPath], { timeout: 60000 });
 }
 
+function resolveScreenshotUrl(route) {
+  const baseUrl = process.env.CAP_SERVER_URL?.trim() || "https://www.sportfolio.market";
+  if (!route) return baseUrl;
+  return new URL(route, baseUrl).toString();
+}
+
+function writeAppServerUrl(appPath, serverUrl) {
+  const configPath = path.join(appPath, "capacitor.config.json");
+  if (!existsSync(configPath)) {
+    throw new Error(`Capacitor app config not found in built app bundle: ${configPath}`);
+  }
+
+  const config = JSON.parse(readFileSync(configPath, "utf8"));
+  config.server = {
+    ...(config.server || {}),
+    url: serverUrl,
+    cleartext: false,
+  };
+  writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+  log(`Updated bundled Capacitor server URL: ${serverUrl}`);
+}
+
 function captureSimulator(simulator, appPath) {
   log(`Starting capture for ${simulator.name} (${simulator.runtime}, ${simulator.udid})`);
   const rawDeviceDir = path.join(RAW_SCREENSHOT_DIR, sanitizeName(simulator.name));
@@ -226,28 +256,26 @@ function captureSimulator(simulator, appPath) {
   tryRun("xcrun", ["simctl", "boot", simulator.udid]);
   run("xcrun", ["simctl", "bootstatus", simulator.udid, "-b"], { timeout: 180000 });
 
-  tryRun("xcrun", ["simctl", "uninstall", simulator.udid, BUNDLE_ID]);
-  run("xcrun", ["simctl", "install", simulator.udid, appPath], { timeout: 180000 });
-  run("xcrun", ["simctl", "launch", "--terminate-running-process", simulator.udid, BUNDLE_ID], {
-    timeout: 180000,
-  });
-
   const copied = [];
-  wait(4500);
 
-  for (const [shotName, url] of SCREENSHOTS) {
-    log(`Preparing screenshot ${shotName}${url ? ` via ${url}` : " from launch screen"}`);
-    if (url) {
-      run("xcrun", ["simctl", "openurl", simulator.udid, url], { timeout: 60000 });
-      wait(3000);
-    }
+  for (const [shotName, route] of SCREENSHOTS) {
+    const serverUrl = resolveScreenshotUrl(route);
+    log(`Preparing screenshot ${shotName} with server URL ${serverUrl}`);
+    tryRun("xcrun", ["simctl", "terminate", simulator.udid, BUNDLE_ID]);
+    tryRun("xcrun", ["simctl", "uninstall", simulator.udid, BUNDLE_ID]);
+    writeAppServerUrl(appPath, serverUrl);
+    run("xcrun", ["simctl", "install", simulator.udid, appPath], { timeout: 180000 });
+    run("xcrun", ["simctl", "launch", "--terminate-running-process", simulator.udid, BUNDLE_ID], {
+      timeout: 180000,
+    });
+    wait(7000);
 
     const fileName = `${sanitizeName(simulator.name)}-${shotName}.png`;
     const rawPath = path.join(rawDeviceDir, fileName);
     const deliverPath = path.join(DELIVER_SCREENSHOT_DIR, fileName);
     captureScreenshot(simulator.udid, rawPath);
     copyFileSync(rawPath, deliverPath);
-    copied.push({ name: shotName, url, rawPath, deliverPath });
+    copied.push({ name: shotName, route, serverUrl, rawPath, deliverPath });
     log(`Copied screenshot to ${deliverPath}`);
   }
 
