@@ -1,6 +1,24 @@
 default_platform(:ios)
 
 platform :ios do
+  private_lane :app_store_connect_api_key_from_env do
+    required_upload_env = %w[
+      APP_STORE_CONNECT_KEY_ID
+      APP_STORE_CONNECT_ISSUER_ID
+      APP_STORE_CONNECT_API_KEY_BASE64
+    ]
+    required_upload_env.each do |name|
+      UI.user_error!("Missing required App Store Connect environment variable: #{name}") if ENV[name].to_s.strip.empty?
+    end
+
+    app_store_connect_api_key(
+      key_id: ENV.fetch("APP_STORE_CONNECT_KEY_ID"),
+      issuer_id: ENV.fetch("APP_STORE_CONNECT_ISSUER_ID"),
+      key_content: ENV.fetch("APP_STORE_CONNECT_API_KEY_BASE64"),
+      is_key_content_base64: true
+    )
+  end
+
   desc "Build signed iOS IPA and optionally upload to TestFlight"
   lane :testflight_ci do |options|
     required_env = %w[
@@ -57,21 +75,7 @@ platform :ios do
       next
     end
 
-    required_upload_env = %w[
-      APP_STORE_CONNECT_KEY_ID
-      APP_STORE_CONNECT_ISSUER_ID
-      APP_STORE_CONNECT_API_KEY_BASE64
-    ]
-    required_upload_env.each do |name|
-      UI.user_error!("Missing required upload environment variable: #{name}") if ENV[name].to_s.strip.empty?
-    end
-
-    api_key = app_store_connect_api_key(
-      key_id: ENV.fetch("APP_STORE_CONNECT_KEY_ID"),
-      issuer_id: ENV.fetch("APP_STORE_CONNECT_ISSUER_ID"),
-      key_content: ENV.fetch("APP_STORE_CONNECT_API_KEY_BASE64"),
-      is_key_content_base64: true
-    )
+    api_key = app_store_connect_api_key_from_env
 
     changelog = release_name.empty? ? nil : "Release #{release_name}"
     upload_to_testflight(
@@ -81,5 +85,37 @@ platform :ios do
       notify_external_testers: false,
       changelog: changelog
     )
+  end
+
+  desc "Upload App Store listing metadata and screenshots without submitting for review"
+  lane :app_store_listing_ci do |options|
+    app_identifier = ENV["IOS_APP_IDENTIFIER"].to_s.strip
+    app_identifier = "com.sportfoliomarket.app" if app_identifier.empty?
+
+    metadata_path = options[:metadata_path].to_s.strip
+    metadata_path = "fastlane/metadata" if metadata_path.empty?
+
+    screenshots_path = options[:screenshots_path].to_s.strip
+    screenshots_path = "fastlane/screenshots" if screenshots_path.empty?
+
+    skip_screenshots = options[:skip_screenshots].to_s == "true"
+
+    api_key = app_store_connect_api_key_from_env
+
+    deliver(
+      api_key: api_key,
+      app_identifier: app_identifier,
+      metadata_path: metadata_path,
+      screenshots_path: screenshots_path,
+      skip_binary_upload: true,
+      skip_metadata: false,
+      skip_screenshots: skip_screenshots,
+      submit_for_review: false,
+      force: true,
+      overwrite_screenshots: !skip_screenshots,
+      precheck_include_in_app_purchases: false
+    )
+
+    UI.success("App Store listing metadata#{skip_screenshots ? "" : " and screenshots"} uploaded without review submission.")
   end
 end

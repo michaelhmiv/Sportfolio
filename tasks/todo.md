@@ -1,3 +1,28 @@
+## 2026-05-17 iOS App Store Listing Prep
+
+- [x] Add Fastlane App Store listing upload lane that uses GitHub Actions App Store Connect secrets
+- [x] Add initial App Store metadata and review-note source files
+- [x] Add simulator screenshot packaging script for Fastlane screenshot upload
+- [x] Add manual GitHub Actions workflow for listing metadata and screenshot preparation
+- [x] Update mobile/iOS runbooks with the listing workflow
+- [x] Run required validation (`npm run check`, `npm run lint`, `npm run test:run`)
+- [x] Run formatter validation (`npm run format:check`)
+- [ ] Run the manual `iOS App Store Listing` workflow and confirm App Store Connect fields/screenshots populate
+
+Review:
+
+- Added a separate `.github/workflows/ios-app-store-listing.yml` workflow so App Store listing prep stays separate from TestFlight build upload and never submits for review.
+- Added Fastlane lane `ios app_store_listing_ci` to upload metadata/screenshots with `skip_binary_upload: true` and `submit_for_review: false`.
+- Added listing metadata under `mobile/ios/App/fastlane/metadata`, including virtual-currency/no-cash-out framing and iOS review notes.
+- Added `scripts/ios-app-store-screenshots.mjs` to capture production-hosted simulator screenshots and package them into Fastlane's screenshot directory.
+- Validation results:
+  - `node --check scripts/ios-app-store-screenshots.mjs` passed
+  - `npm run check` passed
+  - `npm run lint` passed
+  - `npm run format:check` passed
+  - `npm run test:run` passed (`109` files / `731` tests)
+  - Fastlane Ruby syntax check was not runnable locally because Ruby is not installed in this Windows environment.
+
 ## 2026-05-14 GitHub Actions Node24 Deprecation Follow-up
 
 - [x] Inventory workflow actions still pinned on the Node20 deprecation path

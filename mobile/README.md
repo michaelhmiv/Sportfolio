@@ -338,6 +338,52 @@ Preflight checklist:
 4. Run `iOS Simulator QA` before the first upload.
 5. Confirm the uploaded build appears in App Store Connect TestFlight.
 
+## GitHub iOS App Store Listing Prep (Manual)
+
+A manual App Store listing workflow is included:
+
+- `.github/workflows/ios-app-store-listing.yml`
+
+This workflow:
+
+- syncs iOS shell using `cap_server_url`,
+- validates App Store Connect upload secrets,
+- builds an unsigned simulator app,
+- captures App Store screenshots from real simulator screens,
+- uploads Fastlane listing metadata and screenshots,
+- skips binary upload and does not submit the app for review.
+
+Workflow inputs:
+
+- `cap_server_url` (default `https://www.sportfolio.market`)
+- `simulator_names` (default `iPhone 16 Pro Max,iPhone 16`)
+
+Required GitHub secrets:
+
+- `APP_STORE_CONNECT_KEY_ID`
+- `APP_STORE_CONNECT_ISSUER_ID`
+- `APP_STORE_CONNECT_API_KEY_BASE64`
+
+Listing source files:
+
+- Metadata: `mobile/ios/App/fastlane/metadata`
+- Generated screenshots: `mobile/ios/App/fastlane/screenshots` during workflow runs
+- Screenshot helper: `scripts/ios-app-store-screenshots.mjs`
+
+Run it from GitHub Actions:
+
+1. Open **Actions**.
+2. Select **iOS App Store Listing**.
+3. Click **Run workflow**.
+4. Use the default production `cap_server_url` for App Store screenshots.
+5. Inspect the uploaded workflow artifact and confirm App Store Connect fields/screenshots were populated.
+
+Notes:
+
+- This workflow uses the existing App Store Connect API key from GitHub secrets only.
+- It prepares the listing but does not select a build, upload an IPA, or submit for Apple review.
+- Age rating, privacy nutrition labels, export compliance, and other Apple questionnaires still need manual completion in App Store Connect.
+
 Apple review hardening checklist:
 
 1. Confirm iOS-native clients cannot start external digital checkout (`/api/premium/checkout-session`, `/api/community/checkout-session`) and cannot run Whop purchase sync from inside the app.
