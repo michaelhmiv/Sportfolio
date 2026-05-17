@@ -19,6 +19,11 @@ Review:
 - Validation results: `node --check scripts/app-store-connect-submission-prep.mjs` passed, `node --check scripts/ios-app-store-screenshots.mjs` passed, `npm run check` passed, `npm run lint` passed, `npm run format:check` passed, and `npx vitest run --testTimeout=10000` passed (`109` files / `731` tests). A plain `npm run test:run` hit three local Windows 5-second startup timeouts; those same files passed directly.
 - App privacy nutrition labels remain an App Store Connect UI task unless Apple exposes a supported public API for editing those answers.
 
+Follow-up:
+
+- The first `main` run of `iOS App Store Listing` passed secret validation, declaration application, Capacitor sync, iOS doctor, and unsigned simulator build, then failed during screenshot capture because `xcrun simctl launch` exceeded the initial 60-second command timeout on the hosted macOS runner.
+- Increased the launch timeout, added `--terminate-running-process`, expanded the screenshot step timeout, and improved command error detail so future runner failures identify timeout/status/signal clearly.
+
 ## 2026-05-17 iOS App Store Listing Prep
 
 - [x] Add Fastlane App Store listing upload lane that uses GitHub Actions App Store Connect secrets
