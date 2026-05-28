@@ -51,6 +51,7 @@
     "mobile:install:android": "npm run mobile:sync && node scripts/run-gradle-wrapper.mjs installDebug",
     "android:sdk:check": "node scripts/android-sdk-check.mjs",
     "android:emulator:setup": "node scripts/android-emulator-setup.mjs",
+    "audit:android-push": "node scripts/android-push-audit-report.mjs",
     "play:billing:doctor": "node scripts/play-billing-doctor.mjs",
     "play:billing:ensure-product": "node scripts/play-billing-doctor.mjs --ensure",
     "play:release:preflight": "node scripts/play-release-preflight.mjs",

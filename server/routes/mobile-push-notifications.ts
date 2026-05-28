@@ -4,7 +4,7 @@ import {
   isPushNotificationType,
 } from "@shared/push-notifications";
 import { storage, type IStorage } from "../storage";
-import { hasFirebasePushCredentialsConfigured } from "../services/push-notifications";
+import { ensureFirebasePushProviderDiagnostics } from "../services/push-notifications";
 import {
   registerPushDevice,
   unregisterPushDevice,
@@ -199,6 +199,7 @@ export async function registerMobilePushNotificationRoutes(
     try {
       const userId = getUserId(req);
       const deviceId = typeof req.query.deviceId === "string" ? req.query.deviceId.trim() : "";
+      const providerDiagnostics = await ensureFirebasePushProviderDiagnostics();
       const tokens = await storageLayer.listActiveUserPushTokens(userId, "android");
       const currentDeviceToken = deviceId
         ? tokens.find((token) => token.deviceId === deviceId) || null
@@ -206,7 +207,7 @@ export async function registerMobilePushNotificationRoutes(
       const events = await storageLayer.getPushNotificationEvents(userId, { limit: 10, offset: 0 });
 
       return res.json({
-        providerConfigured: hasFirebasePushCredentialsConfigured(),
+        providerConfigured: providerDiagnostics.providerReady,
         activeTokenCount: tokens.length,
         currentDevice: {
           deviceId: deviceId || null,
@@ -221,6 +222,7 @@ export async function registerMobilePushNotificationRoutes(
           platform: "android",
           deviceCount: tokens.length,
           latestTokenSeenAt: tokens[0]?.lastRegisteredAt ?? null,
+          provider: providerDiagnostics,
         },
         recentEvents: events.map((event) => ({
           id: event.id,

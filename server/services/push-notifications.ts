@@ -11,10 +11,12 @@ import {
 } from "@shared/push-notifications";
 import { storage, type IStorage } from "../storage";
 
+// Only auto-deactivate tokens for explicit token invalidation signals.
+// `messaging/invalid-argument` can also indicate payload/config issues and should not
+// invalidate user tokens globally.
 const INVALID_TOKEN_ERROR_CODES = new Set([
   "messaging/registration-token-not-registered",
   "messaging/invalid-registration-token",
-  "messaging/invalid-argument",
 ]);
 
 const FIREBASE_APP_NAME = "sportfolio-push";
@@ -98,8 +100,24 @@ export interface PushMulticastResult {
   invalidTokens: string[];
 }
 
+type FirebaseCredentialSource = "none" | "inline_json" | "inline_base64" | "file";
+
+export interface FirebasePushProviderDiagnostics {
+  credentialsConfigured: boolean;
+  credentialSource: FirebaseCredentialSource;
+  providerInitialized: boolean;
+  providerReady: boolean;
+  projectId: string | null;
+  lastInitError: string | null;
+}
+
 let providerPromise: Promise<PushMessagingProvider | null> | null = null;
 let didWarnMissingFirebaseCredentials = false;
+let providerInitialized = false;
+let providerReady = false;
+let providerCredentialSource: FirebaseCredentialSource = "none";
+let providerProjectId: string | null = null;
+let lastProviderInitError: string | null = null;
 const DEFAULT_ANDROID_PUSH_TTL_SECONDS = 60 * 60 * 6;
 
 export function hasFirebasePushCredentialsConfigured(): boolean {
@@ -144,34 +162,47 @@ async function resolveFirebaseAdminServiceAccount(): Promise<ServiceAccount | nu
 
   if (inlineValue) {
     try {
-      return parseFirebaseAdminServiceAccount(inlineValue);
+      const account = parseFirebaseAdminServiceAccount(inlineValue);
+      providerCredentialSource = "inline_json";
+      return account;
     } catch {
       const decoded = Buffer.from(inlineValue, "base64").toString("utf8");
-      return parseFirebaseAdminServiceAccount(decoded);
+      const account = parseFirebaseAdminServiceAccount(decoded);
+      providerCredentialSource = "inline_base64";
+      return account;
     }
   }
 
   if (filePath) {
+    providerCredentialSource = "file";
     const fileContents = await readFile(filePath, "utf8");
     return parseFirebaseAdminServiceAccount(fileContents);
   }
 
+  providerCredentialSource = "none";
   return null;
 }
 
 async function createFirebasePushProvider(): Promise<PushMessagingProvider | null> {
+  providerInitialized = true;
+  providerReady = false;
+  providerProjectId = null;
+  lastProviderInitError = null;
+
   let credentials: ServiceAccount | null = null;
 
   try {
     credentials = await resolveFirebaseAdminServiceAccount();
   } catch (error: any) {
+    lastProviderInitError = error?.message || String(error);
     warnMissingFirebaseCredentials(
-      `Could not parse Firebase credentials. Push delivery disabled: ${error?.message || error}`,
+      `Could not parse Firebase credentials. Push delivery disabled: ${lastProviderInitError}`,
     );
     return null;
   }
 
   if (!credentials) {
+    lastProviderInitError = "Firebase credentials are missing";
     warnMissingFirebaseCredentials(
       "Firebase credentials are missing (set FIREBASE_ADMIN_SDK_JSON or FIREBASE_ADMIN_SDK_FILE). Push delivery will be a no-op.",
     );
@@ -188,7 +219,12 @@ async function createFirebasePushProvider(): Promise<PushMessagingProvider | nul
       },
       FIREBASE_APP_NAME,
     );
+  providerProjectId =
+    credentials.projectId ||
+    ((app.options as Record<string, unknown>)?.projectId as string) ||
+    null;
   const messaging = getMessaging(app);
+  providerReady = true;
 
   return {
     async sendMulticast(input) {
@@ -229,6 +265,22 @@ function getPushProvider(): Promise<PushMessagingProvider | null> {
   }
 
   return providerPromise;
+}
+
+export function getFirebasePushProviderDiagnostics(): FirebasePushProviderDiagnostics {
+  return {
+    credentialsConfigured: hasFirebasePushCredentialsConfigured(),
+    credentialSource: providerCredentialSource,
+    providerInitialized,
+    providerReady,
+    projectId: providerProjectId,
+    lastInitError: lastProviderInitError,
+  };
+}
+
+export async function ensureFirebasePushProviderDiagnostics(): Promise<FirebasePushProviderDiagnostics> {
+  await getPushProvider();
+  return getFirebasePushProviderDiagnostics();
 }
 
 export async function sendPushMulticast(
