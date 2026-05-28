@@ -44,6 +44,14 @@ platform :ios do
       build_number: ENV.fetch("IOS_BUILD_NUMBER")
     )
 
+    marketing_version = ENV["IOS_MARKETING_VERSION"].to_s.strip
+    unless marketing_version.empty?
+      increment_version_number(
+        xcodeproj: ENV.fetch("IOS_PROJECT_PATH"),
+        version_number: marketing_version
+      )
+    end
+
     update_code_signing_settings(
       use_automatic_signing: false,
       path: ENV.fetch("IOS_PROJECT_PATH"),

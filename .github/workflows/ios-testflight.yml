@@ -110,15 +110,17 @@ jobs:
           fi
 
       - name: Compute iOS release metadata
-        env:
-          INPUT_RELEASE_NAME: ${{ github.event.inputs.release_name }}
         run: |
           BUILD_NUMBER=$((IOS_BUILD_NUMBER_BASE + GITHUB_RUN_NUMBER))
           echo "IOS_BUILD_NUMBER=$BUILD_NUMBER" >> "$GITHUB_ENV"
 
-          if [ -n "$INPUT_RELEASE_NAME" ]; then
+          MARKETING_VERSION="$(date -u +'%Y.%-m.%-d')"
+          echo "IOS_MARKETING_VERSION=$MARKETING_VERSION" >> "$GITHUB_ENV"
+
+          INPUT_RELEASE_NAME="${{ github.event.inputs.release_name }}"
+          if [ -n "${INPUT_RELEASE_NAME}" ] && [ "${INPUT_RELEASE_NAME}" != "''" ]; then
             SANITIZED_RELEASE_NAME="$(
-              printf '%s' "$INPUT_RELEASE_NAME" \
+              printf '%s' "${INPUT_RELEASE_NAME}" \
                 | tr '\r\n' '-' \
                 | tr -cd '[:alnum:]._-' \
                 | cut -c1-50
