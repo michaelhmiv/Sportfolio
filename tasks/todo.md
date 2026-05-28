@@ -25,6 +25,7 @@ Follow-up:
 - Increased the launch timeout, added `--terminate-running-process`, expanded the screenshot step timeout, and improved command error detail so future runner failures identify timeout/status/signal clearly.
 - The next `main` run passed screenshot capture and reached Fastlane deliver, then Apple rejected listing name `Sportfolio` because it is already used by another account. Updated the App Store listing name to `Sportfolio Market`.
 - The successful upload run produced five screenshots, but artifact inspection showed the route screenshots captured an iOS deep-link confirmation prompt. Reworked screenshot capture to relaunch the app with a route-specific bundled Capacitor `server.url` instead of opening `sportfolio://` links from outside the app.
+- The direct-route screenshot run captured screenshots successfully, then Fastlane failed while uploading App Review notes because App Review contact name/email/phone were missing from App Store Connect. Updated the listing lane to skip `review_information` unless review-contact env vars are explicitly configured.
 
 ## 2026-05-17 iOS App Store Listing Prep
 

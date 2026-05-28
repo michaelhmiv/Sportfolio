@@ -1,3 +1,6 @@
+require "fileutils"
+require "tmpdir"
+
 default_platform(:ios)
 
 platform :ios do
@@ -109,11 +112,30 @@ platform :ios do
     skip_screenshots = options[:skip_screenshots].to_s == "true"
 
     api_key = app_store_connect_api_key_from_env
+    upload_metadata_path = metadata_path
+    review_contact_env = %w[
+      APP_STORE_REVIEW_CONTACT_FIRST_NAME
+      APP_STORE_REVIEW_CONTACT_LAST_NAME
+      APP_STORE_REVIEW_CONTACT_EMAIL
+      APP_STORE_REVIEW_CONTACT_PHONE
+    ]
+
+    if Dir.exist?(File.join(metadata_path, "review_information")) && review_contact_env.any? { |name| ENV[name].to_s.strip.empty? }
+      UI.important("Skipping fastlane review_information upload because App Review contact env vars are not fully configured.")
+      upload_metadata_path = File.join(Dir.tmpdir, "sportfolio-fastlane-metadata-no-review-information")
+      FileUtils.rm_rf(upload_metadata_path)
+      FileUtils.mkdir_p(upload_metadata_path)
+      Dir.children(metadata_path).each do |entry|
+        next if entry == "review_information"
+
+        FileUtils.cp_r(File.join(metadata_path, entry), File.join(upload_metadata_path, entry))
+      end
+    end
 
     deliver(
       api_key: api_key,
       app_identifier: app_identifier,
-      metadata_path: metadata_path,
+      metadata_path: upload_metadata_path,
       screenshots_path: screenshots_path,
       skip_binary_upload: true,
       skip_metadata: false,

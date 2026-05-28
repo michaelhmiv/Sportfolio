@@ -385,6 +385,7 @@ Notes:
 
 - This workflow uses the existing App Store Connect API key from GitHub secrets only.
 - It prepares the listing but does not select a build, upload an IPA, or submit for Apple review.
+- Review notes stay committed under `mobile/ios/App/fastlane/metadata/review_information`; the workflow skips uploading that folder unless App Review contact env vars are configured, because contact phone/email/name are account-operational details rather than product behavior.
 - App privacy nutrition labels are still an App Store Connect UI task; Apple does not expose the same public App Store Connect API surface for editing those privacy answers.
 
 Apple review hardening checklist:
