@@ -116,7 +116,7 @@ public class IOSRewardedAdsPlugin: CAPPlugin, CAPBridgedPlugin, FullScreenConten
                     self.ssvOptionsAttached = true
                 }
 
-                ad.present(fromRootViewController: viewController) { [weak self] in
+                ad.present(from: viewController, userDidEarnRewardHandler: { [weak self] in
                     guard let self else { return }
                     let adReward = ad.adReward
                     self.rewardEarned = true
@@ -126,7 +126,7 @@ public class IOSRewardedAdsPlugin: CAPPlugin, CAPBridgedPlugin, FullScreenConten
                         "amount": self.rewardAmount,
                         "type": self.rewardType,
                     ])
-                }
+                })
             }
         }
     }
