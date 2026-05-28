@@ -129,7 +129,9 @@ export function registerAccountDeletionRoutes(
   });
 
   app.post("/api/account/deletion/request", authMiddleware, async (req, res) => {
-    const confirmationText = String(req.body?.confirmationText || "").trim().toUpperCase();
+    const confirmationText = String(req.body?.confirmationText || "")
+      .trim()
+      .toUpperCase();
     if (confirmationText !== ACCOUNT_DELETION_CONFIRMATION_TEXT) {
       return res.status(400).json({
         error: `Type ${ACCOUNT_DELETION_CONFIRMATION_TEXT} to confirm account deletion.`,

@@ -445,6 +445,7 @@ describe("grantVerifiedRewardedScoutBoost", () => {
             ssvCustomDataAttached: true,
             ssvUserIdAttached: true,
             ssvCustomDataLength: session.customData.length,
+            nonPersonalizedOnly: null,
           },
         }),
       }),

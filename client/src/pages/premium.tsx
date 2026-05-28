@@ -988,10 +988,10 @@ export default function Premium() {
 
         <Card variant="terminal">
           <CardHeader>
-              <CardTitle className="terminal-heading text-sm">
+            <CardTitle className="terminal-heading text-sm">
               {nativeRewardedBuild ? "Mobile Benefits" : "Premium Benefits"}
-              </CardTitle>
-            </CardHeader>
+            </CardTitle>
+          </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {benefits.map((benefit) => (

@@ -79,23 +79,26 @@ export default function AccountDeletion() {
   const [reason, setReason] = useState("");
   const [details, setDetails] = useState("");
 
-  const { data: status, isLoading: statusLoading, refetch: refetchStatus } =
-    useQuery<AccountDeletionStatusResponse>({
-      queryKey: ["/api/account/deletion/status"],
-      enabled: isAuthenticated,
-      queryFn: async () => {
-        const response = await authenticatedFetch("/api/account/deletion/status", {
-          headers: {
-            "Cache-Control": "no-cache",
-            Pragma: "no-cache",
-          },
-        });
-        if (!response.ok) {
-          throw new Error("Could not load account deletion status.");
-        }
-        return (await response.json()) as AccountDeletionStatusResponse;
-      },
-    });
+  const {
+    data: status,
+    isLoading: statusLoading,
+    refetch: refetchStatus,
+  } = useQuery<AccountDeletionStatusResponse>({
+    queryKey: ["/api/account/deletion/status"],
+    enabled: isAuthenticated,
+    queryFn: async () => {
+      const response = await authenticatedFetch("/api/account/deletion/status", {
+        headers: {
+          "Cache-Control": "no-cache",
+          Pragma: "no-cache",
+        },
+      });
+      if (!response.ok) {
+        throw new Error("Could not load account deletion status.");
+      }
+      return (await response.json()) as AccountDeletionStatusResponse;
+    },
+  });
 
   const confirmationText = status?.confirmationText || FALLBACK_CONFIRMATION_TEXT;
   const requestInFlightStatus = status?.request?.status || status?.status || "none";

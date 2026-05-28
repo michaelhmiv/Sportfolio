@@ -321,8 +321,14 @@ export const accountDeletionRequests = pgTable(
     metadata: jsonb("metadata").notNull().default({}),
   },
   (table) => ({
-    userStatusIdx: index("account_deletion_requests_user_status_idx").on(table.userId, table.status),
-    effectiveIdx: index("account_deletion_requests_effective_idx").on(table.status, table.effectiveAt),
+    userStatusIdx: index("account_deletion_requests_user_status_idx").on(
+      table.userId,
+      table.status,
+    ),
+    effectiveIdx: index("account_deletion_requests_effective_idx").on(
+      table.status,
+      table.effectiveAt,
+    ),
     requestedIdx: index("account_deletion_requests_requested_idx").on(table.requestedAt),
   }),
 );

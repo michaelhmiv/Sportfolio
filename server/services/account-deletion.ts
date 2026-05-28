@@ -68,7 +68,9 @@ function buildDeletedUsername(userId: string): string {
   return `deleted_${userId.slice(0, 8)}_${randomUUID().slice(0, 8)}`.toLowerCase();
 }
 
-async function deleteSupabaseAuthUser(userId: string): Promise<{ deleted: boolean; error: string | null }> {
+async function deleteSupabaseAuthUser(
+  userId: string,
+): Promise<{ deleted: boolean; error: string | null }> {
   if (!supabaseAdmin) {
     return { deleted: false, error: "supabase_admin_unconfigured" };
   }
@@ -112,10 +114,7 @@ export async function ensureAccountDeletionSchema(): Promise<void> {
       ON account_deletion_requests (requested_at);
     `);
   } catch (error: any) {
-    logger.warn(
-      { err: error },
-      "[ACCOUNT_DELETION] Could not ensure account deletion schema",
-    );
+    logger.warn({ err: error }, "[ACCOUNT_DELETION] Could not ensure account deletion schema");
   }
 }
 

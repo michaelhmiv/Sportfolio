@@ -72,7 +72,8 @@ function optionalNumber(value: unknown) {
 
 function getClientRewardedPlatform(req: any): RewardedScoutBoostClientPlatform {
   const requestedPlatform =
-    optionalString(req.body?.platform) ?? optionalString(req.header("x-sportfolio-client-platform"));
+    optionalString(req.body?.platform) ??
+    optionalString(req.header("x-sportfolio-client-platform"));
   return normalizeRewardedScoutBoostPlatform(requestedPlatform);
 }
 
