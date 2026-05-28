@@ -4,7 +4,7 @@ import GoogleMobileAds
 import UIKit
 
 @objc(IOSRewardedAdsPlugin)
-public class IOSRewardedAdsPlugin: CAPPlugin, CAPBridgedPlugin, GADFullScreenContentDelegate {
+public class IOSRewardedAdsPlugin: CAPPlugin, CAPBridgedPlugin, FullScreenContentDelegate {
     public let identifier = "IOSRewardedAdsPlugin"
     public let jsName = "IOSRewardedAds"
     public let pluginMethods: [CAPPluginMethod] = [
@@ -12,7 +12,7 @@ public class IOSRewardedAdsPlugin: CAPPlugin, CAPBridgedPlugin, GADFullScreenCon
         CAPPluginMethod(name: "showRewardedAd", returnType: CAPPluginReturnPromise),
     ]
 
-    private var rewardedAd: GADRewardedAd?
+    private var rewardedAd: RewardedAd?
     private var pendingCall: CAPPluginCall?
     private var adFlowInFlight = false
     private var rewardEarned = false
@@ -27,7 +27,7 @@ public class IOSRewardedAdsPlugin: CAPPlugin, CAPBridgedPlugin, GADFullScreenCon
 
     public override func load() {
         DispatchQueue.main.async {
-            GADMobileAds.sharedInstance().start(completionHandler: nil)
+            MobileAds.sharedInstance().start(completionHandler: nil)
         }
     }
 
@@ -70,14 +70,14 @@ public class IOSRewardedAdsPlugin: CAPPlugin, CAPBridgedPlugin, GADFullScreenCon
         ssvCustomDataLength = customData?.count ?? 0
 
         DispatchQueue.main.async {
-            let request = GADRequest()
+            let request = Request()
             if nonPersonalizedOnly {
-                let extras = GADExtras()
+                let extras = Extras()
                 extras.additionalParameters = ["npa": "1"]
                 request.register(extras)
             }
 
-            GADRewardedAd.load(withAdUnitID: adUnitId, request: request) { [weak self] ad, error in
+            RewardedAd.load(withAdUnitID: adUnitId, request: request) { [weak self] ad, error in
                 guard let self else { return }
 
                 if let error {
@@ -98,7 +98,7 @@ public class IOSRewardedAdsPlugin: CAPPlugin, CAPBridgedPlugin, GADFullScreenCon
                     self.mediationAdapterClassName = responseInfo.adNetworkClassName
                 }
 
-                let verificationOptions = GADServerSideVerificationOptions()
+                let verificationOptions = ServerSideVerificationOptions()
                 var hasVerificationOptions = false
                 if let customData, !customData.isEmpty {
                     verificationOptions.customRewardString = customData
@@ -131,11 +131,11 @@ public class IOSRewardedAdsPlugin: CAPPlugin, CAPBridgedPlugin, GADFullScreenCon
         }
     }
 
-    public func ad(_ ad: any GADFullScreenPresentingAd, didFailToPresentFullScreenContentWithError error: any Error) {
+    public func ad(_ ad: any FullScreenPresentingAd, didFailToPresentFullScreenContentWithError error: any Error) {
         rejectPendingCall("Failed to show rewarded ad: \(error.localizedDescription)")
     }
 
-    public func adDidDismissFullScreenContent(_ ad: any GADFullScreenPresentingAd) {
+    public func adDidDismissFullScreenContent(_ ad: any FullScreenPresentingAd) {
         guard let call = pendingCall else {
             resetState()
             return
@@ -158,7 +158,7 @@ public class IOSRewardedAdsPlugin: CAPPlugin, CAPBridgedPlugin, GADFullScreenCon
         resetState()
     }
 
-    public func adWillPresentFullScreenContent(_ ad: any GADFullScreenPresentingAd) {}
+    public func adWillPresentFullScreenContent(_ ad: any FullScreenPresentingAd) {}
 
     private func rejectPendingCall(_ message: String) {
         if let call = pendingCall {
