@@ -436,9 +436,23 @@ npm run mobile:sync
 - FCM token is sent to backend (`/api/mobile/push/register`) and refreshed on re-registration.
 - Logout unregisters/deactivates token via `/api/mobile/push/unregister`.
 - Notification taps route only to safe internal paths.
-- The Android app creates a dedicated default notification channel (`sportfolio_general`) on-device.
+- The Android app creates dedicated channels on-device, with `sportfolio_gameplay` as the default.
 - Users can manage permission state, per-notification preferences, and recent delivery diagnostics from the in-app profile push card and can jump straight to Android notification settings.
-- Push diagnostics are available from `/api/mobile/push/status`.
+- Push diagnostics are available from `/api/mobile/push/status` and now include provider-init health details.
+
+### Push audit script (read-only)
+
+Run a read-only notification audit against a database URL:
+
+```bash
+npm run audit:android-push -- --lookback-days 14
+```
+
+JSON output mode:
+
+```bash
+npm run audit:android-push -- --lookback-days 14 --json
+```
 
 ## Common Install Failures
 

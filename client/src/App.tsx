@@ -32,7 +32,6 @@ import { useBoostSettleCeremony } from "@/hooks/use-boost-settle-ceremony";
 import { OPEN_PLAYER_MODAL_EVENT } from "@/lib/player-modal-events";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { Capacitor } from "@capacitor/core";
-import { PushNotificationProvider } from "@/lib/push-notification-context";
 import { getAuthSession, getSupabase, updateNativeAuthRefreshState } from "@/lib/supabase";
 import { initNetworkMonitor } from "@/lib/native-network";
 import { resolvePublicAppUrl } from "@/lib/native-runtime";
@@ -1283,22 +1282,20 @@ function App() {
         <SchemaOrg schema={[schemas.organization, schemas.website, schemas.webApplication]} />
         <WebSocketProvider>
           <ConnectionStatus />
-          <PushNotificationProvider>
-            <NotificationProvider>
-              <TooltipProvider>
-                <ScoutProvider>
-                  <SportProvider>
-                    <InjuryProvider>
-                      <NewsNotificationProvider>
-                        <AppContent />
-                      </NewsNotificationProvider>
-                    </InjuryProvider>
-                  </SportProvider>
-                  <Toaster />
-                </ScoutProvider>
-              </TooltipProvider>
-            </NotificationProvider>
-          </PushNotificationProvider>
+          <NotificationProvider>
+            <TooltipProvider>
+              <ScoutProvider>
+                <SportProvider>
+                  <InjuryProvider>
+                    <NewsNotificationProvider>
+                      <AppContent />
+                    </NewsNotificationProvider>
+                  </InjuryProvider>
+                </SportProvider>
+                <Toaster />
+              </ScoutProvider>
+            </TooltipProvider>
+          </NotificationProvider>
         </WebSocketProvider>
       </AuthProvider>
     </QueryClientProvider>

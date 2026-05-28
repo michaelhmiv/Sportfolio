@@ -1,4 +1,5 @@
-import { useMemo } from "react";
+import { App as CapacitorApp } from "@capacitor/app";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Bell, BellOff, Loader2, Send, ShieldCheck, Smartphone } from "lucide-react";
 import type {
@@ -8,12 +9,18 @@ import type {
 } from "@shared/notifications";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { openAndroidNotificationSettings } from "@/lib/android-notification-settings";
+import {
+  getAndroidPushPermissionSnapshot,
+  isAndroidNativePushSupported,
+  registerForAndroidPushes,
+  type AndroidPushPermissionState,
+} from "@/lib/mobile-push";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
-import { usePushNotificationLifecycle } from "@/lib/push-notification-context";
 
 type NotificationSettingsResponse = {
   settings: {
@@ -36,14 +43,12 @@ type NotificationSettingsPatch = {
   categoryPreferences?: Partial<Record<NotificationCategory, boolean>>;
 };
 
-function toPermissionLabel(value: string) {
+function toPermissionLabel(value: AndroidPushPermissionState) {
   switch (value) {
     case "granted":
       return "Granted";
     case "denied":
       return "Denied";
-    case "prompt-with-rationale":
-      return "Needs prompt (rationale)";
     case "prompt":
       return "Prompt required";
     case "unsupported":
@@ -55,7 +60,40 @@ function toPermissionLabel(value: string) {
 
 export function NotificationSettingsCard() {
   const { toast } = useToast();
-  const push = usePushNotificationLifecycle();
+  const isSupported = isAndroidNativePushSupported();
+  const [permissionState, setPermissionState] = useState<AndroidPushPermissionState>(
+    isSupported ? "prompt" : "unsupported",
+  );
+
+  const refreshPermissionState = useCallback(async () => {
+    const snapshot = await getAndroidPushPermissionSnapshot();
+    setPermissionState(snapshot.state);
+    return snapshot.state;
+  }, []);
+
+  useEffect(() => {
+    void refreshPermissionState();
+  }, [refreshPermissionState]);
+
+  useEffect(() => {
+    if (!isSupported) {
+      return;
+    }
+
+    let handle: { remove: () => Promise<void> } | null = null;
+
+    const attach = async () => {
+      handle = await CapacitorApp.addListener("appStateChange", ({ isActive }) => {
+        if (!isActive) return;
+        void refreshPermissionState();
+      });
+    };
+
+    void attach();
+    return () => {
+      void handle?.remove();
+    };
+  }, [isSupported, refreshPermissionState]);
 
   const { data, isLoading } = useQuery<NotificationSettingsResponse>({
     queryKey: ["/api/account/notifications"],
@@ -107,6 +145,67 @@ export function NotificationSettingsCard() {
     },
   });
 
+  const registerMutation = useMutation({
+    mutationFn: async () => {
+      const result = await registerForAndroidPushes({
+        allowPrompt: true,
+        promptSource: "explicit",
+        logLabel: "notification_settings_card",
+      });
+      await refreshPermissionState();
+      return result;
+    },
+    onSuccess: async (result) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["/api/account/notifications"] }),
+        queryClient.invalidateQueries({
+          predicate: (query) =>
+            typeof query.queryKey[0] === "string" &&
+            query.queryKey[0].startsWith("/api/mobile/push/status"),
+        }),
+      ]);
+      toast({
+        title: result.registered ? "Notifications enabled" : "Permission not granted",
+        description: result.registered
+          ? "Android push permission and registration completed."
+          : result.state === "denied"
+            ? "Android notifications are still disabled at the OS level."
+            : "Permission is still pending for this device.",
+        variant: result.registered ? "default" : "destructive",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Could not enable notifications",
+        description: error?.message || "Android push registration failed.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const openSettingsMutation = useMutation({
+    mutationFn: async () => {
+      const opened = await openAndroidNotificationSettings();
+      if (!opened) {
+        throw new Error("Android notification settings could not be opened.");
+      }
+      return opened;
+    },
+    onSuccess: () => {
+      toast({
+        title: "Opened Android settings",
+        description: "Enable notifications there, then return to Sportfolio.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Could not open Android settings",
+        description: error?.message || "Open the Sportfolio app settings manually.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleMasterToggle = (checked: boolean) => {
     updateSettingsMutation.mutate({ pushEnabled: checked });
   };
@@ -119,22 +218,8 @@ export function NotificationSettingsCard() {
     });
   };
 
-  const requestPermission = async () => {
-    const granted = await push.requestPermissionAndRegister();
-    if (!granted) {
-      toast({
-        title: "Permission not granted",
-        description: "Android notifications are still disabled at the OS level.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    toast({
-      title: "Notifications enabled",
-      description: "Android push permission and token registration completed.",
-    });
-    void queryClient.invalidateQueries({ queryKey: ["/api/account/notifications"] });
+  const requestPermission = () => {
+    registerMutation.mutate();
   };
 
   const selectedTestCategory: NotificationCategory =
@@ -187,7 +272,7 @@ export function NotificationSettingsCard() {
               <div className="rounded-sm border border-border/70 bg-background/50 p-3 text-xs">
                 <div className="flex items-center gap-2 font-medium">
                   <ShieldCheck className="h-3.5 w-3.5 text-primary" />
-                  OS Permission: {toPermissionLabel(push.permissionStatus)}
+                  OS Permission: {toPermissionLabel(permissionState)}
                 </div>
                 <div className="mt-1 text-muted-foreground">
                   Active devices: {activeDevices.length}
@@ -199,11 +284,11 @@ export function NotificationSettingsCard() {
                     className="gap-2"
                     onClick={requestPermission}
                     disabled={
-                      !push.isSupported || push.isRegistering || push.permissionStatus === "granted"
+                      !isSupported || registerMutation.isPending || permissionState === "granted"
                     }
                     data-testid="button-enable-native-notifications"
                   >
-                    {push.isRegistering ? (
+                    {registerMutation.isPending ? (
                       <>
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
                         Enabling
@@ -215,6 +300,26 @@ export function NotificationSettingsCard() {
                       </>
                     )}
                   </Button>
+
+                  {(permissionState === "denied" || permissionState === "prompt") && (
+                    <Button
+                      size="sm"
+                      variant="terminalOutline"
+                      className="gap-2"
+                      onClick={() => openSettingsMutation.mutate()}
+                      disabled={openSettingsMutation.isPending}
+                      data-testid="button-open-native-notification-settings"
+                    >
+                      {openSettingsMutation.isPending ? (
+                        <>
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          Opening
+                        </>
+                      ) : (
+                        "Open Android Settings"
+                      )}
+                    </Button>
+                  )}
 
                   <Button
                     size="sm"
@@ -268,7 +373,7 @@ export function NotificationSettingsCard() {
               })}
             </div>
 
-            {!push.isSupported && (
+            {!isSupported && (
               <div className="flex items-start gap-2 rounded-sm border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
                 <BellOff className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                 Push delivery is available in the Android app. These category settings still save to

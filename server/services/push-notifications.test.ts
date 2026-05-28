@@ -137,4 +137,50 @@ describe("PushNotificationService", () => {
       }),
     );
   });
+
+  it("does not deactivate tokens for generic invalid-argument failures", async () => {
+    const storageMock = {
+      listActiveUserPushTokens: vi.fn().mockResolvedValue([{ id: "tok_1", token: "token-1" }]),
+      markUserPushTokenDeliverySuccess: vi.fn().mockResolvedValue(undefined),
+      markUserPushTokenDeliveryFailure: vi.fn().mockResolvedValue(undefined),
+      getUserNotificationPreferences: vi.fn().mockResolvedValue([]),
+      createPushNotificationEvent: vi.fn().mockResolvedValue({ id: "event_3" }),
+      updatePushNotificationEvent: vi.fn().mockResolvedValue(undefined),
+    };
+
+    const providerFactory = vi.fn().mockResolvedValue({
+      sendMulticast: vi.fn().mockResolvedValue({
+        successCount: 0,
+        failureCount: 1,
+        results: [
+          {
+            success: false,
+            errorCode: "messaging/invalid-argument",
+            errorMessage: "Invalid value at 'message.data[0].value' (TYPE_STRING), 12",
+          },
+        ],
+      }),
+    });
+
+    const service = new PushNotificationService({
+      storageLayer: storageMock as any,
+      providerFactory,
+    });
+
+    const result = await service.send({
+      userId: "user-1",
+      type: "boost_settled",
+      title: "Boost settled",
+      body: "Done",
+      route: "/boosts",
+      dedupeKey: "boost-2",
+    });
+
+    expect(result.status).toBe("failed");
+    expect(storageMock.markUserPushTokenDeliveryFailure).toHaveBeenCalledWith(
+      "tok_1",
+      expect.stringContaining("messaging/invalid-argument"),
+      { deactivate: false },
+    );
+  });
 });
