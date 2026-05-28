@@ -1,3 +1,18 @@
+---
+id: agent-android-notification-audit-2026-05-28
+title: Android Notification Audit (2026-05-28)
+summary: End-to-end audit of Android push registration, token lifecycle, preference gating, provider delivery, and diagnostics with concrete remediation notes.
+audience: public
+category: agent
+status: published
+owner: product-engineering
+lastReviewedAt: 2026-05-28
+changeTriggers: client/src/lib/mobile-push.ts,server/routes/mobile-push-notifications.ts,server/services/push-notifications.ts
+slug: android-notification-audit-2026-05-28
+surface: agent
+searchKeywords: android,push,notifications,fcm,token,lifecycle,diagnostics,audit
+---
+
 # Android Notification Audit (2026-05-28)
 
 ## Scope
