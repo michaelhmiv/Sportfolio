@@ -93,15 +93,14 @@ public class IOSRewardedAdsPlugin: CAPPlugin, CAPBridgedPlugin, FullScreenConten
                 self.rewardedAd = ad
                 ad.fullScreenContentDelegate = self
 
-                if let responseInfo = ad.responseInfo {
-                    self.adResponseId = responseInfo.responseIdentifier
-                    self.mediationAdapterClassName = responseInfo.loadedAdNetworkResponseInfo?.adNetworkClassName
-                }
+                let responseInfo = ad.responseInfo
+                self.adResponseId = responseInfo.responseIdentifier
+                self.mediationAdapterClassName = responseInfo.loadedAdNetworkResponseInfo?.adNetworkClassName
 
                 let verificationOptions = ServerSideVerificationOptions()
                 var hasVerificationOptions = false
                 if let customData, !customData.isEmpty {
-                    verificationOptions.customRewardString = customData
+                    verificationOptions.customRewardText = customData
                     self.ssvCustomDataAttached = true
                     hasVerificationOptions = true
                 }
