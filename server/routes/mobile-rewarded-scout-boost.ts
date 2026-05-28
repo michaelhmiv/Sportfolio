@@ -4,10 +4,12 @@ import type { IStorage } from "../storage";
 import { storage } from "../storage";
 import {
   createRewardedScoutBoostSessionToken,
-  getRewardedScoutBoostAdUnitId,
+  getRewardedScoutBoostAdUnitIdForPlatform,
   getRewardedScoutBoostCallbackUrl,
   grantClientCompletedRewardedScoutBoost,
   grantVerifiedRewardedScoutBoost,
+  normalizeRewardedScoutBoostPlatform,
+  type RewardedScoutBoostClientPlatform,
   verifyAdMobSsvCallbackUrl,
   verifyRewardedScoutBoostCustomData,
 } from "../services/rewarded-scout-boost";
@@ -66,6 +68,12 @@ function optionalBoolean(value: unknown) {
 
 function optionalNumber(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function getClientRewardedPlatform(req: any): RewardedScoutBoostClientPlatform {
+  const requestedPlatform =
+    optionalString(req.body?.platform) ?? optionalString(req.header("x-sportfolio-client-platform"));
+  return normalizeRewardedScoutBoostPlatform(requestedPlatform);
 }
 
 export async function registerMobileRewardedScoutBoostRoutes(
@@ -167,12 +175,19 @@ export async function registerMobileRewardedScoutBoostRoutes(
         });
       }
 
-      const session = createRewardedScoutBoostSessionToken(userId);
-      const adUnitId = getRewardedScoutBoostAdUnitId();
+      const clientPlatform = getClientRewardedPlatform(req);
+      const session = createRewardedScoutBoostSessionToken(
+        userId,
+        new Date(),
+        undefined,
+        clientPlatform,
+      );
+      const adUnitId = getRewardedScoutBoostAdUnitIdForPlatform(clientPlatform);
       logger.info(
         {
           rewardSessionId: session.rewardSessionId,
           userIdHash: safeUserPrefix(userId),
+          clientPlatform,
           adUnitId,
           expectedCallbackUrl: getRewardedScoutBoostCallbackUrl(),
           issuedAt: session.issuedAt,
@@ -184,6 +199,7 @@ export async function registerMobileRewardedScoutBoostRoutes(
       return res.json({
         eligible: true,
         adNetwork: "admob",
+        platform: clientPlatform,
         adUnitId,
         customData: session.customData,
         rewardSessionId: session.rewardSessionId,
@@ -225,6 +241,7 @@ export async function registerMobileRewardedScoutBoostRoutes(
           authenticatedUserId: userId,
           rewardSessionId,
           customData,
+          platform: getClientRewardedPlatform(req),
           adUnitId: optionalString(req.body?.adUnitId),
           adResponseId: optionalString(req.body?.adResponseId),
           mediationAdapterClassName: optionalString(req.body?.mediationAdapterClassName),
@@ -235,6 +252,7 @@ export async function registerMobileRewardedScoutBoostRoutes(
           rewardAmount:
             typeof req.body?.rewardAmount === "number" ? req.body.rewardAmount : undefined,
           rewardType: optionalString(req.body?.rewardType),
+          nonPersonalizedOnly: optionalBoolean(req.body?.nonPersonalizedOnly),
         });
 
         logger.info(

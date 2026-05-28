@@ -2922,3 +2922,20 @@ Review:
 - Android emulator timing smoke after the corrected build: cold launch `am start -W` total time 6,155 ms; observed route asset request after tap was 524 ms for Player Pools and 303 ms for Analytics, while protected unauth tabs/dashboard return reused cached/fallback content.
 - Removed the duplicate dashboard sign-in banner on mobile so unauthenticated users see the persistent top-nav sign-in only.
 - Validation passed: `npm run check`, `npm run lint`, `npm run test:run`, `npm run build`, and `npm run mobile:install:android`.
+
+## 2026-05-28 Apple Publish Readiness (iPhone-US v1)
+
+- [x] Finalize iPhone-only target for iOS app build (`TARGETED_DEVICE_FAMILY = "1"`)
+- [x] Add Sign in with Apple in auth hook + login UI for native and web flows
+- [x] Add authenticated in-app account deletion API (`request`, `status`, `cancel`) and wire async processor startup
+- [x] Replace account deletion page email-only flow with in-app initiation + status UX (email fallback only)
+- [x] Refactor rewarded scout boost client to platform-neutral native adapter (Android + iOS)
+- [x] Add iOS rewarded ads native plugin + app config (AdMob app id + SKAdNetwork + non-personalized mode support)
+- [x] Preserve iOS premium purchase lock behavior and remove any iOS checkout CTA bypass paths
+- [x] Add/extend tests for Apple OAuth method, account deletion routes, and rewarded ad adapter contract
+- [ ] Run validation (`npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`)
+
+Review:
+
+- [x] Implemented iPhone-only target, Apple OAuth path, in-app account deletion routes/UI, and native rewarded ad adapter with iOS plugin scaffolding.
+- [ ] Validation commands are currently blocked locally because `tsc`, `eslint`, `vitest`, and `prettier` are not installed in this worktree environment (`node_modules` missing).

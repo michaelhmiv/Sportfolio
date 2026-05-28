@@ -8,10 +8,14 @@ const ADMOB_KEY_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 export const REWARDED_SCOUT_BOOST_DURATION_MS = 12 * 60 * 60 * 1000;
 export const REWARDED_SCOUT_BOOST_SESSION_TTL_MS = 15 * 60 * 1000;
-export const ADMOB_REWARDED_TEST_AD_UNIT_ID = "ca-app-pub-3940256099942544/5224354917";
+export const ADMOB_REWARDED_ANDROID_TEST_AD_UNIT_ID = "ca-app-pub-3940256099942544/5224354917";
+export const ADMOB_REWARDED_IOS_TEST_AD_UNIT_ID = "ca-app-pub-3940256099942544/1712485313";
+export const ADMOB_REWARDED_TEST_AD_UNIT_ID = ADMOB_REWARDED_ANDROID_TEST_AD_UNIT_ID;
 export const ADMOB_VERIFIER_KEYS_URL = "https://www.gstatic.com/admob/reward/verifier-keys.json";
 export const REWARDED_SCOUT_BOOST_CALLBACK_PATH = "/api/mobile/rewarded-scout-boost/admob/ssv";
 export const REWARDED_SCOUT_BOOST_SSV_MISSING_AFTER_MS = 5 * 60 * 1000;
+
+export type RewardedScoutBoostClientPlatform = "android" | "ios" | "unknown";
 
 type RewardedScoutBoostStorage = Pick<
   IStorage,
@@ -33,6 +37,7 @@ export interface RewardedScoutBoostSessionPayload {
   v: number;
   uid: string;
   sid: string;
+  p?: RewardedScoutBoostClientPlatform;
   iat: number;
   exp: number;
 }
@@ -77,16 +82,58 @@ function requireRewardedScoutBoostSecret() {
 }
 
 export function getRewardedScoutBoostAdUnitId() {
-  const adUnitId = process.env.ADMOB_REWARDED_SCOUT_AD_UNIT_ID?.trim();
-  if (adUnitId) {
-    return adUnitId;
+  return getRewardedScoutBoostAdUnitIdForPlatform("unknown");
+}
+
+export function normalizeRewardedScoutBoostPlatform(
+  platform: string | null | undefined,
+): RewardedScoutBoostClientPlatform {
+  if (platform === "ios") return "ios";
+  if (platform === "android") return "android";
+  return "unknown";
+}
+
+export function getRewardedScoutBoostAdUnitIdForPlatform(
+  platform: RewardedScoutBoostClientPlatform,
+) {
+  const genericAdUnitId = process.env.ADMOB_REWARDED_SCOUT_AD_UNIT_ID?.trim();
+  const androidAdUnitId =
+    process.env.ADMOB_REWARDED_SCOUT_AD_UNIT_ID_ANDROID?.trim() || genericAdUnitId;
+  const iosAdUnitId = process.env.ADMOB_REWARDED_SCOUT_AD_UNIT_ID_IOS?.trim() || genericAdUnitId;
+
+  if (platform === "ios") {
+    if (iosAdUnitId) {
+      return iosAdUnitId;
+    }
+
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("ADMOB_REWARDED_SCOUT_AD_UNIT_ID_IOS is not configured");
+    }
+
+    return ADMOB_REWARDED_IOS_TEST_AD_UNIT_ID;
+  }
+
+  if (platform === "android") {
+    if (androidAdUnitId) {
+      return androidAdUnitId;
+    }
+
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("ADMOB_REWARDED_SCOUT_AD_UNIT_ID_ANDROID is not configured");
+    }
+
+    return ADMOB_REWARDED_ANDROID_TEST_AD_UNIT_ID;
+  }
+
+  if (genericAdUnitId) {
+    return genericAdUnitId;
   }
 
   if (process.env.NODE_ENV === "production") {
     throw new Error("ADMOB_REWARDED_SCOUT_AD_UNIT_ID is not configured");
   }
 
-  return ADMOB_REWARDED_TEST_AD_UNIT_ID;
+  return ADMOB_REWARDED_ANDROID_TEST_AD_UNIT_ID;
 }
 
 export function getRewardedScoutBoostCallbackUrl() {
@@ -112,6 +159,7 @@ export function createRewardedScoutBoostSessionToken(
   userId: string,
   now: Date = new Date(),
   secret: string = requireRewardedScoutBoostSecret(),
+  platform: RewardedScoutBoostClientPlatform = "unknown",
 ) {
   const issuedAt = now;
   const expiresAt = new Date(now.getTime() + REWARDED_SCOUT_BOOST_SESSION_TTL_MS);
@@ -119,6 +167,7 @@ export function createRewardedScoutBoostSessionToken(
     v: SESSION_TOKEN_VERSION,
     uid: userId,
     sid: randomUUID(),
+    p: platform,
     iat: issuedAt.getTime(),
     exp: expiresAt.getTime(),
   };
@@ -295,6 +344,10 @@ export async function grantVerifiedRewardedScoutBoost(
   }
 
   const session = verifyRewardedScoutBoostCustomData(verifiedCallback.customData, now);
+  const grantPlatform =
+    session.p && session.p !== "unknown"
+      ? normalizeRewardedScoutBoostPlatform(session.p)
+      : "android";
   if (verifiedCallback.rewardUserId && verifiedCallback.rewardUserId !== session.uid) {
     throw new Error("Reward callback user mismatch");
   }
@@ -354,7 +407,7 @@ export async function grantVerifiedRewardedScoutBoost(
   const expiresAt = new Date(now.getTime() + REWARDED_SCOUT_BOOST_DURATION_MS);
   const grantPayload: InsertRewardedScoutBoostGrant = {
     userId: user.id,
-    platform: "android",
+    platform: grantPlatform,
     adNetwork: "admob",
     adUnitId: verifiedCallback.adUnitId,
     rewardItem: verifiedCallback.rewardItem,
@@ -402,6 +455,7 @@ export async function grantClientCompletedRewardedScoutBoost(
     authenticatedUserId: string;
     rewardSessionId: string;
     customData: string;
+    platform?: RewardedScoutBoostClientPlatform | string | null;
     adUnitId?: string | null;
     adResponseId?: string | null;
     mediationAdapterClassName?: string | null;
@@ -411,10 +465,13 @@ export async function grantClientCompletedRewardedScoutBoost(
     ssvCustomDataLength?: number | null;
     rewardAmount?: number | null;
     rewardType?: string | null;
+    nonPersonalizedOnly?: boolean | null;
   },
   now: Date = new Date(),
 ) {
   const session = verifyRewardedScoutBoostCustomData(input.customData, now);
+  const grantPlatform = normalizeRewardedScoutBoostPlatform(input.platform || session.p);
+  const persistedPlatform = grantPlatform === "unknown" ? "android" : grantPlatform;
   if (session.uid !== input.authenticatedUserId) {
     throw new Error("Reward session user mismatch");
   }
@@ -467,9 +524,9 @@ export async function grantClientCompletedRewardedScoutBoost(
   const expiresAt = new Date(now.getTime() + REWARDED_SCOUT_BOOST_DURATION_MS);
   const grantPayload: InsertRewardedScoutBoostGrant = {
     userId: user.id,
-    platform: "android",
+    platform: persistedPlatform,
     adNetwork: "admob",
-    adUnitId: input.adUnitId ?? getRewardedScoutBoostAdUnitId(),
+    adUnitId: input.adUnitId ?? getRewardedScoutBoostAdUnitIdForPlatform(grantPlatform),
     rewardItem: input.rewardType ?? "scout_boost",
     rewardAmount: input.rewardAmount ?? undefined,
     rewardSessionId: session.sid,
@@ -481,6 +538,7 @@ export async function grantClientCompletedRewardedScoutBoost(
       verificationStatus: "pending_ssv",
       source: "client_reward_callback",
       clientCompletedAt: now.toISOString(),
+      clientPlatform: persistedPlatform,
       androidAdDiagnostics: {
         adResponseId: input.adResponseId ?? null,
         mediationAdapterClassName: input.mediationAdapterClassName ?? null,
@@ -488,6 +546,7 @@ export async function grantClientCompletedRewardedScoutBoost(
         ssvCustomDataAttached: input.ssvCustomDataAttached ?? null,
         ssvUserIdAttached: input.ssvUserIdAttached ?? null,
         ssvCustomDataLength: input.ssvCustomDataLength ?? null,
+        nonPersonalizedOnly: input.nonPersonalizedOnly ?? null,
       },
       ssvMissingAfter: new Date(
         now.getTime() + REWARDED_SCOUT_BOOST_SSV_MISSING_AFTER_MS,

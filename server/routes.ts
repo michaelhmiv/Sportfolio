@@ -81,6 +81,7 @@ import { getPool } from "./amm/pool";
 import { normalizeSiteUrl } from "@shared/seo";
 import { ensureSmsSchema } from "./sms-service";
 import { ensureDiscordSchema } from "./discord-service";
+import { ensureAccountDeletionSchema } from "./services/account-deletion";
 import { redeemPremiumShare } from "./services/premium-redemption";
 import { sendUserNotification } from "./services/notification-dispatcher";
 import { loadUserEntitlements } from "./services/user-entitlements";
@@ -12051,6 +12052,12 @@ ${items}
       await ensureDiscordSchema();
     } catch (err: any) {
       console.warn("[DB] Could not ensure Discord schema:", err?.message || err);
+    }
+
+    try {
+      await ensureAccountDeletionSchema();
+    } catch (err: any) {
+      console.warn("[DB] Could not ensure account deletion schema:", err?.message || err);
     }
 
     await initializePlayers();

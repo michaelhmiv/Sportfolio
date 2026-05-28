@@ -1,4 +1,5 @@
 import type { Express } from "express";
+import { registerAccountDeletionRoutes } from "./account-deletion";
 import { registerAmmRoutes } from "./amm";
 import { registerCliRoutes } from "./cli";
 import { registerDiscordRoutes } from "./discord";
@@ -15,6 +16,7 @@ import { registerSmsRoutes } from "./sms";
  * primary app/API endpoints.
  */
 export function registerDomainRoutes(app: Express) {
+  registerAccountDeletionRoutes(app);
   registerAmmRoutes(app);
   registerLpRoutes(app);
   registerDocsRoutes(app);

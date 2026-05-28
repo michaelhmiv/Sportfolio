@@ -3564,7 +3564,7 @@ const PUBLIC_EXCLUDED_CAPABILITIES: PublicExcludedCapability[] = [
     domain: "mobile",
     source: "/api/mobile/rewarded-scout-boost/session",
     notes:
-      "Android-native rewarded ad session bootstrap stays outside the shared CLI and MCP capability surface.",
+      "Native mobile rewarded ad session bootstrap stays outside the shared CLI and MCP capability surface.",
   },
   {
     capabilityId: "mobile_rewarded_scout_boost_session_status",
@@ -3573,7 +3573,7 @@ const PUBLIC_EXCLUDED_CAPABILITIES: PublicExcludedCapability[] = [
     domain: "mobile",
     source: "/api/mobile/rewarded-scout-boost/session/:rewardSessionId/status",
     notes:
-      "Android-native rewarded ad verification polling stays outside the shared CLI and MCP capability surface.",
+      "Native mobile rewarded ad verification polling stays outside the shared CLI and MCP capability surface.",
   },
   {
     capabilityId: "mobile_rewarded_scout_boost_client_complete",
@@ -3582,7 +3582,7 @@ const PUBLIC_EXCLUDED_CAPABILITIES: PublicExcludedCapability[] = [
     domain: "mobile",
     source: "/api/mobile/rewarded-scout-boost/session/:rewardSessionId/client-complete",
     notes:
-      "Android-native rewarded ad client completion stays outside the shared CLI and MCP capability surface.",
+      "Native mobile rewarded ad client completion stays outside the shared CLI and MCP capability surface.",
   },
   {
     capabilityId: "admin_rewarded_scout_boost_session_debug",

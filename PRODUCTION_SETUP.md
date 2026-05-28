@@ -165,13 +165,16 @@ For each job below, create a new cron job in cron-job.org:
 - You can also check `/admin` page on your site to see last job runs
 - Failed jobs will show up as errors in cron-job.org
 
-## Android Rewarded Scout Boost (AdMob)
+## Native Rewarded Scout Boost (AdMob)
 
-If you are shipping the Android rewarded scout boost flow, configure these production variables on the live Railway service before publishing a build:
+If you are shipping the iOS/Android rewarded scout boost flow, configure these production variables on the live Railway service before publishing a build:
 
 - `ADSENSE_PUBLISHER_ID`
 - `ADMOB_APP_ID_ANDROID`
+- `ADMOB_APP_ID_IOS`
 - `ADMOB_REWARDED_SCOUT_AD_UNIT_ID`
+- `ADMOB_REWARDED_SCOUT_AD_UNIT_ID_ANDROID`
+- `ADMOB_REWARDED_SCOUT_AD_UNIT_ID_IOS`
 - `REWARDED_SCOUT_BOOST_SECRET`
 
 Current production values for the Sportfolio Android app are:
@@ -188,18 +191,19 @@ https://www.sportfolio.market/api/mobile/rewarded-scout-boost/admob/ssv
 
 AdMob console setup notes:
 
-1. Use the Android app ID above in the Google Mobile Ads SDK quick-start configuration for the Android manifest.
-2. Use the rewarded ad unit above for the Android scout boost placement.
-3. In AdMob server-side verification settings for that rewarded unit, point the callback at the Sportfolio URL above.
-4. Keep Google test rewarded units enabled for local emulator/device QA until you are validating against production inventory.
+1. Use `ADMOB_APP_ID_ANDROID` in the Android manifest quick-start configuration.
+2. Use `ADMOB_APP_ID_IOS` in the iOS `GADApplicationIdentifier` plist key.
+3. Configure platform-specific rewarded units (`..._ANDROID` and `..._IOS`) for scout boost placements.
+4. In AdMob server-side verification settings for each rewarded unit, point the callback at the Sportfolio URL above.
+5. Keep Google test rewarded units enabled for local emulator/device QA until you are validating against production inventory.
 
 Operational notes:
 
 - `ADSENSE_PUBLISHER_ID` is served from `/ads.txt` so AdSense and Ad Manager crawlers can verify the Sportfolio seller record directly.
-- `ADMOB_APP_ID_ANDROID` is needed by the native Android build.
-- `ADMOB_REWARDED_SCOUT_AD_UNIT_ID` is served dynamically by `/api/mobile/rewarded-scout-boost/session`.
+- `ADMOB_APP_ID_ANDROID` and `ADMOB_APP_ID_IOS` are needed by the native mobile builds.
+- `ADMOB_REWARDED_SCOUT_AD_UNIT_ID` remains a fallback, while platform-specific units are preferred.
 - `REWARDED_SCOUT_BOOST_SECRET` signs the `custom_data` payload that the backend later verifies when AdMob calls the SSV route.
-- Because Android now contains rewarded ads, remember to declare `Contains ads` accurately in the Play Console listing.
+- Because native mobile builds now contain rewarded ads, remember to declare `Contains ads` accurately in both store listings.
 
 ## Manual Trigger via Admin Panel
 

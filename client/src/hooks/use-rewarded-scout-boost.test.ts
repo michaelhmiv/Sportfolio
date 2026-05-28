@@ -35,8 +35,10 @@ describe("rewarded scout boost helpers", () => {
     );
   });
 
-  it("uses specific copy for Android and ad availability states", () => {
-    expect(getRewardedScoutBoostUnavailableMessage("android_unavailable")).toContain("Android app");
+  it("uses specific copy for mobile and ad availability states", () => {
+    expect(getRewardedScoutBoostUnavailableMessage("mobile_unavailable")).toContain(
+      "iOS and Android",
+    );
     expect(getRewardedScoutBoostUnavailableMessage("ad_unavailable")).toContain("not available");
     expect(getRewardedScoutBoostUnavailableMessage("ad_closed_early")).toContain(
       "Finish the rewarded ad",

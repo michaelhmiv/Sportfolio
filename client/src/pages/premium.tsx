@@ -87,7 +87,7 @@ const webPremiumBenefits = [
   },
 ];
 
-const androidPremiumBenefits = [
+const mobilePremiumBenefits = [
   {
     icon: Zap,
     title: "12-Hour Scout Boost",
@@ -111,6 +111,8 @@ export default function Premium() {
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
   const {
+    nativeRewardedBuild,
+    rewardedAdsPlatform,
     rewardedAdAvailable,
     rewardedAdLoading,
     rewardedVerificationPending,
@@ -476,7 +478,7 @@ export default function Premium() {
 
       toast({
         title: "Reward Received",
-        description: "Verifying your scout boost with Google now.",
+        description: "Verifying your scout boost now.",
       });
 
       if (result.status?.rewardedScoutBoostActive) {
@@ -542,8 +544,8 @@ export default function Premium() {
       })
     : null;
 
-  const showAndroidRewardedCta = androidBuild && !premiumActive;
-  const benefits = androidBuild ? androidPremiumBenefits : webPremiumBenefits;
+  const showNativeRewardedCta = nativeRewardedBuild && !premiumActive;
+  const benefits = nativeRewardedBuild ? mobilePremiumBenefits : webPremiumBenefits;
   const androidPurchasePrice = playProduct?.formattedPrice || `$${PRICE_PER_SHARE.toFixed(2)}`;
 
   return (
@@ -561,7 +563,7 @@ export default function Premium() {
             {androidBuild
               ? "Buy Premium Shares with Google Play, redeem shares for 30-day Premium access, or watch a rewarded ad for a 12-hour scout boost."
               : iosBuild
-                ? "Premium purchases are temporarily unavailable on iOS while Apple in-app purchase rollout is in progress. Existing premium access and core gameplay continue to work."
+                ? "Premium purchases are disabled on iOS for this launch, but rewarded ads are available for 12-hour scout boosts."
                 : "Purchase tradeable Premium Shares for $5 each. Redeem for 30 days of premium access or hold them for later use."}
           </p>
         </div>
@@ -676,7 +678,7 @@ export default function Premium() {
                           {androidBuild
                             ? "Buy or redeem a Premium Share, or watch a rewarded ad to boost scouts."
                             : iosBuild
-                              ? "Premium purchases are currently disabled on iOS while Apple in-app purchase support is being finalized."
+                              ? "Premium purchases are currently disabled on iOS, but rewarded ads can still unlock 12-hour scout boosts."
                               : "Redeem a share to activate premium."}
                         </div>
                       </>
@@ -684,7 +686,7 @@ export default function Premium() {
                   </div>
                 </div>
 
-                {(androidBuild || rewardedScoutBoostActive) && (
+                {(nativeRewardedBuild || rewardedScoutBoostActive) && (
                   <div className="terminal-shell p-4 space-y-3">
                     <div className="flex items-center justify-between gap-3">
                       <div>
@@ -704,7 +706,7 @@ export default function Premium() {
                     {rewardedScoutBoostActive ? (
                       <div className="space-y-3">
                         <div className="text-sm text-muted-foreground">
-                          Your Android-earned scout boost is active until{" "}
+                          Your rewarded scout boost is active until{" "}
                           <span className="font-medium text-foreground">
                             {rewardedScoutBoostCountdown}
                           </span>
@@ -713,7 +715,7 @@ export default function Premium() {
                             ? "Premium already caps scouts at 10, so rewarded ads stay hidden while premium is active."
                             : "You can watch another rewarded ad to add 12 more hours."}
                         </div>
-                        {!premiumActive && androidBuild && (
+                        {!premiumActive && nativeRewardedBuild && (
                           <Button
                             variant="terminal"
                             onClick={handleRewardedScoutBoost}
@@ -738,10 +740,10 @@ export default function Premium() {
                       </div>
                     ) : premiumActive ? (
                       <div className="text-sm text-muted-foreground">
-                        Premium already gives you the full 10-scout cap, so the rewarded scout ad
-                        stays hidden on Android while premium is active.
+                        Premium already gives you the full 10-scout cap, so rewarded scout ads stay
+                        hidden while premium is active.
                       </div>
-                    ) : showAndroidRewardedCta ? (
+                    ) : showNativeRewardedCta ? (
                       <div className="space-y-3">
                         <div className="text-sm text-muted-foreground">
                           Watch one rewarded ad to add 12 hours of 10-scout capacity on this
@@ -768,7 +770,8 @@ export default function Premium() {
                       </div>
                     ) : (
                       <div className="text-sm text-muted-foreground">
-                        Rewarded ads are not available in this Android build yet.
+                        Rewarded ads are not available in this {rewardedAdsPlatform || "mobile"}{" "}
+                        build yet.
                       </div>
                     )}
                   </div>
@@ -882,13 +885,17 @@ export default function Premium() {
               </CardTitle>
               <CardDescription>
                 External checkout and purchase sync are intentionally disabled in the iOS app for
-                App Review compliance.
+                App Review compliance. Rewarded scout boosts remain available.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-2 text-sm text-muted-foreground">
               <p>
                 Sportfolio gameplay remains available on iOS, including portfolio tracking, trading,
                 scouts, and boosts.
+              </p>
+              <p>
+                Watch a rewarded ad to unlock a 12-hour 10-scout boost even while paid premium
+                purchases stay disabled.
               </p>
               <p>
                 Sportfolio uses virtual currency and does not provide real-money gambling or
@@ -981,10 +988,10 @@ export default function Premium() {
 
         <Card variant="terminal">
           <CardHeader>
-            <CardTitle className="terminal-heading text-sm">
-              {androidBuild ? "Android Benefits" : "Premium Benefits"}
-            </CardTitle>
-          </CardHeader>
+              <CardTitle className="terminal-heading text-sm">
+              {nativeRewardedBuild ? "Mobile Benefits" : "Premium Benefits"}
+              </CardTitle>
+            </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {benefits.map((benefit) => (

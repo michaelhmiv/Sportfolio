@@ -25,6 +25,8 @@ const allowedTelemetryEvents = new Set([
   "signup_resend_failure",
   "google_oauth_started",
   "google_oauth_failure",
+  "apple_oauth_started",
+  "apple_oauth_failure",
 ]);
 
 const allowedTelemetryCodes = new Set([
