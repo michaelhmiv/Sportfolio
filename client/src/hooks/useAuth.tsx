@@ -53,6 +53,72 @@ function normalizePostAuthRedirect(path: string | null | undefined): string | nu
   return path;
 }
 
+export type OAuthProvider = "google" | "discord" | "apple";
+
+interface StartOAuthLoginOptions {
+  supabaseClient: SupabaseClient;
+  provider: OAuthProvider;
+  postAuthRedirectPath?: string;
+  isNativePlatform?: boolean;
+  mobileAuthRedirectUrl?: string;
+  webAuthRedirectUrl?: string | undefined;
+  openBrowser?: (url: string) => Promise<void>;
+  setPostAuthRedirect?: (value: string) => void;
+}
+
+export async function startOAuthLogin({
+  supabaseClient,
+  provider,
+  postAuthRedirectPath,
+  isNativePlatform = Capacitor.isNativePlatform(),
+  mobileAuthRedirectUrl = MOBILE_AUTH_REDIRECT_URL,
+  webAuthRedirectUrl = getWebAuthRedirectUrl(),
+  openBrowser = async (url: string) => {
+    await Browser.open({
+      url,
+      windowName: "_self",
+    });
+  },
+  setPostAuthRedirect = (value: string) => {
+    if (typeof window !== "undefined") {
+      window.sessionStorage.setItem("auth_post_redirect", value);
+    }
+  },
+}: StartOAuthLoginOptions) {
+  const normalizedRedirect = normalizePostAuthRedirect(postAuthRedirectPath);
+
+  if (isNativePlatform) {
+    const { data, error } = await supabaseClient.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: mobileAuthRedirectUrl,
+        skipBrowserRedirect: true,
+      },
+    });
+
+    if (error) throw error;
+    if (!data?.url) {
+      throw new Error("Could not start mobile OAuth flow");
+    }
+
+    await openBrowser(data.url);
+    return;
+  }
+
+  if (normalizedRedirect) {
+    setPostAuthRedirect(normalizedRedirect);
+  }
+
+  const { error } = await supabaseClient.auth.signInWithOAuth({
+    provider,
+    options: {
+      redirectTo: webAuthRedirectUrl,
+    },
+  });
+
+  if (error) throw error;
+}
+
 function debugLog(stage: string, message: string, data?: any) {
   if (!IS_DEV) return;
   const elapsed = performance.now().toFixed(0);
@@ -603,41 +669,11 @@ export function useAuth() {
           throw new Error("Auth not initialized");
         }
 
-        const normalizedRedirect = normalizePostAuthRedirect(postAuthRedirectPath);
-
-        if (Capacitor.isNativePlatform()) {
-          const { data, error } = await supabaseClient.auth.signInWithOAuth({
-            provider: "google",
-            options: {
-              redirectTo: MOBILE_AUTH_REDIRECT_URL,
-              skipBrowserRedirect: true,
-            },
-          });
-
-          if (error) throw error;
-          if (!data?.url) {
-            throw new Error("Could not start mobile OAuth flow");
-          }
-
-          await Browser.open({
-            url: data.url,
-            windowName: "_self",
-          });
-        } else {
-          if (normalizedRedirect && typeof window !== "undefined") {
-            window.sessionStorage.setItem("auth_post_redirect", normalizedRedirect);
-          }
-
-          const redirectTo = getWebAuthRedirectUrl();
-          const { error } = await supabaseClient.auth.signInWithOAuth({
-            provider: "google",
-            options: {
-              redirectTo,
-            },
-          });
-
-          if (error) throw error;
-        }
+        await startOAuthLogin({
+          supabaseClient,
+          provider: "google",
+          postAuthRedirectPath,
+        });
 
         debugLog("GOOGLE_LOGIN", "Google OAuth initiated");
         trackAuthEvent("google_oauth_started");
@@ -660,41 +696,11 @@ export function useAuth() {
           throw new Error("Auth not initialized");
         }
 
-        const normalizedRedirect = normalizePostAuthRedirect(postAuthRedirectPath);
-
-        if (Capacitor.isNativePlatform()) {
-          const { data, error } = await supabaseClient.auth.signInWithOAuth({
-            provider: "discord",
-            options: {
-              redirectTo: MOBILE_AUTH_REDIRECT_URL,
-              skipBrowserRedirect: true,
-            },
-          });
-
-          if (error) throw error;
-          if (!data?.url) {
-            throw new Error("Could not start mobile OAuth flow");
-          }
-
-          await Browser.open({
-            url: data.url,
-            windowName: "_self",
-          });
-        } else {
-          if (normalizedRedirect && typeof window !== "undefined") {
-            window.sessionStorage.setItem("auth_post_redirect", normalizedRedirect);
-          }
-
-          const redirectTo = getWebAuthRedirectUrl();
-          const { error } = await supabaseClient.auth.signInWithOAuth({
-            provider: "discord",
-            options: {
-              redirectTo,
-            },
-          });
-
-          if (error) throw error;
-        }
+        await startOAuthLogin({
+          supabaseClient,
+          provider: "discord",
+          postAuthRedirectPath,
+        });
 
         debugLog("DISCORD_LOGIN", "Discord OAuth initiated");
         trackAuthEvent("discord_oauth_started");
@@ -706,6 +712,36 @@ export function useAuth() {
           code: mapped.code,
         });
         trackAuthEvent("discord_oauth_failure", { code: mapped.code });
+        return mapped;
+      }
+    },
+    [supabaseClient],
+  );
+
+  const loginWithApple = useCallback(
+    async (postAuthRedirectPath?: string): Promise<AuthResult> => {
+      debugLog("APPLE_LOGIN", "Apple login attempt");
+      try {
+        if (!supabaseClient) {
+          throw new Error("Auth not initialized");
+        }
+
+        await startOAuthLogin({
+          supabaseClient,
+          provider: "apple",
+          postAuthRedirectPath,
+        });
+
+        debugLog("APPLE_LOGIN", "Apple OAuth initiated");
+        trackAuthEvent("apple_oauth_started");
+        return { success: true };
+      } catch (error: unknown) {
+        const mapped = mapAuthError(error, "oauth");
+        debugLog("APPLE_LOGIN", "Apple login failed", {
+          error: mapped.error,
+          code: mapped.code,
+        });
+        trackAuthEvent("apple_oauth_failure", { code: mapped.code });
         return mapped;
       }
     },
@@ -727,6 +763,7 @@ export function useAuth() {
     logout,
     loginWithGoogle,
     loginWithDiscord,
+    loginWithApple,
     initError,
     retryInit,
   };

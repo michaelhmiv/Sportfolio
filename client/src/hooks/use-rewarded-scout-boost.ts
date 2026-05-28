@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { canShowAndroidRewardedAd, showAndroidRewardedAd } from "@/lib/android-rewarded-ads";
-import { isNativeAndroid } from "@/lib/native-platform";
+import {
+  canShowNativeRewardedAd,
+  getNativeRewardedAdsPlatform,
+  showNativeRewardedAd,
+} from "@/lib/native-rewarded-ads";
 import { apiRequest, authenticatedFetch, queryClient } from "@/lib/queryClient";
 
 export interface RewardedScoutBoostStatus {
@@ -77,12 +80,12 @@ export function getRewardedScoutBoostUnavailableMessage(reason?: string) {
     return "Finish the rewarded ad to add 12 hours of scout boost time.";
   }
 
-  if (reason === "android_unavailable") {
-    return "Rewarded scout boosts are available in the Android app.";
+  if (reason === "mobile_unavailable") {
+    return "Rewarded scout boosts are available in the native iOS and Android apps.";
   }
 
   if (reason === "ad_unavailable") {
-    return "Rewarded ads are not available in this Android build yet.";
+    return "Rewarded ads are not available in this mobile build yet.";
   }
 
   return "A rewarded scout boost cannot be started right now.";
@@ -143,7 +146,7 @@ async function recordRewardedScoutBoostClientComplete({
   adResult,
 }: {
   session: RewardedScoutBoostSessionResponse;
-  adResult: Awaited<ReturnType<typeof showAndroidRewardedAd>>;
+  adResult: Awaited<ReturnType<typeof showNativeRewardedAd>>;
 }) {
   if (!session.rewardSessionId || !session.customData) {
     return null;
@@ -163,6 +166,8 @@ async function recordRewardedScoutBoostClientComplete({
       ssvCustomDataLength: adResult.ssvCustomDataLength,
       rewardAmount: adResult.rewardAmount,
       rewardType: adResult.rewardType,
+      platform: adResult.platform,
+      nonPersonalizedOnly: true,
     },
   );
 
@@ -190,29 +195,30 @@ async function waitForRewardedBoostGrantBySession(
 }
 
 export function useRewardedScoutBoost({ userId }: { userId?: string | null }) {
-  const androidBuild = isNativeAndroid();
+  const rewardedAdsPlatform = getNativeRewardedAdsPlatform();
+  const nativeRewardedBuild = rewardedAdsPlatform !== null;
   const rewardFlowInFlightRef = useRef(false);
   const [rewardedAdAvailable, setRewardedAdAvailable] = useState(false);
   const [rewardedAdLoading, setRewardedAdLoading] = useState(false);
   const [rewardedVerificationPending, setRewardedVerificationPending] = useState(false);
 
   useEffect(() => {
-    if (!androidBuild) {
+    if (!nativeRewardedBuild) {
       setRewardedAdAvailable(false);
       return;
     }
 
     let cancelled = false;
-    void canShowAndroidRewardedAd().then((available) => {
+    void canShowNativeRewardedAd().then((result) => {
       if (!cancelled) {
-        setRewardedAdAvailable(available);
+        setRewardedAdAvailable(result.available);
       }
     });
 
     return () => {
       cancelled = true;
     };
-  }, [androidBuild]);
+  }, [nativeRewardedBuild]);
 
   const startRewardedScoutBoost = async ({
     previousExpiresAt,
@@ -223,28 +229,31 @@ export function useRewardedScoutBoost({ userId }: { userId?: string | null }) {
       throw new Error("A rewarded scout boost is already in progress.");
     }
 
-    if (!androidBuild) {
-      throw new Error("Rewarded ads are only available on Android.");
+    if (!nativeRewardedBuild) {
+      throw new Error("Rewarded ads are only available in the native iOS and Android apps.");
     }
 
     if (!rewardedAdAvailable) {
-      throw new Error("This Android build does not have rewarded ads ready yet.");
+      throw new Error("Rewarded ads are not available in this mobile build yet.");
     }
 
     rewardFlowInFlightRef.current = true;
     setRewardedAdLoading(true);
     try {
-      const sessionResponse = await apiRequest("POST", "/api/mobile/rewarded-scout-boost/session");
+      const sessionResponse = await apiRequest("POST", "/api/mobile/rewarded-scout-boost/session", {
+        platform: rewardedAdsPlatform,
+      });
       const session = (await sessionResponse.json()) as RewardedScoutBoostSessionResponse;
 
       if (!session.eligible || !session.adUnitId || !session.customData) {
         return { outcome: "ineligible", session, status: null };
       }
 
-      const result = await showAndroidRewardedAd({
+      const result = await showNativeRewardedAd({
         adUnitId: session.adUnitId,
         customData: session.customData,
         userId: userId || undefined,
+        nonPersonalizedOnly: true,
       });
 
       if (!result.rewardEarned) {
@@ -280,7 +289,8 @@ export function useRewardedScoutBoost({ userId }: { userId?: string | null }) {
   };
 
   return {
-    androidBuild,
+    nativeRewardedBuild,
+    rewardedAdsPlatform,
     rewardedAdAvailable,
     rewardedAdLoading,
     rewardedVerificationPending,

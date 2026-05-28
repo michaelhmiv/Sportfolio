@@ -56,6 +56,7 @@ export const users = pgTable(
     newsNotificationsEnabled: boolean("news_notifications_enabled").notNull().default(true), // Opt-out of news notifications
     // Scout Engine fields
     lastActiveAt: timestamp("last_active_at"), // Scout Engine: activity tracking for 24h kill-switch
+    deletedAt: timestamp("deleted_at"), // Set when account deletion has been processed
   },
   (table) => ({
     lastActiveIdx: index("users_last_active_idx").on(table.lastActiveAt),
@@ -297,6 +298,38 @@ export const userPushDevices = pgTable(
     ),
     deviceIdx: index("user_push_devices_device_idx").on(table.deviceId),
     permissionIdx: index("user_push_devices_permission_idx").on(table.permissionStatus),
+  }),
+);
+
+export const accountDeletionRequests = pgTable(
+  "account_deletion_requests",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    status: text("status").notNull().default("pending"), // pending | cancelled | processing | completed | failed
+    reason: text("reason"),
+    details: text("details"),
+    requestedAt: timestamp("requested_at").notNull().defaultNow(),
+    effectiveAt: timestamp("effective_at").notNull(),
+    cancelledAt: timestamp("cancelled_at"),
+    processedAt: timestamp("processed_at"),
+    retainedRecordsNote: text("retained_records_note"),
+    metadata: jsonb("metadata").notNull().default({}),
+  },
+  (table) => ({
+    userStatusIdx: index("account_deletion_requests_user_status_idx").on(
+      table.userId,
+      table.status,
+    ),
+    effectiveIdx: index("account_deletion_requests_effective_idx").on(
+      table.status,
+      table.effectiveAt,
+    ),
+    requestedIdx: index("account_deletion_requests_requested_idx").on(table.requestedAt),
   }),
 );
 
@@ -2704,6 +2737,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   milestones: many(userMilestones),
   notificationSettings: many(userNotificationSettings),
   pushDevices: many(userPushDevices),
+  accountDeletionRequests: many(accountDeletionRequests),
 }));
 
 export const watchlistsRelations = relations(watchlists, ({ one, many }) => ({
@@ -3756,6 +3790,13 @@ export const userPushDevicesRelations = relations(userPushDevices, ({ one }) => 
   }),
 }));
 
+export const accountDeletionRequestsRelations = relations(accountDeletionRequests, ({ one }) => ({
+  user: one(users, {
+    fields: [accountDeletionRequests.userId],
+    references: [users.id],
+  }),
+}));
+
 // Insert schemas for new tables
 export const insertUserCollectionSchema = createInsertSchema(userCollections).omit({
   id: true,
@@ -3787,6 +3828,14 @@ export const insertUserPushDeviceSchema = createInsertSchema(userPushDevices).om
   updatedAt: true,
 });
 
+export const insertAccountDeletionRequestSchema = createInsertSchema(accountDeletionRequests).omit({
+  id: true,
+  status: true,
+  requestedAt: true,
+  cancelledAt: true,
+  processedAt: true,
+});
+
 // Types for new tables
 export type UserCollection = typeof userCollections.$inferSelect;
 export type InsertUserCollection = z.infer<typeof insertUserCollectionSchema>;
@@ -3799,6 +3848,9 @@ export type InsertUserNotificationSettings = z.infer<typeof insertUserNotificati
 
 export type UserPushDevice = typeof userPushDevices.$inferSelect;
 export type InsertUserPushDevice = z.infer<typeof insertUserPushDeviceSchema>;
+
+export type AccountDeletionRequest = typeof accountDeletionRequests.$inferSelect;
+export type InsertAccountDeletionRequest = z.infer<typeof insertAccountDeletionRequestSchema>;
 
 // AMM Pool types
 export type PlayerPool = typeof playerPools.$inferSelect;

@@ -1,8 +1,10 @@
 package sportfolio.market;
 
 import android.app.Activity;
+import android.os.Bundle;
 import android.util.Log;
 import androidx.annotation.NonNull;
+import com.google.ads.mediation.admob.AdMobAdapter;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -53,6 +55,7 @@ public class AndroidRewardedAdsPlugin extends Plugin {
         String adUnitId = call.getString("adUnitId");
         String customData = call.getString("customData");
         String userId = call.getString("userId");
+        Boolean nonPersonalizedOnly = call.getBoolean("nonPersonalizedOnly");
 
         if (adUnitId == null || adUnitId.trim().isEmpty()) {
             adFlowInFlight.set(false);
@@ -68,7 +71,17 @@ public class AndroidRewardedAdsPlugin extends Plugin {
         }
 
         Log.d(TAG, "Starting rewarded ad load");
-        activity.runOnUiThread(() -> loadAndShowRewardedAd(activity, call, adUnitId, customData, userId));
+        final boolean requestNonPersonalizedAds = nonPersonalizedOnly == null || nonPersonalizedOnly;
+        activity.runOnUiThread(() ->
+            loadAndShowRewardedAd(
+                activity,
+                call,
+                adUnitId,
+                customData,
+                userId,
+                requestNonPersonalizedAds
+            )
+        );
     }
 
     private void loadAndShowRewardedAd(
@@ -76,9 +89,16 @@ public class AndroidRewardedAdsPlugin extends Plugin {
         PluginCall call,
         String adUnitId,
         String customData,
-        String userId
+        String userId,
+        boolean requestNonPersonalizedAds
     ) {
-        AdRequest adRequest = new AdRequest.Builder().build();
+        AdRequest.Builder adRequestBuilder = new AdRequest.Builder();
+        if (requestNonPersonalizedAds) {
+            Bundle extras = new Bundle();
+            extras.putString("npa", "1");
+            adRequestBuilder.addNetworkExtrasBundle(AdMobAdapter.class, extras);
+        }
+        AdRequest adRequest = adRequestBuilder.build();
 
         RewardedAd.load(activity, adUnitId, adRequest, new RewardedAdLoadCallback() {
             @Override

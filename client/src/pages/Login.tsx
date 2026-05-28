@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { CheckCircle2, Loader2, Mail } from "lucide-react";
-import { SiDiscord, SiGoogle } from "react-icons/si";
+import { SiApple, SiDiscord, SiGoogle } from "react-icons/si";
 import { Capacitor } from "@capacitor/core";
 import { Browser } from "@capacitor/browser";
 import { hapticMedium, hapticError } from "@/lib/haptics";
@@ -32,6 +32,7 @@ export default function Login() {
     resendVerification,
     loginWithGoogle,
     loginWithDiscord,
+    loginWithApple,
     isAuthenticated,
     isLoading: authLoading,
   } = useAuth();
@@ -268,6 +269,32 @@ export default function Login() {
     }
   };
 
+  const handleAppleLogin = async () => {
+    void hapticMedium();
+    setIsLoading(true);
+
+    if (isNative) {
+      const listener = await Browser.addListener("browserFinished", () => {
+        setIsLoading(false);
+        cleanupBrowserListener();
+      });
+      browserFinishedListenerRef.current = listener;
+    }
+
+    const result = await loginWithApple(postAuthRedirect);
+
+    if (!result.success) {
+      void hapticError();
+      cleanupBrowserListener();
+      toast({
+        title: "Login failed",
+        description: result.error || "Could not sign in with Apple",
+        variant: "destructive",
+      });
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div
       className="terminal-page flex min-h-screen items-center justify-center p-4"
@@ -305,6 +332,23 @@ export default function Login() {
                   <>
                     <SiGoogle className="h-4 w-4 mr-2" />
                     Continue with Google
+                  </>
+                )}
+              </Button>
+              <Button
+                type="button"
+                variant="terminalOutline"
+                className="w-full"
+                onClick={handleAppleLogin}
+                disabled={isLoading}
+                data-testid="button-apple-login"
+              >
+                {isLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <>
+                    <SiApple className="mr-2 h-4 w-4" />
+                    Continue with Apple
                   </>
                 )}
               </Button>
@@ -551,6 +595,23 @@ export default function Login() {
                   <>
                     <SiGoogle className="h-4 w-4 mr-2" />
                     Sign in with Google
+                  </>
+                )}
+              </Button>
+              <Button
+                type="button"
+                variant="terminalOutline"
+                className="mt-3 w-full"
+                onClick={handleAppleLogin}
+                disabled={isLoading}
+                data-testid="button-apple-login"
+              >
+                {isLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <>
+                    <SiApple className="mr-2 h-4 w-4" />
+                    Sign in with Apple
                   </>
                 )}
               </Button>

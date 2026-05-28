@@ -21,6 +21,7 @@ import { registerHermesSidecarRoutes } from "./hermes-sidecar";
 import { isHermesSidecarMode } from "./service-role";
 import { setupVite, serveStatic, log } from "./vite";
 import { jobScheduler } from "./jobs/scheduler.js";
+import { startAccountDeletionProcessor } from "./services/account-deletion";
 import { db } from "./db";
 import { botProfiles } from "@shared/schema";
 import pinoHttp from "pino-http";
@@ -308,6 +309,12 @@ app.use((req, res, next) => {
       } else {
         log("Skipping API-dependent jobs - BALLDONTLIE_API_KEY not set");
         log("Core jobs will continue running without sports API sync access");
+      }
+
+      try {
+        startAccountDeletionProcessor();
+      } catch (error: any) {
+        console.error("Failed to start account deletion processor:", error.message);
       }
 
       // Mark server as fully ready

@@ -263,7 +263,8 @@ export function ScoutDashboardModal() {
   const { subscribe } = useWebSocket();
   const [, navigate] = useLocation();
   const {
-    androidBuild,
+    nativeRewardedBuild,
+    rewardedAdsPlatform,
     rewardedAdAvailable,
     rewardedAdLoading,
     rewardedVerificationPending,
@@ -743,7 +744,7 @@ export function ScoutDashboardModal() {
           ? "Max premium scouts used."
           : rewardedScoutBoostActive
             ? "Your rewarded scout boost is fully allocated."
-            : "Watch a rewarded ad on Android or redeem Premium for more scouts.",
+            : "Watch a rewarded ad on iOS or Android, or redeem Premium for more scouts.",
         variant: "destructive",
       });
       return;
@@ -856,7 +857,8 @@ export function ScoutDashboardModal() {
 
                   <p className="text-xs text-muted-foreground">
                     Watch a verified rewarded ad to add 12 hours of 10-scout capacity. Time stacks,
-                    but Google must confirm the completed ad before the boost is credited.
+                    but server-side verification must confirm the completed ad before the boost is
+                    credited.
                   </p>
 
                   {!isAuthenticated ? (
@@ -868,13 +870,14 @@ export function ScoutDashboardModal() {
                       Premium already gives you 10 scouts, so rewarded ads are unavailable while
                       premium is active.
                     </p>
-                  ) : !androidBuild ? (
+                  ) : !nativeRewardedBuild ? (
                     <p className="text-xs text-muted-foreground">
-                      Rewarded scout boosts are available in the Android app.
+                      Rewarded scout boosts are available in the native iOS and Android apps.
                     </p>
                   ) : !rewardedAdAvailable ? (
                     <p className="text-xs text-muted-foreground">
-                      Rewarded ads are not available in this Android build yet.
+                      Rewarded ads are not available in this {rewardedAdsPlatform || "mobile"} build
+                      yet.
                     </p>
                   ) : null}
 
@@ -885,7 +888,7 @@ export function ScoutDashboardModal() {
                     onClick={handleRewardedScoutBoost}
                     disabled={
                       !isAuthenticated ||
-                      !androidBuild ||
+                      !nativeRewardedBuild ||
                       premiumActive ||
                       !rewardedAdAvailable ||
                       rewardedAdLoading ||
