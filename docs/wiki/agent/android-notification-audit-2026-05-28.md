@@ -79,6 +79,11 @@
    - Evidence: `/api/mobile/push/status` used env-presence (`hasFirebasePushCredentialsConfigured`) rather than provider-init readiness.
    - Risk: UI/ops saw "configured" while parse/init still failed.
 
+4. Notification storage schema absent in linked Supabase project (high confidence, needs migration)
+   - Evidence (queried 2026-05-28 via `supabase db query --linked`): no `public` tables exist for
+     `user_push_tokens`, `user_push_devices`, `user_notification_preferences`, `user_notification_settings`, or `push_notification_events`.
+   - Risk: Android registration, token persistence, preference reads/writes, and delivery telemetry cannot function in that environment because backing tables are missing.
+
 ### Still possible / needs production evidence
 
 1. Cross-project token mismatch (`SENDER_ID_MISMATCH`) (medium confidence)
@@ -96,9 +101,13 @@
 ## Production Evidence Status
 
 - Added read-only audit command: `npm run audit:android-push -- --lookback-days 14 [--json]`.
-- Current environment run failed due DB auth:
-  - `password authentication failed for user "postgres"`.
-- Because production DB access was unavailable in-session, this report includes runnable evidence tooling rather than live production aggregates.
+- Supabase CLI access is available in-session and linked to project ref `xolfyrbtkmwgllrazcfh`.
+- Live linked-query evidence collected on 2026-05-28:
+  - `select count(*) from public.users` returned `24`, confirming the database is reachable.
+  - `information_schema.tables` contains no `notification`/`push` tables in `public`.
+  - Explicit lookup for `user_push_tokens`, `user_push_devices`, `user_notification_preferences`, `user_notification_settings`, and `push_notification_events` returned no rows.
+- Some Supabase linked queries intermittently triggered pooler/auth throttling when run in parallel. Sequential queries were stable.
+- Result: root-cause confidence increased for schema drift/migration gap in the linked environment.
 
 ## Remediation Implemented in This Audit
 
