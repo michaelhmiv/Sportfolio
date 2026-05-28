@@ -27,7 +27,7 @@ public class IOSRewardedAdsPlugin: CAPPlugin, CAPBridgedPlugin, FullScreenConten
 
     public override func load() {
         DispatchQueue.main.async {
-            MobileAds.sharedInstance().start(completionHandler: nil)
+            MobileAds.shared.start()
         }
     }
 
@@ -77,7 +77,7 @@ public class IOSRewardedAdsPlugin: CAPPlugin, CAPBridgedPlugin, FullScreenConten
                 request.register(extras)
             }
 
-            RewardedAd.load(withAdUnitID: adUnitId, request: request) { [weak self] ad, error in
+            RewardedAd.load(with: adUnitId, request: request) { [weak self] ad, error in
                 guard let self else { return }
 
                 if let error {
@@ -95,7 +95,7 @@ public class IOSRewardedAdsPlugin: CAPPlugin, CAPBridgedPlugin, FullScreenConten
 
                 if let responseInfo = ad.responseInfo {
                     self.adResponseId = responseInfo.responseIdentifier
-                    self.mediationAdapterClassName = responseInfo.adNetworkClassName
+                    self.mediationAdapterClassName = responseInfo.loadedAdNetworkResponseInfo?.adNetworkClassName
                 }
 
                 let verificationOptions = ServerSideVerificationOptions()
