@@ -7,14 +7,8 @@
  */
 
 import { db } from "../db";
-import {
-  botActionsLog,
-  holdings,
-  playerPools,
-  players,
-  scoutAssignments,
-} from "@shared/schema";
-import { and, eq, gte, inArray, sql, isNull, desc } from "drizzle-orm";
+import { botActionsLog, holdings, playerPools, players, scoutAssignments } from "@shared/schema";
+import { and, eq, gte, inArray, sql } from "drizzle-orm";
 import type { ActionType } from "./bot-profiles-v2";
 
 export interface PlayerCandidate {
@@ -39,10 +33,15 @@ export interface SelectionContext {
   recentPlayerIds: Set<string>;
   otherBotRecentPlayerIds: Set<string>;
   sportActionCounts: Map<string, number>;
+  sportTargets: Map<string, number>;
+  sportTargetTolerance: number;
   maxSportConcentration: number;
   heldPlayerIds: Set<string>;
-  /** Player IDs that already have pools */
-  pooledPlayerIds: Set<string>;
+  marketActionTypes: Set<ActionType>;
+  botMarketActionCountsByPlayer: Map<string, number>;
+  globalMarketActionCountsByPlayer: Map<string, number>;
+  maxBotMarketActionsPerPlayer24h: number;
+  maxGlobalMarketActionsPerPlayer24h: number;
 }
 
 /**
@@ -122,8 +121,18 @@ export async function getOtherBotRecentPlayerIds(
  */
 export async function getSportActionCounts(
   botUserId: string,
+  options?: { windowHours?: number; actionTypes?: ActionType[] },
 ): Promise<Map<string, number>> {
-  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const windowHours = options?.windowHours ?? 24;
+  const cutoff = new Date(Date.now() - windowHours * 60 * 60 * 1000);
+  const actionTypes = options?.actionTypes ?? [];
+  const actionFilter =
+    actionTypes.length > 0
+      ? sql`AND bal.action_type IN (${sql.join(
+          actionTypes.map((actionType) => sql`${actionType}`),
+          sql`, `,
+        )})`
+      : sql``;
 
   const rows = await db.execute(sql`
     SELECT p.sport, COUNT(*)::int as cnt
@@ -135,6 +144,7 @@ export async function getSportActionCounts(
     WHERE bal.bot_user_id = ${botUserId}
       AND bal.success = true
       AND bal.created_at >= ${cutoff}
+      ${actionFilter}
     GROUP BY p.sport
   `);
 
@@ -146,6 +156,68 @@ export async function getSportActionCounts(
     }
   }
   return counts;
+}
+
+async function getMarketActionCountsByPlayer(
+  whereClause: any,
+  windowHours: number,
+  actionTypes: ActionType[],
+): Promise<Map<string, number>> {
+  const cutoff = new Date(Date.now() - windowHours * 60 * 60 * 1000);
+  const typeFilter = inArray(botActionsLog.actionType, actionTypes);
+  const rows = await db
+    .select({
+      playerId: sql<string>`
+        COALESCE(
+          ${botActionsLog.actionDetails}->'action'->>'playerId',
+          ${botActionsLog.actionDetails}->>'playerId'
+        )
+      `,
+      count: sql<number>`count(*)::int`,
+    })
+    .from(botActionsLog)
+    .where(
+      and(
+        whereClause,
+        eq(botActionsLog.success, true),
+        gte(botActionsLog.createdAt, cutoff),
+        typeFilter,
+      ),
+    )
+    .groupBy(
+      sql`
+        COALESCE(
+          ${botActionsLog.actionDetails}->'action'->>'playerId',
+          ${botActionsLog.actionDetails}->>'playerId'
+        )
+      `,
+    );
+
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    if (!row.playerId || !row.playerId.trim()) continue;
+    counts.set(row.playerId.trim(), Number(row.count || 0));
+  }
+  return counts;
+}
+
+export async function getBotMarketActionCountsByPlayer(
+  botUserId: string,
+  windowHours: number,
+  actionTypes: ActionType[],
+): Promise<Map<string, number>> {
+  return getMarketActionCountsByPlayer(
+    eq(botActionsLog.botUserId, botUserId),
+    windowHours,
+    actionTypes,
+  );
+}
+
+export async function getGlobalMarketActionCountsByPlayer(
+  windowHours: number,
+  actionTypes: ActionType[],
+): Promise<Map<string, number>> {
+  return getMarketActionCountsByPlayer(sql`TRUE`, windowHours, actionTypes);
 }
 
 /**
@@ -166,13 +238,57 @@ export async function getBotHeldPlayerIds(botUserId: string): Promise<Set<string
   return new Set(rows.map((r) => r.assetId));
 }
 
+export function shouldBlockMarketActionForPlayer(input: {
+  actionType: ActionType;
+  marketActionTypes: Set<ActionType>;
+  playerId: string;
+  botCountsByPlayer: Map<string, number>;
+  globalCountsByPlayer: Map<string, number>;
+  maxBotActionsPerPlayer24h: number;
+  maxGlobalActionsPerPlayer24h: number;
+}): boolean {
+  if (!input.marketActionTypes.has(input.actionType)) {
+    return false;
+  }
+
+  const botCount = input.botCountsByPlayer.get(input.playerId) || 0;
+  if (botCount >= input.maxBotActionsPerPlayer24h) {
+    return true;
+  }
+
+  const globalCount = input.globalCountsByPlayer.get(input.playerId) || 0;
+  return globalCount >= input.maxGlobalActionsPerPlayer24h;
+}
+
+export function isSportOverTarget(input: {
+  sport: string;
+  sportActionCounts: Map<string, number>;
+  sportTargets: Map<string, number>;
+  tolerance: number;
+}): boolean {
+  const target = input.sportTargets.get(input.sport);
+  if (typeof target !== "number") {
+    return false;
+  }
+
+  const totalActions = Array.from(input.sportActionCounts.values()).reduce(
+    (sum, count) => sum + count,
+    0,
+  );
+  if (totalActions <= 0) {
+    return false;
+  }
+
+  const sportCount = input.sportActionCounts.get(input.sport) || 0;
+  const currentShare = sportCount / totalActions;
+  return currentShare > target + input.tolerance;
+}
+
 /**
  * Get all player IDs that have an active pool.
  */
 export async function getPooledPlayerIds(): Promise<Set<string>> {
-  const rows = await db
-    .select({ playerId: playerPools.playerId })
-    .from(playerPools);
+  const rows = await db.select({ playerId: playerPools.playerId }).from(playerPools);
 
   return new Set(rows.map((r) => r.playerId).filter(Boolean) as string[]);
 }
@@ -228,8 +344,9 @@ export async function selectCandidates(
     (a, b) => a + b,
     0,
   );
-
-  const candidates: PlayerCandidate[] = [];
+  const isMarketAction = context.marketActionTypes.has(context.actionType);
+  const preferredCandidates: PlayerCandidate[] = [];
+  const fallbackOverTargetCandidates: PlayerCandidate[] = [];
 
   for (const row of rows) {
     const playerId = row.id;
@@ -254,23 +371,30 @@ export async function selectCandidates(
     if (context.actionType === "buy" && !hasPool) {
       continue; // Can't buy without a pool
     }
-    if (
-      context.actionType === "pool_create" &&
-      !context.heldPlayerIds.has(playerId)
-    ) {
+    if (context.actionType === "pool_create" && !context.heldPlayerIds.has(playerId)) {
       continue; // Need shares to create a pool
     }
-    if (
-      context.actionType === "boost_assign" &&
-      !context.heldPlayerIds.has(playerId)
-    ) {
+    if (context.actionType === "boost_assign" && !context.heldPlayerIds.has(playerId)) {
       continue; // Need shares to boost
+    }
+
+    if (
+      shouldBlockMarketActionForPlayer({
+        actionType: context.actionType,
+        marketActionTypes: context.marketActionTypes,
+        playerId,
+        botCountsByPlayer: context.botMarketActionCountsByPlayer,
+        globalCountsByPlayer: context.globalMarketActionCountsByPlayer,
+        maxBotActionsPerPlayer24h: context.maxBotMarketActionsPerPlayer24h,
+        maxGlobalActionsPerPlayer24h: context.maxGlobalMarketActionsPerPlayer24h,
+      })
+    ) {
+      continue;
     }
 
     // Sport concentration check (soft: penalize, don't block)
     const sportCount = context.sportActionCounts.get(sport) || 0;
-    const sportShare =
-      totalSportActions > 0 ? sportCount / totalSportActions : 0;
+    const sportShare = totalSportActions > 0 ? sportCount / totalSportActions : 0;
     const overConcentrated = sportShare > context.maxSportConcentration;
 
     // Scoring
@@ -304,10 +428,7 @@ export async function selectCandidates(
 
     // Already held → slight preference for sell/LP actions
     if (context.heldPlayerIds.has(playerId)) {
-      if (
-        context.actionType === "sell" ||
-        context.actionType === "pool_add_liquidity"
-      ) {
+      if (context.actionType === "sell" || context.actionType === "pool_add_liquidity") {
         score += 80;
       }
     }
@@ -315,7 +436,7 @@ export async function selectCandidates(
     // Randomized jitter (0-80 points)
     score += Math.random() * 80;
 
-    candidates.push({
+    const candidate: PlayerCandidate = {
       playerId,
       playerName: `${row.firstName} ${row.lastName}`,
       sport,
@@ -328,8 +449,26 @@ export async function selectCandidates(
       fairValue: null, // Computed separately if needed
       hasUpcomingGame: false, // TODO: wire to schedule data
       score,
-    });
+    };
+
+    if (
+      isMarketAction &&
+      isSportOverTarget({
+        sport,
+        sportActionCounts: context.sportActionCounts,
+        sportTargets: context.sportTargets,
+        tolerance: context.sportTargetTolerance,
+      })
+    ) {
+      fallbackOverTargetCandidates.push(candidate);
+      continue;
+    }
+
+    preferredCandidates.push(candidate);
   }
+
+  const candidates =
+    preferredCandidates.length > 0 ? preferredCandidates : fallbackOverTargetCandidates;
 
   // Sort by score descending, take top N
   candidates.sort((a, b) => b.score - a.score);
@@ -342,9 +481,7 @@ export async function selectCandidates(
  * Pick a single player from candidates. Picks randomly from top-3
  * (weighted toward #1 but not deterministic).
  */
-export function pickFromCandidates(
-  candidates: PlayerCandidate[],
-): PlayerCandidate | null {
+export function pickFromCandidates(candidates: PlayerCandidate[]): PlayerCandidate | null {
   if (candidates.length === 0) return null;
   if (candidates.length === 1) return candidates[0];
 

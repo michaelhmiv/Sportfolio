@@ -6,23 +6,13 @@
  */
 
 import { db } from "../db";
-import {
-  botActionsLog,
-  botProfiles,
-  holdings,
-  players,
-  users,
-} from "@shared/schema";
+import { botActionsLog, botProfiles, holdings, players, users } from "@shared/schema";
 import { eq, and, sql } from "drizzle-orm";
-import {
-  executeBuy,
-  executeSell,
-  addLiquidity,
-  addLiquidityOptimal,
-} from "../amm/pool";
+import { executeBuy, executeSell, addLiquidity, addLiquidityOptimal } from "../amm/pool";
 import { storage } from "../storage";
 import type { ActionType } from "./bot-profiles-v2";
 import type { PlayerCandidate } from "./player-selector";
+import { assignDailyBoostWithValidation } from "../boosts/assign-daily-boost";
 
 export interface ActionParams {
   /** SB amount for buys / LP adds */
@@ -226,12 +216,7 @@ async function executePoolCreate(
     };
   }
 
-  const result = await addLiquidity(
-    player.playerId,
-    botUserId,
-    sharesToDeposit,
-    sbToDeposit,
-  );
+  const result = await addLiquidity(player.playerId, botUserId, sharesToDeposit, sbToDeposit);
 
   return {
     actionType: "pool_create",
@@ -255,12 +240,7 @@ async function executePoolAddLiquidity(
   const maxShares = params.shares || 3;
   const maxPlayMoney = params.sbAmount || 50;
 
-  const result = await addLiquidityOptimal(
-    player.playerId,
-    botUserId,
-    maxShares,
-    maxPlayMoney,
-  );
+  const result = await addLiquidityOptimal(player.playerId, botUserId, maxShares, maxPlayMoney);
 
   return {
     actionType: "pool_add_liquidity",
@@ -315,24 +295,27 @@ async function executeBoostAssign(
   player: PlayerCandidate,
   params: ActionParams,
 ): Promise<ActionResult> {
-  const slotTier = params.slotTier || 4; // Lowest tier by default
+  const slotTier = params.slotTier || 4;
 
   try {
-    // Create a daily boost entry for this bot
-    await storage.createDailyBoost({
+    const { shareMultiplier, shareSourceType } = await assignDailyBoostWithValidation({
       userId: botUserId,
       playerId: player.playerId,
       slotTier,
       sport: player.sport,
-      boostDate: new Date(),
-      status: "pending",
+      etDate: new Date(),
     });
+
     return {
       actionType: "boost_assign",
       playerId: player.playerId,
       playerName: player.playerName,
       success: true,
-      details: { slotTier },
+      details: {
+        slotTier,
+        shareMultiplier,
+        shareSourceType,
+      },
     };
   } catch (error: any) {
     return {
@@ -355,9 +338,7 @@ export function calculateActionParams(
   botConfig: { minOrderSb: number; maxOrderSb: number },
 ): ActionParams {
   // Jittered order size: base × random(0.7, 1.3)
-  const baseSize =
-    botConfig.minOrderSb +
-    (botConfig.maxOrderSb - botConfig.minOrderSb) * 0.4;
+  const baseSize = botConfig.minOrderSb + (botConfig.maxOrderSb - botConfig.minOrderSb) * 0.4;
   const jitter = 0.7 + Math.random() * 0.6;
   const sbAmount = Math.max(
     botConfig.minOrderSb,

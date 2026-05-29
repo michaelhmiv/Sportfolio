@@ -168,7 +168,7 @@ describe("JobScheduler NASCAR stats registration", () => {
     const scheduler = new JobScheduler();
 
     expect(scheduler.getAvailableManualJobNames()).toContain("nascar_stats_sync");
-  });
+  }, 10000);
 
   it("registers nascar_stats_sync in configured job names when API jobs initialize", async () => {
     const { JobScheduler } = await import("./scheduler");

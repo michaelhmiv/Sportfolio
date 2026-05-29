@@ -14,17 +14,14 @@
  */
 
 import { db } from "../db";
-import {
-  botProfiles,
-  botRunLogs,
-  users,
-} from "@shared/schema";
+import { botActionsLog, botProfiles, botRunLogs, dailyGames, players, users } from "@shared/schema";
 import { eq, and, sql, gte } from "drizzle-orm";
 import {
   type BotProfileV2,
   type BotRole,
   type BotStage,
   type ActionType,
+  BOT_ENGINE_POLICY,
   ROLE_DEFAULTS,
   determineBotStage,
   getStageAllowedActions,
@@ -32,19 +29,18 @@ import {
 import {
   type SelectionContext,
   getBotCooldownPlayerIds,
+  getBotMarketActionCountsByPlayer,
   getOtherBotRecentPlayerIds,
+  getGlobalMarketActionCountsByPlayer,
   getSportActionCounts,
   getBotHeldPlayerIds,
-  getPooledPlayerIds,
   getBotScoutAssignments,
   selectCandidates,
   pickFromCandidates,
 } from "./player-selector";
-import {
-  executeBotAction,
-  calculateActionParams,
-} from "./action-executor";
+import { executeBotAction, calculateActionParams } from "./action-executor";
 import { storage } from "../storage";
+import { getTodayETBoundaries } from "../lib/time";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -77,6 +73,153 @@ interface TickResult {
   }>;
 }
 
+const ENGINE_DISABLED_VALUES = new Set(["0", "false", "off", "disabled"]);
+
+export function isBotEngineEnabled(
+  value: string | undefined = process.env.BOT_ENGINE_ENABLED,
+): boolean {
+  if (!value) return true;
+  return !ENGINE_DISABLED_VALUES.has(value.trim().toLowerCase());
+}
+
+function normalizeToUnit(weights: Map<string, number>): Map<string, number> {
+  const total = Array.from(weights.values()).reduce((sum, value) => sum + Math.max(0, value), 0);
+  if (total <= 0) {
+    const equal = new Map<string, number>();
+    const sports = Array.from(weights.keys());
+    const perSport = sports.length > 0 ? 1 / sports.length : 0;
+    for (const sport of sports) {
+      equal.set(sport, perSport);
+    }
+    return equal;
+  }
+
+  const normalized = new Map<string, number>();
+  for (const [sport, value] of weights.entries()) {
+    normalized.set(sport, Math.max(0, value) / total);
+  }
+  return normalized;
+}
+
+export function computeClampedSportTargets(
+  weights: Map<string, number>,
+  minShare: number,
+  maxShare: number,
+): Map<string, number> {
+  const sports = Array.from(weights.keys());
+  if (sports.length === 0) {
+    return new Map();
+  }
+
+  const raw = normalizeToUnit(weights);
+  const targets = new Map<string, number>();
+  const lockedLow = new Set<string>();
+  const lockedHigh = new Set<string>();
+
+  for (const sport of sports) {
+    targets.set(sport, raw.get(sport) || 0);
+  }
+
+  for (let i = 0; i < 10; i++) {
+    let changed = false;
+    let remaining = 1;
+    const freeSports = sports.filter((sport) => !lockedLow.has(sport) && !lockedHigh.has(sport));
+
+    for (const sport of lockedLow) {
+      targets.set(sport, minShare);
+      remaining -= minShare;
+    }
+    for (const sport of lockedHigh) {
+      targets.set(sport, maxShare);
+      remaining -= maxShare;
+    }
+
+    if (remaining <= 0 || freeSports.length === 0) {
+      break;
+    }
+
+    const freeRawTotal = freeSports.reduce((sum, sport) => sum + (raw.get(sport) || 0), 0);
+    for (const sport of freeSports) {
+      const proportion =
+        freeRawTotal > 0 ? (raw.get(sport) || 0) / freeRawTotal : 1 / freeSports.length;
+      targets.set(sport, remaining * proportion);
+    }
+
+    for (const sport of freeSports) {
+      const value = targets.get(sport) || 0;
+      if (value < minShare) {
+        lockedLow.add(sport);
+        changed = true;
+      } else if (value > maxShare) {
+        lockedHigh.add(sport);
+        changed = true;
+      }
+    }
+
+    if (!changed) {
+      break;
+    }
+  }
+
+  return normalizeToUnit(targets);
+}
+
+async function computeSportTargetsFromActiveSlate(): Promise<Map<string, number>> {
+  const { startOfDay } = getTodayETBoundaries();
+  const windowEnd = new Date(
+    Date.now() + BOT_ENGINE_POLICY.lookbackHours.slateWindow * 60 * 60 * 1000,
+  );
+
+  const gameRows = await db
+    .select({
+      sport: dailyGames.sport,
+      count: sql<number>`count(distinct ${dailyGames.gameId})::int`,
+    })
+    .from(dailyGames)
+    .where(
+      and(
+        gte(dailyGames.startTime, startOfDay),
+        sql`${dailyGames.startTime} <= ${windowEnd}`,
+        sql`COALESCE(LOWER(${dailyGames.status}), '') NOT IN ('completed', 'final', 'cancelled', 'postponed')`,
+      ),
+    )
+    .groupBy(dailyGames.sport);
+
+  const weights = new Map<string, number>();
+  for (const row of gameRows) {
+    const sport = String(row.sport || "")
+      .trim()
+      .toUpperCase();
+    if (!sport) continue;
+    weights.set(sport, Number(row.count || 0));
+  }
+
+  if (weights.size === 0) {
+    const playerRows = await db
+      .select({
+        sport: players.sport,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(players)
+      .where(eq(players.isActive, true))
+      .groupBy(players.sport);
+
+    for (const row of playerRows) {
+      const sport = String(row.sport || "")
+        .trim()
+        .toUpperCase();
+      if (!sport) continue;
+      weights.set(sport, Number(row.count || 0));
+    }
+  }
+
+  return computeClampedSportTargets(
+    weights,
+    BOT_ENGINE_POLICY.sportTargets.minShare,
+    BOT_ENGINE_POLICY.sportTargets.maxShare,
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Bot Profile Loading
 // ---------------------------------------------------------------------------
@@ -104,23 +247,19 @@ async function loadActiveBots(): Promise<BotProfileV2[]> {
       botName: profile.botName,
       role,
       isActive: profile.isActive,
-      actionProbability:
-        (profile.aggressiveness
-          ? parseFloat(profile.aggressiveness)
-          : defaults.actionProbability),
+      actionProbability: profile.aggressiveness
+        ? parseFloat(profile.aggressiveness)
+        : defaults.actionProbability,
       maxDailyActions: profile.maxDailyOrders || defaults.maxDailyActions,
       playerCooldownHours:
         Math.max(1, Math.floor(profile.maxActionCooldownMs / 3600000)) ||
         defaults.playerCooldownHours,
-      maxPlayerExposurePercent:
-        profile.maxPlayerExposurePercent
-          ? parseFloat(String(profile.maxPlayerExposurePercent))
-          : defaults.maxPlayerExposurePercent,
+      maxPlayerExposurePercent: profile.maxPlayerExposurePercent
+        ? parseFloat(String(profile.maxPlayerExposurePercent))
+        : defaults.maxPlayerExposurePercent,
       maxSportConcentration: defaults.maxSportConcentration,
-      activeHoursStart:
-        profile.activeHoursStart || defaults.activeHoursStart,
-      activeHoursEnd:
-        profile.activeHoursEnd || defaults.activeHoursEnd,
+      activeHoursStart: profile.activeHoursStart || defaults.activeHoursStart,
+      activeHoursEnd: profile.activeHoursEnd || defaults.activeHoursEnd,
       minOrderSb: profile.minOrderSize || defaults.minOrderSb,
       maxOrderSb: profile.maxOrderSize || defaults.maxOrderSb,
       scoutTargetCount: defaults.scoutTargetCount,
@@ -134,13 +273,7 @@ async function loadActiveBots(): Promise<BotProfileV2[]> {
 }
 
 function roleOrFallback(role: string): BotRole {
-  const valid: BotRole[] = [
-    "market_maker",
-    "trader",
-    "casual",
-    "contest",
-    "cold_market",
-  ];
+  const valid: BotRole[] = ["market_maker", "trader", "casual", "contest", "cold_market"];
   return valid.includes(role as BotRole) ? (role as BotRole) : "trader";
 }
 
@@ -154,8 +287,14 @@ async function getDailyActionCount(botUserId: string): Promise<number> {
 
   const [row] = await db
     .select({ count: sql<number>`count(*)::int` })
-    .from(botRunLogs)
-    .where(and(eq(botRunLogs.botUserId, botUserId), gte(botRunLogs.createdAt, today)));
+    .from(botActionsLog)
+    .where(
+      and(
+        eq(botActionsLog.botUserId, botUserId),
+        eq(botActionsLog.success, true),
+        gte(botActionsLog.createdAt, today),
+      ),
+    );
 
   return row?.count || 0;
 }
@@ -193,7 +332,7 @@ function isWithinActiveHours(profile: BotProfileV2): boolean {
 
 function selectActionType(
   stage: BotStage,
-  role: BotRole,
+  _role: BotRole,
   recentActionTypes: ActionType[],
   profile: BotProfileV2,
 ): ActionType | null {
@@ -225,12 +364,8 @@ function selectActionType(
 
   if (scored.length === 0) {
     // Fallback: just pick least-used
-    const minCount = Math.min(
-      ...allowed.map((a) => recentCounts.get(a) || 0),
-    );
-    const fallback = allowed.filter(
-      (a) => (recentCounts.get(a) || 0) === minCount,
-    );
+    const minCount = Math.min(...allowed.map((a) => recentCounts.get(a) || 0));
+    const fallback = allowed.filter((a) => (recentCounts.get(a) || 0) === minCount);
     return fallback[Math.floor(Math.random() * fallback.length)] || allowed[0];
   }
 
@@ -238,13 +373,63 @@ function selectActionType(
   return scored[0].type;
 }
 
+function getCoverageFallbackPriority(stage: BotStage): ActionType[] {
+  switch (stage) {
+    case "scouting":
+      return ["scout_assign"];
+    case "accumulating":
+      return ["buy", "scout_assign", "scout_rebalance"];
+    case "pool_building":
+      return [
+        "pool_create",
+        "buy",
+        "pool_add_liquidity",
+        "sell",
+        "scout_assign",
+        "scout_rebalance",
+      ];
+    case "steady_state":
+      return [
+        "pool_create",
+        "buy",
+        "pool_add_liquidity",
+        "sell",
+        "boost_assign",
+        "scout_assign",
+        "scout_rebalance",
+      ];
+  }
+}
+
+function buildActionAttemptOrder(
+  stage: BotStage,
+  profile: BotProfileV2,
+  primary: ActionType | null,
+): ActionType[] {
+  const roleAllowed = new Set(profile.allowedActions);
+  const stageAllowed = new Set(getStageAllowedActions(stage));
+  const allowed = (actionType: ActionType) =>
+    roleAllowed.has(actionType) && stageAllowed.has(actionType);
+
+  const sequence: ActionType[] = [];
+  if (primary && allowed(primary)) {
+    sequence.push(primary);
+  }
+
+  for (const fallbackAction of getCoverageFallbackPriority(stage)) {
+    if (!allowed(fallbackAction)) continue;
+    if (sequence.includes(fallbackAction)) continue;
+    sequence.push(fallbackAction);
+  }
+
+  return sequence;
+}
+
 // ---------------------------------------------------------------------------
 // Bot State Loading
 // ---------------------------------------------------------------------------
 
-async function loadBotState(
-  profile: BotProfileV2,
-): Promise<BotState | null> {
+async function loadBotState(profile: BotProfileV2): Promise<BotState | null> {
   const [user] = await db
     .select({ balance: users.balance })
     .from(users)
@@ -320,6 +505,7 @@ async function loadBotState(
 
 async function runBotTick(
   state: BotState,
+  sportTargets: Map<string, number>,
 ): Promise<{
   actionType?: ActionType;
   playerName?: string;
@@ -359,76 +545,105 @@ async function runBotTick(
   }
 
   // 5. Pick action type
-  const actionType = selectActionType(
-    stage,
-    profile.role,
-    recentActionTypes,
-    profile,
-  );
-  if (!actionType) {
+  const primaryActionType = selectActionType(stage, profile.role, recentActionTypes, profile);
+
+  const actionAttemptOrder = buildActionAttemptOrder(stage, profile, primaryActionType);
+  if (actionAttemptOrder.length === 0) {
     return { success: false, reason: "no_eligible_action_type" };
   }
 
-  // 6. Scouting-specific logic
-  if (actionType === "scout_assign") {
-    return handleScoutAssign(state);
-  }
-  if (actionType === "scout_rebalance") {
-    return handleScoutRebalance(state);
-  }
-
-  // 7. Build selection context
-  const recentIds = await getBotCooldownPlayerIds(
+  // 6. Build selection context inputs once for this tick
+  const recentIds = await getBotCooldownPlayerIds(profile.userId, profile.playerCooldownHours);
+  const otherBotIds = await getOtherBotRecentPlayerIds(
     profile.userId,
-    profile.playerCooldownHours,
+    BOT_ENGINE_POLICY.lookbackHours.otherBotCoordination,
   );
-  const otherBotIds = await getOtherBotRecentPlayerIds(profile.userId, 2);
-  const sportCounts = await getSportActionCounts(profile.userId);
-  const heldIds = await getBotHeldPlayerIds(profile.userId);
-
-  const context: SelectionContext = {
-    botUserId: profile.userId,
-    actionType,
-    recentPlayerIds: recentIds,
-    otherBotRecentPlayerIds: otherBotIds,
-    sportActionCounts: sportCounts,
-    maxSportConcentration: profile.maxSportConcentration,
-    heldPlayerIds: heldIds,
-    pooledPlayerIds: new Set(), // Populated by selectCandidates
-  };
-
-  // 8. Select candidates
-  const candidates = await selectCandidates(context, 20);
-  const target = pickFromCandidates(candidates);
-
-  if (!target) {
-    return {
-      success: false,
-      reason: `no_eligible_players_for_${actionType}`,
-    };
-  }
-
-  // 9. Calculate params and execute
-  const params = calculateActionParams(actionType, target, {
-    minOrderSb: profile.minOrderSb,
-    maxOrderSb: profile.maxOrderSb,
+  const sportCounts = await getSportActionCounts(profile.userId, {
+    windowHours: BOT_ENGINE_POLICY.lookbackHours.sportMix,
+    actionTypes: BOT_ENGINE_POLICY.marketActionTypes,
   });
-
-  const result = await executeBotAction(
+  const heldIds = await getBotHeldPlayerIds(profile.userId);
+  const botMarketCounts = await getBotMarketActionCountsByPlayer(
     profile.userId,
-    profile.profileId,
-    actionType,
-    target,
-    params,
+    BOT_ENGINE_POLICY.lookbackHours.antiHammering,
+    BOT_ENGINE_POLICY.marketActionTypes,
   );
+  const globalMarketCounts = await getGlobalMarketActionCountsByPlayer(
+    BOT_ENGINE_POLICY.lookbackHours.antiHammering,
+    BOT_ENGINE_POLICY.marketActionTypes,
+  );
+
+  let lastReason = "no_eligible_action_type";
+
+  // 7. Attempt primary action first, then coverage-oriented fallbacks.
+  for (const actionType of actionAttemptOrder) {
+    if (actionType === "scout_assign") {
+      const scoutResult = await handleScoutAssign(state);
+      if (scoutResult.success) return scoutResult;
+      lastReason = scoutResult.reason;
+      continue;
+    }
+
+    if (actionType === "scout_rebalance") {
+      const scoutResult = await handleScoutRebalance(state);
+      if (scoutResult.success) return scoutResult;
+      lastReason = scoutResult.reason;
+      continue;
+    }
+
+    const context: SelectionContext = {
+      botUserId: profile.userId,
+      actionType,
+      recentPlayerIds: recentIds,
+      otherBotRecentPlayerIds: otherBotIds,
+      sportActionCounts: sportCounts,
+      sportTargets,
+      sportTargetTolerance: BOT_ENGINE_POLICY.sportTargets.tolerance,
+      maxSportConcentration: profile.maxSportConcentration,
+      heldPlayerIds: heldIds,
+      marketActionTypes: new Set(BOT_ENGINE_POLICY.marketActionTypes),
+      botMarketActionCountsByPlayer: botMarketCounts,
+      globalMarketActionCountsByPlayer: globalMarketCounts,
+      maxBotMarketActionsPerPlayer24h: BOT_ENGINE_POLICY.caps.perBotPerPlayer24h,
+      maxGlobalMarketActionsPerPlayer24h: BOT_ENGINE_POLICY.caps.globalPerPlayer24h,
+    };
+
+    const candidates = await selectCandidates(context, 20);
+    const target = pickFromCandidates(candidates);
+    if (!target) {
+      lastReason = `no_eligible_players_for_${actionType}`;
+      continue;
+    }
+
+    const params = calculateActionParams(actionType, target, {
+      minOrderSb: profile.minOrderSb,
+      maxOrderSb: profile.maxOrderSb,
+    });
+
+    const result = await executeBotAction(
+      profile.userId,
+      profile.profileId,
+      actionType,
+      target,
+      params,
+    );
+
+    if (result.success) {
+      return {
+        actionType,
+        playerName: target.playerName,
+        success: true,
+        reason: "executed",
+      };
+    }
+
+    lastReason = result.errorMessage || "execution_failed";
+  }
 
   return {
-    actionType,
-    playerName: target.playerName,
-    success: result.success,
-    reason: result.success
-      ? "executed"
-      : (result.errorMessage || "execution_failed"),
+    actionType: primaryActionType || undefined,
+    success: false,
+    reason: lastReason,
   };
 }
 
@@ -436,9 +651,7 @@ async function runBotTick(
 // Scout Handling
 // ---------------------------------------------------------------------------
 
-async function handleScoutAssign(
-  state: BotState,
-): Promise<{
+async function handleScoutAssign(state: BotState): Promise<{
   actionType: ActionType;
   playerName?: string;
   success: boolean;
@@ -448,11 +661,8 @@ async function handleScoutAssign(
 
   const currentUsed = scoutAssignments.reduce((sum, s) => sum + s.scoutCount, 0);
   if (currentUsed >= maxScouts) {
-    return { success: false, reason: "scout_slots_full" };
+    return { actionType: "scout_assign", success: false, reason: "scout_slots_full" };
   }
-
-  // Get all players WITHOUT pools (scout targets for bootstrapping)
-  const pooledIds = await getPooledPlayerIds();
 
   // Find an active player not yet scouted and without a pool
   const scoutedIds = new Set(scoutAssignments.map((s) => s.playerId));
@@ -483,12 +693,10 @@ async function handleScoutAssign(
     };
   }
 
-  return { success: false, reason: "no_unscouted_players_found" };
+  return { actionType: "scout_assign", success: false, reason: "no_unscouted_players_found" };
 }
 
-async function handleScoutRebalance(
-  state: BotState,
-): Promise<{
+async function handleScoutRebalance(state: BotState): Promise<{
   actionType: ActionType;
   playerName?: string;
   success: boolean;
@@ -497,12 +705,11 @@ async function handleScoutRebalance(
   const { profile, scoutAssignments } = state;
 
   if (scoutAssignments.length === 0) {
-    return { success: false, reason: "no_scouts_to_rebalance" };
+    return { actionType: "scout_rebalance", success: false, reason: "no_scouts_to_rebalance" };
   }
 
   // Pick a random current scout to remove from
-  const source =
-    scoutAssignments[Math.floor(Math.random() * scoutAssignments.length)];
+  const source = scoutAssignments[Math.floor(Math.random() * scoutAssignments.length)];
   const newCount = Math.max(0, source.scoutCount - 1);
   await storage.assignScouts(profile.userId, source.playerId, newCount);
 
@@ -537,7 +744,7 @@ async function handleScoutRebalance(
 
   // Couldn't rebalance — put the scout back
   await storage.assignScouts(profile.userId, source.playerId, source.scoutCount);
-  return { success: false, reason: "no_rebalance_target_found" };
+  return { actionType: "scout_rebalance", success: false, reason: "no_rebalance_target_found" };
 }
 
 // ---------------------------------------------------------------------------
@@ -549,7 +756,25 @@ async function handleScoutRebalance(
  * Called by the scheduler every 15 minutes.
  */
 export async function runDeterministicBotEngineTick(): Promise<TickResult> {
+  if (!isBotEngineEnabled()) {
+    return {
+      botsProcessed: 0,
+      botsSkipped: 0,
+      errors: 0,
+      details: [
+        {
+          botName: "engine",
+          role: "trader",
+          stage: "steady_state",
+          success: false,
+          reason: "engine_disabled",
+        },
+      ],
+    };
+  }
+
   const activeBots = await loadActiveBots();
+  const sportTargets = await computeSportTargetsFromActiveSlate();
 
   if (activeBots.length === 0) {
     return { botsProcessed: 0, botsSkipped: 0, errors: 0, details: [] };
@@ -577,7 +802,7 @@ export async function runDeterministicBotEngineTick(): Promise<TickResult> {
         continue;
       }
 
-      const tickResult = await runBotTick(state);
+      const tickResult = await runBotTick(state, sportTargets);
 
       // Log to bot_run_logs
       await db.insert(botRunLogs).values({
@@ -652,8 +877,12 @@ export async function runDeterministicBotEngineTick(): Promise<TickResult> {
  */
 export async function getDeterministicEngineStatus() {
   const activeBots = await loadActiveBots();
+  const sportTargets = await computeSportTargetsFromActiveSlate();
   return {
+    engineEnabled: isBotEngineEnabled(),
+    policy: BOT_ENGINE_POLICY,
     activeBots: activeBots.length,
+    sportTargets: Object.fromEntries(sportTargets.entries()),
     bots: activeBots.map((b) => ({
       name: b.botName,
       role: b.role,

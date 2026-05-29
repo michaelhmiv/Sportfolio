@@ -5,18 +5,9 @@
  * any field via their DB columns.
  */
 
-export type BotRole =
-  | "market_maker"
-  | "trader"
-  | "casual"
-  | "contest"
-  | "cold_market";
+export type BotRole = "market_maker" | "trader" | "casual" | "contest" | "cold_market";
 
-export type BotStage =
-  | "scouting"
-  | "accumulating"
-  | "pool_building"
-  | "steady_state";
+export type BotStage = "scouting" | "accumulating" | "pool_building" | "steady_state";
 
 export type ActionType =
   | "scout_assign"
@@ -26,6 +17,46 @@ export type ActionType =
   | "buy"
   | "sell"
   | "boost_assign";
+
+export interface BotEnginePolicy {
+  marketActionTypes: ActionType[];
+  lookbackHours: {
+    playerCooldown: number;
+    sportMix: number;
+    antiHammering: number;
+    otherBotCoordination: number;
+    slateWindow: number;
+  };
+  caps: {
+    perBotPerPlayer24h: number;
+    globalPerPlayer24h: number;
+  };
+  sportTargets: {
+    minShare: number;
+    maxShare: number;
+    tolerance: number;
+  };
+}
+
+export const BOT_ENGINE_POLICY: BotEnginePolicy = {
+  marketActionTypes: ["pool_create", "pool_add_liquidity", "buy", "sell", "boost_assign"],
+  lookbackHours: {
+    playerCooldown: 24,
+    sportMix: 24,
+    antiHammering: 24,
+    otherBotCoordination: 2,
+    slateWindow: 48,
+  },
+  caps: {
+    perBotPerPlayer24h: 1,
+    globalPerPlayer24h: 4,
+  },
+  sportTargets: {
+    minShare: 0.15,
+    maxShare: 0.55,
+    tolerance: 0.05,
+  },
+};
 
 export interface BotProfileV2 {
   /** Bot user ID (references users table) */
@@ -151,13 +182,7 @@ export const ROLE_DEFAULTS: Record<BotRole, RoleDefaults> = {
     maxOrderSb: 80,
     scoutTargetCount: 3,
     scoutRotationHours: 48,
-    allowedActions: [
-      "scout_assign",
-      "scout_rebalance",
-      "pool_create",
-      "buy",
-      "sell",
-    ],
+    allowedActions: ["scout_assign", "scout_rebalance", "pool_create", "buy", "sell"],
     actionWeights: {
       buy: 30,
       sell: 20,
@@ -207,13 +232,7 @@ export const ROLE_DEFAULTS: Record<BotRole, RoleDefaults> = {
     maxOrderSb: 60,
     scoutTargetCount: 10,
     scoutRotationHours: 120,
-    allowedActions: [
-      "scout_assign",
-      "scout_rebalance",
-      "pool_create",
-      "pool_add_liquidity",
-      "buy",
-    ],
+    allowedActions: ["scout_assign", "scout_rebalance", "pool_create", "pool_add_liquidity", "buy"],
     actionWeights: {
       scout_assign: 30,
       pool_create: 35,

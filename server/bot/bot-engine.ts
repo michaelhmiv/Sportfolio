@@ -88,16 +88,17 @@ export async function runBotEngineTick(): Promise<{
   return runDeterministicBotEngineTick();
 }
 
+export async function getBotRuntimeStatus() {
+  return getDeterministicEngineStatus();
+}
+
 export async function getBotStats(): Promise<{
   totalBots: number;
   activeBots: number;
   botsByRole: Record<string, number>;
   totalActionsToday: number;
 }> {
-  const [allProfiles, engineStatus] = await Promise.all([
-    db.select().from(botProfiles),
-    getDeterministicEngineStatus(),
-  ]);
+  const allProfiles = await db.select().from(botProfiles);
 
   const botsByRole: Record<string, number> = {};
   for (const profile of allProfiles) {
@@ -113,8 +114,8 @@ export async function getBotStats(): Promise<{
     .where(gte(botActionsLog.createdAt, today));
 
   return {
-    totalBots: engineStatus.activeBots,
-    activeBots: engineStatus.activeBots,
+    totalBots: allProfiles.length,
+    activeBots: allProfiles.filter((profile) => profile.isActive).length,
     botsByRole,
     totalActionsToday: actionCount?.count || 0,
   };

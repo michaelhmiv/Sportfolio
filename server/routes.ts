@@ -79,6 +79,10 @@ import { registerPlayersRoutes } from "./routes/players";
 import { normalizeEtDateParam } from "./routes/players-query";
 import { getPool } from "./amm/pool";
 import { normalizeSiteUrl } from "@shared/seo";
+import {
+  assignDailyBoostWithValidation,
+  DailyBoostValidationError,
+} from "./boosts/assign-daily-boost";
 import { ensureSmsSchema } from "./sms-service";
 import { ensureDiscordSchema } from "./discord-service";
 import { ensureAccountDeletionSchema } from "./services/account-deletion";
@@ -159,8 +163,7 @@ import {
   type LeaderboardCategory,
   type LeaderboardEntry,
 } from "./leaderboards";
-import { getBotStats, runBotEngineTick } from "./bot/bot-engine";
-import { getHermesBotRuntimeStatus } from "./bot/runtime";
+import { getBotRuntimeStatus, getBotStats, runBotEngineTick } from "./bot/bot-engine";
 
 const SUPPORTED_SPORTS = ["NBA", "NFL", "MLB", "NASCAR"] as const;
 function toNumber(value: string | number | null | undefined): number {
@@ -9688,13 +9691,10 @@ ${items}
   // Admin endpoint: Bot statistics and recent actions
   app.get("/api/admin/bots", adminAuth, async (_req, res) => {
     try {
-      const [stats, runtimeStatus] = await Promise.all([
-        getBotStats(),
-        getHermesBotRuntimeStatus(),
-      ]);
+      const [stats, runtimeStatus] = await Promise.all([getBotStats(), getBotRuntimeStatus()]);
 
       return res.json({
-        runtime: "hermes_bot_orchestrator",
+        runtime: "deterministic_bot_engine_v2",
         stats,
         runtimeStatus,
       });
@@ -9705,11 +9705,11 @@ ${items}
     }
   });
 
-  // Admin endpoint: Manually trigger Hermes bot engine
+  // Admin endpoint: Manually trigger deterministic bot engine
   app.post("/api/admin/bots/trigger", adminAuth, async (_req, res) => {
     try {
       const result = await runBotEngineTick();
-      const runtimeStatus = await getHermesBotRuntimeStatus();
+      const runtimeStatus = await getBotRuntimeStatus();
 
       return res.json({
         triggered: true,
@@ -11295,101 +11295,20 @@ ${items}
         return res.status(400).json({ error: "sharesEntered must be positive" });
       }
 
-      const sportUpper = sport.toUpperCase();
-      const canonicalPlayerId = await storage.getCanonicalPlayerId(playerId);
-
-      const dateStr = resolveEtDateOrToday(date);
-      const { startOfDay } = getETDayBoundaries(dateStr);
-      const targetDate = toNoonForEtDate(dateStr);
-
-      // Check if slot is already taken
-      const currentBoosts = await storage.getDailyBoosts(userId, sportUpper, targetDate);
-      if (currentBoosts.some((b) => b.slotTier === tierNum)) {
-        return res.status(400).json({ error: `Slot ${tierNum}x is already occupied` });
-      }
-
-      // Check if player is already boosted
-      if (currentBoosts.some((b) => b.playerId === canonicalPlayerId)) {
-        return res.status(400).json({ error: "This player is already in a boost slot" });
-      }
-
-      // Check max 4 boosts
-      if (currentBoosts.length >= 4) {
-        return res.status(400).json({ error: "All 4 boost slots are already filled" });
-      }
-
-      // Verify player has game today and get game info
-      const game = await storage.getPlayerGameForDate(canonicalPlayerId, sportUpper, targetDate);
-      if (!game) {
-        return res.status(400).json({ error: "This player doesn't have a game today" });
-      }
-
-      // Check if game has already started according to the normalized marketplace state.
-      if (hasGameStartedForBoost(game)) {
-        return res
-          .status(400)
-          .json({ error: "Cannot add boost - player's game has already started" });
-      }
-
-      // Verify user has enough available shares
-      const availableShares = await storage.getAvailableShares(userId, "player", canonicalPlayerId);
-      if (availableShares < shares) {
-        return res.status(400).json({
-          error: `Not enough available shares. You have ${availableShares} available.`,
-        });
-      }
-
-      // Verify only 1 share is entered per boost slot
-      // Multiplier is added to the single share to increase its value
+      // Verify only 1 share is entered per boost slot.
       if (shares !== 1) {
         return res.status(400).json({
           error: `Only 1 share can be placed in a boost slot. You entered ${shares} shares. Use Stack Shares to roll more multiplier into a single share.`,
         });
       }
 
-      // Select a deterministic holding row and capture the per-share multiplier.
-      // Boost slots always burn exactly 1 share.
-      // If a stacked share exists, prefer that multiplier; otherwise use a regular share.
-      const breakdown = await storage.getPlayerShareBreakdown(userId, canonicalPlayerId);
-      const candidates = [
-        ...(breakdown.stacked || [])
-          .filter((h) => parseFloat(h.quantity) >= 1)
-          .map((holding) => ({
-            multiplier: parseFloat(holding.multiplier || "1"),
-            isStackedShare: true,
-          })),
-        ...(breakdown.regular && parseFloat(breakdown.regular.quantity) >= 1
-          ? [
-              {
-                multiplier: 1,
-                isStackedShare: false,
-              },
-            ]
-          : []),
-      ];
-
-      if (candidates.length === 0) {
-        return res.status(400).json({ error: "No shares available for this player" });
-      }
-
-      // Prefer a stacked share if it exists; otherwise use a regular share. If multiple stacked rows exist, use the highest multiplier.
-      const selectedHolding = candidates.sort((a, b) => b.multiplier - a.multiplier)[0];
-      const shareMultiplier = Number(selectedHolding.multiplier || 1).toFixed(2);
-      const shareSourceType = selectedHolding.isStackedShare ? "stacked" : "regular";
-
-      // Create the boost on ET game day
-      const boostDate = startOfDay;
-
-      const boost = await storage.createDailyBoost({
+      const dateStr = resolveEtDateOrToday(date);
+      const { boost, canonicalPlayerId, shareMultiplier } = await assignDailyBoostWithValidation({
         userId,
-        playerId: canonicalPlayerId,
-        sport: sportUpper,
+        playerId,
+        sport,
         slotTier: tierNum,
-        boostDate,
-        sharesEntered: shares,
-        shareMultiplier,
-        shareSourceType,
-        gameId: game.gameId,
+        etDate: dateStr,
       });
 
       // Get player info for response
@@ -11421,6 +11340,9 @@ ${items}
         estimatedPayout: `Estimated based on season average`,
       });
     } catch (error: any) {
+      if (error instanceof DailyBoostValidationError) {
+        return res.status(error.statusCode).json({ error: error.message });
+      }
       console.error("[daily-boosts/assign] Error:", error);
       res.status(500).json({ error: error.message });
     }
