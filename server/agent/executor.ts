@@ -8,6 +8,7 @@ import {
   zapAddLiquiditySharesOnly,
 } from "../amm/pool";
 import { getETDayBoundaries } from "../lib/time";
+import { assignDailyBoostWithValidation } from "../boosts/assign-daily-boost";
 import { storage } from "../storage";
 import type {
   AgentAction,
@@ -106,68 +107,12 @@ async function executeHoldingsStackShares(userId: string, action: HoldingsStackS
 }
 
 async function executeDailyBoostAssign(userId: string, action: DailyBoostAssignAction) {
-  const { startOfDay } = getETDayBoundaries(action.boostDate);
-  const targetDate = new Date(startOfDay.getTime() + 12 * 60 * 60 * 1000);
-  const currentBoosts = await storage.getDailyBoosts(userId, action.sport, targetDate);
-
-  if (currentBoosts.some((boost) => boost.slotTier === action.slotTier)) {
-    throw new Error(`Slot ${action.slotTier}x is already occupied`);
-  }
-  if (currentBoosts.some((boost) => boost.playerId === action.playerId)) {
-    throw new Error("This player is already in a boost slot");
-  }
-  if (currentBoosts.length >= 4) {
-    throw new Error("All 4 boost slots are already filled");
-  }
-
-  const game = await storage.getPlayerGameForDate(action.playerId, action.sport, targetDate);
-  if (!game) {
-    throw new Error("This player doesn't have a game in that boost window");
-  }
-  if (new Date(game.startTime) <= new Date()) {
-    throw new Error("Cannot add boost - player's game has already started");
-  }
-
-  const availableShares = await storage.getAvailableShares(userId, "player", action.playerId);
-  if (availableShares < 1) {
-    throw new Error(`Not enough available shares. You have ${availableShares} available.`);
-  }
-
-  const breakdown = await storage.getPlayerShareBreakdown(userId, action.playerId);
-  const candidates = [
-    ...(breakdown.stacked || [])
-      .filter((holding) => Number.parseFloat(holding.quantity) >= 1)
-      .map((holding) => ({
-        multiplier: Number.parseFloat(holding.multiplier || "1"),
-        isStackedShare: true,
-      })),
-    ...(breakdown.regular && Number.parseFloat(breakdown.regular.quantity) >= 1
-      ? [
-          {
-            multiplier: 1,
-            isStackedShare: false,
-          },
-        ]
-      : []),
-  ].sort((left, right) => right.multiplier - left.multiplier);
-
-  const selectedHolding = candidates[0];
-  if (!selectedHolding) {
-    throw new Error("No shares available for this player");
-  }
-  const shareMultiplier = selectedHolding.multiplier.toFixed(2);
-  const shareSourceType = selectedHolding.isStackedShare ? "stacked" : "regular";
-
-  await storage.createDailyBoost({
+  await assignDailyBoostWithValidation({
     userId,
     playerId: action.playerId,
     sport: action.sport,
     slotTier: action.slotTier,
-    boostDate: startOfDay,
-    sharesEntered: 1,
-    shareMultiplier,
-    shareSourceType,
-    gameId: game.gameId,
+    etDate: action.boostDate,
   });
 }
 
