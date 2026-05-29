@@ -13,6 +13,10 @@ supabase/.temp/
 .env
 .env.*
 !.env.example
+# Apple auth/signing keys
+*.p8
+AuthKey_*.p8
+AppleAuthKey_*.p8
 
 # Playwright
 test-results
