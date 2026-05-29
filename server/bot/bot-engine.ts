@@ -1,7 +1,10 @@
 import { botActionsLog, botProfiles } from "@shared/schema";
 import { eq, gte, sql } from "drizzle-orm";
 import { db } from "../db";
-import { getHermesBotRuntimeStatus, runHermesBotEngineTick } from "./runtime";
+import {
+  runDeterministicBotEngineTick,
+  getDeterministicEngineStatus,
+} from "./deterministic-engine";
 
 export interface BotProfile {
   id: string;
@@ -82,7 +85,7 @@ export async function runBotEngineTick(): Promise<{
   botsSkipped: number;
   errors: number;
 }> {
-  return runHermesBotEngineTick();
+  return runDeterministicBotEngineTick();
 }
 
 export async function getBotStats(): Promise<{
@@ -91,9 +94,9 @@ export async function getBotStats(): Promise<{
   botsByRole: Record<string, number>;
   totalActionsToday: number;
 }> {
-  const [allProfiles, runtimeStatus] = await Promise.all([
+  const [allProfiles, engineStatus] = await Promise.all([
     db.select().from(botProfiles),
-    getHermesBotRuntimeStatus(),
+    getDeterministicEngineStatus(),
   ]);
 
   const botsByRole: Record<string, number> = {};
@@ -110,8 +113,8 @@ export async function getBotStats(): Promise<{
     .where(gte(botActionsLog.createdAt, today));
 
   return {
-    totalBots: runtimeStatus.totalBots,
-    activeBots: runtimeStatus.activeBots,
+    totalBots: engineStatus.activeBots,
+    activeBots: engineStatus.activeBots,
     botsByRole,
     totalActionsToday: actionCount?.count || 0,
   };
