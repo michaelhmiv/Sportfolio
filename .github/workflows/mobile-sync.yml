@@ -3,8 +3,20 @@ name: Sync Mobile Apps
 on:
   push:
     branches: [main]
+    paths:
+      - "client/src/**"
+      - "mobile/**"
+      - "capacitor.config.ts"
+      - "package.json"
+      - "package-lock.json"
   pull_request:
     branches: [main]
+    paths:
+      - "client/src/**"
+      - "mobile/**"
+      - "capacitor.config.ts"
+      - "package.json"
+      - "package-lock.json"
 
 permissions:
   contents: read
