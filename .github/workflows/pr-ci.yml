@@ -5,6 +5,15 @@ on:
     branches:
       - main
       - master
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - ".vscode/**"
+      - ".github/workflows/ios-*"
+      - ".github/workflows/play-*"
+      - ".github/workflows/firebase-*"
+      - "mobile/ios/**"
+      - "mobile/android/**"
 
 env:
   NODE_VERSION: "20"
