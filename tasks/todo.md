@@ -2940,3 +2940,17 @@ Review:
 
 - [x] Implemented iPhone-only target, Apple OAuth path, in-app account deletion routes/UI, and native rewarded ad adapter with iOS plugin scaffolding.
 - [ ] Validation commands are currently blocked locally because `tsc`, `eslint`, `vitest`, and `prettier` are not installed in this worktree environment (`node_modules` missing).
+
+## 2026-05-30 Play Production Review Automation
+
+- [x] Review existing Play internal/closed GitHub Actions workflows and reuse their release/signing pattern
+- [x] Add manual Play production release workflow to build signed AAB and upload to production track as draft
+- [x] Configure upload to auto-submit changes for Google Play review (`changesNotSentForReview: false`)
+- [ ] Run required validation (`npm run check`, `npm run lint`, `npm run test:run`)
+- [ ] Run formatter validation (`npm run format:check`)
+
+Review:
+
+- Added `.github/workflows/play-production-release.yml` mirroring your internal/closed build and signing flow.
+- New workflow uploads to `production` with `status: draft` and `changesNotSentForReview: false` so Play receives the draft release and submission is sent for review automatically.
+- Secrets contract is unchanged from existing Play workflows (`PLAY_SERVICE_ACCOUNT_JSON`, keystore + key alias/password secrets).
