@@ -85,7 +85,9 @@ jobs:
           INPUT_RELEASE_NAME: ${{ github.event.inputs.release_name }}
           INPUT_CLOSED_TRACK: ${{ github.event.inputs.closed_track }}
         run: |
-          VERSION_CODE=$((200000 + ${GITHUB_RUN_NUMBER}))
+          # Reserve 400000-499999 for Play closed testing builds.
+          VERSION_CODE_BASE=400000
+          VERSION_CODE=$((VERSION_CODE_BASE + ${GITHUB_RUN_NUMBER}))
           echo "MOBILE_VERSION_CODE=$VERSION_CODE" >> "$GITHUB_ENV"
 
           if [ -n "$INPUT_RELEASE_NAME" ]; then
