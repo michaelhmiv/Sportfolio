@@ -79,7 +79,9 @@ jobs:
         env:
           INPUT_RELEASE_NAME: ${{ github.event.inputs.release_name }}
         run: |
-          VERSION_CODE=$((200000 + ${GITHUB_RUN_NUMBER}))
+          # Reserve 600000-699999 for Play production builds.
+          VERSION_CODE_BASE=600000
+          VERSION_CODE=$((VERSION_CODE_BASE + ${GITHUB_RUN_NUMBER}))
           echo "MOBILE_VERSION_CODE=$VERSION_CODE" >> "$GITHUB_ENV"
 
           if [ -n "$INPUT_RELEASE_NAME" ]; then
