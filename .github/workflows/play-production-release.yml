@@ -106,14 +106,14 @@ jobs:
           MOBILE_VERSION_NAME: ${{ env.PLAY_RELEASE_NAME }}
         run: node scripts/run-gradle-wrapper.mjs bundleRelease
 
-      - name: Upload bundle to Play production (auto-submit for review)
+      - name: Upload bundle to Play production (auto-submit for review/publish)
         uses: r0adkll/upload-google-play@v1
         with:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
           packageName: sportfolio.market
           releaseFiles: mobile/android/app/build/outputs/bundle/release/app-release.aab
           tracks: production
-          status: draft
+          status: completed
           changesNotSentForReview: false
           releaseName: ${{ env.PLAY_RELEASE_NAME }}
           whatsNewDirectory: mobile/play/whatsnew
