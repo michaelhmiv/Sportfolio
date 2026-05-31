@@ -1,0 +1,186 @@
+name: Discord Patch Updates
+
+on:
+  pull_request_target:
+    types:
+      - closed
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  post-patch-update:
+    name: Post merged PR patch update to Discord
+    if: >
+      github.event.pull_request.merged == true &&
+      (github.event.pull_request.base.ref == 'main' || github.event.pull_request.base.ref == 'master')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post patch update to Discord webhook
+        uses: actions/github-script@v7
+        env:
+          DISCORD_PATCH_NOTES_WEBHOOK_URL: ${{ secrets.DISCORD_PATCH_NOTES_WEBHOOK_URL }}
+        with:
+          script: |
+            const runAttempt = Number(process.env.GITHUB_RUN_ATTEMPT || '1');
+            if (!Number.isFinite(runAttempt) || runAttempt > 1) {
+              core.info(`Run attempt ${process.env.GITHUB_RUN_ATTEMPT || 'unknown'} detected; skipping Discord post to avoid duplicate announcements.`);
+              return;
+            }
+
+            const webhookUrl = String(process.env.DISCORD_PATCH_NOTES_WEBHOOK_URL || '').trim();
+            if (!webhookUrl) {
+              core.setFailed('Missing required secret: DISCORD_PATCH_NOTES_WEBHOOK_URL');
+              return;
+            }
+
+            const PATCH_NOTES_HEADING_RE = /^##\s+patch notes\s*$/i;
+            const H2_RE = /^##\s+\S+/;
+
+            const pr = context.payload.pull_request;
+            const title = String(pr.title || `PR #${pr.number}`).trim();
+            const prUrl = pr.html_url;
+            const prNumber = pr.number;
+            const baseRef = pr.base?.ref || 'unknown';
+            const author = pr.user?.login || 'unknown';
+            const merger = pr.merged_by?.login || 'unknown';
+            const mergedAtIso = pr.merged_at ? new Date(pr.merged_at).toISOString() : new Date().toISOString();
+            const labels = Array.isArray(pr.labels)
+              ? pr.labels.map((label) => label?.name).filter(Boolean)
+              : [];
+
+            function sanitizeForDiscord(input) {
+              return String(input || '')
+                .replace(/@everyone/g, '@\u200beveryone')
+                .replace(/@here/g, '@\u200bhere')
+                .replace(/<@/g, '<@\u200b');
+            }
+
+            function normalizeWhitespace(input) {
+              return String(input || '')
+                .replace(/\r\n/g, '\n')
+                .replace(/\t/g, '  ');
+            }
+
+            function extractPatchNotesSection(markdown) {
+              const lines = normalizeWhitespace(markdown).split('\n');
+              const start = lines.findIndex((line) => PATCH_NOTES_HEADING_RE.test(line.trim()));
+              if (start === -1) {
+                return '';
+              }
+
+              let end = lines.length;
+              for (let idx = start + 1; idx < lines.length; idx += 1) {
+                if (H2_RE.test(lines[idx].trim())) {
+                  end = idx;
+                  break;
+                }
+              }
+
+              return lines
+                .slice(start + 1, end)
+                .join('\n')
+                .trim();
+            }
+
+            function extractFirstMeaningfulParagraph(markdown) {
+              const text = normalizeWhitespace(markdown);
+              if (!text.trim()) {
+                return '';
+              }
+
+              const paragraphs = text
+                .split(/\n\s*\n/g)
+                .map((chunk) => chunk.trim())
+                .filter(Boolean);
+
+              for (const paragraph of paragraphs) {
+                const rawLines = paragraph
+                  .split('\n')
+                  .map((line) => line.trim())
+                  .filter(Boolean);
+
+                const cleanedLines = rawLines.filter((line) => {
+                  if (/^<!--/.test(line) || /-->$/.test(line)) {
+                    return false;
+                  }
+                  if (/^##\s+/.test(line)) {
+                    return false;
+                  }
+                  if (/^-\s*\[[ xX]\]\s*/.test(line)) {
+                    return false;
+                  }
+                  if (/^fixes\s*#?/i.test(line) || /^related to\s*#?/i.test(line)) {
+                    return false;
+                  }
+                  return true;
+                });
+
+                const cleaned = cleanedLines.join(' ').trim();
+                if (cleaned.length >= 24 && /[A-Za-z]/.test(cleaned)) {
+                  return cleaned;
+                }
+              }
+
+              return '';
+            }
+
+            function truncate(input, maxLength) {
+              const value = String(input || '');
+              if (value.length <= maxLength) {
+                return value;
+              }
+              if (maxLength <= 1) {
+                return '...';
+              }
+              return `${value.slice(0, maxLength - 3).trimEnd()}...`;
+            }
+
+            const patchNotesSection = extractPatchNotesSection(pr.body || '');
+            const fallbackParagraph = extractFirstMeaningfulParagraph(pr.body || '');
+            const usingFallback = patchNotesSection.length === 0;
+            const summarySource = usingFallback ? fallbackParagraph || title : patchNotesSection;
+            const summary = sanitizeForDiscord(summarySource);
+
+            const labelSummary = labels.length > 0 ? labels.map((label) => `\`${label}\``).join(' ') : '`none`';
+            const fallbackNotice = usingFallback
+              ? '_No structured `## Patch Notes` section was found in the merged PR body, so this post is using fallback summary text._\n\n'
+              : '';
+            const summaryHeading = usingFallback ? '**Summary (Fallback):**' : '**Patch Notes:**';
+
+            const prefix = [
+              `**Patch Update:** [${sanitizeForDiscord(title)}](${prUrl})`,
+              `PR #${prNumber} merged into \`${baseRef}\``,
+              `Author: @${author}`,
+              `Merged by: @${merger}`,
+              `Labels: ${labelSummary}`,
+              `Merged at: ${mergedAtIso}`,
+              '',
+              fallbackNotice + summaryHeading,
+            ].join('\n');
+
+            const MAX_CONTENT_LENGTH = 2000;
+            const availableForSummary = Math.max(1, MAX_CONTENT_LENGTH - prefix.length - 1);
+            const finalContent = `${prefix}\n${truncate(summary, availableForSummary)}`;
+
+            const response = await fetch(webhookUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                content: finalContent,
+                allowed_mentions: {
+                  parse: [],
+                },
+              }),
+            });
+
+            if (!response.ok) {
+              const errorBody = await response.text();
+              core.setFailed(`Discord webhook POST failed (${response.status}): ${errorBody}`);
+              return;
+            }
+
+            core.info(`Posted patch update for PR #${prNumber} to Discord.`);

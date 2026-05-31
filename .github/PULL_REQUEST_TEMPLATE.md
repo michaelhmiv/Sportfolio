@@ -2,6 +2,11 @@
 
 <!-- Briefly describe what changed and why -->
 
+## Patch Notes
+
+<!-- Required: 1-5 player-visible bullets describing what changed, why it matters, and any user-facing impact -->
+- 
+
 ## Type of Change
 
 - [ ] Bug fix
