@@ -1,105 +1,82 @@
 ---
 id: getting-started-overview
 title: Getting Started
-summary: A practical orientation to Sportfolio's economy, daily workflow, and the fastest path from a new account to confident decisions.
+summary: Practical orientation to Sportfolio's core loop and first-session workflow.
 audience: public
 category: getting-started
 status: published
 owner: product-engineering
-lastReviewedAt: 2026-05-12
-changeTriggers: client/src/App.tsx,client/src/pages/dashboard.tsx,client/src/pages/marketplace.tsx,server/routes.ts,server/storage.ts
+lastReviewedAt: 2026-05-31
+changeTriggers: client/src/App.tsx,client/src/pages/dashboard.tsx,client/src/pages/marketplace.tsx,client/src/pages/portfolio.tsx,server/routes.ts,server/storage.ts
 slug: overview
 surface: web,cli,agent
-searchKeywords: onboarding,start,balance,portfolio,first steps,overview,how sportfolio works
+searchKeywords: onboarding,start,balance,portfolio,first steps,overview
 ---
 
 # What Sportfolio Is
 
-Sportfolio is a sports-market game built around player shares, live slates, and fantasy-driven payout loops.
+Sportfolio is a sports market game built around player shares, live slates, and fantasy-driven payout loops.
 
-You are not just picking athletes you like — you are allocating cash, warehousing market exposure, converting inventory into multiplier strength, and deploying boosts around game windows.
-
-> 💡 **AMM-first:** Sportfolio trades against pooled liquidity, not other users. Every player has their own market pool. Execution is instant.
-
----
+You allocate cash, accumulate player inventory, convert some Singles into Stack Power, and deploy boosts around game windows.
 
 ## Your Resources
 
-Every account manages five types of assets:
+| Asset             | What it is                                       |
+| ----------------- | ------------------------------------------------ |
+| SB (cash balance) | Liquid spending power for trades, boosts, and LP |
+| Player Singles    | Tradeable player shares                          |
+| Stack Power       | Non-tradeable per-player power inventory         |
+| Premium shares    | Redeemable for premium access windows            |
+| Community shares  | Consumed to create community boosts              |
 
-| Asset                 | What it is                                          |
-| --------------------- | --------------------------------------------------- |
-| **SB (cash balance)** | Liquid spending power for trades, boosts, and LP    |
-| **Player shares**     | Tradeable positions in individual player pools      |
-| **Stacked shares**    | Non-tradeable, high-multiplier inventory for boosts |
-| **Premium shares**    | Redeemable to activate premium access windows       |
-| **Community shares**  | Consumed to create community boosts                 |
-
----
-
-## The Core Loop
+## Core Loop
 
 ```
-Buy shares → Assign scouts → Stack into multipliers → Deploy daily boosts → Collect payouts
+Buy shares -> Assign scouts -> Build stack power -> Deploy boosts -> Review payouts
 ```
 
-**Step by step:**
+1. Trade: buy player Singles in AMM pools.
+2. Accumulate: scouts earn more shares over time.
+3. Convert: stack unlocked Singles when quality matters more than quantity.
+4. Compete: assign daily boosts before lock.
+5. Review: track portfolio and leaderboard impact.
 
-1. **Trade** — buy player shares in AMM pools
-2. **Accumulate** — scouts earn you more shares over time (passively)
-3. **Upgrade** — stack raw shares into higher-multiplier inventory
-4. **Compete** — assign daily boosts before games lock; earn payouts based on fantasy output
-5. **Review** — track performance on leaderboards and your portfolio
+## First Session Checklist
 
----
+1. Pick a sport from the selector.
+2. Scan Player Pools for price, volume, and game context.
+3. Buy a small basket of players you have conviction on.
+4. Assign scouts to those players.
+5. Keep some cash for flexibility.
+6. Before lock, review Boosts and assign slots intentionally.
 
-## Your First Session
+## Daily Rhythm
 
-> ✅ **Fastest path to a productive account:**
+- Open: check slate and news.
+- Build: add or trim positions.
+- Accumulate: adjust scout assignments.
+- Convert: stack Singles when appropriate.
+- Deploy: assign boosts before lock.
+- Review: inspect activity feed and outcomes.
 
-1. Pick a sport from the global selector on the dashboard.
-2. Scan Player Pools — look at price, volume, and upcoming games.
-3. Buy a small basket of players you have conviction on. Don't over-diversify.
-4. Assign scouts to those same names so inventory builds passively.
-5. Keep some cash unspent — you'll want flexibility for boosts and news-driven moves.
-6. Before games lock, check the Boosts page and assign daily boosts.
+## Main Pages
 
----
+| Page         | Purpose                                         |
+| ------------ | ----------------------------------------------- |
+| Dashboard    | Live context, market activity, account snapshot |
+| Player Pools | Browse and trade                                |
+| Player Page  | Deeper execution and research                   |
+| Portfolio    | Holdings, stack status, LP, and activity        |
+| Boosts       | Stacking, slot assignment, and payout tracking  |
+| News         | Breaking stories and personalized digest        |
+| Agent        | Explain mechanics and stage confirmed actions   |
 
-## The Daily Rhythm
-
-Most of Sportfolio runs on a daily loop tied to the sports schedule:
-
-- **Open** — check the dashboard, upcoming games, and overnight news.
-- **Build** — add or trim positions in player pools.
-- **Accumulate** — scouts run continuously; revisit when your conviction changes.
-- **Convert** — stack raw shares when quality matters more than quantity.
-- **Deploy** — assign daily boosts before game lock.
-- **Compete** — monitor boost payouts and leaderboard movement.
-- **Review** — check your portfolio and activity feed after settlement.
-
----
-
-## Main Pages at a Glance
-
-| Page             | Purpose                                                             |
-| ---------------- | ------------------------------------------------------------------- |
-| **Dashboard**    | Live slate context, market activity, account snapshot               |
-| **Player Pools** | Market browser — trade, compare, scan                               |
-| **Player page**  | Detailed execution and research for one athlete                     |
-| **Portfolio**    | Your holdings, LP positions, P&L, and activity                      |
-| **Boosts**       | Stack shares, assign boosts, track payouts                          |
-| **News**         | Breaking stories + personalized digest                              |
-| **Agent**        | Ask questions, get analysis, stage confirmed actions (manual turns) |
-
-Saved live strategies can auto-execute an allowlisted gameplay subset inside guardrails. Payments, purchases, checkout, and community boost creation are excluded from auto-runs.
-
----
+Saved live strategies can auto-run only an allowlisted gameplay subset. Payment and checkout flows remain excluded from auto-runs.
 
 ## Where to Go Next
 
-- [Platform Tour](/wiki/getting-started/platform-tour) — a page-by-page walkthrough of the site
-- [Player Pools](/wiki/gameplay/player-pools) — how trading, pricing, and slippage work
-- [Scouts and Rewards](/wiki/gameplay/scouts-and-rewards) — passive share accumulation
-- [Stacking and Boosts](/wiki/gameplay/stacking-shares-and-boosts) — multipliers and daily payout mechanics
-- [Glossary](/wiki/faq/glossary) — quick reference for Sportfolio terms
+- [Platform Tour](/wiki/getting-started/platform-tour)
+- [Player Pools](/wiki/gameplay/player-pools)
+- [Scouts and Rewards](/wiki/gameplay/scouts-and-rewards)
+- [Stacking and Boosts](/wiki/gameplay/stacking-shares-and-boosts)
+- [Glossary](/wiki/faq/glossary)
