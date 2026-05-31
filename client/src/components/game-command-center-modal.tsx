@@ -590,104 +590,104 @@ function MlbLifecycleCard({
       </div>
 
       {isPregame && (
-      <div className="border-t border-border/60 px-3 py-3 sm:px-4">
-        <div className="flex items-center justify-between gap-2">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-            Your exposure
+        <div className="border-t border-border/60 px-3 py-3 sm:px-4">
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              Your exposure
+            </div>
+            {ownershipBadgeLabel ? (
+              <Badge variant="outline" className="text-[10px] border-border/80">
+                {ownershipBadgeLabel}
+              </Badge>
+            ) : null}
           </div>
-          {ownershipBadgeLabel ? (
-            <Badge variant="outline" className="text-[10px] border-border/80">
-              {ownershipBadgeLabel}
-            </Badge>
-          ) : null}
-        </div>
 
-        {!isAuthenticated ? (
-          <div className="mt-2 text-xs text-muted-foreground">
-            Sign in to tie this matchup back to your holdings and earnings.
-          </div>
-        ) : isPregame ? (
-          scheduledOwnedPlayers.length > 0 ? (
-            <div className="mt-3 space-y-2">
-              <div className="flex flex-wrap gap-1.5">
-                {scheduledOwnedPlayers.slice(0, 4).map((player) => (
-                  <Badge
-                    key={`pregame-owned-${player.playerId}`}
-                    variant="outline"
-                    className="text-[10px] gap-1 border-border/80"
-                  >
-                    {renderModalPlayerName({
-                      name: player.name,
-                      team: player.team,
-                      playerId: player.playerId,
-                      className: "text-purple-500",
-                      label: formatCompactName(player.name),
-                    })}
-                    <span className="font-mono">{player.multiplier.toFixed(1)}x</span>
-                  </Badge>
-                ))}
-                {scheduledOwnedPlayers.length > 4 ? (
-                  <Badge variant="outline" className="text-[10px] border-border/80">
-                    +{scheduledOwnedPlayers.length - 4}
-                  </Badge>
-                ) : null}
+          {!isAuthenticated ? (
+            <div className="mt-2 text-xs text-muted-foreground">
+              Sign in to tie this matchup back to your holdings and earnings.
+            </div>
+          ) : isPregame ? (
+            scheduledOwnedPlayers.length > 0 ? (
+              <div className="mt-3 space-y-2">
+                <div className="flex flex-wrap gap-1.5">
+                  {scheduledOwnedPlayers.slice(0, 4).map((player) => (
+                    <Badge
+                      key={`pregame-owned-${player.playerId}`}
+                      variant="outline"
+                      className="text-[10px] gap-1 border-border/80"
+                    >
+                      {renderModalPlayerName({
+                        name: player.name,
+                        team: player.team,
+                        playerId: player.playerId,
+                        className: "text-purple-500",
+                        label: formatCompactName(player.name),
+                      })}
+                      <span className="font-mono">{player.multiplier.toFixed(1)}x</span>
+                    </Badge>
+                  ))}
+                  {scheduledOwnedPlayers.length > 4 ? (
+                    <Badge variant="outline" className="text-[10px] border-border/80">
+                      +{scheduledOwnedPlayers.length - 4}
+                    </Badge>
+                  ) : null}
+                </div>
+                <div className="text-[11px] text-muted-foreground">
+                  Track posted lineups here against the players you already hold in this game.
+                </div>
               </div>
-              <div className="text-[11px] text-muted-foreground">
-                Track posted lineups here against the players you already hold in this game.
+            ) : (
+              <div className="mt-2 text-xs text-muted-foreground">
+                No current holdings in this matchup.
+              </div>
+            )
+          ) : liveOwnedPlayers.length > 0 ? (
+            <div className="mt-3 space-y-2">
+              <div className="flex items-center justify-between rounded-sm border border-emerald-500/30 bg-background/70 px-2 py-1.5">
+                <span className="text-xs text-muted-foreground">
+                  {activeTab === "during" ? "Live estimated" : "Final estimated"}
+                </span>
+                <span className="font-mono text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+                  ${totalLiveEarnings.toFixed(2)}
+                </span>
+              </div>
+              <div className="space-y-1.5">
+                {liveOwnedPlayers.slice(0, 4).map((player) => (
+                  <div
+                    key={`live-owned-${player.playerId}`}
+                    className="flex items-center justify-between gap-2 rounded-sm border border-border/60 bg-background/60 px-2 py-1.5"
+                  >
+                    <div className="min-w-0 flex-1">
+                      {renderModalPlayerName({
+                        name: player.name,
+                        team: player.team,
+                        playerId: player.playerId,
+                        className: "truncate text-xs font-medium text-purple-500",
+                        label: formatCompactName(player.name),
+                      })}
+                      <div className="text-[10px] text-muted-foreground">
+                        {player.team} • {player.fantasyPoints.toFixed(1)} FP •{" "}
+                        {player.effectiveShares.toFixed(1)} effective
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-mono text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                        ${player.estimatedEarnings.toFixed(2)}
+                      </div>
+                      <div className="text-[10px] text-muted-foreground">
+                        {player.quantity.toFixed(2)} shares
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           ) : (
             <div className="mt-2 text-xs text-muted-foreground">
-              No current holdings in this matchup.
+              No stacked or boosted earning lines are active in this matchup yet.
             </div>
-          )
-        ) : liveOwnedPlayers.length > 0 ? (
-          <div className="mt-3 space-y-2">
-            <div className="flex items-center justify-between rounded-sm border border-emerald-500/30 bg-background/70 px-2 py-1.5">
-              <span className="text-xs text-muted-foreground">
-                {activeTab === "during" ? "Live estimated" : "Final estimated"}
-              </span>
-              <span className="font-mono text-sm font-semibold text-emerald-600 dark:text-emerald-400">
-                ${totalLiveEarnings.toFixed(2)}
-              </span>
-            </div>
-            <div className="space-y-1.5">
-              {liveOwnedPlayers.slice(0, 4).map((player) => (
-                <div
-                  key={`live-owned-${player.playerId}`}
-                  className="flex items-center justify-between gap-2 rounded-sm border border-border/60 bg-background/60 px-2 py-1.5"
-                >
-                  <div className="min-w-0 flex-1">
-                    {renderModalPlayerName({
-                      name: player.name,
-                      team: player.team,
-                      playerId: player.playerId,
-                      className: "truncate text-xs font-medium text-purple-500",
-                      label: formatCompactName(player.name),
-                    })}
-                    <div className="text-[10px] text-muted-foreground">
-                      {player.team} • {player.fantasyPoints.toFixed(1)} FP •{" "}
-                      {player.effectiveShares.toFixed(1)} effective
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="font-mono text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-                      ${player.estimatedEarnings.toFixed(2)}
-                    </div>
-                    <div className="text-[10px] text-muted-foreground">
-                      {player.quantity.toFixed(2)} shares
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <div className="mt-2 text-xs text-muted-foreground">
-            No stacked or boosted earning lines are active in this matchup yet.
-          </div>
-        )}
-      </div>
+          )}
+        </div>
       )}
 
       {!isPregame && mlbPregame.gameState ? (
@@ -727,307 +727,311 @@ function MlbLifecycleCard({
       ) : null}
 
       {isPregame && (
-      <div className="border-t border-border/60 px-3 py-3 sm:px-4">
-        <div className="flex items-center justify-between gap-2">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-            {isPregame ? "Probable starters" : "Starter context"}
-          </div>
-          {mlbPregame.advancedStatsAvailable ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 px-2 text-[11px]"
-              onClick={onToggleAdvanced}
-            >
-              {showMlbAdvanced ? (
-                <>
-                  Hide advanced <ChevronUp className="ml-1 h-3 w-3" />
-                </>
-              ) : (
-                <>
-                  Show advanced <ChevronDown className="ml-1 h-3 w-3" />
-                </>
-              )}
-            </Button>
-          ) : null}
-        </div>
-
-        <div className="mt-3 grid gap-3 md:grid-cols-2">
-          {[
-            {
-              side: "Away",
-              team: game.awayTeam || "Away",
-              pitcher: mlbPregame.probablePitchers.away,
-              stats: mlbPregame.probablePitcherStats.away,
-            },
-            {
-              side: "Home",
-              team: game.homeTeam || "Home",
-              pitcher: mlbPregame.probablePitchers.home,
-              stats: mlbPregame.probablePitcherStats.home,
-            },
-          ].map((entry) => {
-            const probablePitcherId = entry.pitcher?.name
-              ? resolvePlayerModalId({
-                  name: entry.pitcher.name,
-                  team: entry.team,
-                })
-              : null;
-
-            return (
-              <div
-                key={`${entry.side}-${entry.team}`}
-                className="rounded-sm border border-border/60 bg-background/40 p-3"
+        <div className="border-t border-border/60 px-3 py-3 sm:px-4">
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+              {isPregame ? "Probable starters" : "Starter context"}
+            </div>
+            {mlbPregame.advancedStatsAvailable ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-[11px]"
+                onClick={onToggleAdvanced}
               >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                    {entry.team} probable
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <MlbProbableBadge />
-                    {entry.stats ? (
-                      <Badge variant="outline" className="text-[10px] border-border/80">
-                        Advanced
-                      </Badge>
-                    ) : null}
-                  </div>
-                </div>
-
-                <div className="mt-2 text-sm font-semibold text-foreground">
-                  {entry.pitcher?.name ? (
-                    probablePitcherId ? (
-                      <button
-                        type="button"
-                        onClick={() => onOpenPlayerModal(probablePitcherId)}
-                        className="truncate text-left underline-offset-2 hover:underline focus-visible:underline"
-                      >
-                        {entry.pitcher.name}
-                      </button>
-                    ) : (
-                      entry.pitcher.name
-                    )
-                  ) : (
-                    "TBD"
-                  )}
-                </div>
-                <div className="mt-1 text-xs text-muted-foreground">
-                  {entry.stats?.summary ||
-                    entry.pitcher?.note ||
-                    "Statcast expected stats are not available for this starter yet."}
-                </div>
-
-                {showMlbAdvanced && entry.stats ? (
-                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                    <div className="rounded-sm border border-border/60 bg-background/50 p-2">
-                      <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-                        ERA
-                      </div>
-                      <div className="mt-1 font-mono">{formatPitcherEra(entry.stats.era)}</div>
-                    </div>
-                    <div className="rounded-sm border border-border/60 bg-background/50 p-2">
-                      <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-                        xERA
-                      </div>
-                      <div className="mt-1 font-mono text-emerald-600 dark:text-emerald-400">
-                        {formatPitcherEra(entry.stats.xera)}
-                      </div>
-                    </div>
-                    <div className="rounded-sm border border-border/60 bg-background/50 p-2">
-                      <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-                        wOBA
-                      </div>
-                      <div className="mt-1 font-mono">{formatPitcherMetric(entry.stats.woba)}</div>
-                    </div>
-                    <div className="rounded-sm border border-border/60 bg-background/50 p-2">
-                      <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-                        xwOBA
-                      </div>
-                      <div className="mt-1 font-mono">
-                        {formatPitcherMetric(entry.stats.expectedWoba)}
-                      </div>
-                    </div>
-                    <div className="rounded-sm border border-border/60 bg-background/50 p-2">
-                      <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-                        AVG
-                      </div>
-                      <div className="mt-1 font-mono">
-                        {formatPitcherMetric(entry.stats.battingAverage)}
-                      </div>
-                    </div>
-                    <div className="rounded-sm border border-border/60 bg-background/50 p-2">
-                      <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-                        xAVG
-                      </div>
-                      <div className="mt-1 font-mono">
-                        {formatPitcherMetric(entry.stats.expectedBattingAverage)}
-                      </div>
-                    </div>
-                    <div className="rounded-sm border border-border/60 bg-background/50 p-2">
-                      <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-                        SLG
-                      </div>
-                      <div className="mt-1 font-mono">
-                        {formatPitcherMetric(entry.stats.slugging)}
-                      </div>
-                    </div>
-                    <div className="rounded-sm border border-border/60 bg-background/50 p-2">
-                      <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-                        xSLG
-                      </div>
-                      <div className="mt-1 font-mono">
-                        {formatPitcherMetric(entry.stats.expectedSlugging)}
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-      )}
-
-      {isPregame && (
-      <div className="border-t border-border/60 px-3 py-3 sm:px-4">
-        <div className="flex items-center justify-between gap-2">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-            Starting lineups
+                {showMlbAdvanced ? (
+                  <>
+                    Hide advanced <ChevronUp className="ml-1 h-3 w-3" />
+                  </>
+                ) : (
+                  <>
+                    Show advanced <ChevronDown className="ml-1 h-3 w-3" />
+                  </>
+                )}
+              </Button>
+            ) : null}
           </div>
-          {isHydratingDetails && !mlbPregame.lineupsPosted ? (
-            <Badge variant="outline" className="text-[10px] border-border/80">
-              Loading
-            </Badge>
-          ) : mlbPregame.lineupsPosted ? (
-            <Badge variant="outline" className="text-[10px] border-border/80">
-              Gameday
-            </Badge>
-          ) : (
-            <Badge variant="outline" className="text-[10px] border-border/80">
-              Pending
-            </Badge>
-          )}
-        </div>
 
-        {mlbPregame.lineupsPosted ? (
           <div className="mt-3 grid gap-3 md:grid-cols-2">
             {[
               {
+                side: "Away",
                 team: game.awayTeam || "Away",
-                lineup: mlbPregame.startingLineups.away,
-                note: mlbPregame.hitterMatchupNotes.away,
-                signal: mlbPregame.lineupSignals.away,
-                context: mlbPregame.teamContexts.away,
-                opposingPitcher: mlbPregame.probablePitchers.home?.name || game.homeTeam || "Home",
+                pitcher: mlbPregame.probablePitchers.away,
+                stats: mlbPregame.probablePitcherStats.away,
               },
               {
+                side: "Home",
                 team: game.homeTeam || "Home",
-                lineup: mlbPregame.startingLineups.home,
-                note: mlbPregame.hitterMatchupNotes.home,
-                signal: mlbPregame.lineupSignals.home,
-                context: mlbPregame.teamContexts.home,
-                opposingPitcher: mlbPregame.probablePitchers.away?.name || game.awayTeam || "Away",
+                pitcher: mlbPregame.probablePitchers.home,
+                stats: mlbPregame.probablePitcherStats.home,
               },
-            ].map((entry) => (
-              <div
-                key={`${entry.team}-lineup`}
-                className="rounded-sm border border-border/60 bg-background/40 p-3"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="text-xs font-semibold uppercase tracking-[0.1em] text-foreground">
-                      {entry.team}
+            ].map((entry) => {
+              const probablePitcherId = entry.pitcher?.name
+                ? resolvePlayerModalId({
+                    name: entry.pitcher.name,
+                    team: entry.team,
+                  })
+                : null;
+
+              return (
+                <div
+                  key={`${entry.side}-${entry.team}`}
+                  className="rounded-sm border border-border/60 bg-background/40 p-3"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                      {entry.team} probable
                     </div>
-                    <div className="mt-1 text-[11px] text-muted-foreground">
-                      {entry.context?.record ? `${entry.context.record} • ` : ""}
-                      vs {entry.opposingPitcher}
+                    <div className="flex items-center gap-1">
+                      <MlbProbableBadge />
+                      {entry.stats ? (
+                        <Badge variant="outline" className="text-[10px] border-border/80">
+                          Advanced
+                        </Badge>
+                      ) : null}
                     </div>
                   </div>
-                  {entry.context?.record ? (
-                    <Badge variant="outline" className="text-[10px] border-border/80">
-                      {entry.context.record}
-                    </Badge>
+
+                  <div className="mt-2 text-sm font-semibold text-foreground">
+                    {entry.pitcher?.name ? (
+                      probablePitcherId ? (
+                        <button
+                          type="button"
+                          onClick={() => onOpenPlayerModal(probablePitcherId)}
+                          className="truncate text-left underline-offset-2 hover:underline focus-visible:underline"
+                        >
+                          {entry.pitcher.name}
+                        </button>
+                      ) : (
+                        entry.pitcher.name
+                      )
+                    ) : (
+                      "TBD"
+                    )}
+                  </div>
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    {entry.stats?.summary ||
+                      entry.pitcher?.note ||
+                      "Statcast expected stats are not available for this starter yet."}
+                  </div>
+
+                  {showMlbAdvanced && entry.stats ? (
+                    <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                      <div className="rounded-sm border border-border/60 bg-background/50 p-2">
+                        <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                          ERA
+                        </div>
+                        <div className="mt-1 font-mono">{formatPitcherEra(entry.stats.era)}</div>
+                      </div>
+                      <div className="rounded-sm border border-border/60 bg-background/50 p-2">
+                        <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                          xERA
+                        </div>
+                        <div className="mt-1 font-mono text-emerald-600 dark:text-emerald-400">
+                          {formatPitcherEra(entry.stats.xera)}
+                        </div>
+                      </div>
+                      <div className="rounded-sm border border-border/60 bg-background/50 p-2">
+                        <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                          wOBA
+                        </div>
+                        <div className="mt-1 font-mono">
+                          {formatPitcherMetric(entry.stats.woba)}
+                        </div>
+                      </div>
+                      <div className="rounded-sm border border-border/60 bg-background/50 p-2">
+                        <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                          xwOBA
+                        </div>
+                        <div className="mt-1 font-mono">
+                          {formatPitcherMetric(entry.stats.expectedWoba)}
+                        </div>
+                      </div>
+                      <div className="rounded-sm border border-border/60 bg-background/50 p-2">
+                        <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                          AVG
+                        </div>
+                        <div className="mt-1 font-mono">
+                          {formatPitcherMetric(entry.stats.battingAverage)}
+                        </div>
+                      </div>
+                      <div className="rounded-sm border border-border/60 bg-background/50 p-2">
+                        <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                          xAVG
+                        </div>
+                        <div className="mt-1 font-mono">
+                          {formatPitcherMetric(entry.stats.expectedBattingAverage)}
+                        </div>
+                      </div>
+                      <div className="rounded-sm border border-border/60 bg-background/50 p-2">
+                        <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                          SLG
+                        </div>
+                        <div className="mt-1 font-mono">
+                          {formatPitcherMetric(entry.stats.slugging)}
+                        </div>
+                      </div>
+                      <div className="rounded-sm border border-border/60 bg-background/50 p-2">
+                        <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                          xSLG
+                        </div>
+                        <div className="mt-1 font-mono">
+                          {formatPitcherMetric(entry.stats.expectedSlugging)}
+                        </div>
+                      </div>
+                    </div>
                   ) : null}
                 </div>
-                {entry.note || entry.signal ? (
-                  <div className="mt-2 text-[11px] text-muted-foreground">
-                    {entry.note || entry.signal}
-                  </div>
-                ) : null}
-                {entry.lineup.length ? (
-                  <div className="space-y-1.5">
-                    {entry.lineup.map((player) => {
-                      const exposure = (
-                        isPregame ? scheduledExposureByNameTeam : liveExposureByNameTeam
-                      ).get(buildNameTeamKey(player.name, entry.team));
-                      const nameClass = `truncate font-medium ${exposure ? "text-purple-500" : "text-foreground"}`;
+              );
+            })}
+          </div>
+        </div>
+      )}
 
-                      return (
-                        <div
-                          key={`${entry.team}-${player.slot}-${player.playerId || player.name}`}
-                          className={`rounded-sm px-2 py-2 text-xs ${exposure ? "bg-purple-500/5" : ""}`}
-                        >
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-2">
-                                <span className="font-mono text-muted-foreground">
-                                  {player.slot}.
-                                </span>
-                                {renderModalPlayerName({
-                                  name: player.name,
-                                  team: entry.team,
-                                  playerId: player.playerId,
-                                  className: nameClass,
-                                })}
-                              </div>
-                              {exposure ? (
-                                <div className="mt-1 pl-5 text-[11px] text-muted-foreground">
-                                  {exposure.detail}
+      {isPregame && (
+        <div className="border-t border-border/60 px-3 py-3 sm:px-4">
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+              Starting lineups
+            </div>
+            {isHydratingDetails && !mlbPregame.lineupsPosted ? (
+              <Badge variant="outline" className="text-[10px] border-border/80">
+                Loading
+              </Badge>
+            ) : mlbPregame.lineupsPosted ? (
+              <Badge variant="outline" className="text-[10px] border-border/80">
+                Gameday
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="text-[10px] border-border/80">
+                Pending
+              </Badge>
+            )}
+          </div>
+
+          {mlbPregame.lineupsPosted ? (
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
+              {[
+                {
+                  team: game.awayTeam || "Away",
+                  lineup: mlbPregame.startingLineups.away,
+                  note: mlbPregame.hitterMatchupNotes.away,
+                  signal: mlbPregame.lineupSignals.away,
+                  context: mlbPregame.teamContexts.away,
+                  opposingPitcher:
+                    mlbPregame.probablePitchers.home?.name || game.homeTeam || "Home",
+                },
+                {
+                  team: game.homeTeam || "Home",
+                  lineup: mlbPregame.startingLineups.home,
+                  note: mlbPregame.hitterMatchupNotes.home,
+                  signal: mlbPregame.lineupSignals.home,
+                  context: mlbPregame.teamContexts.home,
+                  opposingPitcher:
+                    mlbPregame.probablePitchers.away?.name || game.awayTeam || "Away",
+                },
+              ].map((entry) => (
+                <div
+                  key={`${entry.team}-lineup`}
+                  className="rounded-sm border border-border/60 bg-background/40 p-3"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="text-xs font-semibold uppercase tracking-[0.1em] text-foreground">
+                        {entry.team}
+                      </div>
+                      <div className="mt-1 text-[11px] text-muted-foreground">
+                        {entry.context?.record ? `${entry.context.record} • ` : ""}
+                        vs {entry.opposingPitcher}
+                      </div>
+                    </div>
+                    {entry.context?.record ? (
+                      <Badge variant="outline" className="text-[10px] border-border/80">
+                        {entry.context.record}
+                      </Badge>
+                    ) : null}
+                  </div>
+                  {entry.note || entry.signal ? (
+                    <div className="mt-2 text-[11px] text-muted-foreground">
+                      {entry.note || entry.signal}
+                    </div>
+                  ) : null}
+                  {entry.lineup.length ? (
+                    <div className="space-y-1.5">
+                      {entry.lineup.map((player) => {
+                        const exposure = (
+                          isPregame ? scheduledExposureByNameTeam : liveExposureByNameTeam
+                        ).get(buildNameTeamKey(player.name, entry.team));
+                        const nameClass = `truncate font-medium ${exposure ? "text-purple-500" : "text-foreground"}`;
+
+                        return (
+                          <div
+                            key={`${entry.team}-${player.slot}-${player.playerId || player.name}`}
+                            className={`rounded-sm px-2 py-2 text-xs ${exposure ? "bg-purple-500/5" : ""}`}
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono text-muted-foreground">
+                                    {player.slot}.
+                                  </span>
+                                  {renderModalPlayerName({
+                                    name: player.name,
+                                    team: entry.team,
+                                    playerId: player.playerId,
+                                    className: nameClass,
+                                  })}
                                 </div>
-                              ) : null}
-                            </div>
-                            <div className="shrink-0 text-right">
-                              <div
-                                className={`font-mono text-[11px] ${exposure ? exposure.tone : "text-muted-foreground"}`}
-                              >
-                                {exposure?.badge || player.position || "--"}
+                                {exposure ? (
+                                  <div className="mt-1 pl-5 text-[11px] text-muted-foreground">
+                                    {exposure.detail}
+                                  </div>
+                                ) : null}
                               </div>
-                              {!exposure && player.jerseyNumber ? (
-                                <div className="text-[10px] text-muted-foreground">
-                                  #{player.jerseyNumber}
+                              <div className="shrink-0 text-right">
+                                <div
+                                  className={`font-mono text-[11px] ${exposure ? exposure.tone : "text-muted-foreground"}`}
+                                >
+                                  {exposure?.badge || player.position || "--"}
                                 </div>
-                              ) : null}
+                                {!exposure && player.jerseyNumber ? (
+                                  <div className="text-[10px] text-muted-foreground">
+                                    #{player.jerseyNumber}
+                                  </div>
+                                ) : null}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="text-xs text-muted-foreground">
-                    {entry.team} has not posted a lineup yet.
-                  </div>
-                )}
-                {entry.context?.lastGameSummary || entry.context?.nextGameSummary ? (
-                  <div className="mt-3 space-y-1.5 border-t border-border/40 pt-3 text-[11px] text-muted-foreground">
-                    {entry.context?.lastGameSummary ? (
-                      <div>{entry.context.lastGameSummary}</div>
-                    ) : null}
-                    {entry.context?.nextGameSummary ? (
-                      <div>{entry.context.nextGameSummary}</div>
-                    ) : null}
-                  </div>
-                ) : null}
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="mt-3 text-xs text-muted-foreground">
-            {isHydratingDetails
-              ? "Loading the full MLB box score and batting orders..."
-              : "MLB has not posted the batting orders for this game yet."}
-          </div>
-        )}
-      </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="text-xs text-muted-foreground">
+                      {entry.team} has not posted a lineup yet.
+                    </div>
+                  )}
+                  {entry.context?.lastGameSummary || entry.context?.nextGameSummary ? (
+                    <div className="mt-3 space-y-1.5 border-t border-border/40 pt-3 text-[11px] text-muted-foreground">
+                      {entry.context?.lastGameSummary ? (
+                        <div>{entry.context.lastGameSummary}</div>
+                      ) : null}
+                      {entry.context?.nextGameSummary ? (
+                        <div>{entry.context.nextGameSummary}</div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="mt-3 text-xs text-muted-foreground">
+              {isHydratingDetails
+                ? "Loading the full MLB box score and batting orders..."
+                : "MLB has not posted the batting orders for this game yet."}
+            </div>
+          )}
+        </div>
       )}
 
       {isPregame && !mlbPregame.lineupsPosted ? (
