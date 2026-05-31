@@ -43,6 +43,8 @@ import {
 } from "@/lib/mobile-push";
 import { openAndroidNotificationSettings } from "@/lib/android-notification-settings";
 
+const ONBOARDING_SUPPRESS_AFTER_ERROR_KEY = "onboarding_suppress_after_error_v1";
+
 // ---------------------------------------------------------------------------
 // Slide definitions
 // ---------------------------------------------------------------------------
@@ -234,6 +236,9 @@ export default function OnboardingPage() {
       await apiRequest("POST", "/api/user/onboarding/complete");
     },
     onSuccess: () => {
+      if (typeof window !== "undefined") {
+        window.sessionStorage.removeItem(ONBOARDING_SUPPRESS_AFTER_ERROR_KEY);
+      }
       try {
         localStorage.removeItem("onboarding_slide");
       } catch {
@@ -245,7 +250,9 @@ export default function OnboardingPage() {
       navigate("/", { replace: true });
     },
     onError: () => {
-      // Navigate anyway — don't block the user on a non-critical API failure.
+      if (typeof window !== "undefined") {
+        window.sessionStorage.setItem(ONBOARDING_SUPPRESS_AFTER_ERROR_KEY, "1");
+      }
       navigate("/", { replace: true });
     },
   });

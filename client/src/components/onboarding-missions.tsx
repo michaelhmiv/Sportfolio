@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -18,8 +18,10 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { useQuery } from "@tanstack/react-query";
+
+const ROOKIE_MISSIONS_MAX_AGE_DAYS = 14;
+const ROOKIE_MISSIONS_DISMISSED_KEY_PREFIX = "rookie_missions_dismissed_v1";
 
 interface ScoutData {
   assignments: Array<{ playerId: string; scoutCount: number }>;
@@ -36,22 +38,42 @@ interface BoostHistoryData {
 
 export function OnboardingMissions() {
   const { user, isLoading: userLoading } = useAuth();
-  const queryClient = useQueryClient();
   const [isExpanded, setIsExpanded] = useState(true);
+  const [isDismissed, setIsDismissed] = useState(false);
 
-  const shouldShowMissions = !!user && user.hasSeenOnboarding === false;
+  const dismissedStorageKey = user ? `${ROOKIE_MISSIONS_DISMISSED_KEY_PREFIX}:${user.id}` : null;
+  const userCreatedAtMs = user?.createdAt ? new Date(user.createdAt).getTime() : NaN;
+  const isNewUserWindow = Number.isFinite(userCreatedAtMs)
+    ? Date.now() - userCreatedAtMs <= ROOKIE_MISSIONS_MAX_AGE_DAYS * 24 * 60 * 60 * 1000
+    : true;
 
-  const skipMissionsMutation = useMutation({
-    mutationFn: async () => {
-      await apiRequest("POST", "/api/user/onboarding/complete");
-    },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
-    },
-  });
+  useEffect(() => {
+    if (!dismissedStorageKey || typeof window === "undefined") {
+      setIsDismissed(false);
+      return;
+    }
+    try {
+      setIsDismissed(window.localStorage.getItem(dismissedStorageKey) === "1");
+    } catch {
+      setIsDismissed(false);
+    }
+  }, [dismissedStorageKey]);
+
+  const shouldShowMissions =
+    !!user && user.hasSeenOnboarding !== false && isNewUserWindow && !isDismissed;
+
+  const dismissMissions = () => {
+    if (dismissedStorageKey && typeof window !== "undefined") {
+      try {
+        window.localStorage.setItem(dismissedStorageKey, "1");
+      } catch {
+        // Ignore storage errors and still hide locally.
+      }
+    }
+    setIsDismissed(true);
+  };
 
   if (!shouldShowMissions) return null;
-  if (skipMissionsMutation.isSuccess) return null;
 
   // Mission tracking queries
   const { data: trades, isLoading: tradesLoading } = useQuery<any[]>({
@@ -121,8 +143,7 @@ export function OnboardingMissions() {
     scoutsLoading ||
     boostsLoading ||
     boostHistoryLoading ||
-    watchlistLoading ||
-    skipMissionsMutation.isPending;
+    watchlistLoading;
 
   if (isLoading)
     return (
@@ -169,9 +190,8 @@ export function OnboardingMissions() {
               className="h-5 px-1.5 text-[10px]"
               onClick={(event) => {
                 event.stopPropagation();
-                skipMissionsMutation.mutate();
+                dismissMissions();
               }}
-              disabled={skipMissionsMutation.isPending}
               data-testid="button-skip-rookie-missions"
             >
               Skip

@@ -14,6 +14,8 @@ import { SiDiscord } from "react-icons/si";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
+const ONBOARDING_SUPPRESS_AFTER_ERROR_KEY = "onboarding_suppress_after_error_v1";
+
 interface OnboardingModalProps {
   open: boolean;
   onComplete: () => void;
@@ -81,6 +83,9 @@ export function OnboardingModal({ open, onComplete }: OnboardingModalProps) {
       return nextPath;
     },
     onSuccess: (nextPath) => {
+      if (typeof window !== "undefined") {
+        window.sessionStorage.removeItem(ONBOARDING_SUPPRESS_AFTER_ERROR_KEY);
+      }
       queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
       onComplete();
       trackOnboardingEvent("completed", { nextPath: nextPath || "none" });
@@ -89,6 +94,9 @@ export function OnboardingModal({ open, onComplete }: OnboardingModalProps) {
       }
     },
     onError: (_error, nextPath) => {
+      if (typeof window !== "undefined") {
+        window.sessionStorage.setItem(ONBOARDING_SUPPRESS_AFTER_ERROR_KEY, "1");
+      }
       onComplete();
       trackOnboardingEvent("completion_failed", { nextPath: nextPath || "none" });
       if (nextPath) {
@@ -140,10 +148,20 @@ export function OnboardingModal({ open, onComplete }: OnboardingModalProps) {
     [completeOnboarding],
   );
 
+  const handleOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      if (nextOpen || completeOnboarding.isPending) return;
+      onComplete();
+      trackOnboardingEvent("dismissed", { atSlide: slides[current]?.id || "unknown" });
+      completeOnboarding.mutate(undefined);
+    },
+    [completeOnboarding, current, onComplete],
+  );
+
   const isLastSlide = current === slides.length - 1;
 
   return (
-    <Dialog open={open} onOpenChange={() => {}}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
         className="w-[92vw] max-w-[430px] overflow-hidden rounded-sm border border-border p-0 shadow-2xl sm:max-w-[460px]"
         onPointerDownOutside={(e) => e.preventDefault()}
