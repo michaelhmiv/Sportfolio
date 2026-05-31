@@ -38,7 +38,6 @@ import { CliAccessCard } from "@/components/cli-access-card";
 import { NotificationSettingsCard } from "@/components/notification-settings-card";
 import { MobilePushCard } from "@/components/mobile-push-card";
 import { PlayerName } from "@/components/player-name";
-import { SmsAccessCard } from "@/components/sms-access-card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -979,7 +978,6 @@ export default function UserProfile() {
           <div className="space-y-4">
             {isOwnProfile && <NotificationSettingsCard />}
             {isOwnProfile && <MobilePushCard />}
-            {isOwnProfile && <SmsAccessCard />}
             {isOwnProfile && <CliAccessCard />}
             {isOwnProfile && (
               <Card variant="terminal">

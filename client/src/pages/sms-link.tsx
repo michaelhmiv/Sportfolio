@@ -35,7 +35,7 @@ export default function SmsLinkPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/account/sms"] });
       toast({
         title: "Phone linked",
-        description: `${result.link.phoneE164} is now connected to your SMS agent.`,
+        description: `${result.link.phoneE164} is now connected for SMS access.`,
       });
     },
     onError: (error: any) => {
@@ -60,7 +60,7 @@ export default function SmsLinkPage() {
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
               This SMS link is missing its token. Request a new link from your profile or by texting
-              the Sportfolio agent again.
+              the Sportfolio number again.
             </p>
             <Link href="/profile">
               <Button variant="outline">Open Profile</Button>
@@ -84,7 +84,7 @@ export default function SmsLinkPage() {
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
               Sign in first, then come back to this link to connect your phone number to the
-              Sportfolio SMS agent.
+              Sportfolio SMS channel.
             </p>
             <Link href="/login">
               <Button>Log In</Button>
@@ -101,7 +101,7 @@ export default function SmsLinkPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-xl">
             <MessageSquareText className="h-5 w-5 text-primary" />
-            Link SMS Agent
+            Link SMS Access
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -112,15 +112,11 @@ export default function SmsLinkPage() {
                 {completeLinkMutation.data.link.phoneE164} is now linked.
               </div>
               <p className="text-sm text-muted-foreground">
-                You can text the Sportfolio agent now for setup help, account reads, and supported
-                in-game actions.
+                SMS is now enabled for your account on this phone number.
               </p>
               <div className="flex flex-wrap gap-3">
                 <Link href="/profile">
                   <Button>Open Profile</Button>
-                </Link>
-                <Link href="/agent">
-                  <Button variant="outline">Open Agent</Button>
                 </Link>
               </div>
             </div>
@@ -128,7 +124,7 @@ export default function SmsLinkPage() {
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
                 Confirm this secure link to attach the current phone number to your account. This
-                does not enable purchases by SMS. It only enables the Sportfolio agent channel.
+                does not enable purchases by SMS. It only enables SMS account access.
               </p>
               <Button
                 onClick={() => completeLinkMutation.mutate()}

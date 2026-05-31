@@ -42,7 +42,6 @@ import {
   Info,
   ChevronDown,
   ChevronUp,
-  Sparkles,
   Zap,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -56,7 +55,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { format } from "date-fns";
-import { useLocation } from "wouter";
 import type { Player } from "@shared/schema";
 import { PlayerName } from "@/components/player-name";
 import { appendPlayerSearchParam, matchesPlayerSearch } from "@/lib/player-search";
@@ -261,7 +259,6 @@ export function ScoutDashboardModal() {
   const { toast } = useToast();
   const { isAuthenticated, user } = useAuth();
   const { subscribe } = useWebSocket();
-  const [, navigate] = useLocation();
   const {
     nativeRewardedBuild,
     rewardedAdsPlatform,
@@ -780,18 +777,6 @@ export function ScoutDashboardModal() {
                 </DialogDescription>
               </div>
             </div>
-            <Button
-              size="sm"
-              variant="outline"
-              className="gap-2"
-              onClick={() => {
-                closeScoutDashboard();
-                navigate("/agent");
-              }}
-            >
-              <Sparkles className="h-4 w-4" />
-              Open Agent
-            </Button>
           </div>
           {/* Compact Capacity Bar & Status */}
           <div className="bg-card border rounded-md p-2 shadow-sm space-y-2">
