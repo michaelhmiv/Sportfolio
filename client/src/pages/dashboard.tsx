@@ -697,6 +697,7 @@ export default function Dashboard() {
             })}
           </div>
 
+          {/* Slate Exposure card — hidden for now
           <ScrollReveal delay={0.05}>
             <DashboardShowcaseCard
               isAuthenticated={isAuthenticated}
@@ -710,6 +711,7 @@ export default function Dashboard() {
               onNavigate={(href) => setLocation(href)}
             />
           </ScrollReveal>
+          */}
 
           {/* Mobile portfolio snapshot trigger + bottom sheet */}
           {isAuthenticated && data?.user && (
@@ -895,7 +897,7 @@ export default function Dashboard() {
             </Link>
           )}
 
-          {/* Your Active Positions Today */}
+          {/* Active Positions Today — hidden for now
           {isAuthenticated &&
             data?.topHoldings &&
             data.topHoldings.length > 0 &&
@@ -908,6 +910,7 @@ export default function Dashboard() {
                 onBoost={(playerId) => setLocation(`/boosts?preselect=${playerId}`)}
               />
             )}
+          */}
 
           {/* Games Section */}
           <ScrollReveal delay={0.1}>

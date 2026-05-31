@@ -1098,7 +1098,7 @@ export default function Portfolio() {
           <div className="flex items-center justify-between gap-2">
             <TabsList
               variant="terminal"
-              className="grid w-full grid-cols-4 justify-stretch sm:w-auto"
+              className="grid flex-1 min-w-0 grid-cols-4 justify-stretch sm:w-auto sm:flex-none"
             >
               <TabsTrigger
                 variant="terminal"
