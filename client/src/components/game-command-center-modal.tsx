@@ -452,12 +452,6 @@ function MlbLifecycleCard({
   const scheduledOwnedPlayers = userContext?.ownedPlayers || [];
   const liveOwnedPlayers = liveStats?.userEarnings?.ownedPlayers || [];
   const totalLiveEarnings = liveStats?.userEarnings?.totalEstimatedEarnings || 0;
-  const topPerformers = [
-    ...(liveStats?.awayTopPerformers || []),
-    ...(liveStats?.homeTopPerformers || []),
-  ]
-    .sort((left, right) => (right.pts || 0) - (left.pts || 0))
-    .slice(0, 4);
   const hasMlbTeamContext = Boolean(mlbPregame.teamContexts.away || mlbPregame.teamContexts.home);
   const attendanceLabel = formatAttendance(mlbPregame.attendance);
   const ownershipBadgeLabel = isAuthenticated
@@ -595,6 +589,7 @@ function MlbLifecycleCard({
         </div>
       </div>
 
+      {isPregame && (
       <div className="border-t border-border/60 px-3 py-3 sm:px-4">
         <div className="flex items-center justify-between gap-2">
           <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
@@ -693,6 +688,7 @@ function MlbLifecycleCard({
           </div>
         )}
       </div>
+      )}
 
       {!isPregame && mlbPregame.gameState ? (
         <MlbLinescorePanel
@@ -704,41 +700,6 @@ function MlbLifecycleCard({
           resolvePlayerModalId={resolvePlayerModalId}
           onOpenPlayerModal={onOpenPlayerModal}
         />
-      ) : null}
-
-      {!isPregame && topPerformers.length ? (
-        <div className="border-t border-border/60 px-3 py-3 sm:px-4">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-            Game pulse
-          </div>
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            {topPerformers.map((player) => (
-              <div
-                key={`pulse-${player.team || "UNK"}-${player.name}`}
-                className="rounded-sm border border-border/60 bg-background/40 p-2"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    {renderModalPlayerName({
-                      name: player.name,
-                      team: player.team || null,
-                      playerId: player.playerId,
-                      className: "truncate text-xs font-semibold text-foreground",
-                    })}
-                    <div className="text-[10px] text-muted-foreground">{player.team || "MLB"}</div>
-                  </div>
-                  <div className="text-right font-mono text-[11px]">
-                    <div>{(player.pts || 0).toFixed(1)} FP</div>
-                    <div className="text-muted-foreground">Sportfolio</div>
-                  </div>
-                </div>
-                <div className="mt-2 text-[11px] text-muted-foreground">
-                  {player.hits ?? 0} H • {player.runs ?? 0} R • {player.rbi ?? 0} RBI
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
       ) : null}
 
       {!isPregame && mlbPregame.scoringPlays.length ? (
@@ -765,6 +726,7 @@ function MlbLifecycleCard({
         </div>
       ) : null}
 
+      {isPregame && (
       <div className="border-t border-border/60 px-3 py-3 sm:px-4">
         <div className="flex items-center justify-between gap-2">
           <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
@@ -923,7 +885,9 @@ function MlbLifecycleCard({
           })}
         </div>
       </div>
+      )}
 
+      {isPregame && (
       <div className="border-t border-border/60 px-3 py-3 sm:px-4">
         <div className="flex items-center justify-between gap-2">
           <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
@@ -1064,6 +1028,7 @@ function MlbLifecycleCard({
           </div>
         )}
       </div>
+      )}
 
       {isPregame && !mlbPregame.lineupsPosted ? (
         <div className="border-t border-border/60 px-3 py-3 sm:px-4">
@@ -2125,7 +2090,8 @@ export function GameCommandCenterModal({
           </div>
         </DialogHeader>
 
-        {liveSport === "MLB" && mlbPregame ? (
+        {/* Pre-game: MLB lifecycle card renders first (full baseball context) */}
+        {activeTab === "pre" && liveSport === "MLB" && mlbPregame ? (
           <MlbLifecycleCard
             game={game}
             mlbPregame={mlbPregame}
@@ -3350,6 +3316,23 @@ export function GameCommandCenterModal({
             )}
           </TabsContent>
         </Tabs>
+
+        {/* Live/Post: Slimmed MLB lifecycle card renders AFTER generic content */}
+        {activeTab !== "pre" && liveSport === "MLB" && mlbPregame ? (
+          <MlbLifecycleCard
+            game={game}
+            mlbPregame={mlbPregame}
+            activeTab={activeTab}
+            liveStats={liveStats}
+            userContext={userContext}
+            isAuthenticated={isAuthenticated}
+            isHydratingDetails={isHydratingMlbDetails}
+            showMlbAdvanced={showMlbAdvanced}
+            onToggleAdvanced={() => setShowMlbAdvanced((current) => !current)}
+            resolvePlayerModalId={resolvePlayerModalId}
+            onOpenPlayerModal={(playerId) => setSelectedLivePlayerId(playerId)}
+          />
+        ) : null}
 
         <Dialog
           open={Boolean(selectedLiveInjury)}
