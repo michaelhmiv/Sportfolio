@@ -227,20 +227,41 @@ function LegacyAgentRedirect() {
   return null;
 }
 
+const ONBOARDING_SUPPRESS_AFTER_ERROR_KEY = "onboarding_suppress_after_error_v1";
+
 function OnboardingCheck() {
   const { user, isAuthenticated } = useAuth();
   const [, navigate] = useLocation();
   const [showOnboarding, setShowOnboarding] = useState(false);
 
   useEffect(() => {
-    if (isAuthenticated && user && user.hasSeenOnboarding === false) {
-      if (Capacitor.isNativePlatform()) {
-        // Native: use the dedicated full-screen onboarding route.
-        navigate("/onboarding", { replace: false });
-      } else {
-        // Web / Playwright: keep the existing modal behaviour.
-        setShowOnboarding(true);
+    if (!isAuthenticated || !user) {
+      setShowOnboarding(false);
+      return;
+    }
+
+    if (user.hasSeenOnboarding !== false) {
+      if (typeof window !== "undefined") {
+        window.sessionStorage.removeItem(ONBOARDING_SUPPRESS_AFTER_ERROR_KEY);
       }
+      setShowOnboarding(false);
+      return;
+    }
+
+    const suppressedForSession =
+      typeof window !== "undefined" &&
+      window.sessionStorage.getItem(ONBOARDING_SUPPRESS_AFTER_ERROR_KEY) === "1";
+    if (suppressedForSession) {
+      setShowOnboarding(false);
+      return;
+    }
+
+    if (Capacitor.isNativePlatform()) {
+      // Native: use the dedicated full-screen onboarding route.
+      navigate("/onboarding", { replace: false });
+    } else {
+      // Web / Playwright: keep the existing modal behaviour.
+      setShowOnboarding(true);
     }
   }, [isAuthenticated, user, navigate]);
 

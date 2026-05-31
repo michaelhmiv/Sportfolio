@@ -77,8 +77,15 @@ import { PlayerModal } from "@/components/player-modal";
 import { CardAccent, BackgroundPattern } from "@/components/ui/decorative-elements";
 import {
   buildStackingCandidates,
+  formatStackNumber,
+  getCompactStackStatus,
   type PortfolioStackingEligibility,
 } from "@/pages/portfolio-stacking-helpers";
+import {
+  formatPortfolioUnits,
+  formatStackToastMessage,
+  type StackSharesResponse,
+} from "@/pages/portfolio-stack-feedback";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 
 interface PortfolioData {
@@ -103,12 +110,13 @@ interface PortfolioData {
   premiumExpiresAt?: string;
 }
 
-type SortField = "name" | "quantity" | "avgCost" | "price" | "value" | "pnl" | "tvl";
+type SortField = "name" | "singles" | "stackPower" | "avgCost" | "price" | "value" | "pnl" | "tvl";
 type SortDirection = "asc" | "desc";
 
 const SORT_OPTIONS: { value: SortField; label: string }[] = [
   { value: "name", label: "Name" },
-  { value: "quantity", label: "Quantity" },
+  { value: "singles", label: "Shares" },
+  { value: "stackPower", label: "Power" },
   { value: "avgCost", label: "Avg Cost" },
   { value: "price", label: "Price" },
   { value: "value", label: "Value" },
@@ -142,6 +150,27 @@ function calculatePnL(
     pnl: pnl.toFixed(2),
     pnlPercent: pnlPercent.toFixed(2),
   };
+}
+
+function toFiniteNumber(value: unknown): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function formatMobileCompactUnits(value: number): string {
+  if (!Number.isFinite(value)) {
+    return "0";
+  }
+
+  if (Math.abs(value) < 1000) {
+    return formatPortfolioUnits(value);
+  }
+
+  return new Intl.NumberFormat(undefined, {
+    notation: "compact",
+    compactDisplay: "short",
+    maximumFractionDigits: 1,
+  }).format(value);
 }
 
 // LP position sort options
@@ -440,20 +469,20 @@ export default function Portfolio() {
       playerId: string;
       sharesToStack: number;
     }) => {
-      return await apiRequest("POST", "/api/holdings/stack-shares", {
+      const response = await apiRequest("POST", "/api/holdings/stack-shares", {
         playerId,
         sharesToStack,
       });
+      return (await response.json()) as StackSharesResponse;
     },
-    onSuccess: async (data: any) => {
+    onSuccess: async (data) => {
       await invalidatePortfolioQueries();
       setStackSharesDialogOpen(false);
       setSelectedPlayerForStacking(null);
       setSharesToStackInput("");
       toast({
         title: "Shares Stacked",
-        description:
-          data.message || `Stacked ${data.sharesStacked} shares into ${data.multiplierGained}x`,
+        description: formatStackToastMessage(data),
       });
     },
     onError: (error: Error) => {
@@ -478,7 +507,7 @@ export default function Portfolio() {
     if (isNaN(shares) || shares < 4 || shares % 2 !== 0) {
       toast({
         title: "Invalid selection",
-        description: "Please enter an even number of singles (minimum 4)",
+        description: "Please enter an even number of shares (minimum 4)",
         variant: "destructive",
       });
       return;
@@ -486,7 +515,7 @@ export default function Portfolio() {
     if (shares > selectedStackingCandidate.availableToStack) {
       toast({
         title: "Not enough unlocked shares",
-        description: `Only ${selectedStackingCandidate.availableToStack.toFixed(2)} unlocked singles are available to stack right now.`,
+        description: `Only ${selectedStackingCandidate.availableToStack.toFixed(2)} unlocked shares are available to stack right now.`,
         variant: "destructive",
       });
       return;
@@ -586,6 +615,9 @@ export default function Portfolio() {
     stacked: ShareBreakdown[];
     totalShares: number;
     totalPower: string;
+    singlesCount: number;
+    availableSingles: number;
+    stackPower: number;
     currentValue: string;
     pnl: string;
     pnlPercent: string;
@@ -616,6 +648,9 @@ export default function Portfolio() {
             stacked: [],
             totalShares: 0,
             totalPower: "0.00",
+            singlesCount: 0,
+            availableSingles: 0,
+            stackPower: 0,
             currentValue: currentValue || "0.00",
             pnl: pnl || "0.00",
             pnlPercent: pnlPercent || "0.00",
@@ -661,12 +696,10 @@ export default function Portfolio() {
         // Update totals
         group.totalShares =
           (group.regular?.quantity || 0) + group.stacked.reduce((sum, p) => sum + p.quantity, 0);
-        const regularPower = group.regular?.quantity || 0;
-        const stackedEffectiveShares = group.stacked.reduce(
-          (sum, p) => sum + p.multiplier * p.quantity,
-          0,
-        );
-        group.totalPower = (regularPower + stackedEffectiveShares).toFixed(2);
+        group.singlesCount = group.regular?.quantity || 0;
+        group.availableSingles = group.regular?.availableQuantity || 0;
+        group.stackPower = group.stacked.reduce((sum, p) => sum + p.multiplier * p.quantity, 0);
+        group.totalPower = (group.singlesCount + group.stackPower).toFixed(2);
       });
 
     return Array.from(playerMap.values());
@@ -688,10 +721,14 @@ export default function Portfolio() {
       switch (sortField) {
         case "name":
           return sortDirection === "asc" ? aName.localeCompare(bName) : bName.localeCompare(aName);
-        case "quantity":
+        case "singles":
           return sortDirection === "asc"
-            ? a.totalShares - b.totalShares
-            : b.totalShares - a.totalShares;
+            ? a.singlesCount - b.singlesCount
+            : b.singlesCount - a.singlesCount;
+        case "stackPower":
+          return sortDirection === "asc"
+            ? a.stackPower - b.stackPower
+            : b.stackPower - a.stackPower;
         case "avgCost":
           return sortDirection === "asc"
             ? parseCurrency(a.avgCostBasis) - parseCurrency(b.avgCostBasis)
@@ -977,7 +1014,7 @@ export default function Portfolio() {
                   onValueChange={(v) => setBenchmarkPlayerId(v === "none" ? null : v)}
                 >
                   <SelectTrigger className="h-7 w-36 text-xs border-border/50">
-                    <SelectValue placeholder="vs. player…" />
+                    <SelectValue placeholder="vs. player..." />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">No comparison</SelectItem>
@@ -1286,12 +1323,22 @@ export default function Portfolio() {
                           </th>
                           <th
                             className="text-right px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground cursor-pointer hover:text-foreground select-none"
-                            onClick={() => handleSort("quantity")}
-                            data-testid="th-sort-quantity"
+                            onClick={() => handleSort("singles")}
+                            data-testid="th-sort-singles"
                           >
                             <span className="flex items-center justify-end">
-                              Qty
-                              <SortIcon field="quantity" />
+                              Shares
+                              <SortIcon field="singles" />
+                            </span>
+                          </th>
+                          <th
+                            className="text-right px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground cursor-pointer hover:text-foreground select-none"
+                            onClick={() => handleSort("stackPower")}
+                            data-testid="th-sort-power"
+                          >
+                            <span className="flex items-center justify-end">
+                              Power
+                              <SortIcon field="stackPower" />
                             </span>
                           </th>
                           <th
@@ -1333,51 +1380,44 @@ export default function Portfolio() {
                             data-testid="row-premium-shares"
                           >
                             {/* Mobile layout */}
-                            <td className="px-2 py-2 sm:hidden" colSpan={5}>
-                              <div className="flex items-center justify-between gap-2">
-                                <div className="flex items-center gap-2 min-w-0 flex-1">
-                                  <div className="terminal-avatar flex-shrink-0 border-yellow-500/20 bg-yellow-500/10 text-yellow-300">
-                                    <Crown className="w-4 h-4 text-yellow-500" />
-                                  </div>
-                                  <div className="min-w-0 flex-1">
-                                    <div className="font-medium text-sm text-yellow-500">
+                            <td className="px-2 py-2 sm:hidden" colSpan={6}>
+                              <div className="flex items-start gap-2">
+                                <div className="terminal-avatar mt-0.5 flex-shrink-0 border-yellow-500/20 bg-yellow-500/10 text-yellow-300">
+                                  <Crown className="h-4 w-4 text-yellow-500" />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <div className="truncate text-sm font-medium text-yellow-500">
                                       Premium Share
                                     </div>
-                                    <div className="text-xs text-muted-foreground">
-                                      Qty: {data.premiumShares} • 30 Days Access
-                                    </div>
-                                    <div className="flex items-center gap-1.5 text-xs mt-0.5">
-                                      {premiumMarketData?.lastTradePrice !== null &&
-                                      premiumMarketData?.lastTradePrice !== undefined ? (
-                                        <span className="font-mono font-bold text-yellow-500">
-                                          ${premiumMarketData.lastTradePrice.toFixed(2)}
-                                        </span>
-                                      ) : (
-                                        <span className="text-muted-foreground">No trades</span>
-                                      )}
-                                      <span className="text-muted-foreground">•</span>
-                                      <span className="font-mono">
-                                        Value:{" "}
-                                        {premiumMarketData?.lastTradePrice !== null &&
-                                        premiumMarketData?.lastTradePrice !== undefined
-                                          ? `$${(data.premiumShares * premiumMarketData.lastTradePrice).toFixed(2)}`
-                                          : "-"}
+                                    {data.isPremium ? (
+                                      <span className="rounded border border-yellow-500/30 bg-yellow-500/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-yellow-300">
+                                        Active
                                       </span>
-                                    </div>
+                                    ) : null}
                                   </div>
-                                </div>
-                                <div className="flex gap-1">
-                                  {/* Premium share trading removed */}
-                                  <Button
-                                    size="sm"
-                                    onClick={() => redeemPremiumMutation.mutate()}
-                                    disabled={redeemPremiumMutation.isPending || data.isPremium}
-                                    variant="terminal"
-                                    className="border-yellow-500/30 bg-yellow-500/20 text-yellow-200 hover:bg-yellow-500/25"
-                                    data-testid="button-redeem-premium"
-                                  >
-                                    {data.isPremium ? "Active" : "Redeem"}
-                                  </Button>
+                                  <div className="mt-0.5 text-xs text-muted-foreground">
+                                    Qty {formatStackNumber(toFiniteNumber(data.premiumShares))} · 30
+                                    days access
+                                  </div>
+                                  <div className="mt-0.5 text-xs text-muted-foreground">
+                                    {premiumMarketData?.lastTradePrice !== null &&
+                                    premiumMarketData?.lastTradePrice !== undefined
+                                      ? `Last $${premiumMarketData.lastTradePrice.toFixed(2)} · Value $${(toFiniteNumber(data.premiumShares) * premiumMarketData.lastTradePrice).toFixed(2)}`
+                                      : "No trades"}
+                                  </div>
+                                  {!data.isPremium && (
+                                    <Button
+                                      size="sm"
+                                      onClick={() => redeemPremiumMutation.mutate()}
+                                      disabled={redeemPremiumMutation.isPending}
+                                      variant="ghost"
+                                      className="mt-1 h-6 px-0 text-[10px] text-yellow-300 hover:text-yellow-200"
+                                      data-testid="button-redeem-premium"
+                                    >
+                                      Redeem
+                                    </Button>
+                                  )}
                                 </div>
                               </div>
                             </td>
@@ -1416,6 +1456,9 @@ export default function Portfolio() {
                             <td className="px-2 py-1.5 text-right font-mono hidden sm:table-cell text-yellow-500">
                               -
                             </td>
+                            <td className="px-2 py-1.5 text-right font-mono hidden sm:table-cell text-yellow-500">
+                              -
+                            </td>
                             <td className="px-2 py-1.5 text-right font-mono hidden md:table-cell text-yellow-500">
                               {premiumMarketData?.lastTradePrice !== null &&
                               premiumMarketData?.lastTradePrice !== undefined
@@ -1431,8 +1474,14 @@ export default function Portfolio() {
                           </tr>
                         )}
                         {sortedHoldings.map((group) => {
-                          const hasStackedShares = group.stacked.length > 0;
                           const hasRegularShares = group.regular !== null;
+                          const singlesCount = Math.max(0, group.singlesCount);
+                          const availableSingles = Math.max(0, group.availableSingles);
+                          const stackPower = Math.max(0, group.stackPower);
+                          const stackStatus = getCompactStackStatus({
+                            availableSingles,
+                            stackPower,
+                          });
 
                           return (
                             <Collapsible key={group.player.id} asChild>
@@ -1443,142 +1492,62 @@ export default function Portfolio() {
                                   data-testid={`row-holding-${group.player.id}`}
                                 >
                                   {/* Mobile layout */}
-                                  <td className="px-2 py-2 sm:hidden" colSpan={5}>
-                                    <div className="flex items-center justify-between gap-2">
-                                      <div className="flex items-center gap-2 min-w-0 flex-1">
-                                        <div className="terminal-avatar flex-shrink-0">
-                                          <span className="font-bold text-xs">
-                                            {group.player.firstName[0]}
-                                            {group.player.lastName[0]}
-                                          </span>
+                                  <td className="px-2 py-2 sm:hidden" colSpan={6}>
+                                    <CollapsibleTrigger asChild>
+                                      <button
+                                        type="button"
+                                        className="w-full text-left"
+                                        data-testid={`button-expand-mobile-${group.player.id}`}
+                                      >
+                                        <div className="flex items-start justify-between gap-2">
+                                          <div className="flex min-w-0 flex-1 items-start gap-2">
+                                            <div className="terminal-avatar mt-0.5 flex-shrink-0">
+                                              <span className="font-bold text-xs">
+                                                {group.player.firstName[0]}
+                                                {group.player.lastName[0]}
+                                              </span>
+                                            </div>
+                                            <div className="min-w-0 flex-1">
+                                              <div className="flex items-center justify-between gap-2">
+                                                <div className="min-w-0 flex items-center gap-1.5">
+                                                  <PlayerName
+                                                    playerId={group.player.id}
+                                                    firstName={group.player.firstName}
+                                                    lastName={group.player.lastName}
+                                                    className="truncate text-sm font-medium"
+                                                  />
+                                                  <span className="shrink-0 rounded-sm border border-border/70 bg-muted/20 px-1.5 py-0.5 font-mono text-[10px]">
+                                                    S {formatMobileCompactUnits(singlesCount)}
+                                                  </span>
+                                                  <span className="shrink-0 rounded-sm border border-purple-500/30 bg-purple-500/10 px-1.5 py-0.5 font-mono text-[10px] text-purple-400">
+                                                    P {formatMobileCompactUnits(stackPower)}p
+                                                  </span>
+                                                </div>
+                                                <span className="font-mono text-sm font-semibold">
+                                                  ${group.currentValue}
+                                                </span>
+                                              </div>
+                                              <div className="flex items-center justify-between gap-2 text-xs">
+                                                <span className="truncate text-muted-foreground">
+                                                  {group.player.team} / {group.player.position}
+                                                </span>
+                                                <span
+                                                  className={`font-mono font-semibold ${
+                                                    toFiniteNumber(group.pnl) >= 0
+                                                      ? "text-positive"
+                                                      : "text-negative"
+                                                  }`}
+                                                >
+                                                  {toFiniteNumber(group.pnl) >= 0 ? "+" : ""}$
+                                                  {group.pnl}
+                                                </span>
+                                              </div>
+                                            </div>
+                                          </div>
+                                          <ChevronRight className="mt-1 h-4 w-4 flex-shrink-0 text-muted-foreground transition-transform data-[state=open]:rotate-90" />
                                         </div>
-                                        <div className="min-w-0 flex-1">
-                                          <div className="font-medium text-sm flex items-center gap-1">
-                                            <PlayerName
-                                              playerId={group.player.id}
-                                              firstName={group.player.firstName}
-                                              lastName={group.player.lastName}
-                                              className="text-sm"
-                                            />
-                                            {parseFloat(group.totalPower) > 0 && (
-                                              <Badge
-                                                variant="outline"
-                                                className="text-[10px] h-4 px-1 border-purple-500/50 text-purple-400 bg-purple-500/10"
-                                              >
-                                                {group.totalPower} effective
-                                              </Badge>
-                                            )}
-                                          </div>
-                                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground flex-wrap">
-                                            <span>{group.player.team}</span>
-                                            <span>•</span>
-                                            <span>{group.player.position}</span>
-                                            <span>•</span>
-                                            <span className="font-mono">
-                                              Qty: {group.totalShares}
-                                              {(() => {
-                                                const lpPos = lpPositions?.find(
-                                                  (lp: any) => lp.playerId === group.player.id,
-                                                );
-                                                const lpShares = lpPos
-                                                  ? Math.round(lpPos.equivalentShares || 0)
-                                                  : 0;
-                                                return lpShares > 0
-                                                  ? ` (${lpShares} in pool)`
-                                                  : null;
-                                              })()}
-                                            </span>
-                                          </div>
-                                          <div className="flex items-center gap-1.5 text-xs mt-0.5">
-                                            <span className="text-muted-foreground">
-                                              Avg: ${group.avgCostBasis}
-                                            </span>
-                                            <span className="text-muted-foreground">•</span>
-                                            <AnimatedPrice
-                                              value={parseFloat(group.player.lastTradePrice || "0")}
-                                              size="sm"
-                                              className="font-mono font-bold"
-                                            />
-                                            <span className="text-muted-foreground">•</span>
-                                            <button
-                                              className={`font-mono font-medium hover:underline ${
-                                                parseFloat(group.pnl || "0") >= 0
-                                                  ? "text-positive hover:text-green-400"
-                                                  : "text-negative hover:text-red-400"
-                                              }`}
-                                              title="Open stacking"
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                if (
-                                                  hasRegularShares &&
-                                                  group.regular!.availableQuantity >= 4
-                                                ) {
-                                                  openStackSharesDialog(
-                                                    group.player.id,
-                                                    `${group.player.firstName} ${group.player.lastName}`,
-                                                    group.regular!.availableQuantity,
-                                                  );
-                                                }
-                                              }}
-                                            >
-                                              {parseFloat(group.pnl || "0") >= 0 ? "+" : ""}$
-                                              {group.pnl}
-                                            </button>
-                                          </div>
-                                        </div>
-                                      </div>
-                                      <div className="flex items-center gap-1 flex-shrink-0">
-                                        <Button
-                                          variant="terminalOutline"
-                                          size="sm"
-                                          className="h-7 w-7 p-0"
-                                          asChild
-                                          title="Trade"
-                                          data-testid={`button-trade-${group.player.id}`}
-                                        >
-                                          <Link href={`/player/${group.player.id}`}>
-                                            <ArrowRightLeft className="w-3 h-3" />
-                                          </Link>
-                                        </Button>
-                                        <Button
-                                          variant="terminalOutline"
-                                          size="sm"
-                                          className="h-7 w-7 p-0"
-                                          asChild
-                                          title="Boost"
-                                          data-testid={`button-boost-${group.player.id}`}
-                                        >
-                                          <Link href={`/boosts?preselect=${group.player.id}`}>
-                                            <Zap className="w-3 h-3" />
-                                          </Link>
-                                        </Button>
-                                        <Button
-                                          variant="terminalOutline"
-                                          size="sm"
-                                          className="h-7 px-2 text-xs"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setLocation(
-                                              `/player/${group.player.id}?panel=lp&lpTab=zap`,
-                                            );
-                                          }}
-                                          data-testid={`button-pool-${group.player.id}`}
-                                        >
-                                          <Droplets className="w-3 h-3 mr-1" />
-                                          Pool
-                                        </Button>
-                                        <CollapsibleTrigger asChild>
-                                          <Button
-                                            variant="terminalOutline"
-                                            size="sm"
-                                            className="flex-shrink-0"
-                                            data-testid={`button-expand-${group.player.id}`}
-                                          >
-                                            <ChevronRight className="w-4 h-4 transition-transform data-[state=open]:rotate-90" />
-                                          </Button>
-                                        </CollapsibleTrigger>
-                                      </div>
-                                    </div>
+                                      </button>
+                                    </CollapsibleTrigger>
                                   </td>
 
                                   {/* Desktop layout */}
@@ -1618,10 +1587,10 @@ export default function Portfolio() {
                                           )}
                                         </div>
                                         <div className="text-xs text-muted-foreground hidden md:inline">
-                                          {group.player.team} • {group.player.position}
+                                          {group.player.team} / {group.player.position}
                                         </div>
                                         <div className="text-xs text-muted-foreground md:hidden">
-                                          {group.player.team} • {group.player.position}
+                                          {group.player.team} / {group.player.position}
                                         </div>
                                         <Button
                                           variant="outline"
@@ -1667,40 +1636,18 @@ export default function Portfolio() {
                                   </td>
                                   <td className="px-2 py-1.5 text-right font-mono text-sm hidden sm:table-cell">
                                     <div className="flex flex-col items-end gap-0.5">
-                                      <span title="Total shares">
-                                        {group.totalShares}
-                                        {(() => {
-                                          const lpPos = lpPositions?.find(
-                                            (lp: any) => lp.playerId === group.player.id,
-                                          );
-                                          const lpShares = lpPos
-                                            ? Math.round(lpPos.equivalentShares || 0)
-                                            : 0;
-                                          return lpShares > 0 ? (
-                                            <span className="text-xs text-blue-400 ml-1">
-                                              ({lpShares} pool)
-                                            </span>
-                                          ) : null;
-                                        })()}
+                                      <span title="Shares">
+                                        {formatPortfolioUnits(singlesCount)}
                                       </span>
-                                      {parseFloat(group.totalPower) > 0 && group.regular && (
-                                        <button
-                                          className="text-xs text-purple-400 hover:text-purple-300 hover:underline cursor-pointer text-right"
-                                          title="Open stacking"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            openStackSharesDialog(
-                                              group.player.id,
-                                              `${group.player.firstName} ${group.player.lastName}`,
-                                              group.regular!.availableQuantity,
-                                            );
-                                          }}
-                                          data-testid={`button-pnl-${group.player.id}`}
+                                      {availableSingles < singlesCount && (
+                                        <span
+                                          className="text-[10px] text-muted-foreground"
+                                          title="Unlocked shares available for stacking/actions"
                                         >
-                                          {group.totalPower} effective
-                                        </button>
+                                          {formatPortfolioUnits(availableSingles)} avail
+                                        </span>
                                       )}
-                                      {/* P&L - clickable to open stack dialog */}
+                                      {/* P&L quick read in list view */}
                                       <button
                                         className={`text-xs font-medium hover:underline cursor-pointer text-right ${
                                           parseFloat(group.pnl) >= 0
@@ -1710,25 +1657,37 @@ export default function Portfolio() {
                                         title="Open stacking"
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          if (
-                                            hasRegularShares &&
-                                            group.regular!.availableQuantity >= 4
-                                          ) {
+                                          if (hasRegularShares && availableSingles >= 4) {
                                             openStackSharesDialog(
                                               group.player.id,
                                               `${group.player.firstName} ${group.player.lastName}`,
-                                              group.regular!.availableQuantity,
+                                              availableSingles,
                                             );
                                           }
                                         }}
                                         data-testid={`button-pl-${group.player.id}`}
                                       >
                                         {parseFloat(group.pnl) >= 0 ? "+" : ""}${group.pnl}
-                                        <span className="ml-1 opacity-70">
-                                          ({parseFloat(group.pnlPercent) >= 0 ? "+" : ""}
-                                          {group.pnlPercent}%)
-                                        </span>
                                       </button>
+                                    </div>
+                                  </td>
+                                  <td className="px-2 py-1.5 text-right font-mono text-sm hidden sm:table-cell">
+                                    <div className="flex flex-col items-end gap-0.5">
+                                      <span
+                                        className={`font-semibold ${
+                                          stackPower > 0
+                                            ? "text-purple-400"
+                                            : "text-muted-foreground"
+                                        }`}
+                                        title="Stack power"
+                                      >
+                                        {formatPortfolioUnits(stackPower)}p
+                                      </span>
+                                      {stackStatus.kind !== "none" && (
+                                        <span className="text-[10px] text-muted-foreground">
+                                          {stackStatus.label}
+                                        </span>
+                                      )}
                                     </div>
                                   </td>
                                   <td className="px-2 py-1.5 text-right font-mono text-sm hidden sm:table-cell">
@@ -1749,7 +1708,7 @@ export default function Portfolio() {
                                 {/* Expanded detail rows - Share Holdings Table */}
                                 <CollapsibleContent asChild>
                                   <tr className="bg-muted/30">
-                                    <td colSpan={5} className="px-0">
+                                    <td colSpan={6} className="px-0">
                                       {(() => {
                                         // Build share holdings list with types
                                         const shareHoldings: Array<{
@@ -1807,6 +1766,70 @@ export default function Portfolio() {
 
                                         return (
                                           <div className="p-3">
+                                            <div className="mb-3 flex flex-wrap items-center gap-2">
+                                              <Button
+                                                size="sm"
+                                                variant="terminalOutline"
+                                                className="h-7 px-2 text-xs"
+                                                asChild
+                                              >
+                                                <Link href={`/player/${group.player.id}`}>
+                                                  <ArrowRightLeft className="mr-1 h-3 w-3" />
+                                                  Trade
+                                                </Link>
+                                              </Button>
+                                              <Button
+                                                size="sm"
+                                                variant="terminalOutline"
+                                                className="h-7 px-2 text-xs"
+                                                asChild
+                                              >
+                                                <Link href={`/boosts?preselect=${group.player.id}`}>
+                                                  <Zap className="mr-1 h-3 w-3" />
+                                                  Boost
+                                                </Link>
+                                              </Button>
+                                              <Button
+                                                size="sm"
+                                                variant="terminalOutline"
+                                                className="h-7 px-2 text-xs"
+                                                onClick={() =>
+                                                  setLocation(
+                                                    `/player/${group.player.id}?panel=lp&lpTab=zap`,
+                                                  )
+                                                }
+                                              >
+                                                <Droplets className="mr-1 h-3 w-3" />
+                                                Pool
+                                              </Button>
+                                              {hasRegularShares && availableSingles >= 4 && (
+                                                <Button
+                                                  size="sm"
+                                                  variant="terminal"
+                                                  className="h-7 px-2 text-xs"
+                                                  onClick={() =>
+                                                    openStackSharesDialog(
+                                                      group.player.id,
+                                                      `${group.player.firstName} ${group.player.lastName}`,
+                                                      availableSingles,
+                                                    )
+                                                  }
+                                                >
+                                                  Stack
+                                                </Button>
+                                              )}
+                                              <Button
+                                                size="sm"
+                                                variant="ghost"
+                                                className="h-7 px-2 text-xs"
+                                                onClick={() => {
+                                                  setSelectedPlayerId(group.player.id);
+                                                  setPlayerModalOpen(true);
+                                                }}
+                                              >
+                                                View Player
+                                              </Button>
+                                            </div>
                                             <table className="w-full text-xs">
                                               <thead>
                                                 <tr className="text-muted-foreground border-b border-border/50">
@@ -2111,7 +2134,7 @@ export default function Portfolio() {
                               </div>
                               {pos.player?.team && pos.player?.position && (
                                 <div className="text-xs text-muted-foreground mb-1">
-                                  {pos.player.team} • {pos.player.position}
+                                  {pos.player.team} | {pos.player.position}
                                 </div>
                               )}
                               <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
@@ -2119,7 +2142,7 @@ export default function Portfolio() {
                                   {(Number(pos.ownershipPercentage || 0) * 100).toFixed(2)}% pool
                                   share
                                 </span>
-                                <span className="text-muted-foreground">•</span>
+                                <span className="text-muted-foreground">|</span>
                                 <span className="font-mono text-positive">
                                   Fees ${Number(pos.feesEarnedToDate || 0).toFixed(2)}
                                 </span>
@@ -2170,8 +2193,8 @@ export default function Portfolio() {
             <DialogHeader>
               <DialogTitle>Stack Shares</DialogTitle>
               <DialogDescription>
-                Convert unlocked raw shares into a single stacked share at a 2:1 ratio. The
-                resulting multiplier carries into boost payouts.
+                Convert unlocked shares into stack power. Every 2 shares add 1p, and one stack share
+                carries that power into boost payouts.
               </DialogDescription>
             </DialogHeader>
             {selectedPlayerForStacking && (
@@ -2182,23 +2205,18 @@ export default function Portfolio() {
                   {selectedStackingCandidate ? (
                     <div className="mt-1 space-y-1 text-sm text-muted-foreground">
                       <div className="flex justify-between">
-                        <span>Singles Available:</span>
+                        <span>Shares Available:</span>
                         <span className="font-mono">
-                          {selectedStackingCandidate.availableToStack.toFixed(2)}
+                          {formatPortfolioUnits(selectedStackingCandidate.availableToStack)}
                         </span>
                       </div>
                       <div className="flex justify-between">
-                        <span>Current Stack Level:</span>
+                        <span>Current Stack Power:</span>
                         <span className="font-mono text-purple-400">
-                          {selectedStackingCandidate.bestStackedMultiplier > 1
-                            ? `${selectedStackingCandidate.bestStackedMultiplier.toFixed(2)}x`
-                            : "None"}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Stacked Shares Held:</span>
-                        <span className="font-mono">
-                          {selectedStackingCandidate.stackedShareCount.toFixed(2)}
+                          {formatPortfolioUnits(
+                            Math.max(0, selectedStackingCandidate.bestStackedMultiplier),
+                          )}
+                          p
                         </span>
                       </div>
                     </div>
@@ -2211,13 +2229,13 @@ export default function Portfolio() {
 
                 {/* Share input */}
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Singles to Add</label>
+                  <label className="text-sm font-medium">Shares to Add</label>
                   <Input
                     variant="terminal"
                     type="number"
                     value={sharesToStackInput}
                     onChange={(e) => setSharesToStackInput(e.target.value)}
-                    placeholder="Enter singles to add"
+                    placeholder="Enter shares to add"
                     min={4}
                     step={2}
                     max={
@@ -2227,8 +2245,8 @@ export default function Portfolio() {
                     }
                   />
                   <p className="text-xs text-muted-foreground">
-                    Must be at least 4 unlocked singles and even. Every 2 singles become 1x of stack
-                    level and the other half are burned.
+                    Must be at least 4 unlocked shares and even. Every 2 shares add 1p to stack
+                    power, and the other half are burned.
                   </p>
                 </div>
 
@@ -2243,39 +2261,42 @@ export default function Portfolio() {
                     shares <= selectedStackingCandidate.availableToStack;
                   if (!isValid) return null;
 
-                  const multiplierCreated = shares / 2;
-                  const resultingStackLevel =
-                    selectedStackingCandidate.bestStackedMultiplier > 1
-                      ? selectedStackingCandidate.bestStackedMultiplier + multiplierCreated
-                      : multiplierCreated;
+                  const powerAdded = shares / 2;
+                  const existingStackPower = Math.max(
+                    0,
+                    selectedStackingCandidate.bestStackedMultiplier,
+                  );
+                  const resultingStackPower = existingStackPower + powerAdded;
                   const remainingShares = selectedStackingCandidate.regularShares - shares;
 
                   return (
                     <div className="terminal-shell space-y-2 border-purple-500/20 bg-purple-500/10 p-3">
                       <div className="text-sm font-medium text-purple-400">Stack Result</div>
                       <div className="flex justify-between text-sm">
-                        <span>Singles consumed:</span>
+                        <span>Shares consumed:</span>
                         <span className="font-mono">-{shares}</span>
                       </div>
                       <div className="flex justify-between text-sm font-medium">
-                        <span>Added stack level:</span>
+                        <span>Added stack power:</span>
                         <span className="font-mono text-purple-400">
-                          +{multiplierCreated.toFixed(2)}x
+                          +{formatPortfolioUnits(powerAdded)}p
                         </span>
                       </div>
                       <div className="flex justify-between text-sm">
-                        <span>New stack level:</span>
+                        <span>New stack power:</span>
                         <span className="font-mono text-purple-400">
-                          {resultingStackLevel.toFixed(2)}x
+                          {formatPortfolioUnits(resultingStackPower)}p
                         </span>
                       </div>
                       <div className="flex justify-between text-sm">
-                        <span>Singles burned:</span>
-                        <span className="font-mono">-{multiplierCreated.toFixed(2)}</span>
+                        <span>Shares burned:</span>
+                        <span className="font-mono">-{formatPortfolioUnits(powerAdded)}</span>
                       </div>
                       <div className="flex justify-between text-sm">
-                        <span>Singles remaining:</span>
-                        <span className="font-mono">{remainingShares.toFixed(2)}</span>
+                        <span>Shares remaining:</span>
+                        <span className="font-mono">
+                          {formatPortfolioUnits(Math.max(0, remainingShares))}
+                        </span>
                       </div>
                     </div>
                   );

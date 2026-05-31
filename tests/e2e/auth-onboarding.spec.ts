@@ -193,3 +193,125 @@ test("onboarding CTA completes onboarding and routes to pools", async ({ page })
   await expect.poll(() => onboardingCompleteCalls).toBe(1);
   await expect(page).toHaveURL(/\/pools$/);
 });
+
+test("onboarding close button completes onboarding and dismisses modal", async ({ page }) => {
+  let onboardingCompleteCalls = 0;
+  let hasSeenOnboarding = false;
+
+  await mockSupabaseConfig(page);
+
+  await page.route(/.*\/api\/auth\/user(\?.*)?$/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        id: "user_e2e_onboarding_close",
+        email: "rookie-close@example.com",
+        username: "rookie-close",
+        hasSeenOnboarding,
+        isPremium: false,
+      }),
+    });
+  });
+
+  await page.route("**/api/user/onboarding/complete", async (route) => {
+    onboardingCompleteCalls += 1;
+    hasSeenOnboarding = true;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ success: true }),
+    });
+  });
+
+  await page.route("**/api/dashboard", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        user: null,
+        recentTrades: [],
+        portfolioHistory: [],
+        topHoldings: [],
+        power: null,
+      }),
+    });
+  });
+
+  await page.route("**/api/games/insights**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ games: [] }),
+    });
+  });
+
+  await page.goto("/");
+  await expect(page.getByTestId("onboarding-modal")).toBeVisible();
+
+  await page.getByRole("button", { name: "Close" }).click();
+
+  await expect.poll(() => onboardingCompleteCalls).toBe(1);
+  await expect(page.getByTestId("onboarding-modal")).toBeHidden();
+});
+
+test("onboarding completion failure suppresses re-open for current session", async ({ page }) => {
+  let onboardingCompleteCalls = 0;
+
+  await mockSupabaseConfig(page);
+
+  await page.route(/.*\/api\/auth\/user(\?.*)?$/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        id: "user_e2e_onboarding_error",
+        email: "rookie-error@example.com",
+        username: "rookie-error",
+        hasSeenOnboarding: false,
+        isPremium: false,
+      }),
+    });
+  });
+
+  await page.route("**/api/user/onboarding/complete", async (route) => {
+    onboardingCompleteCalls += 1;
+    await route.fulfill({
+      status: 500,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "temporary failure" }),
+    });
+  });
+
+  await page.route("**/api/dashboard", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        user: null,
+        recentTrades: [],
+        portfolioHistory: [],
+        topHoldings: [],
+        power: null,
+      }),
+    });
+  });
+
+  await page.route("**/api/games/insights**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ games: [] }),
+    });
+  });
+
+  await page.goto("/");
+  await expect(page.getByTestId("onboarding-modal")).toBeVisible();
+
+  await page.getByTestId("button-skip-onboarding").click();
+  await expect.poll(() => onboardingCompleteCalls).toBe(1);
+  await expect(page.getByTestId("onboarding-modal")).toBeHidden();
+
+  await page.reload();
+  await expect(page.getByTestId("onboarding-modal")).toBeHidden();
+});

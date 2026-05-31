@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildStackingCandidates,
+  getCompactStackStatus,
   sortStackingCandidates,
   type PortfolioStackingEligibility,
   type PortfolioStackingHolding,
@@ -147,5 +148,44 @@ describe("portfolio stacking helpers", () => {
       "ready-low",
       "almost",
     ]);
+  });
+
+  it("returns Ready when no stack exists and singles are stackable", () => {
+    expect(
+      getCompactStackStatus({
+        availableSingles: 6,
+        stackPower: 0,
+      }),
+    ).toMatchObject({
+      kind: "ready",
+      label: "Ready",
+      neededSingles: 0,
+    });
+  });
+
+  it("returns Need X when below the minimum and no stack exists", () => {
+    expect(
+      getCompactStackStatus({
+        availableSingles: 3,
+        stackPower: 0,
+      }),
+    ).toMatchObject({
+      kind: "need",
+      label: "Need 1",
+      neededSingles: 1,
+    });
+  });
+
+  it("returns Add ready when stack exists and more singles are stackable", () => {
+    expect(
+      getCompactStackStatus({
+        availableSingles: 12,
+        stackPower: 18,
+      }),
+    ).toMatchObject({
+      kind: "add-ready",
+      label: "Add ready",
+      neededSingles: 0,
+    });
   });
 });
