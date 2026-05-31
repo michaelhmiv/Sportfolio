@@ -2954,3 +2954,23 @@ Review:
 - Added `.github/workflows/play-production-release.yml` mirroring your internal/closed build and signing flow.
 - New workflow uploads to `production` with `status: draft` and `changesNotSentForReview: false` so Play receives the draft release and submission is sent for review automatically.
 - Secrets contract is unchanged from existing Play workflows (`PLAY_SERVICE_ACCOUNT_JSON`, keystore + key alias/password secrets).
+
+## 2026-05-30 NASCAR Live Stats Route Parity / Provider Audit
+
+- [x] Add NASCAR support to `/api/games/:gameId/live-stats` instead of returning unsupported sport
+- [x] Share NASCAR race/live stat mapping between race insights and live stats
+- [x] Preserve richer provider fields and correct live laps-led range handling
+- [x] Upsert missing live NASCAR drivers before stat writes when provider IDs are valid
+- [x] Add NASCAR scheduler/API health coverage
+- [x] Update NASCAR live/detail UI to show normalized race fields
+- [x] Run validation (`npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`)
+
+Review:
+
+- Added a normalized NASCAR race snapshot path shared by `/api/races/insights` and `/api/games/:gameId/live-stats`, so NASCAR no longer falls through to `Unsupported sport` on the live-stats route.
+- Live NASCAR sync now preserves provider fields for running order, start/finish position, laps completed, laps led, fastest laps, speed/gap, flag/stage/run metadata, cautions/leaders, and driver identity.
+- Fixed live-feed `laps_led` range handling so segment ranges count real laps led rather than just segment count.
+- Live sync now upserts valid missing NASCAR drivers before stat writes instead of dropping rows solely because roster sync lagged.
+- Added NASCAR route/job coverage to API health checks and expanded tests for NASCAR provider mapping and live-sync missing-driver behavior.
+- Dashboard race detail and command-center live views now show NASCAR-specific live fields including stage/flag context, fastest laps, position differential, speed/gap, status, and live earned.
+- Validation passed: `npm run check`, `npm run lint`, `npm run test:run`, and `npm run format:check`.

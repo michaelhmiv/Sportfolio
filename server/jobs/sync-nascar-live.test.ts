@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const storageMocks = vi.hoisted(() => ({
   updateDailyGameStatus: vi.fn(),
   upsertPlayerGameStats: vi.fn(),
+  upsertPlayer: vi.fn(),
   getDailyGameByGameId: vi.fn(),
   getPlayersByIds: vi.fn(),
 }));
@@ -12,12 +13,14 @@ const nascarApiMocks = vi.hoisted(() => ({
   getFlagStateDescription: vi.fn(),
   isNascarRaceFinished: vi.fn(),
   isNascarRaceSession: vi.fn(),
+  countNascarLapsLed: vi.fn(),
 }));
 
 vi.mock("../storage", () => ({
   storage: {
     updateDailyGameStatus: storageMocks.updateDailyGameStatus,
     upsertPlayerGameStats: storageMocks.upsertPlayerGameStats,
+    upsertPlayer: storageMocks.upsertPlayer,
     getDailyGameByGameId: storageMocks.getDailyGameByGameId,
     getPlayersByIds: storageMocks.getPlayersByIds,
   },
@@ -43,6 +46,7 @@ vi.mock("../nascar-api", () => ({
   getFlagStateDescription: nascarApiMocks.getFlagStateDescription,
   isNascarRaceFinished: nascarApiMocks.isNascarRaceFinished,
   isNascarRaceSession: nascarApiMocks.isNascarRaceSession,
+  countNascarLapsLed: nascarApiMocks.countNascarLapsLed,
 }));
 
 function buildLiveFeed(overrides?: Record<string, unknown>): any {
@@ -100,7 +104,9 @@ describe("syncNascarLiveForSeries", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     nascarApiMocks.getFlagStateDescription.mockReturnValue("Final");
+    nascarApiMocks.countNascarLapsLed.mockReturnValue(1);
     storageMocks.getPlayersByIds.mockResolvedValue([{ id: "nascar_1234" }]);
+    storageMocks.upsertPlayer.mockResolvedValue(undefined);
   });
 
   it("ignores qualifying/practice sessions and repairs status away from completed", async () => {
@@ -142,7 +148,7 @@ describe("syncNascarLiveForSeries", () => {
     expect(firstCallArg.statsJson.runType).toBe(3);
   });
 
-  it("summarizes missing local drivers as skips instead of hard errors", async () => {
+  it("upserts missing local drivers before writing live stats", async () => {
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     nascarApiMocks.fetchLiveFeed.mockResolvedValue(
       buildLiveFeed({
@@ -168,12 +174,21 @@ describe("syncNascarLiveForSeries", () => {
     const { syncNascarLiveForSeries } = await import("./sync-nascar-live");
     const result = await syncNascarLiveForSeries(2 as any);
 
-    expect(result.recordsProcessed).toBe(1);
+    expect(storageMocks.upsertPlayer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "nascar_9999",
+        sport: "NASCAR",
+        firstName: "Driver",
+        lastName: "Two",
+        team: "NXS",
+      }),
+    );
+    expect(result.recordsProcessed).toBe(2);
     expect(result.errorCount).toBe(0);
-    expect(result.skippedMissingPlayers).toBe(1);
-    expect(storageMocks.upsertPlayerGameStats).toHaveBeenCalledTimes(1);
+    expect(result.skippedMissingPlayers).toBe(0);
+    expect(storageMocks.upsertPlayerGameStats).toHaveBeenCalledTimes(2);
     expect(logSpy).toHaveBeenCalledWith(
-      expect.stringContaining("Skipped 1 live stat rows for drivers missing from the local roster"),
+      expect.stringContaining("Created 1 missing live NASCAR drivers for Xfinity Series"),
     );
 
     logSpy.mockRestore();

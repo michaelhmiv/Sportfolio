@@ -97,6 +97,25 @@ type LivePlayerStats = {
   earnedRuns?: number;
   wins?: number;
   saves?: number;
+  runningPosition?: number;
+  startingPosition?: number;
+  finishPosition?: number | null;
+  carNumber?: string;
+  manufacturer?: string;
+  lapsCompleted?: number;
+  lapsLed?: number;
+  fastestLaps?: number;
+  positionDifferential?: number;
+  averageRunningPosition?: number | null;
+  averageSpeed?: number | null;
+  bestLap?: number | null;
+  bestLapSpeed?: number | null;
+  bestLapTime?: string | null;
+  delta?: number | null;
+  isOnTrack?: boolean | null;
+  isOnDvp?: boolean | null;
+  providerPoints?: number | null;
+  status?: string;
   fantasyPoints?: number;
 };
 
@@ -119,6 +138,9 @@ interface LiveStatsResponse {
     hits?: number;
     runs?: number;
     rbi?: number;
+    position?: number;
+    lapsLed?: number;
+    fastestLaps?: number;
   }>;
   awayTopPerformers?: Array<{
     playerId?: string;
@@ -130,7 +152,23 @@ interface LiveStatsResponse {
     hits?: number;
     runs?: number;
     rbi?: number;
+    position?: number;
+    lapsLed?: number;
+    fastestLaps?: number;
   }>;
+  lapInfo?: {
+    currentLap: number;
+    totalLaps: number;
+    lapsToGo: number;
+    flagState: string;
+    flagStateCode?: number | null;
+    stage?: { stage_num?: number; finish_at_lap?: number; laps_in_stage?: number } | null;
+    runName?: string | null;
+    runType?: number | null;
+    cautions?: number | null;
+    leadChanges?: number | null;
+    leaders?: number | null;
+  } | null;
   userEarnings?: {
     totalEstimatedEarnings: number;
     ownedPlayers: Array<{
@@ -1335,6 +1373,21 @@ const hasMeaningfulLiveStats = (player: LivePlayerStats, sport: string): boolean
     return nflStats.some((value) => (value ?? 0) !== 0);
   }
 
+  if (normalizedSport === "NASCAR") {
+    const nascarStats = [
+      player.fantasyPoints,
+      player.runningPosition,
+      player.startingPosition,
+      player.lapsCompleted,
+      player.lapsLed,
+      player.fastestLaps,
+      player.positionDifferential,
+      player.bestLapSpeed,
+    ];
+
+    return nascarStats.some((value) => (value ?? 0) !== 0);
+  }
+
   const nbaStats = [
     player.fantasyPoints,
     player.pts,
@@ -1530,6 +1583,14 @@ export function GameCommandCenterModal({
 
   const liveTeamSections = useMemo(() => {
     if (!liveStats) return [] as Array<{ team: string; players: LivePlayerStats[] }>;
+    if (liveSport === "NASCAR") {
+      return [
+        {
+          team: liveStats.awayTeam || "NASCAR",
+          players: liveAwayPlayers.filter((player) => hasMeaningfulLiveStats(player, liveSport)),
+        },
+      ];
+    }
     return [
       {
         team: liveStats.awayTeam,
@@ -2585,15 +2646,48 @@ export function GameCommandCenterModal({
             ) : (
               <>
                 <div className="space-y-3 rounded-sm border border-border/60 p-3">
-                  <div className="flex items-center justify-between text-sm font-semibold">
-                    <span>
-                      {liveStats.awayTeam} {liveStats.awayScore}
-                    </span>
-                    <span>@</span>
-                    <span>
-                      {liveStats.homeTeam} {liveStats.homeScore}
-                    </span>
-                  </div>
+                  {liveSport === "NASCAR" ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-3 text-sm font-semibold">
+                        <span className="truncate">{liveStats.homeTeam}</span>
+                        <Badge variant={liveStats.status === "inprogress" ? "default" : "outline"}>
+                          {liveStats.status === "completed" ? "Final" : liveStats.status}
+                        </Badge>
+                      </div>
+                      {liveStats.lapInfo ? (
+                        <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+                          <div>
+                            <div className="text-muted-foreground">Lap</div>
+                            <div className="font-mono">
+                              {liveStats.lapInfo.currentLap}/{liveStats.lapInfo.totalLaps}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-muted-foreground">To Go</div>
+                            <div className="font-mono">{liveStats.lapInfo.lapsToGo}</div>
+                          </div>
+                          <div>
+                            <div className="text-muted-foreground">Flag</div>
+                            <div>{liveStats.lapInfo.flagState}</div>
+                          </div>
+                          <div>
+                            <div className="text-muted-foreground">Leaders</div>
+                            <div className="font-mono">{liveStats.lapInfo.leaders ?? "--"}</div>
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between text-sm font-semibold">
+                      <span>
+                        {liveStats.awayTeam} {liveStats.awayScore}
+                      </span>
+                      <span>@</span>
+                      <span>
+                        {liveStats.homeTeam} {liveStats.homeScore}
+                      </span>
+                    </div>
+                  )}
 
                   {liveStats.message ? (
                     <div className="text-xs text-muted-foreground">{liveStats.message}</div>
@@ -2750,6 +2844,132 @@ export function GameCommandCenterModal({
                                         </td>
                                         <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
                                           {player.passingInterceptions ?? 0}
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            ) : liveSport === "NASCAR" ? (
+                              <table className="w-full min-w-[980px] border-separate border-spacing-0 text-[10px]">
+                                <thead>
+                                  <tr className="text-muted-foreground">
+                                    <th className="sticky left-0 z-30 w-20 border-b border-border/60 bg-background px-1 py-1 text-left font-medium">
+                                      Driver
+                                    </th>
+                                    <th className="sticky left-20 z-30 w-12 border-b border-border/60 bg-background px-1 py-1 text-right font-medium">
+                                      FP
+                                    </th>
+                                    <th className="sticky left-[8rem] z-30 w-14 border-b border-border/60 bg-background px-1 py-1 text-right font-medium">
+                                      $
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      Run
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      Start
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      +/-
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      Laps
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      Led
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      Fast
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      Best MPH
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      Gap
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      Car
+                                    </th>
+                                    <th className="border-b border-border/60 px-1 py-1 text-right font-medium">
+                                      Status
+                                    </th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {section.players.map((player) => {
+                                    const earnings = getPlayerLiveEarnings(player, section.team);
+                                    const owned = earnings > 0;
+                                    const stickyCellBg = owned ? "bg-purple-500/10" : "bg-card";
+                                    const positionDiff = Number(player.positionDifferential || 0);
+
+                                    return (
+                                      <tr
+                                        key={`${section.team}-${player.playerId || player.name}`}
+                                        className={owned ? "bg-purple-500/5" : ""}
+                                      >
+                                        <td
+                                          className={`sticky left-0 z-20 border-b border-border/40 px-1 py-1.5 ${stickyCellBg}`}
+                                        >
+                                          {renderLiveModalPlayerName({
+                                            player,
+                                            team: section.team,
+                                            className: `truncate ${owned ? "font-medium text-purple-500" : ""}`,
+                                            label: formatCompactName(player.name),
+                                          })}
+                                        </td>
+                                        <td
+                                          className={`sticky left-20 z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono ${stickyCellBg}`}
+                                        >
+                                          {(player.fantasyPoints || 0).toFixed(1)}
+                                        </td>
+                                        <td
+                                          className={`sticky left-[8rem] z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono text-emerald-600 dark:text-emerald-400 ${stickyCellBg}`}
+                                        >
+                                          ${earnings.toFixed(2)}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.runningPosition || "--"}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.startingPosition || "--"}
+                                        </td>
+                                        <td
+                                          className={`border-b border-border/40 px-1 py-1.5 text-right font-mono ${
+                                            positionDiff > 0
+                                              ? "text-emerald-500"
+                                              : positionDiff < 0
+                                                ? "text-rose-500"
+                                                : ""
+                                          }`}
+                                        >
+                                          {positionDiff > 0 ? "+" : ""}
+                                          {positionDiff}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.lapsCompleted ?? 0}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.lapsLed ?? 0}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.fastestLaps ?? 0}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {typeof player.bestLapSpeed === "number"
+                                            ? player.bestLapSpeed.toFixed(1)
+                                            : "--"}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {typeof player.delta === "number"
+                                            ? player.delta.toFixed(1)
+                                            : "--"}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          #{player.carNumber || "--"} {player.manufacturer || ""}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right">
+                                          {player.status ||
+                                            (player.isOnTrack === false ? "Off" : "Run")}
                                         </td>
                                       </tr>
                                     );

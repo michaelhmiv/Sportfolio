@@ -1665,6 +1665,16 @@ export default function Dashboard() {
                       Flag: {selectedRace.lapInfo.flagState}
                     </span>
                   )}
+                  {selectedRace.lapInfo.stage?.stage_num && (
+                    <span className="text-muted-foreground">
+                      Stage {selectedRace.lapInfo.stage.stage_num}
+                    </span>
+                  )}
+                  {typeof selectedRace.lapInfo.leadChanges === "number" && (
+                    <span className="text-muted-foreground">
+                      {selectedRace.lapInfo.leadChanges} lead changes
+                    </span>
+                  )}
                 </div>
               )}
               <div className="space-y-2">
@@ -1711,14 +1721,18 @@ export default function Dashboard() {
                       <div className="col-span-1 text-muted-foreground">#{driver.carNumber}</div>
                       <div className="col-span-2 text-muted-foreground text-xs">
                         {driver.manufacturer}
+                        {driver.status ? ` | ${driver.status}` : ""}
                       </div>
                       <div className="col-span-1 text-muted-foreground text-xs">
                         {driver.lapsCompleted || "-"}
                       </div>
                       <div className="col-span-1">
-                        {driver.lapsLed > 0 && (
-                          <span className="text-yellow-500 text-xs">{driver.lapsLed} laps</span>
-                        )}
+                        <span className="text-yellow-500 text-xs">
+                          {driver.lapsLed > 0 ? `${driver.lapsLed} led` : ""}
+                          {driver.fastestLaps > 0
+                            ? `${driver.lapsLed > 0 ? " / " : ""}${driver.fastestLaps} fast`
+                            : ""}
+                        </span>
                       </div>
                       <div className="col-span-1 text-right font-mono text-purple-400">
                         {driver.fantasyPoints?.toFixed(1)}
