@@ -76,4 +76,31 @@ describe("assignDailyBoostWithValidation", () => {
     expect(result.shareSourceType).toBe("stacked");
     expect(result.shareMultiplier).toBe("3.50");
   });
+
+  it("falls back to a regular share when no stacked share is available", async () => {
+    const { assignDailyBoostWithValidation } = await import("./assign-daily-boost");
+
+    storageMocks.getPlayerShareBreakdown.mockResolvedValue({
+      regular: { quantity: "2" },
+      stacked: [],
+    });
+
+    const result = await assignDailyBoostWithValidation({
+      userId: "user_1",
+      playerId: "raw_player",
+      sport: "NBA",
+      slotTier: 4,
+      etDate: "2026-05-29",
+    });
+
+    expect(storageMocks.createDailyBoost).toHaveBeenCalledTimes(1);
+    expect(storageMocks.createDailyBoost.mock.calls[0][0]).toMatchObject({
+      playerId: "canonical_player",
+      slotTier: 4,
+      shareMultiplier: "1.00",
+      shareSourceType: "regular",
+    });
+    expect(result.shareSourceType).toBe("regular");
+    expect(result.shareMultiplier).toBe("1.00");
+  });
 });

@@ -3,6 +3,7 @@ import type { Player } from "@shared/schema";
 export type StackingGameStatus = "none" | "upcoming" | "live" | "ended";
 export type StackingCandidateStatus = "stack-ready" | "almost-ready" | "already-stacked";
 export type StackingSortField = "ready" | "available" | "best-stacked" | "effective" | "game";
+export type CompactStackStatusKind = "ready" | "need" | "add-ready" | "none";
 
 export interface PortfolioStackingHolding {
   assetType: string;
@@ -43,6 +44,12 @@ export interface StackingCandidate {
   isAlreadyBoosted: boolean;
 }
 
+export interface CompactStackStatus {
+  kind: CompactStackStatusKind;
+  label: string | null;
+  neededSingles: number;
+}
+
 interface AggregatedCandidate {
   player: Player;
   regularShares: number;
@@ -63,6 +70,50 @@ function toNumber(value: string | number | null | undefined): number {
   }
 
   return 0;
+}
+
+export function formatStackNumber(value: number): string {
+  if (!Number.isFinite(value)) {
+    return "0";
+  }
+
+  if (Number.isInteger(value)) {
+    return value.toLocaleString();
+  }
+
+  return value.toLocaleString(undefined, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  });
+}
+
+export function getCompactStackStatus(input: {
+  availableSingles: number;
+  stackPower: number;
+  minSingles?: number;
+}): CompactStackStatus {
+  const minSingles = input.minSingles ?? 4;
+  const availableSingles = Math.max(0, input.availableSingles);
+  const stackPower = Math.max(0, input.stackPower);
+
+  if (stackPower > 0) {
+    if (availableSingles >= minSingles) {
+      return { kind: "add-ready", label: "Add ready", neededSingles: 0 };
+    }
+
+    return { kind: "none", label: null, neededSingles: 0 };
+  }
+
+  if (availableSingles >= minSingles) {
+    return { kind: "ready", label: "Ready", neededSingles: 0 };
+  }
+
+  const neededSingles = Math.max(0, minSingles - availableSingles);
+  return {
+    kind: "need",
+    label: `Need ${formatStackNumber(neededSingles)}`,
+    neededSingles,
+  };
 }
 
 function getCandidateStatus(candidate: {
