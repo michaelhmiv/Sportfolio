@@ -71,9 +71,18 @@ export function PortfolioCardView({
     Number.isInteger(value) ? value.toString() : value.toFixed(2);
 
   const getSortValue = (group: PlayerGroup): string => {
+    const singlesCount = group.regular?.quantity || 0;
+    const stackPower = group.stacked.reduce(
+      (sum, share) => sum + share.multiplier * share.quantity,
+      0,
+    );
+
     switch (sortField) {
       case "quantity":
-        return `${group.totalShares} shares`;
+      case "singles":
+        return `${formatShareCount(singlesCount)} shares`;
+      case "stackPower":
+        return `${stackPower.toFixed(2)}p`;
       case "value":
         return `$${group.currentValue}`;
       case "pnl":
@@ -89,8 +98,12 @@ export function PortfolioCardView({
 
   const getSortLabel = (): string => {
     switch (sortField) {
+      case "singles":
+        return "Shares";
       case "quantity":
         return "Shares";
+      case "stackPower":
+        return "Power";
       case "value":
         return "Value";
       case "pnl":

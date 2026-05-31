@@ -74,7 +74,7 @@ export function SmsAccessCard() {
       queryClient.invalidateQueries({ queryKey: ["/api/account/sms"] });
       toast({
         title: "SMS settings updated",
-        description: "Your SMS agent preference was saved.",
+        description: "Your SMS preference was saved.",
       });
     },
     onError: (error: any) => {
@@ -93,14 +93,15 @@ export function SmsAccessCard() {
       <CardHeader className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="terminal-kicker">Agent Transport</p>
+            <p className="terminal-kicker">SMS Access</p>
             <CardTitle className="terminal-heading mt-2 flex items-center gap-2 text-base">
               <MessageSquareText className="h-5 w-5 text-primary" />
-              SMS Agent
+              SMS Channel
             </CardTitle>
             <p className="mt-2 text-sm text-muted-foreground">
-              Link one phone number so you can text the Sportfolio agent. Unknown numbers can start
-              a conversation, but account-specific reads and actions still require linking first.
+              Link one phone number so you can use the Sportfolio SMS channel. Unknown numbers can
+              start a conversation, but account-specific reads and actions still require linking
+              first.
             </p>
           </div>
           <Badge

@@ -1,11 +1,10 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Link, useLocation, useRoute } from "wouter";
+import { useLocation, useRoute } from "wouter";
 import {
   BookOpen,
   ChevronDown,
   ChevronRight,
-  ExternalLink,
   MessageSquare,
   PanelLeftClose,
   PanelLeftOpen,
@@ -20,7 +19,6 @@ import {
   type DocsHandbookChapter,
   type DocsSearchResult,
 } from "@shared/docs";
-import { useAuth } from "@/hooks/useAuth";
 import { apiRequest, authenticatedFetch } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -214,7 +212,6 @@ export default function WikiPage() {
   const [, sectionParams] = useRoute("/wiki/:section");
   const legacySection = sectionParams?.section || "";
   const [, setLocation] = useLocation();
-  const { isAuthenticated } = useAuth();
   const [searchValue, setSearchValue] = useState("");
   const [isTocOpen, setIsTocOpen] = useState(false);
   const [activeAnchorId, setActiveAnchorId] = useState(() =>
@@ -558,7 +555,7 @@ export default function WikiPage() {
                     variant="outline"
                     className="rounded-sm font-mono text-[11px] uppercase tracking-[0.08em]"
                   >
-                    Sportfolio Agent
+                    Sportfolio Handbook
                   </Badge>
                   <Badge
                     variant="secondary"
@@ -575,12 +572,6 @@ export default function WikiPage() {
                     </Badge>
                   )}
                 </div>
-                <Button asChild variant="terminalOutline" className="gap-2">
-                  <Link href={isAuthenticated ? "/agent" : "/login"}>
-                    <ExternalLink className="h-4 w-4" />
-                    Open Agent
-                  </Link>
-                </Button>
               </div>
               <CardTitle className="text-lg leading-tight">{askMutation.data.query}</CardTitle>
             </CardHeader>

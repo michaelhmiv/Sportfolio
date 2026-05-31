@@ -92,8 +92,8 @@ export function getRouteSeoMeta(rawPath: string): RouteSeoMeta {
 
   if (path === "/sms/link") {
     return {
-      title: "Link SMS Agent | Sportfolio",
-      description: "Complete secure phone linking for the Sportfolio SMS agent.",
+      title: "Link SMS Access | Sportfolio",
+      description: "Complete secure phone linking for the Sportfolio SMS channel.",
       canonicalPath: "/sms/link",
       robots: "noindex,nofollow",
     };

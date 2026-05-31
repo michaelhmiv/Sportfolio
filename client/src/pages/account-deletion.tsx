@@ -50,7 +50,7 @@ const deletedData = [
   "Sportfolio account profile and sign-in access",
   "Linked SMS settings and phone-link configuration",
   "Saved app preferences and scouting configuration tied to the account",
-  "In-app agent chat history and related user conversation threads",
+  "In-app automated assistant chat history and related user conversation threads",
 ];
 
 const retainedData = [

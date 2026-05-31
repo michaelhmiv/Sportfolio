@@ -74,11 +74,6 @@ const loadWikiArticlePage = () => import("@/pages/wiki-article");
 const loadSmsLinkPage = () => import("@/pages/sms-link");
 const loadDiscordLinkPage = () => import("@/pages/discord-link");
 const loadAnalyticsPage = () => import("@/pages/analytics");
-const loadAgentPage = () => import("@/pages/agent");
-const loadAgentPublicPreview = () =>
-  import("@/features/agent/components/agent-public-preview").then((m) => ({
-    default: m.AgentPublicPreview,
-  }));
 const loadNewsPage = () => import("@/pages/news");
 const loadPremiumPage = () => import("@/pages/premium");
 const loadWatchlistsPage = () => import("@/pages/watchlists");
@@ -132,8 +127,6 @@ const WikiArticle = lazy(loadWikiArticlePage);
 const SmsLink = lazy(loadSmsLinkPage);
 const DiscordLink = lazy(loadDiscordLinkPage);
 const Analytics = lazy(loadAnalyticsPage);
-const Agent = lazy(loadAgentPage);
-const AgentPreview = lazy(loadAgentPublicPreview);
 const News = lazy(loadNewsPage);
 const Premium = lazy(loadPremiumPage);
 const Watchlists = lazy(loadWatchlistsPage);
@@ -224,20 +217,51 @@ function LegacyMarketplaceRedirect() {
   return null;
 }
 
+function LegacyAgentRedirect() {
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    setLocation("/", { replace: true });
+  }, [setLocation]);
+
+  return null;
+}
+
+const ONBOARDING_SUPPRESS_AFTER_ERROR_KEY = "onboarding_suppress_after_error_v1";
+
 function OnboardingCheck() {
   const { user, isAuthenticated } = useAuth();
   const [, navigate] = useLocation();
   const [showOnboarding, setShowOnboarding] = useState(false);
 
   useEffect(() => {
-    if (isAuthenticated && user && user.hasSeenOnboarding === false) {
-      if (Capacitor.isNativePlatform()) {
-        // Native: use the dedicated full-screen onboarding route.
-        navigate("/onboarding", { replace: false });
-      } else {
-        // Web / Playwright: keep the existing modal behaviour.
-        setShowOnboarding(true);
+    if (!isAuthenticated || !user) {
+      setShowOnboarding(false);
+      return;
+    }
+
+    if (user.hasSeenOnboarding !== false) {
+      if (typeof window !== "undefined") {
+        window.sessionStorage.removeItem(ONBOARDING_SUPPRESS_AFTER_ERROR_KEY);
       }
+      setShowOnboarding(false);
+      return;
+    }
+
+    const suppressedForSession =
+      typeof window !== "undefined" &&
+      window.sessionStorage.getItem(ONBOARDING_SUPPRESS_AFTER_ERROR_KEY) === "1";
+    if (suppressedForSession) {
+      setShowOnboarding(false);
+      return;
+    }
+
+    if (Capacitor.isNativePlatform()) {
+      // Native: use the dedicated full-screen onboarding route.
+      navigate("/onboarding", { replace: false });
+    } else {
+      // Web / Playwright: keep the existing modal behaviour.
+      setShowOnboarding(true);
     }
   }, [isAuthenticated, user, navigate]);
 
@@ -352,7 +376,6 @@ const AUTH_BOOTSTRAP_REQUIRED_PREFIXES = [
   "/login",
   "/onboarding",
   "/auth/callback",
-  "/agent",
   "/power",
   "/boosts",
   "/player/",
@@ -791,7 +814,7 @@ function Router() {
         animate={{ opacity: 1, x: "0%", y: 0 }}
         exit={{ opacity: 0, x: prefersReducedMotion ? 0 : exit.x, y: 0 }}
         transition={{ duration: prefersReducedMotion ? 0 : 0.22, ease: "easeOut" }}
-        className={cn("w-full", location.startsWith("/agent") && "h-full min-h-0")}
+        className="w-full"
         style={{ position: "relative", overflow: "hidden" }}
       >
         {/*
@@ -833,7 +856,7 @@ function Router() {
               <Route path="/discord/link" component={DiscordLink} />
               <Route path="/analytics" component={Analytics} />
               <Route path="/news" component={News} />
-              <Route path="/agent">{canAccessProtectedRoutes ? <Agent /> : <AgentPreview />}</Route>
+              <Route path="/agent" component={LegacyAgentRedirect} />
 
               {/* Boosts - requires authentication */}
               <Route path="/power">{canAccessProtectedRoutes ? <Boosts /> : <Dashboard />}</Route>
@@ -1219,8 +1242,6 @@ function WhaleAlertBannerHost() {
 }
 
 function AppContent() {
-  const [location] = useLocation();
-  const isAgentRoute = location === "/agent" || location.startsWith("/agent/");
   const nativeShellHeightClass = Capacitor.isNativePlatform()
     ? "h-[100dvh] min-h-[100dvh]"
     : "h-screen";
@@ -1241,28 +1262,20 @@ function AppContent() {
     <SidebarProvider style={style as React.CSSProperties}>
       {/* Offline banner lives above everything — shown when network is lost (P3 — 6.1) */}
       <OfflineBanner />
-      {isAgentRoute ? (
-        <div className="flex h-[100dvh] w-full min-h-0 flex-col overflow-hidden overscroll-none bg-[#0a0e1a] pb-16 sm:pb-0">
-          <main className="flex min-h-0 flex-1 flex-col overflow-hidden overscroll-none">
-            <Router />
+      <div className={cn("flex w-full overflow-x-hidden", nativeShellHeightClass)}>
+        <div className="hidden sm:flex">
+          <AppSidebar />
+        </div>
+        <div className="flex flex-col flex-1 overflow-x-hidden">
+          <Header />
+          <main className="flex flex-1 flex-col overflow-x-hidden overflow-y-auto pb-0 sm:pb-0">
+            <div className="flex-1 pb-20 sm:pb-0">
+              <Router />
+            </div>
+            <Footer />
           </main>
         </div>
-      ) : (
-        <div className={cn("flex w-full overflow-x-hidden", nativeShellHeightClass)}>
-          <div className="hidden sm:flex">
-            <AppSidebar />
-          </div>
-          <div className="flex flex-col flex-1 overflow-x-hidden">
-            <Header />
-            <main className="flex flex-1 flex-col overflow-x-hidden overflow-y-auto pb-0 sm:pb-0">
-              <div className="flex-1 pb-20 sm:pb-0">
-                <Router />
-              </div>
-              <Footer />
-            </main>
-          </div>
-        </div>
-      )}
+      </div>
       <BottomNav />
       <OnboardingCheck />
       <ScoutDashboardModalHost />

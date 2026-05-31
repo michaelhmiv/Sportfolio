@@ -165,6 +165,7 @@ import {
   type LeaderboardEntry,
 } from "./leaderboards";
 import { getBotRuntimeStatus, getBotStats, runBotEngineTick } from "./bot/bot-engine";
+import { buildStackSharesResponsePayload } from "./lib/stack-shares-response";
 
 const SUPPORTED_SPORTS = ["NBA", "NFL", "MLB", "NASCAR"] as const;
 function toNumber(value: string | number | null | undefined): number {
@@ -10976,25 +10977,23 @@ ${items}
       const result = await storage.stackShares(userId, playerId, shares);
       const holdingInfo = await storage.getHoldingMultiplierState(userId, playerId);
       const player = await storage.getPlayer(playerId);
-
-      res.json({
-        success: true,
-        multiplier: result.multiplier,
-        newMultiplier: result.newMultiplier,
-        sharesStacked: result.sharesStacked,
-        multiplierGained: (shares / 2).toFixed(2),
-        effectiveSharesBurned: result.effectiveSharesBurned,
-        holding: holdingInfo,
-        player: player
-          ? {
-              id: player.id,
-              firstName: player.firstName,
-              lastName: player.lastName,
-              team: player.team,
-            }
-          : null,
-        message: `Successfully stacked ${shares} shares into a ${(shares / 2).toFixed(1)}x multiplier for ${player?.firstName} ${player?.lastName}`,
-      });
+      res.json(
+        buildStackSharesResponsePayload({
+          sharesStacked: result.sharesStacked,
+          multiplier: result.multiplier,
+          newMultiplier: result.newMultiplier,
+          effectiveSharesBurned: result.effectiveSharesBurned,
+          holding: holdingInfo,
+          player: player
+            ? {
+                id: player.id,
+                firstName: player.firstName,
+                lastName: player.lastName,
+                team: player.team,
+              }
+            : null,
+        }),
+      );
     } catch (error: any) {
       console.error("[holdings/stack-shares] Error:", error);
       res.status(400).json({ error: error.message });
