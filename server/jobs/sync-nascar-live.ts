@@ -18,6 +18,7 @@ import {
   getFlagStateDescription,
   isNascarRaceSession,
   isNascarRaceFinished,
+  countNascarLapsLed,
 } from "../nascar-api";
 import type { JobResult } from "./scheduler";
 import type { ProgressCallback } from "../lib/admin-stream";
@@ -46,6 +47,78 @@ function createNascarGameId(raceId: number, seriesId: NascarSeriesId): string {
   return `nascar_${seriesCode}_${raceId}`;
 }
 
+function splitNascarDriverName(driverName: string): { firstName: string; lastName: string } {
+  const trimmedName = (driverName || "").trim();
+  if (!trimmedName) return { firstName: "Unknown", lastName: "Driver" };
+
+  const nameParts = trimmedName.split(/\s+/);
+  if (nameParts.length === 1) {
+    return { firstName: nameParts[0], lastName: "Driver" };
+  }
+
+  return {
+    firstName: nameParts[0],
+    lastName: nameParts.slice(1).join(" "),
+  };
+}
+
+async function ensureNascarPlayersForLiveFeed(
+  liveFeed: NascarLiveFeed,
+  seriesId: NascarSeriesId,
+): Promise<{ createdCount: number; errorCount: number; knownPlayerIds: Set<string> }> {
+  const uniqueDrivers = new Map<number, NascarLiveFeed["vehicles"][number]["driver"]>();
+  for (const vehicle of liveFeed.vehicles) {
+    const driverId = Number(vehicle.driver?.driver_id);
+    if (Number.isFinite(driverId) && driverId > 0 && !uniqueDrivers.has(driverId)) {
+      uniqueDrivers.set(driverId, vehicle.driver);
+    }
+  }
+
+  const playerIds = Array.from(uniqueDrivers.keys()).map((driverId) =>
+    createNascarPlayerId(driverId, seriesId),
+  );
+  const knownPlayerIds = new Set(
+    (await storage.getPlayersByIds(playerIds)).map((player) => player.id),
+  );
+
+  let createdCount = 0;
+  let errorCount = 0;
+  for (const [driverId, driver] of uniqueDrivers) {
+    const playerId = createNascarPlayerId(driverId, seriesId);
+    if (knownPlayerIds.has(playerId)) continue;
+
+    const driverName =
+      driver.full_name ||
+      [driver.first_name, driver.last_name].filter(Boolean).join(" ") ||
+      `Driver ${driverId}`;
+    const { firstName, lastName } = splitNascarDriverName(driverName);
+
+    try {
+      await storage.upsertPlayer({
+        id: playerId,
+        sport: NASCAR_SPORT,
+        firstName,
+        lastName,
+        team: NASCAR_SERIES_CODES[seriesId],
+        position: "DRV",
+        jerseyNumber: "",
+        isActive: true,
+        isEligibleForVesting: true,
+      });
+      knownPlayerIds.add(playerId);
+      createdCount++;
+    } catch (error: any) {
+      console.error(
+        `[nascar_live_sync] Failed to upsert missing live driver ${playerId}:`,
+        error.message,
+      );
+      errorCount++;
+    }
+  }
+
+  return { createdCount, errorCount, knownPlayerIds };
+}
+
 /**
  * Convert live feed vehicle data to player game stats
  */
@@ -70,14 +143,18 @@ async function convertLiveFeedToStats(
   const season = String(new Date().getFullYear());
 
   const statsPromises = liveFeed.vehicles.map(async (vehicle) => {
+    const lapsLedCount = countNascarLapsLed(vehicle.laps_led, liveFeed.lap_number);
+    const fastestLaps = Math.max(0, Number(vehicle.fastest_laps_run) || 0);
+
     // Calculate live fantasy points
     let liveFantasyPoints = 0;
     liveFantasyPoints += (41 - vehicle.running_position) * 2.5; // Position points
     if (vehicle.running_position === 1) liveFantasyPoints += 25; // Leader bonus
-    if (vehicle.laps_led.length > 0) {
+    if (lapsLedCount > 0) {
       liveFantasyPoints += 15; // Led a lap
-      liveFantasyPoints += vehicle.laps_led.length * 0.5; // Laps led bonus
+      liveFantasyPoints += lapsLedCount * 0.5; // Laps led bonus
     }
+    if (fastestLaps > 0) liveFantasyPoints += fastestLaps * 2;
     liveFantasyPoints = Math.round(liveFantasyPoints * 100) / 100;
 
     const playerId = createNascarPlayerId(vehicle.driver.driver_id, seriesId);
@@ -87,10 +164,13 @@ async function convertLiveFeedToStats(
       runningPosition: vehicle.running_position,
       startingPosition: vehicle.starting_position,
       positionDifferential: vehicle.starting_position - vehicle.running_position,
+      positionImproved: vehicle.laps_position_improved ?? null,
       // Lap data
       lapsCompleted: vehicle.laps_completed,
-      lapsLed: vehicle.laps_led,
-      lapsLedCount: vehicle.laps_led.length,
+      lapsLed: lapsLedCount,
+      lapsLedCount,
+      lapsLedSegments: vehicle.laps_led,
+      fastestLaps,
       // Speed data
       averageRunningPosition: vehicle.average_running_position,
       averageSpeed: vehicle.average_speed,
@@ -102,6 +182,8 @@ async function convertLiveFeedToStats(
       // Car info
       carNumber: vehicle.vehicle_number,
       manufacturer: vehicle.vehicle_manufacturer,
+      driverId: vehicle.driver.driver_id,
+      driverName: vehicle.driver.full_name,
       // Status
       isOnTrack: vehicle.is_on_track,
       isOnDvp: vehicle.is_on_dvp,
@@ -115,6 +197,13 @@ async function convertLiveFeedToStats(
       flagStateDescription: getFlagStateDescription(liveFeed.flag_state),
       runName: liveFeed.run_name,
       runType: liveFeed.run_type,
+      seriesId: liveFeed.series_id,
+      runId: liveFeed.run_id,
+      stage: liveFeed.stage,
+      numberOfCautionSegments: liveFeed.number_of_caution_segments,
+      numberOfLeadChanges: liveFeed.number_of_lead_changes,
+      numberOfLeaders: liveFeed.number_of_leaders,
+      avgDiff1to3: liveFeed.avg_diff_1to3,
     };
 
     return {
@@ -284,12 +373,16 @@ export async function syncNascarLiveForSeries(
     });
 
     // Convert live feed to stats
+    const ensuredPlayers = await ensureNascarPlayersForLiveFeed(liveFeed, seriesId);
+    const knownPlayerIds = ensuredPlayers.knownPlayerIds;
+    if (ensuredPlayers.createdCount > 0) {
+      console.log(
+        `[nascar_live_sync] Created ${ensuredPlayers.createdCount} missing live NASCAR drivers for ${seriesName}`,
+      );
+    }
+    errorCount += ensuredPlayers.errorCount;
+
     const statsData = await convertLiveFeedToStats(liveFeed, seriesId);
-    const knownPlayerIds = new Set(
-      (
-        await storage.getPlayersByIds(Array.from(new Set(statsData.map((stats) => stats.playerId))))
-      ).map((player) => player.id),
-    );
     const missingPlayerSamples = new Set<string>();
 
     // Store stats in database

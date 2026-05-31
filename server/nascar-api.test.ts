@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { mapEnhancedResultsToRaceResults, normalizeEnhancedNascarDriverId } from "./nascar-api";
+import {
+  countNascarLapsLed,
+  mapEnhancedResultsToRaceResults,
+  normalizeEnhancedNascarDriverId,
+} from "./nascar-api";
 
 describe("mapEnhancedResultsToRaceResults", () => {
   it("maps completed enhanced results payloads into race results", () => {
@@ -150,5 +154,25 @@ describe("normalizeEnhancedNascarDriverId", () => {
     expect(normalizeEnhancedNascarDriverId({ NASCARDriverID: 4469, DriverID: 8803 })).toBe(4469);
     expect(normalizeEnhancedNascarDriverId({ NASCARDriverID: "", DriverID: 8803 })).toBe(8803);
     expect(normalizeEnhancedNascarDriverId({ NASCARDriverID: null, DriverID: null })).toBeNull();
+  });
+});
+
+describe("countNascarLapsLed", () => {
+  it("counts legacy per-lap arrays and current range segment arrays", () => {
+    expect(countNascarLapsLed([1, 2, 3], 10)).toBe(3);
+    expect(
+      countNascarLapsLed(
+        [
+          { start_lap: 55, end_lap: 75 },
+          { start_lap: 86, end_lap: 95 },
+        ],
+        95,
+      ),
+    ).toBe(31);
+  });
+
+  it("uses the current lap when a live segment has no end lap", () => {
+    expect(countNascarLapsLed([{ start_lap: 90 }], 95)).toBe(6);
+    expect(countNascarLapsLed([{ start_lap: 90 }], null)).toBe(0);
   });
 });

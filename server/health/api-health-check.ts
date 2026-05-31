@@ -122,6 +122,15 @@ const ROUTE_TARGETS: RouteTarget[] = [
     validateJson: (value) => value && Array.isArray(value.games),
   },
   {
+    id: "api_races_insights",
+    label: "Race insights (NASCAR)",
+    path: "/api/races/insights",
+    expectedStatus: 200,
+    maxLatencyMs: 3500,
+    requireJson: true,
+    validateJson: (value) => value && Array.isArray(value.races),
+  },
+  {
     id: "api_market_scanners",
     label: "Market scanners (NBA)",
     path: "/api/market/scanners?sport=NBA",
@@ -145,6 +154,8 @@ const CRITICAL_JOBS: CriticalJobTarget[] = [
   { name: "settle_boosts", maxAgeMs: 30 * 60 * 1000 },
   { name: "stats_sync_live", maxAgeMs: 20 * 60 * 1000, requiredEnv: "BALLDONTLIE_API_KEY" },
   { name: "schedule_sync", maxAgeMs: 2 * 60 * 60 * 1000, requiredEnv: "BALLDONTLIE_API_KEY" },
+  { name: "nascar_live_sync", maxAgeMs: 30 * 60 * 1000 },
+  { name: "nascar_stats_sync", maxAgeMs: 2 * 60 * 60 * 1000 },
 ];
 
 let latestApiHealthReport: ApiHealthReport | null = null;
@@ -414,6 +425,106 @@ async function checkRouteTarget(
   });
 }
 
+async function checkNascarLiveStatsRoute(baseUrl: string): Promise<ApiHealthCheckResult> {
+  return runCheck({
+    id: "api_nascar_live_stats",
+    category: "route",
+    label: "NASCAR live stats route",
+    execute: async () => {
+      const rows: any = await db.execute(sql`
+        SELECT game_id
+        FROM daily_games
+        WHERE sport = 'NASCAR'
+          AND start_time >= NOW() - INTERVAL '30 days'
+          AND start_time <= NOW() + INTERVAL '7 days'
+        ORDER BY
+          CASE
+            WHEN status = 'inprogress' THEN 0
+            WHEN status = 'scheduled' THEN 1
+            ELSE 2
+          END,
+          ABS(EXTRACT(EPOCH FROM (start_time - NOW())))
+        LIMIT 1
+      `);
+      const gameId = rows?.rows?.[0]?.game_id;
+      if (!gameId) {
+        return {
+          status: "success",
+          details: "No recent/current NASCAR race available for live-stats route check",
+        };
+      }
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
+      const started = performance.now();
+
+      try {
+        const response = await fetch(
+          `${baseUrl}/api/games/${encodeURIComponent(gameId)}/live-stats`,
+          {
+            headers: { accept: "application/json" },
+            signal: controller.signal,
+          },
+        );
+        const durationMs = Math.round(performance.now() - started);
+        if (response.status !== 200) {
+          return {
+            status: "failed",
+            details: `Unexpected status ${response.status} for ${gameId}`,
+            expectedStatus: 200,
+            actualStatus: response.status,
+          };
+        }
+
+        let json: any;
+        try {
+          json = await response.json();
+        } catch {
+          return {
+            status: "failed",
+            details: `Expected JSON for ${gameId} but failed to parse body`,
+            expectedStatus: 200,
+            actualStatus: response.status,
+          };
+        }
+
+        if (!json || json.gameId !== gameId || !Array.isArray(json.awayPlayers)) {
+          return {
+            status: "degraded",
+            details: `NASCAR live-stats response shape check failed for ${gameId}`,
+            expectedStatus: 200,
+            actualStatus: response.status,
+          };
+        }
+
+        if (durationMs > 3500) {
+          return {
+            status: "degraded",
+            details: `Responded in ${durationMs}ms for ${gameId} (warn > 3500ms)`,
+            expectedStatus: 200,
+            actualStatus: response.status,
+          };
+        }
+
+        return {
+          status: "success",
+          details: `Responded in ${durationMs}ms for ${gameId}`,
+          expectedStatus: 200,
+          actualStatus: response.status,
+        };
+      } catch (error: any) {
+        const detail =
+          error?.name === "AbortError"
+            ? `Timed out after ${DEFAULT_TIMEOUT_MS}ms`
+            : error?.message || "Route check failed";
+        return { status: "failed", details: detail, expectedStatus: 200 };
+      } finally {
+        clearTimeout(timeout);
+      }
+    },
+  });
+}
+
 export async function runApiHealthCheck(options?: {
   reason?: string;
   baseUrl?: string;
@@ -423,9 +534,10 @@ export async function runApiHealthCheck(options?: {
   const baseUrl = resolveBaseUrl(options?.baseUrl);
 
   const [databaseCheck, jobsCheck] = await Promise.all([checkDatabase(), checkCriticalJobs()]);
-  const routeChecks = await Promise.all(
-    ROUTE_TARGETS.map((target) => checkRouteTarget(baseUrl, target)),
-  );
+  const routeChecks = await Promise.all([
+    ...ROUTE_TARGETS.map((target) => checkRouteTarget(baseUrl, target)),
+    checkNascarLiveStatsRoute(baseUrl),
+  ]);
   const checks = [databaseCheck, jobsCheck, ...routeChecks];
   const summary = summarizeStatuses(checks);
   const report: ApiHealthReport = {

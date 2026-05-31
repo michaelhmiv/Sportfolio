@@ -118,7 +118,9 @@ export interface NascarVehicle {
   position_differential_last_10_percent?: number;
   // Lap data
   laps_completed: number;
-  laps_led: number[];
+  laps_led: Array<number | { start_lap?: number; end_lap?: number }>;
+  fastest_laps_run?: number;
+  laps_position_improved?: number;
   // Speed data
   average_running_position: number;
   average_speed: number;
@@ -365,6 +367,31 @@ export function parseNascarEtDateTime(rawDateTime: string): Date {
 
 export function isNascarRaceSession(runType: number | null | undefined): boolean {
   return runType === 3;
+}
+
+export function countNascarLapsLed(
+  lapsLed: NascarVehicle["laps_led"] | null | undefined,
+  currentLap?: number | null,
+): number {
+  if (!Array.isArray(lapsLed)) return 0;
+
+  let total = 0;
+  for (const segment of lapsLed) {
+    if (typeof segment === "number") {
+      if (Number.isFinite(segment)) total += 1;
+      continue;
+    }
+
+    if (!segment || typeof segment !== "object") continue;
+    const startLap = Number(segment.start_lap);
+    const rawEndLap = Number(segment.end_lap);
+    const endLap = Number.isFinite(rawEndLap) ? rawEndLap : Number(currentLap);
+    if (!Number.isFinite(startLap) || !Number.isFinite(endLap)) continue;
+    if (startLap <= 0 || endLap < startLap) continue;
+    total += endLap - startLap + 1;
+  }
+
+  return total;
 }
 
 function parseOptionalNumber(value: unknown): number | null {
@@ -784,8 +811,8 @@ export async function fetchRaceResults(
         startPosition: vehicle.starting_position,
         positionDifferential: vehicle.starting_position - vehicle.running_position,
         lapsCompleted: vehicle.laps_completed,
-        lapsLed: vehicle.laps_led.length,
-        fastestLaps: 0, // Need to calculate from lap data
+        lapsLed: countNascarLapsLed(vehicle.laps_led, raceSession?.laps),
+        fastestLaps: Math.max(0, Number(vehicle.fastest_laps_run) || 0),
         points: 0, // Points based on finish position
         status: vehicle.is_on_track ? "Running" : "DNF",
       }));

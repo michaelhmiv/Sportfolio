@@ -13,6 +13,7 @@ import type {
   Holding,
   CommunityBoost,
   DailyGame,
+  PlayerGameStats,
 } from "@shared/schema";
 import {
   holdings,
@@ -414,6 +415,91 @@ type LiveEarningsPlayer = {
   team?: string;
 };
 
+type NascarLiveStatsJson = {
+  startingPosition?: number;
+  startPosition?: number;
+  runningPosition?: number;
+  finishPosition?: number;
+  positionDifferential?: number;
+  positionImproved?: number | null;
+  carNumber?: string;
+  manufacturer?: string;
+  lapsCompleted?: number;
+  lapsLedCount?: number;
+  lapsLed?: number;
+  fastestLaps?: number;
+  averageRunningPosition?: number;
+  averageSpeed?: number;
+  bestLap?: number;
+  bestLapSpeed?: number;
+  bestLapTime?: string;
+  delta?: number;
+  isOnTrack?: boolean;
+  isOnDvp?: boolean;
+  status?: string;
+  points?: number;
+  driverId?: number;
+  driverName?: string;
+  raceId?: number;
+  trackName?: string;
+  lapNumber?: number;
+  lapsInRace?: number;
+  lapsToGo?: number;
+  flagState?: number;
+  flagStateDescription?: string;
+  runName?: string;
+  runType?: number;
+  seriesId?: number;
+  runId?: number;
+  stage?: { stage_num?: number; finish_at_lap?: number; laps_in_stage?: number } | null;
+  numberOfCautionSegments?: number;
+  numberOfLeadChanges?: number;
+  numberOfLeaders?: number;
+};
+
+type NascarDriverStanding = {
+  position: number;
+  startingPosition: number;
+  playerId: string;
+  driverName: string;
+  carNumber: string;
+  manufacturer: string;
+  lapsCompleted: number;
+  lapsLed: number;
+  fastestLaps: number;
+  positionDifferential: number;
+  averageRunningPosition: number | null;
+  averageSpeed: number | null;
+  bestLap: number | null;
+  bestLapSpeed: number | null;
+  bestLapTime: string | null;
+  delta: number | null;
+  isOnTrack: boolean | null;
+  isOnDvp: boolean | null;
+  status: string;
+  fantasyPoints: number;
+  providerPoints: number | null;
+};
+
+type NascarRaceStatsSnapshot = {
+  status: "scheduled" | "inprogress" | "completed";
+  lapInfo: {
+    currentLap: number;
+    totalLaps: number;
+    lapsToGo: number;
+    flagState: string;
+    flagStateCode: number | null;
+    stage: NascarLiveStatsJson["stage"] | null;
+    runName: string | null;
+    runType: number | null;
+    cautions: number | null;
+    leadChanges: number | null;
+    leaders: number | null;
+  } | null;
+  driverStandings: NascarDriverStanding[];
+  liveEarningsPlayers: LiveEarningsPlayer[];
+};
+
 type UserLiveEarningsSummary = {
   totalEstimatedEarnings: number;
   ownedPlayers: Array<{
@@ -439,6 +525,138 @@ const parseLiveEarningsNumber = (value: unknown): number => {
 
   return 0;
 };
+
+const getNascarStatsJson = (statsJson: unknown): NascarLiveStatsJson =>
+  statsJson && typeof statsJson === "object" ? (statsJson as NascarLiveStatsJson) : {};
+
+function isNascarStatsFinal(stats: NascarLiveStatsJson): boolean {
+  const flagStateDescription = String(stats.flagStateDescription || "").toLowerCase();
+  return (
+    stats.flagState === 4 ||
+    stats.flagState === 9 ||
+    flagStateDescription === "checkered" ||
+    flagStateDescription === "final" ||
+    flagStateDescription === "finish" ||
+    Number(stats.lapsToGo) === 0
+  );
+}
+
+function getNascarStatsPosition(stats: NascarLiveStatsJson, gameStatus: string): number {
+  if (gameStatus === "scheduled") {
+    return Number(stats.startingPosition ?? stats.startPosition ?? 999);
+  }
+  return Number(stats.runningPosition ?? stats.finishPosition ?? 999);
+}
+
+async function buildNascarRaceStatsSnapshot(
+  game: Pick<DailyGame, "gameId" | "status" | "sport" | "homeTeam" | "awayTeam">,
+  raceStats: PlayerGameStats[],
+): Promise<NascarRaceStatsSnapshot> {
+  const sortedStats = [...raceStats].sort((left, right) => {
+    const leftStats = getNascarStatsJson(left.statsJson);
+    const rightStats = getNascarStatsJson(right.statsJson);
+    return (
+      getNascarStatsPosition(leftStats, game.status || "scheduled") -
+      getNascarStatsPosition(rightStats, game.status || "scheduled")
+    );
+  });
+
+  const playerIds = Array.from(
+    new Set(sortedStats.map((stat) => String(stat.playerId || "").trim()).filter(Boolean)),
+  );
+  const playersById = new Map(
+    playerIds.length > 0
+      ? (await storage.getPlayersByIds(playerIds)).map((player) => [player.id, player])
+      : [],
+  );
+
+  const driverStandings = sortedStats.map((stat) => {
+    const stats = getNascarStatsJson(stat.statsJson);
+    const player = playersById.get(stat.playerId);
+    const position = Number(stats.runningPosition ?? stats.finishPosition ?? 0) || 0;
+    const startingPosition = Number(stats.startingPosition ?? stats.startPosition ?? 0) || 0;
+
+    return {
+      position,
+      startingPosition,
+      playerId: stat.playerId,
+      driverName:
+        stats.driverName ||
+        (player ? `${player.firstName} ${player.lastName}`.trim() : "") ||
+        "Unknown",
+      carNumber: String(stats.carNumber || ""),
+      manufacturer: String(stats.manufacturer || ""),
+      lapsCompleted: Number(stats.lapsCompleted || 0),
+      lapsLed: Number(stats.lapsLedCount ?? stats.lapsLed ?? 0) || 0,
+      fastestLaps: Number(stats.fastestLaps || 0),
+      positionDifferential:
+        Number(stats.positionDifferential) ||
+        (startingPosition > 0 && position > 0 ? startingPosition - position : 0),
+      averageRunningPosition:
+        typeof stats.averageRunningPosition === "number" ? stats.averageRunningPosition : null,
+      averageSpeed: typeof stats.averageSpeed === "number" ? stats.averageSpeed : null,
+      bestLap: typeof stats.bestLap === "number" ? stats.bestLap : null,
+      bestLapSpeed: typeof stats.bestLapSpeed === "number" ? stats.bestLapSpeed : null,
+      bestLapTime: stats.bestLapTime || null,
+      delta: typeof stats.delta === "number" ? stats.delta : null,
+      isOnTrack: typeof stats.isOnTrack === "boolean" ? stats.isOnTrack : null,
+      isOnDvp: typeof stats.isOnDvp === "boolean" ? stats.isOnDvp : null,
+      status: stats.status || (stats.isOnTrack === false ? "Off Track" : "Running"),
+      fantasyPoints: parseLiveEarningsNumber(stat.fantasyPoints),
+      providerPoints: typeof stats.points === "number" ? stats.points : null,
+    } satisfies NascarDriverStanding;
+  });
+
+  let status: NascarRaceStatsSnapshot["status"] =
+    game.status === "inprogress" || game.status === "completed" ? game.status : "scheduled";
+  const latestStat = sortedStats[0] || null;
+  const latestStats = latestStat ? getNascarStatsJson(latestStat.statsJson) : {};
+
+  if (latestStat && isNascarStatsFinal(latestStats)) {
+    status = "completed";
+  } else if (latestStat && status === "scheduled") {
+    const statTime = new Date(latestStat.lastFetchedAt || latestStat.gameDate).getTime();
+    if (Number.isFinite(statTime) && statTime > Date.now() - 60 * 60 * 1000) {
+      status = "inprogress";
+    }
+  }
+
+  const lapInfo =
+    latestStat && (latestStats.lapNumber || latestStats.lapsInRace || latestStats.flagState)
+      ? {
+          currentLap: Number(latestStats.lapNumber || 0),
+          totalLaps: Number(latestStats.lapsInRace || 0),
+          lapsToGo: Number(latestStats.lapsToGo || 0),
+          flagState: latestStats.flagStateDescription || "Unknown",
+          flagStateCode: typeof latestStats.flagState === "number" ? latestStats.flagState : null,
+          stage: latestStats.stage || null,
+          runName: latestStats.runName || null,
+          runType: typeof latestStats.runType === "number" ? latestStats.runType : null,
+          cautions:
+            typeof latestStats.numberOfCautionSegments === "number"
+              ? latestStats.numberOfCautionSegments
+              : null,
+          leadChanges:
+            typeof latestStats.numberOfLeadChanges === "number"
+              ? latestStats.numberOfLeadChanges
+              : null,
+          leaders:
+            typeof latestStats.numberOfLeaders === "number" ? latestStats.numberOfLeaders : null,
+        }
+      : null;
+
+  return {
+    status,
+    lapInfo,
+    driverStandings,
+    liveEarningsPlayers: driverStandings.map((driver) => ({
+      playerId: driver.playerId,
+      name: driver.driverName,
+      team: game.awayTeam,
+      fantasyPoints: driver.fantasyPoints,
+    })),
+  };
+}
 
 const normalizeLiveEarningsName = (name: string) =>
   String(name || "")
@@ -3502,54 +3720,10 @@ ${items}
 
       const userId = req.user ? getUserId(req) : null;
 
-      type NascarLiveStats = {
-        startingPosition?: number;
-        startPosition?: number;
-        runningPosition?: number;
-        finishPosition?: number;
-        carNumber?: string;
-        manufacturer?: string;
-        lapsCompleted?: number;
-        lapsLedCount?: number;
-        lapsLed?: number;
-        flagState?: number;
-        flagStateDescription?: string;
-        lapsToGo?: number;
-        lapNumber?: number;
-        lapsInRace?: number;
-      };
-
-      const getNascarStats = (statsJson: unknown): NascarLiveStats =>
-        statsJson && typeof statsJson === "object" ? (statsJson as NascarLiveStats) : {};
-
       // Get user's NASCAR holdings for boost eligibility and live earnings
       let userHoldings: any[] = [];
+      let allHoldingsWithPlayers: any[] = [];
       let boostSlotsRemaining: number | null = null;
-      const holdingEffectiveSharesByPlayerId = new Map<string, number>();
-
-      const addHoldingEffectiveShares = (
-        rawPlayerId: string,
-        effectiveShares: number,
-        holdingSport: string,
-      ) => {
-        if (!rawPlayerId || !Number.isFinite(effectiveShares) || effectiveShares <= 0) return;
-
-        const playerId = rawPlayerId.trim();
-        if (!playerId) return;
-
-        const existingEffectiveShares = holdingEffectiveSharesByPlayerId.get(playerId) || 0;
-        holdingEffectiveSharesByPlayerId.set(playerId, existingEffectiveShares + effectiveShares);
-
-        if (/^(nba_|nfl_|mlb_|nascar_)/i.test(playerId)) {
-          const unprefixed = playerId.replace(/^(nba_|nfl_|mlb_|nascar_)/i, "");
-          const existingUnprefixed = holdingEffectiveSharesByPlayerId.get(unprefixed) || 0;
-          holdingEffectiveSharesByPlayerId.set(unprefixed, existingUnprefixed + effectiveShares);
-        } else {
-          const prefixed = `${holdingSport.toLowerCase()}_${playerId}`;
-          const existingPrefixed = holdingEffectiveSharesByPlayerId.get(prefixed) || 0;
-          holdingEffectiveSharesByPlayerId.set(prefixed, existingPrefixed + effectiveShares);
-        }
-      };
 
       if (userId) {
         const { startOfDay: dayStart } = getETDayBoundaries(dateStr);
@@ -3575,147 +3749,27 @@ ${items}
           gameId: holding.gameId,
         }));
 
-        allHoldings.forEach((holding) => {
-          if ((holding.player.sport || "").toUpperCase() !== "NASCAR") return;
-
-          const effectiveShares = getPerformanceEarningUnits(holding);
-          if (!Number.isFinite(effectiveShares) || effectiveShares <= 0) return;
-
-          addHoldingEffectiveShares(
-            String(holding.player.id || ""),
-            effectiveShares,
-            holding.player.sport || "NASCAR",
-          );
-        });
+        allHoldingsWithPlayers = allHoldings;
       }
 
       // Build race insights for each game
       const raceInsights = await Promise.all(
         games.map(async (game) => {
-          // Get driver stats for this race
           const raceStats = await storage.getGameStatsByGameId(game.gameId);
-
-          // Sort by position:
-          // - scheduled: starting position (grid order)
-          // - inprogress/completed: running position (live order)
-          const sortedStats = [...raceStats].sort((a, b) => {
-            // Use starting position for scheduled races, running/finish position for live/completed
-            const gameStatus = game.status || "scheduled";
-            const aStats = getNascarStats(a.statsJson);
-            const bStats = getNascarStats(b.statsJson);
-            if (gameStatus === "scheduled") {
-              const aStart = aStats.startingPosition ?? aStats.startPosition ?? 999;
-              const bStart = bStats.startingPosition ?? bStats.startPosition ?? 999;
-              return aStart - bStart;
-            }
-            const aPos = aStats.runningPosition ?? aStats.finishPosition ?? 999;
-            const bPos = bStats.runningPosition ?? bStats.finishPosition ?? 999;
-            return aPos - bPos;
-          });
-
-          // Get player info for each driver
-          const driverStandings = await Promise.all(
-            sortedStats.map(async (stat) => {
-              const statStats = getNascarStats(stat.statsJson);
-              const player = await storage.getPlayer(stat.playerId);
-              return {
-                position: statStats.runningPosition ?? statStats.finishPosition ?? 0,
-                startingPosition: statStats.startingPosition ?? statStats.startPosition ?? 0,
-                playerId: stat.playerId,
-                driverName: player ? `${player.firstName} ${player.lastName}` : "Unknown",
-                carNumber: statStats.carNumber || "",
-                manufacturer: statStats.manufacturer || "",
-                lapsCompleted: statStats.lapsCompleted || 0,
-                lapsLed: statStats.lapsLedCount || statStats.lapsLed || 0,
-                fantasyPoints: parseFloat(stat.fantasyPoints) || 0,
-              };
-            }),
-          );
-
-          // Determine race status
-          let status: "scheduled" | "inprogress" | "completed" =
-            game.status === "inprogress" || game.status === "completed" ? game.status : "scheduled";
-          if (raceStats.length > 0) {
-            // Get lap info from stats for flag state check
-            const mostRecentStat = raceStats[0];
-            const latestStats = mostRecentStat ? getNascarStats(mostRecentStat.statsJson) : {};
-            const numericFlagState =
-              typeof latestStats.flagState === "number" ? latestStats.flagState : null;
-            const flagState = latestStats.flagStateDescription;
-            const lapsToGo = latestStats.lapsToGo;
-
-            // Check if race is finished (terminal flag state or 0 laps to go)
-            const isRaceFinished =
-              numericFlagState === 4 ||
-              numericFlagState === 9 ||
-              flagState === "Checkered" ||
-              flagState === "Final" ||
-              lapsToGo === 0;
-
-            if (isRaceFinished) {
-              status = "completed";
-              console.log(
-                `[races/insights] Race ${game.gameId} marked completed: flagState=${flagState}, lapsToGo=${lapsToGo}`,
-              );
-            } else if (mostRecentStat) {
-              // If we have recent stats (within last hour), consider it live
-              const statTime = new Date(mostRecentStat.gameDate).getTime();
-              const now = Date.now();
-              const hourAgo = now - 60 * 60 * 1000;
-              if (statTime > hourAgo && status === "scheduled") {
-                status = "inprogress";
-              }
-            }
-          }
-
-          // Get lap info from live stats if available
-          const firstRaceStats = raceStats[0] ? getNascarStats(raceStats[0].statsJson) : null;
-          const lapInfo = firstRaceStats
-            ? {
-                currentLap: firstRaceStats.lapNumber || 0,
-                totalLaps: firstRaceStats.lapsInRace || 0,
-                lapsToGo: firstRaceStats.lapsToGo || 0,
-                flagState: firstRaceStats.flagStateDescription || "Unknown",
-              }
-            : null;
+          const raceSnapshot = await buildNascarRaceStatsSnapshot(game, raceStats);
 
           let liveEarned: number | null = null;
           if (userId) {
-            if (status === "scheduled") {
+            if (raceSnapshot.status === "scheduled") {
               liveEarned = null;
             } else {
-              let totalLiveEarned = 0;
-              let hasEarningExposure = false;
-
-              for (const standing of driverStandings) {
-                const fantasyPoints = Number(standing.fantasyPoints || 0);
-                if (!Number.isFinite(fantasyPoints) || fantasyPoints === 0) continue;
-
-                const rawPlayerId = String(standing.playerId || "").trim();
-                if (!rawPlayerId) continue;
-
-                const playerIdCandidates = new Set<string>([rawPlayerId]);
-                if (/^(nba_|nfl_|mlb_|nascar_)/i.test(rawPlayerId)) {
-                  playerIdCandidates.add(rawPlayerId.replace(/^(nba_|nfl_|mlb_|nascar_)/i, ""));
-                } else {
-                  playerIdCandidates.add(`nascar_${rawPlayerId}`);
-                }
-
-                let matchedPowerLevel = 0;
-                playerIdCandidates.forEach((candidateId) => {
-                  const candidateEffectiveShares =
-                    holdingEffectiveSharesByPlayerId.get(candidateId) || 0;
-                  if (candidateEffectiveShares > matchedPowerLevel) {
-                    matchedPowerLevel = candidateEffectiveShares;
-                  }
-                });
-
-                if (matchedPowerLevel <= 0) continue;
-                hasEarningExposure = true;
-                totalLiveEarned += fantasyPoints * matchedPowerLevel;
-              }
-
-              liveEarned = hasEarningExposure ? Math.round(totalLiveEarned * 100) / 100 : null;
+              const userEarnings = await buildUserLiveEarningsSummary({
+                game,
+                userId,
+                livePlayers: raceSnapshot.liveEarningsPlayers,
+                preloadedHoldings: allHoldingsWithPlayers,
+              });
+              liveEarned = userEarnings?.totalEstimatedEarnings ?? null;
             }
           }
 
@@ -3724,12 +3778,12 @@ ${items}
             trackName: game.homeTeam, // Stored as track in homeTeam
             series: game.awayTeam, // Stored as series code in awayTeam
             raceDate: game.startTime,
-            status,
+            status: raceSnapshot.status,
             venue: game.venue,
-            lapInfo,
+            lapInfo: raceSnapshot.lapInfo,
             liveEarned,
-            driverStandings,
-            totalDrivers: driverStandings.length,
+            driverStandings: raceSnapshot.driverStandings,
+            totalDrivers: raceSnapshot.driverStandings.length,
           };
         }),
       );
@@ -4538,6 +4592,92 @@ ${items}
           homeTopPerformers: [],
           awayTopPerformers: [],
           message: "No live stats available yet",
+          userEarnings,
+        });
+      } else if (game.sport === "NASCAR") {
+        console.log(`[live-stats] Fetching NASCAR stored live stats for race ${gameId}`);
+
+        const raceStats = await storage.getGameStatsByGameId(game.gameId);
+        const raceSnapshot = await buildNascarRaceStatsSnapshot(game, raceStats);
+
+        const driverPlayers = raceSnapshot.driverStandings.map((driver) => ({
+          id: driver.playerId.replace(/^nascar_/, ""),
+          playerId: driver.playerId,
+          name: driver.driverName,
+          team: game.awayTeam,
+          position: "DRV",
+          runningPosition: driver.position,
+          startingPosition: driver.startingPosition,
+          finishPosition:
+            raceSnapshot.status === "completed" && driver.position > 0 ? driver.position : null,
+          carNumber: driver.carNumber,
+          manufacturer: driver.manufacturer,
+          lapsCompleted: driver.lapsCompleted,
+          lapsLed: driver.lapsLed,
+          fastestLaps: driver.fastestLaps,
+          positionDifferential: driver.positionDifferential,
+          averageRunningPosition: driver.averageRunningPosition,
+          averageSpeed: driver.averageSpeed,
+          bestLap: driver.bestLap,
+          bestLapSpeed: driver.bestLapSpeed,
+          bestLapTime: driver.bestLapTime,
+          delta: driver.delta,
+          status: driver.status,
+          isOnTrack: driver.isOnTrack,
+          isOnDvp: driver.isOnDvp,
+          providerPoints: driver.providerPoints,
+          fantasyPoints: driver.fantasyPoints,
+        }));
+
+        const topDrivers = driverPlayers
+          .filter((driver) => Number(driver.fantasyPoints || 0) > 0)
+          .sort((left, right) => (right.fantasyPoints || 0) - (left.fantasyPoints || 0))
+          .slice(0, 3)
+          .map((driver) => ({
+            playerId: driver.playerId,
+            name: driver.name,
+            team: game.awayTeam,
+            pts: Number((driver.fantasyPoints || 0).toFixed(1)),
+            position: driver.runningPosition,
+            lapsLed: driver.lapsLed,
+            fastestLaps: driver.fastestLaps,
+          }));
+
+        const userEarnings = await buildUserLiveEarningsSummary({
+          game,
+          userId,
+          livePlayers: raceSnapshot.liveEarningsPlayers,
+          preloadedHoldings: userHoldingsWithPlayers || undefined,
+        });
+
+        const message =
+          raceStats.length === 0
+            ? raceSnapshot.status === "scheduled"
+              ? "Race has not started yet"
+              : "No NASCAR live stats available yet"
+            : undefined;
+
+        return res.json({
+          gameId,
+          status: raceSnapshot.status,
+          homeTeam: game.homeTeam,
+          homeScore: 0,
+          awayTeam: game.awayTeam,
+          awayScore: 0,
+          homePlayers: [],
+          awayPlayers: driverPlayers,
+          homeTopPerformers: [],
+          awayTopPerformers: topDrivers,
+          race: {
+            raceId: game.gameId,
+            trackName: game.homeTeam,
+            series: game.awayTeam,
+            venue: game.venue,
+            lapInfo: raceSnapshot.lapInfo,
+            totalDrivers: raceSnapshot.driverStandings.length,
+          },
+          lapInfo: raceSnapshot.lapInfo,
+          message,
           userEarnings,
         });
       }
