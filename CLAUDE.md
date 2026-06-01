@@ -20,9 +20,14 @@ Sportfolio - A sports trading platform with real-time game scores, player market
 
 ## Key Patterns
 
-- API migration: MySportsFeeds -> BallDontLie (NBA)
+- Primary sports data provider: BallDontLie across active sports surfaces
 - Database: PostgreSQL with Drizzle ORM
 - Frontend: React with TanStack Query
+
+## Context Orientation
+
+- Start with `docs/agent/CONTEXT_INDEX.md`, `docs/agent/REPO_MAP.md`, `docs/agent/CONTEXT_BUDGET.md`, and `docs/agent/REFACTOR_QUEUE.md`.
+- Prefer loading one task-specific vertical slice instead of broad repo-wide ingestion.
 
 ## Workflow Orchestration
 
