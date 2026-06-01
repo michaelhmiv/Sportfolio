@@ -7,7 +7,7 @@ Sportfolio is a full-stack TypeScript sports trading platform combining:
 - AMM-style player share trading,
 - liquidity provider (LP) mechanics,
 - fantasy-score-driven payout loops (scout distributions, boosts),
-- and an increasingly large AI agent surface (“Scout” / “Hermes”) for user assistance and operations.
+- and an increasingly large AI agent surface (Scout / Hermes) for user assistance and operations.
 
 The product is implemented as a single Node/Express + React/Vite app with shared schema/types.
 
@@ -58,8 +58,9 @@ Run from repo root.
 ### Run (development)
 
 - `npm run dev`
-  - Uses `tsx watch server/index.ts`
-  - In development, server bootstraps Vite middleware from backend.
+  - Uses `scripts/dev-orchestrator.mjs` (app plus optional MCP helper flow)
+  - `npm run dev:app` runs `tsx watch server/index.ts` directly.
+  - In development, the server bootstraps Vite middleware from backend.
 
 ### Build (production artifacts)
 
@@ -139,14 +140,20 @@ Use this minimal loop after any implementation attempt:
 ## Recommended Agent Workflow
 
 1. Read `AGENTS.md` and `CLAUDE.md` first.
-2. For economics/API changes, read:
+2. Read orientation docs in `docs/agent/`:
+   - `docs/agent/CONTEXT_INDEX.md`
+   - `docs/agent/REPO_MAP.md`
+   - `docs/agent/CONTEXT_BUDGET.md`
+   - `docs/agent/REFACTOR_QUEUE.md` (safe-to-risk sequence for large-file cleanup)
+3. For economics/API changes, read:
    - `docs/wiki/agent/product-mechanics.md`
    - `docs/wiki/agent/api-map.md`
    - `docs/wiki/agent/data-model-economy.md`
    - `docs/wiki/agent/runbooks.md`
-3. Scope change to one vertical (route + storage + tests) at a time.
-4. Run at minimum: `npm run check && npm run lint && npm run test:run`.
-5. For risky changes, add targeted tests near touched modules.
+4. Scope change to one vertical (route + storage + tests) at a time.
+5. Run at minimum: `npm run check && npm run lint && npm run test:run`.
+6. For risky changes, add targeted tests near touched modules.
+7. Use `npm run context:audit` when deciding context exclusions or estimating repo token load.
 
 ## Quick Orientation Checklist for New Agents
 
