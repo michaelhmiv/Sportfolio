@@ -194,3 +194,32 @@ describe("syncNascarLiveForSeries", () => {
     logSpy.mockRestore();
   });
 });
+
+describe("syncNascarLive", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    nascarApiMocks.getFlagStateDescription.mockReturnValue("Green");
+    nascarApiMocks.countNascarLapsLed.mockReturnValue(1);
+    nascarApiMocks.isNascarRaceSession.mockReturnValue(true);
+    nascarApiMocks.isNascarRaceFinished.mockReturnValue(false);
+    storageMocks.getPlayersByIds.mockResolvedValue([{ id: "nascar_1234" }]);
+    storageMocks.upsertPlayer.mockResolvedValue(undefined);
+  });
+
+  it("fetches the proxied live feed once and reuses it across series checks", async () => {
+    nascarApiMocks.fetchLiveFeed.mockResolvedValue(buildLiveFeed({ series_id: 2, run_type: 3 }));
+
+    const { syncNascarLive } = await import("./sync-nascar-live");
+    const result = await syncNascarLive();
+
+    expect(nascarApiMocks.fetchLiveFeed).toHaveBeenCalledTimes(1);
+    expect(nascarApiMocks.fetchLiveFeed).toHaveBeenCalledWith();
+    expect(result.requestCount).toBe(1);
+    expect(result.recordsProcessed).toBe(1);
+    expect(storageMocks.upsertPlayerGameStats).toHaveBeenCalledTimes(1);
+    expect(storageMocks.updateDailyGameStatus).toHaveBeenCalledWith(
+      "nascar_NXS_5637",
+      "inprogress",
+    );
+  });
+});
