@@ -1,3 +1,16 @@
+## 2026-06-03 Bot Capability Gating
+
+- [x] Audit deterministic bot action selection for impossible-task retry loops
+- [x] Add capability-aware gating for holdings, balance, pool feasibility, and scout capacity
+- [x] Add regression coverage for filtered actions and bounded trade sizing
+- [x] Run required validation (`npm run check`, `npm run lint`, `npm run test:run`)
+
+Review:
+
+- The deterministic bot engine now prefilters actions that are impossible from the bot's current state, including locked-only holdings, full scout capacity, and buy sizes that cannot clear AMM execution thresholds.
+- Candidate selection now respects available shares, and buy execution uses a feasibility search so the engine skips shallow pools instead of repeatedly failing on "Trade too small" or slippage errors.
+- Validation passed: `npm run check`, `npm run lint`, `npm run format:check`, `npm run test:run -- server/bot/deterministic-engine.test.ts`, and `npm run test:run`.
+
 ## 2026-05-17 iOS App Store Declaration Automation
 
 - [x] Add an App Store Connect API helper for code-derived content rights and age-rating declarations

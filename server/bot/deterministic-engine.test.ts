@@ -33,6 +33,7 @@ import {
   computeClampedSportTargets,
   isBotEngineEnabled,
 } from "./deterministic-engine";
+import type { ActionType } from "./bot-profiles-v2";
 
 function collectSqlStrings(value: unknown, seen = new Set<object>()): string[] {
   if (typeof value === "string") {
@@ -206,5 +207,99 @@ describe("deterministic-engine policy utilities", () => {
 
     expect(queryTexts.some((query) => /transaction_type\s*=\s*'add'/i.test(query))).toBe(true);
     expect(queryTexts.some((query) => /operation\s*=\s*'add'/i.test(query))).toBe(false);
+  });
+
+  it("loads available share totals from holdings_locks", async () => {
+    mocks.dbExecute.mockResolvedValueOnce({
+      rows: [
+        { player_id: "player-locked", available_shares: 0 },
+        { player_id: "player-open", available_shares: 3.5 },
+      ],
+    });
+
+    const availability =
+      await __deterministicEngineTestHooks.getBotAvailableSharesByPlayer("bot_user_1");
+
+    expect(availability.get("player-locked")).toBe(0);
+    expect(availability.get("player-open")).toBe(3.5);
+  });
+
+  it("filters out actions the bot cannot currently perform", () => {
+    const filtered = __deterministicEngineTestHooks.filterActionAttemptOrder(
+      [
+        "scout_assign",
+        "scout_rebalance",
+        "pool_create",
+        "pool_add_liquidity",
+        "buy",
+        "sell",
+        "boost_assign",
+      ] as ActionType[],
+      {
+        profile: {
+          minOrderSb: 10,
+        } as any,
+        balance: 1000,
+        totalHoldings: 0,
+        uniquePlayersHeld: 0,
+        lpPositionCount: 0,
+        poolsCreated: 0,
+        stage: "steady_state",
+        scoutAssignments: [{ playerId: "player-1", scoutCount: 1 }],
+        maxScouts: 1,
+      },
+      new Map(),
+    );
+
+    expect(filtered).toEqual(["scout_rebalance", "buy"]);
+  });
+
+  it("finds a feasible buy amount when the pool can support one share", () => {
+    const quote = __deterministicEngineTestHooks.findFeasibleBuyAmount(
+      {
+        playerId: "player-1",
+        shares: 1000,
+        playMoney: 1000,
+        k: 1000000,
+        lpSharesTotal: 0,
+        feesAccumulated: 0,
+        feeGrowthPerLpShare: 0,
+        totalVolume: 0,
+        totalTrades: 0,
+        currentPrice: 1,
+      } as any,
+      1,
+      50,
+      0.05,
+      50,
+    );
+
+    expect(quote).not.toBeNull();
+    expect(quote?.sbAmount).toBeGreaterThanOrEqual(1);
+    expect(Math.floor(quote?.quote.sharesOut ?? 0)).toBeGreaterThanOrEqual(1);
+    expect(quote?.quote.totalCost).toBeLessThanOrEqual(50);
+  });
+
+  it("skips buy amounts that cannot produce an executable share", () => {
+    const quote = __deterministicEngineTestHooks.findFeasibleBuyAmount(
+      {
+        playerId: "player-1",
+        shares: 1000,
+        playMoney: 1000000,
+        k: 1000000000,
+        lpSharesTotal: 0,
+        feesAccumulated: 0,
+        feeGrowthPerLpShare: 0,
+        totalVolume: 0,
+        totalTrades: 0,
+        currentPrice: 1000,
+      } as any,
+      5,
+      50,
+      0.05,
+      50,
+    );
+
+    expect(quote).toBeNull();
   });
 });
