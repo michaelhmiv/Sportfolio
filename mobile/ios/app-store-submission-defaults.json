@@ -7,7 +7,7 @@
     "alcoholTobaccoOrDrugUseOrReferences": "NONE",
     "contests": "NONE",
     "gambling": false,
-    "gamblingSimulated": "FREQUENT",
+    "gamblingSimulated": "NONE",
     "gunsOrOtherWeapons": "NONE",
     "healthOrWellnessTopics": false,
     "horrorOrFearThemes": "NONE",
