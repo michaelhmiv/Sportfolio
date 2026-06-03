@@ -1,5 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { type NotificationCategory, type NotificationPreferences } from "@shared/notifications";
+import {
+  isTemporarilyMutedNotificationCategory,
+  type NotificationCategory,
+  type NotificationPreferences,
+} from "@shared/notifications";
 import {
   getActivePushDevicesForUsers,
   getAllUsersEligibleForCategory,
@@ -123,6 +127,17 @@ async function sendToUsers(
   payload: BaseSendPayload,
 ): Promise<SendNotificationResult> {
   if (userIds.length === 0) {
+    return {
+      recipientUsers: 0,
+      attemptedTokens: 0,
+      sentCount: 0,
+      failureCount: 0,
+      providerEnabled: true,
+      invalidTokens: [],
+    };
+  }
+
+  if (isTemporarilyMutedNotificationCategory(payload.category)) {
     return {
       recipientUsers: 0,
       attemptedTokens: 0,

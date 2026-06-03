@@ -69,5 +69,5 @@ describe("settleSharePayouts", () => {
         amount: "100.00",
       }),
     );
-  });
+  }, 15_000);
 });

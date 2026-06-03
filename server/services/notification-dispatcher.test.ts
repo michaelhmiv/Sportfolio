@@ -73,6 +73,22 @@ describe("notification dispatcher", () => {
     expect(result.recipientUsers).toBe(0);
   });
 
+  it("skips temporarily muted categories before resolving recipients", async () => {
+    const result = await sendUserNotification({
+      userId: "user-1",
+      category: "game_lifecycle",
+      title: "Game Update",
+      body: "Muted",
+      dedupeKey: "game:muted",
+    });
+
+    expect(mocks.getCategoryEligibleUsers).not.toHaveBeenCalled();
+    expect(mocks.getActivePushDevicesForUsers).not.toHaveBeenCalled();
+    expect(mocks.sendPushMulticast).not.toHaveBeenCalled();
+    expect(result.recipientUsers).toBe(0);
+    expect(result.attemptedTokens).toBe(0);
+  });
+
   it("dedupes repeat sends inside cooldown windows", async () => {
     const first = await sendUserNotification({
       userId: "user-1",

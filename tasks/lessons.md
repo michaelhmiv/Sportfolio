@@ -1,5 +1,11 @@
 # Lessons Learned
 
+## 2026-06-03
+
+- For Railway-linked production incidents, verify the live service env and the linked Supabase schema before blaming Firebase credentials. Push delivery can fail because the database schema is missing even when `FIREBASE_ADMIN_SDK_JSON` is already configured.
+- When temporarily muting notification categories, force the mute in the shared preference resolvers as well as the send paths so UI state, eligibility checks, and delivery behavior stay aligned.
+- Scout-capacity notifications should be tied to the 24-hour inactivity cleanup path, not generic manual assignment changes, so users only get pinged when their scouts actually stop working.
+
 ## 2026-05-09
 
 - When wiring automation between Discord and GitHub, verify the current canonical repository owner/name before coding defaults so issue-sync endpoints and labels do not target deprecated repos.

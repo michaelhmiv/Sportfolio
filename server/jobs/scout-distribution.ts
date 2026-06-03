@@ -18,11 +18,7 @@ import { db } from "../db";
 import { sql, eq, and, lte, inArray } from "drizzle-orm";
 import { users, scoutAssignments, scoutHistory, players } from "@shared/schema";
 import { broadcast, broadcastToUser } from "../websocket";
-import { sendUserNotification } from "../services/notification-dispatcher";
-import {
-  notifyScoutCapacityAvailablePush,
-  notifyScoutCompletePush,
-} from "../services/push-notification-events";
+import { notifyScoutCapacityAvailablePush } from "../services/push-notification-events";
 import { loadUserEntitlements } from "../services/user-entitlements";
 import type { JobResult } from "./scheduler";
 
@@ -99,6 +95,24 @@ export async function distributeScoutShares(): Promise<JobResult> {
       await db.delete(scoutAssignments).where(inArray(scoutAssignments.userId, userIds));
 
       console.log(`[scout_distribution] Cleanup complete.`);
+
+      const inactivityDateKey = hourEnd.toISOString().split("T")[0];
+      await Promise.all(
+        userIds.map(async (userId) => {
+          const userState = await loadUserEntitlements(storage, userId);
+          if (!userState) {
+            return;
+          }
+
+          const maxScouts = userState.entitlements.maxScouts;
+          await notifyScoutCapacityAvailablePush({
+            userId,
+            dateKey: inactivityDateKey,
+            remainingScouts: maxScouts,
+            maxScouts,
+          });
+        }),
+      );
     }
 
     // --- PHASE 1.5: RESTORE GHOST HISTORY (Self-Healing) ---
@@ -324,48 +338,9 @@ export async function distributeScoutShares(): Promise<JobResult> {
         data: ceremonyData,
       });
 
-      void sendUserNotification({
-        userId,
-        category: "scout_lifecycle",
-        title: "Scout Distribution Ready",
-        body: `You earned ${totalShares.toFixed(2)} shares across ${distributions.length} players.`,
-        deepLink: "/portfolio",
-        data: {
-          totalShares: totalShares.toFixed(2),
-          playerCount: String(distributions.length),
-          highlightPlayerId: highlight?.playerId || "",
-        },
-        dedupeKey: `scout_ready:${hourEnd.toISOString()}`,
-      }).catch((error) => {
-        console.error("[scout_distribution] Failed to send push notification:", error);
-      });
-
       console.log(
         `[scout_distribution] Ceremony ready for user ${userId}: ${distributions.length} players, ${totalShares} shares`,
       );
-
-      await notifyScoutCompletePush({
-        userId,
-        hourTimestampIso: hourEnd.toISOString(),
-        totalShares,
-        playerCount: distributions.length,
-        highlightPlayerName: highlight?.playerName ?? null,
-      });
-
-      const userState = await loadUserEntitlements(storage, userId);
-      if (userState) {
-        const totalAssigned = await storage.getTotalScoutsForUser(userId);
-        const maxScouts = userState.entitlements.maxScouts;
-        const remainingScouts = Math.max(0, maxScouts - totalAssigned);
-        const dateKey = hourEnd.toISOString().split("T")[0];
-
-        await notifyScoutCapacityAvailablePush({
-          userId,
-          dateKey,
-          remainingScouts,
-          maxScouts,
-        });
-      }
     }
 
     console.log(

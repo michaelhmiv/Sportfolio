@@ -25,6 +25,19 @@ export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
 
 export type NotificationPreferences = Record<NotificationCategory, boolean>;
 
+// Temporary quiet mode while we trim notification volume.
+export const TEMPORARILY_MUTED_NOTIFICATION_CATEGORIES = new Set<NotificationCategory>([
+  "boost_lifecycle",
+  "scout_lifecycle",
+  "game_lifecycle",
+  "watchlist_alerts",
+  "market_alerts",
+]);
+
+export function isTemporarilyMutedNotificationCategory(category: NotificationCategory): boolean {
+  return TEMPORARILY_MUTED_NOTIFICATION_CATEGORIES.has(category);
+}
+
 export type NotificationCategoryMeta = {
   id: NotificationCategory;
   label: string;
@@ -34,10 +47,10 @@ export type NotificationCategoryMeta = {
 export const NOTIFICATION_CATEGORY_META: NotificationCategoryMeta[] = [
   { id: "trade_execution", label: "Trade Execution", defaultEnabled: true },
   { id: "portfolio_changes", label: "Portfolio Changes", defaultEnabled: true },
-  { id: "boost_lifecycle", label: "Daily Boost Lifecycle", defaultEnabled: true },
+  { id: "boost_lifecycle", label: "Daily Boost Lifecycle", defaultEnabled: false },
   { id: "community_boosts", label: "Community Boosts", defaultEnabled: true },
-  { id: "scout_lifecycle", label: "Scout Lifecycle", defaultEnabled: true },
-  { id: "game_lifecycle", label: "Game Lifecycle", defaultEnabled: true },
+  { id: "scout_lifecycle", label: "Scout Lifecycle", defaultEnabled: false },
+  { id: "game_lifecycle", label: "Game Lifecycle", defaultEnabled: false },
   { id: "player_news", label: "Relevant Player News", defaultEnabled: true },
   { id: "daily_digest", label: "Daily Digest", defaultEnabled: true },
   { id: "watchlist_alerts", label: "Watchlist Alerts", defaultEnabled: false },
@@ -71,6 +84,10 @@ export function normalizeNotificationPreferences(
     if (typeof value[category] === "boolean") {
       normalized[category] = value[category] as boolean;
     }
+  }
+
+  for (const category of TEMPORARILY_MUTED_NOTIFICATION_CATEGORIES) {
+    normalized[category] = false;
   }
 
   return normalized;
