@@ -32,6 +32,7 @@ export interface SelectionContext {
   actionType: ActionType;
   recentPlayerIds: Set<string>;
   otherBotRecentPlayerIds: Set<string>;
+  availableSharesByPlayer: Map<string, number>;
   sportActionCounts: Map<string, number>;
   sportTargets: Map<string, number>;
   sportTargetTolerance: number;
@@ -352,6 +353,7 @@ export async function selectCandidates(
     const playerId = row.id;
     const hasPool = Boolean(row.poolPlayerId);
     const sport = row.sport;
+    const availableShares = context.availableSharesByPlayer.get(playerId) || 0;
 
     // Hard block: cooldown
     if (context.recentPlayerIds.has(playerId)) {
@@ -376,6 +378,15 @@ export async function selectCandidates(
     }
     if (context.actionType === "boost_assign" && !context.heldPlayerIds.has(playerId)) {
       continue; // Need shares to boost
+    }
+    if (
+      (context.actionType === "sell" ||
+        context.actionType === "pool_create" ||
+        context.actionType === "pool_add_liquidity" ||
+        context.actionType === "boost_assign") &&
+      availableShares < 1
+    ) {
+      continue; // Can't use locked-only holdings
     }
 
     if (

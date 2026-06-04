@@ -36,11 +36,12 @@ import {
   getBotHeldPlayerIds,
   getBotScoutAssignments,
   selectCandidates,
-  pickFromCandidates,
 } from "./player-selector";
-import { executeBotAction, calculateActionParams } from "./action-executor";
+import { executeBotAction, calculateActionParams, type ActionParams } from "./action-executor";
 import { storage } from "../storage";
 import { getTodayETBoundaries } from "../lib/time";
+import { calculateBuyShares, calculateSellShares, getPool } from "../amm/pool";
+import { BASE_SCOUT_CAPACITY, loadUserEntitlements } from "../services/user-entitlements";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -74,6 +75,7 @@ interface TickResult {
 }
 
 const ENGINE_DISABLED_VALUES = new Set(["0", "false", "off", "disabled"]);
+const MAX_EXECUTION_SLIPPAGE = 0.05;
 
 export function isBotEngineEnabled(
   value: string | undefined = process.env.BOT_ENGINE_ENABLED,
@@ -220,6 +222,236 @@ async function computeSportTargetsFromActiveSlate(): Promise<Map<string, number>
   );
 }
 
+async function getBotAvailableSharesByPlayer(botUserId: string): Promise<Map<string, number>> {
+  const rows = await db.execute(sql`
+    SELECT
+      h.asset_id AS player_id,
+      COALESCE(SUM(CAST(h.quantity AS FLOAT)), 0) AS quantity,
+      COALESCE(
+        SUM(CAST(h.quantity AS FLOAT)) - COALESCE(lock_totals.locked_quantity, 0),
+        0
+      ) AS available_shares
+    FROM holdings h
+    LEFT JOIN (
+      SELECT
+        user_id,
+        asset_id,
+        COALESCE(SUM(locked_quantity), 0) AS locked_quantity
+      FROM holdings_locks
+      WHERE user_id = ${botUserId}
+        AND asset_type = 'player'
+      GROUP BY user_id, asset_id
+    ) lock_totals
+      ON lock_totals.user_id = h.user_id
+     AND lock_totals.asset_id = h.asset_id
+    WHERE h.user_id = ${botUserId}
+      AND h.asset_type = 'player'
+    GROUP BY h.asset_id, lock_totals.locked_quantity
+  `);
+
+  const availableSharesByPlayer = new Map<string, number>();
+  for (const row of rows.rows) {
+    const record = row as Record<string, unknown>;
+    const playerId = String(record.player_id || "").trim();
+    if (!playerId) continue;
+    availableSharesByPlayer.set(playerId, Math.max(0, Number(record.available_shares || 0)));
+  }
+
+  return availableSharesByPlayer;
+}
+
+function countAvailableShares(availableSharesByPlayer: Map<string, number>): number {
+  let total = 0;
+  for (const value of availableSharesByPlayer.values()) {
+    total += Math.max(0, value);
+  }
+  return total;
+}
+
+function filterActionAttemptOrder(
+  actionAttemptOrder: ActionType[],
+  state: BotState,
+  availableSharesByPlayer: Map<string, number>,
+): ActionType[] {
+  const totalAvailableShares = countAvailableShares(availableSharesByPlayer);
+  const totalScouts = state.scoutAssignments.reduce(
+    (sum, assignment) => sum + assignment.scoutCount,
+    0,
+  );
+
+  return actionAttemptOrder.filter((actionType) => {
+    switch (actionType) {
+      case "scout_assign":
+        return totalScouts < state.maxScouts;
+      case "scout_rebalance":
+        return state.scoutAssignments.length > 0;
+      case "sell":
+      case "pool_create":
+      case "pool_add_liquidity":
+      case "boost_assign":
+        return totalAvailableShares >= 1;
+      case "buy":
+        return state.balance >= state.profile.minOrderSb;
+      default:
+        return true;
+    }
+  });
+}
+
+function findFeasibleBuyAmount(
+  pool: Awaited<ReturnType<typeof getPool>>,
+  minSpend: number,
+  maxSpend: number,
+  maxSlippage: number,
+  balance: number,
+): { sbAmount: number; quote: ReturnType<typeof calculateBuyShares> } | null {
+  if (!pool) {
+    return null;
+  }
+
+  let low = Math.max(1, Math.ceil(minSpend));
+  let high = Math.floor(maxSpend);
+  let best: { sbAmount: number; quote: ReturnType<typeof calculateBuyShares> } | null = null;
+
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2);
+    try {
+      const quote = calculateBuyShares(pool, mid);
+      if (Math.floor(quote.sharesOut) >= 1) {
+        best = { sbAmount: mid, quote };
+        high = mid - 1;
+      } else {
+        low = mid + 1;
+      }
+    } catch {
+      low = mid + 1;
+    }
+  }
+
+  if (!best) {
+    return null;
+  }
+
+  if (best.quote.slippagePercent > MAX_EXECUTION_SLIPPAGE) {
+    return null;
+  }
+
+  if (best.quote.totalCost > balance) {
+    return null;
+  }
+
+  if (best.quote.slippagePercent > maxSlippage) {
+    return null;
+  }
+
+  return best;
+}
+
+async function buildFeasibleActionParams(
+  actionType: ActionType,
+  target: Awaited<ReturnType<typeof selectCandidates>>[number],
+  state: BotState,
+  availableSharesByPlayer: Map<string, number>,
+): Promise<{ params: ActionParams; reason?: string } | null> {
+  const availableShares = availableSharesByPlayer.get(target.playerId) || 0;
+
+  switch (actionType) {
+    case "buy": {
+      const pool = await getPool(target.playerId);
+      if (!pool) {
+        return null;
+      }
+
+      const maxSpend = Math.min(state.profile.maxOrderSb, Math.floor(state.balance / 1.02));
+      const minSpend = Math.max(state.profile.minOrderSb, 1);
+      if (maxSpend < minSpend) {
+        return null;
+      }
+
+      const quote = findFeasibleBuyAmount(
+        pool,
+        minSpend,
+        maxSpend,
+        MAX_EXECUTION_SLIPPAGE,
+        state.balance,
+      );
+      if (!quote) {
+        return null;
+      }
+
+      return { params: { sbAmount: quote.sbAmount } };
+    }
+    case "sell": {
+      if (availableShares < 1) {
+        return null;
+      }
+
+      const pool = await getPool(target.playerId);
+      if (!pool) {
+        return null;
+      }
+
+      const quote = calculateSellShares(pool, 1);
+      if (quote.slippagePercent > MAX_EXECUTION_SLIPPAGE) {
+        return null;
+      }
+
+      return { params: { shares: 1 } };
+    }
+    case "pool_create": {
+      if (availableShares < 1) {
+        return null;
+      }
+
+      const price = target.currentPrice || target.lastTradePrice || 10.0;
+      const sharesToDeposit = Math.min(Math.floor(availableShares), 5);
+      if (sharesToDeposit < 1) {
+        return null;
+      }
+
+      const requiredBalance = sharesToDeposit * price;
+      if (requiredBalance > state.profile.maxOrderSb) {
+        return null;
+      }
+      if (state.balance < requiredBalance) {
+        return null;
+      }
+
+      return { params: { fairValue: price } };
+    }
+    case "pool_add_liquidity": {
+      if (availableShares < 1) {
+        return null;
+      }
+
+      const pool = await getPool(target.playerId);
+      if (!pool) {
+        return null;
+      }
+
+      const currentPrice = pool.currentPrice;
+      const maxShares = Math.max(1, Math.min(Math.floor(availableShares), 3));
+      const maxPlayMoney = Math.min(state.profile.maxOrderSb, state.balance);
+      if (maxPlayMoney < currentPrice) {
+        return null;
+      }
+
+      return {
+        params: {
+          shares: maxShares,
+          sbAmount: maxPlayMoney,
+        },
+      };
+    }
+    case "boost_assign":
+      return availableShares >= 1
+        ? { params: calculateActionParams(actionType, target, state.profile) }
+        : null;
+    default:
+      return null;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Bot Profile Loading
 // ---------------------------------------------------------------------------
@@ -258,8 +490,8 @@ async function loadActiveBots(): Promise<BotProfileV2[]> {
         ? parseFloat(String(profile.maxPlayerExposurePercent))
         : defaults.maxPlayerExposurePercent,
       maxSportConcentration: defaults.maxSportConcentration,
-      activeHoursStart: profile.activeHoursStart || defaults.activeHoursStart,
-      activeHoursEnd: profile.activeHoursEnd || defaults.activeHoursEnd,
+      activeHoursStart: profile.activeHoursStart ?? defaults.activeHoursStart,
+      activeHoursEnd: profile.activeHoursEnd ?? defaults.activeHoursEnd,
       minOrderSb: profile.minOrderSize || defaults.minOrderSb,
       maxOrderSb: profile.maxOrderSize || defaults.maxOrderSb,
       scoutTargetCount: defaults.scoutTargetCount,
@@ -473,9 +705,10 @@ async function loadBotState(profile: BotProfileV2): Promise<BotState | null> {
   const poolRow = poolsResult.rows[0] as Record<string, unknown> | undefined;
   const poolsCreated = Number(poolRow?.pools_created || 0);
 
-  // Get current scout assignments
+  // Get current scout assignments and the live capacity enforced by storage.
   const scouts = await getBotScoutAssignments(profile.userId);
-  const maxScouts = 10; // All bots are premium
+  const entitlementState = await loadUserEntitlements(storage, profile.userId);
+  const maxScouts = entitlementState?.entitlements.maxScouts ?? BASE_SCOUT_CAPACITY;
 
   // Determine stage
   const stage = determineBotStage({
@@ -544,12 +777,18 @@ async function runBotTick(
     if (at) recentActionTypes.push(at as ActionType);
   }
 
+  const availableSharesByPlayer = await getBotAvailableSharesByPlayer(profile.userId);
+
   // 5. Pick action type
   const primaryActionType = selectActionType(stage, profile.role, recentActionTypes, profile);
 
-  const actionAttemptOrder = buildActionAttemptOrder(stage, profile, primaryActionType);
+  const actionAttemptOrder = filterActionAttemptOrder(
+    buildActionAttemptOrder(stage, profile, primaryActionType),
+    state,
+    availableSharesByPlayer,
+  );
   if (actionAttemptOrder.length === 0) {
-    return { success: false, reason: "no_eligible_action_type" };
+    return { success: false, reason: "no_capable_actions" };
   }
 
   // 6. Build selection context inputs once for this tick
@@ -596,6 +835,7 @@ async function runBotTick(
       actionType,
       recentPlayerIds: recentIds,
       otherBotRecentPlayerIds: otherBotIds,
+      availableSharesByPlayer,
       sportActionCounts: sportCounts,
       sportTargets,
       sportTargetTolerance: BOT_ENGINE_POLICY.sportTargets.tolerance,
@@ -609,35 +849,49 @@ async function runBotTick(
     };
 
     const candidates = await selectCandidates(context, 20);
-    const target = pickFromCandidates(candidates);
-    if (!target) {
+    if (candidates.length === 0) {
       lastReason = `no_eligible_players_for_${actionType}`;
       continue;
     }
 
-    const params = calculateActionParams(actionType, target, {
-      minOrderSb: profile.minOrderSb,
-      maxOrderSb: profile.maxOrderSb,
-    });
+    let foundFeasibleTarget = false;
 
-    const result = await executeBotAction(
-      profile.userId,
-      profile.profileId,
-      actionType,
-      target,
-      params,
-    );
-
-    if (result.success) {
-      return {
+    for (const target of candidates) {
+      const params = await buildFeasibleActionParams(
         actionType,
-        playerName: target.playerName,
-        success: true,
-        reason: "executed",
-      };
+        target,
+        state,
+        availableSharesByPlayer,
+      );
+      if (!params) {
+        continue;
+      }
+
+      foundFeasibleTarget = true;
+
+      const result = await executeBotAction(
+        profile.userId,
+        profile.profileId,
+        actionType,
+        target,
+        params.params as any,
+      );
+
+      if (result.success) {
+        return {
+          actionType,
+          playerName: target.playerName,
+          success: true,
+          reason: "executed",
+        };
+      }
+
+      lastReason = result.errorMessage || "execution_failed";
     }
 
-    lastReason = result.errorMessage || "execution_failed";
+    if (!foundFeasibleTarget) {
+      lastReason = `no_feasible_players_for_${actionType}`;
+    }
   }
 
   return {
@@ -892,5 +1146,10 @@ export async function getDeterministicEngineStatus() {
 }
 
 export const __deterministicEngineTestHooks = {
+  buildFeasibleActionParams,
+  filterActionAttemptOrder,
+  findFeasibleBuyAmount,
+  getBotAvailableSharesByPlayer,
+  loadActiveBots,
   loadBotState,
 };
