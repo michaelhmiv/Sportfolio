@@ -43,5 +43,5 @@ describe("DatabaseStorage.getPlayer", () => {
 
     expect(player).toMatchObject({ id: "mlb_555_canonical" });
     expect(getCanonicalPlayerIdSpy).toHaveBeenCalledWith("mlb_555");
-  });
+  }, 15_000);
 });

@@ -1,3 +1,21 @@
+## 2026-06-03 Android Push on Railway Repair
+
+- [x] Verify live Railway production env for Android push credentials and deploy health
+- [x] Restore the missing production Supabase push schema
+- [x] Verify `/api/mobile/push/status` reports provider readiness from the live Railway deployment
+- [x] Verify Android push registration persists a token and marks the current device as registered
+- [ ] Confirm a real Android device receives an actual push notification after re-registering
+- [x] Turn off the high-noise notification categories for now
+- [x] Leave scout notifications limited to idle-scout alerts only
+
+Review:
+
+- Railway production already had `FIREBASE_ADMIN_SDK_JSON` configured, so the failure was not missing FCM credentials.
+- Restored the live Supabase push tables with the repo's two push migrations and confirmed they now exist in production.
+- Verified `/api/mobile/push/status` end to end through the live Railway service using a temporary Supabase-authenticated session. The response reported `providerConfigured: true`, `providerReady: true`, and `projectId: "sportfolio-f1b70"`.
+- Verified the registration path with a temporary Android-shaped token. The live endpoint returned `success: true`, and status reported the device as registered with `activeTokenCount: 1`.
+- Cleaned up the temporary verification user after the test.
+
 ## 2026-06-03 Apple Review Recovery
 
 - [x] Correct the App Store Connect age-rating declaration so the current virtual-currency build is not marked as simulated gambling

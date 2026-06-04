@@ -20,11 +20,22 @@ export type PushNotificationAndroidChannelId =
   | "sportfolio_watchlist"
   | "sportfolio_system";
 
+// Temporary quiet mode while we trim push volume.
+export const TEMPORARILY_MUTED_PUSH_NOTIFICATION_TYPES = new Set<PushNotificationType>([
+  "scout_complete",
+  "boost_locking_soon",
+  "boost_settled",
+]);
+
+export function isTemporarilyMutedPushNotificationType(type: PushNotificationType): boolean {
+  return TEMPORARILY_MUTED_PUSH_NOTIFICATION_TYPES.has(type);
+}
+
 export const DEFAULT_PUSH_NOTIFICATION_PREFERENCES: Record<PushNotificationType, boolean> = {
-  scout_complete: true,
+  scout_complete: false,
   scout_capacity_available: true,
-  boost_locking_soon: true,
-  boost_settled: true,
+  boost_locking_soon: false,
+  boost_settled: false,
   portfolio_movement: false,
   order_filled: true,
   watchlist_news: false,
@@ -126,6 +137,10 @@ export function resolvePushNotificationPreferences(
     if (typeof overrides[type] === "boolean") {
       resolved[type] = overrides[type] as boolean;
     }
+  }
+
+  for (const type of TEMPORARILY_MUTED_PUSH_NOTIFICATION_TYPES) {
+    resolved[type] = false;
   }
 
   return resolved;

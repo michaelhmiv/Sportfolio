@@ -18,11 +18,25 @@ describe("push notification helpers", () => {
     const resolved = resolvePushNotificationPreferences({
       watchlist_news: true,
       boost_settled: false,
+      scout_complete: true,
     });
 
     expect(resolved.watchlist_news).toBe(true);
     expect(resolved.boost_settled).toBe(false);
-    expect(resolved.scout_complete).toBe(true);
+    expect(resolved.scout_complete).toBe(false);
+    expect(resolved.boost_locking_soon).toBe(false);
+  });
+
+  it("keeps temporarily muted push types off even when overrides try to enable them", () => {
+    const resolved = resolvePushNotificationPreferences({
+      scout_complete: true,
+      boost_locking_soon: true,
+      boost_settled: true,
+    });
+
+    expect(resolved.scout_complete).toBe(false);
+    expect(resolved.boost_locking_soon).toBe(false);
+    expect(resolved.boost_settled).toBe(false);
   });
 
   it("maps notification types to stable Android channels", () => {
