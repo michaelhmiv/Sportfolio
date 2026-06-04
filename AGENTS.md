@@ -22,6 +22,10 @@ Operational guidance for Factory droids working in this repository.
 
 ## Canonical Agent Docs (Read Before Domain Changes)
 
+- `docs/agent/CONTEXT_INDEX.md`
+- `docs/agent/REPO_MAP.md`
+- `docs/agent/CONTEXT_BUDGET.md`
+- `docs/agent/REFACTOR_QUEUE.md`
 - `docs/wiki/agent/product-mechanics.md`
 - `docs/wiki/agent/api-map.md`
 - `docs/wiki/agent/data-model-economy.md`

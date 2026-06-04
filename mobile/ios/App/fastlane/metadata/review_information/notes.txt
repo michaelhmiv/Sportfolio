@@ -1,4 +1,4 @@
-Sportfolio is a virtual-currency sports strategy game. It does not offer real-money gambling, sports betting, cash-out, or redeemable prizes.
+Sportfolio is a virtual-currency sports strategy game. It does not offer real-money gambling, cash-out, or redeemable prizes.
 
 Core gameplay lets users trade virtual player shares, assign scouts, and use daily boost slots tied to live game performance. iOS-native builds intentionally disable external checkout and purchase sync flows for digital goods while Apple in-app purchase support is being finalized.
 

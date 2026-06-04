@@ -245,6 +245,7 @@ async function convertLiveFeedToStats(
 export async function syncNascarLiveForSeries(
   seriesId: NascarSeriesId,
   progressCallback?: ProgressCallback,
+  liveFeedOverride?: NascarLiveFeed | null,
 ): Promise<{
   requestCount: number;
   recordsProcessed: number;
@@ -269,9 +270,12 @@ export async function syncNascarLiveForSeries(
   let raceInfo = null;
 
   try {
-    // Fetch live feed
-    requestCount++;
-    const liveFeed = await fetchLiveFeed(seriesId);
+    const liveFeed =
+      liveFeedOverride ??
+      (await (async () => {
+        requestCount++;
+        return fetchLiveFeed(seriesId);
+      })());
 
     if (!liveFeed) {
       console.log(`[nascar_live_sync] No live race for ${seriesName}`);
@@ -459,10 +463,24 @@ export async function syncNascarLive(
   let totalSkippedMissingPlayers = 0;
   let liveRacesFound = 0;
   const liveRaceInfo: { series: string; info: any }[] = [];
+  let sharedLiveFeed: NascarLiveFeed | null = null;
+
+  try {
+    totalRequestCount++;
+    sharedLiveFeed = await fetchLiveFeed();
+  } catch (error: any) {
+    console.error("[nascar_live_sync] Failed to fetch shared live feed:", error.message);
+    return {
+      requestCount: totalRequestCount,
+      recordsProcessed: 0,
+      errorCount: 1,
+      skippedMissingPlayers: 0,
+    };
+  }
 
   for (const seriesId of seriesList) {
     const seriesName = NASCAR_SERIES_NAMES[seriesId];
-    const result = await syncNascarLiveForSeries(seriesId, progressCallback);
+    const result = await syncNascarLiveForSeries(seriesId, progressCallback, sharedLiveFeed);
 
     totalRequestCount += result.requestCount;
     totalRecordsProcessed += result.recordsProcessed;

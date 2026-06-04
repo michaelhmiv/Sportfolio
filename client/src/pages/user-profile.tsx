@@ -7,7 +7,6 @@ import {
   ArrowDownRight,
   ArrowUpDown,
   ArrowUpRight,
-  Camera,
   ChevronDown,
   ChevronUp,
   Clock,
@@ -325,7 +324,64 @@ export default function UserProfile() {
     useState<SortDirection>("desc");
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
+
+  const convertImageToJpeg = async (file: File): Promise<File> => {
+    if (file.type === "image/jpeg") {
+      return file;
+    }
+
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const objectUrl = URL.createObjectURL(file);
+      const img = new Image();
+
+      img.onload = () => {
+        URL.revokeObjectURL(objectUrl);
+        resolve(img);
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        reject(new Error("Could not read the selected image."));
+      };
+
+      img.src = objectUrl;
+    });
+
+    const maxDimension = 2048;
+    const scale = Math.min(1, maxDimension / Math.max(image.naturalWidth, image.naturalHeight));
+    const width = Math.max(1, Math.round(image.naturalWidth * scale));
+    const height = Math.max(1, Math.round(image.naturalHeight * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+
+    const context = canvas.getContext("2d");
+    if (!context) {
+      throw new Error("Could not prepare the avatar image.");
+    }
+
+    context.drawImage(image, 0, 0, width, height);
+
+    const blob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(
+        (result) => {
+          if (result) {
+            resolve(result);
+            return;
+          }
+
+          reject(new Error("Could not process the avatar image."));
+        },
+        "image/jpeg",
+        0.92,
+      );
+    });
+
+    const baseName = file.name.replace(/\.[^.]+$/, "") || "avatar";
+    return new File([blob], `${baseName}.jpg`, {
+      type: "image/jpeg",
+      lastModified: Date.now(),
+    });
+  };
 
   useEffect(() => {
     const stored = localStorage.getItem("theme") as "light" | "dark" | null;
@@ -418,33 +474,31 @@ export default function UserProfile() {
   };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const input = event.currentTarget;
     const file = event.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 20 * 1024 * 1024) {
-      toast({
-        title: "File too large",
-        description: "Please choose an image under 20MB.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!["image/jpeg", "image/png", "image/webp", "image/gif"].includes(file.type)) {
-      toast({
-        title: "Unsupported image",
-        description: "Use JPEG, PNG, WebP, or GIF.",
-        variant: "destructive",
-      });
-      return;
-    }
-
     setIsUploading(true);
     try {
+      if (file.size > 20 * 1024 * 1024) {
+        throw new Error("Please choose an image under 20MB.");
+      }
+
+      if (file.type && !file.type.startsWith("image/")) {
+        throw new Error("Use a photo from your library.");
+      }
+
+      const userId = currentUser?.id;
+      if (!userId) {
+        throw new Error("Your account is still loading. Please try again in a moment.");
+      }
+
       const supabase = await getSupabase();
-      const ext = file.name.split(".").pop() || "jpg";
-      const fileName = `${currentUser?.id}/${Date.now()}.${ext}`;
-      const { error } = await supabase.storage.from("avatars").upload(fileName, file, {
+      const uploadFile = await convertImageToJpeg(file);
+      const ext = uploadFile.name.split(".").pop() || "jpg";
+      const fileName = `${userId}/${Date.now()}.${ext}`;
+
+      const { error } = await supabase.storage.from("avatars").upload(fileName, uploadFile, {
         cacheControl: "3600",
         upsert: true,
       });
@@ -464,8 +518,7 @@ export default function UserProfile() {
       });
     } finally {
       setIsUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-      if (cameraInputRef.current) cameraInputRef.current.value = "";
+      input.value = "";
     }
   };
 
@@ -606,7 +659,7 @@ export default function UserProfile() {
                           <AvatarFallback className="text-2xl">{initials}</AvatarFallback>
                         </Avatar>
                         <div className="absolute inset-0 flex items-center justify-center rounded-sm bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
-                          <Camera className="h-6 w-6 text-white" />
+                          <Upload className="h-6 w-6 text-white" />
                         </div>
                       </button>
                     </DialogTrigger>
@@ -614,22 +667,14 @@ export default function UserProfile() {
                       <DialogHeader>
                         <DialogTitle>Change Profile Picture</DialogTitle>
                         <DialogDescription>
-                          Upload a new public avatar or take one with your camera.
+                          Choose a new public avatar from your photo library.
                         </DialogDescription>
                       </DialogHeader>
                       <div className="grid gap-3 py-4">
                         <input
                           ref={fileInputRef}
                           type="file"
-                          accept="image/jpeg,image/png,image/webp,image/gif"
-                          className="hidden"
-                          onChange={handleFileUpload}
-                        />
-                        <input
-                          ref={cameraInputRef}
-                          type="file"
-                          accept="image/jpeg,image/png,image/webp,image/gif"
-                          capture="user"
+                          accept="image/*"
                           className="hidden"
                           onChange={handleFileUpload}
                         />
@@ -644,20 +689,7 @@ export default function UserProfile() {
                           ) : (
                             <Upload className="h-4 w-4" />
                           )}
-                          Upload Photo
-                        </Button>
-                        <Button
-                          variant="terminalOutline"
-                          className="h-12 w-full gap-2"
-                          onClick={() => cameraInputRef.current?.click()}
-                          disabled={isUploading}
-                        >
-                          {isUploading ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Camera className="h-4 w-4" />
-                          )}
-                          Take Photo
+                          Choose from Library
                         </Button>
                       </div>
                       <DialogFooter>

@@ -13,6 +13,7 @@ Launch scope (decision-locked):
 
 - `mobile/ios/App/App.xcodeproj/project.pbxproj` uses `TARGETED_DEVICE_FAMILY = 1`
 - Login supports Apple OAuth in `client/src/hooks/useAuth.tsx` and `client/src/pages/Login.tsx`
+- iOS profile picture flow uses library-only upload and does not expose a `capture="user"` camera path
 - Account deletion APIs exist:
   - `GET /api/account/deletion/status`
   - `POST /api/account/deletion/request`
@@ -37,7 +38,7 @@ Launch scope (decision-locked):
 2. App Store Connect:
    - Keep availability to `United States` only for first launch.
    - Complete App Privacy and Accessibility Nutrition Label sections.
-   - Reconfirm age rating responses.
+   - Reconfirm age rating responses and keep simulated gambling at `NONE` for this virtual-currency build.
    - Add review notes with test credentials and sign-in/deletion/rewarded-ad steps.
    - Upload iPhone screenshot sets only.
 
