@@ -36,6 +36,42 @@ describe("PushNotificationService", () => {
     expect(providerFactory).not.toHaveBeenCalled();
   });
 
+  it("skips temporarily muted push types before creating events", async () => {
+    const storageMock = {
+      listActiveUserPushTokens: vi.fn().mockResolvedValue([{ id: "tok_1", token: "token-1" }]),
+      markUserPushTokenDeliverySuccess: vi.fn(),
+      markUserPushTokenDeliveryFailure: vi.fn(),
+      getUserNotificationPreferences: vi.fn().mockResolvedValue([
+        {
+          notificationType: "scout_complete",
+          enabled: true,
+        },
+      ]),
+      createPushNotificationEvent: vi.fn().mockResolvedValue({ id: "event_0" }),
+      updatePushNotificationEvent: vi.fn().mockResolvedValue(undefined),
+    };
+
+    const providerFactory = vi.fn();
+    const service = new PushNotificationService({
+      storageLayer: storageMock as any,
+      providerFactory,
+    });
+
+    const result = await service.send({
+      userId: "user-1",
+      type: "scout_complete",
+      title: "Scouts",
+      body: "Idle scouts",
+      route: "/portfolio",
+      dedupeKey: "scout-muted-1",
+    });
+
+    expect(result.status).toBe("skipped_preferences");
+    expect(storageMock.getUserNotificationPreferences).not.toHaveBeenCalled();
+    expect(storageMock.createPushNotificationEvent).not.toHaveBeenCalled();
+    expect(providerFactory).not.toHaveBeenCalled();
+  });
+
   it("returns duplicate when dedupe key already exists", async () => {
     const storageMock = {
       listActiveUserPushTokens: vi.fn().mockResolvedValue([]),
@@ -53,8 +89,8 @@ describe("PushNotificationService", () => {
 
     const result = await service.send({
       userId: "user-1",
-      type: "scout_complete",
-      title: "Scouts",
+      type: "order_filled",
+      title: "Order filled",
       body: "Done",
       route: "/portfolio",
       dedupeKey: "scout-hourly-1",
@@ -99,10 +135,10 @@ describe("PushNotificationService", () => {
 
     const result = await service.send({
       userId: "user-1",
-      type: "boost_settled",
-      title: "Boost settled",
+      type: "order_filled",
+      title: "Order filled",
       body: "Done",
-      route: "/boosts",
+      route: "/portfolio",
       dedupeKey: "boost-1",
     });
 
@@ -169,10 +205,10 @@ describe("PushNotificationService", () => {
 
     const result = await service.send({
       userId: "user-1",
-      type: "boost_settled",
-      title: "Boost settled",
+      type: "order_filled",
+      title: "Order filled",
       body: "Done",
-      route: "/boosts",
+      route: "/portfolio",
       dedupeKey: "boost-2",
     });
 

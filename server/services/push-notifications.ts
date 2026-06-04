@@ -5,6 +5,7 @@ import {
   DEFAULT_PUSH_NOTIFICATION_PREFERENCES,
   getPushNotificationAndroidChannelId,
   isPushNotificationType,
+  isTemporarilyMutedPushNotificationType,
   normalizeInternalNotificationRoute,
   resolvePushNotificationPreferences,
   type PushNotificationType,
@@ -390,6 +391,16 @@ export class PushNotificationService {
   }
 
   async send(input: SendPushNotificationInput): Promise<SendPushNotificationResult> {
+    // Temporary mute: keep noisy push types out of delivery and history for now.
+    if (isTemporarilyMutedPushNotificationType(input.type)) {
+      return {
+        delivered: false,
+        status: "skipped_preferences",
+        successCount: 0,
+        failureCount: 0,
+      };
+    }
+
     const safeRoute = normalizeInternalNotificationRoute(input.route) || "/";
     const rows = await this.storageLayer.getUserNotificationPreferences(input.userId);
     const preferenceMap = resolvePushNotificationPreferences(normalizePreferenceOverrides(rows));

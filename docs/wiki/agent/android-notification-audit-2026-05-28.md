@@ -153,3 +153,9 @@ searchKeywords: android,push,notifications,fcm,token,lifecycle,diagnostics,audit
 - Push-focused tests:
   - `npm run test:run -- client/src/lib/mobile-push.test.ts server/services/push-notifications.test.ts server/services/notification-dispatcher.test.ts server/routes/mobile-push-notifications.test.ts`
   - Result: passed.
+
+## Update (2026-06-03)
+
+- The live Railway deployment now has the missing push migrations applied in production Supabase.
+- `/api/mobile/push/status` now reports `providerReady: true` on the live service after the schema repair.
+- The earlier "push tables missing" finding above is historical context for the pre-fix audit state.

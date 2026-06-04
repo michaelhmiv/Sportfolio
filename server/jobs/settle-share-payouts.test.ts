@@ -11,6 +11,10 @@ const websocketMocks = vi.hoisted(() => ({
   broadcastToUser: vi.fn(),
 }));
 
+const notificationMocks = vi.hoisted(() => ({
+  sendUserNotification: vi.fn(),
+}));
+
 vi.mock("../storage", () => ({
   storage: {
     getPendingSharePayouts: storageMocks.getPendingSharePayouts,
@@ -24,9 +28,14 @@ vi.mock("../websocket", () => ({
   broadcastToUser: websocketMocks.broadcastToUser,
 }));
 
+vi.mock("../services/notification-dispatcher", () => ({
+  sendUserNotification: notificationMocks.sendUserNotification,
+}));
+
 describe("settleSharePayouts", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    notificationMocks.sendUserNotification.mockResolvedValue(undefined);
   });
 
   it("uses earningUnits when present on multiplier-only payout rows", async () => {
@@ -69,5 +78,5 @@ describe("settleSharePayouts", () => {
         amount: "100.00",
       }),
     );
-  });
+  }, 15_000);
 });

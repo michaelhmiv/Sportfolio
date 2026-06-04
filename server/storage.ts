@@ -4709,11 +4709,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAllPlayerGameStats(playerId: string): Promise<PlayerGameStats[]> {
-    const canonicalPlayerId = await this.getCanonicalPlayerId(playerId);
+    const identityIds = await this.getPlayerIdentityIds(playerId);
     return await db
       .select()
       .from(playerGameStats)
-      .where(eq(playerGameStats.playerId, canonicalPlayerId))
+      .where(inArray(playerGameStats.playerId, identityIds))
       .orderBy(desc(playerGameStats.gameDate));
   }
 
@@ -4758,6 +4758,7 @@ export class DatabaseStorage implements IStorage {
       .from(players)
       .where(eq(players.id, playerId))
       .limit(1);
+    const identityIds = await this.getPlayerIdentityIds(playerId);
     const currentSeasons = getCurrentCompetitiveSeasons(playerRow?.sport || "NBA");
 
     const gameLogs = await db
@@ -4765,7 +4766,7 @@ export class DatabaseStorage implements IStorage {
       .from(playerGameStats)
       .where(
         and(
-          eq(playerGameStats.playerId, playerId),
+          inArray(playerGameStats.playerId, identityIds),
           inArray(playerGameStats.season, currentSeasons),
         ),
       )
@@ -4951,39 +4952,50 @@ export class DatabaseStorage implements IStorage {
       return new Map();
     }
 
-    const playerRows = await db
-      .select({ id: players.id, sport: players.sport })
-      .from(players)
-      .where(inArray(players.id, playerIds));
+    const identityContexts = await loadPlayerIdentityContexts(db, playerIds);
+    const canonicalIds = Array.from(
+      new Set(Array.from(identityContexts.values()).map((context) => context.canonicalId)),
+    );
+
+    const playerRows =
+      canonicalIds.length > 0
+        ? await db
+            .select({ id: players.id, sport: players.sport })
+            .from(players)
+            .where(inArray(players.id, canonicalIds))
+        : [];
 
     const playerSportMap = new Map<string, string>();
-    const playerIdsBySport = new Map<string, string[]>();
     for (const row of playerRows) {
-      const sport = (row.sport || "NBA").toUpperCase();
-      playerSportMap.set(row.id, sport);
-
-      const sportPlayerIds = playerIdsBySport.get(sport) || [];
-      sportPlayerIds.push(row.id);
-      playerIdsBySport.set(sport, sportPlayerIds);
+      playerSportMap.set(row.id, (row.sport || "NBA").toUpperCase());
     }
 
-    const currentSeasonBySport = new Map<string, Set<string>>();
-    for (const sportName of new Set(Array.from(playerSportMap.values()))) {
-      currentSeasonBySport.set(
-        sportName.toUpperCase(),
-        new Set(getCurrentCompetitiveSeasons(sportName)),
-      );
+    const identityIdsBySport = new Map<string, Set<string>>();
+    const seasonsBySport = new Map<string, string[]>();
+
+    for (const context of identityContexts.values()) {
+      const sport = playerSportMap.get(context.canonicalId) || "NBA";
+      const normalizedSport = sport.toUpperCase();
+
+      const identityIds = identityIdsBySport.get(normalizedSport) || new Set<string>();
+      for (const identityId of context.allIds) {
+        identityIds.add(identityId);
+      }
+      identityIdsBySport.set(normalizedSport, identityIds);
+
+      if (!seasonsBySport.has(normalizedSport)) {
+        seasonsBySport.set(normalizedSport, getCurrentCompetitiveSeasons(normalizedSport));
+      }
     }
 
-    const seasonScopedFilters = Array.from(playerIdsBySport.entries())
-      .map(([sport, sportPlayerIds]) => {
-        const seasons = Array.from(
-          currentSeasonBySport.get(sport) || new Set(getCurrentCompetitiveSeasons(sport)),
-        );
-        if (sportPlayerIds.length === 0 || seasons.length === 0) return null;
+    const seasonScopedFilters = Array.from(identityIdsBySport.entries())
+      .map(([sport, identityIds]) => {
+        const seasons = seasonsBySport.get(sport) || getCurrentCompetitiveSeasons(sport);
+        const playerIdentityIds = Array.from(identityIds);
+        if (playerIdentityIds.length === 0 || seasons.length === 0) return null;
 
         return and(
-          inArray(playerGameStats.playerId, sportPlayerIds),
+          inArray(playerGameStats.playerId, playerIdentityIds),
           inArray(playerGameStats.season, seasons),
         );
       })
@@ -5009,7 +5021,10 @@ export class DatabaseStorage implements IStorage {
     >();
 
     for (const playerId of playerIds) {
-      const playerLogs = filteredGameLogs.filter((log) => log.playerId === playerId);
+      const identityContext = identityContexts.get(playerId);
+      const playerLogs = identityContext
+        ? filteredGameLogs.filter((log) => identityContext.allIds.includes(log.playerId))
+        : [];
 
       if (playerLogs.length === 0) {
         statsMap.set(playerId, {
@@ -5036,10 +5051,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getPlayerRecentGamesFromLogs(playerId: string, limit: number = 10): Promise<any[]> {
+    const identityIds = await this.getPlayerIdentityIds(playerId);
     const gameLogs = await db
       .select()
       .from(playerGameStats)
-      .where(eq(playerGameStats.playerId, playerId))
+      .where(inArray(playerGameStats.playerId, identityIds))
       .orderBy(desc(playerGameStats.gameDate))
       .limit(limit);
 

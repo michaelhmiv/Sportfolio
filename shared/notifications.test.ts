@@ -19,11 +19,14 @@ describe("notification preference helpers", () => {
     const merged = mergeNotificationPreferences(DEFAULT_NOTIFICATION_PREFERENCES, {
       trade_execution: false,
       watchlist_alerts: true,
+      boost_lifecycle: true,
       nonexistent: false,
     });
 
     expect(merged.trade_execution).toBe(false);
-    expect(merged.watchlist_alerts).toBe(true);
+    expect(merged.watchlist_alerts).toBe(false);
+    expect(merged.boost_lifecycle).toBe(false);
+    expect(merged.game_lifecycle).toBe(false);
     expect(merged.market_alerts).toBe(DEFAULT_NOTIFICATION_PREFERENCES.market_alerts);
   });
 

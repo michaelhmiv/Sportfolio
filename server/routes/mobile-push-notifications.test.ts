@@ -176,7 +176,8 @@ describe("registerMobilePushNotificationRoutes", () => {
       expect(initial.status).toBe(200);
       const initialPayload = await initial.json();
       expect(initialPayload.preferences.watchlist_news).toBe(false);
-      expect(initialPayload.preferences.boost_settled).toBe(true);
+      expect(initialPayload.preferences.scout_complete).toBe(false);
+      expect(initialPayload.preferences.boost_settled).toBe(false);
 
       const update = await fetch(`${baseUrl}/api/notifications/preferences`, {
         method: "PUT",
@@ -196,6 +197,10 @@ describe("registerMobilePushNotificationRoutes", () => {
       ]);
       await expect(update.json()).resolves.toMatchObject({
         updatedCount: 2,
+        preferences: {
+          watchlist_news: true,
+          scout_complete: false,
+        },
       });
     } finally {
       await close();

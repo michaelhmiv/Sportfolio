@@ -14,6 +14,7 @@ import {
   convertToGameStats,
 } from "../balldontlie-nba";
 import { balldontlieRateLimiter } from "./rate-limiter";
+import { ensureNBAPlayerFromStat } from "./nba-player-utils";
 import type { JobResult } from "./scheduler";
 import type { ProgressCallback } from "../lib/admin-stream";
 
@@ -95,12 +96,13 @@ export async function syncStats(progressCallback?: ProgressCallback): Promise<Jo
         for (const stat of stats) {
           try {
             const playerId = createNBAPlayerId(stat.player.id);
+            let resolvedPlayerId = playerId;
+
             if (!existingPlayerIds.has(playerId)) {
-              missingPlayerSkips++;
-              if (missingPlayerSamples.size < 8) {
-                missingPlayerSamples.add(String(stat.player.id));
-              }
-              continue;
+              const ensuredPlayer = await ensureNBAPlayerFromStat(stat);
+              resolvedPlayerId = ensuredPlayer.id;
+              existingPlayerIds.add(playerId);
+              existingPlayerIds.add(ensuredPlayer.id);
             }
 
             // BDL stats are flat - directly accessible
@@ -124,7 +126,7 @@ export async function syncStats(progressCallback?: ProgressCallback): Promise<Jo
             const minutes = stat.min ? parseInt(stat.min) : 0;
 
             await storage.upsertPlayerGameStats({
-              playerId, // Prefix with sport for multi-sport support
+              playerId: resolvedPlayerId, // Prefix with sport for multi-sport support
               gameId: game.gameId,
               sport: "NBA",
               gameDate: game.date,
@@ -152,6 +154,14 @@ export async function syncStats(progressCallback?: ProgressCallback): Promise<Jo
 
             recordsProcessed++;
           } catch (error: any) {
+            if (error?.code === "23503") {
+              missingPlayerSkips++;
+              if (missingPlayerSamples.size < 8) {
+                missingPlayerSamples.add(String(stat.player.id));
+              }
+              continue;
+            }
+
             console.error(`[stats_sync] Failed to store player stats:`, error.message);
             errorCount++;
           }
