@@ -2,6 +2,9 @@
 
 ## 2026-06-03
 
+- For import-heavy storage tests that share a worker with the rest of the suite, use realistic Drizzle-shaped mocks and give the slow season-read case more timeout headroom; otherwise a test that passes alone can still fail under suite-level load.
+- When mocking chained query builders, reset the hoisted mock between tests and mirror the real `where -> orderBy -> limit` flow with plain return values so the storage method under test stays deterministic.
+- If a job test indirectly sends a notification or network-style side effect, mock that downstream helper too; otherwise the real async path can turn a logic-only spec into a slow timeout under the full suite.
 - For Railway-linked production incidents, verify the live service env and the linked Supabase schema before blaming Firebase credentials. Push delivery can fail because the database schema is missing even when `FIREBASE_ADMIN_SDK_JSON` is already configured.
 - When temporarily muting notification categories, force the mute in the shared preference resolvers as well as the send paths so UI state, eligibility checks, and delivery behavior stay aligned.
 - Scout-capacity notifications should be tied to the 24-hour inactivity cleanup path, not generic manual assignment changes, so users only get pinged when their scouts actually stop working.

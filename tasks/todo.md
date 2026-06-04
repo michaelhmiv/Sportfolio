@@ -1,3 +1,19 @@
+## 2026-06-03 NBA Player Stats Cache Recovery
+
+- [x] Make player stats reads alias-aware in storage so season stats and recent games resolve through canonical/alias IDs
+- [x] Self-heal missing NBA player rows during stat ingestion instead of dropping stat lines
+- [x] Add regression coverage for alias-aware player stats reads and missing-player NBA ingestion
+- [x] Run targeted validation on the touched tests and inspect any failures
+
+Review:
+
+- Player stats reads now resolve through canonical + alias IDs for season stats, recent games, and batched season lookups.
+- NBA stat ingestion now upserts missing player rows before writing player game stats, so eligible players no longer get silently dropped when the roster cache is stale.
+- Added regression coverage for alias-aware storage reads plus the missing-player ingestion path.
+- Validation passed on the touched slice with `npm run test:run -- server/storage.player-stats.test.ts server/jobs/nba-player-utils.test.ts server/jobs/sync-stats-live.test.ts`.
+- Addressed the additional suite failures that showed up during full validation: `server/storage.get-player.test.ts`, `server/jobs/settle-share-payouts.test.ts`, `server/jobs/scheduler.test.ts`, and `client/src/lib/mobile-push.test.ts`.
+- Repo-wide `npm run check`, `npm run lint`, `npm run format:check`, and `npm run test:run` now pass.
+
 ## 2026-06-03 Android Push on Railway Repair
 
 - [x] Verify live Railway production env for Android push credentials and deploy health

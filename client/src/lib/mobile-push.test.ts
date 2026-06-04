@@ -50,6 +50,8 @@ class LocalStorageMock {
   }
 }
 
+let testLocalStorage: LocalStorageMock;
+
 describe("mobile push helpers", () => {
   beforeEach(() => {
     vi.resetModules();
@@ -59,9 +61,9 @@ describe("mobile push helpers", () => {
     mockCreateChannel.mockReset();
     mockGetDeliveredNotifications.mockReset();
     mockGetInfo.mockReset();
-    const localStorage = new LocalStorageMock();
-    vi.stubGlobal("window", { localStorage });
-    vi.stubGlobal("localStorage", localStorage);
+    testLocalStorage = new LocalStorageMock();
+    vi.stubGlobal("window", { localStorage: testLocalStorage });
+    vi.stubGlobal("localStorage", testLocalStorage);
     vi.stubGlobal("crypto", { randomUUID: () => "uuid-1" });
   });
 
@@ -92,18 +94,18 @@ describe("mobile push helpers", () => {
       registered: false,
     });
     expect(mockRegister).not.toHaveBeenCalled();
-  });
+  }, 10000);
 
   it("returns the persisted permission state before refreshing the snapshot", async () => {
     mockCheckPermissions.mockResolvedValue({ receive: "granted" });
-    localStorage.setItem("android_push_permission_status_v2", "denied");
+    testLocalStorage.setItem("android_push_permission_status_v2", "denied");
     const { getAndroidPushPermissionSnapshot } = await import("./mobile-push");
 
     const snapshot = await getAndroidPushPermissionSnapshot();
 
     expect(snapshot.state).toBe("granted");
     expect(snapshot.lastKnownState).toBe("denied");
-  });
+  }, 10000);
 
   it("marks auto prompts separately and registers granted devices", async () => {
     mockCheckPermissions.mockResolvedValue({ receive: "prompt" });

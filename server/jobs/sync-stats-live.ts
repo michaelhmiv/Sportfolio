@@ -25,6 +25,7 @@ import {
   normalizeGameStatus,
   type NBAGame,
 } from "../balldontlie-nba";
+import { ensureNBAPlayerFromStat } from "./nba-player-utils";
 import type { JobResult } from "./scheduler";
 import type { ProgressCallback } from "../lib/admin-stream";
 import { broadcast } from "../websocket";
@@ -287,12 +288,13 @@ export async function syncStatsLive(
         for (const stat of stats) {
           try {
             const playerId = createNBAPlayerId(stat.player.id);
+            let resolvedPlayerId = playerId;
+
             if (!knownPlayerIds.has(playerId)) {
-              missingPlayerSkips++;
-              if (missingPlayerSamples.size < NBA_MISSING_PLAYER_SAMPLE_LIMIT) {
-                missingPlayerSamples.add(String(stat.player.id));
-              }
-              continue;
+              const ensuredPlayer = await ensureNBAPlayerFromStat(stat);
+              resolvedPlayerId = ensuredPlayer.id;
+              knownPlayerIds.add(playerId);
+              knownPlayerIds.add(ensuredPlayer.id);
             }
 
             const points = stat.pts || 0;
@@ -312,7 +314,7 @@ export async function syncStatsLive(
             const minutes = stat.min ? parseInt(stat.min) : 0;
 
             await storage.upsertPlayerGameStats({
-              playerId,
+              playerId: resolvedPlayerId,
               gameId: game.gameId,
               sport: "NBA",
               gameDate: startOfDay,
@@ -341,6 +343,14 @@ export async function syncStatsLive(
             recordsProcessed++;
             gamesToBroadcast.add(game.gameId);
           } catch (err: any) {
+            if (err?.code === "23503") {
+              missingPlayerSkips++;
+              if (missingPlayerSamples.size < NBA_MISSING_PLAYER_SAMPLE_LIMIT) {
+                missingPlayerSamples.add(String(stat.player.id));
+              }
+              continue;
+            }
+
             errorCount++;
             console.error("[stats_sync_live] Failed to upsert player stats:", err?.message || err);
           }

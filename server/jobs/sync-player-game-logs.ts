@@ -20,6 +20,7 @@ import {
   convertToGameStats,
 } from "../balldontlie-nba";
 import { balldontlieRateLimiter } from "./rate-limiter";
+import { ensureNBAPlayerFromStat } from "./nba-player-utils";
 import type { JobResult } from "./scheduler";
 import type { ProgressCallback } from "../lib/admin-stream";
 
@@ -149,6 +150,15 @@ export async function syncPlayerGameLogs(options: SyncOptions = {}): Promise<Job
           message: `✓ Found ${dayStats.length} stat lines on ${dateStr}`,
         });
 
+        const uniquePlayerIds = Array.from(
+          new Set(dayStats.map((stat) => createNBAPlayerId(stat.player.id))),
+        );
+        const knownPlayerIds = new Set(
+          uniquePlayerIds.length > 0
+            ? (await storage.getPlayersByIds(uniquePlayerIds)).map((player) => player.id)
+            : [],
+        );
+
         // Process and store each stat line
         for (const stat of dayStats) {
           try {
@@ -180,10 +190,19 @@ export async function syncPlayerGameLogs(options: SyncOptions = {}): Promise<Job
             // Determine home/away using game's team IDs
             const isHome = game.home_team_id === stat.team.id;
             const opponentTeamId = isHome ? game.visitor_team_id : game.home_team_id;
+            const playerId = createNBAPlayerId(player.id);
+            let resolvedPlayerId = playerId;
+
+            if (!knownPlayerIds.has(playerId)) {
+              const ensuredPlayer = await ensureNBAPlayerFromStat(stat);
+              resolvedPlayerId = ensuredPlayer.id;
+              knownPlayerIds.add(playerId);
+              knownPlayerIds.add(ensuredPlayer.id);
+            }
 
             // Store in database
             await storage.upsertPlayerGameStats({
-              playerId: createNBAPlayerId(player.id),
+              playerId: resolvedPlayerId,
               gameId: game.id.toString(),
               sport: "NBA",
               gameDate: new Date(game.date),
@@ -210,7 +229,13 @@ export async function syncPlayerGameLogs(options: SyncOptions = {}): Promise<Job
 
             recordsProcessed++;
           } catch (error: any) {
-            console.error(`[sync_player_game_logs] Error storing stat:`, error.message);
+            if (error?.code === "23503") {
+              console.error(
+                `[sync_player_game_logs] Missing NBA player row for stat line ${stat.player?.id || "?"}`,
+              );
+            } else {
+              console.error(`[sync_player_game_logs] Error storing stat:`, error.message);
+            }
             errorCount++;
           }
         }
