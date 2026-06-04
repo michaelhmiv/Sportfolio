@@ -4,6 +4,7 @@ const storageMocks = vi.hoisted(() => ({
   getDailyGames: vi.fn(),
   upsertDailyGame: vi.fn(),
   getPlayersByIds: vi.fn(),
+  upsertPlayer: vi.fn(),
   upsertPlayerGameStats: vi.fn(),
 }));
 
@@ -82,8 +83,14 @@ describe("syncStatsLive", () => {
 
     storageMocks.getDailyGames.mockResolvedValue([]);
     storageMocks.upsertDailyGame.mockResolvedValue(undefined);
+    storageMocks.upsertPlayer.mockResolvedValue({ id: "nba_2" });
     storageMocks.upsertPlayerGameStats.mockResolvedValue(undefined);
-    storageMocks.getPlayersByIds.mockResolvedValue([{ id: "nba_1" }]);
+    storageMocks.getPlayersByIds.mockImplementation(async (ids: string[]) => {
+      if (ids.includes("nba_1")) {
+        return [{ id: "nba_1" }];
+      }
+      return [];
+    });
 
     nbaMocks.fetchDailyGames.mockResolvedValue([
       {
@@ -99,7 +106,14 @@ describe("syncStatsLive", () => {
     ]);
     nbaMocks.fetchPlayerGameStats.mockResolvedValue([
       {
-        player: { id: 1 },
+        player: {
+          id: 1,
+          first_name: "Known",
+          last_name: "Player",
+          position: "G",
+          jersey_number: "1",
+          team: { abbreviation: "BOS" },
+        },
         team: { abbreviation: "BOS" },
         pts: 20,
         reb: 10,
@@ -116,7 +130,14 @@ describe("syncStatsLive", () => {
         min: "32",
       },
       {
-        player: { id: 2 },
+        player: {
+          id: 2,
+          first_name: "Missing",
+          last_name: "Player",
+          position: "F",
+          jersey_number: "2",
+          team: { abbreviation: "NYK" },
+        },
         team: { abbreviation: "NYK" },
         pts: 18,
         reb: 5,
@@ -135,7 +156,7 @@ describe("syncStatsLive", () => {
     ]);
   });
 
-  it("summarizes missing local players as skips instead of hard errors", async () => {
+  it("upserts missing players before storing their live stat lines", async () => {
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
@@ -143,11 +164,21 @@ describe("syncStatsLive", () => {
     const result = await syncStatsLive();
 
     expect(storageMocks.getPlayersByIds).toHaveBeenCalledWith(["nba_1", "nba_2"]);
-    expect(storageMocks.upsertPlayerGameStats).toHaveBeenCalledTimes(1);
-    expect(result.recordsProcessed).toBe(1);
+    expect(storageMocks.upsertPlayer).toHaveBeenCalledTimes(1);
+    expect(storageMocks.upsertPlayer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "nba_2",
+        sport: "NBA",
+        firstName: "Missing",
+        lastName: "Player",
+        team: "NYK",
+      }),
+    );
+    expect(storageMocks.upsertPlayerGameStats).toHaveBeenCalledTimes(2);
+    expect(result.recordsProcessed).toBe(2);
     expect(result.errorCount).toBe(0);
-    expect(result.skippedMissingPlayers).toBe(1);
-    expect(logSpy).toHaveBeenCalledWith(
+    expect(result.skippedMissingPlayers).toBe(0);
+    expect(logSpy).not.toHaveBeenCalledWith(
       expect.stringContaining("Skipped 1 NBA stat rows for players missing from the local roster"),
     );
     expect(errorSpy).not.toHaveBeenCalledWith(

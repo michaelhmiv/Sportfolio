@@ -1,5 +1,11 @@
 # Lessons Learned
 
+## 2026-06-03
+
+- For import-heavy storage tests that share a worker with the rest of the suite, use realistic Drizzle-shaped mocks and give the slow season-read case more timeout headroom; otherwise a test that passes alone can still fail under suite-level load.
+- When mocking chained query builders, reset the hoisted mock between tests and mirror the real `where -> orderBy -> limit` flow with plain return values so the storage method under test stays deterministic.
+- If a job test indirectly sends a notification or network-style side effect, mock that downstream helper too; otherwise the real async path can turn a logic-only spec into a slow timeout under the full suite.
+
 ## 2026-05-09
 
 - When wiring automation between Discord and GitHub, verify the current canonical repository owner/name before coding defaults so issue-sync endpoints and labels do not target deprecated repos.
