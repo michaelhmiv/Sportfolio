@@ -80,8 +80,8 @@ export async function notifyScoutCapacityAvailablePush(input: {
   return sendPushNotificationBestEffort({
     userId: input.userId,
     type: "scout_capacity_available",
-    title: "Scouts ready to assign",
-    body: `${remaining}/${maxScouts} scout slot${remaining === 1 ? "" : "s"} are open.`,
+    title: "Scouts paused after inactivity",
+    body: `Your scouts stopped scouting after 24 hours of inactivity. ${remaining}/${maxScouts} scout slot${remaining === 1 ? "" : "s"} are open again.`,
     route: "/portfolio",
     entityType: "scout_capacity",
     entityId: input.dateKey,

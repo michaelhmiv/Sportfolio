@@ -1,1 +1,1 @@
-fantasy sports,portfolio,players,markets,basketball,baseball,football,stocks,strategy
+sports,portfolio,players,markets,basketball,baseball,football,shares,strategy

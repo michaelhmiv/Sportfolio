@@ -1,8 +1,8 @@
-Sportfolio is a fantasy sports strategy game built around virtual player shares, live market movement, and slate-based decisions.
+Sportfolio is a sports strategy game built around virtual player shares, live market movement, and slate-based decisions.
 
 Build a portfolio across supported sports, trade instantly against automated player pools, and follow how player performance changes your account over time. Assign scouts to earn virtual share rewards, use daily boosts for game-based upside, and track your activity through live portfolio, leaderboard, news, and watchlist views.
 
-Sportfolio is designed for fans who like fantasy sports, markets, and strategy games:
+Sportfolio is designed for fans who like sports, markets, and strategy games:
 
 - Trade virtual player shares through AMM-style player pools
 - Follow portfolio value, holdings, activity, and player exposure
@@ -11,4 +11,4 @@ Sportfolio is designed for fans who like fantasy sports, markets, and strategy g
 - Monitor watchlists, news, leaderboards, and market context
 - Review your setup with the Sportfolio agent
 
-Sportfolio uses virtual currency only. It does not offer real-money gambling, sports betting, cash-out, or redeemable prizes.
+Sportfolio uses virtual currency only. It does not offer real-money wagering or cash-out.

@@ -468,7 +468,7 @@ async function loadBotState(profile: BotProfileV2): Promise<BotState | null> {
     SELECT COUNT(DISTINCT player_id)::int as pools_created
     FROM lp_transactions
     WHERE user_id = ${profile.userId}
-      AND operation = 'add'
+      AND transaction_type = 'add'
   `);
   const poolRow = poolsResult.rows[0] as Record<string, unknown> | undefined;
   const poolsCreated = Number(poolRow?.pools_created || 0);
@@ -890,3 +890,7 @@ export async function getDeterministicEngineStatus() {
     })),
   };
 }
+
+export const __deterministicEngineTestHooks = {
+  loadBotState,
+};

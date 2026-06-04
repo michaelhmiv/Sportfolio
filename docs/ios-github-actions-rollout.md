@@ -152,7 +152,7 @@ Before the first TestFlight build intended for Apple review, verify:
 1. iOS app does not expose external checkout CTAs for digital goods (`/api/premium/checkout-session`, `/api/community/checkout-session`, `/api/whop/sync` are blocked for iOS-native clients).
 2. User-facing copy keeps gameplay framed as virtual-currency strategy play (no real-money betting or cash-out).
 3. Terms/Help/Onboarding mention virtual currency, no cash-out, and no real-money gambling.
-4. App Store Connect age-rating declaration matches `mobile/ios/app-store-submission-defaults.json`, including simulated-gambling descriptors that match observed gameplay.
+4. App Store Connect age-rating declaration matches `mobile/ios/app-store-submission-defaults.json` and keeps `gamblingSimulated` at `NONE` for the current virtual-currency build.
 5. App Review notes include a short explanation of gameplay mechanics, virtual-currency boundaries, and exactly how reviewers can access core features.
 
 ### App Review Notes Template (Recommended)

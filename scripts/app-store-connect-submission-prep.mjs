@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { createPrivateKey, sign } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";

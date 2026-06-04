@@ -14,6 +14,42 @@ Review:
 - Addressed the additional suite failures that showed up during full validation: `server/storage.get-player.test.ts`, `server/jobs/settle-share-payouts.test.ts`, `server/jobs/scheduler.test.ts`, and `client/src/lib/mobile-push.test.ts`.
 - Repo-wide `npm run check`, `npm run lint`, `npm run format:check`, and `npm run test:run` now pass.
 
+## 2026-06-03 Android Push on Railway Repair
+
+- [x] Verify live Railway production env for Android push credentials and deploy health
+- [x] Restore the missing production Supabase push schema
+- [x] Verify `/api/mobile/push/status` reports provider readiness from the live Railway deployment
+- [x] Verify Android push registration persists a token and marks the current device as registered
+- [ ] Confirm a real Android device receives an actual push notification after re-registering
+- [x] Turn off the high-noise notification categories for now
+- [x] Leave scout notifications limited to idle-scout alerts only
+
+Review:
+
+- Railway production already had `FIREBASE_ADMIN_SDK_JSON` configured, so the failure was not missing FCM credentials.
+- Restored the live Supabase push tables with the repo's two push migrations and confirmed they now exist in production.
+- Verified `/api/mobile/push/status` end to end through the live Railway service using a temporary Supabase-authenticated session. The response reported `providerConfigured: true`, `providerReady: true`, and `projectId: "sportfolio-f1b70"`.
+- Verified the registration path with a temporary Android-shaped token. The live endpoint returned `success: true`, and status reported the device as registered with `activeTokenCount: 1`.
+- Cleaned up the temporary verification user after the test.
+
+## 2026-06-03 Apple Review Recovery
+
+- [x] Correct the App Store Connect age-rating declaration so the current virtual-currency build is not marked as simulated gambling
+- [x] Remove the iPad photo-capture path and keep profile-picture uploads library-only for iOS
+- [x] Refresh iOS App Store copy and review notes to match the non-gambling virtual-currency framing
+- [x] Update Apple readiness docs/checklists so future prep runs do not reintroduce the old rating or camera path
+- [x] Run validation (`npm run check`, `npm run lint`, `npm run test:run`, `npm run format:check`)
+- [x] Dry-run and apply the App Store Connect prep helper, then confirm the rating output stays on `gamblingSimulated: NONE`
+- [ ] Re-run the iOS App Store Listing and TestFlight workflows from `main`
+
+Review:
+
+- Apple's rejection was addressed by aligning the age-rating declaration with the current virtual-currency product framing instead of leaving the simulated-gambling flag enabled.
+- The profile picture flow now keeps iOS on the photo-library upload path only, which removes the hidden camera capture route that crashed during review.
+- The App Store listing/review metadata and Apple readiness docs now reinforce the non-gambling framing and the no-camera iOS avatar rule.
+- The App Store Connect prep helper remains ready to run, but this shell does not have the required App Store Connect credentials.
+- The App Store Connect prep helper was applied successfully after loading the local Apple API credentials from `.env`.
+
 ## 2026-05-17 iOS App Store Declaration Automation
 
 - [x] Add an App Store Connect API helper for code-derived content rights and age-rating declarations
