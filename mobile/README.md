@@ -31,6 +31,14 @@ Common `CAP_SERVER_URL` values:
 - Android emulator local dev server: `http://10.0.2.2:5000`
 - Production hosted app: `https://www.sportfolio.market`
 
+If you run the App Store Connect prep helper or the Fastlane iOS metadata lanes locally, set:
+
+- `APP_STORE_CONNECT_KEY_ID`
+- `APP_STORE_CONNECT_ISSUER_ID`
+- `APP_STORE_CONNECT_API_KEY_BASE64` or `APP_STORE_CONNECT_P8_PATH`
+
+The Node prep helper reads the root `.env`, and Fastlane can read `mobile/ios/App/.env` when run from the iOS app directory.
+
 ## One-time Verification / Guardrails
 
 ```bash
@@ -392,8 +400,9 @@ Apple review hardening checklist:
 
 1. Confirm iOS-native clients cannot start external digital checkout (`/api/premium/checkout-session`, `/api/community/checkout-session`) and cannot run Whop purchase sync from inside the app.
 2. Confirm onboarding/help/terms copy states virtual currency only, no real-money gambling, and no cash-out.
-3. Confirm the App Store Connect age-rating questionnaire reflects the committed `mobile/ios/app-store-submission-defaults.json` declaration.
-4. In App Review notes, explicitly explain gameplay mechanics and virtual-currency boundaries, and provide full reviewer credentials/access.
+3. Confirm the App Store Connect age-rating questionnaire reflects the committed `mobile/ios/app-store-submission-defaults.json` declaration and does not mark simulated gambling for the current build.
+4. Keep the iOS profile picture flow library-only unless a native camera implementation is intentionally added and re-reviewed.
+5. In App Review notes, explicitly explain gameplay mechanics and virtual-currency boundaries, and provide full reviewer credentials/access.
 
 ## Required Check Rollout (Post-Upgrade)
 

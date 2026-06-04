@@ -1,5 +1,10 @@
 # Lessons Learned
 
+## 2026-06-03
+
+- When App Review flags a photo flow on iPad, remove the hidden camera-capture path first and keep the remaining upload path simple and library-only; the direct `capture` route is the riskiest part of the review surface.
+- App Store Connect age-rating defaults should mirror the product's actual mechanics, not a cautious overstatement. For a virtual-currency sports strategy app, leaving `gamblingSimulated` elevated can create a gambling rejection even when the public copy says no real-money wagering.
+
 ## 2026-05-09
 
 - When wiring automation between Discord and GitHub, verify the current canonical repository owner/name before coding defaults so issue-sync endpoints and labels do not target deprecated repos.
