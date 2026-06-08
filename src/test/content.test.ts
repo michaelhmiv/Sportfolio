@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { GAME_CONTENT, OUTPUT_QUALITY_CURVE } from '../content/gameContent';
 import {
+  ACTION_SLOT_RULES,
+  DURABILITY_POLICIES,
+  GEAR_SLOT_RULES,
+  GUNSMITHING_BOUNDARIES,
+  MARKET_ANTI_ABUSE_RULES,
+  SERVICE_MARKET_RULES,
+  STARTER_STORE_ITEMS,
+  VEHICLE_CLASSES_FIRST_ERA,
+} from '../content/mechanicFramework';
+import {
   buildLevelCurve,
   calculateDailyXp,
   calculateEffectiveSkill,
@@ -80,5 +90,39 @@ describe('CyberCache content layer', () => {
     expect(IMPLEMENTATION_BACKLOG.map((item) => item.id)).toContain('content_pipeline_json_ts');
     expect(IMPLEMENTATION_BACKLOG.map((item) => item.id)).toContain('runtime_supabase_mapping');
     expect(IMPLEMENTATION_BACKLOG.map((item) => item.id)).toContain('loot_xp_simulation');
+  });
+
+  it('keeps first-era vehicle scope intentionally small', () => {
+    expect(VEHICLE_CLASSES_FIRST_ERA).toHaveLength(6);
+    expect(VEHICLE_CLASSES_FIRST_ERA.every((vehicle) => vehicle.travelSpeedMultiplier > 1)).toBe(true);
+  });
+
+  it('keeps starter-store goods account-bound and non-resellable', () => {
+    expect(STARTER_STORE_ITEMS.length).toBeGreaterThan(0);
+    expect(STARTER_STORE_ITEMS.every((item) => item.accountBound && !item.resellable)).toBe(true);
+  });
+
+  it('rejects normal-use weapon durability but accepts vehicle condition', () => {
+    expect(DURABILITY_POLICIES.find((policy) => policy.id === 'weapon_use_durability')?.firstEraStatus).toBe('rejected');
+    expect(DURABILITY_POLICIES.find((policy) => policy.id === 'vehicle_condition')?.firstEraStatus).toBe('accepted');
+  });
+
+  it('keeps gunsmithing from printing top-tier weapons', () => {
+    expect(GUNSMITHING_BOUNDARIES.find((rule) => rule.id === 'print_top_tier_weapon')?.allowed).toBe(false);
+    expect(GUNSMITHING_BOUNDARIES.find((rule) => rule.id === 'process_legendary_core')?.allowed).toBe(true);
+  });
+
+  it('models one active productive action as a core economy constraint', () => {
+    const productiveRules = ACTION_SLOT_RULES.filter((rule) => rule.id !== 'none');
+    expect(productiveRules.every((rule) => rule.consumesActiveSlot)).toBe(true);
+  });
+
+  it('requires service-market escrow and explicit shop rules', () => {
+    expect(SERVICE_MARKET_RULES.map((rule) => rule.id)).toContain('escrow_required');
+    expect(MARKET_ANTI_ABUSE_RULES.map((rule) => rule.id)).toContain('service_item_theft');
+  });
+
+  it('covers the major gear slots discussed in the design workbook', () => {
+    expect(GEAR_SLOT_RULES.map((slot) => slot.id)).toEqual(expect.arrayContaining(['primary_weapon', 'shield', 'armor', 'ordnance', 'repkit', 'vehicle']));
   });
 });
