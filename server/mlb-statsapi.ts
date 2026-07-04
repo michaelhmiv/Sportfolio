@@ -561,6 +561,7 @@ export async function fetchSchedule(options: {
   const params: Record<string, string | number | undefined> = {
     sportId: 1,
     season: options.season ?? getCurrentSeason(),
+    hydrate: "probablePitcher(note),linescore,team",
   };
   if (options.date) params.date = options.date;
   if (options.startDate) params.startDate = options.startDate;

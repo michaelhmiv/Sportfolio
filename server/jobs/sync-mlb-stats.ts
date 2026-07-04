@@ -122,14 +122,16 @@ export async function syncMLBStats(): Promise<SyncResult> {
           continue;
         }
 
-        // Update score/linescore info
-        const ls = boxscore.linescore;
-        await storage.updateDailyGameScore(
-          relevantGame.gameId,
-          ls.teams.home.runs,
-          ls.teams.away.runs,
-          "inprogress",
-        );
+        // Update score/status using schedule payload; the boxscore endpoint does not include linescore.
+        const apiGame = apiGamesByPk.get(gamePk);
+        if (apiGame) {
+          await storage.updateDailyGameScore(
+            relevantGame.gameId,
+            apiGame.teams.home.score ?? 0,
+            apiGame.teams.away.score ?? 0,
+            normalizeGameStatus(apiGame),
+          );
+        }
         result.gamesProcessed++;
 
         // Extract per-player stats
@@ -167,7 +169,6 @@ export async function syncMLBStats(): Promise<SyncResult> {
           const homeAway = gameSide || "away";
           const opponentTeam = gameSide === "home" ? awayTeamAbbr : homeTeamAbbr;
 
-          const apiGame = apiGamesByPk.get(gamePk);
           const gameDate = apiGame ? new Date(apiGame.gameDate) : new Date();
 
           await storage.upsertPlayerGameStats({

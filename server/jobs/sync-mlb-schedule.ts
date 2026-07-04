@@ -25,6 +25,18 @@ function formatDate(d: Date): string {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+function teamCode(team: any): string {
+  return (
+    team?.abbreviation ||
+    team?.teamCode?.toUpperCase?.() ||
+    team?.fileCode?.toUpperCase?.() ||
+    team?.clubName ||
+    team?.teamName ||
+    team?.name ||
+    "TBD"
+  );
+}
+
 export async function syncMLBSchedule(): Promise<SyncResult> {
   const result: SyncResult = {
     success: false,
@@ -63,8 +75,8 @@ export async function syncMLBSchedule(): Promise<SyncResult> {
         const parsedStartTime = new Date(apiGame.gameDate);
         const startTime = Number.isNaN(parsedStartTime.getTime()) ? new Date() : parsedStartTime;
 
-        const homeTeam = apiGame.teams.home.team.abbreviation;
-        const awayTeam = apiGame.teams.away.team.abbreviation;
+        const homeTeam = teamCode(apiGame.teams.home.team);
+        const awayTeam = teamCode(apiGame.teams.away.team);
         const homeScore = apiGame.teams.home.score;
         const awayScore = apiGame.teams.away.score;
         const venue = apiGame.venue?.name || null;
