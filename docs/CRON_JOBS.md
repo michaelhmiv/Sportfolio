@@ -24,21 +24,9 @@ Jobs run in Eastern Time (ET). The scheduler is initialized in `server/jobs/sche
 
 ## Disabled Jobs (MLB/NASCAR-Only Migration)
 
-| Job Name                | Reason                                     |
-| ----------------------- | ------------------------------------------ |
-| `roster_sync`           | NBA roster sync (MySportsFeeds)            |
-| `schedule_sync`         | NBA schedule sync (MySportsFeeds)          |
-| `stats_sync`            | NBA stats sync (MySportsFeeds)             |
-| `stats_sync_live`       | NBA/NFL/MLB unified (now MLB-only via job) |
-| `sync_player_game_logs` | NBA player game logs                       |
-| `injury_sync`           | Ball Don't Lie injury API (NBA/MLB)        |
-| `daily_snapshot`        | Daily market snapshots                     |
-| `weekly_roundup`        | Weekly performance summaries               |
-| `nfl_roster_sync`       | NFL roster sync (Ball Don't Lie)           |
-| `nfl_schedule_sync`     | NFL schedule sync (Ball Don't Lie)         |
-
-> The disabled jobs remain in the codebase with `enabled: false` in `scheduler.ts`.
-> They can be re-enabled for NBA/NFL data when the migration completes.
+NBA, NFL, and injury sync jobs have been removed from the codebase
+during the MLB/NASCAR-only migration. They can be restored from git
+history if NBA/NFL support is re-enabled in the future.
 
 ## Manual Job Execution
 

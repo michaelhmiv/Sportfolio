@@ -14,19 +14,10 @@ import { info, warn, error, createThrottledLogger } from "../lib/log-utility";
 // Throttled logger for job events - reduces I/O
 const logJobEvent = createThrottledLogger();
 
-import { syncRoster } from "./sync-roster";
-import { syncSchedule } from "./sync-schedule";
-import { syncStats } from "./sync-stats";
 import { syncAllLiveStats } from "./sync-all-live-stats";
-import { syncPlayerGameLogs } from "./sync-player-game-logs";
 
 import { distributeScoutShares } from "./scout-distribution";
-import { dailySnapshot } from "./daily-snapshot";
-import { generateWeeklyRoundup } from "./weekly-roundup";
 import { backfillMarketSnapshots } from "./market-snapshot";
-import { syncNFLSchedule } from "./sync-nfl-schedule";
-import { syncNFLStats } from "./sync-nfl-stats";
-import { syncNFLRoster } from "./sync-nfl-roster";
 import { syncMLBSchedule } from "./sync-mlb-schedule";
 import { syncMLBStats } from "./sync-mlb-stats";
 import { syncMLBRoster } from "./sync-mlb-roster";
@@ -34,7 +25,6 @@ import { syncNascarRoster, syncNascarActiveRoster } from "./sync-nascar-roster";
 import { syncNascarSchedule } from "./sync-nascar-schedule";
 import { syncNascarLive } from "./sync-nascar-live";
 import { syncNascarStats } from "./sync-nascar-stats";
-import { syncPlayerInjuries } from "./sync-injuries";
 import { fetchNews } from "./fetch-news";
 import { postDiscordHourlyMarketDigest, postDiscordNewsUpdates } from "./discord-posting";
 import { compileAllDigests } from "./compile-digest";
@@ -380,49 +370,12 @@ export class JobScheduler {
   }
 
   /**
-   * Initialize sports API-dependent jobs (requires BALLDONTLIE_API_KEY)
+   * Initialize sports API-dependent jobs (MLB StatsAPI and NASCAR public feeds)
    */
   async initializeApiJobs() {
     info("Initializing API-dependent jobs...");
 
     const apiJobs: JobConfig[] = [
-      {
-        name: "roster_sync",
-        schedule: "30 5 * * *", // Daily at 5:30 AM ET
-        enabled: false, // Disabled during MLB/NASCAR-only migration
-        handler: syncRoster,
-      },
-      {
-        name: "sync_player_game_logs",
-        schedule: "30 6 * * *", // Daily at 6:30 AM ET - after games finalize
-        enabled: false, // Disabled during MLB/NASCAR-only migration
-        handler: () => syncPlayerGameLogs({ mode: "daily" }),
-      },
-      {
-        name: "schedule_sync",
-        schedule: "5 * * * *", // Every hour at minute 5 for live score updates
-        enabled: false, // Disabled during MLB/NASCAR-only migration
-        handler: syncSchedule,
-      },
-      {
-        name: "stats_sync",
-        schedule: "10 * * * *", // Every hour at minute 10
-        enabled: false, // Disabled during MLB/NASCAR-only migration
-        handler: syncStats,
-      },
-      {
-        name: "injury_sync",
-        schedule: "0,30 * * * *", // Every 30 minutes (at :00 and :30)
-        enabled: false, // Disabled during MLB/NASCAR-only migration (uses BDL)
-        handler: async () => {
-          const result = await syncPlayerInjuries();
-          return {
-            requestCount: 1,
-            recordsProcessed: result.synced + result.cleared,
-            errorCount: 0,
-          };
-        },
-      },
       {
         name: "stats_sync_live",
         schedule: "4-59/5 * * * *", // Every 5 minutes (offset 4m) for live games (MLB only)
@@ -431,44 +384,6 @@ export class JobScheduler {
           // Live stats sync using public MLB StatsAPI (MLB only during migration)
           const result = await syncAllLiveStats();
           return result;
-        },
-      },
-      {
-        name: "daily_snapshot",
-        schedule: "30 1 * * *", // Daily at 1:30 AM ET
-        enabled: false, // Disabled during MLB/NASCAR-only migration
-        handler: dailySnapshot,
-      },
-      {
-        name: "weekly_roundup",
-        schedule: "0 6 * * 1", // Weekly on Monday at 6:00 AM ET
-        enabled: false, // Disabled during MLB/NASCAR-only migration
-        handler: generateWeeklyRoundup,
-      },
-      {
-        name: "nfl_roster_sync",
-        schedule: "30 4 * * *", // Daily at 4:30 AM ET
-        enabled: false, // Disabled during MLB/NASCAR-only migration
-        handler: async () => {
-          const result = await syncNFLRoster();
-          return {
-            requestCount: 0,
-            recordsProcessed: result.playersAdded + result.playersUpdated,
-            errorCount: result.errors.length,
-          };
-        },
-      },
-      {
-        name: "nfl_schedule_sync",
-        schedule: "45 * * * *", // Hourly at :45 - must run frequently to update game statuses (scores, inprogress/completed)
-        enabled: false, // Disabled during MLB/NASCAR-only migration
-        handler: async () => {
-          const result = await syncNFLSchedule();
-          return {
-            requestCount: 0,
-            recordsProcessed: result.gamesProcessed,
-            errorCount: result.errors.length,
-          };
         },
       },
       {
@@ -625,18 +540,7 @@ export class JobScheduler {
   async triggerJob(jobName: string, progressCallback?: ProgressCallback): Promise<JobResult> {
     // Job handlers with progress callback support
     const jobConfigs: Record<string, (callback?: ProgressCallback) => Promise<JobResult>> = {
-      roster_sync: (callback) => syncRoster(callback),
-      sync_player_game_logs: (callback) => syncPlayerGameLogs({ progressCallback: callback }),
-      schedule_sync: (callback) => syncSchedule(callback),
-      stats_sync: (callback) => syncStats(callback),
       stats_sync_live: (callback) => syncAllLiveStats(callback),
-      injury_sync: async () => {
-        const result = await syncPlayerInjuries();
-        return { requestCount: 1, recordsProcessed: result.synced + result.cleared, errorCount: 0 };
-      },
-      daily_snapshot: (callback) => dailySnapshot(callback),
-      weekly_roundup: (callback) => generateWeeklyRoundup(callback),
-      backfill_market_snapshots: (callback) => backfillMarketSnapshots(callback),
       scout_distribution: async () => {
         return await distributeScoutShares();
       },
@@ -908,13 +812,7 @@ export class JobScheduler {
   getAvailableManualJobNames(): string[] {
     // Keep in sync with triggerJob() map
     return [
-      "roster_sync",
-      "sync_player_game_logs",
-      "schedule_sync",
-      "stats_sync",
       "stats_sync_live",
-      "daily_snapshot",
-      "weekly_roundup",
       "backfill_market_snapshots",
       "scout_distribution",
       "news_fetch",

@@ -330,7 +330,7 @@ function statValue(stats: Record<string, number | string | null> | undefined, ke
 
 /**
  * Calculate fantasy points from MLB StatsAPI boxscore player stats.
- * Scoring mirrors the existing calculateMLBFantasyPoints in balldontlie-mlb.ts.
+ * Scoring mirrors the standard MLB fantasy points calculation.
  */
 export function calculateFantasyPoints(stats: {
   batting?: Record<string, number | string | null>;

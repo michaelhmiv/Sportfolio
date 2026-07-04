@@ -139,20 +139,3 @@ export class MySportsFeedsRateLimiter {
 
 // Global rate limiter instance
 export const mysportsfeedsRateLimiter = new MySportsFeedsRateLimiter();
-
-/**
- * Ball Don't Lie Rate Limiter
- *
- * Uses the same token bucket algorithm for the Ball Don't Lie NFL API.
- * Conservative defaults: 60 requests per minute (1 per second average)
- * Adjust based on your actual API tier limits.
- */
-export class BallDontLieRateLimiter extends MySportsFeedsRateLimiter {
-  constructor() {
-    // 60 requests per minute = 1 request per second average
-    super(60, 60 * 1000);
-  }
-}
-
-// Global Ball Don't Lie rate limiter instance
-export const balldontlieRateLimiter = new BallDontLieRateLimiter();

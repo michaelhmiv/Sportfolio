@@ -89,25 +89,10 @@ Internal API used for NASCAR data. See `server/nascar-api.ts` for implementation
 
 ---
 
-## Ball Don't Lie API (Deprecated)
-
-> **Status:** Disabled during MLB/NASCAR-only migration. Previously used for MLB
-> (now replaced by MLB StatsAPI) and NBA/NFL (scheduled ingestion disabled).
-
-**Base URL:** `https://api.balldontlie.io/mlb/v1` (MLB) / `https://api.balldontlie.io/nfl/v1` (NFL)
-**Auth:** Bearer token via `Authorization` header
-**Tier:** GOAT (60 requests/minute)
-
-The `server/balldontlie-mlb.ts` file remains in the codebase but is no longer
-consumed by active jobs. It is preserved for reference during the migration period.
-
----
-
 ## Environment Variables
 
 ```bash
 # No longer required for MLB (using public StatsAPI)
-# BALLDONTLIE_API_KEY=your_ball_dont_lie_key   # MLB replaced by StatsAPI
 
 # Still required for MySportsFeeds (NBA legacy, currently disabled)
 MYSPORTSFEEDS_API_KEY=your_mysportsfeeds_key
