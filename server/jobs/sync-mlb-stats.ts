@@ -1,32 +1,24 @@
 /**
  * MLB Stats Sync Job
  *
- * Fetches MLB player game statistics from Ball Don't Lie API for in-progress
- * and completed games, then updates player_game_stats.
+ * Fetches MLB player game statistics from the public MLB StatsAPI (no auth)
+ * for in-progress and completed games, then updates player_game_stats.
+ *
+ * Data source: /api/v1/game/{gamePk}/boxscore — per-player batting/pitching stats.
  */
-
 import { storage } from "../storage";
 import {
-  fetchGames,
-  fetchGameStats,
-  calculateMLBFantasyPoints,
+  fetchGamesByDate,
+  fetchBoxscore,
+  calculateFantasyPoints,
   parseStatsToJson,
-  isMLBApiConfigured,
-  createMLBPlayerId,
   normalizeGameStatus,
-  getCurrentMLBSeason,
-  getMLBHomeScore,
-  getMLBAwayScore,
-  getMLBAwayTeam,
-  getMLBHomeTeamName,
-  getMLBAwayTeamName,
-  getMLBTeamDisplayName,
-  getMLBStatGameId,
-  getMLBStatTeamAbbreviation,
-  getMLBStatTeamName,
-  type MLBGame,
-  type MLBGameStats,
-} from "../balldontlie-mlb";
+  createPlayerId,
+  getCurrentSeason,
+  getOpponentTeam,
+  resolvePlayerGameSide,
+  extractBoxscorePlayerStats,
+} from "../mlb-statsapi";
 import { getTodayETBoundaries, getGameDay, getETDayBoundaries } from "../lib/time";
 
 interface SyncResult {
@@ -37,56 +29,7 @@ interface SyncResult {
   skippedMissingPlayers: number;
 }
 
-const normalizeTeamKey = (value: string | null | undefined): string =>
-  String(value || "")
-    .trim()
-    .toUpperCase()
-    .replace(/[^A-Z0-9]/g, "");
 const MLB_MISSING_PLAYER_SAMPLE_LIMIT = 8;
-
-function resolveStatGameSide(apiGame: MLBGame, apiStat: MLBGameStats): "home" | "away" | null {
-  const homeTeam = apiGame.home_team;
-  const awayTeam = getMLBAwayTeam(apiGame);
-  const homeAbbreviation = normalizeTeamKey(homeTeam?.abbreviation);
-  const awayAbbreviation = normalizeTeamKey(awayTeam?.abbreviation);
-
-  const statAbbreviation = normalizeTeamKey(getMLBStatTeamAbbreviation(apiStat));
-  if (statAbbreviation) {
-    if (homeAbbreviation && statAbbreviation === homeAbbreviation) return "home";
-    if (awayAbbreviation && statAbbreviation === awayAbbreviation) return "away";
-  }
-
-  const statTeamName = normalizeTeamKey(getMLBStatTeamName(apiStat));
-  if (!statTeamName) return null;
-
-  const homeNames = new Set(
-    [
-      getMLBHomeTeamName(apiGame),
-      getMLBTeamDisplayName(homeTeam),
-      homeTeam?.name,
-      homeTeam?.display_name,
-      homeTeam?.short_display_name,
-    ]
-      .map(normalizeTeamKey)
-      .filter(Boolean),
-  );
-  if (homeNames.has(statTeamName)) return "home";
-
-  const awayNames = new Set(
-    [
-      getMLBAwayTeamName(apiGame),
-      getMLBTeamDisplayName(awayTeam),
-      awayTeam?.name,
-      awayTeam?.display_name,
-      awayTeam?.short_display_name,
-    ]
-      .map(normalizeTeamKey)
-      .filter(Boolean),
-  );
-  if (awayNames.has(statTeamName)) return "away";
-
-  return null;
-}
 
 export async function syncMLBStats(): Promise<SyncResult> {
   const result: SyncResult = {
@@ -97,13 +40,7 @@ export async function syncMLBStats(): Promise<SyncResult> {
     skippedMissingPlayers: 0,
   };
 
-  if (!isMLBApiConfigured()) {
-    result.errors.push("BALLDONTLIE_API_KEY not configured");
-    console.error("[MLB Stats Sync] API key not configured");
-    return result;
-  }
-
-  console.log("[MLB Stats Sync] Starting stats synchronization...");
+  console.log("[MLB Stats Sync] Starting stats synchronization via StatsAPI...");
   const startTime = Date.now();
 
   try {
@@ -117,30 +54,35 @@ export async function syncMLBStats(): Promise<SyncResult> {
     const todayDate = getGameDay(new Date());
 
     console.log(
-      `[MLB Stats Sync] Fetching fresh game data from API for ${yesterdayDate} and ${todayDate}...`,
+      `[MLB Stats Sync] Fetching fresh game data from StatsAPI for ${yesterdayDate} and ${todayDate}...`,
     );
 
-    const apiGames = await fetchGames({ dates: [yesterdayDate, todayDate] });
-    console.log(`[MLB Stats Sync] API returned ${apiGames.length} games`);
+    // Fetch games for both dates from directly from StatsAPI.
+    const yesterdayGames = await fetchGamesByDate(yesterdayDate);
+    const todayGames = await fetchGamesByDate(todayDate);
+    const apiGames = [...yesterdayGames, ...todayGames];
+    console.log(`[MLB Stats Sync] StatsAPI returned ${apiGames.length} games`);
 
+    // Update scores/statuses for all games in the window
     let gamesUpdated = 0;
     for (const apiGame of apiGames) {
       try {
-        const gameId = `mlb_${apiGame.id}`;
-        const gameStatus = normalizeGameStatus(apiGame.status);
-        const homeScore = getMLBHomeScore(apiGame);
-        const awayScore = getMLBAwayScore(apiGame);
+        const gameId = `mlb_${apiGame.gamePk}`;
+        const gameStatus = normalizeGameStatus(apiGame);
+        const homeScore = apiGame.teams.home.score;
+        const awayScore = apiGame.teams.away.score;
 
         if (gameStatus !== "scheduled" && (homeScore != null || awayScore != null)) {
           await storage.updateDailyGameScore(gameId, homeScore ?? 0, awayScore ?? 0, gameStatus);
           gamesUpdated++;
         }
       } catch (error: any) {
-        console.log(`[MLB Stats Sync] Could not update game ${apiGame.id}: ${error.message}`);
+        console.log(`[MLB Stats Sync] Could not update game ${apiGame.gamePk}: ${error.message}`);
       }
     }
-    console.log(`[MLB Stats Sync] Updated ${gamesUpdated} games with fresh scores from API`);
+    console.log(`[MLB Stats Sync] Updated ${gamesUpdated} games with fresh scores from StatsAPI`);
 
+    // Get games from DB that are in-progress or completed
     const games = await storage.getDailyGamesBySport("MLB", yesterdayStart, todayEnd);
     const relevantGames = games.filter(
       (g) => g.status === "inprogress" || g.status === "completed",
@@ -155,121 +97,112 @@ export async function syncMLBStats(): Promise<SyncResult> {
       return result;
     }
 
-    const apiGameIds = relevantGames
-      .map((g) => Number.parseInt(g.gameId.replace("mlb_", ""), 10))
-      .filter((id) => Number.isFinite(id) && id > 0);
+    // Build a map of gamePk → MlbGame for fast lookup
+    const apiGamesByPk = new Map<number, (typeof apiGames)[0]>();
+    apiGames.forEach((g) => apiGamesByPk.set(g.gamePk, g));
 
-    const allApiStats = await fetchGameStats(apiGameIds);
-    console.log(`[MLB Stats Sync] Fetched ${allApiStats.length} stat lines from API`);
-    const uniquePlayerIds = Array.from(
-      new Set(allApiStats.map((apiStat) => createMLBPlayerId(apiStat.player.id))),
-    );
-    const knownPlayerIds = new Set(
-      uniquePlayerIds.length > 0
-        ? (await storage.getPlayersByIds(uniquePlayerIds)).map((player) => player.id)
-        : [],
-    );
-    let missingPlayerSkips = 0;
-    const missingPlayerSamples = new Set<string>();
-
-    const apiGamesById = new Map<number, (typeof apiGames)[0]>();
-    apiGames.forEach((apiGame) => {
-      apiGamesById.set(apiGame.id, apiGame);
-    });
-
+    // Process each relevant game — fetch boxscore directly from StatsAPI
     for (const relevantGame of relevantGames) {
       try {
         const gameIdStr = relevantGame.gameId.startsWith("mlb_")
           ? relevantGame.gameId.slice(4)
           : relevantGame.gameId;
-        const gameIdNum = Number.parseInt(gameIdStr, 10);
-        if (!Number.isFinite(gameIdNum) || gameIdNum <= 0) continue;
+        const gamePk = Number.parseInt(gameIdStr, 10);
+        if (!Number.isFinite(gamePk) || gamePk <= 0) continue;
 
-        const game = apiGamesById.get(gameIdNum);
-        if (!game) continue;
-
-        const gameId = `mlb_${gameIdStr}`;
-        const gameStatus = normalizeGameStatus(game.status || "");
-        await storage.updateDailyGameScore(
-          gameId,
-          getMLBHomeScore(game) ?? 0,
-          getMLBAwayScore(game) ?? 0,
-          gameStatus,
-        );
-        result.gamesProcessed++;
-      } catch (error: any) {
-        console.error(
-          `[MLB Stats Sync] Error updating score for game ${relevantGame.gameId}:`,
-          error.message,
-        );
-      }
-    }
-
-    for (const apiStat of allApiStats) {
-      try {
-        const gameNumericId = getMLBStatGameId(apiStat);
-        if (!gameNumericId) {
-          result.errors.push(
-            `Missing game_id for MLB stat row (player ${apiStat.player?.id || "?"})`,
+        // Fetch fresh boxscore from StatsAPI
+        let boxscore;
+        try {
+          boxscore = await fetchBoxscore(gamePk);
+        } catch (fetchErr: any) {
+          // Boxscore may fail for games that haven't started yet, skip gracefully
+          console.log(
+            `[MLB Stats Sync] Boxscore not available for game ${gamePk} (${fetchErr.message})`,
           );
           continue;
         }
 
-        const apiGame = apiGamesById.get(gameNumericId);
-        if (!apiGame) {
-          result.errors.push(`Missing API game snapshot for MLB game ${gameNumericId}`);
-          continue;
-        }
+        // Update score/linescore info
+        const ls = boxscore.linescore;
+        await storage.updateDailyGameScore(
+          relevantGame.gameId,
+          ls.teams.home.runs,
+          ls.teams.away.runs,
+          "inprogress",
+        );
+        result.gamesProcessed++;
 
-        const playerId = createMLBPlayerId(apiStat.player.id);
-        if (!knownPlayerIds.has(playerId)) {
-          missingPlayerSkips++;
-          result.skippedMissingPlayers++;
-          if (missingPlayerSamples.size < MLB_MISSING_PLAYER_SAMPLE_LIMIT) {
-            missingPlayerSamples.add(String(apiStat.player.id));
+        // Extract per-player stats
+        const playerStatsMap = extractBoxscorePlayerStats(boxscore);
+
+        // Pre-load known player IDs for filtering
+        const uniquePlayerIds = Array.from(playerStatsMap.keys()).map(createPlayerId);
+        const knownPlayerIds = new Set(
+          uniquePlayerIds.length > 0
+            ? (await storage.getPlayersByIds(uniquePlayerIds)).map((p) => p.id)
+            : [],
+        );
+
+        let missingPlayerSkips = 0;
+        const missingPlayerSamples = new Set<string>();
+
+        for (const [mlbamId, stats] of Array.from(playerStatsMap.entries())) {
+          const playerId = createPlayerId(mlbamId);
+
+          if (!knownPlayerIds.has(playerId)) {
+            missingPlayerSkips++;
+            if (missingPlayerSamples.size < MLB_MISSING_PLAYER_SAMPLE_LIMIT) {
+              missingPlayerSamples.add(String(mlbamId));
+            }
+            continue;
           }
-          continue;
+
+          const gameId = `mlb_${gamePk}`;
+          const fantasyResult = calculateFantasyPoints(stats);
+          const statsJson = parseStatsToJson(stats);
+
+          const homeTeamAbbr = boxscore.teams.home.team.abbreviation;
+          const awayTeamAbbr = boxscore.teams.away.team.abbreviation;
+          const gameSide = resolvePlayerGameSide(boxscore, mlbamId);
+          const homeAway = gameSide || "away";
+          const opponentTeam = gameSide === "home" ? awayTeamAbbr : homeTeamAbbr;
+
+          const apiGame = apiGamesByPk.get(gamePk);
+          const gameDate = apiGame ? new Date(apiGame.gameDate) : new Date();
+
+          await storage.upsertPlayerGameStats({
+            playerId,
+            gameId,
+            sport: "MLB",
+            gameDate,
+            season: getCurrentSeason().toString(),
+            opponentTeam,
+            homeAway,
+            statsJson,
+            fantasyPoints: fantasyResult.points.toString(),
+          });
+
+          result.statsProcessed++;
         }
-        const gameId = `mlb_${gameNumericId}`;
-        const fantasyPoints = calculateMLBFantasyPoints(apiStat);
-        const statsJson = parseStatsToJson(apiStat);
 
-        const homeTeam = apiGame.home_team?.abbreviation || "UNK";
-        const awayTeam = getMLBAwayTeam(apiGame)?.abbreviation || "UNK";
-        const gameSide = resolveStatGameSide(apiGame, apiStat);
-        const homeAway = gameSide || "away";
-        const opponentTeam = homeAway === "home" ? awayTeam : homeTeam;
-
-        await storage.upsertPlayerGameStats({
-          playerId,
-          gameId,
-          sport: "MLB",
-          gameDate: new Date(apiGame.date),
-          season: (apiGame.season || getCurrentMLBSeason()).toString(),
-          opponentTeam,
-          homeAway,
-          statsJson,
-          fantasyPoints: fantasyPoints.toString(),
-        });
-
-        result.statsProcessed++;
+        if (missingPlayerSkips > 0) {
+          result.skippedMissingPlayers += missingPlayerSkips;
+        }
       } catch (error: any) {
         console.error(
-          `[MLB Stats Sync] Error processing stat for player ${apiStat.player.id}:`,
+          `[MLB Stats Sync] Error processing game ${relevantGame.gameId}:`,
           error.message,
         );
-        result.errors.push(`Stat error (Player ${apiStat.player.id}): ${error.message}`);
+        result.errors.push(`Game error (${relevantGame.gameId}): ${error.message}`);
       }
     }
 
     result.success = result.errors.length === 0;
     const duration = ((Date.now() - startTime) / 1000).toFixed(2);
-    if (missingPlayerSkips > 0) {
+
+    if (result.skippedMissingPlayers > 0) {
       console.log(
-        `[MLB Stats Sync] Skipped ${missingPlayerSkips} stat rows for players missing from the local roster` +
-          (missingPlayerSamples.size > 0
-            ? ` (sample player ids: ${Array.from(missingPlayerSamples).join(", ")})`
-            : ""),
+        `[MLB Stats Sync] Skipped ${result.skippedMissingPlayers} stat rows for players missing from the local roster`,
       );
     }
     console.log(

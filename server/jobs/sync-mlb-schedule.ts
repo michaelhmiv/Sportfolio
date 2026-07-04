@@ -1,18 +1,11 @@
 /**
  * MLB Schedule Sync Job
  *
- * Fetches MLB games from Ball Don't Lie API and syncs to daily_games table.
+ * Fetches MLB games from the public MLB StatsAPI (no auth required)
+ * and syncs to the daily_games table.
  */
-
 import { storage } from "../storage";
-import {
-  fetchGames,
-  normalizeGameStatus,
-  isMLBApiConfigured,
-  getMLBHomeScore,
-  getMLBAwayScore,
-  getMLBAwayTeam,
-} from "../balldontlie-mlb";
+import { fetchGamesByDateRange, normalizeGameStatus } from "../mlb-statsapi";
 
 interface SyncResult {
   success: boolean;
@@ -20,6 +13,16 @@ interface SyncResult {
   gamesAdded: number;
   gamesUpdated: number;
   errors: string[];
+}
+
+/**
+ * Format a Date as YYYY-MM-DD.
+ */
+function formatDate(d: Date): string {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
 }
 
 export async function syncMLBSchedule(): Promise<SyncResult> {
@@ -31,54 +34,53 @@ export async function syncMLBSchedule(): Promise<SyncResult> {
     errors: [],
   };
 
-  if (!isMLBApiConfigured()) {
-    result.errors.push("BALLDONTLIE_API_KEY not configured");
-    console.error("[MLB Schedule Sync] API key not configured");
-    return result;
-  }
-
-  console.log("[MLB Schedule Sync] Starting schedule synchronization...");
+  console.log("[MLB Schedule Sync] Starting schedule synchronization via StatsAPI...");
   const startTime = Date.now();
 
   try {
     // Fetch 3 days back to 14 days forward for robust status/score updates.
     const today = new Date();
-    const dates: string[] = [];
-    for (let i = -3; i <= 14; i++) {
-      const date = new Date(today);
-      date.setDate(today.getDate() + i);
-      dates.push(date.toISOString().split("T")[0]);
-    }
+    const startDate = new Date(today);
+    startDate.setDate(today.getDate() - 3);
+    const endDate = new Date(today);
+    endDate.setDate(today.getDate() + 14);
 
-    console.log(
-      `[MLB Schedule Sync] Fetching games for dates: ${dates[0]} to ${dates[dates.length - 1]}`,
-    );
+    const startStr = formatDate(startDate);
+    const endStr = formatDate(endDate);
 
-    const apiGames = await fetchGames({ dates });
-    console.log(`[MLB Schedule Sync] Fetched ${apiGames.length} games from API`);
+    console.log(`[MLB Schedule Sync] Fetching games from ${startStr} to ${endStr}...`);
+
+    const apiGames = await fetchGamesByDateRange(startStr, endStr);
+    console.log(`[MLB Schedule Sync] Fetched ${apiGames.length} games from StatsAPI`);
 
     for (const apiGame of apiGames) {
       result.gamesProcessed++;
 
       try {
-        const gameId = `mlb_${apiGame.id}`;
-        const status = normalizeGameStatus(apiGame.status);
+        const gameId = `mlb_${apiGame.gamePk}`;
+        const status = normalizeGameStatus(apiGame);
 
-        const parsedStartTime = new Date(apiGame.date);
+        const parsedStartTime = new Date(apiGame.gameDate);
         const startTime = Number.isNaN(parsedStartTime.getTime()) ? new Date() : parsedStartTime;
+
+        const homeTeam = apiGame.teams.home.team.abbreviation;
+        const awayTeam = apiGame.teams.away.team.abbreviation;
+        const homeScore = apiGame.teams.home.score;
+        const awayScore = apiGame.teams.away.score;
+        const venue = apiGame.venue?.name || null;
 
         const gameData = {
           gameId,
           sport: "MLB",
           date: startTime,
           week: null,
-          homeTeam: apiGame.home_team?.abbreviation || "TBD",
-          awayTeam: getMLBAwayTeam(apiGame)?.abbreviation || "TBD",
-          venue: apiGame.venue || null,
+          homeTeam,
+          awayTeam,
+          venue,
           status,
           startTime,
-          homeScore: getMLBHomeScore(apiGame),
-          awayScore: getMLBAwayScore(apiGame),
+          homeScore,
+          awayScore,
         };
 
         const existingGame = await storage.getDailyGameByGameId(gameId);
@@ -91,8 +93,8 @@ export async function syncMLBSchedule(): Promise<SyncResult> {
           result.gamesAdded++;
         }
       } catch (error: any) {
-        result.errors.push(`Failed to sync game ${apiGame.id}: ${error.message}`);
-        console.error(`[MLB Schedule Sync] Error syncing game ${apiGame.id}:`, error.message);
+        result.errors.push(`Failed to sync game ${apiGame.gamePk}: ${error.message}`);
+        console.error(`[MLB Schedule Sync] Error syncing game ${apiGame.gamePk}:`, error.message);
       }
     }
 

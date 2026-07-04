@@ -17,7 +17,9 @@ import {
 
 export type Sport = "NBA" | "NFL" | "MLB" | "NASCAR" | "ALL";
 
-export const SPORTS: Sport[] = ["NBA", "NFL", "MLB", "NASCAR", "ALL"];
+export const ALL_SPORTS: Sport[] = ["NBA", "NFL", "MLB", "NASCAR", "ALL"];
+export const SPORTS: Sport[] = ["MLB", "NASCAR", "ALL"];
+export const DEFAULT_SPORT: Sport = "MLB";
 
 interface SportContextValue {
   /** Currently selected sport */
@@ -37,20 +39,14 @@ const STORAGE_KEY = "sportfolio_selected_sport";
  */
 export function SportProvider({ children }: { children: ReactNode }) {
   const [sport, setSportState] = useState<Sport>(() => {
-    // Initialize from localStorage, default to ALL for new visitors
+    // Initialize from localStorage, default to MLB for new visitors (MLB/NASCAR-only migration)
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem(STORAGE_KEY);
-      if (
-        stored === "NBA" ||
-        stored === "NFL" ||
-        stored === "MLB" ||
-        stored === "NASCAR" ||
-        stored === "ALL"
-      ) {
+      if (stored === "MLB" || stored === "NASCAR" || stored === "ALL") {
         return stored;
       }
     }
-    return "ALL";
+    return DEFAULT_SPORT;
   });
 
   // Persist to localStorage whenever sport changes

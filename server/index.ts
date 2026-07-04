@@ -298,17 +298,13 @@ app.use((req, res, next) => {
         console.error("Failed to initialize core jobs:", error.message);
       }
 
-      // Initialize sports API-dependent jobs if the Ball Don't Lie key is available
-      if (process.env.BALLDONTLIE_API_KEY) {
-        try {
-          await jobScheduler.initializeApiJobs();
-          log("API-dependent jobs initialized and started");
-        } catch (error: any) {
-          console.error("Failed to initialize API jobs:", error.message);
-        }
-      } else {
-        log("Skipping API-dependent jobs - BALLDONTLIE_API_KEY not set");
-        log("Core jobs will continue running without sports API sync access");
+      // Initialize sports API-dependent jobs. MLB StatsAPI and NASCAR are public/no-auth;
+      // NBA/NFL paid-provider jobs are disabled in the scheduler while the app is MLB/NASCAR-only.
+      try {
+        await jobScheduler.initializeApiJobs();
+        log("API-dependent jobs initialized and started");
+      } catch (error: any) {
+        console.error("Failed to initialize API jobs:", error.message);
       }
 
       try {

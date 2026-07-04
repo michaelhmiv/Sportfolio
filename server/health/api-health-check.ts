@@ -114,8 +114,8 @@ const ROUTE_TARGETS: RouteTarget[] = [
   },
   {
     id: "api_games_insights",
-    label: "Games insights (NBA)",
-    path: "/api/games/insights?sport=NBA",
+    label: "Games insights (MLB)",
+    path: "/api/games/insights?sport=MLB",
     expectedStatus: 200,
     maxLatencyMs: 3500,
     requireJson: true,
@@ -123,15 +123,15 @@ const ROUTE_TARGETS: RouteTarget[] = [
   },
   {
     id: "api_market_scanners",
-    label: "Market scanners (NBA)",
-    path: "/api/market/scanners?sport=NBA",
+    label: "Market scanners (MLB)",
+    path: "/api/market/scanners?sport=MLB",
     expectedStatus: 200,
     maxLatencyMs: 3500,
   },
   {
     id: "api_players_list",
-    label: "Players list (NBA)",
-    path: "/api/players?sport=NBA&limit=1&offset=0&sortBy=volume&sortOrder=desc",
+    label: "Players list (MLB)",
+    path: "/api/players?sport=MLB&limit=1&offset=0&sortBy=volume&sortOrder=desc",
     expectedStatus: 200,
     maxLatencyMs: 3500,
   },
@@ -143,8 +143,8 @@ const CRITICAL_JOBS: CriticalJobTarget[] = [
   { name: "lock_boost_shares", maxAgeMs: 20 * 60 * 1000 },
   { name: "snapshot_share_payouts", maxAgeMs: 20 * 60 * 1000 },
   { name: "settle_boosts", maxAgeMs: 30 * 60 * 1000 },
-  { name: "stats_sync_live", maxAgeMs: 20 * 60 * 1000, requiredEnv: "BALLDONTLIE_API_KEY" },
-  { name: "schedule_sync", maxAgeMs: 2 * 60 * 60 * 1000, requiredEnv: "BALLDONTLIE_API_KEY" },
+  { name: "stats_sync_live", maxAgeMs: 20 * 60 * 1000 }, // MLB StatsAPI (public, no key)
+  { name: "mlb_schedule_sync", maxAgeMs: 2 * 60 * 60 * 1000 },
 ];
 
 let latestApiHealthReport: ApiHealthReport | null = null;
