@@ -389,31 +389,31 @@ export class JobScheduler {
       {
         name: "roster_sync",
         schedule: "30 5 * * *", // Daily at 5:30 AM ET
-        enabled: true,
+        enabled: false, // Disabled during MLB/NASCAR-only migration
         handler: syncRoster,
       },
       {
         name: "sync_player_game_logs",
         schedule: "30 6 * * *", // Daily at 6:30 AM ET - after games finalize
-        enabled: true,
+        enabled: false, // Disabled during MLB/NASCAR-only migration
         handler: () => syncPlayerGameLogs({ mode: "daily" }),
       },
       {
         name: "schedule_sync",
         schedule: "5 * * * *", // Every hour at minute 5 for live score updates
-        enabled: true,
+        enabled: false, // Disabled during MLB/NASCAR-only migration
         handler: syncSchedule,
       },
       {
         name: "stats_sync",
         schedule: "10 * * * *", // Every hour at minute 10
-        enabled: true,
+        enabled: false, // Disabled during MLB/NASCAR-only migration
         handler: syncStats,
       },
       {
         name: "injury_sync",
         schedule: "0,30 * * * *", // Every 30 minutes (at :00 and :30)
-        enabled: true,
+        enabled: false, // Disabled during MLB/NASCAR-only migration (uses BDL)
         handler: async () => {
           const result = await syncPlayerInjuries();
           return {
@@ -425,10 +425,10 @@ export class JobScheduler {
       },
       {
         name: "stats_sync_live",
-        schedule: "4-59/5 * * * *", // Every 5 minutes (offset 4m) for live games (NBA + NFL + MLB)
+        schedule: "4-59/5 * * * *", // Every 5 minutes (offset 4m) for live games (MLB only)
         enabled: true,
         handler: async () => {
-          // Unified live stats sync for all supported Ball Don't Lie sports
+          // Live stats sync using public MLB StatsAPI (MLB only during migration)
           const result = await syncAllLiveStats();
           return result;
         },
@@ -436,19 +436,19 @@ export class JobScheduler {
       {
         name: "daily_snapshot",
         schedule: "30 1 * * *", // Daily at 1:30 AM ET
-        enabled: true,
+        enabled: false, // Disabled during MLB/NASCAR-only migration
         handler: dailySnapshot,
       },
       {
         name: "weekly_roundup",
         schedule: "0 6 * * 1", // Weekly on Monday at 6:00 AM ET
-        enabled: true,
+        enabled: false, // Disabled during MLB/NASCAR-only migration
         handler: generateWeeklyRoundup,
       },
       {
         name: "nfl_roster_sync",
         schedule: "30 4 * * *", // Daily at 4:30 AM ET
-        enabled: true,
+        enabled: false, // Disabled during MLB/NASCAR-only migration
         handler: async () => {
           const result = await syncNFLRoster();
           return {
@@ -461,7 +461,7 @@ export class JobScheduler {
       {
         name: "nfl_schedule_sync",
         schedule: "45 * * * *", // Hourly at :45 - must run frequently to update game statuses (scores, inprogress/completed)
-        enabled: true,
+        enabled: false, // Disabled during MLB/NASCAR-only migration
         handler: async () => {
           const result = await syncNFLSchedule();
           return {

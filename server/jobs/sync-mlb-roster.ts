@@ -1,19 +1,20 @@
 /**
  * MLB Roster Sync Job
  *
- * Fetches active MLB players from Ball Don't Lie API and syncs to database.
- * Also attempts to fetch injury data to set vesting eligibility.
+ * Fetches active MLB players from the public MLB StatsAPI (no auth required)
+ * and syncs to the database.
+ *
+ * Identity: Uses MLBAM IDs. Canonical ID format: mlb_<MLBAM_ID>
  */
-
 import { storage } from "../storage";
 import {
-  fetchActivePlayers,
-  fetchInjuries,
-  createMLBPlayerId,
+  fetchAllPlayers,
+  fetchTeams,
+  fetchTeamRoster,
   normalizePosition,
-  isMLBApiConfigured,
-  type MLBInjury,
-} from "../balldontlie-mlb";
+  createPlayerId,
+  getCurrentSeason,
+} from "../mlb-statsapi";
 
 interface SyncResult {
   success: boolean;
@@ -21,7 +22,6 @@ interface SyncResult {
   playersAdded: number;
   playersUpdated: number;
   playersDeactivated: number;
-  injuredPlayers: number;
   errors: string[];
 }
 
@@ -32,76 +32,104 @@ export async function syncMLBRoster(): Promise<SyncResult> {
     playersAdded: 0,
     playersUpdated: 0,
     playersDeactivated: 0,
-    injuredPlayers: 0,
     errors: [],
   };
 
-  if (!isMLBApiConfigured()) {
-    result.errors.push("BALLDONTLIE_API_KEY not configured");
-    console.error("[MLB Roster Sync] API key not configured");
-    return result;
-  }
-
-  console.log("[MLB Roster Sync] Starting roster synchronization...");
+  console.log("[MLB Roster Sync] Starting roster synchronization via StatsAPI...");
   const startTime = Date.now();
 
   try {
-    console.log("[MLB Roster Sync] Fetching active players from API...");
-    const apiPlayers = await fetchActivePlayers();
-    console.log(`[MLB Roster Sync] Fetched ${apiPlayers.length} players from API`);
+    const season = getCurrentSeason();
+    console.log(`[MLB Roster Sync] Fetching all MLB players for season ${season}...`);
+    const apiPlayers = await fetchAllPlayers(season);
+    console.log(`[MLB Roster Sync] Fetched ${apiPlayers.length} players from StatsAPI`);
 
-    let injuries: MLBInjury[] = [];
-    try {
-      console.log("[MLB Roster Sync] Fetching injury report...");
-      injuries = await fetchInjuries();
-      console.log(`[MLB Roster Sync] Fetched ${injuries.length} injury records`);
-    } catch (error: any) {
-      console.warn("[MLB Roster Sync] Injury fetch unavailable, continuing:", error.message);
+    // Fetch team data so we can map team IDs to abbreviations for roster lookups.
+    console.log("[MLB Roster Sync] Fetching teams...");
+    const teams = await fetchTeams(season);
+    const teamIdToAbbr = new Map<number, string>();
+    for (const team of teams) {
+      teamIdToAbbr.set(team.id, team.abbreviation);
     }
+    console.log(`[MLB Roster Sync] Fetched ${teams.length} teams`);
 
-    const injuryMap = new Map<number, MLBInjury>();
-    for (const injury of injuries) {
-      injuryMap.set(injury.player.id, injury);
+    // Build team roster lookups (team ID -> roster entries) for position/jersey data.
+    // The /sports/1/players response has limited position info for some players.
+    const teamRosters = new Map<number, Map<number, { jerseyNumber: string; position: string }>>();
+    for (const team of teams) {
+      try {
+        const roster = await fetchTeamRoster(team.id, season);
+        const playerMap = new Map<number, { jerseyNumber: string; position: string }>();
+        for (const entry of roster) {
+          playerMap.set(entry.person.id, {
+            jerseyNumber: entry.jerseyNumber || "",
+            position: normalizePosition(entry.position?.abbreviation),
+          });
+        }
+        teamRosters.set(team.id, playerMap);
+      } catch (err: any) {
+        console.warn(
+          `[MLB Roster Sync] Could not fetch roster for team ${team.abbreviation}: ${err.message}`,
+        );
+      }
     }
-    result.injuredPlayers = injuryMap.size;
 
     const existingPlayers = await storage.getPlayersBySport("MLB");
     const existingPlayerIds = new Set(existingPlayers.map((p: { id: string }) => p.id));
     const activeApiPlayerIds = new Set<string>();
+    const fantasyPositions = new Set(["P", "C", "1B", "2B", "3B", "SS", "OF", "DH", "UTIL"]);
 
     for (const apiPlayer of apiPlayers) {
       result.playersProcessed++;
 
-      if (!apiPlayer.team) {
-        continue;
+      const mlbamId = apiPlayer.id;
+      const playerId = createPlayerId(mlbamId);
+
+      // Resolve team abbreviation — prefer currentTeam, fall back to team roster
+      let teamAbbr = apiPlayer.currentTeam?.abbreviation || "";
+      if (!teamAbbr && apiPlayer.active) {
+        // Try to find which team this player is on via team rosters
+        for (const [teamId, roster] of Array.from(teamRosters.entries())) {
+          if (roster.has(mlbamId)) {
+            teamAbbr = teamIdToAbbr.get(teamId) || "";
+            break;
+          }
+        }
+      }
+      if (!teamAbbr) continue; // Skip free agents and retired players
+
+      // Resolve position — prefer team roster data, fall back to primaryPosition
+      let position = "UTIL";
+      let jerseyNumber = "";
+      for (const [, roster] of Array.from(teamRosters.entries())) {
+        const entry = roster.get(mlbamId);
+        if (entry) {
+          position = entry.position;
+          jerseyNumber = entry.jerseyNumber;
+          break;
+        }
+      }
+      if (position === "UTIL" && apiPlayer.primaryPosition?.abbreviation) {
+        position = normalizePosition(apiPlayer.primaryPosition.abbreviation);
+      }
+      if (!fantasyPositions.has(position)) continue;
+
+      if (!jerseyNumber) {
+        jerseyNumber = apiPlayer.primaryNumber || "";
       }
 
-      const normalizedPosition = normalizePosition(
-        apiPlayer.position_abbreviation || apiPlayer.position,
-      );
-      const fantasyPositions = ["P", "C", "1B", "2B", "3B", "SS", "OF", "DH", "UTIL"];
-      if (!fantasyPositions.includes(normalizedPosition)) {
-        continue;
-      }
-
-      const playerId = createMLBPlayerId(apiPlayer.id);
       activeApiPlayerIds.add(playerId);
-
-      const injury = injuryMap.get(apiPlayer.id);
-      const injuryStatus = (injury?.status || "").toLowerCase();
-      const isEligibleForVesting =
-        !injury || !["out", "il", "injured", "injured list"].includes(injuryStatus);
 
       const playerData = {
         id: playerId,
         sport: "MLB" as const,
-        firstName: apiPlayer.first_name,
-        lastName: apiPlayer.last_name,
-        team: apiPlayer.team.abbreviation,
-        position: normalizedPosition,
-        jerseyNumber: apiPlayer.jersey_number || null,
-        isActive: true,
-        isEligibleForVesting,
+        firstName: apiPlayer.firstName,
+        lastName: apiPlayer.lastName,
+        team: teamAbbr,
+        position,
+        jerseyNumber: jerseyNumber || null,
+        isActive: apiPlayer.active !== false,
+        isEligibleForVesting: true, // StatsAPI doesn't expose IL; injured skip handled upstream
       };
 
       try {
@@ -118,6 +146,7 @@ export async function syncMLBRoster(): Promise<SyncResult> {
       }
     }
 
+    // Deactivate players no longer in the API roster
     for (const existingPlayer of existingPlayers) {
       if (!activeApiPlayerIds.has(existingPlayer.id) && existingPlayer.isActive) {
         try {
@@ -140,7 +169,6 @@ export async function syncMLBRoster(): Promise<SyncResult> {
     console.log(`  - Players added: ${result.playersAdded}`);
     console.log(`  - Players updated: ${result.playersUpdated}`);
     console.log(`  - Players deactivated: ${result.playersDeactivated}`);
-    console.log(`  - Injured players: ${result.injuredPlayers}`);
     if (result.errors.length > 0) {
       console.log(`  - Errors: ${result.errors.length}`);
     }

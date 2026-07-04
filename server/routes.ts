@@ -764,7 +764,7 @@ async function getProviderLiveEarningsPlayersForGame(
       getMLBStatGameId,
       getMLBStatTeamAbbreviation,
       getMLBStatTeamName,
-    } = await import("./balldontlie-mlb");
+    } = await import("./mlb-statsapi");
 
     const gameStartTime = new Date(game.startTime);
     const lookupDates = Array.from(
@@ -1740,7 +1740,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   getMLBHomeScore,
                   getMLBAwayScore,
                   getMLBAwayTeam,
-                } = await import("./balldontlie-mlb");
+                } = await import("./mlb-statsapi");
                 const apiGames = await fetchGames({ dates: [dateStr] });
                 return apiGames.map((apiGame: any) => ({
                   gameId: String(apiGame.id),
@@ -4376,7 +4376,7 @@ ${items}
           getMLBStatGameId,
           getMLBStatTeamAbbreviation,
           getMLBStatTeamName,
-        } = await import("./balldontlie-mlb");
+        } = await import("./mlb-statsapi");
         const gameStartTime = new Date(game.startTime);
         const lookupDates = Array.from(
           new Set([

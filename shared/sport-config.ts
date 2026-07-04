@@ -8,6 +8,13 @@
 export const SPORTS = ["NBA", "NFL", "MLB", "NASCAR"] as const;
 export type Sport = (typeof SPORTS)[number];
 
+export const ENABLED_SPORTS = ["MLB", "NASCAR"] as const;
+export type EnabledSport = (typeof ENABLED_SPORTS)[number];
+
+export function isEnabledSport(sport: string): sport is EnabledSport {
+  return ENABLED_SPORTS.includes(sport as EnabledSport);
+}
+
 export interface SportConfig {
   name: string;
   fullName: string;
@@ -153,7 +160,7 @@ export const SPORT_CONFIGS: Record<Sport, SportConfig> = {
       UTIL: "Utility",
     },
     seasonType: "march-october",
-    apiProvider: "balldontlie",
+    apiProvider: "mlb-statsapi",
     getApiSeason: getMLBSeason,
     getSeasonYear: getMLBSeasonYear,
   },
@@ -201,4 +208,4 @@ export function getPositionOptions(sport: Sport): { value: string; label: string
 /**
  * Default sport for the app
  */
-export const DEFAULT_SPORT: Sport = "NBA";
+export const DEFAULT_SPORT: EnabledSport = "MLB";

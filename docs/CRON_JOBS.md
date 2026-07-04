@@ -1,64 +1,98 @@
 # Cron Job Runbook
 
-This document describes the scheduled jobs that are still active and how to run them manually.
-
-## Job Schedule Overview
-
+This document describes the scheduled jobs active during the MLB/NASCAR-only migration.
 Jobs run in Eastern Time (ET). The scheduler is initialized in `server/jobs/scheduler.ts`.
 
-| Job Name            | Schedule                              | Purpose                                               |
-| ------------------- | ------------------------------------- | ----------------------------------------------------- |
-| `bot_engine`        | Dev: every minute; prod: every 15 min | Runs Hermes bot scouting/trading/liquidity strategies |
-| `vesting_accrual`   | Every 5 min (`:04`)                   | Accrues vesting shares for users                      |
-| `news_fetch`        | Every hour (`:00`)                    | Fetches sports news from Perplexity                   |
-| `roster_sync`       | Daily 5:30 AM                         | Syncs NBA player roster                               |
-| `schedule_sync`     | Every hour (`:05`)                    | Syncs NBA game schedules                              |
-| `stats_sync`        | Every hour (`:10`)                    | Syncs NBA game stats for completed games              |
-| `stats_sync_live`   | Every 5 min                           | Unified live stats for supported live sports          |
-| `daily_snapshot`    | Daily 1:30 AM                         | Creates daily market and rank snapshots               |
-| `weekly_roundup`    | Monday 6:00 AM                        | Generates weekly performance summaries                |
-| `nfl_roster_sync`   | Daily 4:30 AM                         | Syncs NFL players from Ball Don't Lie                 |
-| `nfl_schedule_sync` | Daily 6:45 AM                         | Syncs NFL game schedules                              |
+## Active Job Schedule
+
+| Job Name                       | Schedule                           | Purpose                                                                          |
+| ------------------------------ | ---------------------------------- | -------------------------------------------------------------------------------- |
+| `scout_distribution`           | Every hour (`:00`)                 | Distribute scout shares based on Scout-Minute ratio                              |
+| `news_fetch`                   | Every hour (`:00`)                 | Fetches sports news from Perplexity                                              |
+| `discord_hourly_market_digest` | Every hour (`:00`)                 | Publish market digest to Discord                                                 |
+| `discord_news_post`            | Every hour (`:05`)                 | Publish newly fetched news to Discord                                            |
+| `bot_engine`                   | Dev: every min; prod: every 15 min | Runs Hermes bot scouting/trading/liquidity strategies                            |
+| `stats_sync_live`              | Every 5 min (`:04`)                | Live stats for MLB (via public MLB StatsAPI)                                     |
+| `mlb_roster_sync`              | Daily 4:15 AM                      | Syncs MLB player roster via StatsAPI                                             |
+| `mlb_schedule_sync`            | Hourly (`:50`)                     | Syncs MLB game schedules/scores via StatsAPI                                     |
+| `nascar_roster_sync`           | Daily 3:30 AM                      | Syncs NASCAR driver rosters                                                      |
+| `nascar_active_roster_sync`    | Daily 4:00 AM                      | Syncs active drivers from race entry lists                                       |
+| `nascar_schedule_sync`         | Daily 3:45 AM                      | Syncs NASCAR race schedule                                                       |
+| `nascar_stats_sync`            | Hourly (`:20`)                     | Syncs completed race results                                                     |
+| `nascar_live_sync`             | Every 5 min                        | Syncs live race data during events                                               |
+| Various core jobs...           | Various                            | Lock/settle boosts, share payouts, notification signals, collections, milestones |
+
+## Disabled Jobs (MLB/NASCAR-Only Migration)
+
+| Job Name                | Reason                                     |
+| ----------------------- | ------------------------------------------ |
+| `roster_sync`           | NBA roster sync (MySportsFeeds)            |
+| `schedule_sync`         | NBA schedule sync (MySportsFeeds)          |
+| `stats_sync`            | NBA stats sync (MySportsFeeds)             |
+| `stats_sync_live`       | NBA/NFL/MLB unified (now MLB-only via job) |
+| `sync_player_game_logs` | NBA player game logs                       |
+| `injury_sync`           | Ball Don't Lie injury API (NBA/MLB)        |
+| `daily_snapshot`        | Daily market snapshots                     |
+| `weekly_roundup`        | Weekly performance summaries               |
+| `nfl_roster_sync`       | NFL roster sync (Ball Don't Lie)           |
+| `nfl_schedule_sync`     | NFL schedule sync (Ball Don't Lie)         |
+
+> The disabled jobs remain in the codebase with `enabled: false` in `scheduler.ts`.
+> They can be re-enabled for NBA/NFL data when the migration completes.
 
 ## Manual Job Execution
 
 Jobs can be triggered via the admin panel or CLI.
 
-`bot_engine` uses `BOT_ENGINE_SCHEDULE` if set. Without an override, development runs it every minute and production keeps the 15-minute cadence.
-
 ### Via CLI
 
 ```bash
+# MLB StatsAPI-based sync
 npx tsx -e "
 import 'dotenv/config';
-import { syncNFLSchedule } from './server/jobs/sync-nfl-schedule';
-syncNFLSchedule().then((r) => console.log('Result:', r));
+import { syncMLBRoster } from './server/jobs/sync-mlb-roster';
+syncMLBRoster().then((r) => console.log('Result:', r));
 "
-```
 
-### Common Jobs to Trigger
+# MLB StatsAPI live stats
+npx tsx -e "
+import 'dotenv/config';
+import { syncMLBStats } from './server/jobs/sync-mlb-stats';
+syncMLBStats().then((r) => console.log('Result:', r));
+"
 
-```bash
-# NFL schedule updates
-npx tsx -e "import 'dotenv/config'; import { syncNFLSchedule } from './server/jobs/sync-nfl-schedule'; syncNFLSchedule().then(console.log);"
+# Unified live stats (MLB only)
+npx tsx -e "
+import 'dotenv/config';
+import { syncAllLiveStats } from './server/jobs/sync-all-live-stats';
+syncAllLiveStats().then((r) => console.log('Result:', r));
+"
 
-# Unified live stats
-npx tsx -e "import 'dotenv/config'; import { syncAllLiveStats } from './server/jobs/sync-all-live-stats'; syncAllLiveStats().then(console.log);"
-
-# Daily snapshot
-npx tsx -e "import 'dotenv/config'; import { dailySnapshot } from './server/jobs/daily-snapshot'; dailySnapshot().then(console.log);"
+# NASCAR syncs
+npx tsx -e "
+import 'dotenv/config';
+import { syncNascarRoster } from './server/jobs/sync-nascar-roster';
+syncNascarRoster().then((r) => console.log('Result:', r));
+"
 ```
 
 ## Job Dependencies
 
 ```text
-nfl_roster_sync (4:30 AM)
-  -> nfl_schedule_sync (6:45 AM)
-     -> stats_sync_live (every 5 min)
-
-roster_sync (5:30 AM)
-  -> schedule_sync (hourly)
-     -> stats_sync_live (every 5 min)
+mlb_roster_sync (4:15 AM) ─────────────────────┐
+mlb_schedule_sync (hourly) ──> stats_sync_live (every 5 min)
+                                                │
+nascar_roster_sync (3:30 AM) ───────────────────┤
+  -> nascar_active_roster_sync (4:00 AM)        │
+     -> nascar_schedule_sync (3:45 AM)          │
+        -> nascar_stats_sync (hourly)           │
+           -> nascar_live_sync (every 5 min)    │
+                                                │
+All stats syncs feed into:
+  -> scout_distribution (hourly)
+  -> lock_boost_shares (every 5 min)
+  -> settle_boosts (every 10 min)
+  -> notification_signals (every 15 min)
 ```
 
 ## Monitoring
@@ -82,11 +116,21 @@ WHERE status = 'failed' AND started_at > NOW() - INTERVAL '24 hours';
 
 Jobs log to console with prefixes such as:
 
-- `[stats_sync_live]`
-- `[NFL Stats Sync]`
-- `[NFL Schedule Sync]`
+- `[MLB Roster Sync]`
+- `[MLB Schedule Sync]`
+- `[MLB Stats Sync]`
+- `[live_stats_sync]`
+- `[NASCAR Roster Sync]`
+- `[NASCAR Stats Sync]`
 
 ## Troubleshooting
+
+### MLB scores not updating
+
+1. The MLB StatsAPI is a public API requiring no key — verify network connectivity to `statsapi.mlb.com`.
+2. Check `[MLB Schedule Sync]` logs for game fetch counts.
+3. Check `[MLB Stats Sync]` for boxscore fetch results.
+4. Manually trigger `syncMLBStats` and inspect output.
 
 ### Job not running
 
@@ -99,9 +143,3 @@ Jobs log to console with prefixes such as:
 1. Check the `job_execution_logs` table.
 2. Review console logs for error messages.
 3. Manually trigger the job and inspect output.
-
-### NFL scores not updating
-
-1. Trigger `nfl_schedule_sync` first.
-2. Then trigger `stats_sync_live`.
-3. Check debug logs for game status breakdown.

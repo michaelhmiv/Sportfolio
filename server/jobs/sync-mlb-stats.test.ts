@@ -8,23 +8,15 @@ const storageMocks = vi.hoisted(() => ({
 }));
 
 const mlbApiMocks = vi.hoisted(() => ({
-  fetchGames: vi.fn(),
-  fetchGameStats: vi.fn(),
-  calculateMLBFantasyPoints: vi.fn(),
+  fetchGamesByDate: vi.fn(),
+  fetchBoxscore: vi.fn(),
+  calculateFantasyPoints: vi.fn(),
   parseStatsToJson: vi.fn(),
-  isMLBApiConfigured: vi.fn(),
-  createMLBPlayerId: vi.fn(),
   normalizeGameStatus: vi.fn(),
-  getCurrentMLBSeason: vi.fn(),
-  getMLBHomeScore: vi.fn(),
-  getMLBAwayScore: vi.fn(),
-  getMLBAwayTeam: vi.fn(),
-  getMLBHomeTeamName: vi.fn(),
-  getMLBAwayTeamName: vi.fn(),
-  getMLBTeamDisplayName: vi.fn(),
-  getMLBStatGameId: vi.fn(),
-  getMLBStatTeamAbbreviation: vi.fn(),
-  getMLBStatTeamName: vi.fn(),
+  createPlayerId: vi.fn(),
+  getCurrentSeason: vi.fn(),
+  resolvePlayerGameSide: vi.fn(),
+  extractBoxscorePlayerStats: vi.fn(),
 }));
 
 const timeMocks = vi.hoisted(() => ({
@@ -37,24 +29,17 @@ vi.mock("../storage", () => ({
   storage: storageMocks,
 }));
 
-vi.mock("../balldontlie-mlb", () => ({
-  fetchGames: mlbApiMocks.fetchGames,
-  fetchGameStats: mlbApiMocks.fetchGameStats,
-  calculateMLBFantasyPoints: mlbApiMocks.calculateMLBFantasyPoints,
+vi.mock("../mlb-statsapi", () => ({
+  fetchGamesByDate: mlbApiMocks.fetchGamesByDate,
+  fetchBoxscore: mlbApiMocks.fetchBoxscore,
+  calculateFantasyPoints: mlbApiMocks.calculateFantasyPoints,
   parseStatsToJson: mlbApiMocks.parseStatsToJson,
-  isMLBApiConfigured: mlbApiMocks.isMLBApiConfigured,
-  createMLBPlayerId: mlbApiMocks.createMLBPlayerId,
   normalizeGameStatus: mlbApiMocks.normalizeGameStatus,
-  getCurrentMLBSeason: mlbApiMocks.getCurrentMLBSeason,
-  getMLBHomeScore: mlbApiMocks.getMLBHomeScore,
-  getMLBAwayScore: mlbApiMocks.getMLBAwayScore,
-  getMLBAwayTeam: mlbApiMocks.getMLBAwayTeam,
-  getMLBHomeTeamName: mlbApiMocks.getMLBHomeTeamName,
-  getMLBAwayTeamName: mlbApiMocks.getMLBAwayTeamName,
-  getMLBTeamDisplayName: mlbApiMocks.getMLBTeamDisplayName,
-  getMLBStatGameId: mlbApiMocks.getMLBStatGameId,
-  getMLBStatTeamAbbreviation: mlbApiMocks.getMLBStatTeamAbbreviation,
-  getMLBStatTeamName: mlbApiMocks.getMLBStatTeamName,
+  createPlayerId: mlbApiMocks.createPlayerId,
+  getCurrentSeason: mlbApiMocks.getCurrentSeason,
+  getOpponentTeam: vi.fn(),
+  resolvePlayerGameSide: mlbApiMocks.resolvePlayerGameSide,
+  extractBoxscorePlayerStats: mlbApiMocks.extractBoxscorePlayerStats,
 }));
 
 vi.mock("../lib/time", () => ({
@@ -67,8 +52,7 @@ describe("syncMLBStats", () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    mlbApiMocks.isMLBApiConfigured.mockReturnValue(true);
-    timeMocks.getGameDay.mockReturnValue("2026-03-10");
+    timeMocks.getGameDay.mockReturnValueOnce("2026-03-09").mockReturnValueOnce("2026-03-10");
     timeMocks.getETDayBoundaries.mockReturnValue({
       startOfDay: new Date("2026-03-09T00:00:00.000Z"),
     });
@@ -76,52 +60,45 @@ describe("syncMLBStats", () => {
       endOfDay: new Date("2026-03-10T23:59:59.999Z"),
     });
 
-    mlbApiMocks.fetchGames.mockResolvedValue([
-      {
-        id: 101,
-        date: "2026-03-10T19:00:00.000Z",
-        season: 2026,
-        status: "Final",
-        home_team: {
-          abbreviation: "NYY",
-          name: "Yankees",
-          display_name: "New York Yankees",
-          short_display_name: "Yankees",
-        },
-        away_team: {
-          abbreviation: "BOS",
-          name: "Red Sox",
-          display_name: "Boston Red Sox",
-          short_display_name: "Red Sox",
-        },
+    const apiGame = {
+      gamePk: 101,
+      gameDate: "2026-03-10T19:00:00.000Z",
+      status: { abstractGameState: "Final", detailedState: "Final" },
+      teams: {
+        home: { team: { abbreviation: "NYY" }, score: 5 },
+        away: { team: { abbreviation: "BOS" }, score: 3 },
       },
-    ]);
+    };
+    mlbApiMocks.fetchGamesByDate.mockResolvedValueOnce([]).mockResolvedValueOnce([apiGame]);
     storageMocks.getDailyGamesBySport.mockResolvedValue([
       { gameId: "mlb_101", status: "completed" },
     ]);
-    mlbApiMocks.fetchGameStats.mockResolvedValue([
-      { player: { id: 11 }, game: { id: 101 }, team: { abbreviation: "BOS", name: "Red Sox" } },
-      { player: { id: 22 }, game: { id: 101 }, team: { abbreviation: "BOS", name: "Red Sox" } },
-    ]);
-    mlbApiMocks.createMLBPlayerId.mockImplementation((playerId: number) => `mlb_${playerId}`);
+
+    const boxscore = {
+      teams: {
+        home: { team: { abbreviation: "NYY" }, players: {} },
+        away: { team: { abbreviation: "BOS" }, players: {} },
+      },
+      linescore: {
+        teams: { home: { runs: 5 }, away: { runs: 3 } },
+      },
+    };
+    mlbApiMocks.fetchBoxscore.mockResolvedValue(boxscore);
+    mlbApiMocks.extractBoxscorePlayerStats.mockReturnValue(
+      new Map([
+        [11, { batting: { hits: 2 }, pitching: {} }],
+        [22, { batting: { hits: 1 }, pitching: {} }],
+      ]),
+    );
+    mlbApiMocks.createPlayerId.mockImplementation((playerId: number) => `mlb_${playerId}`);
     storageMocks.getPlayersByIds.mockResolvedValue([{ id: "mlb_11" }]);
-    mlbApiMocks.getMLBStatGameId.mockImplementation((stat: any) => stat.game.id);
-    mlbApiMocks.getCurrentMLBSeason.mockReturnValue(2026);
-    mlbApiMocks.calculateMLBFantasyPoints.mockReturnValue(17.5);
+    mlbApiMocks.getCurrentSeason.mockReturnValue(2026);
+    mlbApiMocks.calculateFantasyPoints.mockReturnValue({ points: 17.5, breakdown: {} });
     mlbApiMocks.parseStatsToJson.mockReturnValue({ hits: 2 });
     mlbApiMocks.normalizeGameStatus.mockReturnValue("completed");
-    mlbApiMocks.getMLBHomeScore.mockReturnValue(5);
-    mlbApiMocks.getMLBAwayScore.mockReturnValue(3);
-    mlbApiMocks.getMLBAwayTeam.mockImplementation((game: any) => game.away_team);
-    mlbApiMocks.getMLBHomeTeamName.mockReturnValue("New York Yankees");
-    mlbApiMocks.getMLBAwayTeamName.mockReturnValue("Boston Red Sox");
-    mlbApiMocks.getMLBTeamDisplayName.mockImplementation(
-      (team: any) => team?.display_name || team?.name,
+    mlbApiMocks.resolvePlayerGameSide.mockImplementation((_: unknown, playerId: number) =>
+      playerId === 11 ? "away" : "home",
     );
-    mlbApiMocks.getMLBStatTeamAbbreviation.mockImplementation(
-      (stat: any) => stat.team.abbreviation,
-    );
-    mlbApiMocks.getMLBStatTeamName.mockImplementation((stat: any) => stat.team.name);
     storageMocks.updateDailyGameScore.mockResolvedValue(undefined);
     storageMocks.upsertPlayerGameStats.mockResolvedValue(undefined);
   });
@@ -138,6 +115,7 @@ describe("syncMLBStats", () => {
     );
     expect(storageMocks.upsertPlayerGameStats).toHaveBeenCalledTimes(1);
     expect(result.statsProcessed).toBe(1);
+    expect(result.skippedMissingPlayers).toBe(1);
     expect(result.errors).toEqual([]);
     expect(logSpy).toHaveBeenCalledWith(
       expect.stringContaining("Skipped 1 stat rows for players missing from the local roster"),

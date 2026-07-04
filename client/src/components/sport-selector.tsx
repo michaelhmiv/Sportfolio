@@ -25,10 +25,12 @@ const SPORT_DISPLAY: Record<Sport, SportConfig> = {
   NBA: {
     name: "NBA",
     icon: "🏀",
+    disabled: true, // Disabled during MLB/NASCAR-only migration
   },
   NFL: {
     name: "NFL",
     icon: "🏈",
+    disabled: true, // Disabled during MLB/NASCAR-only migration
   },
   MLB: {
     name: "MLB",
@@ -66,7 +68,7 @@ export function SportSelector({
   if (variant === "buttons") {
     return (
       <div className={`flex gap-1 ${className}`}>
-        {SPORTS.map((s) => {
+        {SPORTS.filter((s) => !SPORT_DISPLAY[s].disabled).map((s) => {
           const config = SPORT_DISPLAY[s];
           const isActive = sport === s;
 
