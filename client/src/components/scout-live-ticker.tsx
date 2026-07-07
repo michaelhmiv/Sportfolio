@@ -13,9 +13,21 @@
 import { useState, useEffect, useRef } from "react";
 import { Binoculars, TrendingUp } from "lucide-react";
 
+import {
+  SCOUT_LIVE_SHARE_POPUP_EVENT,
+  type ScoutLiveSharePopupDetail,
+} from "@/components/scout-live-share-popup-host";
+
 const TICK_MS = 15_000; // 15 seconds
 const TICKS_PER_HOUR = 240; // 240 ticks in an hour
 const HOURLY_SHARES = 60;
+
+export function getInitialHourProgress(totalSharesPerHour: number): number {
+  const now = new Date();
+  const msIntoHour = now.getMinutes() * 60_000 + now.getSeconds() * 1000 + now.getMilliseconds();
+
+  return (msIntoHour / 3_600_000) * totalSharesPerHour;
+}
 
 interface TickerProps {
   assignments: Array<{
@@ -26,14 +38,6 @@ interface TickerProps {
   }>;
   totalScouts: number;
   maxScouts: number;
-}
-
-interface PopupAnim {
-  id: number;
-  /** Format like "Y. Alvarez" */
-  shortLabel: string;
-  amount: number;
-  x: number;
 }
 
 /**
@@ -54,10 +58,6 @@ function shortPlayerLabel(
 }
 
 export function ScoutLiveTicker({ assignments, totalScouts, maxScouts }: TickerProps) {
-  const [accumulator, setAccumulator] = useState(0);
-  const [popups, setPopups] = useState<PopupAnim[]>([]);
-  const popupIdRef = useRef(0);
-
   // Calculate rates for each assignment
   const activeAssignments = assignments
     .filter((a) => a.scoutCount > 0 && a.globalScoutCount > 0)
@@ -73,7 +73,16 @@ export function ScoutLiveTicker({ assignments, totalScouts, maxScouts }: TickerP
     return sum + (a.yourScouts / a.globalScouts) * HOURLY_SHARES;
   }, 0);
 
+  const [accumulator, setAccumulator] = useState(() => getInitialHourProgress(totalSharesPerHour));
+  const popupIdRef = useRef(0);
+
   const tickAmount = totalSharesPerHour / TICKS_PER_HOUR;
+
+  // Seed from the current hour so the ticker reflects elapsed time, not just mount time.
+  useEffect(() => {
+    if (totalSharesPerHour <= 0) return;
+    setAccumulator((prev) => Math.max(prev, getInitialHourProgress(totalSharesPerHour)));
+  }, [totalSharesPerHour]);
 
   // Reset at top of the hour
   useEffect(() => {
@@ -82,34 +91,34 @@ export function ScoutLiveTicker({ assignments, totalScouts, maxScouts }: TickerP
       (60 - now.getMinutes()) * 60_000 - now.getSeconds() * 1000 - now.getMilliseconds();
 
     const resetTimer = setTimeout(() => {
-      setAccumulator(0);
-      setPopups([]);
+      setAccumulator(getInitialHourProgress(totalSharesPerHour));
+      popupIdRef.current = 0;
     }, msToNextHour);
 
     return () => clearTimeout(resetTimer);
-  }, []);
+  }, [totalSharesPerHour]);
 
   // The 15-second tick
   useEffect(() => {
-    if (activeAssignments.length === 0) return;
+    if (activeAssignments.length === 0 || tickAmount <= 0) return;
 
     const interval = setInterval(() => {
-      setAccumulator((prev) => {
-        const next = prev + tickAmount;
+      setAccumulator((prev) => prev + tickAmount);
+
+      activeAssignments.forEach((a, i) => {
         const id = popupIdRef.current++;
-        const newPopups = activeAssignments.map((a, i) => ({
-          id: id + i,
+        const popup: ScoutLiveSharePopupDetail = {
+          id,
           shortLabel: shortPlayerLabel(a.firstName, a.lastName, a.playerId),
           amount: ((a.yourScouts / a.globalScouts) * HOURLY_SHARES) / TICKS_PER_HOUR,
           x: (i / Math.max(activeAssignments.length - 1, 1)) * 80 + 10,
-        }));
-        setPopups((prev) => [...prev, ...newPopups].slice(-20));
+        };
 
-        setTimeout(() => {
-          setPopups((prev) => prev.filter((p) => !newPopups.find((np) => np.id === p.id)));
-        }, 3000);
-
-        return next;
+        window.dispatchEvent(
+          new CustomEvent(SCOUT_LIVE_SHARE_POPUP_EVENT, {
+            detail: popup,
+          }),
+        );
       });
     }, TICK_MS);
 
@@ -136,24 +145,6 @@ export function ScoutLiveTicker({ assignments, totalScouts, maxScouts }: TickerP
 
   return (
     <div className="relative border border-border/60 rounded-sm bg-muted/30 p-3 overflow-hidden">
-      {/* Floating popup animations */}
-      <div className="absolute inset-0 pointer-events-none">
-        {popups.map((popup) => (
-          <div
-            key={popup.id}
-            className="absolute text-amber-500 font-mono font-semibold text-[10px] whitespace-nowrap"
-            style={{
-              left: `${popup.x}%`,
-              bottom: "20%",
-              animation: "ticker-float-up 2.5s ease-out forwards",
-            }}
-          >
-            +{popup.amount.toFixed(3)} {popup.shortLabel}
-          </div>
-        ))}
-      </div>
-
-      {/* Main content */}
       <div className="relative z-10">
         {/* Header */}
         <div className="flex items-center justify-between mb-2">
@@ -223,24 +214,6 @@ export function ScoutLiveTicker({ assignments, totalScouts, maxScouts }: TickerP
           </div>
         )}
       </div>
-
-      {/* Inline keyframes for the float-up animation */}
-      <style>{`
-        @keyframes ticker-float-up {
-          0% {
-            opacity: 1;
-            transform: translateY(0);
-          }
-          50% {
-            opacity: 0.8;
-            transform: translateY(-20px);
-          }
-          100% {
-            opacity: 0;
-            transform: translateY(-36px);
-          }
-        }
-      `}</style>
     </div>
   );
 }
