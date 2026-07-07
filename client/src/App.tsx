@@ -23,7 +23,10 @@ import { BookOpen, LogOut, Newspaper, User } from "lucide-react";
 import { SiDiscord } from "react-icons/si";
 import { SchemaOrg, schemas } from "@/components/schema-org";
 import { ScoutWidget } from "@/components/scout-widget";
-import { ScoutLiveSharePopupHost } from "@/components/scout-live-share-popup-host";
+import {
+  ScoutLiveSharePopupEngine,
+  ScoutLiveSharePopupHost,
+} from "@/components/scout-live-share-popup-host";
 import { ScoutProvider, useScout } from "@/lib/scout-context";
 import { SportProvider } from "@/lib/sport-context";
 import { NewsNotificationProvider, useNewsNotifications } from "@/lib/news-notification-context";
@@ -1284,6 +1287,7 @@ function AppContent() {
       <ScoutCeremonyManager />
       <GlobalBoostCeremonyManager />
       <WhaleAlertBannerHost />
+      <ScoutLiveSharePopupEngine />
       <ScoutLiveSharePopupHost />
       <GlobalPlayerModalHost />
     </SidebarProvider>

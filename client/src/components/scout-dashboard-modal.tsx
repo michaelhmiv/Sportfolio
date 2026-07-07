@@ -328,6 +328,8 @@ export function ScoutDashboardModal() {
   const { data: scoutData, isLoading: isLoadingScouts } = useQuery<ScoutData>({
     queryKey: ["/api/scouts"],
     enabled: isScoutDashboardOpen,
+    refetchInterval: 15000,
+    staleTime: 5000,
   });
 
   useEffect(() => {

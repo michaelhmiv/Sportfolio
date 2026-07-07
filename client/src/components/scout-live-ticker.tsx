@@ -10,13 +10,8 @@
  * resets at the top of the hour when the real distribution arrives.
  */
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Binoculars, TrendingUp } from "lucide-react";
-
-import {
-  SCOUT_LIVE_SHARE_POPUP_EVENT,
-  type ScoutLiveSharePopupDetail,
-} from "@/components/scout-live-share-popup-host";
 
 const TICK_MS = 15_000; // 15 seconds
 const TICKS_PER_HOUR = 240; // 240 ticks in an hour
@@ -59,22 +54,30 @@ function shortPlayerLabel(
 
 export function ScoutLiveTicker({ assignments, totalScouts, maxScouts }: TickerProps) {
   // Calculate rates for each assignment
-  const activeAssignments = assignments
-    .filter((a) => a.scoutCount > 0 && a.globalScoutCount > 0)
-    .map((a) => ({
-      playerId: a.playerId,
-      firstName: a.player?.firstName ?? null,
-      lastName: a.player?.lastName ?? null,
-      yourScouts: a.scoutCount,
-      globalScouts: a.globalScoutCount,
-    }));
+  const activeAssignments = useMemo(
+    () =>
+      assignments
+        .filter((a) => a.scoutCount > 0 && a.globalScoutCount > 0)
+        .map((a) => ({
+          playerId: a.playerId,
+          firstName: a.player?.firstName ?? null,
+          lastName: a.player?.lastName ?? null,
+          yourScouts: a.scoutCount,
+          globalScouts: a.globalScoutCount,
+        })),
+    [assignments],
+  );
 
-  const totalSharesPerHour = activeAssignments.reduce((sum, a) => {
-    return sum + (a.yourScouts / a.globalScouts) * HOURLY_SHARES;
-  }, 0);
+  const totalSharesPerHour = useMemo(
+    () =>
+      activeAssignments.reduce(
+        (sum, a) => sum + (a.yourScouts / a.globalScouts) * HOURLY_SHARES,
+        0,
+      ),
+    [activeAssignments],
+  );
 
   const [accumulator, setAccumulator] = useState(() => getInitialHourProgress(totalSharesPerHour));
-  const popupIdRef = useRef(0);
 
   const tickAmount = totalSharesPerHour / TICKS_PER_HOUR;
 
@@ -92,38 +95,22 @@ export function ScoutLiveTicker({ assignments, totalScouts, maxScouts }: TickerP
 
     const resetTimer = setTimeout(() => {
       setAccumulator(getInitialHourProgress(totalSharesPerHour));
-      popupIdRef.current = 0;
     }, msToNextHour);
 
     return () => clearTimeout(resetTimer);
   }, [totalSharesPerHour]);
 
-  // The 15-second tick
+  // The 15-second tick. Keep this effect dependent only on the numeric tick amount;
+  // depending on freshly-created assignment arrays causes the interval to reset on every render.
   useEffect(() => {
-    if (activeAssignments.length === 0 || tickAmount <= 0) return;
+    if (tickAmount <= 0) return;
 
     const interval = setInterval(() => {
       setAccumulator((prev) => prev + tickAmount);
-
-      activeAssignments.forEach((a, i) => {
-        const id = popupIdRef.current++;
-        const popup: ScoutLiveSharePopupDetail = {
-          id,
-          shortLabel: shortPlayerLabel(a.firstName, a.lastName, a.playerId),
-          amount: ((a.yourScouts / a.globalScouts) * HOURLY_SHARES) / TICKS_PER_HOUR,
-          x: (i / Math.max(activeAssignments.length - 1, 1)) * 80 + 10,
-        };
-
-        window.dispatchEvent(
-          new CustomEvent(SCOUT_LIVE_SHARE_POPUP_EVENT, {
-            detail: popup,
-          }),
-        );
-      });
     }, TICK_MS);
 
     return () => clearInterval(interval);
-  }, [activeAssignments, tickAmount]);
+  }, [tickAmount]);
 
   // Time until next distribution
   const [timeUntil, setTimeUntil] = useState("");
