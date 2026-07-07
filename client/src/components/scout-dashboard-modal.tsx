@@ -58,6 +58,7 @@ import { format } from "date-fns";
 import type { Player } from "@shared/schema";
 import { PlayerName } from "@/components/player-name";
 import { appendPlayerSearchParam, matchesPlayerSearch } from "@/lib/player-search";
+import { ScoutLiveTicker } from "@/components/scout-live-ticker";
 
 // --- Types ---
 interface ScoutAssignment {
@@ -980,6 +981,13 @@ export function ScoutDashboardModal() {
             </div>
           </div>
         </div>
+
+        {/* Live Ticker */}
+        <ScoutLiveTicker
+          assignments={scoutData?.assignments || []}
+          totalScouts={scoutData?.totalScouts || 0}
+          maxScouts={scoutData?.maxScouts || 5}
+        />
 
         <div className="flex-1 overflow-auto bg-card">
           <div className="w-full">
