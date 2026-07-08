@@ -25,6 +25,10 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { ScoutSelector } from "@/components/scout-selector";
+import {
+  MlbPlayerContextPanel,
+  type MlbPlayerContext,
+} from "@/components/mlb-player-context-panel";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { InjuryIndicator } from "@/components/player-name";
 import { useInjuries } from "@/lib/injury-context";
@@ -187,6 +191,12 @@ export function PlayerModal({ playerId, open, onOpenChange }: PlayerModalProps) 
       enabled: open && !!cleanPlayerId,
     },
   );
+
+  const modalPlayerSport = statsData?.stats?.sport || statsData?.player?.sport;
+  const { data: mlbContext, isLoading: mlbContextLoading } = useQuery<MlbPlayerContext>({
+    queryKey: ["/api/player", cleanPlayerId, "mlb-context"],
+    enabled: open && !!cleanPlayerId && modalPlayerSport === "MLB",
+  });
 
   // Watchlist state
   const { data: watchlistIds = [] } = useQuery<string[]>({
@@ -548,6 +558,10 @@ export function PlayerModal({ playerId, open, onOpenChange }: PlayerModalProps) 
 
           {/* Scout Assignment - Only for authenticated users */}
           {isAuthenticated && playerId && <ScoutSelector playerId={playerId} />}
+
+          {sport === "MLB" && (
+            <MlbPlayerContextPanel context={mlbContext} isLoading={mlbContextLoading} />
+          )}
 
           {/* Season Stats - Compact List */}
           <div className="border rounded-md p-2">

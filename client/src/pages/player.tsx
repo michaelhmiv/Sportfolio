@@ -40,6 +40,10 @@ import { useInjuries } from "@/lib/injury-context";
 import { AnimatedPrice } from "@/components/ui/animated-price";
 import { Confetti, CelebrationBurst } from "@/components/ui/confetti";
 import { PlayerModal } from "@/components/player-modal";
+import {
+  MlbPlayerContextPanel,
+  type MlbPlayerContext,
+} from "@/components/mlb-player-context-panel";
 import { AmmTradePanel } from "@/components/amm-trade-panel";
 import { Progress } from "@/components/ui/progress";
 
@@ -224,6 +228,12 @@ export default function PlayerPage() {
   });
 
   const currentPoolPrice = isPoolInitialized ? (poolData?.currentPrice ?? null) : null;
+
+  const { data: mlbContext, isLoading: isMlbContextLoading } = useQuery<MlbPlayerContext>({
+    queryKey: ["/api/player", id, "mlb-context"],
+    enabled: !!id && !authLoading && isAuthenticated && data?.player?.sport === "MLB",
+    staleTime: 60000,
+  });
 
   const userSharesBalance = parseFloat(String(data?.userHolding?.quantity || 0));
   const userPlayMoneyBalance = parseFloat(String(data?.userBalance || 0));
@@ -986,6 +996,9 @@ export default function PlayerPage() {
 
           {/* Right Column - Trading Panel */}
           <div id="trade-panel" className="space-y-3">
+            {player.sport === "MLB" && (
+              <MlbPlayerContextPanel context={mlbContext} isLoading={isMlbContextLoading} />
+            )}
             <AmmTradePanel
               playerId={id}
               playerName={playerName}

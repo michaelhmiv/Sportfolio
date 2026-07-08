@@ -54,7 +54,7 @@ import {
   type MarketActivitySort,
 } from "@shared/market-activity";
 import { getMarketplaceGameStatus, hasGameStartedForBoost } from "@shared/game-status";
-import { sql, eq, desc, and, gte, lte, inArray, lt, like, or } from "drizzle-orm";
+import { sql, eq, desc, asc, and, gte, lte, inArray, lt, like, or } from "drizzle-orm";
 import { jobScheduler } from "./jobs/scheduler";
 import { addClient, removeClient, broadcast, getWebSocketStats } from "./websocket";
 import { setupAuth, isAuthenticated, optionalAuth } from "./supabaseAuth";
@@ -62,6 +62,7 @@ import { getGameDay, getETDayBoundaries, getTodayETBoundaries, getTodayET } from
 import { getPerformanceEarningUnits } from "./lib/performance-earnings";
 import { buildGameStatsPayload } from "./game-stats-response";
 import { buildMlbGameplaySignals, type MlbGameplaySignal } from "./mlb-gameplay-signals";
+import { buildMlbPlayerContextPayload } from "./mlb-player-context";
 import { getOrCompute } from "./cache";
 import {
   getMlbPregameInsightBundle,
@@ -5343,6 +5344,96 @@ ${items}
       res.json({
         recentGames: [],
         error: "Game logs temporarily unavailable",
+      });
+    }
+  });
+
+  // MLB player context for today's/upcoming matchup, lineup, pitcher, and Statcast cues.
+  app.get("/api/player/:id/mlb-context", optionalAuth, async (req, res) => {
+    try {
+      const player = await storage.getPlayer(req.params.id);
+
+      if (!player) {
+        return res.status(404).json({ error: "Player not found" });
+      }
+
+      if (String(player.sport || "").toUpperCase() !== "MLB") {
+        return res.json(
+          buildMlbPlayerContextPayload({
+            player,
+            game: null,
+            mlbPregame: null,
+            signals: [],
+          }),
+        );
+      }
+
+      const now = new Date();
+      const lookback = new Date(now.getTime() - 6 * 60 * 60 * 1000);
+      const lookahead = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+      const team = String(player.team || "")
+        .trim()
+        .toUpperCase();
+      const [game] = await db
+        .select()
+        .from(dailyGames)
+        .where(
+          and(
+            sql`UPPER(${dailyGames.sport}) = 'MLB'`,
+            gte(dailyGames.startTime, lookback),
+            lte(dailyGames.startTime, lookahead),
+            or(
+              sql`UPPER(${dailyGames.homeTeam}) = ${team}`,
+              sql`UPPER(${dailyGames.awayTeam}) = ${team}`,
+            ),
+          ),
+        )
+        .orderBy(asc(dailyGames.startTime))
+        .limit(1);
+
+      if (!game) {
+        return res.json(
+          buildMlbPlayerContextPayload({
+            player,
+            game: null,
+            mlbPregame: null,
+            signals: [],
+          }),
+        );
+      }
+
+      const dateStr = getGameDay(game.startTime);
+      const userId = req.user ? getUserId(req) : null;
+      const { insights } = await buildGameInsights({
+        games: [game],
+        sport: "MLB",
+        dateStr,
+        userId,
+        includeMlbGameDetails: true,
+        includeMlbDeepContext: false,
+      });
+      const gameInsight = insights[0] || null;
+      const mlbPregame = gameInsight?.mlbPregame || null;
+
+      res.json(
+        buildMlbPlayerContextPayload({
+          player,
+          game,
+          mlbPregame,
+          signals: gameInsight?.mlbSignals || [],
+        }),
+      );
+    } catch (error: any) {
+      console.error("[API] Error fetching MLB player context:", error.message);
+      res.json({
+        game: null,
+        matchupSummary: null,
+        weatherSummary: null,
+        lineup: null,
+        opposingProbablePitcher: null,
+        hitterSpotlight: null,
+        playerSignals: [],
+        error: "MLB context temporarily unavailable",
       });
     }
   });
