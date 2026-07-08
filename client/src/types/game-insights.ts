@@ -131,6 +131,30 @@ export interface GameInsightMlbEnrichment {
   message: string | null;
 }
 
+export type GameInsightMlbSignalCategory =
+  | "lineup"
+  | "pitcher"
+  | "statcast"
+  | "market"
+  | "weather"
+  | "team"
+  | "scoring"
+  | "game_state";
+
+export type GameInsightMlbSignalSeverity = "info" | "positive" | "warning" | "high";
+
+export interface GameInsightMlbSignal {
+  id: string;
+  gameId: string;
+  playerId?: string;
+  team?: string;
+  category: GameInsightMlbSignalCategory;
+  severity: GameInsightMlbSignalSeverity;
+  label: string;
+  detail: string;
+  scoreImpact?: number;
+}
+
 export interface GameInsightMlbPregame {
   matchupSummary: string | null;
   venue: string | null;
@@ -194,6 +218,7 @@ export interface GameInsight {
   liveMarketStatus?: string | null;
   mlbEnrichment?: GameInsightMlbEnrichment | null;
   mlbPregame?: GameInsightMlbPregame | null;
+  mlbSignals?: GameInsightMlbSignal[];
 }
 
 export interface GameInsightsResponse {
