@@ -570,9 +570,6 @@ function MlbLifecycleCard({
                     ? "Live box score"
                     : "Final box score"}
               </div>
-              <div className="mt-1 text-sm font-semibold text-foreground">
-                {mlbPregame.matchupSummary || "MLB matchup context is available for this game."}
-              </div>
               {scoreLine ? (
                 <div className="mt-2 text-base font-semibold text-foreground">{scoreLine}</div>
               ) : null}
