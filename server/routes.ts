@@ -61,6 +61,7 @@ import { setupAuth, isAuthenticated, optionalAuth } from "./supabaseAuth";
 import { getGameDay, getETDayBoundaries, getTodayETBoundaries, getTodayET } from "./lib/time";
 import { getPerformanceEarningUnits } from "./lib/performance-earnings";
 import { buildGameStatsPayload } from "./game-stats-response";
+import { buildMlbGameplaySignals, type MlbGameplaySignal } from "./mlb-gameplay-signals";
 import { getOrCompute } from "./cache";
 import {
   getMlbPregameInsightBundle,
@@ -377,6 +378,7 @@ type GameInsight = {
   liveMarketStatus?: string | null;
   mlbEnrichment?: MlbEnrichmentStatus | null;
   mlbPregame?: MlbPregameInsight | null;
+  mlbSignals?: MlbGameplaySignal[];
 };
 
 const slatePlayerStatusPriority: Record<GameInsightSlatePlayer["status"], number> = {
@@ -2134,6 +2136,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
               message: "Game details are pending.",
             }
           : null;
+      const leaders = {
+        fantasy: pickLeader("avgFantasyPointsPerGame"),
+        shares: pickLeader("totalShares"),
+        scouts: pickLeader("scoutCount"),
+      };
+      const mlbSignals =
+        String(game.sport || "").toUpperCase() === "MLB"
+          ? buildMlbGameplaySignals({
+              game: {
+                gameId: game.gameId,
+                status,
+                awayTeam: game.awayTeam,
+                homeTeam: game.homeTeam,
+              },
+              mlbPregame: mlbPregameInsight,
+              leaders,
+              userContext,
+            })
+          : [];
 
       return {
         gameId: game.gameId,
@@ -2146,15 +2167,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         homeScore,
         awayScore,
         venue: game.venue ?? mlbPregameInsight?.venue ?? null,
-        leaders: {
-          fantasy: pickLeader("avgFantasyPointsPerGame"),
-          shares: pickLeader("totalShares"),
-          scouts: pickLeader("scoutCount"),
-        },
+        leaders,
         userContext,
         liveMarketStatus,
         mlbEnrichment,
         mlbPregame: mlbPregameInsight,
+        mlbSignals,
       } satisfies GameInsight;
     });
 
