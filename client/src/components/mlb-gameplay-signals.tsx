@@ -137,15 +137,6 @@ export function MlbSignalPanel({
                       {signal.team}
                     </Badge>
                   ) : null}
-                  {typeof signal.scoreImpact === "number" ? (
-                    <Badge
-                      variant="outline"
-                      className="text-[10px] border-border/70 bg-background/50"
-                    >
-                      impact {signal.scoreImpact > 0 ? "+" : ""}
-                      {signal.scoreImpact.toFixed(1)}
-                    </Badge>
-                  ) : null}
                 </div>
               ) : null}
             </div>
