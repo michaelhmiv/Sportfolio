@@ -8,6 +8,7 @@ import { formatSignedAdaptiveCurrency } from "@/lib/currency";
 import { openPlayerModal } from "@/lib/player-modal-events";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { MlbSignalChips } from "@/components/mlb-gameplay-signals";
 
 interface GameCommandCenterCardProps {
   game: GameInsight;
@@ -215,6 +216,10 @@ export function GameCommandCenterCard({
           </div>
         </div>
       </div>
+
+      {game.sport?.toUpperCase() === "MLB" ? (
+        <MlbSignalChips signals={game.mlbSignals} limit={3} />
+      ) : null}
 
       {isAuthenticated && userContext && showBoostPanel && effectiveStatus === "scheduled" && (
         <div className="mt-3 border-t border-border/60 pt-2">

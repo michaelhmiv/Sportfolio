@@ -74,6 +74,7 @@ import type {
 } from "@/components/dashboard-showcase-card.helpers";
 import { MobilePortfolioStatsSheet } from "@/components/mobile-portfolio-stats-sheet";
 import { MlbProbableBadge } from "@/components/mlb-probable-badge";
+import { MlbSignalChips } from "@/components/mlb-gameplay-signals";
 import type { GameInsight, GameInsightsResponse } from "@/types/game-insights";
 import { AnimatedPrice } from "@/components/ui/animated-price";
 import { cn } from "@/lib/utils";
@@ -1363,6 +1364,13 @@ export default function Dashboard() {
                                             {mlbFallbackLabel}
                                           </div>
                                         ) : null}
+                                        {isMlbGame ? (
+                                          <MlbSignalChips
+                                            signals={game.mlbSignals}
+                                            limit={1}
+                                            className="mt-1.5"
+                                          />
+                                        ) : null}
                                       </td>
                                       <td className="hidden px-2 py-2 align-middle sm:table-cell">
                                         <div
@@ -1405,6 +1413,15 @@ export default function Dashboard() {
                                         <div className="truncate text-[10px] text-muted-foreground sm:text-xs">
                                           {progressMeta}
                                         </div>
+                                        {isMlbGame ? (
+                                          <div className="hidden sm:block">
+                                            <MlbSignalChips
+                                              signals={game.mlbSignals}
+                                              limit={1}
+                                              className="mt-1.5 justify-start"
+                                            />
+                                          </div>
+                                        ) : null}
                                       </td>
                                       <td className="px-1.5 py-1.5 align-middle text-right sm:px-2 sm:py-2">
                                         <div

@@ -32,6 +32,7 @@ import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { MlbProbableBadge } from "@/components/mlb-probable-badge";
 import { Shimmer } from "@/components/ui/animations";
 import { PlayerModal } from "@/components/player-modal";
+import { MlbSignalPanel } from "@/components/mlb-gameplay-signals";
 import { apiRequest, authenticatedFetch } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
@@ -452,6 +453,7 @@ function MlbLinescorePanel({
 function MlbLifecycleCard({
   game,
   mlbPregame,
+  mlbSignals,
   activeTab,
   liveStats,
   userContext,
@@ -464,6 +466,7 @@ function MlbLifecycleCard({
 }: {
   game?: GameInsight | null;
   mlbPregame?: GameInsight["mlbPregame"] | null;
+  mlbSignals?: GameInsight["mlbSignals"] | null;
   activeTab: CommandCenterTab;
   liveStats?: LiveStatsResponse;
   userContext?: GameInsight["userContext"] | null;
@@ -626,6 +629,8 @@ function MlbLifecycleCard({
           ) : null}
         </div>
       </div>
+
+      <MlbSignalPanel signals={mlbSignals} limit={activeTab === "pre" ? 6 : 5} />
 
       {isPregame && (
         <div className="border-t border-border/60 px-3 py-3 sm:px-4">
@@ -2160,6 +2165,7 @@ export function GameCommandCenterModal({
           <MlbLifecycleCard
             game={game}
             mlbPregame={mlbPregame}
+            mlbSignals={game?.mlbSignals}
             activeTab={activeTab}
             liveStats={liveStats}
             userContext={userContext}
@@ -3546,6 +3552,7 @@ export function GameCommandCenterModal({
           <MlbLifecycleCard
             game={game}
             mlbPregame={mlbPregame}
+            mlbSignals={game?.mlbSignals}
             activeTab={activeTab}
             liveStats={liveStats}
             userContext={userContext}
