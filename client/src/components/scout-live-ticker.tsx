@@ -110,7 +110,8 @@ export function ScoutLiveTicker({ assignments, totalScouts, maxScouts }: TickerP
 
   if (activeAssignments.length === 0) return null;
 
-  const progressPct = Math.min((accumulator / Math.max(totalSharesPerHour, 0.01)) * 100, 100);
+  const maxSharesPerHour = activeAssignments.length * HOURLY_SHARES; // 60 per player
+  const progressPct = Math.min((totalSharesPerHour / Math.max(maxSharesPerHour, 0.01)) * 100, 100);
 
   return (
     <div className="relative border border-border/60 rounded-sm bg-muted/30 p-2.5 overflow-hidden">
@@ -132,19 +133,19 @@ export function ScoutLiveTicker({ assignments, totalScouts, maxScouts }: TickerP
             </div>
           </div>
 
-          {/* Accumulator */}
+          {/* Accumulator — shares earned so far this hour */}
           <div className="flex items-baseline gap-1.5">
             <span className="text-xl font-bold font-mono tabular-nums text-amber-500 leading-none">
               {accumulator.toFixed(2)}
             </span>
-            <span className="text-[9px] text-muted-foreground">shares/hr</span>
+            <span className="text-[9px] text-muted-foreground">earned this hour</span>
           </div>
 
-          {/* Compact progress bar */}
+          {/* Competition gauge: current rate vs max possible */}
           <div className="mt-1.5 space-y-0.5">
             <div className="flex justify-between text-[9px] text-muted-foreground tabular-nums">
               <span>{totalSharesPerHour.toFixed(2)}/hr est.</span>
-              <span>{progressPct.toFixed(0)}%</span>
+              <span>{maxSharesPerHour.toFixed(0)} max</span>
             </div>
             <div className="h-1 bg-muted rounded-full overflow-hidden">
               <div
