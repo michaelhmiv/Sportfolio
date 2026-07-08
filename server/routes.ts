@@ -60,6 +60,7 @@ import { addClient, removeClient, broadcast, getWebSocketStats } from "./websock
 import { setupAuth, isAuthenticated, optionalAuth } from "./supabaseAuth";
 import { getGameDay, getETDayBoundaries, getTodayETBoundaries, getTodayET } from "./lib/time";
 import { getPerformanceEarningUnits } from "./lib/performance-earnings";
+import { buildGameStatsPayload } from "./game-stats-response";
 import { getOrCompute } from "./cache";
 import {
   getMlbPregameInsightBundle,
@@ -3886,6 +3887,8 @@ ${items}
             playerId: stat.playerId,
             playerName: player ? `${player.firstName} ${player.lastName}` : "Unknown",
             team: player?.team || stat.opponentTeam,
+            sport: stat.sport,
+            statsJson: stat.statsJson as Record<string, any>,
             minutes: stat.minutes,
             points: stat.points,
             threePointersMade: stat.threePointersMade,
@@ -3900,50 +3903,7 @@ ${items}
         }),
       );
 
-      // Group by home/away
-      const homeStats = statsWithPlayers.filter((s) => s.homeAway === "home");
-      const awayStats = statsWithPlayers.filter((s) => s.homeAway === "away");
-
-      const calculateTeamTotals = (teamStats: typeof statsWithPlayers) => ({
-        points: teamStats.reduce((sum, s) => sum + s.points, 0),
-        rebounds: teamStats.reduce((sum, s) => sum + s.rebounds, 0),
-        assists: teamStats.reduce((sum, s) => sum + s.assists, 0),
-        steals: teamStats.reduce((sum, s) => sum + s.steals, 0),
-        blocks: teamStats.reduce((sum, s) => sum + s.blocks, 0),
-        turnovers: teamStats.reduce((sum, s) => sum + s.turnovers, 0),
-      });
-
-      // Find top performers across both teams
-      const allStats = [...homeStats, ...awayStats];
-      const topScorer = allStats.reduce((max, s) => (s.points > max.points ? s : max), allStats[0]);
-      const topRebounder = allStats.reduce(
-        (max, s) => (s.rebounds > max.rebounds ? s : max),
-        allStats[0],
-      );
-      const topAssister = allStats.reduce(
-        (max, s) => (s.assists > max.assists ? s : max),
-        allStats[0],
-      );
-
-      res.json({
-        gameId,
-        homeTeam: {
-          players: homeStats,
-          totals: homeStats.length > 0 ? calculateTeamTotals(homeStats) : null,
-        },
-        awayTeam: {
-          players: awayStats,
-          totals: awayStats.length > 0 ? calculateTeamTotals(awayStats) : null,
-        },
-        topPerformers:
-          allStats.length > 0
-            ? {
-                topScorer,
-                topRebounder,
-                topAssister,
-              }
-            : null,
-      });
+      res.json(buildGameStatsPayload(gameId, statsWithPlayers));
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
