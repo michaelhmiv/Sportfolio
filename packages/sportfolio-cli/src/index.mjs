@@ -60,12 +60,16 @@ const COMMAND_HELP = {
     "",
     "Usage:",
     "  tools list",
+    "  tools catalog",
+    "  tools schema <tool-name>",
     "  tools call <tool-name> [--args-json <json>]",
     "",
     "Examples:",
     "  sportfolio tools list",
+    "  sportfolio tools catalog --json",
+    "  sportfolio tools schema stage_market_buy",
     "  sportfolio tools call get_account_profile",
-    '  sportfolio tools call stage_market_buy --args-json {"playerId":"nba_1","amount":25}',
+    '  sportfolio tools call stage_market_buy --args-json {"playerId":"mlb_660271","amount":25}',
   ],
   prompts: [
     "Public Prompt Commands",
@@ -159,6 +163,8 @@ function printHelp() {
     "  actions watchlist remove <player-name-or-id> [--thread <threadId>]",
     "  actions community-boost <player-name> [--timing today|tomorrow] [--thread <threadId>]",
     "  tools list",
+    "  tools catalog",
+    "  tools schema <tool-name>",
     "  tools call <tool-name> [--args-json <json>]",
     "  prompts list",
     "  prompts render <prompt-name> [--args-json <json>]",
@@ -300,6 +306,22 @@ async function listPublicTools(config) {
   return requestJson({
     baseUrl: config.baseUrl,
     path: "/api/cli/tools",
+    token: config.token,
+  });
+}
+
+async function getPublicToolCatalog(config) {
+  return requestJson({
+    baseUrl: config.baseUrl,
+    path: "/api/cli/tools/catalog",
+    token: config.token,
+  });
+}
+
+async function getPublicToolSchema(config, toolName) {
+  return requestJson({
+    baseUrl: config.baseUrl,
+    path: `/api/cli/tools/${encodeURIComponent(toolName)}/schema`,
     token: config.token,
   });
 }
@@ -743,9 +765,48 @@ async function handleTools(args, asJson) {
     printList(
       result.tools.map(
         (tool) =>
-          `${tool.name}  ${tool.domain}  ${tool.readOnly ? "read" : "write"}  ${tool.description}`,
+          `${tool.name}  ${tool.domain}  ${tool.executionModel || (tool.readOnly ? "read" : "write")}  ${tool.riskLevel || "unknown"}  ${tool.requiresConfirmation ? "confirmation required" : "immediate"}  ${tool.description}`,
       ),
     );
+    return;
+  }
+
+  if (subcommand === "catalog") {
+    const result = await getPublicToolCatalog(config);
+    if (asJson) {
+      printJson(result);
+      return;
+    }
+
+    printList(
+      result.tools.map(
+        (tool) =>
+          `${tool.name}  ${tool.domain}  ${tool.executionModel}  ${tool.riskLevel || "unknown"}  ${tool.requiresConfirmation ? "confirmation required" : "immediate"}  ${tool.description}`,
+      ),
+    );
+    return;
+  }
+
+  if (subcommand === "schema") {
+    const toolName = rest[0] || "";
+    if (!toolName) {
+      throw Object.assign(new Error("Tool name is required"), { exitCode: 1 });
+    }
+
+    const result = await getPublicToolSchema(config, toolName);
+    if (asJson) {
+      printJson(result);
+      return;
+    }
+
+    const tool = result.tool;
+    printList([
+      `${tool.name}  ${tool.domain}  ${tool.executionModel}  ${tool.riskLevel || "unknown"}`,
+      tool.description,
+      `Inputs: ${(tool.inputFieldNames || []).join(", ") || "none"}`,
+      `Confirmation: ${tool.requiresConfirmation ? "required" : "not required"}`,
+      `Provider: ${tool.provider || "sportfolio"}`,
+    ]);
     return;
   }
 

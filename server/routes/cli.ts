@@ -11,8 +11,9 @@ import { createUserApiTokenMaterial, requireUserApiToken } from "../api-token-au
 import {
   buildPublicPromptRegistry,
   buildPublicResourceRegistry,
-  buildPublicToolRegistry,
   createDefaultPublicMcpDependencies,
+  executeResolvedPublicTool,
+  resolvePublicCapabilityCatalog,
   executePublicTool,
   readPublicResource,
   renderPublicPrompt,
@@ -146,15 +147,41 @@ function createPublicContext(userId: string) {
   };
 }
 
-function toCliToolView(tool: ReturnType<typeof buildPublicToolRegistry>[number]) {
+type CliToolCatalogLike = {
+  name: string;
+  title?: string | null;
+  description: string;
+  domain: string;
+  readOnly: boolean;
+  executionModel?: string;
+  confirmationModel?: string;
+  requiresConfirmation?: boolean;
+  riskLevel?: string | null;
+  inputSchema?: Record<string, unknown>;
+  inputFieldNames?: string[];
+  fixtureArgs?: Record<string, unknown>;
+  provider?: string | null;
+  source?: string;
+  routeRefs?: string[];
+};
+
+function toCliToolView(tool: CliToolCatalogLike) {
   return {
     name: tool.name,
     title: tool.title,
     description: tool.description,
     domain: tool.domain,
     readOnly: tool.readOnly,
-    inputKeys: Object.keys(tool.inputSchema || {}),
+    executionModel: tool.executionModel,
+    confirmationModel: tool.confirmationModel,
+    requiresConfirmation: tool.requiresConfirmation,
+    riskLevel: tool.riskLevel,
+    inputKeys: tool.inputFieldNames || Object.keys(tool.inputSchema || {}),
+    inputFieldNames: tool.inputFieldNames || Object.keys(tool.inputSchema || {}),
     fixtureArgs: tool.fixtureArgs,
+    provider: tool.provider,
+    source: tool.source,
+    routeRefs: tool.routeRefs || [],
   };
 }
 
@@ -372,18 +399,46 @@ export function registerCliRoutes(app: Express): void {
 
   app.get("/api/cli/tools", requireUserApiToken, async (req: Request, res: Response) => {
     try {
+      const catalog = await resolvePublicCapabilityCatalog(createPublicContext(getUserId(req)));
       res.json({
-        tools: buildPublicToolRegistry().map(toCliToolView),
+        tools: catalog.tools.map(toCliToolView),
+        dynamicSources: catalog.dynamicSources,
       });
     } catch (error) {
       handleCliRouteError(res, error, "Could not load public tools");
     }
   });
 
+  app.get("/api/cli/tools/catalog", requireUserApiToken, async (req: Request, res: Response) => {
+    try {
+      res.json(await resolvePublicCapabilityCatalog(createPublicContext(getUserId(req))));
+    } catch (error) {
+      handleCliRouteError(res, error, "Could not load public tool catalog");
+    }
+  });
+
+  app.get(
+    "/api/cli/tools/:name/schema",
+    requireUserApiToken,
+    async (req: Request, res: Response) => {
+      try {
+        const catalog = await resolvePublicCapabilityCatalog(createPublicContext(getUserId(req)));
+        const tool = catalog.tools.find((entry) => entry.name === req.params.name);
+        if (!tool) {
+          res.status(404).json({ message: "Tool not found" });
+          return;
+        }
+        res.json({ tool });
+      } catch (error) {
+        handleCliRouteError(res, error, "Could not load public tool schema");
+      }
+    },
+  );
+
   app.post("/api/cli/tools/:name", requireUserApiToken, async (req: Request, res: Response) => {
     try {
       res.json(
-        await executePublicTool(
+        await executeResolvedPublicTool(
           createPublicContext(getUserId(req)),
           req.params.name,
           req.body && typeof req.body === "object" ? req.body : {},

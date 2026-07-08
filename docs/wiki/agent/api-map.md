@@ -13,25 +13,23 @@ surface: agent
 searchKeywords: api,endpoints,routes,auth,amm,lp,scouts,boosts,admin,websocket
 ---
 
-# API Map (Agent-Oriented)
+# Gameplay API Map (Agent-Oriented)
+
+This is a curated map of the API surface most likely to affect gameplay/economics. It is not an exhaustive route inventory.
 
 Primary sources:
 
 - `server/routes.ts`
 - `server/routes/amm.ts`
 - `server/routes/lp.ts`
+- `server/routes/players.ts`
 
-Upstream provider contract reference:
+For automation, prefer the resolved capability catalog:
 
-- `https://www.balldontlie.io/openapi.yml`
+- CLI: `sportfolio tools catalog --json`
+- MCP-compatible clients: `sportfolio://tool-catalog`
 
-Use the OpenAPI file when:
-
-- validating provider endpoint/field support,
-- answering provider API behavior questions,
-- adding support for additional sports in ingestion/sync flows.
-
-This is a practical map of the API surface most likely to affect gameplay/economics.
+Provider-specific contracts live behind Sportfolio-owned adapters. MLB ingest/enrichment uses MLB StatsAPI-backed paths; do not treat older provider references as the current canonical MLB contract.
 
 ## Auth Modes
 

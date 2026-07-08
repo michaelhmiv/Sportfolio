@@ -707,14 +707,6 @@ export const EXCLUDED_GAMEPLAY_CAPABILITIES: GameplayCapabilityEntry[] = [
     notes: "Admin-only rewarded ad session diagnostics are out of scope for MCP v1.",
   },
   {
-    capabilityId: "premium_redeem",
-    kind: "excluded",
-    status: "excluded",
-    domain: "billing",
-    source: "/api/premium/redeem",
-    notes: "Premium redemption is out of scope for MCP v1.",
-  },
-  {
     capabilityId: "user_add_cash",
     kind: "excluded",
     status: "excluded",

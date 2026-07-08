@@ -70,6 +70,8 @@ npm run cli -- actions community-boost <player-name> [--timing today|tomorrow] [
 
 # ── Shared Public Capability Surface ──────────────────────
 npm run cli -- tools list
+npm run cli -- tools catalog
+npm run cli -- tools schema <tool-name>
 npm run cli -- tools call <tool-name> [--args-json '{"key":"value"}']
 npm run cli -- prompts list
 npm run cli -- prompts render <prompt-name> [--args-json '{"key":"value"}']
@@ -87,6 +89,8 @@ Add `--json` to any command for machine-readable output:
 npm run cli -- --json auth whoami
 npm run cli -- --json agent ask "what is my available cash?"
 npm run cli -- --json portfolio summary
+npm run cli -- --json tools catalog
+npm run cli -- --json tools schema stage_market_buy
 npm run cli -- --json tools call get_account_profile
 ```
 
@@ -96,14 +100,25 @@ JSON mode is useful for scripting, piping output to `jq`, or building automation
 
 ## Shared Tool Surface
 
-The CLI exposes the same shared capability catalog as MCP:
+The CLI is the canonical automation adapter over Sportfolio's resolved public capability catalog. Use MCP only when a host client specifically requires the Model Context Protocol.
 
-| Command                 | What it does                                             |
-| ----------------------- | -------------------------------------------------------- |
-| `tools list`            | See every available tool                                 |
-| `tools call <name>`     | Execute a read or action directly                        |
-| `prompts render <name>` | Expand a shared starter prompt                           |
-| `resources read <uri>`  | Read a public resource (e.g., `sportfolio://docs/index`) |
+| Command                 | What it does                                                                  |
+| ----------------------- | ----------------------------------------------------------------------------- |
+| `tools list`            | Human-readable tool list with execution model/risk/confirmation hints         |
+| `tools catalog`         | Full resolved catalog: static Sportfolio tools + dynamic MLB tools when live  |
+| `tools schema <name>`   | Inspect one tool's inputs, execution model, provider, and confirmation needs  |
+| `tools call <name>`     | Execute a read, immediate write, staged write, finalizer, or dynamic MLB tool |
+| `prompts render <name>` | Expand a shared starter prompt                                                |
+| `resources read <uri>`  | Read a public resource (e.g., `sportfolio://docs/index`)                      |
+
+Tool output exposes four execution models:
+
+| Model             | Meaning                                                        |
+| ----------------- | -------------------------------------------------------------- |
+| `read`            | No write side effects                                          |
+| `immediate_write` | Executes immediately; treat as a direct account/product change |
+| `staged_write`    | Creates a pending bundle that requires confirm/cancel          |
+| `finalizer`       | Confirms or cancels a pending staged bundle                    |
 
 ---
 
@@ -122,4 +137,4 @@ The CLI exposes the same shared capability catalog as MCP:
 
 - [CLI Overview](/wiki/cli/overview) — when to use CLI vs. MCP
 - [User Action Surface](/wiki/features/user-action-surface) — full capability map
-- [MCP Access](/wiki/getting-started/mcp-access) — protocol access for external clients
+- [MCP Compatibility Endpoint](/wiki/getting-started/mcp-access) — protocol adapter for external MCP clients

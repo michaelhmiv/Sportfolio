@@ -67,12 +67,17 @@ type RawSchema = Record<string, z.ZodTypeAny>;
 
 type ToolStructuredContent = Record<string, unknown>;
 
+type PublicToolExecutionModel = "read" | "immediate_write" | "staged_write" | "finalizer";
+type PublicToolConfirmationModel = "immediate" | "staged_confirmation" | "finalizer";
+type PublicToolRiskLevel = "low" | "medium" | "high";
+
 export type PublicToolDefinition = {
   name: string;
   title?: string;
   description: string;
   domain: string;
   readOnly: boolean;
+  riskLevel?: PublicToolRiskLevel;
   inputSchema?: RawSchema;
   fixtureArgs: Record<string, unknown>;
   routeRefs?: string[];
@@ -106,8 +111,10 @@ export type PublicIncludedCapability = {
   resourceUri?: string;
   provider?: string | null;
   readOnly?: boolean;
-  confirmationModel?: "immediate" | "staged_confirmation" | "finalizer";
-  riskLevel?: "low" | "medium" | "high" | null;
+  executionModel?: PublicToolExecutionModel;
+  confirmationModel?: PublicToolConfirmationModel;
+  requiresConfirmation?: boolean;
+  riskLevel?: PublicToolRiskLevel | null;
   source: string;
   routeRefs?: string[];
 };
@@ -143,8 +150,10 @@ export type PublicToolCatalogEntry = {
   source: string;
   category: string | null;
   readOnly: boolean;
-  confirmationModel: "immediate" | "staged_confirmation" | "finalizer";
-  riskLevel: "low" | "medium" | "high" | null;
+  executionModel: PublicToolExecutionModel;
+  confirmationModel: PublicToolConfirmationModel;
+  requiresConfirmation: boolean;
+  riskLevel: PublicToolRiskLevel | null;
   whenToUse: string[];
   whenNotToUse: string[];
   examplePrompts: string[];
@@ -269,6 +278,12 @@ export type PublicMcpDependencies = {
 
 const PUBLIC_DYNAMIC_MLB_SOURCE_ID = "internal_mlb_mcp";
 const PUBLIC_DYNAMIC_MLB_SOURCE_NAME = "Internal MLB MCP";
+const HIGH_RISK_IMMEDIATE_TOOL_NAMES = new Set([
+  "revoke_api_token",
+  "save_agent_byok",
+  "clear_agent_byok",
+  "redeem_premium",
+]);
 
 class PublicMcpToolError extends Error {
   constructor(
@@ -350,14 +365,45 @@ function toToolErrorResult(error: unknown) {
   };
 }
 
-function getPublicToolExecutionModel(name: string) {
-  if (name === "confirm_pending_action" || name === "cancel_pending_action") {
-    return "finalizer" as const;
+function getPublicToolExecutionModel(
+  tool: Pick<PublicToolDefinition, "name" | "readOnly">,
+): PublicToolExecutionModel {
+  if (tool.readOnly) {
+    return "read";
   }
-  if (name.startsWith("stage_")) {
-    return "staged_confirmation" as const;
+  if (tool.name === "confirm_pending_action" || tool.name === "cancel_pending_action") {
+    return "finalizer";
   }
-  return "immediate" as const;
+  if (tool.name.startsWith("stage_")) {
+    return "staged_write";
+  }
+  return "immediate_write";
+}
+
+function getPublicToolConfirmationModel(
+  executionModel: PublicToolExecutionModel,
+): PublicToolConfirmationModel {
+  if (executionModel === "finalizer") {
+    return "finalizer";
+  }
+  if (executionModel === "staged_write") {
+    return "staged_confirmation";
+  }
+  return "immediate";
+}
+
+function getPublicToolRiskLevel(tool: PublicToolDefinition): PublicToolRiskLevel {
+  if (tool.riskLevel) {
+    return tool.riskLevel;
+  }
+  if (HIGH_RISK_IMMEDIATE_TOOL_NAMES.has(tool.name)) {
+    return "high";
+  }
+  const executionModel = getPublicToolExecutionModel(tool);
+  if (executionModel === "read") {
+    return "low";
+  }
+  return "medium";
 }
 
 function getToolInputFieldNames(schema?: RawSchema) {
@@ -384,6 +430,7 @@ function getAgentToolInputFieldNames(inputSchema?: Record<string, unknown> | nul
 }
 
 function toStaticPublicToolCatalogEntry(tool: PublicToolDefinition): PublicToolCatalogEntry {
+  const executionModel = getPublicToolExecutionModel(tool);
   return {
     name: tool.name,
     title: tool.title || null,
@@ -393,8 +440,10 @@ function toStaticPublicToolCatalogEntry(tool: PublicToolDefinition): PublicToolC
     source: "public_registry:tool",
     category: tool.readOnly ? "read" : "action",
     readOnly: tool.readOnly,
-    confirmationModel: getPublicToolExecutionModel(tool.name),
-    riskLevel: tool.readOnly ? "low" : null,
+    executionModel,
+    confirmationModel: getPublicToolConfirmationModel(executionModel),
+    requiresConfirmation: executionModel === "staged_write",
+    riskLevel: getPublicToolRiskLevel(tool),
     whenToUse: [],
     whenNotToUse: [],
     examplePrompts: [],
@@ -409,6 +458,9 @@ function toStaticPublicToolCatalogEntry(tool: PublicToolDefinition): PublicToolC
 }
 
 function toDynamicPublicToolCatalogEntry(tool: AgentToolDefinition): PublicToolCatalogEntry {
+  const executionModel: PublicToolExecutionModel = tool.requiresConfirmation
+    ? "staged_write"
+    : "read";
   return {
     name: tool.toolName,
     title: tool.toolName,
@@ -418,7 +470,9 @@ function toDynamicPublicToolCatalogEntry(tool: AgentToolDefinition): PublicToolC
     source: "dynamic:internal_mlb_mcp",
     category: tool.category,
     readOnly: !tool.requiresConfirmation,
-    confirmationModel: tool.requiresConfirmation ? "staged_confirmation" : "immediate",
+    executionModel,
+    confirmationModel: getPublicToolConfirmationModel(executionModel),
+    requiresConfirmation: tool.requiresConfirmation,
     riskLevel: tool.riskLevel,
     whenToUse: [...tool.whenToUse],
     whenNotToUse: [...tool.whenNotToUse],
@@ -4239,7 +4293,9 @@ const PUBLIC_STATIC_RESOURCES: PublicResourceDefinition[] = [
                   domain: tool.domain,
                   provider: tool.provider,
                   readOnly: tool.readOnly,
+                  executionModel: tool.executionModel,
                   confirmationModel: tool.confirmationModel,
+                  requiresConfirmation: tool.requiresConfirmation,
                   riskLevel: tool.riskLevel,
                   presentationProfile: tool.presentationProfile,
                   primaryEntityType: tool.primaryEntityType,
@@ -4357,7 +4413,9 @@ export async function buildResolvedPublicCapabilityInventory(
             toolName: tool.toolName,
             provider: "internal_mlb_mcp",
             readOnly: !tool.requiresConfirmation,
+            executionModel: tool.requiresConfirmation ? "staged_write" : "read",
             confirmationModel: tool.requiresConfirmation ? "staged_confirmation" : "immediate",
+            requiresConfirmation: tool.requiresConfirmation,
             riskLevel: tool.riskLevel,
             source: "dynamic:internal_mlb_mcp",
           }) satisfies PublicIncludedCapability,
@@ -4392,17 +4450,22 @@ export function buildPublicCapabilityInventory(): {
 } {
   return {
     included: [
-      ...buildPublicToolRegistry().map(
-        (tool) =>
-          ({
-            capabilityId: tool.name,
-            kind: "tool",
-            status: "included",
-            domain: tool.domain,
-            toolName: tool.name,
-            source: "public_registry:tool",
-          }) satisfies PublicIncludedCapability,
-      ),
+      ...buildPublicToolRegistry().map((tool) => {
+        const executionModel = getPublicToolExecutionModel(tool);
+        return {
+          capabilityId: tool.name,
+          kind: "tool",
+          status: "included",
+          domain: tool.domain,
+          toolName: tool.name,
+          readOnly: tool.readOnly,
+          executionModel,
+          confirmationModel: getPublicToolConfirmationModel(executionModel),
+          requiresConfirmation: executionModel === "staged_write",
+          riskLevel: getPublicToolRiskLevel(tool),
+          source: "public_registry:tool",
+        } satisfies PublicIncludedCapability;
+      }),
       ...buildPublicPromptRegistry().map(
         (prompt) =>
           ({
@@ -4563,6 +4626,70 @@ export async function executePublicTool(
     throw new PublicMcpToolError("Unknown public tool.", "not_found", { name });
   }
   return tool.execute(context, parseSchemaArgs(tool.inputSchema, args));
+}
+
+export async function executeResolvedPublicTool(
+  context: PublicMcpServerContext,
+  name: string,
+  args: Record<string, unknown> = {},
+) {
+  const staticTool = getPublicToolDefinition(name);
+  if (staticTool) {
+    return staticTool.execute(context, parseSchemaArgs(staticTool.inputSchema, args));
+  }
+
+  const dynamicMlb = await getResolvedDynamicMlbPublicToolsForContext(context);
+  const dynamicTool = dynamicMlb.tools.find((tool) => tool.toolName === name);
+  if (!dynamicTool) {
+    throw new PublicMcpToolError("Unknown public tool.", "not_found", { name });
+  }
+
+  const result = await context.deps.runInternalMlbMcpToolBounded({
+    toolName: dynamicTool.toolName,
+    args,
+  });
+
+  return {
+    summary: result.replyText || `Loaded MLB data via ${result.remoteToolName}.`,
+    remoteToolName: result.remoteToolName,
+    content: Array.isArray(result.content) ? result.content : [],
+    structuredContent: result.structuredContent ?? null,
+    payloadTruncated: result.payloadTruncated ?? false,
+    truncation: result.truncation ?? null,
+  };
+}
+
+export async function resolvePublicCapabilityCatalog(context: PublicMcpServerContext) {
+  const dynamicMlb = await getResolvedDynamicMlbPublicToolsForContext(context);
+  const resolvedContext = {
+    ...context,
+    dynamicMlb,
+  };
+  const resources = buildPublicResourceRegistry(resolvedContext);
+  const inventory = await buildResolvedPublicCapabilityInventory(resolvedContext);
+
+  return {
+    tools: [
+      ...buildPublicToolRegistry().map(toStaticPublicToolCatalogEntry),
+      ...dynamicMlb.tools.map(toDynamicPublicToolCatalogEntry),
+    ],
+    prompts: buildPublicPromptRegistry().map((prompt) => ({
+      name: prompt.name,
+      description: prompt.description,
+      inputKeys: Object.keys(prompt.argsSchema || {}),
+      fixtureArgs: prompt.fixtureArgs,
+    })),
+    resources: resources.map((resource) => ({
+      id: resource.id,
+      uri: resource.uri,
+      title: resource.title,
+      description: resource.description,
+      mimeType: resource.mimeType,
+    })),
+    included: inventory.included,
+    excluded: inventory.excluded,
+    dynamicSources: [dynamicMlb.sourceStatus],
+  };
 }
 
 export async function renderPublicPrompt(name: string, args: Record<string, unknown> = {}) {

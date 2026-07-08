@@ -15,9 +15,11 @@ searchKeywords: cli,api token,terminal,auth,actions,agent,docs,mcp,external acce
 
 # CLI and External Access
 
-The Sportfolio CLI gives you terminal-native access to your account, docs, the agent, and the shared public tool surface. It's built for developers, power users, and anyone who prefers keyboard workflows over clicking through the UI.
+The Sportfolio CLI is the canonical automation interface for agents, scripts, developers, and power users. It gives terminal-native access to your account, docs, the agent, and the resolved public capability catalog.
 
-> ℹ️ **The CLI doesn't bypass any safety rules.** Confirmation-gated actions are still staged first and require an explicit confirm step.
+MCP remains available as a compatibility endpoint for MCP-native clients, but most automation should start with the CLI.
+
+> ℹ️ **The CLI does not bypass safety metadata.** Every tool reports its execution model: `read`, `immediate_write`, `staged_write`, or `finalizer`. Staged gameplay actions require an explicit confirm step; some account/settings actions are immediate writes and should be treated as direct changes.
 
 ---
 
@@ -73,18 +75,15 @@ The CLI is especially useful for:
 
 ## How CLI Relates to MCP
 
-Both CLI and MCP share the same public capability registry:
+Sportfolio has one automation contract: the resolved public capability catalog. The CLI is the primary adapter over that catalog; MCP is a compatibility adapter for clients that specifically require Model Context Protocol.
 
-- `docs` commands read the same wiki as the web docs hub
-- Account and settings actions follow the same auth rules
-- Staged actions use the same confirm/cancel model
+| Surface                    | Use it when                                        | Notes                                                           |
+| -------------------------- | -------------------------------------------------- | --------------------------------------------------------------- |
+| Web app                    | You want the normal product UI                     | Token creation remains web-session-only                         |
+| CLI                        | You are an agent, script, developer, or power user | Canonical automation path; exposes catalog/schema/call commands |
+| MCP compatibility endpoint | Your host client requires MCP                      | Same catalog, plus MCP session/resource semantics               |
 
-The difference is the interface:
-
-- **Use CLI** when you want direct shell commands
-- **Use MCP** when you're connecting through an MCP-aware client
-
-For scout, daily-boost, LP, and advanced staged flows, use `agent` or `tools` commands.
+For scout, daily-boost, LP, and advanced staged flows, use `agent`, `actions`, or `tools` commands.
 
 ---
 
@@ -100,5 +99,5 @@ For scout, daily-boost, LP, and advanced staged flows, use `agent` or `tools` co
 ## Next Steps
 
 - [CLI Command Reference](/wiki/cli/command-reference) — full command syntax, examples, JSON mode, and troubleshooting
-- [MCP Access](/wiki/getting-started/mcp-access) — protocol access for MCP-aware clients
+- [MCP Compatibility Endpoint](/wiki/getting-started/mcp-access) — protocol adapter for MCP-aware clients
 - [User Action Surface](/wiki/features/user-action-surface) — full capability map across web, CLI, and MCP

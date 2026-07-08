@@ -17,7 +17,7 @@ searchKeywords: mcp,tools,catalog,truncation,structuredContent,confirmation,mlb
 
 This page is intentionally curated. It documents stable, high-signal MCP behavior and avoids hand-maintained exhaustive tool tables.
 
-For exhaustive live inventory, use `sportfolio://tool-catalog` through MCP.
+For exhaustive live inventory, prefer `sportfolio tools catalog --json` from the CLI. If you are already inside an MCP client, read `sportfolio://tool-catalog`.
 
 For endpoint/auth/session basics, see [MCP Access](/wiki/getting-started/mcp-access).
 
@@ -27,11 +27,11 @@ For endpoint/auth/session basics, see [MCP Access](/wiki/getting-started/mcp-acc
 
 Treat these resources as source-of-truth for tooling and capability metadata:
 
-| Resource                      | Purpose                                                                |
-| ----------------------------- | ---------------------------------------------------------------------- |
-| `sportfolio://capabilities`   | Included/excluded capability inventory + dynamic source status         |
-| `sportfolio://action-surface` | Curated action metadata (`readOnly`, `confirmationModel`, `riskLevel`) |
-| `sportfolio://tool-catalog`   | Exhaustive tool metadata, including dynamic providers                  |
+| Resource                      | Purpose                                                                                  |
+| ----------------------------- | ---------------------------------------------------------------------------------------- |
+| `sportfolio://capabilities`   | Included/excluded capability inventory + dynamic source status                           |
+| `sportfolio://action-surface` | Curated action metadata (`readOnly`, `executionModel`, `confirmationModel`, `riskLevel`) |
+| `sportfolio://tool-catalog`   | Exhaustive tool metadata, including dynamic providers                                    |
 
 ---
 
@@ -56,17 +56,18 @@ If MLB provider availability changes, the dynamic subset can change. Always insp
 
 ---
 
-## Confirmation Model Semantics
+## Execution and Confirmation Semantics
 
-`confirmationModel` in action metadata is the canonical execution hint:
+`executionModel` is the clearest automation hint. `confirmationModel` remains for compatibility with older clients.
 
-| Value                 | Meaning                                                                      |
-| --------------------- | ---------------------------------------------------------------------------- |
-| `immediate`           | Executes immediately (read tools and some account actions)                   |
-| `staged_confirmation` | Creates pending bundle; requires explicit confirm                            |
-| `finalizer`           | Resolves pending bundle (`confirm_pending_action` / `cancel_pending_action`) |
+| executionModel    | confirmationModel     | Meaning                                                                      |
+| ----------------- | --------------------- | ---------------------------------------------------------------------------- |
+| `read`            | `immediate`           | No write side effects                                                        |
+| `immediate_write` | `immediate`           | Executes immediately; treat as a direct change                               |
+| `staged_write`    | `staged_confirmation` | Creates pending bundle; requires explicit confirm/cancel                     |
+| `finalizer`       | `finalizer`           | Resolves pending bundle (`confirm_pending_action` / `cancel_pending_action`) |
 
-Manual chat and CLI flows rely on this staged model. Saved live strategies may auto-execute only their allowlisted subset within guardrails.
+Saved live strategies may auto-execute only their allowlisted subset within guardrails.
 
 ---
 

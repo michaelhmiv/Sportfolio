@@ -1,11 +1,11 @@
 # MLB MCP
 
-Sportfolio now keeps the MLB StatsAPI MCP server as a separate internal service boundary from Ball Don't Lie.
+Sportfolio keeps the MLB StatsAPI MCP server as a separate internal service boundary for MLB enrichment.
 
 ## Provider boundary
 
-- Ball Don't Lie remains the canonical lane for Sportfolio's existing ingest/sync paths.
-- The vendored MLB MCP provides game details (probable pitchers, lineups, Statcast, and other MLB-specific reads) as an optional display-only layer.
+- MLB StatsAPI-backed adapters are the canonical lane for MLB ingest/sync and enrichment.
+- The vendored MLB MCP provides game details (probable pitchers, lineups, Statcast, and other MLB-specific reads) as an internal bounded enrichment layer.
 - App code should depend on Sportfolio-owned adapters and normalized payloads, not raw upstream MCP response shapes.
 
 ## Vendored source

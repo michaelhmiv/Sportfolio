@@ -4,9 +4,11 @@ import { describe, expect, it } from "vitest";
 import {
   buildPublicMcpToolRegistry,
   evaluateGameplayCapabilityParity,
+  executeResolvedPublicTool,
   getPublicMcpToolFixtures,
+  resolvePublicCapabilityCatalog,
 } from "./public-tool-registry";
-import { startMockMcpHttpServer } from "./testing";
+import { createMockPublicMcpDependencies, startMockMcpHttpServer } from "./testing";
 
 type OpenClient = {
   client: Client;
@@ -211,6 +213,68 @@ describe("sportfolio MCP server", () => {
     }
   });
 
+  it("exposes explicit execution metadata in the tool catalog and action surface", async () => {
+    const server = await startMockMcpHttpServer();
+    let openClient: OpenClient | null = null;
+
+    try {
+      openClient = await connectClient(server.url, server.authToken);
+      const toolCatalog = await openClient.client.readResource({
+        uri: "sportfolio://tool-catalog",
+      });
+      const actionSurface = await openClient.client.readResource({
+        uri: "sportfolio://action-surface",
+      });
+      const catalogPayload = JSON.parse(String(toolCatalog.contents[0]?.text)) as {
+        tools: Array<Record<string, unknown>>;
+      };
+      const actionPayload = JSON.parse(String(actionSurface.contents[0]?.text)) as {
+        tools: Array<Record<string, unknown>>;
+      };
+
+      const stageBuy = catalogPayload.tools.find((tool) => tool.name === "stage_market_buy");
+      const deleteWatchlist = catalogPayload.tools.find((tool) => tool.name === "delete_watchlist");
+      const confirm = catalogPayload.tools.find((tool) => tool.name === "confirm_pending_action");
+      const portfolio = catalogPayload.tools.find((tool) => tool.name === "get_portfolio_summary");
+
+      expect(stageBuy).toMatchObject({
+        executionModel: "staged_write",
+        confirmationModel: "staged_confirmation",
+        requiresConfirmation: true,
+        riskLevel: "medium",
+      });
+      expect(deleteWatchlist).toMatchObject({
+        executionModel: "immediate_write",
+        confirmationModel: "immediate",
+        requiresConfirmation: false,
+        riskLevel: "medium",
+      });
+      expect(confirm).toMatchObject({
+        executionModel: "finalizer",
+        confirmationModel: "finalizer",
+        requiresConfirmation: false,
+        riskLevel: "medium",
+      });
+      expect(portfolio).toMatchObject({
+        executionModel: "read",
+        confirmationModel: "immediate",
+        requiresConfirmation: false,
+        riskLevel: "low",
+      });
+      expect(
+        actionPayload.tools.some(
+          (tool) =>
+            tool.name === "stage_market_buy" &&
+            tool.executionModel === "staged_write" &&
+            tool.requiresConfirmation === true,
+        ),
+      ).toBe(true);
+    } finally {
+      await closeClient(openClient);
+      await server.close();
+    }
+  });
+
   it("lists and executes authenticated MLB MCP tools through the public MCP surface", async () => {
     const server = await startMockMcpHttpServer({
       mlbTools: {
@@ -334,6 +398,61 @@ describe("sportfolio MCP server", () => {
       await closeClient(openClient);
       await server.close();
     }
+  });
+
+  it("resolves dynamic MLB tools through the shared public catalog executor", async () => {
+    const harness = createMockPublicMcpDependencies({
+      toolCatalog: [
+        {
+          toolName: "mlb_mcp__get_schedule",
+          category: "read",
+          description: "Get the MLB schedule.",
+          whenToUse: ["Use when the caller wants probable pitchers or the slate."],
+          whenNotToUse: [],
+          examplePrompts: ["who are the probable pitchers today?"],
+          requiresConfirmation: false,
+          riskLevel: "low",
+          resultShapeHint: "dates[].games[] with probable pitchers",
+          presentationProfile: "schedule",
+          primaryEntityType: "game",
+          preferredColumns: ["matchup", "status", "startTime", "venue"],
+          inputSchema: {
+            type: "object",
+            properties: {
+              date: {
+                type: "string",
+                description: "Target date in YYYY-MM-DD format.",
+              },
+            },
+            required: ["date"],
+          },
+        },
+      ],
+      toolResults: {
+        mlb_mcp__get_schedule: {
+          remoteToolName: "get_schedule",
+          structuredContent: { dates: [{ games: [{ gamePk: 12345 }] }] },
+          replyText: "Loaded the MLB schedule.",
+          payloadTruncated: false,
+          truncation: null,
+        },
+      },
+    });
+    const context = { userId: harness.userId, deps: harness.deps };
+
+    const catalog = await resolvePublicCapabilityCatalog(context);
+    expect(catalog.tools.some((tool) => tool.name === "mlb_mcp__get_schedule")).toBe(true);
+    expect(catalog.dynamicSources[0]).toMatchObject({ available: true, toolCount: 1 });
+
+    const result = await executeResolvedPublicTool(context, "mlb_mcp__get_schedule", {
+      date: "2026-03-28",
+    });
+
+    expect(result).toMatchObject({
+      summary: "Loaded the MLB schedule.",
+      remoteToolName: "get_schedule",
+      structuredContent: { dates: [{ games: [{ gamePk: 12345 }] }] },
+    });
   });
 
   it("keeps MLB discovery resources aligned with the session tool snapshot", async () => {

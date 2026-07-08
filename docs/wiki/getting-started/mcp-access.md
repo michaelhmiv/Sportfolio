@@ -1,7 +1,7 @@
 ---
 id: getting-started-mcp-access
-title: MCP Access
-summary: How to connect to Sportfolio's public authenticated MCP endpoint, including auth, session lifecycle, and capability boundaries.
+title: MCP Compatibility Endpoint
+summary: How to connect to Sportfolio's optional public authenticated MCP compatibility endpoint, including auth, session lifecycle, and capability boundaries.
 audience: public
 category: getting-started
 status: published
@@ -13,11 +13,11 @@ surface: web,cli,agent
 searchKeywords: mcp,model context protocol,streamable http,bearer token,api token,external access,endpoint,hermes,session
 ---
 
-# MCP Access
+# MCP Compatibility Endpoint
 
-Sportfolio exposes a public authenticated [Model Context Protocol](https://modelcontextprotocol.io) endpoint at `/mcp`.
+Sportfolio's primary automation interface is the CLI. Use the public authenticated [Model Context Protocol](https://modelcontextprotocol.io) endpoint at `/mcp` only when your host client specifically requires MCP.
 
-This is the protocol-facing surface for MCP-compatible clients. It is separate from CLI UX and separate from Hermes internal routing.
+The MCP endpoint is a protocol adapter over the same resolved capability catalog used by the CLI. It is separate from CLI UX and separate from Hermes internal routing.
 
 ---
 
@@ -65,18 +65,16 @@ The server supports Streamable HTTP semantics, so clients should tolerate both J
 
 ## Public Capability Surface
 
-MCP shares the same public registry as CLI.
+MCP exposes the same resolved catalog as the CLI. Prefer `sportfolio tools catalog` and `sportfolio tools schema <name>` for ordinary automation; read `sportfolio://tool-catalog` when you are already inside an MCP client.
 
 ### Included
 
 - Reads across account, portfolio, holdings, pools, boosts, scouts, watchlists, schedules, docs, and threads
-- Immediate account actions (profile updates, token management, watchlist CRUD, schedule CRUD, premium redeem)
+- Immediate account/settings/content actions (for example profile updates, token revoke, watchlist CRUD, schedule CRUD, premium redeem)
 - Staged gameplay actions (trades, LP flows, stack shares, daily boosts, scouts, community boosts)
-- Confirm and cancel for pending bundles
+- Confirm and cancel finalizers for pending bundles
 - Public prompts and resources
 - Dynamic MLB enrichment tools when available, named with `mlb_mcp__*`
-
-Some compatibility-era tools (for example SMS settings/linking) may still be callable in the public surface, but they are legacy and not part of the primary Hermes contract.
 
 ### Excluded
 
@@ -101,9 +99,16 @@ Native Sportfolio tools remain canonical for account and gameplay state.
 
 ## Safety Model
 
-- Manual chat and CLI mutations stage first and require explicit confirm
-- Saved live strategies may auto-execute only the allowlisted gameplay subset in guardrails
-- Strategy auto-run exclusions include payments, checkout, purchases, and community boost creation
+Every CLI/MCP tool advertises an execution model:
+
+| Model             | Meaning                                                    |
+| ----------------- | ---------------------------------------------------------- |
+| `read`            | No write side effects                                      |
+| `immediate_write` | Executes immediately; treat as a direct change             |
+| `staged_write`    | Creates a pending bundle; requires explicit confirm/cancel |
+| `finalizer`       | Confirms or cancels a pending staged bundle                |
+
+Saved live strategies may auto-execute only their allowlisted gameplay subset within guardrails. Strategy auto-run exclusions include payments, checkout, purchases, and community boost creation.
 
 ---
 
