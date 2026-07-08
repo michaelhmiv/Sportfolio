@@ -128,4 +128,25 @@ describe("syncMLBStats", () => {
     logSpy.mockRestore();
     errorSpy.mockRestore();
   });
+
+  it("can process an explicit date list for MLB stat backfills", async () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const { syncMLBStatsForDates } = await import("./sync-mlb-stats");
+    const result = await syncMLBStatsForDates(["2026-07-07"]);
+
+    expect(mlbApiMocks.fetchGamesByDate).toHaveBeenCalledTimes(1);
+    expect(mlbApiMocks.fetchGamesByDate).toHaveBeenCalledWith("2026-07-07");
+    expect(storageMocks.getDailyGamesBySport).toHaveBeenCalledWith(
+      "MLB",
+      new Date("2026-03-09T00:00:00.000Z"),
+      new Date("2026-03-09T00:00:00.000Z"),
+    );
+    expect(result.statsProcessed).toBe(1);
+    expect(result.skippedMissingPlayers).toBe(1);
+
+    logSpy.mockRestore();
+    errorSpy.mockRestore();
+  });
 });
