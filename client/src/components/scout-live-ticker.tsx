@@ -12,6 +12,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { Binoculars, TrendingUp } from "lucide-react";
+import { openPlayerModal } from "@/lib/player-modal-events";
 
 const TICK_MS = 15_000;
 const TICKS_PER_HOUR = 240;
@@ -158,30 +159,22 @@ export function ScoutLiveTicker({ assignments, totalScouts, maxScouts }: TickerP
 
         {/* RIGHT: player attribution pills */}
         <div className="flex flex-col justify-center gap-1 shrink-0">
-          {activeAssignments.map((a) => {
-            const pctOfTotal = totalSharesPerHour > 0 ? (a.rate / totalSharesPerHour) * 100 : 0;
-            return (
-              <div
-                key={a.playerId}
-                className="flex items-center gap-1.5 text-[9px] bg-card/60 border border-border/40 rounded-sm px-1.5 py-0.5"
-              >
-                <span className="text-amber-500 font-mono font-semibold tabular-nums w-[38px] text-right">
-                  {a.rate.toFixed(2)}
-                </span>
-                <span className="h-2 w-px bg-border/60" />
-                <span className="truncate max-w-[64px] text-foreground/70">
-                  {shortPlayerLabel(a.firstName, a.lastName, a.playerId)}
-                </span>
-                {/* Mini bar showing this player's share of total */}
-                <div className="h-1 w-6 bg-muted rounded-full overflow-hidden shrink-0">
-                  <div
-                    className="h-full bg-amber-500/60 rounded-full"
-                    style={{ width: `${pctOfTotal}%` }}
-                  />
-                </div>
-              </div>
-            );
-          })}
+          {activeAssignments.map((a) => (
+            <button
+              key={a.playerId}
+              type="button"
+              onClick={() => openPlayerModal(a.playerId)}
+              className="flex items-center gap-1.5 text-[9px] bg-card/60 border border-border/40 rounded-sm px-1.5 py-0.5 hover:bg-card hover:border-border/70 active:scale-[0.98] transition-colors text-left"
+            >
+              <span className="text-amber-500 font-mono font-semibold tabular-nums w-[38px] text-right shrink-0">
+                {a.rate.toFixed(2)}
+              </span>
+              <span className="h-2 w-px bg-border/60 shrink-0" />
+              <span className="truncate text-foreground/80 hover:text-foreground transition-colors">
+                {shortPlayerLabel(a.firstName, a.lastName, a.playerId)}
+              </span>
+            </button>
+          ))}
         </div>
       </div>
     </div>
