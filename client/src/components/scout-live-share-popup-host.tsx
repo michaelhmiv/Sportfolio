@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/useAuth";
 
 export const SCOUT_LIVE_SHARE_POPUP_EVENT = "scout-live-share-popup";
 
@@ -24,6 +25,8 @@ interface ScoutAssignment {
 
 interface ScoutData {
   assignments?: ScoutAssignment[];
+  totalScouts?: number;
+  maxScouts?: number;
 }
 
 const POPUP_LIFETIME_MS = 3000;
@@ -53,6 +56,8 @@ function buildPopupDetails(
 ): ScoutLiveSharePopupDetail[] {
   const activeAssignments = assignments.filter((a) => a.scoutCount > 0 && a.globalScoutCount > 0);
 
+  if (activeAssignments.length === 0) return [];
+
   return activeAssignments.map((assignment, index) => ({
     id: firstPopupId + index,
     shortLabel: shortPlayerLabel(
@@ -67,10 +72,13 @@ function buildPopupDetails(
 }
 
 export function ScoutLiveSharePopupEngine() {
+  const { isAuthenticated } = useAuth();
+
   const { data: scoutData } = useQuery<ScoutData>({
     queryKey: ["/api/scouts"],
     refetchInterval: TICK_MS,
     staleTime: 5000,
+    enabled: isAuthenticated,
   });
 
   const assignments = useMemo(() => scoutData?.assignments ?? [], [scoutData?.assignments]);
@@ -82,7 +90,8 @@ export function ScoutLiveSharePopupEngine() {
   }, [assignments]);
 
   useEffect(() => {
-    let intervalId: number | undefined;
+    let timeoutId: ReturnType<typeof setTimeout>;
+    let intervalId: ReturnType<typeof setInterval> | undefined;
 
     const dispatchPopups = () => {
       const popups = buildPopupDetails(assignmentsRef.current, nextPopupIdRef.current);
@@ -97,18 +106,34 @@ export function ScoutLiveSharePopupEngine() {
       });
     };
 
-    const timeoutId = window.setTimeout(() => {
-      dispatchPopups();
-      intervalId = window.setInterval(dispatchPopups, TICK_MS);
-    }, getMsUntilNextShareTick());
+    // Only start the tick timer when there are assignments to show
+    const hasAssignments = () =>
+      assignmentsRef.current.some((a) => a.scoutCount > 0 && a.globalScoutCount > 0);
+
+    const scheduleNext = () => {
+      timeoutId = setTimeout(() => {
+        if (hasAssignments()) {
+          dispatchPopups();
+        }
+        intervalId = setInterval(() => {
+          if (hasAssignments()) {
+            dispatchPopups();
+          }
+        }, TICK_MS);
+      }, getMsUntilNextShareTick());
+    };
+
+    if (isAuthenticated) {
+      scheduleNext();
+    }
 
     return () => {
-      window.clearTimeout(timeoutId);
+      clearTimeout(timeoutId);
       if (intervalId !== undefined) {
-        window.clearInterval(intervalId);
+        clearInterval(intervalId);
       }
     };
-  }, []);
+  }, [isAuthenticated]);
 
   return null;
 }
@@ -148,15 +173,15 @@ export function ScoutLiveSharePopupHost() {
   }
 
   return createPortal(
-    <div className="pointer-events-none fixed inset-x-0 top-16 z-[70] px-3 sm:top-20">
-      <div className="relative mx-auto h-[60vh] max-w-6xl">
+    <div className="pointer-events-none fixed inset-x-0 top-20 z-[70] px-4 sm:top-24">
+      <div className="relative mx-auto h-[40vh] max-w-6xl">
         {popups.map((popup) => (
           <div
             key={popup.id}
             className="absolute text-amber-500 font-mono font-semibold text-[10px] whitespace-nowrap drop-shadow-[0_1px_1px_rgba(0,0,0,0.65)]"
             style={{
               left: `${popup.x}%`,
-              bottom: "20%",
+              bottom: "30%",
               animation: "ticker-float-up 2.5s ease-out forwards",
             }}
           >

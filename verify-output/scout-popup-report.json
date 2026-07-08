@@ -1,0 +1,33 @@
+{
+  "url": "https://www.sportfolio.market",
+  "timestamp": "2026-07-07T23:55:17.820Z",
+  "isLoggedIn": false,
+  "componentCheck": {
+    "popupHostFound": false,
+    "tickerFloatUpStyleFound": false,
+    "scoutElementCount": 0,
+    "scoutElementClasses": [],
+    "bodyChildCount": 1,
+    "hasReactRoot": true
+  },
+  "popupEventsCaptured": 0,
+  "popupEvents": [],
+  "apiCheck": {
+    "status": 401,
+    "ok": false,
+    "statusText": ""
+  },
+  "scoutApiRequests": 1,
+  "domAfterWait": {
+    "amberElementCount": 0,
+    "amberElementSamples": [],
+    "portalContainerFound": true,
+    "portalContainerHTML": ""
+  },
+  "consoleErrors": [
+    "Failed to load resource: the server responded with a status of 401 ()",
+    "Failed to load resource: the server responded with a status of 401 ()",
+    "Failed to load resource: the server responded with a status of 401 ()",
+    "Failed to load resource: the server responded with a status of 401 ()"
+  ]
+}
