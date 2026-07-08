@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
@@ -8,12 +8,13 @@ export const SCOUT_LIVE_SHARE_POPUP_EVENT = "scout-live-share-popup";
 const TICK_MS = 15_000;
 const TICKS_PER_HOUR = 240;
 const HOURLY_SHARES = 60;
+const STAGGER_MS = 1_000; // 1s between each popup in a batch
+const MAX_VISIBLE = 3;
 
 export interface ScoutLiveSharePopupDetail {
   id: number;
   shortLabel: string;
   amount: number;
-  x: number;
 }
 
 interface ScoutAssignment {
@@ -67,7 +68,6 @@ function buildPopupDetails(
     ),
     amount:
       ((assignment.scoutCount / assignment.globalScoutCount) * HOURLY_SHARES) / TICKS_PER_HOUR,
-    x: (index / Math.max(activeAssignments.length - 1, 1)) * 80 + 10,
   }));
 }
 
@@ -97,16 +97,18 @@ export function ScoutLiveSharePopupEngine() {
       const popups = buildPopupDetails(assignmentsRef.current, nextPopupIdRef.current);
       nextPopupIdRef.current += popups.length;
 
-      popups.forEach((popup) => {
-        window.dispatchEvent(
-          new CustomEvent(SCOUT_LIVE_SHARE_POPUP_EVENT, {
-            detail: popup,
-          }),
-        );
+      // Stagger dispatch so popups appear one at a time
+      popups.forEach((popup, i) => {
+        setTimeout(() => {
+          window.dispatchEvent(
+            new CustomEvent(SCOUT_LIVE_SHARE_POPUP_EVENT, {
+              detail: popup,
+            }),
+          );
+        }, i * STAGGER_MS);
       });
     };
 
-    // Only start the tick timer when there are assignments to show
     const hasAssignments = () =>
       assignmentsRef.current.some((a) => a.scoutCount > 0 && a.globalScoutCount > 0);
 
@@ -138,71 +140,97 @@ export function ScoutLiveSharePopupEngine() {
   return null;
 }
 
+interface QueuedPopup extends ScoutLiveSharePopupDetail {
+  removeAt: number; // timestamp when this popup should be removed
+  enterAt: number; // timestamp when this popup entered the visible queue
+}
+
 export function ScoutLiveSharePopupHost() {
-  const [popups, setPopups] = useState<ScoutLiveSharePopupDetail[]>([]);
-  const timeoutIdsRef = useRef<number[]>([]);
+  const [queue, setQueue] = useState<QueuedPopup[]>([]);
+  const timerIdsRef = useRef<number[]>([]);
+
+  const handlePopup = useCallback((event: Event) => {
+    const customEvent = event as CustomEvent<ScoutLiveSharePopupDetail>;
+    const popup = customEvent.detail;
+    if (!popup) return;
+
+    const now = Date.now();
+
+    setQueue((prev) => {
+      // Evict expired entries first
+      const live = prev.filter((p) => p.removeAt > now);
+      // If at max visible, skip (don't add more than MAX_VISIBLE at once)
+      if (live.length >= MAX_VISIBLE) return live;
+      return [...live, { ...popup, enterAt: now, removeAt: now + POPUP_LIFETIME_MS }];
+    });
+
+    const timerId = window.setTimeout(() => {
+      setQueue((prev) => prev.filter((item) => item.id !== popup.id));
+      timerIdsRef.current = timerIdsRef.current.filter((id) => id !== timerId);
+    }, POPUP_LIFETIME_MS);
+
+    timerIdsRef.current.push(timerId);
+  }, []);
 
   useEffect(() => {
-    const handlePopup = (event: Event) => {
-      const customEvent = event as CustomEvent<ScoutLiveSharePopupDetail>;
-      const popup = customEvent.detail;
-
-      if (!popup) return;
-
-      setPopups((prev) => [...prev, popup].slice(-20));
-
-      const timeoutId = window.setTimeout(() => {
-        setPopups((prev) => prev.filter((item) => item.id !== popup.id));
-        timeoutIdsRef.current = timeoutIdsRef.current.filter((id) => id !== timeoutId);
-      }, POPUP_LIFETIME_MS);
-
-      timeoutIdsRef.current.push(timeoutId);
-    };
-
     window.addEventListener(SCOUT_LIVE_SHARE_POPUP_EVENT, handlePopup as EventListener);
 
     return () => {
       window.removeEventListener(SCOUT_LIVE_SHARE_POPUP_EVENT, handlePopup as EventListener);
-      timeoutIdsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
-      timeoutIdsRef.current = [];
+      timerIdsRef.current.forEach((timerId) => window.clearTimeout(timerId));
+      timerIdsRef.current = [];
     };
-  }, []);
+  }, [handlePopup]);
 
-  if (typeof document === "undefined" || popups.length === 0) {
+  if (typeof document === "undefined" || queue.length === 0) {
     return null;
   }
 
   return createPortal(
-    <div className="pointer-events-none fixed inset-x-0 top-20 z-[70] px-4 sm:top-24">
-      <div className="relative mx-auto h-[40vh] max-w-6xl">
-        {popups.map((popup) => (
-          <div
-            key={popup.id}
-            className="absolute text-amber-500 font-mono font-semibold text-[10px] whitespace-nowrap drop-shadow-[0_1px_1px_rgba(0,0,0,0.65)]"
-            style={{
-              left: `${popup.x}%`,
-              bottom: "30%",
-              animation: "ticker-float-up 2.5s ease-out forwards",
-            }}
-          >
-            +{popup.amount.toFixed(3)} {popup.shortLabel}
-          </div>
-        ))}
-      </div>
+    <div
+      className="pointer-events-none fixed left-1/2 -translate-x-1/2 z-[55] flex flex-col items-center gap-1.5 sm:bottom-4"
+      // On mobile: position just above the bottom nav (h-16 = 4rem)
+      // If the cash balance pill is showing, popups sit above it (4.5rem pill + ~2rem)
+      style={{ bottom: "calc(4.5rem + 2.75rem + env(safe-area-inset-bottom, 0px))" }}
+    >
+      {queue.slice(0, MAX_VISIBLE).map((popup) => (
+        <div
+          key={popup.id}
+          className="flex items-center gap-1.5 rounded-full border border-[#2a2e39] bg-[#131722]/90 px-3 py-1.5 shadow-[0_4px_14px_rgba(0,0,0,0.35)] backdrop-blur-sm"
+          style={{
+            animation:
+              "scout-popup-enter 0.3s ease-out, scout-popup-exit 0.6s ease-in 2.4s forwards",
+          }}
+        >
+          <span className="text-amber-500 font-mono font-semibold text-[11px] tabular-nums whitespace-nowrap drop-shadow-[0_1px_1px_rgba(0,0,0,0.5)]">
+            +{popup.amount.toFixed(3)}
+          </span>
+          <span className="h-3 w-px bg-[#2a2e39]" />
+          <span className="text-[11px] font-medium text-[#d1d4dc] whitespace-nowrap">
+            {popup.shortLabel}
+          </span>
+        </div>
+      ))}
 
       <style>{`
-        @keyframes ticker-float-up {
+        @keyframes scout-popup-enter {
+          0% {
+            opacity: 0;
+            transform: translateY(8px) scale(0.95);
+          }
+          100% {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+        @keyframes scout-popup-exit {
           0% {
             opacity: 1;
-            transform: translateY(0);
-          }
-          50% {
-            opacity: 0.85;
-            transform: translateY(-20px);
+            transform: translateY(0) scale(1);
           }
           100% {
             opacity: 0;
-            transform: translateY(-36px);
+            transform: translateY(-6px) scale(0.96);
           }
         }
       `}</style>
