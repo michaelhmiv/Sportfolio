@@ -4853,17 +4853,17 @@ export class DatabaseStorage implements IStorage {
         const stats = (log.statsJson as Record<string, any>) || {};
         totalFantasyPoints += parseFloat(log.fantasyPoints);
 
-        totalAtBats += Number(stats.at_bats || 0);
+        totalAtBats += Number(stats.atBats || 0);
         totalHits += Number(stats.hits || 0);
         totalRuns += Number(stats.runs || 0);
-        totalRunsBattedIn += Number(stats.runs_batted_in || 0);
-        totalHomeRuns += Number(stats.home_runs || 0);
-        totalStolenBases += Number(stats.stolen_bases || 0);
+        totalRunsBattedIn += Number(stats.runsBattedIn || 0);
+        totalHomeRuns += Number(stats.homeRuns || 0);
+        totalStolenBases += Number(stats.stolenBases || 0);
         totalWalks += Number(stats.walks || 0);
-        totalStrikeoutsBatting += Number(stats.strikeouts_batting || 0);
-        totalInningsPitched += Number(stats.innings_pitched || 0);
-        totalPitchingStrikeouts += Number(stats.pitching_strikeouts || 0);
-        totalEarnedRuns += Number(stats.earned_runs || 0);
+        totalStrikeoutsBatting += Number(stats.strikeoutsBatting || 0);
+        totalInningsPitched += Number(stats.inningsPitched || 0);
+        totalPitchingStrikeouts += Number(stats.pitchingStrikeouts || 0);
+        totalEarnedRuns += Number(stats.earnedRuns || 0);
         totalWins += Number(stats.wins || 0);
         totalSaves += Number(stats.saves || 0);
       }
@@ -5088,17 +5088,17 @@ export class DatabaseStorage implements IStorage {
           : log.sport === "MLB"
             ? {
                 // MLB Stats
-                atBats: (log.statsJson as any)?.at_bats || 0,
+                atBats: (log.statsJson as any)?.atBats || 0,
                 hits: (log.statsJson as any)?.hits || 0,
                 runs: (log.statsJson as any)?.runs || 0,
-                runsBattedIn: (log.statsJson as any)?.runs_batted_in || 0,
-                homeRuns: (log.statsJson as any)?.home_runs || 0,
-                stolenBases: (log.statsJson as any)?.stolen_bases || 0,
+                runsBattedIn: (log.statsJson as any)?.runsBattedIn || 0,
+                homeRuns: (log.statsJson as any)?.homeRuns || 0,
+                stolenBases: (log.statsJson as any)?.stolenBases || 0,
                 walks: (log.statsJson as any)?.walks || 0,
-                strikeoutsBatting: (log.statsJson as any)?.strikeouts_batting || 0,
-                inningsPitched: (log.statsJson as any)?.innings_pitched || 0,
-                pitchingStrikeouts: (log.statsJson as any)?.pitching_strikeouts || 0,
-                earnedRuns: (log.statsJson as any)?.earned_runs || 0,
+                strikeoutsBatting: (log.statsJson as any)?.strikeoutsBatting || 0,
+                inningsPitched: (log.statsJson as any)?.inningsPitched || 0,
+                pitchingStrikeouts: (log.statsJson as any)?.pitchingStrikeouts || 0,
+                earnedRuns: (log.statsJson as any)?.earnedRuns || 0,
                 wins: (log.statsJson as any)?.wins || 0,
                 saves: (log.statsJson as any)?.saves || 0,
                 fantasyPoints: parseFloat(log.fantasyPoints),

@@ -19,7 +19,7 @@ import {
   resolvePlayerGameSide,
   extractBoxscorePlayerStats,
 } from "../mlb-statsapi";
-import { getTodayETBoundaries, getGameDay, getETDayBoundaries } from "../lib/time";
+import { getGameDay, getETDayBoundaries } from "../lib/time";
 
 interface SyncResult {
   success: boolean;
@@ -32,6 +32,12 @@ interface SyncResult {
 const MLB_MISSING_PLAYER_SAMPLE_LIMIT = 8;
 
 export async function syncMLBStats(): Promise<SyncResult> {
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  return syncMLBStatsForDates([getGameDay(yesterday), getGameDay(new Date())]);
+}
+
+export async function syncMLBStatsForDates(dates: string[]): Promise<SyncResult> {
   const result: SyncResult = {
     success: false,
     statsProcessed: 0,
@@ -44,23 +50,30 @@ export async function syncMLBStats(): Promise<SyncResult> {
   const startTime = Date.now();
 
   try {
-    // Fetch yesterday + today to catch late finishes and active games.
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    const { startOfDay: yesterdayStart } = getETDayBoundaries(getGameDay(yesterday));
-    const { endOfDay: todayEnd } = getTodayETBoundaries();
+    const uniqueDates = Array.from(
+      new Set(
+        dates
+          .map((date) => String(date || "").trim())
+          .filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date)),
+      ),
+    ).sort();
 
-    const yesterdayDate = getGameDay(yesterday);
-    const todayDate = getGameDay(new Date());
+    if (uniqueDates.length === 0) {
+      result.success = true;
+      return result;
+    }
+
+    const firstBoundary = getETDayBoundaries(uniqueDates[0]);
+    const lastBoundary = getETDayBoundaries(uniqueDates[uniqueDates.length - 1]);
+    const dbWindowStart = firstBoundary.startOfDay;
+    const dbWindowEnd = lastBoundary.endOfDay || lastBoundary.startOfDay;
 
     console.log(
-      `[MLB Stats Sync] Fetching fresh game data from StatsAPI for ${yesterdayDate} and ${todayDate}...`,
+      `[MLB Stats Sync] Fetching fresh game data from StatsAPI for ${uniqueDates.join(", ")}...`,
     );
 
-    // Fetch games for both dates from directly from StatsAPI.
-    const yesterdayGames = await fetchGamesByDate(yesterdayDate);
-    const todayGames = await fetchGamesByDate(todayDate);
-    const apiGames = [...yesterdayGames, ...todayGames];
+    // Fetch games directly from StatsAPI for every requested date.
+    const apiGames = (await Promise.all(uniqueDates.map((date) => fetchGamesByDate(date)))).flat();
     console.log(`[MLB Stats Sync] StatsAPI returned ${apiGames.length} games`);
 
     // Update scores/statuses for all games in the window
@@ -83,7 +96,7 @@ export async function syncMLBStats(): Promise<SyncResult> {
     console.log(`[MLB Stats Sync] Updated ${gamesUpdated} games with fresh scores from StatsAPI`);
 
     // Get games from DB that are in-progress or completed
-    const games = await storage.getDailyGamesBySport("MLB", yesterdayStart, todayEnd);
+    const games = await storage.getDailyGamesBySport("MLB", dbWindowStart, dbWindowEnd);
     const relevantGames = games.filter(
       (g) => g.status === "inprogress" || g.status === "completed",
     );
