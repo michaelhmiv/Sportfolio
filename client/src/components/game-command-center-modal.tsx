@@ -585,7 +585,7 @@ function MlbLifecycleCard({
           </button>
           {scoringExpanded ? (
             <div className="mt-3 space-y-2">
-              {mlbPregame.scoringPlays.slice(0, 4).map((play, index) => (
+              {mlbPregame.scoringPlays.map((play, index) => (
                 <div
                   key={`scoring-play-${play.inningLabel || "inning"}-${index}`}
                   className="rounded-sm border border-border/60 bg-background/40 p-2"
@@ -2093,6 +2093,16 @@ export function GameCommandCenterModal({
             <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
               {activeTab === "pre" ? "Pregame" : activeTab === "during" ? "Live" : "Final"}
             </Badge>
+            {activeTab !== "pre" && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="ml-auto h-6 w-6"
+                onClick={() => (liveSport === "MLB" ? refetchLive() : refetchStats())}
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+              </Button>
+            )}
           </div>
         </DialogHeader>
 
@@ -2574,12 +2584,6 @@ export function GameCommandCenterModal({
           </TabsContent>
 
           <TabsContent value="during" className="mt-4 space-y-4">
-            <div className="flex items-center justify-end">
-              <Button variant="outline" size="sm" onClick={() => refetchLive()}>
-                <RefreshCw className="mr-2 h-4 w-4" /> Refresh
-              </Button>
-            </div>
-
             {isLoadingLive ? (
               <Shimmer height="160px" width="100%" />
             ) : !liveStats ? (
@@ -2626,41 +2630,65 @@ export function GameCommandCenterModal({
 
                   {(liveStats.awayTopPerformers?.length || liveStats.homeTopPerformers?.length) && (
                     <div className="grid gap-2 md:grid-cols-2">
-                      <div>
-                        <div className="text-[10px] text-muted-foreground">
-                          {liveStats.awayTeam} Leaders
+                      <div className="rounded-sm border border-border/60 p-2">
+                        <div className="mb-1.5 flex items-center justify-between">
+                          <span className="text-xs font-semibold">
+                            {liveStats.awayTeam} Leaders
+                          </span>
+                          <Badge variant="outline" className="text-[10px]">
+                            {(liveStats.awayTopPerformers || []).length}
+                          </Badge>
                         </div>
-                        <div className="mt-1 flex flex-wrap gap-1.5">
+                        <div className="space-y-1">
                           {(liveStats.awayTopPerformers || []).slice(0, 3).map((player) => (
-                            <Badge key={`${liveStats.awayTeam}-${player.name}`} variant="outline">
-                              {renderModalPlayerName({
-                                name: player.name,
-                                team: liveStats.awayTeam,
-                                playerId: player.playerId,
-                                className: "inline",
-                                label: formatName(player.name),
-                              })}{" "}
-                              · {player.pts ?? 0}p
-                            </Badge>
+                            <div
+                              key={`${liveStats.awayTeam}-${player.name}`}
+                              className="flex items-center justify-between text-[11px]"
+                            >
+                              <span className="truncate">
+                                {renderModalPlayerName({
+                                  name: player.name,
+                                  team: liveStats.awayTeam,
+                                  playerId: player.playerId,
+                                  className: "truncate",
+                                  label: formatName(player.name),
+                                })}
+                              </span>
+                              <span className="ml-2 font-mono text-muted-foreground">
+                                {player.pts ?? 0}p
+                              </span>
+                            </div>
                           ))}
                         </div>
                       </div>
-                      <div>
-                        <div className="text-[10px] text-muted-foreground">
-                          {liveStats.homeTeam} Leaders
+                      <div className="rounded-sm border border-border/60 p-2">
+                        <div className="mb-1.5 flex items-center justify-between">
+                          <span className="text-xs font-semibold">
+                            {liveStats.homeTeam} Leaders
+                          </span>
+                          <Badge variant="outline" className="text-[10px]">
+                            {(liveStats.homeTopPerformers || []).length}
+                          </Badge>
                         </div>
-                        <div className="mt-1 flex flex-wrap gap-1.5">
+                        <div className="space-y-1">
                           {(liveStats.homeTopPerformers || []).slice(0, 3).map((player) => (
-                            <Badge key={`${liveStats.homeTeam}-${player.name}`} variant="outline">
-                              {renderModalPlayerName({
-                                name: player.name,
-                                team: liveStats.homeTeam,
-                                playerId: player.playerId,
-                                className: "inline",
-                                label: formatName(player.name),
-                              })}{" "}
-                              · {player.pts ?? 0}p
-                            </Badge>
+                            <div
+                              key={`${liveStats.homeTeam}-${player.name}`}
+                              className="flex items-center justify-between text-[11px]"
+                            >
+                              <span className="truncate">
+                                {renderModalPlayerName({
+                                  name: player.name,
+                                  team: liveStats.homeTeam,
+                                  playerId: player.playerId,
+                                  className: "truncate",
+                                  label: formatName(player.name),
+                                })}
+                              </span>
+                              <span className="ml-2 font-mono text-muted-foreground">
+                                {player.pts ?? 0}p
+                              </span>
+                            </div>
                           ))}
                         </div>
                       </div>
@@ -3283,16 +3311,6 @@ export function GameCommandCenterModal({
           </TabsContent>
 
           <TabsContent value="post" className="mt-4 space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="text-sm font-semibold">Post-Game Recap</div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => (liveSport === "MLB" ? refetchLive() : refetchStats())}
-              >
-                <RefreshCw className="mr-2 h-4 w-4" /> Refresh
-              </Button>
-            </div>
             {liveSport === "MLB" ? (
               isLoadingLive ? (
                 <Shimmer height="120px" width="100%" />
