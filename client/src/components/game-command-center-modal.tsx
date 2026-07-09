@@ -2629,7 +2629,7 @@ export function GameCommandCenterModal({
                   ) : null}
 
                   {(liveStats.awayTopPerformers?.length || liveStats.homeTopPerformers?.length) && (
-                    <div className="grid gap-2 md:grid-cols-2">
+                    <div className="grid grid-cols-2 gap-2">
                       <div className="rounded-sm border border-border/60 p-2">
                         <div className="mb-1.5 flex items-center justify-between">
                           <span className="text-xs font-semibold">
@@ -2654,7 +2654,7 @@ export function GameCommandCenterModal({
                                   label: formatName(player.name),
                                 })}
                               </span>
-                              <span className="ml-2 font-mono text-muted-foreground">
+                              <span className="ml-2 font-mono text-green-600">
                                 {player.pts ?? 0}p
                               </span>
                             </div>
@@ -2685,7 +2685,7 @@ export function GameCommandCenterModal({
                                   label: formatName(player.name),
                                 })}
                               </span>
-                              <span className="ml-2 font-mono text-muted-foreground">
+                              <span className="ml-2 font-mono text-green-600">
                                 {player.pts ?? 0}p
                               </span>
                             </div>
