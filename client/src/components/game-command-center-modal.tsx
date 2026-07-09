@@ -293,7 +293,7 @@ function MlbLinescorePanel({
     return null;
   }
 
-  const attendanceLabel = formatAttendance(gameState?.attendance);
+  const attendanceLabel = null; // attendance disabled — unreliable data
   const decisions = gameState?.decisions;
   const renderDecisionName = (name: string) => {
     if (!resolvePlayerModalId || !onOpenPlayerModal) {
@@ -341,11 +341,6 @@ function MlbLinescorePanel({
         {gameState?.weatherSummary ? (
           <Badge variant="outline" className="text-[10px] border-border/80">
             {gameState.weatherSummary}
-          </Badge>
-        ) : null}
-        {attendanceLabel ? (
-          <Badge variant="outline" className="text-[10px] border-border/80">
-            {attendanceLabel} in park
           </Badge>
         ) : null}
       </div>
@@ -494,7 +489,7 @@ function MlbLifecycleCard({
   const totalLiveEarnings = liveStats?.userEarnings?.totalEstimatedEarnings || 0;
   const hasMlbTeamContext = Boolean(mlbPregame.teamContexts.away || mlbPregame.teamContexts.home);
   const [scoringExpanded, setScoringExpanded] = useState(false);
-  const attendanceLabel = formatAttendance(mlbPregame.attendance);
+  const attendanceLabel = null; // attendance disabled — unreliable data
   const ownershipBadgeLabel = isAuthenticated
     ? isPregame
       ? `${scheduledOwnedPlayers.length} held`
