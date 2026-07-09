@@ -32,7 +32,6 @@ import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { MlbProbableBadge } from "@/components/mlb-probable-badge";
 import { Shimmer } from "@/components/ui/animations";
 import { PlayerModal } from "@/components/player-modal";
-import { MlbSignalPanel } from "@/components/mlb-gameplay-signals";
 import { apiRequest, authenticatedFetch } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
@@ -494,6 +493,7 @@ function MlbLifecycleCard({
   const liveOwnedPlayers = liveStats?.userEarnings?.ownedPlayers || [];
   const totalLiveEarnings = liveStats?.userEarnings?.totalEstimatedEarnings || 0;
   const hasMlbTeamContext = Boolean(mlbPregame.teamContexts.away || mlbPregame.teamContexts.home);
+  const [scoringExpanded, setScoringExpanded] = useState(false);
   const attendanceLabel = formatAttendance(mlbPregame.attendance);
   const ownershipBadgeLabel = isAuthenticated
     ? isPregame
@@ -559,75 +559,50 @@ function MlbLifecycleCard({
 
   return (
     <section className="mt-4 overflow-hidden rounded-md border border-border/70 bg-background/80">
-      <div className="px-3 py-3.5 sm:px-4">
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-            <div className="min-w-0">
-              <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                {isPregame
-                  ? "Pregame box score"
-                  : activeTab === "during"
-                    ? "Live box score"
-                    : "Final box score"}
-              </div>
-              {scoreLine ? (
-                <div className="mt-2 text-base font-semibold text-foreground">{scoreLine}</div>
-              ) : null}
-              {game.venue || mlbPregame.venue ? (
-                <div className="mt-2 text-xs text-muted-foreground">
-                  {game.venue || mlbPregame.venue}
+      {!isPregame && mlbPregame.gameState ? (
+        <MlbLinescorePanel
+          title={activeTab === "during" ? "MLB Game State" : "Final Linescore"}
+          game={game}
+          mlbPregame={mlbPregame}
+          showDecisions={activeTab === "post"}
+          embedded
+          resolvePlayerModalId={resolvePlayerModalId}
+          onOpenPlayerModal={onOpenPlayerModal}
+        />
+      ) : null}
+
+      {!isPregame && mlbPregame.scoringPlays.length ? (
+        <div className="border-t border-border/60 px-3 py-3 sm:px-4">
+          <button
+            type="button"
+            onClick={() => setScoringExpanded(!scoringExpanded)}
+            className="flex w-full items-center justify-between gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <span>Scoring summary ({mlbPregame.scoringPlays.length})</span>
+            <ChevronDown
+              className={`h-3 w-3 transition-transform ${scoringExpanded ? "rotate-180" : ""}`}
+            />
+          </button>
+          {scoringExpanded ? (
+            <div className="mt-3 space-y-2">
+              {mlbPregame.scoringPlays.slice(0, 4).map((play, index) => (
+                <div
+                  key={`scoring-play-${play.inningLabel || "inning"}-${index}`}
+                  className="rounded-sm border border-border/60 bg-background/40 p-2"
+                >
+                  <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
+                    {play.inningLabel ? <span>{play.inningLabel}</span> : null}
+                    {play.battingTeam ? <span>{play.battingTeam}</span> : null}
+                    {play.scoreLabel ? <span>{play.scoreLabel}</span> : null}
+                    {play.event ? <span>{play.event}</span> : null}
+                  </div>
+                  <div className="mt-1 text-xs text-foreground">{play.description}</div>
                 </div>
-              ) : null}
-            </div>
-
-            <div className="flex shrink-0 flex-wrap gap-1">
-              <Badge variant="outline" className="text-[10px] border-border/80">
-                {lifecycleLabel}
-              </Badge>
-              {mlbPregame.weatherSummary ? (
-                <Badge variant="outline" className="text-[10px] border-border/80">
-                  {mlbPregame.weatherSummary}
-                </Badge>
-              ) : null}
-              {attendanceLabel ? (
-                <Badge variant="outline" className="text-[10px] border-border/80">
-                  {attendanceLabel} in park
-                </Badge>
-              ) : null}
-              {mlbPregame.doubleheader ? (
-                <Badge variant="outline" className="text-[10px] border-border/80">
-                  {mlbPregame.gameNumber ? `DH Game ${mlbPregame.gameNumber}` : "Doubleheader"}
-                </Badge>
-              ) : null}
-              {mlbPregame.lineupsPosted ? (
-                <Badge variant="outline" className="text-[10px] border-border/80">
-                  Lineups posted
-                </Badge>
-              ) : null}
-              {mlbPregame.statYear ? (
-                <Badge variant="outline" className="text-[10px] border-border/80">
-                  {mlbPregame.statYear} Statcast
-                </Badge>
-              ) : null}
-            </div>
-          </div>
-
-          {mlbPregame.broadcasts.length ? (
-            <div className="flex flex-wrap items-center gap-1.5">
-              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                Watch
-              </div>
-              {mlbPregame.broadcasts.map((broadcast) => (
-                <Badge key={broadcast} variant="outline" className="text-[10px] border-border/80">
-                  {broadcast}
-                </Badge>
               ))}
             </div>
           ) : null}
         </div>
-      </div>
-
-      <MlbSignalPanel signals={mlbSignals} limit={activeTab === "pre" ? 6 : 5} />
+      ) : null}
 
       {isPregame && (
         <div className="border-t border-border/60 px-3 py-3 sm:px-4">
@@ -729,42 +704,6 @@ function MlbLifecycleCard({
           )}
         </div>
       )}
-
-      {!isPregame && mlbPregame.gameState ? (
-        <MlbLinescorePanel
-          title={activeTab === "during" ? "MLB Game State" : "Final Linescore"}
-          game={game}
-          mlbPregame={mlbPregame}
-          showDecisions={activeTab === "post"}
-          embedded
-          resolvePlayerModalId={resolvePlayerModalId}
-          onOpenPlayerModal={onOpenPlayerModal}
-        />
-      ) : null}
-
-      {!isPregame && mlbPregame.scoringPlays.length ? (
-        <div className="border-t border-border/60 px-3 py-3 sm:px-4">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-            Scoring summary
-          </div>
-          <div className="mt-3 space-y-2">
-            {mlbPregame.scoringPlays.slice(0, 4).map((play, index) => (
-              <div
-                key={`scoring-play-${play.inningLabel || "inning"}-${index}`}
-                className="rounded-sm border border-border/60 bg-background/40 p-2"
-              >
-                <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
-                  {play.inningLabel ? <span>{play.inningLabel}</span> : null}
-                  {play.battingTeam ? <span>{play.battingTeam}</span> : null}
-                  {play.scoreLabel ? <span>{play.scoreLabel}</span> : null}
-                  {play.event ? <span>{play.event}</span> : null}
-                </div>
-                <div className="mt-1 text-xs text-foreground">{play.description}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
 
       {isPregame && (
         <div className="border-t border-border/60 px-3 py-3 sm:px-4">
