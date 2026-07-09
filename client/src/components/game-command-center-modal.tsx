@@ -2096,8 +2096,8 @@ export function GameCommandCenterModal({
           </div>
         </DialogHeader>
 
-        {/* Pre-game: MLB lifecycle card renders first (full baseball context) */}
-        {activeTab === "pre" && liveSport === "MLB" && mlbPregame ? (
+        {/* MLB lifecycle card renders first (full baseball context) */}
+        {liveSport === "MLB" && mlbPregame ? (
           <MlbLifecycleCard
             game={game}
             mlbPregame={mlbPregame}
@@ -2574,8 +2574,7 @@ export function GameCommandCenterModal({
           </TabsContent>
 
           <TabsContent value="during" className="mt-4 space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="text-sm font-semibold">Live Box Score</div>
+            <div className="flex items-center justify-end">
               <Button variant="outline" size="sm" onClick={() => refetchLive()}>
                 <RefreshCw className="mr-2 h-4 w-4" /> Refresh
               </Button>
@@ -2619,17 +2618,7 @@ export function GameCommandCenterModal({
                         </div>
                       ) : null}
                     </div>
-                  ) : (
-                    <div className="flex items-center justify-between text-sm font-semibold">
-                      <span>
-                        {liveStats.awayTeam} {liveStats.awayScore}
-                      </span>
-                      <span>@</span>
-                      <span>
-                        {liveStats.homeTeam} {liveStats.homeScore}
-                      </span>
-                    </div>
-                  )}
+                  ) : null}
 
                   {liveStats.message ? (
                     <div className="text-xs text-muted-foreground">{liveStats.message}</div>
@@ -3482,24 +3471,6 @@ export function GameCommandCenterModal({
             )}
           </TabsContent>
         </Tabs>
-
-        {/* Live/Post: Slimmed MLB lifecycle card renders AFTER generic content */}
-        {activeTab !== "pre" && liveSport === "MLB" && mlbPregame ? (
-          <MlbLifecycleCard
-            game={game}
-            mlbPregame={mlbPregame}
-            mlbSignals={game?.mlbSignals}
-            activeTab={activeTab}
-            liveStats={liveStats}
-            userContext={userContext}
-            isAuthenticated={isAuthenticated}
-            isHydratingDetails={isHydratingMlbDetails}
-            showMlbAdvanced={showMlbAdvanced}
-            onToggleAdvanced={() => setShowMlbAdvanced((current) => !current)}
-            resolvePlayerModalId={resolvePlayerModalId}
-            onOpenPlayerModal={(playerId) => setSelectedLivePlayerId(playerId)}
-          />
-        ) : null}
 
         <Dialog
           open={Boolean(selectedLiveInjury)}
