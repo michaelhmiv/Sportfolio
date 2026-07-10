@@ -104,7 +104,40 @@ export interface MLBLiveStats {
   message?: string;
 }
 
-type LiveStats = NBALiveStats | NFLLiveStats | MLBLiveStats;
+export interface NHLPlayerStats {
+  id: string;
+  playerId: string;
+  name: string;
+  position: string | null;
+  goals: number;
+  assists: number;
+  points: number;
+  shotsOnGoal: number;
+  hits: number;
+  blockedShots: number;
+  saves: number | null;
+  goalsAgainst: number | null;
+  timeOnIce: string | null;
+  decision: string | null;
+  fantasyPoints: number;
+}
+
+export interface NHLLiveStats {
+  gameId: string;
+  sport: "NHL";
+  status: string;
+  homeTeam: string;
+  homeScore: number;
+  awayTeam: string;
+  awayScore: number;
+  homePlayers: NHLPlayerStats[];
+  awayPlayers: NHLPlayerStats[];
+  homeTopPerformers: Array<{ name: string; points: number; fantasyPoints: number }>;
+  awayTopPerformers: Array<{ name: string; points: number; fantasyPoints: number }>;
+  message?: string;
+}
+
+type LiveStats = NBALiveStats | NFLLiveStats | MLBLiveStats | NHLLiveStats;
 
 interface LiveGameStatsProps {
   gameId: string;
@@ -197,6 +230,10 @@ export function LiveGameStats({ gameId, sport, teams, scores, status }: LiveGame
               {/* MLB Stats */}
               {sport === "MLB" && isMLBLiveStats(liveStats) && (
                 <MLBStatsPanel liveStats={liveStats} />
+              )}
+
+              {sport === "NHL" && isNHLLiveStats(liveStats) && (
+                <NHLStatsPanel liveStats={liveStats} />
               )}
             </div>
           ) : null}
@@ -529,6 +566,54 @@ function MLBStatsPanel({ liveStats }: { liveStats: MLBLiveStats }) {
   );
 }
 
+function NHLStatsPanel({ liveStats }: { liveStats: NHLLiveStats }) {
+  const PlayerTable = ({ players, team }: { players: NHLPlayerStats[]; team: string }) => (
+    <div>
+      <div className="mb-1 text-[10px] font-semibold text-muted-foreground">{team}</div>
+      <div className="overflow-x-auto rounded-sm border border-border/60">
+        <div className="grid min-w-[520px] grid-cols-[minmax(130px,2fr)_repeat(7,minmax(36px,1fr))] gap-1 bg-muted/50 px-2 py-1.5 text-[10px] font-medium text-muted-foreground">
+          <span>PLAYER</span>
+          <span className="text-center">G</span>
+          <span className="text-center">A</span>
+          <span className="text-center">PTS</span>
+          <span className="text-center">SOG</span>
+          <span className="text-center">BLK</span>
+          <span className="text-center">SV</span>
+          <span className="text-center">FP</span>
+        </div>
+        {players.map((player) => (
+          <div
+            key={player.playerId}
+            className="grid min-w-[520px] grid-cols-[minmax(130px,2fr)_repeat(7,minmax(36px,1fr))] gap-1 border-t border-border/40 px-2 py-1.5 text-xs hover:bg-muted/30"
+          >
+            <div className="flex min-w-0 items-center gap-1">
+              <span className="w-6 shrink-0 rounded bg-secondary px-1 text-center text-[9px]">
+                {player.position || "-"}
+              </span>
+              <ModalPlayerName playerId={player.playerId} name={player.name} />
+            </div>
+            <span className="text-center font-mono text-[10px]">{player.goals}</span>
+            <span className="text-center font-mono text-[10px]">{player.assists}</span>
+            <span className="text-center font-mono text-[10px]">{player.points}</span>
+            <span className="text-center font-mono text-[10px]">{player.shotsOnGoal}</span>
+            <span className="text-center font-mono text-[10px]">{player.blockedShots}</span>
+            <span className="text-center font-mono text-[10px]">{player.saves ?? "-"}</span>
+            <span className="text-center font-mono font-semibold">
+              {player.fantasyPoints.toFixed(1)}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+  return (
+    <div className="space-y-3">
+      <PlayerTable players={liveStats.awayPlayers} team={liveStats.awayTeam} />
+      <PlayerTable players={liveStats.homePlayers} team={liveStats.homeTeam} />
+    </div>
+  );
+}
+
 // Type guards
 function isNBALiveStats(stats: LiveStats): stats is NBALiveStats {
   return "homePlayers" in stats && stats.homePlayers.length > 0 && "pts" in stats.homePlayers[0];
@@ -538,6 +623,10 @@ function isNFLLiveStats(stats: LiveStats): stats is NFLLiveStats {
   return (
     "homePlayers" in stats && stats.homePlayers.length > 0 && "passingYards" in stats.homePlayers[0]
   );
+}
+
+function isNHLLiveStats(stats: LiveStats): stats is NHLLiveStats {
+  return (stats as NHLLiveStats).sport === "NHL";
 }
 
 function isMLBLiveStats(stats: LiveStats): stats is MLBLiveStats {

@@ -21,29 +21,16 @@ interface SportConfig {
   disabled?: boolean;
 }
 
+import { ENABLED_SPORTS, SPORT_CONFIGS } from "@shared/sport-config";
+
 const SPORT_DISPLAY: Record<Sport, SportConfig> = {
-  NBA: {
-    name: "NBA",
-    icon: "🏀",
-    disabled: true, // Disabled during MLB/NASCAR-only migration
-  },
-  NFL: {
-    name: "NFL",
-    icon: "🏈",
-    disabled: true, // Disabled during MLB/NASCAR-only migration
-  },
-  MLB: {
-    name: "MLB",
-    icon: "⚾",
-  },
-  NASCAR: {
-    name: "NASCAR",
-    icon: "🏎️",
-  },
-  ALL: {
-    name: "All Sports",
-    icon: "🌎",
-  },
+  ...Object.fromEntries(
+    Object.entries(SPORT_CONFIGS).map(([key, config]) => [
+      key,
+      { name: config.name, icon: config.icon, disabled: !ENABLED_SPORTS.includes(key as any) },
+    ]),
+  ),
+  ALL: { name: "All Sports", icon: "🌎" },
 };
 
 interface SportSelectorProps {

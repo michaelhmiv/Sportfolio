@@ -5,10 +5,10 @@
  * This file defines sport-specific settings like positions and seasons.
  */
 
-export const SPORTS = ["NBA", "NFL", "MLB", "NASCAR"] as const;
+export const SPORTS = ["NBA", "NFL", "MLB", "NASCAR", "NHL"] as const;
 export type Sport = (typeof SPORTS)[number];
 
-export const ENABLED_SPORTS = ["MLB", "NASCAR"] as const;
+export const ENABLED_SPORTS = ["MLB", "NASCAR", "NHL"] as const;
 export type EnabledSport = (typeof ENABLED_SPORTS)[number];
 
 export function isEnabledSport(sport: string): sport is EnabledSport {
@@ -98,6 +98,16 @@ function getNASCARSeasonYear(): number {
   return new Date().getFullYear();
 }
 
+function getNHLSeason(): string {
+  // NHL ingestion resolves the actual season from official standings-season metadata.
+  // This UI label is intentionally not used for provider requests.
+  return "official-metadata";
+}
+
+function getNHLSeasonYear(): number {
+  return new Date().getFullYear();
+}
+
 export const SPORT_CONFIGS: Record<Sport, SportConfig> = {
   NBA: {
     name: "NBA",
@@ -177,6 +187,18 @@ export const SPORT_CONFIGS: Record<Sport, SportConfig> = {
     apiProvider: "nascar-api",
     getApiSeason: getNASCARSeason,
     getSeasonYear: getNASCARSeasonYear,
+  },
+  NHL: {
+    name: "NHL",
+    fullName: "National Hockey League",
+    icon: "🏒",
+    emoji: "🏒",
+    positions: ["C", "LW", "RW", "D", "G"],
+    positionLabels: { C: "Center", LW: "Left Wing", RW: "Right Wing", D: "Defense", G: "Goalie" },
+    seasonType: "october-june",
+    apiProvider: "nhl-web-api",
+    getApiSeason: getNHLSeason,
+    getSeasonYear: getNHLSeasonYear,
   },
 };
 
