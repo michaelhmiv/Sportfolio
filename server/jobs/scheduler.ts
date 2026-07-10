@@ -21,6 +21,9 @@ import { backfillMarketSnapshots } from "./market-snapshot";
 import { syncMLBSchedule } from "./sync-mlb-schedule";
 import { syncMLBStats } from "./sync-mlb-stats";
 import { syncMLBRoster } from "./sync-mlb-roster";
+import { syncNhlRoster } from "./sync-nhl-roster";
+import { syncNhlSchedule } from "./sync-nhl-schedule";
+import { syncNhlStats } from "./sync-nhl-stats";
 import { syncNascarRoster, syncNascarActiveRoster } from "./sync-nascar-roster";
 import { syncNascarSchedule } from "./sync-nascar-schedule";
 import { syncNascarLive } from "./sync-nascar-live";
@@ -412,6 +415,32 @@ export class JobScheduler {
           };
         },
       },
+      // NHL uses the same five-minute live cadence, plus independent final reconciliation.
+      {
+        name: "nhl_live_stats_sync",
+        schedule: "4-59/5 * * * *",
+        enabled: true,
+        handler: () => syncNhlStats(),
+      },
+      {
+        name: "nhl_schedule_sync",
+        schedule: "50 * * * *",
+        enabled: true,
+        handler: () => syncNhlSchedule(),
+      },
+      {
+        name: "nhl_roster_sync",
+        schedule: "20 4 * * *",
+        enabled: true,
+        handler: async () => {
+          const result = await syncNhlRoster();
+          return {
+            requestCount: result.requestCount,
+            recordsProcessed: result.playersAdded + result.playersUpdated,
+            errorCount: result.errors.length,
+          };
+        },
+      },
       // MLB stats sync is handled by unified 'stats_sync_live' job above
       // NFL stats sync is now handled by unified 'stats_sync_live' job above
       {
@@ -660,6 +689,16 @@ export class JobScheduler {
         const result = await syncMLBRoster();
         return {
           requestCount: 0,
+          recordsProcessed: result.playersAdded + result.playersUpdated,
+          errorCount: result.errors.length,
+        };
+      },
+      nhl_schedule_sync: () => syncNhlSchedule(),
+      nhl_live_stats_sync: () => syncNhlStats(),
+      nhl_roster_sync: async () => {
+        const result = await syncNhlRoster();
+        return {
+          requestCount: result.requestCount,
           recordsProcessed: result.playersAdded + result.playersUpdated,
           errorCount: result.errors.length,
         };
