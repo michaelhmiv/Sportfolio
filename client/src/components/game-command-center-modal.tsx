@@ -83,7 +83,7 @@ type LivePlayerStats = {
   receivingTDs?: number | null;
   receptions?: number | null;
   atBats?: number;
-  hits?: number;
+  hits?: number | null | undefined;
   doubles?: number;
   triples?: number;
   homeRuns?: number;
@@ -96,7 +96,7 @@ type LivePlayerStats = {
   pitchingStrikeouts?: number;
   earnedRuns?: number;
   wins?: number;
-  saves?: number;
+  saves?: number | null | undefined;
   runningPosition?: number;
   startingPosition?: number;
   finishPosition?: number | null;
@@ -117,11 +117,10 @@ type LivePlayerStats = {
   providerPoints?: number | null;
   status?: string;
   goals?: number | null;
+  assists?: number | null;
   points?: number | null;
   shotsOnGoal?: number | null;
-  hits?: number | null;
   blockedShots?: number | null;
-  saves?: number | null;
   goalsAgainst?: number | null;
   timeOnIce?: string | null;
   decision?: string | null;
@@ -154,6 +153,9 @@ interface LiveStatsResponse {
     position?: number;
     lapsLed?: number;
     fastestLaps?: number;
+    points?: number;
+    assists?: number;
+    fantasyPoints?: number;
   }>;
   awayTopPerformers?: Array<{
     playerId?: string;
@@ -168,6 +170,9 @@ interface LiveStatsResponse {
     position?: number;
     lapsLed?: number;
     fastestLaps?: number;
+    points?: number;
+    assists?: number;
+    fantasyPoints?: number;
   }>;
   lapInfo?: {
     currentLap: number;
