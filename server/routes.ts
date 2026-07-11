@@ -169,7 +169,8 @@ import {
 import { getBotRuntimeStatus, getBotStats, runBotEngineTick } from "./bot/bot-engine";
 import { buildStackSharesResponsePayload } from "./lib/stack-shares-response";
 
-const SUPPORTED_SPORTS = ["NBA", "NFL", "MLB", "NASCAR"] as const;
+// Public route validation includes every sport enabled by the shared product configuration.
+const SUPPORTED_SPORTS = ["NBA", "NFL", "MLB", "NASCAR", "NHL"] as const;
 function toNumber(value: string | number | null | undefined): number {
   if (typeof value === "number") {
     return Number.isFinite(value) ? value : 0;
@@ -4207,87 +4208,19 @@ ${items}
           userEarnings,
         });
       } else if (game.sport === "NHL") {
-        // NHL box scores are synchronized server-side. Read only persisted rows here so
-        // the browser never calls NHL directly and a provider outage preserves the last score.
-        let period: number | null = null;
-        let periodType: string | null = null;
-        let clock: string | null = null;
-        try {
-          const { formatNhlGameDay, nhlApi } = await import("./nhl-api");
-          const score = await nhlApi.getScore(formatNhlGameDay(new Date(game.startTime)));
-          const providerGame = score.games.find((candidate) => `nhl_${candidate.id}` === gameId);
-          period = providerGame?.periodDescriptor?.number ?? null;
-          periodType = providerGame?.periodDescriptor?.periodType ?? null;
-          clock = providerGame?.clock?.timeRemaining ?? null;
-        } catch (error: any) {
-          console.warn(
-            `[live-stats] NHL state refresh unavailable for ${gameId}: ${error?.message || error}`,
-          );
-        }
+        // Public NHL requests are persisted-only: scheduled ingestion owns all provider calls.
         const nhlStats = await storage.getGameStatsByGameId(game.gameId);
-        const mapNhlPlayer = async (stat: any) => {
-          const player = await storage.getPlayer(stat.playerId);
-          const stats = (stat.statsJson || {}) as Record<string, unknown>;
-          return {
-            id: String(stat.playerId).replace(/^nhl_/, ""),
-            playerId: stat.playerId,
-            name: player ? `${player.firstName} ${player.lastName}` : "Unknown player",
-            team: player?.team || (stat.homeAway === "home" ? game.homeTeam : game.awayTeam),
-            position: stats.position || null,
-            goals: Number(stats.goals || 0),
-            assists: Number(stats.assists || 0),
-            points: Number(stats.points || 0),
-            shotsOnGoal: Number(stats.shotsOnGoal || 0),
-            hits: Number(stats.hits || 0),
-            blockedShots: Number(stats.blockedShots || 0),
-            saves: stats.saves == null ? null : Number(stats.saves),
-            goalsAgainst: stats.goalsAgainst == null ? null : Number(stats.goalsAgainst),
-            timeOnIce: stats.timeOnIce || null,
-            decision: stats.decision || null,
-            fantasyPoints: Number(stat.fantasyPoints || 0),
-          };
-        };
-        const players = await Promise.all(nhlStats.map(mapNhlPlayer));
-        const homePlayers = players.filter((player) => player.team === game.homeTeam);
-        const awayPlayers = players.filter((player) => player.team === game.awayTeam);
-        const topPerformers = (teamPlayers: typeof players) =>
-          [...teamPlayers]
-            .sort((a, b) => b.fantasyPoints - a.fantasyPoints)
-            .slice(0, 3)
-            .map(({ playerId, name, team, goals, assists, points, saves, fantasyPoints }) => ({
-              playerId,
-              name,
-              team,
-              goals,
-              assists,
-              points,
-              saves,
-              fantasyPoints,
-            }));
+        const playerIds = [...new Set(nhlStats.map((stat: any) => stat.playerId))];
+        const playerMap = new Map((await storage.getPlayersByIds(playerIds)).map((player) => [player.id, player]));
+        const { buildNhlLiveResponse } = await import("./nhl-live-response");
+        const persistedResponse = buildNhlLiveResponse(game, nhlStats, playerMap);
         const userEarnings = await buildUserLiveEarningsSummary({
           game,
           userId,
-          livePlayers: players,
+          livePlayers: [...persistedResponse.homePlayers, ...persistedResponse.awayPlayers],
           preloadedHoldings: userHoldingsWithPlayers || undefined,
         });
-        return res.json({
-          gameId,
-          sport: "NHL",
-          status: game.status,
-          period,
-          periodType,
-          clock,
-          homeTeam: game.homeTeam,
-          homeScore: game.homeScore,
-          awayTeam: game.awayTeam,
-          awayScore: game.awayScore,
-          homePlayers,
-          awayPlayers,
-          homeTopPerformers: topPerformers(homePlayers),
-          awayTopPerformers: topPerformers(awayPlayers),
-          message: players.length ? undefined : "No box score available yet",
-          userEarnings,
-        });
+        return res.json({ ...persistedResponse, userEarnings });
       } else if (game.sport === "NASCAR") {
         console.log(`[live-stats] Fetching NASCAR stored live stats for race ${gameId}`);
 
@@ -4635,7 +4568,7 @@ ${items}
 
       if (sportQuery === "ALL") {
         const playersBySport = await Promise.all(
-          ["NBA", "NFL", "MLB", "NASCAR"].map((sport) => storage.getPlayersBySport(sport)),
+          ["NBA", "NFL", "MLB", "NASCAR", "NHL"].map((sport) => storage.getPlayersBySport(sport)),
         );
         playersList = playersBySport.flat();
       } else {

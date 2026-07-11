@@ -98,14 +98,14 @@ function getNASCARSeasonYear(): number {
   return new Date().getFullYear();
 }
 
-function getNHLSeason(): string {
-  // NHL ingestion resolves the actual season from official standings-season metadata.
-  // This UI label is intentionally not used for provider requests.
-  return "official-metadata";
+export function getNHLSeasonDisplay(date = new Date()): string {
+  const startYear = getNHLSeasonYear(date);
+  return `${startYear}-${String(startYear + 1).slice(-2)}`;
 }
 
-function getNHLSeasonYear(): number {
-  return new Date().getFullYear();
+/** Client-safe season-start year for display only; ingestion uses official metadata server-side. */
+export function getNHLSeasonYear(date = new Date()): number {
+  return date.getMonth() >= 6 ? date.getFullYear() : date.getFullYear() - 1;
 }
 
 export const SPORT_CONFIGS: Record<Sport, SportConfig> = {
@@ -197,7 +197,7 @@ export const SPORT_CONFIGS: Record<Sport, SportConfig> = {
     positionLabels: { C: "Center", LW: "Left Wing", RW: "Right Wing", D: "Defense", G: "Goalie" },
     seasonType: "october-june",
     apiProvider: "nhl-web-api",
-    getApiSeason: getNHLSeason,
+    getApiSeason: getNHLSeasonDisplay,
     getSeasonYear: getNHLSeasonYear,
   },
 };
