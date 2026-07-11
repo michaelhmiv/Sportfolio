@@ -100,6 +100,9 @@ type ClientOptions = {
   maxRetries?: number;
   retryDelayMs?: number;
   cacheTtlMs?: number;
+  /** Injectable for deterministic retry tests. */
+  sleep?: (milliseconds: number) => Promise<void>;
+  random?: () => number;
 };
 type CacheEntry = { expiresAt: number; value: unknown };
 
@@ -176,6 +179,8 @@ export class NhlApiClient {
   private readonly maxRetries: number;
   private readonly retryDelayMs: number;
   private readonly cacheTtlMs: number;
+  private readonly sleep: (milliseconds: number) => Promise<void>;
+  private readonly random: () => number;
   private cache = new Map<string, CacheEntry>();
   private pending = new Map<string, Promise<unknown>>();
   constructor(options: ClientOptions = {}) {
@@ -184,6 +189,16 @@ export class NhlApiClient {
     this.maxRetries = options.maxRetries ?? 2;
     this.retryDelayMs = options.retryDelayMs ?? 150;
     this.cacheTtlMs = options.cacheTtlMs ?? 15_000;
+    this.sleep = options.sleep ?? ((milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)));
+    this.random = options.random ?? Math.random;
+  }
+  private retryDelay(response: Response | null, attempt: number) {
+    const retryAfter = response?.headers.get("retry-after") || "";
+    const seconds = Number(retryAfter);
+    const retryAfterMs = Number.isFinite(seconds) && seconds >= 0 ? seconds * 1_000 : null;
+    // Bound provider hints and exponential delays; add at most 25% jitter.
+    const base = Math.min(30_000, retryAfterMs ?? this.retryDelayMs * 2 ** attempt);
+    return Math.min(30_000, Math.round(base + base * 0.25 * this.random()));
   }
   private async request<T>(path: string, valid: (payload: unknown) => payload is T): Promise<T> {
     const url = `${NHL_API_BASE}${path}`;
@@ -203,12 +218,12 @@ export class NhlApiClient {
           });
           if (!response.ok) {
             const message = `HTTP ${response.status}`;
-            if (
-              ![408, 429, 500, 502, 503, 504].includes(response.status) ||
-              attempt === this.maxRetries
-            )
+            const retryable = [408, 429, 500, 502, 503, 504].includes(response.status);
+            if (!retryable || attempt === this.maxRetries)
               throw new NhlApiError(path, response.status, message);
             last = new NhlApiError(path, response.status, message);
+            await this.sleep(this.retryDelay(response, attempt));
+            continue;
           } else {
             const payload: unknown = await response.json();
             if (!valid(payload)) throw new NhlApiError(path, response.status, "malformed response");
@@ -224,7 +239,7 @@ export class NhlApiClient {
             throw error;
           last = error;
           if (attempt === this.maxRetries) break;
-          await new Promise((resolve) => setTimeout(resolve, this.retryDelayMs * (attempt + 1)));
+          await this.sleep(this.retryDelay(null, attempt));
         } finally {
           clearTimeout(timer);
         }
