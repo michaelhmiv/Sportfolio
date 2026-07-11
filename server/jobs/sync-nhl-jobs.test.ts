@@ -1,23 +1,26 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const storage = {
-  getPlayersBySport: vi.fn(),
-  updatePlayer: vi.fn(),
-  upsertPlayer: vi.fn(),
-  getDailyGamesBySport: vi.fn(),
-  getDailyGameByGameId: vi.fn(),
-  updateDailyGame: vi.fn(),
-  upsertPlayerGameStats: vi.fn(),
-  getPlayersByIds: vi.fn(),
-};
-const nhlApi = {
-  getSeasons: vi.fn(),
-  getStandings: vi.fn(),
-  getRoster: vi.fn(),
-  getScore: vi.fn(),
-  getBoxscore: vi.fn(),
-  getSchedule: vi.fn(),
-};
+const { storage, nhlApi } = vi.hoisted(() => ({
+  storage: {
+    getPlayersBySport: vi.fn(),
+    updatePlayer: vi.fn(),
+    upsertPlayer: vi.fn(),
+    getDailyGamesBySport: vi.fn(),
+    getDailyGameByGameId: vi.fn(),
+    createDailyGame: vi.fn(),
+    updateDailyGame: vi.fn(),
+    upsertPlayerGameStats: vi.fn(),
+    getPlayersByIds: vi.fn(),
+  },
+  nhlApi: {
+    getSeasons: vi.fn(),
+    getStandings: vi.fn(),
+    getRoster: vi.fn(),
+    getScore: vi.fn(),
+    getBoxscore: vi.fn(),
+    getSchedule: vi.fn(),
+  },
+}));
 
 vi.mock("../storage", () => ({ storage }));
 vi.mock("../nhl-api", async (importOriginal) => {
