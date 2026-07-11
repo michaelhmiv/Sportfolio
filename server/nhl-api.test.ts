@@ -114,6 +114,35 @@ describe("NhlApiClient", () => {
     expect(fetchMock).toHaveBeenCalledWith(`${NHL_API_BASE}/score/2026-01-01`, expect.any(Object));
   });
 
+  it("retries transient responses after a bounded delay and respects reasonable Retry-After", async () => {
+    const delays: number[] = [];
+    const retryFetch = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("busy", { status: 503 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ games: [] }), { status: 200 }));
+    const retryClient = new NhlApiClient({ fetch: retryFetch, retryDelayMs: 100, maxRetries: 1, random: () => 0, sleep: async (delay) => { delays.push(delay); } });
+    await expect(retryClient.getScore("2026-01-01")).resolves.toEqual({ games: [] });
+    expect(delays).toEqual([100]);
+
+    const rateLimited = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("busy", { status: 429, headers: { "retry-after": "2" } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ games: [] }), { status: 200 }));
+    const retryAfterDelays: number[] = [];
+    await new NhlApiClient({ fetch: rateLimited, maxRetries: 1, random: () => 0, sleep: async (delay) => { retryAfterDelays.push(delay); } }).getScore("2026-01-02");
+    expect(retryAfterDelays).toEqual([2_000]);
+  });
+
+  it("bounds malformed Retry-After hints and cleans pending requests after rejection", async () => {
+    const delays: number[] = [];
+    const fetchMock = vi.fn().mockResolvedValue(new Response("busy", { status: 503, headers: { "retry-after": "999999" } }));
+    const client = new NhlApiClient({ fetch: fetchMock, maxRetries: 1, random: () => 0, sleep: async (delay) => { delays.push(delay); } });
+    await expect(client.getScore("2026-01-01")).rejects.toBeInstanceOf(NhlApiError);
+    expect(delays[0]).toBeLessThanOrEqual(30_000);
+    await expect(client.getScore("2026-01-01")).rejects.toBeInstanceOf(NhlApiError);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+
   it("retries a transient response but not an ordinary 4xx contract error", async () => {
     const retryFetch = vi
       .fn()
