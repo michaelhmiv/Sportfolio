@@ -18,6 +18,11 @@ export function getCurrentCompetitiveSeasons(sport: string = "NBA"): string[] {
   const seasonStartYear = currentMonth >= 6 ? currentYear : currentYear - 1;
   const seasonEndYear = seasonStartYear + 1;
 
+  if (normalizedSport === "NHL") {
+    // NHL ingestion persists official compact season IDs (for example 20252026).
+    return [`${seasonStartYear}${seasonEndYear}`, `${seasonStartYear - 1}${seasonStartYear}`];
+  }
+
   return [
     `${seasonStartYear}-${seasonEndYear}-regular`,
     `${seasonStartYear}-${seasonEndYear}-playoff`,

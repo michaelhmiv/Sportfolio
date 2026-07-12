@@ -14,7 +14,7 @@
 import { db } from "../db";
 import { jobExecutionLogs } from "@shared/schema";
 import { sql, lt } from "drizzle-orm";
-import type { JobResult } from "./scheduler";
+import type { JobResult } from "./types";
 import type { ProgressCallback } from "../lib/admin-stream";
 import { createThrottledLogger } from "../lib/log-utility";
 

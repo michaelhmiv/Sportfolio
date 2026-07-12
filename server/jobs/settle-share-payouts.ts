@@ -1,7 +1,7 @@
 import { storage } from "../storage";
 import { broadcastToUser } from "../websocket";
 import { sendUserNotification } from "../services/notification-dispatcher";
-import type { JobResult } from "./scheduler";
+import type { JobResult } from "./types";
 import type { ProgressCallback } from "../lib/admin-stream";
 
 function toFiniteNumber(value: unknown, fallback: number): number {

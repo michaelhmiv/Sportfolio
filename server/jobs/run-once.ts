@@ -10,7 +10,7 @@
  *   tsx server/jobs/run-once.ts mlb_stats_backfill --date=2026-07-07
  */
 
-import type { JobResult } from "./scheduler";
+import type { JobResult } from "./types";
 
 type RunnableJob = (args: string[]) => Promise<JobResult>;
 

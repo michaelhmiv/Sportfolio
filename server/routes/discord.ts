@@ -846,7 +846,7 @@ async function handleBoost(
     const dateInput = getStringOption(sub.options, "date");
     const { dateStr, targetDate } = parseDateInput(dateInput);
 
-    const sports = sport === "ALL" ? ["NBA", "NFL", "MLB", "NASCAR"] : [sport];
+    const sports = sport === "ALL" ? ["NBA", "NFL", "MLB", "NASCAR", "NHL"] : [sport];
 
     const eligible = (
       await Promise.all(

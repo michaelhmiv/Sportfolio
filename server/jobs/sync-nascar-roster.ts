@@ -16,7 +16,7 @@ import {
   NascarSeriesId,
   NascarDriver,
 } from "../nascar-api";
-import type { JobResult } from "./scheduler";
+import type { JobResult } from "./types";
 import type { ProgressCallback } from "../lib/admin-stream";
 
 const NASCAR_SPORT = "NASCAR";

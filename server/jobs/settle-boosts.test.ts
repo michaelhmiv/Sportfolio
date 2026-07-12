@@ -175,4 +175,62 @@ describe("settleBoosts", () => {
       }),
     );
   }, 15000);
+
+  it("settles an NHL boost using the documented simplified Sportfolio fantasy total", async () => {
+    storageMocks.getDailyBoostsByStatus.mockResolvedValue([
+      {
+        id: "boost_nhl",
+        userId: "user_1",
+        playerId: "nhl_8478402",
+        sport: "NHL",
+        slotTier: 3,
+        boostDate: new Date("2026-01-02T05:00:00.000Z"),
+        sharesEntered: 1,
+        shareMultiplier: "2.00",
+        gameId: "nhl_2025020600",
+        status: "locked",
+      },
+    ]);
+    storageMocks.getDailyGameByGameId.mockResolvedValue({
+      id: "game_nhl",
+      gameId: "nhl_2025020600",
+      sport: "NHL",
+      status: "completed",
+      startTime: new Date("2026-01-02T23:00:00.000Z"),
+      homeTeam: "BOS",
+      awayTeam: "NYR",
+      date: new Date("2026-01-02T05:00:00.000Z"),
+    });
+    storageMocks.getPlayerGameStatsForIdentity.mockResolvedValue({
+      playerId: "nhl_8478402",
+      gameId: "nhl_2025020600",
+      fantasyPoints: "18.50",
+      statsJson: {
+        scoringEnrichment: { model: "simplified-sportfolio-nhl", status: "not_included" },
+      },
+    });
+    storageMocks.getCommunityBoostCountForPlayerIdentity.mockResolvedValue(0);
+    storageMocks.getUser.mockResolvedValue({ id: "user_1", balance: "10.00" });
+    storageMocks.getPlayer.mockResolvedValue({
+      id: "nhl_8478402",
+      firstName: "Test",
+      lastName: "Skater",
+      team: "BOS",
+    });
+    storageMocks.createBoostPayout.mockResolvedValue({ id: "payout_nhl" });
+
+    const { settleBoosts } = await import("./settle-boosts");
+    const result = await settleBoosts();
+
+    expect(result.recordsProcessed).toBe(1);
+    expect(storageMocks.updateUserBalance).toHaveBeenCalledWith("user_1", "121.00");
+    expect(storageMocks.createBoostPayout).toHaveBeenCalledWith(
+      expect.objectContaining({
+        boostId: "boost_nhl",
+        fantasyPoints: "18.50",
+        payoutAmount: "111.00",
+        multiplier: 3,
+      }),
+    );
+  }, 15000);
 });

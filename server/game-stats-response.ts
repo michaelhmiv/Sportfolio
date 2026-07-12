@@ -173,11 +173,73 @@ const buildBasketballGameStatsPayload = (gameId: string, rows: GameStatsPlayerRo
   };
 };
 
+const mapNhlPlayer = (row: GameStatsPlayerRow) => {
+  const stats = row.statsJson || {};
+  return {
+    playerId: row.playerId,
+    playerName: row.playerName,
+    team: row.team,
+    homeAway: row.homeAway,
+    position: stats.position || null,
+    fantasyPoints: row.fantasyPoints,
+    goals: numberValue(stats.goals),
+    assists: numberValue(stats.assists),
+    points: numberValue(stats.points),
+    shotsOnGoal: numberValue(stats.shotsOnGoal),
+    hits: numberValue(stats.hits),
+    blockedShots: numberValue(stats.blockedShots),
+    plusMinus: numberValue(stats.plusMinus),
+    penaltyMinutes: numberValue(stats.penaltyMinutes),
+    timeOnIce: stats.timeOnIce || null,
+    saves: stats.saves == null ? null : numberValue(stats.saves),
+    goalsAgainst: stats.goalsAgainst == null ? null : numberValue(stats.goalsAgainst),
+    savePercentage: stats.savePercentage == null ? null : numberValue(stats.savePercentage),
+    decision: stats.decision || null,
+  };
+};
+
+const buildNhlGameStatsPayload = (gameId: string, rows: GameStatsPlayerRow[]) => {
+  const players = rows.map(mapNhlPlayer);
+  const home = players.filter((player) => player.homeAway === "home");
+  const away = players.filter((player) => player.homeAway === "away");
+  const topFantasy = sortByDesc(players, (player) => player.fantasyPoints);
+  const topScorer = sortByDesc(players, (player) => player.points);
+  const topGoalie = sortByDesc(
+    players.filter((player) => player.position === "G"),
+    (player) => player.fantasyPoints,
+  );
+  return {
+    gameId,
+    sport: "NHL",
+    homeTeam: {
+      players: home,
+      totals: home.length
+        ? {
+            fantasyPoints: roundOne(home.reduce((sum, player) => sum + player.fantasyPoints, 0)),
+            goals: home.reduce((sum, player) => sum + player.goals, 0),
+            assists: home.reduce((sum, player) => sum + player.assists, 0),
+            shotsOnGoal: home.reduce((sum, player) => sum + player.shotsOnGoal, 0),
+          }
+        : null,
+    },
+    awayTeam: {
+      players: away,
+      totals: away.length
+        ? {
+            fantasyPoints: roundOne(away.reduce((sum, player) => sum + player.fantasyPoints, 0)),
+            goals: away.reduce((sum, player) => sum + player.goals, 0),
+            assists: away.reduce((sum, player) => sum + player.assists, 0),
+            shotsOnGoal: away.reduce((sum, player) => sum + player.shotsOnGoal, 0),
+          }
+        : null,
+    },
+    topPerformers: players.length ? { topFantasy, topScorer, topGoalie } : null,
+  };
+};
+
 export function buildGameStatsPayload(gameId: string, rows: GameStatsPlayerRow[]) {
-  const isMlb =
-    rows.some((row) => String(row.sport || "").toUpperCase() === "MLB") ||
-    gameId.startsWith("mlb_");
-  return isMlb
-    ? buildMlbGameStatsPayload(gameId, rows)
-    : buildBasketballGameStatsPayload(gameId, rows);
+  const sport = String(rows[0]?.sport || "").toUpperCase();
+  if (sport === "NHL" || gameId.startsWith("nhl_")) return buildNhlGameStatsPayload(gameId, rows);
+  if (sport === "MLB" || gameId.startsWith("mlb_")) return buildMlbGameStatsPayload(gameId, rows);
+  return buildBasketballGameStatsPayload(gameId, rows);
 }

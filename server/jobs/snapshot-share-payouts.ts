@@ -1,5 +1,5 @@
 import { storage } from "../storage";
-import type { JobResult } from "./scheduler";
+import type { JobResult } from "./types";
 import type { ProgressCallback } from "../lib/admin-stream";
 
 const SHARE_PAYOUT_BASE_RATE = "1.0000";

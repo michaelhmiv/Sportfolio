@@ -1,3 +1,11 @@
+## 2026-07-10 NHL First-Class Support — Two Stacked Draft PRs
+
+- [ ] Verify current repository/schema and establish NHL identity and no-migration path
+- [ ] Build and test typed NHL provider, season/date/status normalization, roster/schedule/score/stats jobs, and DraftKings scoring
+- [ ] Validate, commit, push, and open draft `codex/nhl-data-foundation` PR against `main`
+- [ ] Build and test public NHL activation, sport configuration, market/portfolio/boost/payout support, and hockey live-game UI
+- [ ] Validate, commit, push, and open draft `codex/nhl-product-activation` PR stacked on `codex/nhl-data-foundation`
+
 ## 2026-06-03 Bot Capability Gating
 
 - [x] Audit deterministic bot action selection for impossible-task retry loops

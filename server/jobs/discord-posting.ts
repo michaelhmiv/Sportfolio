@@ -7,7 +7,7 @@ import { ensureDiscordSchema, hasDiscordPost, recordDiscordPost } from "../disco
 import { db } from "../db";
 import { buildMobileMarketOverview } from "../market-mobile-overview";
 
-import type { JobResult } from "./scheduler";
+import type { JobResult } from "./types";
 import type { MobileMarketSignal } from "../market-mobile-overview";
 
 const MAX_NEWS_POSTS_PER_RUN = 5;

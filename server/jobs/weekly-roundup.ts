@@ -12,7 +12,7 @@
 
 import { storage } from "../storage";
 import { db } from "../db";
-import type { JobResult } from "./scheduler";
+import type { JobResult } from "./types";
 import type { ProgressCallback } from "../lib/admin-stream";
 import { trades, users } from "@shared/schema";
 import { desc, eq, gte } from "drizzle-orm";

@@ -6,7 +6,7 @@
  */
 import { storage } from "../storage";
 import { syncMLBStats } from "./sync-mlb-stats";
-import type { JobResult } from "./scheduler";
+import type { JobResult } from "./types";
 import type { ProgressCallback } from "../lib/admin-stream";
 import { getTodayETBoundaries, getETDayBoundaries, getGameDay } from "../lib/time";
 

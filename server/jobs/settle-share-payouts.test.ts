@@ -79,4 +79,40 @@ describe("settleSharePayouts", () => {
       }),
     );
   }, 15_000);
+
+  it("credits an NHL share payout from the simplified Sportfolio fantasy total", async () => {
+    storageMocks.getPendingSharePayouts.mockResolvedValue([
+      {
+        id: "payout_nhl",
+        userId: "user_1",
+        playerId: "nhl_8478402",
+        gameId: "nhl_2025020600",
+        earningUnits: "2.00",
+        baseRate: "1.0000",
+      },
+    ]);
+    storageMocks.getDailyGameByGameId.mockResolvedValue({
+      gameId: "nhl_2025020600",
+      sport: "NHL",
+      status: "completed",
+    });
+    storageMocks.getPlayerGameStats.mockResolvedValue({
+      fantasyPoints: "18.50",
+      statsJson: {
+        scoringEnrichment: { model: "simplified-sportfolio-nhl", status: "not_included" },
+      },
+    });
+    storageMocks.processSharePayoutCredit.mockResolvedValue(true);
+
+    const { settleSharePayouts } = await import("./settle-share-payouts");
+    const result = await settleSharePayouts();
+
+    expect(result.recordsProcessed).toBe(1);
+    expect(storageMocks.processSharePayoutCredit).toHaveBeenCalledWith(
+      "payout_nhl",
+      "user_1",
+      "18.50",
+      "37.00",
+    );
+  }, 15_000);
 });

@@ -6,7 +6,7 @@ audience: public
 category: cli
 status: published
 owner: product-engineering
-lastReviewedAt: 2026-03-12
+lastReviewedAt: 2026-07-12
 changeTriggers: package.json,packages/sportfolio-cli/src/index.mjs,packages/sportfolio-cli/src/http.mjs,server/routes/cli.ts,client/src/components/cli-access-card.tsx
 slug: command-reference
 surface: web,cli,agent
@@ -119,6 +119,18 @@ Tool output exposes four execution models:
 | `immediate_write` | Executes immediately; treat as a direct account/product change |
 | `staged_write`    | Creates a pending bundle that requires confirm/cancel          |
 | `finalizer`       | Confirms or cancels a pending staged bundle                    |
+
+---
+
+## Repository Quality Commands
+
+From the project root, contributors can validate dependency and import integrity with:
+
+```bash
+npm run code:dead
+```
+
+This Knip gate checks declared runtime/development dependencies, undeclared imports, external binaries, and unresolved imports across application, server, shared, script, test, and root configuration sources. Export-symbol and orphan-file cleanup are tracked separately so their existing backlog does not hide new dependency-integrity regressions.
 
 ---
 
