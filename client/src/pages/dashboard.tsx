@@ -37,7 +37,6 @@ import {
   ArrowUpDown,
   Zap,
   Flame,
-  Activity,
   Trophy,
   Clock,
   ShoppingCart,
@@ -49,7 +48,6 @@ import type { Player, Trade } from "@shared/schema";
 import { useAuth } from "@/hooks/useAuth";
 import { DashboardScanners } from "@/components/marketplace-scanners";
 import { PlayerName } from "@/components/player-name";
-import { SportSelector } from "@/components/sport-selector";
 import {
   Shimmer,
   ShimmerCard,
@@ -673,7 +671,7 @@ export default function Dashboard() {
         <div className="p-3 sm:p-4 max-w-full overflow-x-hidden space-y-4 sm:space-y-6">
           {/* Sport filter chips — visible at page top so users can switch context instantly */}
           <div
-            className="flex gap-1.5 overflow-x-auto pb-0.5 no-scrollbar"
+            className="flex items-center gap-1.5 overflow-x-auto pb-0.5 no-scrollbar"
             data-testid="strip-sport-filter"
           >
             {filterTabs.map((sportOption) => {
@@ -695,6 +693,25 @@ export default function Dashboard() {
                 </button>
               );
             })}
+            {isAuthenticated && (
+              <>
+                {(data?.boosts?.slotsRemaining ?? 0) > 0 && (
+                  <Link href="/boosts">
+                    <button className="flex items-center gap-1.5 whitespace-nowrap rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-500 transition-colors hover:bg-amber-500/20">
+                      <Zap className="h-3 w-3" />
+                      {data!.boosts!.slotsRemaining} boost slot
+                      {data!.boosts!.slotsRemaining !== 1 ? "s" : ""} open
+                    </button>
+                  </Link>
+                )}
+                {liveGames.length > 0 && (
+                  <span className="flex items-center gap-1.5 whitespace-nowrap rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-500">
+                    <Radio className="h-3 w-3 animate-pulse" />
+                    {liveGames.length} live now
+                  </span>
+                )}
+              </>
+            )}
           </div>
 
           {/* Slate Exposure card — hidden for now
@@ -841,36 +858,6 @@ export default function Dashboard() {
                 </div>
               );
             })()}
-
-          {/* Today's Actions chip strip */}
-          {isAuthenticated && (
-            <div
-              className="flex gap-2 overflow-x-auto pb-0.5 no-scrollbar"
-              data-testid="strip-todays-actions"
-            >
-              <Link href="/scout">
-                <button className="flex items-center gap-1.5 whitespace-nowrap rounded-full border border-blue-500/40 bg-blue-500/10 px-3 py-1.5 text-xs font-medium text-blue-400 transition-colors hover:bg-blue-500/20">
-                  <Activity className="h-3 w-3" />
-                  Scout
-                </button>
-              </Link>
-              {(data?.boosts?.slotsRemaining ?? 0) > 0 && (
-                <Link href="/boosts">
-                  <button className="flex items-center gap-1.5 whitespace-nowrap rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-500 transition-colors hover:bg-amber-500/20">
-                    <Zap className="h-3 w-3" />
-                    {data!.boosts!.slotsRemaining} boost slot
-                    {data!.boosts!.slotsRemaining !== 1 ? "s" : ""} open
-                  </button>
-                </Link>
-              )}
-              {liveGames.length > 0 && (
-                <span className="flex items-center gap-1.5 whitespace-nowrap rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-500">
-                  <Radio className="h-3 w-3 animate-pulse" />
-                  {liveGames.length} live now
-                </span>
-              )}
-            </div>
-          )}
 
           {/* Boost Live Earnings Strip */}
           {isAuthenticated && data?.boosts && data.boosts.lockedBoosts > 0 && (
