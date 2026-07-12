@@ -66,45 +66,45 @@ Primary source-of-truth code:
    - Daily boosts lock/burn shares at game start and settle post-game.
    - Community boosts modify daily boost multipliers.
 
-## Power Levels (Critical Economic Primitive)
+## Stacked Shares (Critical Economic Primitive)
 
-Power is modeled per holding row and directly impacts boost payouts.
+Stacked-share multiplier state is separate from regular tradeable holdings and directly impacts boost payouts.
 
 ### Data model
 
-- `holdings.power` = per-share multiplier (integer; `1` means regular share).
-- `holdings.powerLevel` = derived effective power (`quantity * power`, stored for compatibility/reporting).
-- Regular and powered shares can exist as separate holding rows for the same player.
+- `holdings` stores regular per-user asset quantity and cost basis; it has no `power` or `powerLevel` columns.
+- `player_multipliers` stores one non-tradeable stacked-share record per `userId + playerId`, including its effective `multiplier` and retained cost basis.
+- `player_multiplier_events` is the immutable ledger for stacking and stacked-share burn events.
 
-### Condense mechanic
+### Stack mechanic
 
-- Route: `POST /api/holdings/condense`
-- Rule: `sharesToCondense` must be `>= 2` and divisible by `2`.
-- Conversion ratio: `2 raw shares -> +1 power gained`.
-- Storage behavior (`condenseShares`):
-  - debits regular shares (`power=1`) after lock checks,
-  - creates/updates powered row (`power > 1`),
-  - keeps `powerLevel` synchronized with quantity/power.
+- Route: `POST /api/holdings/stack-shares`
+- Rule: `sharesToStack` must be an even integer of at least `4`.
+- Conversion: stacking `N` regular shares adds `N / 2` to the player's multiplier and keeps one stacked-share record.
+- Storage behavior (`stackShares`):
+  - checks locked quantities before consuming regular shares,
+  - updates or creates the canonical `player_multipliers` row,
+  - records cost-basis and supply changes in `player_multiplier_events`.
 
 ### Availability and lock semantics
 
-- Available shares are effectively `quantity - lockedQuantity` for player holdings.
-- Condense and boost flows must never consume locked shares.
+- Available regular shares are `holdings.quantity - holdings_locks.lockedQuantity`.
+- Stacking and boost flows must never consume locked regular shares.
 
 ### Boost interaction
 
 - Daily boost assignment allows exactly `1` share per slot.
-- Assignment selects an eligible holding row (prefers highest powered share when available).
-- Stored boost `powerLevel` represents that single burned share's per-share power.
-- Settlement uses that stored value in payout math (with slot tier and community multiplier effects).
+- A boost records whether the selected source is `regular` or `stacked` and snapshots its `shareMultiplier`.
+- Locking a stacked source burns the canonical multiplier record, records a `boost_burn` event, and preserves the multiplier snapshot for settlement.
 
-### Invariants for any power-related change
+### Invariants for stacked-share changes
 
-1. Keep `powerLevel == quantity * power` consistent on every write path.
-2. Preserve one-share-per-boost-slot behavior.
-3. Keep lock checks in place before quantity/power mutations.
+1. Keep regular holdings, `player_multipliers`, player supply, and multiplier-event ledgers reconciled.
+2. Preserve one-share-per-boost-slot behavior and the stored multiplier snapshot.
+3. Keep lock checks in place before regular-share mutations.
 4. Validate impact on:
-   - `/api/holdings/:playerId/power-level`
+   - `/api/holdings/:playerId/multiplier-state`
+   - `/api/holdings/stack-shares`
    - `/api/daily-boosts/eligible*`
    - `/api/daily-boosts/assign`
 

@@ -38,7 +38,7 @@ The product is implemented as a single Node/Express + React/Vite app with shared
 - LP add/remove/zap accounting.
 - Boost lock/burn/settlement lifecycle.
 - Scout distribution proportionality and hourly jobs.
-- Holdings `power`/`powerLevel` consistency.
+- Regular holdings, `player_multipliers`, and immutable multiplier-event ledger consistency.
 - Lock semantics (`holdings_locks`, `balance_locks`) to prevent double spend.
 
 ## Build, Run, and Validation Commands
@@ -165,4 +165,4 @@ Use this minimal loop after any implementation attempt:
   - agent subsystem (`server/agent/`), or
   - shared schema (`shared/schema.ts`).
 - Confirm required env vars in `.env.example`.
-- Verify no changes violate lock/power/economy invariants.
+- Verify no changes violate lock/stacked-share/economy invariants.
