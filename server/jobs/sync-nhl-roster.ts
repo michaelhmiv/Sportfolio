@@ -19,10 +19,22 @@ const namePart = (value: NhlRosterPlayer["firstName"], fallback: string) =>
   String(value?.default || fallback).trim() || fallback;
 const position = (value?: string) =>
   ({ C: "C", L: "LW", R: "RW", D: "D", G: "G" })[String(value || "").toUpperCase()] || "UTIL";
-const validRoster = (roster: { forwards: NhlRosterPlayer[]; defensemen: NhlRosterPlayer[]; goalies: NhlRosterPlayer[] }) => {
+const validRoster = (roster: {
+  forwards: NhlRosterPlayer[];
+  defensemen: NhlRosterPlayer[];
+  goalies: NhlRosterPlayer[];
+}) => {
   const players = [...roster.forwards, ...roster.defensemen, ...roster.goalies];
-  if (players.length < MIN_ROSTER_SIZE || roster.goalies.length < 1 || roster.forwards.length < 9 || roster.defensemen.length < 4) return null;
-  const valid = players.filter((player) => Number.isSafeInteger(player.id) && Number(player.id) > 0);
+  if (
+    players.length < MIN_ROSTER_SIZE ||
+    roster.goalies.length < 1 ||
+    roster.forwards.length < 9 ||
+    roster.defensemen.length < 4
+  )
+    return null;
+  const valid = players.filter(
+    (player) => Number.isSafeInteger(player.id) && Number(player.id) > 0,
+  );
   // A partial or identity-corrupt response is not authoritative for deactivation.
   return valid.length === players.length ? valid : null;
 };
@@ -34,8 +46,14 @@ const validRoster = (roster: { forwards: NhlRosterPlayer[]; defensemen: NhlRoste
  */
 export async function syncNhlRoster(): Promise<NhlRosterSyncResult> {
   const result: NhlRosterSyncResult = {
-    success: false, playersProcessed: 0, playersAdded: 0, playersUpdated: 0,
-    playersDeactivated: 0, requestCount: 0, successfulTeams: 0, errors: [],
+    success: false,
+    playersProcessed: 0,
+    playersAdded: 0,
+    playersUpdated: 0,
+    playersDeactivated: 0,
+    requestCount: 0,
+    successfulTeams: 0,
+    errors: [],
   };
   try {
     const seasons = await nhlApi.getSeasons();
@@ -43,13 +61,25 @@ export async function syncNhlRoster(): Promise<NhlRosterSyncResult> {
     const season = selectNhlSeason(seasons);
     const { standings } = await nhlApi.getStandings();
     result.requestCount++;
-    const teams = [...new Set(standings.map((team) => String(team.abbrev || "").trim().toUpperCase()).filter(Boolean))];
+    const teams = [
+      ...new Set(
+        standings
+          .map((team) =>
+            String(team.abbrev || "")
+              .trim()
+              .toUpperCase(),
+          )
+          .filter(Boolean),
+      ),
+    ];
     const existing = await storage.getPlayersBySport("NHL");
     const existingIds = new Set(existing.map((player) => player.id));
     const previousActiveCountByTeam = new Map<string, number>();
     for (const player of existing) {
       if (!player.isActive) continue;
-      const team = String(player.team || "").trim().toUpperCase();
+      const team = String(player.team || "")
+        .trim()
+        .toUpperCase();
       previousActiveCountByTeam.set(team, (previousActiveCountByTeam.get(team) || 0) + 1);
     }
     const successfulTeams = new Set<string>();
@@ -57,24 +87,32 @@ export async function syncNhlRoster(): Promise<NhlRosterSyncResult> {
     const fetchedRosters = new Map<string, NhlRosterPlayer[]>();
 
     // Phase 1: fetch and validate every team before altering any activity state.
-    await Promise.all(teams.map(async (team) => {
-      try {
-        const roster = await nhlApi.getRoster(team, season);
-        result.requestCount++;
-        const players = validRoster(roster);
-        if (!players) throw new Error("implausible, incomplete, or malformed roster; refusing deactivation");
-        const previousCount = previousActiveCountByTeam.get(team) || 0;
-        if (previousCount >= MIN_ROSTER_SIZE && players.length < Math.ceil(previousCount * MAX_ROSTER_DROP_RATIO)) {
-          throw new Error(`roster count ${players.length} is below 70% of previous active count ${previousCount}; refusing deactivation`);
+    await Promise.all(
+      teams.map(async (team) => {
+        try {
+          const roster = await nhlApi.getRoster(team, season);
+          result.requestCount++;
+          const players = validRoster(roster);
+          if (!players)
+            throw new Error("implausible, incomplete, or malformed roster; refusing deactivation");
+          const previousCount = previousActiveCountByTeam.get(team) || 0;
+          if (
+            previousCount >= MIN_ROSTER_SIZE &&
+            players.length < Math.ceil(previousCount * MAX_ROSTER_DROP_RATIO)
+          ) {
+            throw new Error(
+              `roster count ${players.length} is below 70% of previous active count ${previousCount}; refusing deactivation`,
+            );
+          }
+          successfulTeams.add(team);
+          fetchedRosters.set(team, players);
+        } catch (error: any) {
+          const message = `${team}: ${error?.message || error}`;
+          result.errors.push(message);
+          console.warn(`[nhl_roster_sync] ${message}; existing players retained`);
         }
-        successfulTeams.add(team);
-        fetchedRosters.set(team, players);
-      } catch (error: any) {
-        const message = `${team}: ${error?.message || error}`;
-        result.errors.push(message);
-        console.warn(`[nhl_roster_sync] ${message}; existing players retained`);
-      }
-    }));
+      }),
+    );
 
     const teamsByPlayer = new Map<string, Array<{ player: NhlRosterPlayer; team: string }>>();
     for (const team of [...fetchedRosters.keys()].sort()) {
@@ -89,9 +127,16 @@ export async function syncNhlRoster(): Promise<NhlRosterSyncResult> {
       const distinctTeams = [...new Set(entries.map((entry) => entry.team))];
       if (distinctTeams.length > 1) {
         for (const team of distinctTeams) successfulTeams.delete(team);
-        result.errors.push(`${id}: appears on ${distinctTeams.join(" and ")}; both teams retained non-authoritatively`);
-        const existingTeam = String(existing.find((player) => player.id === id)?.team || "").toUpperCase();
-        authoritativePlayers.set(id, entries.find((entry) => entry.team === existingTeam) || entries[0]);
+        result.errors.push(
+          `${id}: appears on ${distinctTeams.join(" and ")}; both teams retained non-authoritatively`,
+        );
+        const existingTeam = String(
+          existing.find((player) => player.id === id)?.team || "",
+        ).toUpperCase();
+        authoritativePlayers.set(
+          id,
+          entries.find((entry) => entry.team === existingTeam) || entries[0],
+        );
       } else {
         authoritativePlayers.set(id, entries[0]);
       }
@@ -101,21 +146,34 @@ export async function syncNhlRoster(): Promise<NhlRosterSyncResult> {
     // Phase 2a: write every successfully observed player before considering deactivation.
     for (const [id, { player, team }] of authoritativePlayers) {
       const data = {
-        id, sport: "NHL", firstName: namePart(player.firstName, "Unknown"),
-        lastName: namePart(player.lastName, "Player"), team, position: position(player.positionCode),
+        id,
+        sport: "NHL",
+        firstName: namePart(player.firstName, "Unknown"),
+        lastName: namePart(player.lastName, "Player"),
+        team,
+        position: position(player.positionCode),
         jerseyNumber: player.sweaterNumber == null ? null : String(player.sweaterNumber),
-        isActive: true, isEligibleForVesting: true,
+        isActive: true,
+        isEligibleForVesting: true,
       };
       await storage.upsertPlayer(data);
       result.playersProcessed++;
       if (existingIds.has(id)) result.playersUpdated++;
-      else { existingIds.add(id); result.playersAdded++; }
+      else {
+        existingIds.add(id);
+        result.playersAdded++;
+      }
     }
 
     // Phase 2b: only a successful former team may deactivate a player absent from all successful rosters.
     for (const player of existing) {
       const previousTeam = String(player.team || "").toUpperCase();
-      if (!player.isActive || !successfulTeams.has(previousTeam) || authoritativePlayers.has(player.id)) continue;
+      if (
+        !player.isActive ||
+        !successfulTeams.has(previousTeam) ||
+        authoritativePlayers.has(player.id)
+      )
+        continue;
       await storage.updatePlayer(player.id, { isActive: false, isEligibleForVesting: false });
       result.playersDeactivated++;
     }

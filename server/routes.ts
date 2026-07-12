@@ -4132,10 +4132,12 @@ ${items}
                     ? liveAwayTeam || game.awayTeam
                     : getMLBStatTeamAbbreviation(s) || getMLBStatTeamName(s) || "UNK",
               position:
-                (s.player as typeof s.player & {
-                  position_abbreviation?: string;
-                  position?: string;
-                }).position_abbreviation ||
+                (
+                  s.player as typeof s.player & {
+                    position_abbreviation?: string;
+                    position?: string;
+                  }
+                ).position_abbreviation ||
                 (s.player as typeof s.player & { position?: string }).position ||
                 "",
               atBats: normalizedStats.atBats || 0,

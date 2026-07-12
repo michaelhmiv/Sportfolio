@@ -189,12 +189,15 @@ export class NhlApiClient {
     this.maxRetries = options.maxRetries ?? 2;
     this.retryDelayMs = options.retryDelayMs ?? 150;
     this.cacheTtlMs = options.cacheTtlMs ?? 15_000;
-    this.sleep = options.sleep ?? ((milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)));
+    this.sleep =
+      options.sleep ??
+      ((milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)));
     this.random = options.random ?? Math.random;
   }
   private retryDelay(response: Response | null, attempt: number) {
     const retryAfter = response?.headers.get("retry-after");
-    const seconds = retryAfter == null || retryAfter.trim() === "" ? Number.NaN : Number(retryAfter);
+    const seconds =
+      retryAfter == null || retryAfter.trim() === "" ? Number.NaN : Number(retryAfter);
     const retryAfterMs = Number.isFinite(seconds) && seconds >= 0 ? seconds * 1_000 : null;
     // Bound provider hints and exponential delays; add at most 25% jitter.
     const base = Math.min(30_000, retryAfterMs ?? this.retryDelayMs * 2 ** attempt);

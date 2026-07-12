@@ -94,14 +94,12 @@ describe("NhlApiClient", () => {
   });
 
   it("validates endpoint payloads and coalesces concurrent requests", async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue(
-        new Response(JSON.stringify({ games: [] }), {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        }),
-      );
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ games: [] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
     const client = new NhlApiClient({ fetch: fetchMock, cacheTtlMs: 1_000 });
 
     const [first, second] = await Promise.all([
@@ -120,7 +118,15 @@ describe("NhlApiClient", () => {
       .fn()
       .mockResolvedValueOnce(new Response("busy", { status: 503 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ games: [] }), { status: 200 }));
-    const retryClient = new NhlApiClient({ fetch: retryFetch, retryDelayMs: 100, maxRetries: 1, random: () => 0, sleep: async (delay) => { delays.push(delay); } });
+    const retryClient = new NhlApiClient({
+      fetch: retryFetch,
+      retryDelayMs: 100,
+      maxRetries: 1,
+      random: () => 0,
+      sleep: async (delay) => {
+        delays.push(delay);
+      },
+    });
     await expect(retryClient.getScore("2026-01-01")).resolves.toEqual({ games: [] });
     expect(delays).toEqual([100]);
 
@@ -129,14 +135,32 @@ describe("NhlApiClient", () => {
       .mockResolvedValueOnce(new Response("busy", { status: 429, headers: { "retry-after": "2" } }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ games: [] }), { status: 200 }));
     const retryAfterDelays: number[] = [];
-    await new NhlApiClient({ fetch: rateLimited, maxRetries: 1, random: () => 0, sleep: async (delay) => { retryAfterDelays.push(delay); } }).getScore("2026-01-02");
+    await new NhlApiClient({
+      fetch: rateLimited,
+      maxRetries: 1,
+      random: () => 0,
+      sleep: async (delay) => {
+        retryAfterDelays.push(delay);
+      },
+    }).getScore("2026-01-02");
     expect(retryAfterDelays).toEqual([2_000]);
   });
 
   it("bounds malformed Retry-After hints and cleans pending requests after rejection", async () => {
     const delays: number[] = [];
-    const fetchMock = vi.fn().mockResolvedValue(new Response("busy", { status: 503, headers: { "retry-after": "999999" } }));
-    const client = new NhlApiClient({ fetch: fetchMock, maxRetries: 1, random: () => 0, sleep: async (delay) => { delays.push(delay); } });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        new Response("busy", { status: 503, headers: { "retry-after": "999999" } }),
+      );
+    const client = new NhlApiClient({
+      fetch: fetchMock,
+      maxRetries: 1,
+      random: () => 0,
+      sleep: async (delay) => {
+        delays.push(delay);
+      },
+    });
     await expect(client.getScore("2026-01-01")).rejects.toBeInstanceOf(NhlApiError);
     expect(delays[0]).toBeLessThanOrEqual(30_000);
     await expect(client.getScore("2026-01-01")).rejects.toBeInstanceOf(NhlApiError);
