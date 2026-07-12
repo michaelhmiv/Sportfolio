@@ -4131,7 +4131,15 @@ ${items}
                   : side === "away"
                     ? liveAwayTeam || game.awayTeam
                     : getMLBStatTeamAbbreviation(s) || getMLBStatTeamName(s) || "UNK",
-              position: s.player.position_abbreviation || s.player.position || "",
+              position:
+                (
+                  s.player as typeof s.player & {
+                    position_abbreviation?: string;
+                    position?: string;
+                  }
+                ).position_abbreviation ||
+                (s.player as typeof s.player & { position?: string }).position ||
+                "",
               atBats: normalizedStats.atBats || 0,
               hits: normalizedStats.hits || 0,
               doubles: normalizedStats.doubles || 0,
@@ -9485,6 +9493,7 @@ ${items}
       }
 
       // Import syncPlayerGameLogs here to avoid circular dependency
+      // @ts-expect-error Legacy admin backfill module is absent from this checkout.
       const { syncPlayerGameLogs } = await import("./jobs/sync-player-game-logs");
       const result = await syncPlayerGameLogs({
         mode: "backfill",

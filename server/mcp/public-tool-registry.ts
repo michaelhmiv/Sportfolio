@@ -4682,7 +4682,7 @@ export async function resolvePublicCapabilityCatalog(context: PublicMcpServerCon
     resources: resources.map((resource) => ({
       id: resource.id,
       uri: resource.uri,
-      title: resource.title,
+      title: resource.id,
       description: resource.description,
       mimeType: resource.mimeType,
     })),
