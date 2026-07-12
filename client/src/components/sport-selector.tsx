@@ -28,7 +28,8 @@ const SPORT_DISPLAY = {
     Object.entries(SPORT_CONFIGS).map(([key, config]) => [
       key,
       { name: config.name, icon: config.icon, disabled: !ENABLED_SPORTS.includes(key as any) },
-    ])),
+    ]),
+  ),
   ALL: { name: "All Sports", icon: "🌎" },
 } as Record<Sport, SportConfig>;
 

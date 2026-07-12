@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { ENABLED_SPORTS, SPORT_CONFIGS, getNHLSeasonDisplay, getNHLSeasonYear, getPositionOptions, isEnabledSport } from "./sport-config";
+import {
+  ENABLED_SPORTS,
+  SPORT_CONFIGS,
+  getNHLSeasonDisplay,
+  getNHLSeasonYear,
+  getPositionOptions,
+  isEnabledSport,
+} from "./sport-config";
 
 describe("NHL sport configuration", () => {
   it("makes NHL a public sport with hockey positions from the shared canonical config", () => {

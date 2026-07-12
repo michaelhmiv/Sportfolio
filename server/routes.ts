@@ -4211,7 +4211,9 @@ ${items}
         // Public NHL requests are persisted-only: scheduled ingestion owns all provider calls.
         const nhlStats = await storage.getGameStatsByGameId(game.gameId);
         const playerIds = [...new Set(nhlStats.map((stat: any) => stat.playerId))];
-        const playerMap = new Map((await storage.getPlayersByIds(playerIds)).map((player) => [player.id, player]));
+        const playerMap = new Map(
+          (await storage.getPlayersByIds(playerIds)).map((player) => [player.id, player]),
+        );
         const { buildNhlLiveResponse } = await import("./nhl-live-response");
         const persistedResponse = buildNhlLiveResponse(game, nhlStats, playerMap);
         const userEarnings = await buildUserLiveEarningsSummary({
