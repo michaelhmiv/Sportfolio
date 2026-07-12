@@ -83,7 +83,7 @@ type LivePlayerStats = {
   receivingTDs?: number | null;
   receptions?: number | null;
   atBats?: number;
-  hits?: number;
+  hits?: number | null | undefined;
   doubles?: number;
   triples?: number;
   homeRuns?: number;
@@ -96,7 +96,7 @@ type LivePlayerStats = {
   pitchingStrikeouts?: number;
   earnedRuns?: number;
   wins?: number;
-  saves?: number;
+  saves?: number | null | undefined;
   runningPosition?: number;
   startingPosition?: number;
   finishPosition?: number | null;
@@ -116,12 +116,24 @@ type LivePlayerStats = {
   isOnDvp?: boolean | null;
   providerPoints?: number | null;
   status?: string;
+  goals?: number | null;
+  assists?: number | null;
+  points?: number | null;
+  shotsOnGoal?: number | null;
+  blockedShots?: number | null;
+  goalsAgainst?: number | null;
+  timeOnIce?: string | null;
+  decision?: string | null;
   fantasyPoints?: number;
 };
 
 interface LiveStatsResponse {
   gameId: string;
+  sport?: string;
   status: string;
+  period?: number | null;
+  periodType?: string | null;
+  clock?: string | null;
   homeTeam: string;
   awayTeam: string;
   homeScore: number;
@@ -141,6 +153,9 @@ interface LiveStatsResponse {
     position?: number;
     lapsLed?: number;
     fastestLaps?: number;
+    points?: number;
+    assists?: number;
+    fantasyPoints?: number;
   }>;
   awayTopPerformers?: Array<{
     playerId?: string;
@@ -155,6 +170,9 @@ interface LiveStatsResponse {
     position?: number;
     lapsLed?: number;
     fastestLaps?: number;
+    points?: number;
+    assists?: number;
+    fantasyPoints?: number;
   }>;
   lapInfo?: {
     currentLap: number;
@@ -1184,12 +1202,18 @@ const getPlayerIdVariants = (playerId: string, sport?: string) => {
   const variants = new Set<string>([rawId]);
   const normalizedSport = (sport || "").toUpperCase();
 
-  if (rawId.startsWith("nba_") || rawId.startsWith("nfl_") || rawId.startsWith("mlb_")) {
+  if (
+    rawId.startsWith("nba_") ||
+    rawId.startsWith("nfl_") ||
+    rawId.startsWith("mlb_") ||
+    rawId.startsWith("nhl_")
+  ) {
     variants.add(rawId.slice(4));
   } else {
     if (normalizedSport === "NBA") variants.add(`nba_${rawId}`);
     if (normalizedSport === "NFL") variants.add(`nfl_${rawId}`);
     if (normalizedSport === "MLB") variants.add(`mlb_${rawId}`);
+    if (normalizedSport === "NHL") variants.add(`nhl_${rawId}`);
   }
 
   return Array.from(variants);
@@ -1209,7 +1233,7 @@ const resolveModalPlayerIdCandidate = ({
 
   const variants = getPlayerIdVariants(rawId, sport);
   for (const variant of variants) {
-    if (/^(nba_|nfl_|mlb_|nascar_)/i.test(variant) && knownPlayerIds.has(variant)) {
+    if (/^(nba_|nfl_|mlb_|nascar_|nhl_)/i.test(variant) && knownPlayerIds.has(variant)) {
       return variant;
     }
   }
@@ -1225,6 +1249,7 @@ const resolveModalPlayerIdCandidate = ({
   if (normalizedSport === "NFL" && !lowerRawId.startsWith("nfl_")) return `nfl_${rawId}`;
   if (normalizedSport === "MLB" && !lowerRawId.startsWith("mlb_")) return `mlb_${rawId}`;
   if (normalizedSport === "NASCAR" && !lowerRawId.startsWith("nascar_")) return `nascar_${rawId}`;
+  if (normalizedSport === "NHL" && !lowerRawId.startsWith("nhl_")) return `nhl_${rawId}`;
   return rawId;
 };
 
@@ -2618,6 +2643,31 @@ export function GameCommandCenterModal({
                       ) : null}
                     </div>
                   ) : null}
+                  {liveSport === "NHL" ? (
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-sm font-semibold">
+                      <span>
+                        {liveStats.awayTeam} {liveStats.awayScore} @ {liveStats.homeTeam}{" "}
+                        {liveStats.homeScore}
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        {liveStats.period ? (
+                          <Badge variant="outline">
+                            {liveStats.periodType === "OT"
+                              ? "Overtime"
+                              : `Period ${liveStats.period}`}
+                          </Badge>
+                        ) : null}
+                        {liveStats.clock ? (
+                          <Badge variant="outline" className="font-mono">
+                            {liveStats.clock}
+                          </Badge>
+                        ) : null}
+                        <Badge variant={liveStats.status === "inprogress" ? "default" : "outline"}>
+                          {liveStats.status === "completed" ? "Final" : liveStats.status}
+                        </Badge>
+                      </div>
+                    </div>
+                  ) : null}
 
                   {liveStats.message ? (
                     <div className="text-xs text-muted-foreground">{liveStats.message}</div>
@@ -2650,7 +2700,9 @@ export function GameCommandCenterModal({
                                 })}
                               </span>
                               <span className="ml-2 font-mono text-green-600">
-                                {player.pts ?? 0}p
+                                {liveSport === "NHL"
+                                  ? `${player.points ?? 0} pts · ${(player.fantasyPoints ?? 0).toFixed(1)} FP`
+                                  : `${player.pts ?? 0}p`}
                               </span>
                             </div>
                           ))}
@@ -2681,7 +2733,9 @@ export function GameCommandCenterModal({
                                 })}
                               </span>
                               <span className="ml-2 font-mono text-green-600">
-                                {player.pts ?? 0}p
+                                {liveSport === "NHL"
+                                  ? `${player.points ?? 0} pts · ${(player.fantasyPoints ?? 0).toFixed(1)} FP`
+                                  : `${player.pts ?? 0}p`}
                               </span>
                             </div>
                           ))}
@@ -2924,6 +2978,109 @@ export function GameCommandCenterModal({
                                         <td className="border-b border-border/40 px-1 py-1.5 text-right">
                                           {player.status ||
                                             (player.isOnTrack === false ? "Off" : "Run")}
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            ) : liveSport === "NHL" ? (
+                              <table className="w-full min-w-[720px] border-separate border-spacing-0 text-[10px]">
+                                <thead>
+                                  <tr className="text-muted-foreground">
+                                    <th className="sticky left-0 z-30 w-24 border-b border-border/60 bg-background px-1 py-1 text-left font-medium">
+                                      Player
+                                    </th>
+                                    <th className="sticky left-24 z-30 w-12 border-b border-border/60 bg-background px-1 py-1 text-right font-medium">
+                                      FP
+                                    </th>
+                                    <th className="sticky left-36 z-30 w-14 border-b border-border/60 bg-background px-1 py-1 text-right font-medium">
+                                      $
+                                    </th>
+                                    {[
+                                      "Pos",
+                                      "G",
+                                      "A",
+                                      "PTS",
+                                      "SOG",
+                                      "HIT",
+                                      "BLK",
+                                      "SV",
+                                      "GA",
+                                      "TOI",
+                                      "DEC",
+                                    ].map((label) => (
+                                      <th
+                                        key={label}
+                                        className="border-b border-border/60 px-1 py-1 text-right font-medium"
+                                      >
+                                        {label}
+                                      </th>
+                                    ))}
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {section.players.map((player) => {
+                                    const earnings = getPlayerLiveEarnings(player, section.team);
+                                    const owned = earnings > 0;
+                                    const stickyCellBg = owned ? "bg-purple-500/10" : "bg-card";
+                                    return (
+                                      <tr
+                                        key={`${section.team}-${player.playerId || player.name}`}
+                                        className={owned ? "bg-purple-500/5" : ""}
+                                      >
+                                        <td
+                                          className={`sticky left-0 z-20 border-b border-border/40 px-1 py-1.5 ${stickyCellBg}`}
+                                        >
+                                          {renderLiveModalPlayerName({
+                                            player,
+                                            team: section.team,
+                                            className: `truncate ${owned ? "font-medium text-purple-500" : ""}`,
+                                            label: formatCompactName(player.name),
+                                          })}
+                                        </td>
+                                        <td
+                                          className={`sticky left-24 z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono ${stickyCellBg}`}
+                                        >
+                                          {(player.fantasyPoints || 0).toFixed(1)}
+                                        </td>
+                                        <td
+                                          className={`sticky left-36 z-20 border-b border-border/40 px-1 py-1.5 text-right font-mono text-emerald-600 dark:text-emerald-400 ${stickyCellBg}`}
+                                        >
+                                          ${earnings.toFixed(2)}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.position || "—"}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.goals ?? 0}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.assists ?? 0}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.points ?? 0}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.shotsOnGoal ?? 0}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.hits ?? 0}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.blockedShots ?? 0}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.saves ?? "—"}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.goalsAgainst ?? "—"}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.timeOnIce || "—"}
+                                        </td>
+                                        <td className="border-b border-border/40 px-1 py-1.5 text-right font-mono">
+                                          {player.decision || "—"}
                                         </td>
                                       </tr>
                                     );

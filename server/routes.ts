@@ -169,7 +169,8 @@ import {
 import { getBotRuntimeStatus, getBotStats, runBotEngineTick } from "./bot/bot-engine";
 import { buildStackSharesResponsePayload } from "./lib/stack-shares-response";
 
-const SUPPORTED_SPORTS = ["NBA", "NFL", "MLB", "NASCAR"] as const;
+// Public route validation includes every sport enabled by the shared product configuration.
+const SUPPORTED_SPORTS = ["NBA", "NFL", "MLB", "NASCAR", "NHL"] as const;
 function toNumber(value: string | number | null | undefined): number {
   if (typeof value === "number") {
     return Number.isFinite(value) ? value : 0;
@@ -4206,6 +4207,22 @@ ${items}
           message: "No live stats available yet",
           userEarnings,
         });
+      } else if (game.sport === "NHL") {
+        // Public NHL requests are persisted-only: scheduled ingestion owns all provider calls.
+        const nhlStats = await storage.getGameStatsByGameId(game.gameId);
+        const playerIds = [...new Set(nhlStats.map((stat: any) => stat.playerId))];
+        const playerMap = new Map(
+          (await storage.getPlayersByIds(playerIds)).map((player) => [player.id, player]),
+        );
+        const { buildNhlLiveResponse } = await import("./nhl-live-response");
+        const persistedResponse = buildNhlLiveResponse(game, nhlStats, playerMap);
+        const userEarnings = await buildUserLiveEarningsSummary({
+          game,
+          userId,
+          livePlayers: [...persistedResponse.homePlayers, ...persistedResponse.awayPlayers],
+          preloadedHoldings: userHoldingsWithPlayers || undefined,
+        });
+        return res.json({ ...persistedResponse, userEarnings });
       } else if (game.sport === "NASCAR") {
         console.log(`[live-stats] Fetching NASCAR stored live stats for race ${gameId}`);
 
@@ -4553,7 +4570,7 @@ ${items}
 
       if (sportQuery === "ALL") {
         const playersBySport = await Promise.all(
-          ["NBA", "NFL", "MLB", "NASCAR"].map((sport) => storage.getPlayersBySport(sport)),
+          ["NBA", "NFL", "MLB", "NASCAR", "NHL"].map((sport) => storage.getPlayersBySport(sport)),
         );
         playersList = playersBySport.flat();
       } else {

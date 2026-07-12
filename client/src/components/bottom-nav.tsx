@@ -97,6 +97,8 @@ export function BottomNav() {
         return "⚾";
       case "NASCAR":
         return "🏎️";
+      case "NHL":
+        return "🏒";
       case "ALL":
         return "🌎";
     }
@@ -112,6 +114,8 @@ export function BottomNav() {
         return "MLB";
       case "NASCAR":
         return "NASCAR";
+      case "NHL":
+        return "NHL";
       case "ALL":
         return "All Sports";
     }

@@ -3574,7 +3574,7 @@ export const updateUserAgentProfileInputSchema = z
     temperature: z.number().min(0).max(1).optional(),
     maxTokens: z.number().int().min(200).max(4000).optional(),
     analysisWindowMinutes: z.number().int().min(60).max(10080).optional(),
-    defaultSport: z.enum(["NBA", "NFL", "MLB", "NASCAR"]).nullable().optional(),
+    defaultSport: z.enum(["NBA", "NFL", "MLB", "NASCAR", "NHL"]).nullable().optional(),
   })
   .strict();
 
