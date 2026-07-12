@@ -9,7 +9,7 @@
  */
 
 import { storage } from "../storage";
-import type { JobResult } from "./scheduler";
+import type { JobResult } from "./types";
 import type { ProgressCallback } from "../lib/admin-stream";
 
 export async function refreshPlayerMarketMetricsJob(

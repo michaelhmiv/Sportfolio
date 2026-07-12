@@ -1,6 +1,6 @@
 # CONTEXT_INDEX
 
-Last reviewed: 2026-06-01
+Last reviewed: 2026-07-12
 
 This file is the fast-start index for coding agents. Load this layer first, then load only the vertical slice needed for the task.
 
@@ -11,11 +11,12 @@ This file is the fast-start index for coding agents. Load this layer first, then
 3. `AGENT_GUIDE.md`
 4. `docs/agent/CONTEXT_BUDGET.md`
 5. `docs/agent/REFACTOR_QUEUE.md` (when touching high-friction files)
-6. `docs/wiki/agent/product-mechanics.md`
-7. `docs/wiki/agent/api-map.md`
-8. `docs/wiki/agent/data-model-economy.md`
-9. `docs/wiki/agent/runbooks.md`
-10. `package.json` scripts
+6. `docs/refactor/JULY_2026_AUDIT.md` (when planning structural work)
+7. `docs/wiki/agent/product-mechanics.md`
+8. `docs/wiki/agent/api-map.md`
+9. `docs/wiki/agent/data-model-economy.md`
+10. `docs/wiki/agent/runbooks.md`
+11. `package.json` scripts
 
 ## Ownership Map
 
@@ -24,7 +25,9 @@ This file is the fast-start index for coding agents. Load this layer first, then
 - Route modules already extracted: `server/routes/*`
 - Data/service layer: `server/storage.ts` and `server/storage/*`
 - Economics math core: `server/amm/pool.ts`
-- Jobs and schedulers: `server/jobs/*`
+- Job registry and scheduler lifecycle: `server/jobs/job-registry.ts`, `server/jobs/scheduler.ts`
+- Shared job result/progress contracts: `server/jobs/types.ts`, `server/lib/admin-stream.ts`
+- Job implementations: remaining modules under `server/jobs/*`
 - Agent/Hermes runtime: `server/agent/*`, `server/mcp/*`, `server/hermes-sidecar.ts`
 - Shared DB schema and shared contracts: `shared/schema.ts` and `shared/*`
 - Frontend routes and page flows: `client/src/pages/*`
@@ -48,6 +51,9 @@ This file is the fast-start index for coding agents. Load this layer first, then
 - `server/amm/pool.ts`
   - Risk: AMM and LP math invariants.
   - Treatment: add/expand characterization tests before any structural refactor.
+- `client/src/components/game-command-center-modal.tsx`
+  - Risk: multi-sport transport, derived state, mutations, and rendering are co-located.
+  - Treatment: establish shared transport contracts/query keys before extracting selectors, hooks, or panels.
 
 Queue reference: `docs/agent/REFACTOR_QUEUE.md` (safest-to-riskiest execution order).
 
@@ -57,6 +63,7 @@ Queue reference: `docs/agent/REFACTOR_QUEUE.md` (safest-to-riskiest execution or
 - Backend/API behavior: `server/routes.ts`, relevant `server/routes/*`, and `server/index.ts` registration.
 - Database/schema behavior: `shared/schema.ts`, `migrations/*`, `server/db.ts`.
 - Economics behavior (AMM/LP/boost/scout/power/locks): `server/amm/pool.ts`, `server/storage.ts`, `server/jobs/*`, `docs/wiki/agent/runbooks.md`.
+- Scheduler behavior: `server/jobs/job-registry.ts` for names/schedules/handlers/admin visibility, `server/jobs/scheduler.ts` for lifecycle/locking/logging, and `server/jobs/scheduler.test.ts` for compatibility characterization.
 - Mobile/Capacitor behavior: `mobile/android/*`, `mobile/ios/*`, `client/src/lib/native-*`, `client/src/lib/mobile-push.ts`.
 - Agent/Hermes behavior: `server/agent/*`, `server/mcp/*`, `docs/wiki/agent/current-surface.md`, `docs/wiki/agent/runtime-model.md`.
 
@@ -66,6 +73,8 @@ Queue reference: `docs/agent/REFACTOR_QUEUE.md` (safest-to-riskiest execution or
   - `npm run check`
   - `npm run lint`
   - `npm run test:run`
+  - `npm run format:check`
+  - `npm run build`
 - Economics, schema, lock/power/boost/scout sensitive changes:
   - baseline commands above
   - `npm run invariants:check` (recommended)
@@ -103,5 +112,6 @@ Queue reference: `docs/agent/REFACTOR_QUEUE.md` (safest-to-riskiest execution or
 - `.env*` except `.env.example`
 - Binary/image/archive files unless directly needed
 - `docs/wiki/changelog/` unless historical docs behavior is the task
+- `docs/archive/` unless historical implementation status is the task
 
 Use `npm run context:audit` to refresh these estimates and exclusion choices.

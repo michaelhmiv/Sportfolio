@@ -22,7 +22,7 @@ import {
   marketSnapshots,
 } from "@shared/schema";
 import { sql, eq, gte, lte, and, inArray } from "drizzle-orm";
-import type { JobResult } from "./scheduler";
+import type { JobResult } from "./types";
 import type { ProgressCallback } from "../lib/admin-stream";
 
 interface DailyMetrics {

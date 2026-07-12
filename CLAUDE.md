@@ -9,7 +9,7 @@ This file provides guidance to Claude Code when working with this codebase.
 At the start of each session, check open GitHub issues:
 
 ```bash
-gh issue list --repo michaelhmiv/Sportfolio-Replit
+gh issue list --repo michaelhmiv/Sportfolio
 ```
 
 Review issues before making changes to understand what needs fixing. Reference issue numbers in commits and code comments.

@@ -6,7 +6,7 @@ audience: public
 category: agent
 status: published
 owner: product-engineering
-lastReviewedAt: 2026-05-02
+lastReviewedAt: 2026-07-12
 changeTriggers: AGENTS.md,CLAUDE.md
 slug: task-definitions
 surface: agent
@@ -39,12 +39,13 @@ Definition of done:
 
 Purpose: deterministic local validation after code changes.
 
-Command contract (in order):
+Command contract:
 
 1. `npm run check`
 2. `npm run lint`
-3. `npm run test:run`
-4. `npm run format:check` (if formatting-sensitive change)
+3. `npm run format:check`
+4. `npm run test:run`
+5. `npm run build`
 
 Definition of done:
 

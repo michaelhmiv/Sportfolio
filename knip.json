@@ -1,14 +1,27 @@
 {
   "$schema": "https://unpkg.com/knip@latest/schema.json",
-  "entry": ["server/index.ts", "client/src/main.tsx"],
-  "project": ["tsconfig.json"],
+  "entry": [
+    "client/src/**/*.{ts,tsx}",
+    "server/**/*.ts",
+    "shared/**/*.ts",
+    "scripts/**/*.{js,cjs,mjs,ts}",
+    "tests/**/*.ts",
+    "*.config.{js,ts}",
+    "execute-sql.ts"
+  ],
   "ignore": [
     "dist/**",
     "node_modules/**",
     "mobile/**",
     "package/**",
+    "packages/**",
     "tmp/**",
     "attached_assets/**",
-    "migrations/**"
-  ]
+    "migrations/**",
+    "vendor/**"
+  ],
+  "ignoreDependencies": ["@capacitor/android", "@capacitor/clipboard", "@capacitor/ios"],
+  "ignoreBinaries": ["gh"],
+  "ignoreUnresolved": ["./jobs/sync-player-game-logs"],
+  "drizzle": false
 }

@@ -20,7 +20,7 @@ import { users, scoutAssignments, scoutHistory, players } from "@shared/schema";
 import { broadcast, broadcastToUser } from "../websocket";
 import { notifyScoutCapacityAvailablePush } from "../services/push-notification-events";
 import { loadUserEntitlements } from "../services/user-entitlements";
-import type { JobResult } from "./scheduler";
+import type { JobResult } from "./types";
 
 // In-memory ceremony cache (30 minute TTL)
 const ceremonyCache = new Map<string, { data: any; expiresAt: number }>();

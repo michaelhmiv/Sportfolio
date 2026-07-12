@@ -10,7 +10,7 @@ import { players, trades, tweetHistory, tweetSettings, playerGameStats } from "@
 import { desc, sql, gte, and, eq, lt } from "drizzle-orm";
 import { twitterService } from "../services/twitter";
 import { perplexityService } from "../services/perplexity";
-import type { JobResult } from "./scheduler";
+import type { JobResult } from "./types";
 import { getGameDay, getETDayBoundaries } from "../lib/time";
 
 interface FantasyPerformer {
