@@ -1,6 +1,6 @@
 # CONTEXT_BUDGET
 
-Last reviewed: 2026-06-01
+Last reviewed: 2026-07-12
 
 Goal: focused context loading for the active task, not full-repo ingestion.
 
@@ -35,6 +35,7 @@ Load only the docs/module entrypoints for the requested task vertical:
 - Frontend: target page in `client/src/pages/*` + related components/hooks
 - Economics: `server/amm/pool.ts`, `server/storage.ts`, relevant jobs in `server/jobs/*`
 - Agent/Hermes: `server/agent/*` + relevant wiki agent docs
+- Scheduler: `server/jobs/job-registry.ts`, `server/jobs/scheduler.ts`, `server/jobs/types.ts`, and focused scheduler tests
 - Mobile: target platform subtree under `mobile/android/*` or `mobile/ios/*`
 
 ### Tier 2 (Implementation Slice)
@@ -53,6 +54,7 @@ Only load when directly required:
 
 - Full test suites and E2E artifacts.
 - Historical docs/changelog notes.
+- Archived implementation/status reports under `docs/archive/`.
 - Full migration history.
 - Bulk scripts directory.
 - Native mobile build scaffolding and generated assets.
@@ -106,5 +108,6 @@ Use `npm run context:audit` to refresh these values before large refactors.
 - `.env*` except `.env.example`
 - Binary/image/archive/media/font artifacts
 - `docs/wiki/changelog/` unless historical docs behavior is the task
+- `docs/archive/` unless historical implementation status is the task
 
 If a task requires one excluded area, opt in only that subtree.

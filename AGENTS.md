@@ -5,7 +5,7 @@ Operational guidance for Factory droids working in this repository.
 ## Session Start Checklist
 
 1. Review open issues:
-   - `gh issue list --repo michaelhmiv/Sportfolio-Replit`
+   - `gh issue list --repo michaelhmiv/Sportfolio`
 2. Read project rules in `CLAUDE.md`.
 3. For any non-trivial task (3+ steps, architecture, or cross-file change), create a plan first.
 4. Use task tracking files:

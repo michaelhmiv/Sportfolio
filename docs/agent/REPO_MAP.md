@@ -1,6 +1,6 @@
 # REPO_MAP
 
-Last reviewed: 2026-06-01
+Last reviewed: 2026-07-12
 
 This is a navigability map for fast subsystem targeting.
 
@@ -22,7 +22,9 @@ This is a navigability map for fast subsystem targeting.
 - Extracted route groups: `server/routes/*` (AMM, LP, docs, MCP, Discord, notifications, mobile routes).
 - Data/service facade: `server/storage.ts` and helpers in `server/storage/*`.
 - AMM/LP math and execution: `server/amm/pool.ts`.
-- Jobs and lifecycle automation: `server/jobs/*`.
+- Canonical job metadata and result adapters: `server/jobs/job-registry.ts`.
+- Scheduler lifecycle, overlap protection, and execution logging: `server/jobs/scheduler.ts`.
+- Shared job contracts: `server/jobs/types.ts`; job implementations: remaining modules under `server/jobs/*`.
 - Agent/Hermes runtime: `server/agent/*`.
 - MCP inventory and public tool surfaces: `server/mcp/*`.
 
@@ -60,6 +62,8 @@ This is a navigability map for fast subsystem targeting.
 - Public/internal wiki topics: `docs/wiki/{gameplay,features,getting-started,cli,faq,internal}`.
 - Architecture decisions: `docs/adr/*`.
 - Agent orientation layer for coding workflows: `docs/agent/*`.
+- Evidence-backed structural program: `docs/refactor/JULY_2026_AUDIT.md`.
+- Historical, non-canonical status snapshots: `docs/archive/*`.
 
 ## Dangerous Cross-Cutting Areas
 
@@ -80,6 +84,7 @@ This is a navigability map for fast subsystem targeting.
 - `shared/schema.ts`: canonical schema and shared insert/type definitions.
 - `server/amm/pool.ts`: AMM/LP math and execution paths.
 - `client/src/components/game-command-center-modal.tsx`: large UI surface for multi-sport game context.
+- `server/jobs/scheduler.ts` is intentionally a small lifecycle orchestrator; job names, schedules, handlers, and admin visibility belong in `server/jobs/job-registry.ts`, not parallel scheduler maps.
 
 ## Refactor Sequence Reference
 
