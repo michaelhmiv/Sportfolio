@@ -14,7 +14,7 @@
 import { db } from "../db";
 import { priceHistory } from "@shared/schema";
 import { sql, lt, gte, and, eq } from "drizzle-orm";
-import type { JobResult } from "./scheduler";
+import type { JobResult } from "./types";
 import type { ProgressCallback } from "../lib/admin-stream";
 import { info, warn, createThrottledLogger } from "../lib/log-utility";
 

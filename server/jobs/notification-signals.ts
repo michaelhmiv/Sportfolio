@@ -17,7 +17,7 @@ import {
   sendNotificationToUsers,
   sendUserNotification,
 } from "../services/notification-dispatcher";
-import type { JobResult } from "./scheduler";
+import type { JobResult } from "./types";
 import type { ProgressCallback } from "../lib/admin-stream";
 
 const WATCHLIST_MOVE_THRESHOLD = 8;

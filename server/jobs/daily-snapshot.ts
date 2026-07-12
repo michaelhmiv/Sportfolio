@@ -10,7 +10,7 @@
  */
 
 import { storage } from "../storage";
-import type { JobResult } from "./scheduler";
+import type { JobResult } from "./types";
 import type { ProgressCallback } from "../lib/admin-stream";
 import { eq, sql, desc } from "drizzle-orm";
 import { users, holdings, players, portfolioSnapshots } from "@shared/schema";

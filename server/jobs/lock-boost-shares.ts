@@ -11,7 +11,7 @@ import { choosePreferredDailyGame } from "../lib/daily-game-dedupe";
 import { getETDayBoundaries, getGameDay } from "../lib/time";
 import { hasGameStartedForBoost } from "@shared/game-status";
 import { notifyBoostLockingSoonPush } from "../services/push-notification-events";
-import type { JobResult } from "./scheduler";
+import type { JobResult } from "./types";
 import type { ProgressCallback } from "../lib/admin-stream";
 import { sendUserNotification } from "../services/notification-dispatcher";
 

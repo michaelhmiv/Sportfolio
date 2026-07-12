@@ -15,7 +15,7 @@ import { choosePreferredDailyGame } from "../lib/daily-game-dedupe";
 import { getETDayBoundaries, getGameDay } from "../lib/time";
 import { sendUserNotification } from "../services/notification-dispatcher";
 import { notifyBoostSettledPush } from "../services/push-notification-events";
-import type { JobResult } from "./scheduler";
+import type { JobResult } from "./types";
 import type { ProgressCallback } from "../lib/admin-stream";
 
 function isLegacyNbaGameId(sport: unknown, gameId: unknown): boolean {

@@ -11,7 +11,7 @@
 import { storage } from "../storage";
 import { broadcast } from "../websocket";
 import { sendUserNotification } from "../services/notification-dispatcher";
-import type { JobResult } from "./scheduler";
+import type { JobResult } from "./types";
 import type { ProgressCallback } from "../lib/admin-stream";
 
 export async function settleCommunityBoosts(
