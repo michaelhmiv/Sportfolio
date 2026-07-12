@@ -86,7 +86,16 @@ Additional structural evidence:
 - Registry coverage is 89.47% statements and 89.13% lines in the post-change coverage run.
 - The combined scheduler and registry source is 1,351 characters larger than the prior monolith because the extracted registry now includes explicit metadata, runtime validation, immutable snapshots, and result adapters.
 - `npm run check`, `npm run lint`, `npm run format:check`, `npm run test:run`, `npm run build`, docs checks, context audit, and `npm run agent:improve` all pass.
-- The stale invariant, OpenAPI gap, and noisy Knip report remain unchanged baseline findings; they are not regressions from the registry work.
+- The stale invariant, OpenAPI gap, and noisy Knip report were unchanged by the registry refactor itself and were resolved in the follow-up hygiene pass documented below.
+
+### Follow-up tool-hygiene resolution (2026-07-12)
+
+- `npm run invariants:check` now asserts the canonical `holdings`, `player_multipliers`, and `player_multiplier_events` contracts and rejects retired `holdings.power`, `holdings.powerLevel`, `/api/holdings/condense`, and `/api/holdings/power-level` guidance.
+- `npm run openapi:check` now structurally requires the live `POST /api/holdings/stack-shares` and `GET /api/holdings/{playerId}/multiplier-state` operations, including the required `playerId` path parameter; the OpenAPI spec already documented both routes.
+- `npm run code:dead` now runs Knip as a dependency/import-integrity gate over application, server, shared, script, test, and root-config sources. It checks dependency declarations, binaries, and unresolved imports without conflating the existing export/orphan-file cleanup backlog with this gate.
+- Knip no longer evaluates `drizzle.config.ts`, so dead-code analysis does not require a fake database URL. `@capacitor/android`, `@capacitor/clipboard`, and `@capacitor/ios` are explicit dependency exceptions because the committed native projects and native toolchain consume them outside TypeScript imports; `gh` is an intentional system binary.
+- Nineteen unreferenced root dependencies were removed, and direct declarations were added for `nanoid`, `@sinclair/typebox`, and `@radix-ui/react-visually-hidden` instead of relying on transitive installs. Packages imported by orphaned but type-checked UI modules remain declared; exhaustive Knip entries prevent them from being misclassified as unused.
+- Four standalone scripts that imported removed sync/backfill modules were deleted. The existing authenticated `/api/admin/backfill` route retains its pre-existing retired dynamic import as one exact `ignoreUnresolved` exception rather than weakening unresolved-import checks globally.
 
 ## Priority model
 
@@ -148,7 +157,7 @@ Those 101 name declarations represent only 35 distinct jobs. Thirty-two names oc
 - Make `AGENTS.md`, `CLAUDE.md`, `AGENT_GUIDE.md`, and `docs/agent/*` point to `michaelhmiv/Sportfolio` and current stacked-share semantics.
 - Keep active context concise; archive verified historical task/status material with clear provenance rather than deleting history.
 - Update the stale `power` invariant to assert the current holdings/multiplier contract.
-- Add `/api/holdings/condense` to OpenAPI or explicitly remove the endpoint in a separate behavior change; the contract update is the compatible default.
+- Update OpenAPI validation to require the live `/api/holdings/stack-shares` and `/api/holdings/{playerId}/multiplier-state` contracts and reject retired `/api/holdings/condense` guidance.
 - Exclude generated reports from duplication checks.
 - Fix Knip entries/configuration before treating its findings as dead code.
 - Consider adding `npm run build`, OpenAPI, and invariant checks to PR CI only after the baseline failures are repaired.

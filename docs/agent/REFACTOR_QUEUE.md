@@ -42,13 +42,10 @@ Fixing those asymmetries is a separate behavior/product decision, not registry c
 - Preserve response payloads and the post-NHL fixes from PRs #251 and #252.
 - Add regression coverage for status transitions, especially NHL postgame rendering.
 
-### 2. Validation-tool hygiene
+### 2. Duplication-report hygiene
 
-- Replace the obsolete `power` invariant with current stacked-share/multiplier assertions.
-- Reconcile `/api/holdings/condense` with the OpenAPI contract.
-- Exclude generated reports from duplication scans.
-- Make Knip entry discovery independent of a live database URL before treating its output as deletion evidence.
-- Keep these tooling repairs behavior-neutral and independently reviewable.
+- Exclude generated reports from duplication scans so a prior report cannot contaminate the next result.
+- Keep the source-only scan behavior-neutral and independently reviewable.
 
 ### 3. Game Command Center decomposition
 
