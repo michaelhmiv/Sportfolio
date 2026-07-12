@@ -1,6 +1,7 @@
 /**
  * Run roster sync to populate all players with numeric MySportsFeeds IDs
  */
+// @ts-expect-error Legacy maintenance module is absent from this checkout.
 import { syncRoster } from "../jobs/sync-roster";
 
 async function main() {

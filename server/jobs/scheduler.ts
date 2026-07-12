@@ -645,30 +645,7 @@ export class JobScheduler {
           errorCount: result.errors,
         };
       },
-      nfl_schedule_sync: async () => {
-        const result = await syncNFLSchedule();
-        return {
-          requestCount: 0,
-          recordsProcessed: result.gamesProcessed,
-          errorCount: result.errors.length,
-        };
-      },
-      nfl_stats_sync: async () => {
-        const result = await syncNFLStats();
-        return {
-          requestCount: 0,
-          recordsProcessed: result.statsProcessed,
-          errorCount: result.errors.length,
-        };
-      },
-      nfl_roster_sync: async () => {
-        const result = await syncNFLRoster();
-        return {
-          requestCount: 0,
-          recordsProcessed: result.playersAdded + result.playersUpdated,
-          errorCount: result.errors.length,
-        };
-      },
+
       mlb_schedule_sync: async () => {
         const result = await syncMLBSchedule();
         return {
@@ -875,12 +852,12 @@ export class JobScheduler {
       "refresh_player_volume_24h",
       "bot_engine",
       "api_health_check",
-      "nfl_schedule_sync",
-      "nfl_stats_sync",
-      "nfl_roster_sync",
       "mlb_schedule_sync",
       "mlb_stats_sync",
       "mlb_roster_sync",
+      "nhl_schedule_sync",
+      "nhl_live_stats_sync",
+      "nhl_roster_sync",
       "nascar_roster_sync",
       "nascar_schedule_sync",
       "nascar_stats_sync",

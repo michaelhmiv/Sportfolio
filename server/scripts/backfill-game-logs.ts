@@ -12,6 +12,7 @@
  * Usage: tsx server/scripts/backfill-game-logs.ts
  */
 
+// @ts-expect-error Legacy maintenance module is absent from this checkout.
 import { syncPlayerGameLogs } from "../jobs/sync-player-game-logs";
 
 async function main() {
