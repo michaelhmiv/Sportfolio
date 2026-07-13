@@ -82,6 +82,22 @@ export default {
           subtle: "hsl(var(--premium-subtle) / <alpha-value>)",
           foreground: "hsl(var(--premium-foreground) / <alpha-value>)",
         },
+        tier: {
+          standard: "hsl(var(--tier-standard) / <alpha-value>)",
+          boosted: "hsl(var(--tier-boosted) / <alpha-value>)",
+          elite: "hsl(var(--tier-elite) / <alpha-value>)",
+          legendary: "hsl(var(--tier-legendary) / <alpha-value>)",
+          mythic: "hsl(var(--tier-mythic) / <alpha-value>)",
+        },
+        category: {
+          market: "hsl(var(--category-market) / <alpha-value>)",
+          liquidity: "hsl(var(--category-liquidity) / <alpha-value>)",
+          stacking: "hsl(var(--category-stacking) / <alpha-value>)",
+          payout: "hsl(var(--category-payout) / <alpha-value>)",
+          scout: "hsl(var(--category-scout) / <alpha-value>)",
+          whale: "hsl(var(--category-whale) / <alpha-value>)",
+          "thin-pool": "hsl(var(--category-thin-pool) / <alpha-value>)",
+        },
         disabled: {
           DEFAULT: "hsl(var(--disabled) / <alpha-value>)",
           foreground: "hsl(var(--disabled-foreground) / <alpha-value>)",

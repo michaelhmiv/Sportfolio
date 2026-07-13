@@ -282,7 +282,7 @@ export function MarketMobilePlayerSheet({
                 </DrawerDescription>
               </div>
 
-              <div className="rounded-sm border border-border bg-muted/20 px-2 py-1 text-right">
+              <div className="rounded-compact border border-border bg-muted/20 px-2 py-1 text-right">
                 <div className="font-mono text-sm font-semibold">${currentPrice.toFixed(2)}</div>
                 <div
                   className={cn(
@@ -307,34 +307,22 @@ export function MarketMobilePlayerSheet({
                 </Badge>
               )}
               {showBoostContext && (
-                <Badge
-                  variant="outline"
-                  className="border-yellow-500/30 bg-yellow-500/10 text-yellow-300"
-                >
+                <Badge variant="outline" className="border-premium/30 bg-premium/10 text-premium">
                   Boost Ready
                 </Badge>
               )}
               {(quickContext?.bestShareMultiplier || 1) > 1 && (
-                <Badge
-                  variant="outline"
-                  className="border-blue-500/30 bg-blue-500/10 text-blue-300"
-                >
+                <Badge variant="outline" className="border-chart-2/30 bg-chart-2/10 text-chart-2">
                   Multi {quickContext?.bestShareMultiplier}x
                 </Badge>
               )}
               {(player.communityBoostCount || 0) > 0 && (
-                <Badge
-                  variant="outline"
-                  className="border-orange-500/30 bg-orange-500/10 text-orange-300"
-                >
+                <Badge variant="outline" className="border-boost/30 bg-boost/10 text-boost">
                   Community +{player.communityBoostCount}
                 </Badge>
               )}
               {financials?.heatCheck.status === "fire" && (
-                <Badge
-                  variant="outline"
-                  className="border-orange-500/30 bg-orange-500/10 text-orange-300"
-                >
+                <Badge variant="outline" className="border-boost/30 bg-boost/10 text-boost">
                   <Flame className="mr-1 h-3 w-3" />
                   Heat check
                 </Badge>
@@ -349,7 +337,7 @@ export function MarketMobilePlayerSheet({
 
           <div className="space-y-4 px-4 pt-4">
             <div className="grid grid-cols-3 gap-2">
-              <div className="rounded-sm border border-border bg-muted/20 p-2">
+              <div className="rounded-compact border border-border bg-muted/20 p-2">
                 <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
                   TVL
                 </div>
@@ -357,7 +345,7 @@ export function MarketMobilePlayerSheet({
                   {formatCompactCurrency(toNumber(player.poolTvl))}
                 </div>
               </div>
-              <div className="rounded-sm border border-border bg-muted/20 p-2">
+              <div className="rounded-compact border border-border bg-muted/20 p-2">
                 <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
                   Buy Vol
                 </div>
@@ -365,7 +353,7 @@ export function MarketMobilePlayerSheet({
                   {toNumber(player.buyPressure).toFixed(0)}%
                 </div>
               </div>
-              <div className="rounded-sm border border-border bg-muted/20 p-2">
+              <div className="rounded-compact border border-border bg-muted/20 p-2">
                 <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
                   Value
                 </div>
@@ -376,8 +364,8 @@ export function MarketMobilePlayerSheet({
             </div>
 
             {player.mlbPregameSummary ? (
-              <div className="rounded-sm border border-emerald-500/30 bg-emerald-500/5 p-3">
-                <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-emerald-600 dark:text-emerald-400">
+              <div className="rounded-compact border border-market-positive/30 bg-market-positive/5 p-3">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-market-positive dark:text-market-positive">
                   MLB matchup read
                 </div>
                 <div className="mt-1 text-xs text-foreground">{player.mlbPregameSummary}</div>
@@ -424,13 +412,13 @@ export function MarketMobilePlayerSheet({
             </div>
 
             {activeAction === "boost" && showBoostContext && (
-              <div className="rounded-sm border border-yellow-500/30 bg-yellow-500/10 p-3">
+              <div className="rounded-panel border border-premium/30 bg-premium/10 p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <div className="text-xs font-semibold uppercase tracking-[0.12em] text-yellow-200">
+                    <div className="text-xs font-semibold uppercase tracking-[0.12em] text-premium">
                       Tonight's Boost Window
                     </div>
-                    <p className="mt-1 text-sm text-yellow-50/90">
+                    <p className="mt-1 text-sm text-content">
                       {quickContext?.availableShares || 0} share
                       {(quickContext?.availableShares || 0) === 1 ? "" : "s"} available.
                       {(quickContext?.bestShareMultiplier || 1) > 1
@@ -438,9 +426,9 @@ export function MarketMobilePlayerSheet({
                         : " A regular share is ready to burn."}
                     </p>
                   </div>
-                  <SearchCheck className="mt-0.5 h-4 w-4 text-yellow-200" />
+                  <SearchCheck className="mt-0.5 h-4 w-4 text-premium" />
                 </div>
-                <div className="mt-3 flex items-center justify-between text-[11px] font-mono uppercase tracking-[0.08em] text-yellow-100/80">
+                <div className="mt-3 flex items-center justify-between font-mono text-[11px] uppercase tracking-[0.08em] text-content-muted">
                   <span>{formatGameStatus(player)}</span>
                   <span>Community +{player.communityBoostCount || 0}</span>
                 </div>
@@ -463,7 +451,7 @@ export function MarketMobilePlayerSheet({
             {isAuthenticated && activeAction === "scout" && <ScoutSelector playerId={player.id} />}
 
             {(activeAction === "buy" || activeAction === "sell" || activeAction === "default") && (
-              <div className="rounded-sm border border-border bg-muted/10 p-3">
+              <div className="rounded-compact border border-border bg-muted/10 p-3">
                 {!isPoolInitialized ? (
                   <div className="space-y-3">
                     <div className="text-sm text-muted-foreground">
@@ -497,7 +485,7 @@ export function MarketMobilePlayerSheet({
               </div>
             )}
 
-            <div className="rounded-sm border border-border bg-muted/10 p-3">
+            <div className="rounded-compact border border-border bg-muted/10 p-3">
               <div className="flex items-center justify-between">
                 <div className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                   Live Context
@@ -507,7 +495,7 @@ export function MarketMobilePlayerSheet({
                 </div>
               </div>
               <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-                <div className="rounded-sm border border-border/60 bg-background/40 p-2">
+                <div className="rounded-compact border border-border/60 bg-background/40 p-2">
                   <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
                     Pool Depth
                   </div>
@@ -515,7 +503,7 @@ export function MarketMobilePlayerSheet({
                     {formatCompactCurrency(toNumber(poolData?.playMoney))}
                   </div>
                 </div>
-                <div className="rounded-sm border border-border/60 bg-background/40 p-2">
+                <div className="rounded-compact border border-border/60 bg-background/40 p-2">
                   <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
                     Sentiment
                   </div>
@@ -524,7 +512,7 @@ export function MarketMobilePlayerSheet({
               </div>
             </div>
 
-            <div className="rounded-sm border border-border bg-muted/10 p-3">
+            <div className="rounded-compact border border-border bg-muted/10 p-3">
               <div className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                 Recent Tape
               </div>
@@ -537,7 +525,7 @@ export function MarketMobilePlayerSheet({
                   activity.map((entry) => (
                     <div
                       key={entry.id}
-                      className="flex items-center justify-between rounded-sm border border-border/60 bg-background/40 p-2"
+                      className="flex items-center justify-between rounded-compact border border-border/60 bg-background/40 p-2"
                     >
                       <div className="min-w-0">
                         <div className="truncate text-sm font-medium">

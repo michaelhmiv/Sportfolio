@@ -80,6 +80,18 @@ const normalTextPairs = [
   ["boost-foreground", "boost"],
   ["premium", "canvas"],
   ["premium-foreground", "premium"],
+  ["text-inverse", "tier-standard"],
+  ["text-inverse", "tier-boosted"],
+  ["text-inverse", "tier-elite"],
+  ["text-inverse", "tier-legendary"],
+  ["text-inverse", "tier-mythic"],
+  ["category-market", "canvas"],
+  ["category-liquidity", "canvas"],
+  ["category-stacking", "canvas"],
+  ["category-payout", "canvas"],
+  ["category-scout", "canvas"],
+  ["category-whale", "canvas"],
+  ["category-thin-pool", "canvas"],
 ] as const;
 
 describe("Sportfolio semantic color contrast", () => {

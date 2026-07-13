@@ -450,7 +450,7 @@ test("mobile pools loads the live market home and opens the trade sheet", async 
     .filter({ hasText: /^Trade$/ })
     .click();
   await expect(page.getByTestId("market-mobile-player-sheet")).toBeVisible();
-  await expect(page.getByText("Tonight's Boost Window")).toBeVisible();
+  await expect(page.getByText("Live Context")).toBeVisible();
 
   await context.close();
 });

@@ -49,11 +49,11 @@ function getCandidateStatusLabel(status: StackingCandidateStatus): string {
 function getCandidateStatusClasses(status: StackingCandidateStatus): string {
   switch (status) {
     case "stack-ready":
-      return "border-emerald-500/35 bg-emerald-500/10 text-emerald-300";
+      return "border-market-positive/35 bg-market-positive/10 text-market-positive";
     case "almost-ready":
-      return "border-amber-500/35 bg-amber-500/10 text-amber-200";
+      return "border-status-warning/35 bg-status-warning/10 text-status-warning";
     case "already-stacked":
-      return "border-sky-500/35 bg-sky-500/10 text-sky-200";
+      return "border-chart-3/35 bg-chart-3/10 text-chart-3";
     default:
       return "border-border bg-muted/40 text-foreground";
   }
@@ -70,9 +70,9 @@ function getGameStatusLabel(candidate: StackingCandidate): string {
 }
 
 function getGameStatusClassName(candidate: StackingCandidate): string {
-  if (candidate.gameStatus === "live") return "text-red-300";
-  if (candidate.gameStatus === "ended") return "text-slate-300";
-  if (candidate.gameStatus === "upcoming") return "text-blue-300";
+  if (candidate.gameStatus === "live") return "text-market-negative";
+  if (candidate.gameStatus === "ended") return "text-content-muted";
+  if (candidate.gameStatus === "upcoming") return "text-chart-2";
   return "text-muted-foreground";
 }
 
@@ -159,11 +159,11 @@ export function PortfolioStackingTab({
         </div>
 
         <div className="grid grid-cols-3 gap-2">
-          <div className="rounded-sm border border-border/70 bg-muted/20 px-2 py-1.5">
+          <div className="rounded-compact border border-border/70 bg-muted/20 px-2 py-1.5">
             <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Ready</div>
             <div className="mt-0.5 font-mono text-sm font-semibold">{summary.readyCount}</div>
           </div>
-          <div className="rounded-sm border border-border/70 bg-muted/20 px-2 py-1.5">
+          <div className="rounded-compact border border-border/70 bg-muted/20 px-2 py-1.5">
             <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
               Singles Avail
             </div>
@@ -171,7 +171,7 @@ export function PortfolioStackingTab({
               {formatShareCount(summary.singlesAvailable)}
             </div>
           </div>
-          <div className="rounded-sm border border-border/70 bg-muted/20 px-2 py-1.5">
+          <div className="rounded-compact border border-border/70 bg-muted/20 px-2 py-1.5">
             <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Stacked</div>
             <div className="mt-0.5 font-mono text-sm font-semibold">{summary.stackedPlayers}</div>
           </div>
@@ -285,7 +285,7 @@ export function PortfolioStackingTab({
                         className={cn(
                           "border-b border-border/60 align-top hover:bg-muted/20",
                           index === filteredCandidates.length - 1 && "border-b-0",
-                          canStack && "bg-emerald-500/[0.04]",
+                          canStack && "bg-market-positive/[0.04]",
                         )}
                         data-testid={`stacking-row-${candidate.playerId}`}
                       >

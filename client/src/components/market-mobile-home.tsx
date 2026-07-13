@@ -299,17 +299,17 @@ function getPrimaryChip(
 function getChipClassName(label: MarketChipLabel | null) {
   switch (label) {
     case "Boost live today":
-      return "border-yellow-500/30 bg-yellow-500/10 text-yellow-200";
+      return "border-premium/30 bg-premium/10 text-premium";
     case "Scouts surging":
-      return "border-cyan-500/30 bg-cyan-500/10 text-cyan-200";
+      return "border-chart-3/30 bg-chart-3/10 text-chart-3";
     case "Whale trade":
-      return "border-blue-500/30 bg-blue-500/10 text-blue-200";
+      return "border-chart-2/30 bg-chart-2/10 text-chart-2";
     case "Thin pool":
-      return "border-red-500/30 bg-red-500/10 text-red-200";
+      return "border-market-negative/30 bg-market-negative/10 text-market-negative";
     case "Buy pressure":
-      return "border-emerald-500/30 bg-emerald-500/10 text-emerald-200";
+      return "border-market-positive/30 bg-market-positive/10 text-market-positive";
     case "Heat check":
-      return "border-orange-500/30 bg-orange-500/10 text-orange-200";
+      return "border-boost/30 bg-boost/10 text-boost";
     default:
       return "border-border/60 bg-muted/30 text-muted-foreground";
   }
@@ -318,11 +318,11 @@ function getChipClassName(label: MarketChipLabel | null) {
 function getFreshnessClassName(freshnessState: "live" | "catching_up" | "offline") {
   switch (freshnessState) {
     case "live":
-      return "border-emerald-500/30 bg-emerald-500/10 text-emerald-300";
+      return "border-market-positive/30 bg-market-positive/10 text-market-positive";
     case "catching_up":
-      return "border-amber-500/30 bg-amber-500/10 text-amber-300";
+      return "border-status-warning/30 bg-status-warning/10 text-status-warning";
     case "offline":
-      return "border-red-500/30 bg-red-500/10 text-red-300";
+      return "border-market-negative/30 bg-market-negative/10 text-market-negative";
   }
 }
 
@@ -523,11 +523,11 @@ function NarrativeModule({
             </div>
             <p className="mt-1 text-xs text-muted-foreground">{subtitle}</p>
           </div>
-          <div className={cn("h-2.5 w-2.5 rounded-full", accentClassName)} />
+          <div className={cn("h-2.5 w-2.5 rounded-pill", accentClassName)} />
         </div>
 
         {items.length === 0 ? (
-          <div className="mt-4 rounded-sm border border-dashed border-border/70 p-3 text-xs text-muted-foreground">
+          <div className="mt-4 rounded-compact border border-dashed border-border/70 p-3 text-xs text-muted-foreground">
             {emptyState}
           </div>
         ) : (
@@ -536,7 +536,7 @@ function NarrativeModule({
               <button
                 key={`${title}-${item.playerId}`}
                 type="button"
-                className="w-full rounded-sm border border-border/70 bg-muted/20 px-3 py-2 text-left transition-colors hover:bg-muted/35"
+                className="w-full rounded-compact border border-border/70 bg-muted/20 px-3 py-2 text-left transition-colors hover:bg-muted/35"
                 onClick={() => onOpenPlayer(item)}
               >
                 <div className="flex items-start justify-between gap-2">
@@ -662,7 +662,7 @@ export function MarketMobileHome({
         title: "Top Risers",
         subtitle: "Fastest 24h movers on the board.",
         emptyState: "No momentum leaders yet.",
-        accentClassName: "bg-emerald-400",
+        accentClassName: "bg-market-positive",
         items: overview?.leaderboards.risers || overview?.nowMoving || [],
         action: "buy" as const,
       },
@@ -671,7 +671,7 @@ export function MarketMobileHome({
         title: "Largest Pools",
         subtitle: "Deepest liquidity on the market.",
         emptyState: "Pool leaders are still loading.",
-        accentClassName: "bg-blue-400",
+        accentClassName: "bg-chart-2",
         items: overview?.leaderboards.topPools || [],
         action: "buy" as const,
       },
@@ -680,7 +680,7 @@ export function MarketMobileHome({
         title: "Most Active",
         subtitle: "Fresh prints and whale clips.",
         emptyState: "Trade tape is quiet right now.",
-        accentClassName: "bg-cyan-400",
+        accentClassName: "bg-chart-3",
         items: overview?.leaderboards.mostActive || [],
         action: "buy" as const,
       },
@@ -689,7 +689,7 @@ export function MarketMobileHome({
         title: "Boost in Play",
         subtitle: "Names with live slate leverage.",
         emptyState: "No boost-ready names on deck.",
-        accentClassName: "bg-yellow-400",
+        accentClassName: "bg-premium",
         items: overview?.leaderboards.boostWindow || overview?.boostWindow || [],
         action: "boost" as const,
       },
@@ -839,7 +839,7 @@ export function MarketMobileHome({
       cards.push({
         key: "boost-ready",
         label: "Boost Ready",
-        accentClassName: "bg-yellow-400",
+        accentClassName: "bg-premium",
         title: (
           <PlayerName
             playerId={boostReady.playerId}
@@ -859,7 +859,7 @@ export function MarketMobileHome({
       cards.push({
         key: "owned-mover",
         label: "Owned Mover",
-        accentClassName: "bg-emerald-400",
+        accentClassName: "bg-market-positive",
         title: (
           <PlayerName
             playerId={ownedMover.playerId}
@@ -879,7 +879,7 @@ export function MarketMobileHome({
       cards.push({
         key: "watchlist-mover",
         label: "Watchlist",
-        accentClassName: "bg-cyan-400",
+        accentClassName: "bg-chart-3",
         title: (
           <PlayerName
             playerId={watchlistMover.playerId}
@@ -899,7 +899,7 @@ export function MarketMobileHome({
       cards.push({
         key: "lp-edge",
         label: "Pool Fees",
-        accentClassName: "bg-blue-400",
+        accentClassName: "bg-chart-2",
         title: (
           <PlayerName
             playerId={lpEdge.playerId}
@@ -949,7 +949,7 @@ export function MarketMobileHome({
             </div>
 
             <div className="grid grid-cols-3 gap-2">
-              <div className="rounded-sm border border-border/70 bg-muted/15 p-2">
+              <div className="rounded-compact border border-border/70 bg-muted/15 p-2">
                 <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
                   Trades / 15m
                 </div>
@@ -957,7 +957,7 @@ export function MarketMobileHome({
                   {overview?.pulse.tradeCount15m ?? "--"}
                 </div>
               </div>
-              <div className="rounded-sm border border-border/70 bg-muted/15 p-2">
+              <div className="rounded-compact border border-border/70 bg-muted/15 p-2">
                 <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
                   Live Games
                 </div>
@@ -965,7 +965,7 @@ export function MarketMobileHome({
                   {overview?.pulse.liveGameCount ?? 0}/{overview?.pulse.slateGameCount ?? 0}
                 </div>
               </div>
-              <div className="rounded-sm border border-border/70 bg-muted/15 p-2">
+              <div className="rounded-compact border border-border/70 bg-muted/15 p-2">
                 <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
                   Boost Slots
                 </div>
@@ -1044,13 +1044,13 @@ export function MarketMobileHome({
             <Activity className="h-4 w-4 text-primary" />
           </div>
 
-          <div className="grid grid-cols-4 gap-1.5 rounded-sm border border-border/60 bg-background/40 p-1">
+          <div className="grid grid-cols-4 gap-1.5 rounded-compact border border-border/60 bg-background/40 p-1">
             {moverDeck.map((entry) => (
               <button
                 key={entry.id}
                 type="button"
                 className={cn(
-                  "rounded-sm px-2 py-2 text-center text-[10px] font-semibold uppercase tracking-[0.08em] transition-colors",
+                  "rounded-compact px-2 py-2 text-center text-[10px] font-semibold uppercase tracking-[0.08em] transition-colors",
                   activeMoverModule?.id === entry.id
                     ? "bg-muted/80 text-foreground"
                     : "text-muted-foreground hover:bg-muted/30",
@@ -1102,14 +1102,14 @@ export function MarketMobileHome({
                 <button
                   key={card.key}
                   type="button"
-                  className="min-w-[200px] snap-start rounded-sm border border-border/70 bg-muted/15 p-3 text-left transition-colors hover:bg-muted/30"
+                  className="min-w-[200px] snap-start rounded-compact border border-border/70 bg-muted/15 p-3 text-left transition-colors hover:bg-muted/30"
                   onClick={() => onOpenPlayer(card.player, card.action, card.quickContext)}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                       {card.label}
                     </div>
-                    <div className={cn("mt-0.5 h-2.5 w-2.5 rounded-full", card.accentClassName)} />
+                    <div className={cn("mt-0.5 h-2.5 w-2.5 rounded-pill", card.accentClassName)} />
                   </div>
                   <div className="mt-2 text-sm font-medium">{card.title}</div>
                   <div className="mt-2 text-[11px] font-mono uppercase tracking-[0.08em] text-muted-foreground">
@@ -1144,7 +1144,7 @@ export function MarketMobileHome({
             </div>
           </div>
 
-          <div className="mt-4 rounded-sm border border-border/70 bg-muted/10">
+          <div className="mt-4 rounded-compact border border-border/70 bg-muted/10">
             <div className="grid grid-cols-[minmax(0,1.55fr)_0.8fr_0.75fr_0.9fr_72px] gap-2 border-b border-border/70 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
               <div>Player</div>
               <div className="text-right">Price</div>
@@ -1228,7 +1228,7 @@ export function MarketMobileHome({
                           {ownedPlayerIds.has(player.id) && (
                             <Badge
                               variant="outline"
-                              className="border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
+                              className="border-market-positive/30 bg-market-positive/10 text-market-positive"
                             >
                               Own
                             </Badge>
@@ -1236,7 +1236,7 @@ export function MarketMobileHome({
                           {lpEdgeMap.has(player.id) && (
                             <Badge
                               variant="outline"
-                              className="border-blue-500/30 bg-blue-500/10 text-blue-200"
+                              className="border-chart-2/30 bg-chart-2/10 text-chart-2"
                             >
                               LP
                             </Badge>
@@ -1244,7 +1244,7 @@ export function MarketMobileHome({
                           {(quickContext.bestShareMultiplier || 1) > 1 && (
                             <Badge
                               variant="outline"
-                              className="border-sky-500/30 bg-sky-500/10 text-sky-200"
+                              className="border-chart-3/30 bg-chart-3/10 text-chart-3"
                             >
                               x{quickContext.bestShareMultiplier}
                             </Badge>
@@ -1252,7 +1252,7 @@ export function MarketMobileHome({
                           {(player.communityBoostCount || 0) > 0 && (
                             <Badge
                               variant="outline"
-                              className="border-orange-500/30 bg-orange-500/10 text-orange-200"
+                              className="border-boost/30 bg-boost/10 text-boost"
                             >
                               Com +{player.communityBoostCount}
                             </Badge>
@@ -1327,7 +1327,7 @@ export function MarketMobileHome({
           </div>
 
           {totalPages > 1 && (
-            <div className="mt-4 flex items-center justify-between rounded-sm border border-border/70 bg-muted/15 p-3">
+            <div className="mt-4 flex items-center justify-between rounded-compact border border-border/70 bg-muted/15 p-3">
               <div className="text-[11px] font-mono uppercase tracking-[0.08em] text-muted-foreground">
                 Page {page} / {totalPages}
               </div>
@@ -1395,7 +1395,7 @@ export function MarketMobileHome({
                   <select
                     value={sortField}
                     onChange={(event) => onSortFieldChange(event.target.value as SortField)}
-                    className="h-10 w-full rounded-sm border border-border bg-[hsl(var(--card)/0.85)] px-3 font-mono text-sm"
+                    className="h-10 w-full rounded-compact border border-border bg-[hsl(var(--card)/0.85)] px-3 font-mono text-sm"
                   >
                     <option value="volume">Volume</option>
                     <option value="marketCap">Market Cap</option>
@@ -1417,7 +1417,7 @@ export function MarketMobileHome({
                   <select
                     value={sortOrder}
                     onChange={(event) => onSortOrderChange(event.target.value as SortOrder)}
-                    className="h-10 w-full rounded-sm border border-border bg-[hsl(var(--card)/0.85)] px-3 font-mono text-sm"
+                    className="h-10 w-full rounded-compact border border-border bg-[hsl(var(--card)/0.85)] px-3 font-mono text-sm"
                   >
                     <option value="desc">Descending</option>
                     <option value="asc">Ascending</option>
@@ -1431,7 +1431,7 @@ export function MarketMobileHome({
                   <select
                     value={teamFilter}
                     onChange={(event) => onTeamFilterChange(event.target.value)}
-                    className="h-10 w-full rounded-sm border border-border bg-[hsl(var(--card)/0.85)] px-3 font-mono text-sm"
+                    className="h-10 w-full rounded-compact border border-border bg-[hsl(var(--card)/0.85)] px-3 font-mono text-sm"
                   >
                     <option value="all">All Teams</option>
                     {teams.map((team) => (
@@ -1449,7 +1449,7 @@ export function MarketMobileHome({
                   <select
                     value={positionFilter}
                     onChange={(event) => onPositionFilterChange(event.target.value)}
-                    className="h-10 w-full rounded-sm border border-border bg-[hsl(var(--card)/0.85)] px-3 font-mono text-sm"
+                    className="h-10 w-full rounded-compact border border-border bg-[hsl(var(--card)/0.85)] px-3 font-mono text-sm"
                   >
                     <option value="all">All Positions</option>
                     {positions.map((position) => (
@@ -1469,7 +1469,7 @@ export function MarketMobileHome({
                   <select
                     value={filterWatchlistId}
                     onChange={(event) => onWatchlistFilterChange(event.target.value)}
-                    className="h-10 w-full rounded-sm border border-border bg-[hsl(var(--card)/0.85)] px-3 font-mono text-sm"
+                    className="h-10 w-full rounded-compact border border-border bg-[hsl(var(--card)/0.85)] px-3 font-mono text-sm"
                   >
                     <option value="none">All Players</option>
                     <option value="all">My Watchlists</option>

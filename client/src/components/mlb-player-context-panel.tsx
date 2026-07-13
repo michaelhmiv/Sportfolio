@@ -67,7 +67,7 @@ export function MlbPlayerContextPanel({
   if (isLoading) {
     return (
       <div
-        className="border rounded-md p-2 bg-amber-500/5"
+        className="border rounded-control p-2 bg-status-warning/5"
         data-testid="mlb-player-context-loading"
       >
         <div className="text-xs font-semibold mb-1.5">MLB Context</div>
@@ -86,7 +86,10 @@ export function MlbPlayerContextPanel({
   ].filter(([, value]) => Boolean(value));
 
   return (
-    <div className="border rounded-md p-2 bg-amber-500/5" data-testid="mlb-player-context-panel">
+    <div
+      className="border rounded-control p-2 bg-status-warning/5"
+      data-testid="mlb-player-context-panel"
+    >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
@@ -106,13 +109,13 @@ export function MlbPlayerContextPanel({
       </div>
 
       <div className="mt-2 grid grid-cols-1 gap-1.5 text-[11px] sm:grid-cols-2">
-        <div className="rounded-sm border bg-background/50 p-2">
+        <div className="rounded-compact border bg-background/50 p-2">
           <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Lineup</div>
           <div className="mt-0.5 font-medium" data-testid="mlb-player-context-lineup">
             {context.lineup?.label || "Lineup pending"}
           </div>
         </div>
-        <div className="rounded-sm border bg-background/50 p-2">
+        <div className="rounded-compact border bg-background/50 p-2">
           <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Pitcher</div>
           <div className="mt-0.5 font-medium" data-testid="mlb-player-context-pitcher">
             {pitcher?.name ? `vs ${pitcher.name}` : "Pitcher pending"}
@@ -131,8 +134,10 @@ export function MlbPlayerContextPanel({
       ) : null}
 
       {context.hitterSpotlight ? (
-        <div className="mt-2 rounded-sm border border-emerald-500/25 bg-emerald-500/5 p-2 text-[11px]">
-          <div className="font-medium text-emerald-700 dark:text-emerald-300">Statcast note</div>
+        <div className="mt-2 rounded-compact border border-market-positive/25 bg-market-positive/5 p-2 text-[11px]">
+          <div className="font-medium text-market-positive dark:text-market-positive">
+            Statcast note
+          </div>
           <div className="mt-0.5 text-muted-foreground">{context.hitterSpotlight.summary}</div>
           {expectedMetrics.length ? (
             <div className="mt-1.5 flex flex-wrap gap-1.5">

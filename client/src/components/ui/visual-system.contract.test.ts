@@ -64,6 +64,18 @@ const requiredThemeTokens = [
   "chart-series-live",
   "team-accent",
   "team-accent-foreground",
+  "tier-standard",
+  "tier-boosted",
+  "tier-elite",
+  "tier-legendary",
+  "tier-mythic",
+  "category-market",
+  "category-liquidity",
+  "category-stacking",
+  "category-payout",
+  "category-scout",
+  "category-whale",
+  "category-thin-pool",
 ];
 
 const requiredGlobalTokens = [
@@ -152,5 +164,11 @@ describe("Sportfolio visual-system token contract", () => {
     expect(tailwindConfig).toContain('panel: "var(--radius-card)"');
     expect(tailwindConfig).toContain('control: "var(--radius-control)"');
     expect(tailwindConfig).toContain('compact: "var(--radius-control-sm)"');
+  });
+
+  it("maps distinct multiplier tiers through semantic aliases", () => {
+    for (const tier of ["standard", "boosted", "elite", "legendary", "mythic"] as const) {
+      expect(tailwindConfig).toContain(`${tier}: "hsl(var(--tier-${tier}) / <alpha-value>)"`);
+    }
   });
 });

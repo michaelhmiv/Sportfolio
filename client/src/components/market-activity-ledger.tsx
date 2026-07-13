@@ -141,21 +141,21 @@ async function fetchMarketActivityPage(params: {
 function getSignalTone(signal: MarketActivitySignalTag | null) {
   switch (signal) {
     case "whale":
-      return "border-blue-500/30 bg-blue-500/10 text-blue-200";
+      return "border-category-whale/30 bg-category-whale/10 text-category-whale";
     case "momentum":
-      return "border-orange-500/30 bg-orange-500/10 text-orange-200";
+      return "border-boost/30 bg-boost/10 text-boost";
     case "value":
-      return "border-emerald-500/30 bg-emerald-500/10 text-emerald-200";
+      return "border-market-positive/30 bg-market-positive/10 text-market-positive";
     case "scout":
-      return "border-cyan-500/30 bg-cyan-500/10 text-cyan-200";
+      return "border-category-scout/30 bg-category-scout/10 text-category-scout";
     case "boost":
-      return "border-yellow-500/30 bg-yellow-500/10 text-yellow-200";
+      return "border-premium/30 bg-premium/10 text-premium";
     case "top_pool":
-      return "border-violet-500/30 bg-violet-500/10 text-violet-200";
+      return "border-category-market/30 bg-category-market/10 text-category-market";
     case "thin_pool":
-      return "border-rose-500/30 bg-rose-500/10 text-rose-200";
+      return "border-category-thin-pool/30 bg-category-thin-pool/10 text-category-thin-pool";
     case "live":
-      return "border-red-500/30 bg-red-500/10 text-red-200";
+      return "border-status-live/30 bg-status-live/10 text-status-live";
     default:
       return "border-border/70 bg-muted/20 text-muted-foreground";
   }
@@ -171,7 +171,7 @@ function HighlightStrip({
   items: MarketActivityHighlight[];
 }) {
   return (
-    <div className="min-w-[250px] flex-1 rounded-md border bg-muted/10">
+    <div className="min-w-[250px] flex-1 rounded-control border bg-muted/10">
       <div className="flex items-center gap-2 border-b px-3 py-2">
         <Icon className="h-3.5 w-3.5 text-muted-foreground" />
         <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
@@ -200,7 +200,7 @@ function HighlightStrip({
                   <div
                     className={cn(
                       "text-[11px]",
-                      item.priceChange24h >= 0 ? "text-emerald-400" : "text-rose-400",
+                      item.priceChange24h >= 0 ? "text-market-positive" : "text-market-negative",
                     )}
                   >
                     {formatCompactSignedPercent(item.priceChange24h)}
@@ -246,7 +246,7 @@ function ActivityRow({ activity }: { activity: MarketActivityFeedItem }) {
             {activity.isWhale ? (
               <Badge
                 variant="outline"
-                className="h-5 border-blue-500/30 bg-blue-500/10 px-1.5 text-[10px] uppercase text-blue-200"
+                className="h-5 border-chart-2/30 bg-chart-2/10 px-1.5 text-[10px] uppercase text-chart-2"
               >
                 Whale
               </Badge>
@@ -288,7 +288,7 @@ function ActivityRow({ activity }: { activity: MarketActivityFeedItem }) {
             <div
               className={cn(
                 "font-mono text-xs font-semibold",
-                activity.spotMovePct >= 0 ? "text-emerald-400" : "text-rose-400",
+                activity.spotMovePct >= 0 ? "text-market-positive" : "text-market-negative",
               )}
             >
               {formatCompactSignedPercent(activity.spotMovePct)}
@@ -299,7 +299,7 @@ function ActivityRow({ activity }: { activity: MarketActivityFeedItem }) {
             <div
               className={cn(
                 "font-mono text-xs font-semibold",
-                activity.priceChange24h >= 0 ? "text-emerald-400" : "text-rose-400",
+                activity.priceChange24h >= 0 ? "text-market-positive" : "text-market-negative",
               )}
             >
               {formatCompactSignedPercent(activity.priceChange24h)}
@@ -364,7 +364,7 @@ export function MarketActivityLedger({ sport }: { sport?: string }) {
       <Card>
         <CardContent className="space-y-3 p-4">
           {[1, 2, 3, 4, 5].map((index) => (
-            <div key={index} className="rounded-md border p-3">
+            <div key={index} className="rounded-control border p-3">
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0 flex-1 space-y-2">
                   <Shimmer height="12px" width="40%" />
@@ -421,7 +421,7 @@ export function MarketActivityLedger({ sport }: { sport?: string }) {
             { label: "Live", value: firstPage.summary.liveCount },
             { label: "Pools", value: firstPage.summary.activePoolCount },
           ].map((item) => (
-            <div key={item.label} className="rounded-md border bg-muted/20 px-3 py-2">
+            <div key={item.label} className="rounded-control border bg-muted/20 px-3 py-2">
               <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
                 {item.label}
               </div>
@@ -471,7 +471,7 @@ export function MarketActivityLedger({ sport }: { sport?: string }) {
           <select
             value={side}
             onChange={(event) => setSide(event.target.value as MarketActivitySideFilter)}
-            className="h-9 rounded-md border border-input bg-background px-3 text-xs"
+            className="h-9 rounded-control border border-input bg-background px-3 text-xs"
           >
             {SIDE_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
@@ -482,7 +482,7 @@ export function MarketActivityLedger({ sport }: { sport?: string }) {
           <select
             value={gameState}
             onChange={(event) => setGameState(event.target.value as MarketActivityGameStateFilter)}
-            className="h-9 rounded-md border border-input bg-background px-3 text-xs"
+            className="h-9 rounded-control border border-input bg-background px-3 text-xs"
           >
             {GAME_STATE_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
@@ -493,7 +493,7 @@ export function MarketActivityLedger({ sport }: { sport?: string }) {
           <select
             value={sort}
             onChange={(event) => setSort(event.target.value as MarketActivitySort)}
-            className="h-9 rounded-md border border-input bg-background px-3 text-xs"
+            className="h-9 rounded-control border border-input bg-background px-3 text-xs"
           >
             {SORT_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
@@ -553,7 +553,7 @@ export function MarketActivityLedger({ sport }: { sport?: string }) {
             className="py-8"
           />
         ) : (
-          <div className="divide-y overflow-hidden rounded-md border">
+          <div className="divide-y overflow-hidden rounded-control border">
             {activities.map((activity) => (
               <ActivityRow key={activity.id} activity={activity} />
             ))}

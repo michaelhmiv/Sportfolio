@@ -272,8 +272,8 @@ export function PlayerModal({ playerId, open, onOpenChange }: PlayerModalProps) 
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <div className="flex items-center text-orange-500 animate-pulse cursor-help">
-                            <Flame className="w-4 h-4 fill-orange-500" />
+                          <div className="flex items-center text-boost animate-pulse cursor-help">
+                            <Flame className="w-4 h-4 fill-boost" />
                           </div>
                         </TooltipTrigger>
                         <TooltipContent>
@@ -286,7 +286,7 @@ export function PlayerModal({ playerId, open, onOpenChange }: PlayerModalProps) 
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <div className="flex items-center text-blue-400 cursor-help">
+                          <div className="flex items-center text-chart-2 cursor-help">
                             <Snowflake className="w-4 h-4" />
                           </div>
                         </TooltipTrigger>
@@ -395,7 +395,7 @@ export function PlayerModal({ playerId, open, onOpenChange }: PlayerModalProps) 
           {!isLoading && financialMetrics && (
             <div className="grid grid-cols-2 gap-2">
               {/* Value Index Card */}
-              <div className="border rounded-md p-2 bg-accent/5">
+              <div className="border rounded-control p-2 bg-accent/5">
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">
                     Value Index
@@ -422,14 +422,14 @@ export function PlayerModal({ playerId, open, onOpenChange }: PlayerModalProps) 
                   {(financialMetrics.valueIndex || 0) < 100 ? (
                     <Badge
                       variant="default"
-                      className="bg-green-500/15 text-green-600 hover:bg-green-500/25 border-green-500/20 text-[10px] px-1.5 h-5"
+                      className="bg-market-positive/15 text-market-positive hover:bg-market-positive/25 border-market-positive/20 text-[10px] px-1.5 h-5"
                     >
                       🔥 Undervalued
                     </Badge>
                   ) : (
                     <Badge
                       variant="outline"
-                      className="text-red-500 border-red-500/30 text-[10px] px-1.5 h-5 bg-red-500/5"
+                      className="text-market-negative border-market-negative/30 text-[10px] px-1.5 h-5 bg-market-negative/5"
                     >
                       Premium
                     </Badge>
@@ -438,7 +438,7 @@ export function PlayerModal({ playerId, open, onOpenChange }: PlayerModalProps) 
               </div>
 
               {/* Sentiment Gauge */}
-              <div className="border rounded-md p-2 bg-accent/5">
+              <div className="border rounded-control p-2 bg-accent/5">
                 <div className="flex items-center justify-between mb-1.5">
                   <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">
                     Trader Sentiment
@@ -446,10 +446,10 @@ export function PlayerModal({ playerId, open, onOpenChange }: PlayerModalProps) 
                   <span
                     className={`text-[10px] font-bold ${
                       financialMetrics.sentiment?.trend === "bullish"
-                        ? "text-green-500"
+                        ? "text-market-positive"
                         : financialMetrics.sentiment?.trend === "bearish"
-                          ? "text-red-500"
-                          : "text-yellow-500"
+                          ? "text-market-negative"
+                          : "text-premium"
                     }`}
                   >
                     {financialMetrics.sentiment?.buyPressure?.toFixed(0) || 0}% Buy Vol
@@ -457,8 +457,8 @@ export function PlayerModal({ playerId, open, onOpenChange }: PlayerModalProps) 
                 </div>
                 <Progress
                   value={financialMetrics.sentiment?.buyPressure || 0}
-                  className="h-1.5 bg-red-100 dark:bg-red-950/30"
-                  indicatorClassName="bg-amber-500"
+                  className="h-1.5 bg-market-negative dark:bg-market-negative/30"
+                  indicatorClassName="bg-status-warning"
                 />
                 <div className="flex justify-between mt-1">
                   <span className="text-[8px] text-muted-foreground">Bearish</span>
@@ -469,7 +469,7 @@ export function PlayerModal({ playerId, open, onOpenChange }: PlayerModalProps) 
           )}
 
           {/* Market Info - Compact Grid */}
-          <div className="border rounded-md p-2">
+          <div className="border rounded-control p-2">
             <div className="flex items-center justify-between mb-1.5">
               <div className="flex items-center gap-1">
                 <TrendingUp className="h-3 w-3" />
@@ -478,7 +478,7 @@ export function PlayerModal({ playerId, open, onOpenChange }: PlayerModalProps) 
               {!isLoading && financialMetrics?.marketCapRank && (
                 <Badge
                   variant="secondary"
-                  className="text-[10px] h-4 font-normal bg-blue-500/10 text-blue-600 dark:text-blue-400"
+                  className="text-[10px] h-4 font-normal bg-chart-2/10 text-chart-2 dark:text-chart-2"
                 >
                   {financialMetrics.marketCapRank.tier === "blue_chip"
                     ? "🐋 Blue Chip"
@@ -564,7 +564,7 @@ export function PlayerModal({ playerId, open, onOpenChange }: PlayerModalProps) 
           )}
 
           {/* Season Stats - Compact List */}
-          <div className="border rounded-md p-2">
+          <div className="border rounded-control p-2">
             <div className="text-xs font-semibold mb-1.5">Season Stats</div>
             {isLoading ? (
               <div className="space-y-1">
@@ -602,7 +602,7 @@ export function PlayerModal({ playerId, open, onOpenChange }: PlayerModalProps) 
           </div>
 
           {/* Recent Games - Expandable List */}
-          <div className="border rounded-md p-2">
+          <div className="border rounded-control p-2">
             <div className="text-xs font-semibold mb-1.5">Recent Games</div>
             {isLoading ? (
               <div className="space-y-1">

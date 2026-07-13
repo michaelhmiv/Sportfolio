@@ -98,22 +98,22 @@ function getCategoryIcon(category: UserActivityCategory) {
 function getCategoryTone(category: UserActivityCategory) {
   switch (category) {
     case "market":
-      return "text-sky-400 border-sky-500/20 bg-sky-500/10";
+      return "border-category-market/20 bg-category-market/10 text-category-market";
     case "stacking":
-      return "text-violet-300 border-violet-500/20 bg-violet-500/10";
+      return "border-category-stacking/20 bg-category-stacking/10 text-category-stacking";
     case "boosts":
-      return "text-amber-300 border-amber-500/20 bg-amber-500/10";
+      return "text-status-warning border-status-warning/20 bg-status-warning/10";
     case "liquidity":
-      return "text-cyan-300 border-cyan-500/20 bg-cyan-500/10";
+      return "border-category-liquidity/20 bg-category-liquidity/10 text-category-liquidity";
     case "community":
-      return "text-orange-300 border-orange-500/20 bg-orange-500/10";
+      return "text-boost border-boost/20 bg-boost/10";
     case "premium":
-      return "text-yellow-300 border-yellow-500/20 bg-yellow-500/10";
+      return "text-premium border-premium/20 bg-premium/10";
     case "payouts":
-      return "text-emerald-300 border-emerald-500/20 bg-emerald-500/10";
+      return "border-category-payout/20 bg-category-payout/10 text-category-payout";
     case "scout":
     default:
-      return "text-green-300 border-green-500/20 bg-green-500/10";
+      return "border-category-scout/20 bg-category-scout/10 text-category-scout";
   }
 }
 
@@ -181,7 +181,7 @@ function ActivityRow({ activity }: { activity: UserActivityItem }) {
       <div className="flex items-start gap-3">
         <div
           className={cn(
-            "mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md border",
+            "mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-control border",
             getCategoryTone(activity.category),
           )}
         >
@@ -219,7 +219,9 @@ function ActivityRow({ activity }: { activity: UserActivityItem }) {
                 <div
                   className={cn(
                     "font-mono text-xs font-semibold",
-                    Number(activity.cashDelta || 0) > 0 ? "text-emerald-400" : "text-rose-400",
+                    Number(activity.cashDelta || 0) > 0
+                      ? "text-market-positive"
+                      : "text-market-negative",
                   )}
                 >
                   {signedCash}
@@ -228,7 +230,7 @@ function ActivityRow({ activity }: { activity: UserActivityItem }) {
                 <div
                   className={cn(
                     "font-mono text-xs font-semibold",
-                    (activity.shareDelta || 0) > 0 ? "text-emerald-400" : "text-violet-300",
+                    (activity.shareDelta || 0) > 0 ? "text-market-positive" : "text-chart-4",
                   )}
                 >
                   {signedShares}
@@ -297,8 +299,8 @@ export function PortfolioActivityTab() {
       <Card>
         <CardContent className="space-y-3 p-4">
           {[1, 2, 3, 4, 5, 6].map((index) => (
-            <div key={index} className="flex items-center gap-3 rounded-md border p-3">
-              <Shimmer width="32px" height="32px" className="rounded-md flex-shrink-0" />
+            <div key={index} className="flex items-center gap-3 rounded-control border p-3">
+              <Shimmer width="32px" height="32px" className="rounded-control flex-shrink-0" />
               <div className="min-w-0 flex-1 space-y-2">
                 <Shimmer height="12px" width="45%" />
                 <Shimmer height="11px" width="80%" />
@@ -342,7 +344,7 @@ export function PortfolioActivityTab() {
             { label: "Pending", value: summary.pendingCount },
             { label: "Gameplay", value: summary.gameplayCount },
           ].map((item) => (
-            <div key={item.label} className="rounded-md border bg-muted/20 px-3 py-2">
+            <div key={item.label} className="rounded-control border bg-muted/20 px-3 py-2">
               <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
                 {item.label}
               </div>
@@ -411,7 +413,7 @@ export function PortfolioActivityTab() {
             className="py-8"
           />
         ) : (
-          <div className="divide-y overflow-hidden rounded-md border">
+          <div className="divide-y overflow-hidden rounded-control border">
             {filteredActivities.map((activity) => (
               <ActivityRow key={activity.id} activity={activity} />
             ))}

@@ -154,10 +154,10 @@ function formatCountdown(gameStartTime: string, now: Date): string | null {
   return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
 }
 const MULTIPLIER_SLOTS = [
-  { tier: 5, label: "5x", color: "bg-yellow-500", icon: Flame },
-  { tier: 4, label: "4x", color: "bg-orange-500", icon: Zap },
-  { tier: 3, label: "3x", color: "bg-purple-500", icon: TrendingUp },
-  { tier: 2, label: "2x", color: "bg-blue-500", icon: TrendingUp },
+  { tier: 5, label: "5x", color: "bg-premium", icon: Flame },
+  { tier: 4, label: "4x", color: "bg-boost", icon: Zap },
+  { tier: 3, label: "3x", color: "bg-chart-4", icon: TrendingUp },
+  { tier: 2, label: "2x", color: "bg-chart-2", icon: TrendingUp },
 ];
 
 const COMMUNITY_FILTER_SPORTS = ["All", ...GLOBAL_SPORTS.filter((sport) => sport !== "ALL")];
@@ -463,7 +463,7 @@ export default function BoostsPage() {
             <div className="mb-2 flex flex-col gap-2.5 sm:mb-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="space-y-1.5 sm:space-y-2">
                 <div className="terminal-strip">
-                  <Zap className="h-3.5 w-3.5 text-amber-300" />
+                  <Zap className="h-3.5 w-3.5 text-status-warning" />
                   Boost Desk
                 </div>
                 <div>
@@ -525,13 +525,13 @@ export default function BoostsPage() {
           </div>
 
           {/* Warning */}
-          <Card variant="terminal" className="mb-3 border-amber-500/20 bg-amber-500/5">
+          <Card variant="terminal" className="mb-3 border-status-warning/20 bg-status-warning/5">
             <CardContent className="p-3">
               <div className="flex items-start gap-2">
-                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                <AlertTriangle className="w-4 h-4 text-status-warning shrink-0 mt-0.5" />
                 <p className="terminal-subtle">
-                  Shares are <span className="font-semibold text-amber-300">burned</span> when games
-                  begin. Only assign slots you intend to settle.
+                  Shares are <span className="font-semibold text-status-warning">burned</span> when
+                  games begin. Only assign slots you intend to settle.
                 </p>
               </div>
             </CardContent>
@@ -567,7 +567,7 @@ export default function BoostsPage() {
                   >
                     <div
                       className={cn(
-                        "absolute right-0 top-0 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-white",
+                        "absolute right-0 top-0 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-content-inverse",
                         color,
                       )}
                     >
@@ -598,7 +598,7 @@ export default function BoostsPage() {
                               </div>
                               <div className="flex items-center gap-1.5 text-xs">
                                 <span className="terminal-label text-[10px]">Boosts</span>
-                                <span className="font-mono text-purple-400 font-medium">
+                                <span className="font-mono text-chart-4 font-medium">
                                   {boost.shareMultiplier}
                                 </span>
                               </div>
@@ -611,7 +611,7 @@ export default function BoostsPage() {
                                   ).toFixed(2)}
                                 </span>
                                 {boost.communityBoostCount > 0 && (
-                                  <span className="font-mono text-[10px] text-amber-300">
+                                  <span className="font-mono text-[10px] text-status-warning">
                                     ({tier}+{boost.communityBoostCount}x)
                                   </span>
                                 )}
@@ -791,7 +791,7 @@ export default function BoostsPage() {
                   {filteredCommunityBoosts.map((cb) => (
                     <div key={cb.playerId} className="p-3 flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 min-w-0 flex-1">
-                        <div className="terminal-avatar shrink-0 text-amber-300">
+                        <div className="terminal-avatar shrink-0 text-status-warning">
                           <span>
                             {cb.player.firstName[0]}
                             {cb.player.lastName[0]}
@@ -882,7 +882,7 @@ export default function BoostsPage() {
                           {format(new Date(payout.createdAt), "MMM d")}
                         </div>
                       </div>
-                      <span className="font-mono font-bold text-green-500 shrink-0">
+                      <span className="font-mono font-bold text-market-positive shrink-0">
                         +${payout.payoutAmount}
                       </span>
                     </div>
@@ -928,7 +928,7 @@ export default function BoostsPage() {
               </div>
 
               {preselectIneligibleMsg && (
-                <div className="mb-2 rounded-sm border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-400">
+                <div className="mb-2 rounded-compact border border-status-warning/30 bg-status-warning/10 px-3 py-2 text-xs text-status-warning">
                   {preselectIneligibleMsg}
                 </div>
               )}
@@ -939,7 +939,7 @@ export default function BoostsPage() {
                 ) : eligibleError ? (
                   <div className="py-8 text-center text-destructive text-sm">
                     <div className="font-medium mb-2">Server Error</div>
-                    <div className="mb-2 max-h-32 overflow-auto border border-red-500/20 bg-destructive/10 p-2 font-mono text-xs">
+                    <div className="mb-2 max-h-32 overflow-auto border border-market-negative/20 bg-destructive/10 p-2 font-mono text-xs">
                       {eligibleError.message}
                     </div>
                     <Button
@@ -985,7 +985,7 @@ export default function BoostsPage() {
                           key={ep.holdingId || ep.playerId}
                           className={cn(
                             "flex items-center justify-between gap-2 p-3",
-                            ep.gameStatus === "live" && "bg-yellow-500/5",
+                            ep.gameStatus === "live" && "bg-premium/5",
                             ep.gameStatus === "ended" && "bg-muted/20",
                           )}
                         >
@@ -1020,7 +1020,7 @@ export default function BoostsPage() {
                                 {hasStackedShare && (
                                   <>
                                     <span>|</span>
-                                    <span className="font-mono text-[11px] text-purple-300">
+                                    <span className="font-mono text-[11px] text-chart-4">
                                       MULTI {ep.bestShareMultiplier}/share
                                     </span>
                                   </>
@@ -1042,7 +1042,7 @@ export default function BoostsPage() {
                                   ep.gameStartTime && (
                                     <>
                                       <span>|</span>
-                                      <Badge className="h-4 border border-blue-500/30 bg-blue-500/10 px-1 font-mono text-[10px] uppercase text-blue-300">
+                                      <Badge className="h-4 border border-chart-2/30 bg-chart-2/10 px-1 font-mono text-[10px] uppercase text-chart-2">
                                         {format(new Date(ep.gameStartTime), "h:mm a")}
                                       </Badge>
                                     </>

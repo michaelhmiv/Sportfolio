@@ -303,6 +303,8 @@ async function mockDashboardScenario(
     game: Record<string, unknown>;
     detail: Record<string, unknown>;
     liveStats?: Record<string, unknown> | null;
+    liveStatsDelayMs?: number;
+    liveStatsStatus?: number;
   },
 ) {
   await mockAuth(page);
@@ -357,6 +359,17 @@ async function mockDashboardScenario(
   });
 
   await page.route(/.*\/api\/games\/[^/]+\/live-stats$/, async (route) => {
+    if (scenario.liveStatsDelayMs) {
+      await new Promise((resolve) => setTimeout(resolve, scenario.liveStatsDelayMs));
+    }
+    if (scenario.liveStatsStatus && scenario.liveStatsStatus >= 400) {
+      await route.fulfill({
+        status: scenario.liveStatsStatus,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "Live stats unavailable" }),
+      });
+      return;
+    }
     if (!scenario.liveStats) {
       await route.fulfill({
         status: 200,
@@ -427,7 +440,7 @@ test.describe("MLB game card", () => {
       status: "scheduled",
       awayTeam: "NYY",
       homeTeam: "BOS",
-      startTime: "2026-03-28T23:15:00.000Z",
+      startTime: "2026-12-28T23:15:00.000Z",
       venue: "Fenway Park",
       mlbEnrichment: { state: "available", message: null },
       mlbPregame,
@@ -446,7 +459,9 @@ test.describe("MLB game card", () => {
 
     const dialog = await openGameModal(page, "NYY@BOS");
 
-    await expect(dialog.getByText("Pregame box score")).toBeVisible();
+    await expect(
+      dialog.getByText("Pregame setup with leaders, boosts, and key availability."),
+    ).toBeVisible();
     await expect(dialog.getByText("Corbin Burnes").first()).toBeVisible();
     await expect(dialog.getByText("Gerrit Cole").first()).toBeVisible();
     await expect(dialog.getByText("Starting lineups")).toBeVisible();
@@ -560,12 +575,110 @@ test.describe("MLB game card", () => {
     const dialog = await openGameModal(page, "ATL@LAD");
 
     await expect(dialog.getByText("MLB Game State")).toBeVisible();
-    await expect(dialog.getByText("Scoring summary")).toBeVisible();
+    const linescore = dialog.getByTestId("mlb-linescore-panel");
+    await expect(linescore).toContainText("ATL");
+    await expect(linescore).toContainText("LAD");
+    await expect(linescore).toContainText("3");
+    await expect(linescore).toContainText("4");
+    await expect(dialog.getByText("Starting lineups")).toBeVisible();
+    const scoringToggle = dialog.getByRole("button", { name: /Scoring summary/ });
+    await expect(scoringToggle).toHaveAttribute("aria-expanded", "false");
+    await expect(
+      dialog.getByText("Austin Riley singles to left, scoring Ronald Acuna Jr."),
+    ).toBeHidden();
+    const liveHierarchy = await Promise.all(
+      [
+        dialog.getByText("MLB Game State"),
+        dialog.getByText("Your exposure"),
+        dialog.getByText("Starting lineups"),
+        scoringToggle,
+      ].map(async (locator) => (await locator.boundingBox())?.y ?? -1),
+    );
+    expect(liveHierarchy).toEqual([...liveHierarchy].sort((left, right) => left - right));
+    await scoringToggle.click();
+    await expect(scoringToggle).toHaveAttribute("aria-expanded", "true");
     await expect(
       dialog.getByText("Austin Riley singles to left, scoring Ronald Acuna Jr."),
     ).toBeVisible();
     await expect(dialog.getByText("Your exposure")).toBeVisible();
     await expect(dialog.getByText("$18.25").first()).toBeVisible();
+    await expect(dialog).toHaveScreenshot("mlb-live-modal.png", {
+      animations: "disabled",
+      maxDiffPixelRatio: 0.001,
+    });
+  });
+
+  test("uses live score fallback and honest exposure loading state without enrichment", async ({
+    page,
+  }) => {
+    const game = buildGame({
+      gameId: "mlb_live_fallback",
+      status: "inprogress",
+      awayTeam: "ATL",
+      homeTeam: "LAD",
+      awayScore: 3,
+      homeScore: 4,
+      startTime: "2026-03-27T20:15:00.000Z",
+      venue: "Dodger Stadium",
+      mlbEnrichment: { state: "available", message: null },
+      mlbPregame: buildMlbPregame({ gameState: null }),
+    });
+    await mockDashboardScenario(page, {
+      game,
+      detail: buildDetailResponse(game),
+      liveStatsDelayMs: 750,
+      liveStats: {
+        gameId: "mlb_live_fallback",
+        status: "inprogress",
+        homeTeam: "LAD",
+        awayTeam: "ATL",
+        homeScore: 4,
+        awayScore: 3,
+        homePlayers: [],
+        awayPlayers: [],
+        homeTopPerformers: [],
+        awayTopPerformers: [],
+        userEarnings: null,
+      },
+    });
+
+    await page.goto("/");
+    const dialog = await openGameModal(page, "ATL@LAD");
+    await expect(dialog.getByText("Loading live exposure…")).toBeVisible();
+    await expect(
+      dialog.getByText("No stacked or boosted earning lines are active in this matchup yet."),
+    ).toBeHidden();
+    await expect(dialog.getByTestId("mlb-score-fallback")).toContainText("ATL 3 • 4 LAD");
+    await expect(
+      dialog.getByText("No stacked or boosted earning lines are active in this matchup yet."),
+    ).toBeVisible();
+  });
+
+  test("shows an exposure error instead of a false empty live state", async ({ page }) => {
+    const game = buildGame({
+      gameId: "mlb_live_error",
+      status: "inprogress",
+      awayTeam: "ATL",
+      homeTeam: "LAD",
+      awayScore: 3,
+      homeScore: 4,
+      startTime: "2026-03-27T20:15:00.000Z",
+      venue: "Dodger Stadium",
+      mlbEnrichment: { state: "available", message: null },
+      mlbPregame: buildMlbPregame({ gameState: null }),
+    });
+    await mockDashboardScenario(page, {
+      game,
+      detail: buildDetailResponse(game),
+      liveStatsStatus: 503,
+    });
+
+    await page.goto("/");
+    const dialog = await openGameModal(page, "ATL@LAD");
+    await expect(dialog.getByText("Live exposure is temporarily unavailable.")).toBeVisible();
+    await expect(
+      dialog.getByText("No stacked or boosted earning lines are active in this matchup yet."),
+    ).toBeHidden();
   });
 
   test("shows final MLB recap content for completed games", async ({ page }) => {
@@ -666,10 +779,34 @@ test.describe("MLB game card", () => {
     const dialog = await openGameModal(page, "SD@SF");
 
     await expect(dialog.getByText("Final Linescore")).toBeVisible();
+    const finalLinescore = dialog.getByTestId("mlb-linescore-panel");
+    await expect(finalLinescore).toContainText("SD");
+    await expect(finalLinescore).toContainText("SF");
+    await expect(dialog.getByText("Starting lineups")).toBeVisible();
     await expect(dialog.getByText("Final Fantasy Leaders")).toBeVisible();
     await expect(dialog.getByText("Final Share Check")).toBeVisible();
+    const scoringToggle = dialog.getByRole("button", { name: /Scoring summary/ });
+    await expect(scoringToggle).toHaveAttribute("aria-expanded", "false");
+    await expect(dialog.getByText("Matt Chapman homers to left, scoring two.")).toBeHidden();
+    const finalHierarchy = await Promise.all(
+      [
+        dialog.getByText("Final Linescore"),
+        dialog.getByText("Your exposure"),
+        dialog.getByText("Starting lineups"),
+        scoringToggle,
+      ].map(async (locator) => (await locator.boundingBox())?.y ?? -1),
+    );
+    expect(finalHierarchy).toEqual([...finalHierarchy].sort((left, right) => left - right));
+    await scoringToggle.click();
+    await expect(scoringToggle).toHaveAttribute("aria-expanded", "true");
     await expect(dialog.getByText("Matt Chapman homers to left, scoring two.")).toBeVisible();
-    await expect(dialog.getByText("$24.10").first()).toBeVisible();
+    const finalExposure = dialog.getByText("Final estimated").locator("..");
+    await expect(finalExposure).toContainText("$24.10");
+    await expect(dialog.getByText("1 final")).toBeVisible();
+    await expect(dialog).toHaveScreenshot("mlb-final-modal.png", {
+      animations: "disabled",
+      maxDiffPixelRatio: 0.001,
+    });
   });
 
   test("shows basic game info without error card when game details are unavailable", async ({
@@ -703,9 +840,9 @@ test.describe("MLB game card", () => {
 
     const dialog = await openGameModal(page, "CHC@MIL");
 
-    // Should show the standard game modal content (leaders, team rosters)
+    // Should show the standard game modal and an honest final-data empty state.
     await expect(dialog.getByText("CHC @ MIL")).toBeVisible();
-    await expect(dialog.getByText("FP Leader")).toBeVisible();
+    await expect(dialog.getByText("Final MLB stat lines are not available yet.")).toBeVisible();
 
     // Should NOT show the old enrichment error card
     await expect(dialog.getByText("Game-center updates are unavailable.")).not.toBeVisible();

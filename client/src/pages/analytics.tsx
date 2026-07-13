@@ -279,7 +279,7 @@ const metricDescriptors: Record<
     icon: Activity,
     accent: "warning",
     chartColor: "hsl(var(--chart-4))",
-    surfaceClass: "border-yellow-500/30 bg-yellow-500/5 text-yellow-400",
+    surfaceClass: "border-premium/30 bg-premium/5 text-premium",
   },
   volume: {
     label: "Volume",
@@ -287,7 +287,7 @@ const metricDescriptors: Record<
     icon: DollarSign,
     accent: "success",
     chartColor: "hsl(var(--chart-2))",
-    surfaceClass: "border-emerald-500/30 bg-emerald-500/5 text-emerald-400",
+    surfaceClass: "border-market-positive/30 bg-market-positive/5 text-market-positive",
   },
   sharesMined: {
     label: "Shares Scouted",
@@ -295,7 +295,7 @@ const metricDescriptors: Record<
     icon: Sparkles,
     accent: "premium",
     chartColor: "hsl(var(--chart-5))",
-    surfaceClass: "border-amber-500/30 bg-amber-500/5 text-amber-300",
+    surfaceClass: "border-status-warning/30 bg-status-warning/5 text-status-warning",
   },
   sharesBurned: {
     label: "Shares Burned",
@@ -303,7 +303,7 @@ const metricDescriptors: Record<
     icon: Flame,
     accent: "destructive",
     chartColor: "hsl(var(--destructive))",
-    surfaceClass: "border-red-500/30 bg-red-500/5 text-red-400",
+    surfaceClass: "border-market-negative/30 bg-market-negative/5 text-market-negative",
   },
   totalShares: {
     label: "Total Shares",
@@ -311,7 +311,7 @@ const metricDescriptors: Record<
     icon: Coins,
     accent: "primary",
     chartColor: "hsl(var(--chart-3))",
-    surfaceClass: "border-sky-500/30 bg-sky-500/5 text-sky-300",
+    surfaceClass: "border-chart-3/30 bg-chart-3/5 text-chart-3",
   },
 };
 
@@ -350,8 +350,8 @@ function formatSignedPercent(value: number) {
 }
 
 function getChangeTone(value: number) {
-  if (value > 0) return "text-emerald-400";
-  if (value < 0) return "text-red-400";
+  if (value > 0) return "text-market-positive";
+  if (value < 0) return "text-market-negative";
   return "text-muted-foreground";
 }
 
@@ -500,7 +500,7 @@ function getShortName(name: string) {
 function MetricSparkline({ values, color }: { values: number[]; color: string }) {
   if (values.length < 2) {
     return (
-      <div className="h-14 rounded-sm border border-dashed border-border/60 bg-background/40" />
+      <div className="h-14 rounded-compact border border-dashed border-border/60 bg-background/40" />
     );
   }
 
@@ -583,7 +583,7 @@ function RelationshipRadarSvg({
 
   if (nodeIds.length === 0) {
     return (
-      <div className="flex h-[320px] items-center justify-center rounded-sm border border-dashed border-border/70 bg-background/40 text-sm text-muted-foreground">
+      <div className="flex h-[320px] items-center justify-center rounded-compact border border-dashed border-border/70 bg-background/40 text-sm text-muted-foreground">
         No relationship data for this sport.
       </div>
     );
@@ -611,7 +611,7 @@ function RelationshipRadarSvg({
   return (
     <svg
       viewBox={`0 0 ${size} ${size}`}
-      className="h-[320px] w-full rounded-sm border border-border/70 bg-background/40"
+      className="h-[320px] w-full rounded-compact border border-border/70 bg-background/40"
       data-testid="chart-relationship-radar"
     >
       <circle
@@ -998,7 +998,7 @@ export default function Analytics() {
       <div className="terminal-page p-3 sm:p-4">
         <div className="mx-auto flex min-h-[60vh] max-w-7xl items-center justify-center">
           <div className="space-y-3 text-center">
-            <div className="mx-auto h-12 w-12 animate-spin rounded-sm border-b-2 border-primary" />
+            <div className="mx-auto h-12 w-12 animate-spin rounded-compact border-b-2 border-primary" />
             <p className={ANALYTICS_COMPACT_TYPE.body}>Loading market command center...</p>
           </div>
         </div>
@@ -1035,7 +1035,7 @@ export default function Analytics() {
                 <div className="flex flex-shrink-0 items-center gap-2">
                   <Badge
                     variant="outline"
-                    className={`hidden rounded-sm border-border/70 bg-background/60 sm:inline-flex ${ANALYTICS_COMPACT_TYPE.chip}`}
+                    className={`hidden rounded-compact border-border/70 bg-background/60 sm:inline-flex ${ANALYTICS_COMPACT_TYPE.chip}`}
                   >
                     {selectedSport === ALL_SPORTS ? "All sports" : selectedSport}
                   </Badge>
@@ -1044,7 +1044,7 @@ export default function Analytics() {
                     onValueChange={(value) => setTimeRange(value as TimeRange)}
                   >
                     <SelectTrigger
-                      className="h-8 w-[100px] rounded-sm border-border/70 bg-background/70 font-mono text-[11px] sm:w-[116px]"
+                      className="h-8 w-[100px] rounded-compact border-border/70 bg-background/70 font-mono text-[11px] sm:w-[116px]"
                       data-testid="select-timerange"
                     >
                       <SelectValue />
@@ -1297,7 +1297,7 @@ export default function Analytics() {
                         </AreaChart>
                       </ChartContainer>
                     ) : (
-                      <div className="flex h-[320px] items-center justify-center rounded-sm border border-dashed border-border/70 bg-background/40 text-sm text-muted-foreground">
+                      <div className="flex h-[320px] items-center justify-center rounded-compact border border-dashed border-border/70 bg-background/40 text-sm text-muted-foreground">
                         No snapshot data available for this window.
                       </div>
                     )}
@@ -1312,7 +1312,7 @@ export default function Analytics() {
                     ].map((stat) => (
                       <div
                         key={stat.label}
-                        className="rounded-sm border border-border/70 bg-background/60 p-3"
+                        className="rounded-compact border border-border/70 bg-background/60 p-3"
                       >
                         <div className={ANALYTICS_COMPACT_TYPE.label}>{stat.label}</div>
                         <div className={`${ANALYTICS_COMPACT_TYPE.primaryValue} mt-1`}>
@@ -1332,7 +1332,7 @@ export default function Analytics() {
                       </div>
                     ))}
 
-                    <div className="rounded-sm border border-border/70 bg-background/60 p-3 sm:col-span-2 xl:col-span-1">
+                    <div className="rounded-compact border border-border/70 bg-background/60 p-3 sm:col-span-2 xl:col-span-1">
                       <div className={ANALYTICS_COMPACT_TYPE.label}>Market Context</div>
                       <div className="mt-2 grid gap-2">
                         <div className="flex items-center justify-between">
@@ -1347,7 +1347,7 @@ export default function Analytics() {
                         </div>
                         <div className="flex items-center justify-between">
                           <span className={ANALYTICS_COMPACT_TYPE.meta}>Most Active Team</span>
-                          <Badge variant="outline" className="rounded-sm">
+                          <Badge variant="outline" className="rounded-compact">
                             {analyticsData?.marketStats.mostActiveTeam ?? "N/A"}
                           </Badge>
                         </div>
@@ -1370,7 +1370,7 @@ export default function Analytics() {
                 <CardHeader className="space-y-2 p-4 pb-0 sm:p-5 sm:pb-0">
                   <div className={ANALYTICS_COMPACT_TYPE.label}>Sport Momentum Matrix</div>
                   <CardTitle className="flex items-center gap-2 text-base font-semibold sm:text-lg">
-                    <Layers3 className="h-4 w-4 text-emerald-400" />
+                    <Layers3 className="h-4 w-4 text-market-positive" />
                     Filter the room
                   </CardTitle>
                   <p className={ANALYTICS_COMPACT_TYPE.body}>
@@ -1413,14 +1413,14 @@ export default function Analytics() {
                           className="text-left"
                         >
                           <div
-                            className={`rounded-sm border p-3 transition-colors ${
+                            className={`rounded-compact border p-3 transition-colors ${
                               selectedSport === sport.sport
                                 ? "border-primary/60 bg-primary/8"
                                 : "border-border/70 bg-background/50 hover:bg-muted/30"
                             }`}
                           >
                             <div className="flex items-center justify-between gap-2">
-                              <Badge variant="outline" className="rounded-sm">
+                              <Badge variant="outline" className="rounded-compact">
                                 {sport.sport}
                               </Badge>
                               <span className={ANALYTICS_COMPACT_TYPE.meta}>
@@ -1461,7 +1461,7 @@ export default function Analytics() {
                         </button>
                       ))
                     ) : (
-                      <div className="rounded-sm border border-dashed border-border/70 bg-background/40 p-4 text-sm text-muted-foreground sm:col-span-2 xl:col-span-4">
+                      <div className="rounded-compact border border-dashed border-border/70 bg-background/40 p-4 text-sm text-muted-foreground sm:col-span-2 xl:col-span-4">
                         No sport breakdown data is available for the current selection.
                       </div>
                     )}
@@ -1492,7 +1492,7 @@ export default function Analytics() {
                       key={ranking.player.id}
                       type="button"
                       onClick={() => setSelectedSpotlightId(ranking.player.id)}
-                      className={`flex w-full items-center justify-between rounded-sm border p-2 text-left transition-colors ${
+                      className={`flex w-full items-center justify-between rounded-compact border p-2 text-left transition-colors ${
                         spotlightRanking?.player.id === ranking.player.id
                           ? "border-primary/60 bg-primary/8"
                           : "border-border/70 bg-background/40 hover:bg-muted/30"
@@ -1524,7 +1524,7 @@ export default function Analytics() {
                     </button>
                   ))
                 ) : (
-                  <div className="rounded-sm border border-dashed border-border/70 bg-background/40 p-4 text-sm text-muted-foreground">
+                  <div className="rounded-compact border border-dashed border-border/70 bg-background/40 p-4 text-sm text-muted-foreground">
                     No ranked players match the current sport filter.
                   </div>
                 )}
@@ -1546,24 +1546,24 @@ export default function Analytics() {
                 {spotlightRanking ? (
                   <>
                     <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant="outline" className="rounded-sm">
+                      <Badge variant="outline" className="rounded-compact">
                         #{spotlightRanking.rank}
                       </Badge>
                       {spotlightPlayer?.sport && (
-                        <Badge variant="outline" className="rounded-sm">
+                        <Badge variant="outline" className="rounded-compact">
                           {spotlightPlayer.sport}
                         </Badge>
                       )}
-                      <Badge variant="outline" className="rounded-sm">
+                      <Badge variant="outline" className="rounded-compact">
                         {spotlightRanking.player.team}
                       </Badge>
-                      <Badge variant="outline" className="rounded-sm">
+                      <Badge variant="outline" className="rounded-compact">
                         {spotlightRanking.player.position}
                       </Badge>
                     </div>
 
                     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                      <div className="rounded-sm border border-border/70 bg-background/50 p-3">
+                      <div className="rounded-compact border border-border/70 bg-background/50 p-3">
                         <div className={ANALYTICS_COMPACT_TYPE.label}>Price</div>
                         <div className={ANALYTICS_COMPACT_TYPE.primaryValue}>
                           {formatMetricValue(
@@ -1572,7 +1572,7 @@ export default function Analytics() {
                           )}
                         </div>
                       </div>
-                      <div className="rounded-sm border border-border/70 bg-background/50 p-3">
+                      <div className="rounded-compact border border-border/70 bg-background/50 p-3">
                         <div className={ANALYTICS_COMPACT_TYPE.label}>24h Volume</div>
                         <div className={ANALYTICS_COMPACT_TYPE.primaryValue}>
                           {formatMetricValue(
@@ -1582,13 +1582,13 @@ export default function Analytics() {
                           )}
                         </div>
                       </div>
-                      <div className="rounded-sm border border-border/70 bg-background/50 p-3">
+                      <div className="rounded-compact border border-border/70 bg-background/50 p-3">
                         <div className={ANALYTICS_COMPACT_TYPE.label}>Avg Fantasy</div>
                         <div className={ANALYTICS_COMPACT_TYPE.primaryValue}>
                           {spotlightRanking.avgFantasyPoints.toFixed(1)} FP
                         </div>
                       </div>
-                      <div className="rounded-sm border border-border/70 bg-background/50 p-3">
+                      <div className="rounded-compact border border-border/70 bg-background/50 p-3">
                         <div className={ANALYTICS_COMPACT_TYPE.label}>7d Change</div>
                         <div
                           className={`${ANALYTICS_COMPACT_TYPE.primaryValue} ${getChangeTone(
@@ -1601,7 +1601,7 @@ export default function Analytics() {
                     </div>
 
                     <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_260px]">
-                      <div className="rounded-sm border border-border/70 bg-background/50 p-3">
+                      <div className="rounded-compact border border-border/70 bg-background/50 p-3">
                         <div className={ANALYTICS_COMPACT_TYPE.label}>Why this player is hot</div>
                         <div className="mt-3 grid gap-2">
                           <div className="flex items-center justify-between">
@@ -1632,7 +1632,7 @@ export default function Analytics() {
                           </div>
                         </div>
                       </div>
-                      <div className="rounded-sm border border-border/70 bg-background/50 p-3">
+                      <div className="rounded-compact border border-border/70 bg-background/50 p-3">
                         <div className={ANALYTICS_COMPACT_TYPE.label}>Drill into market</div>
                         <div className="mt-2 space-y-2">
                           <p className={ANALYTICS_COMPACT_TYPE.body}>
@@ -1649,7 +1649,7 @@ export default function Analytics() {
                     </div>
                   </>
                 ) : (
-                  <div className="rounded-sm border border-dashed border-border/70 bg-background/40 p-4 text-sm text-muted-foreground">
+                  <div className="rounded-compact border border-dashed border-border/70 bg-background/40 p-4 text-sm text-muted-foreground">
                     Select a player from the spotlight rail to inspect their current market profile.
                   </div>
                 )}
@@ -1672,7 +1672,7 @@ export default function Analytics() {
                     <AccordionItem key={positionRanking.position} value={positionRanking.position}>
                       <AccordionTrigger className="py-3 hover:no-underline">
                         <div className="flex min-w-0 items-center gap-3">
-                          <Badge variant="outline" className="rounded-sm">
+                          <Badge variant="outline" className="rounded-compact">
                             {positionRanking.position}
                           </Badge>
                           <span className={ANALYTICS_COMPACT_TYPE.meta}>
@@ -1683,7 +1683,7 @@ export default function Analytics() {
                       <AccordionContent className="space-y-2">
                         {positionRanking.players.slice(0, 5).map((ranking) => (
                           <Link key={ranking.player.id} href={`/player/${ranking.player.id}`}>
-                            <div className="flex items-center justify-between rounded-sm border border-border/70 bg-background/40 p-2">
+                            <div className="flex items-center justify-between rounded-compact border border-border/70 bg-background/40 p-2">
                               <div className="min-w-0">
                                 <div className="flex items-center gap-2">
                                   <span className="font-mono text-xs text-muted-foreground">
@@ -1719,7 +1719,7 @@ export default function Analytics() {
                   ))}
                 </Accordion>
               ) : (
-                <div className="rounded-sm border border-dashed border-border/70 bg-background/40 p-4 text-sm text-muted-foreground">
+                <div className="rounded-compact border border-dashed border-border/70 bg-background/40 p-4 text-sm text-muted-foreground">
                   Position breakdowns are only available where ranked players map into the current
                   position groups.
                 </div>
@@ -1752,14 +1752,14 @@ export default function Analytics() {
                   </PopoverTrigger>
                   <PopoverContent
                     align="start"
-                    className="w-[320px] rounded-sm border-border/70 bg-card p-0"
+                    className="w-[320px] rounded-compact border-border/70 bg-card p-0"
                   >
                     <div className="border-b border-border/70 p-3">
                       <Input
                         value={compareSearchQuery}
                         onChange={(event) => setCompareSearchQuery(event.target.value)}
                         placeholder="Search players, teams, or positions"
-                        className="h-9 rounded-sm"
+                        className="h-9 rounded-compact"
                         data-testid="input-compare-search"
                       />
                     </div>
@@ -1776,7 +1776,7 @@ export default function Analytics() {
                             key={player.id}
                             type="button"
                             onClick={() => handlePlayerSelect(player.id)}
-                            className="flex w-full items-center justify-between rounded-sm border border-transparent px-2 py-2 text-left hover:border-border hover:bg-muted/30"
+                            className="flex w-full items-center justify-between rounded-compact border border-transparent px-2 py-2 text-left hover:border-border hover:bg-muted/30"
                             data-testid={`button-compare-result-${player.id}`}
                           >
                             <div className="min-w-0">
@@ -1827,7 +1827,7 @@ export default function Analytics() {
                     return (
                       <div
                         key={playerId}
-                        className="inline-flex items-center gap-2 rounded-sm border border-border/70 bg-background/50 px-2.5 py-1.5"
+                        className="inline-flex items-center gap-2 rounded-compact border border-border/70 bg-background/50 px-2.5 py-1.5"
                       >
                         <div className="min-w-0">
                           <div className="text-xs font-medium">
@@ -1846,7 +1846,7 @@ export default function Analytics() {
                           onClick={() =>
                             setSelectedPlayers(selectedPlayers.filter((id) => id !== playerId))
                           }
-                          className="rounded-sm p-1 text-muted-foreground hover:bg-muted/30 hover:text-foreground"
+                          className="rounded-compact p-1 text-muted-foreground hover:bg-muted/30 hover:text-foreground"
                           aria-label={`Remove ${player.firstName} ${player.lastName}`}
                         >
                           <X className="h-3.5 w-3.5" />
@@ -1855,7 +1855,7 @@ export default function Analytics() {
                     );
                   })
                 ) : (
-                  <div className="rounded-sm border border-dashed border-border/70 bg-background/40 p-3 text-sm text-muted-foreground">
+                  <div className="rounded-compact border border-dashed border-border/70 bg-background/40 p-3 text-sm text-muted-foreground">
                     Start with the recommended players above or search for a custom board.
                   </div>
                 )}
@@ -1865,7 +1865,7 @@ export default function Analytics() {
 
           {comparisonLoading && selectedPlayers.length > 0 ? (
             <div className="flex justify-center py-12">
-              <div className="h-10 w-10 animate-spin rounded-sm border-b-2 border-primary" />
+              <div className="h-10 w-10 animate-spin rounded-compact border-b-2 border-primary" />
             </div>
           ) : comparisonPlayers.length > 0 ? (
             <>
@@ -1965,7 +1965,7 @@ export default function Analytics() {
                     ].map((item) => (
                       <div
                         key={item.label}
-                        className="rounded-sm border border-border/70 bg-background/40 p-3"
+                        className="rounded-compact border border-border/70 bg-background/40 p-3"
                       >
                         <div className={ANALYTICS_COMPACT_TYPE.label}>{item.label}</div>
                         <div className="mt-1 text-sm font-medium">{item.player?.name ?? "N/A"}</div>
@@ -2048,7 +2048,7 @@ export default function Analytics() {
                       </LineChart>
                     </ChartContainer>
                   ) : (
-                    <div className="rounded-sm border border-dashed border-border/70 bg-background/40 p-4 text-sm text-muted-foreground">
+                    <div className="rounded-compact border border-dashed border-border/70 bg-background/40 p-4 text-sm text-muted-foreground">
                       No AMM history is available for the selected players and time range.
                     </div>
                   )}
@@ -2139,7 +2139,7 @@ export default function Analytics() {
           ) : (
             <Card variant="terminal">
               <CardContent className="p-6 text-center">
-                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-sm border border-border/70 bg-background/50">
+                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-compact border border-border/70 bg-background/50">
                   <GitCompare className="h-5 w-5 text-muted-foreground" />
                 </div>
                 <div className="text-base font-medium">No compare board yet</div>
@@ -2191,13 +2191,13 @@ export default function Analytics() {
                   {activeRelationshipPair ? (
                     <>
                       <div className="flex flex-wrap items-center gap-2">
-                        <Badge variant="outline" className="rounded-sm">
+                        <Badge variant="outline" className="rounded-compact">
                           {selectedSport === ALL_SPORTS ? "Cross-market" : selectedSport}
                         </Badge>
-                        <Badge variant="outline" className="rounded-sm">
+                        <Badge variant="outline" className="rounded-compact">
                           {(activeRelationshipPair.correlation * 100).toFixed(0)}% strength
                         </Badge>
-                        <Badge variant="outline" className="rounded-sm">
+                        <Badge variant="outline" className="rounded-compact">
                           {getRelationshipLabel(activeRelationshipPair.correlation)}
                         </Badge>
                       </div>
@@ -2207,7 +2207,7 @@ export default function Analytics() {
                           (player, index) => (
                             <div
                               key={player?.id || index}
-                              className="rounded-sm border border-border/70 bg-background/50 p-3"
+                              className="rounded-compact border border-border/70 bg-background/50 p-3"
                             >
                               <div className="text-sm font-medium">
                                 {player
@@ -2234,13 +2234,13 @@ export default function Analytics() {
                         )}
                       </div>
 
-                      <div className="rounded-sm border border-border/70 bg-background/50 p-3">
+                      <div className="rounded-compact border border-border/70 bg-background/50 p-3">
                         <div className={ANALYTICS_COMPACT_TYPE.label}>Interpretation</div>
                         <div className="mt-2 flex items-center gap-2 text-sm font-medium">
                           {activeRelationshipPair.correlation >= 0.6 ? (
-                            <TrendingUp className="h-4 w-4 text-emerald-400" />
+                            <TrendingUp className="h-4 w-4 text-market-positive" />
                           ) : (
-                            <TrendingDown className="h-4 w-4 text-yellow-400" />
+                            <TrendingDown className="h-4 w-4 text-premium" />
                           )}
                           {getRelationshipLabel(activeRelationshipPair.correlation)}
                         </div>
@@ -2251,7 +2251,7 @@ export default function Analytics() {
                       </div>
                     </>
                   ) : (
-                    <div className="rounded-sm border border-dashed border-border/70 bg-background/40 p-4 text-sm text-muted-foreground">
+                    <div className="rounded-compact border border-dashed border-border/70 bg-background/40 p-4 text-sm text-muted-foreground">
                       No relationship data is available for the current selection.
                     </div>
                   )}
@@ -2277,7 +2277,7 @@ export default function Analytics() {
                           type="button"
                           onClick={() => setSelectedRelationshipKey(pairKey)}
                           onMouseEnter={() => setSelectedRelationshipKey(pairKey)}
-                          className={`flex w-full items-center justify-between rounded-sm border p-2 text-left transition-colors ${
+                          className={`flex w-full items-center justify-between rounded-compact border p-2 text-left transition-colors ${
                             isActive
                               ? "border-primary/60 bg-primary/8"
                               : "border-border/70 bg-background/40 hover:bg-muted/30"
@@ -2301,7 +2301,7 @@ export default function Analytics() {
                       );
                     })
                   ) : (
-                    <div className="rounded-sm border border-dashed border-border/70 bg-background/40 p-4 text-sm text-muted-foreground">
+                    <div className="rounded-compact border border-dashed border-border/70 bg-background/40 p-4 text-sm text-muted-foreground">
                       No pairs are available for this sport filter.
                     </div>
                   )}

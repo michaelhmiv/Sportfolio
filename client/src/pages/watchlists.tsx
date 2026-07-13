@@ -265,7 +265,7 @@ export default function Watchlists() {
                   New List
                 </Button>
               </DialogTrigger>
-              <DialogContent className="rounded-sm border border-border bg-card">
+              <DialogContent className="rounded-panel border border-border bg-card">
                 <DialogHeader>
                   <DialogTitle className="terminal-heading text-base">
                     Create New Watchlist
@@ -335,8 +335,10 @@ export default function Watchlists() {
               >
                 <CardHeader className="p-4 pb-0">
                   <div className="flex items-center justify-between">
-                    <div
-                      className="flex items-center gap-3 flex-1 cursor-pointer"
+                    <button
+                      type="button"
+                      aria-expanded={expandedListId === list.id}
+                      className="flex min-h-11 flex-1 items-center gap-3 text-left"
                       onClick={() => setExpandedListId(expandedListId === list.id ? null : list.id)}
                     >
                       <div className="terminal-avatar">
@@ -361,16 +363,17 @@ export default function Watchlists() {
                         </div>
                       </div>
                       <ChevronRight
+                        aria-hidden="true"
                         className={`w-4 h-4 text-muted-foreground ml-auto transition-transform ${expandedListId === list.id ? "rotate-90" : ""}`}
                       />
-                    </div>
+                    </button>
 
                     <div className="flex items-center gap-1 ml-2">
                       <Button
                         variant="terminalOutline"
                         size="icon"
-                        className="h-8 w-8"
-                        title="Add player"
+                        className="h-11 w-11 sm:h-8 sm:w-8"
+                        aria-label="Add player"
                         onClick={(e) => {
                           e.stopPropagation();
                           openAddPlayerDialog(list.id);
@@ -381,7 +384,8 @@ export default function Watchlists() {
                       <Button
                         variant="terminalOutline"
                         size="icon"
-                        className="h-8 w-8"
+                        className="h-11 w-11 sm:h-8 sm:w-8"
+                        aria-label="Edit watchlist"
                         onClick={(e) => {
                           e.stopPropagation();
                           setEditingList(list);
@@ -395,7 +399,8 @@ export default function Watchlists() {
                         <Button
                           variant="terminalOutline"
                           size="icon"
-                          className="h-8 w-8 text-destructive hover:text-destructive"
+                          className="h-11 w-11 sm:h-8 sm:w-8 text-destructive hover:text-destructive"
+                          aria-label="Delete watchlist"
                           onClick={(e) => {
                             e.stopPropagation();
                             deleteMutation.mutate(list.id);
@@ -415,7 +420,7 @@ export default function Watchlists() {
                         No players in this watchlist.{" "}
                         <button
                           onClick={() => openAddPlayerDialog(list.id)}
-                          className="text-primary hover:underline"
+                          className="min-h-11 text-primary hover:underline"
                         >
                           Add players
                         </button>
@@ -452,7 +457,8 @@ export default function Watchlists() {
                             <Button
                               variant="terminalOutline"
                               size="icon"
-                              className="h-8 w-8"
+                              className="h-11 w-11 sm:h-8 sm:w-8"
+                              aria-label="Remove player"
                               onClick={() =>
                                 removePlayerMutation.mutate({
                                   playerId: player.id,
@@ -484,7 +490,7 @@ export default function Watchlists() {
 
         {/* Edit Dialog */}
         <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-          <DialogContent className="rounded-sm border border-border bg-card">
+          <DialogContent className="rounded-panel border border-border bg-card">
             <DialogHeader>
               <DialogTitle className="terminal-heading text-base">Edit Watchlist</DialogTitle>
             </DialogHeader>
@@ -521,7 +527,7 @@ export default function Watchlists() {
 
         {/* Add Player Dialog */}
         <Dialog open={addPlayerDialogOpen} onOpenChange={setAddPlayerDialogOpen}>
-          <DialogContent className="max-w-md rounded-sm border border-border bg-card">
+          <DialogContent className="max-w-md rounded-panel border border-border bg-card">
             <DialogHeader>
               <DialogTitle className="terminal-heading text-base">
                 Add Player to Watchlist
@@ -559,9 +565,10 @@ export default function Watchlists() {
                   </p>
                 ) : (
                   searchResults.map((player) => (
-                    <div
+                    <button
+                      type="button"
                       key={player.id}
-                      className="terminal-shell flex cursor-pointer items-center justify-between gap-2 p-2 transition-colors hover:border-primary/30"
+                      className="terminal-shell flex min-h-11 w-full items-center justify-between gap-2 p-2 text-left transition-colors hover:border-primary/30"
                       onClick={() => {
                         if (addToWatchlistId && !addPlayerMutation.isPending) {
                           addPlayerMutation.mutate({
@@ -580,12 +587,7 @@ export default function Watchlists() {
                         </div>
                         <div>
                           <div className="text-sm font-medium">
-                            <PlayerName
-                              playerId={player.id}
-                              firstName={player.firstName}
-                              lastName={player.lastName}
-                              className="text-sm"
-                            />
+                            {player.firstName} {player.lastName}
                           </div>
                           <div className="font-mono text-[11px] text-muted-foreground">
                             {player.team} | {player.position} | {player.sport}
@@ -593,7 +595,7 @@ export default function Watchlists() {
                         </div>
                       </div>
                       <Plus className="w-4 h-4 text-muted-foreground" />
-                    </div>
+                    </button>
                   ))
                 )}
               </div>
