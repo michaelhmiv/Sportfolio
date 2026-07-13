@@ -97,6 +97,11 @@ export default {
           scout: "hsl(var(--category-scout) / <alpha-value>)",
           whale: "hsl(var(--category-whale) / <alpha-value>)",
           "thin-pool": "hsl(var(--category-thin-pool) / <alpha-value>)",
+          boost: "hsl(var(--category-boost) / <alpha-value>)",
+          community: "hsl(var(--category-community) / <alpha-value>)",
+          momentum: "hsl(var(--category-momentum) / <alpha-value>)",
+          value: "hsl(var(--category-value) / <alpha-value>)",
+          pool: "hsl(var(--category-pool) / <alpha-value>)",
         },
         disabled: {
           DEFAULT: "hsl(var(--disabled) / <alpha-value>)",

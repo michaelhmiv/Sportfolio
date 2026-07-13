@@ -502,12 +502,21 @@ function MlbLifecycleCard({
 
   const isPregame = activeTab === "pre";
   const lifecycleLabel = isPregame ? "Pregame" : activeTab === "during" ? "Live" : "Final";
-  const scoreAvailable =
-    !isPregame &&
-    typeof liveStats?.awayScore === "number" &&
-    typeof liveStats?.homeScore === "number";
+  const awayScore =
+    typeof liveStats?.awayScore === "number"
+      ? liveStats.awayScore
+      : typeof game.awayScore === "number"
+        ? game.awayScore
+        : null;
+  const homeScore =
+    typeof liveStats?.homeScore === "number"
+      ? liveStats.homeScore
+      : typeof game.homeScore === "number"
+        ? game.homeScore
+        : null;
+  const scoreAvailable = !isPregame && awayScore !== null && homeScore !== null;
   const scoreLine = scoreAvailable
-    ? `${game.awayTeam} ${liveStats?.awayScore ?? 0} • ${liveStats?.homeScore ?? 0} ${game.homeTeam}`
+    ? `${game.awayTeam} ${awayScore} • ${homeScore} ${game.homeTeam}`
     : null;
   const scheduledOwnedPlayers = userContext?.ownedPlayers || [];
   const liveOwnedPlayers = liveStats?.userEarnings?.ownedPlayers || [];

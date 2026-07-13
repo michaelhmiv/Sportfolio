@@ -76,6 +76,11 @@ const requiredThemeTokens = [
   "category-scout",
   "category-whale",
   "category-thin-pool",
+  "category-boost",
+  "category-community",
+  "category-momentum",
+  "category-value",
+  "category-pool",
 ];
 
 const requiredGlobalTokens = [

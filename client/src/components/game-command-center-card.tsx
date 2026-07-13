@@ -339,7 +339,7 @@ export function GameCommandCenterCard({
                         size="sm"
                         variant={selectedTier ? "default" : "ghost"}
                         disabled={!selectedTier || assignBoostMutation.isPending}
-                        className={`h-6 px-2 text-[10px] ${selectedTier ? "bg-chart-4 hover:bg-chart-4" : ""}`}
+                        className={`h-6 px-2 text-[10px] ${selectedTier ? "bg-boost text-boost-foreground hover:bg-boost/90" : ""}`}
                         onClick={() => {
                           if (selectedTier) {
                             assignBoostMutation.mutate({

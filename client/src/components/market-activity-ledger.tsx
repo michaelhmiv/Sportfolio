@@ -143,15 +143,15 @@ function getSignalTone(signal: MarketActivitySignalTag | null) {
     case "whale":
       return "border-category-whale/30 bg-category-whale/10 text-category-whale";
     case "momentum":
-      return "border-boost/30 bg-boost/10 text-boost";
+      return "border-category-momentum/30 bg-category-momentum/10 text-category-momentum";
     case "value":
-      return "border-market-positive/30 bg-market-positive/10 text-market-positive";
+      return "border-category-value/30 bg-category-value/10 text-category-value";
     case "scout":
       return "border-category-scout/30 bg-category-scout/10 text-category-scout";
     case "boost":
-      return "border-premium/30 bg-premium/10 text-premium";
+      return "border-category-boost/30 bg-category-boost/10 text-category-boost";
     case "top_pool":
-      return "border-category-market/30 bg-category-market/10 text-category-market";
+      return "border-category-pool/30 bg-category-pool/10 text-category-pool";
     case "thin_pool":
       return "border-category-thin-pool/30 bg-category-thin-pool/10 text-category-thin-pool";
     case "live":
@@ -246,7 +246,7 @@ function ActivityRow({ activity }: { activity: MarketActivityFeedItem }) {
             {activity.isWhale ? (
               <Badge
                 variant="outline"
-                className="h-5 border-chart-2/30 bg-chart-2/10 px-1.5 text-[10px] uppercase text-chart-2"
+                className="h-5 border-category-whale/30 bg-category-whale/10 px-1.5 text-[10px] uppercase text-category-whale"
               >
                 Whale
               </Badge>

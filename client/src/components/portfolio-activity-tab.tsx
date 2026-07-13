@@ -102,11 +102,11 @@ function getCategoryTone(category: UserActivityCategory) {
     case "stacking":
       return "border-category-stacking/20 bg-category-stacking/10 text-category-stacking";
     case "boosts":
-      return "text-status-warning border-status-warning/20 bg-status-warning/10";
+      return "border-category-boost/20 bg-category-boost/10 text-category-boost";
     case "liquidity":
       return "border-category-liquidity/20 bg-category-liquidity/10 text-category-liquidity";
     case "community":
-      return "text-boost border-boost/20 bg-boost/10";
+      return "border-category-community/20 bg-category-community/10 text-category-community";
     case "premium":
       return "text-premium border-premium/20 bg-premium/10";
     case "payouts":

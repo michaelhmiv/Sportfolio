@@ -307,7 +307,7 @@ export function MarketMobilePlayerSheet({
                 </Badge>
               )}
               {showBoostContext && (
-                <Badge variant="outline" className="border-premium/30 bg-premium/10 text-premium">
+                <Badge variant="outline" className="border-boost/30 bg-boost/10 text-boost">
                   Boost Ready
                 </Badge>
               )}
@@ -412,10 +412,10 @@ export function MarketMobilePlayerSheet({
             </div>
 
             {activeAction === "boost" && showBoostContext && (
-              <div className="rounded-panel border border-premium/30 bg-premium/10 p-3">
+              <div className="rounded-panel border border-boost/30 bg-boost/10 p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <div className="text-xs font-semibold uppercase tracking-[0.12em] text-premium">
+                    <div className="text-xs font-semibold uppercase tracking-[0.12em] text-boost">
                       Tonight's Boost Window
                     </div>
                     <p className="mt-1 text-sm text-content">
@@ -426,7 +426,7 @@ export function MarketMobilePlayerSheet({
                         : " A regular share is ready to burn."}
                     </p>
                   </div>
-                  <SearchCheck className="mt-0.5 h-4 w-4 text-premium" />
+                  <SearchCheck className="mt-0.5 h-4 w-4 text-boost" />
                 </div>
                 <div className="mt-3 flex items-center justify-between font-mono text-[11px] uppercase tracking-[0.08em] text-content-muted">
                   <span>{formatGameStatus(player)}</span>
