@@ -1,4 +1,4 @@
-import { BarChart3, BookOpen, Crown, Home, Newspaper, TrendingUp, User, Zap } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import {
   Sidebar,
   SidebarContent,
@@ -9,56 +9,14 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { Badge } from "@/components/ui/badge";
-import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-import { useNotifications } from "@/lib/notification-context";
+import { APP_NAV_ITEMS, isAppRouteActive, type AppNavItem } from "@/lib/app-navigation";
 import { useNewsNotifications } from "@/lib/news-notification-context";
+import { useNotifications } from "@/lib/notification-context";
 import { preloadRoute } from "@/lib/route-preload";
-
-const menuItems = [
-  {
-    title: "Dashboard",
-    url: "/",
-    icon: Home,
-  },
-  {
-    title: "Player Pools",
-    url: "/pools",
-    icon: TrendingUp,
-  },
-  {
-    title: "Analytics",
-    url: "/analytics",
-    icon: BarChart3,
-  },
-  {
-    title: "Wiki",
-    url: "/wiki",
-    icon: BookOpen,
-  },
-  {
-    title: "Boosts",
-    url: "/boosts",
-    icon: Zap,
-  },
-  {
-    title: "Portfolio",
-    url: "/portfolio",
-    icon: User,
-  },
-  {
-    title: "Premium",
-    url: "/premium",
-    icon: Crown,
-  },
-  {
-    title: "News",
-    url: "/news",
-    icon: Newspaper,
-  },
-];
+import { cn } from "@/lib/utils";
+import { Link, useLocation } from "wouter";
 
 export function AppSidebar() {
   const [location] = useLocation();
@@ -68,14 +26,13 @@ export function AppSidebar() {
   const { unreadNewsCount, hasUnreadDigest } = useNewsNotifications();
   const isPremium = user?.isPremium || false;
 
-  const handleNavigation = (item: (typeof menuItems)[0], e: React.MouseEvent) => {
-    const requiresAuth = item.url === "/portfolio" || item.url === "/premium";
-    if (requiresAuth && !isAuthenticated) {
-      e.preventDefault();
+  const handleNavigation = (item: AppNavItem, event: React.MouseEvent) => {
+    if (item.requiresAuth && !isAuthenticated) {
+      event.preventDefault();
       toast({
         title: "Authentication Required",
         description:
-          item.url === "/premium"
+          item.id === "premium"
             ? "Please create an account or log in to access Premium features."
             : "Please create an account or log in to view your portfolio.",
         variant: "destructive",
@@ -85,64 +42,75 @@ export function AppSidebar() {
 
   return (
     <Sidebar
-      className={isPremium ? "shadow-[4px_0_20px_rgba(234,179,8,0.3)] border-r-yellow-500/50" : ""}
+      className={cn("border-r border-sidebar-border", isPremium && "border-r-premium/30")}
+      data-testid="app-sidebar"
     >
-      <SidebarContent className="p-4">
+      <SidebarContent className="p-3">
         <SidebarGroup>
-          <SidebarGroupLabel className="text-xs font-semibold tracking-wider uppercase mb-2">
-            Navigation
+          <SidebarGroupLabel className="mb-2 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-content-muted">
+            Exchange
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {menuItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild isActive={location === item.url}>
-                    <Link
-                      href={item.url}
-                      data-testid={`link-${item.title.toLowerCase()}`}
-                      onClick={(e) => handleNavigation(item, e)}
-                      onFocus={() => preloadRoute(item.url)}
-                      onMouseEnter={() => preloadRoute(item.url)}
-                      className={
-                        item.title === "Premium" ? "text-yellow-500 hover:text-yellow-400" : ""
-                      }
-                    >
-                      <item.icon
-                        className={item.title === "Premium" ? "w-5 h-5 text-yellow-500" : "w-5 h-5"}
-                      />
-                      <span>{item.title}</span>
-                      {item.title === "Portfolio" && unreadCount > 0 && (
-                        <Badge
-                          variant="default"
-                          className="ml-auto min-w-5 h-5 flex items-center justify-center px-1.5 text-xs"
-                          data-testid="badge-notification-count"
-                        >
-                          {unreadCount}
-                        </Badge>
-                      )}
-                      {item.title === "News" && (unreadNewsCount > 0 || hasUnreadDigest) && (
-                        <div className="ml-auto flex items-center gap-2">
-                          {hasUnreadDigest && (
-                            <span
-                              className="inline-block h-2.5 w-2.5 rounded-sm bg-red-500"
-                              data-testid="dot-digest-unread"
-                            />
-                          )}
-                          {unreadNewsCount > 0 && (
-                            <Badge
-                              variant="default"
-                              className="min-w-5 h-5 flex items-center justify-center px-1.5 text-xs bg-blue-600"
-                              data-testid="badge-news-count"
-                            >
-                              {unreadNewsCount}
-                            </Badge>
-                          )}
-                        </div>
-                      )}
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              {APP_NAV_ITEMS.map((item) => {
+                const isActive = isAppRouteActive(location, item.href);
+                return (
+                  <SidebarMenuItem key={item.id}>
+                    <SidebarMenuButton asChild isActive={isActive}>
+                      <Link
+                        href={item.href}
+                        aria-current={isActive ? "page" : undefined}
+                        data-testid={`link-${item.id}`}
+                        onClick={(event) => handleNavigation(item, event)}
+                        onFocus={() => preloadRoute(item.href)}
+                        onMouseEnter={() => preloadRoute(item.href)}
+                        className={cn(
+                          "relative min-h-10 rounded-control font-medium text-content-muted transition-colors duration-fast hover:bg-action-hover hover:text-content",
+                          isActive &&
+                            "bg-brand-subtle text-content before:absolute before:inset-y-2 before:left-0 before:w-0.5 before:rounded-pill before:bg-brand",
+                          item.tone === "premium" && "text-premium",
+                          item.tone === "boost" && "text-boost",
+                        )}
+                      >
+                        <item.icon className="h-[18px] w-[18px]" aria-hidden="true" />
+                        <span>{item.label}</span>
+
+                        {item.id === "portfolio" && unreadCount > 0 ? (
+                          <Badge
+                            variant="count"
+                            className="ml-auto"
+                            aria-label={`${unreadCount} unread portfolio notifications`}
+                            data-testid="badge-notification-count"
+                          >
+                            {unreadCount}
+                          </Badge>
+                        ) : null}
+
+                        {item.id === "news" && (unreadNewsCount > 0 || hasUnreadDigest) ? (
+                          <span className="ml-auto flex items-center gap-1.5">
+                            {hasUnreadDigest ? (
+                              <span
+                                className="h-2 w-2 rounded-circle bg-status-live"
+                                aria-label="Unread news digest"
+                                data-testid="dot-digest-unread"
+                              />
+                            ) : null}
+                            {unreadNewsCount > 0 ? (
+                              <Badge
+                                variant="info"
+                                aria-label={`${unreadNewsCount} unread news items`}
+                                data-testid="badge-news-count"
+                              >
+                                {unreadNewsCount}
+                              </Badge>
+                            ) : null}
+                          </span>
+                        ) : null}
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

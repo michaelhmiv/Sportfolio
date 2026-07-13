@@ -28,11 +28,11 @@ Working branch: `codex/ui-overhaul-foundation`
 
 ### Phase 3 — PR 2: shell, navigation, sport iconography, and global states
 
-- [ ] Define one shared route-label/icon map for desktop and mobile; keep mobile discoverability for secondary destinations
-- [ ] Add coherent local SVG sport icons for NBA/NFL/MLB/NHL/NASCAR/All Sports and replace functional emoji/watermarks
-- [ ] Normalize active, notification, live, boost, premium, offline, stale, and reconnecting indicators without color-only meaning or badge collisions
-- [ ] Refine header/sidebar/bottom nav/footer/global banners/Scout entry points, 44px+ touch targets, focus order, safe areas, bottom clearance, route preloading, haptics, reduced motion, and native status bar
-- [ ] Add responsive/navigation regression tests and matched screenshots; run full gates and prepare PR 2
+- [x] Define one shared route-label/icon map for desktop and mobile; keep mobile discoverability for secondary destinations
+- [x] Add coherent local SVG sport icons for NBA/NFL/MLB/NHL/NASCAR/All Sports and replace functional emoji/watermarks
+- [x] Normalize active, notification, live, boost, premium, offline, stale, and reconnecting indicators without color-only meaning or badge collisions
+- [x] Refine header/sidebar/bottom nav/footer/global banners/Scout entry points, 44px+ touch targets, focus order, safe areas, bottom clearance, route preloading, haptics, reduced motion, and native status bar
+- [x] Add responsive/navigation regression tests and matched screenshots; run full gates and prepare PR 2
 
 ### Phase 4 — PR 3: core sports-exchange surfaces
 
